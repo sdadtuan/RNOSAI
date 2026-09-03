@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420" role="img" aria-label="Minh hÍa danh sách Nhóm KPI">
+  <rect width="960" height="420" fill="#f8fafc"/>
+  <rect x="24" y="24" width="912" height="48" rx="8" fill="#fff" stroke="#e5e7eb"/>
+  <text x="40" y="54" font-family="system-ui,sans-serif" font-size="18" fill="#0f172a">Nhóm KPI</text>
+  <rect x="760" y="36" width="80" height="24" rx="4" fill="#e2e8f0"/>
+  <rect x="852" y="36" width="72" height="24" rx="4" fill="#17B6A4"/>
+  <g transform="translate(24 88)">
+    <rect width="210" height="72" rx="8" fill="#fff" stroke="#e5e7eb"/>
+    <rect x="230" width="210" height="72" rx="8" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <rect x="460" width="210" height="72" rx="8" fill="#fffbeb" stroke="#fde68a"/>
+    <rect x="690" width="222" height="72" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>
+  </g>
+  <rect x="24" y="180" width="912" height="216" rx="8" fill="#fff" stroke="#e5e7eb"/>
+  <text x="40" y="210" font-family="system-ui,sans-serif" font-size="12" fill="#64748b">B£ng: mã, ph¡m vi, h°Ûng o, tr¡ng thái, kéo îî s¯p thé tñ</text>
+</svg>

@@ -512,6 +512,12 @@
       "release",
       "view"
     ],
+    "crm_kpi_groups": [
+      "view",
+      "manage",
+      "configure",
+      "export"
+    ],
     "crm_kpi_records": [
       "approve",
       "claim",
@@ -1274,6 +1280,13 @@
       "description": "Cấu hình chỉ tiêu KPI."
     },
     {
+      "id": "crm_kpi_groups",
+      "label": "KPI — Nhóm KPI",
+      "group": "CRM — KPI",
+      "page": "/crm/kpi/groups",
+      "description": "Cấu hình danh mục Nhóm KPI — phân loại chỉ tiêu và phạm vi áp dụng."
+    },
+    {
       "id": "crm_kpi_records",
       "label": "KPI — Bản ghi theo kỳ",
       "group": "CRM — KPI",
@@ -1850,6 +1863,7 @@
     "crm_kpi_chart",
     "crm_kpi_metrics",
     "crm_kpi_metrics__btn_save",
+    "crm_kpi_groups",
     "crm_kpi_records",
     "crm_kpi_records__btn_save",
     "crm_leads",

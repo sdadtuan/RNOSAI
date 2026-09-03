@@ -108,13 +108,15 @@ export class KpiPgRepository implements OnModuleDestroy {
       if (dup.rows.length > 0) throw new Error('DUPLICATE_CODE');
     }
 
+    const groupId = await this.resolveMetricGroupId(body.group_id);
+
     const result = await this.db.query(
       `INSERT INTO crm_kpi_metrics (
          code, name, unit, description, sort_order, active,
-         created_at, updated_at, higher_is_better, warn_ratio
-       ) VALUES ($1, $2, $3, $4, $5, TRUE, NOW(), NOW(), $6, $7)
+         created_at, updated_at, higher_is_better, warn_ratio, group_id
+       ) VALUES ($1, $2, $3, $4, $5, TRUE, NOW(), NOW(), $6, $7, $8)
        RETURNING *`,
-      [code, name, unit, desc, sortOrder, hi, warnRatio],
+      [code, name, unit, desc, sortOrder, hi, warnRatio, groupId],
     );
     const metric = this.mapMetricRow(result.rows[0] as Record<string, unknown>);
     if (!metric) throw new Error('Failed to create KPI metric');
@@ -157,6 +159,9 @@ export class KpiPgRepository implements OnModuleDestroy {
         merged.warn_ratio = Number.isFinite(wr) ? wr : merged.warn_ratio;
       }
     }
+    if ('group_id' in body) {
+      merged.group_id = await this.resolveMetricGroupId(body.group_id);
+    }
 
     const code = String(merged.code ?? '').trim();
     if (code) {
@@ -171,7 +176,7 @@ export class KpiPgRepository implements OnModuleDestroy {
     await this.db.query(
       `UPDATE crm_kpi_metrics
        SET code = $2, name = $3, unit = $4, description = $5, sort_order = $6, active = $7,
-           higher_is_better = $8, warn_ratio = $9, updated_at = NOW()
+           higher_is_better = $8, warn_ratio = $9, group_id = $10, updated_at = NOW()
        WHERE id = $1`,
       [
         metricId,
@@ -183,6 +188,7 @@ export class KpiPgRepository implements OnModuleDestroy {
         Number(merged.active ?? 1) === 1,
         Number(merged.higher_is_better ?? 1) === 1,
         merged.warn_ratio != null ? Number(merged.warn_ratio) : null,
+        merged.group_id != null ? String(merged.group_id) : null,
       ],
     );
 
@@ -510,6 +516,19 @@ export class KpiPgRepository implements OnModuleDestroy {
     };
   }
 
+  private async resolveMetricGroupId(raw: string | null | undefined): Promise<string | null> {
+    const id = String(raw ?? '').trim();
+    if (!id) return null;
+    const result = await this.db.query(
+      `SELECT id FROM crm_kpi_groups
+       WHERE id = $1::uuid AND deleted_at IS NULL
+       LIMIT 1`,
+      [id],
+    );
+    if (!result.rows.length) throw new Error('KPI_GROUP_NOT_FOUND');
+    return id;
+  }
+
   private mapMetricRow(row: Record<string, unknown>): KpiMetricRow {
     return {
       id: Number(row.id),
@@ -521,6 +540,7 @@ export class KpiPgRepository implements OnModuleDestroy {
       active: row.active === true || row.active === 1 ? 1 : 0,
       higher_is_better: row.higher_is_better === true || row.higher_is_better === 1 ? 1 : 0,
       warn_ratio: row.warn_ratio != null ? Number(row.warn_ratio) : null,
+      group_id: row.group_id != null ? String(row.group_id) : null,
       created_at: String(row.created_at ?? ''),
       updated_at: String(row.updated_at ?? ''),
     };

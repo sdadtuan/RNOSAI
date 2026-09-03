@@ -11,6 +11,7 @@ import { GdkdEnterpriseModule } from './gdkd-enterprise/gdkd-enterprise.module';
 import { CrmLeadsLegacyModule } from './crm-leads-legacy/crm-leads-legacy.module';
 import { CrmStaffModule } from './crm-staff/crm-staff.module';
 import { KpiModule } from './kpi/kpi.module';
+import { KpiGroupsModule } from './kpi-groups/kpi-groups.module';
 import { SalesModule } from './sales/sales.module';
 import { CustomersModule } from './customers/customers.module';
 import { IntakeModule } from './intake/intake.module';
@@ -135,6 +136,7 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     TicketsModule,
     SalesModule,
     KpiModule,
+    KpiGroupsModule,
     CrmStaffModule,
     ProposalsModule,
     OrdersModule,

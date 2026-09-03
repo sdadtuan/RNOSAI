@@ -19,6 +19,7 @@
     "test:e2e:cskh-board": "playwright test e2e/cskh-board.spec.ts",
     "test:e2e:home-cskh-widgets": "playwright test e2e/home-cskh-widgets.spec.ts",
     "test:e2e:kpi": "playwright test e2e/kpi-rnos42.spec.ts",
+    "test:e2e:kpi-groups": "playwright test e2e/kpi-groups.spec.ts",
     "test:e2e:kpi-dashboard-v2": "playwright test e2e/kpi-dashboard-rnos43a.spec.ts",
     "test:e2e:financials-dashboard-v2": "playwright test e2e/financials-dashboard-rnos43b.spec.ts",
     "test:e2e:financials-intelligence": "playwright test e2e/financials-intelligence-rnos45.spec.ts",

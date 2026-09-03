@@ -31,6 +31,7 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 27 | **Lifecycle B2B — UI từng bước** | [27-lifecycle-ui-huong-dan-day-du.md](./27-lifecycle-ui-huong-dan-day-du.md) | AM, Solution, GDKD |
 | 28 | **CEO Command chatbox** | [28-ceo-command-chatbox.md](./28-ceo-command-chatbox.md) | GDKD, CEO |
 | 29 | **Marketing AI Planner — thực chiến (env, chức năng, triển khai GA)** | [29-marketing-ai-planner-thuc-chien.md](./29-marketing-ai-planner-thuc-chien.md) | SP, MKT Lead, IT, PO |
+| 31 | **Nhóm KPI — cấu hình phân loại chỉ tiêu** | [31-kpi-nhom-kpi.md](./31-kpi-nhom-kpi.md) | Admin, HR, MKT Lead, GDKD |
 | 12 | AI Revenue OS | [12-ai-revenue-os.md](./12-ai-revenue-os.md) | CSKH, Manager, GDKD |
 | 13 | HR & Payroll | [13-hr-payroll.md](./13-hr-payroll.md) | HR, NV |
 | 17 | **HR Employee File OS (P1–P8)** | [17-hr-employee-file-os.md](./17-hr-employee-file-os.md) | HR, NV, IT |

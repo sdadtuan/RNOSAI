@@ -3653,6 +3653,7 @@ export interface KpiMetricRow {
   unit: string;
   active: number;
   sort_order: number;
+  group_id?: string | null;
 }
 
 export interface KpiBoardSummary {
@@ -4700,6 +4701,7 @@ export async function createKpiMetric(
     unit?: string;
     higher_is_better?: boolean;
     warn_ratio?: number | null;
+    group_id?: string | null;
   },
 ): Promise<KpiMetricRow> {
   return crmFetch<KpiMetricRow>(token, '/api/crm/kpi/metrics', {

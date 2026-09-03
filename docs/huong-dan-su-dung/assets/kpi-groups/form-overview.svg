@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420" role="img" aria-label="Minh hÍa form Thêm Nhóm KPI">
+  <rect width="960" height="420" fill="#f8fafc"/>
+  <text x="24" y="36" font-family="system-ui,sans-serif" font-size="18" fill="#0f172a">Thêm Nhóm KPI</text>
+  <rect x="24" y="56" width="600" height="300" rx="8" fill="#fff" stroke="#e5e7eb"/>
+  <rect x="640" y="56" width="296" height="300" rx="8" fill="#f1f5f9" stroke="#e5e7eb"/>
+  <text x="40" y="88" font-family="system-ui,sans-serif" font-size="13" fill="#334155">1. Thông tin c¡ b£n · 2. Ph¡m vi · 3. o l°Ýng · 4. Nh­n diÇn</text>
+  <text x="656" y="88" font-family="system-ui,sans-serif" font-size="13" fill="#64748b">Sidebar: tóm t¯t + checklist</text>
+  <rect x="24" y="372" width="72" height="28" rx="6" fill="#e2e8f0"/>
+  <rect x="760" y="372" width="88" height="28" rx="6" fill="#e2e8f0"/>
+  <rect x="860" y="372" width="120" height="28" rx="6" fill="#17B6A4"/>
+</svg>

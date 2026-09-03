@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createKpiMetric } from '@/lib/api';
+import { fetchKpiGroups, type KpiGroupListItem } from '@/lib/kpi-groups-api';
 
 type KpiCreateMetricDrawerProps = {
   open: boolean;
@@ -19,10 +20,24 @@ export function KpiCreateMetricDrawer({
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [unit, setUnit] = useState('');
+  const [groupId, setGroupId] = useState('');
+  const [groups, setGroups] = useState<KpiGroupListItem[]>([]);
   const [higherIsBetter, setHigherIsBetter] = useState(true);
   const [warnRatio, setWarnRatio] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!open || !token) return;
+    void (async () => {
+      try {
+        const res = await fetchKpiGroups(token, { status: 'ACTIVE', page_size: 100, sort: 'display_order:asc' });
+        setGroups(res.data);
+      } catch {
+        setGroups([]);
+      }
+    })();
+  }, [open, token]);
 
   if (!open) return null;
 
@@ -44,10 +59,12 @@ export function KpiCreateMetricDrawer({
         unit: unit.trim() || undefined,
         higher_is_better: higherIsBetter,
         warn_ratio: wr == null || Number.isFinite(wr) ? (wr ?? null) : null,
+        ...(groupId ? { group_id: groupId } : {}),
       });
       setName('');
       setCode('');
       setUnit('');
+      setGroupId('');
       setHigherIsBetter(true);
       setWarnRatio('');
       onCreated();
@@ -93,6 +110,24 @@ export function KpiCreateMetricDrawer({
               disabled={busy}
             />
           </label>
+          {groups.length ? (
+            <label>
+              Nhóm KPI
+              <select
+                className="kpi-select"
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                disabled={busy}
+              >
+                <option value="">— Không chọn —</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name} ({g.code})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             Đơn vị
             <input
