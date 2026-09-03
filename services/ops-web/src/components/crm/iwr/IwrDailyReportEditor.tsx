@@ -1,0 +1,1062 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import {
+  IWR_STATUS_LABELS,
+  addIwrItem,
+  deleteIwrItem,
+  fetchIwrDirectory,
+  fetchIwrItems,
+  fetchIwrSuggest,
+  patchIwrItem,
+  promoteIwrBlockerToRisk,
+  replyAllIwrReport,
+  uploadIwrFile,
+  type IwrCommentRow,
+  type IwrItemRow,
+  type IwrReportDetail,
+  type IwrReportStatus,
+  type IwrStaffNode,
+} from '@/lib/crm/iwr-api';
+import { iwrAvatarTone, iwrInitials } from './iwr-format';
+import {
+  clampProgress,
+  formatViTime,
+  formatViYmd,
+  isOverdueYmd,
+  iwrItemText,
+  parseIwrItemMeta,
+  serializeIwrItemMeta,
+  type IwrItemMeta,
+  type IwrItemPriority,
+  type IwrItemSeverity,
+} from './iwr-item-meta';
+
+type IwrDailyReportEditorProps = {
+  token: string;
+  report: IwrReportDetail;
+  canWrite: boolean;
+  canReview: boolean;
+  canBcc?: boolean;
+  onPatch: (body: Record<string, unknown>) => Promise<void>;
+  onSubmit: (body: {
+    late_reason?: string;
+    cc_staff_ids?: number[];
+    bcc_staff_ids?: number[];
+  }) => Promise<void>;
+  onWithdraw: () => Promise<void>;
+  onAck: () => Promise<void>;
+  onRequestChanges: (body: { body_text: string; section_key?: string }) => Promise<void>;
+  onAddComment: (body: { body_text: string; section_key?: string }) => Promise<void>;
+  onReplyAll?: (body: { body_text: string }) => Promise<void>;
+  comments: IwrCommentRow[];
+};
+
+const IMMUTABLE = new Set<IwrReportStatus>(['acknowledged', 'waived', 'archived']);
+const EDITABLE = new Set<IwrReportStatus>(['draft', 'changes_requested']);
+const SUPPORT_ROLES = ['Account Manager', 'Team Lead', 'PM', 'Khác'];
+
+function recipientRole(kind: 'to' | 'cc' | 'bcc'): string {
+  if (kind === 'to') return 'QLTT';
+  if (kind === 'bcc') return 'Bcc';
+  return 'Đồng nghiệp';
+}
+
+function evidenceLabel(item: IwrItemRow, meta: IwrItemMeta): string {
+  if (meta.evidence_name) return meta.evidence_name;
+  const url = item.evidence_url ?? '';
+  if (!url) return '';
+  try {
+    return decodeURIComponent(url.split('/').pop() || url);
+  } catch {
+    return url;
+  }
+}
+
+function evidenceHref(item: IwrItemRow): string | null {
+  const url = item.evidence_url ?? '';
+  if (/^https?:\/\//i.test(url)) return url;
+  return null;
+}
+
+export function IwrDailyReportEditor({
+  token,
+  report,
+  canWrite,
+  canReview,
+  canBcc = false,
+  onPatch,
+  onSubmit,
+  onWithdraw,
+  onAck,
+  onRequestChanges,
+  onAddComment,
+  onReplyAll,
+  comments,
+}: IwrDailyReportEditorProps) {
+  const isAuthor = report.viewer_is_author !== false;
+  const isReviewer = Boolean(report.viewer_is_reviewer);
+  const readOnly = IMMUTABLE.has(report.status) || !isAuthor || !EDITABLE.has(report.status);
+  const toRecipient = report.recipients.find((r) => r.kind === 'to');
+  const ccRecipients = report.recipients.filter((r) => r.kind === 'cc');
+  const [impliedTo, setImpliedTo] = useState<IwrStaffNode | null>(null);
+
+  const [items, setItems] = useState<IwrItemRow[]>(report.items ?? []);
+  const [suggestHits, setSuggestHits] = useState<{ kind: string; id: string; label: string }[]>([]);
+  const [title, setTitle] = useState(() => {
+    if (/^Báo cáo ngày \d{4}-\d{2}-\d{2}$/.test(report.title) && report.author_name) {
+      return `Báo cáo ngày — ${report.author_name} — ${formatViYmd(report.period_start)}`;
+    }
+    return report.title;
+  });
+  const [ccIds, setCcIds] = useState<number[]>(ccRecipients.map((r) => r.staff_id));
+  const [ccNames, setCcNames] = useState<Record<number, string>>(
+    Object.fromEntries(ccRecipients.map((r) => [r.staff_id, r.staff_name ?? `#${r.staff_id}`])),
+  );
+  const [bccIds, setBccIds] = useState<number[]>(
+    report.recipients.filter((r) => r.kind === 'bcc').map((r) => r.staff_id),
+  );
+  const [ccQuery, setCcQuery] = useState('');
+  const [bccQuery, setBccQuery] = useState('');
+  const [ccOptions, setCcOptions] = useState<IwrStaffNode[]>([]);
+  const [bccOptions, setBccOptions] = useState<IwrStaffNode[]>([]);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [busy, setBusy] = useState(false);
+  const [lateOpen, setLateOpen] = useState(false);
+  const [lateReason, setLateReason] = useState('');
+  const [changeOpen, setChangeOpen] = useState(false);
+  const [changeBody, setChangeBody] = useState('');
+  const [commentBody, setCommentBody] = useState('');
+  const [formError, setFormError] = useState('');
+  const itemTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    void fetchIwrItems(token, report.id)
+      .then((out) => setItems(out.items ?? []))
+      .catch(() => undefined);
+    void fetchIwrSuggest(token, report.id)
+      .then((out) => setSuggestHits(out.items ?? []))
+      .catch(() => undefined);
+    void fetchIwrDirectory(token, '', 'cc')
+      .then((out) => setCcOptions(out.items ?? []))
+      .catch(() => undefined);
+    void fetchIwrDirectory(token, '', 'to')
+      .then((out) => setImpliedTo(out.items?.[0] ?? null))
+      .catch(() => undefined);
+  }, [token, report.id]);
+
+  useEffect(() => {
+    setTitle(report.title);
+    setCcIds(report.recipients.filter((r) => r.kind === 'cc').map((r) => r.staff_id));
+    setBccIds(report.recipients.filter((r) => r.kind === 'bcc').map((r) => r.staff_id));
+    setCcNames((prev) => ({
+      ...prev,
+      ...Object.fromEntries(
+        report.recipients
+          .filter((r) => r.kind === 'cc')
+          .map((r) => [r.staff_id, r.staff_name ?? `#${r.staff_id}`]),
+      ),
+    }));
+    if (report.items?.length) setItems(report.items);
+  }, [report]);
+
+  const doneItems = items.filter((it) => it.section_key === 'done');
+  const wipItems = items.filter((it) => it.section_key === 'wip');
+  const nextItems = items.filter((it) => it.section_key === 'next');
+  const blockedItems = items.filter((it) => it.section_key === 'blocked');
+  const overdueCount = items.filter((it) => {
+    const meta = parseIwrItemMeta(it.body);
+    return it.section_key !== 'next' && isOverdueYmd(meta.eta ?? meta.due) && clampProgress(meta.progress) < 100;
+  }).length;
+
+  const buildSections = useCallback(
+    (rows: IwrItemRow[]) => {
+      const of = (key: string) => rows.filter((it) => it.section_key === key);
+      const line = (it: IwrItemRow) => {
+        const meta = parseIwrItemMeta(it.body);
+        return [it.title, meta.project, iwrItemText(meta)].filter(Boolean).join(' — ');
+      };
+      const blocked = of('blocked').map((it) => {
+        const meta = parseIwrItemMeta(it.body);
+        return {
+          title: it.title,
+          description: iwrItemText(meta),
+          severity: meta.severity ?? 'medium',
+        };
+      });
+      return {
+        ...(report.sections_json ?? {}),
+        done: { body: of('done').map(line).join('\n'), items: [] },
+        wip: { body: of('wip').map(line).join('\n'), items: [] },
+        next: { body: of('next').map(line).join('\n'), items: [] },
+        blocked: { body: blocked.map((b) => b.title).join('\n'), items: blocked },
+      };
+    },
+    [report.sections_json],
+  );
+
+  const persistDraft = useCallback(
+    async (nextTitle = title, nextCc = ccIds, nextItems = items) => {
+      if (readOnly) return;
+      setSaveState('saving');
+      try {
+        await onPatch({
+          title: nextTitle.trim() || report.title,
+          sections_json: buildSections(nextItems),
+          cc_staff_ids: nextCc,
+        });
+        setSavedAt(new Date());
+        setSaveState('saved');
+      } catch (err) {
+        setSaveState('error');
+        setFormError(err instanceof Error ? err.message : 'Lưu nháp thất bại');
+      }
+    },
+    [readOnly, onPatch, title, ccIds, items, report.title, buildSections],
+  );
+
+  const scheduleDraft = useCallback(
+    (nextTitle = title, nextCc = ccIds, nextItems = items) => {
+      if (readOnly) return;
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+      draftTimer.current = setTimeout(() => {
+        void persistDraft(nextTitle, nextCc, nextItems);
+      }, 700);
+    },
+    [readOnly, persistDraft, title, ccIds, items],
+  );
+
+  const scheduleItemPatch = useCallback(
+    (row: IwrItemRow) => {
+      if (readOnly) return;
+      if (itemTimers.current[row.id]) clearTimeout(itemTimers.current[row.id]);
+      itemTimers.current[row.id] = setTimeout(() => {
+        void patchIwrItem(token, report.id, row.id, {
+          title: row.title,
+          body: row.body,
+          section_key: row.section_key,
+          evidence_url: row.evidence_url,
+          ref_kind: row.ref_kind,
+          ref_id: row.ref_id,
+          sort_order: row.sort_order,
+        })
+          .then(() => {
+            setSavedAt(new Date());
+            setSaveState('saved');
+          })
+          .catch((err) => {
+            setSaveState('error');
+            setFormError(err instanceof Error ? err.message : 'Lưu dòng thất bại');
+          });
+      }, 450);
+    },
+    [readOnly, token, report.id],
+  );
+
+  function replaceItem(next: IwrItemRow, persist = true) {
+    setItems((prev) => {
+      const rows = prev.map((it) => (it.id === next.id ? next : it));
+      if (persist) scheduleDraft(title, ccIds, rows);
+      return rows;
+    });
+    if (persist) scheduleItemPatch(next);
+  }
+
+  function updateMeta(row: IwrItemRow, patch: Partial<IwrItemMeta>, extra?: Partial<IwrItemRow>) {
+    const meta = { ...parseIwrItemMeta(row.body), ...patch };
+    replaceItem({ ...row, ...extra, body: serializeIwrItemMeta(meta) });
+  }
+
+  async function createItem(section: 'done' | 'wip' | 'next' | 'blocked', seed?: Partial<IwrItemRow>) {
+    if (readOnly) return;
+    setBusy(true);
+    setFormError('');
+    try {
+      const defaults: Record<string, IwrItemMeta> = {
+        done: { project: '', progress: 100 },
+        wip: { project: '', progress: 40, eta: '' },
+        next: { project: '', priority: 'medium' },
+        blocked: { severity: 'high', support: 'Account Manager', due: '', note: '' },
+      };
+      const row = await addIwrItem(token, report.id, {
+        section_key: section,
+        title: seed?.title ?? (section === 'blocked' ? 'Blocker mới' : 'Công việc mới'),
+        body: seed?.body ?? serializeIwrItemMeta(defaults[section]),
+        ref_kind: seed?.ref_kind ?? 'none',
+        ref_id: seed?.ref_id ?? null,
+        evidence_url: seed?.evidence_url ?? null,
+        sort_order: items.filter((it) => it.section_key === section).length,
+      });
+      setItems((prev) => {
+        const rows = [...prev, row];
+        scheduleDraft(title, ccIds, rows);
+        return rows;
+      });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Thêm dòng thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeItem(id: string) {
+    if (readOnly) return;
+    try {
+      await deleteIwrItem(token, report.id, id);
+      setItems((prev) => {
+        const rows = prev.filter((it) => it.id !== id);
+        scheduleDraft(title, ccIds, rows);
+        return rows;
+      });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Xoá dòng thất bại');
+    }
+  }
+
+  async function moveSection(row: IwrItemRow, section: IwrItemRow['section_key']) {
+    const next = { ...row, section_key: section };
+    replaceItem(next);
+  }
+
+  async function attachEvidence(row: IwrItemRow, file: File) {
+    setBusy(true);
+    setFormError('');
+    try {
+      const uploaded = await uploadIwrFile(token, report.id, file);
+      updateMeta(row, { evidence_name: uploaded.file_name }, { evidence_url: uploaded.file_name });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Tải file thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSubmit() {
+    const due = new Date(report.due_at).getTime();
+    if (Date.now() > due && !lateReason.trim()) {
+      setLateOpen(true);
+      return;
+    }
+    setBusy(true);
+    setFormError('');
+    try {
+      await persistDraft();
+      await onSubmit({
+        late_reason: lateReason.trim() || undefined,
+        cc_staff_ids: ccIds,
+        bcc_staff_ids: canBcc ? bccIds : undefined,
+      });
+      setLateOpen(false);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Gửi báo cáo thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const statusLabel =
+    report.status === 'draft' ? 'Bản nháp' : IWR_STATUS_LABELS[report.status] ?? report.status;
+  const savedLabel =
+    saveState === 'saving'
+      ? 'Đang lưu…'
+      : savedAt
+        ? `Đã lưu ${formatViTime(savedAt)}`
+        : report.first_viewed_at
+          ? 'Đã xem'
+          : 'Chưa lưu trên máy';
+
+  const primaryBlocker = blockedItems[0] ?? null;
+  const primaryMeta = primaryBlocker ? parseIwrItemMeta(primaryBlocker.body) : null;
+
+  return (
+    <div className="iwr-daily">
+      <div className="iwr-crumb">
+        <Link href="/crm/internal-reports">Báo cáo công việc</Link>
+        <span>/</span>
+        <Link href="/crm/internal-reports?kind=daily">Báo cáo ngày</Link>
+      </div>
+
+      <div className="iwr-daily__head">
+        <div>
+          <h1 className="iwr-h1">
+            Báo cáo ngày — {formatViYmd(report.period_start) || report.period_start}
+            <span className={`iwr-chip iwr-chip--status iwr-chip--${report.status}`}>{statusLabel}</span>
+          </h1>
+          <p className="iwr-saved">
+            <span className="iwr-saved__ok" aria-hidden>
+              ✓
+            </span>
+            {savedLabel}
+            {report.first_viewed_at ? (
+              <span data-testid="iwr-viewed" className="iwr-saved__viewed">
+                Đã xem
+              </span>
+            ) : null}
+          </p>
+        </div>
+        <div className="iwr-pagehead__actions">
+          {isAuthor && canWrite && EDITABLE.has(report.status) && (
+            <>
+              <button
+                type="button"
+                className="iwr-btn"
+                disabled={busy || readOnly}
+                onClick={() => void persistDraft()}
+              >
+                Lưu nháp
+              </button>
+              <button
+                type="button"
+                className="iwr-btn iwr-btn--primary"
+                aria-label="Nộp"
+                disabled={busy}
+                onClick={() => void handleSubmit()}
+              >
+                Gửi báo cáo
+              </button>
+            </>
+          )}
+          {isAuthor && (report.status === 'submitted' || report.status === 'supplemented') && canWrite && (
+            <button
+              type="button"
+              className="iwr-btn"
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                void onWithdraw().finally(() => setBusy(false));
+              }}
+            >
+              Rút
+            </button>
+          )}
+          {canReview && isReviewer && (report.status === 'submitted' || report.status === 'supplemented') && (
+            <>
+              <button
+                type="button"
+                className="iwr-btn iwr-btn--primary"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  void onAck().finally(() => setBusy(false));
+                }}
+              >
+                Xác nhận
+              </button>
+              <button type="button" className="iwr-btn" onClick={() => setChangeOpen(true)}>
+                Yêu cầu bổ sung
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="iwr-notice">Nội bộ — không gửi khách trừ khi đã duyệt ngoại</div>
+      {formError && <p className="iwr-err">{formError}</p>}
+
+      <section className="iwr-mail">
+        <div className="iwr-mail__cell">
+          <div className="iwr-mail__k">Đến</div>
+          <div className="iwr-person">
+            <span className={iwrAvatarTone(toRecipient?.staff_id ?? impliedTo?.id ?? 0)}>
+              {iwrInitials(toRecipient?.staff_name ?? impliedTo?.name)}
+            </span>
+            <div>
+              <strong>{toRecipient?.staff_name ?? impliedTo?.name ?? '—'}</strong>
+              <div className="iwr-muted">{recipientRole('to')}</div>
+            </div>
+          </div>
+        </div>
+        <div className="iwr-mail__cell">
+          <div className="iwr-mail__k">Cc</div>
+          <div className="iwr-mail__people">
+            {ccIds.map((id) => (
+              <span key={id} className="iwr-mail__chip">
+                <span className={iwrAvatarTone(id)}>{iwrInitials(ccNames[id])}</span>
+                {ccNames[id] ?? `#${id}`}
+                {!readOnly && (
+                  <button
+                    type="button"
+                    className="iwr-iconbtn"
+                    aria-label={`Bỏ Cc ${ccNames[id] ?? id}`}
+                    onClick={() => {
+                      const next = ccIds.filter((x) => x !== id);
+                      setCcIds(next);
+                      scheduleDraft(title, next, items);
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
+            {!readOnly && (
+              <div className="iwr-mail__search">
+                <input
+                  className="iwr-input"
+                  placeholder="Thêm Cc…"
+                  value={ccQuery}
+                  onChange={(e) => {
+                    setCcQuery(e.target.value);
+                    void fetchIwrDirectory(token, e.target.value, 'cc')
+                      .then((out) => setCcOptions(out.items ?? []))
+                      .catch(() => undefined);
+                  }}
+                />
+                {ccQuery && ccOptions.length > 0 && (
+                  <ul className="iwr-mail__hits">
+                    {ccOptions.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = ccIds.includes(p.id) ? ccIds : [...ccIds, p.id];
+                            setCcIds(next);
+                            setCcNames((prev) => ({ ...prev, [p.id]: p.name }));
+                            setCcQuery('');
+                            scheduleDraft(title, next, items);
+                          }}
+                        >
+                          {p.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="iwr-mail__cell iwr-mail__cell--grow">
+          <div className="iwr-mail__k">Chủ đề</div>
+          <input
+            className="iwr-input"
+            disabled={readOnly}
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              scheduleDraft(e.target.value, ccIds, items);
+            }}
+          />
+        </div>
+        <div className="iwr-mail__privacy">
+          <span aria-hidden>🛡</span>
+          Chỉ người nhận có quyền mới xem được
+        </div>
+        {canBcc && !readOnly && isAuthor && (
+          <div className="iwr-mail__cell iwr-mail__cell--full" data-testid="iwr-bcc">
+            <div className="iwr-mail__k">Bcc</div>
+            <input
+              className="iwr-input"
+              placeholder="Tìm Bcc..."
+              value={bccQuery}
+              onChange={(e) => {
+                setBccQuery(e.target.value);
+                void fetchIwrDirectory(token, e.target.value, 'bcc')
+                  .then((out) => setBccOptions(out.items ?? []))
+                  .catch(() => undefined);
+              }}
+            />
+            <div className="iwr-mail__people" style={{ marginTop: 8 }}>
+              {bccOptions.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`iwr-btn${bccIds.includes(p.id) ? ' iwr-btn--primary' : ''}`}
+                  onClick={() =>
+                    setBccIds((prev) => (prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
+                  }
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {suggestHits.length > 0 && !readOnly && (
+        <div className="iwr-card iwr-daily__suggest" data-testid="iwr-suggest">
+          <div className="iwr-mail__k">Gợi ý hôm nay</div>
+          <div className="iwr-suggest-row">
+            {suggestHits.map((hit) => (
+              <button
+                key={`${hit.kind}-${hit.id}`}
+                type="button"
+                className="iwr-btn"
+                onClick={() =>
+                  void createItem('done', {
+                    title: hit.label,
+                    ref_kind: hit.kind as IwrItemRow['ref_kind'],
+                    ref_id: hit.id,
+                    body: serializeIwrItemMeta({ project: '', progress: 100 }),
+                  })
+                }
+              >
+                + {hit.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="iwr-daily__grid">
+        <div className="iwr-daily__main">
+          <section className="iwr-card">
+            <h2>Kết quả đã hoàn thành</h2>
+            {doneItems.map((it, idx) => {
+              const meta = parseIwrItemMeta(it.body);
+              const file = evidenceLabel(it, meta);
+              const href = evidenceHref(it);
+              return (
+                <article key={it.id} className="iwr-task">
+                  <label className="iwr-check">
+                    <input
+                      type="checkbox"
+                      checked
+                      disabled={readOnly}
+                      onChange={() => void moveSection(it, 'wip')}
+                    />
+                    <span>
+                      {idx + 1}.{' '}
+                      <input
+                        className="iwr-ghost"
+                        disabled={readOnly}
+                        value={it.title}
+                        onChange={(e) => replaceItem({ ...it, title: e.target.value })}
+                      />
+                    </span>
+                  </label>
+                  <div className="iwr-task__meta">
+                    <input
+                      className="iwr-tag"
+                      disabled={readOnly}
+                      placeholder="Dự án"
+                      value={meta.project ?? ''}
+                      onChange={(e) => updateMeta(it, { project: e.target.value })}
+                    />
+                    <ProgressField
+                      value={clampProgress(meta.progress ?? 100)}
+                      disabled={readOnly}
+                      onChange={(n) => updateMeta(it, { progress: n })}
+                    />
+                    <div className="iwr-evidence">
+                      {file ? (
+                        href ? (
+                          <a href={href} target="_blank" rel="noreferrer" className="iwr-link">
+                            {file}
+                          </a>
+                        ) : (
+                          <span>{file}</span>
+                        )
+                      ) : (
+                        <span className="iwr-muted">Chưa có bằng chứng</span>
+                      )}
+                      {!readOnly && (
+                        <label className="iwr-link">
+                          + File
+                          <input
+                            type="file"
+                            hidden
+                            onChange={(e) => {
+                              const fileObj = e.target.files?.[0];
+                              if (fileObj) void attachEvidence(it, fileObj);
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                      )}
+                      {!readOnly && (
+                        <input
+                          className="iwr-ghost iwr-ghost--url"
+                          placeholder="Hoặc dán URL"
+                          value={/^https?:\/\//i.test(it.evidence_url ?? '') ? it.evidence_url ?? '' : ''}
+                          onChange={(e) =>
+                            updateMeta(it, { evidence_name: evidenceLabel({ ...it, evidence_url: e.target.value }, meta) }, {
+                              evidence_url: e.target.value || null,
+                            })
+                          }
+                        />
+                      )}
+                    </div>
+                    {it.ref_kind !== 'none' && <span className="iwr-muted">{it.ref_kind}</span>}
+                    {!readOnly && (
+                      <button type="button" className="iwr-iconbtn" onClick={() => void removeItem(it.id)}>
+                        Xoá
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+            {!readOnly && (
+              <button type="button" className="iwr-add" disabled={busy} onClick={() => void createItem('done')}>
+                + Thêm kết quả
+              </button>
+            )}
+            {!doneItems.length && <p className="iwr-empty">Chưa có việc hoàn thành</p>}
+          </section>
+
+          <section className="iwr-card">
+            <h2>Đang thực hiện</h2>
+            <table className="iwr-table">
+              <thead>
+                <tr>
+                  <th>Công việc</th>
+                  <th>Dự án</th>
+                  <th>Tiến độ</th>
+                  <th>ETA</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {wipItems.map((it) => {
+                  const meta = parseIwrItemMeta(it.body);
+                  return (
+                    <tr key={it.id}>
+                      <td>
+                        <input
+                          className="iwr-ghost"
+                          disabled={readOnly}
+                          value={it.title}
+                          onChange={(e) => replaceItem({ ...it, title: e.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="iwr-tag"
+                          disabled={readOnly}
+                          value={meta.project ?? ''}
+                          onChange={(e) => updateMeta(it, { project: e.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <ProgressField
+                          value={clampProgress(meta.progress ?? 0)}
+                          disabled={readOnly}
+                          onChange={(n) => updateMeta(it, { progress: n })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="date"
+                          className="iwr-input"
+                          disabled={readOnly}
+                          value={meta.eta ?? ''}
+                          onChange={(e) => updateMeta(it, { eta: e.target.value })}
+                        />
+                      </td>
+                      <td>
+                        {!readOnly && (
+                          <button type="button" className="iwr-iconbtn" onClick={() => void removeItem(it.id)}>
+                            Xoá
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!wipItems.length && (
+                  <tr>
+                    <td colSpan={5} className="iwr-empty">
+                      Không có việc đang làm
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            {!readOnly && (
+              <button type="button" className="iwr-add" disabled={busy} onClick={() => void createItem('wip')}>
+                + Thêm việc đang làm
+              </button>
+            )}
+          </section>
+
+          <section className="iwr-card">
+            <h2>Kế hoạch ngày mai</h2>
+            {nextItems.map((it) => {
+              const meta = parseIwrItemMeta(it.body);
+              const priority = (meta.priority ?? 'medium') as IwrItemPriority;
+              return (
+                <article key={it.id} className="iwr-plan">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(meta.checked)}
+                    disabled={readOnly}
+                    onChange={(e) => updateMeta(it, { checked: e.target.checked })}
+                  />
+                  <select
+                    className={`iwr-pri iwr-pri--${priority}`}
+                    disabled={readOnly}
+                    value={priority}
+                    onChange={(e) => updateMeta(it, { priority: e.target.value as IwrItemPriority })}
+                  >
+                    <option value="high">Cao</option>
+                    <option value="medium">Trung bình</option>
+                    <option value="low">Thấp</option>
+                  </select>
+                  <input
+                    className="iwr-ghost"
+                    disabled={readOnly}
+                    value={it.title}
+                    onChange={(e) => replaceItem({ ...it, title: e.target.value })}
+                  />
+                  <input
+                    className="iwr-tag"
+                    disabled={readOnly}
+                    value={meta.project ?? ''}
+                    onChange={(e) => updateMeta(it, { project: e.target.value })}
+                  />
+                  {!readOnly && (
+                    <button type="button" className="iwr-iconbtn" onClick={() => void removeItem(it.id)}>
+                      Xoá
+                    </button>
+                  )}
+                </article>
+              );
+            })}
+            {!readOnly && (
+              <button type="button" className="iwr-add" disabled={busy} onClick={() => void createItem('next')}>
+                + Thêm kế hoạch
+              </button>
+            )}
+            {!nextItems.length && <p className="iwr-empty">Chưa có kế hoạch ngày mai</p>}
+          </section>
+        </div>
+
+        <aside className="iwr-daily__side">
+          <section className="iwr-card">
+            <h2>Tóm tắt hôm nay</h2>
+            <ul className="iwr-summary">
+              <li>
+                <span className="iwr-summary__ico is-ok">✓</span>
+                {doneItems.length} Task hoàn thành
+              </li>
+              <li>
+                <span className="iwr-summary__ico is-late">⏱</span>
+                {overdueCount} Task quá hạn
+              </li>
+              <li>
+                <span className="iwr-summary__ico is-risk">▲</span>
+                {blockedItems.length} Blocker
+              </li>
+            </ul>
+          </section>
+
+          <section className="iwr-card iwr-blocker">
+            <h2>
+              <span className="iwr-summary__ico is-risk">▲</span> Blocker / Rủi ro
+            </h2>
+            {primaryBlocker && primaryMeta ? (
+              <>
+                <label className="iwr-field">
+                  Mức độ
+                  <select
+                    disabled={readOnly}
+                    value={primaryMeta.severity ?? 'high'}
+                    onChange={(e) =>
+                      updateMeta(primaryBlocker, { severity: e.target.value as IwrItemSeverity })
+                    }
+                  >
+                    <option value="critical">Khẩn</option>
+                    <option value="high">Cao</option>
+                    <option value="medium">Trung bình</option>
+                    <option value="low">Thấp</option>
+                  </select>
+                </label>
+                <label className="iwr-field">
+                  Nội dung
+                  <textarea
+                    disabled={readOnly}
+                    value={primaryBlocker.title}
+                    onChange={(e) => replaceItem({ ...primaryBlocker, title: e.target.value })}
+                  />
+                </label>
+                <label className="iwr-field">
+                  Cần hỗ trợ
+                  <select
+                    disabled={readOnly}
+                    value={primaryMeta.support ?? 'Account Manager'}
+                    onChange={(e) => updateMeta(primaryBlocker, { support: e.target.value })}
+                  >
+                    {SUPPORT_ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="iwr-field">
+                  Hạn xử lý
+                  <input
+                    type="date"
+                    disabled={readOnly}
+                    value={primaryMeta.due ?? ''}
+                    onChange={(e) => updateMeta(primaryBlocker, { due: e.target.value })}
+                  />
+                </label>
+                <p className="iwr-blocker__warn">
+                  Vui lòng hỗ trợ để không ảnh hưởng tiến độ chiến dịch.
+                </p>
+                <button
+                  type="button"
+                  className="iwr-link"
+                  data-testid="iwr-promote-risk"
+                  onClick={() => void promoteIwrBlockerToRisk(token, report.id, primaryBlocker.id)}
+                >
+                  Nâng rủi ro: {primaryBlocker.title || primaryBlocker.id.slice(0, 8)}
+                </button>
+              </>
+            ) : (
+              <p className="iwr-empty">Không có blocker</p>
+            )}
+            {!readOnly && (
+              <button type="button" className="iwr-add" disabled={busy} onClick={() => void createItem('blocked')}>
+                + Thêm blocker
+              </button>
+            )}
+            {blockedItems.slice(1).map((it) => (
+              <p key={it.id} className="iwr-muted">
+                {it.title}
+              </p>
+            ))}
+          </section>
+        </aside>
+      </div>
+
+      <section className="iwr-card" style={{ marginTop: 16 }}>
+        <h2>Phản hồi</h2>
+        <ul className="iwr-comments">
+          {comments.map((c) => (
+            <li key={c.id}>
+              <div className="iwr-muted">{new Date(c.created_at).toLocaleString('vi-VN')}</div>
+              <div>{c.body_text}</div>
+            </li>
+          ))}
+          {!comments.length && <li className="iwr-empty">Chưa có phản hồi</li>}
+        </ul>
+        {!IMMUTABLE.has(report.status) && (
+          <div className="iwr-commentbox">
+            <input
+              className="iwr-input"
+              placeholder="Viết phản hồi..."
+              value={commentBody}
+              onChange={(e) => setCommentBody(e.target.value)}
+            />
+            <button
+              type="button"
+              className="iwr-btn iwr-btn--primary"
+              disabled={!commentBody.trim() || busy}
+              onClick={() => {
+                setBusy(true);
+                void onAddComment({ body_text: commentBody.trim() })
+                  .then(() => setCommentBody(''))
+                  .finally(() => setBusy(false));
+              }}
+            >
+              Gửi
+            </button>
+            {!isAuthor && commentBody.trim() && (
+              <button
+                type="button"
+                className="iwr-btn"
+                data-testid="iwr-reply-all"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  const run = onReplyAll ?? ((body) => replyAllIwrReport(token, report.id, body));
+                  void run({ body_text: commentBody.trim() })
+                    .then(() => setCommentBody(''))
+                    .finally(() => setBusy(false));
+                }}
+              >
+                Trả lời tất cả
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+
+      {lateOpen && (
+        <div className="iwr-modal">
+          <div className="iwr-modal__box">
+            <div className="iwr-mail__k">Nộp muộn — nhập lý do</div>
+            <textarea className="iwr-input" value={lateReason} onChange={(e) => setLateReason(e.target.value)} />
+            <div className="iwr-pagehead__actions">
+              <button type="button" className="iwr-btn" onClick={() => setLateOpen(false)}>
+                Huỷ
+              </button>
+              <button
+                type="button"
+                className="iwr-btn iwr-btn--primary"
+                disabled={lateReason.trim().length < 3 || busy}
+                onClick={() => void handleSubmit()}
+              >
+                Nộp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {changeOpen && (
+        <div className="iwr-modal">
+          <div className="iwr-modal__box">
+            <div className="iwr-mail__k">Yêu cầu bổ sung</div>
+            <textarea className="iwr-input" value={changeBody} onChange={(e) => setChangeBody(e.target.value)} />
+            <div className="iwr-pagehead__actions">
+              <button type="button" className="iwr-btn" onClick={() => setChangeOpen(false)}>
+                Huỷ
+              </button>
+              <button
+                type="button"
+                className="iwr-btn iwr-btn--primary"
+                disabled={changeBody.trim().length < 3 || busy}
+                onClick={() => {
+                  setBusy(true);
+                  void onRequestChanges({ body_text: changeBody.trim() })
+                    .then(() => {
+                      setChangeOpen(false);
+                      setChangeBody('');
+                    })
+                    .finally(() => setBusy(false));
+                }}
+              >
+                Gửi yêu cầu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProgressField({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: number;
+  disabled?: boolean;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div className="iwr-progress">
+      <div className="iwr-bar">
+        <span style={{ width: `${value}%`, background: 'var(--iwr-blue)' }} />
+      </div>
+      <input
+        type="number"
+        min={0}
+        max={100}
+        disabled={disabled}
+        value={value}
+        onChange={(e) => onChange(clampProgress(e.target.value))}
+      />
+      <span>%</span>
+    </div>
+  );
+}

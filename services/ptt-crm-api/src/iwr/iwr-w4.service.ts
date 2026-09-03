@@ -21,6 +21,8 @@ const ALLOWED_MIME = new Set([
   'image/webp',
   'text/plain',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
 
 function safeFileName(name: string): string {

@@ -350,6 +350,58 @@ export async function addIwrItem(
   });
 }
 
+export async function patchIwrItem(
+  token: string,
+  reportId: string,
+  itemId: string,
+  body: Partial<Omit<IwrItemRow, 'id' | 'report_id'>>,
+): Promise<IwrItemRow> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${reportId}/items/${itemId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteIwrItem(
+  token: string,
+  reportId: string,
+  itemId: string,
+): Promise<{ ok: true }> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${reportId}/items/${itemId}`, {
+    method: 'DELETE',
+  });
+}
+
+export interface IwrFileRow {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  byte_size: number;
+  entity_type: string;
+  entity_id: string;
+  created_at: string;
+}
+
+export async function fetchIwrFiles(token: string, reportId: string): Promise<{ items: IwrFileRow[] }> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${reportId}/files`);
+}
+
+export async function uploadIwrFile(token: string, reportId: string, file: File): Promise<IwrFileRow> {
+  const data = new FormData();
+  data.append('file', file);
+  const res = await fetch(`${API_BASE}/api/crm/iwr/reports/${reportId}/files`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: data,
+    cache: 'no-store',
+  });
+  const body = await parseJson<IwrFileRow & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? body.message ?? 'IWR upload failed', res.status);
+  }
+  return body;
+}
+
 export async function fetchIwrSuggest(token: string, id: string): Promise<{ items: IwrSuggestHit[] }> {
   return iwrFetch(token, `/api/crm/iwr/reports/${id}/suggest`);
 }

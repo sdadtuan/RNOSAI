@@ -190,6 +190,10 @@ export class IwrReportsService {
         due_at: period.due_at,
         sections_json: sections,
       });
+      const toId = defaultToStaffId(author);
+      if (toId != null) {
+        await this.repo.replaceRecipients(row.id, [{ staff_id: toId, kind: 'to' }]);
+      }
       await this.auditLog(actor, 'iwr.create', row.id, { status: 'draft' });
       return this.enrichViewer(actor, await this.loadDetail(row.id));
     } catch (err: unknown) {
@@ -263,6 +267,18 @@ export class IwrReportsService {
 
     if (input.source_report_ids) {
       await this.repo.replaceSources(id, input.source_report_ids);
+    }
+
+    if (input.cc_staff_ids) {
+      const existing = await this.repo.listRecipients(id);
+      const keepTo = existing.filter((r) => r.kind === 'to').map((r) => ({ staff_id: r.staff_id, kind: 'to' as const }));
+      const keepBcc = existing.filter((r) => r.kind === 'bcc').map((r) => ({ staff_id: r.staff_id, kind: 'bcc' as const }));
+      const ccIds = [...new Set(input.cc_staff_ids.map(Number).filter((n) => n > 0))];
+      await this.repo.replaceRecipients(id, [
+        ...keepTo,
+        ...ccIds.map((staff_id) => ({ staff_id, kind: 'cc' as const })),
+        ...keepBcc,
+      ]);
     }
 
     return this.enrichViewer(actor, await this.loadDetail(id));
