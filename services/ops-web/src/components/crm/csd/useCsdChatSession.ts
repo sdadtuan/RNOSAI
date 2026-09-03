@@ -34,6 +34,7 @@ import {
   type CsdPriority,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
+import { writeCsdChatViewing } from '@/lib/crm/csd-chat-notify-persist';
 
 export type CsdChatAiSummary = {
   summary: string;
@@ -251,6 +252,13 @@ export function useCsdChatSession({
     setActiveId(initialConversationId);
     if (isMobile) setMobilePane('thread');
   }, [initialConversationId, isMobile]);
+
+  useEffect(() => {
+    writeCsdChatViewing(activeId);
+    return () => {
+      writeCsdChatViewing(null);
+    };
+  }, [activeId]);
 
   useEffect(() => {
     if (!enabled || !token || !activeId) return;

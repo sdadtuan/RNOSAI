@@ -785,4 +785,42 @@ test.describe('CSD chat workspace', () => {
     await page.getByTestId('csd-chat-new-submit').click();
     await expect(page.getByTestId('csd-chat-not-friends')).toBeVisible();
   });
+
+  test('N-1: toast for a new unread message when the tab is visible', async ({ page }) => {
+    await mockCsdChatApis(page);
+    let unreadPolls = 0;
+    await page.route('**/api/crm/csd/conversations**', async (route) => {
+      const parsed = new URL(route.request().url());
+      if (route.request().method() === 'GET' && parsed.searchParams.get('filter') === 'unread') {
+        unreadPolls += 1;
+        const items =
+          unreadPolls < 2
+            ? []
+            : [
+                {
+                  ...CONVERSATION,
+                  preview: 'Tin mới e2e',
+                  last_message_at: '2026-09-03T12:00:00.000Z',
+                  unread_count: 1,
+                },
+              ];
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items }),
+        });
+        return;
+      }
+      await route.fallback();
+    });
+    await loginAsStaff(page);
+    await page.goto('/crm/csd');
+    await expect(page.getByTestId('csd-chat-launcher')).toBeVisible({ timeout: 15_000 });
+    await page.waitForFunction(() => sessionStorage.getItem('csd.chat.notified.v1') !== null);
+    await expect(page.getByTestId('csd-chat-notify-toast')).toHaveCount(0);
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect(page.getByTestId('csd-chat-notify-toast')).toContainText('Tin mới e2e');
+    await page.getByTestId('csd-chat-notify-toast').click();
+    await expect(page.getByTestId('csd-chat-dock')).toBeVisible();
+  });
 });

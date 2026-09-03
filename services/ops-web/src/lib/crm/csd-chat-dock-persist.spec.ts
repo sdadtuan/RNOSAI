@@ -31,6 +31,20 @@ function installSessionStorage() {
   Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: fake });
 }
 
+describe('csd-chat-notify-persist', () => {
+  beforeEach(() => {
+    memory.clear();
+    installSessionStorage();
+  });
+
+  it('roundtrips notified keys', async () => {
+    const { readCsdChatNotified, writeCsdChatNotified } = await import('./csd-chat-notify-persist');
+    expect(readCsdChatNotified()).toBeNull();
+    writeCsdChatNotified(new Set(['c1:a']));
+    expect([...readCsdChatNotified() ?? []]).toEqual(['c1:a']);
+  });
+});
+
 describe('csd-chat-dock-persist', () => {
   beforeEach(() => {
     memory.clear();

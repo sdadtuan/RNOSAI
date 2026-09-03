@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { OpsNav } from '@/components/OpsNav';
 import { B2bHotAlarm } from '@/components/crm/B2bHotAlarm';
 import { CsdChatDock } from '@/components/crm/csd/CsdChatDock';
+import { CsdChatNotifyHost } from '@/components/crm/csd/CsdChatNotifyHost';
 import { SlaAlertToastHost } from '@/components/crm/SlaAlertToastHost';
 import type { StoredStaffUser } from '@/lib/auth';
 import { OpsPage } from './OpsPage';
@@ -43,6 +44,7 @@ export function StaffPageShell({
       <OpsPage breadcrumb={breadcrumb} width={width}>
         {loading || !user ? <p className="muted">Đang tải…</p> : children}
       </OpsPage>
+      {user ? <CsdChatNotifyHost user={user} /> : null}
       {user ? <CsdChatDock user={user} /> : null}
     </>
   );

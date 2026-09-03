@@ -8,6 +8,7 @@ import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
 import { fetchCsdChatMe, fetchCsdChatUnreadCount, loginCsdChat } from '@/lib/crm/csd-api';
 import { readCsdDockPersist, writeCsdDockPersist } from '@/lib/crm/csd-chat-dock-persist';
 import { readCsdChatLogin, writeCsdChatLogin } from '@/lib/crm/csd-chat-login-persist';
+import { CSD_CHAT_OPEN_EVENT, requestCsdChatNotifyPermission } from '@/lib/crm/csd-chat-notify-persist';
 
 export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   const pathname = usePathname();
@@ -24,6 +25,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
 
   const initial = readCsdDockPersist();
   const [open, setOpen] = useState(false);
+  const [focusId, setFocusId] = useState<string | null>(initial.conversationId);
   const [unread, setUnread] = useState(0);
 
   const persist = useCallback((next: { open?: boolean; conversationId?: string | null }) => {
@@ -124,7 +126,27 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   function openDialog() {
     setOpen(true);
     persist({ open: true, conversationId: readCsdDockPersist().conversationId });
+    void requestCsdChatNotifyPermission();
   }
+
+  useEffect(() => {
+    function onOpen(ev: Event) {
+      const id = (ev as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
+      if (!id) return;
+      setFocusId(id);
+      setOpen(true);
+      persist({ open: true, conversationId: id });
+      writeCsdDockPersist({
+        ...readCsdDockPersist(),
+        open: true,
+        tab: 'messages',
+        pane: 'thread',
+        conversationId: id,
+      });
+    }
+    window.addEventListener(CSD_CHAT_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(CSD_CHAT_OPEN_EVENT, onOpen);
+  }, [persist]);
 
   function openPage() {
     const id = readCsdDockPersist().conversationId;
@@ -186,7 +208,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
                 <CsdChatWorkspace
                   token={token}
                   canWrite={canWrite}
-                  initialConversationId={initial.conversationId}
+                  initialConversationId={focusId}
                 />
               )}
             </div>
