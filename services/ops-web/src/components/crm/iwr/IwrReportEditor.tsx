@@ -6,7 +6,6 @@ import {
   IWR_STATUS_LABELS,
   addIwrItem,
   applyIwrSources,
-  fetchIwrDirectory,
   fetchIwrItems,
   fetchIwrSources,
   fetchIwrSuggest,
@@ -22,9 +21,9 @@ import {
   type IwrReportDetail,
   type IwrReportRow,
   type IwrReportStatus,
-  type IwrStaffNode,
   type IwrSuggestHit,
 } from '@/lib/crm/iwr-api';
+import { IwrPeoplePicker } from './IwrPeoplePicker';
 
 type BlockerItem = { title: string; description: string; severity: string };
 
@@ -37,6 +36,7 @@ type IwrReportEditorProps = {
   onPatch: (body: Record<string, unknown>) => Promise<void>;
   onSubmit: (body: {
     late_reason?: string;
+    to_staff_id?: number;
     cc_staff_ids?: number[];
     bcc_staff_ids?: number[];
   }) => Promise<void>;
@@ -99,10 +99,6 @@ export function IwrReportEditor({
   const [bccIds, setBccIds] = useState<number[]>(
     report.recipients.filter((r) => r.kind === 'bcc').map((r) => r.staff_id),
   );
-  const [ccOptions, setCcOptions] = useState<IwrStaffNode[]>([]);
-  const [bccOptions, setBccOptions] = useState<IwrStaffNode[]>([]);
-  const [ccQuery, setCcQuery] = useState('');
-  const [bccQuery, setBccQuery] = useState('');
   const [lateOpen, setLateOpen] = useState(false);
   const [lateReason, setLateReason] = useState('');
   const [changeOpen, setChangeOpen] = useState(false);
@@ -171,18 +167,6 @@ export function IwrReportEditor({
     scheduleSave(next);
   }
 
-  async function searchCc(q: string) {
-    setCcQuery(q);
-    const out = await fetchIwrDirectory(token, q, 'cc');
-    setCcOptions(out.items ?? []);
-  }
-
-  async function searchBcc(q: string) {
-    setBccQuery(q);
-    const out = await fetchIwrDirectory(token, q, 'bcc');
-    setBccOptions(out.items ?? []);
-  }
-
   async function handleSubmit() {
     const due = new Date(report.due_at).getTime();
     if (Date.now() > due && !lateReason.trim()) {
@@ -193,6 +177,7 @@ export function IwrReportEditor({
     try {
       await onSubmit({
         late_reason: lateReason.trim() || undefined,
+        to_staff_id: toRecipient?.staff_id,
         cc_staff_ids: ccIds,
         bcc_staff_ids: canBcc ? bccIds : undefined,
       });
@@ -335,69 +320,49 @@ export function IwrReportEditor({
         </div>
       )}
 
-      <div className="rounded border p-4 space-y-2">
+      <div className="rounded border p-4 space-y-2 iwr-mail">
         <div className="text-sm font-medium">Người nhận</div>
-        <div className="text-sm">
-          To (QLTT):{' '}
-          <span className="font-medium">{toRecipient?.staff_name ?? '—'}</span>
-          <span className="text-slate-500 ml-2">(không đổi)</span>
-        </div>
-        {!readOnly && isAuthor && (
-          <div className="space-y-2">
-            <label className="text-sm">Cc</label>
-            <input
-              className="w-full border rounded px-2 py-1 text-sm"
-              placeholder="Tìm đồng nghiệp..."
-              value={ccQuery}
-              onChange={(e) => void searchCc(e.target.value)}
-            />
-            <div className="flex flex-wrap gap-2">
-              {ccOptions.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={`text-xs px-2 py-1 rounded border ${ccIds.includes(p.id) ? 'bg-blue-100 border-blue-400' : 'bg-white'}`}
-                  onClick={() =>
-                    setCcIds((prev) =>
-                      prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id],
-                    )
-                  }
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {!readOnly && isAuthor && ccIds.length > 0 && (
-          <div className="text-xs text-slate-500">Cc đã chọn: {ccIds.join(', ')}</div>
-        )}
+        <IwrPeoplePicker
+          token={token}
+          purpose="to"
+          label="Đến"
+          placeholder="Tìm người nhận..."
+          selected={
+            toRecipient
+              ? [{ id: toRecipient.staff_id, name: toRecipient.staff_name ?? `#${toRecipient.staff_id}` }]
+              : []
+          }
+          onChange={(next) => {
+            const person = next[0];
+            if (person) void onPatch({ to_staff_id: person.id });
+          }}
+          disabled={readOnly}
+          multiple={false}
+          hint="Người nhận chính"
+        />
+        <IwrPeoplePicker
+          token={token}
+          purpose="cc"
+          label="Cc"
+          placeholder="Thêm Cc…"
+          selected={ccIds.map((id) => ({ id, name: `#${id}` }))}
+          onChange={(next) => {
+            const ids = next.map((p) => p.id);
+            setCcIds(ids);
+            void onPatch({ cc_staff_ids: ids });
+          }}
+          disabled={readOnly}
+        />
         {canBcc && !readOnly && isAuthor && (
-          <div className="space-y-2" data-testid="iwr-bcc">
-            <label className="text-sm">Bcc (ẩn với người nhận khác)</label>
-            <input
-              className="w-full border rounded px-2 py-1 text-sm"
-              placeholder="Tìm Bcc..."
-              value={bccQuery}
-              onChange={(e) => void searchBcc(e.target.value)}
-            />
-            <div className="flex flex-wrap gap-2">
-              {bccOptions.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={`text-xs px-2 py-1 rounded border ${bccIds.includes(p.id) ? 'bg-purple-100 border-purple-400' : 'bg-white'}`}
-                  onClick={() =>
-                    setBccIds((prev) =>
-                      prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id],
-                    )
-                  }
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          </div>
+          <IwrPeoplePicker
+            token={token}
+            purpose="bcc"
+            label="Bcc"
+            placeholder="Tìm Bcc..."
+            selected={bccIds.map((id) => ({ id, name: `#${id}` }))}
+            onChange={(next) => setBccIds(next.map((p) => p.id))}
+            testId="iwr-bcc"
+          />
         )}
         {report.recipients.some((r) => r.kind === 'bcc') && (
           <div className="text-xs text-slate-500">

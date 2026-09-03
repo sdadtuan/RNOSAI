@@ -392,7 +392,7 @@ export class IwrReportsRepository implements OnModuleDestroy {
   async updateSections(
     id: string,
     sections: Record<string, unknown>,
-    patch?: { title?: string; rag?: IwrRag; rag_override_reason?: string },
+    patch?: { title?: string; rag?: IwrRag; rag_override_reason?: string; reviewer_staff_id?: number | null },
   ): Promise<IwrReportRow> {
     const sets = ['sections_json = $3::jsonb', 'updated_at = NOW()'];
     const params: unknown[] = [IWR_TENANT_ID, id, JSON.stringify(sections)];
@@ -408,6 +408,10 @@ export class IwrReportsRepository implements OnModuleDestroy {
     if (patch?.rag_override_reason !== undefined) {
       sets.push(`rag_override_reason = $${idx++}`);
       params.push(patch.rag_override_reason);
+    }
+    if (patch?.reviewer_staff_id !== undefined) {
+      sets.push(`reviewer_staff_id = $${idx++}`);
+      params.push(patch.reviewer_staff_id);
     }
     await this.db.query(
       `UPDATE iwr_reports SET ${sets.join(', ')}

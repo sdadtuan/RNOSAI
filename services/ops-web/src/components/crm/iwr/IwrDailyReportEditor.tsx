@@ -17,9 +17,9 @@ import {
   type IwrItemRow,
   type IwrReportDetail,
   type IwrReportStatus,
-  type IwrStaffNode,
 } from '@/lib/crm/iwr-api';
 import { iwrAvatarTone, iwrInitials } from './iwr-format';
+import { IwrPeoplePicker, type IwrPersonChip } from './IwrPeoplePicker';
 import {
   clampProgress,
   formatViTime,
@@ -42,6 +42,7 @@ type IwrDailyReportEditorProps = {
   onPatch: (body: Record<string, unknown>) => Promise<void>;
   onSubmit: (body: {
     late_reason?: string;
+    to_staff_id?: number;
     cc_staff_ids?: number[];
     bcc_staff_ids?: number[];
   }) => Promise<void>;
@@ -56,12 +57,6 @@ type IwrDailyReportEditorProps = {
 const IMMUTABLE = new Set<IwrReportStatus>(['acknowledged', 'waived', 'archived']);
 const EDITABLE = new Set<IwrReportStatus>(['draft', 'changes_requested']);
 const SUPPORT_ROLES = ['Account Manager', 'Team Lead', 'PM', 'Khác'];
-
-function recipientRole(kind: 'to' | 'cc' | 'bcc'): string {
-  if (kind === 'to') return 'QLTT';
-  if (kind === 'bcc') return 'Bcc';
-  return 'Đồng nghiệp';
-}
 
 function evidenceLabel(item: IwrItemRow, meta: IwrItemMeta): string {
   if (meta.evidence_name) return meta.evidence_name;
@@ -100,8 +95,6 @@ export function IwrDailyReportEditor({
   const readOnly = IMMUTABLE.has(report.status) || !isAuthor || !EDITABLE.has(report.status);
   const toRecipient = report.recipients.find((r) => r.kind === 'to');
   const ccRecipients = report.recipients.filter((r) => r.kind === 'cc');
-  const [impliedTo, setImpliedTo] = useState<IwrStaffNode | null>(null);
-
   const [items, setItems] = useState<IwrItemRow[]>(report.items ?? []);
   const [suggestHits, setSuggestHits] = useState<{ kind: string; id: string; label: string }[]>([]);
   const [title, setTitle] = useState(() => {
@@ -110,17 +103,17 @@ export function IwrDailyReportEditor({
     }
     return report.title;
   });
-  const [ccIds, setCcIds] = useState<number[]>(ccRecipients.map((r) => r.staff_id));
-  const [ccNames, setCcNames] = useState<Record<number, string>>(
-    Object.fromEntries(ccRecipients.map((r) => [r.staff_id, r.staff_name ?? `#${r.staff_id}`])),
+  const [toPerson, setToPerson] = useState<IwrPersonChip | null>(
+    toRecipient ? { id: toRecipient.staff_id, name: toRecipient.staff_name ?? `#${toRecipient.staff_id}` } : null,
   );
-  const [bccIds, setBccIds] = useState<number[]>(
-    report.recipients.filter((r) => r.kind === 'bcc').map((r) => r.staff_id),
+  const [ccPeople, setCcPeople] = useState<IwrPersonChip[]>(
+    ccRecipients.map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
   );
-  const [ccQuery, setCcQuery] = useState('');
-  const [bccQuery, setBccQuery] = useState('');
-  const [ccOptions, setCcOptions] = useState<IwrStaffNode[]>([]);
-  const [bccOptions, setBccOptions] = useState<IwrStaffNode[]>([]);
+  const [bccPeople, setBccPeople] = useState<IwrPersonChip[]>(
+    report.recipients
+      .filter((r) => r.kind === 'bcc')
+      .map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
+  );
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [busy, setBusy] = useState(false);
@@ -140,26 +133,30 @@ export function IwrDailyReportEditor({
     void fetchIwrSuggest(token, report.id)
       .then((out) => setSuggestHits(out.items ?? []))
       .catch(() => undefined);
-    void fetchIwrDirectory(token, '', 'cc')
-      .then((out) => setCcOptions(out.items ?? []))
-      .catch(() => undefined);
-    void fetchIwrDirectory(token, '', 'to')
-      .then((out) => setImpliedTo(out.items?.[0] ?? null))
-      .catch(() => undefined);
-  }, [token, report.id]);
+    if (!toRecipient) {
+      void fetchIwrDirectory(token, '', 'to')
+        .then((out) => {
+          const first = out.items?.[0];
+          if (first) setToPerson((cur) => cur ?? { id: first.id, name: first.name });
+        })
+        .catch(() => undefined);
+    }
+  }, [token, report.id, toRecipient]);
 
   useEffect(() => {
     setTitle(report.title);
-    setCcIds(report.recipients.filter((r) => r.kind === 'cc').map((r) => r.staff_id));
-    setBccIds(report.recipients.filter((r) => r.kind === 'bcc').map((r) => r.staff_id));
-    setCcNames((prev) => ({
-      ...prev,
-      ...Object.fromEntries(
-        report.recipients
-          .filter((r) => r.kind === 'cc')
-          .map((r) => [r.staff_id, r.staff_name ?? `#${r.staff_id}`]),
-      ),
-    }));
+    const nextTo = report.recipients.find((r) => r.kind === 'to');
+    if (nextTo) setToPerson({ id: nextTo.staff_id, name: nextTo.staff_name ?? `#${nextTo.staff_id}` });
+    setCcPeople(
+      report.recipients
+        .filter((r) => r.kind === 'cc')
+        .map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
+    );
+    setBccPeople(
+      report.recipients
+        .filter((r) => r.kind === 'bcc')
+        .map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
+    );
     if (report.items?.length) setItems(report.items);
   }, [report]);
 
@@ -199,13 +196,14 @@ export function IwrDailyReportEditor({
   );
 
   const persistDraft = useCallback(
-    async (nextTitle = title, nextCc = ccIds, nextItems = items) => {
+    async (nextTitle = title, nextCc = ccPeople.map((p) => p.id), nextItems = items, nextTo = toPerson?.id) => {
       if (readOnly) return;
       setSaveState('saving');
       try {
         await onPatch({
           title: nextTitle.trim() || report.title,
           sections_json: buildSections(nextItems),
+          to_staff_id: nextTo,
           cc_staff_ids: nextCc,
         });
         setSavedAt(new Date());
@@ -215,18 +213,18 @@ export function IwrDailyReportEditor({
         setFormError(err instanceof Error ? err.message : 'Lưu nháp thất bại');
       }
     },
-    [readOnly, onPatch, title, ccIds, items, report.title, buildSections],
+    [readOnly, onPatch, title, ccPeople, items, toPerson, report.title, buildSections],
   );
 
   const scheduleDraft = useCallback(
-    (nextTitle = title, nextCc = ccIds, nextItems = items) => {
+    (nextTitle = title, nextCc = ccPeople.map((p) => p.id), nextItems = items, nextTo = toPerson?.id) => {
       if (readOnly) return;
       if (draftTimer.current) clearTimeout(draftTimer.current);
       draftTimer.current = setTimeout(() => {
-        void persistDraft(nextTitle, nextCc, nextItems);
+        void persistDraft(nextTitle, nextCc, nextItems, nextTo);
       }, 700);
     },
-    [readOnly, persistDraft, title, ccIds, items],
+    [readOnly, persistDraft, title, ccPeople, items, toPerson],
   );
 
   const scheduleItemPatch = useCallback(
@@ -259,7 +257,7 @@ export function IwrDailyReportEditor({
   function replaceItem(next: IwrItemRow, persist = true) {
     setItems((prev) => {
       const rows = prev.map((it) => (it.id === next.id ? next : it));
-      if (persist) scheduleDraft(title, ccIds, rows);
+      if (persist) scheduleDraft(title, ccPeople.map((p) => p.id), rows);
       return rows;
     });
     if (persist) scheduleItemPatch(next);
@@ -292,7 +290,7 @@ export function IwrDailyReportEditor({
       });
       setItems((prev) => {
         const rows = [...prev, row];
-        scheduleDraft(title, ccIds, rows);
+        scheduleDraft(title, ccPeople.map((p) => p.id), rows);
         return rows;
       });
     } catch (err) {
@@ -308,7 +306,7 @@ export function IwrDailyReportEditor({
       await deleteIwrItem(token, report.id, id);
       setItems((prev) => {
         const rows = prev.filter((it) => it.id !== id);
-        scheduleDraft(title, ccIds, rows);
+        scheduleDraft(title, ccPeople.map((p) => p.id), rows);
         return rows;
       });
     } catch (err) {
@@ -346,8 +344,9 @@ export function IwrDailyReportEditor({
       await persistDraft();
       await onSubmit({
         late_reason: lateReason.trim() || undefined,
-        cc_staff_ids: ccIds,
-        bcc_staff_ids: canBcc ? bccIds : undefined,
+        to_staff_id: toPerson?.id,
+        cc_staff_ids: ccPeople.map((p) => p.id),
+        bcc_staff_ids: canBcc ? bccPeople.map((p) => p.id) : undefined,
       });
       setLateOpen(false);
     } catch (err) {
@@ -457,78 +456,33 @@ export function IwrDailyReportEditor({
       {formError && <p className="iwr-err">{formError}</p>}
 
       <section className="iwr-mail">
-        <div className="iwr-mail__cell">
-          <div className="iwr-mail__k">Đến</div>
-          <div className="iwr-person">
-            <span className={iwrAvatarTone(toRecipient?.staff_id ?? impliedTo?.id ?? 0)}>
-              {iwrInitials(toRecipient?.staff_name ?? impliedTo?.name)}
-            </span>
-            <div>
-              <strong>{toRecipient?.staff_name ?? impliedTo?.name ?? '—'}</strong>
-              <div className="iwr-muted">{recipientRole('to')}</div>
-            </div>
-          </div>
-        </div>
-        <div className="iwr-mail__cell">
-          <div className="iwr-mail__k">Cc</div>
-          <div className="iwr-mail__people">
-            {ccIds.map((id) => (
-              <span key={id} className="iwr-mail__chip">
-                <span className={iwrAvatarTone(id)}>{iwrInitials(ccNames[id])}</span>
-                {ccNames[id] ?? `#${id}`}
-                {!readOnly && (
-                  <button
-                    type="button"
-                    className="iwr-iconbtn"
-                    aria-label={`Bỏ Cc ${ccNames[id] ?? id}`}
-                    onClick={() => {
-                      const next = ccIds.filter((x) => x !== id);
-                      setCcIds(next);
-                      scheduleDraft(title, next, items);
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </span>
-            ))}
-            {!readOnly && (
-              <div className="iwr-mail__search">
-                <input
-                  className="iwr-input"
-                  placeholder="Thêm Cc…"
-                  value={ccQuery}
-                  onChange={(e) => {
-                    setCcQuery(e.target.value);
-                    void fetchIwrDirectory(token, e.target.value, 'cc')
-                      .then((out) => setCcOptions(out.items ?? []))
-                      .catch(() => undefined);
-                  }}
-                />
-                {ccQuery && ccOptions.length > 0 && (
-                  <ul className="iwr-mail__hits">
-                    {ccOptions.map((p) => (
-                      <li key={p.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = ccIds.includes(p.id) ? ccIds : [...ccIds, p.id];
-                            setCcIds(next);
-                            setCcNames((prev) => ({ ...prev, [p.id]: p.name }));
-                            setCcQuery('');
-                            scheduleDraft(title, next, items);
-                          }}
-                        >
-                          {p.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        <IwrPeoplePicker
+          token={token}
+          purpose="to"
+          label="Đến"
+          placeholder="Tìm người nhận..."
+          selected={toPerson ? [toPerson] : []}
+          onChange={(next) => {
+            const person = next[0] ?? null;
+            setToPerson(person);
+            scheduleDraft(title, ccPeople.map((p) => p.id), items, person?.id);
+          }}
+          disabled={readOnly}
+          multiple={false}
+          hint="Người nhận chính"
+        />
+        <IwrPeoplePicker
+          token={token}
+          purpose="cc"
+          label="Cc"
+          placeholder="Thêm Cc…"
+          selected={ccPeople}
+          onChange={(next) => {
+            setCcPeople(next);
+            scheduleDraft(title, next.map((p) => p.id), items);
+          }}
+          disabled={readOnly}
+        />
         <div className="iwr-mail__cell iwr-mail__cell--grow">
           <div className="iwr-mail__k">Chủ đề</div>
           <input
@@ -537,7 +491,7 @@ export function IwrDailyReportEditor({
             value={title}
             onChange={(e) => {
               setTitle(e.target.value);
-              scheduleDraft(e.target.value, ccIds, items);
+              scheduleDraft(e.target.value, ccPeople.map((p) => p.id), items);
             }}
           />
         </div>
@@ -546,34 +500,16 @@ export function IwrDailyReportEditor({
           Chỉ người nhận có quyền mới xem được
         </div>
         {canBcc && !readOnly && isAuthor && (
-          <div className="iwr-mail__cell iwr-mail__cell--full" data-testid="iwr-bcc">
-            <div className="iwr-mail__k">Bcc</div>
-            <input
-              className="iwr-input"
-              placeholder="Tìm Bcc..."
-              value={bccQuery}
-              onChange={(e) => {
-                setBccQuery(e.target.value);
-                void fetchIwrDirectory(token, e.target.value, 'bcc')
-                  .then((out) => setBccOptions(out.items ?? []))
-                  .catch(() => undefined);
-              }}
-            />
-            <div className="iwr-mail__people" style={{ marginTop: 8 }}>
-              {bccOptions.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={`iwr-btn${bccIds.includes(p.id) ? ' iwr-btn--primary' : ''}`}
-                  onClick={() =>
-                    setBccIds((prev) => (prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
-                  }
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          </div>
+          <IwrPeoplePicker
+            token={token}
+            purpose="bcc"
+            label="Bcc"
+            placeholder="Tìm Bcc..."
+            selected={bccPeople}
+            onChange={setBccPeople}
+            testId="iwr-bcc"
+            className="iwr-mail__cell--full"
+          />
         )}
       </section>
 

@@ -243,12 +243,14 @@ export type PatchIwrReportInput = {
   sections_json?: Record<string, unknown>;
   rag?: IwrRag;
   rag_override_reason?: string;
+  to_staff_id?: number;
   cc_staff_ids?: number[];
   source_report_ids?: string[];
 };
 
 export type SubmitIwrReportInput = {
   late_reason?: string;
+  to_staff_id?: number;
   cc_staff_ids?: number[];
   bcc_staff_ids?: number[];
   cc_list_ids?: string[];

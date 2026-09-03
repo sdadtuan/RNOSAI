@@ -2,7 +2,7 @@ import { IwrInboxService } from './iwr-inbox.service';
 import type { IwrActor } from './iwr.types';
 
 describe('IwrInboxService', () => {
-  it('filters cc directory by W1 policy', async () => {
+  it('searches cc directory across all active staff', async () => {
     const org = {
       searchDirectory: jest.fn().mockResolvedValue([
         { id: 2, name: 'TL', email: 't', department_id: 10, reports_to_id: 1, active: true },
@@ -33,7 +33,7 @@ describe('IwrInboxService', () => {
       caps: [],
     };
     const out = await inbox.directory(actor, 'a', 'cc');
-    expect(out.items.map((x) => x.id)).toEqual([2]);
+    expect(out.items.map((x) => x.id).sort((a, b) => a - b)).toEqual([2, 4]);
   });
 
   it('team marks missing when no report in period', async () => {

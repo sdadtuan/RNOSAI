@@ -16,6 +16,26 @@ describe('assertCanReceive W3', () => {
     { id: 4, name: 'HR', email: 'h', department_id: 20, reports_to_id: 1, active: true },
   ];
 
+  it('allows To to any active staff, not only QLTT', () => {
+    const actor: IwrActor = {
+      staffId: 3,
+      staffLabel: 'NV',
+      departmentId: 10,
+      caps: [{ section: 'iwr', action: 'write' }],
+    };
+    expect(() =>
+      assertCanReceive({
+        actor,
+        author,
+        nodes,
+        toIds: [4],
+        ccIds: [],
+        bccIds: [],
+        policy: { allow_bcc: false, cc_mode: 'open' },
+      }),
+    ).not.toThrow();
+  });
+
   it('allows Bcc when cap + policy allow_bcc', () => {
     const actor: IwrActor = {
       staffId: 3,

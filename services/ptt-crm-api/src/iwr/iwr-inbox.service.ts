@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { descendantIds, isOnPath, sameDepartment } from './iwr-org.util';
-import { assertCanReceive, assertW1Recipients, defaultToStaffId } from './iwr-recipient.util';
+import { descendantIds } from './iwr-org.util';
+import { defaultToStaffId } from './iwr-recipient.util';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
 import { IwrPolicyService } from './iwr-policy.service';
 import type { IwrActor, IwrInboxBox, IwrReportRow, IwrStaffNode, IwrTeamNode } from './iwr.types';
@@ -47,81 +47,22 @@ export class IwrInboxService {
     const author = await this.org.getStaff(actor.staffId);
     if (!author) return { items: [] };
     const nodes = await this.org.listActiveStaff();
-
-    if (purpose === 'to') {
-      const toId = defaultToStaffId(author);
-      if (toId == null) return { items: [] };
-      const mgr = nodes.find((n) => n.id === toId);
-      return { items: mgr ? [mgr] : [] };
-    }
-
-    if (purpose === 'bcc') {
-      const hits =
-        q.trim().length > 0
-          ? await this.org.searchDirectory(q, 20)
-          : nodes.filter((n) => n.id !== author.id).slice(0, 20);
-      const rules = await this.policy.getActiveRules();
-      const out: IwrStaffNode[] = [];
-      for (const candidate of hits) {
-        if (candidate.id === author.id) continue;
-        try {
-          if (rules) {
-            assertCanReceive({
-              actor,
-              author,
-              nodes,
-              toIds: defaultToStaffId(author) != null ? [defaultToStaffId(author)!] : [],
-              ccIds: [],
-              bccIds: [candidate.id],
-              policy: rules,
-            });
-          } else {
-            assertW1Recipients({
-              author,
-              actor,
-              nodes,
-              toIds: defaultToStaffId(author) != null ? [defaultToStaffId(author)!] : [],
-              ccIds: [],
-              bccIds: [candidate.id],
-            });
-          }
-          out.push(candidate);
-        } catch {
-          // skip
-        }
-      }
-      return { items: out.slice(0, 20) };
-    }
-
+    const term = q.trim();
     const hits =
-      q.trim().length > 0
-        ? await this.org.searchDirectory(q, 20)
-        : nodes.filter((n) => sameDepartment(author, n) && n.id !== author.id).slice(0, 20);
+      term.length > 0
+        ? await this.org.searchDirectory(term, 20)
+        : nodes.filter((n) => n.id !== author.id).slice(0, 20);
+    let items = hits.filter((n) => n.id !== author.id);
 
-    const out: IwrStaffNode[] = [];
-    for (const candidate of hits) {
-      if (candidate.id === author.id) continue;
-      if (purpose === 'mention') {
-        if (sameDepartment(author, candidate) || isOnPath(author.id, candidate.id, nodes)) {
-          out.push(candidate);
-        }
-        continue;
-      }
-      try {
-        assertW1Recipients({
-          author,
-          actor,
-          nodes,
-          toIds: defaultToStaffId(author) != null ? [defaultToStaffId(author)!] : [],
-          ccIds: [candidate.id],
-          bccIds: [],
-        });
-        out.push(candidate);
-      } catch {
-        // skip disallowed Cc
+    if (purpose === 'to' && !term) {
+      const toId = defaultToStaffId(author);
+      const mgr = toId != null ? nodes.find((n) => n.id === toId) : undefined;
+      if (mgr && !items.some((n) => n.id === mgr.id)) {
+        items = [mgr, ...items];
       }
     }
-    return { items: out.slice(0, 20) };
+
+    return { items: items.slice(0, 20) };
   }
 
   async team(

@@ -227,7 +227,13 @@ export async function patchIwrReport(
 export async function submitIwrReport(
   token: string,
   id: string,
-  body?: { late_reason?: string; cc_staff_ids?: number[]; bcc_staff_ids?: number[]; cc_list_ids?: string[] },
+  body?: {
+    late_reason?: string;
+    to_staff_id?: number;
+    cc_staff_ids?: number[];
+    bcc_staff_ids?: number[];
+    cc_list_ids?: string[];
+  },
 ): Promise<IwrReportDetail> {
   return iwrFetch(token, `/api/crm/iwr/reports/${id}/submit`, {
     method: 'POST',

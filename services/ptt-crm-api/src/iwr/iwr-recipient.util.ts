@@ -30,17 +30,18 @@ function hasIwrManage(actor: IwrActor): boolean {
   return hasIwrCap(actor, 'manage');
 }
 
-function assertToLocked(input: {
+function assertToAllowed(input: {
   author: IwrStaffNode;
+  nodes: IwrStaffNode[];
   toIds: number[];
 }): void {
-  const { author, toIds } = input;
-  const expectedTo = defaultToStaffId(author);
-  if (expectedTo != null) {
-    if (toIds.length !== 1 || toIds[0] !== expectedTo) {
-      throw new IwrPolicyError('iwr_to_locked');
-    }
-  } else if (toIds.length > 0) {
+  const { author, nodes, toIds } = input;
+  if (toIds.length !== 1) {
+    throw new IwrPolicyError('iwr_to_locked');
+  }
+  const toId = toIds[0];
+  const to = nodes.find((n) => n.id === toId);
+  if (!to || !to.active || to.id === author.id) {
     throw new IwrPolicyError('iwr_to_locked');
   }
 }
@@ -114,12 +115,12 @@ export function assertCanReceive(input: {
     }
   }
 
-  assertToLocked({ author, toIds });
+  assertToAllowed({ author, nodes, toIds });
 
-  if (policy?.cc_mode === 'open') {
-    assertCcOpen({ author, nodes, ccIds });
-  } else {
+  if (policy?.cc_mode === 'w1') {
     assertCcW1({ author, actor, nodes, toIds, ccIds });
+  } else {
+    assertCcOpen({ author, nodes, ccIds });
   }
 }
 
@@ -135,8 +136,8 @@ export function assertW1Recipients(input: {
   if (input.bccIds.length > 0) {
     throw new IwrPolicyError('iwr_bcc_forbidden');
   }
-  assertToLocked({ author: input.author, toIds: input.toIds });
-  assertCcW1(input);
+  assertToAllowed({ author: input.author, nodes: input.nodes, toIds: input.toIds });
+  assertCcOpen({ author: input.author, nodes: input.nodes, ccIds: input.ccIds });
 }
 
 export function filterRecipientsForViewer(

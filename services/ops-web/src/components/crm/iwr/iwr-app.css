@@ -741,9 +741,15 @@
   font-size: 13px;
 }
 
+.iwr-mail__chip strong {
+  display: block;
+  font-weight: 650;
+}
+
 .iwr-mail__search {
   position: relative;
-  min-width: 160px;
+  min-width: 200px;
+  flex: 1;
 }
 
 .iwr-mail__hits {

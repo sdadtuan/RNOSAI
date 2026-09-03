@@ -263,19 +263,25 @@ export class IwrReportsService {
       title: input.title,
       rag: input.rag,
       rag_override_reason: input.rag_override_reason,
+      reviewer_staff_id: input.to_staff_id != null ? Number(input.to_staff_id) : undefined,
     });
 
     if (input.source_report_ids) {
       await this.repo.replaceSources(id, input.source_report_ids);
     }
 
-    if (input.cc_staff_ids) {
+    if (input.cc_staff_ids || input.to_staff_id != null) {
       const existing = await this.repo.listRecipients(id);
-      const keepTo = existing.filter((r) => r.kind === 'to').map((r) => ({ staff_id: r.staff_id, kind: 'to' as const }));
+      const toId =
+        input.to_staff_id != null
+          ? Number(input.to_staff_id)
+          : existing.find((r) => r.kind === 'to')?.staff_id;
       const keepBcc = existing.filter((r) => r.kind === 'bcc').map((r) => ({ staff_id: r.staff_id, kind: 'bcc' as const }));
-      const ccIds = [...new Set(input.cc_staff_ids.map(Number).filter((n) => n > 0))];
+      const ccIds = input.cc_staff_ids
+        ? [...new Set(input.cc_staff_ids.map(Number).filter((n) => n > 0))]
+        : existing.filter((r) => r.kind === 'cc').map((r) => r.staff_id);
       await this.repo.replaceRecipients(id, [
-        ...keepTo,
+        ...(toId != null && toId > 0 ? [{ staff_id: toId, kind: 'to' as const }] : []),
         ...ccIds.map((staff_id) => ({ staff_id, kind: 'cc' as const })),
         ...keepBcc,
       ]);
@@ -302,7 +308,11 @@ export class IwrReportsService {
     const author = await this.org.getStaff(actor.staffId);
     if (!author) throw new ForbiddenException({ error: 'iwr_unresolved_staff' });
     const nodes = await this.org.listActiveStaff();
-    const toId = defaultToStaffId(author);
+    const existingRecipients = await this.repo.listRecipients(id);
+    const toId =
+      input.to_staff_id != null
+        ? Number(input.to_staff_id)
+        : existingRecipients.find((r) => r.kind === 'to')?.staff_id ?? defaultToStaffId(author);
     const toIds = toId != null ? [toId] : [];
     const ccIds = [...new Set((input.cc_staff_ids ?? []).map(Number).filter((n) => n > 0))];
     const bccIds = [...new Set((input.bcc_staff_ids ?? []).map(Number).filter((n) => n > 0))];

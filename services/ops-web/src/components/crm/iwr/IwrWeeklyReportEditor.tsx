@@ -24,9 +24,9 @@ import {
   type IwrReportDetail,
   type IwrReportRow,
   type IwrReportStatus,
-  type IwrStaffNode,
 } from '@/lib/crm/iwr-api';
 import { iwrAvatarTone, iwrInitials, iwrRagClass, iwrRagLabel, iwrWeekHeading } from './iwr-format';
+import { IwrPeoplePicker, type IwrPersonChip } from './IwrPeoplePicker';
 import {
   clampProgress,
   formatKpiNumber,
@@ -47,6 +47,7 @@ type Props = {
   onPatch: (body: Record<string, unknown>) => Promise<void>;
   onSubmit: (body: {
     late_reason?: string;
+    to_staff_id?: number;
     cc_staff_ids?: number[];
     bcc_staff_ids?: number[];
   }) => Promise<void>;
@@ -112,19 +113,20 @@ export function IwrWeeklyReportEditor({
   const toRecipient = report.recipients.find((r) => r.kind === 'to');
   const ccRecipients = report.recipients.filter((r) => r.kind === 'cc');
 
-  const [impliedTo, setImpliedTo] = useState<IwrStaffNode | null>(null);
   const [items, setItems] = useState<IwrItemRow[]>(report.items ?? []);
   const [overview, setOverview] = useState(readOverview(report));
   const [rag, setRag] = useState<IwrRag>(report.rag);
-  const [ccIds, setCcIds] = useState(ccRecipients.map((r) => r.staff_id));
-  const [ccNames, setCcNames] = useState<Record<number, string>>(
-    Object.fromEntries(ccRecipients.map((r) => [r.staff_id, r.staff_name ?? `#${r.staff_id}`])),
+  const [toPerson, setToPerson] = useState<IwrPersonChip | null>(
+    toRecipient ? { id: toRecipient.staff_id, name: toRecipient.staff_name ?? `#${toRecipient.staff_id}` } : null,
   );
-  const [bccIds, setBccIds] = useState(report.recipients.filter((r) => r.kind === 'bcc').map((r) => r.staff_id));
-  const [ccQuery, setCcQuery] = useState('');
-  const [bccQuery, setBccQuery] = useState('');
-  const [ccOptions, setCcOptions] = useState<IwrStaffNode[]>([]);
-  const [bccOptions, setBccOptions] = useState<IwrStaffNode[]>([]);
+  const [ccPeople, setCcPeople] = useState<IwrPersonChip[]>(
+    ccRecipients.map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
+  );
+  const [bccPeople, setBccPeople] = useState<IwrPersonChip[]>(
+    report.recipients
+      .filter((r) => r.kind === 'bcc')
+      .map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
+  );
   const [sources, setSources] = useState<IwrReportRow[]>([]);
   const [picked, setPicked] = useState<string[]>(report.source_report_ids ?? []);
   const [files, setFiles] = useState<IwrFileRow[]>([]);
@@ -142,15 +144,31 @@ export function IwrWeeklyReportEditor({
     void fetchIwrItems(token, report.id).then((out) => setItems(out.items ?? [])).catch(() => undefined);
     void fetchIwrSources(token, report.id).then((out) => setSources(out.items ?? [])).catch(() => undefined);
     void fetchIwrFiles(token, report.id).then((out) => setFiles(out.items ?? [])).catch(() => undefined);
-    void fetchIwrDirectory(token, '', 'cc').then((out) => setCcOptions(out.items ?? [])).catch(() => undefined);
-    void fetchIwrDirectory(token, '', 'to').then((out) => setImpliedTo(out.items?.[0] ?? null)).catch(() => undefined);
-  }, [token, report.id]);
+    if (!toRecipient) {
+      void fetchIwrDirectory(token, '', 'to')
+        .then((out) => {
+          const first = out.items?.[0];
+          if (first) setToPerson((cur) => cur ?? { id: first.id, name: first.name });
+        })
+        .catch(() => undefined);
+    }
+  }, [token, report.id, toRecipient]);
 
   useEffect(() => {
     setOverview(readOverview(report));
     setRag(report.rag);
-    setCcIds(report.recipients.filter((r) => r.kind === 'cc').map((r) => r.staff_id));
-    setBccIds(report.recipients.filter((r) => r.kind === 'bcc').map((r) => r.staff_id));
+    const nextTo = report.recipients.find((r) => r.kind === 'to');
+    if (nextTo) setToPerson({ id: nextTo.staff_id, name: nextTo.staff_name ?? `#${nextTo.staff_id}` });
+    setCcPeople(
+      report.recipients
+        .filter((r) => r.kind === 'cc')
+        .map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
+    );
+    setBccPeople(
+      report.recipients
+        .filter((r) => r.kind === 'bcc')
+        .map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
+    );
     if (report.source_report_ids) setPicked(report.source_report_ids);
     if (report.items?.length) setItems(report.items);
   }, [report]);
@@ -195,29 +213,42 @@ export function IwrWeeklyReportEditor({
   );
 
   const persistDraft = useCallback(
-    async (text = overview, nextRag = rag, nextCc = ccIds, nextItems = items) => {
+    async (
+      text = overview,
+      nextRag = rag,
+      nextCc = ccPeople.map((p) => p.id),
+      nextItems = items,
+      nextTo = toPerson?.id,
+    ) => {
       if (readOnly) return;
       await onPatch({
         title: iwrWeekHeading(report.period_start, report.period_end),
         sections_json: buildSections(text, nextItems, nextRag),
         rag: nextRag ?? undefined,
+        to_staff_id: nextTo,
         cc_staff_ids: nextCc,
       });
     },
-    [readOnly, onPatch, overview, rag, ccIds, items, report.period_start, report.period_end, buildSections],
+    [readOnly, onPatch, overview, rag, ccPeople, toPerson, items, report.period_start, report.period_end, buildSections],
   );
 
   const scheduleDraft = useCallback(
-    (text = overview, nextRag = rag, nextCc = ccIds, nextItems = items) => {
+    (
+      text = overview,
+      nextRag = rag,
+      nextCc = ccPeople.map((p) => p.id),
+      nextItems = items,
+      nextTo = toPerson?.id,
+    ) => {
       if (readOnly) return;
       if (draftTimer.current) clearTimeout(draftTimer.current);
       draftTimer.current = setTimeout(() => {
-        void persistDraft(text, nextRag, nextCc, nextItems).catch((err) => {
+        void persistDraft(text, nextRag, nextCc, nextItems, nextTo).catch((err) => {
           setFormError(err instanceof Error ? err.message : 'Lưu nháp thất bại');
         });
       }, 700);
     },
-    [readOnly, persistDraft, overview, rag, ccIds, items],
+    [readOnly, persistDraft, overview, rag, ccPeople, items],
   );
 
   function scheduleItemPatch(row: IwrItemRow) {
@@ -237,7 +268,7 @@ export function IwrWeeklyReportEditor({
   function replaceItem(next: IwrItemRow) {
     setItems((prev) => {
       const rows = prev.map((it) => (it.id === next.id ? next : it));
-      scheduleDraft(overview, rag, ccIds, rows);
+      scheduleDraft(overview, rag, ccPeople.map((p) => p.id), rows);
       return rows;
     });
     scheduleItemPatch(next);
@@ -270,7 +301,7 @@ export function IwrWeeklyReportEditor({
       });
       setItems((prev) => {
         const rows = [...prev, row];
-        scheduleDraft(overview, rag, ccIds, rows);
+        scheduleDraft(overview, rag, ccPeople.map((p) => p.id), rows);
         return rows;
       });
     } catch (err) {
@@ -285,7 +316,7 @@ export function IwrWeeklyReportEditor({
     await deleteIwrItem(token, report.id, id);
     setItems((prev) => {
       const rows = prev.filter((it) => it.id !== id);
-      scheduleDraft(overview, rag, ccIds, rows);
+      scheduleDraft(overview, rag, ccPeople.map((p) => p.id), rows);
       return rows;
     });
   }
@@ -306,8 +337,9 @@ export function IwrWeeklyReportEditor({
       await persistDraft();
       await onSubmit({
         late_reason: lateReason.trim() || undefined,
-        cc_staff_ids: ccIds,
-        bcc_staff_ids: canBcc ? bccIds : undefined,
+        to_staff_id: toPerson?.id,
+        cc_staff_ids: ccPeople.map((p) => p.id),
+        bcc_staff_ids: canBcc ? bccPeople.map((p) => p.id) : undefined,
       });
       setLateOpen(false);
     } catch (err) {
@@ -349,7 +381,6 @@ export function IwrWeeklyReportEditor({
   }
 
   const heading = iwrWeekHeading(report.period_start, report.period_end);
-  const toName = toRecipient?.staff_name ?? impliedTo?.name ?? '—';
 
   return (
     <div className="iwr-week">
@@ -406,75 +437,33 @@ export function IwrWeeklyReportEditor({
       {formError && <p className="iwr-err">{formError}</p>}
 
       <section className="iwr-mail">
-        <div className="iwr-mail__cell">
-          <div className="iwr-mail__k">Đến</div>
-          <div className="iwr-person">
-            <span className={iwrAvatarTone(toRecipient?.staff_id ?? impliedTo?.id ?? 0)}>{iwrInitials(toName)}</span>
-            <div>
-              <strong>{toName}</strong>
-              <div className="iwr-muted">QLTT</div>
-            </div>
-          </div>
-        </div>
-        <div className="iwr-mail__cell">
-          <div className="iwr-mail__k">Cc</div>
-          <div className="iwr-mail__people">
-            {ccIds.map((id) => (
-              <span key={id} className="iwr-mail__chip">
-                <span className={iwrAvatarTone(id)}>{iwrInitials(ccNames[id])}</span>
-                {ccNames[id] ?? `#${id}`}
-                {!readOnly && (
-                  <button
-                    type="button"
-                    className="iwr-iconbtn"
-                    onClick={() => {
-                      const next = ccIds.filter((x) => x !== id);
-                      setCcIds(next);
-                      scheduleDraft(overview, rag, next, items);
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </span>
-            ))}
-            {!readOnly && (
-              <div className="iwr-mail__search">
-                <input
-                  className="iwr-input"
-                  placeholder="Thêm Cc…"
-                  value={ccQuery}
-                  onChange={(e) => {
-                    setCcQuery(e.target.value);
-                    void fetchIwrDirectory(token, e.target.value, 'cc')
-                      .then((out) => setCcOptions(out.items ?? []))
-                      .catch(() => undefined);
-                  }}
-                />
-                {ccQuery && ccOptions.length > 0 && (
-                  <ul className="iwr-mail__hits">
-                    {ccOptions.map((p) => (
-                      <li key={p.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = ccIds.includes(p.id) ? ccIds : [...ccIds, p.id];
-                            setCcIds(next);
-                            setCcNames((prev) => ({ ...prev, [p.id]: p.name }));
-                            setCcQuery('');
-                            scheduleDraft(overview, rag, next, items);
-                          }}
-                        >
-                          {p.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        <IwrPeoplePicker
+          token={token}
+          purpose="to"
+          label="Đến"
+          placeholder="Tìm người nhận..."
+          selected={toPerson ? [toPerson] : []}
+          onChange={(next) => {
+            const person = next[0] ?? null;
+            setToPerson(person);
+            scheduleDraft(overview, rag, ccPeople.map((p) => p.id), items, person?.id);
+          }}
+          disabled={readOnly}
+          multiple={false}
+          hint="Người nhận chính"
+        />
+        <IwrPeoplePicker
+          token={token}
+          purpose="cc"
+          label="Cc"
+          placeholder="Thêm Cc…"
+          selected={ccPeople}
+          onChange={(next) => {
+            setCcPeople(next);
+            scheduleDraft(overview, rag, next.map((p) => p.id), items);
+          }}
+          disabled={readOnly}
+        />
         <div className="iwr-mail__cell iwr-mail__cell--grow">
           <div className="iwr-mail__k">Tệp đính kèm</div>
           <div className="iwr-files">
@@ -505,34 +494,16 @@ export function IwrWeeklyReportEditor({
           </div>
         </div>
         {canBcc && !readOnly && isAuthor && (
-          <div className="iwr-mail__cell iwr-mail__cell--full" data-testid="iwr-bcc">
-            <div className="iwr-mail__k">Bcc</div>
-            <input
-              className="iwr-input"
-              placeholder="Tìm Bcc..."
-              value={bccQuery}
-              onChange={(e) => {
-                setBccQuery(e.target.value);
-                void fetchIwrDirectory(token, e.target.value, 'bcc')
-                  .then((out) => setBccOptions(out.items ?? []))
-                  .catch(() => undefined);
-              }}
-            />
-            <div className="iwr-mail__people" style={{ marginTop: 8 }}>
-              {bccOptions.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={`iwr-btn${bccIds.includes(p.id) ? ' iwr-btn--primary' : ''}`}
-                  onClick={() =>
-                    setBccIds((prev) => (prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id]))
-                  }
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          </div>
+          <IwrPeoplePicker
+            token={token}
+            purpose="bcc"
+            label="Bcc"
+            placeholder="Tìm Bcc..."
+            selected={bccPeople}
+            onChange={setBccPeople}
+            testId="iwr-bcc"
+            className="iwr-mail__cell--full"
+          />
         )}
       </section>
 
@@ -547,7 +518,7 @@ export function IwrWeeklyReportEditor({
                 className={`iwr-btn${rag === v ? ' iwr-btn--primary' : ''}`}
                 onClick={() => {
                   setRag(v);
-                  scheduleDraft(overview, v, ccIds, items);
+                  scheduleDraft(overview, v, ccPeople.map((p) => p.id), items);
                 }}
               >
                 {IWR_RAG_LABELS[v]}
@@ -581,7 +552,7 @@ export function IwrWeeklyReportEditor({
               value={overview}
               onChange={(e) => {
                 setOverview(e.target.value);
-                scheduleDraft(e.target.value, rag, ccIds, items);
+                scheduleDraft(e.target.value, rag, ccPeople.map((p) => p.id), items);
               }}
             />
             <h3 className="iwr-week__sub">Kết quả nổi bật</h3>
