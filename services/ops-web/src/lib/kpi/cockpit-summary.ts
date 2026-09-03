@@ -1,5 +1,5 @@
 import type { StaffKpiGridEntry } from '@/lib/api';
-import { deriveKpiRag, kpiAchievementPct, kpiIsOnTime, type KpiRag } from '@/lib/kpi/rag';
+import { deriveKpiRag, kpiIsOnTime, metricAchievementPct, type KpiRag } from '@/lib/kpi/rag';
 
 export function deptLabel(raw: string | null | undefined): string {
   const v = String(raw ?? '').trim();
@@ -95,7 +95,7 @@ function countsOf(rows: StaffKpiGridEntry[], now: Date) {
     else if (rag === 'yellow') yellow += 1;
     else if (rag === 'red') red += 1;
     else no_data += 1;
-    const pct = kpiAchievementPct(row.metric_higher_is_better, row.target_value, row.actual_value);
+    const pct = metricAchievementPct(row.metric_higher_is_better, row.target_value, row.actual_value);
     if (pct != null) {
       scored += 1;
       scoredSum += pct;
@@ -164,7 +164,7 @@ export function buildCockpitSummary(
         actual_value: row.actual_value,
         target_value: row.target_value,
         unit: row.metric_unit,
-        achievement_pct: kpiAchievementPct(row.metric_higher_is_better, row.target_value, row.actual_value),
+        achievement_pct: metricAchievementPct(row.metric_higher_is_better, row.target_value, row.actual_value),
         rag,
       };
     })
@@ -203,10 +203,10 @@ export function rowTrend(
   row: StaffKpiGridEntry,
   prevRows: StaffKpiGridEntry[],
 ): 'up' | 'down' | 'flat' | null {
-  const cur = kpiAchievementPct(row.metric_higher_is_better, row.target_value, row.actual_value);
+  const cur = metricAchievementPct(row.metric_higher_is_better, row.target_value, row.actual_value);
   const prev = prevRows.find((p) => p.staff_id === row.staff_id && p.metric_id === row.metric_id);
   const prevPct = prev
-    ? kpiAchievementPct(prev.metric_higher_is_better, prev.target_value, prev.actual_value)
+    ? metricAchievementPct(prev.metric_higher_is_better, prev.target_value, prev.actual_value)
     : null;
   if (cur == null || prevPct == null) return null;
   if (cur > prevPct) return 'up';

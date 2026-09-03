@@ -1,104 +1,145 @@
-# Task 3 Report: Deal Bar + 4-tab shell (S0 UI)
+# Task 3 Report: ops-web rag + `buildCockpitSummary`
 
-**Branch:** `feat/intake-deal-bar-sales-kit`  
-**Status:** DONE_WITH_CONCERNS  
-**Commit:** `636dab6f` — feat(crm): add intake Deal Bar and workspace tabs
+## Status
 
-## Files
+DONE_WITH_CONCERNS
 
-| File | Change |
-|------|--------|
-| `services/ops-web/src/lib/crm/intake-workspace-tab.ts` | `pickDefaultIntakeTab` + `IntakeWorkspaceTab` |
-| `services/ops-web/src/lib/crm/intake-workspace-tab.spec.ts` | Brief tests verbatim |
-| `services/ops-web/src/components/crm/intake/IntakeDealBar.tsx` | Sticky identity + BANT + service select |
-| `services/ops-web/src/components/crm/intake/IntakeWorkspaceTabs.tsx` | Qualify / Discovery / Win intel / Handoff |
-| `services/ops-web/src/app/crm/intake/IntakeContent.tsx` | Resolve slug, fetch context, Deal Bar + tabs |
-| `services/ops-web/src/app/globals.css` | `.intake-deal-bar`, `.intake-workspace-tabs` |
+## Summary
 
-Not deleted (usage removed from main column): `IntakeLeadContextCard`, `IntakePrepSummaryCard`.
+ops-web now owns a copied RAG/deadline helper (no Nest import) and a single `buildCockpitSummary` that produces tiles, department bars, attention rows, MoM delta, and insight copy. `StaffKpiGridEntry` gained optional `staff_department` / `updated_at`; `fetchStaffKpi` forwards `team`.
 
-## Behavior
-
-- `resolvedSlug = resolveIntakeServiceSlug({ urlSlug, sessionSlug, funnelSlug })`. Local Deal Bar select is `serviceOverride` (not persisted — Task 4).
-- Definition load: `fetchIntakeDefinitionBySlug(access, resolvedSlug)` — no hardcoded `_common`.
-- `fetchIntakeContext` when `leadId > 0`. SCI excerpt = `context.prep.pain_excerpt`.
-- Default tab: `handoff` if completed; `discovery` if BANT &lt; 18; else `qualify`.
-- Qualify = BANT + decision + red flags. Discovery = existing section. Win intel = muted “Sẽ mở ở S1”. Handoff = stakeholders + commitments + AI + collapsed stepper.
-- Funnel stepper default collapsed; Deal Bar Funnel ▾ expands it. Help `?` opens a 4-step drawer. Toolbar subtitle: `Phiên qualify theo dịch vụ`.
+`deriveKpiRag` uses Task 1’s sentinel (`1` vs `2`) so `higherIsBetter === 0` is lower-is-better despite `kpiAchievementPct` treating `higherIsBetter || 1` as higher-is-better. Lower-is-better red fixture is `5.34` (not brief `5.2`, which is yellow at 76.92%).
 
 ## TDD Evidence
 
-### RED — Step 2 (spec before implementation)
+### RED — Step 1–2: missing modules
 
-```text
-$ cd services/ops-web && npx vitest run src/lib/crm/intake-workspace-tab.spec.ts
+Wrote `rag.spec.ts` (copy of Task 1 `kpi.types.spec.ts` groups: no_data, 90/75 cutovers, lower-is-better `5.34`, deadline 2026-09 / Dec wrap, open + closed period) and the brief `cockpit-summary.spec.ts`.
 
- FAIL  services/ops-web/src/lib/crm/intake-workspace-tab.spec.ts
-Error: Cannot find module './intake-workspace-tab' imported from
-  .../src/lib/crm/intake-workspace-tab.spec.ts
-
- Test Files  1 failed (1)
-      Tests  no tests
+```bash
+cd services/ops-web && npx vitest run src/lib/kpi/rag.spec.ts src/lib/kpi/cockpit-summary.spec.ts
 ```
 
-Failure matches brief: module missing.
+```
+FAIL  src/lib/kpi/cockpit-summary.spec.ts
+Error: Cannot find module './cockpit-summary'
 
-### GREEN — after tab util
+FAIL  src/lib/kpi/rag.spec.ts
+Error: Cannot find module './rag'
 
-```text
-$ cd services/ops-web && npx vitest run src/lib/crm/intake-workspace-tab.spec.ts
-
- ✓ src/lib/crm/intake-workspace-tab.spec.ts (3 tests)
-
- Test Files  1 passed (1)
-      Tests  3 passed (3)
+Test Files  2 failed (2)
+Tests  no tests
 ```
 
-### Step 4 — both suites
+Failure reason matches the brief: files/exports missing, not a typo.
 
-```text
-$ cd services/ops-web && npx vitest run \
-    src/lib/crm/intake-service-resolve.spec.ts \
-    src/lib/crm/intake-workspace-tab.spec.ts
+### GREEN — Step 3–4: implement + pass
 
- Test Files  2 passed (2)
-      Tests  9 passed (9)
+Implemented `rag.ts` (copy of `kpiAchievementPct`, `deriveKpiRag` + sentinel, `kpiUpdateDeadlineIso`, `kpiIsOnTime`; export `KpiRag`), `cockpit-summary.ts` (brief verbatim), and `api.ts` fields/`team` query.
+
+ops-web Vitest does not enable globals. First GREEN run failed with `ReferenceError: describe is not defined`. Added `import { describe, expect, it } from 'vitest'` to both specs (same pattern as other ops-web unit tests), then re-ran.
+
+```bash
+cd services/ops-web && npx vitest run src/lib/kpi/rag.spec.ts src/lib/kpi/cockpit-summary.spec.ts
 ```
 
-Lint: skipped — `services/ops-web/node_modules` has no local `next`; `npx next lint` pulled Next 16 and rejected `--file`.
+```
+✓ src/lib/kpi/rag.spec.ts (6 tests) 3ms
+✓ src/lib/kpi/cockpit-summary.spec.ts (2 tests) 12ms
+
+Test Files  2 passed (2)
+Tests  8 passed (8)
+```
+
+- Current tiles: 90 → green, 80 → yellow, 50 → red; `completion_pct` ≈ `(90+80+50)/3`.
+- Open period `now=2026-09-20Z` → `ontime_pct === 100`.
+- Prev month one green vs current one green → `delta.green === 0`.
+- `by_department` names `['Sales', 'Tech']`; first attention row `red`; headline matches `/1 KPI không đạt/`.
+- `deptLabel('') === 'Chưa gắn phòng'`; `prevYearMonth(2026, 1) === { year: 2025, month: 12 }`.
+
+## Implementation
+
+`rag.ts` — local copy, not imported from `ptt-crm-api`:
+
+- `kpiAchievementPct`: `Number(higherIsBetter || 1) === 1` (so raw `0` would be treated as higher-is-better).
+- `deriveKpiRag`: `hiArg = Number(higherIsBetter ?? 1) === 1 ? 1 : 2` before calling `kpiAchievementPct`.
+- Thresholds: `>= 90` green, `>= 75` yellow, else red; null pct → `no_data`.
+- Deadline: 5th of next month `16:59:59.999Z`.
+
+`api.ts`:
+
+- `StaffKpiGridEntry.staff_department?: string`
+- `StaffKpiGridEntry.updated_at?: string`
+- `fetchStaffKpi` params `team?: string` + `if (params?.team) qs.set('team', params.team)`
+
+`cockpit-summary.ts` — brief exports: `deptLabel`, `prevYearMonth`, `filterRowsByDepartment`, `departmentOptions`, types, `buildCockpitSummary`, `rowTrend`.
+
+## Commit
+
+```
+ff6d2c5c feat(kpi): compute cockpit summary from staff KPI rows.
+```
+
+Files committed (only the five named in the task):
+
+- `services/ops-web/src/lib/kpi/rag.ts`
+- `services/ops-web/src/lib/kpi/rag.spec.ts`
+- `services/ops-web/src/lib/kpi/cockpit-summary.ts`
+- `services/ops-web/src/lib/kpi/cockpit-summary.spec.ts`
+- `services/ops-web/src/lib/api.ts`
+
+Did not amend. HEREDOC message from the brief.
+
+## Deviations from Brief
+
+- `rag.spec.ts` copies all six Task 1 cases (not only the three named groups) so 90/75, lower-is-better `5.34`, and 2026-09 deadline stay aligned with API.
+- Both specs import Vitest globals; ops-web `vitest.config.ts` has no `globals: true`.
+- Lower-is-better red uses `5.34` (parent instruction / Task 1), not brief `5.2`.
 
 ## Self-Review
 
-- Deal Bar props match the brief type exactly.
-- All new hooks sit above `if (!authReady)`.
-- Stacked lead/SCI cards and always-open stepper removed from the main column.
-- Win intel is a placeholder only (Task 5). `onServiceChange` is local state only (Task 4).
+| Area | Assessment |
+|------|------------|
+| Scope | Only the five brief files |
+| Copy vs import | RAG helpers live in ops-web; no Nest package import |
+| Sentinel | Same `1` vs `2` workaround as Task 1 `deriveKpiRag` |
+| Completion | Mean of `kpiAchievementPct` over scored rows; fixture `(90+80+50)/3` |
+| Delta | 1 green current vs 1 green prev → `delta.green === 0` |
+| Attention | Red first via `RAG_RANK`; insight headline includes `1 KPI không đạt` |
 
 ## Concerns
 
-1. **Service select does not PATCH** — `serviceOverride` only; Task 4 persists.
-2. **Win intel** is muted “Sẽ mở ở S1” — no `win_intel` state (Task 5).
-3. **Lint not run** — no local Next binary in this workspace.
-4. **Cockpit href** is `/crm/leads/{id}` (Sales Cockpit lives on lead detail; no dedicated intake hash).
+- `filterRowsByDepartment`, `departmentOptions`, and `rowTrend` are exported for Task 4+ but have no direct unit tests (only `buildCockpitSummary` / `deptLabel` / `prevYearMonth` are asserted).
+- `fetchStaffKpi` `team` query is untested at the client (type + `qs.set` only).
+- `kpiAchievementPct` still treats `0` as higher-is-better if called directly; only `deriveKpiRag` applies the sentinel. Callers that need lower-is-better RAG must go through `deriveKpiRag`, or pass `2`.
+- `completion_pct` averages capped achievement percents (max 100), not raw actual/target ratios.
 
-## Review fixes (Important)
+## Files Changed
 
-**Commit:** `fix(crm): read intake URL service_slug and surface definition errors`
+```
+services/ops-web/src/lib/kpi/rag.ts
+services/ops-web/src/lib/kpi/rag.spec.ts
+services/ops-web/src/lib/kpi/cockpit-summary.ts
+services/ops-web/src/lib/kpi/cockpit-summary.spec.ts
+services/ops-web/src/lib/api.ts
+```
 
-1. **`?service_slug=` ignored when `lead_id` already set.** `page.tsx` passes `initialLeadId` from `?lead_id=`, so the URL effect returned before reading `service_slug`. Split into its own `useEffect` that always reads `window.location.search`. Lead/lifecycle fallback unchanged. Hooks remain above `if (!authReady)`.
-2. **Definition fetch errors were silent.** First failed load (no `intakeDefinition` yet) now sets `error`. A later failure keeps the definition already on screen.
+## Important finding — `metricAchievementPct` sentinel
 
-Added `url slug wins over funnel` in existing `intake-service-resolve.spec.ts` (Task 0 file). Minor items not touched.
+`kpiAchievementPct` is unchanged (`higherIsBetter || 1`). Added `metricAchievementPct` (`0 → 2`, else `1`) and switched `countsOf`, attention `achievement_pct`, and `rowTrend` to it. Nest `kpi.types.ts` not touched.
 
-### Re-run covering tests
+Focused test: one lower-is-better row (`higher=0`, `target=4`, `actual=4`) must contribute `100` to `completion_pct`.
 
-```text
-$ cd services/ops-web && npx vitest run src/lib/crm/intake-workspace-tab.spec.ts src/lib/crm/intake-service-resolve.spec.ts
+### GREEN
 
- RUN  v4.1.11 /Users/quoctuan/Documents/CursorAI/RNOSAI
+```bash
+cd services/ops-web && npx vitest run src/lib/kpi/rag.spec.ts src/lib/kpi/cockpit-summary.spec.ts
+```
 
- Test Files  2 passed (2)
-      Tests  10 passed (10)
-   Start at  18:01:28
-   Duration  416ms (transform 121ms, setup 0ms, import 179ms, tests 15ms, environment 0ms)
+```
+✓ src/lib/kpi/rag.spec.ts (6 tests) 2ms
+✓ src/lib/kpi/cockpit-summary.spec.ts (3 tests) 11ms
+
+Test Files  2 passed (2)
+Tests  9 passed (9)
 ```

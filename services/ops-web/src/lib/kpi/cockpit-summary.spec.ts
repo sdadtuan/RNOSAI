@@ -49,4 +49,18 @@ describe('buildCockpitSummary', () => {
     expect(deptLabel('')).toBe('Chưa gắn phòng');
     expect(prevYearMonth(2026, 1)).toEqual({ year: 2025, month: 12 });
   });
+
+  it('counts lower-is-better (higher=0, target=4, actual=4) as 100 completion_pct', () => {
+    const current = [
+      row({
+        id: 1,
+        staff_id: 1,
+        metric_higher_is_better: 0,
+        target_value: 4,
+        actual_value: 4,
+      }),
+    ];
+    const out = buildCockpitSummary(current, [], now);
+    expect(out.completion_pct).toBe(100);
+  });
 });

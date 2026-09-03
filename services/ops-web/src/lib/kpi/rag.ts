@@ -12,6 +12,15 @@ export function kpiAchievementPct(
   return Math.round(100 * Math.min(1, t / Math.max(a, 1e-9)) * 100) / 100;
 }
 
+export function metricAchievementPct(
+  higherIsBetter: number,
+  target: unknown,
+  actual: unknown,
+): number | null {
+  const hiArg = Number(higherIsBetter) === 0 ? 2 : 1;
+  return kpiAchievementPct(hiArg, target, actual);
+}
+
 export type KpiRag = 'green' | 'yellow' | 'red' | 'no_data';
 
 export function deriveKpiRag(
