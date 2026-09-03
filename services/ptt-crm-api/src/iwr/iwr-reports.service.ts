@@ -22,6 +22,8 @@ import { IwrDistributionRepository } from './iwr-distribution.repository';
 import { IwrListsService } from './iwr-lists.service';
 import { IwrPolicyService } from './iwr-policy.service';
 import { IwrDelegationsRepository } from './iwr-w4.repository';
+import { IwrW5Repository } from './iwr-w5.repository';
+import { maskSections } from './iwr-masking.util';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
 import { emptySectionsForCode, sectionKeysForCode } from './iwr-sections.util';
 import { canTransitionIwr } from './iwr-workflow.util';
@@ -38,6 +40,7 @@ import type {
   SubmitIwrReportInput,
   UpdateIwrTemplateInput,
   WaiveIwrReportInput,
+  ReopenIwrReportInput,
 } from './iwr.types';
 
 const IMMUTABLE: Set<string> = new Set(['acknowledged', 'waived', 'archived']);
@@ -72,6 +75,7 @@ export class IwrReportsService {
     private readonly lists: IwrListsService,
     private readonly distRepo: IwrDistributionRepository,
     private readonly delegations: IwrDelegationsRepository,
+    private readonly w5: IwrW5Repository,
   ) {}
 
   private now(): Date {
@@ -171,10 +175,13 @@ export class IwrReportsService {
 
     const title = `${template.name_vi} ${period.period_start}`;
     const sections = emptySectionsForCode(input.template_code);
+    const templateVersionId =
+      (await this.w5.getEffectiveTemplateVersionId(template.id, period.period_start)) ?? undefined;
 
     try {
       const row = await this.repo.insertReport({
         template_id: template.id,
+        template_version_id: templateVersionId,
         title,
         author_staff_id: actor.staffId,
         reviewer_staff_id: defaultToStaffId(author),
@@ -210,10 +217,24 @@ export class IwrReportsService {
     };
   }
 
+  private async applyFieldMask(actor: IwrActor, detail: IwrReportDetail): Promise<IwrReportDetail> {
+    const fields = await this.w5.listFieldsForReport(detail.id);
+    if (!fields.length) return detail;
+    return {
+      ...detail,
+      sections_json: maskSections(
+        detail.sections_json,
+        fields.map((f) => ({ key: f.field_key, sensitivity: f.sensitivity })),
+        actor,
+      ),
+    };
+  }
+
   async get(actor: IwrActor, id: string): Promise<IwrReportDetail> {
     const detail = await this.loadDetail(id);
     await this.assertView(actor, detail);
-    return this.enrichViewer(actor, detail);
+    const masked = await this.applyFieldMask(actor, detail);
+    return this.enrichViewer(actor, masked);
   }
 
   async patch(actor: IwrActor, id: string, input: PatchIwrReportInput): Promise<IwrReportDetail> {
@@ -730,6 +751,76 @@ export class IwrReportsService {
     });
     await this.auditLog(actor, 'iwr.export_csv', id);
     return csv;
+  }
+
+  async exportJson(actor: IwrActor, id: string): Promise<Record<string, unknown>> {
+    const detail = await this.get(actor, id);
+    await this.auditLog(actor, 'iwr.export_json', id);
+    return {
+      id: detail.id,
+      title: detail.title,
+      template_code: detail.template_code,
+      author_staff_id: detail.author_staff_id,
+      author_name: detail.author_name,
+      period_start: detail.period_start,
+      period_end: detail.period_end,
+      status: detail.status,
+      rag: detail.rag,
+      sections_json: detail.sections_json,
+      items: detail.items ?? [],
+    };
+  }
+
+  async reopen(actor: IwrActor, id: string, input: ReopenIwrReportInput): Promise<IwrReportDetail> {
+    if (!hasIwrCap(actor, 'manage')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'iwr', action: 'manage' });
+    }
+    const reason = String(input.reason ?? '').trim();
+    if (reason.length < 5) {
+      throw new BadRequestException({ error: 'iwr_reopen_reason_required' });
+    }
+    const report = await this.repo.getReport(id);
+    if (!report) throw new NotFoundException({ error: 'iwr_report_not_found' });
+    if (!IMMUTABLE.has(report.status)) {
+      throw new BadRequestException({ error: 'iwr_reopen_not_immutable' });
+    }
+    const row = await this.w5.reopenReport(id);
+    if (!row) throw new NotFoundException({ error: 'iwr_report_not_found' });
+    await this.auditLog(actor, 'iwr.reopen', id, { reason, from_status: report.status });
+    return this.get(actor, id);
+  }
+
+  async listTemplateVersions(actor: IwrActor, templateId: string) {
+    if (!hasIwrCap(actor, 'manage')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'iwr', action: 'manage' });
+    }
+    const items = await this.w5.listTemplateVersions(templateId);
+    return { items };
+  }
+
+  async createTemplateVersion(
+    actor: IwrActor,
+    templateId: string,
+    input: { version: string; effective_from: string; sections_json: string[] },
+  ) {
+    if (!hasIwrCap(actor, 'manage')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'iwr', action: 'manage' });
+    }
+    const row = await this.w5.createTemplateVersion({
+      template_id: templateId,
+      version: input.version,
+      effective_from: input.effective_from,
+      sections_json: input.sections_json,
+    });
+    return row;
+  }
+
+  async listTemplateFields(actor: IwrActor, templateVersionId: string) {
+    if (!hasIwrCap(actor, 'manage')) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'iwr', action: 'manage' });
+    }
+    const items = await this.w5.listTemplateFields(templateVersionId);
+    return { items };
   }
 
   async listTemplates(_actor: IwrActor) {

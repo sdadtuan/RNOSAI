@@ -379,3 +379,138 @@ FROM (VALUES
 WHERE NOT EXISTS (
   SELECT 1 FROM iwr_schedules s WHERE s.tenant_id = 'PTT' AND s.kind = g.kind
 );
+
+-- W5: builder, template fields, approvals, webhooks
+
+CREATE TABLE IF NOT EXISTS iwr_template_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  template_id UUID NOT NULL REFERENCES iwr_templates (id) ON DELETE CASCADE,
+  version VARCHAR(16) NOT NULL DEFAULT 'v1.0',
+  effective_from DATE NOT NULL DEFAULT CURRENT_DATE,
+  sections_json JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, template_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS iwr_template_versions_template_idx
+  ON iwr_template_versions (tenant_id, template_id, effective_from DESC);
+
+CREATE TABLE IF NOT EXISTS iwr_template_fields (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_version_id UUID NOT NULL REFERENCES iwr_template_versions (id) ON DELETE CASCADE,
+  field_key VARCHAR(64) NOT NULL,
+  label_vi VARCHAR(255) NOT NULL,
+  sensitivity VARCHAR(16) NOT NULL DEFAULT 'internal',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT iwr_template_fields_sensitivity_chk CHECK (sensitivity IN ('internal', 'hr', 'finance')),
+  UNIQUE (template_version_id, field_key)
+);
+
+ALTER TABLE iwr_reports ADD COLUMN IF NOT EXISTS template_version_id UUID;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'iwr_reports_template_version_fk'
+  ) THEN
+    ALTER TABLE iwr_reports
+      ADD CONSTRAINT iwr_reports_template_version_fk
+      FOREIGN KEY (template_version_id) REFERENCES iwr_template_versions (id);
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS iwr_saved_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  name_vi VARCHAR(255) NOT NULL,
+  owner_staff_id INTEGER NOT NULL,
+  query_json JSONB NOT NULL DEFAULT '{}',
+  viz VARCHAR(16) NOT NULL DEFAULT 'table',
+  shared_staff_ids INTEGER[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT iwr_saved_reports_viz_chk CHECK (viz IN ('table', 'kpi_tile', 'rag_list'))
+);
+
+CREATE INDEX IF NOT EXISTS iwr_saved_reports_owner_idx
+  ON iwr_saved_reports (tenant_id, owner_staff_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS iwr_dash_widgets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  owner_staff_id INTEGER NOT NULL,
+  saved_report_id UUID REFERENCES iwr_saved_reports (id) ON DELETE SET NULL,
+  role VARCHAR(16) NOT NULL DEFAULT 'staff',
+  title_vi VARCHAR(255) NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT iwr_dash_widgets_role_chk CHECK (role IN ('staff', 'leader', 'pm', 'bod'))
+);
+
+CREATE TABLE IF NOT EXISTS iwr_approvals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  report_id UUID NOT NULL REFERENCES iwr_reports (id) ON DELETE CASCADE,
+  kind VARCHAR(32) NOT NULL,
+  requester_staff_id INTEGER NOT NULL,
+  approver_staff_id INTEGER NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  payload_json JSONB NOT NULL DEFAULT '{}',
+  decided_at TIMESTAMPTZ,
+  decided_by_staff_id INTEGER,
+  decision_note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT iwr_approvals_kind_chk CHECK (kind IN ('budget', 'scope', 'extension', 'staffing', 'other')),
+  CONSTRAINT iwr_approvals_status_chk CHECK (status IN ('pending', 'approved', 'rejected'))
+);
+
+CREATE INDEX IF NOT EXISTS iwr_approvals_report_idx
+  ON iwr_approvals (tenant_id, report_id, status);
+
+CREATE TABLE IF NOT EXISTS iwr_webhooks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  name_vi VARCHAR(255) NOT NULL,
+  url TEXT NOT NULL,
+  secret VARCHAR(255) NOT NULL,
+  events TEXT[] NOT NULL DEFAULT '{report.submitted,report.acknowledged}',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  owner_staff_id INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO iwr_template_versions (tenant_id, template_id, version, effective_from, sections_json)
+SELECT t.tenant_id, t.id, 'v1.0', CURRENT_DATE, t.sections_json
+FROM iwr_templates t
+WHERE NOT EXISTS (
+  SELECT 1 FROM iwr_template_versions v
+  WHERE v.template_id = t.id AND v.tenant_id = t.tenant_id AND v.version = 'v1.0'
+);
+
+INSERT INTO iwr_template_fields (template_version_id, field_key, label_vi, sensitivity, sort_order)
+SELECT v.id,
+       elem.value,
+       elem.value,
+       CASE
+         WHEN elem.value = 'people' THEN 'hr'
+         WHEN elem.value IN ('kpi', 'plan_vs_actual') AND t.code = 'monthly_work' THEN 'finance'
+         ELSE 'internal'
+       END,
+       elem.ord::int
+FROM iwr_template_versions v
+JOIN iwr_templates t ON t.id = v.template_id
+CROSS JOIN LATERAL jsonb_array_elements_text(v.sections_json) WITH ORDINALITY AS elem(value, ord)
+WHERE NOT EXISTS (
+  SELECT 1 FROM iwr_template_fields f
+  WHERE f.template_version_id = v.id AND f.field_key = elem.value
+);
+
+UPDATE iwr_reports r
+   SET template_version_id = v.id
+  FROM iwr_template_versions v
+ WHERE r.template_version_id IS NULL
+   AND v.template_id = r.template_id
+   AND v.version = 'v1.0'
+   AND v.tenant_id = r.tenant_id;

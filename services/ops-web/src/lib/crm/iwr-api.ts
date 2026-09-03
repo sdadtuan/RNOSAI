@@ -491,6 +491,96 @@ export async function sendIwrReportEmail(
   });
 }
 
+export interface IwrSavedReport {
+  id: string;
+  name_vi: string;
+  owner_staff_id: number;
+  query_json: Record<string, unknown>;
+  viz: 'table' | 'kpi_tile' | 'rag_list';
+  shared_staff_ids: number[];
+}
+
+export async function fetchIwrSavedReports(token: string): Promise<{ items: IwrSavedReport[] }> {
+  return iwrFetch(token, '/api/crm/iwr/saved-reports');
+}
+
+export async function createIwrSavedReport(
+  token: string,
+  body: {
+    name_vi: string;
+    query_json?: Record<string, unknown>;
+    viz?: 'table' | 'kpi_tile' | 'rag_list';
+  },
+): Promise<IwrSavedReport> {
+  return iwrFetch(token, '/api/crm/iwr/saved-reports', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function runIwrSavedReport(
+  token: string,
+  id: string,
+): Promise<{ rows: unknown[]; truncated: boolean }> {
+  return iwrFetch(token, `/api/crm/iwr/saved-reports/${id}/run`, { method: 'POST', body: '{}' });
+}
+
+export interface IwrApprovalRow {
+  id: string;
+  report_id: string;
+  kind: 'budget' | 'scope' | 'extension' | 'staffing' | 'other';
+  requester_staff_id: number;
+  approver_staff_id: number;
+  status: 'pending' | 'approved' | 'rejected';
+  payload_json: Record<string, unknown>;
+  created_at: string;
+}
+
+export async function fetchIwrApprovals(token: string): Promise<{ items: IwrApprovalRow[] }> {
+  return iwrFetch(token, '/api/crm/iwr/approvals');
+}
+
+export async function createIwrApproval(
+  token: string,
+  body: {
+    report_id: string;
+    kind: IwrApprovalRow['kind'];
+    approver_staff_id: number;
+    payload_json?: Record<string, unknown>;
+  },
+): Promise<IwrApprovalRow> {
+  return iwrFetch(token, '/api/crm/iwr/approvals', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function iwrJsonExportUrl(id: string): string {
+  return `${API_BASE}/api/crm/iwr/reports/${id}/export.json`;
+}
+
+export async function reopenIwrReport(
+  token: string,
+  id: string,
+  reason: string,
+): Promise<IwrReportDetail> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${id}/reopen`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function fetchIwrTemplateVersions(
+  token: string,
+  templateId: string,
+): Promise<{ items: { id: string; version: string; effective_from: string }[] }> {
+  return iwrFetch(token, `/api/crm/iwr/templates/${templateId}/versions`);
+}
+
+export async function fetchIwrTemplateFields(
+  token: string,
+  versionId: string,
+): Promise<{ items: { field_key: string; label_vi: string; sensitivity: string }[] }> {
+  return iwrFetch(token, `/api/crm/iwr/templates/versions/${versionId}/fields`);
+}
+
 export function formatIwrWhen(iso: string | null | undefined): string {
   if (!iso) return '—';
   try {

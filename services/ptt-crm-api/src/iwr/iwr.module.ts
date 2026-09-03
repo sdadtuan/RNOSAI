@@ -32,6 +32,13 @@ import { IwrDelegationsService, IwrEmailService, IwrFilesService } from './iwr-w
 import { IwrScheduleWorkerService, IwrSchedulesService } from './iwr-schedule-worker.service';
 import { IwrSchedulesController } from './iwr-schedules.controller';
 import { IwrLeaveAdapter } from './iwr-leave.adapter';
+import { IwrBuilderController } from './iwr-builder.controller';
+import { IwrBuilderService } from './iwr-builder.service';
+import { IwrApprovalsController } from './iwr-approvals.controller';
+import { IwrApprovalsService } from './iwr-approvals.service';
+import { IwrWebhooksController } from './iwr-webhooks.controller';
+import { IwrWebhooksService } from './iwr-webhooks.service';
+import { IwrW5Repository } from './iwr-w5.repository';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CsdModule],
@@ -43,6 +50,9 @@ import { IwrLeaveAdapter } from './iwr-leave.adapter';
     IwrRisksController,
     IwrDashboardsController,
     IwrSchedulesController,
+    IwrBuilderController,
+    IwrApprovalsController,
+    IwrWebhooksController,
   ],
   providers: [
     StaffIwrGuard,
@@ -70,6 +80,10 @@ import { IwrLeaveAdapter } from './iwr-leave.adapter';
     IwrFilesService,
     IwrEmailService,
     IwrDelegationsService,
+    IwrW5Repository,
+    IwrBuilderService,
+    IwrApprovalsService,
+    IwrWebhooksService,
   ],
   exports: [IwrReportsService, IwrInboxService, IwrDashboardsService],
 })

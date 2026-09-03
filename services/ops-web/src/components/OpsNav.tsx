@@ -124,6 +124,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/internal-reports/lists': 'DS phân phối BC',
   '/crm/internal-reports/team': 'Cây kỳ',
   '/crm/internal-reports/templates': 'Mẫu BC nội bộ',
+  '/crm/internal-reports/builder': 'Report builder BC',
   '/crm/leads': 'Quản lý Lead',
   '/crm/operational/leads': 'Lead CSKH vận hành',
   '/crm/b2b/leads': 'Lead B2B Sales',
@@ -531,6 +532,7 @@ function buildSections(
     if (hasCap(user, 'iwr', 'lists') || hasCap(user, 'iwr', 'manage')) {
       toChuc.push({ href: '/crm/internal-reports/lists', label: 'DS phân phối' });
     }
+    toChuc.push({ href: '/crm/internal-reports/builder', label: 'Report builder' });
     if (hasCap(user, 'iwr', 'manage')) {
       toChuc.push({ href: '/crm/internal-reports/templates', label: 'Mẫu BC nội bộ' });
     }

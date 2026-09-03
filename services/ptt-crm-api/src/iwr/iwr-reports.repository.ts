@@ -69,6 +69,7 @@ function mapReport(row: Record<string, unknown>): IwrReportRow {
     source_report_ids: Array.isArray(row.source_report_ids)
       ? row.source_report_ids.map(String)
       : undefined,
+    template_version_id: row.template_version_id != null ? text(row.template_version_id) : null,
   };
 }
 
@@ -276,6 +277,7 @@ export class IwrReportsRepository implements OnModuleDestroy {
 
   async insertReport(input: {
     template_id: string;
+    template_version_id?: string;
     title: string;
     author_staff_id: number;
     reviewer_staff_id: number | null;
@@ -287,13 +289,14 @@ export class IwrReportsRepository implements OnModuleDestroy {
     try {
       const res = await this.db.query(
         `INSERT INTO iwr_reports (
-           tenant_id, template_id, title, author_staff_id, reviewer_staff_id,
+           tenant_id, template_id, template_version_id, title, author_staff_id, reviewer_staff_id,
            period_start, period_end, due_at, sections_json, status
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft')
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'draft')
          RETURNING id`,
         [
           IWR_TENANT_ID,
           input.template_id,
+          input.template_version_id ?? null,
           input.title,
           input.author_staff_id,
           input.reviewer_staff_id,

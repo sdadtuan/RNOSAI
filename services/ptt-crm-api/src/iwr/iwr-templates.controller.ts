@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
@@ -51,5 +51,27 @@ export class IwrTemplatesController {
     @Body() body: UpdateIwrTemplateInput,
   ) {
     return this.reports.updateTemplate(await this.actor(req), id, body);
+  }
+
+  @Get(':id/versions')
+  @RequireIwrAction('manage')
+  async listVersions(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.reports.listTemplateVersions(await this.actor(req), id);
+  }
+
+  @Post(':id/versions')
+  @RequireIwrAction('manage')
+  async createVersion(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { version: string; effective_from: string; sections_json: string[] },
+  ) {
+    return this.reports.createTemplateVersion(await this.actor(req), id, body);
+  }
+
+  @Get('versions/:versionId/fields')
+  @RequireIwrAction('manage')
+  async listFields(@Req() req: AuthedReq, @Param('versionId') versionId: string) {
+    return this.reports.listTemplateFields(await this.actor(req), versionId);
   }
 }

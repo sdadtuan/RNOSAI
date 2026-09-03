@@ -245,6 +245,22 @@ export class IwrReportsController {
     return this.distribution.forward(await this.actor(req), id, body);
   }
 
+  @Get(':id/export.json')
+  @RequireIwrAction('export')
+  async exportJson(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.reports.exportJson(await this.actor(req), id);
+  }
+
+  @Post(':id/reopen')
+  @RequireIwrAction('manage')
+  async reopen(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { reason: string },
+  ) {
+    return this.reports.reopen(await this.actor(req), id, body);
+  }
+
   @Get(':id/export.pdf')
   @RequireIwrAction('view')
   async exportPdf(@Req() req: AuthedReq, @Param('id') id: string, @Res() res: Response) {

@@ -45,6 +45,14 @@ function makeSvc(now?: Date) {
   const lists = { resolveMembers: jest.fn().mockResolvedValue([]) };
   const distRepo = { insertDeliveryLog: jest.fn() };
   const delegations = { isDelegateFor: jest.fn().mockResolvedValue(false) };
+  const w5 = {
+    getEffectiveTemplateVersionId: jest.fn().mockResolvedValue('v1-uuid'),
+    listFieldsForReport: jest.fn().mockResolvedValue([]),
+    reopenReport: jest.fn(),
+    listTemplateVersions: jest.fn().mockResolvedValue([]),
+    createTemplateVersion: jest.fn(),
+    listTemplateFields: jest.fn().mockResolvedValue([]),
+  };
   const svc = new IwrReportsService(
     repo as never,
     org as never,
@@ -54,6 +62,7 @@ function makeSvc(now?: Date) {
     lists as never,
     distRepo as never,
     delegations as never,
+    w5 as never,
   );
   if (now) svc.nowFn = () => now;
   return { svc, repo, org, notify, audit };
@@ -275,5 +284,25 @@ describe('IwrReportsService', () => {
     await expect(svc.createBackfill(actor(), { ymd: '2026-08-30' })).rejects.toMatchObject({
       response: { error: 'iwr_not_workday' },
     });
+  });
+
+  it('reopen without manage cap → 403', async () => {
+    const { svc } = makeSvc();
+    await expect(svc.reopen(actor(), 'r1', { reason: 'need fix' })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('reopen requires reason >= 5 chars', async () => {
+    const { svc } = makeSvc();
+    const mgr: IwrActor = {
+      staffId: 1,
+      staffLabel: 'Admin',
+      departmentId: null,
+      caps: [{ section: 'iwr', action: 'manage' }],
+    };
+    await expect(svc.reopen(mgr, 'r1', { reason: 'x' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 });

@@ -152,6 +152,7 @@ export type IwrReportRow = {
   sensitivity?: string;
   sections_json: Record<string, unknown>;
   source_report_ids?: string[];
+  template_version_id?: string | null;
 };
 
 export type IwrListKind = 'static' | 'department' | 'role' | 'rule';
@@ -329,4 +330,93 @@ export type SendIwrEmailInput = {
   to: string[];
   subject: string;
   body_text: string;
+};
+
+export type IwrFieldSensitivity = 'internal' | 'hr' | 'finance';
+
+export type IwrSavedReportViz = 'table' | 'kpi_tile' | 'rag_list';
+
+export type IwrSavedReportQuery = {
+  template_codes?: string[];
+  statuses?: IwrReportStatus[];
+  period_start?: string;
+  period_end?: string;
+  department_id?: number;
+  rag?: Exclude<IwrRag, null>[];
+};
+
+export type IwrSavedReport = {
+  id: string;
+  name_vi: string;
+  owner_staff_id: number;
+  query_json: IwrSavedReportQuery;
+  viz: IwrSavedReportViz;
+  shared_staff_ids: number[];
+};
+
+export type CreateIwrSavedReportInput = {
+  name_vi: string;
+  query_json?: IwrSavedReportQuery;
+  viz?: IwrSavedReportViz;
+};
+
+export type IwrTemplateVersionRow = {
+  id: string;
+  template_id: string;
+  version: string;
+  effective_from: string;
+  sections_json: string[];
+};
+
+export type IwrTemplateFieldRow = {
+  id: string;
+  template_version_id: string;
+  field_key: string;
+  label_vi: string;
+  sensitivity: IwrFieldSensitivity;
+  sort_order: number;
+};
+
+export type IwrApprovalKind = 'budget' | 'scope' | 'extension' | 'staffing' | 'other';
+export type IwrApprovalStatus = 'pending' | 'approved' | 'rejected';
+
+export type IwrApprovalRow = {
+  id: string;
+  report_id: string;
+  kind: IwrApprovalKind;
+  requester_staff_id: number;
+  approver_staff_id: number;
+  status: IwrApprovalStatus;
+  payload_json: Record<string, unknown>;
+  decided_at: string | null;
+  decided_by_staff_id: number | null;
+  decision_note: string | null;
+  created_at: string;
+};
+
+export type CreateIwrApprovalInput = {
+  report_id: string;
+  kind: IwrApprovalKind;
+  approver_staff_id: number;
+  payload_json?: Record<string, unknown>;
+};
+
+export type IwrWebhookRow = {
+  id: string;
+  name_vi: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  owner_staff_id: number;
+};
+
+export type CreateIwrWebhookInput = {
+  name_vi: string;
+  url: string;
+  secret?: string;
+  events?: string[];
+};
+
+export type ReopenIwrReportInput = {
+  reason: string;
 };
