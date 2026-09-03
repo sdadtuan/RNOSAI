@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { IwrAppShell, IwrCard } from '@/components/crm/iwr/IwrAppShell';
 import { IwrDailyReportEditor } from '@/components/crm/iwr/IwrDailyReportEditor';
+import { IwrWeeklyReportEditor } from '@/components/crm/iwr/IwrWeeklyReportEditor';
 import { IwrReportEditor } from '@/components/crm/iwr/IwrReportEditor';
 import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
 import {
@@ -59,7 +60,7 @@ export default function IwrReportDetailPage() {
 
   return (
     <IwrAppShell user={user} token={token} onLogout={logout} loading={!user && !report} canWrite={canWrite}>
-      {report?.template_code !== 'daily_work' && (
+      {report?.template_code !== 'daily_work' && report?.template_code !== 'weekly_work' && (
         <div className="iwr-pagehead">
           <div>
             <div className="iwr-muted">{report?.template_name_vi}</div>
@@ -95,6 +96,46 @@ export default function IwrReportDetailPage() {
       {report && token && (
         report.template_code === 'daily_work' ? (
           <IwrDailyReportEditor
+            token={token}
+            report={report}
+            canWrite={canWrite}
+            canReview={canReview}
+            canBcc={canBcc}
+            comments={comments}
+            onPatch={async (body) => {
+              const updated = await patchIwrReport(token, report.id, body);
+              if (updated?.id && updated.status) setReport(updated);
+            }}
+            onSubmit={async (body) => {
+              const updated = await submitIwrReport(token, report.id, body);
+              if (updated?.id) setReport(updated);
+              await reload();
+            }}
+            onWithdraw={async () => {
+              const updated = await withdrawIwrReport(token, report.id);
+              setReport(updated);
+            }}
+            onAck={async () => {
+              const updated = await ackIwrReport(token, report.id);
+              setReport(updated);
+              await reload();
+            }}
+            onRequestChanges={async (body) => {
+              const updated = await requestIwrChanges(token, report.id, body);
+              setReport(updated);
+              await reload();
+            }}
+            onAddComment={async (body) => {
+              await addIwrComment(token, report.id, body);
+              await reload();
+            }}
+            onReplyAll={async (body) => {
+              await replyAllIwrReport(token, report.id, body);
+              await reload();
+            }}
+          />
+        ) : report.template_code === 'weekly_work' ? (
+          <IwrWeeklyReportEditor
             token={token}
             report={report}
             canWrite={canWrite}

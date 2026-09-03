@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clampProgress,
   formatViYmd,
+  kpiDelta,
   isOverdueYmd,
   parseIwrItemMeta,
   serializeIwrItemMeta,
@@ -12,6 +13,17 @@ describe('iwr-item-meta', () => {
     const body = serializeIwrItemMeta({ project: 'Spa ABC', progress: 70, text: 'xong' });
     expect(parseIwrItemMeta(body)).toMatchObject({ project: 'Spa ABC', progress: 70, text: 'xong' });
     expect(parseIwrItemMeta('Chờ khách chốt')).toMatchObject({ text: 'Chờ khách chốt', note: 'Chờ khách chốt' });
+  });
+
+  it('computes KPI delta with higher/lower-is-better', () => {
+    const leads = kpiDelta(1100, 1240, 'higher');
+    expect(leads.diff).toBe(140);
+    expect(leads.good).toBe(true);
+    const cpl = kpiDelta(160000, 149000, 'lower');
+    expect(cpl.diff).toBe(-11000);
+    expect(cpl.good).toBe(true);
+    const delivery = kpiDelta(100, 85, 'higher');
+    expect(delivery.good).toBe(false);
   });
 
   it('formats date and detects overdue', () => {

@@ -65,6 +65,19 @@ export function iwrIsoWeekLabel(d = new Date()): { label: string; start: string;
   };
 }
 
+export function iwrWeekHeading(periodStart: string, periodEnd: string): string {
+  const week = iwrIsoWeekLabel(new Date(`${periodStart}T12:00:00+07:00`)).week;
+  const a = formatShort(periodStart);
+  const b = formatShort(periodEnd);
+  return `Báo cáo tuần — Tuần ${week} (${a}–${b})`;
+}
+
+function formatShort(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd);
+  if (!m) return ymd;
+  return `${m[3]}/${m[2]}`;
+}
+
 export function iwrRoleLabel(positionCode?: string, jobFunctions?: string[]): string {
   if (positionCode) return positionCode.replace(/_/g, ' ');
   if (jobFunctions?.[0]) return jobFunctions[0];

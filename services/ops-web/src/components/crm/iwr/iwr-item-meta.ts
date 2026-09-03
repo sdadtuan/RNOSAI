@@ -13,7 +13,27 @@ export type IwrItemMeta = {
   note?: string;
   evidence_name?: string;
   text?: string;
+  target?: number;
+  actual?: number;
+  unit?: string;
+  better?: 'higher' | 'lower';
+  owner?: string;
+  step?: number;
 };
+
+export function kpiDelta(target: number, actual: number, better: 'higher' | 'lower' = 'higher') {
+  const diff = actual - target;
+  const pct = target === 0 ? 0 : (diff / Math.abs(target)) * 100;
+  const good = better === 'lower' ? actual <= target : actual >= target;
+  return { diff, pct, good };
+}
+
+export function formatKpiNumber(value: number, unit?: string): string {
+  const n = Number.isFinite(value) ? value : 0;
+  const formatted = Math.abs(n) >= 1000 ? n.toLocaleString('vi-VN') : String(n);
+  if (!unit || unit === '%') return unit === '%' ? `${formatted}%` : formatted;
+  return `${formatted}${unit === 'đ' ? 'đ' : ` ${unit}`}`;
+}
 
 export function parseIwrItemMeta(body: string | null | undefined): IwrItemMeta {
   const raw = String(body ?? '').trim();
