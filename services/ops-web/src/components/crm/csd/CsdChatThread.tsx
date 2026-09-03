@@ -59,6 +59,8 @@ type CsdChatThreadProps = {
   onReact?: (message: CsdMessageRow, emotion: CsdChatEmotionId) => void;
   onMobileBack?: () => void;
   onShowContext?: () => void;
+  onToggleContextPanel?: () => void;
+  contextPanelOpen?: boolean;
   onRename?: (aliasVi: string) => Promise<boolean>;
   onDismissPriorityHint?: () => void;
   onApplyPriorityHint?: () => void;
@@ -93,6 +95,8 @@ export function CsdChatThread({
   onReact,
   onMobileBack,
   onShowContext,
+  onToggleContextPanel,
+  contextPanelOpen = false,
   onRename,
   onExpand,
   onMinimize,
@@ -250,6 +254,18 @@ export function CsdChatThread({
               }}
             >
               Đổi tên
+            </button>
+          ) : null}
+          {onToggleContextPanel ? (
+            <button
+              type="button"
+              className={`csd-chat-icon-btn${contextPanelOpen ? ' is-active' : ''}`}
+              data-testid="csd-chat-context-panel-toggle"
+              aria-label={contextPanelOpen ? 'Ẩn ngữ cảnh' : 'Mở ngữ cảnh'}
+              aria-expanded={contextPanelOpen}
+              onClick={onToggleContextPanel}
+            >
+              Ngữ cảnh
             </button>
           ) : null}
           {onShowContext ? (

@@ -66,6 +66,21 @@ async function unlockCsdChat(page: import('@playwright/test').Page) {
   await expect(page.getByTestId('csd-chat-login')).toHaveCount(0);
 }
 
+async function openCsdChatContextPanel(page: import('@playwright/test').Page) {
+  const toggle = page.getByTestId('csd-chat-context-panel-toggle');
+  if ((await toggle.count()) > 0 && (await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click();
+  }
+}
+
+async function openCsdChatContextMeta(page: import('@playwright/test').Page) {
+  await openCsdChatContextPanel(page);
+  const meta = page.getByTestId('csd-chat-context-toggle');
+  if ((await meta.getAttribute('aria-expanded')) !== 'true') {
+    await meta.click();
+  }
+}
+
 async function mockCsdChatApis(page: import('@playwright/test').Page) {
   let conversation = { ...CONVERSATION };
   let conversations: Array<Record<string, unknown>> = [{ ...CONVERSATION }, { ...GROUP_CONVERSATION }];
@@ -476,9 +491,11 @@ test.describe('CSD chat workspace', () => {
       '/crm/csd/tickets/11111111-1111-1111-1111-111111111111',
     );
 
+    await openCsdChatContextPanel(page);
     await page.getByTestId('csd-chat-ai-summary').click();
     await expect(page.getByTestId('csd-chat-ai-output')).toContainText('Khách báo Ads không chạy');
 
+    await openCsdChatContextMeta(page);
     await page.getByRole('button', { name: /Đóng hội thoại/i }).click();
     await expect(page.getByRole('button', { name: /^Gửi$/ })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Mở lại/i })).toBeVisible();
@@ -686,7 +703,7 @@ test.describe('CSD chat workspace', () => {
     await page.getByTestId('csd-create-ticket-modal').getByRole('button', { name: /Tạo ticket/i }).click();
     await expect(page.getByTestId('csd-duplicate-ticket-modal')).toContainText('PTT-2026-000099');
 
-    await page.getByTestId('csd-chat-context-toggle').click();
+    await openCsdChatContextMeta(page);
     await page.getByTestId('csd-chat-archive').click();
     await expect(page.getByRole('button', { name: /^Gửi$/ })).toHaveCount(0);
 

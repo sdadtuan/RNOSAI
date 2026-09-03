@@ -37,6 +37,7 @@ type CsdChatContextProps = {
   onSummarize: () => void;
   showMobileBack?: boolean;
   onMobileBack?: () => void;
+  onClosePanel?: () => void;
   onRename?: (aliasVi: string) => Promise<boolean>;
   variant?: 'column' | 'sheet';
 };
@@ -70,6 +71,7 @@ export function CsdChatContext({
   onSummarize,
   showMobileBack,
   onMobileBack,
+  onClosePanel,
   onRename,
   variant = 'column',
 }: CsdChatContextProps) {
@@ -89,6 +91,20 @@ export function CsdChatContext({
       ) : null}
       {active ? (
         <>
+          {onClosePanel ? (
+            <div className="csd-chat-context-head">
+              <h3 className="kpi-section-title">Ngữ cảnh</h3>
+              <button
+                type="button"
+                className="csd-chat-icon-btn"
+                aria-label="Ẩn ngữ cảnh"
+                data-testid="csd-chat-context-panel-close"
+                onClick={onClosePanel}
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             className="csd-chat-context-toggle kpi-section-title"
@@ -96,7 +112,7 @@ export function CsdChatContext({
             data-testid="csd-chat-context-toggle"
             onClick={() => setMetaOpen((v) => !v)}
           >
-            <span>{isSheet ? 'Thông tin' : 'Ngữ cảnh'}</span>
+            <span>{isSheet ? 'Thông tin' : 'Chi tiết hội thoại'}</span>
             <span className="csd-chat-context-toggle__chev" aria-hidden>
               {metaOpen ? '▾' : '▸'}
             </span>

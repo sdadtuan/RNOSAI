@@ -23,12 +23,14 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
   const s = useCsdChatSession({ token, canWrite, initialConversationId });
   const [tab, setTab] = useState<CsdDockTab>('messages');
   const [incomingCount, setIncomingCount] = useState(0);
+  const [contextOpen, setContextOpen] = useState(false);
   const archived = s.active?.status === 'archived';
   const closed = s.active?.status === 'closed';
   const composerLocked = Boolean(closed || archived);
 
   const workspaceClass = [
     'csd-chat-workspace',
+    !s.isMobile && !contextOpen ? 'is-context-hidden' : '',
     s.isMobile && s.mobilePane === 'list' ? 'is-mobile-list' : '',
     s.isMobile && s.mobilePane === 'thread' ? 'is-mobile-thread' : '',
     s.isMobile && s.mobilePane === 'context' ? 'is-mobile-context' : '',
@@ -92,6 +94,8 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
           showMobileBack={s.isMobile}
           onMobileBack={() => s.setMobilePane('list')}
           onShowContext={s.isMobile ? () => s.setMobilePane('context') : undefined}
+          onToggleContextPanel={!s.isMobile ? () => setContextOpen((v) => !v) : undefined}
+          contextPanelOpen={contextOpen}
           onRename={(aliasVi) => s.handleRenameConversation(aliasVi)}
           onDismissPriorityHint={() => s.setPriorityHint(null)}
           onApplyPriorityHint={() => {
@@ -129,7 +133,7 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
         />
       )}
 
-      {(!s.isMobile || s.mobilePane === 'context') && (
+      {((!s.isMobile && contextOpen) || (s.isMobile && s.mobilePane === 'context')) && (
         <CsdChatContext
           active={s.active}
           members={s.members}
@@ -151,6 +155,7 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
           onSummarize={() => void s.handleSummarize()}
           showMobileBack={s.isMobile}
           onMobileBack={() => s.setMobilePane('thread')}
+          onClosePanel={!s.isMobile ? () => setContextOpen(false) : undefined}
           onRename={(aliasVi) => s.handleRenameConversation(aliasVi)}
         />
       )}

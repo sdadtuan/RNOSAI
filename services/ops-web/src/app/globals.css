@@ -15221,6 +15221,10 @@ body {
   overflow: hidden;
 }
 
+.csd-chat-workspace.is-context-hidden {
+  grid-template-columns: 64px 320px minmax(0, 1fr);
+}
+
 .csd-chat-workspace__list-col {
   display: flex;
   flex-direction: column;
@@ -15863,6 +15867,22 @@ body {
 
 .csd-chat-context-meta {
   margin-top: -0.15rem;
+}
+
+.csd-chat-context-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.csd-chat-context-head .kpi-section-title {
+  margin: 0;
+}
+
+.csd-chat-thread-head__actions .csd-chat-icon-btn.is-active {
+  background: var(--zalo-active, #e8f3ff);
+  color: var(--zalo-blue, #0068ff);
 }
 
 .csd-chat-messages {
