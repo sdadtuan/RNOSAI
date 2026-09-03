@@ -186,7 +186,7 @@ export function IwrAppShell({
           <div className="iwr-search">
             <span className="iwr-search__icon">⌕</span>
             <input
-              placeholder="Tìm báo cáo, dự án, nhân sự..."
+              placeholder="Tìm báo cáo, dự án, khách hàng, nhân sự..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
