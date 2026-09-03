@@ -15840,6 +15840,31 @@ body {
   border-left: 1px solid var(--zalo-line, #dfe2e7);
 }
 
+.csd-chat-context-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.csd-chat-context-toggle__chev {
+  color: var(--zalo-muted, #7589a3);
+  font-size: 0.82rem;
+  line-height: 1;
+}
+
+.csd-chat-context-meta {
+  margin-top: -0.15rem;
+}
+
 .csd-chat-messages {
   list-style: none;
   margin: 0;
@@ -15856,6 +15881,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.csd-chat-messages__anchor {
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .csd-chat-date-chip {

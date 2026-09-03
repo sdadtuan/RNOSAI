@@ -74,9 +74,11 @@ export function CsdChatContext({
   variant = 'column',
 }: CsdChatContextProps) {
   const isSheet = variant === 'sheet';
+  const [metaOpen, setMetaOpen] = useState(false);
   const [aliasDraft, setAliasDraft] = useState(active?.alias_vi || active?.name_vi || '');
   useEffect(() => {
     setAliasDraft(active?.alias_vi || active?.name_vi || '');
+    setMetaOpen(false);
   }, [active?.id, active?.alias_vi, active?.name_vi]);
   return (
     <aside className={`csd-chat-workspace__context stack-gap${isSheet ? ' is-sheet' : ''}`}>
@@ -85,58 +87,73 @@ export function CsdChatContext({
           ← Thread
         </button>
       ) : null}
-      <h3 className="kpi-section-title">{isSheet ? 'Thông tin' : 'Ngữ cảnh'}</h3>
       {active ? (
         <>
-          <p className="muted">Loại: {CSD_CHAT_KIND_LABELS[active.kind] ?? active.kind}</p>
-          <p className="muted">Tên hiển thị: {active.name_vi}</p>
-          {onRename && canWrite ? (
-            <form
-              className="csd-chat-rename csd-chat-rename--stack"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void onRename(aliasDraft.trim());
-              }}
-            >
-              <label className="muted" htmlFor="csd-chat-context-rename">
-                Tên gợi nhớ (chỉ mình bạn thấy)
-              </label>
-              <input
-                id="csd-chat-context-rename"
-                className="kpi-input"
-                value={aliasDraft}
-                maxLength={191}
-                onChange={(e) => setAliasDraft(e.target.value)}
-                placeholder={active.name_vi}
-                data-testid="csd-chat-context-rename-input"
-              />
-              <button type="submit" className="btn btn-sm" disabled={busy} data-testid="csd-chat-context-rename-save">
-                Lưu tên
-              </button>
-            </form>
-          ) : null}
-          <p className="muted">Tài khoản: {active.client_account_id ?? '—'}</p>
-          {active.kind === 'project' ? (
-            <p className="muted">
-              Dự án: {active.project_ref_kind ?? '—'} / {active.project_ref_id ?? '—'}
-            </p>
-          ) : null}
-          <p className="muted">Trạng thái: {archived ? 'Lưu trữ' : closed ? 'Đã đóng' : active.status ?? 'active'}</p>
-          {!isSheet && canWrite && !closed && !archived ? (
-            <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onClose}>
-              Đóng hội thoại
-            </button>
-          ) : null}
-          {!isSheet && canWrite && !archived ? (
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary"
-              disabled={busy}
-              onClick={onArchive}
-              data-testid="csd-chat-archive"
-            >
-              Lưu trữ
-            </button>
+          <button
+            type="button"
+            className="csd-chat-context-toggle kpi-section-title"
+            aria-expanded={metaOpen}
+            data-testid="csd-chat-context-toggle"
+            onClick={() => setMetaOpen((v) => !v)}
+          >
+            <span>{isSheet ? 'Thông tin' : 'Ngữ cảnh'}</span>
+            <span className="csd-chat-context-toggle__chev" aria-hidden>
+              {metaOpen ? '▾' : '▸'}
+            </span>
+          </button>
+          {metaOpen ? (
+            <div className="csd-chat-context-meta stack-gap" data-testid="csd-chat-context-meta">
+              <p className="muted">Loại: {CSD_CHAT_KIND_LABELS[active.kind] ?? active.kind}</p>
+              <p className="muted">Tên hiển thị: {active.name_vi}</p>
+              {onRename && canWrite ? (
+                <form
+                  className="csd-chat-rename csd-chat-rename--stack"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void onRename(aliasDraft.trim());
+                  }}
+                >
+                  <label className="muted" htmlFor="csd-chat-context-rename">
+                    Tên gợi nhớ (chỉ mình bạn thấy)
+                  </label>
+                  <input
+                    id="csd-chat-context-rename"
+                    className="kpi-input"
+                    value={aliasDraft}
+                    maxLength={191}
+                    onChange={(e) => setAliasDraft(e.target.value)}
+                    placeholder={active.name_vi}
+                    data-testid="csd-chat-context-rename-input"
+                  />
+                  <button type="submit" className="btn btn-sm" disabled={busy} data-testid="csd-chat-context-rename-save">
+                    Lưu tên
+                  </button>
+                </form>
+              ) : null}
+              <p className="muted">Tài khoản: {active.client_account_id ?? '—'}</p>
+              {active.kind === 'project' ? (
+                <p className="muted">
+                  Dự án: {active.project_ref_kind ?? '—'} / {active.project_ref_id ?? '—'}
+                </p>
+              ) : null}
+              <p className="muted">Trạng thái: {archived ? 'Lưu trữ' : closed ? 'Đã đóng' : active.status ?? 'active'}</p>
+              {!isSheet && canWrite && !closed && !archived ? (
+                <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={onClose}>
+                  Đóng hội thoại
+                </button>
+              ) : null}
+              {!isSheet && canWrite && !archived ? (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  disabled={busy}
+                  onClick={onArchive}
+                  data-testid="csd-chat-archive"
+                >
+                  Lưu trữ
+                </button>
+              ) : null}
+            </div>
           ) : null}
 
           <h4 className="kpi-section-title">Ticket liên quan</h4>

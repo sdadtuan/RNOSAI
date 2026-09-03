@@ -686,6 +686,7 @@ test.describe('CSD chat workspace', () => {
     await page.getByTestId('csd-create-ticket-modal').getByRole('button', { name: /Tạo ticket/i }).click();
     await expect(page.getByTestId('csd-duplicate-ticket-modal')).toContainText('PTT-2026-000099');
 
+    await page.getByTestId('csd-chat-context-toggle').click();
     await page.getByTestId('csd-chat-archive').click();
     await expect(page.getByRole('button', { name: /^Gửi$/ })).toHaveCount(0);
 

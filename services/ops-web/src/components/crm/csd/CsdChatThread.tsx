@@ -1,6 +1,6 @@
 'use client';
 
-import { KeyboardEvent, useEffect, useState } from 'react';
+import { KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CsdChatBubble } from '@/components/crm/csd/CsdChatBubble';
 import {
   fetchCsdTickets,
@@ -106,6 +106,8 @@ export function CsdChatThread({
   const [renaming, setRenaming] = useState(false);
   const [aliasDraft, setAliasDraft] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const messagesRef = useRef<HTMLUListElement>(null);
+  const bottomRef = useRef<HTMLLIElement>(null);
   const mentionQ = mentionToken(draft);
   const hashQ = ticketToken(draft);
   const relatedById = new Map(relatedTickets.map((t) => [t.id, t]));
@@ -138,6 +140,20 @@ export function CsdChatThread({
     setEmojiOpen(false);
     setAliasDraft(active?.alias_vi || active?.name_vi || '');
   }, [active?.id, active?.alias_vi, active?.name_vi]);
+
+  const lastMessageId = messages[messages.length - 1]?.id ?? null;
+
+  useLayoutEffect(() => {
+    if (!active?.id) return;
+    const pin = () => {
+      const list = messagesRef.current;
+      if (list) list.scrollTop = list.scrollHeight;
+      bottomRef.current?.scrollIntoView({ block: 'end' });
+    };
+    pin();
+    const id = requestAnimationFrame(pin);
+    return () => cancelAnimationFrame(id);
+  }, [active?.id, lastMessageId, messages.length]);
 
   const mentionOptions = members
     .map((m) => m.member_staff_id)
@@ -275,7 +291,7 @@ export function CsdChatThread({
           Bạn đang gửi cho khách hàng
         </p>
       ) : null}
-      <ul className="csd-chat-messages" data-testid="csd-chat-messages">
+      <ul ref={messagesRef} className="csd-chat-messages" data-testid="csd-chat-messages">
         {messages.map((m, index) => {
           const quoted = m.reply_to_id ? messages.find((q) => q.id === m.reply_to_id) : null;
           const linked = m.ticket_id ? relatedById.get(m.ticket_id) : null;
@@ -323,6 +339,7 @@ export function CsdChatThread({
             </li>
           );
         })}
+        <li ref={bottomRef} className="csd-chat-messages__anchor" aria-hidden />
       </ul>
       {closed ? (
         <div className="csd-chat-closed">
