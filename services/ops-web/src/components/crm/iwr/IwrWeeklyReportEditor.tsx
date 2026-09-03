@@ -207,7 +207,7 @@ export function IwrWeeklyReportEditor({
       nextRag = rag,
       nextCc = ccPeople.map((p) => p.id),
       nextItems = items,
-      nextTo = toPerson?.id,
+      nextTo: number | null | undefined = toPerson?.id,
     ) => {
       if (readOnly) return;
       await onPatch({
@@ -234,7 +234,7 @@ export function IwrWeeklyReportEditor({
       nextRag = rag,
       nextCc = ccPeople.map((p) => p.id),
       nextItems = items,
-      nextTo = toPerson?.id,
+      nextTo: number | null | undefined = toPerson?.id,
     ) => {
       if (readOnly) return;
       if (draftTimer.current) clearTimeout(draftTimer.current);

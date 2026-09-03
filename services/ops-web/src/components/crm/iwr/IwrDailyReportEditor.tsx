@@ -185,7 +185,12 @@ export function IwrDailyReportEditor({
   );
 
   const persistDraft = useCallback(
-    async (nextTitle = title, nextCc = ccPeople.map((p) => p.id), nextItems = items, nextTo = toPerson?.id) => {
+    async (
+      nextTitle = title,
+      nextCc = ccPeople.map((p) => p.id),
+      nextItems = items,
+      nextTo: number | null | undefined = toPerson?.id,
+    ) => {
       if (readOnly) return;
       setSaveState('saving');
       try {
@@ -213,7 +218,12 @@ export function IwrDailyReportEditor({
   }, [readOnly, toPerson, toRecipient, persistDraft, title, ccPeople, items]);
 
   const scheduleDraft = useCallback(
-    (nextTitle = title, nextCc = ccPeople.map((p) => p.id), nextItems = items, nextTo = toPerson?.id) => {
+    (
+      nextTitle = title,
+      nextCc = ccPeople.map((p) => p.id),
+      nextItems = items,
+      nextTo: number | null | undefined = toPerson?.id,
+    ) => {
       if (readOnly) return;
       if (draftTimer.current) clearTimeout(draftTimer.current);
       draftTimer.current = setTimeout(() => {
