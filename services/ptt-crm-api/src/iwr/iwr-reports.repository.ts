@@ -828,4 +828,63 @@ export class IwrReportsRepository implements OnModuleDestroy {
     );
     return (res.rowCount ?? 0) > 0;
   }
+
+  async insertAttachment(input: {
+    id?: string;
+    storage_key: string;
+    file_name: string;
+    mime_type: string;
+    byte_size: number;
+    entity_type: string;
+    entity_id: string;
+    uploaded_by_staff_id: number | null;
+  }) {
+    const res = await this.db.query(
+      `INSERT INTO csd_attachments (
+         id, tenant_id, storage_key, file_name, mime_type, byte_size,
+         visibility, entity_type, entity_id, uploaded_by_staff_id
+       ) VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, 'internal', $7, $8, $9)
+       RETURNING id, file_name, mime_type, byte_size, entity_type, entity_id, created_at`,
+      [
+        input.id ?? null,
+        IWR_TENANT_ID,
+        input.storage_key,
+        input.file_name,
+        input.mime_type,
+        input.byte_size,
+        input.entity_type,
+        input.entity_id,
+        input.uploaded_by_staff_id,
+      ],
+    );
+    const row = res.rows[0];
+    return {
+      id: text(row.id),
+      file_name: text(row.file_name),
+      mime_type: text(row.mime_type),
+      byte_size: Number(row.byte_size),
+      entity_type: text(row.entity_type),
+      entity_id: text(row.entity_id),
+      created_at: text(row.created_at),
+    };
+  }
+
+  async listAttachments(entityType: string, entityId: string) {
+    const res = await this.db.query(
+      `SELECT id, file_name, mime_type, byte_size, entity_type, entity_id, created_at
+         FROM csd_attachments
+        WHERE tenant_id = $1 AND entity_type = $2 AND entity_id = $3 AND is_deleted = FALSE
+        ORDER BY created_at DESC`,
+      [IWR_TENANT_ID, entityType, entityId],
+    );
+    return res.rows.map((row) => ({
+      id: text(row.id),
+      file_name: text(row.file_name),
+      mime_type: text(row.mime_type),
+      byte_size: Number(row.byte_size),
+      entity_type: text(row.entity_type),
+      entity_id: text(row.entity_id),
+      created_at: text(row.created_at),
+    }));
+  }
 }

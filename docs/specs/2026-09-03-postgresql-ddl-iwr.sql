@@ -290,3 +290,92 @@ CREATE TRIGGER iwr_reports_search_vector_trg
   FOR EACH ROW EXECUTE FUNCTION iwr_reports_search_vector_update();
 
 UPDATE iwr_reports SET title = title WHERE search_vector IS NULL;
+
+-- W4: dashboards, schedules, jobs, calendars, delegations
+CREATE TABLE IF NOT EXISTS iwr_dash_snapshots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  role VARCHAR(16) NOT NULL,
+  period_ymd DATE NOT NULL,
+  payload_json JSONB NOT NULL DEFAULT '{}',
+  computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, role, period_ymd)
+);
+
+CREATE TABLE IF NOT EXISTS iwr_calendars (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  code VARCHAR(64) NOT NULL,
+  name_vi VARCHAR(255) NOT NULL,
+  timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Ho_Chi_Minh',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS iwr_calendar_exceptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  calendar_id UUID NOT NULL REFERENCES iwr_calendars (id) ON DELETE CASCADE,
+  ymd DATE NOT NULL,
+  kind VARCHAR(16) NOT NULL DEFAULT 'holiday',
+  note_vi VARCHAR(255),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (calendar_id, ymd)
+);
+
+CREATE TABLE IF NOT EXISTS iwr_schedules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  kind VARCHAR(32) NOT NULL,
+  cron_expr VARCHAR(64) NOT NULL DEFAULT '0 6 * * *',
+  timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Ho_Chi_Minh',
+  channel VARCHAR(32) NOT NULL DEFAULT 'in_app',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  next_run_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT iwr_schedules_kind_chk CHECK (kind IN ('reminder', 'digest', 'precreate'))
+);
+
+CREATE TABLE IF NOT EXISTS iwr_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  event_key VARCHAR(255) NOT NULL,
+  kind VARCHAR(32) NOT NULL DEFAULT 'notify',
+  payload_json JSONB NOT NULL DEFAULT '{}',
+  status VARCHAR(32) NOT NULL DEFAULT 'done',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, event_key)
+);
+
+CREATE INDEX IF NOT EXISTS iwr_jobs_created_idx ON iwr_jobs (tenant_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS iwr_delegations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  delegator_staff_id INTEGER NOT NULL,
+  delegate_staff_id INTEGER NOT NULL,
+  starts_at TIMESTAMPTZ NOT NULL,
+  ends_at TIMESTAMPTZ NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS iwr_delegations_active_idx
+  ON iwr_delegations (tenant_id, delegate_staff_id, starts_at, ends_at)
+  WHERE active = TRUE;
+
+INSERT INTO iwr_calendars (tenant_id, code, name_vi, active)
+SELECT 'PTT', 'vn_work', 'Lịch làm việc VN', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM iwr_calendars WHERE tenant_id = 'PTT' AND code = 'vn_work');
+
+INSERT INTO iwr_schedules (tenant_id, kind, cron_expr, timezone, channel, active, next_run_at)
+SELECT 'PTT', g.kind, g.cron_expr, 'Asia/Ho_Chi_Minh', 'in_app', TRUE, NOW()
+FROM (VALUES
+  ('precreate', '0 6 * * *'),
+  ('digest', '0 8 * * *'),
+  ('reminder', '0 9,14,16 * * *')
+) AS g(kind, cron_expr)
+WHERE NOT EXISTS (
+  SELECT 1 FROM iwr_schedules s WHERE s.tenant_id = 'PTT' AND s.kind = g.kind
+);

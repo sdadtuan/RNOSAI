@@ -276,10 +276,10 @@ describe('CeoTowerSensorService.buildPayload', () => {
     const out = await svc.buildPayload(actor(OPS_AND_K), {});
 
     expect(out.k_strip).toEqual([
-      { key: 'k1', value: 480, status: 'red', href: '/crm/owner-weekly' },
-      { key: 'k2', value: null, status: 'neutral', href: '/crm/owner-weekly' },
-      { key: 'k3', value: 10, status: 'green', href: '/crm/owner-weekly' },
-      { key: 'k4', value: 70, status: 'amber', href: '/crm/owner-weekly' },
+      { key: 'k1', value: 480, status: 'red', href: '/crm/internal-reports/dashboards?role=bod' },
+      { key: 'k2', value: null, status: 'neutral', href: '/crm/internal-reports/dashboards?role=bod' },
+      { key: 'k3', value: 10, status: 'green', href: '/crm/internal-reports/dashboards?role=bod' },
+      { key: 'k4', value: 70, status: 'amber', href: '/crm/internal-reports/dashboards?role=bod' },
     ]);
   });
 

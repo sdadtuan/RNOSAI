@@ -67,10 +67,10 @@ const TOWER_FIXTURE = {
   generated_at: '2026-09-01T00:00:00.000Z',
   window_exception_days: 7,
   k_strip: [
-    { key: 'k1', value: 120, status: 'green', href: '/crm/owner-weekly' },
-    { key: 'k2', value: 4, status: 'amber', href: '/crm/owner-weekly' },
-    { key: 'k3', value: 14, status: 'red', href: '/crm/owner-weekly' },
-    { key: 'k4', value: 90, status: 'green', href: '/crm/owner-weekly' },
+    { key: 'k1', value: 120, status: 'green', href: '/crm/internal-reports/dashboards?role=bod' },
+    { key: 'k2', value: 4, status: 'amber', href: '/crm/internal-reports/dashboards?role=bod' },
+    { key: 'k3', value: 14, status: 'red', href: '/crm/internal-reports/dashboards?role=bod' },
+    { key: 'k4', value: 90, status: 'green', href: '/crm/internal-reports/dashboards?role=bod' },
   ],
   columns: [
     { column_id: 'lead_b2', red_count: 0, amber_count: 1, ok_count: 2, header_severity: 'amber' },

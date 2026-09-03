@@ -77,6 +77,7 @@ CROSS JOIN (VALUES
   ('iwr', 'view'),
   ('iwr', 'write'),
   ('iwr', 'review'),
+  ('iwr', 'schedule'),
   ('iwr', 'export'),
   ('iwr', 'executive'),
   ('iwr', 'bcc')

@@ -44,6 +44,7 @@ function makeSvc(now?: Date) {
   const policy = { getActiveRules: jest.fn().mockResolvedValue(null) };
   const lists = { resolveMembers: jest.fn().mockResolvedValue([]) };
   const distRepo = { insertDeliveryLog: jest.fn() };
+  const delegations = { isDelegateFor: jest.fn().mockResolvedValue(false) };
   const svc = new IwrReportsService(
     repo as never,
     org as never,
@@ -52,6 +53,7 @@ function makeSvc(now?: Date) {
     policy as never,
     lists as never,
     distRepo as never,
+    delegations as never,
   );
   if (now) svc.nowFn = () => now;
   return { svc, repo, org, notify, audit };

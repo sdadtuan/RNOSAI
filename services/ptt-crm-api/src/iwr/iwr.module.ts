@@ -21,6 +21,17 @@ import { IwrRisksRepository } from './iwr-distribution.repository';
 import { IwrRisksService } from './iwr-risks.service';
 import { IwrSuggestService } from './iwr-suggest.service';
 import { IwrTemplatesController } from './iwr-templates.controller';
+import { IwrDashboardsController } from './iwr-dashboards.controller';
+import { IwrDashboardsService } from './iwr-dashboards.service';
+import {
+  IwrDashSnapshotsRepository,
+  IwrDelegationsRepository,
+  IwrScheduleRepository,
+} from './iwr-w4.repository';
+import { IwrDelegationsService, IwrEmailService, IwrFilesService } from './iwr-w4.service';
+import { IwrScheduleWorkerService, IwrSchedulesService } from './iwr-schedule-worker.service';
+import { IwrSchedulesController } from './iwr-schedules.controller';
+import { IwrLeaveAdapter } from './iwr-leave.adapter';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CsdModule],
@@ -30,6 +41,8 @@ import { IwrTemplatesController } from './iwr-templates.controller';
     IwrTemplatesController,
     IwrListsController,
     IwrRisksController,
+    IwrDashboardsController,
+    IwrSchedulesController,
   ],
   providers: [
     StaffIwrGuard,
@@ -47,7 +60,17 @@ import { IwrTemplatesController } from './iwr-templates.controller';
     IwrDistributionService,
     IwrRisksRepository,
     IwrRisksService,
+    IwrDashSnapshotsRepository,
+    IwrScheduleRepository,
+    IwrDelegationsRepository,
+    IwrDashboardsService,
+    IwrSchedulesService,
+    IwrScheduleWorkerService,
+    IwrLeaveAdapter,
+    IwrFilesService,
+    IwrEmailService,
+    IwrDelegationsService,
   ],
-  exports: [IwrReportsService, IwrInboxService],
+  exports: [IwrReportsService, IwrInboxService, IwrDashboardsService],
 })
 export class IwrModule {}

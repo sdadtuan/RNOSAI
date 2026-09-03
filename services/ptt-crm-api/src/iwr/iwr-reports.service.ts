@@ -21,6 +21,7 @@ import {
 import { IwrDistributionRepository } from './iwr-distribution.repository';
 import { IwrListsService } from './iwr-lists.service';
 import { IwrPolicyService } from './iwr-policy.service';
+import { IwrDelegationsRepository } from './iwr-w4.repository';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
 import { emptySectionsForCode, sectionKeysForCode } from './iwr-sections.util';
 import { canTransitionIwr } from './iwr-workflow.util';
@@ -70,6 +71,7 @@ export class IwrReportsService {
     private readonly policy: IwrPolicyService,
     private readonly lists: IwrListsService,
     private readonly distRepo: IwrDistributionRepository,
+    private readonly delegations: IwrDelegationsRepository,
   ) {}
 
   private now(): Date {
@@ -413,7 +415,10 @@ export class IwrReportsService {
     }
 
     const isReviewer = report.reviewer_staff_id === actor.staffId;
-    if (!isReviewer && !hasIwrCap(actor, 'manage')) {
+    const isDelegate =
+      report.reviewer_staff_id != null &&
+      (await this.delegations.isDelegateFor(report.reviewer_staff_id, actor.staffId, this.now()));
+    if (!isReviewer && !isDelegate && !hasIwrCap(actor, 'manage')) {
       throw new ForbiddenException({ error: 'iwr_not_direct_manager' });
     }
     if (!hasIwrCap(actor, 'review') && !hasIwrCap(actor, 'manage')) {

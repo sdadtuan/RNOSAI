@@ -460,6 +460,37 @@ export async function promoteIwrBlockerToRisk(
   });
 }
 
+export type IwrDashRole = 'staff' | 'leader' | 'pm' | 'bod';
+
+export async function fetchIwrDashboard(token: string, role: IwrDashRole): Promise<unknown> {
+  return iwrFetch(token, `/api/crm/iwr/dashboards/${role}`);
+}
+
+export interface IwrScheduleRow {
+  id: string;
+  kind: 'reminder' | 'digest' | 'precreate';
+  cron_expr: string;
+  timezone: string;
+  channel: 'in_app';
+  active: boolean;
+  next_run_at: string | null;
+}
+
+export async function fetchIwrSchedules(token: string): Promise<{ items: IwrScheduleRow[] }> {
+  return iwrFetch(token, '/api/crm/iwr/schedules');
+}
+
+export async function sendIwrReportEmail(
+  token: string,
+  reportId: string,
+  body: { to: string[]; subject: string; body_text: string },
+): Promise<unknown> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${reportId}/send-email`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export function formatIwrWhen(iso: string | null | undefined): string {
   if (!iso) return '—';
   try {

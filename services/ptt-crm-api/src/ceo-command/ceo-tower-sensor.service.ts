@@ -434,7 +434,7 @@ export class CeoTowerSensorService {
         key: m.key,
         value: m.value,
         status: m.status,
-        href: '/crm/owner-weekly' as const,
+        href: '/crm/internal-reports/dashboards?role=bod' as const,
       }));
       if (!hasCskh) {
         degraded.push({ source: 'k4', reason: 'missing_cskh_cap' });

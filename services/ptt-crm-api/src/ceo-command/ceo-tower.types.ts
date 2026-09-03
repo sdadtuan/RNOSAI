@@ -94,7 +94,7 @@ export type TowerPayload = {
     key: 'k1' | 'k2' | 'k3' | 'k4';
     value: number | null;
     status: 'green' | 'amber' | 'red' | 'neutral';
-    href: '/crm/owner-weekly';
+    href: '/crm/internal-reports/dashboards?role=bod';
   }>;
   columns: Array<{
     column_id: TowerColumnId;

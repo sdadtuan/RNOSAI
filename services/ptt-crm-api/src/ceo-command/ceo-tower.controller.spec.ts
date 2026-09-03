@@ -84,7 +84,7 @@ describe('CeoCommandController GET tower/board-pack', () => {
         ok: true,
         generated_at: generatedAt,
         window_exception_days: 7,
-        k_strip: [{ key: 'k1', value: 1, status: 'green', href: '/crm/owner-weekly' }],
+        k_strip: [{ key: 'k1', value: 1, status: 'green', href: '/crm/internal-reports/dashboards?role=bod' }],
         columns: [],
         exceptions: [],
         org_rollup: [],

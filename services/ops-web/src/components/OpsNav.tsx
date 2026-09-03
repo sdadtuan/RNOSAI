@@ -119,6 +119,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/csd/reports/templates': 'Mẫu báo cáo',
   '/crm/internal-reports': 'BC công việc',
   '/crm/internal-reports/inbox': 'Hộp thư BC',
+  '/crm/internal-reports/dashboards': 'Dashboard BC',
+  '/crm/internal-reports/schedules': 'Lịch BC',
   '/crm/internal-reports/lists': 'DS phân phối BC',
   '/crm/internal-reports/team': 'Cây kỳ',
   '/crm/internal-reports/templates': 'Mẫu BC nội bộ',
@@ -521,7 +523,11 @@ function buildSections(
   if (canSeeIwrNav(user)) {
     toChuc.push({ href: '/crm/internal-reports', label: 'BC công việc' });
     toChuc.push({ href: '/crm/internal-reports/inbox', label: 'Hộp thư BC' });
+    toChuc.push({ href: '/crm/internal-reports/dashboards', label: 'Dashboard BC' });
     toChuc.push({ href: '/crm/internal-reports/team', label: 'Cây kỳ' });
+    if (hasCap(user, 'iwr', 'schedule') || hasCap(user, 'iwr', 'manage')) {
+      toChuc.push({ href: '/crm/internal-reports/schedules', label: 'Lịch BC' });
+    }
     if (hasCap(user, 'iwr', 'lists') || hasCap(user, 'iwr', 'manage')) {
       toChuc.push({ href: '/crm/internal-reports/lists', label: 'DS phân phối' });
     }

@@ -14,7 +14,7 @@ import {
 } from '@/lib/auth';
 import { staffMe, staffRefresh } from '@/lib/api';
 
-export function useIwrPageAuth(requiredAction: 'view' | 'write' | 'review' | 'manage' | 'lists' = 'view') {
+export function useIwrPageAuth(requiredAction: 'view' | 'write' | 'review' | 'manage' | 'lists' | 'schedule' = 'view') {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [token, setToken] = useState('');
@@ -79,5 +79,6 @@ export function useIwrPageAuth(requiredAction: 'view' | 'write' | 'review' | 'ma
     canManage: hasCap(user, 'iwr', 'manage'),
     canBcc: hasCap(user, 'iwr', 'bcc'),
     canLists: hasCap(user, 'iwr', 'lists'),
+    canSchedule: hasCap(user, 'iwr', 'schedule'),
   };
 }

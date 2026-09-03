@@ -272,3 +272,61 @@ export type UpdateIwrTemplateInput = {
   sections_json?: string[];
   due_rule_json?: Record<string, unknown>;
 };
+
+export type IwrDashRole = 'staff' | 'leader' | 'pm' | 'bod';
+
+export type IwrDashStaff = {
+  due_today: boolean;
+  inbox_unread: number;
+  my_late_rate_30d: number;
+  open_blockers: number;
+};
+
+export type IwrDashLeader = {
+  submitted: number;
+  missing: number;
+  late: number;
+  action_needed: number;
+  rag_red: number;
+  open_blockers: number;
+};
+
+export type IwrDashPm = {
+  client_blockers: number;
+  unread_over_sla: number;
+  overdue_tickets: number;
+};
+
+export type IwrDashBod = {
+  submit_rate: number;
+  rag_red_list: { report_id: string; author_name: string }[];
+  critical_risks: number;
+  pending_acks: number;
+};
+
+export type IwrScheduleKind = 'reminder' | 'digest' | 'precreate';
+
+export type IwrScheduleRow = {
+  id: string;
+  kind: IwrScheduleKind;
+  cron_expr: string;
+  timezone: string;
+  channel: 'in_app';
+  active: boolean;
+  next_run_at: string | null;
+};
+
+export type IwrDelegationRow = {
+  id: string;
+  delegator_staff_id: number;
+  delegate_staff_id: number;
+  starts_at: string;
+  ends_at: string;
+  active: boolean;
+};
+
+export type SendIwrEmailInput = {
+  to: string[];
+  subject: string;
+  body_text: string;
+};

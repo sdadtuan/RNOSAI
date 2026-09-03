@@ -9,8 +9,12 @@ import {
   Query,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Request, Response } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
@@ -21,6 +25,7 @@ import { IwrDistributionService } from './iwr-distribution.service';
 import { IwrOrgRepository } from './iwr-reports.repository';
 import { IwrReportsService } from './iwr-reports.service';
 import { IwrSuggestService } from './iwr-suggest.service';
+import { IwrEmailService, IwrFilesService } from './iwr-w4.service';
 import type {
   AddIwrCommentInput,
   CreateIwrReportInput,
@@ -28,6 +33,7 @@ import type {
   IwrItemRow,
   PatchIwrReportInput,
   RequestIwrChangesInput,
+  SendIwrEmailInput,
   SubmitIwrReportInput,
   WaiveIwrReportInput,
 } from './iwr.types';
@@ -45,6 +51,8 @@ export class IwrReportsController {
     private readonly items: IwrItemsService,
     private readonly suggest: IwrSuggestService,
     private readonly distribution: IwrDistributionService,
+    private readonly files: IwrFilesService,
+    private readonly email: IwrEmailService,
     private readonly staffAuth: StaffAuthService,
     private readonly org: IwrOrgRepository,
   ) {}
@@ -170,6 +178,35 @@ export class IwrReportsController {
   @RequireIwrAction('view')
   async markViewed(@Req() req: AuthedReq, @Param('id') id: string) {
     return this.reports.markViewed(await this.actor(req), id);
+  }
+
+  @Post(':id/send-email')
+  @RequireIwrAction('view')
+  async sendEmail(@Req() req: AuthedReq, @Param('id') id: string, @Body() body: SendIwrEmailInput) {
+    await this.reports.get(await this.actor(req), id);
+    return this.email.sendInternal(await this.actor(req), body);
+  }
+
+  @Get(':id/files')
+  @RequireIwrAction('view')
+  async listFiles(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.files.list(await this.actor(req), id);
+  }
+
+  @Post(':id/files')
+  @RequireIwrAction('write')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 104857600 },
+    }),
+  )
+  async uploadFile(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.files.upload(await this.actor(req), id, file);
   }
 
   @Get(':id/delivery-logs')
