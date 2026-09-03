@@ -164,6 +164,8 @@ export interface CsdMessageRow {
   visibility: 'client' | 'internal';
   author_staff_id: number | null;
   author_staff_name?: string | null;
+  author_has_avatar?: boolean;
+  author_avatar_updated_at?: string | null;
   reply_to_id?: string | null;
   ticket_id?: string | null;
   ticket_code?: string | null;
@@ -485,6 +487,19 @@ export async function fetchCsdMessages(
   if (q && q.trim().length >= 2) params.set('q', q.trim());
   const suffix = params.toString() ? `?${params.toString()}` : '';
   return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/messages${suffix}`);
+}
+
+export async function fetchCsdStaffAvatarBlob(token: string, staffId: number): Promise<Blob | null> {
+  const res = await fetch(`${API_BASE}/api/crm/csd/staff/${staffId}/avatar`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string }>(res);
+    throw new ApiError(body.error ?? 'Không tải ảnh', res.status);
+  }
+  return res.blob();
 }
 
 export async function fetchCsdRelatedTickets(

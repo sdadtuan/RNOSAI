@@ -4,19 +4,19 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   downloadCsdFile,
-  formatCsdWhen,
   previewCsdFileObjectUrl,
   type CsdAttachmentRow,
   type CsdChatEmotionId,
   type CsdMessageRow,
 } from '@/lib/crm/csd-api';
 import { CSD_CHAT_EMOTIONS, isCsdChatEmotionMessage, summarizeChatReactions } from '@/lib/crm/csd-chat-emotions';
+import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 import {
-  avatarHue,
   clampElementInChatFrame,
   findChatFrame,
-  initialsFromName,
+  formatChatListTime,
   isCsdChatImageMime,
+  type CsdMessagePeerDisplay,
 } from '@/lib/crm/csd-chat-display';
 
 const EDIT_WINDOW_MS = 15 * 60_000;
@@ -97,6 +97,7 @@ export type CsdChatBubbleProps = {
   busy: boolean;
   density: 'page' | 'dock';
   showName: boolean;
+  peer: CsdMessagePeerDisplay | null;
   allowCreateTicket: boolean;
   meStaffId: number | null;
   onReply: (m: CsdMessageRow) => void;
@@ -120,6 +121,7 @@ export function CsdChatBubble({
   busy,
   density,
   showName,
+  peer,
   allowCreateTicket,
   meStaffId,
   onReply,
@@ -140,10 +142,6 @@ export function CsdChatBubble({
   const reactPanelRef = useRef<HTMLDivElement | null>(null);
   const menuListRef = useRef<HTMLDivElement | null>(null);
   const reactLeaveTimer = useRef<number | null>(null);
-  const name = message.author_staff_name ?? 'Khách';
-  const seed = message.author_staff_id ?? 'KH';
-  const initials = initialsFromName(name);
-  const hue = avatarHue(seed);
   const showMenu = canWrite && !closed && !message.is_deleted && !editing;
   const reactionSummary = summarizeChatReactions(message.reactions);
   const pickerOpen = reactOpen || reactHover;
@@ -230,23 +228,20 @@ export function CsdChatBubble({
     <article
       className={`csd-chat-message${isMine ? ' is-mine' : ' is-theirs'}${message.is_deleted ? ' is-deleted' : ''}${density === 'dock' ? ' is-dock' : ' is-page'}${menuOpen ? ' is-menu-open' : ''}`}
     >
-      {!isMine ? (
-        <span className="csd-chat-avatar" style={{ background: `hsl(${hue} 55% 42%)` }} aria-hidden>
-          {initials}
-        </span>
+      {!isMine && peer ? (
+        <CsdChatAvatar
+          token={token}
+          name={peer.name}
+          seed={peer.seed}
+          staffId={peer.staffId}
+          hasAvatar={peer.hasAvatar}
+          avatarUpdatedAt={peer.avatarUpdatedAt}
+        />
       ) : null}
       <div className="csd-chat-message__col">
-        {showName || !isMine ? (
-          <div className="csd-chat-message__meta muted">
-            {name} · {formatCsdWhen(message.created_at)}
-            {message.edited_at && !message.is_deleted ? ' · đã sửa' : ''}
-          </div>
-        ) : (
-          <div className="csd-chat-message__meta muted">
-            {formatCsdWhen(message.created_at)}
-            {message.edited_at && !message.is_deleted ? ' · đã sửa' : ''}
-          </div>
-        )}
+        {showName && peer ? (
+          <div className="csd-chat-message__meta muted">{peer.name}</div>
+        ) : null}
         <div className="csd-chat-bubble-row">
           <div className={`csd-chat-bubble-stack${reactionSummary.total > 0 ? ' has-reactions' : ''}`}>
           <div className="csd-chat-bubble">
@@ -320,6 +315,12 @@ export function CsdChatBubble({
               <Link href={ticketHref} className="csd-chat-ticket-pill" data-testid="csd-chat-ticket-pill">
                 {ticketPill ?? 'Ticket liên kết'}
               </Link>
+            ) : null}
+            {!editing ? (
+              <footer className="csd-chat-bubble__time" data-testid="csd-chat-bubble-time">
+                {formatChatListTime(message.created_at)}
+                {message.edited_at && !message.is_deleted ? ' · đã sửa' : ''}
+              </footer>
             ) : null}
           </div>
           {reactionSummary.total > 0 || canPickReact ? (

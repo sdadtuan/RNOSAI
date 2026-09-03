@@ -255,6 +255,9 @@ export type CsdMessageRow = {
   conversation_id: string;
   author_type: string;
   author_staff_id: number | null;
+  author_staff_name?: string | null;
+  author_has_avatar?: boolean;
+  author_avatar_updated_at?: string | null;
   body_text: string;
   reply_to_id: string | null;
   visibility: 'internal' | 'client';

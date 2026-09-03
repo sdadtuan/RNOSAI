@@ -5,6 +5,7 @@ import {
   formatDateChip,
   initialsFromName,
   isCsdChatImageMime,
+  resolveCsdMessagePeer,
   shiftBoxIntoFrame,
   shouldShowDateChip,
 } from './csd-chat-display';
@@ -36,6 +37,24 @@ describe('csd-chat-display', () => {
     expect(isCsdChatImageMime('IMAGE/JPEG')).toBe(true);
     expect(isCsdChatImageMime('application/pdf')).toBe(false);
     expect(isCsdChatImageMime(null)).toBe(false);
+  });
+
+  it('resolveCsdMessagePeer prefers conversation name over Khách', () => {
+    const peer = resolveCsdMessagePeer(
+      { author_staff_id: 8, author_staff_name: null },
+      { active: { id: 'conv-1', kind: 'direct', name_vi: 'Anh Tuấn CS' }, members: [] },
+    );
+    expect(peer.name).toBe('Anh Tuấn CS');
+    expect(peer.seed).toBe('conv-1');
+  });
+
+  it('resolveCsdMessagePeer uses author name when present', () => {
+    const peer = resolveCsdMessagePeer(
+      { author_staff_id: 8, author_staff_name: 'Nguyễn Văn B', author_has_avatar: true },
+      { active: { id: 'conv-1', kind: 'group', name_vi: 'Nhóm AM' }, members: [] },
+    );
+    expect(peer.name).toBe('Nguyễn Văn B');
+    expect(peer.hasAvatar).toBe(true);
   });
 
   it('shiftBoxIntoFrame pushes a clipped popover back inside both edges', () => {

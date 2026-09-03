@@ -362,10 +362,35 @@ export class StaffAccountService {
   async readAvatar(user: StaffJwtPayload): Promise<{ buffer: Buffer; contentType: string } | null> {
     if (!isUuidStaffUserId(user.sub)) return null;
     const key = await this.loadAvatarKey(user.sub);
+    return this.readAvatarByStorageKey(key);
+  }
+
+  async readAvatarByCrmStaffId(
+    staffId: number,
+  ): Promise<{ buffer: Buffer; contentType: string } | null> {
+    if (!Number.isInteger(staffId) || staffId <= 0) return null;
+    try {
+      const result = await this.db.query<{ avatar_storage_key: string | null }>(
+        `SELECT su.avatar_storage_key
+           FROM crm_staff cs
+           JOIN staff_users su ON lower(trim(su.email)) = lower(trim(cs.email))
+          WHERE cs.id = $1
+          LIMIT 1`,
+        [staffId],
+      );
+      return this.readAvatarByStorageKey(result.rows[0]?.avatar_storage_key ?? null);
+    } catch {
+      return null;
+    }
+  }
+
+  private readAvatarByStorageKey(
+    key: string | null | undefined,
+  ): { buffer: Buffer; contentType: string } | null {
     if (!key) return null;
-    const buffer = this.avatarStorage.read(key);
+    const buffer = this.avatarStorage.read(String(key));
     if (!buffer) return null;
-    const ext = key.split('.').pop() ?? 'jpg';
+    const ext = String(key).split('.').pop() ?? 'jpg';
     return { buffer, contentType: contentTypeForAvatarExt(ext) };
   }
 

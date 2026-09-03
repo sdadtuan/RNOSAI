@@ -86,12 +86,18 @@ function mapAttachment(row: Record<string, unknown>): CsdAttachmentRow {
 
 function mapMessage(row: Record<string, unknown>): CsdMessageRow {
   const deleted = Boolean(row.is_deleted);
+  const authorName = text(row.author_staff_name).trim();
   return {
     id: text(row.id),
     tenant_id: text(row.tenant_id),
     conversation_id: text(row.conversation_id),
     author_type: text(row.author_type),
     author_staff_id: num(row.author_staff_id),
+    author_staff_name: authorName || null,
+    author_has_avatar: Boolean(row.author_has_avatar),
+    author_avatar_updated_at: row.author_avatar_updated_at
+      ? text(row.author_avatar_updated_at)
+      : null,
     body_text: deleted ? '' : text(row.body_text),
     reply_to_id: row.reply_to_id != null ? text(row.reply_to_id) : null,
     visibility: row.visibility as CsdMessageRow['visibility'],
@@ -497,18 +503,26 @@ export class CsdChatRepository implements OnModuleDestroy {
     let extra = '';
     if (after) {
       params.push(after);
-      extra += ` AND created_at > (SELECT created_at FROM csd_messages WHERE id = $${params.length})`;
+      extra += ` AND m.created_at > (SELECT created_at FROM csd_messages WHERE id = $${params.length})`;
     }
     const needle = String(q ?? '').trim();
     if (needle.length >= 2) {
       params.push(`%${needle}%`);
-      extra += ` AND body_text ILIKE $${params.length}`;
+      extra += ` AND m.body_text ILIKE $${params.length}`;
     }
 
     const res = await this.db.query(
-      `SELECT * FROM csd_messages
-       WHERE tenant_id = $1 AND conversation_id = $2 ${extra}
-       ORDER BY created_at ASC`,
+      `SELECT m.*,
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, '')) AS author_staff_name,
+              (su.avatar_storage_key IS NOT NULL) AS author_has_avatar,
+              su.avatar_updated_at AS author_avatar_updated_at
+         FROM csd_messages m
+         LEFT JOIN crm_staff s ON s.id = m.author_staff_id
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = m.author_staff_id AND a.tenant_id = m.tenant_id
+         LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+        WHERE m.tenant_id = $1 AND m.conversation_id = $2 ${extra}
+        ORDER BY m.created_at ASC`,
       params,
     );
     return res.rows.map(mapMessage);

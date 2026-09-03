@@ -110,3 +110,80 @@ export function shouldShowDateChip(prevIso: string | null | undefined, currIso: 
   if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return true;
   return dayKey(a) !== dayKey(b);
 }
+
+export type CsdMessagePeerDisplay = {
+  name: string;
+  seed: string | number;
+  staffId: number | null;
+  hasAvatar: boolean;
+  avatarUpdatedAt: string | null;
+};
+
+type ResolvePeerContext = {
+  active: { id: string; kind: string; name_vi: string } | null;
+  members: Array<{ member_staff_id: number; display_name_vi?: string | null }>;
+};
+
+export function resolveCsdMessagePeer(
+  message: {
+    author_staff_id: number | null;
+    author_staff_name?: string | null;
+    author_has_avatar?: boolean;
+    author_avatar_updated_at?: string | null;
+  },
+  ctx: ResolvePeerContext,
+): CsdMessagePeerDisplay {
+  const authorId = message.author_staff_id;
+  const member =
+    authorId != null ? ctx.members.find((m) => m.member_staff_id === authorId) : undefined;
+  const authorName = String(message.author_staff_name ?? '').trim();
+  const avatarMeta = {
+    hasAvatar: Boolean(message.author_has_avatar),
+    avatarUpdatedAt: message.author_avatar_updated_at ?? null,
+  };
+
+  if (authorName) {
+    return {
+      name: authorName,
+      seed: authorId ?? ctx.active?.id ?? 'KH',
+      staffId: authorId,
+      ...avatarMeta,
+    };
+  }
+
+  if (ctx.active && (ctx.active.kind === 'direct' || ctx.active.kind === 'client')) {
+    return {
+      name: ctx.active.name_vi,
+      seed: ctx.active.id,
+      staffId: authorId,
+      ...avatarMeta,
+    };
+  }
+
+  const memberName = String(member?.display_name_vi ?? '').trim();
+  if (memberName) {
+    return {
+      name: memberName,
+      seed: authorId ?? member?.member_staff_id ?? 'KH',
+      staffId: authorId,
+      ...avatarMeta,
+    };
+  }
+
+  if (authorId != null) {
+    return {
+      name: `Staff #${authorId}`,
+      seed: authorId,
+      staffId: authorId,
+      ...avatarMeta,
+    };
+  }
+
+  return {
+    name: ctx.active?.name_vi ?? 'Khách',
+    seed: ctx.active?.id ?? 'KH',
+    staffId: null,
+    hasAvatar: false,
+    avatarUpdatedAt: null,
+  };
+}

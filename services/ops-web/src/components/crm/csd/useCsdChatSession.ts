@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
 import { ApiError } from '@/lib/api';
 import {
   addCsdConversationMember,
@@ -160,6 +160,21 @@ export function useCsdChatSession({
   const [mobilePane, setMobilePane] = useState<CsdChatMobilePane>('list');
   const [isMobile, setIsMobile] = useState(false);
   const [friendRequired, setFriendRequired] = useState(false);
+  const sendingRef = useRef(false);
+
+  const mergeMessages = useCallback((prev: CsdMessageRow[], next: CsdMessageRow[]) => {
+    if (prev.length === next.length && prev.every((m, i) => m.id === next[i]?.id)) return prev;
+    const byId = new Map(prev.map((m) => [m.id, m]));
+    return next.map((m) => {
+      const old = byId.get(m.id);
+      if (!old) return m;
+      return {
+        ...m,
+        attachments: m.attachments ?? old.attachments,
+        reactions: m.reactions ?? old.reactions,
+      };
+    });
+  }, []);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -178,13 +193,13 @@ export function useCsdChatSession({
     async (conversationId: string) => {
       try {
         const out = await fetchCsdMessages(token, conversationId);
-        setMessages(out.items ?? []);
+        setMessages((prev) => mergeMessages(prev, out.items ?? []));
         if (typeof out.me_staff_id === 'number') setMeStaffId(out.me_staff_id);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải tin nhắn thất bại');
       }
     },
-    [token],
+    [token, mergeMessages],
   );
 
   const loadMembers = useCallback(
@@ -261,9 +276,11 @@ export function useCsdChatSession({
 
   async function handleSend(e?: FormEvent, bodyOverride?: string) {
     e?.preventDefault();
+    if (sendingRef.current || busy) return;
     const isEmotion = bodyOverride != null;
     const body = (isEmotion ? bodyOverride : draft).trim();
     if (!activeId || !canWrite || (!body && (isEmotion || pendingFiles.length === 0))) return;
+    sendingRef.current = true;
     setBusy(true);
     try {
       const sent = await sendCsdMessage(token, activeId, {
@@ -277,10 +294,11 @@ export function useCsdChatSession({
         setPendingFiles([]);
       }
       setPriorityHint(sent.priority_suggestion ?? null);
-      await loadMessages(activeId);
+      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gửi tin nhắn thất bại');
     } finally {
+      sendingRef.current = false;
       setBusy(false);
     }
   }

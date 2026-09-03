@@ -3,15 +3,18 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
   Put,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response } from 'express';
+import { StaffAccountService } from '../staff-auth/staff-account.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -37,6 +40,7 @@ export class CsdChatController {
   constructor(
     private readonly chat: CsdChatService,
     private readonly staffAuth: StaffAuthService,
+    private readonly staffAccount: StaffAccountService,
   ) {}
 
   private async actor(req: AuthedReq): Promise<CsdActor> {
@@ -95,6 +99,18 @@ export class CsdChatController {
   ) {
     const actor = await this.actor(req);
     return this.chat.setConversationAlias(actor, id, body.alias_vi ?? '');
+  }
+
+  @Get('staff/:staffId/avatar')
+  @RequireCsdAction('view')
+  async staffAvatar(@Param('staffId') staffId: string, @Res() res: Response) {
+    const out = await this.staffAccount.readAvatarByCrmStaffId(Number(staffId));
+    if (!out) {
+      throw new NotFoundException({ error: 'avatar_not_found' });
+    }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(out.buffer);
   }
 
   @Get('conversations/:id/messages')

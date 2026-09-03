@@ -12,7 +12,8 @@ import {
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
 import { CSD_CHAT_EMOTIONS, CSD_CHAT_INSERT_EMOJIS } from '@/lib/crm/csd-chat-emotions';
-import { avatarHue, formatDateChip, initialsFromName, isCsdChatImageMime, shouldShowDateChip } from '@/lib/crm/csd-chat-display';
+import { formatDateChip, isCsdChatImageMime, resolveCsdMessagePeer, shouldShowDateChip } from '@/lib/crm/csd-chat-display';
+import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 
 function mentionToken(draft: string): string | null {
   const match = draft.match(/(^|[\s])@(\d*)$/);
@@ -181,13 +182,12 @@ export function CsdChatThread({
             ←
           </button>
         ) : null}
-        <span
+        <CsdChatAvatar
+          token={token}
+          name={active.name_vi}
+          seed={active.id}
           className="csd-chat-avatar csd-chat-avatar--thread"
-          style={{ background: `hsl(${avatarHue(active.id)} 55% 42%)` }}
-          aria-hidden
-        >
-          {initialsFromName(active.name_vi)}
-        </span>
+        />
         {renaming && onRename ? (
           <form
             className="csd-chat-rename"
@@ -285,6 +285,11 @@ export function CsdChatThread({
           const isMine = meStaffId != null && m.author_staff_id === meStaffId;
           const prev = index > 0 ? messages[index - 1] : null;
           const showChip = shouldShowDateChip(prev?.created_at, m.created_at);
+          const peer = isMine ? null : resolveCsdMessagePeer(m, { active, members });
+          const showName =
+            !isMine &&
+            active.kind === 'group' &&
+            (index === 0 || messages[index - 1]?.author_staff_id !== m.author_staff_id);
           return (
             <li key={m.id}>
               {showChip ? (
@@ -303,7 +308,8 @@ export function CsdChatThread({
                 canWrite={canWrite}
                 busy={busy}
                 density={density}
-                showName={!isMine}
+                showName={showName}
+                peer={peer}
                 allowCreateTicket={!m.ticket_id && active.kind !== 'announcement'}
                 meStaffId={meStaffId}
                 onReply={onReply}
