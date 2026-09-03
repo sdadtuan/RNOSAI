@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildIwrProjectProgress,
-  iwrProjectProgressMaxY,
-  parseIwrProjectLabel,
-} from './iwr-project-progress';
+import { buildIwrProjectProgress, iwrProjectProgressMaxY } from './iwr-project-progress';
 import type { IwrReportRow } from '@/lib/crm/iwr-api';
+
+const B2B = [
+  { id: 'p-seo', code: 'tiki-seo', name: 'SEO Growth', status: 'active' },
+  { id: 'p-web', code: 'acb-web', name: 'Website Redesign', status: 'active' },
+];
 
 function report(partial: Partial<IwrReportRow>): IwrReportRow {
   return {
@@ -32,41 +33,52 @@ function report(partial: Partial<IwrReportRow>): IwrReportRow {
 }
 
 describe('iwr-project-progress', () => {
-  it('parseIwrProjectLabel splits name and client', () => {
-    expect(parseIwrProjectLabel('Website Redesign (ACB Bank)')).toEqual({
-      name: 'Website Redesign',
-      client: 'ACB Bank',
-    });
-  });
-
-  it('buildIwrProjectProgress aggregates items by project', () => {
-    const out = buildIwrProjectProgress([
-      report({
-        sections_json: {
-          done: {
-            items: [{ title: 'Landing', body: JSON.stringify({ project: 'SEO Growth (Tiki)', progress: 100 }) }],
+  it('buildIwrProjectProgress aggregates items by b2b project id', () => {
+    const out = buildIwrProjectProgress(
+      [
+        report({
+          sections_json: {
+            done: {
+              items: [
+                {
+                  title: 'Landing',
+                  body: JSON.stringify({ b2b_project_id: 'p-seo', project: 'SEO Growth (tiki-seo)', progress: 100 }),
+                },
+              ],
+            },
+            wip: {
+              items: [
+                {
+                  title: 'Blog',
+                  body: JSON.stringify({ b2b_project_id: 'p-seo', project: 'SEO Growth (tiki-seo)', progress: 55 }),
+                },
+              ],
+            },
+            blocked: {
+              items: [
+                {
+                  title: 'API',
+                  body: JSON.stringify({ b2b_project_id: 'p-seo', project: 'SEO Growth (tiki-seo)', progress: 10 }),
+                },
+              ],
+            },
           },
-          wip: {
-            items: [{ title: 'Blog', body: JSON.stringify({ project: 'SEO Growth (Tiki)', progress: 55 }) }],
-          },
-          blocked: {
-            items: [{ title: 'API', body: JSON.stringify({ project: 'SEO Growth (Tiki)', progress: 10 }) }],
-          },
-        },
-      }),
-    ]);
-    expect(out.fromDemo).toBe(false);
+        }),
+      ],
+      B2B,
+    );
     expect(out.rows).toHaveLength(1);
-    expect(out.rows[0]).toMatchObject({ name: 'SEO Growth', client: 'Tiki', green: 1, yellow: 1, red: 1 });
+    expect(out.rows[0]).toMatchObject({ id: 'p-seo', name: 'SEO Growth', code: 'tiki-seo', green: 1, yellow: 1, red: 1 });
   });
 
-  it('buildIwrProjectProgress falls back to demo rows', () => {
-    const out = buildIwrProjectProgress([]);
-    expect(out.fromDemo).toBe(true);
-    expect(out.rows.length).toBeGreaterThan(0);
+  it('buildIwrProjectProgress returns empty rows when no b2b-linked items', () => {
+    const out = buildIwrProjectProgress([], B2B);
+    expect(out.rows).toEqual([]);
   });
 
   it('iwrProjectProgressMaxY rounds up to step 5', () => {
-    expect(iwrProjectProgressMaxY([{ id: 'a', name: 'A', client: '', green: 14, yellow: 3, red: 1 }])).toBe(20);
+    expect(
+      iwrProjectProgressMaxY([{ id: 'a', name: 'A', code: 'a', green: 14, yellow: 3, red: 1 }]),
+    ).toBe(20);
   });
 });

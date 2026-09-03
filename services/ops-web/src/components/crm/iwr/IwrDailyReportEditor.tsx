@@ -19,6 +19,8 @@ import {
 } from '@/lib/crm/iwr-api';
 import { iwrAvatarTone, iwrInitials } from './iwr-format';
 import { IwrPeoplePicker, iwrInitialToChip, type IwrPersonChip } from './IwrPeoplePicker';
+import { IwrB2bProjectSelect } from './IwrB2bProjectSelect';
+import { iwrProjectMetaPatch } from './iwr-b2b-project';
 import {
   clampProgress,
   formatViTime,
@@ -280,9 +282,9 @@ export function IwrDailyReportEditor({
     setFormError('');
     try {
       const defaults: Record<string, IwrItemMeta> = {
-        done: { project: '', progress: 100 },
-        wip: { project: '', progress: 40, eta: '' },
-        next: { project: '', priority: 'medium' },
+        done: { b2b_project_id: '', project: '', progress: 100 },
+        wip: { b2b_project_id: '', project: '', progress: 40, eta: '' },
+        next: { b2b_project_id: '', project: '', priority: 'medium' },
         blocked: { severity: 'high', support: 'Account Manager', due: '', note: '' },
       };
       const row = await addIwrItem(token, report.id, {
@@ -533,7 +535,7 @@ export function IwrDailyReportEditor({
                     title: hit.label,
                     ref_kind: hit.kind as IwrItemRow['ref_kind'],
                     ref_id: hit.id,
-                    body: serializeIwrItemMeta({ project: '', progress: 100 }),
+                    body: serializeIwrItemMeta({ b2b_project_id: '', project: '', progress: 100 }),
                   })
                 }
               >
@@ -572,12 +574,11 @@ export function IwrDailyReportEditor({
                     </span>
                   </label>
                   <div className="iwr-task__meta">
-                    <input
-                      className="iwr-tag"
+                    <IwrB2bProjectSelect
+                      token={token}
                       disabled={readOnly}
-                      placeholder="Dự án"
-                      value={meta.project ?? ''}
-                      onChange={(e) => updateMeta(it, { project: e.target.value })}
+                      value={meta.b2b_project_id ?? ''}
+                      onChange={(_, project) => updateMeta(it, iwrProjectMetaPatch(project))}
                     />
                     <ProgressField
                       value={clampProgress(meta.progress ?? 100)}
@@ -667,11 +668,11 @@ export function IwrDailyReportEditor({
                         />
                       </td>
                       <td>
-                        <input
-                          className="iwr-tag"
+                        <IwrB2bProjectSelect
+                          token={token}
                           disabled={readOnly}
-                          value={meta.project ?? ''}
-                          onChange={(e) => updateMeta(it, { project: e.target.value })}
+                          value={meta.b2b_project_id ?? ''}
+                          onChange={(_, project) => updateMeta(it, iwrProjectMetaPatch(project))}
                         />
                       </td>
                       <td>
@@ -745,11 +746,11 @@ export function IwrDailyReportEditor({
                     value={it.title}
                     onChange={(e) => replaceItem({ ...it, title: e.target.value })}
                   />
-                  <input
-                    className="iwr-tag"
+                  <IwrB2bProjectSelect
+                    token={token}
                     disabled={readOnly}
-                    value={meta.project ?? ''}
-                    onChange={(e) => updateMeta(it, { project: e.target.value })}
+                    value={meta.b2b_project_id ?? ''}
+                    onChange={(_, project) => updateMeta(it, iwrProjectMetaPatch(project))}
                   />
                   {!readOnly && (
                     <button type="button" className="iwr-iconbtn" onClick={() => void removeItem(it.id)}>

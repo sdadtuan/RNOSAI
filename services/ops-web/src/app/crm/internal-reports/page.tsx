@@ -280,7 +280,7 @@ export default function InternalReportsPage() {
 
           <div className="iwr-split">
             <IwrCard>
-              <IwrProjectProgressChart reports={progressReports} />
+              <IwrProjectProgressChart token={token} reports={progressReports} />
             </IwrCard>
             <IwrCard>
               <div className="iwr-cardhead">

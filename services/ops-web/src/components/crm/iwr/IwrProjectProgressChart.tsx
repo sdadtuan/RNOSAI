@@ -4,29 +4,39 @@ import { useMemo, useState } from 'react';
 import {
   buildIwrProjectProgress,
   formatIwrProjectProgressUpdated,
+  iwrProjectProgressFilterOptions,
   iwrProjectProgressMaxY,
   iwrProjectProgressYTicks,
   type IwrProjectProgressRow,
 } from '@/components/crm/iwr/iwr-project-progress';
+import { useIwrB2bProjects } from '@/components/crm/iwr/useIwrB2bProjects';
 import type { IwrReportRow } from '@/lib/crm/iwr-api';
 
 const PLOT_HEIGHT = 188;
 
 type IwrProjectProgressChartProps = {
+  token: string | null | undefined;
   reports: IwrReportRow[];
 };
 
-export function IwrProjectProgressChart({ reports }: IwrProjectProgressChartProps) {
-  const built = useMemo(() => buildIwrProjectProgress(reports), [reports]);
+export function IwrProjectProgressChart({ token, reports }: IwrProjectProgressChartProps) {
+  const { projects, loading, error } = useIwrB2bProjects(token);
+  const built = useMemo(() => buildIwrProjectProgress(reports, projects), [reports, projects]);
+  const filterOptions = useMemo(() => iwrProjectProgressFilterOptions(projects), [projects]);
   const [projectFilter, setProjectFilter] = useState('all');
 
   const rows = useMemo(() => {
     if (projectFilter === 'all') return built.rows;
-    return built.rows.filter((row) => row.id === projectFilter);
-  }, [built.rows, projectFilter]);
+    const picked = built.rows.find((row) => row.id === projectFilter);
+    if (picked) return [picked];
+    const project = projects.find((p) => p.id === projectFilter);
+    if (!project) return [];
+    return [{ id: project.id, name: project.name, code: project.code, green: 0, yellow: 0, red: 0 }];
+  }, [built.rows, projectFilter, projects]);
 
   const maxY = iwrProjectProgressMaxY(rows.length ? rows : built.rows);
   const yTicks = iwrProjectProgressYTicks(maxY);
+  const hasData = rows.some((row) => row.green + row.yellow + row.red > 0);
 
   return (
     <div className="iwr-proj-chart" data-testid="iwr-project-progress-chart">
@@ -38,11 +48,12 @@ export function IwrProjectProgressChart({ reports }: IwrProjectProgressChartProp
           onChange={(e) => setProjectFilter(e.target.value)}
           aria-label="Lọc dự án"
           data-testid="iwr-project-progress-filter"
+          disabled={loading || !filterOptions.length}
         >
           <option value="all">Tất cả dự án</option>
-          {built.rows.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.client ? `${row.name} (${row.client})` : row.name}
+          {filterOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
             </option>
           ))}
         </select>
@@ -60,29 +71,42 @@ export function IwrProjectProgressChart({ reports }: IwrProjectProgressChartProp
         </span>
       </div>
 
-      <div className="iwr-proj-chart__plot">
-        <div className="iwr-proj-chart__yaxis" aria-hidden>
-          {yTicks.map((tick) => (
-            <span key={tick}>{tick}</span>
-          ))}
-        </div>
-        <div className="iwr-proj-chart__canvas">
-          <div className="iwr-proj-chart__grid" aria-hidden>
-            {yTicks.slice(0, -1).map((tick) => (
-              <span key={tick} style={{ bottom: `${(tick / maxY) * 100}%` }} />
+      {error ? <p className="iwr-empty">{error}</p> : null}
+      {!error && !loading && !projects.length ? (
+        <p className="iwr-empty">Chưa có dự án PTT. Tạo tại mục Dự án PTT.</p>
+      ) : null}
+      {!error && projects.length && !hasData ? (
+        <p className="iwr-empty">Chưa có hạng mục báo cáo gắn dự án PTT trong kỳ này.</p>
+      ) : null}
+
+      {hasData ? (
+        <div className="iwr-proj-chart__plot">
+          <div className="iwr-proj-chart__yaxis" aria-hidden>
+            {yTicks.map((tick) => (
+              <span key={tick}>{tick}</span>
             ))}
           </div>
-          <div className="iwr-proj-chart__bars">
-            {rows.map((row) => (
-              <ProjectBar key={row.id} row={row} maxY={maxY} plotHeight={PLOT_HEIGHT} />
-            ))}
+          <div className="iwr-proj-chart__canvas">
+            <div className="iwr-proj-chart__grid" aria-hidden>
+              {yTicks.slice(0, -1).map((tick) => (
+                <span key={tick} style={{ bottom: `${(tick / maxY) * 100}%` }} />
+              ))}
+            </div>
+            <div className="iwr-proj-chart__bars">
+              {rows
+                .filter((row) => row.green + row.yellow + row.red > 0)
+                .map((row) => (
+                  <ProjectBar key={row.id} row={row} maxY={maxY} plotHeight={PLOT_HEIGHT} />
+                ))}
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       <p className="iwr-proj-chart__foot">
         Số liệu cập nhật đến {formatIwrProjectProgressUpdated(built.updatedAt)}
-        {built.fromDemo ? ' · mẫu minh hoạ' : ''}
+        {' · '}
+        Nguồn dự án: Dự án PTT
       </p>
     </div>
   );
@@ -118,7 +142,7 @@ function ProjectBar({
       </div>
       <div className="iwr-proj-chart__label">
         <strong>{row.name}</strong>
-        {row.client ? <span>({row.client})</span> : null}
+        <span>({row.code})</span>
       </div>
     </div>
   );

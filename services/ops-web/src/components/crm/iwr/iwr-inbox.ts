@@ -1,4 +1,6 @@
 import type { IwrInboxBox, IwrReportRow, IwrReportStatus } from '@/lib/crm/iwr-api';
+import { iwrB2bProjectCatalog, iwrProjectLabelFromMeta, resolveIwrB2bProjectId } from './iwr-b2b-project';
+import type { IwrB2bProjectCatalog } from './iwr-b2b-project';
 import { iwrIsoWeekLabel } from './iwr-format';
 import { iwrItemText, parseIwrItemMeta } from './iwr-item-meta';
 
@@ -70,7 +72,7 @@ export function iwrInboxPreview(row: IwrReportRow, max = 140): string {
   return '';
 }
 
-export function iwrInboxProject(row: IwrReportRow): string {
+export function iwrInboxProject(row: IwrReportRow, catalog?: IwrB2bProjectCatalog): string {
   for (const key of Object.keys(row.sections_json ?? {})) {
     const section = row.sections_json[key];
     const items = Array.isArray(section?.items) ? section.items : [];
@@ -78,16 +80,32 @@ export function iwrInboxProject(row: IwrReportRow): string {
       if (!raw || typeof raw !== 'object') continue;
       const rec = raw as { title?: string; body?: string; project?: string };
       const meta = parseIwrItemMeta(rec.body);
-      const project = String(meta.project ?? rec.project ?? '').trim();
-      if (project) return project;
+      const label = iwrProjectLabelFromMeta(meta, catalog);
+      if (label) return label;
     }
   }
-  const fromTitle = /—\s*([^—]+)$/.exec(row.title);
-  if (fromTitle && !/^\d{2}\/\d{2}/.test(fromTitle[1]) && !/\d{4}-\d{2}-\d{2}/.test(fromTitle[1])) {
-    const candidate = fromTitle[1].trim();
-    if (candidate && candidate.length < 40 && !/báo cáo/i.test(candidate)) return candidate;
-  }
   return '';
+}
+
+export function iwrInboxProjectIds(row: IwrReportRow, catalog: IwrB2bProjectCatalog = new Map()): string[] {
+  const ids = new Set<string>();
+  for (const key of Object.keys(row.sections_json ?? {})) {
+    const section = row.sections_json[key];
+    const items = Array.isArray(section?.items) ? section.items : [];
+    for (const raw of items) {
+      if (!raw || typeof raw !== 'object') continue;
+      const rec = raw as { title?: string; body?: string; project?: string };
+      const meta = parseIwrItemMeta(rec.body);
+      const projectId = resolveIwrB2bProjectId(meta, catalog);
+      if (projectId) ids.add(projectId);
+    }
+  }
+  return Array.from(ids);
+}
+
+export function iwrInboxMatchesProject(row: IwrReportRow, projectId: string, catalog: IwrB2bProjectCatalog): boolean {
+  if (!projectId) return true;
+  return iwrInboxProjectIds(row, catalog).includes(projectId);
 }
 
 export function iwrInboxHasApprovals(row: IwrReportRow): boolean {

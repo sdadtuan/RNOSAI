@@ -21,6 +21,7 @@ import {
 } from '@/lib/crm/iwr-api';
 import { iwrAvatarTone, iwrInitials, iwrRagClass, iwrRagLabel } from './iwr-format';
 import { iwrInboxHasApprovals, iwrInboxProject, iwrInboxStatusBadge } from './iwr-inbox';
+import { useIwrB2bProjects } from './useIwrB2bProjects';
 import { clampProgress, formatViTime, iwrItemText, parseIwrItemMeta } from './iwr-item-meta';
 
 type IwrInboxDetailProps = {
@@ -55,6 +56,7 @@ function commentAuthor(comment: IwrCommentRow, report: IwrReportDetail): string 
 }
 
 export function IwrInboxDetail({ token, report, canReview, onReload, onError }: IwrInboxDetailProps) {
+  const { catalog } = useIwrB2bProjects(token);
   const [files, setFiles] = useState<IwrFileRow[]>([]);
   const [mode, setMode] = useState<ReplyMode>('reply');
   const [draft, setDraft] = useState('');
@@ -81,7 +83,7 @@ export function IwrInboxDetail({ token, report, canReview, onReload, onError }: 
   const kpi = itemsOf(report, 'kpi');
   const next = itemsOf(report, 'next').concat(itemsOf(report, 'next_week'));
   const support = [...wip, ...blocked].filter((it) => parseIwrItemMeta(it.body).support);
-  const project = iwrInboxProject(report);
+  const project = iwrInboxProject(report, catalog);
   const statusBadge = iwrInboxStatusBadge(report.status, report.rag);
   const isAuthor = report.viewer_is_author !== false;
   const isReviewer = Boolean(report.viewer_is_reviewer) || canReview;

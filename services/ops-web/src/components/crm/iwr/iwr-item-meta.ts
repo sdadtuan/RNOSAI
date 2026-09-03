@@ -2,6 +2,7 @@ export type IwrItemPriority = 'high' | 'medium' | 'low';
 export type IwrItemSeverity = 'critical' | 'high' | 'medium' | 'low';
 
 export type IwrItemMeta = {
+  b2b_project_id?: string;
   project?: string;
   progress?: number;
   eta?: string;

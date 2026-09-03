@@ -25,11 +25,14 @@ import {
   iwrInboxMatchesKind,
   iwrInboxMatchesLabel,
   iwrInboxMatchesPeriod,
+  iwrInboxMatchesProject,
   iwrInboxPreview,
   iwrInboxProject,
   iwrInboxSortRows,
   iwrInboxStatusBadge,
 } from './iwr-inbox';
+import { useIwrB2bProjects } from './useIwrB2bProjects';
+import { iwrB2bProjectOptionLabel } from './iwr-b2b-project';
 import { IwrInboxDetail } from './IwrInboxDetail';
 
 const BOXES = new Set<IwrInboxBox>(INBOX_FOLDERS.map((f) => f.id));
@@ -45,6 +48,7 @@ type IwrInboxWorkspaceProps = {
 export function IwrInboxWorkspace({ token, canWrite, canReview, error, onError }: IwrInboxWorkspaceProps) {
   const router = useRouter();
   const params = useSearchParams();
+  const { projects: b2bProjects, catalog } = useIwrB2bProjects(token);
   const initialBox = params.get('box') as IwrInboxBox | null;
   const initialId = params.get('id');
 
@@ -136,25 +140,21 @@ export function IwrInboxWorkspace({ token, canWrite, canReview, error, onError }
     else setDetail(null);
   }, [selectedId, loadDetail]);
 
-  const projects = useMemo(() => {
-    const names = new Set<string>();
-    for (const row of items) {
-      const name = iwrInboxProject(row);
-      if (name) names.add(name);
-    }
-    return Array.from(names);
-  }, [items]);
+  const projects = useMemo(
+    () => b2bProjects.slice().sort((a, b) => a.code.localeCompare(b.code, 'vi')),
+    [b2bProjects],
+  );
 
   const visible = useMemo(() => {
     const filtered = items.filter((row) => {
       if (!iwrInboxMatchesKind(row, kind)) return false;
       if (!iwrInboxMatchesPeriod(row, period)) return false;
       if (!iwrInboxMatchesLabel(row, label)) return false;
-      if (projectFilter && iwrInboxProject(row) !== projectFilter) return false;
+      if (!iwrInboxMatchesProject(row, projectFilter, catalog)) return false;
       return true;
     });
     return iwrInboxSortRows(filtered, sort);
-  }, [items, kind, period, label, projectFilter, sort]);
+  }, [items, kind, period, label, projectFilter, sort, catalog]);
 
   useEffect(() => {
     if (!listReady || !visible.length) return;
@@ -285,10 +285,10 @@ export function IwrInboxWorkspace({ token, canWrite, canReview, error, onError }
               <option value="all">Mọi lúc</option>
             </select>
             <select className="iwr-input" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
-              <option value="">Tất cả dự án</option>
-              {projects.map((name) => (
-                <option key={name} value={name}>
-                  {name}
+              <option value="">Tất cả dự án PTT</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {iwrB2bProjectOptionLabel(project)}
                 </option>
               ))}
             </select>
@@ -301,7 +301,7 @@ export function IwrInboxWorkspace({ token, canWrite, canReview, error, onError }
           <div className="iwr-inbox__rows">
             {visible.map((row) => {
               const badge = iwrInboxStatusBadge(row.status, row.rag);
-              const project = iwrInboxProject(row);
+              const project = iwrInboxProject(row, catalog);
               const unread = !row.first_viewed_at && row.status !== 'draft';
               return (
                 <button

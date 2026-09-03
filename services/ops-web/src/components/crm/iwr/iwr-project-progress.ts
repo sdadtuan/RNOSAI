@@ -1,39 +1,18 @@
+import type { B2bProjectListItem } from '@/lib/b2b-projects-api';
 import type { IwrRag, IwrReportRow } from '@/lib/crm/iwr-api';
+import { iwrB2bProjectCatalog, iwrB2bProjectOptionLabel, resolveIwrB2bProjectId } from './iwr-b2b-project';
 import { clampProgress, isOverdueYmd, parseIwrItemMeta, type IwrItemMeta } from './iwr-item-meta';
 
 export type IwrProjectProgressRow = {
   id: string;
   name: string;
-  client: string;
+  code: string;
   green: number;
   yellow: number;
   red: number;
 };
 
-export const IWR_PROJECT_PROGRESS_DEMO: IwrProjectProgressRow[] = [
-  { id: 'acb', name: 'Website Redesign', client: 'ACB Bank', green: 14, yellow: 3, red: 1 },
-  { id: 'vinfast', name: 'Campaign Q4', client: 'VinFast', green: 11, yellow: 4, red: 2 },
-  { id: 'pnj', name: 'Social Always On', client: 'PNJ', green: 9, yellow: 5, red: 3 },
-  { id: 'tcb', name: 'Brand Video Series', client: 'Techcombank', green: 12, yellow: 2, red: 1 },
-  { id: 'tiki', name: 'SEO Growth', client: 'Tiki', green: 10, yellow: 3, red: 1 },
-  { id: 'momo', name: 'Product Launch', client: 'Momo', green: 7, yellow: 2, red: 3 },
-];
-
 const TRACK_SECTIONS = ['done', 'wip', 'deliverables', 'blocked', 'next', 'next_week'] as const;
-
-export function parseIwrProjectLabel(raw: string): { name: string; client: string } {
-  const text = String(raw ?? '').trim();
-  if (!text) return { name: '', client: '' };
-  const paren = /^(.+?)\s*\(([^)]+)\)\s*$/.exec(text);
-  if (paren) return { name: paren[1].trim(), client: paren[2].trim() };
-  const dash = /^(.+?)\s*[—–-]\s*(.+)$/.exec(text);
-  if (dash && dash[2].length <= 40) return { name: dash[1].trim(), client: dash[2].trim() };
-  return { name: text, client: '' };
-}
-
-function slugId(name: string, client: string): string {
-  return `${name}-${client}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'project';
-}
 
 function classifyItem(
   meta: IwrItemMeta,
@@ -49,18 +28,14 @@ function classifyItem(
   return 'red';
 }
 
-function projectKeyFromItem(rec: { title?: string; body?: string; project?: string }, fallbackTitle: string): string {
-  const meta = parseIwrItemMeta(rec.body);
-  const raw = String(meta.project ?? rec.project ?? rec.title ?? fallbackTitle ?? '').trim();
-  const { name, client } = parseIwrProjectLabel(raw);
-  return name ? `${name}::${client}` : '';
-}
-
-export function buildIwrProjectProgress(reports: IwrReportRow[]): {
+export function buildIwrProjectProgress(
+  reports: IwrReportRow[],
+  b2bProjects: B2bProjectListItem[],
+): {
   rows: IwrProjectProgressRow[];
   updatedAt: string | null;
-  fromDemo: boolean;
 } {
+  const catalog = iwrB2bProjectCatalog(b2bProjects);
   const buckets = new Map<string, IwrProjectProgressRow>();
   let updatedAt: string | null = null;
 
@@ -74,17 +49,22 @@ export function buildIwrProjectProgress(reports: IwrReportRow[]): {
       for (const raw of items) {
         if (!raw || typeof raw !== 'object') continue;
         const rec = raw as { title?: string; body?: string; project?: string };
-        const key = projectKeyFromItem(rec, rec.title ?? report.title);
-        if (!key) continue;
-        const { name, client } = parseIwrProjectLabel(
-          String(parseIwrItemMeta(rec.body).project ?? rec.project ?? rec.title ?? '').trim(),
-        );
-        if (!name) continue;
-        const id = slugId(name, client);
-        const row = buckets.get(key) ?? { id, name, client, green: 0, yellow: 0, red: 0 };
-        const tone = classifyItem(parseIwrItemMeta(rec.body), sectionKey, report.rag);
+        const meta = parseIwrItemMeta(rec.body);
+        const projectId = resolveIwrB2bProjectId(meta, catalog);
+        if (!projectId) continue;
+
+        const project = catalog.get(projectId)!;
+        const row = buckets.get(projectId) ?? {
+          id: projectId,
+          name: project.name,
+          code: project.code,
+          green: 0,
+          yellow: 0,
+          red: 0,
+        };
+        const tone = classifyItem(meta, sectionKey, report.rag);
         row[tone] += 1;
-        buckets.set(key, row);
+        buckets.set(projectId, row);
       }
     }
   }
@@ -94,10 +74,16 @@ export function buildIwrProjectProgress(reports: IwrReportRow[]): {
     .sort((a, b) => b.green + b.yellow + b.red - (a.green + a.yellow + a.red))
     .slice(0, 8);
 
-  if (rows.length === 0) {
-    return { rows: IWR_PROJECT_PROGRESS_DEMO, updatedAt, fromDemo: true };
-  }
-  return { rows, updatedAt, fromDemo: false };
+  return { rows, updatedAt };
+}
+
+export function iwrProjectProgressFilterOptions(
+  b2bProjects: B2bProjectListItem[],
+): Array<{ id: string; label: string }> {
+  return b2bProjects
+    .slice()
+    .sort((a, b) => a.code.localeCompare(b.code, 'vi'))
+    .map((project) => ({ id: project.id, label: iwrB2bProjectOptionLabel(project) }));
 }
 
 export function iwrProjectProgressMaxY(rows: IwrProjectProgressRow[]): number {

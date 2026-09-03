@@ -26,6 +26,8 @@ import {
 } from '@/lib/crm/iwr-api';
 import { iwrAvatarTone, iwrInitials, iwrRagClass, iwrRagLabel, iwrWeekHeading } from './iwr-format';
 import { IwrPeoplePicker, iwrInitialToChip, type IwrPersonChip } from './IwrPeoplePicker';
+import { IwrB2bProjectSelect } from './IwrB2bProjectSelect';
+import { iwrProjectMetaPatch } from './iwr-b2b-project';
 import {
   clampProgress,
   formatKpiNumber,
@@ -282,7 +284,7 @@ export function IwrWeeklyReportEditor({
       const defaults: Record<string, IwrItemMeta> = {
         highlights: {},
         kpi: { target: 0, actual: 0, unit: '', better: 'higher' },
-        wip: { progress: 40, step: 2, eta: '' },
+        wip: { b2b_project_id: '', project: '', progress: 40, step: 2, eta: '' },
         next_week: { checked: false },
         blocked: { severity: 'high', due: '', owner: '' },
       };
@@ -680,11 +682,15 @@ export function IwrWeeklyReportEditor({
               return (
                 <article key={it.id} className="iwr-proj">
                   <div className="iwr-proj__top">
-                    <input
-                      className="iwr-ghost iwr-proj__name"
+                    <IwrB2bProjectSelect
+                      token={token}
+                      className="iwr-input iwr-proj__name"
                       disabled={readOnly}
-                      value={it.title}
-                      onChange={(e) => replaceItem({ ...it, title: e.target.value })}
+                      value={meta.b2b_project_id ?? ''}
+                      onChange={(_, project) => {
+                        updateMeta(it, iwrProjectMetaPatch(project));
+                        if (project) replaceItem({ ...it, title: project.name });
+                      }}
                     />
                     {!readOnly && (
                       <button type="button" className="iwr-iconbtn" onClick={() => void removeItem(it.id)}>
