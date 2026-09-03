@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { PageToolbar, StaffPageShell } from '@/components/layout';
+import { IwrAppShell, IwrCard } from '@/components/crm/iwr/IwrAppShell';
 import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
 import { fetchIwrTemplates, updateIwrTemplate, type IwrTemplateRow } from '@/lib/crm/iwr-api';
 
@@ -39,15 +39,16 @@ export default function IwrTemplatesPage() {
   }
 
   return (
-    <StaffPageShell user={user ?? null} onLogout={logout} loading={!user}>
-      <PageToolbar title="Mẫu BC nội bộ" subtitle="Chỉ đổi tên hiển thị ở W1" />
-      {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
-      <Link href="/crm/internal-reports" className="text-sm text-blue-600 hover:underline mb-4 inline-block">
+    <IwrAppShell user={user} token={token} onLogout={logout} loading={!user} canWrite={canManage}>
+      <h1 className="mb-1 text-2xl font-semibold text-slate-900">Mẫu báo cáo</h1>
+      <p className="mb-5 text-sm text-slate-500">Chỉ đổi tên hiển thị ở W1</p>
+      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      <Link href="/crm/internal-reports" className="mb-4 inline-block text-sm text-[#0052CC] hover:underline">
         ← BC công việc
       </Link>
       <div className="space-y-4">
         {items.map((row) => (
-          <div key={row.id} className="rounded border p-4 space-y-2">
+          <IwrCard key={row.id} className="space-y-2">
             <div className="text-xs text-slate-500">{row.code} · {row.kind}</div>
             <input
               className="w-full border rounded px-3 py-2 text-sm"
@@ -61,9 +62,9 @@ export default function IwrTemplatesPage() {
             <div className="text-xs text-slate-500">
               Sections: {row.sections_json.join(', ')}
             </div>
-          </div>
+          </IwrCard>
         ))}
       </div>
-    </StaffPageShell>
+    </IwrAppShell>
   );
 }

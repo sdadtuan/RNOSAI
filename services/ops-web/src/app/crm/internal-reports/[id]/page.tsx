@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { PageToolbar, StaffPageShell } from '@/components/layout';
+import { IwrAppShell, IwrCard } from '@/components/crm/iwr/IwrAppShell';
 import { IwrReportEditor } from '@/components/crm/iwr/IwrReportEditor';
 import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
 import {
@@ -57,17 +57,17 @@ export default function IwrReportDetailPage() {
   }, [reload]);
 
   return (
-    <StaffPageShell user={user ?? null} onLogout={logout} loading={!user && !report}>
-      <PageToolbar
-        title={report?.title ?? 'Báo cáo nội bộ'}
-        subtitle={report?.template_name_vi}
-        actions={
-          <Link href="/crm/internal-reports" className="text-sm text-blue-600 hover:underline">
-            ← Danh sách
-          </Link>
-        }
-      />
-      {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
+    <IwrAppShell user={user} token={token} onLogout={logout} loading={!user && !report} canWrite={canWrite}>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xs text-slate-400">{report?.template_name_vi}</div>
+          <h1 className="text-2xl font-semibold text-slate-900">{report?.title ?? 'Báo cáo nội bộ'}</h1>
+        </div>
+        <Link href="/crm/internal-reports" className="text-sm text-[#0052CC] hover:underline">
+          ← Danh sách
+        </Link>
+      </div>
+      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       {aiEnabled && report && token && (
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <button
@@ -90,6 +90,7 @@ export default function IwrReportDetailPage() {
         </div>
       )}
       {report && token && (
+        <IwrCard>
         <IwrReportEditor
           token={token}
           report={report}
@@ -129,7 +130,8 @@ export default function IwrReportDetailPage() {
             await reload();
           }}
         />
+        </IwrCard>
       )}
-    </StaffPageShell>
+    </IwrAppShell>
   );
 }

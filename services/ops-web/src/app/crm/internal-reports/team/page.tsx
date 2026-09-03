@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { PageToolbar, StaffPageShell } from '@/components/layout';
+import { IwrAppShell, IwrCard } from '@/components/crm/iwr/IwrAppShell';
 import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
+import { iwrAvatarTone, iwrInitials } from '@/components/crm/iwr/iwr-format';
 import { fetchIwrTeam, iwrDerivedLabel, type IwrTeamNode } from '@/lib/crm/iwr-api';
 
 function todayYmd(): string {
@@ -11,7 +12,7 @@ function todayYmd(): string {
 }
 
 export default function IwrTeamPage() {
-  const { user, token, error, setError, logout } = useIwrPageAuth('view');
+  const { user, token, error, setError, logout, canWrite } = useIwrPageAuth('view');
   const [periodStart, setPeriodStart] = useState(todayYmd());
   const [periodEnd, setPeriodEnd] = useState(todayYmd());
   const [templateCode, setTemplateCode] = useState('daily_work');
@@ -36,10 +37,11 @@ export default function IwrTeamPage() {
   }, [reload]);
 
   return (
-    <StaffPageShell user={user ?? null} onLogout={logout} loading={!user}>
-      <PageToolbar title="Cây kỳ" subtitle="Theo dõi nộp báo cáo theo nhóm" />
-      {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
-      <div className="flex flex-wrap gap-3 mb-4 items-end">
+    <IwrAppShell user={user} token={token} onLogout={logout} loading={!user} canWrite={canWrite}>
+      <h1 className="mb-1 text-2xl font-semibold text-slate-900">Dự án / Cây kỳ</h1>
+      <p className="mb-5 text-sm text-slate-500">Theo dõi nộp báo cáo theo nhóm</p>
+      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      <div className="mb-4 flex flex-wrap items-end gap-3">
         <label className="text-sm">
           Từ
           <input
@@ -70,41 +72,50 @@ export default function IwrTeamPage() {
             <option value="monthly_work">Tháng</option>
           </select>
         </label>
-        <button type="button" className="px-3 py-2 border rounded text-sm" onClick={() => void reload()}>
+        <button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" onClick={() => void reload()}>
           Làm mới
         </button>
-        <Link href="/crm/internal-reports" className="px-3 py-2 border rounded text-sm">
+        <Link href="/crm/internal-reports" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
           Về danh sách
         </Link>
       </div>
-      <div className="overflow-x-auto rounded border">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-left">
-            <tr>
-              <th className="px-3 py-2">Nhân viên</th>
-              <th className="px-3 py-2">Trạng thái kỳ</th>
-              <th className="px-3 py-2">Báo cáo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {nodes.map((n) => (
-              <tr key={n.id} className="border-t">
-                <td className="px-3 py-2">{n.name}</td>
-                <td className="px-3 py-2">{iwrDerivedLabel(n.derived)}</td>
-                <td className="px-3 py-2">
-                  {n.report ? (
-                    <Link href={`/crm/internal-reports/${n.report.id}`} className="text-blue-600 hover:underline">
-                      Mở
-                    </Link>
-                  ) : (
-                    '—'
-                  )}
-                </td>
+      <IwrCard>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="text-left text-[11px] uppercase tracking-wide text-slate-400">
+              <tr>
+                <th className="pb-2 pr-3">Nhân viên</th>
+                <th className="pb-2 pr-3">Trạng thái kỳ</th>
+                <th className="pb-2">Báo cáo</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </StaffPageShell>
+            </thead>
+            <tbody>
+              {nodes.map((n) => (
+                <tr key={n.id} className="border-t border-slate-100">
+                  <td className="py-3 pr-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold ${iwrAvatarTone(n.id)}`}>
+                        {iwrInitials(n.name)}
+                      </span>
+                      {n.name}
+                    </div>
+                  </td>
+                  <td className="py-3 pr-3">{iwrDerivedLabel(n.derived)}</td>
+                  <td className="py-3">
+                    {n.report ? (
+                      <Link href={`/crm/internal-reports/${n.report.id}`} className="text-[#0052CC] hover:underline">
+                        Mở
+                      </Link>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </IwrCard>
+    </IwrAppShell>
   );
 }

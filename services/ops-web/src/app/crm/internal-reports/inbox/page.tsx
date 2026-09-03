@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { PageToolbar, StaffPageShell } from '@/components/layout';
+import { useSearchParams } from 'next/navigation';
+import { IwrAppShell, IwrCard } from '@/components/crm/iwr/IwrAppShell';
 import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
+import { iwrAvatarTone, iwrInitials, iwrRagClass, iwrRagLabel } from '@/components/crm/iwr/iwr-format';
 import {
   IWR_STATUS_LABELS,
   fetchIwrInbox,
@@ -24,9 +26,13 @@ const TABS: { id: IwrInboxBox; label: string }[] = [
   { id: 'archived', label: 'Lưu trữ' },
 ];
 
+const BOXES = new Set<IwrInboxBox>(TABS.map((t) => t.id));
+
 export default function IwrInboxPage() {
-  const { user, token, error, setError, logout } = useIwrPageAuth('view');
-  const [box, setBox] = useState<IwrInboxBox>('action');
+  const params = useSearchParams();
+  const initial = params.get('box') as IwrInboxBox | null;
+  const { user, token, error, setError, logout, canWrite } = useIwrPageAuth('view');
+  const [box, setBox] = useState<IwrInboxBox>(initial && BOXES.has(initial) ? initial : 'action');
   const [items, setItems] = useState<IwrReportRow[]>([]);
 
   const reload = useCallback(async () => {
@@ -44,41 +50,53 @@ export default function IwrInboxPage() {
   }, [reload]);
 
   return (
-    <StaffPageShell user={user ?? null} onLogout={logout} loading={!user}>
-      <PageToolbar title="Hộp thư BC" subtitle="Báo cáo công việc nội bộ" />
-      {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
-      <div className="flex flex-wrap gap-2 mb-4">
+    <IwrAppShell user={user} token={token} onLogout={logout} loading={!user} canWrite={canWrite}>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-slate-900">Hộp thư báo cáo</h1>
+        <Link href="/crm/internal-reports" className="text-sm text-[#0052CC] hover:underline">
+          Danh sách của tôi
+        </Link>
+      </div>
+      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      <div className="mb-4 flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             role="tab"
-            className={`px-3 py-1.5 rounded text-sm border ${box === t.id ? 'bg-slate-800 text-white' : 'bg-white'}`}
+            className={`rounded-full px-3 py-1.5 text-sm ${
+              box === t.id ? 'bg-[#0B1F4D] text-white' : 'border border-slate-200 bg-white text-slate-600'
+            }`}
             onClick={() => setBox(t.id)}
           >
             {t.label}
           </button>
         ))}
-        <Link href="/crm/internal-reports" className="px-3 py-1.5 rounded border text-sm ml-auto">
-          Danh sách của tôi
-        </Link>
       </div>
-      <div className="space-y-2">
-        {items.map((row) => (
-          <Link
-            key={row.id}
-            href={`/crm/internal-reports/${row.id}`}
-            className="block rounded border p-3 hover:bg-slate-50"
-          >
-            <div className="font-medium">{row.title}</div>
-            <div className="text-xs text-slate-500 mt-1">
-              {IWR_STATUS_LABELS[row.status]} · {row.author_name ?? row.author_staff_id} ·{' '}
-              {formatIwrWhen(row.submitted_at)}
-            </div>
-          </Link>
-        ))}
-        {!items.length && <div className="text-slate-500 text-sm py-8 text-center">Không có báo cáo trong mục này</div>}
-      </div>
-    </StaffPageShell>
+      <IwrCard>
+        <div className="space-y-1">
+          {items.map((row) => (
+            <Link
+              key={row.id}
+              href={`/crm/internal-reports/${row.id}`}
+              className="flex items-center gap-3 rounded-xl px-2 py-3 hover:bg-slate-50"
+            >
+              <span className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${iwrAvatarTone(row.author_staff_id)}`}>
+                {iwrInitials(row.author_name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium">{row.title}</div>
+                <div className="text-xs text-slate-500">
+                  {IWR_STATUS_LABELS[row.status]} · {row.author_name ?? row.author_staff_id} · {formatIwrWhen(row.submitted_at)}
+                </div>
+              </div>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] ${iwrRagClass(row.rag)}`}>{iwrRagLabel(row.rag)}</span>
+              {!row.first_viewed_at && <span className="h-2 w-2 rounded-full bg-[#0052CC]" />}
+            </Link>
+          ))}
+          {!items.length && <div className="py-8 text-center text-sm text-slate-500">Không có báo cáo trong mục này</div>}
+        </div>
+      </IwrCard>
+    </IwrAppShell>
   );
 }

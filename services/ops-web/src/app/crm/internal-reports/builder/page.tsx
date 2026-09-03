@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { PageToolbar, StaffPageShell } from '@/components/layout';
+import { IwrAppShell, IwrCard } from '@/components/crm/iwr/IwrAppShell';
 import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
 import {
   createIwrSavedReport,
@@ -59,11 +59,11 @@ export default function IwrBuilderPage() {
   }
 
   return (
-    <StaffPageShell user={user ?? null} onLogout={logout} loading={!user}>
-      <PageToolbar title="Report builder" subtitle="Báo cáo tùy biến nội bộ" />
-      {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
+    <IwrAppShell user={user} token={token} onLogout={logout} loading={!user}>
+      <h1 className="mb-5 text-2xl font-semibold text-slate-900">Report builder</h1>
+      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
-      <div className="rounded border p-4 bg-white mb-4" data-testid="iwr-builder-create">
+      <IwrCard className="mb-4" data-testid="iwr-builder-create">
         <h2 className="text-sm font-semibold mb-2">Tạo saved report</h2>
         <div className="flex flex-wrap gap-2 items-center">
           <input
@@ -80,9 +80,9 @@ export default function IwrBuilderPage() {
             Lưu
           </button>
         </div>
-      </div>
+      </IwrCard>
 
-      <div className="rounded border p-4 bg-white mb-4" data-testid="iwr-builder-list">
+      <IwrCard className="mb-4" data-testid="iwr-builder-list">
         <h2 className="text-sm font-semibold mb-2">Saved reports</h2>
         {items.length === 0 ? (
           <p className="text-slate-500 text-sm">Chưa có báo cáo lưu.</p>
@@ -103,10 +103,10 @@ export default function IwrBuilderPage() {
             ))}
           </ul>
         )}
-      </div>
+      </IwrCard>
 
       {runResult && selectedId && (
-        <div className="rounded border p-4 bg-white" data-testid="iwr-builder-run">
+        <IwrCard data-testid="iwr-builder-run">
           <h2 className="text-sm font-semibold mb-2">
             Kết quả {runResult.truncated ? '(cắt 5000 dòng)' : ''}
           </h2>
@@ -148,12 +148,12 @@ export default function IwrBuilderPage() {
               </table>
             </div>
           )}
-        </div>
+        </IwrCard>
       )}
 
-      <Link href="/crm/internal-reports" className="inline-block mt-4 text-sm text-blue-600 hover:underline">
+      <Link href="/crm/internal-reports" className="mt-4 inline-block text-sm text-[#0052CC] hover:underline">
         ← BC của tôi
       </Link>
-    </StaffPageShell>
+    </IwrAppShell>
   );
 }

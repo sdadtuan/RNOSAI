@@ -462,8 +462,28 @@ export async function promoteIwrBlockerToRisk(
 
 export type IwrDashRole = 'staff' | 'leader' | 'pm' | 'bod';
 
+export interface IwrDashLeader {
+  submitted: number;
+  missing: number;
+  late: number;
+  action_needed: number;
+  rag_red: number;
+  open_blockers: number;
+}
+
+export interface IwrDashStaff {
+  due_today: boolean;
+  inbox_unread: number;
+  my_late_rate_30d: number;
+  open_blockers: number;
+}
+
 export async function fetchIwrDashboard(token: string, role: IwrDashRole): Promise<unknown> {
   return iwrFetch(token, `/api/crm/iwr/dashboards/${role}`);
+}
+
+export async function fetchIwrRisks(token: string): Promise<{ items: IwrRiskRow[] }> {
+  return iwrFetch(token, '/api/crm/iwr/risks');
 }
 
 export interface IwrScheduleRow {
