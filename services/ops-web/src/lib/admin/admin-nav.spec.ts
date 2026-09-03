@@ -115,4 +115,16 @@ describe('admin-nav', () => {
     const ai = buildAdminNavGroups(user).find((g) => g.id === 'ai');
     expect(ai?.links.some((l) => l.href === '/crm/intake/sales-kit')).toBe(true);
   });
+
+  it('kpi setup group links to Nhóm KPI when crm_kpi_groups.view', () => {
+    const user = adminUser({ caps: [{ section: 'crm_kpi_groups', action: 'view' }] });
+    expect(canViewAdminSection(user)).toBe(true);
+    const kpi = buildAdminNavGroups(user).find((g) => g.id === 'kpi');
+    expect(kpi?.label).toBe('Thiết lập KPI');
+    expect(kpi?.links).toEqual([{ href: '/crm/kpi/groups', label: 'Nhóm KPI' }]);
+    expect(buildAdminSidebarLinks(user)).toEqual([
+      { href: '/admin', label: 'Trung tâm quản trị' },
+      { href: '/crm/kpi/groups', label: 'Thiết lập KPI' },
+    ]);
+  });
 });

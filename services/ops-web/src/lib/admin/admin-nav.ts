@@ -12,6 +12,7 @@ export type AdminNavGroupId =
   | 'org'
   | 'rbac'
   | 'data'
+  | 'kpi'
   | 'services'
   | 'ai'
   | 'compliance'
@@ -41,6 +42,7 @@ export function canViewAdminSection(user: StoredStaffUser | null): boolean {
     hasCap(user, 'crm_data_config', 'view') ||
     hasCap(user, 'crm_staff_departments', 'view') ||
     hasCap(user, 'crm_staff_roster', 'view') ||
+    hasCap(user, 'crm_kpi_groups', 'view') ||
     hasCap(user, 'ai_admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'create') ||
@@ -98,6 +100,11 @@ function buildDataLinks(user: StoredStaffUser): AdminNavLink[] {
     { href: '/admin/crm/lead-lookups', label: 'Nguồn & Kênh' },
     { href: '/admin/crm/vn-geo', label: 'Tỉnh/TP & Phường/Xã' },
   ];
+}
+
+function buildKpiSetupLinks(user: StoredStaffUser): AdminNavLink[] {
+  if (!hasCap(user, 'crm_kpi_groups', 'view')) return [];
+  return [{ href: '/crm/kpi/groups', label: 'Nhóm KPI' }];
 }
 
 function buildOrgLinks(user: StoredStaffUser): AdminNavLink[] {
@@ -219,6 +226,16 @@ export function buildAdminNavGroups(user: StoredStaffUser | null): AdminNavGroup
     });
   }
 
+  const kpiLinks = buildKpiSetupLinks(user);
+  if (kpiLinks.length) {
+    groups.push({
+      id: 'kpi',
+      label: 'Thiết lập KPI',
+      description: 'Nhóm KPI, phạm vi áp dụng, import CSV',
+      links: kpiLinks,
+    });
+  }
+
   const policyLinks = buildPolicyLinks(user);
   if (policyLinks.length) {
     groups.push({
@@ -284,6 +301,9 @@ export function buildAdminHubWorkspaces(
     if (!stats?.[group.id] && group.id === 'ai') {
       stat = 'Agents · governance';
     }
+    if (!stats?.[group.id] && group.id === 'kpi') {
+      stat = 'Nhóm KPI · import';
+    }
     return {
       id: group.id,
       title: group.label,
@@ -306,6 +326,9 @@ export function buildAdminSidebarLinks(user: StoredStaffUser | null): ModuleNavL
   }
   if (hasCap(user, 'csd', 'admin')) {
     links.push({ href: '/admin/crm/csd/chat-accounts', label: 'Tài khoản Chat' });
+  }
+  if (hasCap(user, 'crm_kpi_groups', 'view')) {
+    links.push({ href: '/crm/kpi/groups', label: 'Thiết lập KPI' });
   }
   return links;
 }

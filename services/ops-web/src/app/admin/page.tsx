@@ -25,6 +25,7 @@ const WORKSPACE_ICONS: Record<string, string> = {
   org: '👥',
   rbac: '🔐',
   data: '📋',
+  kpi: '📈',
   ai: '🤖',
   compliance: '🛡',
   policy: '🧠',
