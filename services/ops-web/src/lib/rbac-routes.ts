@@ -51,6 +51,34 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     anyOf: [{ section: 'crm_kpi_types', action: 'view' }],
   },
   {
+    prefix: '/crm/kpi-hub/settings',
+    anyOf: [{ section: 'crm_kpi_hub_settings', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/reports',
+    anyOf: [{ section: 'crm_kpi_hub_reports', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/quality',
+    anyOf: [{ section: 'crm_kpi_quality', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/sources',
+    anyOf: [{ section: 'crm_kpi_hub_sources', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/targets',
+    anyOf: [{ section: 'crm_kpi_hub_targets', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/dictionary',
+    anyOf: [{ section: 'crm_kpi_dictionary', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
     prefix: '/crm/b2b',
     anyOf: [{ section: 'crm_leads', action: 'view' }],
   },

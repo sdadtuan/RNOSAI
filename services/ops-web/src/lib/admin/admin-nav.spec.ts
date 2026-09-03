@@ -77,6 +77,14 @@ describe('admin-nav', () => {
     );
   });
 
+  it('kpi setup links include KPI Hub when crm_kpi_hub.view', () => {
+    const groups = buildAdminNavGroups(
+      adminUser({ caps: [{ section: 'crm_kpi_hub', action: 'view' }] }),
+    );
+    const kpi = groups.find((g) => g.id === 'kpi');
+    expect(kpi?.links.some((l) => l.href === '/crm/kpi-hub' && l.label === 'KPI Hub')).toBe(true);
+  });
+
   it('empty for user without admin caps', () => {
     const user = adminUser({
       caps: [{ section: 'crm_leads', action: 'view' }],
@@ -144,5 +152,11 @@ describe('admin-nav', () => {
       { href: '/admin', label: 'Trung tâm quản trị' },
       { href: '/crm/kpi/groups', label: 'Thiết lập KPI' },
     ]);
+  });
+
+  it('kpi setup group includes KPI Hub when crm_kpi_hub.view', () => {
+    const user = adminUser({ caps: [{ section: 'crm_kpi_hub', action: 'view' }] });
+    const kpi = buildAdminNavGroups(user).find((g) => g.id === 'kpi');
+    expect(kpi?.links).toEqual([{ href: '/crm/kpi-hub', label: 'KPI Hub' }]);
   });
 });

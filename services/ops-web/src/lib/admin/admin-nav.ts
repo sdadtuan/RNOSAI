@@ -44,6 +44,7 @@ export function canViewAdminSection(user: StoredStaffUser | null): boolean {
     hasCap(user, 'crm_staff_roster', 'view') ||
     hasCap(user, 'crm_kpi_groups', 'view') ||
     hasCap(user, 'crm_kpi_types', 'view') ||
+    hasCap(user, 'crm_kpi_hub', 'view') ||
     hasCap(user, 'ai_admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'create') ||
@@ -105,6 +106,9 @@ function buildDataLinks(user: StoredStaffUser): AdminNavLink[] {
 
 function buildKpiSetupLinks(user: StoredStaffUser): AdminNavLink[] {
   const links: AdminNavLink[] = [];
+  if (hasCap(user, 'crm_kpi_hub', 'view')) {
+    links.push({ href: '/crm/kpi-hub', label: 'KPI Hub' });
+  }
   if (hasCap(user, 'crm_kpi_groups', 'view')) {
     links.push({ href: '/crm/kpi/groups', label: 'Nhóm KPI' });
   }

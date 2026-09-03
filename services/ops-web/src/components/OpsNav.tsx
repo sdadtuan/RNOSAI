@@ -153,6 +153,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/kpi/groups/new': 'Thêm Nhóm KPI',
   '/crm/kpi/types': 'KPI Type',
   '/crm/kpi/types/new': 'Thêm KPI Type',
+  '/crm/kpi-hub': 'KPI Hub',
   '/crm/ai/insights': 'AI Insights',
   '/crm/ai/coach': 'Manager Coach',
   '/crm/ai/query': 'NL Analytics',
@@ -509,6 +510,9 @@ function buildSections(
     }
     if (hasCap(user, 'crm_kpi_types', 'view')) {
       hr.push({ href: '/crm/kpi/types', label: 'KPI Type' });
+    }
+    if (hasCap(user, 'crm_kpi_hub', 'view')) {
+      hr.push({ href: '/crm/kpi-hub', label: 'KPI Hub' });
     }
     if (winKpiSolutionEnabled()) {
       hr.push({ href: '/crm/kpi/solution', label: 'KPI Solution' });

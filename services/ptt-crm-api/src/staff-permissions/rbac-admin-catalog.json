@@ -68,7 +68,10 @@
     "view_pii": "Xem PII (SĐT/email)",
     "write": "Ghi / thao tác",
     "generate": "Sinh nội dung AI",
-    "run": "Chạy job (desk/deep)"
+    "run": "Chạy job (desk/deep)",
+    "manage": "Quản lý",
+    "publish": "Xuất bản",
+    "send": "Gửi"
   },
   "section_actions": {
     "crm_board_funnel": [
@@ -523,6 +526,37 @@
       "manage",
       "configure",
       "export"
+    ],
+    "crm_kpi_hub": [
+      "view"
+    ],
+    "crm_kpi_dictionary": [
+      "view",
+      "manage",
+      "publish"
+    ],
+    "crm_kpi_hub_targets": [
+      "view",
+      "manage"
+    ],
+    "crm_kpi_hub_sources": [
+      "view",
+      "configure"
+    ],
+    "crm_kpi_quality": [
+      "view",
+      "manage",
+      "export"
+    ],
+    "crm_kpi_hub_reports": [
+      "view",
+      "manage",
+      "approve",
+      "send"
+    ],
+    "crm_kpi_hub_settings": [
+      "view",
+      "manage"
     ],
     "crm_kpi_records": [
       "approve",
@@ -1300,6 +1334,55 @@
       "description": "Cấu hình loại chỉ tiêu KPI — đơn vị, mục tiêu, công thức và nguồn dữ liệu."
     },
     {
+      "id": "crm_kpi_hub",
+      "label": "KPI Hub — Dashboard",
+      "group": "CRM — KPI Hub",
+      "page": "/crm/kpi-hub",
+      "description": "Tổng quan hiệu quả Marketing & Sales — thẻ KPI, funnel, cảnh báo."
+    },
+    {
+      "id": "crm_kpi_dictionary",
+      "label": "KPI Hub — Dictionary",
+      "group": "CRM — KPI Hub",
+      "page": "/crm/kpi-hub/dictionary",
+      "description": "Từ điển KPI — định nghĩa, công thức, xuất bản semantic."
+    },
+    {
+      "id": "crm_kpi_hub_targets",
+      "label": "KPI Hub — Target & Cảnh báo",
+      "group": "CRM — KPI Hub",
+      "page": "/crm/kpi-hub/targets",
+      "description": "Thiết lập target theo kỳ/phạm vi và quy tắc cảnh báo."
+    },
+    {
+      "id": "crm_kpi_hub_sources",
+      "label": "KPI Hub — Nguồn dữ liệu",
+      "group": "CRM — KPI Hub",
+      "page": "/crm/kpi-hub/sources",
+      "description": "Catalog connector, mapping và lineage dữ liệu."
+    },
+    {
+      "id": "crm_kpi_quality",
+      "label": "KPI Hub — Data Quality",
+      "group": "CRM — KPI Hub",
+      "page": "/crm/kpi-hub/quality",
+      "description": "Điểm chất lượng, rule check, issue và ticket."
+    },
+    {
+      "id": "crm_kpi_hub_reports",
+      "label": "KPI Hub — Báo cáo",
+      "group": "CRM — KPI Hub",
+      "page": "/crm/kpi-hub/reports",
+      "description": "Thư viện báo cáo, lịch gửi và chia sẻ."
+    },
+    {
+      "id": "crm_kpi_hub_settings",
+      "label": "KPI Hub — Cài đặt",
+      "group": "CRM — KPI Hub",
+      "page": "/crm/kpi-hub/settings",
+      "description": "Workspace, chu kỳ chốt số, tích hợp và bảo mật."
+    },
+    {
       "id": "crm_kpi_records",
       "label": "KPI — Bản ghi theo kỳ",
       "group": "CRM — KPI",
@@ -1878,6 +1961,13 @@
     "crm_kpi_metrics__btn_save",
     "crm_kpi_groups",
     "crm_kpi_types",
+    "crm_kpi_hub",
+    "crm_kpi_dictionary",
+    "crm_kpi_hub_targets",
+    "crm_kpi_hub_sources",
+    "crm_kpi_quality",
+    "crm_kpi_hub_reports",
+    "crm_kpi_hub_settings",
     "crm_kpi_records",
     "crm_kpi_records__btn_save",
     "crm_leads",
