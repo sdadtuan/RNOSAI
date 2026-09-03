@@ -5322,6 +5322,59 @@ body:has(.ops-sidebar) main {
   }
 }
 
+/* KPI management cockpit */
+.kpi-cockpit { display: grid; gap: 1.25rem; }
+.kpi-cockpit__split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+@media (max-width: 800px) {
+  .kpi-cockpit__split { grid-template-columns: 1fr; }
+  .kpi-tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.kpi-dept-stack { display: grid; gap: 0.65rem; }
+.kpi-dept-stack__row {
+  display: grid;
+  grid-template-columns: minmax(88px, 140px) 1fr 52px;
+  gap: 0.5rem;
+  align-items: center;
+}
+.kpi-dept-stack__track {
+  display: flex;
+  height: 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+}
+.kpi-dept-stack__seg { height: 100%; }
+.kpi-dept-stack__seg.is-green { background: var(--success, #2e7d4f); }
+.kpi-dept-stack__seg.is-yellow { background: #c58a00; }
+.kpi-dept-stack__seg.is-red { background: var(--danger, #b42318); }
+.kpi-dept-stack__seg.is-none { background: var(--border); }
+.kpi-rag { font-size: 0.78rem; font-weight: 600; }
+.kpi-rag.is-green { color: var(--success, #2e7d4f); }
+.kpi-rag.is-yellow { color: #c58a00; }
+.kpi-rag.is-red { color: var(--danger, #b42318); }
+.kpi-cockpit-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.kpi-cockpit-table th, .kpi-cockpit-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.45rem 0.4rem;
+  text-align: left;
+}
+.kpi-cockpit-tabs { display: flex; gap: 0.35rem; margin-bottom: 0.65rem; }
+.kpi-donut { display: grid; justify-items: center; gap: 0.5rem; }
+.kpi-insight { border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem; }
+.kpi-insight__actions { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+.kpi-progress-mini {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+  overflow: hidden;
+}
+.kpi-progress-mini > span { display: block; height: 100%; }
+.kpi-cockpit-pager { display: flex; gap: 0.4rem; margin-top: 0.65rem; }
+
 /* RNOS-42 follow-up — Owner Weekly + AR aging */
 .owner-weekly-lifecycle {
   margin-bottom: 1rem;
