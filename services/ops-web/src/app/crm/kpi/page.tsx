@@ -3,16 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
+import { KpiAttentionTable } from '@/components/kpi/KpiAttentionTable';
+import { KpiCockpitInsight } from '@/components/kpi/KpiCockpitInsight';
+import { KpiCockpitList } from '@/components/kpi/KpiCockpitList';
+import { KpiCockpitTiles } from '@/components/kpi/KpiCockpitTiles';
+import { KpiCreateMetricDrawer } from '@/components/kpi/KpiCreateMetricDrawer';
+import { KpiDeptStackChart } from '@/components/kpi/KpiDeptStackChart';
 import { KpiEditableGrid } from '@/components/kpi/KpiEditableGrid';
+import { KpiRagDonut } from '@/components/kpi/KpiRagDonut';
 import { KpiTeamToggle, type KpiTeamOption } from '@/components/kpi/KpiTeamToggle';
+import { KpiBarChart, KpiTrendPanel } from '@/components/kpi/KpiDashboardUi';
 import {
-  KpiAlertList,
-  KpiBarChart,
-  KpiTileGrid,
-  KpiTrendPanel,
-  type KpiTileProps,
-} from '@/components/kpi/KpiDashboardUi';
-import { periodLabel } from '@/lib/kpi/format';
+  buildCockpitSummary,
+  departmentOptions,
+  filterRowsByDepartment,
+  prevYearMonth,
+} from '@/lib/kpi/cockpit-summary';
+import { formatPct, periodLabel } from '@/lib/kpi/format';
 import {
   downloadStaffKpiXlsx,
   fetchKpiBoard,
@@ -27,8 +34,6 @@ import {
   type KpiMetricRow,
   type StaffKpiGridEntry,
 } from '@/lib/api';
-import { fetchAiAcceptanceMetrics, type AiAcceptanceMetrics } from '@/lib/ai-api';
-import { formatPct } from '@/lib/kpi/format';
 import {
   clearSession,
   getAccessToken,
@@ -39,8 +44,6 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-import { winKpiSolutionEnabled } from '@/lib/win/flags';
-import Link from 'next/link';
 
 export default function CrmKpiPage() {
   const router = useRouter();
@@ -49,14 +52,16 @@ export default function CrmKpiPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [team, setTeam] = useState<KpiTeamOption>('all');
+  const [deptFilter, setDeptFilter] = useState('all');
+  const [createOpen, setCreateOpen] = useState(false);
   const [metrics, setMetrics] = useState<KpiMetricRow[]>([]);
-  const [board, setBoard] = useState<Awaited<ReturnType<typeof fetchKpiBoard>> | null>(null);
+  const [, setBoard] = useState<Awaited<ReturnType<typeof fetchKpiBoard>> | null>(null);
   const [chartMetricId, setChartMetricId] = useState('');
   const [chartData, setChartData] = useState<KpiChartData | null>(null);
   const [trendLabels, setTrendLabels] = useState<string[]>([]);
   const [trendSeries, setTrendSeries] = useState<number[]>([]);
-  const [aiAcceptance, setAiAcceptance] = useState<AiAcceptanceMetrics | null>(null);
   const [gridRows, setGridRows] = useState<StaffKpiGridEntry[]>([]);
+  const [prevRows, setPrevRows] = useState<StaffKpiGridEntry[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -120,16 +125,18 @@ export default function CrmKpiPage() {
       setLoading(true);
       setError('');
       try {
-        const [metricRows, boardOut, aiMetricsOut, staffKpiRows] = await Promise.all([
+        const prev = prevYearMonth(year, month);
+        const teamParam = team === 'all' ? undefined : team;
+        const [metricRows, boardOut, staffKpiRows, prevKpiRows] = await Promise.all([
           fetchKpiMetrics(access),
-          fetchKpiBoard(access, { year, month, team: team === 'all' ? undefined : team }),
-          fetchAiAcceptanceMetrics(access, { days: 7 }).catch(() => null),
-          fetchStaffKpi(access, { year, month }).catch(() => []),
+          fetchKpiBoard(access, { year, month, team: teamParam }),
+          fetchStaffKpi(access, { year, month, team: teamParam }).catch(() => []),
+          fetchStaffKpi(access, { year: prev.year, month: prev.month, team: teamParam }).catch(() => []),
         ]);
         setMetrics(metricRows);
         setBoard(boardOut);
         setGridRows(staffKpiRows);
-        setAiAcceptance(aiMetricsOut?.data ?? null);
+        setPrevRows(prevKpiRows);
         const nextMetricId = chartMetricId || (metricRows[0] ? String(metricRows[0].id) : '');
         if (!chartMetricId && metricRows[0]) {
           setChartMetricId(String(metricRows[0].id));
@@ -139,7 +146,7 @@ export default function CrmKpiPage() {
             metric_id: Number(nextMetricId),
             year,
             month,
-            team: team === 'all' ? undefined : team,
+            team: teamParam,
           });
           setChartData(chart);
           await loadTrend(access, nextMetricId);
@@ -212,43 +219,21 @@ export default function CrmKpiPage() {
     router.push('/login');
   }
 
-  const tiles = useMemo((): KpiTileProps[] => {
-    const summary = board?.summary ?? { critical: 0, warn: 0 };
-    const rate = aiAcceptance?.acceptance_rate_pct;
-    const aiTone =
-      rate == null ? 'default' : rate >= 35 ? 'success' : rate >= 20 ? 'warning' : 'critical';
-    return [
-      {
-        label: 'Nhân viên có KPI',
-        value: String(board?.staff_count ?? 0),
-        hint: periodLabel(year, month),
-      },
-      {
-        label: 'Chỉ tiêu ghi nhận',
-        value: String(board?.kpi_count ?? 0),
-        hint: `${metrics.length} metric định nghĩa`,
-      },
-      {
-        label: 'Tỷ lệ chấp nhận AI',
-        value: rate == null ? '—' : formatPct(rate),
-        hint: `G6 · 7 ngày · ${aiAcceptance?.accepted ?? 0}/${aiAcceptance?.total_resolved ?? 0}`,
-        tone: aiTone,
-        href: '/crm/ai/insights',
-      },
-      {
-        label: 'Cảnh báo nghiêm trọng',
-        value: String(summary.critical ?? 0),
-        tone: (summary.critical ?? 0) > 0 ? 'critical' : 'success',
-      },
-      {
-        label: 'Cảnh báo vàng',
-        value: String(summary.warn ?? 0),
-        tone: (summary.warn ?? 0) > 0 ? 'warning' : 'default',
-      },
-    ];
-  }, [board, metrics.length, year, month, aiAcceptance]);
-
   const canEditKpi = hasCap(user, 'crm_kpi_records', 'edit');
+  const token = getAccessToken() ?? '';
+
+  const filtered = useMemo(
+    () => filterRowsByDepartment(gridRows, deptFilter),
+    [gridRows, deptFilter],
+  );
+  const filteredPrev = useMemo(
+    () => filterRowsByDepartment(prevRows, deptFilter),
+    [prevRows, deptFilter],
+  );
+  const summary = useMemo(
+    () => buildCockpitSummary(filtered, filteredPrev, new Date()),
+    [filtered, filteredPrev],
+  );
 
   const chartItems = useMemo(() => {
     if (!chartData) return [];
@@ -272,8 +257,8 @@ export default function CrmKpiPage() {
     <DashboardShell
       user={user}
       onLogout={logout}
-      title="Chỉ tiêu KPI"
-      periodHint={`Kỳ ${periodLabel(year, month)} · xu hướng 6 tháng theo chỉ tiêu đã chọn`}
+      title="Quản lý KPI"
+      periodHint={`Theo dõi mục tiêu, kết quả và cảnh báo hiệu suất · Kỳ ${periodLabel(year, month)}`}
       loading={loading}
       error={error}
       filters={
@@ -295,23 +280,57 @@ export default function CrmKpiPage() {
             aria-label="Tháng"
             className="kpi-input kpi-input--month"
           />
+          <select
+            className="kpi-select"
+            aria-label="Phòng ban"
+            value={deptFilter}
+            onChange={(e) => setDeptFilter(e.target.value)}
+          >
+            <option value="all">Tất cả phòng ban</option>
+            {departmentOptions(gridRows).map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
           <button type="button" className="btn btn-sm btn-secondary" onClick={() => void onExportExcel()}>
-            Export Excel
+            Xuất báo cáo
           </button>
-          {winKpiSolutionEnabled() ? (
-            <Link href="/crm/kpi/solution" className="btn btn-sm btn-secondary">
-              KPI Solution
-            </Link>
+          {canEditKpi ? (
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => setCreateOpen(true)}>
+              + Tạo KPI
+            </button>
           ) : null}
         </>
       }
     >
-      <KpiTileGrid tiles={tiles} />
-
-      <section className="kpi-page__section kpi-page__section--split">
-        <div>
+      <div className="kpi-cockpit">
+        <KpiCockpitTiles summary={summary} />
+        <section className="kpi-page__section kpi-page__section--split">
+          <KpiDeptStackChart rows={summary.by_department} />
+          <KpiAttentionTable rows={summary.attention} />
+        </section>
+        <section className="kpi-page__section kpi-cockpit__split">
+          <KpiCockpitList
+            rows={filtered}
+            prevRows={filteredPrev}
+            userStaffId={Number.isFinite(Number(user.id)) ? Number(user.id) : null}
+          />
+          <div>
+            <KpiCockpitInsight insight={summary.insight} />
+            <KpiRagDonut green={summary.green} yellow={summary.yellow} red={summary.red} />
+          </div>
+        </section>
+        <section className="kpi-page__section">
+          <h3 className="kpi-section-title">Nhập actual KPI</h3>
+          <KpiEditableGrid
+            rows={gridRows}
+            canEdit={canEditKpi}
+            onPatch={onPatchGridActual}
+            onSaved={onGridSaved}
+          />
+        </section>
+        <details className="kpi-page__metrics-details">
+          <summary>So sánh NV theo chỉ tiêu</summary>
           <div className="kpi-page__chart-head">
-            <h3 className="kpi-section-title">So sánh NV theo chỉ tiêu</h3>
             <div className="kpi-page__filters">
               <select
                 value={chartMetricId}
@@ -345,35 +364,26 @@ export default function CrmKpiPage() {
             series={trendSeries}
             valueFormatter={(v) => formatPct(v)}
           />
-        </div>
-        <div>
-          <h3 className="kpi-section-title">Cảnh báo tháng</h3>
-          <KpiAlertList alerts={board?.alerts ?? []} />
-        </div>
-      </section>
-
-      <section className="kpi-page__section">
-        <h3 className="kpi-section-title">Nhập actual KPI</h3>
-        <KpiEditableGrid
-          rows={gridRows}
-          canEdit={canEditKpi}
-          onPatch={onPatchGridActual}
-          onSaved={onGridSaved}
-        />
-      </section>
-
-      <details className="kpi-page__metrics-details">
-        <summary className="muted">Danh sách metric định nghĩa ({metrics.length})</summary>
-        <ul className="kpi-metric-list">
-          {metrics.map((m) => (
-            <li key={m.id}>
-              {m.code ? `[${m.code}] ` : ''}
-              {m.name}
-              {m.unit ? ` (${m.unit})` : ''}
-            </li>
-          ))}
-        </ul>
-      </details>
+        </details>
+        <details className="kpi-page__metrics-details">
+          <summary className="muted">Danh sách metric định nghĩa ({metrics.length})</summary>
+          <ul className="kpi-metric-list">
+            {metrics.map((m) => (
+              <li key={m.id}>
+                {m.code ? `[${m.code}] ` : ''}
+                {m.name}
+                {m.unit ? ` (${m.unit})` : ''}
+              </li>
+            ))}
+          </ul>
+        </details>
+      </div>
+      <KpiCreateMetricDrawer
+        open={createOpen}
+        token={token}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => void onGridSaved()}
+      />
     </DashboardShell>
   );
 }

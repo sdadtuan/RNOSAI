@@ -59,7 +59,7 @@ export function DashboardShell({
       ) : null}
       {loading ? <p className="muted">Đang tải…</p> : null}
       {error ? <p className="error">{error}</p> : null}
-      <div className="page-card stack-gap dashboard-shell__body">{children}</div>
+      <div className="page-card stack-gap dashboard-shell dashboard-shell__body">{children}</div>
       {footer ? <footer className="page-footer muted">{footer}</footer> : null}
     </StaffPageShell>
   );
