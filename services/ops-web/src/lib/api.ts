@@ -4692,6 +4692,23 @@ export async function fetchKpiMetrics(token: string): Promise<KpiMetricRow[]> {
   return out.metrics ?? [];
 }
 
+export async function createKpiMetric(
+  token: string,
+  body: {
+    name: string;
+    code?: string;
+    unit?: string;
+    higher_is_better?: boolean;
+    warn_ratio?: number | null;
+  },
+): Promise<KpiMetricRow> {
+  return crmFetch<KpiMetricRow>(token, '/api/crm/kpi/metrics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchStaffKpiAutoMetrics(
   token: string,
   staffId: number,
