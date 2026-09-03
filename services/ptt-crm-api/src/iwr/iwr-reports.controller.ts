@@ -17,6 +17,7 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { RequireIwrAction, StaffIwrGuard } from './guards/staff-iwr.guard';
 import { IwrItemsService } from './iwr-items.service';
+import { IwrDistributionService } from './iwr-distribution.service';
 import { IwrOrgRepository } from './iwr-reports.repository';
 import { IwrReportsService } from './iwr-reports.service';
 import { IwrSuggestService } from './iwr-suggest.service';
@@ -43,6 +44,7 @@ export class IwrReportsController {
     private readonly reports: IwrReportsService,
     private readonly items: IwrItemsService,
     private readonly suggest: IwrSuggestService,
+    private readonly distribution: IwrDistributionService,
     private readonly staffAuth: StaffAuthService,
     private readonly org: IwrOrgRepository,
   ) {}
@@ -168,6 +170,42 @@ export class IwrReportsController {
   @RequireIwrAction('view')
   async markViewed(@Req() req: AuthedReq, @Param('id') id: string) {
     return this.reports.markViewed(await this.actor(req), id);
+  }
+
+  @Get(':id/delivery-logs')
+  @RequireIwrAction('view')
+  async deliveryLogs(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.distribution.listDeliveryLogs(await this.actor(req), id);
+  }
+
+  @Post(':id/reply')
+  @RequireIwrAction('view')
+  async reply(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { body_text: string; mention_staff_ids?: number[] },
+  ) {
+    return this.distribution.reply(await this.actor(req), id, body);
+  }
+
+  @Post(':id/reply-all')
+  @RequireIwrAction('view')
+  async replyAll(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { body_text: string },
+  ) {
+    return this.distribution.replyAll(await this.actor(req), id, body);
+  }
+
+  @Post(':id/forward')
+  @RequireIwrAction('view')
+  async forward(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { to_staff_ids: number[]; note: string },
+  ) {
+    return this.distribution.forward(await this.actor(req), id, body);
   }
 
   @Get(':id/export.pdf')

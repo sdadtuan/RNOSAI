@@ -78,7 +78,8 @@ CROSS JOIN (VALUES
   ('iwr', 'write'),
   ('iwr', 'review'),
   ('iwr', 'export'),
-  ('iwr', 'executive')
+  ('iwr', 'executive'),
+  ('iwr', 'bcc')
 ) AS g(section_id, action)
 WHERE lower(trim(p.code)) = 'gdkd'
 ON CONFLICT (position_id, section_id, action) DO NOTHING;

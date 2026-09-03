@@ -64,6 +64,7 @@ function mapReport(row: Record<string, unknown>): IwrReportRow {
     rag_override_reason: row.rag_override_reason != null ? text(row.rag_override_reason) : null,
     submitted_at: row.submitted_at != null ? text(row.submitted_at) : null,
     acknowledged_at: row.acknowledged_at != null ? text(row.acknowledged_at) : null,
+    sensitivity: row.sensitivity != null ? text(row.sensitivity) : 'internal',
     sections_json: (row.sections_json as Record<string, unknown>) ?? {},
     source_report_ids: Array.isArray(row.source_report_ids)
       ? row.source_report_ids.map(String)
@@ -579,6 +580,86 @@ export class IwrReportsRepository implements OnModuleDestroy {
       return res.rows.map(mapReport);
     }
 
+    if (box === 'trash') {
+      const res = await this.db.query(
+        `${REPORT_SELECT}
+          WHERE r.tenant_id = $1 AND r.author_staff_id = $2 AND r.is_deleted = TRUE
+          ORDER BY r.updated_at DESC LIMIT 200`,
+        [IWR_TENANT_ID, staffId],
+      );
+      return res.rows.map(mapReport);
+    }
+
+    if (box === 'needs_changes') {
+      const res = await this.db.query(
+        `${REPORT_SELECT}
+          WHERE r.tenant_id = $1 AND r.author_staff_id = $2
+            AND r.status = 'changes_requested' AND r.is_deleted = FALSE
+          ORDER BY r.updated_at DESC LIMIT 200`,
+        [IWR_TENANT_ID, staffId],
+      );
+      return res.rows.map(mapReport);
+    }
+
+    if (box === 'archived') {
+      const res = await this.db.query(
+        `${REPORT_SELECT}
+          JOIN iwr_report_recipients rec ON rec.report_id = r.id AND rec.staff_id = $2
+          WHERE r.tenant_id = $1 AND r.status = 'archived' AND r.is_deleted = FALSE
+          ORDER BY r.updated_at DESC LIMIT 200`,
+        [IWR_TENANT_ID, staffId],
+      );
+      return res.rows.map(mapReport);
+    }
+
+    if (box === 'waiting') {
+      const res = await this.db.query(
+        `${REPORT_SELECT}
+          JOIN iwr_report_recipients rec ON rec.report_id = r.id AND rec.staff_id = $2 AND rec.kind = 'to'
+          WHERE r.tenant_id = $1
+            AND r.status IN ('submitted','supplemented')
+            AND r.acknowledged_at IS NULL
+            AND r.is_deleted = FALSE
+          ORDER BY r.submitted_at DESC NULLS LAST LIMIT 200`,
+        [IWR_TENANT_ID, staffId],
+      );
+      return res.rows.map(mapReport);
+    }
+
+    if (box === 'blockers') {
+      const res = await this.db.query(
+        `${REPORT_SELECT}
+          JOIN iwr_risks rk ON rk.report_id = r.id AND rk.status <> 'closed'
+          LEFT JOIN iwr_report_recipients rec ON rec.report_id = r.id AND rec.staff_id = $2
+          WHERE r.tenant_id = $1 AND r.is_deleted = FALSE
+            AND (
+              rk.owner_staff_id = $2
+              OR r.author_staff_id = $2
+              OR r.reviewer_staff_id = $2
+              OR rec.staff_id IS NOT NULL
+            )
+          ORDER BY rk.created_at DESC LIMIT 200`,
+        [IWR_TENANT_ID, staffId],
+      );
+      return res.rows.map(mapReport);
+    }
+
+    if (box === 'approvals') {
+      const res = await this.db.query(
+        `${REPORT_SELECT}
+          LEFT JOIN iwr_report_recipients rec ON rec.report_id = r.id AND rec.staff_id = $2
+          WHERE r.tenant_id = $1 AND r.is_deleted = FALSE
+            AND (r.author_staff_id = $2 OR rec.staff_id IS NOT NULL)
+            AND (
+              COALESCE(r.sections_json->'approvals'->>'body', '') <> ''
+              OR jsonb_array_length(COALESCE(r.sections_json->'approvals'->'items', '[]'::jsonb)) > 0
+            )
+          ORDER BY r.updated_at DESC LIMIT 200`,
+        [IWR_TENANT_ID, staffId],
+      );
+      return res.rows.map(mapReport);
+    }
+
     let statusFilter = '';
     if (box === 'action') {
       statusFilter = ` AND r.status IN ('submitted','supplemented','changes_requested') AND rec.kind = 'to'`;
@@ -586,7 +667,7 @@ export class IwrReportsRepository implements OnModuleDestroy {
       statusFilter = ` AND r.first_viewed_at IS NULL AND r.status NOT IN ('draft','waived')`;
     }
 
-    const kindFilter = box === 'action' ? '' : ` AND rec.kind IN ('to','cc')`;
+    const kindFilter = box === 'action' ? '' : ` AND rec.kind IN ('to','cc','bcc')`;
 
     const res = await this.db.query(
       `${REPORT_SELECT}
@@ -595,6 +676,25 @@ export class IwrReportsRepository implements OnModuleDestroy {
         ORDER BY r.submitted_at DESC NULLS LAST, r.updated_at DESC
         LIMIT 200`,
       [IWR_TENANT_ID, staffId],
+    );
+    return res.rows.map(mapReport);
+  }
+
+  async searchReports(staffId: number, q: string): Promise<IwrReportRow[]> {
+    const term = String(q ?? '').trim();
+    if (!term) return [];
+    const res = await this.db.query(
+      `${REPORT_SELECT}
+        LEFT JOIN iwr_report_recipients rec ON rec.report_id = r.id AND rec.staff_id = $2
+        WHERE r.tenant_id = $1 AND r.is_deleted = FALSE
+          AND (
+            r.author_staff_id = $2
+            OR rec.staff_id IS NOT NULL
+          )
+          AND r.search_vector @@ plainto_tsquery('simple', $3)
+        ORDER BY r.submitted_at DESC NULLS LAST
+        LIMIT 50`,
+      [IWR_TENANT_ID, staffId, term],
     );
     return res.rows.map(mapReport);
   }

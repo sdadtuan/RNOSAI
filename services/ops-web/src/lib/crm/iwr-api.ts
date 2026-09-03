@@ -11,7 +11,18 @@ export const IWR_STATUSES = [
 ] as const;
 
 export type IwrReportStatus = (typeof IWR_STATUSES)[number];
-export type IwrInboxBox = 'action' | 'unread' | 'inbox' | 'sent' | 'draft';
+export type IwrInboxBox =
+  | 'action'
+  | 'unread'
+  | 'inbox'
+  | 'sent'
+  | 'draft'
+  | 'waiting'
+  | 'needs_changes'
+  | 'blockers'
+  | 'approvals'
+  | 'archived'
+  | 'trash';
 export type IwrRag = 'green' | 'yellow' | 'red' | 'gray' | null;
 
 export const IWR_STATUS_LABELS: Record<IwrReportStatus, string> = {
@@ -216,7 +227,7 @@ export async function patchIwrReport(
 export async function submitIwrReport(
   token: string,
   id: string,
-  body?: { late_reason?: string; cc_staff_ids?: number[] },
+  body?: { late_reason?: string; cc_staff_ids?: number[]; bcc_staff_ids?: number[]; cc_list_ids?: string[] },
 ): Promise<IwrReportDetail> {
   return iwrFetch(token, `/api/crm/iwr/reports/${id}/submit`, {
     method: 'POST',
@@ -366,6 +377,86 @@ export async function backfillIwrReport(token: string, ymd: string): Promise<Iwr
   return iwrFetch(token, '/api/crm/iwr/reports/backfill', {
     method: 'POST',
     body: JSON.stringify({ ymd }),
+  });
+}
+
+export interface IwrListRow {
+  id: string;
+  code: string;
+  name_vi: string;
+  owner_staff_id: number;
+  kind: 'static' | 'department' | 'role' | 'rule';
+  rule_json: Record<string, unknown>;
+  active: boolean;
+}
+
+export interface IwrRiskRow {
+  id: string;
+  report_id: string | null;
+  item_id: string | null;
+  title: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  owner_staff_id: number | null;
+  status: 'open' | 'mitigating' | 'closed';
+  due_at: string | null;
+}
+
+export async function fetchIwrLists(token: string): Promise<{ items: IwrListRow[] }> {
+  return iwrFetch(token, '/api/crm/iwr/lists');
+}
+
+export async function createIwrList(
+  token: string,
+  body: Omit<IwrListRow, 'id' | 'owner_staff_id'>,
+): Promise<IwrListRow> {
+  return iwrFetch(token, '/api/crm/iwr/lists', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export async function fetchIwrSearch(token: string, q: string): Promise<{ items: IwrReportRow[] }> {
+  return iwrFetch(token, `/api/crm/iwr/search?q=${encodeURIComponent(q)}`);
+}
+
+export async function replyIwrReport(
+  token: string,
+  id: string,
+  body: { body_text: string; mention_staff_ids?: number[] },
+): Promise<IwrCommentRow> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${id}/reply`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function replyAllIwrReport(
+  token: string,
+  id: string,
+  body: { body_text: string },
+): Promise<IwrCommentRow> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${id}/reply-all`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function forwardIwrReport(
+  token: string,
+  id: string,
+  body: { to_staff_ids: number[]; note: string },
+): Promise<{ distribution_id: string }> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${id}/forward`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function promoteIwrBlockerToRisk(
+  token: string,
+  reportId: string,
+  itemId: string,
+): Promise<IwrRiskRow> {
+  return iwrFetch(token, '/api/crm/iwr/risks', {
+    method: 'POST',
+    body: JSON.stringify({ report_id: reportId, item_id: itemId }),
   });
 }
 

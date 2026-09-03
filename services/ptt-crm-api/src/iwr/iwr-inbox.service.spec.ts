@@ -24,7 +24,8 @@ describe('IwrInboxService', () => {
       ]),
     };
     const repo = { listForPeriod: jest.fn() };
-    const inbox = new IwrInboxService(repo as never, org as never);
+    const policy = { getActiveRules: jest.fn().mockResolvedValue(null) };
+    const inbox = new IwrInboxService(repo as never, org as never, policy as never);
     const actor: IwrActor = {
       staffId: 3,
       staffLabel: 'NV',
@@ -43,7 +44,8 @@ describe('IwrInboxService', () => {
       ]),
     };
     const repo = { listForPeriod: jest.fn().mockResolvedValue([]) };
-    const inbox = new IwrInboxService(repo as never, org as never);
+    const policy = { getActiveRules: jest.fn().mockResolvedValue(null) };
+    const inbox = new IwrInboxService(repo as never, org as never, policy as never);
     const out = await inbox.team(
       { staffId: 2, staffLabel: 'TL', departmentId: 10, caps: [{ section: 'iwr', action: 'review' }] },
       { period_start: '2026-09-03', period_end: '2026-09-03', template_code: 'daily_work' },

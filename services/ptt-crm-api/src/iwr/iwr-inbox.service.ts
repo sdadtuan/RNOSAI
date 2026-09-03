@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { descendantIds, isOnPath, sameDepartment } from './iwr-org.util';
-import { assertW1Recipients, defaultToStaffId } from './iwr-recipient.util';
+import { assertCanReceive, assertW1Recipients, defaultToStaffId } from './iwr-recipient.util';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
+import { IwrPolicyService } from './iwr-policy.service';
 import type { IwrActor, IwrInboxBox, IwrReportRow, IwrStaffNode, IwrTeamNode } from './iwr.types';
 
 function hasIwrCap(actor: IwrActor, action: string): boolean {
@@ -25,6 +26,7 @@ export class IwrInboxService {
   constructor(
     private readonly repo: IwrReportsRepository,
     private readonly org: IwrOrgRepository,
+    private readonly policy: IwrPolicyService,
   ) {}
 
   async list(actor: IwrActor, box: IwrInboxBox): Promise<{ items: IwrReportRow[] }> {
@@ -32,10 +34,15 @@ export class IwrInboxService {
     return { items };
   }
 
+  async search(actor: IwrActor, q: string): Promise<{ items: IwrReportRow[] }> {
+    const items = await this.repo.searchReports(actor.staffId, q);
+    return { items };
+  }
+
   async directory(
     actor: IwrActor,
     q: string,
-    purpose: 'cc' | 'to' | 'mention',
+    purpose: 'cc' | 'to' | 'mention' | 'bcc',
   ): Promise<{ items: IwrStaffNode[] }> {
     const author = await this.org.getStaff(actor.staffId);
     if (!author) return { items: [] };
@@ -46,6 +53,44 @@ export class IwrInboxService {
       if (toId == null) return { items: [] };
       const mgr = nodes.find((n) => n.id === toId);
       return { items: mgr ? [mgr] : [] };
+    }
+
+    if (purpose === 'bcc') {
+      const hits =
+        q.trim().length > 0
+          ? await this.org.searchDirectory(q, 20)
+          : nodes.filter((n) => n.id !== author.id).slice(0, 20);
+      const rules = await this.policy.getActiveRules();
+      const out: IwrStaffNode[] = [];
+      for (const candidate of hits) {
+        if (candidate.id === author.id) continue;
+        try {
+          if (rules) {
+            assertCanReceive({
+              actor,
+              author,
+              nodes,
+              toIds: defaultToStaffId(author) != null ? [defaultToStaffId(author)!] : [],
+              ccIds: [],
+              bccIds: [candidate.id],
+              policy: rules,
+            });
+          } else {
+            assertW1Recipients({
+              author,
+              actor,
+              nodes,
+              toIds: defaultToStaffId(author) != null ? [defaultToStaffId(author)!] : [],
+              ccIds: [],
+              bccIds: [candidate.id],
+            });
+          }
+          out.push(candidate);
+        } catch {
+          // skip
+        }
+      }
+      return { items: out.slice(0, 20) };
     }
 
     const hits =

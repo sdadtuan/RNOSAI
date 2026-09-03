@@ -54,12 +54,18 @@ export class IwrInboxController {
     return this.inbox.list(await this.actor(req), box);
   }
 
+  @Get('search')
+  @RequireIwrAction('view')
+  async search(@Req() req: AuthedReq, @Query('q') q = '') {
+    return this.inbox.search(await this.actor(req), q);
+  }
+
   @Get('directory')
   @RequireIwrAction('view')
   async directory(
     @Req() req: AuthedReq,
     @Query('q') q = '',
-    @Query('purpose') purpose: 'cc' | 'to' | 'mention' = 'cc',
+    @Query('purpose') purpose: 'cc' | 'to' | 'mention' | 'bcc' = 'cc',
   ) {
     return this.inbox.directory(await this.actor(req), q, purpose);
   }

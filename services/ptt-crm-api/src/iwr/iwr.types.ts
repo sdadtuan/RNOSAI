@@ -17,7 +17,18 @@ export const IWR_TEMPLATE_CODES = ['daily_work', 'weekly_work', 'monthly_work'] 
 export type IwrTemplateCode = (typeof IWR_TEMPLATE_CODES)[number];
 
 export type IwrRecipientKind = 'to' | 'cc' | 'bcc';
-export type IwrInboxBox = 'action' | 'unread' | 'inbox' | 'sent' | 'draft';
+export type IwrInboxBox =
+  | 'action'
+  | 'unread'
+  | 'inbox'
+  | 'sent'
+  | 'draft'
+  | 'waiting'
+  | 'needs_changes'
+  | 'blockers'
+  | 'approvals'
+  | 'archived'
+  | 'trash';
 export type IwrRag = 'green' | 'yellow' | 'red' | 'gray' | null;
 
 export type IwrCapAction =
@@ -138,8 +149,44 @@ export type IwrReportRow = {
   waived_at?: string | null;
   waived_by_staff_id?: number | null;
   waive_reason?: string | null;
+  sensitivity?: string;
   sections_json: Record<string, unknown>;
   source_report_ids?: string[];
+};
+
+export type IwrListKind = 'static' | 'department' | 'role' | 'rule';
+
+export type IwrListRow = {
+  id: string;
+  code: string;
+  name_vi: string;
+  owner_staff_id: number;
+  kind: IwrListKind;
+  rule_json: Record<string, unknown>;
+  active: boolean;
+};
+
+export type IwrRiskRow = {
+  id: string;
+  report_id: string | null;
+  item_id: string | null;
+  title: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  owner_staff_id: number | null;
+  status: 'open' | 'mitigating' | 'closed';
+  due_at: string | null;
+};
+
+export type IwrDeliveryLogRow = {
+  id: string;
+  report_id: string;
+  distribution_id: string | null;
+  channel: string;
+  status: string;
+  to_snapshot: number[];
+  cc_snapshot: number[];
+  bcc_snapshot: number[];
+  created_at: string;
 };
 
 export type IwrItemRefKind = 'csd_ticket' | 'lead' | 'customer' | 'url' | 'none';
@@ -202,6 +249,8 @@ export type PatchIwrReportInput = {
 export type SubmitIwrReportInput = {
   late_reason?: string;
   cc_staff_ids?: number[];
+  bcc_staff_ids?: number[];
+  cc_list_ids?: string[];
 };
 
 export type RequestIwrChangesInput = {

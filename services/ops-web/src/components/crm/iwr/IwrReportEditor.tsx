@@ -10,6 +10,8 @@ import {
   fetchIwrItems,
   fetchIwrSources,
   fetchIwrSuggest,
+  promoteIwrBlockerToRisk,
+  replyAllIwrReport,
   iwrCsvUrl,
   iwrPdfUrl,
   iwrSectionLabel,
@@ -31,12 +33,18 @@ type IwrReportEditorProps = {
   report: IwrReportDetail;
   canWrite: boolean;
   canReview: boolean;
+  canBcc?: boolean;
   onPatch: (body: Record<string, unknown>) => Promise<void>;
-  onSubmit: (body: { late_reason?: string; cc_staff_ids?: number[] }) => Promise<void>;
+  onSubmit: (body: {
+    late_reason?: string;
+    cc_staff_ids?: number[];
+    bcc_staff_ids?: number[];
+  }) => Promise<void>;
   onWithdraw: () => Promise<void>;
   onAck: () => Promise<void>;
   onRequestChanges: (body: { body_text: string; section_key?: string }) => Promise<void>;
   onAddComment: (body: { body_text: string; section_key?: string }) => Promise<void>;
+  onReplyAll?: (body: { body_text: string }) => Promise<void>;
   comments: IwrCommentRow[];
 };
 
@@ -73,12 +81,14 @@ export function IwrReportEditor({
   report,
   canWrite,
   canReview,
+  canBcc = false,
   onPatch,
   onSubmit,
   onWithdraw,
   onAck,
   onRequestChanges,
   onAddComment,
+  onReplyAll,
   comments,
 }: IwrReportEditorProps) {
   const [sections, setSections] = useState(report.sections_json);
@@ -86,8 +96,13 @@ export function IwrReportEditor({
   const [ccIds, setCcIds] = useState<number[]>(
     report.recipients.filter((r) => r.kind === 'cc').map((r) => r.staff_id),
   );
+  const [bccIds, setBccIds] = useState<number[]>(
+    report.recipients.filter((r) => r.kind === 'bcc').map((r) => r.staff_id),
+  );
   const [ccOptions, setCcOptions] = useState<IwrStaffNode[]>([]);
+  const [bccOptions, setBccOptions] = useState<IwrStaffNode[]>([]);
   const [ccQuery, setCcQuery] = useState('');
+  const [bccQuery, setBccQuery] = useState('');
   const [lateOpen, setLateOpen] = useState(false);
   const [lateReason, setLateReason] = useState('');
   const [changeOpen, setChangeOpen] = useState(false);
@@ -120,6 +135,7 @@ export function IwrReportEditor({
     setSections(report.sections_json);
     setRag(report.rag);
     setCcIds(report.recipients.filter((r) => r.kind === 'cc').map((r) => r.staff_id));
+    setBccIds(report.recipients.filter((r) => r.kind === 'bcc').map((r) => r.staff_id));
   }, [report]);
 
   const scheduleSave = useCallback(
@@ -161,6 +177,12 @@ export function IwrReportEditor({
     setCcOptions(out.items ?? []);
   }
 
+  async function searchBcc(q: string) {
+    setBccQuery(q);
+    const out = await fetchIwrDirectory(token, q, 'bcc');
+    setBccOptions(out.items ?? []);
+  }
+
   async function handleSubmit() {
     const due = new Date(report.due_at).getTime();
     if (Date.now() > due && !lateReason.trim()) {
@@ -169,7 +191,11 @@ export function IwrReportEditor({
     }
     setBusy(true);
     try {
-      await onSubmit({ late_reason: lateReason.trim() || undefined, cc_staff_ids: ccIds });
+      await onSubmit({
+        late_reason: lateReason.trim() || undefined,
+        cc_staff_ids: ccIds,
+        bcc_staff_ids: canBcc ? bccIds : undefined,
+      });
       setLateOpen(false);
     } finally {
       setBusy(false);
@@ -346,6 +372,42 @@ export function IwrReportEditor({
         {!readOnly && isAuthor && ccIds.length > 0 && (
           <div className="text-xs text-slate-500">Cc đã chọn: {ccIds.join(', ')}</div>
         )}
+        {canBcc && !readOnly && isAuthor && (
+          <div className="space-y-2" data-testid="iwr-bcc">
+            <label className="text-sm">Bcc (ẩn với người nhận khác)</label>
+            <input
+              className="w-full border rounded px-2 py-1 text-sm"
+              placeholder="Tìm Bcc..."
+              value={bccQuery}
+              onChange={(e) => void searchBcc(e.target.value)}
+            />
+            <div className="flex flex-wrap gap-2">
+              {bccOptions.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`text-xs px-2 py-1 rounded border ${bccIds.includes(p.id) ? 'bg-purple-100 border-purple-400' : 'bg-white'}`}
+                  onClick={() =>
+                    setBccIds((prev) =>
+                      prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id],
+                    )
+                  }
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {report.recipients.some((r) => r.kind === 'bcc') && (
+          <div className="text-xs text-slate-500">
+            Bcc hiển thị:{' '}
+            {report.recipients
+              .filter((r) => r.kind === 'bcc')
+              .map((r) => r.staff_name ?? r.staff_id)
+              .join(', ') || '—'}
+          </div>
+        )}
       </div>
 
       {isWeekly && (
@@ -417,6 +479,19 @@ export function IwrReportEditor({
                   + Thêm blocker
                 </button>
               )}
+              {items
+                .filter((it) => it.section_key === 'blocked')
+                .map((it) => (
+                  <button
+                    key={it.id}
+                    type="button"
+                    className="text-xs text-amber-700 underline"
+                    data-testid="iwr-promote-risk"
+                    onClick={() => void promoteIwrBlockerToRisk(token, report.id, it.id)}
+                  >
+                    Nâng rủi ro: {it.title || it.id.slice(0, 8)}
+                  </button>
+                ))}
             </div>
           ) : (
             <textarea
@@ -443,9 +518,9 @@ export function IwrReportEditor({
           {!comments.length && <li className="text-slate-500">Chưa có phản hồi</li>}
         </ul>
         {!IMMUTABLE.has(report.status) && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <input
-              className="flex-1 border rounded px-2 py-1 text-sm"
+              className="flex-1 min-w-[200px] border rounded px-2 py-1 text-sm"
               placeholder="Viết phản hồi..."
               value={commentBody}
               onChange={(e) => setCommentBody(e.target.value)}
@@ -463,6 +538,23 @@ export function IwrReportEditor({
             >
               Gửi
             </button>
+            {!isAuthor && commentBody.trim() && (
+              <button
+                type="button"
+                className="px-3 py-1 text-sm rounded border"
+                data-testid="iwr-reply-all"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  const run = onReplyAll ?? ((body) => replyAllIwrReport(token, report.id, body));
+                  void run({ body_text: commentBody.trim() })
+                    .then(() => setCommentBody(''))
+                    .finally(() => setBusy(false));
+                }}
+              >
+                Trả lời tất cả
+              </button>
+            )}
           </div>
         )}
       </div>

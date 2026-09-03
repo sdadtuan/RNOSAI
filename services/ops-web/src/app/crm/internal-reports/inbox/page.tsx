@@ -14,9 +14,14 @@ import {
 
 const TABS: { id: IwrInboxBox; label: string }[] = [
   { id: 'action', label: 'Cần xử lý' },
+  { id: 'waiting', label: 'Chờ xác nhận' },
+  { id: 'needs_changes', label: 'Cần bổ sung' },
+  { id: 'blockers', label: 'Blocker' },
   { id: 'unread', label: 'Chưa đọc' },
   { id: 'inbox', label: 'Đã nhận' },
   { id: 'sent', label: 'Đã gửi' },
+  { id: 'approvals', label: 'Phê duyệt' },
+  { id: 'archived', label: 'Lưu trữ' },
 ];
 
 export default function IwrInboxPage() {

@@ -11,7 +11,16 @@ import { buildPdfSections, renderIwrReportCsv, renderIwrReportPdf, renderIwrRepo
 import { isOnPath, ancestorIds } from './iwr-org.util';
 import { isIwrLate, isIwrWorkday, iwrPeriodForTemplate, vnYmd } from './iwr-period.util';
 import { computeRagHint } from './iwr-rag.util';
-import { assertW1Recipients, defaultToStaffId, IwrPolicyError } from './iwr-recipient.util';
+import {
+  assertCanReceive,
+  assertW1Recipients,
+  defaultToStaffId,
+  filterRecipientsForViewer,
+  IwrPolicyError,
+} from './iwr-recipient.util';
+import { IwrDistributionRepository } from './iwr-distribution.repository';
+import { IwrListsService } from './iwr-lists.service';
+import { IwrPolicyService } from './iwr-policy.service';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
 import { emptySectionsForCode, sectionKeysForCode } from './iwr-sections.util';
 import { canTransitionIwr } from './iwr-workflow.util';
@@ -58,6 +67,9 @@ export class IwrReportsService {
     private readonly org: IwrOrgRepository,
     private readonly notify: CsdNotificationsRepository,
     private readonly audit: CsdAuditRepository,
+    private readonly policy: IwrPolicyService,
+    private readonly lists: IwrListsService,
+    private readonly distRepo: IwrDistributionRepository,
   ) {}
 
   private now(): Date {
@@ -190,6 +202,7 @@ export class IwrReportsService {
   private enrichViewer(actor: IwrActor, detail: IwrReportDetail): IwrReportDetail {
     return {
       ...detail,
+      recipients: filterRecipientsForViewer(actor, detail, detail.recipients),
       viewer_is_author: detail.author_staff_id === actor.staffId,
       viewer_is_reviewer: detail.reviewer_staff_id === actor.staffId,
     };
@@ -252,10 +265,32 @@ export class IwrReportsService {
     const nodes = await this.org.listActiveStaff();
     const toId = defaultToStaffId(author);
     const toIds = toId != null ? [toId] : [];
-    const ccIds = (input.cc_staff_ids ?? []).map(Number).filter((n) => n > 0);
+    const ccIds = [...new Set((input.cc_staff_ids ?? []).map(Number).filter((n) => n > 0))];
+    const bccIds = [...new Set((input.bcc_staff_ids ?? []).map(Number).filter((n) => n > 0))];
 
+    for (const listId of input.cc_list_ids ?? []) {
+      const members = await this.lists.resolveMembers(String(listId));
+      for (const id of members) {
+        if (!ccIds.includes(id)) ccIds.push(id);
+      }
+    }
+
+    const rules = await this.policy.getActiveRules();
     try {
-      assertW1Recipients({ author, actor, nodes, toIds, ccIds, bccIds: [] });
+      if (rules) {
+        assertCanReceive({
+          actor,
+          author,
+          nodes,
+          toIds,
+          ccIds,
+          bccIds,
+          policy: rules,
+          reportSensitivity: report.sensitivity,
+        });
+      } else {
+        assertW1Recipients({ author, actor, nodes, toIds, ccIds, bccIds });
+      }
     } catch (err) {
       this.mapPolicyError(err);
     }
@@ -273,9 +308,10 @@ export class IwrReportsService {
       throw new BadRequestException({ error: 'late_reason_required' });
     }
 
-    const recipients: { staff_id: number; kind: 'to' | 'cc' }[] = [];
+    const recipients: { staff_id: number; kind: 'to' | 'cc' | 'bcc' }[] = [];
     if (toId != null) recipients.push({ staff_id: toId, kind: 'to' });
     for (const cc of ccIds) recipients.push({ staff_id: cc, kind: 'cc' });
+    for (const bcc of bccIds) recipients.push({ staff_id: bcc, kind: 'bcc' });
 
     await this.repo.replaceRecipients(id, recipients);
     await this.repo.insertVersionSnapshot(
@@ -315,6 +351,24 @@ export class IwrReportsService {
         severity: 'info',
       });
     }
+    for (const bcc of bccIds) {
+      await this.notify.insert({
+        staff_id: bcc,
+        event_key: 'iwr_report_bcc',
+        title_vi: 'Báo cáo nội bộ (Bcc)',
+        body_vi: `${actor.staffLabel} đã nộp ${report.title}`,
+        entity_type: 'iwr_report',
+        entity_id: id,
+        severity: 'info',
+      });
+    }
+
+    await this.distRepo.insertDeliveryLog({
+      report_id: id,
+      to_snapshot: toId != null ? [toId] : [],
+      cc_snapshot: ccIds,
+      bcc_snapshot: bccIds,
+    });
 
     await this.auditLog(actor, 'iwr.submit', id, { status: toStatus, is_late: late });
     return this.enrichViewer(actor, await this.loadDetail(id));

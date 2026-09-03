@@ -170,3 +170,123 @@ CREATE TABLE IF NOT EXISTS iwr_report_items (
 
 CREATE INDEX IF NOT EXISTS iwr_report_items_report_idx
   ON iwr_report_items (report_id, section_key, sort_order);
+
+-- W3: recipient policies, distribution lists, delivery, risks
+CREATE TABLE IF NOT EXISTS iwr_recipient_policies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  scope_json JSONB NOT NULL DEFAULT '{}',
+  rules_json JSONB NOT NULL DEFAULT '{"allow_bcc":true,"cc_mode":"w1"}',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO iwr_recipient_policies (tenant_id, scope_json, rules_json, active)
+SELECT 'PTT', '{}'::jsonb, '{"allow_bcc":true,"cc_mode":"w1"}'::jsonb, TRUE
+WHERE NOT EXISTS (
+  SELECT 1 FROM iwr_recipient_policies WHERE tenant_id = 'PTT' AND active = TRUE
+);
+
+CREATE TABLE IF NOT EXISTS iwr_distribution_lists (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  code VARCHAR(64) NOT NULL,
+  name_vi VARCHAR(255) NOT NULL,
+  owner_staff_id INTEGER NOT NULL,
+  kind VARCHAR(32) NOT NULL DEFAULT 'static',
+  rule_json JSONB NOT NULL DEFAULT '{}',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS iwr_list_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  list_id UUID NOT NULL REFERENCES iwr_distribution_lists (id) ON DELETE CASCADE,
+  staff_id INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (list_id, staff_id)
+);
+
+CREATE TABLE IF NOT EXISTS iwr_threads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  report_id UUID NOT NULL REFERENCES iwr_reports (id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS iwr_distributions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  report_id UUID NOT NULL REFERENCES iwr_reports (id) ON DELETE CASCADE,
+  thread_id UUID REFERENCES iwr_threads (id),
+  kind VARCHAR(32) NOT NULL,
+  from_staff_id INTEGER NOT NULL,
+  note_text TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT iwr_distributions_kind_chk CHECK (kind IN ('reply', 'reply_all', 'forward'))
+);
+
+CREATE TABLE IF NOT EXISTS iwr_delivery_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  report_id UUID NOT NULL REFERENCES iwr_reports (id) ON DELETE CASCADE,
+  distribution_id UUID REFERENCES iwr_distributions (id),
+  channel VARCHAR(32) NOT NULL DEFAULT 'in_app',
+  status VARCHAR(32) NOT NULL DEFAULT 'delivered',
+  to_snapshot JSONB NOT NULL DEFAULT '[]',
+  cc_snapshot JSONB NOT NULL DEFAULT '[]',
+  bcc_snapshot JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS iwr_delivery_logs_report_idx
+  ON iwr_delivery_logs (report_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS iwr_mentions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  report_id UUID NOT NULL REFERENCES iwr_reports (id) ON DELETE CASCADE,
+  comment_id UUID REFERENCES iwr_comments (id) ON DELETE CASCADE,
+  staff_id INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS iwr_risks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL DEFAULT 'PTT',
+  report_id UUID REFERENCES iwr_reports (id) ON DELETE SET NULL,
+  item_id UUID REFERENCES iwr_report_items (id) ON DELETE SET NULL,
+  title VARCHAR(255) NOT NULL,
+  severity VARCHAR(16) NOT NULL DEFAULT 'medium',
+  owner_staff_id INTEGER,
+  status VARCHAR(32) NOT NULL DEFAULT 'open',
+  due_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT iwr_risks_severity_chk CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+  CONSTRAINT iwr_risks_status_chk CHECK (status IN ('open', 'mitigating', 'closed'))
+);
+
+CREATE INDEX IF NOT EXISTS iwr_risks_open_idx
+  ON iwr_risks (tenant_id, status, severity)
+  WHERE status <> 'closed';
+
+ALTER TABLE iwr_reports
+  ADD COLUMN IF NOT EXISTS search_vector tsvector;
+
+CREATE INDEX IF NOT EXISTS iwr_reports_search_idx
+  ON iwr_reports USING GIN (search_vector);
+
+CREATE OR REPLACE FUNCTION iwr_reports_search_vector_update() RETURNS trigger AS $$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', COALESCE(NEW.title, '')), 'A') ||
+    setweight(to_tsvector('simple', COALESCE(NEW.sections_json::text, '')), 'B');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS iwr_reports_search_vector_trg ON iwr_reports;
+CREATE TRIGGER iwr_reports_search_vector_trg
+  BEFORE INSERT OR UPDATE OF title, sections_json ON iwr_reports
+  FOR EACH ROW EXECUTE FUNCTION iwr_reports_search_vector_update();
+
+UPDATE iwr_reports SET title = title WHERE search_vector IS NULL;

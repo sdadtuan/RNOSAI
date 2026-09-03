@@ -16,13 +16,14 @@ import {
   requestIwrChanges,
   submitIwrReport,
   withdrawIwrReport,
+  replyAllIwrReport,
   type IwrCommentRow,
   type IwrReportDetail,
 } from '@/lib/crm/iwr-api';
 
 export default function IwrReportDetailPage() {
   const params = useParams<{ id: string }>();
-  const { user, token, error, setError, logout, canWrite, canReview } = useIwrPageAuth('view');
+  const { user, token, error, setError, logout, canWrite, canReview, canBcc } = useIwrPageAuth('view');
   const [report, setReport] = useState<IwrReportDetail | null>(null);
   const [comments, setComments] = useState<IwrCommentRow[]>([]);
 
@@ -67,6 +68,7 @@ export default function IwrReportDetailPage() {
           report={report}
           canWrite={canWrite}
           canReview={canReview}
+          canBcc={canBcc}
           comments={comments}
           onPatch={async (body) => {
             const updated = await patchIwrReport(token, report.id, body);
@@ -93,6 +95,10 @@ export default function IwrReportDetailPage() {
           }}
           onAddComment={async (body) => {
             await addIwrComment(token, report.id, body);
+            await reload();
+          }}
+          onReplyAll={async (body) => {
+            await replyAllIwrReport(token, report.id, body);
             await reload();
           }}
         />
