@@ -4,14 +4,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   IWR_RAG_LABELS,
   IWR_STATUS_LABELS,
+  addIwrItem,
+  applyIwrSources,
   fetchIwrDirectory,
+  fetchIwrItems,
+  fetchIwrSources,
+  fetchIwrSuggest,
+  iwrCsvUrl,
   iwrPdfUrl,
   iwrSectionLabel,
+  iwrXlsxUrl,
   type IwrCommentRow,
+  type IwrItemRow,
   type IwrRag,
   type IwrReportDetail,
+  type IwrReportRow,
   type IwrReportStatus,
   type IwrStaffNode,
+  type IwrSuggestHit,
 } from '@/lib/crm/iwr-api';
 
 type BlockerItem = { title: string; description: string; severity: string };
@@ -84,7 +94,20 @@ export function IwrReportEditor({
   const [changeBody, setChangeBody] = useState('');
   const [commentBody, setCommentBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const [items, setItems] = useState<IwrItemRow[]>(report.items ?? []);
+  const [suggestHits, setSuggestHits] = useState<IwrSuggestHit[]>([]);
+  const [sourceRows, setSourceRows] = useState<IwrReportRow[]>([]);
+  const [pickedSources, setPickedSources] = useState<string[]>(report.source_report_ids ?? []);
+  const [ragReason, setRagReason] = useState(report.rag_override_reason ?? '');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    void fetchIwrItems(token, report.id).then((out) => setItems(out.items ?? [])).catch(() => undefined);
+    void fetchIwrSuggest(token, report.id).then((out) => setSuggestHits(out.items ?? [])).catch(() => undefined);
+    if (report.template_code === 'weekly_work' || report.template_code === 'monthly_work') {
+      void fetchIwrSources(token, report.id).then((out) => setSourceRows(out.items ?? [])).catch(() => undefined);
+    }
+  }, [token, report.id, report.template_code]);
 
   const isAuthor = Boolean(report.viewer_is_author);
   const isReviewer = Boolean(report.viewer_is_reviewer);
@@ -174,7 +197,117 @@ export function IwrReportEditor({
         >
           Tải PDF
         </a>
+        <a className="text-blue-600 underline" href={iwrXlsxUrl(report.id)} target="_blank" rel="noreferrer">
+          XLSX
+        </a>
+        <a className="text-blue-600 underline" href={iwrCsvUrl(report.id)} target="_blank" rel="noreferrer">
+          CSV
+        </a>
+        {report.first_viewed_at && (
+          <span data-testid="iwr-viewed" className="text-emerald-700">
+            Đã xem
+          </span>
+        )}
       </div>
+
+      {isWeekly && report.rag_hint && (
+        <div className="rounded border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+          RAG gợi ý:{' '}
+          <strong>{IWR_RAG_LABELS[report.rag_hint.rag]}</strong>
+          {report.rag_hint.reasons.length ? ` (${report.rag_hint.reasons.join(', ')})` : ''}
+          {' — '}không ghi đè lựa chọn của bạn.
+          {!readOnly && report.rag && report.rag !== report.rag_hint.rag && (
+            <div className="mt-2">
+              <input
+                className="w-full border rounded px-2 py-1 text-sm"
+                placeholder="Lý do giữ RAG khác gợi ý"
+                value={ragReason}
+                onChange={(e) => {
+                  setRagReason(e.target.value);
+                  void onPatch({ rag_override_reason: e.target.value, rag: rag ?? undefined });
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {suggestHits.length > 0 && !readOnly && (
+        <div className="rounded border p-4 space-y-2" data-testid="iwr-suggest">
+          <div className="text-sm font-medium">Gợi ý hôm nay</div>
+          <div className="flex flex-wrap gap-2">
+            {suggestHits.map((hit) => (
+              <button
+                key={`${hit.kind}-${hit.id}`}
+                type="button"
+                className="text-xs px-2 py-1 rounded border bg-white hover:bg-blue-50"
+                onClick={() => {
+                  void addIwrItem(token, report.id, {
+                    section_key: 'done',
+                    title: hit.label,
+                    body: '',
+                    ref_kind: hit.kind,
+                    ref_id: hit.id,
+                    evidence_url: null,
+                    sort_order: items.length,
+                  }).then((row) => setItems((prev) => [...prev, row]));
+                }}
+              >
+                + {hit.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isWeekly && sourceRows.length > 0 && !readOnly && (
+        <div className="rounded border p-4 space-y-2">
+          <div className="text-sm font-medium">Gộp ngày → tuần</div>
+          {sourceRows.map((src) => (
+            <label key={src.id} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={pickedSources.includes(src.id)}
+                onChange={() =>
+                  setPickedSources((prev) =>
+                    prev.includes(src.id) ? prev.filter((x) => x !== src.id) : [...prev, src.id],
+                  )
+                }
+              />
+              {src.title} ({src.period_start})
+            </label>
+          ))}
+          <button
+            type="button"
+            className="text-sm text-blue-600"
+            onClick={() => {
+              void applyIwrSources(token, report.id, pickedSources).then(() => undefined);
+            }}
+          >
+            Gộp các ngày đã chọn
+          </button>
+        </div>
+      )}
+
+      {items.some((it) => it.section_key === 'done' && it.ref_kind === 'none' && !it.evidence_url) && (
+        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Dòng việc xong chưa gắn ticket/lead — nộp vẫn được, nên bổ sung bằng chứng.
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div className="rounded border p-4 space-y-2">
+          <div className="text-sm font-medium">Dòng bằng chứng</div>
+          <ul className="text-sm space-y-1">
+            {items.map((it) => (
+              <li key={it.id}>
+                {it.title || '(không tiêu đề)'} · {it.ref_kind}
+                {it.ref_id ? ` #${it.ref_id}` : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="rounded border p-4 space-y-2">
         <div className="text-sm font-medium">Người nhận</div>

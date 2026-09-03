@@ -8,6 +8,7 @@ import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
 import {
   IWR_STATUS_LABELS,
   IWR_TEMPLATE_CODES,
+  backfillIwrReport,
   createIwrReport,
   fetchIwrReports,
   formatIwrWhen,
@@ -19,6 +20,7 @@ export default function InternalReportsPage() {
   const { user, token, error, setError, logout, canWrite } = useIwrPageAuth('view');
   const [items, setItems] = useState<IwrReportRow[]>([]);
   const [busy, setBusy] = useState(false);
+  const [backfillYmd, setBackfillYmd] = useState('');
 
   const reload = useCallback(async () => {
     if (!token) return;
@@ -97,6 +99,31 @@ export default function InternalReportsPage() {
               Mở tuần này
             </button>
           </>
+        )}
+        {canWrite && (
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!token || !backfillYmd) return;
+              setBusy(true);
+              void backfillIwrReport(token, backfillYmd)
+                .then((created) => router.push(`/crm/internal-reports/${created.id}`))
+                .catch((err) => setError(err instanceof Error ? err.message : 'Bù ngày thất bại'))
+                .finally(() => setBusy(false));
+            }}
+          >
+            <input
+              type="date"
+              className="border rounded px-2 py-1 text-sm"
+              value={backfillYmd}
+              onChange={(e) => setBackfillYmd(e.target.value)}
+              aria-label="Bù ngày"
+            />
+            <button type="submit" className="px-3 py-2 rounded border text-sm" disabled={busy || !backfillYmd}>
+              Bù ngày
+            </button>
+          </form>
         )}
         <Link href="/crm/internal-reports/inbox" className="px-4 py-2 rounded border text-sm">
           Hộp thư

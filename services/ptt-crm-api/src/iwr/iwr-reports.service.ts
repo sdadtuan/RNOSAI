@@ -7,9 +7,10 @@ import {
 } from '@nestjs/common';
 import { CsdAuditRepository } from '../csd/csd-audit.repository';
 import { CsdNotificationsRepository } from '../csd/csd-notifications.repository';
-import { buildPdfSections, renderIwrReportPdf } from './iwr-export.util';
+import { buildPdfSections, renderIwrReportCsv, renderIwrReportPdf, renderIwrReportXlsx } from './iwr-export.util';
 import { isOnPath, ancestorIds } from './iwr-org.util';
-import { isIwrLate, isIwrWorkday, iwrPeriodForTemplate } from './iwr-period.util';
+import { isIwrLate, isIwrWorkday, iwrPeriodForTemplate, vnYmd } from './iwr-period.util';
+import { computeRagHint } from './iwr-rag.util';
 import { assertW1Recipients, defaultToStaffId, IwrPolicyError } from './iwr-recipient.util';
 import { IwrOrgRepository, IwrReportsRepository } from './iwr-reports.repository';
 import { emptySectionsForCode, sectionKeysForCode } from './iwr-sections.util';
@@ -18,6 +19,7 @@ import type {
   AddIwrCommentInput,
   CreateIwrReportInput,
   IwrActor,
+  IwrItemRow,
   IwrReportDetail,
   IwrReportRow,
   IwrRag,
@@ -72,12 +74,34 @@ export class IwrReportsService {
   private async loadDetail(id: string): Promise<IwrReportDetail> {
     const report = await this.repo.getReport(id);
     if (!report) throw new NotFoundException({ error: 'iwr_report_not_found' });
-    const [recipients, comments, versions] = await Promise.all([
+    const [recipients, comments, versions, items] = await Promise.all([
       this.repo.listRecipients(id),
       this.repo.listComments(id),
       this.repo.listVersions(id),
+      this.repo.listItems(id),
     ]);
-    return { ...report, recipients, comments, versions };
+    const rag_hint = this.hintFromItems(items, report);
+    return { ...report, recipients, comments, versions, items, rag_hint };
+  }
+
+  private hintFromItems(items: IwrItemRow[], report: IwrReportRow) {
+    const blocked = items.filter((i) => i.section_key === 'blocked');
+    const blocker_high = blocked.filter((i) =>
+      /high|critical|cao/i.test(`${i.title} ${i.body}`),
+    ).length;
+    const blockedSec = report.sections_json?.blocked;
+    const secItems = Array.isArray((blockedSec as { items?: unknown[] } | undefined)?.items)
+      ? ((blockedSec as { items: { severity?: string }[] }).items ?? [])
+      : [];
+    const secHigh = secItems.filter((it) => /high|critical/i.test(String(it.severity ?? ''))).length;
+    const kpiSec = report.sections_json?.kpi;
+    const kpiBody = String((kpiSec as { body?: string } | undefined)?.body ?? '');
+    const kpi_below = /below|thấp|trễ|âm|miss/i.test(kpiBody) ? 1 : 0;
+    return computeRagHint({
+      overdue_p1: 0,
+      blocker_high: blocker_high + secHigh,
+      kpi_below,
+    });
   }
 
   private async canView(actor: IwrActor, report: IwrReportRow): Promise<boolean> {
@@ -198,6 +222,7 @@ export class IwrReportsService {
     await this.repo.updateSections(id, sections, {
       title: input.title,
       rag: input.rag,
+      rag_override_reason: input.rag_override_reason,
     });
 
     if (input.source_report_ids) {
@@ -473,6 +498,120 @@ export class IwrReportsService {
     return { items };
   }
 
+  async listEligibleSources(
+    actor: IwrActor,
+    weeklyId: string,
+  ): Promise<{ items: IwrReportRow[] }> {
+    const weekly = await this.repo.getReport(weeklyId);
+    if (!weekly) throw new NotFoundException({ error: 'iwr_report_not_found' });
+    await this.assertView(actor, weekly);
+    if (weekly.template_code !== 'weekly_work' && weekly.template_code !== 'monthly_work') {
+      return { items: [] };
+    }
+    const items = await this.repo.listDailyInRange(
+      weekly.author_staff_id,
+      weekly.period_start,
+      weekly.period_end,
+    );
+    return { items };
+  }
+
+  async applySources(
+    actor: IwrActor,
+    weeklyId: string,
+    sourceIds: string[],
+  ): Promise<IwrReportDetail> {
+    const weekly = await this.repo.getReport(weeklyId);
+    if (!weekly) throw new NotFoundException({ error: 'iwr_report_not_found' });
+    if (weekly.author_staff_id !== actor.staffId) {
+      throw new ForbiddenException({ error: 'iwr_not_author' });
+    }
+    if (IMMUTABLE.has(weekly.status)) {
+      throw new ConflictException({ error: 'iwr_immutable' });
+    }
+
+    const sections = { ...(weekly.sections_json ?? {}) } as Record<
+      string,
+      { body?: string; items?: unknown[] }
+    >;
+    const highlightBody = String(sections.highlights?.body ?? '').trim();
+    const userRag = extractRag(weekly);
+    const copied: string[] = [];
+
+    for (const sid of sourceIds) {
+      const daily = await this.repo.getReport(sid);
+      if (
+        !daily ||
+        daily.author_staff_id !== weekly.author_staff_id ||
+        daily.template_code !== 'daily_work' ||
+        daily.status === 'draft' ||
+        daily.period_start < weekly.period_start ||
+        daily.period_end > weekly.period_end
+      ) {
+        throw new BadRequestException({ error: 'iwr_source_not_eligible' });
+      }
+      const done = String((daily.sections_json?.done as { body?: string } | undefined)?.body ?? '').trim();
+      if (done) copied.push(`${daily.period_start}: ${done}`);
+    }
+
+    if (!highlightBody && copied.length) {
+      sections.highlights = { ...(sections.highlights ?? {}), body: copied.join('\n'), items: [] };
+    }
+    if (!userRag && weekly.template_code === 'weekly_work') {
+      const hint = this.hintFromItems([], weekly);
+      if (!sections.rag?.body) {
+        sections.rag = { body: hint.rag, items: [] };
+      }
+    }
+
+    await this.repo.updateSections(weeklyId, sections, {
+      rag: userRag ?? undefined,
+    });
+    await this.repo.replaceSources(weeklyId, sourceIds);
+    return this.enrichViewer(actor, await this.loadDetail(weeklyId));
+  }
+
+  async markViewed(actor: IwrActor, id: string): Promise<{ first_viewed_at: string }> {
+    const report = await this.repo.getReport(id);
+    if (!report) throw new NotFoundException({ error: 'iwr_report_not_found' });
+    const recipient = await this.repo.isRecipient(id, actor.staffId);
+    if (!recipient && report.author_staff_id !== actor.staffId && !hasIwrCap(actor, 'manage')) {
+      throw new ForbiddenException({ error: 'iwr_forbidden' });
+    }
+    if (report.first_viewed_at) {
+      return { first_viewed_at: report.first_viewed_at };
+    }
+    const at = this.now().toISOString();
+    await this.repo.updateStatus(id, {
+      status: report.status,
+      first_viewed_at: at,
+      first_viewed_by_staff_id: actor.staffId,
+    });
+    return { first_viewed_at: at };
+  }
+
+  async createBackfill(actor: IwrActor, input: { ymd: string }): Promise<IwrReportDetail> {
+    const ymd = String(input.ymd ?? '').slice(0, 10);
+    const today = vnYmd(this.now());
+    if (!ymd || ymd >= today) {
+      throw new BadRequestException({ error: 'iwr_backfill_future' });
+    }
+    if (!isIwrWorkday(ymd)) {
+      throw new BadRequestException({ error: 'iwr_not_workday' });
+    }
+    const selfOnly = actor.staffId > 0;
+    if (!hasIwrCap(actor, 'manage') && !selfOnly) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'iwr', action: 'manage' });
+    }
+    const existing = await this.repo.findByAuthorPeriod(actor.staffId, 'daily_work', ymd, ymd);
+    if (existing) throw new ConflictException({ error: 'iwr_period_exists' });
+    return this.create(actor, {
+      template_code: 'daily_work',
+      period_start: ymd,
+      period_end: ymd,
+    });
+  }
+
   async exportPdf(actor: IwrActor, id: string): Promise<Buffer> {
     const detail = await this.get(actor, id);
     const keys = sectionKeysForCode(
@@ -488,6 +627,50 @@ export class IwrReportsService {
     });
     await this.auditLog(actor, 'iwr.export_pdf', id);
     return buf;
+  }
+
+  async exportXlsx(actor: IwrActor, id: string): Promise<Buffer> {
+    const detail = await this.get(actor, id);
+    const keys = sectionKeysForCode(
+      detail.template_code as 'daily_work' | 'weekly_work' | 'monthly_work',
+    );
+    const buf = await renderIwrReportXlsx({
+      title: detail.title,
+      author_name: detail.author_name ?? String(detail.author_staff_id),
+      period_start: detail.period_start,
+      period_end: detail.period_end,
+      status: detail.status,
+      sections: buildPdfSections(detail.sections_json, keys),
+      items: (detail.items ?? []).map((it) => ({
+        title: it.title,
+        ref_kind: it.ref_kind,
+        ref_id: it.ref_id,
+      })),
+    });
+    await this.auditLog(actor, 'iwr.export_xlsx', id);
+    return buf;
+  }
+
+  async exportCsv(actor: IwrActor, id: string): Promise<string> {
+    const detail = await this.get(actor, id);
+    const keys = sectionKeysForCode(
+      detail.template_code as 'daily_work' | 'weekly_work' | 'monthly_work',
+    );
+    const csv = renderIwrReportCsv({
+      title: detail.title,
+      author_name: detail.author_name ?? String(detail.author_staff_id),
+      period_start: detail.period_start,
+      period_end: detail.period_end,
+      status: detail.status,
+      sections: buildPdfSections(detail.sections_json, keys),
+      items: (detail.items ?? []).map((it) => ({
+        title: it.title,
+        ref_kind: it.ref_kind,
+        ref_id: it.ref_id,
+      })),
+    });
+    await this.auditLog(actor, 'iwr.export_csv', id);
+    return csv;
   }
 
   async listTemplates(_actor: IwrActor) {

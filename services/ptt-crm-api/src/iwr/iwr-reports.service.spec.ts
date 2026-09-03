@@ -21,6 +21,11 @@ function makeSvc(now?: Date) {
     listComments: jest.fn().mockResolvedValue([]),
     insertComment: jest.fn(),
     listVersions: jest.fn().mockResolvedValue([]),
+    listItems: jest.fn().mockResolvedValue([]),
+    listDailyInRange: jest.fn().mockResolvedValue([]),
+    findByAuthorPeriod: jest.fn().mockResolvedValue(null),
+    updateSections: jest.fn(),
+    replaceSources: jest.fn(),
     replaceRecipients: jest.fn(),
     insertVersionSnapshot: jest.fn(),
     updateStatus: jest.fn(),
@@ -223,5 +228,39 @@ describe('IwrReportsService', () => {
         { body_text: 'x' },
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a daily outside the weekly period', async () => {
+    const { svc, repo } = makeSvc();
+    repo.getReport
+      .mockResolvedValueOnce({
+        id: 'w1',
+        template_code: 'weekly_work',
+        author_staff_id: 3,
+        period_start: '2026-08-31',
+        period_end: '2026-09-04',
+        status: 'draft',
+        sections_json: {},
+        rag: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'd1',
+        template_code: 'daily_work',
+        author_staff_id: 3,
+        period_start: '2026-08-20',
+        period_end: '2026-08-20',
+        status: 'submitted',
+        sections_json: {},
+      });
+    await expect(svc.applySources(actor(3), 'w1', ['d1'])).rejects.toMatchObject({
+      response: { error: 'iwr_source_not_eligible' },
+    });
+  });
+
+  it('backfill weekend → iwr_not_workday', async () => {
+    const { svc } = makeSvc(new Date('2026-09-03T09:00:00+07:00'));
+    await expect(svc.createBackfill(actor(), { ymd: '2026-08-30' })).rejects.toMatchObject({
+      response: { error: 'iwr_not_workday' },
+    });
   });
 });

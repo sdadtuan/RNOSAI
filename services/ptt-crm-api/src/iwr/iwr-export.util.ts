@@ -1,5 +1,16 @@
+import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import type { IwrReportStatus } from './iwr.types';
+
+export type IwrExportDetail = {
+  title: string;
+  author_name: string;
+  period_start: string;
+  period_end: string;
+  status: string;
+  sections: { key: string; label: string; body: string }[];
+  items?: { title: string; ref_kind: string; ref_id: string | null }[];
+};
 
 const SECTION_LABELS: Record<string, string> = {
   general: 'Thông tin chung',
@@ -31,14 +42,7 @@ function sectionBody(section: unknown): string {
   return String(body ?? '').trim();
 }
 
-export function renderIwrReportPdf(detail: {
-  title: string;
-  author_name: string;
-  period_start: string;
-  period_end: string;
-  status: string;
-  sections: { key: string; label: string; body: string }[];
-}): Promise<Buffer> {
+export function renderIwrReportPdf(detail: IwrExportDetail): Promise<Buffer> {
   const doc = new PDFDocument({ margin: 50 });
   const chunks: Buffer[] = [];
   doc.on('data', (c: Buffer) => chunks.push(c));
@@ -75,6 +79,45 @@ export function buildPdfSections(
       body: sectionBody(sectionsJson[key]),
     }))
     .filter((s) => s.body.length > 0);
+}
+
+export async function renderIwrReportXlsx(detail: IwrExportDetail): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const sheet = wb.addWorksheet('Bao cao');
+  sheet.addRow(['Tieu de', detail.title]);
+  sheet.addRow(['Tac gia', detail.author_name]);
+  sheet.addRow(['Ky', `${detail.period_start} — ${detail.period_end}`]);
+  sheet.addRow(['Trang thai', detail.status]);
+  sheet.addRow([]);
+  sheet.addRow(['Muc', 'Noi dung']);
+  for (const sec of detail.sections) {
+    sheet.addRow([sec.label, sec.body]);
+  }
+  sheet.addRow([]);
+  sheet.addRow(['Dong', 'Ref', 'Ref id']);
+  for (const item of detail.items ?? []) {
+    sheet.addRow([item.title, item.ref_kind, item.ref_id ?? '']);
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.from(buf);
+}
+
+export function renderIwrReportCsv(detail: IwrExportDetail): string {
+  const rows: string[][] = [
+    ['title', detail.title],
+    ['author', detail.author_name],
+    ['period', `${detail.period_start} — ${detail.period_end}`],
+    ['status', detail.status],
+  ];
+  for (const sec of detail.sections) {
+    rows.push([sec.key, sec.body.replace(/\r?\n/g, ' ')]);
+  }
+  for (const item of detail.items ?? []) {
+    rows.push(['item', item.title, item.ref_kind, item.ref_id ?? '']);
+  }
+  return rows
+    .map((cols) => cols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
 }
 
 export const IWR_STATUS_LABELS: Record<IwrReportStatus, string> = {

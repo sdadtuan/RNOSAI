@@ -130,6 +130,8 @@ export type IwrReportRow = {
   is_late: boolean;
   late_reason: string | null;
   first_viewed_at: string | null;
+  first_viewed_by_staff_id?: number | null;
+  rag_override_reason?: string | null;
   submitted_at: string | null;
   acknowledged_at: string | null;
   acknowledged_by_staff_id?: number | null;
@@ -140,10 +142,39 @@ export type IwrReportRow = {
   source_report_ids?: string[];
 };
 
+export type IwrItemRefKind = 'csd_ticket' | 'lead' | 'customer' | 'url' | 'none';
+
+export type IwrItemRow = {
+  id: string;
+  report_id: string;
+  section_key: string;
+  title: string;
+  body: string;
+  ref_kind: IwrItemRefKind;
+  ref_id: string | null;
+  evidence_url: string | null;
+  sort_order: number;
+};
+
+export type IwrRagHint = {
+  rag: Exclude<IwrRag, null>;
+  reasons: string[];
+};
+
+export type IwrSuggestHit = {
+  kind: 'csd_ticket' | 'lead';
+  id: string;
+  label: string;
+  reason: 'closed_today' | 'updated_today' | 'overdue' | 'blocked';
+};
+
 export type IwrReportDetail = IwrReportRow & {
   recipients: IwrRecipientRow[];
   comments: IwrCommentRow[];
   versions: { version: string; status: string; created_at: string }[];
+  items?: IwrItemRow[];
+  rag_hint?: IwrRagHint;
+  rag_override_reason?: string | null;
   viewer_is_author?: boolean;
   viewer_is_reviewer?: boolean;
 };
@@ -163,6 +194,7 @@ export type PatchIwrReportInput = {
   title?: string;
   sections_json?: Record<string, unknown>;
   rag?: IwrRag;
+  rag_override_reason?: string;
   cc_staff_ids?: number[];
   source_report_ids?: string[];
 };

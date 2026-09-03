@@ -12,6 +12,8 @@ import {
   type IwrRag,
   type IwrStaffNode,
   type IwrTemplateRow,
+  type IwrItemRow,
+  type IwrItemRefKind,
 } from './iwr.types';
 
 function text(value: unknown): string {
@@ -58,6 +60,8 @@ function mapReport(row: Record<string, unknown>): IwrReportRow {
     is_late: Boolean(row.is_late),
     late_reason: row.late_reason != null ? text(row.late_reason) : null,
     first_viewed_at: row.first_viewed_at != null ? text(row.first_viewed_at) : null,
+    first_viewed_by_staff_id: num(row.first_viewed_by_staff_id),
+    rag_override_reason: row.rag_override_reason != null ? text(row.rag_override_reason) : null,
     submitted_at: row.submitted_at != null ? text(row.submitted_at) : null,
     acknowledged_at: row.acknowledged_at != null ? text(row.acknowledged_at) : null,
     sections_json: (row.sections_json as Record<string, unknown>) ?? {},
@@ -151,6 +155,27 @@ export class IwrOrgRepository implements OnModuleDestroy {
       reports_to_id: num(row.reports_to_id),
       active: Boolean(row.active),
     }));
+  }
+
+  async listLeadUpdates(
+    staffId: number,
+    ymd: string,
+  ): Promise<{ id: string; label: string }[]> {
+    const res = await this.db.query(
+      `SELECT l.sqlite_lead_id::text AS id,
+              COALESCE(
+                NULLIF(l.full_name, ''),
+                NULLIF(l.phone, ''),
+                l.sqlite_lead_id::text
+              ) AS label
+         FROM crm_leads l
+        WHERE l.owner_id = $1
+          AND l.updated_at::date = $2::date
+        ORDER BY l.updated_at DESC
+        LIMIT 10`,
+      [staffId, ymd],
+    );
+    return res.rows.map((row) => ({ id: text(row.id), label: text(row.label) }));
   }
 
   async searchDirectory(q: string, limit: number): Promise<IwrStaffNode[]> {
@@ -363,7 +388,7 @@ export class IwrReportsRepository implements OnModuleDestroy {
   async updateSections(
     id: string,
     sections: Record<string, unknown>,
-    patch?: { title?: string; rag?: IwrRag },
+    patch?: { title?: string; rag?: IwrRag; rag_override_reason?: string },
   ): Promise<IwrReportRow> {
     const sets = ['sections_json = $3::jsonb', 'updated_at = NOW()'];
     const params: unknown[] = [IWR_TENANT_ID, id, JSON.stringify(sections)];
@@ -375,6 +400,10 @@ export class IwrReportsRepository implements OnModuleDestroy {
     if (patch?.rag !== undefined) {
       sets.push(`rag = $${idx++}`);
       params.push(patch.rag);
+    }
+    if (patch?.rag_override_reason !== undefined) {
+      sets.push(`rag_override_reason = $${idx++}`);
+      params.push(patch.rag_override_reason);
     }
     await this.db.query(
       `UPDATE iwr_reports SET ${sets.join(', ')}
@@ -566,6 +595,128 @@ export class IwrReportsRepository implements OnModuleDestroy {
         ORDER BY r.submitted_at DESC NULLS LAST, r.updated_at DESC
         LIMIT 200`,
       [IWR_TENANT_ID, staffId],
+    );
+    return res.rows.map(mapReport);
+  }
+
+  private mapItem(row: Record<string, unknown>): IwrItemRow {
+    return {
+      id: text(row.id),
+      report_id: text(row.report_id),
+      section_key: text(row.section_key),
+      title: text(row.title),
+      body: text(row.body),
+      ref_kind: text(row.ref_kind) as IwrItemRefKind,
+      ref_id: row.ref_id != null ? text(row.ref_id) : null,
+      evidence_url: row.evidence_url != null ? text(row.evidence_url) : null,
+      sort_order: num(row.sort_order) ?? 0,
+    };
+  }
+
+  async listItems(reportId: string): Promise<IwrItemRow[]> {
+    const res = await this.db.query(
+      `SELECT * FROM iwr_report_items
+        WHERE report_id = $1
+        ORDER BY sort_order ASC, created_at ASC`,
+      [reportId],
+    );
+    return res.rows.map((row) => this.mapItem(row));
+  }
+
+  async insertItem(input: Omit<IwrItemRow, 'id'>): Promise<IwrItemRow> {
+    const res = await this.db.query(
+      `INSERT INTO iwr_report_items (
+         report_id, section_key, title, body, ref_kind, ref_id, evidence_url, sort_order
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        input.report_id,
+        input.section_key,
+        input.title,
+        input.body,
+        input.ref_kind,
+        input.ref_id,
+        input.evidence_url,
+        input.sort_order,
+      ],
+    );
+    return this.mapItem(res.rows[0]);
+  }
+
+  async updateItem(
+    reportId: string,
+    itemId: string,
+    patch: Partial<IwrItemRow>,
+  ): Promise<IwrItemRow | null> {
+    const sets: string[] = ['updated_at = NOW()'];
+    const params: unknown[] = [reportId, itemId];
+    let idx = 3;
+    const add = (col: string, val: unknown) => {
+      if (val !== undefined) {
+        sets.push(`${col} = $${idx++}`);
+        params.push(val);
+      }
+    };
+    add('section_key', patch.section_key);
+    add('title', patch.title);
+    add('body', patch.body);
+    add('ref_kind', patch.ref_kind);
+    add('ref_id', patch.ref_id);
+    add('evidence_url', patch.evidence_url);
+    add('sort_order', patch.sort_order);
+    const res = await this.db.query(
+      `UPDATE iwr_report_items SET ${sets.join(', ')}
+        WHERE report_id = $1 AND id = $2
+        RETURNING *`,
+      params,
+    );
+    return res.rows[0] ? this.mapItem(res.rows[0]) : null;
+  }
+
+  async deleteItem(reportId: string, itemId: string): Promise<boolean> {
+    const res = await this.db.query(
+      `DELETE FROM iwr_report_items WHERE report_id = $1 AND id = $2`,
+      [reportId, itemId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async findByAuthorPeriod(
+    authorStaffId: number,
+    templateCode: string,
+    periodStart: string,
+    periodEnd: string,
+  ): Promise<IwrReportRow | null> {
+    const res = await this.db.query(
+      `${REPORT_SELECT}
+        WHERE r.tenant_id = $1
+          AND r.author_staff_id = $2
+          AND t.code = $3
+          AND r.period_start = $4::date
+          AND r.period_end = $5::date
+          AND r.is_deleted = FALSE
+        LIMIT 1`,
+      [IWR_TENANT_ID, authorStaffId, templateCode, periodStart, periodEnd],
+    );
+    return res.rows[0] ? mapReport(res.rows[0]) : null;
+  }
+
+  async listDailyInRange(
+    authorStaffId: number,
+    periodStart: string,
+    periodEnd: string,
+  ): Promise<IwrReportRow[]> {
+    const res = await this.db.query(
+      `${REPORT_SELECT}
+        WHERE r.tenant_id = $1
+          AND r.author_staff_id = $2
+          AND t.code = 'daily_work'
+          AND r.period_start >= $3::date
+          AND r.period_end <= $4::date
+          AND r.status <> 'draft'
+          AND r.is_deleted = FALSE
+        ORDER BY r.period_start ASC`,
+      [IWR_TENANT_ID, authorStaffId, periodStart, periodEnd],
     );
     return res.rows.map(mapReport);
   }

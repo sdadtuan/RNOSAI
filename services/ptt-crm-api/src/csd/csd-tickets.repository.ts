@@ -503,6 +503,28 @@ export class CsdTicketsRepository implements OnModuleDestroy {
     return res.rows.map(mapTicket);
   }
 
+  async listForStaff(staffId: number, ymd: string): Promise<CsdTicketRow[]> {
+    const res = await this.db.query(
+      `SELECT * FROM csd_tickets
+       WHERE tenant_id = $1
+         AND is_deleted = FALSE
+         AND assignee_staff_id = $2
+         AND (
+           closed_at::date = $3::date
+           OR updated_at::date = $3::date
+           OR resolved_at::date = $3::date
+           OR sla_status IN ('breached', 'near_breach', 'at_risk')
+           OR status ILIKE '%block%'
+           OR (sla_resolution_due_at IS NOT NULL AND sla_resolution_due_at < NOW()
+               AND status NOT IN ('closed', 'cancelled', 'rejected', 'resolved'))
+         )
+       ORDER BY updated_at DESC
+       LIMIT 20`,
+      [CSD_TENANT_ID, staffId, ymd],
+    );
+    return res.rows.map(mapTicket);
+  }
+
   async listTopPriority(limit = 8): Promise<CsdTicketRow[]> {
     const res = await this.db.query(
       `SELECT * FROM csd_tickets

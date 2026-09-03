@@ -64,6 +64,7 @@ export interface IwrReportRow {
   is_late: boolean;
   late_reason: string | null;
   first_viewed_at: string | null;
+  source_report_ids?: string[];
   submitted_at: string | null;
   acknowledged_at: string | null;
   sections_json: Record<string, { body?: string; items?: unknown[] }>;
@@ -86,10 +87,39 @@ export interface IwrCommentRow {
   created_at: string;
 }
 
+export type IwrItemRefKind = 'csd_ticket' | 'lead' | 'customer' | 'url' | 'none';
+
+export interface IwrItemRow {
+  id: string;
+  report_id: string;
+  section_key: string;
+  title: string;
+  body: string;
+  ref_kind: IwrItemRefKind;
+  ref_id: string | null;
+  evidence_url: string | null;
+  sort_order: number;
+}
+
+export interface IwrRagHint {
+  rag: Exclude<IwrRag, null>;
+  reasons: string[];
+}
+
+export interface IwrSuggestHit {
+  kind: 'csd_ticket' | 'lead';
+  id: string;
+  label: string;
+  reason: 'closed_today' | 'updated_today' | 'overdue' | 'blocked';
+}
+
 export interface IwrReportDetail extends IwrReportRow {
   recipients: IwrRecipientRow[];
   comments: IwrCommentRow[];
   versions: { version: string; status: string; created_at: string }[];
+  items?: IwrItemRow[];
+  rag_hint?: IwrRagHint;
+  rag_override_reason?: string | null;
   viewer_is_author?: boolean;
   viewer_is_reviewer?: boolean;
 }
@@ -284,6 +314,59 @@ export async function fetchIwrComments(
 
 export function iwrPdfUrl(id: string): string {
   return `${API_BASE}/api/crm/iwr/reports/${id}/export.pdf`;
+}
+
+export function iwrXlsxUrl(id: string): string {
+  return `${API_BASE}/api/crm/iwr/reports/${id}/export.xlsx`;
+}
+
+export function iwrCsvUrl(id: string): string {
+  return `${API_BASE}/api/crm/iwr/reports/${id}/export.csv`;
+}
+
+export async function fetchIwrItems(token: string, id: string): Promise<{ items: IwrItemRow[] }> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${id}/items`);
+}
+
+export async function addIwrItem(
+  token: string,
+  id: string,
+  body: Omit<IwrItemRow, 'id' | 'report_id'>,
+): Promise<IwrItemRow> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${id}/items`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchIwrSuggest(token: string, id: string): Promise<{ items: IwrSuggestHit[] }> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${id}/suggest`);
+}
+
+export async function fetchIwrSources(token: string, id: string): Promise<{ items: IwrReportRow[] }> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${id}/sources`);
+}
+
+export async function applyIwrSources(
+  token: string,
+  id: string,
+  source_report_ids: string[],
+): Promise<IwrReportDetail> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${id}/sources`, {
+    method: 'POST',
+    body: JSON.stringify({ source_report_ids }),
+  });
+}
+
+export async function markIwrViewed(token: string, id: string): Promise<{ first_viewed_at: string }> {
+  return iwrFetch(token, `/api/crm/iwr/reports/${id}/viewed`, { method: 'POST', body: '{}' });
+}
+
+export async function backfillIwrReport(token: string, ymd: string): Promise<IwrReportDetail> {
+  return iwrFetch(token, '/api/crm/iwr/reports/backfill', {
+    method: 'POST',
+    body: JSON.stringify({ ymd }),
+  });
 }
 
 export function formatIwrWhen(iso: string | null | undefined): string {

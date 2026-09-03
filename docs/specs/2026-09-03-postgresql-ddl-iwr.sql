@@ -146,3 +146,27 @@ ON CONFLICT (tenant_id, code) DO UPDATE SET
   due_rule_json = EXCLUDED.due_rule_json,
   active = EXCLUDED.active,
   updated_at = NOW();
+
+-- W2: typed items + evidence + RAG override
+ALTER TABLE iwr_reports
+  ADD COLUMN IF NOT EXISTS rag_override_reason TEXT;
+
+CREATE TABLE IF NOT EXISTS iwr_report_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  report_id UUID NOT NULL REFERENCES iwr_reports (id) ON DELETE CASCADE,
+  section_key VARCHAR(64) NOT NULL,
+  title VARCHAR(255) NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  ref_kind VARCHAR(32) NOT NULL DEFAULT 'none',
+  ref_id VARCHAR(128),
+  evidence_url TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT iwr_report_items_ref_kind_chk CHECK (ref_kind IN (
+    'csd_ticket', 'lead', 'customer', 'url', 'none'
+  ))
+);
+
+CREATE INDEX IF NOT EXISTS iwr_report_items_report_idx
+  ON iwr_report_items (report_id, section_key, sort_order);

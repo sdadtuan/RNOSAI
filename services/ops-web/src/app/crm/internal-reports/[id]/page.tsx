@@ -11,6 +11,7 @@ import {
   addIwrComment,
   fetchIwrComments,
   fetchIwrReport,
+  markIwrViewed,
   patchIwrReport,
   requestIwrChanges,
   submitIwrReport,
@@ -34,6 +35,11 @@ export default function IwrReportDetailPage() {
       ]);
       setReport(detail);
       setComments(commentOut.items ?? []);
+      void markIwrViewed(token, params.id)
+        .then((out) => {
+          setReport((prev) => (prev ? { ...prev, first_viewed_at: out.first_viewed_at } : prev));
+        })
+        .catch(() => undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tải báo cáo thất bại');
     }
