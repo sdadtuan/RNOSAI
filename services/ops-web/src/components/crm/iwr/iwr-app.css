@@ -491,6 +491,169 @@
   margin-right: 4px;
 }
 
+.iwr-proj-chart__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.iwr-proj-chart__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.iwr-proj-chart__filter {
+  min-width: 132px;
+  max-width: 180px;
+  padding: 6px 28px 6px 10px;
+  font-size: 12px;
+}
+
+.iwr-proj-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 14px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.iwr-proj-chart__legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+.iwr-proj-chart__legend i.is-green {
+  background: #6fcf97;
+}
+
+.iwr-proj-chart__legend i.is-yellow {
+  background: #f2c94c;
+}
+
+.iwr-proj-chart__legend i.is-red {
+  background: #ff6b6b;
+}
+
+.iwr-proj-chart__plot {
+  display: flex;
+  gap: 10px;
+}
+
+.iwr-proj-chart__yaxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 0 0 24px;
+  height: 188px;
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: right;
+}
+
+.iwr-proj-chart__canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.iwr-proj-chart__grid {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 188px;
+  pointer-events: none;
+}
+
+.iwr-proj-chart__grid > span {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.iwr-proj-chart__bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 6px;
+  min-height: 240px;
+  padding-top: 0;
+}
+
+.iwr-proj-chart__col {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  max-width: 120px;
+}
+
+.iwr-proj-chart__stack {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  max-width: 68px;
+}
+
+.iwr-proj-chart__seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1c221d;
+}
+
+.iwr-proj-chart__seg.is-green {
+  background: #6fcf97;
+}
+
+.iwr-proj-chart__seg.is-yellow {
+  background: #f2c94c;
+}
+
+.iwr-proj-chart__seg.is-red {
+  background: #ff6b6b;
+}
+
+.iwr-proj-chart__stack .iwr-proj-chart__seg:last-child {
+  border-radius: 6px 6px 0 0;
+}
+
+.iwr-proj-chart__label {
+  margin-top: 10px;
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #64748b;
+  text-align: center;
+}
+
+.iwr-proj-chart__label strong {
+  display: block;
+  font-weight: 600;
+  color: #1c221d;
+}
+
+.iwr-proj-chart__foot {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
 .iwr-tabs {
   display: flex;
   flex-wrap: wrap;

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { IwrAppShell, IwrCard } from '@/components/crm/iwr/IwrAppShell';
+import { IwrProjectProgressChart } from '@/components/crm/iwr/IwrProjectProgressChart';
 import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
 import { iwrAvatarTone, iwrInitials, iwrIsoWeekLabel, iwrRagClass, iwrRagLabel, iwrRelativeVi } from '@/components/crm/iwr/iwr-format';
 import {
@@ -117,30 +118,11 @@ export default function InternalReportsPage() {
     return actionItems.filter((r) => r.status === statusFilter);
   }, [actionItems, statusFilter]);
 
-  const progressRows = useMemo(() => {
-    const byName = new Map<string, { green: number; yellow: number; red: number }>();
-    for (const n of team) {
-      const key = n.name;
-      const cur = byName.get(key) ?? { green: 0, yellow: 0, red: 0 };
-      if (n.derived === 'acked' || n.derived === 'submitted') cur.green += 1;
-      else if (n.derived === 'late' || n.derived === 'draft') cur.yellow += 1;
-      else cur.red += 1;
-      byName.set(key, cur);
-    }
-    if (byName.size === 0) {
-      for (const r of items.slice(0, 6)) {
-        const key = r.author_name ?? r.template_name_vi;
-        const cur = byName.get(key) ?? { green: 0, yellow: 0, red: 0 };
-        if (r.rag === 'green') cur.green += 1;
-        else if (r.rag === 'yellow') cur.yellow += 1;
-        else if (r.rag === 'red') cur.red += 1;
-        else if (r.status === 'submitted' || r.status === 'acknowledged') cur.green += 1;
-        else cur.yellow += 1;
-        byName.set(key, cur);
-      }
-    }
-    return Array.from(byName.entries()).slice(0, 6);
-  }, [team, items]);
+  const progressReports = useMemo(() => {
+    const byId = new Map<string, IwrReportRow>();
+    for (const row of [...items, ...actionItems]) byId.set(row.id, row);
+    return Array.from(byId.values());
+  }, [items, actionItems]);
 
   return (
     <IwrAppShell
@@ -298,26 +280,7 @@ export default function InternalReportsPage() {
 
           <div className="iwr-split">
             <IwrCard>
-              <h2>Tiến độ dự án</h2>
-              <div className="iwr-legend">
-                <span><i style={{ background: '#36b37e' }} /> Đúng tiến độ</span>
-                <span><i style={{ background: '#ffab00' }} /> Chậm</span>
-                <span><i style={{ background: '#ff5630' }} /> Rủi ro</span>
-              </div>
-              {progressRows.map(([name, v]) => {
-                const sum = v.green + v.yellow + v.red || 1;
-                return (
-                  <div key={name} style={{ marginBottom: 12 }}>
-                    <div className="iwr-muted">{name}</div>
-                    <div className="iwr-bar">
-                      <span style={{ width: `${(v.green / sum) * 100}%`, background: '#36b37e' }} />
-                      <span style={{ width: `${(v.yellow / sum) * 100}%`, background: '#ffab00' }} />
-                      <span style={{ width: `${(v.red / sum) * 100}%`, background: '#ff5630' }} />
-                    </div>
-                  </div>
-                );
-              })}
-              {!progressRows.length && <p className="iwr-empty">Chưa có dữ liệu kỳ này</p>}
+              <IwrProjectProgressChart reports={progressReports} />
             </IwrCard>
             <IwrCard>
               <div className="iwr-cardhead">
