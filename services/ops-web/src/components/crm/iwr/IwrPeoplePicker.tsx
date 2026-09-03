@@ -38,7 +38,7 @@ export function IwrPeoplePicker({
 
   useEffect(() => {
     const q = query.trim();
-    if (disabled) {
+    if (disabled || q.length < 1) {
       setHits([]);
       return;
     }
@@ -49,7 +49,7 @@ export function IwrPeoplePicker({
           setHits((out.items ?? []).filter((p) => !picked.has(p.id)));
         })
         .catch(() => setHits([]));
-    }, q ? 160 : 0);
+    }, 160);
     return () => window.clearTimeout(t);
   }, [token, purpose, query, selected, disabled]);
 
@@ -94,7 +94,7 @@ export function IwrPeoplePicker({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            {hits.length > 0 && (query.trim() || !selected.length) && (
+            {hits.length > 0 && query.trim() && (
               <ul className="iwr-mail__hits">
                 {hits.map((person) => (
                   <li key={person.id}>
