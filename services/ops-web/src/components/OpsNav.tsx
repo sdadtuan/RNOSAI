@@ -151,6 +151,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/kpi': 'KPI',
   '/crm/kpi/groups': 'Nhóm KPI',
   '/crm/kpi/groups/new': 'Thêm Nhóm KPI',
+  '/crm/kpi/types': 'KPI Type',
+  '/crm/kpi/types/new': 'Thêm KPI Type',
   '/crm/ai/insights': 'AI Insights',
   '/crm/ai/coach': 'Manager Coach',
   '/crm/ai/query': 'NL Analytics',
@@ -504,6 +506,9 @@ function buildSections(
     hr.push({ href: '/crm/kpi', label: 'KPI' });
     if (hasCap(user, 'crm_kpi_groups', 'view')) {
       hr.push({ href: '/crm/kpi/groups', label: 'Nhóm KPI' });
+    }
+    if (hasCap(user, 'crm_kpi_types', 'view')) {
+      hr.push({ href: '/crm/kpi/types', label: 'KPI Type' });
     }
     if (winKpiSolutionEnabled()) {
       hr.push({ href: '/crm/kpi/solution', label: 'KPI Solution' });

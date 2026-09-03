@@ -109,14 +109,15 @@ export class KpiPgRepository implements OnModuleDestroy {
     }
 
     const groupId = await this.resolveMetricGroupId(body.group_id);
+    const kpiTypeId = await this.resolveMetricTypeId(body.kpi_type_id);
 
     const result = await this.db.query(
       `INSERT INTO crm_kpi_metrics (
          code, name, unit, description, sort_order, active,
-         created_at, updated_at, higher_is_better, warn_ratio, group_id
-       ) VALUES ($1, $2, $3, $4, $5, TRUE, NOW(), NOW(), $6, $7, $8)
+         created_at, updated_at, higher_is_better, warn_ratio, group_id, kpi_type_id
+       ) VALUES ($1, $2, $3, $4, $5, TRUE, NOW(), NOW(), $6, $7, $8, $9)
        RETURNING *`,
-      [code, name, unit, desc, sortOrder, hi, warnRatio, groupId],
+      [code, name, unit, desc, sortOrder, hi, warnRatio, groupId, kpiTypeId],
     );
     const metric = this.mapMetricRow(result.rows[0] as Record<string, unknown>);
     if (!metric) throw new Error('Failed to create KPI metric');
@@ -162,6 +163,9 @@ export class KpiPgRepository implements OnModuleDestroy {
     if ('group_id' in body) {
       merged.group_id = await this.resolveMetricGroupId(body.group_id);
     }
+    if ('kpi_type_id' in body) {
+      merged.kpi_type_id = await this.resolveMetricTypeId(body.kpi_type_id);
+    }
 
     const code = String(merged.code ?? '').trim();
     if (code) {
@@ -176,7 +180,7 @@ export class KpiPgRepository implements OnModuleDestroy {
     await this.db.query(
       `UPDATE crm_kpi_metrics
        SET code = $2, name = $3, unit = $4, description = $5, sort_order = $6, active = $7,
-           higher_is_better = $8, warn_ratio = $9, group_id = $10, updated_at = NOW()
+           higher_is_better = $8, warn_ratio = $9, group_id = $10, kpi_type_id = $11, updated_at = NOW()
        WHERE id = $1`,
       [
         metricId,
@@ -189,6 +193,7 @@ export class KpiPgRepository implements OnModuleDestroy {
         Number(merged.higher_is_better ?? 1) === 1,
         merged.warn_ratio != null ? Number(merged.warn_ratio) : null,
         merged.group_id != null ? String(merged.group_id) : null,
+        merged.kpi_type_id != null ? String(merged.kpi_type_id) : null,
       ],
     );
 
@@ -516,6 +521,19 @@ export class KpiPgRepository implements OnModuleDestroy {
     };
   }
 
+  private async resolveMetricTypeId(raw: string | null | undefined): Promise<string | null> {
+    const id = String(raw ?? '').trim();
+    if (!id) return null;
+    const result = await this.db.query(
+      `SELECT id FROM crm_kpi_types
+       WHERE id = $1::uuid AND deleted_at IS NULL AND status = 'ACTIVE'
+       LIMIT 1`,
+      [id],
+    );
+    if (!result.rows.length) throw new Error('KPI_TYPE_NOT_FOUND');
+    return id;
+  }
+
   private async resolveMetricGroupId(raw: string | null | undefined): Promise<string | null> {
     const id = String(raw ?? '').trim();
     if (!id) return null;
@@ -541,6 +559,7 @@ export class KpiPgRepository implements OnModuleDestroy {
       higher_is_better: row.higher_is_better === true || row.higher_is_better === 1 ? 1 : 0,
       warn_ratio: row.warn_ratio != null ? Number(row.warn_ratio) : null,
       group_id: row.group_id != null ? String(row.group_id) : null,
+      kpi_type_id: row.kpi_type_id != null ? String(row.kpi_type_id) : null,
       created_at: String(row.created_at ?? ''),
       updated_at: String(row.updated_at ?? ''),
     };

@@ -518,6 +518,12 @@
       "configure",
       "export"
     ],
+    "crm_kpi_types": [
+      "view",
+      "manage",
+      "configure",
+      "export"
+    ],
     "crm_kpi_records": [
       "approve",
       "claim",
@@ -1287,6 +1293,13 @@
       "description": "Cấu hình danh mục Nhóm KPI — phân loại chỉ tiêu và phạm vi áp dụng."
     },
     {
+      "id": "crm_kpi_types",
+      "label": "KPI — KPI Type",
+      "group": "CRM — KPI",
+      "page": "/crm/kpi/types",
+      "description": "Cấu hình loại chỉ tiêu KPI — đơn vị, mục tiêu, công thức và nguồn dữ liệu."
+    },
+    {
       "id": "crm_kpi_records",
       "label": "KPI — Bản ghi theo kỳ",
       "group": "CRM — KPI",
@@ -1864,6 +1877,7 @@
     "crm_kpi_metrics",
     "crm_kpi_metrics__btn_save",
     "crm_kpi_groups",
+    "crm_kpi_types",
     "crm_kpi_records",
     "crm_kpi_records__btn_save",
     "crm_leads",

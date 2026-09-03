@@ -127,4 +127,22 @@ describe('admin-nav', () => {
       { href: '/crm/kpi/groups', label: 'Thiết lập KPI' },
     ]);
   });
+
+  it('kpi setup group includes KPI Type when crm_kpi_types.view', () => {
+    const user = adminUser({
+      caps: [
+        { section: 'crm_kpi_groups', action: 'view' },
+        { section: 'crm_kpi_types', action: 'view' },
+      ],
+    });
+    const kpi = buildAdminNavGroups(user).find((g) => g.id === 'kpi');
+    expect(kpi?.links).toEqual([
+      { href: '/crm/kpi/groups', label: 'Nhóm KPI' },
+      { href: '/crm/kpi/types', label: 'KPI Type' },
+    ]);
+    expect(buildAdminSidebarLinks(user)).toEqual([
+      { href: '/admin', label: 'Trung tâm quản trị' },
+      { href: '/crm/kpi/groups', label: 'Thiết lập KPI' },
+    ]);
+  });
 });

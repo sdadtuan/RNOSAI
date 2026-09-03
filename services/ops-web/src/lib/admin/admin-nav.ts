@@ -43,6 +43,7 @@ export function canViewAdminSection(user: StoredStaffUser | null): boolean {
     hasCap(user, 'crm_staff_departments', 'view') ||
     hasCap(user, 'crm_staff_roster', 'view') ||
     hasCap(user, 'crm_kpi_groups', 'view') ||
+    hasCap(user, 'crm_kpi_types', 'view') ||
     hasCap(user, 'ai_admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'create') ||
@@ -103,8 +104,14 @@ function buildDataLinks(user: StoredStaffUser): AdminNavLink[] {
 }
 
 function buildKpiSetupLinks(user: StoredStaffUser): AdminNavLink[] {
-  if (!hasCap(user, 'crm_kpi_groups', 'view')) return [];
-  return [{ href: '/crm/kpi/groups', label: 'Nhóm KPI' }];
+  const links: AdminNavLink[] = [];
+  if (hasCap(user, 'crm_kpi_groups', 'view')) {
+    links.push({ href: '/crm/kpi/groups', label: 'Nhóm KPI' });
+  }
+  if (hasCap(user, 'crm_kpi_types', 'view')) {
+    links.push({ href: '/crm/kpi/types', label: 'KPI Type' });
+  }
+  return links;
 }
 
 function buildOrgLinks(user: StoredStaffUser): AdminNavLink[] {
@@ -231,7 +238,7 @@ export function buildAdminNavGroups(user: StoredStaffUser | null): AdminNavGroup
     groups.push({
       id: 'kpi',
       label: 'Thiết lập KPI',
-      description: 'Nhóm KPI, phạm vi áp dụng, import CSV',
+      description: 'Nhóm KPI, KPI Type, phạm vi áp dụng',
       links: kpiLinks,
     });
   }
@@ -327,7 +334,7 @@ export function buildAdminSidebarLinks(user: StoredStaffUser | null): ModuleNavL
   if (hasCap(user, 'csd', 'admin')) {
     links.push({ href: '/admin/crm/csd/chat-accounts', label: 'Tài khoản Chat' });
   }
-  if (hasCap(user, 'crm_kpi_groups', 'view')) {
+  if (hasCap(user, 'crm_kpi_groups', 'view') || hasCap(user, 'crm_kpi_types', 'view')) {
     links.push({ href: '/crm/kpi/groups', label: 'Thiết lập KPI' });
   }
   return links;

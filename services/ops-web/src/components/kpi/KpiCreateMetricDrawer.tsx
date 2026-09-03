@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createKpiMetric } from '@/lib/api';
 import { fetchKpiGroups, type KpiGroupListItem } from '@/lib/kpi-groups-api';
+import { fetchKpiTypes, type KpiTypeListItem } from '@/lib/kpi-types-api';
 
 type KpiCreateMetricDrawerProps = {
   open: boolean;
@@ -21,7 +22,9 @@ export function KpiCreateMetricDrawer({
   const [code, setCode] = useState('');
   const [unit, setUnit] = useState('');
   const [groupId, setGroupId] = useState('');
+  const [kpiTypeId, setKpiTypeId] = useState('');
   const [groups, setGroups] = useState<KpiGroupListItem[]>([]);
+  const [types, setTypes] = useState<KpiTypeListItem[]>([]);
   const [higherIsBetter, setHigherIsBetter] = useState(true);
   const [warnRatio, setWarnRatio] = useState('');
   const [busy, setBusy] = useState(false);
@@ -31,8 +34,12 @@ export function KpiCreateMetricDrawer({
     if (!open || !token) return;
     void (async () => {
       try {
-        const res = await fetchKpiGroups(token, { status: 'ACTIVE', page_size: 100, sort: 'display_order:asc' });
+        const [res, typeRes] = await Promise.all([
+          fetchKpiGroups(token, { status: 'ACTIVE', page_size: 100, sort: 'display_order:asc' }),
+          fetchKpiTypes(token, { status: 'ACTIVE', page_size: 100, sort: 'display_order:asc' }).catch(() => ({ data: [] })),
+        ]);
         setGroups(res.data);
+        setTypes(typeRes.data);
       } catch {
         setGroups([]);
       }
@@ -60,11 +67,13 @@ export function KpiCreateMetricDrawer({
         higher_is_better: higherIsBetter,
         warn_ratio: wr == null || Number.isFinite(wr) ? (wr ?? null) : null,
         ...(groupId ? { group_id: groupId } : {}),
+        ...(kpiTypeId ? { kpi_type_id: kpiTypeId } : {}),
       });
       setName('');
       setCode('');
       setUnit('');
       setGroupId('');
+      setKpiTypeId('');
       setHigherIsBetter(true);
       setWarnRatio('');
       onCreated();
@@ -123,6 +132,30 @@ export function KpiCreateMetricDrawer({
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.name} ({g.code})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {types.length ? (
+            <label>
+              KPI Type
+              <select
+                className="kpi-select"
+                value={kpiTypeId}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setKpiTypeId(next);
+                  const selected = types.find((t) => t.id === next);
+                  if (selected?.kpi_group?.id) setGroupId(selected.kpi_group.id);
+                  if (selected?.unit?.name) setUnit(selected.unit.name);
+                }}
+                disabled={busy}
+              >
+                <option value="">— Không chọn —</option>
+                {types.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.code})
                   </option>
                 ))}
               </select>

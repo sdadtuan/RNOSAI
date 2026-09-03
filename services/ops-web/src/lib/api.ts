@@ -4702,6 +4702,7 @@ export async function createKpiMetric(
     higher_is_better?: boolean;
     warn_ratio?: number | null;
     group_id?: string | null;
+    kpi_type_id?: string | null;
   },
 ): Promise<KpiMetricRow> {
   return crmFetch<KpiMetricRow>(token, '/api/crm/kpi/metrics', {

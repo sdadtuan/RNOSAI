@@ -9,6 +9,7 @@ export interface KpiMetricRow {
   higher_is_better: number;
   warn_ratio: number | null;
   group_id: string | null;
+  kpi_type_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,6 +23,7 @@ export interface CreateKpiMetricBody {
   higher_is_better?: boolean | number;
   warn_ratio?: number | null;
   group_id?: string | null;
+  kpi_type_id?: string | null;
 }
 
 export interface PatchKpiMetricBody {
@@ -34,6 +36,7 @@ export interface PatchKpiMetricBody {
   higher_is_better?: boolean | number;
   warn_ratio?: number | null;
   group_id?: string | null;
+  kpi_type_id?: string | null;
 }
 
 export interface StaffKpiEntryRow {
