@@ -63,7 +63,7 @@ export default function IwrReportDetailPage() {
           <div className="text-xs text-slate-400">{report?.template_name_vi}</div>
           <h1 className="text-2xl font-semibold text-slate-900">{report?.title ?? 'Báo cáo nội bộ'}</h1>
         </div>
-        <Link href="/crm/internal-reports" className="text-sm text-[#0052CC] hover:underline">
+        <Link href="/crm/internal-reports" className="iwr-link">
           ← Danh sách
         </Link>
       </div>

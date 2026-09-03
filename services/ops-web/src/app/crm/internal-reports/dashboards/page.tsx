@@ -46,9 +46,7 @@ export default function IwrDashboardsPage() {
           <button
             key={r.id}
             type="button"
-            className={`rounded-full px-3 py-1.5 text-sm ${
-              role === r.id ? 'bg-[#0B1F4D] text-white' : 'border border-slate-200 bg-white text-slate-600'
-            }`}
+            className={role === r.id ? 'iwr-tab is-active' : 'iwr-tab'}
             onClick={() => setRole(r.id)}
           >
             {r.label}
@@ -74,7 +72,7 @@ export default function IwrDashboardsPage() {
           <p className="text-sm text-slate-500">Đang tải…</p>
         )}
       </div>
-      <Link href="/crm/internal-reports" className="mt-4 inline-block text-sm text-[#0052CC] hover:underline">
+      <Link href="/crm/internal-reports" className="iwr-link">
         ← BC của tôi
       </Link>
     </IwrAppShell>

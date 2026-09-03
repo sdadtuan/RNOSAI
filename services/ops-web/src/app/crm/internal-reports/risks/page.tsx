@@ -56,7 +56,7 @@ export default function IwrRisksPage() {
                   <div className="text-xs text-slate-400">{r.due_at ? iwrRelativeVi(r.due_at) : 'Chưa có hạn'}</div>
                 </div>
                 {r.report_id && (
-                  <Link href={`/crm/internal-reports/${r.report_id}`} className="text-sm text-[#0052CC]">
+                  <Link href={`/crm/internal-reports/${r.report_id}`} className="iwr-link">
                     Xem
                   </Link>
                 )}

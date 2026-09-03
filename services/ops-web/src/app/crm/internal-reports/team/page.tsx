@@ -103,7 +103,7 @@ export default function IwrTeamPage() {
                   <td className="py-3 pr-3">{iwrDerivedLabel(n.derived)}</td>
                   <td className="py-3">
                     {n.report ? (
-                      <Link href={`/crm/internal-reports/${n.report.id}`} className="text-[#0052CC] hover:underline">
+                      <Link href={`/crm/internal-reports/${n.report.id}`} className="iwr-link">
                         Mở
                       </Link>
                     ) : (

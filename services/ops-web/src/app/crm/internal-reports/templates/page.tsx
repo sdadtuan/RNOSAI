@@ -43,7 +43,7 @@ export default function IwrTemplatesPage() {
       <h1 className="mb-1 text-2xl font-semibold text-slate-900">Mẫu báo cáo</h1>
       <p className="mb-5 text-sm text-slate-500">Chỉ đổi tên hiển thị ở W1</p>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-      <Link href="/crm/internal-reports" className="mb-4 inline-block text-sm text-[#0052CC] hover:underline">
+      <Link href="/crm/internal-reports" className="iwr-link">
         ← BC công việc
       </Link>
       <div className="space-y-4">

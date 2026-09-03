@@ -29,10 +29,11 @@ export default function IwrSchedulesPage() {
       <h1 className="mb-1 text-2xl font-semibold text-slate-900">Cài đặt</h1>
       <p className="mb-4 text-sm text-slate-500">Precreate · Digest · Reminder</p>
       <div className="mb-4 flex gap-3 text-sm">
-        <Link href="/crm/internal-reports/lists" className="text-[#0052CC] hover:underline">
+        <Link href="/crm/internal-reports/lists" className="iwr-link">
           Danh sách phân phối
         </Link>
-        <Link href="/crm/internal-reports/builder" className="text-[#0052CC] hover:underline">
+        {' · '}
+        <Link href="/crm/internal-reports/builder" className="iwr-link">
           Report builder
         </Link>
       </div>
@@ -48,7 +49,7 @@ export default function IwrSchedulesPage() {
         ))}
         {!items.length && <div className="py-8 text-center text-sm text-slate-500">Chưa có lịch</div>}
       </div>
-      <Link href="/crm/internal-reports" className="mt-4 inline-block text-sm text-[#0052CC] hover:underline">
+      <Link href="/crm/internal-reports" className="iwr-link">
         ← BC của tôi
       </Link>
     </IwrAppShell>

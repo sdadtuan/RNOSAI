@@ -151,7 +151,7 @@ export default function IwrBuilderPage() {
         </IwrCard>
       )}
 
-      <Link href="/crm/internal-reports" className="mt-4 inline-block text-sm text-[#0052CC] hover:underline">
+      <Link href="/crm/internal-reports" className="iwr-link">
         ← BC của tôi
       </Link>
     </IwrAppShell>

@@ -49,8 +49,9 @@ export default function IwrListsPage() {
       <h1 className="mb-5 text-2xl font-semibold text-slate-900">Danh sách phân phối</h1>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       <div className="mb-4 flex gap-2 text-sm">
-        <Link href="/crm/internal-reports/schedules" className="text-[#0052CC] hover:underline">Lịch</Link>
-        <Link href="/crm/internal-reports/builder" className="text-[#0052CC] hover:underline">Builder</Link>
+        <Link href="/crm/internal-reports/schedules" className="iwr-link">Lịch</Link>
+        {' · '}
+        <Link href="/crm/internal-reports/builder" className="iwr-link">Builder</Link>
       </div>
       <IwrCard className="mb-4 max-w-lg space-y-2">
         <div className="text-sm font-medium">Tạo danh sách tĩnh</div>
@@ -66,7 +67,7 @@ export default function IwrListsPage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <button type="button" className="rounded-lg bg-[#0B1F4D] px-3 py-1.5 text-sm text-white" onClick={() => void handleCreate()}>
+        <button type="button" className="iwr-btn iwr-btn--primary" onClick={() => void handleCreate()}>
           Tạo
         </button>
       </IwrCard>
@@ -81,7 +82,7 @@ export default function IwrListsPage() {
         ))}
         {!items.length && <div className="py-8 text-center text-sm text-slate-500">Chưa có danh sách</div>}
       </div>
-      <Link href="/crm/internal-reports" className="mt-4 inline-block text-sm text-[#0052CC] hover:underline">
+      <Link href="/crm/internal-reports" className="iwr-link">
         ← BC của tôi
       </Link>
     </IwrAppShell>

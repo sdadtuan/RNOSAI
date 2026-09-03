@@ -89,7 +89,7 @@ export default function IwrInboxPage() {
                 </div>
               </div>
               <span className={`rounded-full px-2 py-0.5 text-[11px] ${iwrRagClass(row.rag)}`}>{iwrRagLabel(row.rag)}</span>
-              {!row.first_viewed_at && <span className="h-2 w-2 rounded-full bg-[#0052CC]" />}
+              {!row.first_viewed_at && <span className="iwr-dot" />}
             </Link>
           ))}
           {!items.length && <div className="py-8 text-center text-sm text-slate-500">Không có báo cáo trong mục này</div>}
