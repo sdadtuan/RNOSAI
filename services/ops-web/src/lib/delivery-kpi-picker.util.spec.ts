@@ -36,8 +36,19 @@ describe('delivery-kpi-picker.util', () => {
       setItem: (key: string, value: string) => {
         store.set(key, value);
       },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+      clear: () => {
+        store.clear();
+      },
+      key: (index: number) => Array.from(store.keys())[index] ?? null,
+      get length() {
+        return store.size;
+      },
     };
-    vi.stubGlobal('window', { sessionStorage: sessionStorageMock });
+    vi.stubGlobal('window', {});
+    Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: sessionStorageMock });
     writeWizardKpiSelection('draft-1', ['a', 'b']);
     expect(readWizardKpiSelection('draft-1')).toEqual(['a', 'b']);
     vi.unstubAllGlobals();
