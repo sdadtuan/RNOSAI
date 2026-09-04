@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { KPI_HUB_NAV, activeKpiHubHref } from '@/lib/kpi-hub-nav';
 import { KpiHubFreshnessFooter } from './KpiHubFreshnessFooter';
 
@@ -18,7 +18,7 @@ type KpiHubShellProps = {
 };
 
 function NavIcon({ icon }: { icon: string }) {
-  const common = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 };
+  const common = { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 };
   switch (icon) {
     case 'dashboard':
       return (
@@ -89,44 +89,28 @@ export function KpiHubShell({
 }: KpiHubShellProps) {
   const pathname = usePathname() ?? '';
   const activeHref = useMemo(() => activeKpiHubHref(pathname), [pathname]);
-  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className={`kpi-hub-shell${collapsed ? ' kpi-hub-shell--collapsed' : ''}`}>
-      <aside className="kpi-hub-sidebar">
-        <div className="kpi-hub-sidebar__brand">
-          <span className="kpi-hub-sidebar__logo" aria-hidden>
-            <NavIcon icon="chart" />
-          </span>
-          {!collapsed ? <strong>KPI Hub</strong> : null}
-        </div>
-        <nav className="kpi-hub-sidebar__nav" aria-label="KPI Hub">
+    <div className="kpi-hub-shell">
+      <div className="kpi-hub-main">
+        <nav className="kpi-hub-subnav kpi-hub-sidebar__nav" aria-label="KPI Hub">
           {KPI_HUB_NAV.map((item) => {
             const active = activeHref === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`kpi-hub-sidebar__link${active ? ' is-active' : ''}`}
+                className={`kpi-hub-subnav__link${active ? ' is-active' : ''}`}
               >
                 <span className="kpi-hub-sidebar__icon" aria-hidden>
                   <NavIcon icon={item.icon} />
                 </span>
-                {!collapsed ? <span>{item.label}</span> : null}
+                <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
-        <button
-          type="button"
-          className="kpi-hub-sidebar__collapse"
-          onClick={() => setCollapsed((v) => !v)}
-        >
-          {collapsed ? '»' : 'Thu gọn'}
-        </button>
-      </aside>
 
-      <div className="kpi-hub-main">
         <header className="kpi-hub-header">
           <div className="kpi-hub-header__left">
             {breadcrumb.length ? (
