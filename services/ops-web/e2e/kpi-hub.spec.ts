@@ -17,9 +17,10 @@ test.describe('KPI Hub chrome', () => {
     await loginAsStaff(page);
   });
 
-  test('ops nav KPI Hub section and dashboard fixture', async ({ page }) => {
+  test('ops nav KPI Hub section and executive redirect', async ({ page }) => {
     await page.goto('/crm/kpi-hub');
-    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible({
+    await expect(page).toHaveURL(/\/crm\/kpi-hub\/executive/, { timeout: 20_000 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Executive Command Center' })).toBeVisible({
       timeout: 20_000,
     });
     const kpiSection = page.locator('.ops-nav-group').filter({ hasText: 'KPI Hub' });
@@ -27,9 +28,8 @@ test.describe('KPI Hub chrome', () => {
     for (const label of HUB_NAV_LABELS) {
       await expect(kpiSection.getByText(label, { exact: true })).toBeVisible();
     }
-    await expect(page.locator('.kpi-hub-embed .kpi-hub-sidebar')).toBeHidden();
-    await expect(page.locator('.kpi-hub-summary-grid, .kpi-hub-dash-cards')).toBeVisible();
-    await expect(page.getByText('CPL Valid Lead')).toBeVisible();
+    await expect(page.locator('.kpi-hub-embed .kpi-hub-sidebar')).toBeVisible();
+    await expect(page.locator('[data-testid="exec-kpi-tiles"]')).toBeVisible();
     await expect(page.locator('.kpi-hub-freshness')).toBeVisible();
   });
 

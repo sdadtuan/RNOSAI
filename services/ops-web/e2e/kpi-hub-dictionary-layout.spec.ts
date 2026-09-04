@@ -15,11 +15,24 @@ function builtCssPath(): string | null {
 
 const LAYOUT_CSS = `
 .kpi-hub-embed { width: 100%; max-width: 100%; overflow-x: clip; }
-.kpi-hub-embed .kpi-hub-shell { display: block; width: 100%; max-width: 100%; overflow-x: clip; }
-.kpi-hub-embed .kpi-hub-sidebar { display: none !important; }
+.kpi-hub-embed .kpi-hub-shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+.kpi-hub-embed .kpi-hub-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-right: 1px solid #e7e0d4;
+  min-width: 0;
+}
 .kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay.has-drawer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 0;
   overflow: hidden;
   width: 100%;
   max-width: 100%;
@@ -29,7 +42,8 @@ const LAYOUT_CSS = `
   overflow-x: hidden;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
-  position: static;
+  position: sticky;
+  top: 0;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -47,7 +61,7 @@ const FIXTURE_HTML = `
   <div class="bitrix-crm-page__inner">
     <div class="kpi-hub-embed">
       <div class="kpi-hub-shell">
-        <aside class="kpi-hub-sidebar">hidden</aside>
+        <aside class="kpi-hub-sidebar" style="width:200px">KPI Hub nav</aside>
         <div class="kpi-hub-main">
           <div class="kpi-hub-content">
             <div class="kpi-hub-page-with-drawer kpi-hub-page-with-drawer--overlay has-drawer">
@@ -83,12 +97,13 @@ async function loginOrSkip(page: import('@playwright/test').Page) {
 }
 
 test.describe('KPI Dictionary built CSS contract', () => {
-  test('embed uses contained grid layout without 100vw overflow', () => {
+  test('embed uses three-column grid without 100vw overflow', () => {
     const cssFile = builtCssPath();
     test.skip(!cssFile, 'Run npm run build first');
     const css = fs.readFileSync(cssFile!, 'utf8');
-    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*display:block/);
-    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-sidebar\{[^}]*display:none!important/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*display:grid/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*grid-template-columns:200px minmax\(0,1fr\)/);
+    expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-sidebar\{[^}]*display:none!important/);
     expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer\.kpi-hub-page-with-drawer--overlay\.has-drawer\{[^}]*display:grid/);
     expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer--overlay \.kpi-hub-dict-drawer\{[^}]*position:fixed/);
     expect(css).not.toMatch(/padding-right:min\(380px,calc\(100vw/);
@@ -102,7 +117,7 @@ test.describe('KPI Dictionary layout (live)', () => {
     await loginOrSkip(page);
   });
 
-  test('no empty sidebar gap and drawer fully visible', async ({ page }) => {
+  test('inner sidebar visible, drawer fully inside viewport', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/crm/kpi-hub/dictionary');
     await expect(page.getByRole('heading', { level: 2, name: 'CPL Valid Lead' })).toBeVisible({
@@ -114,23 +129,27 @@ test.describe('KPI Dictionary layout (live)', () => {
     const main = page.locator('.kpi-hub-embed .kpi-hub-main');
     const drawer = page.locator('.kpi-hub-dict-drawer');
 
-    await expect(sidebar).toBeHidden();
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.getByText('KPI Dictionary')).toBeVisible();
 
     const shellBox = await shell.boundingBox();
+    const sidebarBox = await sidebar.boundingBox();
     const mainBox = await main.boundingBox();
     const drawerBox = await drawer.boundingBox();
 
     expect(shellBox).not.toBeNull();
+    expect(sidebarBox).not.toBeNull();
     expect(mainBox).not.toBeNull();
     expect(drawerBox).not.toBeNull();
-    expect(Math.abs(mainBox!.x - shellBox!.x)).toBeLessThan(8);
+    expect(sidebarBox!.width).toBeGreaterThan(150);
+    expect(Math.abs(mainBox!.x - (shellBox!.x + sidebarBox!.width))).toBeLessThan(8);
     expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(1280);
     await expect(drawer.getByText('Chi phí trên mỗi Valid Lead', { exact: false })).toBeVisible();
   });
 });
 
 test.describe('KPI Dictionary layout fixture', () => {
-  test('single-column shell and drawer stay inside viewport without page scroll', async ({ page }) => {
+  test('three-column shell and drawer stay inside viewport without page scroll', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto('about:blank');
     await page.setContent(FIXTURE_HTML, { waitUntil: 'domcontentloaded' });
@@ -140,14 +159,19 @@ test.describe('KPI Dictionary layout fixture', () => {
     expect(hasHorizontalScroll).toBe(false);
 
     const shell = page.locator('.kpi-hub-shell');
+    const sidebar = page.locator('.kpi-hub-sidebar');
     const main = page.locator('.kpi-hub-main');
     const drawer = page.locator('.kpi-hub-dict-drawer');
 
+    await expect(sidebar).toBeVisible();
+
     const shellBox = await shell.boundingBox();
+    const sidebarBox = await sidebar.boundingBox();
     const mainBox = await main.boundingBox();
     const drawerBox = await drawer.boundingBox();
 
-    expect(Math.abs(mainBox!.x - shellBox!.x)).toBeLessThan(8);
+    expect(sidebarBox!.width).toBeGreaterThan(150);
+    expect(Math.abs(mainBox!.x - (shellBox!.x + sidebarBox!.width))).toBeLessThan(8);
     expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(shellBox!.x + shellBox!.width + 2);
     await expect(drawer.getByRole('heading', { level: 2, name: 'CPL Valid Lead' })).toBeVisible();
   });
