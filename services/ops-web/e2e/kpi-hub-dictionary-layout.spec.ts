@@ -38,26 +38,27 @@ const LAYOUT_CSS = `
 .kpi-hub-embed .kpi-hub-main {
   grid-area: 1 / 2 / 2 / 3;
   min-width: 0;
-  width: 100%;
+  width: auto;
   background: #fffdf8;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay.has-drawer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
   gap: 0;
   overflow: hidden;
   width: 100%;
   max-width: 100%;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
+  width: auto;
   min-width: 0;
   overflow-x: hidden;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
   position: sticky;
   top: 0;
-  width: 100%;
-  max-width: 100%;
+  width: auto;
+  max-width: none;
   min-width: 0;
 }
 @media (max-width: 1100px) {
@@ -124,6 +125,7 @@ test.describe('KPI Dictionary built CSS contract', () => {
     expect(css).toMatch(/body:has\(\.kpi-hub-embed\)\{[^}]*background:#fffdf8/);
     expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-freshness\{[^}]*margin-top:auto/);
     expect(css).toMatch(/body:has\(\.ops-sidebar\) \.kpi-hub-embed \.kpi-hub-content[,{][^}]*margin-left:0!important/);
+    expect(css).toMatch(/body:has\(\.kpi-hub-embed\) main\.bitrix-crm-page[,{][^}]*width:auto!important/);
   });
 });
 
@@ -160,6 +162,7 @@ test.describe('KPI Dictionary layout (live)', () => {
     expect(sidebarBox!.width).toBeGreaterThan(150);
     expect(Math.abs(mainBox!.x - (shellBox!.x + sidebarBox!.width))).toBeLessThan(8);
     expect(mainBox!.width).toBeGreaterThan(shellBox!.width * 0.45);
+    expect(drawerBox!.width).toBeGreaterThan(200);
     expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(1280);
     await expect(drawer.getByText('Chi phí trên mỗi Valid Lead', { exact: false })).toBeVisible();
   });

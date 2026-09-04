@@ -19237,6 +19237,8 @@ body {
   background: transparent;
   border-bottom: none;
   padding: 1.15rem 1rem 0.35rem;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 .kpi-hub-embed .kpi-hub-header__tenant { display: none; }
 .kpi-hub-embed .kpi-hub-page-head__title { font-size: 1.7rem; letter-spacing: -0.02em; }
@@ -19267,7 +19269,7 @@ html.ops-shell-bitrix body:has(.ops-sidebar) .kpi-hub-embed .kpi-hub-content {
   flex-direction: column;
   min-width: 0;
   min-height: 100%;
-  width: 100%;
+  width: auto;
   max-width: 100%;
   margin-left: 0;
   overflow-x: clip;
@@ -19282,7 +19284,6 @@ html.ops-shell-bitrix body:has(.ops-sidebar) .kpi-hub-embed .kpi-hub-content {
   padding: 0.65rem 1rem;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer,
-.kpi-hub-embed .kpi-hub-page-with-drawer__main,
 .kpi-hub-embed .kpi-hub-summary-grid,
 .kpi-hub-embed .kpi-hub-dict-toolbar,
 .kpi-hub-embed .kpi-hub-dict-table,
@@ -19299,7 +19300,7 @@ html.ops-shell-bitrix body:has(.ops-sidebar) .kpi-hub-embed .kpi-hub-content {
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay.has-drawer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, min(340px, 30%));
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
   gap: 0;
   align-items: stretch;
   width: 100%;
@@ -19308,7 +19309,7 @@ html.ops-shell-bitrix body:has(.ops-sidebar) .kpi-hub-embed .kpi-hub-content {
   overflow: hidden;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
-  width: 100%;
+  width: auto;
   max-width: 100%;
   min-width: 0;
   padding-right: 0;
@@ -19321,10 +19322,10 @@ html.ops-shell-bitrix body:has(.ops-sidebar) .kpi-hub-embed .kpi-hub-content {
 .kpi-hub-embed .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
   position: sticky;
   top: 0;
-  align-self: start;
-  width: 100%;
+  align-self: stretch;
+  width: auto;
   min-width: 0;
-  max-width: 100%;
+  max-width: none;
   max-height: calc(100vh - var(--ops-chrome-h, 56px) - 2rem);
   overflow-y: auto;
   overflow-x: hidden;
@@ -19402,17 +19403,21 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) {
   overflow-x: hidden;
   background: #fffdf8;
 }
-html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
+html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page,
+html.ops-shell-bitrix body:has(.kpi-hub-embed) main.ops-page--full {
   padding-top: calc(var(--ops-chrome-h, 56px) + 0.25rem) !important;
   padding-bottom: 0 !important;
   padding-left: 0 !important;
   padding-right: 0 !important;
   overflow-x: hidden;
-  max-width: 100%;
+  width: auto !important;
+  max-width: none !important;
   background: #fffdf8;
+  box-sizing: border-box;
 }
 html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   padding: 0;
+  width: auto;
   max-width: none;
   background: #fffdf8;
 }
