@@ -28,6 +28,7 @@ export const KPI_HUB_ERROR_CODES = {
   NAME_REQUIRED: 'KPI_HUB_NAME_REQUIRED',
   FORMULA_INVALID: 'KPI_HUB_FORMULA_INVALID',
   FORMULA_CYCLE: 'KPI_HUB_FORMULA_CYCLE',
+  FORMULA_CHECKSUM_MISMATCH: 'KPI_HUB_FORMULA_CHECKSUM_MISMATCH',
   PUBLISH_BLOCKED: 'KPI_HUB_PUBLISH_BLOCKED',
   STATUS_INVALID: 'KPI_HUB_STATUS_INVALID',
   MAINTENANCE_MODE: 'KPI_HUB_MAINTENANCE_MODE',
@@ -153,6 +154,8 @@ export type HubPeriodTargetRow = {
   grain: PeriodGrain;
   scope_type: string;
   scope_label: string;
+  hierarchy_level?: string;
+  scope_hash?: string;
   direction: HubDirection;
   unit: string;
   target_value: number;
@@ -208,6 +211,7 @@ export type HubQualityIssue = {
   id: string;
   rule_id: string;
   rule_name: string;
+  run_id?: string;
   status: QualityIssueStatus;
   severity: AlertLevel;
   title: string;
@@ -218,6 +222,45 @@ export type HubQualityIssue = {
   ticket_ref: string | null;
   sample_rows: Array<Record<string, unknown>>;
   created_at: string;
+};
+
+export type HubQualityRun = {
+  id: string;
+  started_at: string;
+  finished_at: string;
+  score: number;
+  rules_passed: number;
+  rules_total: number;
+  issues_created: number;
+  triggered_by: number;
+};
+
+export type HubNotificationRow = {
+  id: string;
+  staff_id: number;
+  level: AlertLevel;
+  title: string;
+  body: string | null;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+export type HubDictionaryVersionRow = {
+  id: string;
+  dictionary_id: string;
+  version: number;
+  formula_display: string | null;
+  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'SUPERSEDED';
+  created_at: string;
+  created_by: number;
+};
+
+export type HubSourceBindingRow = {
+  entity_name: string;
+  agg: string;
+  value_field?: string;
+  filters: Array<{ field: string; op: string; value?: string }>;
 };
 
 export type HubReportRow = {
@@ -278,6 +321,22 @@ export type HubTargetListQuery = {
   page_size?: number;
   q?: string;
   status?: HubPerfStatus;
+  campaign?: string;
+  team?: string;
+  department?: string;
+  user?: string;
+};
+
+export type PreviewHubDictionaryBody = {
+  formula_display?: string;
+  numerator_code?: string;
+  denominator_code?: string;
+};
+
+export type HubNotificationListQuery = {
+  page?: number;
+  page_size?: number;
+  unread_only?: string;
 };
 
 export type HubAlertListQuery = {

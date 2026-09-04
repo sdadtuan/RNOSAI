@@ -2,8 +2,8 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { AppConfigService } from '../../config/app-config.service';
-import { buildDictionaryFixtures } from '../kpi-hub.fixtures';
-import { isMissingRelationError, kpiHubMemory, withDbFallback } from '../kpi-hub.memory-store';
+import { loadSeedSql } from '../connectors/kpi-hub-connector.port';
+import { isMissingRelationError, kpiHubMemory, markPgActive, shouldUseMemory, withDbFallback } from '../kpi-hub.memory-store';
 import {
   KPI_HUB_DEFAULT_WORKSPACE_ID,
   KPI_HUB_TENANT_ID,
@@ -12,6 +12,8 @@ import {
   type HubDictionaryListQuery,
   type HubDictionaryRow,
   type HubDictionarySummary,
+  type HubDictionaryVersionRow,
+  type HubSourceBindingRow,
   type PatchHubDictionaryBody,
 } from '../kpi-hub.types';
 
@@ -131,7 +133,7 @@ export class KpiHubDictionaryRepository implements OnModuleDestroy {
       const countRes = await this.db.query(`SELECT COUNT(*)::int AS c FROM crm_kpi_dictionary WHERE ${where}`, params);
       const total = Number(countRes.rows[0]?.c ?? 0);
       if (total === 0) return null;
-      kpiHubMemory.useDb = true;
+      markPgActive();
       params.push(pageSize, (page - 1) * pageSize);
       const res = await this.db.query(
         `SELECT * FROM crm_kpi_dictionary WHERE ${where}
@@ -165,7 +167,7 @@ export class KpiHubDictionaryRepository implements OnModuleDestroy {
       const row = res.rows[0] as Record<string, unknown>;
       const total = Number(row?.total ?? 0);
       if (total === 0) return null;
-      kpiHubMemory.useDb = true;
+      markPgActive();
       const srcRes = await this.db.query(
         `SELECT COUNT(DISTINCT primary_source)::int AS c FROM crm_kpi_dictionary
          WHERE tenant_id = $1 AND workspace_id = $2::uuid AND deleted_at IS NULL`,
@@ -197,7 +199,7 @@ export class KpiHubDictionaryRepository implements OnModuleDestroy {
         [KPI_HUB_TENANT_ID, KPI_HUB_DEFAULT_WORKSPACE_ID, id],
       );
       if (res.rows.length === 0) return null;
-      kpiHubMemory.useDb = true;
+      markPgActive();
       return this.mapRow(res.rows[0] as Record<string, unknown>);
     }, () => kpiHubMemory.snapshotDictionary().find((r) => r.id === id) ?? null);
   }
@@ -210,7 +212,7 @@ export class KpiHubDictionaryRepository implements OnModuleDestroy {
         [KPI_HUB_TENANT_ID, KPI_HUB_DEFAULT_WORKSPACE_ID, code],
       );
       if (res.rows.length === 0) return null;
-      kpiHubMemory.useDb = true;
+      markPgActive();
       return this.mapRow(res.rows[0] as Record<string, unknown>);
     }, () => kpiHubMemory.snapshotDictionary().find((r) => r.code === code) ?? null);
   }
@@ -241,7 +243,7 @@ export class KpiHubDictionaryRepository implements OnModuleDestroy {
           staffId,
         ],
       );
-      kpiHubMemory.useDb = true;
+      markPgActive();
       return this.mapRow(res.rows[0] as Record<string, unknown>);
     }, () => {
       const row: HubDictionaryRow = {
@@ -304,7 +306,7 @@ export class KpiHubDictionaryRepository implements OnModuleDestroy {
         values,
       );
       if (res.rows.length === 0) return null;
-      kpiHubMemory.useDb = true;
+      markPgActive();
       return this.mapRow(res.rows[0] as Record<string, unknown>);
     }, () => {
       const idx = kpiHubMemory.dictionary.findIndex((r) => r.id === id && !r.deleted_at);
@@ -320,31 +322,51 @@ export class KpiHubDictionaryRepository implements OnModuleDestroy {
     });
   }
 
-  async publish(id: string, rowVersion: number): Promise<HubDictionaryRow | null> {
+  async publish(
+    id: string,
+    rowVersion: number,
+    opts?: { pendingApproval?: boolean; formulaChanged?: boolean },
+  ): Promise<HubDictionaryRow | null> {
+    const pending = opts?.pendingApproval ?? false;
+    const nextStatus = pending ? 'PENDING_APPROVAL' : 'ACTIVE';
+
     return withDbFallback(async () => {
       const res = await this.db.query(
         `UPDATE crm_kpi_dictionary
-         SET status = 'ACTIVE', current_version = current_version + 1,
-             published_at = NOW(), updated_at = NOW(), row_version = row_version + 1
+         SET status = $5, current_version = current_version + 1,
+             published_at = CASE WHEN $5 = 'ACTIVE' THEN NOW() ELSE published_at END,
+             updated_at = NOW(), row_version = row_version + 1
          WHERE tenant_id = $1 AND workspace_id = $2::uuid AND id = $3::uuid
            AND row_version = $4 AND deleted_at IS NULL RETURNING *`,
-        [KPI_HUB_TENANT_ID, KPI_HUB_DEFAULT_WORKSPACE_ID, id, rowVersion],
+        [KPI_HUB_TENANT_ID, KPI_HUB_DEFAULT_WORKSPACE_ID, id, rowVersion, nextStatus],
       );
       if (res.rows.length === 0) return null;
-      kpiHubMemory.useDb = true;
+      markPgActive();
       return this.mapRow(res.rows[0] as Record<string, unknown>);
     }, () => {
       const idx = kpiHubMemory.dictionary.findIndex((r) => r.id === id && !r.deleted_at);
       if (idx < 0) return null;
       if (kpiHubMemory.dictionary[idx].row_version !== rowVersion) return null;
+      const nextVersion = kpiHubMemory.dictionary[idx].current_version + 1;
       kpiHubMemory.dictionary[idx] = {
         ...kpiHubMemory.dictionary[idx],
-        status: 'ACTIVE',
-        current_version: kpiHubMemory.dictionary[idx].current_version + 1,
-        published_at: new Date().toISOString(),
+        status: nextStatus,
+        current_version: nextVersion,
+        published_at: pending ? kpiHubMemory.dictionary[idx].published_at : new Date().toISOString(),
         updated_at: new Date().toISOString(),
         row_version: rowVersion + 1,
       };
+      if (opts?.formulaChanged) {
+        kpiHubMemory.dictionaryVersions.push({
+          id: randomUUID(),
+          dictionary_id: id,
+          version: nextVersion,
+          formula_display: kpiHubMemory.dictionary[idx].formula_display,
+          status: pending ? 'PENDING_APPROVAL' : 'ACTIVE',
+          created_at: new Date().toISOString(),
+          created_by: 1,
+        });
+      }
       return { ...kpiHubMemory.dictionary[idx] };
     });
   }
@@ -369,60 +391,18 @@ export class KpiHubDictionaryRepository implements OnModuleDestroy {
   }
 
   async seedIfEmpty(): Promise<void> {
+    if (shouldUseMemory()) return;
     try {
       const res = await this.db.query(
         `SELECT COUNT(*)::int AS c FROM crm_kpi_dictionary WHERE tenant_id = $1 AND workspace_id = $2::uuid`,
         [KPI_HUB_TENANT_ID, KPI_HUB_DEFAULT_WORKSPACE_ID],
       );
       if (Number(res.rows[0]?.c) > 0) {
-        kpiHubMemory.useDb = true;
+        markPgActive();
         return;
       }
-      for (const row of buildDictionaryFixtures()) {
-        await this.db.query(
-          `INSERT INTO crm_kpi_dictionary (
-            id, tenant_id, workspace_id, code, name, description, kpi_group, kpi_group_color,
-            direction, unit, decimal_places, calc_kind, formula_display, tech_preview, business_formula,
-            blank_if_zero, non_additive_ratio, allow_manual, numerator_code, denominator_code,
-            primary_source, sync_frequency, kpi_owner_json, data_owner_json, status, current_version,
-            published_at, row_version
-          ) VALUES (
-            $1::uuid, $2, $3::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-            $16, $17, $18, $19, $20, $21, $22, $23::jsonb, $24::jsonb, $25, $26, $27, $28
-          ) ON CONFLICT DO NOTHING`,
-          [
-            row.id,
-            row.tenant_id,
-            row.workspace_id,
-            row.code,
-            row.name,
-            row.description,
-            row.kpi_group,
-            row.kpi_group_color,
-            row.direction,
-            row.unit,
-            row.decimal_places,
-            row.calc_kind,
-            row.formula_display,
-            row.tech_preview,
-            row.business_formula,
-            row.blank_if_zero,
-            row.non_additive_ratio,
-            row.allow_manual,
-            row.numerator_code,
-            row.denominator_code,
-            row.primary_source,
-            row.sync_frequency,
-            JSON.stringify(row.kpi_owner),
-            JSON.stringify(row.data_owner),
-            row.status,
-            row.current_version,
-            row.published_at,
-            row.row_version,
-          ],
-        );
-      }
-      kpiHubMemory.useDb = true;
+      await this.db.query(loadSeedSql());
+      markPgActive();
     } catch (err) {
       if (!isMissingRelationError(err)) throw err;
     }
@@ -430,5 +410,34 @@ export class KpiHubDictionaryRepository implements OnModuleDestroy {
 
   allCodes(): string[] {
     return kpiHubMemory.snapshotDictionary().map((r) => r.code);
+  }
+
+  allRows(): HubDictionaryRow[] {
+    return kpiHubMemory.snapshotDictionary();
+  }
+
+  listVersions(dictionaryId: string): HubDictionaryVersionRow[] {
+    return kpiHubMemory.dictionaryVersions.filter((v) => v.dictionary_id === dictionaryId);
+  }
+
+  getBindings(dictionaryId: string): HubSourceBindingRow[] {
+    return kpiHubMemory.dictionaryBindings.get(dictionaryId) ?? [];
+  }
+
+  setBindings(dictionaryId: string, bindings: HubSourceBindingRow[]): void {
+    kpiHubMemory.dictionaryBindings.set(dictionaryId, bindings);
+  }
+
+  markDownstreamNeedReview(codes: string[]): void {
+    for (const code of codes) {
+      const idx = kpiHubMemory.dictionary.findIndex((r) => r.code === code && !r.deleted_at);
+      if (idx >= 0 && kpiHubMemory.dictionary[idx].status === 'ACTIVE') {
+        kpiHubMemory.dictionary[idx] = {
+          ...kpiHubMemory.dictionary[idx],
+          status: 'NEED_REVIEW',
+          updated_at: new Date().toISOString(),
+        };
+      }
+    }
   }
 }

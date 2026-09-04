@@ -10,14 +10,17 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { KpiHubAlertsService } from './alerts/kpi-hub-alerts.service';
 import { KpiHubDashboardService } from './dashboard/kpi-hub-dashboard.service';
+import { KpiHubExportService } from './export/kpi-hub-export.service';
+import { KpiHubFactsService } from './facts/kpi-hub-facts.service';
 import { KpiHubDictionaryService } from './dictionary/kpi-hub-dictionary.service';
 import {
   StaffKpiHubDictionaryManageGuard,
@@ -38,6 +41,7 @@ import {
 import { KpiHubSourcesService } from './mapping/kpi-hub-sources.service';
 import { KpiHubQualityService } from './quality/kpi-hub-quality.service';
 import { KpiHubActivityService, KpiHubReportsService } from './reports/kpi-hub-reports.service';
+import { KpiHubNotificationsService } from './notifications/kpi-hub-notifications.service';
 import { KpiHubTargetsService } from './targets/kpi-hub-targets.service';
 import { KpiHubWorkspaceService } from './workspace/kpi-hub-workspace.service';
 import type {
@@ -49,11 +53,13 @@ import type {
   HubAlertListQuery,
   HubDashboardQuery,
   HubDictionaryListQuery,
+  HubNotificationListQuery,
   HubReportListQuery,
   HubTargetListQuery,
   PatchHubDictionaryBody,
   PatchHubTargetBody,
   PatchHubWorkspaceBody,
+  PreviewHubDictionaryBody,
   ScheduleHubReportBody,
   ShareHubReportBody,
   UpsertHubTargetBody,
@@ -75,9 +81,12 @@ export class KpiHubController {
     private readonly targets: KpiHubTargetsService,
     private readonly alerts: KpiHubAlertsService,
     private readonly dashboard: KpiHubDashboardService,
+    private readonly facts: KpiHubFactsService,
+    private readonly exportSvc: KpiHubExportService,
     private readonly quality: KpiHubQualityService,
     private readonly reports: KpiHubReportsService,
     private readonly activity: KpiHubActivityService,
+    private readonly notifications: KpiHubNotificationsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -118,6 +127,46 @@ export class KpiHubController {
   @UseGuards(StaffKpiHubViewGuard)
   getDashboard(@Query() query: HubDashboardQuery) {
     return this.dashboard.getDashboard(query);
+  }
+
+  @Get('dashboard/drilldown/:code')
+  @UseGuards(StaffKpiHubViewGuard)
+  getDrilldown(@Param('code') code: string, @Query() query: HubDashboardQuery) {
+    return this.dashboard.getDrilldown(code, query);
+  }
+
+  @Post('facts/recompute')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffKpiHubSettingsManageGuard)
+  recomputeFacts(@Body() body: { period?: string }) {
+    const now = new Date();
+    const period = body?.period ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return this.facts.computePeriod(period);
+  }
+
+  @Get('export/dictionary.xlsx')
+  @UseGuards(StaffKpiHubDictionaryViewGuard)
+  async exportDictionary(@Res() res: Response) {
+    const buf = await this.exportSvc.exportDictionaryXlsx();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="kpi-hub-dictionary.xlsx"');
+    res.send(buf);
+  }
+
+  @Get('export/targets.xlsx')
+  @UseGuards(StaffKpiHubTargetsViewGuard)
+  async exportTargets(@Res() res: Response) {
+    const buf = await this.exportSvc.exportTargetsXlsx();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="kpi-hub-targets.xlsx"');
+    res.send(buf);
+  }
+
+  @Post('targets/import/preview')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffKpiHubTargetsManageGuard)
+  previewTargetImport(@Body() body: { rows?: Array<Record<string, unknown>> }) {
+    return this.exportSvc.previewTargetImport(body.rows ?? []);
   }
 
   @Get('dictionary')
@@ -170,6 +219,19 @@ export class KpiHubController {
   @UseGuards(StaffKpiHubDictionaryManageGuard)
   validateDictionary(@Param('id') id: string, @Body() body: ValidateHubDictionaryBody) {
     return this.dictionary.validate(id, body);
+  }
+
+  @Get('dictionary/:id/dependencies')
+  @UseGuards(StaffKpiHubDictionaryViewGuard)
+  dictionaryDependencies(@Param('id') id: string) {
+    return this.dictionary.getDependencies(id);
+  }
+
+  @Post('dictionary/:id/preview')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffKpiHubDictionaryManageGuard)
+  previewDictionary(@Param('id') id: string, @Body() body: PreviewHubDictionaryBody) {
+    return this.dictionary.preview(id, body);
   }
 
   @Post('dictionary/:id/duplicate')
@@ -233,6 +295,20 @@ export class KpiHubController {
   async ackAlert(@Req() req: AuthedReq, @Param('id') id: string) {
     const { staffId } = await this.actor(req);
     return this.alerts.ack(id, staffId);
+  }
+
+  @Get('notifications')
+  @UseGuards(StaffKpiHubViewGuard)
+  async listNotifications(@Req() req: AuthedReq, @Query() query: HubNotificationListQuery) {
+    const { staffId } = await this.actor(req);
+    return this.notifications.list(staffId || 101, query);
+  }
+
+  @Patch('notifications/:id/read')
+  @UseGuards(StaffKpiHubViewGuard)
+  async readNotification(@Req() req: AuthedReq, @Param('id') id: string) {
+    const { staffId } = await this.actor(req);
+    return this.notifications.markRead(id, staffId || 101);
   }
 
   @Get('quality')

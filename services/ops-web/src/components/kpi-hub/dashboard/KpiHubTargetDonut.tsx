@@ -1,9 +1,12 @@
 'use client';
 
-import { KPI_HUB_DASHBOARD } from '@/lib/kpi-hub-fixtures';
+import type { KpiHubDashboardData } from '@/lib/kpi-hub-types';
 
-export function KpiHubTargetDonut() {
-  const { targetProgress } = KPI_HUB_DASHBOARD;
+type Props = {
+  targetProgress: KpiHubDashboardData['targetProgress'];
+};
+
+export function KpiHubTargetDonut({ targetProgress }: Props) {
   const pct = targetProgress.overallPct;
   const circumference = 2 * Math.PI * 42;
   const offset = circumference - (pct / 100) * circumference;

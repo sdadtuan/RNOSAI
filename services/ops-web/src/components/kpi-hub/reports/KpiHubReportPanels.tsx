@@ -1,9 +1,40 @@
 'use client';
 
-import { KPI_HUB_REPORTS } from '@/lib/kpi-hub-fixtures';
+type ReportSummary = {
+  total: number;
+  mine: number;
+  shared: number;
+  sentThisMonth: number;
+};
 
-export function KpiHubReportSummaryCards() {
-  const s = KPI_HUB_REPORTS.summary;
+type ReportItem = {
+  id: string;
+  name: string;
+  type: string;
+  owner: string;
+  status: string;
+};
+
+export function KpiHubReportSummaryCards({
+  summary,
+  loading,
+}: {
+  summary: ReportSummary;
+  loading?: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="kpi-hub-summary-grid">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <article key={i} className="kpi-hub-card kpi-hub-summary-card kpi-hub-skeleton-card">
+            <div className="kpi-hub-skeleton kpi-hub-skeleton--line kpi-hub-skeleton--lg" />
+          </article>
+        ))}
+      </div>
+    );
+  }
+
+  const s = summary;
   return (
     <div className="kpi-hub-summary-grid">
       <article className="kpi-hub-card kpi-hub-summary-card">
@@ -26,10 +57,18 @@ export function KpiHubReportSummaryCards() {
   );
 }
 
-export function KpiHubReportTabs({ active, onChange }: { active: string; onChange: (tab: string) => void }) {
+export function KpiHubReportTabs({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: readonly string[];
+  active: string;
+  onChange: (tab: string) => void;
+}) {
   return (
     <nav className="kpi-hub-tabs kpi-hub-tabs--compact" aria-label="Report tabs">
-      {KPI_HUB_REPORTS.tabs.map((tab) => (
+      {tabs.map((tab) => (
         <button
           key={tab}
           type="button"
@@ -43,7 +82,7 @@ export function KpiHubReportTabs({ active, onChange }: { active: string; onChang
   );
 }
 
-export function KpiHubReportList() {
+export function KpiHubReportList({ items }: { items: ReportItem[] }) {
   return (
     <div className="kpi-hub-table-wrap">
       <table className="kpi-hub-table">
@@ -56,7 +95,7 @@ export function KpiHubReportList() {
           </tr>
         </thead>
         <tbody>
-          {KPI_HUB_REPORTS.items.map((item) => (
+          {items.map((item) => (
             <tr key={item.id}>
               <td>{item.name}</td>
               <td>{item.type}</td>
@@ -70,8 +109,15 @@ export function KpiHubReportList() {
   );
 }
 
-export function KpiHubReportRail() {
-  const { quickCreate, nextSchedule, recentShares } = KPI_HUB_REPORTS;
+export function KpiHubReportRail({
+  quickCreate,
+  nextSchedule,
+  recentShares,
+}: {
+  quickCreate: readonly string[];
+  nextSchedule: { name: string; at: string; channel: string };
+  recentShares: Array<{ report: string; user: string; at: string }>;
+}) {
   return (
     <aside className="kpi-hub-rail">
       <section className="kpi-hub-card">
@@ -95,13 +141,10 @@ export function KpiHubReportRail() {
       </section>
       <section className="kpi-hub-card">
         <h3>Chia sẻ gần đây</h3>
-        <ul className="kpi-hub-share-list">
+        <ul className="kpi-hub-checklist">
           {recentShares.map((s) => (
             <li key={`${s.report}-${s.user}`}>
-              <strong>{s.report}</strong>
-              <span className="muted">
-                {s.user} · {s.at}
-              </span>
+              {s.report} → {s.user} <span className="muted">({s.at})</span>
             </li>
           ))}
         </ul>

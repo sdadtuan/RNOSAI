@@ -12,10 +12,14 @@ import {
 import type {
   HubAlertEvent,
   HubDictionaryRow,
+  HubDictionaryVersionRow,
+  HubNotificationRow,
   HubPeriodTargetRow,
   HubQualityIssue,
   HubQualityRule,
+  HubQualityRun,
   HubReportRow,
+  HubSourceBindingRow,
   HubSourceConnection,
   HubWorkspaceRow,
 } from './kpi-hub.types';
@@ -33,6 +37,10 @@ class KpiHubMemoryStore {
   alerts: HubAlertEvent[];
   qualityRules: HubQualityRule[];
   qualityIssues: HubQualityIssue[];
+  qualityRuns: HubQualityRun[];
+  notifications: HubNotificationRow[];
+  dictionaryVersions: HubDictionaryVersionRow[];
+  dictionaryBindings: Map<string, HubSourceBindingRow[]>;
   reports: HubReportRow[];
   activity = buildActivityFixtures();
   useDb = false;
@@ -45,6 +53,10 @@ class KpiHubMemoryStore {
     this.alerts = buildAlertFixtures();
     this.qualityRules = buildQualityRules();
     this.qualityIssues = buildQualityIssues();
+    this.qualityRuns = [];
+    this.notifications = [];
+    this.dictionaryVersions = [];
+    this.dictionaryBindings = new Map();
     this.reports = buildReportFixtures();
   }
 
@@ -57,6 +69,10 @@ class KpiHubMemoryStore {
     this.alerts = fresh.alerts;
     this.qualityRules = fresh.qualityRules;
     this.qualityIssues = fresh.qualityIssues;
+    this.qualityRuns = fresh.qualityRuns;
+    this.notifications = fresh.notifications;
+    this.dictionaryVersions = fresh.dictionaryVersions;
+    this.dictionaryBindings = fresh.dictionaryBindings;
     this.reports = fresh.reports;
     this.activity = fresh.activity;
     this.useDb = false;
@@ -73,17 +89,35 @@ class KpiHubMemoryStore {
 
 export const kpiHubMemory = new KpiHubMemoryStore();
 
+/** Returns false when PG is source of truth (prod flag or dictionary rows detected). */
+export function shouldUseMemory(): boolean {
+  if (process.env.KPI_HUB_USE_MEMORY === '0') return false;
+  if (kpiHubMemory.useDb) return false;
+  return true;
+}
+
 export async function withDbFallback<T>(
   dbFn: () => Promise<T | null>,
   memoryFn: () => T,
 ): Promise<T> {
-  if (kpiHubMemory.useDb) {
+  if (!shouldUseMemory()) {
     try {
       const result = await dbFn();
       if (result != null) return result;
     } catch {
-      // fall through
+      if (process.env.NODE_ENV === 'test') return memoryFn();
+      throw new Error('KPI_HUB_DB_UNAVAILABLE');
     }
+    return memoryFn();
+  }
+  try {
+    const result = await dbFn();
+    if (result != null) {
+      kpiHubMemory.useDb = true;
+      return result;
+    }
+  } catch {
+    // fall through to memory
   }
   return memoryFn();
 }
@@ -91,4 +125,8 @@ export async function withDbFallback<T>(
 export function isMissingRelationError(err: unknown): boolean {
   const msg = String((err as { message?: string })?.message ?? err ?? '');
   return msg.includes('does not exist') || msg.includes('relation') || msg.includes('42P01');
+}
+
+export function markPgActive(): void {
+  kpiHubMemory.useDb = true;
 }

@@ -23,13 +23,15 @@ const SOURCE_LABEL: Record<string, string> = {
   DELAYED: 'Delayed',
   FAILED: 'Failed',
   UNAVAILABLE: 'Unavailable',
+  DATA_ISSUE: 'Data Issue',
 };
 
 type KpiHubStatusBadgeProps =
   | { kind: 'perf'; status: HubPerfStatus | string; label?: string }
   | { kind: 'dict'; status: KpiHubDictStatus | string }
   | { kind: 'source'; status: string }
-  | { kind: 'freshness'; status: string };
+  | { kind: 'freshness'; status: string }
+  | { kind: 'data'; status: string; label?: string };
 
 export function KpiHubStatusBadge(props: KpiHubStatusBadgeProps) {
   const status = props.status.toLowerCase().replace(/_/g, '-');
@@ -40,6 +42,8 @@ export function KpiHubStatusBadge(props: KpiHubStatusBadgeProps) {
     label = DICT_LABEL[props.status as KpiHubDictStatus] ?? String(props.status);
   } else if (props.kind === 'source') {
     label = SOURCE_LABEL[props.status] ?? props.status;
+  } else if (props.kind === 'data') {
+    label = props.label ?? SOURCE_LABEL[props.status] ?? String(props.status);
   } else {
     label = props.status;
   }

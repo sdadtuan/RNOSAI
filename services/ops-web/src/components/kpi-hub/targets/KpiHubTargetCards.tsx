@@ -1,9 +1,27 @@
 'use client';
 
-import { KPI_HUB_TARGETS } from '@/lib/kpi-hub-fixtures';
+import type { KpiHubTargetsData } from '@/lib/kpi-hub-types';
 
-export function KpiHubTargetCards() {
-  const s = KPI_HUB_TARGETS.summary;
+type Props = {
+  summary: KpiHubTargetsData['summary'];
+  loading?: boolean;
+};
+
+export function KpiHubTargetCards({ summary, loading }: Props) {
+  if (loading) {
+    return (
+      <div className="kpi-hub-summary-grid kpi-hub-summary-grid--4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <article key={i} className="kpi-hub-card kpi-hub-summary-card kpi-hub-skeleton-card">
+            <div className="kpi-hub-skeleton kpi-hub-skeleton--line kpi-hub-skeleton--sm" />
+            <div className="kpi-hub-skeleton kpi-hub-skeleton--line kpi-hub-skeleton--lg" />
+          </article>
+        ))}
+      </div>
+    );
+  }
+
+  const s = summary;
   return (
     <div className="kpi-hub-summary-grid kpi-hub-summary-grid--4">
       <article className="kpi-hub-card kpi-hub-summary-card">

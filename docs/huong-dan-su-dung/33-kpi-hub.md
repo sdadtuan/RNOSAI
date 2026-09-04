@@ -111,3 +111,58 @@ cd services/ops-web && npx playwright test e2e/kpi-hub.spec.ts
 | `FIN_002` | Doanh thu **thu tiền** |
 
 Không gộp ba metric này trên UI hay báo cáo.
+
+---
+
+## 8. P2 — Dữ liệu thật & Governance (2026-09)
+
+### 8.1 Fact compute
+
+- Facts được materialize vào `crm_kpi_facts` qua batch job (cron 08:00) hoặc thủ công:
+  - `POST /api/crm/kpi-hub/facts/recompute` body `{ "period": "2026-09" }`
+- Dashboard đọc facts, không query Ads live theo request.
+- Ratio (CPL, MQL Rate, Win Rate): `sum(num)/sum(den)` — không AVG tỷ lệ ngày.
+
+### 8.2 Formula & Dependency
+
+- Tab **Công thức** có Filter Builder, preview số dòng, dependency upstream/downstream.
+- `GET /api/crm/kpi-hub/dictionary/:id/dependencies`
+- `POST /api/crm/kpi-hub/dictionary/:id/preview`
+
+### 8.3 Target hierarchy
+
+- Thứ tự ưu tiên: Campaign/User → Team → Department → Workspace.
+- Import target preview: `POST /api/crm/kpi-hub/targets/import/preview`
+
+### 8.4 Alert engine
+
+- Dedup 240 phút; upgrade Critical bypass dedup.
+- Ack qua UI Target hoặc `POST /api/crm/kpi-hub/alerts/:id/ack`
+
+### 8.5 Data Quality
+
+- 14 rule mặc định; chạy thủ công: **Data Quality → Chạy kiểm tra** hoặc `POST /quality/run`
+- Issue có thể assign và tạo ticket IWR.
+
+### 8.6 Export & Power BI
+
+| Endpoint | Mục đích |
+|----------|----------|
+| `GET /export/dictionary.xlsx` | Xuất catalog KPI |
+| `GET /export/targets.xlsx` | Xuất target kỳ |
+| `GET /bi/dim-kpi` | Dimension KPI (read-only) |
+| `GET /bi/fact-actual?from=2026-09-01` | Fact actual cho BI |
+
+### 8.7 Deploy P2 VPS
+
+```bash
+chmod +x scripts/deploy_kpi_hub_p2_vps.sh
+APPLY=1 ./scripts/deploy_kpi_hub_p2_vps.sh
+sudo systemctl restart ptt-crm-api ptt-ops-web
+```
+
+E2E P2:
+
+```bash
+cd services/ops-web && npx playwright test e2e/kpi-hub-p2.spec.ts
+```

@@ -1,10 +1,12 @@
 'use client';
 
-import { KPI_HUB_DASHBOARD } from '@/lib/kpi-hub-fixtures';
+import type { KpiHubDashboardData } from '@/lib/kpi-hub-types';
 
-export function KpiHubTopSales() {
-  const { topSales } = KPI_HUB_DASHBOARD;
+type Props = {
+  topSales: KpiHubDashboardData['topSales'];
+};
 
+export function KpiHubTopSales({ topSales }: Props) {
   return (
     <article className="kpi-hub-card kpi-hub-top-sales">
       <header className="kpi-hub-card__head">

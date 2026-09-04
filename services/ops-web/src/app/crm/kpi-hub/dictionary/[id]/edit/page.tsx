@@ -16,7 +16,7 @@ function EditorBody({ id }: { id: string }) {
   const tab = useKpiHubEditorTab();
   const row = useMemo(() => findDictionaryById(id), [id]);
   if (!row) return <p className="error">Không tìm thấy KPI</p>;
-  if (tab === 'formula') return <KpiHubFormulaTab />;
+  if (tab === 'formula') return <KpiHubFormulaTab dictionaryId={id} />;
   if (tab === 'source') return <KpiHubMappingTab />;
   if (tab === 'target') return <TargetTab row={row} />;
   if (tab === 'governance') return <GovernanceTab row={row} />;

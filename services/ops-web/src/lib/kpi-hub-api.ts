@@ -162,3 +162,21 @@ export async function createKpiHubReport(token: string, body: Record<string, unk
 export async function fetchKpiHubActivity(token: string) {
   return kpiHubFetch<{ data: unknown[] }>(token, `${BASE}/activity`);
 }
+
+export async function fetchDictionaryDependencies(token: string, id: string) {
+  return kpiHubFetch<{ upstream: unknown[]; downstream: unknown[] }>(
+    token,
+    `${BASE}/dictionary/${encodeURIComponent(id)}/dependencies`,
+  );
+}
+
+export async function previewFormula(token: string, body: Record<string, unknown>) {
+  return kpiHubFetch<Record<string, unknown>>(token, `${BASE}/formula/preview`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchNotifications(token: string) {
+  return kpiHubFetch<{ data: unknown[] }>(token, `${BASE}/notifications`);
+}

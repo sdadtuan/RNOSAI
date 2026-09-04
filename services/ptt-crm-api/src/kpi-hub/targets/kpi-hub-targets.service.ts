@@ -10,6 +10,12 @@ import {
   type PatchHubTargetBody,
   type UpsertHubTargetBody,
 } from '../kpi-hub.types';
+import {
+  resolveTarget,
+  scopeHashFromChain,
+  type HubScopeChain,
+  type HubTargetCandidate,
+} from './kpi-hub-target-resolver';
 
 @Injectable()
 export class KpiHubTargetsService {
@@ -20,6 +26,44 @@ export class KpiHubTargetsService {
       total,
       total_pages: Math.max(1, Math.ceil(total / pageSize)),
     };
+  }
+
+  private scopeChainFromQuery(query: HubTargetListQuery): HubScopeChain {
+    return {
+      campaign: query.campaign,
+      team: query.team,
+      department: query.department,
+      user: query.user,
+    };
+  }
+
+  private toCandidate(row: HubPeriodTargetRow): HubTargetCandidate {
+    const level =
+      (row.hierarchy_level as HubTargetCandidate['hierarchy_level']) ??
+      (row.scope_type === 'ORGANIZATION' ? 'WORKSPACE' : 'TEAM');
+    return {
+      id: row.id,
+      hierarchy_level: level,
+      scope_hash: row.scope_hash ?? scopeHashFromChain({ team: row.scope_label }),
+      scope_label: row.scope_label,
+      target_value: row.target_value,
+      warning_value: row.warning_value,
+      critical_value: row.critical_value,
+      direction: row.direction,
+    };
+  }
+
+  private resolveForDictionary(
+    dictionaryId: string,
+    period: string,
+    scope: HubScopeChain,
+  ): HubPeriodTargetRow | null {
+    const candidates = kpiHubMemory.targets
+      .filter((t) => t.dictionary_id === dictionaryId && t.period === period)
+      .map((t) => this.toCandidate(t));
+    const resolved = resolveTarget(candidates, scope);
+    if (!resolved) return null;
+    return kpiHubMemory.targets.find((t) => t.id === resolved.id) ?? null;
   }
 
   private summary(targets: HubPeriodTargetRow[]) {
@@ -37,8 +81,16 @@ export class KpiHubTargetsService {
 
   async list(query: HubTargetListQuery) {
     const period = query.period ?? '2026-09';
+    const scope = this.scopeChainFromQuery(query);
+
     return withDbFallback(async () => null, () => {
-      let items = kpiHubMemory.targets.filter((t) => t.period === period);
+      const grouped = new Map<string, HubPeriodTargetRow>();
+      for (const t of kpiHubMemory.targets.filter((t) => t.period === period)) {
+        const resolved = this.resolveForDictionary(t.dictionary_id, period, scope);
+        if (resolved) grouped.set(resolved.dictionary_id, resolved);
+      }
+      let items = [...grouped.values()];
+
       if (query.status) items = items.filter((t) => t.status === query.status);
       if (query.q) {
         const q = query.q.toLowerCase();
@@ -54,6 +106,7 @@ export class KpiHubTargetsService {
         summary: this.summary(items),
         meta: this.meta(page, pageSize, items.length),
         period,
+        scope_resolved: scope,
       };
     });
   }
@@ -61,6 +114,12 @@ export class KpiHubTargetsService {
   async upsert(body: UpsertHubTargetBody) {
     const dict = kpiHubMemory.dictionary.find((d) => d.id === body.dictionary_id);
     if (!dict) throw new NotFoundException({ error: KPI_HUB_ERROR_CODES.NOT_FOUND });
+
+    const hierarchyLevel = body.scope_type === 'CAMPAIGN' ? 'CAMPAIGN' : body.scope_type === 'TEAM' ? 'TEAM' : 'WORKSPACE';
+    const scopeHash = scopeHashFromChain({
+      campaign: hierarchyLevel === 'CAMPAIGN' ? body.scope_label : undefined,
+      team: hierarchyLevel === 'TEAM' ? body.scope_label : undefined,
+    });
 
     const status = deriveHubStatus({
       direction: dict.direction,
@@ -71,7 +130,10 @@ export class KpiHubTargetsService {
     });
 
     const existingIdx = kpiHubMemory.targets.findIndex(
-      (t) => t.dictionary_id === body.dictionary_id && t.period === body.period,
+      (t) =>
+        t.dictionary_id === body.dictionary_id &&
+        t.period === body.period &&
+        (t.scope_hash ?? '') === scopeHash,
     );
 
     const row: HubPeriodTargetRow = {
@@ -85,6 +147,8 @@ export class KpiHubTargetsService {
       grain: 'MONTH',
       scope_type: body.scope_type ?? 'ORGANIZATION',
       scope_label: body.scope_label ?? 'Toàn tổ chức',
+      hierarchy_level: hierarchyLevel,
+      scope_hash: scopeHash,
       direction: dict.direction,
       unit: dict.unit,
       target_value: body.target_value,
@@ -154,5 +218,9 @@ export class KpiHubTargetsService {
         },
       ],
     };
+  }
+
+  resolveTarget(dictionaryId: string, period: string, scope: HubScopeChain) {
+    return this.resolveForDictionary(dictionaryId, period, scope);
   }
 }

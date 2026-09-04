@@ -1,10 +1,34 @@
 'use client';
 
-import { KPI_HUB_QUALITY } from '@/lib/kpi-hub-fixtures';
 import { KpiHubStatusBadge } from '../KpiHubStatusBadge';
 
-export function KpiHubQualityScore() {
-  const { score } = KPI_HUB_QUALITY;
+type QualitySummary = {
+  score: number;
+  sourcesOk: number;
+  sourcesTotal: number;
+  warnings: number;
+  critical: number;
+  trend: number[];
+  freshness: Array<{ name: string; status: string; lag: string }>;
+  rules: Array<{ id: string; name: string; severity: string; passRate: number; status: string }>;
+  issue: {
+    id: string;
+    rule: string;
+    count: number;
+    sample: string;
+    assignee: string | null;
+  };
+};
+
+export function KpiHubQualityScore({ score, loading }: { score: number; loading?: boolean }) {
+  if (loading) {
+    return (
+      <article className="kpi-hub-card kpi-hub-quality-score kpi-hub-skeleton-card">
+        <div className="kpi-hub-skeleton kpi-hub-skeleton--line" />
+      </article>
+    );
+  }
+
   return (
     <article className="kpi-hub-card kpi-hub-quality-score">
       <h2>Điểm chất lượng</h2>
@@ -30,30 +54,40 @@ export function KpiHubQualityScore() {
   );
 }
 
-export function KpiHubQualitySummaryCards() {
-  const q = KPI_HUB_QUALITY;
+export function KpiHubQualitySummaryCards({ data, loading }: { data: QualitySummary; loading?: boolean }) {
+  if (loading) {
+    return (
+      <div className="kpi-hub-quality-mini-grid">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <article key={i} className="kpi-hub-card kpi-hub-skeleton-card">
+            <div className="kpi-hub-skeleton kpi-hub-skeleton--line kpi-hub-skeleton--lg" />
+          </article>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="kpi-hub-quality-mini-grid">
       <article className="kpi-hub-card">
         <p className="muted">Nguồn OK</p>
         <strong>
-          {q.sourcesOk}/{q.sourcesTotal}
+          {data.sourcesOk}/{data.sourcesTotal}
         </strong>
       </article>
       <article className="kpi-hub-card kpi-hub-summary-card--amber">
         <p className="muted">Warning</p>
-        <strong>{q.warnings}</strong>
+        <strong>{data.warnings}</strong>
       </article>
       <article className="kpi-hub-card kpi-hub-summary-card--red">
         <p className="muted">Critical</p>
-        <strong>{q.critical}</strong>
+        <strong>{data.critical}</strong>
       </article>
     </div>
   );
 }
 
-export function KpiHubQualityTrend() {
-  const { trend } = KPI_HUB_QUALITY;
+export function KpiHubQualityTrend({ trend }: { trend: number[] }) {
   const max = Math.max(...trend);
   const min = Math.min(...trend);
   const points = trend
@@ -74,8 +108,11 @@ export function KpiHubQualityTrend() {
   );
 }
 
-export function KpiHubQualityFreshness() {
-  const { freshness } = KPI_HUB_QUALITY;
+export function KpiHubQualityFreshness({
+  freshness,
+}: {
+  freshness: QualitySummary['freshness'];
+}) {
   return (
     <article className="kpi-hub-card">
       <h2>Freshness nguồn</h2>
@@ -92,8 +129,13 @@ export function KpiHubQualityFreshness() {
   );
 }
 
-export function KpiHubQualityRulesTable({ onSelectIssue }: { onSelectIssue: () => void }) {
-  const { rules } = KPI_HUB_QUALITY;
+export function KpiHubQualityRulesTable({
+  rules,
+  onSelectIssue,
+}: {
+  rules: QualitySummary['rules'];
+  onSelectIssue: () => void;
+}) {
   return (
     <div className="kpi-hub-table-wrap">
       <table className="kpi-hub-table">
@@ -125,8 +167,15 @@ export function KpiHubQualityRulesTable({ onSelectIssue }: { onSelectIssue: () =
   );
 }
 
-export function KpiHubQualityIssueDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const issue = KPI_HUB_QUALITY.issue;
+export function KpiHubQualityIssueDrawer({
+  issue,
+  open,
+  onClose,
+}: {
+  issue: QualitySummary['issue'];
+  open: boolean;
+  onClose: () => void;
+}) {
   if (!open) return null;
   return (
     <aside className="kpi-hub-drawer">

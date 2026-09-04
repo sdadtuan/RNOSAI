@@ -1,6 +1,6 @@
 'use client';
 
-import { KPI_HUB_DASHBOARD } from '@/lib/kpi-hub-fixtures';
+import type { KpiHubDashboardData } from '@/lib/kpi-hub-types';
 
 function fmtRevenue(v: number) {
   if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)} tỷ`;
@@ -8,9 +8,13 @@ function fmtRevenue(v: number) {
   return v.toLocaleString('vi-VN');
 }
 
-export function KpiHubChannelChart() {
-  const { channels } = KPI_HUB_DASHBOARD;
-  const maxLeads = Math.max(...channels.map((c) => c.validLeads));
+type Props = {
+  channels: KpiHubDashboardData['channels'];
+};
+
+export function KpiHubChannelChart({ channels }: Props) {
+  const maxLeads = Math.max(...channels.map((c) => c.validLeads), 1);
+  const maxRevenue = Math.max(...channels.map((c) => c.revenue), 1);
 
   return (
     <article className="kpi-hub-card kpi-hub-channel-chart">
@@ -37,7 +41,7 @@ export function KpiHubChannelChart() {
                 <div className="kpi-hub-bar-track">
                   <div
                     className="kpi-hub-bar-fill kpi-hub-bar-fill--green"
-                    style={{ width: `${(ch.revenue / 420000000) * 100}%` }}
+                    style={{ width: `${(ch.revenue / maxRevenue) * 100}%` }}
                   />
                 </div>
                 <span>{fmtRevenue(ch.revenue)}</span>

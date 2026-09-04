@@ -8,18 +8,28 @@ import { KpiHubDictDrawer } from '@/components/kpi-hub/dictionary/KpiHubDictDraw
 import { KpiHubDictFilterBar } from '@/components/kpi-hub/dictionary/KpiHubDictFilterBar';
 import { KpiHubDictSummaryCards } from '@/components/kpi-hub/dictionary/KpiHubDictSummaryCards';
 import { KpiHubDictTable } from '@/components/kpi-hub/dictionary/KpiHubDictTable';
-import { KPI_HUB_DICTIONARY, type KpiHubDictionaryRow } from '@/lib/kpi-hub-fixtures';
+import { useKpiHubDictionary } from '@/hooks/useKpiHubDictionary';
+import { getAccessToken } from '@/lib/auth';
+import type { KpiHubDictionaryRow } from '@/lib/kpi-hub-fixtures';
 
 export default function KpiHubDictionaryPage() {
   const router = useRouter();
+  const token = getAccessToken() ?? '';
   const [q, setQ] = useState('');
   const [group, setGroup] = useState('');
   const [owner, setOwner] = useState('');
   const [status, setStatus] = useState('');
   const [selected, setSelected] = useState<KpiHubDictionaryRow | null>(null);
 
+  const { rows: apiRows, summary, loading, error } = useKpiHubDictionary(token, {
+    q,
+    group,
+    owner,
+    status,
+  });
+
   const rows = useMemo(() => {
-    return KPI_HUB_DICTIONARY.filter((row) => {
+    return apiRows.filter((row) => {
       if (group && row.group !== group) return false;
       if (status && row.status !== status) return false;
       if (owner && row.dataOwner !== owner) return false;
@@ -29,7 +39,7 @@ export default function KpiHubDictionaryPage() {
       }
       return true;
     });
-  }, [group, owner, q, status]);
+  }, [apiRows, group, owner, q, status]);
 
   return (
     <KpiHubPageGate section="crm_kpi_dictionary">
@@ -38,9 +48,10 @@ export default function KpiHubDictionaryPage() {
         subtitle="Quản trị từ điển KPI Marketing & Sales"
         breadcrumb={[{ label: 'Quản trị dữ liệu' }, { label: 'KPI Dictionary' }]}
       >
+        {error ? <p className="error">{error}</p> : null}
         <div className={`kpi-hub-page-with-drawer${selected ? ' has-drawer' : ''}`}>
           <div className="kpi-hub-page-with-drawer__main">
-            <KpiHubDictSummaryCards />
+            <KpiHubDictSummaryCards summary={summary} loading={loading} />
             <KpiHubDictFilterBar
               q={q}
               group={group}
@@ -54,7 +65,15 @@ export default function KpiHubDictionaryPage() {
               }}
               onCreate={() => router.push('/crm/kpi-hub/dictionary/new')}
             />
-            <KpiHubDictTable rows={rows} selectedId={selected?.id} onSelect={setSelected} />
+            {loading ? (
+              <div className="kpi-hub-table-wrap kpi-hub-skeleton-table">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="kpi-hub-skeleton kpi-hub-skeleton--line" />
+                ))}
+              </div>
+            ) : (
+              <KpiHubDictTable rows={rows} selectedId={selected?.id} onSelect={setSelected} />
+            )}
           </div>
           <KpiHubDictDrawer row={selected} onClose={() => setSelected(null)} />
         </div>

@@ -1,9 +1,41 @@
 'use client';
 
-import { KPI_HUB_WORKSPACE } from '@/lib/kpi-hub-fixtures';
+type WorkspaceData = {
+  name: string;
+  company: string;
+  timezone: string;
+  locale: string;
+  currency: string;
+  weekStart: string;
+  defaultPeriodGrain: string;
+  closeDay: number;
+  reconcileDay: number;
+  lockClosedPeriods: boolean;
+  allowReopen: boolean;
+  requireKpiApproval: boolean;
+  autoQuality: boolean;
+  alertsEnabled: boolean;
+  maintenanceMode: boolean;
+};
 
-export function WorkspacePanel() {
-  const w = KPI_HUB_WORKSPACE;
+type Props = {
+  workspace: WorkspaceData;
+  loading?: boolean;
+};
+
+export function WorkspacePanel({ workspace, loading }: Props) {
+  if (loading) {
+    return (
+      <div className="kpi-hub-settings-panel">
+        <section className="kpi-hub-card kpi-hub-skeleton-card">
+          <div className="kpi-hub-skeleton kpi-hub-skeleton--line" />
+          <div className="kpi-hub-skeleton kpi-hub-skeleton--line" />
+        </section>
+      </div>
+    );
+  }
+
+  const w = workspace;
   return (
     <div className="kpi-hub-settings-panel">
       <section className="kpi-hub-card">

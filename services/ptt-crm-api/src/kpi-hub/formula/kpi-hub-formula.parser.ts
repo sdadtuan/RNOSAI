@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { KPI_HUB_ERROR_CODES } from '../kpi-hub.types';
 import { hasFormulaCycle } from '../kpi-hub-status';
 
@@ -8,7 +9,15 @@ export type HubFormulaAggregation =
   | 'DISTINCTCOUNT'
   | 'DISTINCT_COUNT'
   | 'RATE'
-  | 'RATIO';
+  | 'RATIO'
+  | 'COMPOSITE';
+
+export type HubSourceBinding = {
+  entity_name: string;
+  agg: string;
+  value_field?: string;
+  filters: HubFormulaFilter[];
+};
 
 export type HubFormulaFilter = {
   field: string;
@@ -21,12 +30,17 @@ export type HubFormulaAst = {
   entity?: string;
   field?: string;
   kpi_code?: string;
+  expression?: string;
+  refs?: string[];
   filters: HubFormulaFilter[];
   numerator?: HubFormulaAst;
   denominator?: HubFormulaAst;
   blank_if_zero?: boolean;
   non_additive?: boolean;
 };
+
+const COMPOSITE_ALLOW = /^[\d\s+\-*/().\[\]A-Z_0-9]+$/;
+const COMPOSITE_REF = /\[([A-Z]{2,5}_[A-Z0-9_]+)\]/g;
 
 const FORBIDDEN = /;|--|\/\*|\b(DROP|DELETE|INSERT|UPDATE|ALTER|UNION|EXEC|TRUNCATE)\b/i;
 const KPI_CODE = /^[A-Z]{2,5}_[A-Z0-9_]+$/;
@@ -121,10 +135,29 @@ function parseAggExpr(expr: string): HubFormulaAst {
   };
 }
 
+function parseCompositeExpression(trimmed: string): HubFormulaAst {
+  if (!COMPOSITE_ALLOW.test(trimmed)) fail();
+  const refs = [...trimmed.matchAll(COMPOSITE_REF)].map((m) => m[1]);
+  for (const ref of refs) {
+    if (!KPI_CODE.test(ref)) fail();
+  }
+  return { kind: 'COMPOSITE', expression: trimmed, refs, filters: [] };
+}
+
 export function parseKpiHubFormula(expr: string): HubFormulaAst {
   const trimmed = String(expr ?? '').trim();
   if (!trimmed) fail();
   if (FORBIDDEN.test(trimmed)) fail();
+
+  if (/^COMPOSITE\s*\(/i.test(trimmed)) {
+    const inner = trimmed.match(/^COMPOSITE\s*\(([\s\S]+)\)$/i);
+    if (!inner?.[1]) fail();
+    return parseCompositeExpression(inner[1].trim());
+  }
+
+  if (/\[[A-Z]{2,5}_[A-Z0-9_]+\]/.test(trimmed) && !/^(COUNT|SUM|AVG|DISTINCT)/i.test(trimmed)) {
+    return parseCompositeExpression(trimmed);
+  }
 
   const ratioMatch = trimmed.match(/^RATIO\s*\(([\s\S]+)\)$/i);
   if (ratioMatch) {
@@ -164,6 +197,11 @@ export function buildFormulaEdges(
   const visit = (from: string, node: HubFormulaAst) => {
     if (node.kpi_code && knownCodes.has(node.kpi_code)) {
       edges.push({ from, to: node.kpi_code });
+    }
+    if (node.refs) {
+      for (const ref of node.refs) {
+        if (knownCodes.has(ref)) edges.push({ from, to: ref });
+      }
     }
     if (node.numerator) visit(from, node.numerator);
     if (node.denominator) visit(from, node.denominator);
@@ -225,4 +263,74 @@ export function validateKpiHubFormula(input: {
 export function toDaxPreview(numeratorCode?: string | null, denominatorCode?: string | null): string {
   if (!numeratorCode || !denominatorCode) return '';
   return `DIVIDE([${numeratorCode}], [${denominatorCode}])`;
+}
+
+function normalizeAstForChecksum(ast: HubFormulaAst): Record<string, unknown> {
+  return {
+    kind: ast.kind,
+    entity: ast.entity ?? null,
+    field: ast.field ?? null,
+    kpi_code: ast.kpi_code ?? null,
+    expression: ast.expression ?? null,
+    refs: ast.refs ?? [],
+    filters: ast.filters,
+    numerator: ast.numerator ? normalizeAstForChecksum(ast.numerator) : null,
+    denominator: ast.denominator ? normalizeAstForChecksum(ast.denominator) : null,
+  };
+}
+
+export function formulaAstChecksum(ast: HubFormulaAst): string {
+  const payload = JSON.stringify(normalizeAstForChecksum(ast));
+  return createHash('sha256').update(payload).digest('hex').slice(0, 16);
+}
+
+export function bindingsChecksum(bindings: HubSourceBinding[]): string {
+  const normalized = bindings.map((b) => ({
+    entity_name: b.entity_name,
+    agg: b.agg,
+    value_field: b.value_field ?? null,
+    filters: b.filters,
+  }));
+  return createHash('sha256').update(JSON.stringify(normalized)).digest('hex').slice(0, 16);
+}
+
+export function astToBindings(ast: HubFormulaAst): HubSourceBinding[] {
+  if (ast.kind === 'RATIO' && ast.numerator && ast.denominator) {
+    return [...astToBindings(ast.numerator), ...astToBindings(ast.denominator)];
+  }
+  if (ast.kind === 'COMPOSITE') return [];
+  if (ast.entity) {
+    return [
+      {
+        entity_name: ast.entity,
+        agg: ast.kind === 'DISTINCT_COUNT' ? 'DISTINCTCOUNT' : ast.kind,
+        value_field: ast.field,
+        filters: ast.filters,
+      },
+    ];
+  }
+  return [];
+}
+
+export function checksumsMatch(ast: HubFormulaAst, bindings: HubSourceBinding[]): boolean {
+  if (ast.kind === 'COMPOSITE' || ast.kind === 'RATIO') return true;
+  const derived = astToBindings(ast);
+  if (!derived.length && !bindings.length) return true;
+  return formulaAstChecksum(ast) === bindingsChecksum(bindings.length ? bindings : derived);
+}
+
+/** Estimate matching row count for formula preview (fixture-based v1). */
+export function estimatePreviewRowCount(ast: HubFormulaAst): number {
+  if (ast.kind === 'COMPOSITE') return 0;
+  if (ast.kind === 'RATIO') {
+    const num = ast.numerator ? estimatePreviewRowCount(ast.numerator) : 1486;
+    const den = ast.denominator ? estimatePreviewRowCount(ast.denominator) : 2340;
+    return Math.min(num, den);
+  }
+  const entity = (ast.entity ?? '').toLowerCase();
+  if (entity.includes('lead')) return 1486;
+  if (entity.includes('adinsight')) return 31;
+  if (entity.includes('deal')) return 420;
+  if (entity.includes('invoice') || entity.includes('payment')) return 180;
+  return 100;
 }

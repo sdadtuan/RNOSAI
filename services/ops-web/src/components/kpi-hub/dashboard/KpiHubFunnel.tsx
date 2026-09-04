@@ -1,9 +1,12 @@
 'use client';
 
-import { KPI_HUB_DASHBOARD } from '@/lib/kpi-hub-fixtures';
+import type { KpiHubDashboardData } from '@/lib/kpi-hub-types';
 
-export function KpiHubFunnel() {
-  const { funnel } = KPI_HUB_DASHBOARD;
+type Props = {
+  funnel: KpiHubDashboardData['funnel'];
+};
+
+export function KpiHubFunnel({ funnel }: Props) {
   const max = funnel.stages[0]?.value ?? 1;
 
   return (
@@ -22,7 +25,7 @@ export function KpiHubFunnel() {
               <div className="kpi-hub-funnel__meta">
                 <strong>{stage.name}</strong>
                 <span>{stage.value.toLocaleString('vi-VN')}</span>
-                {'conversion' in stage && stage.conversion ? (
+                {stage.conversion ? (
                   <span className="kpi-hub-funnel__conv">{stage.conversion}</span>
                 ) : null}
               </div>

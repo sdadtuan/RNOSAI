@@ -1,15 +1,15 @@
 'use client';
 
-import { KPI_HUB_TARGETS } from '@/lib/kpi-hub-fixtures';
+import type { KpiHubTargetRow } from '@/lib/kpi-hub-types';
 import { KpiHubStatusBadge } from '../KpiHubStatusBadge';
 
 type Props = {
+  rows: KpiHubTargetRow[];
   onSelect: (id: string) => void;
   selectedId?: string | null;
 };
 
-export function KpiHubTargetTable({ onSelect, selectedId }: Props) {
-  const { rows } = KPI_HUB_TARGETS;
+export function KpiHubTargetTable({ rows, onSelect, selectedId }: Props) {
   return (
     <div className="kpi-hub-table-wrap">
       <table className="kpi-hub-table">

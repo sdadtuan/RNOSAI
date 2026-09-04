@@ -61,4 +61,16 @@ describe('kpi-hub-formula.parser', () => {
       KPI_HUB_ERROR_CODES.FORMULA_INVALID,
     );
   });
+
+  it('parses COMPOSITE expression with KPI refs', () => {
+    const ast = parseKpiHubFormula('COMPOSITE([MKT_004] - [MKT_001])');
+    expect(ast.kind).toBe('COMPOSITE');
+    expect(ast.refs).toEqual(['MKT_004', 'MKT_001']);
+  });
+
+  it('rejects COMPOSITE with forbidden tokens', () => {
+    expect(() => parseKpiHubFormula('COMPOSITE([MKT_004]; DROP TABLE)')).toThrow(
+      KPI_HUB_ERROR_CODES.FORMULA_INVALID,
+    );
+  });
 });
