@@ -17,7 +17,7 @@ const LAYOUT_CSS = `
 .kpi-hub-embed { width: 100%; max-width: 100%; overflow-x: clip; }
 .kpi-hub-embed .kpi-hub-shell {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   width: 100%;
   max-width: 100%;
   overflow: hidden;
@@ -61,7 +61,7 @@ const FIXTURE_HTML = `
   <div class="bitrix-crm-page__inner">
     <div class="kpi-hub-embed">
       <div class="kpi-hub-shell">
-        <aside class="kpi-hub-sidebar" style="width:200px">KPI Hub nav</aside>
+        <aside class="kpi-hub-sidebar" style="width:240px">KPI Hub nav</aside>
         <div class="kpi-hub-main">
           <div class="kpi-hub-content">
             <div class="kpi-hub-page-with-drawer kpi-hub-page-with-drawer--overlay has-drawer">
@@ -102,7 +102,7 @@ test.describe('KPI Dictionary built CSS contract', () => {
     test.skip(!cssFile, 'Run npm run build first');
     const css = fs.readFileSync(cssFile!, 'utf8');
     expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*display:grid/);
-    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*grid-template-columns:200px minmax\(0,1fr\)/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*grid-template-columns:240px minmax\(0,1fr\)/);
     expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-sidebar\{[^}]*display:none!important/);
     expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer\.kpi-hub-page-with-drawer--overlay\.has-drawer\{[^}]*display:grid/);
     expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer--overlay \.kpi-hub-dict-drawer\{[^}]*position:fixed/);

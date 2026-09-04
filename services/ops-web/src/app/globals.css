@@ -18245,16 +18245,21 @@ body {
 /* ── KPI Hub (Marketing & Sales workspace) ── */
 .kpi-hub-shell {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   min-height: calc(100vh - 56px);
   min-width: 0;
   width: 100%;
   background: #f9fafb;
 }
 .kpi-hub-shell--collapsed { grid-template-columns: 64px minmax(0, 1fr); }
+.kpi-hub-shell--collapsed .kpi-hub-sidebar { max-width: 64px; }
 .kpi-hub-sidebar {
   display: flex;
   flex-direction: column;
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  max-width: 240px;
   background: #fff;
   border-right: 1px solid #e5e7eb;
   min-height: 100%;
@@ -18328,8 +18333,11 @@ body {
 .kpi-hub-main {
   display: flex;
   flex-direction: column;
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
   width: 100%;
+  margin-left: 0;
 }
 .kpi-hub-header {
   display: flex;
@@ -19005,6 +19013,14 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
   .kpi-hub-sidebar { display: none; }
+  .kpi-hub-embed .kpi-hub-shell,
+  .kpi-hub-embed .kpi-hub-shell--collapsed {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .kpi-hub-embed .kpi-hub-sidebar {
+    display: flex !important;
+    max-width: 64px;
+  }
   .kpi-hub-summary-grid,
   .kpi-hub-formula-parts,
   .kpi-hub-mapping-cards,
@@ -19176,7 +19192,7 @@ body {
 }
 .kpi-hub-embed .kpi-hub-shell {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -19189,9 +19205,16 @@ body {
 .kpi-hub-embed .kpi-hub-shell--collapsed {
   grid-template-columns: 64px minmax(0, 1fr);
 }
+.kpi-hub-embed .kpi-hub-shell--collapsed .kpi-hub-sidebar {
+  max-width: 64px;
+}
 .kpi-hub-embed .kpi-hub-sidebar {
   display: flex;
   flex-direction: column;
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  max-width: 240px;
   background: #fff;
   border-right: 1px solid #e7e0d4;
   min-width: 0;
@@ -19200,30 +19223,37 @@ body {
 .kpi-hub-embed .kpi-hub-header {
   background: transparent;
   border-bottom: none;
-  padding: 1.15rem 1.35rem 0.35rem;
+  padding: 1.15rem 1rem 0.35rem;
 }
 .kpi-hub-embed .kpi-hub-header__tenant { display: none; }
 .kpi-hub-embed .kpi-hub-page-head__title { font-size: 1.7rem; letter-spacing: -0.02em; }
 .kpi-hub-embed .kpi-hub-content {
   display: block;
   background: transparent;
-  padding: 1rem 1.35rem 1.5rem;
+  padding: 1rem 1rem 1.5rem;
   min-width: 0;
   width: 100%;
   max-width: 100%;
 }
 .kpi-hub-embed .kpi-hub-main {
+  grid-column: 2;
+  grid-row: 1;
   width: 100%;
   min-width: 0;
   max-width: 100%;
+  margin-left: 0;
   overflow-x: clip;
+  background: #fffdf8;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer,
 .kpi-hub-embed .kpi-hub-page-with-drawer__main,
 .kpi-hub-embed .kpi-hub-summary-grid,
 .kpi-hub-embed .kpi-hub-dict-toolbar,
 .kpi-hub-embed .kpi-hub-dict-table,
-.kpi-hub-embed .kpi-hub-table-wrap {
+.kpi-hub-embed .kpi-hub-table-wrap,
+.kpi-hub-embed .cc-page,
+.kpi-hub-embed .cc-toolbar,
+.kpi-hub-embed .cc-row {
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -19337,18 +19367,10 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) {
 }
 html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
   padding-bottom: 0.75rem !important;
+  padding-left: 0.65rem !important;
+  padding-right: 0.65rem !important;
   overflow-x: hidden;
   max-width: 100%;
-}
-
-@media (max-width: 900px) {
-  .kpi-hub-embed .kpi-hub-shell,
-  .kpi-hub-embed .kpi-hub-shell--collapsed {
-    grid-template-columns: 64px minmax(0, 1fr);
-  }
-  .kpi-hub-embed .kpi-hub-sidebar {
-    display: flex !important;
-  }
 }
 
 @media (max-width: 900px) {
