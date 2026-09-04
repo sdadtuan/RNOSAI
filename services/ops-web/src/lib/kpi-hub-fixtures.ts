@@ -48,7 +48,7 @@ const GROUP_META: Record<KpiHubGroupCode, { label: string; color: string }> = {
   MEDIA_EFFICIENCY: { label: 'Media Efficiency', color: '#8b5cf6' },
   FUNNEL: { label: 'Funnel', color: '#f97316' },
   SALES_OUTCOME: { label: 'Sales Outcome', color: '#10b981' },
-  FINANCE: { label: 'Unit Economics', color: '#ef4444' },
+  FINANCE: { label: 'Finance', color: '#8b5cf6' },
   OPERATIONS: { label: 'Operations', color: '#64748b' },
 };
 

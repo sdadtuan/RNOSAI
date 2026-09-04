@@ -49,8 +49,10 @@ export function KpiHubDictTable({
                 className={selectedId === row.id ? 'is-selected' : ''}
                 onClick={() => onSelect(row)}
               >
-                <td className="kpi-hub-table__mono">{row.code}</td>
-                <td>{row.name}</td>
+                <td>
+                  <span className="kpi-hub-table__mono">{row.code}</span>
+                </td>
+                <td className="kpi-hub-dict-table__name">{row.name}</td>
                 <td>
                   <span className="kpi-hub-group-badge" style={{ '--badge-color': row.groupColor } as CSSProperties}>
                     {row.groupLabel}
@@ -60,7 +62,7 @@ export function KpiHubDictTable({
                   <KpiHubSourceChips source={row.source} sources={row.sources} />
                 </td>
                 <td>{row.frequency}</td>
-                <td>{row.dataOwnerRole ?? row.dataOwner}</td>
+                <td>{row.dataOwner}</td>
                 <td>
                   <KpiHubStatusBadge kind="dict" status={row.status} />
                 </td>

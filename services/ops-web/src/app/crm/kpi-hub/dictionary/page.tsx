@@ -38,16 +38,18 @@ export default function KpiHubDictionaryPage() {
   const owners = useMemo(() => uniqueOwners(apiRows), [apiRows]);
 
   const filteredRows = useMemo(() => {
-    return apiRows.filter((row) => {
-      if (group && row.group !== group) return false;
-      if (status && row.status !== status) return false;
-      if (owner && row.dataOwner !== owner && row.dataOwnerRole !== owner) return false;
-      if (q) {
-        const hay = `${row.code} ${row.name} ${row.source} ${(row.sources ?? []).join(' ')}`.toLowerCase();
-        if (!hay.includes(q.toLowerCase())) return false;
-      }
-      return true;
-    });
+    return apiRows
+      .filter((row) => {
+        if (group && row.group !== group) return false;
+        if (status && row.status !== status) return false;
+        if (owner && row.dataOwner !== owner && row.dataOwnerRole !== owner) return false;
+        if (q) {
+          const hay = `${row.code} ${row.name} ${row.source} ${(row.sources ?? []).join(' ')}`.toLowerCase();
+          if (!hay.includes(q.toLowerCase())) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => a.code.localeCompare(b.code));
   }, [apiRows, group, owner, q, status]);
 
   const total = filteredRows.length;
@@ -95,6 +97,13 @@ export default function KpiHubDictionaryPage() {
                 if ('group' in patch) setGroup(patch.group ?? '');
                 if ('owner' in patch) setOwner(patch.owner ?? '');
                 if ('status' in patch) setStatus(patch.status ?? '');
+                setPage(1);
+              }}
+              onReset={() => {
+                setQ('');
+                setGroup('');
+                setOwner('');
+                setStatus('');
                 setPage(1);
               }}
             />

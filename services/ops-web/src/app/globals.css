@@ -18413,6 +18413,7 @@ body {
 .kpi-hub-input,
 .kpi-hub-select {
   width: 100%;
+  min-width: 0;
   padding: 0.45rem 0.65rem;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -18519,7 +18520,7 @@ body {
 .kpi-hub-table tbody tr:hover { background: #f9fafb; cursor: pointer; }
 .kpi-hub-table tbody tr.is-selected { background: #ecfdf5; }
 .kpi-hub-table tbody tr.is-clickable { cursor: pointer; }
-.kpi-hub-table__mono { display: block; font-family: ui-monospace, monospace; font-size: 0.78rem; color: #6b7280; }
+.kpi-hub-table__mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; color: #6b7280; }
 .kpi-hub-group-badge {
   display: inline-flex;
   padding: 0.15rem 0.5rem;
@@ -19049,25 +19050,102 @@ body {
 .kpi-hub-summary-card__icon--active { background: #ecfdf5; color: #059669; }
 .kpi-hub-summary-card__icon--review { background: #fff7ed; color: #ea580c; }
 .kpi-hub-summary-card__icon--sources { background: #eff6ff; color: #2563eb; }
-.kpi-hub-dict-filter-bar { align-items: center; }
-.kpi-hub-dict-filter-bar__search-wrap {
-  position: relative;
-  flex: 1 1 240px;
-  max-width: 420px;
+.kpi-hub-embed {
+  margin: 0;
 }
-.kpi-hub-dict-filter-bar__search-icon {
+.kpi-hub-embed .kpi-hub-shell {
+  min-height: calc(100vh - var(--ops-chrome-h, 56px) - 0.5rem);
+  background: #f3efe6;
+  border: 1px solid #e7e0d4;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.kpi-hub-embed .kpi-hub-header {
+  background: transparent;
+  border-bottom: none;
+  padding: 1.15rem 1.35rem 0.35rem;
+}
+.kpi-hub-embed .kpi-hub-header__tenant { display: none; }
+.kpi-hub-embed .kpi-hub-page-head__title { font-size: 1.7rem; letter-spacing: -0.02em; }
+.kpi-hub-embed .kpi-hub-content {
+  background: transparent;
+  padding: 1rem 1.35rem 1.5rem;
+}
+.kpi-hub-dict-toolbar {
+  background: #fff;
+  border: 1px solid #e7e0d4;
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  overflow-x: auto;
+}
+.kpi-hub-dict-toolbar__row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.55rem;
+  align-items: center;
+  min-width: 720px;
+}
+.kpi-hub-dict-toolbar__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1.6 1 240px;
+  min-width: 180px;
+}
+.kpi-hub-dict-toolbar__search svg {
   position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 0.7rem;
   color: #9ca3af;
   pointer-events: none;
 }
-.kpi-hub-dict-filter-bar__search-wrap .kpi-hub-filter-bar__search {
-  padding-left: 2.25rem;
-  width: 100%;
-  max-width: none;
+.kpi-hub-dict-toolbar__search input,
+.kpi-hub-dict-toolbar select {
+  min-width: 0;
+  height: 40px;
+  padding: 0 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.88rem;
+  color: #374151;
 }
+.kpi-hub-dict-toolbar__search input {
+  width: 100%;
+  padding-left: 2.15rem;
+}
+.kpi-hub-dict-toolbar select {
+  width: auto;
+  flex: 0.7 1 150px;
+  max-width: 200px;
+}
+.kpi-hub-dict-toolbar__icon {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #6b7280;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.kpi-hub-dict-toolbar__icon:hover { background: #f9fafb; }
+
+html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
+  padding-bottom: 0.75rem !important;
+}
+
+@media (max-width: 900px) {
+  .kpi-hub-dict-toolbar__row { min-width: 680px; }
+}
+.kpi-hub-dict-table .kpi-hub-table th {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.72rem;
+  color: #9ca3af;
+}
+.kpi-hub-dict-table__name { font-weight: 600; color: #111827; }
 .kpi-hub-source-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .kpi-hub-source-chip {
   display: inline-flex;

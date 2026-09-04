@@ -9,6 +9,7 @@ const SOURCE_ALIASES: Record<string, string> = {
   'meta/google/tiktok ads': 'Meta Ads',
   sharepoint: 'SharePoint',
   erp: 'ERP',
+  bank: 'Bank',
   'google ads': 'Google Ads',
   ga4: 'GA4',
   'call center': 'Call Center',

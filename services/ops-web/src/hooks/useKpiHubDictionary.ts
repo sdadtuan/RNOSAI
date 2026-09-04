@@ -25,6 +25,8 @@ export function useKpiHubDictionary(token: string, query: DictionaryQuery = {}) 
     if (query.group) out.group = query.group;
     if (query.owner) out.owner = query.owner;
     if (query.status) out.status = query.status;
+    out.page_size = '100';
+    out.page = '1';
     return out;
   }, [query.group, query.owner, query.q, query.status]);
 

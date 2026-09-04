@@ -81,7 +81,7 @@ export function KpiHubPageGate({ section, action = 'view', children }: KpiHubPag
       width="full"
     >
       {error ? <p className="error">{error}</p> : null}
-      {!error && user ? children : null}
+      {!error && user ? <div className="kpi-hub-embed">{children}</div> : null}
     </StaffPageShell>
   );
 }
