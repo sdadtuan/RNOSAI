@@ -1,4 +1,12 @@
 import {
+  enrichDictionaryRow,
+  formatFrequencyLabel,
+  formatUpdatedAt,
+  groupLabelToCode,
+  mergeFixtureEnrichment,
+  parseSourceTags,
+} from './kpi-hub-dictionary-utils';
+import {
   KPI_HUB_DASHBOARD,
   KPI_HUB_DICT_SUMMARY,
   KPI_HUB_DICTIONARY,
@@ -13,6 +21,13 @@ import type {
   KpiHubDictSummary,
   KpiHubTargetsData,
 } from './kpi-hub-types';
+
+export type KpiHubDictMeta = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
@@ -30,33 +45,67 @@ function num(v: unknown, fallback = 0): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
 }
 
+function mapOwnerField(raw: unknown, fallback = ''): { name: string; email?: string } {
+  const obj = asRecord(raw);
+  if (obj) {
+    return {
+      name: str(obj.name, fallback),
+      email: obj.email != null ? str(obj.email) : undefined,
+    };
+  }
+  return { name: typeof raw === 'string' ? raw : fallback };
+}
+
 function mapDictRow(raw: unknown): KpiHubDictionaryRow | null {
   const r = asRecord(raw);
   if (!r) return null;
   const code = str(r.code);
   if (!code) return null;
-  const group = str(r.group, 'ACQUISITION') as KpiHubDictionaryRow['group'];
-  return {
+
+  const groupLabel = str(r.groupLabel, str(r.group_label, str(r.kpi_group, 'Acquisition')));
+  const group = (str(r.group) || groupLabelToCode(groupLabel)) as KpiHubDictionaryRow['group'];
+  const source = str(r.source, str(r.primary_source));
+  const dataOwnerRaw = mapOwnerField(r.dataOwner ?? r.data_owner);
+  const kpiOwnerRaw = mapOwnerField(r.kpiOwner ?? r.kpi_owner);
+  const updatedAt = r.updatedAt != null ? str(r.updatedAt, str(r.updated_at)) : undefined;
+
+  const row: KpiHubDictionaryRow = {
     id: str(r.id, code.toLowerCase()),
     code,
     name: str(r.name, code),
     group,
-    groupLabel: str(r.groupLabel, str(r.group_label, group)),
-    groupColor: str(r.groupColor, str(r.group_color, '#3b82f6')),
-    source: str(r.source),
-    frequency: str(r.frequency),
-    dataOwner: str(r.dataOwner, str(r.data_owner)),
-    status: (str(r.status, 'DRAFT') as KpiHubDictionaryRow['status']),
-    direction: (str(r.direction, 'HIGHER_IS_BETTER') as KpiHubDictionaryRow['direction']),
+    groupLabel,
+    groupColor: str(r.groupColor, str(r.group_color, str(r.kpi_group_color, '#3b82f6'))),
+    source,
+    sources: asArray(r.sources).length
+      ? (asArray(r.sources).map((s) => str(s)).filter(Boolean) as string[])
+      : undefined,
+    frequency: formatFrequencyLabel(str(r.frequency, str(r.sync_frequency))),
+    dataOwner: dataOwnerRaw.name,
+    dataOwnerRole: r.dataOwnerRole != null ? str(r.dataOwnerRole) : kpiOwnerRaw.name || undefined,
+    dataOwnerEmail: r.dataOwnerEmail != null ? str(r.dataOwnerEmail) : dataOwnerRaw.email ?? kpiOwnerRaw.email,
+    status: str(r.status, 'DRAFT') as KpiHubDictionaryRow['status'],
+    direction: str(r.direction, 'HIGHER_IS_BETTER') as KpiHubDictionaryRow['direction'],
     unit: r.unit != null ? str(r.unit) : undefined,
-    formulaDisplay: r.formulaDisplay != null ? str(r.formulaDisplay, str(r.formula_display)) : undefined,
+    description: r.description != null ? str(r.description) : undefined,
+    formulaDisplay:
+      r.formulaDisplay != null
+        ? str(r.formulaDisplay, str(r.formula_display))
+        : r.business_formula != null
+          ? str(r.business_formula)
+          : undefined,
     targetValue: r.targetValue != null ? num(r.targetValue, num(r.target_value)) : undefined,
     targetLabel: r.targetLabel != null ? str(r.targetLabel, str(r.target_label)) : undefined,
+    targetDescription: r.targetDescription != null ? str(r.targetDescription, str(r.target_description)) : undefined,
     numeratorCode: r.numeratorCode != null ? str(r.numeratorCode, str(r.numerator_code)) : undefined,
     numeratorLabel: r.numeratorLabel != null ? str(r.numeratorLabel, str(r.numerator_label)) : undefined,
     denominatorCode: r.denominatorCode != null ? str(r.denominatorCode, str(r.denominator_code)) : undefined,
     denominatorLabel: r.denominatorLabel != null ? str(r.denominatorLabel, str(r.denominator_label)) : undefined,
+    updatedAt,
+    updatedAtLabel: r.updatedAtLabel != null ? str(r.updatedAtLabel) : updatedAt ? formatUpdatedAt(updatedAt) : undefined,
   };
+
+  return mergeFixtureEnrichment(row);
 }
 
 export function normalizeDashboard(raw: Record<string, unknown>): KpiHubDashboardData {
@@ -159,8 +208,10 @@ export function normalizeDashboard(raw: Record<string, unknown>): KpiHubDashboar
 export function normalizeDictionaryList(raw: Record<string, unknown>): {
   data: KpiHubDictionaryRow[];
   summary: KpiHubDictSummary;
+  meta?: KpiHubDictMeta;
 } {
-  const rows = asArray(raw.data).map(mapDictRow).filter(Boolean) as KpiHubDictionaryRow[];
+  const listRaw = asArray(raw.items).length ? raw.items : raw.data;
+  const rows = asArray(listRaw).map(mapDictRow).filter(Boolean) as KpiHubDictionaryRow[];
   const summaryRaw = asRecord(raw.summary);
   const summary: KpiHubDictSummary = summaryRaw
     ? {
@@ -171,10 +222,26 @@ export function normalizeDictionaryList(raw: Record<string, unknown>): {
       }
     : KPI_HUB_DICT_SUMMARY;
 
+  const metaRaw = asRecord(raw.meta);
+  const meta: KpiHubDictMeta | undefined = metaRaw
+    ? {
+        page: num(metaRaw.page, 1),
+        pageSize: num(metaRaw.page_size, num(metaRaw.pageSize, 20)),
+        total: num(metaRaw.total, rows.length),
+        totalPages: num(metaRaw.total_pages, num(metaRaw.totalPages, 1)),
+      }
+    : undefined;
+
   return {
-    data: rows.length ? rows : KPI_HUB_DICTIONARY,
+    data: rows.length ? rows.map(enrichDictionaryRow) : KPI_HUB_DICTIONARY.map(enrichDictionaryRow),
     summary: rows.length ? summary : KPI_HUB_DICT_SUMMARY,
+    meta,
   };
+}
+
+export function normalizeDictionaryItem(raw: Record<string, unknown>): KpiHubDictionaryRow | null {
+  const mapped = mapDictRow(raw);
+  return mapped ? enrichDictionaryRow(mapped) : null;
 }
 
 export function normalizeTargets(raw: Record<string, unknown>): KpiHubTargetsData {

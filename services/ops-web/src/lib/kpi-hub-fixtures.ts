@@ -22,26 +22,33 @@ export interface KpiHubDictionaryRow {
   groupLabel: string;
   groupColor: string;
   source: string;
+  sources?: string[];
   frequency: string;
   dataOwner: string;
+  dataOwnerRole?: string;
+  dataOwnerEmail?: string;
   status: KpiHubDictStatus;
   direction: 'HIGHER_IS_BETTER' | 'LOWER_IS_BETTER';
   unit?: string;
+  description?: string;
   formulaDisplay?: string;
   targetValue?: number;
   targetLabel?: string;
+  targetDescription?: string;
   numeratorCode?: string;
   numeratorLabel?: string;
   denominatorCode?: string;
   denominatorLabel?: string;
+  updatedAt?: string;
+  updatedAtLabel?: string;
 }
 
 const GROUP_META: Record<KpiHubGroupCode, { label: string; color: string }> = {
   ACQUISITION: { label: 'Acquisition', color: '#3b82f6' },
-  MEDIA_EFFICIENCY: { label: 'Media Efficiency', color: '#10b981' },
-  FUNNEL: { label: 'Funnel', color: '#8b5cf6' },
-  SALES_OUTCOME: { label: 'Sales Outcome', color: '#f59e0b' },
-  FINANCE: { label: 'Finance', color: '#6366f1' },
+  MEDIA_EFFICIENCY: { label: 'Media Efficiency', color: '#8b5cf6' },
+  FUNNEL: { label: 'Funnel', color: '#f97316' },
+  SALES_OUTCOME: { label: 'Sales Outcome', color: '#10b981' },
+  FINANCE: { label: 'Unit Economics', color: '#ef4444' },
   OPERATIONS: { label: 'Operations', color: '#64748b' },
 };
 
@@ -87,13 +94,19 @@ export const KPI_HUB_DICTIONARY: KpiHubDictionaryRow[] = [
   row('MKT_006', 'CPL Valid Lead', 'MEDIA_EFFICIENCY', 'Meta Ads + CRM', 'Hàng ngày', 'Trần Văn Hùng', 'ACTIVE', {
     direction: 'LOWER_IS_BETTER',
     unit: 'VND/Lead',
+    description: 'Chi phí trên mỗi Valid Lead từ các kênh quảng cáo trả phí.',
+    sources: ['Meta Ads', 'CRM'],
+    dataOwnerRole: 'Performance MKT',
+    dataOwnerEmail: 'performance.mkt@company.com',
     formulaDisplay: 'Tổng chi tiêu quảng cáo / Tổng Valid Leads',
     targetValue: 150000,
     targetLabel: '≤ 150.000 VND',
+    targetDescription: 'Mục tiêu chi phí trên mỗi Valid Lead.',
     numeratorCode: 'MKT_004',
     numeratorLabel: 'Tổng chi tiêu quảng cáo',
     denominatorCode: 'MKT_002',
     denominatorLabel: 'Tổng Valid Leads',
+    updatedAtLabel: 'Hôm nay, 08:00',
   }),
   row('MKT_007', 'Tổng MQL', 'FUNNEL', 'CRM', 'Hàng ngày', 'Lê Hoàng Nam', 'ACTIVE'),
   row('MKT_008', 'MQL Rate', 'FUNNEL', 'CRM', 'Hàng ngày', 'Lê Hoàng Nam', 'ACTIVE'),

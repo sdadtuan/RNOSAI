@@ -24,7 +24,35 @@ describe('kpi-hub-normalize', () => {
 
   it('falls back dictionary list to fixtures', () => {
     const out = normalizeDictionaryList({});
-    expect(out.data).toEqual(KPI_HUB_DICTIONARY);
+    expect(out.data.length).toBe(KPI_HUB_DICTIONARY.length);
+    expect(out.summary).toEqual({ total: 22, active: 20, needReview: 1, sources: 7 });
+  });
+
+  it('maps snake_case dictionary list payload', () => {
+    const out = normalizeDictionaryList({
+      items: [
+        {
+          id: 'abc',
+          code: 'MKT_006',
+          name: 'CPL Valid Lead',
+          kpi_group: 'Media Efficiency',
+          kpi_group_color: '#10B981',
+          primary_source: 'Ads + CRM',
+          sync_frequency: 'Hàng ngày 08:00',
+          data_owner: { name: 'Nguyễn Thị Lan', email: 'data@ptt.vn' },
+          kpi_owner: { name: 'Performance MKT', email: 'perf@ptt.vn' },
+          status: 'ACTIVE',
+          description: 'Chi phí trên mỗi Valid Lead.',
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      summary: { total: 1, active: 1, need_review: 0, sources: 2 },
+      meta: { page: 1, page_size: 20, total: 1, total_pages: 1 },
+    });
+    expect(out.data[0]?.code).toBe('MKT_006');
+    expect(out.data[0]?.frequency).toBe('Daily');
+    expect(out.data[0]?.dataOwnerRole).toBe('Performance MKT');
+    expect(out.meta?.total).toBe(1);
   });
 
   it('builds dashboard query params', () => {

@@ -19027,3 +19027,236 @@ body {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* KPI Dictionary — mockup-aligned */
+.kpi-hub-summary-card--with-icon { display: grid; gap: 0.35rem; }
+.kpi-hub-summary-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.kpi-hub-summary-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.kpi-hub-summary-card__icon--active { background: #ecfdf5; color: #059669; }
+.kpi-hub-summary-card__icon--review { background: #fff7ed; color: #ea580c; }
+.kpi-hub-summary-card__icon--sources { background: #eff6ff; color: #2563eb; }
+.kpi-hub-dict-filter-bar { align-items: center; }
+.kpi-hub-dict-filter-bar__search-wrap {
+  position: relative;
+  flex: 1 1 240px;
+  max-width: 420px;
+}
+.kpi-hub-dict-filter-bar__search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  pointer-events: none;
+}
+.kpi-hub-dict-filter-bar__search-wrap .kpi-hub-filter-bar__search {
+  padding-left: 2.25rem;
+  width: 100%;
+  max-width: none;
+}
+.kpi-hub-source-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.kpi-hub-source-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+.kpi-hub-source-chip--more { background: #fff; color: #6b7280; }
+.kpi-hub-dict-table { display: grid; gap: 0; }
+.kpi-hub-dict-table .kpi-hub-table-wrap { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.kpi-hub-dict-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 0.85rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+.kpi-hub-dict-pagination__info { margin: 0; }
+.kpi-hub-dict-pagination__controls { display: flex; align-items: center; gap: 0.25rem; }
+.kpi-hub-dict-pagination__btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 0.45rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.kpi-hub-dict-pagination__btn:hover:not(:disabled) { background: #f9fafb; }
+.kpi-hub-dict-pagination__btn.is-active {
+  background: #10b981;
+  border-color: #10b981;
+  color: #fff;
+}
+.kpi-hub-dict-pagination__btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.kpi-hub-dict-pagination__ellipsis { padding: 0 0.25rem; color: #9ca3af; }
+.kpi-hub-row-menu { position: relative; }
+.kpi-hub-row-menu__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 160px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 0.35rem;
+  display: grid;
+  gap: 0.15rem;
+}
+.kpi-hub-row-menu__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: #374151;
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+.kpi-hub-row-menu__item:hover { background: #f3f4f6; }
+.kpi-hub-dict-drawer__head { align-items: flex-start; }
+.kpi-hub-dict-drawer__title-wrap { display: flex; gap: 0.65rem; align-items: flex-start; }
+.kpi-hub-dict-drawer__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #059669;
+  flex-shrink: 0;
+}
+.kpi-hub-dict-drawer__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.kpi-hub-dict-drawer__title-row h2 { margin: 0; font-size: 1.05rem; }
+.kpi-hub-dict-drawer__body { gap: 1rem; }
+.kpi-hub-dict-drawer__section { display: grid; gap: 0.35rem; }
+.kpi-hub-dict-drawer__label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.kpi-hub-dict-drawer__text { margin: 0; color: #374151; line-height: 1.5; font-size: 0.88rem; }
+.kpi-hub-dict-drawer__formula-box {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+}
+.kpi-hub-dict-drawer__formula-num,
+.kpi-hub-dict-drawer__formula-den {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #111827;
+}
+.kpi-hub-dict-drawer__formula-divider {
+  height: 1px;
+  background: #d1d5db;
+  margin: 0.15rem 0;
+}
+.kpi-hub-dict-drawer__formula-expr {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: #059669;
+  font-weight: 600;
+}
+.kpi-hub-dict-drawer__owner {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.kpi-hub-dict-drawer__owner-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.kpi-hub-dict-drawer__owner-email {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+.kpi-hub-dict-drawer__target-card {
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  display: grid;
+  gap: 0.25rem;
+}
+.kpi-hub-dict-drawer__target-value {
+  font-size: 1.05rem;
+  color: #047857;
+}
+.kpi-hub-dict-drawer__target-desc {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #065f46;
+}
+.kpi-hub-dict-drawer__updated {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+.kpi-hub-dict-drawer__edit {
+  width: 100%;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.kpi-hub-dict-drawer__loading { display: grid; gap: 0.65rem; }
