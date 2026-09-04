@@ -19013,19 +19013,12 @@ body {
 }
 @media (max-width: 900px) {
   .kpi-hub-sidebar { display: none; }
-  .kpi-hub-embed .kpi-hub-shell,
-  .kpi-hub-embed .kpi-hub-shell--collapsed {
-    grid-template-columns: 64px minmax(0, 1fr);
-  }
-  .kpi-hub-embed .kpi-hub-sidebar {
+  .kpi-hub-embed .kpi-hub-sidebar,
+  .kpi-hub-embed .kpi-hub-shell--collapsed .kpi-hub-sidebar {
     display: flex !important;
-    grid-area: 1 / 1 / 2 / 2;
-    flex: none;
+    flex: 0 0 64px;
     width: 64px;
     max-width: 64px;
-  }
-  .kpi-hub-embed .kpi-hub-main {
-    grid-area: 1 / 2 / 2 / 3;
   }
   .kpi-hub-summary-grid,
   .kpi-hub-formula-parts,
@@ -19198,9 +19191,8 @@ body {
   overflow-x: clip;
 }
 .kpi-hub-embed .kpi-hub-shell {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  display: flex;
+  flex-direction: row;
   align-items: stretch;
   gap: 0;
   width: 100%;
@@ -19212,9 +19204,6 @@ body {
   border-radius: 0;
   overflow: hidden;
 }
-.kpi-hub-embed .kpi-hub-shell--collapsed {
-  grid-template-columns: 64px minmax(0, 1fr);
-}
 .kpi-hub-embed .kpi-hub-shell--collapsed .kpi-hub-sidebar {
   flex: 0 0 64px;
   width: 64px;
@@ -19223,9 +19212,7 @@ body {
 .kpi-hub-embed .kpi-hub-sidebar {
   display: flex;
   flex-direction: column;
-  grid-area: 1 / 1 / 2 / 2;
-  align-self: stretch;
-  flex: none;
+  flex: 0 0 240px;
   width: 240px;
   max-width: 240px;
   background: #fff;
@@ -19264,7 +19251,7 @@ html.ops-shell-bitrix body:has(.ops-sidebar) .kpi-hub-embed .kpi-hub-content {
   background: #fffdf8;
 }
 .kpi-hub-embed .kpi-hub-main {
-  grid-area: 1 / 2 / 2 / 3;
+  flex: 1 1 0%;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -19272,7 +19259,7 @@ html.ops-shell-bitrix body:has(.ops-sidebar) .kpi-hub-embed .kpi-hub-content {
   width: auto;
   max-width: 100%;
   margin-left: 0;
-  overflow-x: clip;
+  overflow-x: hidden;
   background: #fffdf8;
 }
 .kpi-hub-embed .kpi-hub-freshness {
@@ -19288,6 +19275,8 @@ html.ops-shell-bitrix body:has(.ops-sidebar) .kpi-hub-embed .kpi-hub-content {
 .kpi-hub-embed .kpi-hub-dict-toolbar,
 .kpi-hub-embed .kpi-hub-dict-table,
 .kpi-hub-embed .kpi-hub-table-wrap,
+.kpi-hub-embed .delivery-page,
+.kpi-hub-embed .delivery-tile-grid,
 .kpi-hub-embed .cc-page,
 .kpi-hub-embed .cc-toolbar,
 .kpi-hub-embed .cc-row {
@@ -19404,16 +19393,18 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) {
   background: #fffdf8;
 }
 html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page,
-html.ops-shell-bitrix body:has(.kpi-hub-embed) main.ops-page--full {
+html.ops-shell-bitrix body:has(.kpi-hub-embed) main.ops-page--full,
+body:has(.ops-sidebar):has(.kpi-hub-embed) main.ops-page {
   padding-top: calc(var(--ops-chrome-h, 56px) + 0.25rem) !important;
   padding-bottom: 0 !important;
   padding-left: 0 !important;
   padding-right: 0 !important;
   overflow-x: hidden;
-  width: auto !important;
-  max-width: none !important;
+  width: calc(100vw - var(--sidebar-width)) !important;
+  max-width: calc(100vw - var(--sidebar-width)) !important;
+  margin-left: var(--sidebar-width) !important;
   background: #fffdf8;
-  box-sizing: border-box;
+  box-sizing: border-box !important;
 }
 html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   padding: 0;

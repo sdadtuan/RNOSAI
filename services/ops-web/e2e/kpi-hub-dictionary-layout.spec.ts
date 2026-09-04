@@ -16,9 +16,8 @@ function builtCssPath(): string | null {
 const LAYOUT_CSS = `
 .kpi-hub-embed { width: 100%; max-width: 100%; overflow-x: clip; }
 .kpi-hub-embed .kpi-hub-shell {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  display: flex;
+  flex-direction: row;
   gap: 0;
   width: 100%;
   max-width: 100%;
@@ -28,7 +27,7 @@ const LAYOUT_CSS = `
 .kpi-hub-embed .kpi-hub-sidebar {
   display: flex;
   flex-direction: column;
-  grid-area: 1 / 1 / 2 / 2;
+  flex: 0 0 240px;
   width: 240px;
   max-width: 240px;
   background: #fff;
@@ -36,7 +35,7 @@ const LAYOUT_CSS = `
   min-width: 0;
 }
 .kpi-hub-embed .kpi-hub-main {
-  grid-area: 1 / 2 / 2 / 3;
+  flex: 1 1 0%;
   min-width: 0;
   width: auto;
   background: #fffdf8;
@@ -114,9 +113,9 @@ test.describe('KPI Dictionary built CSS contract', () => {
     const cssFile = builtCssPath();
     test.skip(!cssFile, 'Run npm run build first');
     const css = fs.readFileSync(cssFile!, 'utf8');
-    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*display:grid/);
-    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*grid-template-columns:240px minmax\(0,1fr\)/);
-    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-main\{[^}]*grid-area:1\s*\/\s*2\s*\/\s*2\s*\/\s*3/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*display:flex/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-main\{[^}]*flex:1 1/);
+    expect(css).toMatch(/body:has\(\.kpi-hub-embed\) main\.bitrix-crm-page[,{][^}]*width:calc\(100vw - var\(--sidebar-width\)\)!important/);
     expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-sidebar\{[^}]*display:none!important/);
     expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer\.kpi-hub-page-with-drawer--overlay\.has-drawer\{[^}]*display:grid/);
     expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer--overlay \.kpi-hub-dict-drawer\{[^}]*position:fixed/);
@@ -125,7 +124,6 @@ test.describe('KPI Dictionary built CSS contract', () => {
     expect(css).toMatch(/body:has\(\.kpi-hub-embed\)\{[^}]*background:#fffdf8/);
     expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-freshness\{[^}]*margin-top:auto/);
     expect(css).toMatch(/body:has\(\.ops-sidebar\) \.kpi-hub-embed \.kpi-hub-content[,{][^}]*margin-left:0!important/);
-    expect(css).toMatch(/body:has\(\.kpi-hub-embed\) main\.bitrix-crm-page[,{][^}]*width:auto!important/);
   });
 });
 
@@ -198,7 +196,8 @@ test.describe('KPI Dictionary layout fixture', () => {
   });
 });
 
-const MARKETING_FIXTURE_HTML = `
+function commandCenterFixture(title: string, extraRowClass = '') {
+  return `
 <aside class="ops-sidebar">Ops</aside>
 <main class="ops-page ops-page--full bitrix-crm-page">
   <div class="bitrix-crm-page__inner">
@@ -208,62 +207,120 @@ const MARKETING_FIXTURE_HTML = `
         <div class="kpi-hub-main">
           <header class="kpi-hub-header">
             <div class="kpi-hub-header__left">
-              <h1 class="kpi-hub-page-head__title">Marketing Performance</h1>
+              <h1 class="kpi-hub-page-head__title">${title}</h1>
+            </div>
+            <div class="kpi-hub-header__right">
+              <input class="kpi-hub-header__search" placeholder="Tìm trong Hub…" />
             </div>
           </header>
-          <main class="kpi-hub-content">
+          <div class="kpi-hub-content">
             <div class="cc-page">
               <div class="cc-toolbar"><div class="cc-toolbar__filters">filters</div></div>
-              <div class="cc-tiles"><article class="kpi-hub-card">tile</article></div>
+              <div class="cc-tiles">
+                ${Array.from({ length: 6 }, () => '<article class="kpi-hub-card cc-tile">tile</article>').join('')}
+              </div>
+              <div class="cc-row cc-row--2"><article class="kpi-hub-card">left</article><article class="kpi-hub-card">right</article></div>
+              <div class="cc-row cc-row--3${extraRowClass}"><article class="kpi-hub-card">a</article><article class="kpi-hub-card">b</article><article class="kpi-hub-card">c</article></div>
             </div>
-          </main>
+          </div>
           <footer class="kpi-hub-freshness">
             <span class="kpi-hub-freshness__as-of">Dữ liệu cập nhật: Hôm nay, 08:45</span>
-            <div class="kpi-hub-freshness__sources">
-              <span class="kpi-hub-freshness__chip kpi-hub-freshness__chip--fresh">CRM Fresh</span>
-            </div>
           </footer>
         </div>
       </div>
     </div>
   </div>
 </main>`;
+}
 
-test.describe('KPI Hub marketing layout fixture', () => {
-  test('main fills shell beside sidebar without cream gap', async ({ page }) => {
-    const cssFile = builtCssPath();
-    test.skip(!cssFile, 'Run npm run build first');
-    const css = fs.readFileSync(cssFile!, 'utf8');
+const MARKETING_FIXTURE_HTML = commandCenterFixture('Marketing Performance', ' cc-row--mkt-bottom');
+const SALES_FIXTURE_HTML = commandCenterFixture('Sales Command Center');
+const EXECUTIVE_FIXTURE_HTML = commandCenterFixture('Executive Command Center');
+const DELIVERY_FIXTURE_HTML = `
+<aside class="ops-sidebar">Ops</aside>
+<main class="ops-page ops-page--full bitrix-crm-page">
+  <div class="bitrix-crm-page__inner">
+    <div class="kpi-hub-embed">
+      <div class="kpi-hub-shell">
+        <aside class="kpi-hub-sidebar"><div style="padding:1rem">KPI Hub</div></aside>
+        <div class="kpi-hub-main">
+          <header class="kpi-hub-header">
+            <div class="kpi-hub-header__left"><h1 class="kpi-hub-page-head__title">Project Delivery</h1></div>
+          </header>
+          <div class="kpi-hub-content">
+            <div class="delivery-page">
+              <div class="delivery-tile-grid">
+                <article class="delivery-tile">Tổng dự án</article>
+                <article class="delivery-tile">Đúng tiến độ</article>
+                <article class="delivery-tile">Có rủi ro</article>
+                <article class="delivery-tile">Quá hạn</article>
+                <article class="delivery-tile">Ngân sách</article>
+                <article class="delivery-tile">Biên lợi nhuận</article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>`;
 
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto('about:blank');
-    await page.setContent(MARKETING_FIXTURE_HTML, { waitUntil: 'domcontentloaded' });
-    await page.addStyleTag({ content: css });
+test.describe('KPI Hub command center layout fixture', () => {
+  for (const { name, html } of [
+    { name: 'Marketing', html: MARKETING_FIXTURE_HTML },
+    { name: 'Sales', html: SALES_FIXTURE_HTML },
+    { name: 'Executive', html: EXECUTIVE_FIXTURE_HTML },
+    { name: 'Project Delivery', html: DELIVERY_FIXTURE_HTML },
+  ]) {
+    test(`${name} fills beside sidebar without cream gap or right clip`, async ({ page }) => {
+      const cssFile = builtCssPath();
+      test.skip(!cssFile, 'Run npm run build first');
+      const css = fs.readFileSync(cssFile!, 'utf8');
 
-    const shell = page.locator('.kpi-hub-shell');
-    const sidebar = page.locator('.kpi-hub-sidebar');
-    const main = page.locator('.kpi-hub-main');
-    const cc = page.locator('.cc-page');
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto('about:blank');
+      await page.setContent(html, { waitUntil: 'domcontentloaded' });
+      await page.evaluate(() => {
+        document.documentElement.classList.add('ops-shell-bitrix', 'ops-shell-expanded');
+      });
+      await page.addStyleTag({ content: css });
 
-    const shellBox = await shell.boundingBox();
-    const sidebarBox = await sidebar.boundingBox();
-    const mainBox = await main.boundingBox();
-    const ccBox = await cc.boundingBox();
+      const overflow = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
 
-    expect(shellBox).not.toBeNull();
-    expect(Math.abs(mainBox!.x - (shellBox!.x + sidebarBox!.width))).toBeLessThan(8);
-    expect(mainBox!.width).toBeGreaterThan(shellBox!.width * 0.55);
-    expect(Math.abs(ccBox!.x - mainBox!.x)).toBeLessThan(24);
-    expect(mainBox!.x + mainBox!.width).toBeGreaterThan(shellBox!.x + shellBox!.width - 8);
+      const shell = page.locator('.kpi-hub-shell');
+      const sidebar = page.locator('.kpi-hub-sidebar');
+      const main = page.locator('.kpi-hub-main');
+      const content = page.locator('.kpi-hub-content');
 
-    const content = page.locator('.kpi-hub-content');
-    const contentBox = await content.boundingBox();
-    expect(Math.abs(contentBox!.x - mainBox!.x)).toBeLessThan(8);
+      const shellBox = await shell.boundingBox();
+      const sidebarBox = await sidebar.boundingBox();
+      const mainBox = await main.boundingBox();
+      const contentBox = await content.boundingBox();
 
-    const freshness = page.locator('.kpi-hub-freshness');
-    await expect(freshness).toBeVisible();
-    const freshnessBox = await freshness.boundingBox();
-    expect(freshnessBox!.width).toBeGreaterThan(mainBox!.width * 0.95);
-    expect(Math.abs(freshnessBox!.x - mainBox!.x)).toBeLessThan(8);
-  });
+      expect(shellBox).not.toBeNull();
+      expect(Math.abs(mainBox!.x - (shellBox!.x + sidebarBox!.width))).toBeLessThan(8);
+      expect(mainBox!.width).toBeGreaterThan(shellBox!.width * 0.55);
+      expect(Math.abs(contentBox!.x - mainBox!.x)).toBeLessThan(24);
+      expect(mainBox!.x + mainBox!.width).toBeGreaterThan(shellBox!.x + shellBox!.width - 8);
+      expect(mainBox!.x + mainBox!.width).toBeLessThanOrEqual(1440 + 1);
+      expect(contentBox!.x + contentBox!.width).toBeLessThanOrEqual(1440 + 1);
+
+      const lastTile = page.locator('.delivery-tile').last();
+      if (await lastTile.count()) {
+        const tileBox = await lastTile.boundingBox();
+        expect(tileBox!.x + tileBox!.width).toBeLessThanOrEqual(1440 + 1);
+      }
+
+      const freshness = page.locator('.kpi-hub-freshness');
+      if (await freshness.count()) {
+        const freshnessBox = await freshness.boundingBox();
+        expect(freshnessBox!.x + freshnessBox!.width).toBeLessThanOrEqual(1440 + 1);
+        expect(freshnessBox!.width).toBeGreaterThan(mainBox!.width * 0.95);
+      }
+    });
+  }
 });
