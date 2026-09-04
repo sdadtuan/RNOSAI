@@ -18245,8 +18245,10 @@ body {
 /* ── KPI Hub (Marketing & Sales workspace) ── */
 .kpi-hub-shell {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px minmax(0, 1fr);
   min-height: calc(100vh - 56px);
+  min-width: 0;
+  width: 100%;
   background: #f9fafb;
 }
 .kpi-hub-shell--collapsed { grid-template-columns: 64px 1fr; }
@@ -18498,6 +18500,7 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
+  width: 100%;
 }
 .kpi-hub-summary-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .kpi-hub-summary-card__label { margin: 0; font-size: 0.82rem; color: #6b7280; }
@@ -18541,12 +18544,30 @@ body {
 }
 .kpi-hub-page-with-drawer {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   position: relative;
+  width: 100%;
+  min-width: 0;
 }
-.kpi-hub-page-with-drawer.has-drawer { grid-template-columns: minmax(0, 1fr) 360px; }
-.kpi-hub-page-with-drawer__main { display: grid; gap: 1rem; min-width: 0; }
+.kpi-hub-page-with-drawer.has-drawer:not(.kpi-hub-page-with-drawer--overlay) {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+}
+.kpi-hub-page-with-drawer--overlay {
+  display: block;
+}
+.kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
+  padding-right: min(376px, 38%);
+}
+.kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(360px, 38%);
+  z-index: 8;
+  max-height: calc(100vh - 160px);
+}
+.kpi-hub-page-with-drawer__main { display: grid; gap: 1rem; min-width: 0; width: 100%; }
 .kpi-hub-drawer {
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -18882,7 +18903,7 @@ body {
   .kpi-hub-tab-panel--split,
   .kpi-hub-settings-layout,
   .kpi-hub-quality-top { grid-template-columns: 1fr; }
-  .kpi-hub-drawer { position: static; max-height: none; }
+  .kpi-hub-drawer:not(.kpi-hub-dict-drawer) { position: static; max-height: none; }
 }
 @media (max-width: 900px) {
   .kpi-hub-shell { grid-template-columns: 1fr; }
@@ -19051,13 +19072,19 @@ body {
 .kpi-hub-summary-card__icon--sources { background: #eff6ff; color: #2563eb; }
 .kpi-hub-embed {
   margin: 0;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 .kpi-hub-embed .kpi-hub-shell {
+  width: 100%;
+  min-width: 0;
   min-height: calc(100vh - var(--ops-chrome-h, 56px) - 0.5rem);
   background: #f3efe6;
   border: 1px solid #e7e0d4;
   border-radius: 16px;
-  overflow: visible;
+  overflow: hidden;
+  grid-template-columns: 200px minmax(0, 1fr);
 }
 .kpi-hub-embed .kpi-hub-header {
   background: transparent;
@@ -19067,22 +19094,25 @@ body {
 .kpi-hub-embed .kpi-hub-header__tenant { display: none; }
 .kpi-hub-embed .kpi-hub-page-head__title { font-size: 1.7rem; letter-spacing: -0.02em; }
 .kpi-hub-embed .kpi-hub-content {
+  display: block;
   background: transparent;
   padding: 1rem 1.35rem 1.5rem;
+  min-width: 0;
+  width: 100%;
 }
 .kpi-hub-dict-toolbar {
   background: #fff;
   border: 1px solid #e7e0d4;
   border-radius: 12px;
   padding: 0.75rem 0.85rem;
-  overflow-x: auto;
+  width: 100%;
+  min-width: 0;
 }
 .kpi-hub-dict-toolbar__row {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.55rem;
   align-items: center;
-  min-width: 720px;
 }
 .kpi-hub-dict-toolbar__search {
   position: relative;
@@ -19136,7 +19166,7 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
 }
 
 @media (max-width: 900px) {
-  .kpi-hub-dict-toolbar__row { min-width: 680px; }
+  .kpi-hub-dict-toolbar__search { flex: 1 1 100%; }
 }
 .kpi-hub-dict-table .kpi-hub-table th {
   text-transform: uppercase;
@@ -19393,11 +19423,16 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
 .kpi-hub-source-chip--erp { background: #f3e8ff; color: #6d28d9; border-color: #e9d5ff; }
 
 @media (max-width: 1100px) {
-  .kpi-hub-page-with-drawer.has-drawer {
-    grid-template-columns: 1fr;
+  .kpi-hub-page-with-drawer.has-drawer:not(.kpi-hub-page-with-drawer--overlay) {
+    grid-template-columns: minmax(0, 1fr);
   }
+  .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
+    padding-right: 0;
+  }
+  .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer,
   .kpi-hub-dict-drawer {
     position: static;
+    width: 100%;
     max-height: none;
   }
 }

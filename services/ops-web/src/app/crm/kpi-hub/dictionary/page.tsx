@@ -94,7 +94,7 @@ export default function KpiHubDictionaryPage() {
         }
       >
         {error ? <p className="error">{error}</p> : null}
-        <div className="kpi-hub-page-with-drawer has-drawer">
+        <div className={`kpi-hub-page-with-drawer kpi-hub-page-with-drawer--overlay${selected ? ' has-drawer' : ''}`}>
           <div className="kpi-hub-page-with-drawer__main">
             <KpiHubDictSummaryCards summary={summary} loading={loading} />
             <KpiHubDictFilterBar
