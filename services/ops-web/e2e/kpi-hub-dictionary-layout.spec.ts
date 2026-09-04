@@ -16,18 +16,19 @@ function builtCssPath(): string | null {
 const LAYOUT_CSS = `
 .kpi-hub-embed { width: 100%; max-width: 100%; overflow-x: clip; }
 .kpi-hub-embed .kpi-hub-shell {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 0;
   width: 100%;
   max-width: 100%;
   overflow: hidden;
+  background: #fffdf8;
 }
 .kpi-hub-embed .kpi-hub-sidebar {
   display: flex;
   flex-direction: column;
-  flex: 0 0 240px;
+  grid-area: 1 / 1 / 2 / 2;
   width: 240px;
   max-width: 240px;
   background: #fff;
@@ -35,9 +36,9 @@ const LAYOUT_CSS = `
   min-width: 0;
 }
 .kpi-hub-embed .kpi-hub-main {
-  flex: 1 1 auto;
+  grid-area: 1 / 2 / 2 / 3;
   min-width: 0;
-  width: auto;
+  width: 100%;
   background: #fffdf8;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay.has-drawer {
@@ -112,9 +113,9 @@ test.describe('KPI Dictionary built CSS contract', () => {
     const cssFile = builtCssPath();
     test.skip(!cssFile, 'Run npm run build first');
     const css = fs.readFileSync(cssFile!, 'utf8');
-    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*display:flex/);
-    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-sidebar\{[^}]*flex:0 0 240px/);
-    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-main\{[^}]*flex:1 1 auto/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*display:grid/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*grid-template-columns:240px minmax\(0,1fr\)/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-main\{[^}]*grid-area:1\s*\/\s*2\s*\/\s*2\s*\/\s*3/);
     expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-sidebar\{[^}]*display:none!important/);
     expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer\.kpi-hub-page-with-drawer--overlay\.has-drawer\{[^}]*display:grid/);
     expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer--overlay \.kpi-hub-dict-drawer\{[^}]*position:fixed/);

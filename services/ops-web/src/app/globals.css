@@ -19013,11 +19013,19 @@ body {
 }
 @media (max-width: 900px) {
   .kpi-hub-sidebar { display: none; }
+  .kpi-hub-embed .kpi-hub-shell,
+  .kpi-hub-embed .kpi-hub-shell--collapsed {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
   .kpi-hub-embed .kpi-hub-sidebar {
     display: flex !important;
-    flex: 0 0 64px;
+    grid-area: 1 / 1 / 2 / 2;
+    flex: none;
     width: 64px;
     max-width: 64px;
+  }
+  .kpi-hub-embed .kpi-hub-main {
+    grid-area: 1 / 2 / 2 / 3;
   }
   .kpi-hub-summary-grid,
   .kpi-hub-formula-parts,
@@ -19182,6 +19190,7 @@ body {
 .kpi-hub-summary-card__icon--review { background: #fff7ed; color: #ea580c; }
 .kpi-hub-summary-card__icon--sources { background: #eff6ff; color: #2563eb; }
 .kpi-hub-embed {
+  display: block;
   margin: 0;
   width: 100%;
   min-width: 0;
@@ -19189,18 +19198,22 @@ body {
   overflow-x: clip;
 }
 .kpi-hub-embed .kpi-hub-shell {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   gap: 0;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  min-height: calc(100vh - var(--ops-chrome-h, 56px) - 0.5rem);
-  background: #f3efe6;
-  border: 1px solid #e7e0d4;
-  border-radius: 16px;
+  min-height: calc(100vh - var(--ops-chrome-h, 56px) - 0.25rem);
+  background: #fffdf8;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
+}
+.kpi-hub-embed .kpi-hub-shell--collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
 }
 .kpi-hub-embed .kpi-hub-shell--collapsed .kpi-hub-sidebar {
   flex: 0 0 64px;
@@ -19210,7 +19223,8 @@ body {
 .kpi-hub-embed .kpi-hub-sidebar {
   display: flex;
   flex-direction: column;
-  flex: 0 0 240px;
+  grid-area: 1 / 1 / 2 / 2;
+  flex: none;
   width: 240px;
   max-width: 240px;
   background: #fff;
@@ -19234,10 +19248,12 @@ body {
   max-width: 100%;
 }
 .kpi-hub-embed .kpi-hub-main {
-  flex: 1 1 auto;
+  grid-area: 1 / 2 / 2 / 3;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  width: auto;
-  max-width: none;
+  width: 100%;
+  max-width: 100%;
   margin-left: 0;
   overflow-x: clip;
   background: #fffdf8;
@@ -19363,11 +19379,16 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) {
   overflow-x: hidden;
 }
 html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
+  padding-top: calc(var(--ops-chrome-h, 56px) + 0.25rem) !important;
   padding-bottom: 0.75rem !important;
-  padding-left: 0.65rem !important;
-  padding-right: 0.65rem !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
   overflow-x: hidden;
   max-width: 100%;
+}
+html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
+  padding: 0;
+  max-width: none;
 }
 
 @media (max-width: 900px) {
