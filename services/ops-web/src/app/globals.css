@@ -18545,7 +18545,7 @@ body {
   gap: 1rem;
   position: relative;
 }
-.kpi-hub-page-with-drawer.has-drawer { grid-template-columns: 1fr 380px; }
+.kpi-hub-page-with-drawer.has-drawer { grid-template-columns: minmax(0, 1fr) 360px; }
 .kpi-hub-page-with-drawer__main { display: grid; gap: 1rem; min-width: 0; }
 .kpi-hub-drawer {
   background: #fff;
@@ -18880,7 +18880,6 @@ body {
   .kpi-hub-dash-row--2,
   .kpi-hub-dash-row--3,
   .kpi-hub-tab-panel--split,
-  .kpi-hub-page-with-drawer.has-drawer,
   .kpi-hub-settings-layout,
   .kpi-hub-quality-top { grid-template-columns: 1fr; }
   .kpi-hub-drawer { position: static; max-height: none; }
@@ -19058,7 +19057,7 @@ body {
   background: #f3efe6;
   border: 1px solid #e7e0d4;
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
 }
 .kpi-hub-embed .kpi-hub-header {
   background: transparent;
@@ -19225,17 +19224,42 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
   text-decoration: none;
 }
 .kpi-hub-row-menu__item:hover { background: #f3f4f6; }
-.kpi-hub-dict-drawer__head { align-items: flex-start; }
-.kpi-hub-dict-drawer__title-wrap { display: flex; gap: 0.65rem; align-items: flex-start; }
+.kpi-hub-dict-drawer {
+  background: #fff;
+  border: 1px solid #e7e0d4;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  min-width: 0;
+}
+.kpi-hub-dict-drawer--empty {
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  color: #6b7280;
+  text-align: center;
+  min-height: 280px;
+}
+.kpi-hub-dict-drawer__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.85rem;
+  border-bottom: none;
+}
+.kpi-hub-dict-drawer__head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .kpi-hub-dict-drawer__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
-  background: #ecfdf5;
-  color: #059669;
+  background: #ece7ff;
+  color: #3730a3;
   flex-shrink: 0;
 }
 .kpi-hub-dict-drawer__title-row {
@@ -19244,43 +19268,59 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
   gap: 0.5rem;
   flex-wrap: wrap;
 }
-.kpi-hub-dict-drawer__title-row h2 { margin: 0; font-size: 1.05rem; }
-.kpi-hub-dict-drawer__body { gap: 1rem; }
-.kpi-hub-dict-drawer__section { display: grid; gap: 0.35rem; }
+.kpi-hub-dict-drawer__title-row h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #1e3a5f;
+  line-height: 1.2;
+}
+.kpi-hub-dict-drawer__id-box {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem 0.8rem;
+  background: #f3f4f6;
+  border-radius: 10px;
+}
+.kpi-hub-dict-drawer__id-box span {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  font-weight: 600;
+}
+.kpi-hub-dict-drawer__id-box strong {
+  font-size: 0.95rem;
+  color: #1e3a5f;
+}
+.kpi-hub-dict-drawer__body { gap: 1.05rem; padding-top: 0.35rem; }
+.kpi-hub-dict-drawer__section { display: grid; gap: 0.4rem; }
 .kpi-hub-dict-drawer__label {
   margin: 0;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e3a5f;
+  text-transform: none;
+  letter-spacing: 0;
 }
-.kpi-hub-dict-drawer__text { margin: 0; color: #374151; line-height: 1.5; font-size: 0.88rem; }
+.kpi-hub-dict-drawer__text { margin: 0; color: #334155; line-height: 1.5; font-size: 0.9rem; }
 .kpi-hub-dict-drawer__formula-box {
   display: grid;
-  gap: 0.35rem;
-  padding: 0.75rem;
-  border-radius: 10px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  gap: 0.4rem;
+  padding: 0.95rem 0.85rem;
+  border-radius: 12px;
+  background: #e8f8f0;
+  border: none;
   text-align: center;
 }
 .kpi-hub-dict-drawer__formula-num,
 .kpi-hub-dict-drawer__formula-den {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: #111827;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1e3a5f;
 }
 .kpi-hub-dict-drawer__formula-divider {
   height: 1px;
-  background: #d1d5db;
-  margin: 0.15rem 0;
-}
-.kpi-hub-dict-drawer__formula-expr {
-  margin: 0.35rem 0 0;
-  font-size: 0.82rem;
-  color: #059669;
-  font-weight: 600;
+  background: #86efac;
+  margin: 0.05rem 0.75rem;
 }
 .kpi-hub-dict-drawer__owner {
   display: flex;
@@ -19291,27 +19331,28 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: #10b981;
+  color: #fff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   flex-shrink: 0;
 }
+.kpi-hub-dict-drawer__owner strong { color: #1e3a5f; }
 .kpi-hub-dict-drawer__owner-email {
   margin: 0.15rem 0 0;
   font-size: 0.82rem;
   color: #6b7280;
 }
 .kpi-hub-dict-drawer__target-card {
-  padding: 0.75rem;
-  border-radius: 10px;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  padding: 0.85rem 0.95rem;
+  border-radius: 12px;
+  background: #e8f8f0;
+  border: none;
   display: grid;
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 .kpi-hub-dict-drawer__target-value {
   font-size: 1.05rem;
@@ -19319,16 +19360,16 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
 }
 .kpi-hub-dict-drawer__target-desc {
   margin: 0;
-  font-size: 0.82rem;
-  color: #065f46;
+  font-size: 0.85rem;
+  color: #1e3a5f;
 }
 .kpi-hub-dict-drawer__updated {
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.82rem;
-  color: #6b7280;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  color: #334155;
 }
 .kpi-hub-dict-drawer__edit {
   width: 100%;
@@ -19336,5 +19377,27 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: 1.5px solid #10b981;
+  background: #fff;
+  color: #059669;
+  font-weight: 700;
+  text-decoration: none;
 }
+.kpi-hub-dict-drawer__edit:hover { background: #ecfdf5; }
 .kpi-hub-dict-drawer__loading { display: grid; gap: 0.65rem; }
+.kpi-hub-source-chip--meta { background: #60a5fa; color: #fff; border-color: #60a5fa; }
+.kpi-hub-source-chip--crm { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
+.kpi-hub-source-chip--share { background: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
+.kpi-hub-source-chip--erp { background: #f3e8ff; color: #6d28d9; border-color: #e9d5ff; }
+
+@media (max-width: 1100px) {
+  .kpi-hub-page-with-drawer.has-drawer {
+    grid-template-columns: 1fr;
+  }
+  .kpi-hub-dict-drawer {
+    position: static;
+    max-height: none;
+  }
+}

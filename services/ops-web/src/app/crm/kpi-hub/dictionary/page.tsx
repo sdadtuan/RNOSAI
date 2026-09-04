@@ -25,6 +25,7 @@ export default function KpiHubDictionaryPage() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<KpiHubDictionaryRow | null>(null);
+  const [didAutoOpen, setDidAutoOpen] = useState(false);
 
   const { rows: apiRows, summary, loading, error } = useKpiHubDictionary(token, {
     q,
@@ -66,6 +67,16 @@ export default function KpiHubDictionaryPage() {
 
   const drawerRow = detailRow ?? selected;
 
+  useEffect(() => {
+    if (didAutoOpen || loading || !filteredRows.length) return;
+    const preferred = filteredRows.find((row) => row.code === 'MKT_006') ?? filteredRows[0];
+    if (!preferred) return;
+    setSelected(preferred);
+    const index = filteredRows.findIndex((row) => row.id === preferred.id);
+    if (index >= 0) setPage(Math.floor(index / PAGE_SIZE) + 1);
+    setDidAutoOpen(true);
+  }, [didAutoOpen, filteredRows, loading]);
+
   return (
     <KpiHubPageGate section="crm_kpi_dictionary">
       <KpiHubShell
@@ -83,7 +94,7 @@ export default function KpiHubDictionaryPage() {
         }
       >
         {error ? <p className="error">{error}</p> : null}
-        <div className={`kpi-hub-page-with-drawer${selected ? ' has-drawer' : ''}`}>
+        <div className="kpi-hub-page-with-drawer has-drawer">
           <div className="kpi-hub-page-with-drawer__main">
             <KpiHubDictSummaryCards summary={summary} loading={loading} />
             <KpiHubDictFilterBar
