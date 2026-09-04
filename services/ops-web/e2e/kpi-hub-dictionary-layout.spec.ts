@@ -123,6 +123,7 @@ test.describe('KPI Dictionary built CSS contract', () => {
     expect(css).toMatch(/body:has\(\.kpi-hub-embed\)\{[^}]*overflow-x:hidden/);
     expect(css).toMatch(/body:has\(\.kpi-hub-embed\)\{[^}]*background:#fffdf8/);
     expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-freshness\{[^}]*margin-top:auto/);
+    expect(css).toMatch(/body:has\(\.ops-sidebar\) \.kpi-hub-embed \.kpi-hub-content[,{][^}]*margin-left:0!important/);
   });
 });
 
@@ -195,6 +196,7 @@ test.describe('KPI Dictionary layout fixture', () => {
 });
 
 const MARKETING_FIXTURE_HTML = `
+<aside class="ops-sidebar">Ops</aside>
 <main class="ops-page ops-page--full bitrix-crm-page">
   <div class="bitrix-crm-page__inner">
     <div class="kpi-hub-embed">
@@ -250,6 +252,10 @@ test.describe('KPI Hub marketing layout fixture', () => {
     expect(mainBox!.width).toBeGreaterThan(shellBox!.width * 0.55);
     expect(Math.abs(ccBox!.x - mainBox!.x)).toBeLessThan(24);
     expect(mainBox!.x + mainBox!.width).toBeGreaterThan(shellBox!.x + shellBox!.width - 8);
+
+    const content = page.locator('.kpi-hub-content');
+    const contentBox = await content.boundingBox();
+    expect(Math.abs(contentBox!.x - mainBox!.x)).toBeLessThan(8);
 
     const freshness = page.locator('.kpi-hub-freshness');
     await expect(freshness).toBeVisible();

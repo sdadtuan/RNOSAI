@@ -210,7 +210,7 @@ export function KpiHubShell({
           </div>
         </header>
 
-        <main className="kpi-hub-content">{children}</main>
+        <div className="kpi-hub-content">{children}</div>
         {showFreshness ? <KpiHubFreshnessFooter /> : null}
       </div>
     </div>

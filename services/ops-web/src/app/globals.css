@@ -19249,6 +19249,18 @@ body {
   width: 100%;
   max-width: 100%;
 }
+/* Page chrome targets every <main>; nested KPI Hub content must not inherit the ops-sidebar offset. */
+body:has(.ops-sidebar) .kpi-hub-embed main,
+body:has(.ops-sidebar) .kpi-hub-embed .kpi-hub-content,
+html.ops-shell-bitrix body:has(.ops-sidebar) .kpi-hub-embed main,
+html.ops-shell-bitrix body:has(.ops-sidebar) .kpi-hub-embed .kpi-hub-content {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: 1rem 1rem 0.5rem !important;
+  min-height: 0;
+  max-width: 100%;
+  background: #fffdf8;
+}
 .kpi-hub-embed .kpi-hub-main {
   grid-area: 1 / 2 / 2 / 3;
   display: flex;
