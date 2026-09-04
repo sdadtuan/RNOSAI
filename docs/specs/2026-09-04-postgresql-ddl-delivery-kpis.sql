@@ -16,9 +16,11 @@ CREATE TABLE IF NOT EXISTS crm_delivery_project_kpis (
   inherit_alert BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  deleted_at TIMESTAMPTZ,
-  UNIQUE (project_id, dictionary_id) WHERE deleted_at IS NULL
+  deleted_at TIMESTAMPTZ
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS crm_delivery_project_kpis_uq
+  ON crm_delivery_project_kpis (project_id, dictionary_id) WHERE deleted_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS crm_delivery_project_kpis_project_idx
   ON crm_delivery_project_kpis (project_id) WHERE deleted_at IS NULL;
