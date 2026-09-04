@@ -14,30 +14,30 @@ function builtCssPath(): string | null {
 }
 
 const LAYOUT_CSS = `
-.kpi-hub-embed .kpi-hub-shell { display: block; width: 100%; background: #f3efe6; overflow: visible; }
+.kpi-hub-embed { width: 100%; max-width: 100%; overflow-x: clip; }
+.kpi-hub-embed .kpi-hub-shell { display: block; width: 100%; max-width: 100%; overflow-x: clip; }
 .kpi-hub-embed .kpi-hub-sidebar { display: none !important; }
-.kpi-hub-embed .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
+.kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay.has-drawer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  overflow: hidden;
   width: 100%;
-  padding-right: min(380px, 32vw);
-  box-sizing: border-box;
+  max-width: 100%;
+}
+.kpi-hub-embed .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
+  min-width: 0;
+  overflow-x: hidden;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  width: min(360px, calc(100vw - 5rem));
-  max-height: calc(100vh - 2rem);
-  z-index: 25;
-  overflow-y: auto;
+  position: static;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 @media (max-width: 1100px) {
-  .kpi-hub-embed .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
-    padding-right: 0;
-  }
-  .kpi-hub-embed .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
-    position: static;
-    width: 100%;
-    max-width: 100%;
+  .kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay.has-drawer {
+    display: flex;
+    flex-wrap: wrap;
   }
 }
 `;
@@ -83,14 +83,16 @@ async function loginOrSkip(page: import('@playwright/test').Page) {
 }
 
 test.describe('KPI Dictionary built CSS contract', () => {
-  test('embed uses single-column shell and fixed drawer', () => {
+  test('embed uses contained grid layout without 100vw overflow', () => {
     const cssFile = builtCssPath();
     test.skip(!cssFile, 'Run npm run build first');
     const css = fs.readFileSync(cssFile!, 'utf8');
     expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*display:block/);
     expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-sidebar\{[^}]*display:none!important/);
-    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer--overlay \.kpi-hub-dict-drawer\{[^}]*position:fixed/);
-    expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*grid-template-columns:200px/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer\.kpi-hub-page-with-drawer--overlay\.has-drawer\{[^}]*display:grid/);
+    expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer--overlay \.kpi-hub-dict-drawer\{[^}]*position:fixed/);
+    expect(css).not.toMatch(/padding-right:min\(380px,calc\(100vw/);
+    expect(css).toMatch(/body:has\(\.kpi-hub-embed\)\{[^}]*overflow-x:hidden/);
   });
 });
 
@@ -128,11 +130,14 @@ test.describe('KPI Dictionary layout (live)', () => {
 });
 
 test.describe('KPI Dictionary layout fixture', () => {
-  test('single-column shell and fixed drawer stay inside viewport', async ({ page }) => {
+  test('single-column shell and drawer stay inside viewport without page scroll', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto('about:blank');
     await page.setContent(FIXTURE_HTML, { waitUntil: 'domcontentloaded' });
     await page.addStyleTag({ content: LAYOUT_CSS });
+
+    const hasHorizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    expect(hasHorizontalScroll).toBe(false);
 
     const shell = page.locator('.kpi-hub-shell');
     const main = page.locator('.kpi-hub-main');
@@ -143,7 +148,7 @@ test.describe('KPI Dictionary layout fixture', () => {
     const drawerBox = await drawer.boundingBox();
 
     expect(Math.abs(mainBox!.x - shellBox!.x)).toBeLessThan(8);
-    expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(1280);
+    expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(shellBox!.x + shellBox!.width + 2);
     await expect(drawer.getByRole('heading', { level: 2, name: 'CPL Valid Lead' })).toBeVisible();
   });
 });
