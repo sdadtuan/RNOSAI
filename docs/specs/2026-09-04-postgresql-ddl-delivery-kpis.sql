@@ -1,5 +1,5 @@
--- Wave D: project KPI attachments + PROJECT scope on Hub targets
-ALTER TABLE crm_kpi_targets
+-- Wave D: project KPI attachments + PROJECT scope on Hub period targets
+ALTER TABLE crm_kpi_period_targets
   ADD COLUMN IF NOT EXISTS scope_project_id UUID REFERENCES crm_delivery_projects(id);
 
 CREATE TABLE IF NOT EXISTS crm_delivery_project_kpis (
