@@ -19123,7 +19123,7 @@ body {
   background: #f3efe6;
   border: 1px solid #e7e0d4;
   border-radius: 16px;
-  overflow: hidden;
+  overflow: clip;
   grid-template-columns: 200px minmax(0, 1fr);
 }
 .kpi-hub-embed .kpi-hub-shell--collapsed {
@@ -19151,6 +19151,8 @@ body {
 .kpi-hub-embed .kpi-hub-main {
   width: 100%;
   min-width: 0;
+  container-type: inline-size;
+  container-name: kpi-hub-main;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer,
 .kpi-hub-embed .kpi-hub-page-with-drawer__main,
@@ -19167,9 +19169,13 @@ body {
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay.has-drawer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 32%, 300px);
   gap: 1rem;
   align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay:not(.has-drawer) {
   display: grid;
@@ -19500,6 +19506,39 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
 .kpi-hub-source-chip--crm { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
 .kpi-hub-source-chip--share { background: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
 .kpi-hub-source-chip--erp { background: #f3e8ff; color: #6d28d9; border-color: #e9d5ff; }
+
+/* Embed responsive — must follow base .kpi-hub-embed .kpi-hub-shell rules above */
+@media (max-width: 900px) {
+  .kpi-hub-embed .kpi-hub-shell,
+  .kpi-hub-embed .kpi-hub-shell--collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container kpi-hub-main (max-width: 960px) {
+  .kpi-hub-embed .kpi-hub-page-with-drawer--overlay.has-drawer {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+  .kpi-hub-embed .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
+    overflow-x: visible;
+  }
+  .kpi-hub-embed .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
+    position: static;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+  }
+}
+
+@container kpi-hub-main (min-width: 961px) {
+  .kpi-hub-embed .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
+    overflow-x: auto;
+  }
+  .kpi-hub-embed .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
+    max-width: 100%;
+  }
+}
 
 @media (max-width: 1100px) {
   .kpi-hub-page-with-drawer.has-drawer:not(.kpi-hub-page-with-drawer--overlay) {
