@@ -18244,25 +18244,30 @@ body {
 
 /* ── KPI Hub (Marketing & Sales workspace) ── */
 .kpi-hub-shell {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
   min-height: calc(100vh - 56px);
   min-width: 0;
   width: 100%;
   background: #f9fafb;
 }
-.kpi-hub-shell--collapsed { grid-template-columns: 64px minmax(0, 1fr); }
-.kpi-hub-shell--collapsed .kpi-hub-sidebar { max-width: 64px; }
+.kpi-hub-shell--collapsed .kpi-hub-sidebar {
+  flex: 0 0 64px;
+  width: 64px;
+  max-width: 64px;
+}
 .kpi-hub-sidebar {
   display: flex;
   flex-direction: column;
-  grid-column: 1;
-  grid-row: 1;
-  width: 100%;
+  flex: 0 0 240px;
+  width: 240px;
   max-width: 240px;
   background: #fff;
   border-right: 1px solid #e5e7eb;
   min-height: 100%;
+  min-width: 0;
 }
 .kpi-hub-sidebar__brand {
   display: flex;
@@ -18333,10 +18338,9 @@ body {
 .kpi-hub-main {
   display: flex;
   flex-direction: column;
-  grid-column: 2;
-  grid-row: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  width: 100%;
+  width: auto;
   margin-left: 0;
 }
 .kpi-hub-header {
@@ -19008,17 +19012,11 @@ body {
   .kpi-hub-drawer:not(.kpi-hub-dict-drawer) { position: static; max-height: none; }
 }
 @media (max-width: 900px) {
-  .kpi-hub-shell,
-  .kpi-hub-shell--collapsed {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .kpi-hub-sidebar { display: none; }
-  .kpi-hub-embed .kpi-hub-shell,
-  .kpi-hub-embed .kpi-hub-shell--collapsed {
-    grid-template-columns: 64px minmax(0, 1fr);
-  }
   .kpi-hub-embed .kpi-hub-sidebar {
     display: flex !important;
+    flex: 0 0 64px;
+    width: 64px;
     max-width: 64px;
   }
   .kpi-hub-summary-grid,
@@ -19191,8 +19189,10 @@ body {
   overflow-x: clip;
 }
 .kpi-hub-embed .kpi-hub-shell {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -19202,18 +19202,16 @@ body {
   border-radius: 16px;
   overflow: hidden;
 }
-.kpi-hub-embed .kpi-hub-shell--collapsed {
-  grid-template-columns: 64px minmax(0, 1fr);
-}
 .kpi-hub-embed .kpi-hub-shell--collapsed .kpi-hub-sidebar {
+  flex: 0 0 64px;
+  width: 64px;
   max-width: 64px;
 }
 .kpi-hub-embed .kpi-hub-sidebar {
   display: flex;
   flex-direction: column;
-  grid-column: 1;
-  grid-row: 1;
-  width: 100%;
+  flex: 0 0 240px;
+  width: 240px;
   max-width: 240px;
   background: #fff;
   border-right: 1px solid #e7e0d4;
@@ -19236,11 +19234,10 @@ body {
   max-width: 100%;
 }
 .kpi-hub-embed .kpi-hub-main {
-  grid-column: 2;
-  grid-row: 1;
-  width: 100%;
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 100%;
+  width: auto;
+  max-width: none;
   margin-left: 0;
   overflow-x: clip;
   background: #fffdf8;
