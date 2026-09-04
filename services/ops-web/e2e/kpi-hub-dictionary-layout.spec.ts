@@ -13,53 +13,31 @@ function builtCssPath(): string | null {
   return file ? path.join(CSS_DIR, file) : null;
 }
 
-/** Minimal rules under test — mirrors globals.css layout contract */
 const LAYOUT_CSS = `
-.kpi-hub-shell {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+.kpi-hub-embed .kpi-hub-shell { display: block; width: 100%; background: #f3efe6; overflow: visible; }
+.kpi-hub-embed .kpi-hub-sidebar { display: none !important; }
+.kpi-hub-embed .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
   width: 100%;
-  background: #f3efe6;
+  padding-right: min(380px, 32vw);
+  box-sizing: border-box;
 }
-.kpi-hub-embed .kpi-hub-sidebar {
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-}
-.kpi-hub-page-with-drawer--overlay.has-drawer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 1rem;
-  width: 100%;
-}
-.kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
-  flex: 1 1 520px;
-  min-width: 0;
-}
-.kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
-  flex: 1 1 280px;
-  min-width: min(100%, 280px);
-  max-width: min(100%, 360px);
-}
-@media (max-width: 900px) {
-  .kpi-hub-embed .kpi-hub-shell,
-  .kpi-hub-embed .kpi-hub-shell--collapsed {
-    grid-template-columns: 64px minmax(0, 1fr);
-  }
-  .kpi-hub-embed .kpi-hub-sidebar__brand strong,
-  .kpi-hub-embed .kpi-hub-sidebar__link > span:not(.kpi-hub-sidebar__icon) {
-    display: none;
-  }
+.kpi-hub-embed .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  width: min(360px, calc(100vw - 5rem));
+  max-height: calc(100vh - 2rem);
+  z-index: 25;
+  overflow-y: auto;
 }
 @media (max-width: 1100px) {
-  .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
-    flex: 1 1 100%;
+  .kpi-hub-embed .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
+    padding-right: 0;
   }
-  .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
-    flex: 1 1 100%;
+  .kpi-hub-embed .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
+    position: static;
+    width: 100%;
     max-width: 100%;
-    min-width: 0;
   }
 }
 `;
@@ -69,15 +47,7 @@ const FIXTURE_HTML = `
   <div class="bitrix-crm-page__inner">
     <div class="kpi-hub-embed">
       <div class="kpi-hub-shell">
-        <aside class="kpi-hub-sidebar">
-          <div class="kpi-hub-sidebar__brand">
-            <span class="kpi-hub-sidebar__logo">📊</span>
-            <strong>KPI Hub</strong>
-          </div>
-          <nav class="kpi-hub-sidebar__nav">
-            <a class="kpi-hub-sidebar__link is-active" href="#"><span class="kpi-hub-sidebar__icon">▣</span><span>KPI Dictionary</span></a>
-          </nav>
-        </aside>
+        <aside class="kpi-hub-sidebar">hidden</aside>
         <div class="kpi-hub-main">
           <div class="kpi-hub-content">
             <div class="kpi-hub-page-with-drawer kpi-hub-page-with-drawer--overlay has-drawer">
@@ -113,13 +83,14 @@ async function loginOrSkip(page: import('@playwright/test').Page) {
 }
 
 test.describe('KPI Dictionary built CSS contract', () => {
-  test('production bundle avoids pinned 200px embed shell column', () => {
+  test('embed uses single-column shell and fixed drawer', () => {
     const cssFile = builtCssPath();
     test.skip(!cssFile, 'Run npm run build first');
     const css = fs.readFileSync(cssFile!, 'utf8');
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*display:block/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-sidebar\{[^}]*display:none!important/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer--overlay \.kpi-hub-dict-drawer\{[^}]*position:fixed/);
     expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-shell\{[^}]*grid-template-columns:200px/);
-    expect(css).toContain('.kpi-hub-page-with-drawer--overlay.has-drawer{display:flex');
-    expect(css).toContain('grid-template-columns:64px minmax(0,1fr)');
   });
 });
 
@@ -129,70 +100,50 @@ test.describe('KPI Dictionary layout (live)', () => {
     await loginOrSkip(page);
   });
 
-  test('sidebar flush with shell and drawer fully visible', async ({ page }) => {
+  test('no empty sidebar gap and drawer fully visible', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/crm/kpi-hub/dictionary');
-    await expect(page.getByRole('heading', { level: 1, name: 'KPI Dictionary' })).toBeVisible({
-      timeout: 20_000,
-    });
     await expect(page.getByRole('heading', { level: 2, name: 'CPL Valid Lead' })).toBeVisible({
       timeout: 20_000,
     });
 
     const shell = page.locator('.kpi-hub-embed .kpi-hub-shell');
     const sidebar = page.locator('.kpi-hub-embed .kpi-hub-sidebar');
+    const main = page.locator('.kpi-hub-embed .kpi-hub-main');
     const drawer = page.locator('.kpi-hub-dict-drawer');
 
+    await expect(sidebar).toBeHidden();
+
     const shellBox = await shell.boundingBox();
-    const sidebarBox = await sidebar.boundingBox();
+    const mainBox = await main.boundingBox();
     const drawerBox = await drawer.boundingBox();
 
     expect(shellBox).not.toBeNull();
-    expect(sidebarBox).not.toBeNull();
+    expect(mainBox).not.toBeNull();
     expect(drawerBox).not.toBeNull();
-    expect(Math.abs(sidebarBox!.x - shellBox!.x)).toBeLessThan(2);
-    expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(shellBox!.x + shellBox!.width + 2);
+    expect(Math.abs(mainBox!.x - shellBox!.x)).toBeLessThan(8);
+    expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(1280);
+    await expect(drawer.getByText('Chi phí trên mỗi Valid Lead', { exact: false })).toBeVisible();
   });
 });
 
 test.describe('KPI Dictionary layout fixture', () => {
-  test('layout rules keep sidebar flush and drawer inside shell', async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 720 });
+  test('single-column shell and fixed drawer stay inside viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto('about:blank');
     await page.setContent(FIXTURE_HTML, { waitUntil: 'domcontentloaded' });
     await page.addStyleTag({ content: LAYOUT_CSS });
 
     const shell = page.locator('.kpi-hub-shell');
-    const sidebar = page.locator('.kpi-hub-sidebar');
+    const main = page.locator('.kpi-hub-main');
     const drawer = page.locator('.kpi-hub-dict-drawer');
 
     const shellBox = await shell.boundingBox();
-    const sidebarBox = await sidebar.boundingBox();
-    const drawerBox = await drawer.boundingBox();
-
-    expect(Math.abs(sidebarBox!.x - shellBox!.x)).toBeLessThan(2);
-    expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(shellBox!.x + shellBox!.width + 2);
-    await expect(drawer.getByRole('heading', { level: 2, name: 'CPL Valid Lead' })).toBeVisible();
-  });
-
-  test('layout rules use 64px rail below 900px without empty gap', async ({ page }) => {
-    await page.setViewportSize({ width: 860, height: 720 });
-    await page.goto('about:blank');
-    await page.setContent(FIXTURE_HTML, { waitUntil: 'domcontentloaded' });
-    await page.addStyleTag({ content: LAYOUT_CSS });
-
-    const sidebar = page.locator('.kpi-hub-sidebar');
-    const drawer = page.locator('.kpi-hub-dict-drawer');
-    const main = page.locator('.kpi-hub-page-with-drawer__main');
-    const shell = page.locator('.kpi-hub-shell');
-
-    const sidebarBox = await sidebar.boundingBox();
-    const drawerBox = await drawer.boundingBox();
     const mainBox = await main.boundingBox();
-    const shellBox = await shell.boundingBox();
+    const drawerBox = await drawer.boundingBox();
 
-    expect(sidebarBox!.width).toBeLessThan(100);
-    expect(drawerBox!.y).toBeGreaterThanOrEqual(mainBox!.y + mainBox!.height - 4);
-    expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(shellBox!.x + shellBox!.width + 2);
+    expect(Math.abs(mainBox!.x - shellBox!.x)).toBeLessThan(8);
+    expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(1280);
+    await expect(drawer.getByRole('heading', { level: 2, name: 'CPL Valid Lead' })).toBeVisible();
   });
 });
