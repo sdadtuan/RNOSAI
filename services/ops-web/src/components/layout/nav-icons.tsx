@@ -498,6 +498,13 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/hr': 'staff',
   '/crm/staff': 'staff',
   '/crm/kpi': 'kpi',
+  '/crm/kpi-hub': 'dashboard',
+  '/crm/kpi-hub/dictionary': 'metric',
+  '/crm/kpi-hub/targets': 'kpi',
+  '/crm/kpi-hub/sources': 'catalog',
+  '/crm/kpi-hub/quality': 'health',
+  '/crm/kpi-hub/reports': 'report',
+  '/crm/kpi-hub/settings': 'settings',
   '/crm/staff-kpi': 'metric',
   '/crm/payroll': 'payroll',
   '/crm/ai/insights': 'insight',
@@ -588,6 +595,7 @@ export const SECTION_ICONS: Record<string, string> = {
   AI: 'agent',
   'Cấu hình': 'settings',
   GTM: 'inbox',
+  'KPI Hub': 'kpi',
   'Service Desk': 'ticket',
 };
 
@@ -615,6 +623,7 @@ export const SECTION_LABELS: Record<string, string> = {
   'Quản trị hệ thống': 'Hệ thống',
   'Cấu hình CRM': 'Cấu hình',
   GTM: 'inbox',
+  'KPI Hub': 'KPI Hub',
   'Service Desk': 'Service Desk',
 };
 

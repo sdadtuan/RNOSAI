@@ -18501,6 +18501,8 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
   width: 100%;
+  max-width: 100%;
+  justify-items: stretch;
 }
 .kpi-hub-summary-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .kpi-hub-summary-card__label { margin: 0; font-size: 0.82rem; color: #6b7280; }
@@ -18553,21 +18555,36 @@ body {
 .kpi-hub-page-with-drawer.has-drawer:not(.kpi-hub-page-with-drawer--overlay) {
   grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
 }
-.kpi-hub-page-with-drawer--overlay {
-  display: block;
+.kpi-hub-page-with-drawer--overlay,
+.kpi-hub-page-with-drawer--overlay.has-drawer {
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: none;
+  width: 100%;
 }
 .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
-  padding-right: min(376px, 38%);
+  padding-right: 0;
+  width: 100%;
+  max-width: 100%;
 }
 .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
   position: absolute;
   top: 0;
   right: 0;
-  width: min(360px, 38%);
+  width: min(360px, 42vw);
   z-index: 8;
   max-height: calc(100vh - 160px);
+  pointer-events: auto;
 }
-.kpi-hub-page-with-drawer__main { display: grid; gap: 1rem; min-width: 0; width: 100%; }
+.kpi-hub-page-with-drawer__main {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  justify-items: stretch;
+}
 .kpi-hub-drawer {
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -19099,6 +19116,29 @@ body {
   padding: 1rem 1.35rem 1.5rem;
   min-width: 0;
   width: 100%;
+  max-width: 100%;
+}
+.kpi-hub-embed .kpi-hub-main {
+  width: 100%;
+  min-width: 0;
+}
+.kpi-hub-embed .kpi-hub-page-with-drawer,
+.kpi-hub-embed .kpi-hub-page-with-drawer__main,
+.kpi-hub-embed .kpi-hub-summary-grid,
+.kpi-hub-embed .kpi-hub-dict-toolbar,
+.kpi-hub-embed .kpi-hub-dict-table,
+.kpi-hub-embed .kpi-hub-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-left: 0;
+  margin-right: 0;
+  box-sizing: border-box;
+}
+.kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay,
+.kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay.has-drawer {
+  display: block;
+  grid-template-columns: none;
 }
 .kpi-hub-dict-toolbar {
   background: #fff;

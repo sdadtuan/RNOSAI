@@ -154,6 +154,12 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/kpi/types': 'KPI Type',
   '/crm/kpi/types/new': 'Thêm KPI Type',
   '/crm/kpi-hub': 'KPI Hub',
+  '/crm/kpi-hub/dictionary': 'KPI Dictionary',
+  '/crm/kpi-hub/targets': 'Target & Cảnh báo',
+  '/crm/kpi-hub/sources': 'Nguồn dữ liệu',
+  '/crm/kpi-hub/quality': 'Data Quality',
+  '/crm/kpi-hub/reports': 'Báo cáo KPI Hub',
+  '/crm/kpi-hub/settings': 'Cài đặt KPI Hub',
   '/crm/ai/insights': 'AI Insights',
   '/crm/ai/coach': 'Manager Coach',
   '/crm/ai/query': 'NL Analytics',
@@ -470,6 +476,32 @@ function buildSections(
     sections.push({ label: 'GTM', links: gtm });
   }
 
+  const kpiHub: NavLink[] = [];
+  if (hasCap(user, 'crm_kpi_hub', 'view')) {
+    kpiHub.push({ href: '/crm/kpi-hub', label: 'Dashboard' });
+  }
+  if (hasCap(user, 'crm_kpi_dictionary', 'view')) {
+    kpiHub.push({ href: '/crm/kpi-hub/dictionary', label: 'KPI Dictionary' });
+  }
+  if (hasCap(user, 'crm_kpi_hub_targets', 'view')) {
+    kpiHub.push({ href: '/crm/kpi-hub/targets', label: 'Target & Cảnh báo' });
+  }
+  if (hasCap(user, 'crm_kpi_hub_sources', 'view')) {
+    kpiHub.push({ href: '/crm/kpi-hub/sources', label: 'Nguồn dữ liệu' });
+  }
+  if (hasCap(user, 'crm_kpi_quality', 'view')) {
+    kpiHub.push({ href: '/crm/kpi-hub/quality', label: 'Data Quality' });
+  }
+  if (hasCap(user, 'crm_kpi_hub_reports', 'view')) {
+    kpiHub.push({ href: '/crm/kpi-hub/reports', label: 'Báo cáo' });
+  }
+  if (hasCap(user, 'crm_kpi_hub_settings', 'view')) {
+    kpiHub.push({ href: '/crm/kpi-hub/settings', label: 'Cài đặt' });
+  }
+  if (kpiHub.length) {
+    sections.push({ label: 'KPI Hub', links: kpiHub, defaultOpen: true });
+  }
+
   const delivery: NavLink[] = [];
   if (hasCap(user, 'crm_board', 'view')) {
     delivery.push({ href: '/crm/service-delivery', label: 'Triển khai DV' });
@@ -510,9 +542,6 @@ function buildSections(
     }
     if (hasCap(user, 'crm_kpi_types', 'view')) {
       hr.push({ href: '/crm/kpi/types', label: 'KPI Type' });
-    }
-    if (hasCap(user, 'crm_kpi_hub', 'view')) {
-      hr.push({ href: '/crm/kpi-hub', label: 'KPI Hub' });
     }
     if (winKpiSolutionEnabled()) {
       hr.push({ href: '/crm/kpi/solution', label: 'KPI Solution' });
