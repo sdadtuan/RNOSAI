@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useMemo, useState } from 'react';
-import { KPI_HUB_NAV, activeKpiHubHref } from '@/lib/kpi-hub-nav';
+import { KPI_HUB_NAV_GROUPS, activeKpiHubHref, isKpiHubPath, kpiHubNavGroupsWithDelivery } from '@/lib/kpi-hub-nav';
 import { KpiHubFreshnessFooter } from './KpiHubFreshnessFooter';
 
 export type KpiHubBreadcrumb = { label: string; href?: string };
@@ -14,6 +14,7 @@ type KpiHubShellProps = {
   breadcrumb?: KpiHubBreadcrumb[];
   actions?: ReactNode;
   showFreshness?: boolean;
+  searchPlaceholder?: string;
   children: ReactNode;
 };
 
@@ -74,6 +75,24 @@ function NavIcon({ icon }: { icon: string }) {
           <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
         </svg>
       );
+    case 'inbox':
+      return (
+        <svg {...common}>
+          <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+          <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+        </svg>
+      );
+    case 'list':
+      return (
+        <svg {...common}>
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <line x1="3" y1="6" x2="3.01" y2="6" />
+          <line x1="3" y1="12" x2="3.01" y2="12" />
+          <line x1="3" y1="18" x2="3.01" y2="18" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -85,10 +104,17 @@ export function KpiHubShell({
   breadcrumb = [],
   actions,
   showFreshness = false,
+  searchPlaceholder = 'Tìm trong Hub…',
   children,
 }: KpiHubShellProps) {
   const pathname = usePathname() ?? '';
   const activeHref = useMemo(() => activeKpiHubHref(pathname), [pathname]);
+  const navGroups = useMemo(() => {
+    if (pathname.startsWith('/crm/delivery-projects')) {
+      return kpiHubNavGroupsWithDelivery();
+    }
+    return KPI_HUB_NAV_GROUPS;
+  }, [pathname]);
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -101,21 +127,30 @@ export function KpiHubShell({
           {!collapsed ? <strong>KPI Hub</strong> : null}
         </div>
         <nav className="kpi-hub-sidebar__nav" aria-label="KPI Hub">
-          {KPI_HUB_NAV.map((item) => {
-            const active = activeHref === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`kpi-hub-sidebar__link${active ? ' is-active' : ''}`}
-              >
-                <span className="kpi-hub-sidebar__icon" aria-hidden>
-                  <NavIcon icon={item.icon} />
-                </span>
-                {!collapsed ? <span>{item.label}</span> : null}
-              </Link>
-            );
-          })}
+          {navGroups.map((group) => (
+            <div key={group.id} className="kpi-hub-sidebar__group-block">
+              {!collapsed ? (
+                <p className="kpi-hub-sidebar__group" aria-hidden>
+                  {group.label}
+                </p>
+              ) : null}
+              {group.items.map((item) => {
+                const active = activeHref === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`kpi-hub-sidebar__link${active ? ' is-active' : ''}`}
+                  >
+                    <span className="kpi-hub-sidebar__icon" aria-hidden>
+                      <NavIcon icon={item.icon} />
+                    </span>
+                    {!collapsed ? <span>{item.label}</span> : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
         <button
           type="button"
@@ -152,6 +187,25 @@ export function KpiHubShell({
             </div>
           </div>
           <div className="kpi-hub-header__right">
+            {isKpiHubPath(pathname) ? (
+              <input
+                type="search"
+                className="kpi-hub-header__search"
+                placeholder={searchPlaceholder}
+                aria-label="Tìm kiếm"
+              />
+            ) : null}
+            <button type="button" className="kpi-hub-btn kpi-hub-btn--ghost" aria-label="Trợ giúp">
+              ?
+            </button>
+            <button type="button" className="kpi-hub-header__bell" aria-label="Thông báo">
+              <span className="kpi-hub-header__bell-badge" aria-hidden>
+                0
+              </span>
+            </button>
+            <span className="kpi-hub-header__avatar" aria-hidden>
+              P
+            </span>
             <span className="kpi-hub-header__tenant">PTT</span>
           </div>
         </header>

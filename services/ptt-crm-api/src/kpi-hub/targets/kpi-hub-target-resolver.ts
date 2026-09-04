@@ -1,4 +1,4 @@
-export type HubHierarchyLevel = 'WORKSPACE' | 'DEPARTMENT' | 'TEAM' | 'CAMPAIGN' | 'USER';
+export type HubHierarchyLevel = 'PROJECT' | 'WORKSPACE' | 'DEPARTMENT' | 'TEAM' | 'CAMPAIGN' | 'USER';
 
 export type HubScopeChain = {
   workspace?: string;
@@ -6,6 +6,7 @@ export type HubScopeChain = {
   team?: string;
   campaign?: string;
   user?: string;
+  project_id?: string;
 };
 
 export type HubTargetCandidate = {
@@ -19,7 +20,7 @@ export type HubTargetCandidate = {
   direction: string;
 };
 
-const LEVEL_PRIORITY: HubHierarchyLevel[] = ['CAMPAIGN', 'USER', 'TEAM', 'DEPARTMENT', 'WORKSPACE'];
+const LEVEL_PRIORITY: HubHierarchyLevel[] = ['PROJECT', 'CAMPAIGN', 'USER', 'TEAM', 'DEPARTMENT', 'WORKSPACE'];
 
 /**
  * Resolve the most specific target for a KPI period.
@@ -46,6 +47,11 @@ export function resolveTarget(
 
 function targetMatchesScope(target: HubTargetCandidate, scope: HubScopeChain): boolean {
   switch (target.hierarchy_level) {
+    case 'PROJECT':
+      return Boolean(
+        scope.project_id &&
+          (target.scope_hash === `p:${scope.project_id}` || target.scope_label.includes(scope.project_id)),
+      );
     case 'CAMPAIGN':
       return Boolean(scope.campaign && target.scope_label.includes(scope.campaign));
     case 'USER':
@@ -63,6 +69,7 @@ function targetMatchesScope(target: HubTargetCandidate, scope: HubScopeChain): b
 
 export function scopeHashFromChain(scope: HubScopeChain): string {
   const parts = [
+    scope.project_id ? `p:${scope.project_id}` : '',
     scope.campaign ? `c:${scope.campaign}` : '',
     scope.user ? `u:${scope.user}` : '',
     scope.team ? `t:${scope.team}` : '',

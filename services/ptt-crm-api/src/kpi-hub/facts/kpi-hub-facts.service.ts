@@ -2,6 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { KpiHubConnectorRegistry } from '../connectors/kpi-hub-connector.registry';
 import { KpiHubAlertEngineService } from '../alerts/kpi-hub-alert-engine.service';
 import {
+  EXEC_FUNNEL,
+  MKT_FUNNEL,
+  SALES_FUNNEL,
+} from '../command-center/command-center.builder';
+import {
+  EXEC_TILE_CODES,
+  MKT_TILE_CODES,
+  SALES_TILE_CODES,
+} from '../command-center/command-center.util';
+import {
   KPI_HUB_DEMO_FACTS,
   parseHubPeriod,
   periodDates,
@@ -14,6 +24,18 @@ import { KpiHubFactsRepository } from './kpi-hub-facts.repository';
 
 const DASHBOARD_CODES = ['SAL_008', 'MKT_002', 'MKT_006', 'MKT_008', 'SAL_007'] as const;
 const FUNNEL_CODES = ['MKT_001', 'MKT_002', 'MKT_007', 'SAL_001', 'SAL_003', 'SAL_WON'] as const;
+
+export const COMMAND_FACT_CODES = [
+  ...new Set([
+    ...EXEC_TILE_CODES,
+    ...MKT_TILE_CODES,
+    ...SALES_TILE_CODES.filter((c) => c !== 'SAL_005W'),
+    ...EXEC_FUNNEL,
+    ...MKT_FUNNEL,
+    ...SALES_FUNNEL,
+    'SAL_005_P',
+  ]),
+] as const;
 
 const KPI_QUERY_DEFS: Record<
   string,
@@ -62,6 +84,15 @@ const KPI_QUERY_DEFS: Record<
     field: 'amount',
     filters: [{ field: 'created_at', op: 'in_period' }],
   },
+  SAL_005: {
+    entity: 'Deals',
+    agg: 'SUM',
+    field: 'expected_value',
+    filters: [
+      { field: 'status', op: 'eq', value: 'Open' },
+      { field: 'created_at', op: 'in_period' },
+    ],
+  },
   SAL_WON: {
     entity: 'Leads',
     agg: 'COUNT',
@@ -75,6 +106,7 @@ const KPI_QUERY_DEFS: Record<
 const RATIO_DEFS: Record<string, { numerator: string; denominator: string; blank_if_zero: boolean; as_pct?: boolean }> = {
   MKT_006: { numerator: 'MKT_004', denominator: 'MKT_002', blank_if_zero: true },
   MKT_008: { numerator: 'MKT_007', denominator: 'MKT_002', blank_if_zero: true, as_pct: true },
+  MKT_009: { numerator: 'SAL_008', denominator: 'MKT_004', blank_if_zero: true },
   SAL_007: { numerator: 'SAL_WON', denominator: 'SAL_001', blank_if_zero: true, as_pct: true },
 };
 
@@ -95,7 +127,7 @@ export class KpiHubFactsService {
     const computed = new Map<string, number | null>();
     const connectorEmpty = new Map<string, boolean>();
 
-    const allCodes = [...new Set([...DASHBOARD_CODES, ...FUNNEL_CODES, 'MKT_004'])];
+    const allCodes = [...new Set([...DASHBOARD_CODES, ...FUNNEL_CODES, 'MKT_004', 'SAL_005', ...COMMAND_FACT_CODES])];
 
     for (const code of allCodes) {
       if (RATIO_DEFS[code]) continue;

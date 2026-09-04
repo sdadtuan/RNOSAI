@@ -9,6 +9,8 @@ describe('KpiHubFactsService', () => {
     MKT_006: { id: 'a0000006-0000-4000-8000-000000000006', code: 'MKT_006' },
     MKT_007: { id: 'a0000007-0000-4000-8000-000000000007', code: 'MKT_007' },
     MKT_008: { id: 'a0000008-0000-4000-8000-000000000008', code: 'MKT_008' },
+    MKT_009: { id: 'a0000009-0000-4000-8000-000000000009', code: 'MKT_009' },
+    SAL_005: { id: 'a0000014-0000-4000-8000-000000000014', code: 'SAL_005' },
     SAL_007: { id: 'a0000015-0000-4000-8000-000000000015', code: 'SAL_007' },
     SAL_008: { id: 'a0000016-0000-4000-8000-000000000016', code: 'SAL_008' },
     MKT_001: { id: 'a0000001-0000-4000-8000-000000000001', code: 'MKT_001' },
@@ -88,6 +90,15 @@ describe('KpiHubFactsService', () => {
     const mkt008 = upsertCalls.find((c) => c.dictionary_id === dictRows.MKT_008.id);
     expect(mkt008?.actual_value).toBe(24.8);
     expect(ratioPeriod(369, 1486, true)).toBeCloseTo(0.248, 3);
+  });
+
+  it('MKT_009 ratio uses SAL_008 / MKT_004 not avg daily', async () => {
+    await service.computePeriod('2026-09');
+    const mkt009 = upsertCalls.find((c) => c.dictionary_id === dictRows.MKT_009.id);
+    expect(mkt009).toBeDefined();
+    expect(mkt009?.num_value).toBe(1240000000);
+    expect(mkt009?.den_value).toBe(210980000);
+    expect(mkt009?.actual_value).toBeCloseTo(1240000000 / 210980000, 2);
   });
 });
 

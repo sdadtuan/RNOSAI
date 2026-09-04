@@ -1,6 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
+import { DeliveryProjectsModule } from '../delivery-projects/delivery-projects.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+import { KpiHubApprovalsService } from './approvals/kpi-hub-approvals.service';
 import { KpiHubAlertsService } from './alerts/kpi-hub-alerts.service';
 import { KpiHubAlertEngineService } from './alerts/kpi-hub-alert-engine.service';
 import { KpiHubBiController } from './bi/kpi-hub-bi.controller';
@@ -29,6 +31,7 @@ import {
   StaffKpiHubViewGuard,
 } from './guards/staff-kpi-hub.guard';
 import { KpiHubController } from './kpi-hub.controller';
+import { KpiHubLineageService } from './lineage/kpi-hub-lineage.service';
 import { KpiHubSourcesService } from './mapping/kpi-hub-sources.service';
 import { KpiHubNotificationsRepository } from './notifications/kpi-hub-notifications.repository';
 import { KpiHubNotificationsService } from './notifications/kpi-hub-notifications.service';
@@ -40,7 +43,7 @@ import { KpiHubWorkspaceRepository } from './workspace/kpi-hub-workspace.reposit
 import { KpiHubWorkspaceService } from './workspace/kpi-hub-workspace.service';
 
 @Module({
-  imports: [StaffAuthModule, ScheduleModule.forRoot()],
+  imports: [StaffAuthModule, forwardRef(() => DeliveryProjectsModule), ScheduleModule.forRoot()],
   controllers: [KpiHubController, KpiHubBiController],
   providers: [
     KpiHubWorkspaceRepository,
@@ -63,6 +66,8 @@ import { KpiHubWorkspaceService } from './workspace/kpi-hub-workspace.service';
     KpiHubQualityService,
     KpiHubReportsService,
     KpiHubActivityService,
+    KpiHubApprovalsService,
+    KpiHubLineageService,
     StaffKpiHubViewGuard,
     StaffKpiHubDictionaryViewGuard,
     StaffKpiHubDictionaryManageGuard,
@@ -78,6 +83,6 @@ import { KpiHubWorkspaceService } from './workspace/kpi-hub-workspace.service';
     StaffKpiHubSettingsViewGuard,
     StaffKpiHubSettingsManageGuard,
   ],
-  exports: [KpiHubDictionaryService, KpiHubDashboardService, KpiHubAlertEngineService, KpiHubFactsService],
+  exports: [KpiHubDictionaryService, KpiHubDashboardService, KpiHubAlertEngineService, KpiHubFactsService, KpiHubTargetsService],
 })
 export class KpiHubModule {}

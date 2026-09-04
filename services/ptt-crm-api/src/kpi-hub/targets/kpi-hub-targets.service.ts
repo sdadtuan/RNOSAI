@@ -34,17 +34,32 @@ export class KpiHubTargetsService {
       team: query.team,
       department: query.department,
       user: query.user,
+      project_id: query.project_id,
     };
   }
 
   private toCandidate(row: HubPeriodTargetRow): HubTargetCandidate {
     const level =
       (row.hierarchy_level as HubTargetCandidate['hierarchy_level']) ??
-      (row.scope_type === 'ORGANIZATION' ? 'WORKSPACE' : 'TEAM');
+      (row.scope_type === 'PROJECT'
+        ? 'PROJECT'
+        : row.scope_type === 'ORGANIZATION'
+          ? 'WORKSPACE'
+          : row.scope_type === 'CAMPAIGN'
+            ? 'CAMPAIGN'
+            : 'TEAM');
     return {
       id: row.id,
       hierarchy_level: level,
-      scope_hash: row.scope_hash ?? scopeHashFromChain({ team: row.scope_label }),
+      scope_hash:
+        row.scope_hash ??
+        scopeHashFromChain(
+          level === 'PROJECT'
+            ? { project_id: row.scope_label }
+            : level === 'CAMPAIGN'
+              ? { campaign: row.scope_label }
+              : { team: row.scope_label },
+        ),
       scope_label: row.scope_label,
       target_value: row.target_value,
       warning_value: row.warning_value,
@@ -115,8 +130,17 @@ export class KpiHubTargetsService {
     const dict = kpiHubMemory.dictionary.find((d) => d.id === body.dictionary_id);
     if (!dict) throw new NotFoundException({ error: KPI_HUB_ERROR_CODES.NOT_FOUND });
 
-    const hierarchyLevel = body.scope_type === 'CAMPAIGN' ? 'CAMPAIGN' : body.scope_type === 'TEAM' ? 'TEAM' : 'WORKSPACE';
+    const hierarchyLevel =
+      body.scope_type === 'PROJECT'
+        ? 'PROJECT'
+        : body.scope_type === 'CAMPAIGN'
+          ? 'CAMPAIGN'
+          : body.scope_type === 'TEAM'
+            ? 'TEAM'
+            : 'WORKSPACE';
     const scopeHash = scopeHashFromChain({
+      project_id:
+        hierarchyLevel === 'PROJECT' ? (body.scope_project_id ?? body.scope_label) : undefined,
       campaign: hierarchyLevel === 'CAMPAIGN' ? body.scope_label : undefined,
       team: hierarchyLevel === 'TEAM' ? body.scope_label : undefined,
     });
@@ -146,7 +170,10 @@ export class KpiHubTargetsService {
       period_end: '2026-09-30',
       grain: 'MONTH',
       scope_type: body.scope_type ?? 'ORGANIZATION',
-      scope_label: body.scope_label ?? 'Toàn tổ chức',
+      scope_label:
+        hierarchyLevel === 'PROJECT'
+          ? (body.scope_project_id ?? body.scope_label ?? 'Project')
+          : (body.scope_label ?? 'Toàn tổ chức'),
       hierarchy_level: hierarchyLevel,
       scope_hash: scopeHash,
       direction: dict.direction,

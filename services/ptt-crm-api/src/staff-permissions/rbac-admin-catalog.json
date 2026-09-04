@@ -558,6 +558,16 @@
       "view",
       "manage"
     ],
+    "crm_delivery_projects": [
+      "view",
+      "edit",
+      "manage"
+    ],
+    "crm_delivery_budget": [
+      "view",
+      "edit",
+      "approve"
+    ],
     "crm_kpi_records": [
       "approve",
       "claim",
@@ -1383,6 +1393,20 @@
       "description": "Workspace, chu kỳ chốt số, tích hợp và bảo mật."
     },
     {
+      "id": "crm_delivery_projects",
+      "label": "Project Delivery",
+      "group": "CRM — KPI Hub",
+      "page": "/crm/delivery-projects",
+      "description": "Danh mục dự án PTT + giao hàng thống nhất — portfolio, wizard, milestone."
+    },
+    {
+      "id": "crm_delivery_budget",
+      "label": "Delivery Budget",
+      "group": "CRM — KPI Hub",
+      "page": "/crm/delivery-projects",
+      "description": "Ngân sách dự án giao hàng — hạng mục, nguồn lực, phê duyệt Finance."
+    },
+    {
       "id": "crm_kpi_records",
       "label": "KPI — Bản ghi theo kỳ",
       "group": "CRM — KPI",
@@ -1968,6 +1992,8 @@
     "crm_kpi_quality",
     "crm_kpi_hub_reports",
     "crm_kpi_hub_settings",
+    "crm_delivery_projects",
+    "crm_delivery_budget",
     "crm_kpi_records",
     "crm_kpi_records__btn_save",
     "crm_leads",

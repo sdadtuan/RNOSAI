@@ -18,7 +18,9 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { KpiHubAlertsService } from './alerts/kpi-hub-alerts.service';
+import { KpiHubApprovalsService } from './approvals/kpi-hub-approvals.service';
 import { KpiHubDashboardService } from './dashboard/kpi-hub-dashboard.service';
+import { KpiHubLineageService } from './lineage/kpi-hub-lineage.service';
 import { KpiHubExportService } from './export/kpi-hub-export.service';
 import { KpiHubFactsService } from './facts/kpi-hub-facts.service';
 import { KpiHubDictionaryService } from './dictionary/kpi-hub-dictionary.service';
@@ -87,6 +89,8 @@ export class KpiHubController {
     private readonly reports: KpiHubReportsService,
     private readonly activity: KpiHubActivityService,
     private readonly notifications: KpiHubNotificationsService,
+    private readonly approvals: KpiHubApprovalsService,
+    private readonly lineage: KpiHubLineageService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -377,5 +381,29 @@ export class KpiHubController {
   @UseGuards(StaffKpiHubSettingsViewGuard)
   listActivity() {
     return this.activity.list();
+  }
+
+  @Get('approvals')
+  @UseGuards(StaffKpiHubViewGuard)
+  listApprovals() {
+    return this.approvals.list();
+  }
+
+  @Post('approvals/:kind/:id/approve')
+  @UseGuards(StaffKpiHubSettingsManageGuard)
+  approveItem(@Param('kind') kind: string, @Param('id') id: string, @Body() body: { note?: string }) {
+    return this.approvals.approve(kind, id, body?.note ?? null);
+  }
+
+  @Post('approvals/:kind/:id/reject')
+  @UseGuards(StaffKpiHubSettingsManageGuard)
+  rejectItem(@Param('kind') kind: string, @Param('id') id: string, @Body() body: { note?: string }) {
+    return this.approvals.reject(kind, id, body?.note ?? null);
+  }
+
+  @Get('lineage')
+  @UseGuards(StaffKpiHubViewGuard)
+  getLineage(@Query('code') code?: string) {
+    return this.lineage.getByCode(code ?? '');
   }
 }

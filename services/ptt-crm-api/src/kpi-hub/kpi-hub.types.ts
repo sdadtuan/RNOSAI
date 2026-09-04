@@ -1,3 +1,5 @@
+import type { CommandPersona } from './command-center/command-center.util';
+
 export const KPI_HUB_TENANT_ID = 'PTT';
 export const KPI_HUB_DEFAULT_WORKSPACE_ID = 'a0000000-0000-4000-8000-000000000001';
 
@@ -295,6 +297,7 @@ export type HubActivityItem = {
   created_at: string;
 };
 
+
 export type HubDashboardQuery = {
   from?: string;
   to?: string;
@@ -303,7 +306,10 @@ export type HubDashboardQuery = {
   channel?: string;
   product?: string;
   team_id?: string;
+  persona?: CommandPersona;
 };
+
+export type { CommandPersona };
 
 export type HubDictionaryListQuery = {
   page?: number;
@@ -325,6 +331,7 @@ export type HubTargetListQuery = {
   team?: string;
   department?: string;
   user?: string;
+  project_id?: string;
 };
 
 export type PreviewHubDictionaryBody = {
@@ -425,6 +432,7 @@ export type UpsertHubTargetBody = {
   period: string;
   scope_type?: string;
   scope_label?: string;
+  scope_project_id?: string;
   target_value: number;
   warning_value?: number;
   critical_value?: number;

@@ -160,4 +160,23 @@ export class KpiHubFactsRepository implements OnModuleDestroy {
       throw err;
     }
   }
+
+  async listByDictionary(dictionaryId: string): Promise<Array<{ computed_at: string }>> {
+    try {
+      const res = await this.db.query(
+        `SELECT computed_at::text
+         FROM crm_kpi_facts
+         WHERE dictionary_id = $1::uuid AND deleted_at IS NULL
+         ORDER BY computed_at DESC
+         LIMIT 20`,
+        [dictionaryId],
+      );
+      return res.rows.map((row) => ({
+        computed_at: new Date(String((row as { computed_at: string }).computed_at)).toISOString(),
+      }));
+    } catch (err) {
+      if (isMissingRelationError(err)) return [];
+      throw err;
+    }
+  }
 }

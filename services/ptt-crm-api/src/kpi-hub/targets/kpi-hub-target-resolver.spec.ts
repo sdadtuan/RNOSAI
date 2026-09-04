@@ -55,4 +55,34 @@ describe('kpi-hub-target-resolver', () => {
   it('scopeHashFromChain includes campaign', () => {
     expect(scopeHashFromChain({ campaign: 'x', team: 'y' })).toContain('c:x');
   });
+
+  it('PROJECT overrides TEAM and WORKSPACE', () => {
+    const projectCandidates: HubTargetCandidate[] = [
+      {
+        id: 'ws',
+        hierarchy_level: 'WORKSPACE',
+        scope_hash: 'w:default',
+        scope_label: 'WS',
+        target_value: 10,
+        warning_value: null,
+        critical_value: null,
+        direction: 'HIGHER_IS_BETTER',
+      },
+      {
+        id: 'prj',
+        hierarchy_level: 'PROJECT',
+        scope_hash: 'p:proj-1',
+        scope_label: 'proj-1',
+        target_value: 20,
+        warning_value: null,
+        critical_value: null,
+        direction: 'HIGHER_IS_BETTER',
+      },
+    ];
+    expect(resolveTarget(projectCandidates, { project_id: 'proj-1', team: 'A' })?.id).toBe('prj');
+  });
+
+  it('scopeHashFromChain prefixes project id', () => {
+    expect(scopeHashFromChain({ project_id: 'proj-1', team: 'A' })).toBe('p:proj-1|t:A|w:default');
+  });
 });

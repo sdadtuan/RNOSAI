@@ -173,7 +173,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/orders': 'Đơn hàng',
   '/crm/invoices': 'Hóa đơn',
   '/crm/re-projects': 'Dự án BĐS',
-  '/crm/b2b-projects': 'Dự án PTT',
+  '/crm/delivery-projects': 'Dự án PTT',
   '/crm/b2b-inbox': 'Inbox B2B',
   '/crm/payroll': 'Chấm công & lương',
   '/crm/payroll/me': 'Phiếu lương của tôi',
@@ -396,7 +396,7 @@ function buildSections(
     prepare.push({ href: '/crm/leads', label: 'Lead Intake' });
   }
   if (hasCap(user, 'crm_b2b_projects', 'view')) {
-    prepare.push({ href: '/crm/b2b-projects', label: 'Dự án PTT' });
+    prepare.push({ href: '/crm/delivery-projects?capability=lead_ingest', label: 'Dự án PTT' });
     prepare.push({ href: '/crm/b2b-speed', label: 'Speed-to-lead' });
   }
   if (prepare.length) {

@@ -1,3 +1,4 @@
+import type { CommandCenterQuery, CommandCenterResponse } from './command-center-types';
 import { API_BASE, ApiError, parseJson } from './api';
 
 const BASE = '/api/crm/kpi-hub';
@@ -140,6 +141,26 @@ export async function fetchKpiHubDashboard(token: string, query: Record<string, 
   return kpiHubFetch<Record<string, unknown>>(token, `${BASE}/dashboard${buildQuery(query)}`);
 }
 
+export async function fetchKpiHubCommandCenter(
+  token: string,
+  persona: 'executive' | 'marketing' | 'sales',
+  query: CommandCenterQuery = {},
+) {
+  return kpiHubFetch<CommandCenterResponse>(
+    token,
+    `${BASE}/dashboard${buildQuery({
+      persona,
+      from: query.from,
+      to: query.to,
+      compare: query.compare ? '1' : undefined,
+      department_id: query.department_id,
+      channel: query.channel,
+      product: query.product,
+      team_id: query.team_id,
+    })}`,
+  );
+}
+
 export async function fetchKpiHubQuality(token: string) {
   return kpiHubFetch<Record<string, unknown>>(token, `${BASE}/quality`);
 }
@@ -179,4 +200,58 @@ export async function previewFormula(token: string, body: Record<string, unknown
 
 export async function fetchNotifications(token: string) {
   return kpiHubFetch<{ data: unknown[] }>(token, `${BASE}/notifications`);
+}
+
+export type HubApprovalGroup = {
+  id: string;
+  label: string;
+  count: number;
+  items: Array<{
+    id: string;
+    kind: string;
+    label: string;
+    status: string;
+    href?: string;
+    policy?: Array<{ role: string; label: string }>;
+  }>;
+};
+
+export async function fetchKpiHubApprovals(token: string) {
+  return kpiHubFetch<{ groups: HubApprovalGroup[]; total: number }>(token, `${BASE}/approvals`);
+}
+
+export async function approveKpiHubItem(
+  token: string,
+  kind: string,
+  id: string,
+  note?: string,
+) {
+  return kpiHubFetch<Record<string, unknown>>(
+    token,
+    `${BASE}/approvals/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/approve`,
+    { method: 'POST', body: JSON.stringify({ note }) },
+  );
+}
+
+export async function rejectKpiHubItem(token: string, kind: string, id: string, note?: string) {
+  return kpiHubFetch<Record<string, unknown>>(
+    token,
+    `${BASE}/approvals/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/reject`,
+    { method: 'POST', body: JSON.stringify({ note }) },
+  );
+}
+
+export type KpiLineageResponse = {
+  code: string;
+  dictionary: Record<string, unknown> | null;
+  nodes: Array<{ id: string; label: string; kind: string; meta?: Record<string, unknown> }>;
+  edges: Array<{ from: string; to: string }>;
+  last_fact_at: string | null;
+};
+
+export async function fetchKpiHubLineage(token: string, code: string) {
+  return kpiHubFetch<KpiLineageResponse>(
+    token,
+    `${BASE}/lineage?code=${encodeURIComponent(code)}`,
+  );
 }
