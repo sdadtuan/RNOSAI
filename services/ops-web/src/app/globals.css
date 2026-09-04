@@ -18316,7 +18316,6 @@ body {
   flex-direction: column;
   min-width: 0;
   width: 100%;
-  overflow: hidden;
 }
 .kpi-hub-header {
   display: flex;
@@ -18558,12 +18557,7 @@ body {
   width: 100%;
   min-width: 0;
 }
-.kpi-hub-page-with-drawer.has-drawer,
-.kpi-hub-page-with-drawer.has-drawer:not(.kpi-hub-page-with-drawer--overlay) {
-  grid-template-columns: minmax(0, 1fr);
-}
-.kpi-hub-page-with-drawer.has-drawer > .kpi-hub-drawer,
-.kpi-hub-page-with-drawer.has-drawer > .kpi-hub-dict-drawer {
+.kpi-hub-page-with-drawer.has-drawer:not(.kpi-hub-page-with-drawer--overlay) > .kpi-hub-drawer:not(.kpi-hub-dict-drawer) {
   position: absolute;
   top: 0;
   right: 0;
@@ -18572,24 +18566,33 @@ body {
 }
 .kpi-hub-page-with-drawer--overlay,
 .kpi-hub-page-with-drawer--overlay.has-drawer {
-  display: flex;
-  flex-direction: column;
-  grid-template-columns: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.kpi-hub-page-with-drawer--overlay.has-drawer {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
 }
 .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
   padding-right: 0;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
 }
 .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: min(360px, 42vw);
+  position: sticky;
+  top: 1rem;
+  width: 100%;
+  max-width: 360px;
+  min-width: 0;
   z-index: 8;
   max-height: calc(100vh - 160px);
-  pointer-events: auto;
+  justify-self: stretch;
 }
 .kpi-hub-page-with-drawer__main {
   display: grid;
@@ -19162,10 +19165,15 @@ body {
   margin-right: 0;
   box-sizing: border-box;
 }
-.kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay,
 .kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay.has-drawer {
-  display: block;
-  grid-template-columns: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 1rem;
+  align-items: start;
+}
+.kpi-hub-embed .kpi-hub-page-with-drawer.kpi-hub-page-with-drawer--overlay:not(.has-drawer) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 .kpi-hub-dict-toolbar {
   background: #fff;
@@ -19327,6 +19335,10 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
   min-width: 0;
+  overflow: hidden;
+}
+.kpi-hub-dict-drawer .kpi-hub-drawer__body {
+  overflow-y: auto;
 }
 .kpi-hub-dict-drawer--empty {
   align-items: center;
@@ -19493,13 +19505,18 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
   .kpi-hub-page-with-drawer.has-drawer:not(.kpi-hub-page-with-drawer--overlay) {
     grid-template-columns: minmax(0, 1fr);
   }
+  .kpi-hub-page-with-drawer--overlay.has-drawer {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .kpi-hub-page-with-drawer--overlay.has-drawer .kpi-hub-page-with-drawer__main {
     padding-right: 0;
+    overflow-x: visible;
   }
   .kpi-hub-page-with-drawer--overlay .kpi-hub-dict-drawer,
   .kpi-hub-dict-drawer {
     position: static;
     width: 100%;
+    max-width: none;
     max-height: none;
   }
 }
