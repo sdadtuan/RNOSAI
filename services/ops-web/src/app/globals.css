@@ -19224,6 +19224,7 @@ body {
   display: flex;
   flex-direction: column;
   grid-area: 1 / 1 / 2 / 2;
+  align-self: stretch;
   flex: none;
   width: 240px;
   max-width: 240px;
@@ -19240,9 +19241,10 @@ body {
 .kpi-hub-embed .kpi-hub-header__tenant { display: none; }
 .kpi-hub-embed .kpi-hub-page-head__title { font-size: 1.7rem; letter-spacing: -0.02em; }
 .kpi-hub-embed .kpi-hub-content {
+  flex: 1 1 auto;
   display: block;
-  background: transparent;
-  padding: 1rem 1rem 1.5rem;
+  background: #fffdf8;
+  padding: 1rem 1rem 0.5rem;
   min-width: 0;
   width: 100%;
   max-width: 100%;
@@ -19252,11 +19254,20 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 100%;
   width: 100%;
   max-width: 100%;
   margin-left: 0;
   overflow-x: clip;
   background: #fffdf8;
+}
+.kpi-hub-embed .kpi-hub-freshness {
+  margin-top: auto;
+  flex-shrink: 0;
+  width: 100%;
+  background: #fffdf8;
+  border-top: 1px solid #e7e0d4;
+  padding: 0.65rem 1rem;
 }
 .kpi-hub-embed .kpi-hub-page-with-drawer,
 .kpi-hub-embed .kpi-hub-page-with-drawer__main,
@@ -19377,18 +19388,21 @@ body {
 
 html.ops-shell-bitrix body:has(.kpi-hub-embed) {
   overflow-x: hidden;
+  background: #fffdf8;
 }
 html.ops-shell-bitrix body:has(.kpi-hub-embed) main.bitrix-crm-page {
   padding-top: calc(var(--ops-chrome-h, 56px) + 0.25rem) !important;
-  padding-bottom: 0.75rem !important;
+  padding-bottom: 0 !important;
   padding-left: 0 !important;
   padding-right: 0 !important;
   overflow-x: hidden;
   max-width: 100%;
+  background: #fffdf8;
 }
 html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   padding: 0;
   max-width: none;
+  background: #fffdf8;
 }
 
 @media (max-width: 900px) {

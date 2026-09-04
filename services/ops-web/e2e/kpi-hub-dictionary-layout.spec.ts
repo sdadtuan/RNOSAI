@@ -121,6 +121,8 @@ test.describe('KPI Dictionary built CSS contract', () => {
     expect(css).not.toMatch(/\.kpi-hub-embed \.kpi-hub-page-with-drawer--overlay \.kpi-hub-dict-drawer\{[^}]*position:fixed/);
     expect(css).not.toMatch(/padding-right:min\(380px,calc\(100vw/);
     expect(css).toMatch(/body:has\(\.kpi-hub-embed\)\{[^}]*overflow-x:hidden/);
+    expect(css).toMatch(/body:has\(\.kpi-hub-embed\)\{[^}]*background:#fffdf8/);
+    expect(css).toMatch(/\.kpi-hub-embed \.kpi-hub-freshness\{[^}]*margin-top:auto/);
   });
 });
 
@@ -210,6 +212,12 @@ const MARKETING_FIXTURE_HTML = `
               <div class="cc-tiles"><article class="kpi-hub-card">tile</article></div>
             </div>
           </main>
+          <footer class="kpi-hub-freshness">
+            <span class="kpi-hub-freshness__as-of">Dữ liệu cập nhật: Hôm nay, 08:45</span>
+            <div class="kpi-hub-freshness__sources">
+              <span class="kpi-hub-freshness__chip kpi-hub-freshness__chip--fresh">CRM Fresh</span>
+            </div>
+          </footer>
         </div>
       </div>
     </div>
@@ -242,5 +250,11 @@ test.describe('KPI Hub marketing layout fixture', () => {
     expect(mainBox!.width).toBeGreaterThan(shellBox!.width * 0.55);
     expect(Math.abs(ccBox!.x - mainBox!.x)).toBeLessThan(24);
     expect(mainBox!.x + mainBox!.width).toBeGreaterThan(shellBox!.x + shellBox!.width - 8);
+
+    const freshness = page.locator('.kpi-hub-freshness');
+    await expect(freshness).toBeVisible();
+    const freshnessBox = await freshness.boundingBox();
+    expect(freshnessBox!.width).toBeGreaterThan(mainBox!.width * 0.95);
+    expect(Math.abs(freshnessBox!.x - mainBox!.x)).toBeLessThan(8);
   });
 });
