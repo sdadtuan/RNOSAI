@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import { capsToGrantMap } from '../staff-permissions/staff-permissions.catalog';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { DeliveryOpsService } from './delivery-ops.service';
@@ -237,14 +238,13 @@ export class DeliveryProjectsController {
     if (req.staffAuthVia === 'internal') return { crm_delivery_budget: ['approve'] };
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
     const me = await this.staffAuth.me(req.staffUser);
-    return me.caps;
+    return capsToGrantMap(me.caps.map((cap) => ({ section_id: cap.section, action: cap.action })));
   }
 
   private async resolveStaffId(req: ReqWithStaff): Promise<number> {
     if (req.staffAuthVia === 'internal') return 0;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
-    const me = await this.staffAuth.me(req.staffUser);
-    return me.staff_id;
+    return (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
   }
 
   private async canManageB2b(req: ReqWithStaff): Promise<boolean> {
