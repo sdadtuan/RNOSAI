@@ -93,6 +93,8 @@ export type AmFeedbackDb = {
   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
 };
 
+export const AM_FEEDBACK_CLIENTS_JOIN = 'INNER JOIN clients c ON c.id = f.agency_client_id';
+
 const FEEDBACK_COLS = `
   f.id::text AS id,
   f.agency_client_id::text AS agency_client_id,
@@ -163,7 +165,7 @@ export class AmFeedbackService {
            INNER JOIN crm_am_account_ext e
                    ON e.agency_client_id = f.agency_client_id
                   AND e.tenant_id = f.tenant_id
-           LEFT JOIN clients c ON c.id = f.agency_client_id
+           ${AM_FEEDBACK_CLIENTS_JOIN}
            LEFT JOIN crm_am_tasks t ON t.id = f.followup_task_id
           WHERE f.tenant_id = $1`;
     if (clientId) {
@@ -218,7 +220,10 @@ export class AmFeedbackService {
     let mapped = mapFeedback({ ...row, account_name: null, csd_ticket_id: null });
 
     const threshold = await this.loadThreshold();
-    if (kind === 'csat' && score != null && score <= threshold) {
+    const needsSurveyTask =
+      (kind === 'csat' && score != null && score <= threshold) ||
+      (kind === 'complaint' && Boolean(csdTicketId));
+    if (needsSurveyTask) {
       mapped = await this.attachSurveyTask(mapped, staffId, csdTicketId);
     }
 
@@ -414,7 +419,7 @@ export class AmFeedbackService {
            INNER JOIN crm_am_account_ext e
                    ON e.agency_client_id = f.agency_client_id
                   AND e.tenant_id = f.tenant_id
-           LEFT JOIN clients c ON c.id = f.agency_client_id
+           ${AM_FEEDBACK_CLIENTS_JOIN}
            LEFT JOIN crm_am_tasks t ON t.id = f.followup_task_id
           WHERE f.tenant_id = $1
             AND f.id = $2::uuid

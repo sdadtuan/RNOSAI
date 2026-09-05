@@ -1,4 +1,6 @@
 import {
+  AM_CSAT_CLIENTS_JOIN,
+  amCsatSql,
   averageCsat,
   emptyKpis,
   showCoverage,
@@ -34,6 +36,14 @@ describe('am-dashboard.service', () => {
     expect(kpis.revenue_at_risk_vnd).toBeNull();
     expect(kpis.sla_overdue).toBeNull();
     expect(kpis.deltas).toBeUndefined();
+  });
+
+  it('CSAT SQL inner-joins clients so orphan scores are dropped from the average', () => {
+    const sql = amCsatSql('TRUE');
+    expect(sql).toMatch(/INNER JOIN clients/i);
+    expect(sql).toContain(AM_CSAT_CLIENTS_JOIN);
+    expect(averageCsat([5])).toBe(5);
+    expect(averageCsat([])).toBeNull();
   });
 
   it('CSAT average helper stays null when no rows', () => {

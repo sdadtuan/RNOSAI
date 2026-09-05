@@ -42,6 +42,22 @@ export function emptyKpis(): AmCommandCenter['kpis'] {
   };
 }
 
+export const AM_CSAT_CLIENTS_JOIN = 'INNER JOIN clients c ON c.id = f.agency_client_id';
+
+export function amCsatSql(boundSql: string): string {
+  return `
+      SELECT f.score
+      FROM crm_am_feedback f
+      INNER JOIN crm_am_account_ext e
+        ON e.agency_client_id = f.agency_client_id
+       AND e.tenant_id = $1
+      ${AM_CSAT_CLIENTS_JOIN}
+      WHERE f.tenant_id = $1
+        AND f.kind = 'csat'
+        AND f.score IS NOT NULL
+        AND ${boundSql}`;
+}
+
 export function averageCsat(scores: Array<number | string | null | undefined>): number | null {
   const nums: number[] = [];
   for (const raw of scores) {
@@ -659,16 +675,7 @@ export class AmDashboardService implements OnModuleDestroy {
     teamIds: number[],
   ): Promise<number | null> {
     const bound = bindScopeSql(amScopeSql({ scope, staffId, teamIds }), 2);
-    const sql = `
-      SELECT f.score
-      FROM crm_am_feedback f
-      INNER JOIN crm_am_account_ext e
-        ON e.agency_client_id = f.agency_client_id
-       AND e.tenant_id = $1
-      WHERE f.tenant_id = $1
-        AND f.kind = 'csat'
-        AND f.score IS NOT NULL
-        AND ${bound.sql}`;
+    const sql = amCsatSql(bound.sql);
     try {
       const result = await this.db.query<{ score: number | string }>(sql, [
         AM_TENANT_ID,

@@ -1,6 +1,6 @@
 import { RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
-import { AmFeedbackService } from './am-feedback.service';
+import { AM_FEEDBACK_CLIENTS_JOIN, AmFeedbackService } from './am-feedback.service';
 import { AmController } from './am.controller';
 import { AM_REQUIRED_ACTION_KEY } from './guards/staff-am.guard';
 
@@ -85,6 +85,9 @@ describe('AmFeedbackService', () => {
       if (/INSERT INTO crm_am_feedback/i.test(text)) {
         return { rows: [insertRow], rowCount: 1 };
       }
+      if (/UPDATE crm_am_tasks/i.test(text)) {
+        return { rows: [], rowCount: 1 };
+      }
       if (/UPDATE crm_am_feedback/i.test(text)) {
         return { rows: [{ ...insertRow, followup_task_id: TASK_ID }], rowCount: 1 };
       }
@@ -162,10 +165,33 @@ describe('AmFeedbackService', () => {
     expect(tasks.create).not.toHaveBeenCalled();
   });
 
-  it('complaint does not call CSD resolve', async () => {
+  it('list and loadOne SQL inner-join clients so orphan feedback is dropped', async () => {
+    await service.list(viewReq, {});
+    const listSql = repo.query.mock.calls
+      .map(([sql]) => String(sql))
+      .find((sql) => /FROM crm_am_feedback/i.test(sql));
+    expect(listSql).toMatch(/INNER JOIN clients/i);
+    expect(listSql).toContain(AM_FEEDBACK_CLIENTS_JOIN);
+
+    repo.query.mockClear();
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/FROM crm_am_feedback/i.test(String(sql))) {
+        return { rows: [insertedFeedback({ followup_task_id: null })], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    await service.followup(viewReq, FEEDBACK_ID, STAFF_ID);
+    const oneSql = repo.query.mock.calls
+      .map(([sql]) => String(sql))
+      .find((sql) => /FROM crm_am_feedback/i.test(sql) && /f\.id = \$2/i.test(sql));
+    expect(oneSql).toMatch(/INNER JOIN clients/i);
+    expect(oneSql).toContain(AM_FEEDBACK_CLIENTS_JOIN);
+  });
+
+  it('POST complaint + csd_ticket_id creates a survey task and stores the CSD link', async () => {
     mockClientAndInsert(insertedFeedback({ kind: 'complaint', score: null }));
 
-    await service.create(
+    const out = await service.create(
       viewReq,
       {
         agency_client_id: CLIENT_ID,
@@ -173,6 +199,37 @@ describe('AmFeedbackService', () => {
         comment: 'CPL tăng',
         csd_ticket_id: CSD_ID,
       },
+      STAFF_ID,
+    );
+
+    expect(csd.resolve).not.toHaveBeenCalled();
+    expect(tasks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agency_client_id: CLIENT_ID,
+        source: 'survey',
+        source_ref: FEEDBACK_ID,
+      }),
+      STAFF_ID,
+    );
+    expect(
+      repo.query.mock.calls.some(
+        ([sql, params]) =>
+          /UPDATE crm_am_tasks SET csd_ticket_id/i.test(String(sql)) &&
+          Array.isArray(params) &&
+          params.includes(CSD_ID),
+      ),
+    ).toBe(true);
+    expect(out.csd_ticket_id).toBe(CSD_ID);
+    expect(out.followup_task_id).toBe(TASK_ID);
+    expect(out.csd_href).toBe(`/crm/csd/tickets/${CSD_ID}`);
+  });
+
+  it('complaint without a ticket does not call CSD resolve or insert a task', async () => {
+    mockClientAndInsert(insertedFeedback({ kind: 'complaint', score: null }));
+
+    await service.create(
+      viewReq,
+      { agency_client_id: CLIENT_ID, kind: 'complaint', comment: 'CPL tăng' },
       STAFF_ID,
     );
 

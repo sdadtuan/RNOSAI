@@ -74,7 +74,11 @@ export function AmFeedback({ agencyClientId, embedded }: AmFeedbackProps) {
     if (!canEdit || !token || row.followup_task_id || busyId) return;
     setBusyId(row.id);
     try {
-      await followupAmFeedback(token, row.id);
+      await followupAmFeedback(
+        token,
+        row.id,
+        row.csd_ticket_id ? { csd_ticket_id: row.csd_ticket_id } : {},
+      );
       push('Đã tạo task follow-up', 'success');
       await load();
     } catch (err) {
