@@ -218,7 +218,7 @@ export function AmWorkQueue() {
           <button type="button" className={`am-btn${view === 'list' ? ' am-btn--primary' : ''}`} onClick={() => setView('list')}>
             Danh sách
           </button>
-          <button type="button" className={`am-btn${view === 'board' ? ' am-btn--primary' : ''}`} onClick={() => setView('board')}>
+          <button type="button" className={`am-btn am-m01-hide${view === 'board' ? ' am-btn--primary' : ''}`} onClick={() => setView('board')}>
             Board
           </button>
           <button type="button" className={`am-btn${view === 'week' ? ' am-btn--primary' : ''}`} onClick={() => setView('week')}>
@@ -226,7 +226,7 @@ export function AmWorkQueue() {
           </button>
         </div>
         {canEdit && unassignedIds.length > 0 ? (
-          <button type="button" className="am-btn" disabled={busy || selectedIds.length === 0} onClick={() => void acceptSelected()}>
+          <button type="button" className="am-btn am-m01-hide" disabled={busy || selectedIds.length === 0} onClick={() => void acceptSelected()}>
             Nhận việc hàng loạt
           </button>
         ) : null}
@@ -274,7 +274,7 @@ function ListView({
         <thead>
           <tr>
             {canEdit ? (
-              <th>
+              <th className="am-m01-hide">
                 <input
                   type="checkbox"
                   aria-label="Chọn tất cả chưa gán"
@@ -300,7 +300,7 @@ function ListView({
               return (
                 <tr key={row.id} className={sla.danger ? 'am-workq__row--danger' : undefined}>
                   {canEdit ? (
-                    <td>
+                    <td className="am-m01-hide">
                       {row.assignee_staff_id == null ? (
                         <input
                           type="checkbox"
@@ -342,7 +342,7 @@ function ListView({
 
 function BoardView({ items }: { items: AmWorkQueueItem[] }) {
   return (
-    <div className="am-kanban">
+    <div className="am-kanban am-m01-hide">
       {AM_WORK_BOARD_COLUMNS.map((col) => {
         const cards = items.filter((row) => amWorkBoardColumn(row.status) === col.id);
         return (

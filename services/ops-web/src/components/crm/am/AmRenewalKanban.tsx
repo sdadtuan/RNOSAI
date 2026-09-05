@@ -237,7 +237,7 @@ export function AmRenewalKanban() {
           </table>
         </div>
       ) : (
-        <div className="am-kanban">
+        <div className="am-kanban am-m01-hide">
           {data.columns.map((col) => (
             <div key={col.id} className="am-kanban__col">
               <h2>

@@ -1630,3 +1630,101 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
 .am-reports-stack__unlikely {
   background: #dc2626;
 }
+
+.am-360-quick {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .am-root {
+    flex-direction: column;
+  }
+
+  .am-sidebar {
+    flex-basis: auto;
+    width: 100%;
+    max-width: none;
+  }
+
+  .am-360 {
+    padding-bottom: 8px;
+  }
+
+  .am-360-quick {
+    display: block;
+  }
+
+  .am-m01 {
+    display: block;
+  }
+
+  .am-m01__stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 0 12px;
+  }
+
+  .am-m01__stat {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: var(--am-radius);
+    padding: 10px;
+  }
+
+  .am-m01__stat dt {
+    font-size: 11px;
+    color: #6b7280;
+    font-weight: 600;
+  }
+
+  .am-m01__stat dd {
+    margin: 4px 0 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--am-navy);
+  }
+
+  .am-m01__section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: var(--am-radius);
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+
+  .am-m01__section h2 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6b7280;
+  }
+
+  .am-m01__contacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .am-m01__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    position: sticky;
+    bottom: 8px;
+  }
+
+  .am-m01-hide,
+  .am-nav a[href$="/settings"],
+  .am-nav a[href$="/reports"],
+  .am-nav a[href$="/renewals"],
+  .am-m01-admin {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  /* NFR-003: do not restyle 360 chrome */
+}

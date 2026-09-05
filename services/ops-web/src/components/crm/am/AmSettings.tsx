@@ -628,7 +628,7 @@ export function AmSettings() {
         ) : null}
       </div>
 
-      <div className="am-widget">
+      <div className="am-widget am-m01-admin">
         <div className="am-widget__head">
           <h2>Custom fields</h2>
           {canManage ? (

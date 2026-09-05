@@ -436,7 +436,7 @@ export function AmAccountsList() {
       ) : null}
 
       {selectedCount > 0 ? (
-        <div className="am-bulk" role="region" aria-label="Bulk actions">
+        <div className="am-bulk am-m01-hide" role="region" aria-label="Bulk actions">
           <span>Đã chọn {selectedCount} khách hàng</span>
           {canAssign ? (
             <button
@@ -460,7 +460,7 @@ export function AmAccountsList() {
         <table className="am-table">
           <thead>
             <tr>
-              <th className="am-list__check">
+              <th className="am-list__check am-m01-hide">
                 <input
                   type="checkbox"
                   checked={allPageSelected}
@@ -511,7 +511,7 @@ export function AmAccountsList() {
                   (row.owner_staff_id == null && canUnassigned ? 'Chưa gán' : null);
                 return (
                   <tr key={row.agency_client_id}>
-                    <td className="am-list__check">
+                    <td className="am-list__check am-m01-hide">
                       <input
                         type="checkbox"
                         checked={Boolean(selected[row.agency_client_id])}

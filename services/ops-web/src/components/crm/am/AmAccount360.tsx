@@ -33,6 +33,12 @@ import {
 import { canAssignAmAccounts } from '@/lib/crm/am-accounts-views.util';
 import { bandCopy, vnd } from '@/lib/crm/am-format';
 import { amGrowthNextRefreshNonce } from '@/lib/crm/am-growth.util';
+import {
+  amM01MailtoHref,
+  amM01NearestEndsOn,
+  amM01TelHref,
+  amM01ZaloHref,
+} from '@/lib/crm/am-m01.util';
 import { useToast } from '@/lib/toast';
 import { amRecoveryRequiredCopy } from '@/lib/crm/am-risk.util';
 import { AmAiDrawer } from './AmAiDrawer';
@@ -467,7 +473,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
 
       {canManage ? (
         <form
-          className="am-scorecard__override"
+          className="am-scorecard__override am-m01-hide"
           onSubmit={(ev) => {
             ev.preventDefault();
             void (async () => {
@@ -547,7 +553,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         </button>
         <button
           type="button"
-          className="am-btn"
+          className="am-btn am-m01-hide"
           disabled={!canEdit}
           title={canEdit ? 'Tạo rủi ro' : 'Cần quyền crm_am.edit'}
           onClick={() => canEdit && openDrawer('risk')}
@@ -556,7 +562,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         </button>
         <button
           type="button"
-          className="am-btn"
+          className="am-btn am-m01-hide"
           disabled={!canEdit}
           title={canEdit ? 'Bắt đầu gia hạn' : 'Cần quyền crm_am.edit'}
           onClick={() => canEdit && openDrawer('renewal')}
@@ -565,7 +571,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         </button>
         <button
           type="button"
-          className="am-btn"
+          className="am-btn am-m01-hide"
           disabled={!canEdit}
           title={canEdit ? 'Tạo cơ hội' : 'Cần quyền crm_am.edit'}
           onClick={() => canEdit && openDrawer('opportunity')}
@@ -574,7 +580,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         </button>
         <button
           type="button"
-          className="am-btn"
+          className="am-btn am-m01-hide"
           disabled={!aiEnabled}
           title={amAiAskButtonProps(aiEnabled).title}
           onClick={() => aiEnabled && openDrawer('ai')}
@@ -597,7 +603,18 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
       </nav>
 
       {tab === 'overview' ? (
-        <OverviewPanel data={data} primary={primary} />
+        <>
+          <MobileQuickView
+            data={data}
+            primary={primary}
+            canEdit={canEdit}
+            onLog={() => canEdit && openDrawer('interaction')}
+            onCreateTask={() => canEdit && openDrawer('task')}
+          />
+          <div className="am-m01-hide">
+            <OverviewPanel data={data} primary={primary} />
+          </div>
+        </>
       ) : tab === 'timeline' ? (
         <AmTimeline agencyClientId={agencyClientId} />
       ) : tab === 'finance' ? (
@@ -914,6 +931,148 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         </div>
       ) : null}
     </section>
+  );
+}
+
+function MobileQuickView({
+  data,
+  primary,
+  canEdit,
+  onLog,
+  onCreateTask,
+}: {
+  data: AmAccount360Data;
+  primary: AmAccountContact | null;
+  canEdit: boolean;
+  onLog: () => void;
+  onCreateTask: () => void;
+}) {
+  const endsOn = amM01NearestEndsOn(data.contracts);
+  const tel = primary ? amM01TelHref(primary.phone) : null;
+  const mail = primary ? amM01MailtoHref(primary.email) : null;
+  const zalo = primary ? amM01ZaloHref(primary.phone) : null;
+  const needLines: string[] = [];
+  if (data.recovery_required) needLines.push(amRecoveryRequiredCopy());
+  for (const row of data.open_tasks) {
+    if (row.sla_label) needLines.push(`${row.sla_label} · ${row.title}`);
+  }
+  if (data.band === 'at_risk' || data.band === 'critical') {
+    needLines.push(bandCopy(data.band));
+  }
+  const activity = data.audit.slice(0, 3);
+
+  return (
+    <div className="am-360-quick">
+      <div className="am-m01">
+        <dl className="am-m01__stats">
+          <div className="am-m01__stat">
+            <dt>MRR</dt>
+            <dd>{data.hide_amounts ? '—' : vnd(data.mrr_vnd)}</dd>
+          </div>
+          <div className="am-m01__stat">
+            <dt>Ngày GH</dt>
+            <dd>{dashText(endsOn)}</dd>
+          </div>
+          <div className="am-m01__stat">
+            <dt>Task mở</dt>
+            <dd>{data.open_tasks.length}</dd>
+          </div>
+        </dl>
+
+        <section className="am-m01__section">
+          <h2>Cần xử lý</h2>
+          {needLines.length === 0 ? (
+            <p className="am-muted">—</p>
+          ) : (
+            <ul className="am-work">
+              {needLines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          )}
+          <p>
+            <Link className="am-link" href={`/crm/account-management/health/${data.agency_client_id}`}>
+              Xem Health & Risk
+            </Link>
+          </p>
+        </section>
+
+        <section className="am-m01__section">
+          <h2>Contact chính</h2>
+          {primary ? (
+            <>
+              <p>
+                <strong>{primary.full_name}</strong>
+                {primary.role_committee ? ` — ${primary.role_committee}` : ''}
+              </p>
+              <div className="am-m01__contacts">
+                {tel ? (
+                  <a className="am-btn" href={tel}>
+                    Gọi
+                  </a>
+                ) : (
+                  <span className="am-muted">Gọi</span>
+                )}
+                {mail ? (
+                  <a className="am-btn" href={mail}>
+                    Email
+                  </a>
+                ) : (
+                  <span className="am-muted">Email</span>
+                )}
+                {zalo ? (
+                  <a className="am-btn" href={zalo} target="_blank" rel="noreferrer">
+                    Zalo
+                  </a>
+                ) : (
+                  <span className="am-muted">Zalo</span>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="am-muted">—</p>
+          )}
+        </section>
+
+        <section className="am-m01__section">
+          <h2>Hoạt động gần đây</h2>
+          {activity.length === 0 ? (
+            <p className="am-muted">—</p>
+          ) : (
+            <ul className="am-work">
+              {activity.map((row) => (
+                <li key={row.id} className="am-work__row">
+                  <span>
+                    {row.created_at ? row.created_at.slice(0, 16).replace('T', ' ') : '—'} · {row.action}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <div className="am-m01__actions">
+          <button
+            type="button"
+            className="am-btn"
+            disabled={!canEdit}
+            title={canEdit ? 'Log tương tác' : 'Cần quyền crm_am.edit'}
+            onClick={onLog}
+          >
+            Log tương tác
+          </button>
+          <button
+            type="button"
+            className="am-btn"
+            disabled={!canEdit}
+            title={canEdit ? 'Tạo việc' : 'Cần quyền crm_am.edit'}
+            onClick={onCreateTask}
+          >
+            Tạo việc
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

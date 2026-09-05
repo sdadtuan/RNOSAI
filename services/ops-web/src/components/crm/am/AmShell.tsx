@@ -278,7 +278,7 @@ function AmShellInner({ children }: { children: ReactNode }) {
         <AmPageContext.Provider value={ctx}>
           <div className={rootClass} data-density={density}>
             <aside className="am-sidebar" aria-label="Account Management">
-              <nav className="am-sidebar__nav">
+              <nav className="am-sidebar__nav am-nav">
                 {groups.map((group) => (
                   <div key={group.group} className="am-sidebar__group">
                     {collapsed ? null : <p className="am-sidebar__group-label">{group.group}</p>}
