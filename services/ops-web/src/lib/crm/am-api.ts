@@ -793,6 +793,98 @@ export async function closeAmRecoveryPlan(
   });
 }
 
+export type AmOppStage = 'qualify' | 'propose' | 'negotiate' | 'won' | 'lost';
+
+export type AmOpportunity = {
+  id: string;
+  agency_client_id: string;
+  account_name: string | null;
+  title: string;
+  kind: string | null;
+  package: string | null;
+  value_vnd: number | null;
+  probability: number | null;
+  stage: AmOppStage;
+  next_step: string;
+  source: string;
+  ai_evidence_json: unknown;
+  won_at: string | null;
+  lost_at: string | null;
+  created_at: string;
+};
+
+export type AmOpportunityKpis = {
+  pipeline_vnd: number | null;
+  weighted_vnd: number | null;
+  won_month_vnd: number | null;
+};
+
+export type AmOpportunitySuggestion = {
+  agency_client_id?: string;
+  account_name?: string | null;
+  title?: string;
+  kind?: string | null;
+  package?: string | null;
+  value_vnd?: number | null;
+  probability?: number | null;
+  next_step?: string;
+  ai_evidence_json?: unknown;
+};
+
+export type AmOpportunitiesList = {
+  items: AmOpportunity[];
+  kpis: AmOpportunityKpis;
+  suggestions: AmOpportunitySuggestion[];
+};
+
+export type AmCreateOpportunityInput = {
+  agency_client_id: string;
+  title: string;
+  kind?: string;
+  package?: string;
+  value_vnd?: number | null;
+  probability?: number | null;
+  stage?: AmOppStage;
+  next_step: string;
+  source?: string;
+  ai_evidence_json?: unknown;
+};
+
+export type AmPatchOpportunityInput = Partial<Omit<AmCreateOpportunityInput, 'agency_client_id'>>;
+
+export async function fetchAmOpportunities(
+  token: string,
+  query: { agency_client_id?: string; scope?: AmScope; stage?: string } = {},
+): Promise<AmOpportunitiesList> {
+  const params = new URLSearchParams();
+  if (query.agency_client_id) params.set('agency_client_id', query.agency_client_id);
+  if (query.scope) params.set('scope', query.scope);
+  if (query.stage) params.set('stage', query.stage);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return amFetch<AmOpportunitiesList>(token, `/api/crm/am/opportunities${suffix}`);
+}
+
+export async function createAmOpportunity(
+  token: string,
+  body: AmCreateOpportunityInput,
+): Promise<AmOpportunity> {
+  return amFetch<AmOpportunity>(token, '/api/crm/am/opportunities', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchAmOpportunity(
+  token: string,
+  id: string,
+  body: AmPatchOpportunityInput,
+): Promise<AmOpportunity> {
+  return amFetch<AmOpportunity>(token, `/api/crm/am/opportunities/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchAmCommandCenter(
   token: string,
   query: AmCommandCenterQuery = {},

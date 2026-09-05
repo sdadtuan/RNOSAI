@@ -1,5 +1,5 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+import { AmGrowth } from '@/components/crm/am/AmGrowth';
 
 export default function AmOpportunitiesPage() {
-  return <AmPlaceholder title="Opportunities" wave={4} />;
+  return <AmGrowth />;
 }

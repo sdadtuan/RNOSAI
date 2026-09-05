@@ -57,6 +57,12 @@ import {
   type AmCreateRiskInput,
   type AmRisksListQuery,
 } from './am-risks.service';
+import {
+  AmOpportunitiesService,
+  type AmCreateOpportunityInput,
+  type AmOpportunitiesListQuery,
+  type AmPatchOpportunityInput,
+} from './am-opportunities.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -85,6 +91,7 @@ export class AmController {
     private readonly renewalWorker: AmRenewalWorker,
     private readonly interactions: AmInteractionsService,
     private readonly risks: AmRisksService,
+    private readonly opportunities: AmOpportunitiesService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -486,6 +493,28 @@ export class AmController {
   @RequireAmAction('edit')
   async patchRenewal(@Req() req: AuthedReq, @Param('id') id: string, @Body() body: AmPatchRenewalBody) {
     return this.renewals.patch(req, id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Get('opportunities')
+  @RequireAmAction('view')
+  listOpportunities(@Req() req: AuthedReq, @Query() q: AmOpportunitiesListQuery) {
+    return this.opportunities.list(req, q);
+  }
+
+  @Post('opportunities')
+  @RequireAmAction('edit')
+  async createOpportunity(@Req() req: AuthedReq, @Body() body: AmCreateOpportunityInput) {
+    return this.opportunities.create(req, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Patch('opportunities/:id')
+  @RequireAmAction('edit')
+  async patchOpportunity(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: AmPatchOpportunityInput,
+  ) {
+    return this.opportunities.patch(req, id, body ?? {}, await this.actorStaffId(req));
   }
 
   @Get('interactions')

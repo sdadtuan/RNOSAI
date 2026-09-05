@@ -32,6 +32,8 @@ import { bandCopy, vnd } from '@/lib/crm/am-format';
 import { useToast } from '@/lib/toast';
 import { amRecoveryRequiredCopy } from '@/lib/crm/am-risk.util';
 import { AmContactDrawer } from './AmContactDrawer';
+import { AmGrowth } from './AmGrowth';
+import { AmOpportunityForm } from './AmOpportunityForm';
 import { AmPlaceholder } from './AmPlaceholder';
 import { AmRiskForm } from './AmRiskForm';
 import { AmTimeline } from './AmTimeline';
@@ -47,6 +49,7 @@ type DrawerKind =
   | 'renewal'
   | 'interaction'
   | 'risk'
+  | 'opportunity'
   | null;
 
 function bandClass(band: AmAccount360Data['band']): string {
@@ -513,7 +516,13 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         >
           Bắt đầu gia hạn
         </button>
-        <button type="button" className="am-btn" disabled title="Mở ở Wave 4">
+        <button
+          type="button"
+          className="am-btn"
+          disabled={!canEdit}
+          title={canEdit ? 'Tạo cơ hội' : 'Cần quyền crm_am.edit'}
+          onClick={() => canEdit && openDrawer('opportunity')}
+        >
           Tạo cơ hội
         </button>
       </div>
@@ -537,6 +546,8 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         <AmTimeline agencyClientId={agencyClientId} />
       ) : tab === 'finance' ? (
         <FinancePanel data={data} />
+      ) : tab === 'opportunities' ? (
+        <AmGrowth agencyClientId={agencyClientId} embedded />
       ) : tab === 'audit' ? (
         <AuditPanel data={data} />
       ) : (
@@ -568,8 +579,19 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
           }}
         />
       ) : null}
+      {drawer === 'opportunity' ? (
+        <AmOpportunityForm
+          agencyClientId={agencyClientId}
+          canEdit={canEdit}
+          onClose={() => setDrawer(null)}
+          onSaved={() => {
+            setDrawer(null);
+            void load();
+          }}
+        />
+      ) : null}
 
-      {drawer && drawer !== 'contact' && drawer !== 'risk' ? (
+      {drawer && drawer !== 'contact' && drawer !== 'risk' && drawer !== 'opportunity' ? (
         <div
           className="am-drawer-bg"
           role="presentation"

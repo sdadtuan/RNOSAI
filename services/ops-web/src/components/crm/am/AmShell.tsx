@@ -38,7 +38,7 @@ import { AmPalette } from './AmPalette';
 
 export type AmRoleLabel = 'Admin' | 'Director' | 'AM';
 export type AmDensity = 'comfortable' | 'compact';
-export type AmCreateKind = 'client' | 'task' | 'plan' | 'interaction';
+export type AmCreateKind = 'client' | 'task' | 'plan' | 'interaction' | 'opportunity';
 
 export type AmPageContextValue = {
   user: StoredStaffUser;

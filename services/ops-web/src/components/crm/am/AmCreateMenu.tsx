@@ -15,6 +15,7 @@ import {
   type AmTaskPriority,
 } from '@/lib/crm/am-api';
 import { useToast } from '@/lib/toast';
+import { AmOpportunityForm } from './AmOpportunityForm';
 import { AmTimeline } from './AmTimeline';
 import { useAmPage, type AmCreateKind } from './AmShell';
 
@@ -126,7 +127,9 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
           ? 'Tạo Renewal/Plan'
           : createKind === 'interaction'
             ? 'Log tương tác'
-            : '';
+            : createKind === 'opportunity'
+              ? 'Tạo cơ hội tăng trưởng'
+              : '';
 
   async function onCreateTask(ev: FormEvent<HTMLFormElement>) {
     ev.preventDefault();
@@ -280,7 +283,7 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
           <button type="button" role="menuitem" onClick={() => openStub('plan')}>
             Renewal/Plan
           </button>
-          <button type="button" role="menuitem" disabled title="Mở ở Wave 4">
+          <button type="button" role="menuitem" onClick={() => openStub('opportunity')}>
             Cơ hội
           </button>
           <button type="button" role="menuitem" onClick={() => openStub('interaction')}>
@@ -288,7 +291,17 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
           </button>
         </div>
       ) : null}
-      {createKind ? (
+      {createKind === 'opportunity' ? (
+        <AmOpportunityForm
+          canEdit={canEdit}
+          onClose={closeCreate}
+          onSaved={() => {
+            closeCreate();
+            retry();
+          }}
+        />
+      ) : null}
+      {createKind && createKind !== 'opportunity' ? (
         <div
           className="am-drawer-bg"
           role="presentation"
