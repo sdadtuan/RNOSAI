@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError } from '@/lib/api';
 import { hasCap } from '@/lib/auth';
 import {
@@ -50,6 +50,11 @@ export function AmSettings() {
   const selected = items.find((row) => row.id === selectedId) ?? null;
   const published = selected?.status === 'published';
   const canEditDraft = Boolean(canManage && selected && !published);
+  const dirty = useMemo(() => {
+    if (!selected) return false;
+    if (draftName !== selected.name) return true;
+    return JSON.stringify(draftItems) !== JSON.stringify(selected.items);
+  }, [selected, draftName, draftItems]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -133,10 +138,23 @@ export function AmSettings() {
     setBusy(true);
     setError('');
     try {
+      if (dirty) {
+        const saved = await patchAmOnboardingTemplate(token, selected.id, {
+          name: draftName.trim() || selected.name,
+          items: draftItems,
+        });
+        setItems((prev) => prev.map((row) => (row.id === saved.id ? saved : row)));
+      }
       const next = await publishAmOnboardingTemplate(token, selected.id);
       setItems((prev) => prev.map((row) => (row.id === next.id ? next : row)));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Không xuất bản được.');
+      setError(
+        err instanceof ApiError && err.message === 'template_published'
+          ? 'Template đã xuất bản — nhân bản thành draft để sửa.'
+          : err instanceof ApiError
+            ? err.message
+            : 'Không xuất bản được.',
+      );
     } finally {
       setBusy(false);
     }

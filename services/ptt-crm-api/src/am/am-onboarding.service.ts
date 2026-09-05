@@ -452,12 +452,15 @@ export class AmOnboardingService {
       hit.done = toggle.done === true;
       hit.done_at = hit.done ? new Date().toISOString() : null;
     }
-    await this.db.query(
+    const updated = await this.db.query(
       `UPDATE crm_am_onboarding_cases
           SET items_json = $2::jsonb
-        WHERE tenant_id = $1 AND id = $3::uuid`,
+        WHERE tenant_id = $1 AND id = $3::uuid AND status = 'open'`,
       [AM_TENANT_ID, JSON.stringify(items), id],
     );
+    if ((updated.rowCount ?? 0) === 0) {
+      amThrow(409, { error: 'case_closed' });
+    }
     return this.getCase(req, id);
   }
 

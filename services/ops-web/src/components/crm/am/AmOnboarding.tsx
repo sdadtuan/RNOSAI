@@ -52,7 +52,7 @@ function goLiveErrorCopy(code: string): string {
   if (code === 'required_open') return 'Còn hạng mục bắt buộc chưa hoàn thành.';
   if (code === 'override_reason_required') return 'Cần lý do override khi còn hạng mục bắt buộc.';
   if (code === 'invalid_go_live_on') return 'Ngày Go-live phải là YYYY-MM-DD.';
-  if (code === 'already_closed') return 'Case đã đóng.';
+  if (code === 'already_closed' || code === 'case_closed') return 'Case đã đóng.';
   return code;
 }
 
@@ -170,6 +170,15 @@ export function AmOnboarding({ caseId }: { caseId: string }) {
     setBusy(true);
     setModalError('');
     try {
+      if (dirty.length) {
+        const saved = await patchAmOnboardingCase(
+          token,
+          data.id,
+          dirty.map((item) => ({ id: item.id, done: item.done })),
+        );
+        setData(saved);
+        setDraft(saved.items);
+      }
       const next = await goLiveAmOnboardingCase(token, data.id, {
         go_live_on: goLiveOn,
         override: amGoLiveBlocked(draft, false) ? true : undefined,

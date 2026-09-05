@@ -372,4 +372,35 @@ describe('AmOnboardingService workspace', () => {
       entity_id: CASE_ID,
     });
   });
+
+  it('PATCH returns 409 case_closed when concurrent close makes UPDATE rowCount 0', async () => {
+    db.query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from crm_am_onboarding_cases/i.test(text) && /select/i.test(text)) {
+        return { rows: [openCaseRow], rowCount: 1 };
+      }
+      if (/update crm_am_onboarding_cases/i.test(text)) {
+        return { rows: [], rowCount: 0 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(
+      service.patchCase(viewReq, CASE_ID, { items: [{ id: 'item-required', done: true }] }),
+    ).rejects.toMatchObject({
+      status: 409,
+      error: 'case_closed',
+    });
+
+    const updateSql = db.query.mock.calls
+      .map(([sql]) => String(sql))
+      .find((sql) => /update crm_am_onboarding_cases/i.test(sql));
+    expect(updateSql).toBeTruthy();
+    expect(updateSql).toMatch(/status\s*=\s*'open'/i);
+    expect(
+      db.query.mock.calls.some(
+        ([sql]) => /from crm_am_health_snapshots/i.test(String(sql)) || /from crm_am_handovers/i.test(String(sql)),
+      ),
+    ).toBe(false);
+  });
 });
