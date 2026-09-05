@@ -154,7 +154,7 @@ export class AmSearchRepository implements OnModuleDestroy, AmSearchDb {
 @Injectable()
 export class AmSearchService {
   constructor(
-    private readonly db: AmSearchDb,
+    private readonly db: AmSearchRepository,
     private readonly staffAuth: StaffAuthService,
   ) {}
 

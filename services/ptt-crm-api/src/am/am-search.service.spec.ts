@@ -1,6 +1,15 @@
 import { amScopeSql } from './am-scope.util';
 import { AmSearchService } from './am-search.service';
 
+function unionArms(sql: string): string[] {
+  const match = sql.match(/FROM\s*\(([\s\S]*?)\)\s*hits/i);
+  if (!match) return [sql];
+  return match[1]
+    .split(/UNION ALL/i)
+    .map((arm) => arm.trim())
+    .filter(Boolean);
+}
+
 describe('AmSearchService', () => {
   const VIEW_STAFF_ID = 7;
   const viewReq = {
@@ -42,10 +51,14 @@ describe('AmSearchService', () => {
     for (const call of db.query.mock.calls as unknown as Array<[unknown, unknown?]>) {
       const text = String(call[0]);
       const params = (Array.isArray(call[1]) ? call[1] : []) as unknown[];
-      expect(text).toMatch(/account_owner_staff_id/);
-      expect(text).toContain('e.account_owner_staff_id');
+      const arms = unionArms(text);
+      expect(arms.length).toBeGreaterThanOrEqual(2);
+      for (const arm of arms) {
+        expect(arm).toMatch(/account_owner_staff_id/);
+        expect(arm).toContain('e.account_owner_staff_id');
+        expect(arm).not.toMatch(/AND TRUE(\s|$)/);
+      }
       expect(params).toEqual(expect.arrayContaining(scoped.params));
-      expect(text).not.toMatch(/AND TRUE(\s|$)/);
     }
   });
 
