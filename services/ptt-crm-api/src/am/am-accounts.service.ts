@@ -196,6 +196,7 @@ export type AmAccount360 = {
   next_invoice_on: string | null;
   hide_amounts: boolean;
   name_unchanged?: boolean;
+  override: { band: string; reason: string; until: string } | null;
   contacts: AmAccountContact[];
   contracts: AmAccountContract[];
   open_tasks: AmAccountOpenTask[];
@@ -298,6 +299,24 @@ function dayStr(value: unknown): string | null {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   const s = String(value);
   return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+function ictToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function activeOverride(
+  row: Record<string, unknown>,
+): { band: string; reason: string; until: string } | null {
+  const band = text(row.override_band);
+  const until = dayStr(row.override_until);
+  if (!band || !until || until < ictToday()) return null;
+  return { band, reason: text(row.override_reason) ?? '', until };
 }
 
 @Injectable()
@@ -817,6 +836,7 @@ export class AmAccountsService {
       outstanding_vnd: null,
       next_invoice_on: null,
       hide_amounts: hideAmounts,
+      override: activeOverride(row),
       contacts,
       contracts,
       open_tasks: openTasks,
@@ -867,7 +887,7 @@ export class AmAccountsService {
           LEFT JOIN crm_staff owner ON owner.id = e.account_owner_staff_id
           ${includeTeam ? 'LEFT JOIN staff_teams team ON team.id = e.team_id' : ''}
           LEFT JOIN LATERAL (
-            SELECT h.score, h.band, h.override_band, h.override_until
+            SELECT h.score, h.band, h.override_band, h.override_until, h.override_reason
               FROM crm_am_health_snapshots h
              WHERE h.tenant_id = $1
                AND h.agency_client_id = e.agency_client_id

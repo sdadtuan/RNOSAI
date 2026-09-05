@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { AmController } from '../am.controller';
 import { AM_REQUIRED_ACTION_KEY, AM_REQUIRED_SECTION_KEY, StaffAmGuard } from './staff-am.guard';
 
 function parseCaps(caps: string[]): Array<{ section: string; action: string }> {
@@ -85,6 +86,12 @@ describe('StaffAmGuard', () => {
   it('allows internal key without caps', async () => {
     const { guard, executionContext } = ctx({ staffId: 0, caps: [], internal: true });
     await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+  });
+
+  it('PUT settings metadata action is manage so view-only cannot pass the guard', () => {
+    expect(Reflect.getMetadata(AM_REQUIRED_ACTION_KEY, AmController.prototype.putSettings)).toBe(
+      'manage',
+    );
   });
 
   it('checks crm_am.finance for finance endpoints', async () => {

@@ -1,10 +1,23 @@
 import { Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
 import { AmDashboardService } from './am-dashboard.service';
-import { bandFromScore, DEFAULT_WEIGHTS, isActiveBook, weightedScore } from './am-health.util';
-import type { AmAmStatus, AmHealthBand, AmHealthComponents } from './am.types';
+import { amThrow } from './am-http';
+import {
+  bandFromScore,
+  DEFAULT_BANDS,
+  DEFAULT_WEIGHTS,
+  isActiveBook,
+  weightedScore,
+  type AmBandRanges,
+} from './am-health.util';
+import { AmSettingsService } from './am-settings.service';
+import { amScopeSql, resolveAmScope } from './am-scope.util';
+import { isUuid } from './am-tasks.service';
+import type { AmAmStatus, AmHealthBand, AmHealthComponents, AmScope } from './am.types';
 
 export type AmHealthAccountRow = {
   agency_client_id: string;
@@ -39,14 +52,55 @@ export type AmHealthRecomputeResult = {
   dist: AmHealthDist;
 };
 
+export type AmHealthOverrideBody = {
+  band?: string;
+  reason?: string;
+  until?: string;
+};
+
+export type AmHealthOverrideResult = {
+  agency_client_id: string;
+  band: AmHealthBand;
+  reason: string;
+  until: string;
+};
+
+export type AmHealthLatestSnapshot = {
+  as_of: string;
+  score: number;
+  band: AmHealthBand;
+  components: AmHealthComponents;
+  scorecard_version: number;
+  thin_data: boolean;
+};
+
 export type AmHealthStore = {
   listAccounts(): Promise<AmHealthAccountRow[]>;
   upsertSnapshot(input: AmHealthSnapshotInput): Promise<void>;
   loadWeights(): Promise<AmHealthComponents>;
+  applyOverride(input: {
+    agency_client_id: string;
+    band: AmHealthBand;
+    reason: string;
+    until: string;
+    as_of: string;
+    fallback: Omit<AmHealthSnapshotInput, 'agency_client_id' | 'as_of'>;
+  }): Promise<void>;
+  findAccount(
+    agencyClientId: string,
+    scopeSql: string,
+    scopeParams: unknown[],
+  ): Promise<boolean>;
 };
 
+export type AmHealthReq = {
+  staffUser?: StaffJwtPayload;
+  staffAuthVia?: 'internal' | 'jwt';
+};
+
+const HEALTH_BANDS = new Set<AmHealthBand>(['healthy', 'watch', 'at_risk', 'critical']);
+
 const ICT = 'Asia/Ho_Chi_Minh';
-const SCORECARD_VERSION = 1;
 
 export const HEALTH_SNAPSHOT_UPSERT = `
 INSERT INTO crm_am_health_snapshots (
@@ -57,7 +111,6 @@ ON CONFLICT (tenant_id, agency_client_id, as_of) DO UPDATE SET
   score = EXCLUDED.score,
   band = EXCLUDED.band,
   components_json = EXCLUDED.components_json,
-  scorecard_version = EXCLUDED.scorecard_version,
   thin_data = EXCLUDED.thin_data
 `;
 
@@ -186,6 +239,95 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
     }
   }
 
+  async findAccount(
+    agencyClientId: string,
+    scopeSql: string,
+    scopeParams: unknown[],
+  ): Promise<boolean> {
+    try {
+      const result = await this.db.query(
+        `SELECT 1
+           FROM crm_am_account_ext e
+          WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${scopeSql}
+          LIMIT 1`,
+        [AM_TENANT_ID, agencyClientId, ...scopeParams],
+      );
+      return (result.rowCount ?? 0) > 0;
+    } catch (err) {
+      if (isMissingRelation(err)) return false;
+      throw err;
+    }
+  }
+
+  async applyOverride(input: {
+    agency_client_id: string;
+    band: AmHealthBand;
+    reason: string;
+    until: string;
+    as_of: string;
+    fallback: Omit<AmHealthSnapshotInput, 'agency_client_id' | 'as_of'>;
+  }): Promise<void> {
+    const latest = await this.loadLatestSnapshot(input.agency_client_id);
+    if (latest) {
+      await this.db.query(
+        `UPDATE crm_am_health_snapshots
+            SET override_band = $3, override_reason = $4, override_until = $5::date
+          WHERE tenant_id = $1 AND agency_client_id = $2::uuid AND as_of = $6::date`,
+        [AM_TENANT_ID, input.agency_client_id, input.band, input.reason, input.until, latest.as_of],
+      );
+      return;
+    }
+    await this.db.query(
+      `INSERT INTO crm_am_health_snapshots (
+         tenant_id, agency_client_id, as_of, score, band, components_json,
+         scorecard_version, thin_data, override_band, override_reason, override_until
+       ) VALUES ($1, $2::uuid, $3::date, $4, $5, $6::jsonb, $7, $8, $9, $10, $11::date)
+       ON CONFLICT (tenant_id, agency_client_id, as_of) DO UPDATE SET
+         override_band = EXCLUDED.override_band,
+         override_reason = EXCLUDED.override_reason,
+         override_until = EXCLUDED.override_until`,
+      [
+        AM_TENANT_ID,
+        input.agency_client_id,
+        input.as_of,
+        input.fallback.score,
+        input.fallback.band,
+        JSON.stringify(input.fallback.components),
+        input.fallback.scorecard_version,
+        input.fallback.thin_data,
+        input.band,
+        input.reason,
+        input.until,
+      ],
+    );
+  }
+
+  private async loadLatestSnapshot(agencyClientId: string): Promise<AmHealthLatestSnapshot | null> {
+    try {
+      const result = await this.db.query(
+        `SELECT as_of, score, band, components_json, scorecard_version, thin_data
+           FROM crm_am_health_snapshots
+          WHERE tenant_id = $1 AND agency_client_id = $2::uuid
+          ORDER BY as_of DESC
+          LIMIT 1`,
+        [AM_TENANT_ID, agencyClientId],
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return {
+        as_of: dayStr(row.as_of) ?? '',
+        score: Number(row.score),
+        band: String(row.band) as AmHealthBand,
+        components: parseWeights(row.components_json),
+        scorecard_version: Number(row.scorecard_version ?? 1),
+        thin_data: Boolean(row.thin_data),
+      };
+    } catch (err) {
+      if (isMissingRelation(err)) return null;
+      throw err;
+    }
+  }
+
   private async loadExt(): Promise<Array<Pick<AmHealthAccountRow, 'agency_client_id' | 'am_status' | 'created_at'>>> {
     try {
       const result = await this.db.query(
@@ -244,11 +386,14 @@ export class AmHealthService {
     private readonly repo: AmHealthRepository,
     private readonly audit: AmAuditRepository,
     @Optional() private readonly dashboard?: AmDashboardService,
+    @Optional() private readonly settings?: AmSettingsService,
+    @Optional() private readonly staffAuth?: StaffAuthService,
   ) {}
 
   async recompute(input: { asOf?: string; actorStaffId?: number } = {}): Promise<AmHealthRecomputeResult> {
     const asOf = parseAsOf(input.asOf);
-    const [accounts, weights] = await Promise.all([this.repo.listAccounts(), this.repo.loadWeights()]);
+    const scorecard = await this.loadScorecard();
+    const accounts = await this.repo.listAccounts();
     const dist = emptyDist();
     let sum = 0;
     let computed = 0;
@@ -263,15 +408,15 @@ export class AmHealthService {
         hasActiveContract: account.has_active_contract,
         csdBreached: account.csd_breached,
       });
-      const score = round1(weightedScore(components, weights));
-      const band = bandFromScore(score);
+      const score = round1(weightedScore(components, scorecard.weights));
+      const band = bandFromScore(score, scorecard.bands);
       await this.repo.upsertSnapshot({
         agency_client_id: account.agency_client_id,
         as_of: asOf,
         score,
         band,
         components,
-        scorecard_version: SCORECARD_VERSION,
+        scorecard_version: scorecard.scorecard_version,
         thin_data: wave1ThinData(account, asOf),
       });
       dist[band] += 1;
@@ -289,4 +434,137 @@ export class AmHealthService {
     });
     return { as_of: asOf, computed, skipped, dist };
   }
+
+  async override(
+    req: AmHealthReq,
+    agencyClientId: string,
+    body: AmHealthOverrideBody,
+    actorStaffId: number,
+  ): Promise<AmHealthOverrideResult> {
+    const reason = String(body.reason ?? '').trim();
+    if (!reason) amThrow(400, { error: 'reason_required' });
+    const band = String(body.band ?? '').trim() as AmHealthBand;
+    if (!HEALTH_BANDS.has(band)) amThrow(400, { error: 'invalid_band' });
+    const until = String(body.until ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) amThrow(400, { error: 'override_until_invalid' });
+    const today = ictYmd();
+    const maxUntil = addDaysYmd(today, 30);
+    if (until < today || until > maxUntil) amThrow(400, { error: 'override_until_invalid' });
+
+    const id = String(agencyClientId ?? '').trim();
+    if (!isUuid(id)) amThrow(404, { error: 'not_found' });
+    const actor = await this.resolveActor(req);
+    const bound = bindScopeSql(
+      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
+      3,
+    );
+    const visible = await this.repo.findAccount(id, bound.sql, bound.params);
+    if (!visible) amThrow(404, { error: 'not_found' });
+
+    const scorecard = await this.loadScorecard();
+    const fallbackComponents = stubHealthComponents({ hasActiveContract: false, csdBreached: false });
+    const fallbackScore = round1(weightedScore(fallbackComponents, scorecard.weights));
+    await this.repo.applyOverride({
+      agency_client_id: id,
+      band,
+      reason,
+      until,
+      as_of: today,
+      fallback: {
+        score: fallbackScore,
+        band: bandFromScore(fallbackScore, scorecard.bands),
+        components: fallbackComponents,
+        scorecard_version: scorecard.scorecard_version,
+        thin_data: true,
+      },
+    });
+    this.dashboard?.dropCache();
+    await this.audit.insert({
+      actor_staff_id: actorStaffId > 0 ? actorStaffId : null,
+      action: 'health.override',
+      entity_type: 'health_snapshot',
+      entity_id: id,
+      payload_json: { band, reason, until },
+    });
+    return { agency_client_id: id, band, reason, until };
+  }
+
+  private async loadScorecard(): Promise<{
+    weights: AmHealthComponents;
+    bands: AmBandRanges;
+    scorecard_version: number;
+  }> {
+    if (this.settings) {
+      const row = await this.settings.get();
+      return {
+        weights: row.weights,
+        bands: row.bands,
+        scorecard_version: row.scorecard_version || 1,
+      };
+    }
+    return {
+      weights: await this.repo.loadWeights(),
+      bands: { ...DEFAULT_BANDS },
+      scorecard_version: 1,
+    };
+  }
+
+  private async resolveActor(req: AmHealthReq): Promise<{
+    staffId: number;
+    scope: AmScope;
+    teamIds: number[];
+  }> {
+    const internal = req.staffAuthVia === 'internal';
+    const staffId = req.staffUser
+      ? ((await this.staffAuth?.resolveCrmStaffUserId(req.staffUser)) ?? 0)
+      : 0;
+    if (internal && !req.staffUser) {
+      return { staffId, scope: resolveAmScope({ requested: 'all', hasViewAll: true, canTeam: true }), teamIds: [] };
+    }
+    if (!req.staffUser || !this.staffAuth) {
+      return { staffId, scope: 'me', teamIds: [] };
+    }
+    const me = await this.staffAuth.me(req.staffUser);
+    const has = (action: string) => this.staffAuth!.hasCap(me.caps, 'crm_am', action);
+    const hasViewAll = has('view_all') || has('manage');
+    const canTeam = hasViewAll || has('assign');
+    const scope = resolveAmScope({ requested: 'all', hasViewAll, canTeam });
+    return { staffId, scope, teamIds: [] };
+  }
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const [year, month, day] = ymd.split('-').map((part) => Number(part));
+  const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1, (day || 1) + days));
+  return dt.toISOString().slice(0, 10);
+}
+
+function dayStr(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const s = String(value);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+function bindScopeSql(
+  fragment: { sql: string; params: unknown[] },
+  startAt: number,
+): { sql: string; params: unknown[] } {
+  let sql = fragment.sql;
+  const params: unknown[] = [];
+  let i = startAt;
+  if (sql.includes('$teams')) {
+    sql = sql.replaceAll('$teams', `$${i++}`);
+    params.push(fragment.params[0]);
+    if (sql.includes('$staff')) {
+      sql = sql.replaceAll('$staff', `$${i++}`);
+      params.push(fragment.params[1] ?? fragment.params[0]);
+    }
+    return { sql, params };
+  }
+  if (sql.includes('$staff')) {
+    sql = sql.replaceAll('$staff', `$${i}`);
+    params.push(fragment.params[0]);
+  }
+  return { sql, params };
 }

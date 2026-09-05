@@ -8,6 +8,17 @@ describe('am-health.util', () => {
     expect(bandFromScore(39)).toBe('critical');
   });
 
+  it('uses settings bands when provided', () => {
+    const bands = {
+      healthy: [90, 100] as [number, number],
+      watch: [70, 89] as [number, number],
+      at_risk: [40, 69] as [number, number],
+      critical: [0, 39] as [number, number],
+    };
+    expect(bandFromScore(80, bands)).toBe('watch');
+    expect(bandFromScore(90, bands)).toBe('healthy');
+  });
+
   it('weights perfect components to 100', () => {
     expect(
       weightedScore({

@@ -3,12 +3,30 @@ import { AmHealthService, HEALTH_SNAPSHOT_UPSERT } from './am-health.service';
 
 const ACTIVE_ID = '19d722af-0000-4000-8000-000000000001';
 const CHURNED_ID = '19d722af-0000-4000-8000-000000000099';
+const ICT = 'Asia/Ho_Chi_Minh';
+
+function ictYmd(now = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: ICT,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const [year, month, day] = ymd.split('-').map((part) => Number(part));
+  const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1, (day || 1) + days));
+  return dt.toISOString().slice(0, 10);
+}
 
 describe('AmHealthService', () => {
   const repo = {
     listAccounts: jest.fn(),
     upsertSnapshot: jest.fn(),
     loadWeights: jest.fn(),
+    applyOverride: jest.fn(),
+    findAccount: jest.fn(),
   };
   const audit = { insert: jest.fn() };
   const dashboard = { dropCache: jest.fn() };
@@ -106,5 +124,22 @@ describe('AmHealthService', () => {
     expect(HEALTH_SNAPSHOT_UPSERT).toMatch(
       /ON CONFLICT\s*\(\s*tenant_id\s*,\s*agency_client_id\s*,\s*as_of\s*\)/i,
     );
+    expect(HEALTH_SNAPSHOT_UPSERT).not.toMatch(
+      /DO UPDATE SET[\s\S]*scorecard_version\s*=\s*EXCLUDED\.scorecard_version/i,
+    );
+  });
+
+  it('rejects override until today+31 ICT with 400 override_until_invalid and does not write', async () => {
+    const until = addDaysYmd(ictYmd(), 31);
+    await expect(
+      service.override(
+        { staffUser: { sub: '7' }, staffAuthVia: 'jwt' } as never,
+        ACTIVE_ID,
+        { band: 'watch', reason: 'temp hold', until },
+        7,
+      ),
+    ).rejects.toMatchObject({ status: 400, error: 'override_until_invalid' });
+    expect(repo.upsertSnapshot).not.toHaveBeenCalled();
+    expect(repo.applyOverride).not.toHaveBeenCalled();
   });
 });

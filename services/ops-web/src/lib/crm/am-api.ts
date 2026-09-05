@@ -357,6 +357,12 @@ export type AmAccountAuditItem = {
   payload_json: Record<string, unknown> | null;
 };
 
+export type AmHealthOverride = {
+  band: AmHealthBand;
+  reason: string;
+  until: string;
+};
+
 export type AmAccount360 = {
   agency_client_id: string;
   code: string;
@@ -381,6 +387,7 @@ export type AmAccount360 = {
   next_invoice_on: string | null;
   hide_amounts: boolean;
   name_unchanged?: boolean;
+  override?: AmHealthOverride | null;
   contacts: AmAccountContact[];
   contracts: AmAccountContract[];
   open_tasks: AmAccountOpenTask[];
@@ -416,6 +423,58 @@ export async function patchAmAccount(
 ): Promise<AmAccount360> {
   return amFetch<AmAccount360>(token, `/api/crm/am/accounts/${encodeURIComponent(agencyClientId)}`, {
     method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export type AmSettings = {
+  weights: {
+    kpi_delivery: number;
+    engagement: number;
+    financial: number;
+    satisfaction: number;
+    contract_support: number;
+  };
+  bands: {
+    healthy: [number, number];
+    watch: [number, number];
+    at_risk: [number, number];
+    critical: [number, number];
+  };
+  quota_accounts_per_am: number;
+  watch_ends_on_days: number;
+  health_drop_alert: number;
+  rollup_parent_health: boolean;
+  scorecard_version: number;
+};
+
+export type AmPublishSettingsBody = {
+  weights: AmSettings['weights'];
+  bands: AmSettings['bands'];
+  quota_accounts_per_am?: number;
+  watch_ends_on_days?: number;
+  health_drop_alert?: number;
+  rollup_parent_health?: boolean;
+};
+
+export async function fetchAmSettings(token: string): Promise<AmSettings> {
+  return amFetch<AmSettings>(token, '/api/crm/am/settings');
+}
+
+export async function putAmSettings(token: string, body: AmPublishSettingsBody): Promise<AmSettings> {
+  return amFetch<AmSettings>(token, '/api/crm/am/settings', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function overrideAmHealth(
+  token: string,
+  agencyClientId: string,
+  body: { band: AmHealthBand; reason: string; until: string },
+): Promise<{ agency_client_id: string; band: AmHealthBand; reason: string; until: string }> {
+  return amFetch(token, `/api/crm/am/health/${encodeURIComponent(agencyClientId)}/override`, {
+    method: 'POST',
     body: JSON.stringify(body),
   });
 }

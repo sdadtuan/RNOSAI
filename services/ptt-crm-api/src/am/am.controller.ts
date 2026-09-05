@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
@@ -12,11 +12,11 @@ import {
   type AmTransferBody,
 } from './am-accounts.service';
 import { AmDashboardService } from './am-dashboard.service';
-import { AmHealthService } from './am-health.service';
+import { AmHealthService, type AmHealthOverrideBody } from './am-health.service';
 import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
 import { AmSearchService } from './am-search.service';
 import { AmNotificationsService } from './am-notifications.service';
-import { AmSettingsService } from './am-settings.service';
+import { AmSettingsService, type AmPublishSettingsBody } from './am-settings.service';
 import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
 import { AmViewsService, type AmCreateViewBody } from './am-views.service';
 import {
@@ -94,6 +94,12 @@ export class AmController {
     return this.settings.get();
   }
 
+  @Put('settings')
+  @RequireAmAction('manage')
+  async putSettings(@Req() req: AuthedReq, @Body() body: AmPublishSettingsBody) {
+    return this.settings.publish(body ?? ({} as AmPublishSettingsBody), await this.actorStaffId(req));
+  }
+
   @Get('notifications')
   @RequireAmAction('view')
   async listNotifications(@Req() req: AuthedReq) {
@@ -107,6 +113,16 @@ export class AmController {
       asOf: body?.as_of,
       actorStaffId: await this.actorStaffId(req),
     });
+  }
+
+  @Post('health/:agencyClientId/override')
+  @RequireAmAction('manage')
+  async overrideHealth(
+    @Req() req: AuthedReq,
+    @Param('agencyClientId') agencyClientId: string,
+    @Body() body: AmHealthOverrideBody,
+  ) {
+    return this.health.override(req, agencyClientId, body ?? {}, await this.actorStaffId(req));
   }
 
   @Post('tasks')

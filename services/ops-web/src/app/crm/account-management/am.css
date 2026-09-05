@@ -925,6 +925,43 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
   max-width: none;
 }
 
+.am-scorecard {
+  display: grid;
+  gap: 16px;
+}
+
+.am-scorecard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.am-scorecard__pair {
+  display: flex;
+  gap: 6px;
+}
+
+.am-scorecard__pair input {
+  min-width: 0;
+}
+
+.am-scorecard__override {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.am-scorecard__override input,
+.am-scorecard__override select {
+  height: 36px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #fff;
+}
+
 .am-360__head {
   display: flex;
   justify-content: space-between;

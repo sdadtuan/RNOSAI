@@ -7,13 +7,36 @@ import {
   cloneAmOnboardingTemplate,
   createAmOnboardingTemplate,
   fetchAmOnboardingTemplates,
+  fetchAmSettings,
   patchAmOnboardingTemplate,
   publishAmOnboardingTemplate,
+  putAmSettings,
   type AmOnboardingTemplate,
   type AmOnboardingTemplateItem,
+  type AmSettings as AmSettingsData,
 } from '@/lib/crm/am-api';
 import { amOnboardingDash } from '@/lib/crm/am-onboarding.util';
+import {
+  amSettingsBandsError,
+  amSettingsPublishErrorCopy,
+  amSettingsWeightsError,
+} from '@/lib/crm/am-settings.util';
 import { useAmPage } from './AmShell';
+
+const WEIGHT_FIELDS: Array<{ key: keyof AmSettingsData['weights']; label: string }> = [
+  { key: 'kpi_delivery', label: 'KPI / Delivery' },
+  { key: 'engagement', label: 'Engagement' },
+  { key: 'financial', label: 'Financial' },
+  { key: 'satisfaction', label: 'Satisfaction' },
+  { key: 'contract_support', label: 'Contract / Support' },
+];
+
+const BAND_FIELDS: Array<{ key: keyof AmSettingsData['bands']; label: string }> = [
+  { key: 'healthy', label: 'Healthy' },
+  { key: 'watch', label: 'Watch' },
+  { key: 'at_risk', label: 'At risk' },
+  { key: 'critical', label: 'Critical' },
+];
 
 function emptyItem(): AmOnboardingTemplateItem {
   const id =
@@ -46,6 +69,11 @@ export function AmSettings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [settings, setSettings] = useState<AmSettingsData | null>(null);
+  const [draftWeights, setDraftWeights] = useState<AmSettingsData['weights'] | null>(null);
+  const [draftBands, setDraftBands] = useState<AmSettingsData['bands'] | null>(null);
+  const [scorecardError, setScorecardError] = useState('');
+  const [scorecardBusy, setScorecardBusy] = useState(false);
 
   const selected = items.find((row) => row.id === selectedId) ?? null;
   const published = selected?.status === 'published';
@@ -66,6 +94,14 @@ export function AmSettings() {
     } catch (err) {
       setItems([]);
       setError(err instanceof ApiError ? err.message : 'Không tải được template.');
+    }
+    try {
+      const scorecard = await fetchAmSettings(token);
+      setSettings(scorecard);
+      setDraftWeights(scorecard.weights);
+      setDraftBands(scorecard.bands);
+    } catch (err) {
+      setScorecardError(err instanceof ApiError ? err.message : 'Không tải được scorecard.');
     } finally {
       setLoading(false);
     }
@@ -160,6 +196,46 @@ export function AmSettings() {
     }
   }
 
+  async function onPublishScorecard() {
+    if (!token || !canManage || !draftWeights || !draftBands || scorecardBusy) return;
+    const weightsCode = amSettingsWeightsError(draftWeights);
+    if (weightsCode) {
+      setScorecardError(amSettingsPublishErrorCopy(weightsCode));
+      return;
+    }
+    const bandsCode = amSettingsBandsError(draftBands);
+    if (bandsCode) {
+      setScorecardError(amSettingsPublishErrorCopy(bandsCode));
+      return;
+    }
+    setScorecardBusy(true);
+    setScorecardError('');
+    try {
+      const next = await putAmSettings(token, {
+        weights: draftWeights,
+        bands: draftBands,
+        quota_accounts_per_am: settings?.quota_accounts_per_am,
+        watch_ends_on_days: settings?.watch_ends_on_days,
+        health_drop_alert: settings?.health_drop_alert,
+        rollup_parent_health: settings?.rollup_parent_health,
+      });
+      setSettings(next);
+      setDraftWeights(next.weights);
+      setDraftBands(next.bands);
+    } catch (err) {
+      const code = err instanceof ApiError ? err.message : '';
+      setScorecardError(
+        code === 'weights_sum' || code === 'bands_overlap'
+          ? amSettingsPublishErrorCopy(code)
+          : err instanceof ApiError
+            ? err.message
+            : 'Không xuất bản được scorecard.',
+      );
+    } finally {
+      setScorecardBusy(false);
+    }
+  }
+
   async function onClone() {
     if (!token || !selected || !canManage || busy) return;
     setBusy(true);
@@ -199,6 +275,99 @@ export function AmSettings() {
       </header>
 
       {error ? <p className="am-banner">{error}</p> : null}
+
+      <div className="am-widget">
+        <div className="am-widget__head">
+          <h2>Scorecard</h2>
+          <span className="am-muted">v{settings?.scorecard_version ?? 1}</span>
+        </div>
+        {scorecardError ? <p className="am-banner">{scorecardError}</p> : null}
+        <div className="am-scorecard">
+          <div>
+            <p className="am-muted">Trọng số (tổng 100)</p>
+            <div className="am-scorecard__grid">
+              {WEIGHT_FIELDS.map((field) => (
+                <label key={field.key} className="am-field">
+                  <span>{field.label}</span>
+                  {canManage && draftWeights ? (
+                    <input
+                      type="number"
+                      value={draftWeights[field.key]}
+                      onChange={(ev) =>
+                        setDraftWeights((prev) =>
+                          prev ? { ...prev, [field.key]: Number(ev.target.value) } : prev,
+                        )
+                      }
+                    />
+                  ) : (
+                    <strong>{draftWeights?.[field.key] ?? '—'}</strong>
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="am-muted">Ngưỡng band (0–100, không chồng)</p>
+            <div className="am-scorecard__grid">
+              {BAND_FIELDS.map((field) => (
+                <label key={field.key} className="am-field">
+                  <span>{field.label}</span>
+                  {canManage && draftBands ? (
+                    <span className="am-scorecard__pair">
+                      <input
+                        type="number"
+                        value={draftBands[field.key][0]}
+                        onChange={(ev) =>
+                          setDraftBands((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  [field.key]: [Number(ev.target.value), prev[field.key][1]],
+                                }
+                              : prev,
+                          )
+                        }
+                      />
+                      <input
+                        type="number"
+                        value={draftBands[field.key][1]}
+                        onChange={(ev) =>
+                          setDraftBands((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  [field.key]: [prev[field.key][0], Number(ev.target.value)],
+                                }
+                              : prev,
+                          )
+                        }
+                      />
+                    </span>
+                  ) : (
+                    <strong>
+                      {draftBands
+                        ? `${draftBands[field.key][0]}–${draftBands[field.key][1]}`
+                        : '—'}
+                    </strong>
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        {canManage ? (
+          <div className="am-form__actions">
+            <button
+              type="button"
+              className="am-btn am-btn--primary"
+              disabled={scorecardBusy || !draftWeights}
+              onClick={() => void onPublishScorecard()}
+            >
+              Xuất bản scorecard
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       <div className="am-widget">
         <table className="am-table">

@@ -10,6 +10,7 @@ import {
   createAmTask,
   fetchAmAccount,
   mergeAmAccount,
+  overrideAmHealth,
   patchAmAccount,
   transferAmAccounts,
   type AmAccount360 as AmAccount360Data,
@@ -65,6 +66,10 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
   const [formError, setFormError] = useState('');
   const [mergeHint, setMergeHint] = useState('');
   const [roster, setRoster] = useState<StaffRosterRow[]>([]);
+  const [overrideBand, setOverrideBand] = useState<AmAccount360Data['band']>('watch');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [overrideUntil, setOverrideUntil] = useState('');
+  const [overrideError, setOverrideError] = useState('');
 
   const canAssign = canAssignAmAccounts(user);
   const canManage = hasCap(user, 'crm_am', 'manage');
@@ -385,6 +390,73 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
           ) : null}
         </div>
       </header>
+
+      {data.override ? (
+        <p className="am-banner">
+          Health override: {data.override.band} đến {data.override.until}. {data.override.reason}
+        </p>
+      ) : null}
+
+      {canManage ? (
+        <form
+          className="am-scorecard__override"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            void (async () => {
+              if (busy) return;
+              const reason = overrideReason.trim();
+              if (!reason) {
+                setOverrideError('reason_required');
+                return;
+              }
+              if (!overrideUntil || !overrideBand) {
+                setOverrideError('override_until_invalid');
+                return;
+              }
+              setBusy(true);
+              setOverrideError('');
+              try {
+                await overrideAmHealth(token, agencyClientId, {
+                  band: overrideBand,
+                  reason,
+                  until: overrideUntil,
+                });
+                push('Đã ghi health override', 'success');
+                await load();
+              } catch (err) {
+                setOverrideError(err instanceof ApiError ? err.message : 'Không ghi được override.');
+              } finally {
+                setBusy(false);
+              }
+            })();
+          }}
+        >
+          <span className="am-muted">Override health</span>
+          <select
+            value={overrideBand ?? 'watch'}
+            onChange={(ev) => setOverrideBand(ev.target.value as AmAccount360Data['band'])}
+          >
+            <option value="healthy">healthy</option>
+            <option value="watch">watch</option>
+            <option value="at_risk">at_risk</option>
+            <option value="critical">critical</option>
+          </select>
+          <input
+            placeholder="Lý do"
+            value={overrideReason}
+            onChange={(ev) => setOverrideReason(ev.target.value)}
+          />
+          <input
+            type="date"
+            value={overrideUntil}
+            onChange={(ev) => setOverrideUntil(ev.target.value)}
+          />
+          <button type="submit" className="am-btn" disabled={busy}>
+            Ghi
+          </button>
+          {overrideError ? <span className="am-banner">{overrideError}</span> : null}
+        </form>
+      ) : null}
 
       <div className="am-360__actions">
         <button type="button" className="am-btn" disabled title="Mở ở Wave 3">

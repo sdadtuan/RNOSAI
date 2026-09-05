@@ -75,3 +75,6 @@ CREATE TABLE IF NOT EXISTS crm_am_renewal_cases (
 CREATE UNIQUE INDEX IF NOT EXISTS crm_am_renewal_open_uq
   ON crm_am_renewal_cases (tenant_id, contract_id)
   WHERE status NOT IN ('renewed','lost');
+
+ALTER TABLE crm_am_settings
+  ADD COLUMN IF NOT EXISTS scorecard_version INTEGER NOT NULL DEFAULT 1;
