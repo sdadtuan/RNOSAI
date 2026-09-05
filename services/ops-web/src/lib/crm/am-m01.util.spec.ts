@@ -31,6 +31,7 @@ describe('am-m01 CSS', () => {
     expect(AM_CSS).toMatch(/@media\s*\(\s*max-width:\s*767px\s*\)[\s\S]*\.am-m01-hide/);
     expect(AM_CSS).toMatch(/@media\s*\(\s*max-width:\s*767px\s*\)[\s\S]*href\$="\/settings"/);
     expect(AM_CSS).toMatch(/@media\s*\(\s*max-width:\s*767px\s*\)[\s\S]*href\$="\/reports"/);
+    expect(AM_CSS).not.toMatch(/\.am-nav a\[href\$="\/renewals"\]/);
     expect(AM_CSS).toMatch(/@media\s*\(\s*max-width:\s*767px\s*\)[\s\S]*\.am-m01-admin/);
   });
 });

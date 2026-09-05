@@ -23,6 +23,7 @@ import {
   parseAmRenewalWindow,
   type AmRenewalColumnId,
 } from '@/lib/crm/am-renewal.util';
+import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { useAmPage } from './AmShell';
 
 export function AmRenewalKanban() {
@@ -31,6 +32,8 @@ export function AmRenewalKanban() {
   const pathname = usePathname() ?? '/crm/account-management/renewals';
   const searchParams = useSearchParams();
   const view = parseAmRenewalView(searchParams.get('view'));
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const effectiveView = isMobile ? 'list' : view;
   const windowDays = parseAmRenewalWindow(searchParams.get('window'));
 
   const [data, setData] = useState<AmRenewalPipeline | null>(null);
@@ -166,14 +169,14 @@ export function AmRenewalKanban() {
           </label>
           <button
             type="button"
-            className={`am-btn${view === 'kanban' ? ' am-btn--primary' : ''}`}
+            className={`am-btn am-m01-hide${effectiveView === 'kanban' ? ' am-btn--primary' : ''}`}
             onClick={() => setQuery({ view: 'kanban' })}
           >
             Kanban
           </button>
           <button
             type="button"
-            className={`am-btn${view === 'list' ? ' am-btn--primary' : ''}`}
+            className={`am-btn${effectiveView === 'list' ? ' am-btn--primary' : ''}`}
             onClick={() => setQuery({ view: 'list' })}
           >
             Danh sách
@@ -186,7 +189,7 @@ export function AmRenewalKanban() {
 
       {banner ? <p className="am-banner">{banner}</p> : null}
 
-      {view === 'list' ? (
+      {effectiveView === 'list' ? (
         <div className="am-widget">
           <table className="am-table">
             <thead>
@@ -237,7 +240,7 @@ export function AmRenewalKanban() {
           </table>
         </div>
       ) : (
-        <div className="am-kanban am-m01-hide">
+        <div className="am-kanban">
           {data.columns.map((col) => (
             <div key={col.id} className="am-kanban__col">
               <h2>

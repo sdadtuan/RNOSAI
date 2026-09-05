@@ -1719,7 +1719,6 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
   .am-m01-hide,
   .am-nav a[href$="/settings"],
   .am-nav a[href$="/reports"],
-  .am-nav a[href$="/renewals"],
   .am-m01-admin {
     display: none !important;
   }
