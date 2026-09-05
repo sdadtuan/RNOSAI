@@ -376,6 +376,35 @@ export async function transferAmAccounts(token: string, body: AmTransferBody): P
   });
 }
 
+export type AmBulkTagInput = {
+  agency_client_ids: string[];
+  tags: string[];
+  mode: 'add';
+};
+
+export type AmBulkTagResult = { updated: number };
+
+export type AmAccountsExportResult = { csv: string; rows: number };
+
+export async function bulkTagAmAccounts(token: string, body: AmBulkTagInput): Promise<AmBulkTagResult> {
+  return amFetch<AmBulkTagResult>(token, '/api/crm/am/accounts/bulk-tag', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function exportAmAccounts(
+  token: string,
+  query: AmAccountsListQuery = {},
+): Promise<AmAccountsExportResult> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value) params.set(key, value);
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return amFetch<AmAccountsExportResult>(token, `/api/crm/am/accounts/export${suffix}`);
+}
+
 export async function fetchAmAccounts(
   token: string,
   query: AmAccountsListQuery = {},

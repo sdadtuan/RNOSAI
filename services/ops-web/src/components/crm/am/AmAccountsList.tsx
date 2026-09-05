@@ -5,13 +5,16 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchStaffRoster, type StaffRosterRow } from '@/lib/api';
 import {
+  bulkTagAmAccounts,
   createAmView,
+  exportAmAccounts,
   fetchAmAccounts,
   fetchAmViews,
   transferAmAccounts,
   type AmAccountListItem,
   type AmSavedView,
 } from '@/lib/crm/am-api';
+import { amExportTooLargeCopy } from '@/lib/crm/am-export.util';
 import { amDelegationUntilLabel } from '@/lib/crm/am-delegation.util';
 import { bandCopy, vnd } from '@/lib/crm/am-format';
 import {
@@ -304,6 +307,38 @@ export function AmAccountsList() {
     }
   }
 
+  async function onBulkTag() {
+    if (!selectedIds.length) return;
+    const raw = window.prompt('Nhập tag (phẩy để nhiều)');
+    if (raw == null) return;
+    const tags = raw.split(',').map((part) => part.trim()).filter(Boolean);
+    if (!tags.length) return;
+    try {
+      await bulkTagAmAccounts(token, { agency_client_ids: selectedIds, tags, mode: 'add' });
+      setSelected({});
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không gắn được tag');
+    }
+  }
+
+  async function onExport() {
+    try {
+      const query = queryFromSearch(search);
+      if (!query.scope) query.scope = scope;
+      const out = await exportAmAccounts(token, query);
+      const blob = new Blob([out.csv], { type: 'text/csv; charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'am-accounts.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      setError(amExportTooLargeCopy(code) || 'Không export được');
+    }
+  }
+
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
   const maxPage = Math.max(1, Math.ceil(total / pageSize));
@@ -451,6 +486,12 @@ export function AmAccountsList() {
               Đổi Owner
             </button>
           ) : null}
+          <button type="button" className="am-btn" onClick={() => void onBulkTag()}>
+            Gắn tag
+          </button>
+          <button type="button" className="am-btn" onClick={() => void onExport()}>
+            Export
+          </button>
           <button type="button" className="am-btn" onClick={() => setSelected({})}>
             Bỏ chọn
           </button>

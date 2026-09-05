@@ -6,6 +6,7 @@ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import {
   AmAccountsService,
   type AmAccountsListQuery,
+  type AmBulkTagInput,
   type AmCreateAccountBody,
   type AmMergeAccountBody,
   type AmPatchAccountBody,
@@ -321,6 +322,18 @@ export class AmController {
       caps: await this.actorCaps(req),
       via: req.staffAuthVia === 'internal' ? 'internal' : 'jwt',
     });
+  }
+
+  @Post('accounts/bulk-tag')
+  @RequireAmAction('edit')
+  async bulkTag(@Req() req: AuthedReq, @Body() body: AmBulkTagInput) {
+    return this.accounts.bulkTag(req, body ?? {});
+  }
+
+  @Get('accounts/export')
+  @RequireAmAction('view')
+  async exportAccounts(@Req() req: AuthedReq, @Query() q: AmAccountsListQuery) {
+    return this.accounts.exportCsv(req, q);
   }
 
   @Get('accounts/:agencyClientId')

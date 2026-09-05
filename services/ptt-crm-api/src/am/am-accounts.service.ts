@@ -64,6 +64,18 @@ export type AmAccountsListResult = {
   page: number;
 };
 
+export type AmBulkTagInput = {
+  agency_client_ids: string[];
+  tags: string[];
+  mode: 'add';
+};
+
+export type AmBulkTagResult = { updated: number };
+
+export type AmAccountsExportResult =
+  | { csv: string; rows: number }
+  | never;
+
 export type AmAccountsListReq = {
   staffUser?: StaffJwtPayload;
   staffAuthVia?: 'internal' | 'jwt';
@@ -452,6 +464,74 @@ export class AmAccountsService {
     }
   }
 
+  async bulkTag(req: AmAccountsListReq, body: AmBulkTagInput): Promise<AmBulkTagResult> {
+    if (String(body?.mode ?? '') !== 'add') {
+      amThrow(400, { error: 'mode_invalid' });
+    }
+    const ids = [
+      ...new Set((body.agency_client_ids ?? []).map((id) => String(id ?? '').trim()).filter(Boolean)),
+    ];
+    if (!ids.length || ids.some((id) => !isUuid(id))) {
+      amThrow(400, { error: 'agency_client_ids_required' });
+    }
+    if (ids.length > 200) {
+      amThrow(400, { error: 'too_many_ids', max: 200 });
+    }
+    const incoming = (body.tags ?? []).map((tag) => String(tag ?? '').trim()).filter(Boolean);
+    if (!incoming.length) {
+      amThrow(400, { error: 'tags_required' });
+    }
+
+    const actor = await this.resolveListActor(req, undefined);
+    const current = await this.loadScopedTags(ids, actor);
+    const found = new Set(current.map((row) => row.agency_client_id));
+    if (ids.some((id) => !found.has(id))) {
+      amThrow(403, { error: 'out_of_scope' });
+    }
+
+    let updated = 0;
+    for (const row of current) {
+      const next = [...new Set([...row.tags, ...incoming])];
+      const params: unknown[] = [AM_TENANT_ID, row.agency_client_id, next];
+      const bound = bindScopeSql(
+        amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
+        params.length + 1,
+      );
+      params.push(...bound.params);
+      const result = await this.db.query(
+        `UPDATE crm_am_account_ext e
+            SET tags = $3::text[], updated_at = now()
+          WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}`,
+        params,
+      );
+      updated += Number(result.rowCount ?? 0);
+    }
+
+    await this.audit?.insert({
+      actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
+      action: 'account.bulk_tag',
+      entity_type: 'account',
+      entity_id: ids.length === 1 ? ids[0] : null,
+      payload_json: { agency_client_ids: ids, tags: incoming, mode: 'add', updated },
+    });
+    this.dashboard?.dropCache();
+    return { updated };
+  }
+
+  async exportCsv(req: AmAccountsListReq, q: AmAccountsListQuery): Promise<AmAccountsExportResult> {
+    const actor = await this.resolveListActor(req, q.scope);
+    const owner = String(q.owner ?? '').trim();
+    if (owner === 'unassigned' && !actor.canSeeUnassigned) {
+      return { csv: `${EXPORT_CSV_HEADER}\n`, rows: 0 };
+    }
+    try {
+      return await this.runExport(req, actor, q, true);
+    } catch (err) {
+      if (!isMissingRelation(err)) throw err;
+      return this.runExport(req, actor, q, false);
+    }
+  }
+
   async createAccount(body: AmCreateAccountBody, actor: AmAccountActor) {
     if (body.mode === 'create') {
       return this.createFromAgency(body, actor);
@@ -677,6 +757,12 @@ export class AmAccountsService {
     if ('industry' in body || 'industry_override' in body) {
       nextIndustry = industryRaw == null || industryRaw === '' ? null : String(industryRaw).trim();
       sets.push(`industry_override = ${pushParam(params, nextIndustry)}`);
+    }
+    if (Array.isArray(body.tags)) {
+      const nextTags = [
+        ...new Set(body.tags.map((tag) => String(tag ?? '').trim()).filter(Boolean)),
+      ];
+      sets.push(`tags = ${pushParam(params, nextTags)}::text[]`);
     }
 
     const checkPrimary =
@@ -1334,15 +1420,105 @@ export class AmAccountsService {
     ]);
   }
 
-  private async queryList(
+  private async loadScopedTags(
+    ids: string[],
+    actor: ListActor,
+  ): Promise<Array<{ agency_client_id: string; tags: string[] }>> {
+    const params: unknown[] = [AM_TENANT_ID, ids];
+    const bound = bindScopeSql(
+      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
+      params.length + 1,
+    );
+    params.push(...bound.params);
+    const current = await this.db.query(
+      `SELECT e.agency_client_id::text AS agency_client_id,
+              COALESCE(e.tags, ARRAY[]::text[]) AS tags
+         FROM crm_am_account_ext e
+        WHERE e.tenant_id = $1 AND e.agency_client_id = ANY($2::uuid[]) AND ${bound.sql}`,
+      params,
+    );
+    return current.rows.map((row) => ({
+      agency_client_id: String(row.agency_client_id ?? ''),
+      tags: asTags(row.tags),
+    }));
+  }
+
+  private async runExport(
+    req: AmAccountsListReq,
     actor: ListActor,
     q: AmAccountsListQuery,
-    page: number,
-    pageSize: number,
     includeContracts: boolean,
-    includeTeam: boolean,
-    includeDelegations: boolean,
-  ): Promise<AmAccountsListResult> {
+  ): Promise<AmAccountsExportResult> {
+    const count = await this.countBook(actor, q, includeContracts);
+    if (count >= 10000) {
+      amThrow(400, { error: 'export_too_large', max: 10000 });
+    }
+    const hideAmounts = await this.shouldHideAmounts(req);
+    const rows = await this.fetchExportRows(actor, q, includeContracts);
+    return { csv: buildAccountsCsv(rows, hideAmounts), rows: rows.length };
+  }
+
+  private async countBook(
+    actor: ListActor,
+    q: AmAccountsListQuery,
+    includeContracts: boolean,
+  ): Promise<number> {
+    const { params, where, outer } = this.accountFilterState(actor, q);
+    const outerSql = outer.length ? `WHERE ${outer.join(' AND ')}` : '';
+    const result = await this.db.query(
+      `SELECT COUNT(*)::int AS count FROM (
+        ${exportInnerSelect(includeContracts)}
+        WHERE ${where.join(' AND ')}
+      ) listed
+      ${outerSql}`,
+      params,
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
+  private async fetchExportRows(
+    actor: ListActor,
+    q: AmAccountsListQuery,
+    includeContracts: boolean,
+  ): Promise<AmExportRow[]> {
+    const { params, where, outer, orderBy } = this.accountFilterState(actor, q);
+    const outerSql = outer.length ? `WHERE ${outer.join(' AND ')}` : '';
+    const result = await this.db.query(
+      `SELECT
+          listed.agency_client_id,
+          listed.code,
+          listed.name,
+          listed.owner_staff_id,
+          listed.team_id,
+          listed.am_status,
+          listed.band AS health_band,
+          listed.mrr_vnd,
+          listed.ends_on
+        FROM (
+          ${exportInnerSelect(includeContracts)}
+          WHERE ${where.join(' AND ')}
+        ) listed
+        ${outerSql}
+        ORDER BY ${orderBy}`,
+      params,
+    );
+    return result.rows.map((row) => ({
+      agency_client_id: String(row.agency_client_id ?? ''),
+      code: String(row.code ?? ''),
+      name: String(row.name ?? ''),
+      owner_staff_id: num(row.owner_staff_id),
+      team_id: num(row.team_id),
+      am_status: String(row.am_status ?? ''),
+      health_band: text(row.health_band),
+      mrr_vnd: num(row.mrr_vnd),
+      ends_on: dayStr(row.ends_on),
+    }));
+  }
+
+  private accountFilterState(
+    actor: ListActor,
+    q: AmAccountsListQuery,
+  ): { params: unknown[]; where: string[]; outer: string[]; orderBy: string } {
     const params: unknown[] = [AM_TENANT_ID];
     const bound = bindScopeSql(
       amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
@@ -1408,6 +1584,19 @@ export class AmAccountsService {
     }
 
     const orderBy = LIST_SORT[String(q.sort ?? '').trim()] ?? 'updated_at DESC';
+    return { params, where, outer, orderBy };
+  }
+
+  private async queryList(
+    actor: ListActor,
+    q: AmAccountsListQuery,
+    page: number,
+    pageSize: number,
+    includeContracts: boolean,
+    includeTeam: boolean,
+    includeDelegations: boolean,
+  ): Promise<AmAccountsListResult> {
+    const { params, where, outer, orderBy } = this.accountFilterState(actor, q);
     const limitP = pushParam(params, pageSize);
     const offsetP = pushParam(params, (page - 1) * pageSize);
     const outerSql = outer.length ? `WHERE ${outer.join(' AND ')}` : '';
@@ -1595,4 +1784,86 @@ function mapListItem(row: Record<string, unknown>): AmAccountListItem {
     ends_on: dayStr(row.ends_on),
     sla_label: text(row.sla_label),
   };
+}
+
+const EXPORT_CSV_HEADER =
+  'agency_client_id,code,name,owner_staff_id,team_id,am_status,health_band,mrr_vnd,ends_on';
+
+type AmExportRow = {
+  agency_client_id: string;
+  code: string;
+  name: string;
+  owner_staff_id: number | null;
+  team_id: number | null;
+  am_status: string;
+  health_band: string | null;
+  mrr_vnd: number | null;
+  ends_on: string | null;
+};
+
+function asTags(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return [...new Set(value.map((tag) => String(tag ?? '').trim()).filter(Boolean))];
+  }
+  return [];
+}
+
+function exportInnerSelect(includeContracts: boolean): string {
+  return `
+        SELECT
+          e.agency_client_id::text AS agency_client_id,
+          c.code,
+          c.name,
+          e.account_owner_staff_id AS owner_staff_id,
+          e.team_id,
+          e.am_status,
+          CASE
+            WHEN snap.override_band IS NOT NULL AND snap.override_until >= CURRENT_DATE
+              THEN snap.override_band
+            ELSE snap.band
+          END AS band,
+          ${includeContracts ? 'mrr.mrr_vnd' : 'NULL::numeric AS mrr_vnd'},
+          ${includeContracts ? 'ends.ends_on' : 'NULL::date AS ends_on'},
+          COALESCE(child.child_count, 0)::int AS child_count,
+          e.updated_at
+        FROM crm_am_account_ext e
+        INNER JOIN clients c ON c.id = e.agency_client_id
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*)::int AS child_count
+          FROM crm_am_account_ext ch
+          WHERE ch.parent_agency_client_id = e.agency_client_id
+        ) child ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT h.score, h.band, h.override_band, h.override_until
+          FROM crm_am_health_snapshots h
+          WHERE h.tenant_id = $1
+            AND h.agency_client_id = e.agency_client_id
+          ORDER BY h.as_of DESC
+          LIMIT 1
+        ) snap ON TRUE
+        ${includeContracts ? contractJoins() : ''}`;
+}
+
+function escapeAmCsvCell(value: string): string {
+  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
+function buildAccountsCsv(rows: AmExportRow[], hideAmounts: boolean): string {
+  const lines = rows.map((row) =>
+    [
+      row.agency_client_id,
+      row.code,
+      row.name,
+      row.owner_staff_id == null ? '' : String(row.owner_staff_id),
+      row.team_id == null ? '' : String(row.team_id),
+      row.am_status,
+      row.health_band ?? '',
+      hideAmounts || row.mrr_vnd == null ? '' : String(row.mrr_vnd),
+      row.ends_on ?? '',
+    ]
+      .map((cell) => escapeAmCsvCell(cell))
+      .join(','),
+  );
+  return [EXPORT_CSV_HEADER, ...lines].join('\n') + '\n';
 }

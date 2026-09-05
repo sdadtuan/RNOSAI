@@ -1,0 +1,94 @@
+import { AmAccountsService } from './am-accounts.service';
+
+describe('AmAccountsService export + bulkTag', () => {
+  const VIEW_STAFF_ID = 7;
+  const viewReq = {
+    staffUser: { sub: '19d722af-0000-4000-8000-000000000007' },
+    staffAuthVia: 'jwt' as const,
+  } as never;
+  const editReq = {
+    staffUser: { sub: '19d722af-0000-4000-8000-000000000008' },
+    staffAuthVia: 'jwt' as const,
+  } as never;
+
+  const agency = { createClient: jest.fn() };
+  const db = {
+    query: jest.fn() as jest.Mock,
+  };
+  const staffAuth = {
+    resolveCrmStaffUserId: jest.fn(async () => VIEW_STAFF_ID),
+    me: jest.fn(async () => ({ caps: [{ section: 'crm_am', action: 'view' }] })),
+    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, section: string, action: string) =>
+      caps.some((c) => c.section === section && c.action === action),
+    ),
+  };
+
+  let service: AmAccountsService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    staffAuth.resolveCrmStaffUserId.mockResolvedValue(VIEW_STAFF_ID);
+    staffAuth.me.mockResolvedValue({ caps: [{ section: 'crm_am', action: 'view' }] });
+    db.query.mockResolvedValue({ rows: [], rowCount: 0 });
+    service = new AmAccountsService(agency as never, db as never, staffAuth as never);
+  });
+
+  it('rejects export at 10000 rows', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ count: 10000 }], rowCount: 1 });
+    await expect(service.exportCsv(viewReq, {})).rejects.toMatchObject({
+      response: { error: 'export_too_large', max: 10000 },
+    });
+  });
+
+  it('adds tags without dropping existing ones', async () => {
+    const CLIENT_ID = '19d722af-0000-4000-8000-000000000001';
+    db.query.mockImplementation(async function (sql: string) {
+      const text = String(sql);
+      if (/select/i.test(text) && /tags/i.test(text)) {
+        return { rows: [{ agency_client_id: CLIENT_ID, tags: ['a'] }], rowCount: 1 };
+      }
+      if (/update/i.test(text)) {
+        expect(JSON.stringify(arguments[1])).toMatch(/a/);
+        expect(JSON.stringify(arguments[1])).toMatch(/b/);
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const out = await service.bulkTag(editReq, {
+      agency_client_ids: [CLIENT_ID],
+      tags: ['b'],
+      mode: 'add',
+    });
+    expect(out.updated).toBe(1);
+  });
+
+  it('blanks mrr_vnd without crm_am.finance and hides churned by default', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ count: 1 }], rowCount: 1 })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            agency_client_id: '19d722af-0000-4000-8000-000000000001',
+            code: 'AP01',
+            name: 'An Phu',
+            owner_staff_id: 7,
+            team_id: 3,
+            am_status: 'active',
+            health_band: 'healthy',
+            mrr_vnd: 1_500_000,
+            ends_on: '2026-10-01',
+          },
+        ],
+        rowCount: 1,
+      });
+    const out = await service.exportCsv(viewReq, {});
+    expect(out.rows).toBe(1);
+    expect(out.csv).toMatch(
+      /^agency_client_id,code,name,owner_staff_id,team_id,am_status,health_band,mrr_vnd,ends_on\n/,
+    );
+    expect(out.csv).not.toMatch(/1500000/);
+    const countSql = String(db.query.mock.calls[0]?.[0] ?? '');
+    expect(countSql).toMatch(/am_status\s*(<>|!=|NOT\s+IN)/i);
+    expect(countSql).toMatch(/churned/i);
+  });
+});
