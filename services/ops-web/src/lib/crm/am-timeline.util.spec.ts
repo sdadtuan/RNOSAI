@@ -6,6 +6,7 @@ import {
   amTimelineKindLabel,
   amTimelineRowEditable,
   formatAmTimelineOccurredAt,
+  formatAmTimelineSummary,
 } from './am-timeline.util';
 
 describe('am-timeline', () => {
@@ -49,6 +50,13 @@ describe('am-timeline', () => {
     expect(amTimelineKindLabel('')).toBe('—');
     expect(amTimelineKindLabel('   ')).toBe('—');
     expect(amTimelineKindLabel(null)).toBe('—');
+  });
+
+  it('shows dash for empty or whitespace summary', () => {
+    expect(formatAmTimelineSummary('')).toBe('—');
+    expect(formatAmTimelineSummary('   ')).toBe('—');
+    expect(formatAmTimelineSummary(null)).toBe('—');
+    expect(formatAmTimelineSummary('QBR recap')).toBe('QBR recap');
   });
 
   it('shows dash for empty or invalid occurred_at', () => {

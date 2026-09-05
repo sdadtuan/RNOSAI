@@ -23,7 +23,11 @@ import {
   parseAmOnboardingTab,
   type AmOnboardingTabId,
 } from '@/lib/crm/am-onboarding.util';
-import { amTimelineKindLabel, formatAmTimelineOccurredAt } from '@/lib/crm/am-timeline.util';
+import {
+  amTimelineKindLabel,
+  formatAmTimelineOccurredAt,
+  formatAmTimelineSummary,
+} from '@/lib/crm/am-timeline.util';
 import { AmDocumentsPanel } from './AmDocumentsPanel';
 import { useAmPage } from './AmShell';
 
@@ -105,12 +109,11 @@ export function AmOnboarding({ caseId }: { caseId: string }) {
   }, [load]);
 
   const loadActivity = useCallback(async () => {
-    if (tab !== 'activity' || !token || !data?.agency_client_id) {
-      setActivity([]);
-      return;
-    }
     const generation = ++activityLoadGenerationRef.current;
     setActivity([]);
+    if (tab !== 'activity' || !token || !data?.agency_client_id) {
+      return;
+    }
     try {
       const out = await fetchAmInteractions(token, {
         agency_client_id: data.agency_client_id,
@@ -438,7 +441,7 @@ export function AmOnboarding({ caseId }: { caseId: string }) {
                           {formatAmTimelineOccurredAt(row.occurred_at)}
                         </time>
                       </div>
-                      <p>{row.summary || '—'}</p>
+                      <p>{formatAmTimelineSummary(row.summary)}</p>
                     </li>
                   ))}
                 </ul>

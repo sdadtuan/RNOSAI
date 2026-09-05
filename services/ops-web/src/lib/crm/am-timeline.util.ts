@@ -55,6 +55,11 @@ export function amTimelineKindLabel(kind: string | null | undefined): string {
   return AM_TIMELINE_KINDS.find((item) => item.value === value)?.label ?? value;
 }
 
+export function formatAmTimelineSummary(summary: string | null | undefined): string {
+  const value = String(summary ?? '').trim();
+  return value || '—';
+}
+
 export function formatAmTimelineOccurredAt(occurredAt: string | null | undefined): string {
   const value = String(occurredAt ?? '').trim();
   if (!value) return '—';
