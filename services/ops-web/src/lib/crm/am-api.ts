@@ -117,6 +117,7 @@ export type AmCreateTaskInput = {
   due_at?: string;
   source?: string;
   source_ref?: string;
+  sla_policy_id?: string;
 };
 
 export type AmTask = {
@@ -571,6 +572,132 @@ export async function fetchAmSettings(token: string): Promise<AmSettings> {
 export async function putAmSettings(token: string, body: AmPublishSettingsBody): Promise<AmSettings> {
   return amFetch<AmSettings>(token, '/api/crm/am/settings', {
     method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export type AmCustomField = {
+  id: string;
+  api_key: string;
+  label: string;
+  field_type: 'text' | 'number' | 'date' | 'bool' | 'select';
+  industry_slug: string | null;
+  required: boolean;
+  filterable: boolean;
+  reportable: boolean;
+  access_json: { view?: string[]; edit?: string[] } | null;
+  constraints_json: { min?: number; max?: number } | null;
+  published: boolean;
+};
+
+export type AmCreateFieldBody = {
+  label: string;
+  api_key: string;
+  field_type: AmCustomField['field_type'];
+  industry_slug?: string | null;
+  required?: boolean;
+  filterable?: boolean;
+  reportable?: boolean;
+  access_json?: AmCustomField['access_json'];
+  constraints_json?: AmCustomField['constraints_json'];
+};
+
+export type AmPatchFieldBody = Partial<AmCreateFieldBody>;
+
+export async function fetchAmFields(token: string, industry?: string): Promise<{ items: AmCustomField[] }> {
+  const suffix = industry ? `?industry=${encodeURIComponent(industry)}` : '';
+  return amFetch<{ items: AmCustomField[] }>(token, `/api/crm/am/fields${suffix}`);
+}
+
+export async function createAmField(token: string, body: AmCreateFieldBody): Promise<AmCustomField> {
+  return amFetch<AmCustomField>(token, '/api/crm/am/fields', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchAmField(
+  token: string,
+  id: string,
+  body: AmPatchFieldBody,
+): Promise<AmCustomField> {
+  return amFetch<AmCustomField>(token, `/api/crm/am/fields/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function publishAmField(token: string, id: string): Promise<AmCustomField> {
+  return amFetch<AmCustomField>(token, `/api/crm/am/fields/${encodeURIComponent(id)}/publish`, {
+    method: 'POST',
+  });
+}
+
+export async function fetchAmFieldValues(
+  token: string,
+  agencyClientId: string,
+): Promise<{ values: Record<string, unknown> }> {
+  return amFetch<{ values: Record<string, unknown> }>(
+    token,
+    `/api/crm/am/field-values/${encodeURIComponent(agencyClientId)}`,
+  );
+}
+
+export async function putAmFieldValues(
+  token: string,
+  agencyClientId: string,
+  body: { values: Record<string, unknown> },
+): Promise<{ values: Record<string, unknown> }> {
+  return amFetch<{ values: Record<string, unknown> }>(
+    token,
+    `/api/crm/am/field-values/${encodeURIComponent(agencyClientId)}`,
+    { method: 'PUT', body: JSON.stringify(body) },
+  );
+}
+
+export type AmSlaPolicy = {
+  id: string;
+  name: string;
+  first_response_minutes: number;
+  resolve_minutes: number;
+  pause_on_waiting_client: boolean;
+  escalate_json: Record<string, string>;
+  workday_start: string;
+  workday_end: string;
+  workdays: number[];
+  holidays: string[];
+};
+
+export type AmCreateSlaBody = {
+  name: string;
+  first_response_minutes: number;
+  resolve_minutes: number;
+  pause_on_waiting_client?: boolean;
+  escalate_json?: Record<string, string>;
+  workday_start?: string;
+  workday_end?: string;
+  workdays?: number[];
+  holidays?: string[];
+};
+
+export async function fetchAmSlaPolicies(token: string): Promise<{ items: AmSlaPolicy[] }> {
+  return amFetch<{ items: AmSlaPolicy[] }>(token, '/api/crm/am/sla-policies');
+}
+
+export async function createAmSlaPolicy(token: string, body: AmCreateSlaBody): Promise<AmSlaPolicy> {
+  return amFetch<AmSlaPolicy>(token, '/api/crm/am/sla-policies', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchAmSlaPolicy(
+  token: string,
+  id: string,
+  body: Partial<AmCreateSlaBody>,
+): Promise<AmSlaPolicy> {
+  return amFetch<AmSlaPolicy>(token, `/api/crm/am/sla-policies/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
     body: JSON.stringify(body),
   });
 }

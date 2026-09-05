@@ -56,3 +56,60 @@ export function amSettingsPublishErrorCopy(code: string): string {
   if (code === 'bands_overlap') return 'bands_overlap — ngưỡng không được chồng và phải liền 0–100.';
   return code;
 }
+
+export const AM_FIELD_TYPES = ['text', 'number', 'date', 'bool', 'select'] as const;
+export type AmFieldType = (typeof AM_FIELD_TYPES)[number];
+
+const AM_API_KEY_RE = /^[a-z][a-z0-9_]*$/;
+
+export function amApiKeyError(apiKey: string): 'api_key_invalid' | null {
+  return AM_API_KEY_RE.test(String(apiKey ?? '').trim()) ? null : 'api_key_invalid';
+}
+
+export const AM_BDS_FIELD_TEMPLATES: Array<{
+  api_key: string;
+  label: string;
+  field_type: AmFieldType;
+  industry_slug: string;
+}> = [
+  { api_key: 'project_name', label: 'Dự án chính', field_type: 'text', industry_slug: 'bds' },
+  { api_key: 'leads_per_month', label: 'Mục tiêu lead/tháng', field_type: 'number', industry_slug: 'bds' },
+];
+
+export const AM_SLA_DEFAULTS = {
+  workday_start: '08:30',
+  workday_end: '17:30',
+  workdays: [1, 2, 3, 4, 5],
+  pause_on_waiting_client: true,
+  escalate_json: { '70': 'lead', '90': 'director', '100': 'executive' } as Record<string, string>,
+};
+
+export function amParseHolidays(raw: string): string[] {
+  const dates = String(raw ?? '')
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s));
+  return [...new Set(dates)].sort();
+}
+
+export function amHolidayText(holidays: string[]): string {
+  return holidays.join('\n');
+}
+
+export function amParseAccessJson(raw: string): { ok: true; value: unknown } | { ok: false } {
+  const text = String(raw ?? '').trim();
+  if (!text) return { ok: true, value: null };
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export function amEscalateFromInputs(lead: string, director: string, executive: string) {
+  return {
+    '70': lead.trim() || 'lead',
+    '90': director.trim() || 'director',
+    '100': executive.trim() || 'executive',
+  };
+}

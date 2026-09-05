@@ -72,6 +72,17 @@ import {
   type AmFeedbackListQuery,
   type AmFollowupInput,
 } from './am-feedback.service';
+import {
+  AmFieldsService,
+  type AmCreateFieldInput,
+  type AmFieldValuesBody,
+  type AmPatchFieldInput,
+} from './am-fields.service';
+import {
+  AmSlaPoliciesService,
+  type AmCreateSlaInput,
+  type AmPatchSlaInput,
+} from './am-sla-policies.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -104,6 +115,8 @@ export class AmController {
     private readonly reports: AmReportsService,
     private readonly finance: AmFinanceService,
     private readonly feedback: AmFeedbackService,
+    private readonly fields: AmFieldsService,
+    private readonly slaPolicies: AmSlaPoliciesService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -576,6 +589,68 @@ export class AmController {
   @RequireAmAction('edit')
   async createSurvey(@Req() req: AuthedReq, @Body() body: AmCreateSurveyInput) {
     return this.feedback.createSurvey(req, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Get('fields')
+  @RequireAmAction('view')
+  listFields(@Query() q: { industry?: string }) {
+    return this.fields.list(q.industry);
+  }
+
+  @Post('fields')
+  @RequireAmAction('manage')
+  async createField(@Req() req: AuthedReq, @Body() body: AmCreateFieldInput) {
+    return this.fields.create(body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Patch('fields/:id')
+  @RequireAmAction('manage')
+  async patchField(@Req() req: AuthedReq, @Param('id') id: string, @Body() body: AmPatchFieldInput) {
+    return this.fields.patch(id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Post('fields/:id/publish')
+  @RequireAmAction('manage')
+  async publishField(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.fields.publish(id, await this.actorStaffId(req));
+  }
+
+  @Get('field-values/:agencyClientId')
+  @RequireAmAction('view')
+  getFieldValues(@Req() req: AuthedReq, @Param('agencyClientId') agencyClientId: string) {
+    return this.fields.getValues(req, agencyClientId);
+  }
+
+  @Put('field-values/:agencyClientId')
+  @RequireAmAction('edit')
+  putFieldValues(
+    @Req() req: AuthedReq,
+    @Param('agencyClientId') agencyClientId: string,
+    @Body() body: AmFieldValuesBody,
+  ) {
+    return this.fields.putValues(req, agencyClientId, body ?? {});
+  }
+
+  @Get('sla-policies')
+  @RequireAmAction('view')
+  listSlaPolicies() {
+    return this.slaPolicies.list();
+  }
+
+  @Post('sla-policies')
+  @RequireAmAction('manage')
+  async createSlaPolicy(@Req() req: AuthedReq, @Body() body: AmCreateSlaInput) {
+    return this.slaPolicies.create(body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Patch('sla-policies/:id')
+  @RequireAmAction('manage')
+  async patchSlaPolicy(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: AmPatchSlaInput,
+  ) {
+    return this.slaPolicies.patch(id, body ?? {}, await this.actorStaffId(req));
   }
 
   @Get('interactions')

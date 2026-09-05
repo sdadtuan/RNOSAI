@@ -10,9 +10,13 @@ import { hasCap } from '@/lib/auth';
 import {
   createAmAccount,
   fetchAmAccount,
+  fetchAmFieldValues,
+  fetchAmFields,
   patchAmAccount,
+  putAmFieldValues,
   type AmAccount360,
   type AmContactInput,
+  type AmCustomField,
 } from '@/lib/crm/am-api';
 import {
   amAccountEditHref,
@@ -20,7 +24,9 @@ import {
   amAccountSaveId,
   amConfirmLeave,
   amDraftStatus,
+  amFieldValuesPayload,
   amGuardDirtyClick,
+  amMatchingIndustryFields,
   amOnboardingHref,
   amOwnerStaffPatch,
   amPrimaryContactError,
@@ -89,10 +95,8 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
   const [contacts, setContacts] = useState<AmFormContact[]>([emptyAmFormContact(true)]);
   const [tagDraft, setTagDraft] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [bdsProject, setBdsProject] = useState('');
-  const [bdsProduct, setBdsProduct] = useState('');
-  const [bdsRegion, setBdsRegion] = useState('');
-  const [bdsLeads, setBdsLeads] = useState('');
+  const [industryFields, setIndustryFields] = useState<AmCustomField[]>([]);
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [baseline, setBaseline] = useState('');
 
   const formSnap = useMemo(
@@ -115,10 +119,7 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
         preferChannel,
         contacts,
         tags,
-        bdsProject,
-        bdsProduct,
-        bdsRegion,
-        bdsLeads,
+        customValues,
       }),
     [
       legalName,
@@ -138,14 +139,11 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
       preferChannel,
       contacts,
       tags,
-      bdsProject,
-      bdsProduct,
-      bdsRegion,
-      bdsLeads,
+      customValues,
     ],
   );
   const dirty = Boolean(baseline) && formSnap !== baseline;
-  const showBds = /bds|bat-dong-san|real-estate|bất động sản/i.test(industry);
+  const visibleFields = amMatchingIndustryFields(industryFields, industry);
   const ctas = amAccountFormCtas();
 
   useEffect(() => {
@@ -177,10 +175,7 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
           preferChannel: 'zalo',
           contacts: [emptyAmFormContact(true)],
           tags: [],
-          bdsProject: '',
-          bdsProduct: '',
-          bdsRegion: '',
-          bdsLeads: '',
+          customValues: {},
         }),
       );
       return;
@@ -202,6 +197,41 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
       cancelled = true;
     };
   }, [agencyClientId, createdId, token, user.email]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void fetchAmFields(token, industry || undefined)
+      .then((out) => {
+        if (!cancelled) setIndustryFields(out.items);
+      })
+      .catch(() => {
+        if (!cancelled) setIndustryFields([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, industry]);
+
+  useEffect(() => {
+    if (!token || !accountId) return;
+    let cancelled = false;
+    void fetchAmFieldValues(token, accountId)
+      .then((out) => {
+        if (cancelled) return;
+        const next: Record<string, string> = {};
+        for (const [key, value] of Object.entries(out.values ?? {})) {
+          next[key] = value == null ? '' : String(value);
+        }
+        setCustomValues(next);
+      })
+      .catch(() => {
+        if (!cancelled) setCustomValues({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, accountId]);
 
   useEffect(() => {
     function onBeforeUnload(ev: BeforeUnloadEvent) {
@@ -257,10 +287,7 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
       preferChannel: 'zalo',
       contacts: nextContacts,
       tags: [],
-      bdsProject: '',
-      bdsProduct: '',
-      bdsRegion: '',
-      bdsLeads: '',
+      customValues,
     };
     setBaseline(snapshot(next));
   }
@@ -354,6 +381,10 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
         contacts: payloadContacts,
         ...ownerPatch,
       });
+      const matching = amMatchingIndustryFields(industryFields, industry);
+      if (matching.length) {
+        await putAmFieldValues(token, id, amFieldValuesPayload(matching, customValues));
+      }
       setBaseline(formSnap);
       push(kind === 'draft' ? 'Đã lưu nháp' : 'Đã lưu', 'success');
       if (kind === 'onboarding') {
@@ -673,32 +704,38 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
         ))}
       </section>
 
-      {showBds ? (
+      {visibleFields.length ? (
         <section className="am-widget">
           <div className="am-widget__head">
-            <h2>Trường riêng: Bất động sản</h2>
+            <h2>Trường ngành</h2>
           </div>
           <div className="am-form">
-            <div className="am-split">
-              <label className="am-field">
-                <span>Dự án chính</span>
-                <input value={bdsProject} onChange={(e) => setBdsProject(e.target.value)} />
+            {visibleFields.map((field) => (
+              <label key={field.id} className="am-field">
+                <span>
+                  {field.label}
+                  {field.required ? ' *' : ''}
+                </span>
+                {field.field_type === 'bool' ? (
+                  <input
+                    type="checkbox"
+                    checked={customValues[field.api_key] === 'true'}
+                    onChange={(e) =>
+                      setCustomValues((prev) => ({ ...prev, [field.api_key]: e.target.checked ? 'true' : 'false' }))
+                    }
+                  />
+                ) : (
+                  <input
+                    type={field.field_type === 'number' ? 'number' : field.field_type === 'date' ? 'date' : 'text'}
+                    value={customValues[field.api_key] ?? ''}
+                    required={field.required}
+                    onChange={(e) =>
+                      setCustomValues((prev) => ({ ...prev, [field.api_key]: e.target.value }))
+                    }
+                  />
+                )}
               </label>
-              <label className="am-field">
-                <span>Loại sản phẩm</span>
-                <input value={bdsProduct} onChange={(e) => setBdsProduct(e.target.value)} />
-              </label>
-            </div>
-            <div className="am-split">
-              <label className="am-field">
-                <span>Khu vực bán hàng</span>
-                <input value={bdsRegion} onChange={(e) => setBdsRegion(e.target.value)} />
-              </label>
-              <label className="am-field">
-                <span>Mục tiêu lead/tháng</span>
-                <input value={bdsLeads} onChange={(e) => setBdsLeads(e.target.value)} inputMode="numeric" />
-              </label>
-            </div>
+            ))}
           </div>
         </section>
       ) : null}

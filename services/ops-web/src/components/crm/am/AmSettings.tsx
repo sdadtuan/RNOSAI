@@ -5,18 +5,35 @@ import { ApiError } from '@/lib/api';
 import { hasCap } from '@/lib/auth';
 import {
   cloneAmOnboardingTemplate,
+  createAmField,
   createAmOnboardingTemplate,
+  createAmSlaPolicy,
+  fetchAmFields,
   fetchAmOnboardingTemplates,
   fetchAmSettings,
+  fetchAmSlaPolicies,
+  patchAmField,
   patchAmOnboardingTemplate,
+  patchAmSlaPolicy,
+  publishAmField,
   publishAmOnboardingTemplate,
   putAmSettings,
+  type AmCustomField,
   type AmOnboardingTemplate,
   type AmOnboardingTemplateItem,
   type AmSettings as AmSettingsData,
+  type AmSlaPolicy,
 } from '@/lib/crm/am-api';
 import { amOnboardingDash } from '@/lib/crm/am-onboarding.util';
 import {
+  AM_BDS_FIELD_TEMPLATES,
+  AM_FIELD_TYPES,
+  AM_SLA_DEFAULTS,
+  amApiKeyError,
+  amEscalateFromInputs,
+  amHolidayText,
+  amParseAccessJson,
+  amParseHolidays,
   amSettingsBandsError,
   amSettingsPublishErrorCopy,
   amSettingsWeightsError,
@@ -58,6 +75,99 @@ function statusClass(status: AmOnboardingTemplate['status']): string {
   return status === 'published' ? 'am-pill am-pill--ok' : 'am-pill am-pill--watch';
 }
 
+type FieldDraft = {
+  id?: string;
+  label: string;
+  api_key: string;
+  field_type: AmCustomField['field_type'];
+  industry_slug: string;
+  required: boolean;
+  filterable: boolean;
+  reportable: boolean;
+  min: string;
+  max: string;
+  access_json: string;
+  published: boolean;
+};
+
+type SlaDraft = {
+  id?: string;
+  name: string;
+  first_response_minutes: string;
+  resolve_minutes: string;
+  pause_on_waiting_client: boolean;
+  escalate70: string;
+  escalate90: string;
+  escalate100: string;
+  workday_start: string;
+  workday_end: string;
+  holidays: string;
+};
+
+function emptyFieldDraft(): FieldDraft {
+  return {
+    label: '',
+    api_key: '',
+    field_type: 'text',
+    industry_slug: '',
+    required: false,
+    filterable: false,
+    reportable: false,
+    min: '',
+    max: '',
+    access_json: '',
+    published: false,
+  };
+}
+
+function fieldToDraft(row: AmCustomField): FieldDraft {
+  return {
+    id: row.id,
+    label: row.label,
+    api_key: row.api_key,
+    field_type: row.field_type,
+    industry_slug: row.industry_slug ?? '',
+    required: row.required,
+    filterable: row.filterable,
+    reportable: row.reportable,
+    min: row.constraints_json?.min != null ? String(row.constraints_json.min) : '',
+    max: row.constraints_json?.max != null ? String(row.constraints_json.max) : '',
+    access_json: row.access_json ? JSON.stringify(row.access_json, null, 2) : '',
+    published: row.published,
+  };
+}
+
+function emptySlaDraft(): SlaDraft {
+  return {
+    name: '',
+    first_response_minutes: '60',
+    resolve_minutes: '480',
+    pause_on_waiting_client: AM_SLA_DEFAULTS.pause_on_waiting_client,
+    escalate70: AM_SLA_DEFAULTS.escalate_json['70'],
+    escalate90: AM_SLA_DEFAULTS.escalate_json['90'],
+    escalate100: AM_SLA_DEFAULTS.escalate_json['100'],
+    workday_start: AM_SLA_DEFAULTS.workday_start,
+    workday_end: AM_SLA_DEFAULTS.workday_end,
+    holidays: '',
+  };
+}
+
+function slaToDraft(row: AmSlaPolicy): SlaDraft {
+  return {
+    id: row.id,
+    name: row.name,
+    first_response_minutes: String(row.first_response_minutes),
+    resolve_minutes: String(row.resolve_minutes),
+    pause_on_waiting_client: row.pause_on_waiting_client,
+    escalate70: row.escalate_json['70'] ?? 'lead',
+    escalate90: row.escalate_json['90'] ?? 'director',
+    escalate100: row.escalate_json['100'] ?? 'executive',
+    workday_start: row.workday_start,
+    workday_end: row.workday_end,
+    holidays: amHolidayText(row.holidays),
+  };
+}
+
 export function AmSettings() {
   const { token, user } = useAmPage();
   const canManage = hasCap(user, 'crm_am', 'manage');
@@ -74,6 +184,14 @@ export function AmSettings() {
   const [draftBands, setDraftBands] = useState<AmSettingsData['bands'] | null>(null);
   const [scorecardError, setScorecardError] = useState('');
   const [scorecardBusy, setScorecardBusy] = useState(false);
+  const [fields, setFields] = useState<AmCustomField[]>([]);
+  const [fieldDraft, setFieldDraft] = useState<FieldDraft | null>(null);
+  const [fieldError, setFieldError] = useState('');
+  const [fieldBusy, setFieldBusy] = useState(false);
+  const [slaPolicies, setSlaPolicies] = useState<AmSlaPolicy[]>([]);
+  const [slaDraft, setSlaDraft] = useState<SlaDraft | null>(null);
+  const [slaError, setSlaError] = useState('');
+  const [slaBusy, setSlaBusy] = useState(false);
 
   const selected = items.find((row) => row.id === selectedId) ?? null;
   const published = selected?.status === 'published';
@@ -102,6 +220,13 @@ export function AmSettings() {
       setDraftBands(scorecard.bands);
     } catch (err) {
       setScorecardError(err instanceof ApiError ? err.message : 'Không tải được scorecard.');
+    }
+    try {
+      const [fieldOut, slaOut] = await Promise.all([fetchAmFields(token), fetchAmSlaPolicies(token)]);
+      setFields(fieldOut.items);
+      setSlaPolicies(slaOut.items);
+    } catch (err) {
+      setFieldError(err instanceof ApiError ? err.message : 'Không tải được trường / SLA.');
     } finally {
       setLoading(false);
     }
@@ -236,6 +361,140 @@ export function AmSettings() {
     }
   }
 
+  async function onSaveField() {
+    if (!token || !canManage || !fieldDraft || fieldBusy) return;
+    if (!fieldDraft.label.trim() || amApiKeyError(fieldDraft.api_key)) {
+      setFieldError('Cần label và api_key dạng project_name.');
+      return;
+    }
+    const access = amParseAccessJson(fieldDraft.access_json);
+    if (!access.ok) {
+      setFieldError('access JSON không hợp lệ.');
+      return;
+    }
+    const constraints =
+      fieldDraft.min !== '' || fieldDraft.max !== ''
+        ? {
+            min: fieldDraft.min === '' ? undefined : Number(fieldDraft.min),
+            max: fieldDraft.max === '' ? undefined : Number(fieldDraft.max),
+          }
+        : null;
+    const body = {
+      label: fieldDraft.label.trim(),
+      api_key: fieldDraft.api_key.trim(),
+      field_type: fieldDraft.field_type,
+      industry_slug: fieldDraft.industry_slug.trim() || null,
+      required: fieldDraft.required,
+      filterable: fieldDraft.filterable,
+      reportable: fieldDraft.reportable,
+      access_json: access.value as AmCustomField['access_json'],
+      constraints_json: constraints,
+    };
+    setFieldBusy(true);
+    setFieldError('');
+    try {
+      const next = fieldDraft.id
+        ? await patchAmField(token, fieldDraft.id, body)
+        : await createAmField(token, body);
+      setFields((prev) => {
+        const others = prev.filter((row) => row.id !== next.id);
+        return [next, ...others];
+      });
+      setFieldDraft(fieldToDraft(next));
+    } catch (err) {
+      setFieldError(
+        err instanceof ApiError && err.message === 'api_key_immutable'
+          ? 'api_key đã xuất bản — không đổi được.'
+          : err instanceof ApiError
+            ? err.message
+            : 'Không lưu được trường.',
+      );
+    } finally {
+      setFieldBusy(false);
+    }
+  }
+
+  async function onPublishField() {
+    if (!token || !canManage || !fieldDraft?.id || fieldDraft.published || fieldBusy) return;
+    setFieldBusy(true);
+    setFieldError('');
+    try {
+      const next = await publishAmField(token, fieldDraft.id);
+      setFields((prev) => prev.map((row) => (row.id === next.id ? next : row)));
+      setFieldDraft(fieldToDraft(next));
+    } catch (err) {
+      setFieldError(err instanceof ApiError ? err.message : 'Không xuất bản được trường.');
+    } finally {
+      setFieldBusy(false);
+    }
+  }
+
+  async function onSeedBds() {
+    if (!token || !canManage || fieldBusy) return;
+    const existing = new Set(fields.filter((row) => row.industry_slug === 'bds').map((row) => row.api_key));
+    if (existing.size > 0) {
+      setFieldError('Đã có trường BĐS — không ghi đè.');
+      return;
+    }
+    setFieldBusy(true);
+    setFieldError('');
+    try {
+      const created: AmCustomField[] = [];
+      for (const tmpl of AM_BDS_FIELD_TEMPLATES) {
+        created.push(
+          await createAmField(token, {
+            label: tmpl.label,
+            api_key: tmpl.api_key,
+            field_type: tmpl.field_type,
+            industry_slug: tmpl.industry_slug,
+          }),
+        );
+      }
+      setFields((prev) => [...created, ...prev]);
+    } catch (err) {
+      setFieldError(err instanceof ApiError ? err.message : 'Không thêm được mẫu BĐS.');
+    } finally {
+      setFieldBusy(false);
+    }
+  }
+
+  async function onSaveSla() {
+    if (!token || !canManage || !slaDraft || slaBusy) return;
+    const first = Number(slaDraft.first_response_minutes);
+    const resolve = Number(slaDraft.resolve_minutes);
+    if (!slaDraft.name.trim() || !Number.isInteger(first) || !Number.isInteger(resolve)) {
+      setSlaError('Cần tên và số phút nguyên.');
+      return;
+    }
+    const body = {
+      name: slaDraft.name.trim(),
+      first_response_minutes: first,
+      resolve_minutes: resolve,
+      pause_on_waiting_client: slaDraft.pause_on_waiting_client,
+      escalate_json: amEscalateFromInputs(slaDraft.escalate70, slaDraft.escalate90, slaDraft.escalate100),
+      workday_start: slaDraft.workday_start || AM_SLA_DEFAULTS.workday_start,
+      workday_end: slaDraft.workday_end || AM_SLA_DEFAULTS.workday_end,
+      workdays: AM_SLA_DEFAULTS.workdays,
+      holidays: amParseHolidays(slaDraft.holidays),
+    };
+    setSlaBusy(true);
+    setSlaError('');
+    try {
+      const next = slaDraft.id
+        ? await patchAmSlaPolicy(token, slaDraft.id, body)
+        : await createAmSlaPolicy(token, body);
+      setSlaPolicies((prev) => {
+        const others = prev.filter((row) => row.id !== next.id);
+        return [next, ...others];
+      });
+      setSlaDraft(slaToDraft(next));
+    } catch (err) {
+      setSlaError(err instanceof ApiError ? err.message : 'Không lưu được SLA.');
+    } finally {
+      setSlaBusy(false);
+    }
+  }
+
   async function onClone() {
     if (!token || !selected || !canManage || busy) return;
     setBusy(true);
@@ -367,6 +626,139 @@ export function AmSettings() {
             </button>
           </div>
         ) : null}
+      </div>
+
+      <div className="am-widget">
+        <div className="am-widget__head">
+          <h2>Custom fields</h2>
+          {canManage ? (
+            <div className="am-form__actions">
+              <button type="button" className="am-btn" disabled={fieldBusy} onClick={() => void onSeedBds()}>
+                Thêm mẫu BĐS
+              </button>
+              <button
+                type="button"
+                className="am-btn am-btn--primary"
+                onClick={() => {
+                  setFieldDraft(emptyFieldDraft());
+                  setFieldError('');
+                }}
+              >
+                + Trường
+              </button>
+            </div>
+          ) : null}
+        </div>
+        {fieldError ? <p className="am-banner">{fieldError}</p> : null}
+        <table className="am-table">
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>api_key</th>
+              <th>Type</th>
+              <th>Ngành</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fields.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="am-muted">
+                  Chưa có trường. Thêm mẫu BĐS để có project_name / leads_per_month (draft, chưa xuất bản).
+                </td>
+              </tr>
+            ) : (
+              fields.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <button
+                      type="button"
+                      className="am-link"
+                      onClick={() => {
+                        setFieldDraft(fieldToDraft(row));
+                        setFieldError('');
+                      }}
+                    >
+                      {row.label}
+                    </button>
+                  </td>
+                  <td>
+                    <code>{row.api_key}</code>
+                  </td>
+                  <td>{row.field_type}</td>
+                  <td>{row.industry_slug || '—'}</td>
+                  <td>
+                    <span className={row.published ? 'am-pill am-pill--ok' : 'am-pill am-pill--watch'}>
+                      {row.published ? 'Published' : 'Draft'}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="am-widget">
+        <div className="am-widget__head">
+          <h2>SLA policy</h2>
+          {canManage ? (
+            <button
+              type="button"
+              className="am-btn am-btn--primary"
+              onClick={() => {
+                setSlaDraft(emptySlaDraft());
+                setSlaError('');
+              }}
+            >
+              + Policy
+            </button>
+          ) : null}
+        </div>
+        {slaError ? <p className="am-banner">{slaError}</p> : null}
+        <table className="am-table">
+          <thead>
+            <tr>
+              <th>Tên</th>
+              <th>First (phút)</th>
+              <th>Resolve (phút)</th>
+              <th>Giờ</th>
+              <th>Holidays</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slaPolicies.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="am-muted">
+                  Chưa có policy. Mặc định 08:30–17:30, T2–T6, escalate 70/90/100.
+                </td>
+              </tr>
+            ) : (
+              slaPolicies.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <button
+                      type="button"
+                      className="am-link"
+                      onClick={() => {
+                        setSlaDraft(slaToDraft(row));
+                        setSlaError('');
+                      }}
+                    >
+                      {row.name}
+                    </button>
+                  </td>
+                  <td>{row.first_response_minutes}</td>
+                  <td>{row.resolve_minutes}</td>
+                  <td>
+                    {row.workday_start}–{row.workday_end}
+                  </td>
+                  <td>{row.holidays.length ? row.holidays.join(', ') : '—'}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
       <div className="am-widget">
@@ -592,6 +984,278 @@ export function AmSettings() {
               )}
             </tbody>
           </table>
+        </div>
+      ) : null}
+
+      {fieldDraft ? (
+        <div className="am-drawer-bg" onClick={() => setFieldDraft(null)}>
+          <aside className="am-drawer" onClick={(ev) => ev.stopPropagation()}>
+            <div className="am-drawer__head">
+              <h2>{fieldDraft.id ? 'Sửa trường' : 'Trường mới'}</h2>
+              <button type="button" className="am-link" onClick={() => setFieldDraft(null)}>
+                Đóng
+              </button>
+            </div>
+            <div className="am-form">
+              <label className="am-field">
+                <span>Label</span>
+                <input
+                  value={fieldDraft.label}
+                  disabled={!canManage}
+                  onChange={(ev) => setFieldDraft((prev) => (prev ? { ...prev, label: ev.target.value } : prev))}
+                />
+              </label>
+              <label className="am-field">
+                <span>api_key {fieldDraft.published ? '(đã xuất bản)' : ''}</span>
+                <input
+                  value={fieldDraft.api_key}
+                  disabled={!canManage || fieldDraft.published}
+                  onChange={(ev) => setFieldDraft((prev) => (prev ? { ...prev, api_key: ev.target.value } : prev))}
+                />
+              </label>
+              <label className="am-field">
+                <span>Type</span>
+                <select
+                  value={fieldDraft.field_type}
+                  disabled={!canManage}
+                  onChange={(ev) =>
+                    setFieldDraft((prev) =>
+                      prev ? { ...prev, field_type: ev.target.value as AmCustomField['field_type'] } : prev,
+                    )
+                  }
+                >
+                  {AM_FIELD_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="am-field">
+                <span>Industry slug</span>
+                <input
+                  value={fieldDraft.industry_slug}
+                  disabled={!canManage}
+                  placeholder="bds"
+                  onChange={(ev) =>
+                    setFieldDraft((prev) => (prev ? { ...prev, industry_slug: ev.target.value } : prev))
+                  }
+                />
+              </label>
+              <label className="am-field am-field--check">
+                <span>
+                  <input
+                    type="checkbox"
+                    checked={fieldDraft.required}
+                    disabled={!canManage}
+                    onChange={(ev) =>
+                      setFieldDraft((prev) => (prev ? { ...prev, required: ev.target.checked } : prev))
+                    }
+                  />{' '}
+                  Required
+                </span>
+              </label>
+              <label className="am-field am-field--check">
+                <span>
+                  <input
+                    type="checkbox"
+                    checked={fieldDraft.filterable}
+                    disabled={!canManage}
+                    onChange={(ev) =>
+                      setFieldDraft((prev) => (prev ? { ...prev, filterable: ev.target.checked } : prev))
+                    }
+                  />{' '}
+                  Filterable
+                </span>
+              </label>
+              <label className="am-field am-field--check">
+                <span>
+                  <input
+                    type="checkbox"
+                    checked={fieldDraft.reportable}
+                    disabled={!canManage}
+                    onChange={(ev) =>
+                      setFieldDraft((prev) => (prev ? { ...prev, reportable: ev.target.checked } : prev))
+                    }
+                  />{' '}
+                  Reportable
+                </span>
+              </label>
+              <div className="am-split">
+                <label className="am-field">
+                  <span>Min</span>
+                  <input
+                    type="number"
+                    value={fieldDraft.min}
+                    disabled={!canManage}
+                    onChange={(ev) => setFieldDraft((prev) => (prev ? { ...prev, min: ev.target.value } : prev))}
+                  />
+                </label>
+                <label className="am-field">
+                  <span>Max</span>
+                  <input
+                    type="number"
+                    value={fieldDraft.max}
+                    disabled={!canManage}
+                    onChange={(ev) => setFieldDraft((prev) => (prev ? { ...prev, max: ev.target.value } : prev))}
+                  />
+                </label>
+              </div>
+              <label className="am-field">
+                <span>access JSON</span>
+                <textarea
+                  rows={4}
+                  value={fieldDraft.access_json}
+                  disabled={!canManage}
+                  placeholder='{"view":["crm_am.view"],"edit":["crm_am.edit"]}'
+                  onChange={(ev) =>
+                    setFieldDraft((prev) => (prev ? { ...prev, access_json: ev.target.value } : prev))
+                  }
+                />
+              </label>
+              {canManage ? (
+                <div className="am-form__actions">
+                  <button type="button" className="am-btn" disabled={fieldBusy} onClick={() => void onSaveField()}>
+                    Lưu
+                  </button>
+                  {fieldDraft.id && !fieldDraft.published ? (
+                    <button
+                      type="button"
+                      className="am-btn am-btn--primary"
+                      disabled={fieldBusy}
+                      onClick={() => void onPublishField()}
+                    >
+                      Xuất bản
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      {slaDraft ? (
+        <div className="am-drawer-bg" onClick={() => setSlaDraft(null)}>
+          <aside className="am-drawer" onClick={(ev) => ev.stopPropagation()}>
+            <div className="am-drawer__head">
+              <h2>{slaDraft.id ? 'Sửa SLA' : 'SLA mới'}</h2>
+              <button type="button" className="am-link" onClick={() => setSlaDraft(null)}>
+                Đóng
+              </button>
+            </div>
+            <div className="am-form">
+              <label className="am-field">
+                <span>Tên</span>
+                <input
+                  value={slaDraft.name}
+                  disabled={!canManage}
+                  onChange={(ev) => setSlaDraft((prev) => (prev ? { ...prev, name: ev.target.value } : prev))}
+                />
+              </label>
+              <label className="am-field">
+                <span>First response (phút làm việc)</span>
+                <input
+                  type="number"
+                  value={slaDraft.first_response_minutes}
+                  disabled={!canManage}
+                  onChange={(ev) =>
+                    setSlaDraft((prev) => (prev ? { ...prev, first_response_minutes: ev.target.value } : prev))
+                  }
+                />
+              </label>
+              <label className="am-field">
+                <span>Resolve (phút làm việc)</span>
+                <input
+                  type="number"
+                  value={slaDraft.resolve_minutes}
+                  disabled={!canManage}
+                  onChange={(ev) =>
+                    setSlaDraft((prev) => (prev ? { ...prev, resolve_minutes: ev.target.value } : prev))
+                  }
+                />
+              </label>
+              <label className="am-field am-field--check">
+                <span>
+                  <input
+                    type="checkbox"
+                    checked={slaDraft.pause_on_waiting_client}
+                    disabled={!canManage}
+                    onChange={(ev) =>
+                      setSlaDraft((prev) =>
+                        prev ? { ...prev, pause_on_waiting_client: ev.target.checked } : prev,
+                      )
+                    }
+                  />{' '}
+                  Pause on Waiting Client
+                </span>
+              </label>
+              <label className="am-field">
+                <span>Escalate 70%</span>
+                <input
+                  value={slaDraft.escalate70}
+                  disabled={!canManage}
+                  onChange={(ev) => setSlaDraft((prev) => (prev ? { ...prev, escalate70: ev.target.value } : prev))}
+                />
+              </label>
+              <label className="am-field">
+                <span>Escalate 90%</span>
+                <input
+                  value={slaDraft.escalate90}
+                  disabled={!canManage}
+                  onChange={(ev) => setSlaDraft((prev) => (prev ? { ...prev, escalate90: ev.target.value } : prev))}
+                />
+              </label>
+              <label className="am-field">
+                <span>Escalate 100%</span>
+                <input
+                  value={slaDraft.escalate100}
+                  disabled={!canManage}
+                  onChange={(ev) =>
+                    setSlaDraft((prev) => (prev ? { ...prev, escalate100: ev.target.value } : prev))
+                  }
+                />
+              </label>
+              <div className="am-split">
+                <label className="am-field">
+                  <span>Work start</span>
+                  <input
+                    value={slaDraft.workday_start}
+                    disabled={!canManage}
+                    onChange={(ev) =>
+                      setSlaDraft((prev) => (prev ? { ...prev, workday_start: ev.target.value } : prev))
+                    }
+                  />
+                </label>
+                <label className="am-field">
+                  <span>Work end</span>
+                  <input
+                    value={slaDraft.workday_end}
+                    disabled={!canManage}
+                    onChange={(ev) =>
+                      setSlaDraft((prev) => (prev ? { ...prev, workday_end: ev.target.value } : prev))
+                    }
+                  />
+                </label>
+              </div>
+              <label className="am-field">
+                <span>Holidays (YYYY-MM-DD, mỗi dòng)</span>
+                <textarea
+                  rows={4}
+                  value={slaDraft.holidays}
+                  disabled={!canManage}
+                  onChange={(ev) => setSlaDraft((prev) => (prev ? { ...prev, holidays: ev.target.value } : prev))}
+                />
+              </label>
+              {canManage ? (
+                <div className="am-form__actions">
+                  <button type="button" className="am-btn am-btn--primary" disabled={slaBusy} onClick={() => void onSaveSla()}>
+                    Lưu policy
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </aside>
         </div>
       ) : null}
     </section>

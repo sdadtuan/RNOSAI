@@ -5,7 +5,9 @@ import {
   amAccountSaveId,
   amConfirmLeave,
   amDraftStatus,
+  amFieldValuesPayload,
   amGuardDirtyClick,
+  amMatchingIndustryFields,
   amOnboardingHref,
   amOwnerStaffPatch,
   amPrimaryContactError,
@@ -65,5 +67,29 @@ describe('am-account-form', () => {
     expect(amOwnerStaffPatch('99', '7', false)).toEqual({ error: 'assign_required' });
     expect(amOwnerStaffPatch('7', '7', false)).toEqual({});
     expect(amOwnerStaffPatch('99', '7', true)).toEqual({ owner_staff_id: 99 });
+  });
+
+  it('shows published fields matching industry and builds field-values PUT', () => {
+    const fields = [
+      { id: '1', api_key: 'project_name', industry_slug: 'bds', published: true },
+      { id: '2', api_key: 'leads_per_month', industry_slug: 'bds', published: true },
+      { id: '3', api_key: 'spa_rooms', industry_slug: 'spa', published: true },
+      { id: '4', api_key: 'draft_only', industry_slug: 'bds', published: false },
+      { id: '5', api_key: 'shared_note', industry_slug: null, published: true },
+    ];
+    expect(amMatchingIndustryFields(fields, 'bds').map((row) => row.api_key)).toEqual([
+      'project_name',
+      'leads_per_month',
+      'shared_note',
+    ]);
+    expect(
+      amFieldValuesPayload(amMatchingIndustryFields(fields, 'bds'), {
+        project_name: 'Vinhomes',
+        leads_per_month: '80',
+        shared_note: 'ok',
+      }),
+    ).toEqual({
+      values: { project_name: 'Vinhomes', leads_per_month: '80', shared_note: 'ok' },
+    });
   });
 });

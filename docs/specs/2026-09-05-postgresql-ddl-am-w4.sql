@@ -85,5 +85,11 @@ CREATE INDEX IF NOT EXISTS crm_am_opportunities_tenant_client_idx
 CREATE INDEX IF NOT EXISTS crm_am_feedback_tenant_client_idx
   ON crm_am_feedback (tenant_id, agency_client_id);
 
+ALTER TABLE crm_am_custom_fields
+  ADD COLUMN IF NOT EXISTS published BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE crm_am_custom_fields
+  ADD COLUMN IF NOT EXISTS constraints_json JSONB;
+
 CREATE INDEX IF NOT EXISTS crm_am_field_values_field_id_idx
   ON crm_am_field_values (field_id);

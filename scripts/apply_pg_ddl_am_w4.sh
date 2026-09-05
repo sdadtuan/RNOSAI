@@ -29,10 +29,16 @@ verify_ddl_static() {
       missing=1
     fi
   done
+  for column in published constraints_json; do
+    if ! grep -q "ADD COLUMN IF NOT EXISTS ${column}" "$DDL"; then
+      echo "MISSING column: ${column}" >&2
+      missing=1
+    fi
+  done
   if [[ "$missing" -ne 0 ]]; then
     exit 1
   fi
-  echo "OK  AM W4 DDL static verify (6 tables)"
+  echo "OK  AM W4 DDL static verify (6 tables + published/constraints_json)"
 }
 
 URL="${DATABASE_URL:-}"

@@ -14,6 +14,7 @@ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
 import { AmDashboardService } from './am-dashboard.service';
 import { amThrow } from './am-http';
+import { computeAmSlaDues } from './am-sla.util';
 import { AmNotificationsRepository } from './am-notifications.service';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
 import type { AmScope, AmTaskKind, AmTaskStatus } from './am.types';
@@ -42,6 +43,7 @@ export type AmCreateTaskInput = {
   due_at?: string;
   source?: string;
   source_ref?: string;
+  sla_policy_id?: string;
 };
 
 export type AmWorkInbox = 'me' | 'team' | 'unassigned' | 'all';
@@ -315,23 +317,37 @@ export class AmTasksRepository implements OnModuleDestroy, AmTasksStore {
     return row ? mapTask(row) : null;
   }
 
-  async insert(input: AmCreateTaskInput): Promise<AmTaskRow> {
+  async insert(
+    input: AmCreateTaskInput & { sla_first_due_at?: string | null; sla_resolve_due_at?: string | null },
+  ): Promise<AmTaskRow> {
+    const params = [
+      AM_TENANT_ID,
+      input.agency_client_id,
+      input.title,
+      input.kind ?? 'task',
+      input.priority ?? 'medium',
+      input.source ?? 'manual',
+      input.source_ref ?? null,
+      input.due_at ?? null,
+    ];
+    if (input.sla_first_due_at || input.sla_resolve_due_at) {
+      const result = await this.db.query(
+        `INSERT INTO crm_am_tasks (
+           tenant_id, agency_client_id, title, kind, priority, status,
+           source, source_ref, due_at, sla_first_due_at, sla_resolve_due_at
+         ) VALUES ($1, $2::uuid, $3, $4, $5, 'new', $6, $7, $8, $9, $10)
+         RETURNING ${TASK_COLS}`,
+        [...params, input.sla_first_due_at ?? null, input.sla_resolve_due_at ?? null],
+      );
+      return mapTask(result.rows[0]);
+    }
     const result = await this.db.query(
       `INSERT INTO crm_am_tasks (
          tenant_id, agency_client_id, title, kind, priority, status,
          source, source_ref, due_at
        ) VALUES ($1, $2::uuid, $3, $4, $5, 'new', $6, $7, $8)
        RETURNING ${TASK_COLS}`,
-      [
-        AM_TENANT_ID,
-        input.agency_client_id,
-        input.title,
-        input.kind ?? 'task',
-        input.priority ?? 'medium',
-        input.source ?? 'manual',
-        input.source_ref ?? null,
-        input.due_at ?? null,
-      ],
+      params,
     );
     return mapTask(result.rows[0]);
   }
@@ -532,7 +548,10 @@ export class AmTasksService {
     const priority = TASK_PRIORITIES.includes(input.priority as AmTaskPriority)
       ? (input.priority as AmTaskPriority)
       : 'medium';
-    const payload: AmCreateTaskInput = {
+    const payload: AmCreateTaskInput & {
+      sla_first_due_at?: string | null;
+      sla_resolve_due_at?: string | null;
+    } = {
       agency_client_id: agencyClientId,
       title,
       kind,
@@ -541,6 +560,11 @@ export class AmTasksService {
       source,
       source_ref: sourceRef || undefined,
     };
+    const slaDues = await this.slaDuesFromPolicy(input.sla_policy_id);
+    if (slaDues) {
+      payload.sla_first_due_at = slaDues.sla_first_due_at;
+      payload.sla_resolve_due_at = slaDues.sla_resolve_due_at;
+    }
     if (payload.source_ref) {
       const dup = await this.repo.findOpenBySourceRef(source, payload.source_ref);
       if (dup) throw new ConflictException({ error: 'duplicate_source_ref' });
@@ -692,6 +716,45 @@ export class AmTasksService {
     });
     this.dashboard?.dropCache();
     return mapWorkDetail({ ...row, escalation_level: level });
+  }
+
+  private async slaDuesFromPolicy(
+    slaPolicyId: string | undefined,
+  ): Promise<{ sla_first_due_at: string; sla_resolve_due_at: string } | null> {
+    const id = String(slaPolicyId ?? '').trim();
+    if (!id) return null;
+    if (!isUuid(id)) amThrow(400, { error: 'invalid_sla_policy_id' });
+    try {
+      const result = await this.repo.query(
+        `SELECT first_response_minutes, resolve_minutes, workday_start, workday_end, workdays, holidays
+           FROM crm_am_sla_policies
+          WHERE tenant_id = $1 AND id = $2::uuid
+          LIMIT 1`,
+        [AM_TENANT_ID, id],
+      );
+      const row = result.rows[0];
+      if (!row) amThrow(404, { error: 'sla_policy_not_found' });
+      const holidays = Array.isArray(row.holidays)
+        ? row.holidays.map((value) =>
+            value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10),
+          )
+        : [];
+      const workdays = Array.isArray(row.workdays)
+        ? row.workdays.map((n) => Number(n)).filter((n) => Number.isInteger(n))
+        : [1, 2, 3, 4, 5];
+      return computeAmSlaDues(new Date(), {
+        first_response_minutes: Number(row.first_response_minutes ?? 0),
+        resolve_minutes: Number(row.resolve_minutes ?? 0),
+        workday_start: String(row.workday_start ?? '08:30').slice(0, 5),
+        workday_end: String(row.workday_end ?? '17:30').slice(0, 5),
+        workdays: workdays.length ? workdays : [1, 2, 3, 4, 5],
+        holidays,
+      });
+    } catch (err) {
+      if ((err as { status?: number }).status) throw err;
+      if (isMissingRelation(err)) amThrow(404, { error: 'sla_policy_not_found' });
+      throw err;
+    }
   }
 
   private async loadScopedRow(req: AmTasksReq, id: string): Promise<Record<string, unknown>> {

@@ -87,6 +87,41 @@ export function suggestAmAccountCode(name: string, now = Date.now()): string {
   return `${slug}${String(now).slice(-4)}`;
 }
 
+export type AmIndustryField = {
+  id: string;
+  api_key: string;
+  industry_slug?: string | null;
+  published?: boolean;
+  label?: string;
+  field_type?: string;
+  required?: boolean;
+};
+
+export function amMatchingIndustryFields<T extends AmIndustryField>(
+  fields: T[],
+  industrySlug: string,
+): T[] {
+  const slug = String(industrySlug ?? '').trim().toLowerCase();
+  return fields.filter((row) => {
+    if (!row.published) return false;
+    const fieldSlug = String(row.industry_slug ?? '').trim().toLowerCase();
+    return !fieldSlug || fieldSlug === slug;
+  });
+}
+
+export function amFieldValuesPayload(
+  fields: Array<{ api_key: string }>,
+  values: Record<string, unknown>,
+): { values: Record<string, unknown> } {
+  const out: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (Object.prototype.hasOwnProperty.call(values, field.api_key)) {
+      out[field.api_key] = values[field.api_key];
+    }
+  }
+  return { values: out };
+}
+
 export function emptyAmFormContact(primary = false): AmFormContact {
   return {
     full_name: '',
