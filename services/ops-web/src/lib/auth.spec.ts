@@ -147,4 +147,29 @@ describe('rbac-routes', () => {
     const dir = user([{ section: 'crm_am', action: 'view_all' }]);
     expect(canAccessPath('/crm/account-management', dir, 'crm')).toBe(true);
   });
+
+  it('/crm/health admits original CS caps plus crm_am.view without widening /crm', () => {
+    const amOnly = user([{ section: 'crm_am', action: 'view' }]);
+    const agency = user([{ section: 'crm_agency', action: 'view' }]);
+    const board = user([{ section: 'crm_board', action: 'view' }]);
+    const leads = user([{ section: 'crm_leads', action: 'view' }]);
+    expect(canAccessPath('/crm/health', amOnly, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/health', agency, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/health', board, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/health', leads, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/leads', amOnly, 'crm')).toBe(false);
+    expect(canAccessPath('/crm', amOnly, 'crm')).toBe(false);
+    const reqs = resolvePathCapRequirements('/crm/health', 'crm');
+    expect(reqs).toEqual(
+      expect.arrayContaining([
+        { section: 'crm_am', action: 'view' },
+        { section: 'crm_agency', action: 'view' },
+        { section: 'crm_board', action: 'view' },
+        { section: 'ai_admin', action: 'view' },
+      ]),
+    );
+    expect(resolvePathCapRequirements('/crm/leads', 'crm').some((r) => r.section === 'crm_am')).toBe(
+      false,
+    );
+  });
 });

@@ -17,6 +17,29 @@ export const CEO_COMMAND_VIEW_CAP_REQUIREMENTS: CapRequirement[] = [
   { section: 'crm_owner_weekly_dashboard', action: 'view' },
 ];
 
+/** Shared /crm prefix caps — do not add crm_am.view here. */
+const CRM_PREFIX_CAPS: CapRequirement[] = [
+  { section: 'crm_leads', action: 'view' },
+  { section: 'crm_board', action: 'view' },
+  { section: 'crm_board_funnel', action: 'view' },
+  { section: 'crm_board_kanban', action: 'view' },
+  { section: 'crm_board_workspace', action: 'view' },
+  { section: 'crm_board_customers', action: 'view' },
+  { section: 'crm_agency', action: 'view' },
+  { section: 'crm_hub_campaigns', action: 'view' },
+  { section: 'crm_sales_overview', action: 'view' },
+  { section: 'crm_business_dashboard', action: 'view' },
+  { section: 'crm_kpi_records', action: 'view' },
+  { section: 'crm_staff_roster', action: 'view' },
+  { section: 'crm_sop_runs', action: 'view' },
+  { section: 'crm_re_projects', action: 'view' },
+  { section: 'crm_b2b_projects', action: 'view' },
+  { section: 'crm_mktplan', action: 'view' },
+  { section: 'crm_presales_solution', action: 'view' },
+  { section: 'ai_analytics', action: 'query' },
+  { section: 'ai_admin', action: 'view' },
+];
+
 /** Longest-prefix match wins (more specific rules first). */
 const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
   {
@@ -144,28 +167,12 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     anyOf: CEO_COMMAND_VIEW_CAP_REQUIREMENTS,
   },
   {
+    prefix: '/crm/health',
+    anyOf: [...CRM_PREFIX_CAPS, { section: 'crm_am', action: 'view' }],
+  },
+  {
     prefix: '/crm',
-    anyOf: [
-      { section: 'crm_leads', action: 'view' },
-      { section: 'crm_board', action: 'view' },
-      { section: 'crm_board_funnel', action: 'view' },
-      { section: 'crm_board_kanban', action: 'view' },
-      { section: 'crm_board_workspace', action: 'view' },
-      { section: 'crm_board_customers', action: 'view' },
-      { section: 'crm_agency', action: 'view' },
-      { section: 'crm_hub_campaigns', action: 'view' },
-      { section: 'crm_sales_overview', action: 'view' },
-      { section: 'crm_business_dashboard', action: 'view' },
-      { section: 'crm_kpi_records', action: 'view' },
-      { section: 'crm_staff_roster', action: 'view' },
-      { section: 'crm_sop_runs', action: 'view' },
-      { section: 'crm_re_projects', action: 'view' },
-      { section: 'crm_b2b_projects', action: 'view' },
-      { section: 'crm_mktplan', action: 'view' },
-      { section: 'crm_presales_solution', action: 'view' },
-      { section: 'ai_analytics', action: 'query' },
-      { section: 'ai_admin', action: 'view' },
-    ],
+    anyOf: CRM_PREFIX_CAPS,
   },
 ];
 
