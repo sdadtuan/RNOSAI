@@ -12,6 +12,13 @@ describe('grant-diff matrix columns', () => {
     expect(PERMISSION_MATRIX_ACTIONS).toContain('view_all_leads');
   });
 
+  it('includes Account Management view_all and manage columns', () => {
+    expect(PERMISSION_MATRIX_ACTIONS).toContain('view_all');
+    expect(PERMISSION_MATRIX_ACTIONS).toContain('manage');
+    expect(permissionActionLabel('view_all')).toBe('Xem tất cả');
+    expect(permissionActionLabel('manage')).toBe('Quản lý');
+  });
+
   it('labels act for ceo_command matrix column', () => {
     expect(permissionActionLabel('act')).toBe('Điều hành (Xác nhận)');
     expect(permissionActionLabel('review_queue')).toBe('Review queue');

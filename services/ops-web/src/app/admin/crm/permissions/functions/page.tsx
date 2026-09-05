@@ -28,7 +28,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { computeGrantDiff } from '@/lib/rbac/grant-diff';
-import { detectContentApproveSod } from '@/lib/rbac/sod-rules';
+import { detectContentApproveSod, sodBlocksMatrixSave } from '@/lib/rbac/sod-rules';
 
 function grantsFromDetail(grants: Record<string, string[]>): Record<string, string[]> {
   return Object.fromEntries(Object.entries(grants).map(([k, v]) => [k, [...v].sort()]));
@@ -65,6 +65,10 @@ function AdminCrmPermissionFunctionsPageContent() {
   const canConfigure = hasCap(user, 'crm_data_config', 'configure');
   const diff = useMemo(() => computeGrantDiff(baselineGrants, grants), [baselineGrants, grants]);
   const sodViolation = useMemo(() => detectContentApproveSod(grants), [grants]);
+  const sodBlocksSave = useMemo(
+    () => sodBlocksMatrixSave(baselineGrants, grants),
+    [baselineGrants, grants],
+  );
 
   const logout = useCallback(() => {
     clearSession();
@@ -162,8 +166,8 @@ function AdminCrmPermissionFunctionsPageContent() {
   async function handleSave() {
     const access = getAccessToken();
     if (!access || !canConfigure || !selectedCode) return;
-    if (sodViolation) {
-      setError(sodViolation.message);
+    if (sodBlocksSave) {
+      setError(sodBlocksSave.message);
       return;
     }
     setBusy(true);
@@ -223,7 +227,7 @@ function AdminCrmPermissionFunctionsPageContent() {
           <button type="button" className="btn btn--secondary" disabled={busy || !selectedCode} onClick={() => void handleExport()}>
             Xuất MD
           </button>
-          <button type="button" className="btn btn--primary" disabled={busy || !canConfigure || !selectedCode || !!sodViolation} onClick={() => void handleSave()}>
+          <button type="button" className="btn btn--primary" disabled={busy || !canConfigure || !selectedCode || !!sodBlocksSave} onClick={() => void handleSave()}>
             Lưu ma trận function
           </button>
         </div>
@@ -267,7 +271,10 @@ function AdminCrmPermissionFunctionsPageContent() {
           ) : null}
         </div>
 
-        {sodViolation ? <p className="error">{sodViolation.message}</p> : null}
+        {sodBlocksSave ? <p className="error">{sodBlocksSave.message}</p> : null}
+        {sodViolation && !sodBlocksSave ? (
+          <p className="muted">SoD-01 đã có trên function này — vẫn lưu được thay đổi khác.</p>
+        ) : null}
 
         <PermissionMatrixTable
           groupedRows={groupedRows}

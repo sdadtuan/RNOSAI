@@ -37,3 +37,14 @@ export function detectContentApproveSod(grants: Record<string, string[]>): SodVi
   }
   return null;
 }
+
+/** Block save only when this edit introduces SoD-01. Pre-existing SoD must not lock new modules (e.g. crm_am). */
+export function sodBlocksMatrixSave(
+  baseline: Record<string, string[]>,
+  current: Record<string, string[]>,
+): SodViolation | null {
+  const currentSod = detectContentApproveSod(current);
+  if (!currentSod) return null;
+  if (detectContentApproveSod(baseline)) return null;
+  return currentSod;
+}

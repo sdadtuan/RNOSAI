@@ -34,7 +34,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { computeGrantDiff } from '@/lib/rbac/grant-diff';
-import { detectContentApproveSod } from '@/lib/rbac/sod-rules';
+import { detectContentApproveSod, sodBlocksMatrixSave } from '@/lib/rbac/sod-rules';
 import { winBreakGlassEnabled } from '@/lib/win/flags';
 
 function grantsFromDetail(detail: StaffPermissionPositionDetail): Record<string, string[]> {
@@ -60,6 +60,10 @@ export default function AdminCrmPermissionsPage() {
   const canConfigure = hasCap(user, 'crm_data_config', 'configure');
   const diff = useMemo(() => computeGrantDiff(baselineGrants, grants), [baselineGrants, grants]);
   const sodViolation = useMemo(() => detectContentApproveSod(grants), [grants]);
+  const sodBlocksSave = useMemo(
+    () => sodBlocksMatrixSave(baselineGrants, grants),
+    [baselineGrants, grants],
+  );
 
   const logout = useCallback(() => {
     clearSession();
@@ -174,8 +178,8 @@ export default function AdminCrmPermissionsPage() {
   async function handleSave() {
     const access = getAccessToken();
     if (!access || !canConfigure || selectedId == null) return;
-    if (sodViolation) {
-      setError(sodViolation.message);
+    if (sodBlocksSave) {
+      setError(sodBlocksSave.message);
       return;
     }
     setBusy(true);
@@ -282,7 +286,7 @@ export default function AdminCrmPermissionsPage() {
           <button
             type="button"
             className="btn btn--primary"
-            disabled={busy || !canConfigure || selectedId == null || !!sodViolation}
+            disabled={busy || !canConfigure || selectedId == null || !!sodBlocksSave}
             onClick={() => void handleSave()}
           >
             Lưu ma trận
@@ -327,7 +331,10 @@ export default function AdminCrmPermissionsPage() {
           <p className="muted">Chế độ chỉ xem — cần quyền crm_data_config.configure để lưu.</p>
         ) : null}
 
-        {sodViolation ? <p className="error">{sodViolation.message}</p> : null}
+        {sodBlocksSave ? <p className="error">{sodBlocksSave.message}</p> : null}
+        {sodViolation && !sodBlocksSave ? (
+          <p className="muted">SoD-01 đã có trên chức vụ này — vẫn lưu được Account Management và thay đổi khác.</p>
+        ) : null}
 
         <PermissionMatrixTable
           groupedRows={groupedRows}
