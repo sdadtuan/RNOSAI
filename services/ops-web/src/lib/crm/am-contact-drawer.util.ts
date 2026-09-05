@@ -49,3 +49,7 @@ export function amContactSentimentLabel(value: string | null | undefined): strin
 export function amContactAttitudeLabel(value: string | null | undefined): string {
   return AM_RENEWAL_ATTITUDES.find((row) => row.value === value)?.label || value || '—';
 }
+
+export function amShouldCloseContactEdit(saveOk: boolean): boolean {
+  return saveOk;
+}

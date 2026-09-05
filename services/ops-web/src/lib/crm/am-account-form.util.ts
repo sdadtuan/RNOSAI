@@ -48,6 +48,40 @@ export function amConfirmLeave(
   return confirmFn(AM_LEAVE_CONFIRM);
 }
 
+export function amAccountEditHref(agencyClientId: string): string {
+  return `/crm/account-management/clients/${encodeURIComponent(agencyClientId)}/edit`;
+}
+
+export function amAccountSaveId(agencyClientId?: string, createdId?: string): string {
+  return String(agencyClientId || createdId || '').trim();
+}
+
+export function amGuardDirtyClick(
+  ev: { preventDefault: () => void },
+  dirty: boolean,
+  confirmFn: (message: string) => boolean = (message) => window.confirm(message),
+): boolean {
+  if (!amConfirmLeave(dirty, confirmFn)) {
+    ev.preventDefault();
+    return false;
+  }
+  return true;
+}
+
+export function amOwnerStaffPatch(
+  nextOwner: string,
+  currentOwner: string | null | undefined,
+  canAssign: boolean,
+): { owner_staff_id: number | null } | { error: 'assign_required' } | Record<string, never> {
+  const nextRaw = String(nextOwner ?? '').trim();
+  const currentRaw = String(currentOwner ?? '').trim();
+  const nextId = nextRaw ? Number(nextRaw) : null;
+  const currentId = currentRaw ? Number(currentRaw) : null;
+  if (nextId === currentId || (nextId == null && currentId == null)) return {};
+  if (!canAssign) return { error: 'assign_required' };
+  return { owner_staff_id: nextId };
+}
+
 export function suggestAmAccountCode(name: string, now = Date.now()): string {
   const slug = name.replace(/[^A-Za-z0-9]/g, '').slice(0, 8).toUpperCase() || 'AM';
   return `${slug}${String(now).slice(-4)}`;

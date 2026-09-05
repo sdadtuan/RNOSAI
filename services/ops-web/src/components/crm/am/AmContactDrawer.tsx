@@ -11,6 +11,7 @@ import {
   amContactChannelHref,
   amContactRoleLabel,
   amContactSentimentLabel,
+  amShouldCloseContactEdit,
 } from '@/lib/crm/am-contact-drawer.util';
 
 type AmContactDrawerProps = {
@@ -19,7 +20,7 @@ type AmContactDrawerProps = {
   busy?: boolean;
   error?: string;
   onClose: () => void;
-  onSave: (contact: AmContactInput) => void | Promise<void>;
+  onSave: (contact: AmContactInput) => boolean | void | Promise<boolean | void>;
 };
 
 function toDraft(row: AmAccountContact | null): AmContactInput {
@@ -65,12 +66,12 @@ export function AmContactDrawer({
     ev.preventDefault();
     if (!canEdit || busy) return;
     if (!String(draft.full_name ?? '').trim()) return;
-    await onSave({
+    const ok = await onSave({
       ...draft,
       full_name: String(draft.full_name).trim(),
       id: selectedId || undefined,
     });
-    setEditing(false);
+    if (amShouldCloseContactEdit(ok !== false)) setEditing(false);
   }
 
   const name = draft.full_name || 'Thông tin liên hệ';
@@ -135,6 +136,7 @@ export function AmContactDrawer({
         </p>
         <p className="am-muted">Sentiment gần nhất: {amContactSentimentLabel(draft.sentiment)}</p>
         <p className="am-muted">Thái độ renewal: {amContactAttitudeLabel(draft.renewal_attitude)}</p>
+        {error ? <p className="am-banner">{error}</p> : null}
 
         {editing && canEdit ? (
           <form className="am-form" onSubmit={(ev) => void onSubmit(ev)}>
@@ -222,7 +224,6 @@ export function AmContactDrawer({
                 Đặt làm contact chính
               </span>
             </label>
-            {error ? <p className="am-banner">{error}</p> : null}
             <div className="am-form__actions">
               <button type="button" className="am-btn" onClick={() => setEditing(false)}>
                 Hủy

@@ -250,6 +250,81 @@ describe('AmAccountsService.patch 360', () => {
       ),
     ).resolves.toMatchObject({ agency_client_id: CHILD_ID });
   });
+
+  it('rejects contacts-only PATCH on Active without a named primary', async () => {
+    await expect(
+      service.patch(
+        editReq,
+        CHILD_ID,
+        { contacts: [{ full_name: 'Nguyen An Phu', is_primary: false }] },
+        editActor,
+      ),
+    ).rejects.toMatchObject({ status: 400, error: 'primary_contact_required' });
+    const updates = db.query.mock.calls.filter((call) => /update\s+crm_am_account_ext/i.test(String(call[0])));
+    expect(updates).toHaveLength(0);
+  });
+
+  it('validates am_status and parent before upserting contacts', async () => {
+    await expect(
+      service.patch(
+        editReq,
+        CHILD_ID,
+        { am_status: 'nope', contacts: [{ full_name: 'Nguyen An Phu', is_primary: true }] },
+        editActor,
+      ),
+    ).rejects.toMatchObject({ status: 400, error: 'am_status_invalid' });
+    await expect(
+      service.patch(
+        editReq,
+        CHILD_ID,
+        { parent_agency_client_id: 'not-a-uuid', contacts: [{ full_name: 'Nguyen An Phu', is_primary: true }] },
+        editActor,
+      ),
+    ).rejects.toMatchObject({ status: 400, error: 'parent_invalid' });
+    const contactWrites = db.query.mock.calls.filter((call) =>
+      /insert\s+into\s+crm_am_contacts|update\s+crm_am_contacts/i.test(String(call[0])),
+    );
+    expect(contactWrites).toHaveLength(0);
+  });
+
+  it('rejects owner_staff_id change without crm_am.assign', async () => {
+    await expect(
+      service.patch(editReq, CHILD_ID, { owner_staff_id: 99 }, editActor),
+    ).rejects.toMatchObject({ status: 403, error: 'missing_cap', action: 'assign' });
+    const ownerUpdates = db.query.mock.calls.filter((call) =>
+      /update\s+crm_am_account_ext/i.test(String(call[0])),
+    );
+    expect(ownerUpdates).toHaveLength(0);
+  });
+
+  it('allows same owner_staff_id on edit-only and persist industry_override', async () => {
+    const out = await service.patch(
+      editReq,
+      CHILD_ID,
+      { owner_staff_id: 7, industry: 'bds' },
+      editActor,
+    );
+    expect(out.agency_client_id).toBe(CHILD_ID);
+    const extUpdate = db.query.mock.calls.find((call) => /update\s+crm_am_account_ext/i.test(String(call[0])));
+    expect(String(extUpdate?.[0])).toMatch(/industry_override/);
+    expect(agency.updateClient).not.toHaveBeenCalled();
+  });
+
+  it('writes Agency industry_slug when caller has crm_agency write', async () => {
+    const actor = {
+      staffId: VIEW_STAFF_ID,
+      caps: [
+        { section: 'crm_am', action: 'edit' },
+        { section: 'crm_agency', action: 'write' },
+      ],
+      via: 'jwt' as const,
+    };
+    await service.patch(editReq, CHILD_ID, { industry: 'bds' }, actor);
+    expect(agency.updateClient).toHaveBeenCalledWith(
+      CHILD_ID,
+      expect.objectContaining({ industry_slug: 'bds' }),
+    );
+  });
 });
 
 describe('AmController contract amount', () => {

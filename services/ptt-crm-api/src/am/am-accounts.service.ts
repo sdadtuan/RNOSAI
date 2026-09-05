@@ -105,6 +105,8 @@ export type AmPatchAccountBody = {
   archive?: boolean;
   amount_vnd?: unknown;
   owner_staff_id?: number | null;
+  industry?: string | null;
+  industry_override?: string | null;
   tags?: string[];
   contacts?: AmContactInput[];
 };
@@ -509,24 +511,19 @@ export class AmAccountsService {
     const current = await this.loadAccountRow(scoped, id, true);
     if (!current) amThrow(404, { error: 'not_found' });
 
-    const requestedStatus = body.am_status != null ? String(body.am_status).trim() : '';
-    if (requestedStatus === 'active' && !(await this.hasPrimaryContact(id, body.contacts))) {
-      amThrow(400, { error: 'primary_contact_required' });
-    }
-    if (Array.isArray(body.contacts)) {
-      await this.upsertContacts(id, body.contacts);
-    }
-
     const sets: string[] = ['updated_at = now()'];
     const params: unknown[] = [AM_TENANT_ID, id];
+    let nextStatus = String(current.am_status ?? 'active');
     if (body.archive === true) {
       if (!this.canManage(actor)) {
         amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'manage' });
       }
+      nextStatus = 'paused';
       sets.push(`am_status = ${pushParam(params, 'paused')}`);
     } else if (body.am_status != null) {
       const status = String(body.am_status).trim();
       if (!AM_STATUSES.has(status)) amThrow(400, { error: 'am_status_invalid' });
+      nextStatus = status;
       sets.push(`am_status = ${pushParam(params, status)}`);
     }
     if ('owner_staff_id' in body) {
@@ -534,7 +531,13 @@ export class AmAccountsService {
         ? null
         : num(body.owner_staff_id);
       if (body.owner_staff_id != null && ownerId == null) amThrow(400, { error: 'owner_staff_id_invalid' });
-      sets.push(`account_owner_staff_id = ${pushParam(params, ownerId)}`);
+      const currentOwner = num(current.owner_staff_id);
+      if (ownerId !== currentOwner && !this.canAssign(actor)) {
+        amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'assign' });
+      }
+      if (ownerId !== currentOwner) {
+        sets.push(`account_owner_staff_id = ${pushParam(params, ownerId)}`);
+      }
     }
     if ('tier' in body) {
       const tier = body.tier == null || body.tier === '' ? null : String(body.tier).trim();
@@ -560,6 +563,22 @@ export class AmAccountsService {
       }
       sets.push(`parent_agency_client_id = ${pushParam(params, parent)}::uuid`);
     }
+    const industryRaw = 'industry' in body ? body.industry : body.industry_override;
+    let nextIndustry: string | null | undefined;
+    if ('industry' in body || 'industry_override' in body) {
+      nextIndustry = industryRaw == null || industryRaw === '' ? null : String(industryRaw).trim();
+      sets.push(`industry_override = ${pushParam(params, nextIndustry)}`);
+    }
+
+    const checkPrimary =
+      nextStatus === 'active' &&
+      (Array.isArray(body.contacts) || String(body.am_status ?? '').trim() === 'active');
+    if (checkPrimary) {
+      await this.ensureActiveNamedPrimary(id, nextStatus, body.contacts);
+    }
+    if (Array.isArray(body.contacts)) {
+      await this.upsertContacts(id, body.contacts);
+    }
 
     const bound = bindScopeSql(
       amScopeSql({ scope: scoped.scope, staffId: scoped.staffId, teamIds: scoped.teamIds }),
@@ -575,12 +594,19 @@ export class AmAccountsService {
 
     const nextName = String(body.name ?? '').trim();
     const nameRequested = Boolean(nextName);
-    const canWriteName = this.canAgencyWrite(actor);
+    const canWriteAgency = this.canAgencyWrite(actor);
     let nameUnchanged = false;
-    if (nextName && canWriteName) {
-      await this.agency.updateClient(id, { name: nextName });
+    const agencyPatch: { name?: string; industry_slug?: string } = {};
+    if (nextName && canWriteAgency) {
+      agencyPatch.name = nextName;
     } else if (nameRequested) {
       nameUnchanged = true;
+    }
+    if (nextIndustry && canWriteAgency) {
+      agencyPatch.industry_slug = nextIndustry;
+    }
+    if (Object.keys(agencyPatch).length) {
+      await this.agency.updateClient(id, agencyPatch);
     }
 
     await this.audit?.insert({
@@ -595,6 +621,7 @@ export class AmAccountsService {
         parent_agency_client_id: body.parent_agency_client_id,
         archive: body.archive === true,
         owner_staff_id: body.owner_staff_id,
+        industry: nextIndustry,
         tags: body.tags,
         contacts: Array.isArray(body.contacts) ? body.contacts.length : undefined,
         name: nameUnchanged ? undefined : nextName || undefined,
@@ -935,7 +962,23 @@ export class AmAccountsService {
       return true;
     }
     const existing = await this.loadContacts(id);
-    return existing.some((row) => row.is_primary);
+    const incomingIds = new Set(
+      (incoming ?? []).map((row) => String(row.id ?? '').trim()).filter(Boolean),
+    );
+    return existing.some(
+      (row) => row.is_primary && String(row.full_name ?? '').trim() && !incomingIds.has(row.id),
+    );
+  }
+
+  private async ensureActiveNamedPrimary(
+    id: string,
+    resultingStatus: string,
+    incoming?: AmContactInput[],
+  ): Promise<void> {
+    if (resultingStatus !== 'active') return;
+    if (!(await this.hasPrimaryContact(id, incoming))) {
+      amThrow(400, { error: 'primary_contact_required' });
+    }
   }
 
   private async upsertContacts(id: string, contacts: AmContactInput[]): Promise<void> {

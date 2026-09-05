@@ -396,6 +396,8 @@ export type AmPatchAccountBody = {
   parent_agency_client_id?: string | null;
   archive?: boolean;
   owner_staff_id?: number | null;
+  industry?: string | null;
+  industry_override?: string | null;
   tags?: string[];
   contacts?: AmContactInput[];
 };

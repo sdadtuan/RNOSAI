@@ -15,15 +15,20 @@ import {
   type AmContactInput,
 } from '@/lib/crm/am-api';
 import {
+  amAccountEditHref,
   amAccountFormCtas,
+  amAccountSaveId,
   amConfirmLeave,
   amDraftStatus,
+  amGuardDirtyClick,
   amOnboardingHref,
+  amOwnerStaffPatch,
   amPrimaryContactError,
   emptyAmFormContact,
   suggestAmAccountCode,
   type AmFormContact,
 } from '@/lib/crm/am-account-form.util';
+import { canAssignAmAccounts } from '@/lib/crm/am-accounts-views.util';
 import {
   AM_COMMITTEE_ROLES,
   AM_CONTACT_CHANNELS,
@@ -53,8 +58,11 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
   const { token, user, canEdit } = useAmPage();
   const { push } = useToast();
   const router = useRouter();
-  const isEdit = Boolean(agencyClientId);
+  const [createdId, setCreatedId] = useState('');
+  const accountId = amAccountSaveId(agencyClientId, createdId);
+  const isEdit = Boolean(accountId);
   const canName = canEditAmAccountName(user);
+  const canAssign = canAssignAmAccounts(user);
   const agencyWrite = hasCap(user, 'crm_agency', 'create') || hasCap(user, 'crm_agency', 'write');
 
   const [loading, setLoading] = useState(isEdit);
@@ -73,6 +81,7 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
   const [timezone, setTimezone] = useState('Asia/Ho_Chi_Minh');
   const [ownerAmId, setOwnerAmId] = useState(user.email ?? '');
   const [ownerStaffId, setOwnerStaffId] = useState('');
+  const [loadedOwnerStaffId, setLoadedOwnerStaffId] = useState('');
   const [teamId, setTeamId] = useState('');
   const [lifecycle, setLifecycle] = useState('active');
   const [packageName, setPackageName] = useState('');
@@ -147,7 +156,8 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
   }, [token]);
 
   useEffect(() => {
-    if (!isEdit || !agencyClientId || !token) {
+    if (!agencyClientId || !token) {
+      if (createdId) return;
       setBaseline(
         snapshot({
           legalName: '',
@@ -191,7 +201,7 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [agencyClientId, isEdit, token, user.email]);
+  }, [agencyClientId, createdId, token, user.email]);
 
   useEffect(() => {
     function onBeforeUnload(ev: BeforeUnloadEvent) {
@@ -225,6 +235,7 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
     setIndustry(row.industry ?? '');
     setTier(row.tier ?? '');
     setOwnerStaffId(row.owner_staff_id ? String(row.owner_staff_id) : '');
+    setLoadedOwnerStaffId(row.owner_staff_id ? String(row.owner_staff_id) : '');
     setTeamId(row.team_id ? String(row.team_id) : '');
     setLifecycle(row.am_status || amDraftStatus());
     setContacts(nextContacts);
@@ -311,8 +322,8 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
     setBusy(true);
     setError('');
     try {
-      let id = agencyClientId ?? '';
-      if (!isEdit) {
+      let id = accountId;
+      if (!id) {
         if (!agencyWrite) {
           setError('Cần quyền crm_agency.create — mở Agency để tạo khách');
           return;
@@ -325,15 +336,23 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
           owner_am_id: ownerAmId.trim() || user.email || undefined,
         });
         id = created.agency_client_id;
+        setCreatedId(id);
+        router.replace(amAccountEditHref(id));
+      }
+      const ownerPatch = amOwnerStaffPatch(ownerStaffId, loadedOwnerStaffId, canAssign);
+      if ('error' in ownerPatch) {
+        setError('Cần quyền crm_am.assign để đổi owner');
+        return;
       }
       const next = await patchAmAccount(token, id, {
         name: canName ? name : undefined,
         tier: tier.trim() || null,
         team_id: teamId.trim() ? Number(teamId) : null,
         am_status: status,
-        owner_staff_id: ownerStaffId.trim() ? Number(ownerStaffId) : undefined,
+        industry: industry.trim() || null,
         tags,
         contacts: payloadContacts,
+        ...ownerPatch,
       });
       setBaseline(formSnap);
       push(kind === 'draft' ? 'Đã lưu nháp' : 'Đã lưu', 'success');
@@ -366,8 +385,8 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
     );
   }
 
-  const cancelHref = isEdit
-    ? `/crm/account-management/clients/${agencyClientId}`
+  const cancelHref = accountId
+    ? `/crm/account-management/clients/${accountId}`
     : '/crm/account-management/clients';
 
   return (
@@ -375,7 +394,15 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
       <div className="am-form-page__head">
         <div>
           <p className="am-crumb">
-            <Link href="/crm/account-management/clients">Khách hàng</Link> / {isEdit ? 'Sửa' : 'Tạo mới'}
+            <Link
+              href="/crm/account-management/clients"
+              onClick={(ev) => {
+                if (!amGuardDirtyClick(ev, dirty)) ev.preventDefault();
+              }}
+            >
+              Khách hàng
+            </Link>{' '}
+            / {isEdit ? 'Sửa' : 'Tạo mới'}
           </p>
           <h1>{isEdit ? 'Sửa khách hàng' : 'Tạo khách hàng mới'}</h1>
         </div>
@@ -387,7 +414,14 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
       {!isEdit && !agencyWrite ? (
         <p className="am-banner">
           Cần quyền crm_agency.create.{' '}
-          <Link href="/agency/clients/new">Mở /agency/clients/new</Link>
+          <Link
+            href="/agency/clients/new"
+            onClick={(ev) => {
+              if (!amGuardDirtyClick(ev, dirty)) ev.preventDefault();
+            }}
+          >
+            Mở /agency/clients/new
+          </Link>
         </p>
       ) : null}
 
@@ -473,7 +507,12 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
               <span>Account Owner *</span>
               {isEdit ? (
                 roster.length > 0 ? (
-                  <select value={ownerStaffId} onChange={(e) => setOwnerStaffId(e.target.value)}>
+                  <select
+                    value={ownerStaffId}
+                    onChange={(e) => setOwnerStaffId(e.target.value)}
+                    disabled={!canAssign}
+                    title={canAssign ? 'Account Owner' : 'Cần quyền crm_am.assign để đổi owner'}
+                  >
                     <option value="">Chọn owner</option>
                     {roster.map((row) => (
                       <option key={row.id} value={row.id}>
@@ -486,6 +525,8 @@ export function AmAccountForm({ agencyClientId }: { agencyClientId?: string }) {
                     value={ownerStaffId}
                     onChange={(e) => setOwnerStaffId(e.target.value)}
                     placeholder="crm_staff ID"
+                    disabled={!canAssign}
+                    title={canAssign ? 'Account Owner' : 'Cần quyền crm_am.assign để đổi owner'}
                   />
                 )
               ) : (

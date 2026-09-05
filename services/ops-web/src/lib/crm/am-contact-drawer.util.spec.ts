@@ -3,6 +3,7 @@ import {
   AM_CONTACT_CHANNELS,
   AM_RENEWAL_ATTITUDES,
   amContactChannelHref,
+  amShouldCloseContactEdit,
 } from './am-contact-drawer.util';
 
 describe('am-contact-drawer', () => {
@@ -14,5 +15,10 @@ describe('am-contact-drawer', () => {
       'mailto:ceo@anphu.vn',
     );
     expect(amContactChannelHref('zalo', { phone: '0901234567', email: '' })).toMatch(/zalo/i);
+  });
+
+  it('keeps the drawer in edit mode when PATCH fails', () => {
+    expect(amShouldCloseContactEdit(true)).toBe(true);
+    expect(amShouldCloseContactEdit(false)).toBe(false);
   });
 });

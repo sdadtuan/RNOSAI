@@ -109,8 +109,8 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
     setDrawer(kind);
   }
 
-  async function onPatch(body: Parameters<typeof patchAmAccount>[2]) {
-    if (busy) return;
+  async function onPatch(body: Parameters<typeof patchAmAccount>[2]): Promise<boolean> {
+    if (busy) return false;
     setBusy(true);
     setFormError('');
     try {
@@ -122,8 +122,11 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         nameUnchanged: Boolean(next.name_unchanged),
       });
       push(toast.message, toast.tone);
+      return true;
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Không lưu được');
+      const message = err instanceof Error ? err.message : 'Không lưu được';
+      setFormError(message === 'primary_contact_required' ? 'Active cần tối thiểu một contact chính' : message);
+      return false;
     } finally {
       setBusy(false);
     }

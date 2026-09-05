@@ -1,72 +1,146 @@
-# Task 16 Report: Docs + e2e + VPS notes (P1/P2)
+# Task 16 Report: Create/Edit account + Contact drawer (UI-AM-05/06)
 
-**Status:** DONE  
-**Branch:** `feat/mkt-ai-playbook-learn`  
-**Commit:** *(pending)* — docs(mkt-ai): playbook policy + learn ops guide  
-**Pushed:** no
+**Status:** DONE_WITH_CONCERNS  
+**Branch:** `feat/am-os`  
+**Commit:** `2a509a37` — feat(am): add account form and contact drawer  
+**Date:** 2026-09-05
 
-## What shipped
+## Summary
 
-Documentation, runbook, spec status, e2e Playwright, and env deprecation for playbook policy + learn catalog (Tasks 1–15).
+Full-page create at `/crm/account-management/clients/new` reuses Task 7 `POST /api/crm/am/accounts`. Edit at `/clients/[id]/edit` uses Task 15 PATCH. Active without a primary contact is 400 `primary_contact_required`. 360 ⋮ Sửa navigates to the edit form; ⋮ Contact opens `AmContactDrawer`. Dirty leave uses `window.confirm` (BR-024). “Lưu và tạo onboarding” saves `am_status=onboarding` then navigates to `/onboarding?agency_client_id=` (Task 18 placeholder).
 
-| File | Change |
-|------|--------|
-| `docs/huong-dan-su-dung/29-marketing-ai-planner-thuc-chien.md` | v1.1 — policy Admin §2.3, gộp 403 → `mkt_ai_service_not_enabled`, `_common`, learn flow, VPS P0 DDL |
-| `docs/runbooks/mkt-ai-playbook-ops.md` | v2.0 — Admin UI Sinh/Duyệt/Active thay PR-only; VPS P0/P2; ngưỡng corpus |
-| `docs/superpowers/specs/2026-09-01-mkt-ai-playbook-learn-catalog-design.md` | Header **Trạng thái: Implemented** |
-| `services/ops-web/e2e/mkt-ai-playbook-admin.spec.ts` | Playwright: staff login, list, mở slug, Sinh disabled khi `!can_learn` |
-| `deploy/env.mkt-ai-ga.example` | Comment deprecate `PTT_MKT_AI_PLANNER_SLUGS`; default empty |
+## Backend
 
-## Step checklist
+`PATCH /api/crm/am/accounts/:id` now:
 
-- [x] User guide — policy Admin, hết 2 mã 403 cũ, `_common`, learn flow
-- [x] Runbook — UI Duyệt thay PR-only JSON
-- [x] Spec header Implemented
-- [x] E2e Playwright admin playbook
-- [x] Env example deprecate PLANNER_SLUGS
-- [x] VPS P0 deploy steps in docs §2.3 + runbook §4
-- [x] **Commit** `docs(mkt-ai): playbook policy + learn ops guide`
+- Rejects `{ am_status: 'active' }` unless a primary contact exists in `crm_am_contacts` or in `body.contacts` → 400 `{ error: 'primary_contact_required' }`.
+- Upserts `body.contacts` (name, buying-committee role, sentiment, channel, renewal attitude, email, phone, is_primary).
+- Accepts `owner_staff_id` and `tags` (tags audited only — no ext column).
+- Still UUID-validates the account id (404 `not_found`) and scopes via `amScopeSql`.
 
-## Doc highlights
+## Frontend
 
-### Policy thay env (§2.3 user guide)
+- `AmAccountForm` — identity *, owner, contacts (≥1 primary when Active), BĐS extras when industry matches, tags. CTA: Hủy · Lưu nháp (`pending_handover`) · Lưu và tạo onboarding · Lưu.
+- `AmContactDrawer` — name, role, sentiment, Gọi/Email/Zalo, renewal attitude.
+- List “Tạo khách” and + menu “Khách (form đầy đủ)” → `/clients/new`.
 
-- `mkt_ai_service_policy.rollout`: off | pilot | ga
-- Admin `/crm/admin/mkt-ai/playbooks` — bật pilot không restart
-- Legacy env AND nếu còn set; khuyến nghị để trống `PTT_MKT_AI_PLANNER_SLUGS`
+## TDD evidence
 
-### VPS P0 (from plan Task 16)
+**RED** (before PATCH gate):
 
-```bash
-psql "$DATABASE_URL" -f docs/specs/2026-09-01-postgresql-ddl-mkt-ai-playbook-policy.sql
-psql "$DATABASE_URL" -f scripts/seed_mkt_ai_service_policy.sql
-# optional: UPDATE … quang-cao-facebook → pilot
-# optional: xóa/mở rộng PTT_MKT_AI_PLANNER_SLUGS
-sudo systemctl restart ptt-crm-api
+```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-accounts-360.spec.ts --no-coverage -t primary_contact_required
+Received promise resolved instead of rejected
 ```
 
-### E2e coverage
+Frontend utils: `Cannot find module './am-account-form.util'`.
 
-- `GET /api/v1/admin/mkt-ai/playbooks` — pick slug with 0 candidates
-- UI list: table + `n/5 · m/3`
-- Detail: **Sinh** disabled + label `Còn N HĐ…` when `can_learn=false`
-- Skips when API unreachable or admin DDL not applied
+**GREEN:**
 
-## What I tested
+```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest \
+  src/am/am-accounts-360.spec.ts \
+  src/am/am-accounts.service.spec.ts \
+  src/am/am-accounts-list.spec.ts \
+  src/am/am-accounts-transfer.spec.ts --no-coverage
+# 4 suites, 22 passed
 
-```bash
-# E2e requires running API + staff demo user — skip in CI without stack
-cd services/ops-web && npx playwright test e2e/mkt-ai-playbook-admin.spec.ts
+$ cd services/ops-web && ./node_modules/.bin/vitest run \
+  src/lib/crm/am-account-form.util.spec.ts \
+  src/lib/crm/am-contact-drawer.util.spec.ts \
+  src/lib/crm/am-account-360.util.spec.ts
+# 3 files, 9 passed
 ```
 
-Manual review: doc links, VPS commands, spec status line.
+Required case: Active without primary contact → 400 `primary_contact_required` (no ext UPDATE). Incoming primary contact allows Active.
 
-## Notes
+## Files
 
-- Runbook v2 keeps PR checklist for disk `_common` / industry JSON baseline — Admin UI is primary for learn/review.
-- Smoke script `smoke_mkt_ai_playbooks_admin.sh` may still target `catalog-disk`; update separately if needed.
-- Plan Task 16 checkbox in plan file not edited (out of scope for this commit).
+- `services/ptt-crm-api/src/am/am-accounts.service.ts`
+- `services/ptt-crm-api/src/am/am-accounts-360.spec.ts`
+- `services/ops-web/src/lib/crm/am-api.ts`
+- `services/ops-web/src/lib/crm/am-account-form.util.ts` (+ spec)
+- `services/ops-web/src/lib/crm/am-contact-drawer.util.ts` (+ spec)
+- `services/ops-web/src/components/crm/am/AmAccountForm.tsx`
+- `services/ops-web/src/components/crm/am/AmContactDrawer.tsx`
+- `services/ops-web/src/app/crm/account-management/clients/new/page.tsx`
+- `services/ops-web/src/app/crm/account-management/clients/[id]/edit/page.tsx`
+- `services/ops-web/src/components/crm/am/AmAccount360.tsx`
+- `services/ops-web/src/components/crm/am/AmAccountsList.tsx`
+- `services/ops-web/src/components/crm/am/AmCreateMenu.tsx`
+- `services/ops-web/src/app/crm/account-management/am.css`
 
-## Next
+## Concerns
 
-Plan complete for P0–P2 slice. P3 depth (Task 15) already shipped. Optional: wire lifecycle SQL into `loadCorpusRows` for real corpus counts in staging.
+1. **Tags are not persisted** — `crm_am_account_ext` has no `tags` column; PATCH records them in audit only.
+2. **BĐS custom fields / website / timezone / package** are form-only (no Agency columns wired).
+3. **Create still needs `crm_agency` create/write** (Task 7). Code auto-suggests if blank (`AM` + slug).
+4. **UI not browser-verified** — staff login required; verified via unit tests only.
+5. **Onboarding CTA is a navigate stub** — no handover/onboarding API yet (Task 17/18).
+6. **Primary-contact gate** now also covers contacts-only PATCH / drawer when the resulting status is Active. Name/tier/industry-only PATCH on an already-Active account still does not re-check existing contacts.
+
+## Review follow-up (Important)
+
+**Commit:** `fix(am): make account form idempotent and enforce primary contact`
+
+Fixed seven Important findings. UI still not browser-verified.
+
+### 1. Create retry is idempotent
+
+After `POST` succeeds, the form stores `createdId` and `router.replace`s to `/clients/:id/edit`. Retry / patch failure never calls create again (`amAccountSaveId`).
+
+### 2. Named primary when resulting status is Active
+
+If resulting `am_status` is `active` and the body sets `am_status: 'active'` or upserts `contacts`, PATCH requires ≥1 named primary (incoming or surviving). Contacts-only / drawer included → 400 `primary_contact_required`.
+
+### 3. Validate before upsertContacts
+
+`am_status` and `parent_agency_client_id` are validated before any `crm_am_contacts` write.
+
+### 4. Owner change needs `crm_am.assign`
+
+Changing `owner_staff_id` is 403 `missing_cap` / `assign`. Same owner is allowed for edit-only. Form disables the owner field and omits the patch without assign.
+
+### 5. Industry persists on edit
+
+PATCH accepts `industry` / `industry_override` → `crm_am_account_ext.industry_override`. Callers with `crm_agency` write also get `AgencyService.updateClient({ industry_slug })`.
+
+### 6. Dirty leave intercepts in-app exits
+
+Breadcrumb and Agency links use `amGuardDirtyClick` → `amConfirmLeave` (BR-024). Hủy still uses `amConfirmLeave`.
+
+### 7. Contact drawer stays open on PATCH error
+
+`onPatch` returns `false` on failure; drawer only `setEditing(false)` / closes on success. PATCH error (including `primary_contact_required`) is shown on the drawer.
+
+### RED
+
+```
+$ cd services/ptt-crm-api && node node_modules/.bin/jest src/am/am-accounts-360.spec.ts --no-coverage -t "contacts-only|validates am_status|rejects owner_staff_id|allows same owner|writes Agency industry"
+# contacts-only resolved instead of 400
+# contact upserts ran before am_status/parent 400
+# owner_staff_id change resolved without assign
+# UPDATE ext lacked industry_override; updateClient not called
+
+$ cd services/ops-web && node node_modules/.bin/vitest run \
+  src/lib/crm/am-account-form.util.spec.ts \
+  src/lib/crm/am-contact-drawer.util.spec.ts
+# amAccountSaveId / amGuardDirtyClick / amOwnerStaffPatch / amShouldCloseContactEdit not functions
+```
+
+### GREEN
+
+```
+$ cd services/ptt-crm-api && node node_modules/.bin/jest \
+  src/am/am-accounts-360.spec.ts \
+  src/am/am-accounts.service.spec.ts \
+  src/am/am-accounts-list.spec.ts \
+  src/am/am-accounts-transfer.spec.ts --no-coverage
+# 4 suites, 27 passed
+
+$ cd services/ops-web && node node_modules/.bin/vitest run \
+  src/lib/crm/am-account-form.util.spec.ts \
+  src/lib/crm/am-contact-drawer.util.spec.ts \
+  src/lib/crm/am-account-360.util.spec.ts
+# 3 files, 13 passed
+```
