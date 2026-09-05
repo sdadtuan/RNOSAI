@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
-import { isAmDashboardLoading, shouldShowEmptyWidget } from '@/lib/crm/am-dashboard.util';
-import { acceptAmTask } from '@/lib/crm/am-api';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { dashboardViewQuery, isAmDashboardLoading, shouldShowEmptyWidget } from '@/lib/crm/am-dashboard.util';
+import { acceptAmTask, createAmView, fetchAmViews, type AmSavedView } from '@/lib/crm/am-api';
+import { canShareAmView } from '@/lib/crm/am-accounts-views.util';
 import { bandCopy, dash, vnd } from '@/lib/crm/am-format';
 import type { AmHealthBand } from '@/lib/crm/am-format';
 import { useToast } from '@/lib/toast';
@@ -135,12 +137,83 @@ function WidgetLoading() {
   return <p className="am-muted">Đang tải…</p>;
 }
 
+function hrefFromQuery(pathname: string, query: Record<string, string>): string {
+  const params = new URLSearchParams(query);
+  const qs = params.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
+}
+
+function searchFromSaved(query: Record<string, string | undefined> | undefined): URLSearchParams {
+  const next = new URLSearchParams();
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value) next.set(key, String(value));
+  }
+  return next;
+}
+
 export function AmDashboard() {
-  const { data, error, loading, retry, canEdit, scope, token, openCreate } = useAmPage();
+  const { data, error, loading, retry, canEdit, scope, token, user, openCreate } = useAmPage();
   const { push } = useToast();
+  const router = useRouter();
+  const pathname = usePathname() ?? '/crm/account-management';
+  const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
+  const search = useMemo(() => new URLSearchParams(searchKey), [searchKey]);
+  const canShare = canShareAmView(user);
   const [attentionSort, setAttentionSort] = useState<'health' | 'mrr' | 'renewal'>('health');
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [savedViews, setSavedViews] = useState<AmSavedView[]>([]);
+  const [viewName, setViewName] = useState('');
+  const [viewShared, setViewShared] = useState(false);
+  const [viewBusy, setViewBusy] = useState(false);
+  const [viewError, setViewError] = useState('');
   const isLoading = isAmDashboardLoading(loading, data);
+  const dashboardViews = savedViews.filter((view) => view.page === 'dashboard');
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const out = await fetchAmViews(token);
+        if (!cancelled) setSavedViews(out.items ?? []);
+      } catch {
+        if (!cancelled) setSavedViews([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  function applySaved(view: AmSavedView) {
+    router.replace(hrefFromQuery(pathname, dashboardViewQuery(searchFromSaved(view.query_json))));
+  }
+
+  async function onSaveView(ev: FormEvent) {
+    ev.preventDefault();
+    const name = viewName.trim();
+    if (!name) {
+      setViewError('Nhập tên view');
+      return;
+    }
+    setViewBusy(true);
+    setViewError('');
+    try {
+      const created = await createAmView(token, {
+        name,
+        shared: canShare && viewShared,
+        page: 'dashboard',
+        query_json: dashboardViewQuery(search),
+      });
+      setSavedViews((prev) => [created, ...prev.filter((row) => row.id !== created.id)]);
+      setViewName('');
+      setViewShared(false);
+    } catch (err) {
+      setViewError(err instanceof Error ? err.message : 'Không lưu được view');
+    } finally {
+      setViewBusy(false);
+    }
+  }
 
   async function onAccept(id: string) {
     if (!canEdit || acceptingId) return;
@@ -184,14 +257,58 @@ export function AmDashboard() {
 
   return (
     <div className="am-dash">
-      <div className="am-dash__head">
+      <div className="am-dash__head am-list__head">
         <div>
           <p className="am-crumb">Tổng quan / Account Management</p>
           <h1>Bàn làm việc hôm nay</h1>
           <p className="am-sub">{subtitleBits.join(' · ') || '—'}</p>
           {data?.freshness.stale ? <p className="am-banner">Dữ liệu đang cũ — kiểm tra đồng bộ.</p> : null}
         </div>
+        <form className="am-list__save-view" onSubmit={(ev) => void onSaveView(ev)}>
+          <input
+            value={viewName}
+            onChange={(ev) => setViewName(ev.target.value)}
+            placeholder="Tên view"
+            aria-label="Tên view"
+          />
+          {canShare ? (
+            <label className="am-check">
+              <input
+                type="checkbox"
+                checked={viewShared}
+                onChange={(ev) => setViewShared(ev.target.checked)}
+              />
+              Chia sẻ
+            </label>
+          ) : null}
+          <button type="submit" className="am-btn" disabled={viewBusy}>
+            Lưu view
+          </button>
+          {viewError ? <span className="am-muted">{viewError}</span> : null}
+        </form>
       </div>
+
+      {dashboardViews.length > 0 ? (
+        <div className="am-chips" aria-label="Saved dashboard views">
+          {dashboardViews.map((view) => {
+            const href = hrefFromQuery(pathname, dashboardViewQuery(searchFromSaved(view.query_json)));
+            return (
+              <a
+                key={view.id}
+                href={href}
+                className="am-chip"
+                onClick={(ev) => {
+                  ev.preventDefault();
+                  applySaved(view);
+                }}
+              >
+                {view.name}
+                {view.shared ? ' · chung' : ''}
+              </a>
+            );
+          })}
+        </div>
+      ) : null}
 
       <div className="am-tiles">
         {KPI_TILES.map((tile) => (

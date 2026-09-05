@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAmDashboardLoading, shouldShowEmptyWidget } from './am-dashboard.util';
+import { dashboardViewQuery, isAmDashboardLoading, shouldShowEmptyWidget } from './am-dashboard.util';
 
 describe('isAmDashboardLoading', () => {
   it('is true only while loading without data', () => {
@@ -23,5 +23,12 @@ describe('shouldShowEmptyWidget', () => {
   it('shows empty copy after a successful empty load', () => {
     expect(shouldShowEmptyWidget(false, '', [])).toBe(true);
     expect(shouldShowEmptyWidget(false, '', [{}])).toBe(false);
+  });
+});
+
+describe('dashboardViewQuery', () => {
+  it('keeps only dashboard query keys', () => {
+    const qs = new URLSearchParams('scope=team&from=2026-09-01&ads=1');
+    expect(dashboardViewQuery(qs)).toEqual({ scope: 'team', from: '2026-09-01' });
   });
 });
