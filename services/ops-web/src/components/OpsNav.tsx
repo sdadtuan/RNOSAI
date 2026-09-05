@@ -19,6 +19,7 @@ import { BrandLogo } from '@/components/brand/BrandLogo';
 import { canViewEmailGateA } from '@/lib/email/caps';
 import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
 import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
+import { canSeeAmNav } from '@/lib/crm/am-nav.util';
 import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
 import { canSeeIwrNav } from '@/lib/crm/iwr-nav.util';
 import { fetchCsdChatUnreadCount } from '@/lib/crm/csd-api';
@@ -117,6 +118,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/csd/email': 'Email SD',
   '/crm/csd/reports': 'Báo cáo SD',
   '/crm/csd/reports/templates': 'Mẫu báo cáo',
+  '/crm/account-management': 'Account Management',
   '/crm/internal-reports': 'BC công việc',
   '/crm/internal-reports/inbox': 'Hộp thư BC',
   '/crm/internal-reports/dashboards': 'Dashboard BC',
@@ -276,6 +278,7 @@ function pageTitleFor(pathname: string): string {
   if (pathname.startsWith('/crm/service-delivery/') && pathname !== '/crm/service-delivery') {
     return 'Service lifecycle';
   }
+  if (pathname.startsWith('/crm/account-management')) return PAGE_TITLES['/crm/account-management'];
   if (pathname.startsWith('/crm/staff/') && pathname !== '/crm/staff') return 'Workspace nhân viên';
   if (pathname.startsWith('/crm/re-projects/') && pathname !== '/crm/re-projects') return 'Chi tiết dự án BĐS';
   if (pathname.startsWith('/crm/b2b-projects/') && pathname !== '/crm/b2b-projects') return 'Chi tiết dự án PTT';
@@ -431,6 +434,14 @@ function buildSections(
   }
   if (serviceDesk.length) {
     sections.push({ label: 'Service Desk', links: serviceDesk, defaultOpen: true });
+  }
+
+  if (canSeeAmNav(user)) {
+    sections.push({
+      label: 'Account Management',
+      links: [{ href: '/crm/account-management', label: 'Account Management' }],
+      defaultOpen: true,
+    });
   }
 
   const salesContract: NavLink[] = [];

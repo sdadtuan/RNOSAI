@@ -469,6 +469,7 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/solution/queue': 'inbox',
   '/crm/tickets': 'ticket',
   '/crm/csd': 'sla',
+  '/crm/account-management': 'customers',
   '/crm/csd/tickets': 'ticket',
   '/crm/csd/chat': 'query',
   '/crm/csd/email': 'email',
@@ -597,6 +598,7 @@ export const SECTION_ICONS: Record<string, string> = {
   GTM: 'inbox',
   'KPI Hub': 'kpi',
   'Service Desk': 'ticket',
+  'Account Management': 'customers',
 };
 
 /** Shorter labels for sidebar headers. */
@@ -625,6 +627,7 @@ export const SECTION_LABELS: Record<string, string> = {
   GTM: 'inbox',
   'KPI Hub': 'KPI Hub',
   'Service Desk': 'Service Desk',
+  'Account Management': 'Account Management',
 };
 
 export function sectionShortLabel(fullLabel: string): string {
