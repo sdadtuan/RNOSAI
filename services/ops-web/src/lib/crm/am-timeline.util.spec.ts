@@ -3,7 +3,9 @@ import {
   amTimelineAttachError,
   amTimelineComposerError,
   amTimelineErrorCopy,
+  amTimelineKindLabel,
   amTimelineRowEditable,
+  formatAmTimelineOccurredAt,
 } from './am-timeline.util';
 
 describe('am-timeline', () => {
@@ -41,5 +43,19 @@ describe('am-timeline', () => {
     expect(amTimelineAttachError({ href: 'https://example.com', title: '' })).toBe(
       'Cần tiêu đề tài liệu',
     );
+  });
+
+  it('shows dash for empty kind', () => {
+    expect(amTimelineKindLabel('')).toBe('—');
+    expect(amTimelineKindLabel('   ')).toBe('—');
+    expect(amTimelineKindLabel(null)).toBe('—');
+  });
+
+  it('shows dash for empty or invalid occurred_at', () => {
+    expect(formatAmTimelineOccurredAt('')).toBe('—');
+    expect(formatAmTimelineOccurredAt('   ')).toBe('—');
+    expect(formatAmTimelineOccurredAt('not-a-date')).toBe('—');
+    expect(formatAmTimelineOccurredAt('2024-06-01T10:00:00.000Z')).not.toBe('—');
+    expect(formatAmTimelineOccurredAt('2024-06-01T10:00:00.000Z')).not.toMatch(/Invalid Date/i);
   });
 });

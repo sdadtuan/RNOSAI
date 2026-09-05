@@ -49,8 +49,18 @@ export function amTimelineErrorCopy(code: string): string {
   return code;
 }
 
-export function amTimelineKindLabel(kind: string): string {
-  return AM_TIMELINE_KINDS.find((item) => item.value === kind)?.label ?? kind;
+export function amTimelineKindLabel(kind: string | null | undefined): string {
+  const value = String(kind ?? '').trim();
+  if (!value) return '—';
+  return AM_TIMELINE_KINDS.find((item) => item.value === value)?.label ?? value;
+}
+
+export function formatAmTimelineOccurredAt(occurredAt: string | null | undefined): string {
+  const value = String(occurredAt ?? '').trim();
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('vi-VN');
 }
 
 export function parseAttendeesInput(raw: string): string[] {

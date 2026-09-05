@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '@/lib/api';
 import {
   fetchAmInteractions,
@@ -23,7 +23,7 @@ import {
   parseAmOnboardingTab,
   type AmOnboardingTabId,
 } from '@/lib/crm/am-onboarding.util';
-import { amTimelineKindLabel } from '@/lib/crm/am-timeline.util';
+import { amTimelineKindLabel, formatAmTimelineOccurredAt } from '@/lib/crm/am-timeline.util';
 import { AmDocumentsPanel } from './AmDocumentsPanel';
 import { useAmPage } from './AmShell';
 
@@ -81,6 +81,7 @@ export function AmOnboarding({ caseId }: { caseId: string }) {
   const [overrideReason, setOverrideReason] = useState('');
   const [modalError, setModalError] = useState('');
   const [activity, setActivity] = useState<AmInteraction[]>([]);
+  const activityLoadGenerationRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!token || !caseId) return;
@@ -103,20 +104,29 @@ export function AmOnboarding({ caseId }: { caseId: string }) {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (tab !== 'activity' || !token || !data?.agency_client_id) return;
-    let cancelled = false;
-    void fetchAmInteractions(token, { agency_client_id: data.agency_client_id, scope })
-      .then((out) => {
-        if (!cancelled) setActivity(out.items ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setActivity([]);
+  const loadActivity = useCallback(async () => {
+    if (tab !== 'activity' || !token || !data?.agency_client_id) {
+      setActivity([]);
+      return;
+    }
+    const generation = ++activityLoadGenerationRef.current;
+    setActivity([]);
+    try {
+      const out = await fetchAmInteractions(token, {
+        agency_client_id: data.agency_client_id,
+        scope,
       });
-    return () => {
-      cancelled = true;
-    };
+      if (generation !== activityLoadGenerationRef.current) return;
+      setActivity(out.items ?? []);
+    } catch {
+      if (generation !== activityLoadGenerationRef.current) return;
+      setActivity([]);
+    }
   }, [tab, token, data?.agency_client_id, scope]);
+
+  useEffect(() => {
+    void loadActivity();
+  }, [loadActivity]);
 
   function setTab(next: AmOnboardingTabId) {
     const qs = new URLSearchParams(searchParams.toString());
@@ -424,8 +434,8 @@ export function AmOnboarding({ caseId }: { caseId: string }) {
                     <li key={row.id}>
                       <div className="am-timeline__meta">
                         <span className="am-timeline__kind">{amTimelineKindLabel(row.kind)}</span>
-                        <time dateTime={row.occurred_at}>
-                          {new Date(row.occurred_at).toLocaleString('vi-VN')}
+                        <time dateTime={row.occurred_at || undefined}>
+                          {formatAmTimelineOccurredAt(row.occurred_at)}
                         </time>
                       </div>
                       <p>{row.summary || '—'}</p>
