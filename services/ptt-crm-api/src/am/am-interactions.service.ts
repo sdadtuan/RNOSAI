@@ -553,8 +553,17 @@ function mergeStoredTaskIds(
   incoming: AmInteractionActionItem[],
   stored: AmInteractionActionItem[],
 ): AmInteractionActionItem[] {
+  const used = new Set<number>();
   return incoming.map((item, i) => {
-    const taskId = stored[i]?.task_id || stored.find((row) => row.title === item.title)?.task_id;
+    let matchIndex = -1;
+    if (!used.has(i) && stored[i]?.title === item.title) {
+      matchIndex = i;
+    } else {
+      matchIndex = stored.findIndex((row, j) => !used.has(j) && row.title === item.title);
+    }
+    if (matchIndex < 0) return item;
+    used.add(matchIndex);
+    const taskId = stored[matchIndex]?.task_id;
     return taskId ? { ...item, task_id: taskId } : item;
   });
 }

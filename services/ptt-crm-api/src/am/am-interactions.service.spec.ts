@@ -232,6 +232,106 @@ describe('AmInteractionsService', () => {
     expect(patchedJson).not.toContain(fakeTaskId);
   });
 
+  it('patch does not attach a stored task_id to a different title at the same index', async () => {
+    const recapTaskId = '19d722af-0000-4000-8000-0000000000aa';
+    const bookTaskId = '19d722af-0000-4000-8000-0000000000bb';
+    const interactionRow = {
+      id: INTERACTION_ID,
+      agency_client_id: CLIENT_ID,
+      kind: 'note',
+      occurred_at: '2026-09-04T08:00:00.000Z',
+      actor_staff_id: STAFF_ID,
+      summary: 'QBR',
+      sentiment: null,
+      visibility: 'internal',
+      attendees_json: [],
+      action_items_json: [
+        { title: 'Gửi recap', done: true, task_id: recapTaskId },
+        { title: 'Book follow-up', done: true, task_id: bookTaskId },
+      ],
+      created_at: '2026-09-04T08:00:00.000Z',
+    };
+    let patchedJson = '';
+    repo.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const text = String(sql);
+      if (/UPDATE\s+crm_am_interactions/i.test(text)) {
+        patchedJson = String(params?.[6] ?? '');
+        return {
+          rows: [{ ...interactionRow, action_items_json: JSON.parse(patchedJson) }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [interactionRow], rowCount: 1 };
+    });
+
+    const out = await service.patch(
+      viewReq,
+      INTERACTION_ID,
+      {
+        action_items: [
+          { title: 'Book follow-up', done: true },
+          { title: 'New follow-up', done: false },
+        ],
+      },
+      STAFF_ID,
+    );
+
+    expect(out.action_items[0].title).toBe('Book follow-up');
+    expect(out.action_items[0].task_id).toBe(bookTaskId);
+    expect(out.action_items[0].task_id).not.toBe(recapTaskId);
+    expect(out.action_items[1].title).toBe('New follow-up');
+    expect(out.action_items[1].task_id).toBeUndefined();
+    expect(patchedJson).toContain(bookTaskId);
+    expect(patchedJson).not.toContain(recapTaskId);
+  });
+
+  it('patch assigns a stored task_id to only one incoming item when titles duplicate', async () => {
+    const storedTaskId = '19d722af-0000-4000-8000-0000000000cc';
+    const interactionRow = {
+      id: INTERACTION_ID,
+      agency_client_id: CLIENT_ID,
+      kind: 'note',
+      occurred_at: '2026-09-04T08:00:00.000Z',
+      actor_staff_id: STAFF_ID,
+      summary: 'QBR',
+      sentiment: null,
+      visibility: 'internal',
+      attendees_json: [],
+      action_items_json: [{ title: 'Follow up', done: true, task_id: storedTaskId }],
+      created_at: '2026-09-04T08:00:00.000Z',
+    };
+    let patchedItems: Array<{ title: string; task_id?: string }> = [];
+    repo.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const text = String(sql);
+      if (/UPDATE\s+crm_am_interactions/i.test(text)) {
+        patchedItems = JSON.parse(String(params?.[6] ?? '[]')) as typeof patchedItems;
+        return {
+          rows: [{ ...interactionRow, action_items_json: patchedItems }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [interactionRow], rowCount: 1 };
+    });
+
+    const out = await service.patch(
+      viewReq,
+      INTERACTION_ID,
+      {
+        action_items: [
+          { title: 'Follow up', done: true },
+          { title: 'Follow up', done: false },
+        ],
+      },
+      STAFF_ID,
+    );
+
+    const withStored = out.action_items.filter((item) => item.task_id === storedTaskId);
+    expect(withStored).toHaveLength(1);
+    expect(out.action_items[0].task_id).toBe(storedTaskId);
+    expect(out.action_items[1].task_id).toBeUndefined();
+    expect(patchedItems.filter((item) => item.task_id === storedTaskId)).toHaveLength(1);
+  });
+
   it('create with a done action item then toTask(0) is idempotent', async () => {
     const taskId = '19d722af-0000-4000-8000-0000000000cc';
     const createdByRef = new Map<string, string>();
