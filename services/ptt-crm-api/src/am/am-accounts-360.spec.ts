@@ -228,6 +228,28 @@ describe('AmAccountsService.patch 360', () => {
       service.patch(editReq, CHILD_ID, { parent_agency_client_id: 'not-a-uuid' }, editActor),
     ).rejects.toMatchObject({ status: 400, error: 'parent_invalid' });
   });
+
+  it('rejects Active without a primary contact with 400 primary_contact_required', async () => {
+    await expect(
+      service.patch(editReq, CHILD_ID, { am_status: 'active' }, editActor),
+    ).rejects.toMatchObject({ status: 400, error: 'primary_contact_required' });
+    const updates = db.query.mock.calls.filter((call) => /update\s+crm_am_account_ext/i.test(String(call[0])));
+    expect(updates).toHaveLength(0);
+  });
+
+  it('allows Active when the payload includes a primary contact', async () => {
+    await expect(
+      service.patch(
+        editReq,
+        CHILD_ID,
+        {
+          am_status: 'active',
+          contacts: [{ full_name: 'Nguyen An Phu', is_primary: true, channel: 'zalo' }],
+        },
+        editActor,
+      ),
+    ).resolves.toMatchObject({ agency_client_id: CHILD_ID });
+  });
 });
 
 describe('AmController contract amount', () => {

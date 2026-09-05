@@ -303,8 +303,21 @@ export type AmAccountContact = {
   is_primary: boolean;
   sentiment: string | null;
   channel: string | null;
+  renewal_attitude: string | null;
   email: string | null;
   phone: string | null;
+};
+
+export type AmContactInput = {
+  id?: string;
+  full_name: string;
+  role_committee?: string | null;
+  is_primary?: boolean;
+  sentiment?: string | null;
+  channel?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  renewal_attitude?: string | null;
 };
 
 export type AmAccountContract = {
@@ -382,6 +395,9 @@ export type AmPatchAccountBody = {
   am_status?: string;
   parent_agency_client_id?: string | null;
   archive?: boolean;
+  owner_staff_id?: number | null;
+  tags?: string[];
+  contacts?: AmContactInput[];
 };
 
 export async function fetchAmAccount(token: string, agencyClientId: string): Promise<AmAccount360> {

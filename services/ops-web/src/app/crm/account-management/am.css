@@ -318,6 +318,24 @@
   color: #9ca3af;
 }
 
+.am-create__menu a,
+.am-create__link {
+  display: block;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 8px;
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+  font: inherit;
+}
+
+.am-create__menu a:hover,
+.am-create__link:hover {
+  background: #eff6ff;
+}
+
 .am-drawer-bg {
   position: fixed;
   inset: 0;
@@ -607,6 +625,13 @@
 
 .am-list {
   display: grid;
+  gap: 12px;
+}
+
+.am-list__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
 }
 
@@ -961,6 +986,51 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
   margin: 0 0 8px;
   font-size: 16px;
   color: var(--am-navy);
+}
+
+.am-form-page__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.am-form-page__head h1 {
+  margin: 0;
+  font-size: 22px;
+  color: var(--am-navy);
+}
+
+.am-contact-card {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.am-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.am-tag {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: var(--am-navy);
+  border-radius: 99px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.am-field--check span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #111827;
 }
 
 @media (max-width: 720px) {

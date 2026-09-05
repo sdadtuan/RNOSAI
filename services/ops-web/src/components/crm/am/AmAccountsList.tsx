@@ -314,6 +314,9 @@ export function AmAccountsList() {
           <h1>Khách hàng</h1>
           <p className="am-muted">{total ? `${total} khách` : 'Danh sách theo phạm vi hiện tại'}</p>
         </div>
+        <Link className="am-btn am-btn--primary" href="/crm/account-management/clients/new">
+          Tạo khách
+        </Link>
       </div>
 
       <div className="am-chips" role="tablist" aria-label="Saved views">

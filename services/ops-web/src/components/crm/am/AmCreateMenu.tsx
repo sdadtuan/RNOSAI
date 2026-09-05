@@ -262,8 +262,11 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
       </button>
       {open ? (
         <div className="am-create__menu" role="menu">
+          <Link href="/crm/account-management/clients/new" role="menuitem" className="am-create__link" onClick={() => setOpen(false)}>
+            Khách (form đầy đủ)
+          </Link>
           <button type="button" role="menuitem" onClick={() => openStub('client')}>
-            Khách
+            Khách nhanh
           </button>
           <button type="button" role="menuitem" onClick={() => openStub('task')}>
             Việc

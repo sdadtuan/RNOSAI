@@ -22,7 +22,6 @@ import {
   am360LoadErrorKind,
   am360PatchToast,
   am360WaveCopy,
-  canEditAmAccountName,
   parseAm360Tab,
   type Am360LoadError,
   type Am360TabId,
@@ -30,6 +29,7 @@ import {
 import { canAssignAmAccounts } from '@/lib/crm/am-accounts-views.util';
 import { bandCopy, vnd } from '@/lib/crm/am-format';
 import { useToast } from '@/lib/toast';
+import { AmContactDrawer } from './AmContactDrawer';
 import { AmPlaceholder } from './AmPlaceholder';
 import { useAmPage } from './AmShell';
 
@@ -68,7 +68,6 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
 
   const canAssign = canAssignAmAccounts(user);
   const canManage = hasCap(user, 'crm_am', 'manage');
-  const canEditName = canEditAmAccountName(user);
   const primary = data?.contacts.find((row) => row.is_primary) ?? data?.contacts[0] ?? null;
 
   const load = useCallback(async () => {
@@ -326,7 +325,15 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
           </button>
           {menuOpen ? (
             <div className="am-create__menu" role="menu">
-              <button type="button" role="menuitem" disabled={!canEdit} onClick={() => openDrawer('edit')}>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!canEdit}
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push(`/crm/account-management/clients/${agencyClientId}/edit`);
+                }}
+              >
                 Sửa
               </button>
               <button type="button" role="menuitem" onClick={() => openDrawer('contact')}>
@@ -433,7 +440,18 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         </div>
       )}
 
-      {drawer ? (
+      {drawer === 'contact' ? (
+        <AmContactDrawer
+          contacts={data.contacts}
+          canEdit={canEdit}
+          busy={busy}
+          error={formError}
+          onClose={() => setDrawer(null)}
+          onSave={(contact) => onPatch({ contacts: [contact] })}
+        />
+      ) : null}
+
+      {drawer && drawer !== 'contact' ? (
         <div
           className="am-drawer-bg"
           role="presentation"
@@ -444,81 +462,20 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
           <div className="am-drawer" role="dialog" aria-modal="true">
             <div className="am-drawer__head">
               <strong>
-                {drawer === 'edit'
-                  ? 'Sửa khách'
-                  : drawer === 'contact'
-                    ? 'Contact'
-                    : drawer === 'owner'
-                      ? 'Đổi owner'
-                      : drawer === 'lifecycle'
-                        ? 'Lifecycle'
-                        : drawer === 'merge'
-                          ? 'Hợp nhất'
-                          : drawer === 'task'
-                            ? 'Tạo việc'
-                            : 'Bắt đầu gia hạn'}
+                {drawer === 'owner'
+                  ? 'Đổi owner'
+                  : drawer === 'lifecycle'
+                    ? 'Lifecycle'
+                    : drawer === 'merge'
+                      ? 'Hợp nhất'
+                      : drawer === 'task'
+                        ? 'Tạo việc'
+                        : 'Bắt đầu gia hạn'}
               </strong>
               <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
                 Đóng
               </button>
             </div>
-            {drawer === 'edit' ? (
-              <form
-                className="am-form"
-                onSubmit={(ev) => {
-                  ev.preventDefault();
-                  const form = new FormData(ev.currentTarget);
-                  void onPatch({
-                    name: canEditName
-                      ? String(form.get('name') ?? '').trim() || undefined
-                      : undefined,
-                    tier: String(form.get('tier') ?? '').trim() || null,
-                    team_id: String(form.get('team_id') ?? '').trim()
-                      ? Number(form.get('team_id'))
-                      : null,
-                    parent_agency_client_id: String(form.get('parent_agency_client_id') ?? '').trim() || null,
-                  });
-                }}
-              >
-                <label className="am-field">
-                  <span>Tên</span>
-                  <input
-                    name="name"
-                    defaultValue={data.name}
-                    disabled={!canEditName}
-                    title={canEditName ? 'Tên khách' : 'Cần quyền crm_agency.write'}
-                  />
-                </label>
-                {!canEditName ? (
-                  <p className="am-muted">Tên chỉ đổi được khi có quyền crm_agency.write.</p>
-                ) : null}
-                <label className="am-field">
-                  <span>Tier</span>
-                  <input name="tier" defaultValue={data.tier ?? ''} />
-                </label>
-                <label className="am-field">
-                  <span>Team ID</span>
-                  <input name="team_id" inputMode="numeric" defaultValue={data.team_id ?? ''} />
-                </label>
-                <label className="am-field">
-                  <span>Parent agency_client_id</span>
-                  <input
-                    name="parent_agency_client_id"
-                    defaultValue={data.parent_agency_client_id ?? ''}
-                  />
-                </label>
-                {formError ? <p className="am-banner">{formError}</p> : null}
-                <div className="am-form__actions">
-                  <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
-                    Hủy
-                  </button>
-                  <button type="submit" className="am-btn am-btn--primary" disabled={busy}>
-                    Lưu
-                  </button>
-                </div>
-              </form>
-            ) : null}
-            {drawer === 'contact' ? <ContactPanel contacts={data.contacts} primary={primary} /> : null}
             {drawer === 'owner' ? (
               <form className="am-form" onSubmit={(ev) => void onTransfer(ev)}>
                 <label className="am-field">
@@ -890,31 +847,3 @@ function AuditPanel({ data }: { data: AmAccount360Data }) {
   );
 }
 
-function ContactPanel({
-  contacts,
-  primary,
-}: {
-  contacts: AmAccountContact[];
-  primary: AmAccountContact | null;
-}) {
-  if (!contacts.length) {
-    return <p className="am-muted">Chưa có contact. Thêm contact sẽ mở ở form Wave 2 (Task 16).</p>;
-  }
-  return (
-    <ul className="am-work">
-      {contacts.map((row) => (
-        <li key={row.id} className="am-work__row">
-          <div>
-            <strong>
-              {row.full_name}
-              {row.id === primary?.id ? ' · chính' : ''}
-            </strong>
-            <div className="am-muted">
-              {dashText(row.role_committee)} · {dashText(row.email)} · {dashText(row.phone)}
-            </div>
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}

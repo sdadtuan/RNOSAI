@@ -84,6 +84,18 @@ export type AmTransferResult = {
   keep_secondary: boolean;
 };
 
+export type AmContactInput = {
+  id?: string;
+  full_name: string;
+  role_committee?: string | null;
+  is_primary?: boolean;
+  sentiment?: string | null;
+  channel?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  renewal_attitude?: string | null;
+};
+
 export type AmPatchAccountBody = {
   name?: string;
   tier?: string | null;
@@ -92,6 +104,9 @@ export type AmPatchAccountBody = {
   parent_agency_client_id?: string | null;
   archive?: boolean;
   amount_vnd?: unknown;
+  owner_staff_id?: number | null;
+  tags?: string[];
+  contacts?: AmContactInput[];
 };
 
 export type AmMergeAccountBody = {
@@ -113,6 +128,7 @@ export type AmAccountContact = {
   is_primary: boolean;
   sentiment: string | null;
   channel: string | null;
+  renewal_attitude: string | null;
   email: string | null;
   phone: string | null;
 };
@@ -493,6 +509,14 @@ export class AmAccountsService {
     const current = await this.loadAccountRow(scoped, id, true);
     if (!current) amThrow(404, { error: 'not_found' });
 
+    const requestedStatus = body.am_status != null ? String(body.am_status).trim() : '';
+    if (requestedStatus === 'active' && !(await this.hasPrimaryContact(id, body.contacts))) {
+      amThrow(400, { error: 'primary_contact_required' });
+    }
+    if (Array.isArray(body.contacts)) {
+      await this.upsertContacts(id, body.contacts);
+    }
+
     const sets: string[] = ['updated_at = now()'];
     const params: unknown[] = [AM_TENANT_ID, id];
     if (body.archive === true) {
@@ -504,6 +528,13 @@ export class AmAccountsService {
       const status = String(body.am_status).trim();
       if (!AM_STATUSES.has(status)) amThrow(400, { error: 'am_status_invalid' });
       sets.push(`am_status = ${pushParam(params, status)}`);
+    }
+    if ('owner_staff_id' in body) {
+      const ownerId = body.owner_staff_id == null || body.owner_staff_id === ('' as never)
+        ? null
+        : num(body.owner_staff_id);
+      if (body.owner_staff_id != null && ownerId == null) amThrow(400, { error: 'owner_staff_id_invalid' });
+      sets.push(`account_owner_staff_id = ${pushParam(params, ownerId)}`);
     }
     if ('tier' in body) {
       const tier = body.tier == null || body.tier === '' ? null : String(body.tier).trim();
@@ -563,6 +594,9 @@ export class AmAccountsService {
         am_status: body.am_status,
         parent_agency_client_id: body.parent_agency_client_id,
         archive: body.archive === true,
+        owner_staff_id: body.owner_staff_id,
+        tags: body.tags,
+        contacts: Array.isArray(body.contacts) ? body.contacts.length : undefined,
         name: nameUnchanged ? undefined : nextName || undefined,
         name_unchanged: nameUnchanged || undefined,
       },
@@ -896,10 +930,64 @@ export class AmAccountsService {
     }
   }
 
+  private async hasPrimaryContact(id: string, incoming?: AmContactInput[]): Promise<boolean> {
+    if (Array.isArray(incoming) && incoming.some((row) => Boolean(row.is_primary) && String(row.full_name ?? '').trim())) {
+      return true;
+    }
+    const existing = await this.loadContacts(id);
+    return existing.some((row) => row.is_primary);
+  }
+
+  private async upsertContacts(id: string, contacts: AmContactInput[]): Promise<void> {
+    try {
+      for (const raw of contacts) {
+        const fullName = String(raw.full_name ?? '').trim();
+        if (!fullName) continue;
+        const contactId = String(raw.id ?? '').trim();
+        const isPrimary = Boolean(raw.is_primary);
+        const fields = [
+          fullName,
+          text(raw.role_committee),
+          isPrimary,
+          text(raw.sentiment),
+          text(raw.channel),
+          text(raw.email),
+          text(raw.phone),
+          text(raw.renewal_attitude),
+        ];
+        if (isPrimary) {
+          await this.db.query(
+            `UPDATE crm_am_contacts SET is_primary = FALSE WHERE agency_client_id = $1::uuid AND tenant_id = $2`,
+            [id, AM_TENANT_ID],
+          );
+        }
+        if (contactId && isUuid(contactId)) {
+          await this.db.query(
+            `UPDATE crm_am_contacts
+                SET full_name = $3, role_committee = $4, is_primary = $5, sentiment = $6,
+                    channel = $7, email = $8, phone = $9, renewal_attitude = $10
+              WHERE id = $1::uuid AND agency_client_id = $2::uuid`,
+            [contactId, id, ...fields],
+          );
+        } else {
+          await this.db.query(
+            `INSERT INTO crm_am_contacts
+               (tenant_id, agency_client_id, full_name, role_committee, is_primary, sentiment, channel, email, phone, renewal_attitude)
+             VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [AM_TENANT_ID, id, ...fields],
+          );
+        }
+      }
+    } catch (err) {
+      if (isMissingRelation(err)) return;
+      throw err;
+    }
+  }
+
   private async loadContacts(id: string): Promise<AmAccountContact[]> {
     try {
       const result = await this.db.query(
-        `SELECT id::text AS id, full_name, role_committee, is_primary, sentiment, channel, email, phone
+        `SELECT id::text AS id, full_name, role_committee, is_primary, sentiment, channel, renewal_attitude, email, phone
            FROM crm_am_contacts
           WHERE agency_client_id = $1::uuid
           ORDER BY is_primary DESC, full_name`,
@@ -912,6 +1000,7 @@ export class AmAccountsService {
         is_primary: Boolean(row.is_primary),
         sentiment: text(row.sentiment),
         channel: text(row.channel),
+        renewal_attitude: text(row.renewal_attitude),
         email: text(row.email),
         phone: text(row.phone),
       }));
