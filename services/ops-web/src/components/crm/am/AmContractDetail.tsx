@@ -17,6 +17,7 @@ import {
   type AmContractLoadError,
   type AmContractTabId,
 } from '@/lib/crm/am-contract.util';
+import { AmDocumentsPanel } from './AmDocumentsPanel';
 import { AmPlaceholder } from './AmPlaceholder';
 import { useAmPage } from './AmShell';
 
@@ -28,7 +29,7 @@ function statusClass(status: string): string {
 }
 
 export function AmContractDetail({ contractId }: { contractId: string }) {
-  const { token } = useAmPage();
+  const { token, canEdit } = useAmPage();
   const router = useRouter();
   const pathname = usePathname() ?? `/crm/account-management/contracts/${contractId}`;
   const searchParams = useSearchParams();
@@ -214,8 +215,11 @@ export function AmContractDetail({ contractId }: { contractId: string }) {
 
       {tab === 'documents' ? (
         <section className="am-widget">
-          <h2>Tài liệu</h2>
-          <p className="am-muted">—</p>
+          <AmDocumentsPanel
+            agencyClientId={data.agency_client_id}
+            contractId={data.id}
+            canEdit={Boolean(canEdit)}
+          />
         </section>
       ) : null}
 

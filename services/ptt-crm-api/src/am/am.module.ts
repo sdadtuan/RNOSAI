@@ -17,6 +17,7 @@ import { AmContractsRepository, AmContractsService } from './am-contracts.servic
 import { AmRenewalsRepository, AmRenewalsService } from './am-renewals.service';
 import { AmRenewalWorker } from './am-renewal.worker';
 import { AmInteractionsRepository, AmInteractionsService } from './am-interactions.service';
+import { AmDocumentsRepository, AmDocumentsService } from './am-documents.service';
 import { AmRisksRepository, AmRisksService } from './am-risks.service';
 import { AmOpportunitiesRepository, AmOpportunitiesService } from './am-opportunities.service';
 import { AmReportsRepository, AmReportsService } from './am-reports.service';
@@ -60,6 +61,8 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmRenewalWorker,
     AmInteractionsRepository,
     AmInteractionsService,
+    AmDocumentsRepository,
+    AmDocumentsService,
     AmRisksRepository,
     AmRisksService,
     AmOpportunitiesRepository,
@@ -94,6 +97,7 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmRenewalsService,
     AmRenewalWorker,
     AmInteractionsService,
+    AmDocumentsService,
     AmRisksService,
     AmOpportunitiesService,
     AmReportsService,

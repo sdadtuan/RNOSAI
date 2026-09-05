@@ -1267,7 +1267,7 @@ export type AmOnboardingCase = {
   health_fresh_24h: boolean;
   stakeholders: Record<string, unknown>;
   activity: unknown[];
-  documents: unknown[];
+  documents: AmDocument[];
 };
 
 export type AmOnboardingTemplate = {
@@ -1397,7 +1397,7 @@ export type AmContractDetail = AmContractListItem & {
   obligations: unknown[];
   payment_schedule: unknown[];
   amendments: unknown[];
-  documents: unknown[];
+  documents: AmDocument[];
   renewal: {
     ends_on: string | null;
     days_remaining: number | null;
@@ -1573,6 +1573,55 @@ export type AmPatchInteractionInput = {
   attendees?: string[];
   action_items?: AmInteractionActionItem[];
 };
+
+export type AmDocument = {
+  id: string;
+  agency_client_id: string;
+  contract_id: number | null;
+  onboarding_case_id: string | null;
+  interaction_id: string | null;
+  title: string;
+  kind: 'link';
+  href: string;
+  created_by_staff_id: number | null;
+  created_at: string;
+};
+
+export type AmCreateDocumentInput = {
+  agency_client_id: string;
+  title?: string;
+  href?: string;
+  contract_id?: number;
+  onboarding_case_id?: string;
+  interaction_id?: string;
+};
+
+export async function fetchAmDocuments(
+  token: string,
+  query: {
+    agency_client_id: string;
+    contract_id?: number;
+    onboarding_case_id?: string;
+    scope?: AmScope;
+  },
+): Promise<{ items: AmDocument[] }> {
+  const params = new URLSearchParams();
+  params.set('agency_client_id', query.agency_client_id);
+  if (query.contract_id != null) params.set('contract_id', String(query.contract_id));
+  if (query.onboarding_case_id) params.set('onboarding_case_id', query.onboarding_case_id);
+  if (query.scope) params.set('scope', query.scope);
+  return amFetch<{ items: AmDocument[] }>(token, `/api/crm/am/documents?${params.toString()}`);
+}
+
+export async function createAmDocument(
+  token: string,
+  body: AmCreateDocumentInput,
+): Promise<AmDocument> {
+  return amFetch<AmDocument>(token, '/api/crm/am/documents', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
 
 export async function fetchAmInteractions(
   token: string,

@@ -43,6 +43,7 @@ import { useToast } from '@/lib/toast';
 import { amRecoveryRequiredCopy } from '@/lib/crm/am-risk.util';
 import { AmAccountProjects } from './AmAccountProjects';
 import { AmAccountWork } from './AmAccountWork';
+import { AmDocumentsPanel } from './AmDocumentsPanel';
 import { AmHealthDetail } from './AmHealthDetail';
 import { AmAiDrawer } from './AmAiDrawer';
 import { AmContactDrawer } from './AmContactDrawer';
@@ -632,6 +633,8 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         <AmGrowth key={growthRefreshNonce} agencyClientId={agencyClientId} embedded />
       ) : tab === 'feedback' ? (
         <AmFeedback agencyClientId={agencyClientId} embedded />
+      ) : tab === 'documents' ? (
+        <AmDocumentsPanel agencyClientId={agencyClientId} canEdit={canEdit} />
       ) : tab === 'audit' ? (
         <AuditPanel data={data} />
       ) : (

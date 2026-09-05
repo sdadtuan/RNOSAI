@@ -21,6 +21,7 @@ import {
   parseAmOnboardingTab,
   type AmOnboardingTabId,
 } from '@/lib/crm/am-onboarding.util';
+import { AmDocumentsPanel } from './AmDocumentsPanel';
 import { useAmPage } from './AmShell';
 
 type ChecklistFilter = 'all' | 'open' | 'overdue';
@@ -385,9 +386,17 @@ export function AmOnboarding({ caseId }: { caseId: string }) {
             </div>
           ) : null}
 
-          {tab === 'documents' || tab === 'activity' ? (
+          {tab === 'documents' ? (
+            <AmDocumentsPanel
+              agencyClientId={data.agency_client_id}
+              onboardingCaseId={data.id}
+              canEdit={Boolean(canEdit)}
+            />
+          ) : null}
+
+          {tab === 'activity' ? (
             <div>
-              <h2>{tab === 'documents' ? 'Tài liệu' : 'Activity'}</h2>
+              <h2>Activity</h2>
               <p className="am-muted">—</p>
             </div>
           ) : null}

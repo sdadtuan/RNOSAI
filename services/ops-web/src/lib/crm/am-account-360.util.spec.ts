@@ -33,22 +33,14 @@ describe('AM_360_TABS', () => {
     expect(am360HasForbiddenTabs()).toBe(false);
   });
 
-  it('implements overview, timeline, projects, work, finance, health, opportunities, feedback, and audit', () => {
-    const implemented = AM_360_TABS.filter((tab) => tab.implemented).map((tab) => tab.id);
-    expect(implemented).toEqual([
-      'overview',
-      'timeline',
-      'projects',
-      'work',
-      'finance',
-      'health',
-      'opportunities',
-      'feedback',
-      'audit',
-    ]);
+  it('implements all ten 360 tabs', () => {
+    expect(AM_360_TABS.filter((t) => t.implemented).map((t) => t.id)).toEqual(
+      AM_360_TABS.map((t) => t.id),
+    );
     expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'timeline')!)).toBe('');
     expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'opportunities')!)).toBe('');
     expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'feedback')!)).toBe('');
+    expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'documents')!)).toBe('');
   });
 
   it('defaults unknown tab query to overview', () => {

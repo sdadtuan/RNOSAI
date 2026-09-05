@@ -51,6 +51,11 @@ import {
   type AmPatchInteractionInput,
 } from './am-interactions.service';
 import {
+  AmDocumentsService,
+  type AmCreateDocumentInput,
+  type AmDocumentsListQuery,
+} from './am-documents.service';
+import {
   AmRisksService,
   type AmCloseRecoveryInput,
   type AmCreateRecoveryInput,
@@ -111,6 +116,7 @@ export class AmController {
     private readonly renewals: AmRenewalsService,
     private readonly renewalWorker: AmRenewalWorker,
     private readonly interactions: AmInteractionsService,
+    private readonly documents: AmDocumentsService,
     private readonly risks: AmRisksService,
     private readonly opportunities: AmOpportunitiesService,
     private readonly reports: AmReportsService,
@@ -665,6 +671,18 @@ export class AmController {
     @Body() body: AmPatchSlaInput,
   ) {
     return this.slaPolicies.patch(id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Get('documents')
+  @RequireAmAction('view')
+  listDocuments(@Req() req: AuthedReq, @Query() q: AmDocumentsListQuery) {
+    return this.documents.list(req, q);
+  }
+
+  @Post('documents')
+  @RequireAmAction('edit')
+  async createDocument(@Req() req: AuthedReq, @Body() body: AmCreateDocumentInput) {
+    return this.documents.create(body ?? {}, await this.actorStaffId(req));
   }
 
   @Get('interactions')

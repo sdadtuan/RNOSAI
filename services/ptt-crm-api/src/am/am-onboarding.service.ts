@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
+import { listAmDocuments, type AmDocument } from './am-documents.service';
 import { amThrow } from './am-http';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
 import { isUuid } from './am-tasks.service';
@@ -95,7 +96,7 @@ export type AmOnboardingCase = {
   health_fresh_24h: boolean;
   stakeholders: Record<string, unknown>;
   activity: unknown[];
-  documents: unknown[];
+  documents: AmDocument[];
 };
 
 export type AmOnboardingCaseListItem = {
@@ -437,7 +438,7 @@ export class AmOnboardingService {
   async getCase(req: AmHandoverReq, id: string): Promise<AmOnboardingCase> {
     const row = await this.requireCase(req, id);
     const extras = await this.loadCaseExtras(row.agency_client_id);
-    return mapCaseDetail(row, extras);
+    return this.mapCaseWithDocuments(row, extras);
   }
 
   async patchCase(req: AmHandoverReq, id: string, body: AmPatchCaseBody): Promise<AmOnboardingCase> {
@@ -518,7 +519,7 @@ export class AmOnboardingService {
     });
 
     const extras = await this.loadCaseExtras(row.agency_client_id);
-    return mapCaseDetail(
+    return this.mapCaseWithDocuments(
       { ...row, status: 'closed', go_live_on: goLiveOn, override_reason: reason || null },
       extras,
     );
@@ -769,6 +770,14 @@ export class AmOnboardingService {
       delivery_owner: delivery == null || delivery === '' ? null : String(delivery),
       health_fresh_24h: health.rows.length > 0,
     };
+  }
+
+  private async mapCaseWithDocuments(row: CaseRow, extras: CaseExtras): Promise<AmOnboardingCase> {
+    const documents = await listAmDocuments(this.db, {
+      agency_client_id: row.agency_client_id,
+      onboarding_case_id: row.id,
+    });
+    return mapCaseDetail(row, extras, documents);
   }
 
   private async requireTemplate(id: string): Promise<AmOnboardingTemplate> {
@@ -1023,7 +1032,11 @@ function mapCaseRow(row: Record<string, unknown>): CaseRow {
   };
 }
 
-function mapCaseDetail(row: CaseRow, extras: CaseExtras): AmOnboardingCase {
+function mapCaseDetail(
+  row: CaseRow,
+  extras: CaseExtras,
+  documents: AmDocument[] = [],
+): AmOnboardingCase {
   const items = hydrateCaseItems(row.items_json, row.created_at);
   return {
     id: row.id,
@@ -1041,7 +1054,7 @@ function mapCaseDetail(row: CaseRow, extras: CaseExtras): AmOnboardingCase {
     health_fresh_24h: extras.health_fresh_24h,
     stakeholders: extras.stakeholders,
     activity: [],
-    documents: [],
+    documents,
   };
 }
 

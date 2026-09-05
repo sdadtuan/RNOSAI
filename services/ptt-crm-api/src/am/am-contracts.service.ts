@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { AM_TENANT_ID } from './am-audit.repository';
+import { listAmDocuments, type AmDocument } from './am-documents.service';
 import { amThrow } from './am-http';
 import { monthlyRecurringVnd } from './am-money.util';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
@@ -62,7 +63,7 @@ export type AmContractDetail = AmContractListItem & {
   obligations: [];
   payment_schedule: [];
   amendments: [];
-  documents: [];
+  documents: AmDocument[];
   renewal: {
     ends_on: string | null;
     days_remaining: number | null;
@@ -193,9 +194,10 @@ export class AmContractsService {
     if (!row) amThrow(404, { error: 'not_found' });
 
     const list = this.mapListItem(row, hideAmounts);
-    const [openCaseId, audit] = await Promise.all([
+    const [openCaseId, audit, documents] = await Promise.all([
       this.loadOpenRenewalCaseId(id),
       this.loadAudit(id),
+      listAmDocuments(this.db, { agency_client_id: list.agency_client_id, contract_id: id }),
     ]);
     return {
       ...list,
@@ -206,7 +208,7 @@ export class AmContractsService {
       obligations: [],
       payment_schedule: [],
       amendments: [],
-      documents: [],
+      documents,
       renewal: {
         ends_on: list.ends_on,
         days_remaining: list.days_remaining,
