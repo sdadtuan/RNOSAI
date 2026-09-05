@@ -18,7 +18,10 @@ export function amRecoveryRequiredCopy(): string {
   return 'Critical — bắt buộc recovery plan đang mở trước khi tạo care plan.';
 }
 
-export function amRiskPxI(probability: number | '' | null | undefined, impact: number | '' | null | undefined): string {
+export function amRiskPxI(
+  probability: number | string | '' | null | undefined,
+  impact: number | string | '' | null | undefined,
+): string {
   const p = Number(probability);
   const i = Number(impact);
   if (!Number.isFinite(p) || !Number.isFinite(i) || p <= 0 || i <= 0) return '—';

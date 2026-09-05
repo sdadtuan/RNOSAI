@@ -36,7 +36,8 @@ function isChecklist(item: AmOnboardingCaseItem): boolean {
 }
 
 function isOverdue(item: AmOnboardingCaseItem, today: string): boolean {
-  return !item.done && Boolean(item.due_on) && item.due_on < today;
+  const dueOn = item.due_on;
+  return !item.done && dueOn != null && dueOn < today;
 }
 
 function todayYmd(): string {
