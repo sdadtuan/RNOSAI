@@ -28,6 +28,49 @@ export type AmReportsQuery = { from?: string; to?: string; scope?: AmScope };
 const ICT = 'Asia/Ho_Chi_Minh';
 const FORECAST_BUCKETS = ['committed', 'likely', 'risk', 'unlikely'] as const;
 
+export const AM_REPORTS_CLIENTS_JOIN = 'INNER JOIN clients c ON c.id = e.agency_client_id';
+
+export function amReportsBookSql(boundSql: string): string {
+  return `
+      SELECT
+        e.agency_client_id::text AS agency_client_id,
+        e.account_owner_staff_id,
+        e.am_status,
+        e.churned_at,
+        e.churn_reason,
+        COALESCE(cts.contracts, '[]'::json) AS contracts
+      FROM crm_am_account_ext e
+      ${AM_REPORTS_CLIENTS_JOIN}
+      LEFT JOIN LATERAL (
+        SELECT json_agg(json_build_object(
+          'billing_type', ct.billing_type,
+          'amount_vnd', ct.amount_vnd,
+          'starts_on', ct.starts_on,
+          'ends_on', ct.ends_on,
+          'status', ct.status
+        )) AS contracts
+        FROM crm_contracts ct
+        WHERE TRIM(COALESCE(ct.agency_client_id, '')) = e.agency_client_id::text
+      ) cts ON TRUE
+      WHERE e.tenant_id = $1
+        AND ${boundSql}`;
+}
+
+export function amReportsBookWithoutContractsSql(boundSql: string): string {
+  return `
+      SELECT
+        e.agency_client_id::text AS agency_client_id,
+        e.account_owner_staff_id,
+        e.am_status,
+        e.churned_at,
+        e.churn_reason,
+        '[]'::json AS contracts
+      FROM crm_am_account_ext e
+      ${AM_REPORTS_CLIENTS_JOIN}
+      WHERE e.tenant_id = $1
+        AND ${boundSql}`;
+}
+
 export type AmReportsStore = {
   loadBook(staffId: number, scope: AmScope, teamIds: number[]): Promise<AmReportsClient[]>;
   loadWonExpandOpps(
@@ -71,28 +114,7 @@ export class AmReportsRepository implements OnModuleDestroy, AmReportsStore {
 
   async loadBook(staffId: number, scope: AmScope, teamIds: number[]): Promise<AmReportsClient[]> {
     const bound = bindScopeSql(amScopeSql({ scope, staffId, teamIds }), 2);
-    const sql = `
-      SELECT
-        e.agency_client_id::text AS agency_client_id,
-        e.account_owner_staff_id,
-        e.am_status,
-        e.churned_at,
-        e.churn_reason,
-        COALESCE(cts.contracts, '[]'::json) AS contracts
-      FROM crm_am_account_ext e
-      LEFT JOIN LATERAL (
-        SELECT json_agg(json_build_object(
-          'billing_type', ct.billing_type,
-          'amount_vnd', ct.amount_vnd,
-          'starts_on', ct.starts_on,
-          'ends_on', ct.ends_on,
-          'status', ct.status
-        )) AS contracts
-        FROM crm_contracts ct
-        WHERE TRIM(COALESCE(ct.agency_client_id, '')) = e.agency_client_id::text
-      ) cts ON TRUE
-      WHERE e.tenant_id = $1
-        AND ${bound.sql}`;
+    const sql = amReportsBookSql(bound.sql);
     try {
       const result = await this.db.query(sql, [AM_TENANT_ID, ...bound.params]);
       return result.rows.map(mapBookRow);
@@ -108,17 +130,7 @@ export class AmReportsRepository implements OnModuleDestroy, AmReportsStore {
     teamIds: number[],
   ): Promise<AmReportsClient[]> {
     const bound = bindScopeSql(amScopeSql({ scope, staffId, teamIds }), 2);
-    const sql = `
-      SELECT
-        e.agency_client_id::text AS agency_client_id,
-        e.account_owner_staff_id,
-        e.am_status,
-        e.churned_at,
-        e.churn_reason,
-        '[]'::json AS contracts
-      FROM crm_am_account_ext e
-      WHERE e.tenant_id = $1
-        AND ${bound.sql}`;
+    const sql = amReportsBookWithoutContractsSql(bound.sql);
     try {
       const result = await this.db.query(sql, [AM_TENANT_ID, ...bound.params]);
       return result.rows.map(mapBookRow);

@@ -872,10 +872,22 @@ export type AmReportsRetention = {
     churned_mrr: string;
     expansion_mrr: string | null;
   };
-  cohort: Array<{ cohort: string; cells: Array<{ period: string; rate: number | null }> }>;
-  forecast: Array<{ bucket: 'committed' | 'likely' | 'risk' | 'unlikely'; value_vnd: number | null }>;
-  churn_reasons: Array<{ reason: string; count: number; mrr: number | null }>;
-  by_owner: Array<{ owner_staff_id: number | null; logo: number | null; grr: number | null }>;
+  cohort: Array<{
+    cohort: string;
+    cells: Array<{ period: string; rate: number | null; href: string }>;
+  }>;
+  forecast: Array<{
+    bucket: 'committed' | 'likely' | 'risk' | 'unlikely';
+    value_vnd: number | null;
+    href: string;
+  }>;
+  churn_reasons: Array<{ reason: string; count: number; mrr: number | null; href: string }>;
+  by_owner: Array<{
+    owner_staff_id: number | null;
+    logo: number | null;
+    grr: number | null;
+    href: string;
+  }>;
 };
 
 export async function fetchAmRetentionReports(

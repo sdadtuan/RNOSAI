@@ -61,7 +61,6 @@ export function AmReports() {
   const drills = data?.drills;
   const formulas = data?.formulas;
   const forecastTotal = (data?.forecast ?? []).reduce((sum, row) => sum + (row.value_vnd ?? 0), 0);
-  const forecastDrill = drills?.grr ?? '/crm/account-management/clients';
 
   function setPeriod(nextFrom: string, nextTo: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -188,7 +187,7 @@ export function AmReports() {
                         <td key={cell.period}>
                           <Link
                             className={amReportsHeatClass(cell.rate)}
-                            href={drills?.logo ?? '#'}
+                            href={cell.href}
                             title={formulas?.logo}
                           >
                             {amReportsFormatRate(cell.rate)}
@@ -215,7 +214,7 @@ export function AmReports() {
                 {data.forecast.map((row) => (
                   <Link
                     key={row.bucket}
-                    href={forecastDrill}
+                    href={row.href}
                     title={FORECAST_LABEL[row.bucket]}
                     style={{ width: `${amReportsForecastWidth(row.value_vnd, forecastTotal)}%` }}
                     className={`am-reports-stack__${row.bucket}`}
@@ -227,9 +226,9 @@ export function AmReports() {
               <ul className="am-legend">
                 {data.forecast.map((row) => (
                   <li key={row.bucket}>
-                    <Link href={forecastDrill}>{FORECAST_LABEL[row.bucket]}</Link>
+                    <Link href={row.href}>{FORECAST_LABEL[row.bucket]}</Link>
                     {': '}
-                    <Link href={forecastDrill}>{amReportsMoney(row.value_vnd)}</Link>
+                    <Link href={row.href}>{amReportsMoney(row.value_vnd)}</Link>
                   </li>
                 ))}
               </ul>
@@ -259,13 +258,13 @@ export function AmReports() {
                   {data.churn_reasons.map((row) => (
                     <tr key={row.reason}>
                       <td>
-                        <Link href={drills?.churned_mrr ?? '#'}>{row.reason}</Link>
+                        <Link href={row.href}>{row.reason}</Link>
                       </td>
                       <td>
-                        <Link href={drills?.churned_mrr ?? '#'}>{row.count}</Link>
+                        <Link href={row.href}>{row.count}</Link>
                       </td>
                       <td>
-                        <Link href={drills?.churned_mrr ?? '#'}>{amReportsMoney(row.mrr)}</Link>
+                        <Link href={row.href}>{amReportsMoney(row.mrr)}</Link>
                       </td>
                     </tr>
                   ))}
@@ -295,17 +294,17 @@ export function AmReports() {
                   {data.by_owner.map((row) => (
                     <tr key={String(row.owner_staff_id ?? 'unassigned')}>
                       <td>
-                        <Link href={drills?.logo ?? '#'}>
+                        <Link href={row.href}>
                           {row.owner_staff_id == null ? 'Chưa gán' : `#${row.owner_staff_id}`}
                         </Link>
                       </td>
                       <td>
-                        <Link href={drills?.logo ?? '#'} title={formulas?.logo}>
+                        <Link href={row.href} title={formulas?.logo}>
                           {amReportsFormatRate(row.logo)}
                         </Link>
                       </td>
                       <td>
-                        <Link href={drills?.grr ?? '#'} title={formulas?.grr}>
+                        <Link href={row.href} title={formulas?.grr}>
                           {amReportsFormatRate(row.grr)}
                         </Link>
                       </td>

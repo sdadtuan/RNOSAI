@@ -26,6 +26,33 @@ describe('am-reports.util', () => {
     ).toBe('/crm/account-management/clients?from=2026-01-01&to=2026-09-05&scope=me&report=logo');
   });
 
+  it('builds owner and reason drills that differ from the Logo href', () => {
+    const logo = amReportsDrillHref({
+      report: 'logo',
+      from: '2026-01-01',
+      to: '2026-09-05',
+      scope: 'me',
+    });
+    const owner = amReportsDrillHref({
+      report: 'logo',
+      from: '2026-01-01',
+      to: '2026-09-05',
+      scope: 'me',
+      owner: 7,
+    });
+    const reason = amReportsDrillHref({
+      report: 'churned_mrr',
+      from: '2026-01-01',
+      to: '2026-09-05',
+      scope: 'me',
+      reason: 'Giá',
+    });
+    expect(owner).toContain('owner=7');
+    expect(owner).not.toBe(logo);
+    expect(reason).toContain('reason=');
+    expect(reason).not.toBe(logo);
+  });
+
   it('formats rate as percent or em dash', () => {
     expect(amReportsFormatRate(0.85)).toBe('85%');
     expect(amReportsFormatRate(1.05)).toBe('105%');

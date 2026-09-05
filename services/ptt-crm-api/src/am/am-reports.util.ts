@@ -70,10 +70,22 @@ export type AmReportsRetention = {
     churned_mrr: string;
     expansion_mrr: string | null;
   };
-  cohort: Array<{ cohort: string; cells: Array<{ period: string; rate: number | null }> }>;
-  forecast: Array<{ bucket: 'committed' | 'likely' | 'risk' | 'unlikely'; value_vnd: number | null }>;
-  churn_reasons: Array<{ reason: string; count: number; mrr: number | null }>;
-  by_owner: Array<{ owner_staff_id: number | null; logo: number | null; grr: number | null }>;
+  cohort: Array<{
+    cohort: string;
+    cells: Array<{ period: string; rate: number | null; href: string }>;
+  }>;
+  forecast: Array<{
+    bucket: 'committed' | 'likely' | 'risk' | 'unlikely';
+    value_vnd: number | null;
+    href: string;
+  }>;
+  churn_reasons: Array<{ reason: string; count: number; mrr: number | null; href: string }>;
+  by_owner: Array<{
+    owner_staff_id: number | null;
+    logo: number | null;
+    grr: number | null;
+    href: string;
+  }>;
 };
 
 export function amGrrNrr({
@@ -167,6 +179,7 @@ export function amIsStartSetLogo(
 ): boolean {
   if (amIsNewLogo(amFirstRecurringStartsOn(client.contracts), period.from, period.to)) return false;
   if (churnedOnOrBefore(client.churned_at, period.from)) return false;
+  if (amStatusChurnedBeforeFrom(client, period.from)) return false;
   return client.contracts.some((ct) => {
     if (!amContractActiveOn(dayStr(ct.starts_on), dayStr(ct.ends_on), period.from)) return false;
     return (
@@ -191,13 +204,24 @@ export function amReportsDrillHref(opts: {
   report: string;
   from: string;
   to: string;
-  scope: string;
+  scope?: string;
+  cohort?: string;
+  cell?: string;
+  forecast?: string;
+  reason?: string;
+  owner?: string | number | null;
 }): string {
   const params = new URLSearchParams();
   params.set('from', opts.from);
   params.set('to', opts.to);
-  params.set('scope', opts.scope);
+  if (opts.scope) params.set('scope', opts.scope);
   params.set('report', opts.report);
+  if (opts.cohort) params.set('cohort', opts.cohort);
+  if (opts.cell) params.set('period', opts.cell);
+  if (opts.forecast) params.set('forecast', opts.forecast);
+  if (opts.reason) params.set('reason', opts.reason);
+  if (opts.owner === null) params.set('owner', 'unassigned');
+  else if (opts.owner != null && opts.owner !== '') params.set('owner', String(opts.owner));
   return `/crm/account-management/clients?${params.toString()}`;
 }
 
@@ -218,6 +242,7 @@ export function amBuildRetention(input: {
   }
 
   const startSet = amLogoStartSet(input.clients, period);
+  const startIds = new Set(startSet.map((row) => row.agency_client_id));
   const remaining = startSet.filter((row) =>
     isRemainingEnd(row, period.to, lostByClient.get(row.agency_client_id) ?? null),
   );
@@ -263,6 +288,7 @@ export function amBuildRetention(input: {
   const oppByClient = new Map<string, number>();
   for (const opp of input.wonExpandOpps) {
     if (!amIsExpandKind(opp.kind) || opp.value_vnd == null) continue;
+    if (!startIds.has(opp.agency_client_id)) continue;
     if (expandedClients.has(opp.agency_client_id)) continue;
     oppByClient.set(opp.agency_client_id, (oppByClient.get(opp.agency_client_id) ?? 0) + opp.value_vnd);
   }
@@ -311,10 +337,19 @@ export function amBuildRetention(input: {
         ? null
         : amReportsDrillHref({ report: 'expansion_mrr', from: period.from, to: period.to, scope }),
     },
-    cohort: buildCohort(startSet, period, lostByClient),
-    forecast: input.forecast,
-    churn_reasons: buildChurnReasons(churned, period.from, lostByClient),
-    by_owner: buildByOwner(startSet, remaining, period, lostByClient),
+    cohort: buildCohort(startSet, period, scope, lostByClient),
+    forecast: input.forecast.map((row) => ({
+      ...row,
+      href: amReportsDrillHref({
+        report: 'forecast',
+        from: period.from,
+        to: period.to,
+        scope,
+        forecast: row.bucket,
+      }),
+    })),
+    churn_reasons: buildChurnReasons(churned, period, scope, lostByClient),
+    by_owner: buildByOwner(startSet, remaining, period, scope, lostByClient),
   };
 }
 
@@ -345,9 +380,17 @@ function churnedOnOrBefore(value: string | null, on: string): boolean {
   return Boolean(day && day <= on);
 }
 
+function amStatusChurnedBeforeFrom(client: AmReportsClient, from: string): boolean {
+  if (String(client.am_status ?? '').trim().toLowerCase() !== 'churned') return false;
+  const churnedOn = dayStr(client.churned_at);
+  if (!churnedOn) return true;
+  return churnedOn <= from;
+}
+
 function buildCohort(
   startSet: AmReportsClient[],
   period: { from: string; to: string },
+  scope: AmScope,
   lostByClient: Map<string, AmReportsLostRenewal>,
 ): AmReportsRetention['cohort'] {
   if (!startSet.length) return [];
@@ -369,14 +412,26 @@ function buildCohort(
         const remaining = rows.filter((row) =>
           isRemainingEnd(row, asOf, lostByClient.get(row.agency_client_id) ?? null),
         ).length;
-        return { period: ym, rate: amLogoRetention({ startSet: rows.length, remainingEnd: remaining }) };
+        return {
+          period: ym,
+          rate: amLogoRetention({ startSet: rows.length, remainingEnd: remaining }),
+          href: amReportsDrillHref({
+            report: 'logo',
+            from: period.from,
+            to: period.to,
+            scope,
+            cohort,
+            cell: ym,
+          }),
+        };
       }),
     }));
 }
 
 function buildChurnReasons(
   churned: AmReportsClient[],
-  from: string,
+  period: { from: string; to: string },
+  scope: AmScope,
   lostByClient: Map<string, AmReportsLostRenewal>,
 ): AmReportsRetention['churn_reasons'] {
   const map = new Map<string, { count: number; mrr: number; had: boolean }>();
@@ -385,7 +440,7 @@ function buildChurnReasons(
     const reason = String(row.churn_reason ?? lost?.lost_reason ?? '').trim() || 'Không rõ';
     const cur = map.get(reason) ?? { count: 0, mrr: 0, had: false };
     cur.count += 1;
-    const mrr = amRecurringMrrAt(row.contracts, from);
+    const mrr = amRecurringMrrAt(row.contracts, period.from);
     if (mrr != null) {
       cur.mrr += mrr;
       cur.had = true;
@@ -394,13 +449,25 @@ function buildChurnReasons(
   }
   return [...map.entries()]
     .sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]))
-    .map(([reason, row]) => ({ reason, count: row.count, mrr: row.had ? row.mrr : null }));
+    .map(([reason, row]) => ({
+      reason,
+      count: row.count,
+      mrr: row.had ? row.mrr : null,
+      href: amReportsDrillHref({
+        report: 'churned_mrr',
+        from: period.from,
+        to: period.to,
+        scope,
+        reason,
+      }),
+    }));
 }
 
 function buildByOwner(
   startSet: AmReportsClient[],
   remaining: AmReportsClient[],
   period: { from: string; to: string },
+  scope: AmScope,
   lostByClient: Map<string, AmReportsLostRenewal>,
 ): AmReportsRetention['by_owner'] {
   const owners = [...new Set(startSet.map((row) => row.owner_staff_id))];
@@ -436,6 +503,13 @@ function buildByOwner(
           contraction,
           expansion: null,
         }).grr,
+        href: amReportsDrillHref({
+          report: 'logo',
+          from: period.from,
+          to: period.to,
+          scope,
+          owner,
+        }),
       };
     });
 }

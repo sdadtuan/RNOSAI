@@ -20,12 +20,23 @@ export function amReportsDrillHref(opts: {
   from: string;
   to: string;
   scope?: string;
+  cohort?: string;
+  cell?: string;
+  forecast?: string;
+  reason?: string;
+  owner?: string | number | null;
 }): string {
   const params = new URLSearchParams();
   params.set('from', opts.from);
   params.set('to', opts.to);
   if (opts.scope) params.set('scope', opts.scope);
   params.set('report', opts.report);
+  if (opts.cohort) params.set('cohort', opts.cohort);
+  if (opts.cell) params.set('period', opts.cell);
+  if (opts.forecast) params.set('forecast', opts.forecast);
+  if (opts.reason) params.set('reason', opts.reason);
+  if (opts.owner === null) params.set('owner', 'unassigned');
+  else if (opts.owner != null && opts.owner !== '') params.set('owner', String(opts.owner));
   return `/crm/account-management/clients?${params.toString()}`;
 }
 

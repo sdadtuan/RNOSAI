@@ -1,4 +1,8 @@
-import { AmReportsService } from './am-reports.service';
+import {
+  AmReportsService,
+  amReportsBookSql,
+  amReportsBookWithoutContractsSql,
+} from './am-reports.service';
 
 const FROM = '2026-01-01';
 const TO = '2026-09-05';
@@ -72,5 +76,11 @@ describe('AmReportsService', () => {
     expect(out.kpis.expansion_mrr).toBeNull();
     expect(out.kpis.logo).toBe(1);
     expect(out.formulas.grr).toContain('GRR');
+  });
+
+  it('joins Customer SoR clients on both book queries', () => {
+    const join = /INNER JOIN clients c ON c\.id = e\.agency_client_id/;
+    expect(amReportsBookSql('TRUE')).toMatch(join);
+    expect(amReportsBookWithoutContractsSql('TRUE')).toMatch(join);
   });
 });
