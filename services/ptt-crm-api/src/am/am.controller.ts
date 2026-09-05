@@ -63,6 +63,7 @@ import {
   type AmOpportunitiesListQuery,
   type AmPatchOpportunityInput,
 } from './am-opportunities.service';
+import { AmReportsService } from './am-reports.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -92,6 +93,7 @@ export class AmController {
     private readonly interactions: AmInteractionsService,
     private readonly risks: AmRisksService,
     private readonly opportunities: AmOpportunitiesService,
+    private readonly reports: AmReportsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -515,6 +517,15 @@ export class AmController {
     @Body() body: AmPatchOpportunityInput,
   ) {
     return this.opportunities.patch(req, id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Get('reports/retention')
+  @RequireAmAction('view')
+  reportsRetention(
+    @Req() req: AuthedReq,
+    @Query() q: { from?: string; to?: string; scope?: AmScope },
+  ) {
+    return this.reports.retention(req, q);
   }
 
   @Get('interactions')

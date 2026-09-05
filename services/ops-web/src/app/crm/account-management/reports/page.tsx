@@ -1,5 +1,5 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+import { AmReports } from '@/components/crm/am/AmReports';
 
 export default function AmReportsPage() {
-  return <AmPlaceholder title="Báo cáo" wave={4} />;
+  return <AmReports />;
 }

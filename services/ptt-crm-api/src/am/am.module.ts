@@ -19,6 +19,7 @@ import { AmRenewalWorker } from './am-renewal.worker';
 import { AmInteractionsRepository, AmInteractionsService } from './am-interactions.service';
 import { AmRisksRepository, AmRisksService } from './am-risks.service';
 import { AmOpportunitiesRepository, AmOpportunitiesService } from './am-opportunities.service';
+import { AmReportsRepository, AmReportsService } from './am-reports.service';
 import { AmController } from './am.controller';
 import { StaffAmGuard } from './guards/staff-am.guard';
 
@@ -58,6 +59,8 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmRisksService,
     AmOpportunitiesRepository,
     AmOpportunitiesService,
+    AmReportsRepository,
+    AmReportsService,
   ],
   exports: [
     StaffAmGuard,
@@ -78,6 +81,7 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmInteractionsService,
     AmRisksService,
     AmOpportunitiesService,
+    AmReportsService,
   ],
 })
 export class AmModule {}

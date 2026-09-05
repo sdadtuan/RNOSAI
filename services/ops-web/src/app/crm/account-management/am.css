@@ -1539,3 +1539,67 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
   font-size: 13px;
   white-space: pre-wrap;
 }
+
+.am-reports-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.am-reports-water {
+  margin: 4px 0 0;
+}
+
+.am-reports-note {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.am-reports-heat td a {
+  display: block;
+  text-align: center;
+  padding: 6px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.am-reports-heat--hi {
+  background: #bbf7d0;
+}
+
+.am-reports-heat--mid {
+  background: #fde68a;
+}
+
+.am-reports-heat--lo {
+  background: #fecaca;
+}
+
+.am-reports-heat--empty {
+  background: #f3f4f6;
+}
+
+.am-reports-stack a {
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+.am-reports-stack__committed {
+  background: #16a34a;
+}
+
+.am-reports-stack__likely {
+  background: #2563eb;
+}
+
+.am-reports-stack__risk {
+  background: #d97706;
+}
+
+.am-reports-stack__unlikely {
+  background: #dc2626;
+}

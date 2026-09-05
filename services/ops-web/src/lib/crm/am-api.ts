@@ -852,6 +852,44 @@ export type AmCreateOpportunityInput = {
 
 export type AmPatchOpportunityInput = Partial<Omit<AmCreateOpportunityInput, 'agency_client_id'>>;
 
+export type AmReportsRetention = {
+  period: { from: string; to: string };
+  freshness: { as_of: string; stale: boolean };
+  kpis: {
+    logo: number | null;
+    grr: number | null;
+    nrr: number | null;
+    churned_mrr: number | null;
+    expansion_mrr: number | null;
+  };
+  nrr_hidden: boolean;
+  note: string | null;
+  formulas: { logo: string; grr: string; nrr: string };
+  drills: {
+    logo: string;
+    grr: string;
+    nrr: string | null;
+    churned_mrr: string;
+    expansion_mrr: string | null;
+  };
+  cohort: Array<{ cohort: string; cells: Array<{ period: string; rate: number | null }> }>;
+  forecast: Array<{ bucket: 'committed' | 'likely' | 'risk' | 'unlikely'; value_vnd: number | null }>;
+  churn_reasons: Array<{ reason: string; count: number; mrr: number | null }>;
+  by_owner: Array<{ owner_staff_id: number | null; logo: number | null; grr: number | null }>;
+};
+
+export async function fetchAmRetentionReports(
+  token: string,
+  query: AmCommandCenterQuery = {},
+): Promise<AmReportsRetention> {
+  const params = new URLSearchParams();
+  if (query.scope) params.set('scope', query.scope);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return amFetch<AmReportsRetention>(token, `/api/crm/am/reports/retention${suffix}`);
+}
+
 export async function fetchAmOpportunities(
   token: string,
   query: { agency_client_id?: string; scope?: AmScope; stage?: string } = {},
