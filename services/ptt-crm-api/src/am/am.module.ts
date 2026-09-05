@@ -13,6 +13,7 @@ import { AmSettingsRepository, AmSettingsService } from './am-settings.service';
 import { AmTasksRepository, AmTasksService } from './am-tasks.service';
 import { AmViewsRepository, AmViewsService } from './am-views.service';
 import { AmOnboardingRepository, AmOnboardingService } from './am-onboarding.service';
+import { AmContractsRepository, AmContractsService } from './am-contracts.service';
 import { AmController } from './am.controller';
 import { StaffAmGuard } from './guards/staff-am.guard';
 
@@ -41,6 +42,8 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmViewsService,
     AmOnboardingRepository,
     AmOnboardingService,
+    AmContractsRepository,
+    AmContractsService,
   ],
   exports: [
     StaffAmGuard,
@@ -55,6 +58,7 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmNotificationsService,
     AmViewsService,
     AmOnboardingService,
+    AmContractsService,
   ],
 })
 export class AmModule {}

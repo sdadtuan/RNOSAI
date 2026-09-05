@@ -29,6 +29,7 @@ import {
   type AmPatchCaseBody,
   type AmPatchTemplateBody,
 } from './am-onboarding.service';
+import { AmContractsService, type AmContractsListQuery } from './am-contracts.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -52,6 +53,7 @@ export class AmController {
     private readonly notifications: AmNotificationsService,
     private readonly views: AmViewsService,
     private readonly onboarding: AmOnboardingService,
+    private readonly contracts: AmContractsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -298,5 +300,17 @@ export class AmController {
   @RequireAmAction('manage')
   publishOnboardingTemplate(@Req() req: AuthedReq, @Param('id') id: string) {
     return this.onboarding.publishTemplate(req, id);
+  }
+
+  @Get('contracts')
+  @RequireAmAction('view')
+  listContracts(@Req() req: AuthedReq, @Query() q: AmContractsListQuery) {
+    return this.contracts.list(req, q);
+  }
+
+  @Get('contracts/:id')
+  @RequireAmAction('view')
+  getContract(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.contracts.get(req, id);
   }
 }

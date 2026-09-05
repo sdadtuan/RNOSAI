@@ -687,3 +687,74 @@ export async function publishAmOnboardingTemplate(
     { method: 'POST' },
   );
 }
+
+export type AmContractListItem = {
+  id: number;
+  reference_code: string;
+  title: string;
+  status: string;
+  billing_type: string;
+  service_slug: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  days_remaining: number | null;
+  amount_vnd: number | null;
+  mrr_vnd: number | null;
+  agency_client_id: string;
+  client_name: string;
+  client_code: string;
+  hide_amounts: boolean;
+};
+
+export type AmContractLineItem = {
+  service_slug: string;
+  title: string;
+  amount_vnd: number | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  status: string;
+};
+
+export type AmContractAuditItem = {
+  event_type: string;
+  actor: string;
+  created_at: string;
+  payload_json: Record<string, unknown> | null;
+};
+
+export type AmContractDetail = AmContractListItem & {
+  notes: string;
+  renewal_reminder_days: number | null;
+  signed_on: string | null;
+  line_items: AmContractLineItem[];
+  obligations: unknown[];
+  payment_schedule: unknown[];
+  amendments: unknown[];
+  documents: unknown[];
+  renewal: {
+    ends_on: string | null;
+    days_remaining: number | null;
+    open_case_id: string | null;
+  };
+  audit: AmContractAuditItem[];
+};
+
+export type AmContractsListQuery = {
+  agency_client_id?: string;
+  scope?: AmScope;
+};
+
+export async function fetchAmContracts(
+  token: string,
+  query: AmContractsListQuery = {},
+): Promise<{ items: AmContractListItem[] }> {
+  const params = new URLSearchParams();
+  if (query.agency_client_id) params.set('agency_client_id', query.agency_client_id);
+  if (query.scope) params.set('scope', query.scope);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return amFetch<{ items: AmContractListItem[] }>(token, `/api/crm/am/contracts${suffix}`);
+}
+
+export async function fetchAmContract(token: string, id: string): Promise<AmContractDetail> {
+  return amFetch<AmContractDetail>(token, `/api/crm/am/contracts/${encodeURIComponent(id)}`);
+}

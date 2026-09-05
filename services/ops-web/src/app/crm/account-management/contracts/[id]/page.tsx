@@ -1,5 +1,5 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+import { AmContractDetail } from '@/components/crm/am/AmContractDetail';
 
-export default function AmContractDetailPage() {
-  return <AmPlaceholder title="Hợp đồng" wave={2} />;
+export default function AmContractDetailPage({ params }: { params: { id: string } }) {
+  return <AmContractDetail contractId={params.id} />;
 }
