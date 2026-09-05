@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchAmWorkQueue, type AmWorkQueueItem } from '@/lib/crm/am-api';
 import { amWorkDash } from '@/lib/crm/am-work-queue.util';
 import { useAmPage } from './AmShell';
@@ -10,9 +10,11 @@ export function AmAccountWork({ agencyClientId }: { agencyClientId: string }) {
   const { token, scope } = useAmPage();
   const [items, setItems] = useState<AmWorkQueueItem[] | null>(null);
   const [error, setError] = useState('');
+  const loadGenerationRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!token) return;
+    const generation = ++loadGenerationRef.current;
     setError('');
     try {
       const out = await fetchAmWorkQueue(token, {
@@ -20,8 +22,10 @@ export function AmAccountWork({ agencyClientId }: { agencyClientId: string }) {
         inbox: 'all',
         scope,
       });
+      if (generation !== loadGenerationRef.current) return;
       setItems(out.items);
     } catch {
+      if (generation !== loadGenerationRef.current) return;
       setItems(null);
       setError('Không tải được công việc.');
     }
