@@ -1,46 +1,65 @@
-# Task 9 Report: Briefing Hôm nay dùng chung sensor (T3)
+# Task 9 Report: Health snapshot + recompute
 
-**Branch:** `feat/ceo-lifecycle-tower-t3-t5`  
-**Date:** 2026-09-01  
-**Commit:** `feat(ceo-tower): briefing today shares tower sensors`
+**Status:** DONE  
+**Branch:** `feat/am-os`  
+**Commit:** `7f85fa21` — feat(am): compute 4-band health snapshots for dashboard  
+**Date:** 2026-09-05
 
-## Summary
+## Deliverables
 
-Wired `briefing_today` to reuse `CeoTowerSensorService.buildPayload` so Hôm nay cards match the Lifecycle Tower red exceptions. Tower red cards are prepended before ops/pipeline sources and capped at 8 total.
+| File | Action |
+|------|--------|
+| `services/ptt-crm-api/src/am/am-health.service.ts` | Created — Wave 1 stubs + upsert `ON CONFLICT (tenant_id, agency_client_id, as_of)` |
+| `services/ptt-crm-api/src/am/am-health.service.spec.ts` | Created — weights 30/20/20/15/15; score 72 → watch; churned excluded |
+| `services/ptt-crm-api/src/am/am-settings.service.ts` | Created — `GET` settings for all viewers (weights/bands/quota) |
+| `services/ptt-crm-api/src/am/am.controller.ts` | Modified — `POST /health/recompute` `@RequireAmAction('manage')`; `GET /settings` `@RequireAmAction('view')` |
+| `services/ptt-crm-api/src/am/am.module.ts` | Modified — register `AmHealthRepository` + `AmHealthService` + settings (class tokens) |
 
-## Changes
+**Not done (out of scope):** nightly 02:00 ICT job (Wave 2); Critical → recovery plan (Wave 3); settings write / notify stub / freshness chip (Task 10). `.superpowers/` not committed.
 
-### `ceo-command-briefing.service.ts`
-- Injected `CeoTowerSensorService` (already exported from `ceo-command.module.ts`).
-- For `compose('briefing_today')` only: calls `tower.buildPayload(actor, { factory: 'both', severity: 'red,amber', limit: '8' })`.
-- Maps red exceptions → briefing cards (`source: 'tower'`, `severity: 'red'`, `title`, `href`, `suggest_action`).
-- Merges `payload.degraded` into briefing `degraded`; on failure pushes `{ source: 'tower', reason }`.
-- Updated `compose` actor type to `CeoActor` (matches tower API and caller).
+## TDD evidence
 
-### `ceo-command-briefing.util.ts`
-- Added `'tower'` to `CeoBriefingCard.source` union.
-- Extended `suggest_action` with tower action ids (`assign_lead`, `remind_staff`, `sla_remind_lead`, `ack_ops_alert`, `prioritize_solution_queue`, `remind_contract_approval`).
-- `cardsFromSources` accepts optional `towerRed`; prepends tower red cards before sorted other sources; trims to max 8.
-- Records `facts_json.tower_red` when tower input present.
+### RED — spec before service
 
-### Tests
-- **`ceo-command-briefing.util.spec.ts`**: invariant (tower card hrefs ⊆ red exception hrefs); priority (5 tower + 6 ops + 4 pipeline → 8 cards, tower first).
-- **`ceo-command-briefing.service.spec.ts`** (new): tower query args, red-only cards, degraded merge on failure/payload, no tower call for `briefing_ops`.
+```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-health.service.spec.ts --no-coverage
 
-## Test run
-
-```bash
-cd services/ptt-crm-api && npx jest \
-  src/ceo-command/ceo-command-briefing.util.spec.ts \
-  src/ceo-command/ceo-command-briefing.service.spec.ts \
-  src/ceo-command/ceo-command.service.spec.ts \
-  --no-coverage
+FAIL src/am/am-health.service.spec.ts
+  ● Test suite failed to run
+    error TS2307: Cannot find module './am-health.service' or its corresponding type declarations.
 ```
 
-**Result:** 3 suites, 10 tests, all passed.
+Failure reason matches the brief: module/exports missing, not a typo.
 
-## Notes / follow-ups
+### GREEN
 
-- Amber tower exceptions are fetched (shared query) but not surfaced as cards — only red per spec.
-- Briefing cache (60s per `staffId:intent`) is independent of tower cache; both use 60s TTL.
-- No new KPIs invented; tower cards mirror exception titles/hrefs/actions only.
+```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-health.service.spec.ts --no-coverage
+
+PASS src/am/am-health.service.spec.ts
+  AmHealthService
+    ✓ uses weights 30/20/20/15/15 and scores 72 as watch
+    ✓ excludes churned clients from snapshots and dist
+    ✓ upserts snapshots on conflict of tenant, client, and as_of
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+```
+
+Brief assertions: `DEFAULT_WEIGHTS` 30/20/20/15/15; Active contract + no CSD breach → components 70/70/80/70/70 → score **72** → band **watch**; churned not upserted and not in `dist`; SQL has `ON CONFLICT (tenant_id, agency_client_id, as_of)`.
+
+## Behavior
+
+- Wave 1 stubs: `kpi_delivery` 70 + thin_data; `engagement` 70 + thin_data; `financial` 80 if Active/renewing contract else 70; `satisfaction` 70; `contract_support` 40 if any in-scope CSD `sla_status=breached` else 70.
+- Account `am_status=active` and `created_at` &lt; 30 days → `thin_data=true`. Wave 1 also sets `thin_data=true` because KPI/engagement are always stubbed.
+- Churned (and other non-active-book statuses) skipped. Critical does **not** open a recovery plan.
+- `POST /api/crm/am/health/recompute` — cap `manage`. Optional body `{ as_of }`. Upserts snapshots, drops dashboard cache, audits `health.recompute`.
+- `GET /api/crm/am/settings` — cap `view`. Returns weights, bands, quota, watch window, drop alert, rollup flag. Defaults if table missing.
+- Repositories injected as **class** tokens (`AmHealthRepository`, `AmSettingsRepository`), not type-only interfaces.
+
+## Concerns
+
+- No live Postgres proof this session — list/upsert paths are mocked in the spec; missing `crm_contracts` / `csd_tickets` degrade to no-contract / no-breach.
+- `pending_handover` is skipped via `isActiveBook` (same filter as command-center `health_dist`), not only `churned`.
+- No recompute button in ops-web this task; dashboard already reads latest snapshot.
+- `GET /settings` landed here (small). Notify stub + freshness chip remain Task 10.

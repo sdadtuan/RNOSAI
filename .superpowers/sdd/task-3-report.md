@@ -1,145 +1,144 @@
-# Task 3 Report: ops-web rag + `buildCockpitSummary`
+# Task 3 Report: Nest module + health / scope / money utils
 
-## Status
+**Status:** DONE  
+**Branch:** `feat/am-os`  
+**Commit:** `bfc05ff2` — feat(am): add AmModule with 4-band health, scope, and money rules  
+**Date:** 2026-09-05
 
-DONE_WITH_CONCERNS
+## Deliverables
 
-## Summary
+| File | Action |
+|------|--------|
+| `services/ptt-crm-api/src/am/am.types.ts` | Created — unions, `ACTIVE_BOOK`, `DEFAULT_WEIGHTS` |
+| `services/ptt-crm-api/src/am/am-health.util.ts` | Created — `bandFromScore`, `weightedScore`, `isActiveBook` |
+| `services/ptt-crm-api/src/am/am-health.util.spec.ts` | Created — brief assertions |
+| `services/ptt-crm-api/src/am/am-scope.util.ts` | Created — `resolveAmScope`, `amScopeSql` |
+| `services/ptt-crm-api/src/am/am-scope.util.spec.ts` | Created — brief + SQL fragment cases |
+| `services/ptt-crm-api/src/am/am-money.util.ts` | Created — `monthlyRecurringVnd`, `formatVnd` |
+| `services/ptt-crm-api/src/am/am-money.util.spec.ts` | Created — brief assertions |
+| `services/ptt-crm-api/src/am/am-freshness.util.ts` | Created — `workLeftLabel`, `isStale` |
+| `services/ptt-crm-api/src/am/am-freshness.util.spec.ts` | Created — Task 10 / SRS work-hours cases |
+| `services/ptt-crm-api/src/am/guards/staff-am.guard.ts` | Created — `StaffAmGuard`, `RequireAmAction`, `RequireAmFinanceAction` |
+| `services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts` | Created — CSD-pattern + `view_all` + finance |
+| `services/ptt-crm-api/src/am/am.module.ts` | Created — empty module, exports `StaffAmGuard` |
+| `services/ptt-crm-api/src/app.module.ts` | Modified — `AmModule` import + imports array next to `CsdModule` |
 
-ops-web now owns a copied RAG/deadline helper (no Nest import) and a single `buildCockpitSummary` that produces tiles, department bars, attention rows, MoM delta, and insight copy. `StaffKpiGridEntry` gained optional `staff_department` / `updated_at`; `fetchStaffKpi` forwards `team`.
+**Not done (out of scope):** Dashboard API / `AmController` (Task 4).
 
-`deriveKpiRag` uses Task 1’s sentinel (`1` vs `2`) so `higherIsBetter === 0` is lower-is-better despite `kpiAchievementPct` treating `higherIsBetter || 1` as higher-is-better. Lower-is-better red fixture is `5.34` (not brief `5.2`, which is yellow at 76.92%).
+## TDD evidence
 
-## TDD Evidence
+Used local `./node_modules/.bin/jest` (29.7). Bare `npx jest` tried to install Jest 30 from npm and is not valid evidence.
 
-### RED — Step 1–2: missing modules
+### RED — Step 1: failing specs first
 
-Wrote `rag.spec.ts` (copy of Task 1 `kpi.types.spec.ts` groups: no_data, 90/75 cutovers, lower-is-better `5.34`, deadline 2026-09 / Dec wrap, open + closed period) and the brief `cockpit-summary.spec.ts`.
+Wrote the five specs **before** any production `.ts` (except the specs themselves). Implementation files were absent.
 
-```bash
-cd services/ops-web && npx vitest run src/lib/kpi/rag.spec.ts src/lib/kpi/cockpit-summary.spec.ts
 ```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest \
+  src/am/am-health.util.spec.ts src/am/am-scope.util.spec.ts \
+  src/am/am-money.util.spec.ts src/am/am-freshness.util.spec.ts \
+  src/am/guards/staff-am.guard.spec.ts --no-coverage
 
-```
-FAIL  src/lib/kpi/cockpit-summary.spec.ts
-Error: Cannot find module './cockpit-summary'
+FAIL src/am/am-health.util.spec.ts
+  TS2307: Cannot find module './am-health.util'
+FAIL src/am/am-scope.util.spec.ts
+  TS2307: Cannot find module './am-scope.util'
+FAIL src/am/am-money.util.spec.ts
+  TS2307: Cannot find module './am-money.util'
+FAIL src/am/am-freshness.util.spec.ts
+  TS2307: Cannot find module './am-freshness.util'
+FAIL src/am/guards/staff-am.guard.spec.ts
+  TS2307: Cannot find module './staff-am.guard'
 
-FAIL  src/lib/kpi/rag.spec.ts
-Error: Cannot find module './rag'
-
-Test Files  2 failed (2)
-Tests  no tests
+Test Suites: 5 failed, 5 total
+Tests:       0 total
 ```
 
 Failure reason matches the brief: files/exports missing, not a typo.
 
-### GREEN — Step 3–4: implement + pass
+### GREEN — Step 2–3: implement + pass
 
-Implemented `rag.ts` (copy of `kpiAchievementPct`, `deriveKpiRag` + sentinel, `kpiUpdateDeadlineIso`, `kpiIsOnTime`; export `KpiRag`), `cockpit-summary.ts` (brief verbatim), and `api.ts` fields/`team` query.
-
-ops-web Vitest does not enable globals. First GREEN run failed with `ReferenceError: describe is not defined`. Added `import { describe, expect, it } from 'vitest'` to both specs (same pattern as other ops-web unit tests), then re-ran.
-
-```bash
-cd services/ops-web && npx vitest run src/lib/kpi/rag.spec.ts src/lib/kpi/cockpit-summary.spec.ts
-```
+Implemented types, four utils (signatures verbatim), `StaffAmGuard` (CSD copy: section `crm_am`, metadata `amRequiredAction`), empty `AmModule`, registered in `app.module.ts`.
 
 ```
-✓ src/lib/kpi/rag.spec.ts (6 tests) 3ms
-✓ src/lib/kpi/cockpit-summary.spec.ts (2 tests) 12ms
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest \
+  src/am/am-health.util.spec.ts src/am/am-scope.util.spec.ts \
+  src/am/am-money.util.spec.ts src/am/am-freshness.util.spec.ts \
+  src/am/guards/staff-am.guard.spec.ts --no-coverage
 
-Test Files  2 passed (2)
-Tests  8 passed (8)
+PASS src/am/am-scope.util.spec.ts
+PASS src/am/am-freshness.util.spec.ts
+PASS src/am/am-money.util.spec.ts
+PASS src/am/am-health.util.spec.ts
+PASS src/am/guards/staff-am.guard.spec.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       21 passed, 21 total
 ```
 
-- Current tiles: 90 → green, 80 → yellow, 50 → red; `completion_pct` ≈ `(90+80+50)/3`.
-- Open period `now=2026-09-20Z` → `ontime_pct === 100`.
-- Prev month one green vs current one green → `delta.green === 0`.
-- `by_department` names `['Sales', 'Tech']`; first attention row `red`; headline matches `/1 KPI không đạt/`.
-- `deptLabel('') === 'Chưa gắn phòng'`; `prevYearMonth(2026, 1) === { year: 2025, month: 12 }`.
+Jest printed `A worker process has failed to exit gracefully and has been force exited` after PASS (exit 0). Suites still passed.
 
-## Implementation
+Brief assertions that passed:
 
-`rag.ts` — local copy, not imported from `ptt-crm-api`:
+- `bandFromScore(80/79/59/39)` → healthy / watch / at_risk / critical
+- `weightedScore(all 100)` → `100`
+- `isActiveBook('churned')` false; `'paused'` true
+- `monthlyRecurringVnd(media_spend|project)` null; `monthly` 20_000_000
+- `formatVnd(null)` → `—`
+- `resolveAmScope(all, no view_all)` → `me`; with `view_all` → `all`
 
-- `kpiAchievementPct`: `Number(higherIsBetter || 1) === 1` (so raw `0` would be treated as higher-is-better).
-- `deriveKpiRag`: `hiArg = Number(higherIsBetter ?? 1) === 1 ? 1 : 2` before calling `kpiAchievementPct`.
-- Thresholds: `>= 90` green, `>= 75` yellow, else red; null pct → `no_data`.
-- Deadline: 5th of next month `16:59:59.999Z`.
+## Behavior
 
-`api.ts`:
+- Health bands: ≥80 healthy, ≥60 watch, ≥40 at_risk, else critical. Weights 30/20/20/15/15.
+- `ACTIVE_BOOK` = onboarding / active / at_risk / renewing / paused.
+- Scope: `all` requires `hasViewAll`; `team` requires `canTeam || hasViewAll`; else `me`.
+- `amScopeSql`: `all` → `TRUE`; empty team → owner only; team → `team_id = ANY` OR owner; `me` → owner OR open assigned task.
+- Money: `media` / `media_spend` / `project` / `one_off` → null MRR; `annual` / `yearly` → `round(amount/12)`; else amount.
+- Freshness: ICT Mon–Fri 08:30–17:30. Tue 09:30 → `Giờ LV còn 8h`. Saturday → `Ngoài giờ LV`. After hours weekday → `Giờ LV còn 0p`. `isStale` default 24h.
+- Guard: internal key bypass; unresolved staff `am_unresolved_staff`; `view` also passes with `view_all`; finance metadata section `crm_am.finance`.
 
-- `StaffKpiGridEntry.staff_department?: string`
-- `StaffKpiGridEntry.updated_at?: string`
-- `fetchStaffKpi` params `team?: string` + `if (params?.team) qs.set('team', params.team)`
-
-`cockpit-summary.ts` — brief exports: `deptLabel`, `prevYearMonth`, `filterRowsByDepartment`, `departmentOptions`, types, `buildCockpitSummary`, `rowTrend`.
-
-## Commit
-
-```
-ff6d2c5c feat(kpi): compute cockpit summary from staff KPI rows.
-```
-
-Files committed (only the five named in the task):
-
-- `services/ops-web/src/lib/kpi/rag.ts`
-- `services/ops-web/src/lib/kpi/rag.spec.ts`
-- `services/ops-web/src/lib/kpi/cockpit-summary.ts`
-- `services/ops-web/src/lib/kpi/cockpit-summary.spec.ts`
-- `services/ops-web/src/lib/api.ts`
-
-Did not amend. HEREDOC message from the brief.
-
-## Deviations from Brief
-
-- `rag.spec.ts` copies all six Task 1 cases (not only the three named groups) so 90/75, lower-is-better `5.34`, and 2026-09 deadline stay aligned with API.
-- Both specs import Vitest globals; ops-web `vitest.config.ts` has no `globals: true`.
-- Lower-is-better red uses `5.34` (parent instruction / Task 1), not brief `5.2`.
-
-## Self-Review
+## Self-review
 
 | Area | Assessment |
 |------|------------|
-| Scope | Only the five brief files |
-| Copy vs import | RAG helpers live in ops-web; no Nest package import |
-| Sentinel | Same `1` vs `2` workaround as Task 1 `deriveKpiRag` |
-| Completion | Mean of `kpiAchievementPct` over scored rows; fixture `(90+80+50)/3` |
-| Delta | 1 green current vs 1 green prev → `delta.green === 0` |
-| Attention | Red first via `RAG_RANK`; insight headline includes `1 KPI không đạt` |
+| Signatures | Types and util functions match the brief verbatim |
+| Module | Empty `AmModule` (guard only). No dashboard controller |
+| Registration | `import { AmModule } from './am/am.module'` then `AmModule` beside `CsdModule` |
+| Guard | CSD copy: `amRequiredAction`, section `crm_am`, `view` ∪ `view_all` |
+| Finance | `RequireAmFinanceAction` + `amRequiredSection` for later finance routes |
+| Scope SQL | Alias `e` = `crm_am_account_ext`; closed/cancelled tasks excluded from `me` |
+| Commit | 13 files only. `.superpowers/` and `node_modules` not staged |
+| Dashboard | Not implemented (Task 4) |
+
+## Deviations from Brief
+
+- Freshness function signatures are not in Task 3’s code block. Implemented `workLeftLabel` / `isStale` from Task 10 + SRS (`Giờ LV còn {XhYm}`, VN 08:30–17:30 T2–T6).
+- Scope spec also asserts `amScopeSql` fragments (brief only listed two `resolveAmScope` expects).
+- Guard spec adds `view_all`, finance section, and internal-key cases beyond the CSD template.
+- `AM_REQUIRED_SECTION_KEY` is extra metadata so finance can use `crm_am.finance` without a second guard class.
 
 ## Concerns
 
-- `filterRowsByDepartment`, `departmentOptions`, and `rowTrend` are exported for Task 4+ but have no direct unit tests (only `buildCockpitSummary` / `deptLabel` / `prevYearMonth` are asserted).
-- `fetchStaffKpi` `team` query is untested at the client (type + `qs.set` only).
-- `kpiAchievementPct` still treats `0` as higher-is-better if called directly; only `deriveKpiRag` applies the sentinel. Callers that need lower-is-better RAG must go through `deriveKpiRag`, or pass `2`.
-- `completion_pct` averages capped achievement percents (max 100), not raw actual/target ratios.
+- Stale threshold (24h) is not specified in the Task 3 brief; Task 4/10 may need a settings-driven threshold.
+- Mixed hour+minute label (`Giờ LV còn 7h12`) is implemented but not unit-tested.
+- Jest worker leak warning after PASS; exit code was still 0.
+- `RequireAmFinanceAction` is unused until finance endpoints exist.
+- `weightedScore` does not round; non-integer component mixes will float.
 
 ## Files Changed
 
 ```
-services/ops-web/src/lib/kpi/rag.ts
-services/ops-web/src/lib/kpi/rag.spec.ts
-services/ops-web/src/lib/kpi/cockpit-summary.ts
-services/ops-web/src/lib/kpi/cockpit-summary.spec.ts
-services/ops-web/src/lib/api.ts
-```
-
-## Important finding — `metricAchievementPct` sentinel
-
-`kpiAchievementPct` is unchanged (`higherIsBetter || 1`). Added `metricAchievementPct` (`0 → 2`, else `1`) and switched `countsOf`, attention `achievement_pct`, and `rowTrend` to it. Nest `kpi.types.ts` not touched.
-
-Focused test: one lower-is-better row (`higher=0`, `target=4`, `actual=4`) must contribute `100` to `completion_pct`.
-
-### GREEN
-
-```bash
-cd services/ops-web && npx vitest run src/lib/kpi/rag.spec.ts src/lib/kpi/cockpit-summary.spec.ts
-```
-
-```
-✓ src/lib/kpi/rag.spec.ts (6 tests) 2ms
-✓ src/lib/kpi/cockpit-summary.spec.ts (3 tests) 11ms
-
-Test Files  2 passed (2)
-Tests  9 passed (9)
+services/ptt-crm-api/src/am/am.types.ts
+services/ptt-crm-api/src/am/am-health.util.ts
+services/ptt-crm-api/src/am/am-health.util.spec.ts
+services/ptt-crm-api/src/am/am-scope.util.ts
+services/ptt-crm-api/src/am/am-scope.util.spec.ts
+services/ptt-crm-api/src/am/am-money.util.ts
+services/ptt-crm-api/src/am/am-money.util.spec.ts
+services/ptt-crm-api/src/am/am-freshness.util.ts
+services/ptt-crm-api/src/am/am-freshness.util.spec.ts
+services/ptt-crm-api/src/am/guards/staff-am.guard.ts
+services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts
+services/ptt-crm-api/src/am/am.module.ts
+services/ptt-crm-api/src/app.module.ts
 ```

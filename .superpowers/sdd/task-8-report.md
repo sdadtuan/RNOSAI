@@ -1,70 +1,86 @@
-# Task 8 Report: Import disk playbooks → version active shipped (P1/P2)
+# Task 8 Report: Command palette ⌘K
 
-**Status:** DONE_WITH_CONCERNS  
-**Branch:** `feat/mkt-ai-playbook-learn`  
-**Commit:** (pending) — feat(mkt-ai): import shipped playbooks into version table  
-**Pushed:** no
+**Status:** DONE  
+**Branch:** `feat/am-os`  
+**Commit:** `29e357fb` — feat(am): add scoped command palette search  
+**Date:** 2026-09-05
 
-## What shipped
+## Deliverables
 
-Idempotent seed script imports `_common.json` + 3 industry playbooks into `mkt_ai_playbook_versions` as `active` / `shipped`, links `mkt_ai_service_policy.active_version_id` for pilot slugs and `_common`.
+| File | Action |
+|------|--------|
+| `services/ptt-crm-api/src/am/am-search.service.ts` | Created — scoped UNION search (account / contract / task) + `rankAmSearchItems` |
+| `services/ptt-crm-api/src/am/am-search.service.spec.ts` | Created — 1-char empty; view user cannot see other owner; exact code first |
+| `services/ptt-crm-api/src/am/am.controller.ts` | Modified — `GET /api/crm/am/search?q=` + `@RequireAmAction('view')` |
+| `services/ptt-crm-api/src/am/am.module.ts` | Modified — register `AmSearchRepository` + `AmSearchService` |
+| `services/ops-web/src/lib/crm/am-api.ts` | Modified — `fetchAmSearch` |
+| `services/ops-web/src/components/crm/am/AmPalette.tsx` | Created — ⌘/Ctrl+K, Esc, Enter, 300ms debounce |
+| `services/ops-web/src/components/crm/am/AmShell.tsx` | Modified — search box opens `AmPalette` |
+| `services/ops-web/src/app/crm/account-management/am.css` | Modified — palette + search-button styles |
 
-| File | Role |
-|------|------|
-| `scripts/seed_mkt_ai_playbook_versions.ts` | Read 4 JSON from `playbooks/`; INSERT active v1 when none exists; skip if active present; upsert `_common` policy (`rollout=ga`); UPDATE pilot `active_version_id` |
+**Not done (out of scope):** Contact / Renewal groups (Wave 2). `.superpowers/` not committed.
 
-## Step checklist
+## TDD evidence
 
-- [x] Script reads `_common.json` + `meta-lead-gen`, `bds-lead-gen`, `seo-retainer`
-- [x] INSERT `status=active`, `depth=shipped`, `source=common|disk`, `version_no` = next (1 on fresh DB)
-- [x] Idempotent skip when active version already exists for slug
-- [x] Set `active_version_id` on 3 pilot slugs + `_common` policy row
-- [ ] **Apply seed on live DB** — blocked: Postgres at `127.0.0.1:5433` not running (`ECONNREFUSED`)
-- [x] **Commit** `feat(mkt-ai): import shipped playbooks into version table`
-
-## Seed behavior
-
-1. Validates all 4 JSON files (slug matches filename) before DB work.
-2. Per slug: if `status='active'` row exists → skip insert, reuse id for policy link.
-3. Else: `INSERT` with `version_no = MAX(version_no)+1` (typically `1` on empty table).
-4. Transaction with `SET CONSTRAINTS mkt_ai_service_policy_active_fk DEFERRED` so FK checks run at COMMIT.
-5. `_common` policy: `INSERT … ON CONFLICT DO UPDATE` with `rollout='ga'`, `enabled=true`, `active_version_id`.
-6. Pilot slugs (`meta-lead-gen`, `bds-lead-gen`, `seo-retainer`): `UPDATE mkt_ai_service_policy SET active_version_id`.
-
-## Run commands
-
-Prerequisites: Task 7 DDL applied + `scripts/seed_mkt_ai_service_policy.sql` (pilot policy rows).
-
-```bash
-bash scripts/apply_pg_ddl_mkt_ai_planner.sh
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/seed_mkt_ai_service_policy.sql
-cd services/ptt-crm-api && NODE_PATH=./node_modules npx tsx ../../scripts/seed_mkt_ai_playbook_versions.ts
-```
-
-Dry-run (still connects to DB to detect existing actives):
-
-```bash
-cd services/ptt-crm-api && NODE_PATH=./node_modules npx tsx ../../scripts/seed_mkt_ai_playbook_versions.ts --dry-run
-```
-
-## What I tested
-
-```bash
-cd services/ptt-crm-api && NODE_PATH=./node_modules npx tsx ../../scripts/seed_mkt_ai_playbook_versions.ts --dry-run
-```
+### RED — spec before service
 
 ```
-== seed_mkt_ai_playbook_versions ==
-playbooks=.../playbooks
-dry_run=true
-validated 4 playbook JSON file(s)
-Error: connect ECONNREFUSED 127.0.0.1:5433
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-search.service.spec.ts --no-coverage
+
+FAIL src/am/am-search.service.spec.ts
+  ● Test suite failed to run
+    error TS2307: Cannot find module './am-search.service'
 ```
 
-JSON validation passed; DB connection refused (same as Task 7 local apply).
+Failure reason matches the brief: module/exports missing, not a typo.
+
+### GREEN
+
+```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-search.service.spec.ts --no-coverage
+
+PASS src/am/am-search.service.spec.ts
+  AmSearchService
+    ✓ returns empty items for 1-char query
+    ✓ view user cannot see other owner
+    ✓ ranks exact client code first
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+```
+
+Brief assertions: `q='a'` → `{ items: [] }` and no DB; view + `scope=all` still applies `amScopeSql` me (`e.account_owner_staff_id`, staff id in params, not `AND TRUE`); `AP01` exact code ranks before name ILIKE.
+
+## Behavior
+
+- `GET /api/crm/am/search?q=` — cap `view`. `q.trim().length < 2` → `{ items: [] }` (not 500), no query.
+- Groups Wave 1: `account` | `contract` | `task`. Each join `crm_am_account_ext e` and `amScopeSql` — never returns out-of-scope accounts. View user cannot escalate to `all`.
+- Account match: exact `clients.code ILIKE q` first (SQL `ORDER BY` + JS `rankAmSearchItems`), then `name ILIKE %q%`.
+- Missing `crm_contracts` → retry without the contract UNION.
+- UI: header search + ⌘/Ctrl+K open palette; Esc closes; Enter opens. Account → `/crm/account-management/clients/[id]` (Wave 1 placeholder). Debounce 300ms. Empty: **Không tìm thấy** + **Tạo khách** if `edit`.
 
 ## Concerns
 
-1. **Local seed not verified end-to-end** — dev Postgres not listening on port 5433. Re-run seed when DB is up before Task 14 planner resolve.
-2. **Run from `services/ptt-crm-api`** — `pg` is not hoisted to repo root; use `NODE_PATH=./node_modules` with `tsx` (ts-node fails on Node 26 in this env).
-3. **Pilot policy rows required** — script warns if `mkt_ai_service_policy` row missing for a pilot slug; run policy seed first.
+- Palette not exercised in a logged-in browser this task (staff auth required).
+- Contract/task hrefs go to Wave 2/3 placeholders (`/contracts/[id]`, `/work/[id]`).
+- View-user scope test inspects SQL + params (mocked DB); no live Postgres proof that an other-owner row is excluded.
+- Contact / Renewal groups deferred to later waves.
+
+## Review fixes (Critical + Important)
+
+**Critical:** `AmSearchService` now injects `AmSearchRepository` (class token), matching `AmAccountsRepository` pattern — Nest can resolve DI at boot.
+
+**Important:** `am-search.service.spec.ts` asserts `amScopeSql` on each UNION arm (account / contract / task) via `unionArms()`, not once on the concatenated SQL.
+
+```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-search.service.spec.ts --no-coverage
+
+PASS src/am/am-search.service.spec.ts
+  AmSearchService
+    ✓ returns empty items for 1-char query
+    ✓ view user cannot see other owner
+    ✓ ranks exact client code first
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+```

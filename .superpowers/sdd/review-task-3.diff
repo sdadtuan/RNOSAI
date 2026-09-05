@@ -1,0 +1,603 @@
+# Review package: 498cbcb4bee9ba8f012c3f464e1129e4d6e86fac..bfc05ff29533737fac98aa40acc69c4f3387f2ad
+
+## Commits
+bfc05ff2 feat(am): add AmModule with 4-band health, scope, and money rules
+
+## Files changed
+ .../ptt-crm-api/src/am/am-freshness.util.spec.ts   | 21 +++++
+ services/ptt-crm-api/src/am/am-freshness.util.ts   | 52 +++++++++++++
+ services/ptt-crm-api/src/am/am-health.util.spec.ts | 27 +++++++
+ services/ptt-crm-api/src/am/am-health.util.ts      | 36 +++++++++
+ services/ptt-crm-api/src/am/am-money.util.spec.ts  | 37 +++++++++
+ services/ptt-crm-api/src/am/am-money.util.ts       | 20 +++++
+ services/ptt-crm-api/src/am/am-scope.util.spec.ts  | 26 +++++++
+ services/ptt-crm-api/src/am/am-scope.util.ts       | 35 +++++++++
+ services/ptt-crm-api/src/am/am.module.ts           | 10 +++
+ services/ptt-crm-api/src/am/am.types.ts            | 44 +++++++++++
+ .../src/am/guards/staff-am.guard.spec.ts           | 91 ++++++++++++++++++++++
+ .../ptt-crm-api/src/am/guards/staff-am.guard.ts    | 62 +++++++++++++++
+ services/ptt-crm-api/src/app.module.ts             |  2 +
+ 13 files changed, 463 insertions(+)
+
+## Diff
+diff --git a/services/ptt-crm-api/src/am/am-freshness.util.spec.ts b/services/ptt-crm-api/src/am/am-freshness.util.spec.ts
+new file mode 100644
+index 00000000..b98f2c75
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-freshness.util.spec.ts
+@@ -0,0 +1,21 @@
++import { isStale, workLeftLabel } from './am-freshness.util';
++
++describe('am-freshness.util', () => {
++  it('reports 8h remaining at Tuesday 09:30 ICT', () => {
++    expect(workLeftLabel(new Date('2026-09-01T02:30:00.000Z'))).toBe('Giờ LV còn 8h');
++  });
++
++  it('reports ngoài giờ on Saturday', () => {
++    expect(workLeftLabel(new Date('2026-09-05T03:00:00.000Z'))).toBe('Ngoài giờ LV');
++  });
++
++  it('reports 0p after weekday hours', () => {
++    expect(workLeftLabel(new Date('2026-09-04T11:00:00.000Z'))).toBe('Giờ LV còn 0p');
++  });
++
++  it('marks as_of older than 24h as stale', () => {
++    const now = new Date('2026-09-05T10:00:00.000Z');
++    expect(isStale(new Date('2026-09-04T09:00:00.000Z'), now)).toBe(true);
++    expect(isStale(new Date('2026-09-05T09:30:00.000Z'), now)).toBe(false);
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-freshness.util.ts b/services/ptt-crm-api/src/am/am-freshness.util.ts
+new file mode 100644
+index 00000000..7d9f3ae3
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-freshness.util.ts
+@@ -0,0 +1,52 @@
++const ICT_TZ = 'Asia/Ho_Chi_Minh';
++const WORK_START_MIN = 8 * 60 + 30;
++const WORK_END_MIN = 17 * 60 + 30;
++const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
++
++const ISO_DOW: Record<string, number> = {
++  Mon: 1,
++  Tue: 2,
++  Wed: 3,
++  Thu: 4,
++  Fri: 5,
++  Sat: 6,
++  Sun: 7,
++};
++
++function ictParts(now: Date): { dow: number; minutes: number } {
++  const fmt = new Intl.DateTimeFormat('en-US', {
++    timeZone: ICT_TZ,
++    weekday: 'short',
++    hour: '2-digit',
++    minute: '2-digit',
++    hour12: false,
++  });
++  const parts = fmt.formatToParts(now);
++  const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '0';
++  return {
++    dow: ISO_DOW[pick('weekday')] ?? 1,
++    minutes: Number.parseInt(pick('hour'), 10) * 60 + Number.parseInt(pick('minute'), 10),
++  };
++}
++
++function formatWorkLeft(remainingMin: number): string {
++  if (remainingMin <= 0) return 'Giờ LV còn 0p';
++  const hours = Math.floor(remainingMin / 60);
++  const minutes = remainingMin % 60;
++  if (hours > 0 && minutes === 0) return `Giờ LV còn ${hours}h`;
++  if (hours > 0) return `Giờ LV còn ${hours}h${minutes}`;
++  return `Giờ LV còn ${minutes}p`;
++}
++
++export function workLeftLabel(now: Date): string {
++  const { dow, minutes } = ictParts(now);
++  if (dow === 6 || dow === 7) return 'Ngoài giờ LV';
++  if (minutes >= WORK_END_MIN) return 'Giờ LV còn 0p';
++  const remaining = minutes < WORK_START_MIN ? WORK_END_MIN - WORK_START_MIN : WORK_END_MIN - minutes;
++  return formatWorkLeft(remaining);
++}
++
++export function isStale(asOf: Date | string, now: Date, thresholdMs = STALE_AFTER_MS): boolean {
++  const asOfMs = typeof asOf === 'string' ? Date.parse(asOf) : asOf.getTime();
++  return now.getTime() - asOfMs > thresholdMs;
++}
+diff --git a/services/ptt-crm-api/src/am/am-health.util.spec.ts b/services/ptt-crm-api/src/am/am-health.util.spec.ts
+new file mode 100644
+index 00000000..32f9c61f
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-health.util.spec.ts
+@@ -0,0 +1,27 @@
++import { bandFromScore, isActiveBook, weightedScore } from './am-health.util';
++
++describe('am-health.util', () => {
++  it('maps scores to 4 bands', () => {
++    expect(bandFromScore(80)).toBe('healthy');
++    expect(bandFromScore(79)).toBe('watch');
++    expect(bandFromScore(59)).toBe('at_risk');
++    expect(bandFromScore(39)).toBe('critical');
++  });
++
++  it('weights perfect components to 100', () => {
++    expect(
++      weightedScore({
++        kpi_delivery: 100,
++        engagement: 100,
++        financial: 100,
++        satisfaction: 100,
++        contract_support: 100,
++      }),
++    ).toBe(100);
++  });
++
++  it('treats paused as active book and churned as not', () => {
++    expect(isActiveBook('churned')).toBe(false);
++    expect(isActiveBook('paused')).toBe(true);
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-health.util.ts b/services/ptt-crm-api/src/am/am-health.util.ts
+new file mode 100644
+index 00000000..4ad7d611
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-health.util.ts
+@@ -0,0 +1,36 @@
++import {
++  ACTIVE_BOOK,
++  AmAmStatus,
++  AmHealthBand,
++  AmHealthComponents,
++  DEFAULT_WEIGHTS,
++} from './am.types';
++
++export { ACTIVE_BOOK, DEFAULT_WEIGHTS };
++export type { AmAmStatus, AmHealthBand, AmHealthComponents };
++
++export function bandFromScore(score: number): AmHealthBand {
++  if (score >= 80) return 'healthy';
++  if (score >= 60) return 'watch';
++  if (score >= 40) return 'at_risk';
++  return 'critical';
++}
++
++export function weightedScore(
++  components: AmHealthComponents,
++  weights: AmHealthComponents = DEFAULT_WEIGHTS,
++): number {
++  const w = weights;
++  return (
++    (components.kpi_delivery * w.kpi_delivery +
++      components.engagement * w.engagement +
++      components.financial * w.financial +
++      components.satisfaction * w.satisfaction +
++      components.contract_support * w.contract_support) /
++    100
++  );
++}
++
++export function isActiveBook(status: AmAmStatus): boolean {
++  return ACTIVE_BOOK.includes(status);
++}
+diff --git a/services/ptt-crm-api/src/am/am-money.util.spec.ts b/services/ptt-crm-api/src/am/am-money.util.spec.ts
+new file mode 100644
+index 00000000..c10e8675
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-money.util.spec.ts
+@@ -0,0 +1,37 @@
++import { formatVnd, monthlyRecurringVnd } from './am-money.util';
++
++describe('am-money.util', () => {
++  it('excludes media spend and project from MRR', () => {
++    expect(
++      monthlyRecurringVnd({
++        billingType: 'media_spend',
++        amountVnd: 50_000_000,
++        startsOn: null,
++        endsOn: null,
++      }),
++    ).toBeNull();
++    expect(
++      monthlyRecurringVnd({
++        billingType: 'project',
++        amountVnd: 120_000_000,
++        startsOn: null,
++        endsOn: null,
++      }),
++    ).toBeNull();
++  });
++
++  it('keeps monthly amount as MRR', () => {
++    expect(
++      monthlyRecurringVnd({
++        billingType: 'monthly',
++        amountVnd: 20_000_000,
++        startsOn: null,
++        endsOn: null,
++      }),
++    ).toBe(20_000_000);
++  });
++
++  it('formats missing money as em dash', () => {
++    expect(formatVnd(null)).toBe('—');
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-money.util.ts b/services/ptt-crm-api/src/am/am-money.util.ts
+new file mode 100644
+index 00000000..3e283e5c
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-money.util.ts
+@@ -0,0 +1,20 @@
++export function monthlyRecurringVnd(opts: {
++  billingType: string;
++  amountVnd: number;
++  startsOn: string | null;
++  endsOn: string | null;
++}): number | null {
++  if (opts.billingType === 'media' || opts.billingType === 'media_spend') return null;
++  if (opts.billingType === 'project' || opts.billingType === 'one_off') return null;
++  if (opts.billingType === 'annual' || opts.billingType === 'yearly') {
++    return Math.round(opts.amountVnd / 12);
++  }
++  return opts.amountVnd;
++}
++
++export function formatVnd(n: number | null | undefined): string {
++  if (n == null) return '—';
++  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '')} tỷ`;
++  if (n >= 1_000_000) return `${Math.round(n / 1_000_000)}tr`;
++  return `${n.toLocaleString('vi-VN')} VND`;
++}
+diff --git a/services/ptt-crm-api/src/am/am-scope.util.spec.ts b/services/ptt-crm-api/src/am/am-scope.util.spec.ts
+new file mode 100644
+index 00000000..b57e900c
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-scope.util.spec.ts
+@@ -0,0 +1,26 @@
++import { amScopeSql, resolveAmScope } from './am-scope.util';
++
++describe('am-scope.util', () => {
++  it('downgrades all without view_all to me', () => {
++    expect(resolveAmScope({ requested: 'all', hasViewAll: false, canTeam: false })).toBe('me');
++  });
++
++  it('allows all when view_all is present', () => {
++    expect(resolveAmScope({ requested: 'all', hasViewAll: true, canTeam: true })).toBe('all');
++  });
++
++  it('produces SQL fragments for each scope', () => {
++    expect(amScopeSql({ scope: 'all', staffId: 3, teamIds: [1] })).toEqual({ sql: 'TRUE', params: [] });
++    expect(amScopeSql({ scope: 'team', staffId: 3, teamIds: [] })).toEqual({
++      sql: 'e.account_owner_staff_id = $staff',
++      params: [3],
++    });
++    expect(amScopeSql({ scope: 'team', staffId: 3, teamIds: [9, 8] })).toEqual({
++      sql: '(e.team_id = ANY($teams) OR e.account_owner_staff_id = $staff)',
++      params: [[9, 8], 3],
++    });
++    expect(amScopeSql({ scope: 'me', staffId: 3, teamIds: [] }).sql).toContain(
++      "t.status NOT IN ('closed','cancelled')",
++    );
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-scope.util.ts b/services/ptt-crm-api/src/am/am-scope.util.ts
+new file mode 100644
+index 00000000..91748219
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-scope.util.ts
+@@ -0,0 +1,35 @@
++import type { AmScope } from './am.types';
++
++export type { AmScope };
++
++export function resolveAmScope(opts: {
++  requested: AmScope | undefined;
++  hasViewAll: boolean;
++  canTeam: boolean;
++}): AmScope {
++  const req = opts.requested ?? 'me';
++  if (req === 'all' && opts.hasViewAll) return 'all';
++  if (req === 'team' && (opts.canTeam || opts.hasViewAll)) return 'team';
++  return 'me';
++}
++
++export function amScopeSql(opts: {
++  scope: AmScope;
++  staffId: number;
++  teamIds: number[];
++}): { sql: string; params: unknown[] } {
++  if (opts.scope === 'all') return { sql: 'TRUE', params: [] };
++  if (opts.scope === 'team') {
++    if (!opts.teamIds.length) {
++      return { sql: 'e.account_owner_staff_id = $staff', params: [opts.staffId] };
++    }
++    return {
++      sql: '(e.team_id = ANY($teams) OR e.account_owner_staff_id = $staff)',
++      params: [opts.teamIds, opts.staffId],
++    };
++  }
++  return {
++    sql: "(e.account_owner_staff_id = $staff OR EXISTS (SELECT 1 FROM crm_am_tasks t WHERE t.agency_client_id = e.agency_client_id AND t.assignee_staff_id = $staff AND t.status NOT IN ('closed','cancelled')))",
++    params: [opts.staffId],
++  };
++}
+diff --git a/services/ptt-crm-api/src/am/am.module.ts b/services/ptt-crm-api/src/am/am.module.ts
+new file mode 100644
+index 00000000..90b53899
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am.module.ts
+@@ -0,0 +1,10 @@
++import { Module } from '@nestjs/common';
++import { StaffAuthModule } from '../staff-auth/staff-auth.module';
++import { StaffAmGuard } from './guards/staff-am.guard';
++
++@Module({
++  imports: [StaffAuthModule],
++  providers: [StaffAmGuard],
++  exports: [StaffAmGuard],
++})
++export class AmModule {}
+diff --git a/services/ptt-crm-api/src/am/am.types.ts b/services/ptt-crm-api/src/am/am.types.ts
+new file mode 100644
+index 00000000..442cbe40
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am.types.ts
+@@ -0,0 +1,44 @@
++export type AmHealthBand = 'healthy' | 'watch' | 'at_risk' | 'critical';
++export type AmScope = 'me' | 'team' | 'all';
++export type AmAmStatus =
++  | 'pending_handover'
++  | 'onboarding'
++  | 'active'
++  | 'at_risk'
++  | 'renewing'
++  | 'paused'
++  | 'churned';
++export type AmTaskKind =
++  | 'task'
++  | 'client_request'
++  | 'issue'
++  | 'escalation'
++  | 'approval'
++  | 'milestone';
++export type AmTaskStatus =
++  | 'new'
++  | 'in_progress'
++  | 'waiting_client'
++  | 'waiting_internal'
++  | 'resolved'
++  | 'closed'
++  | 'cancelled';
++export type AmPlanKind = 'care' | 'qbr' | 'renewal' | 'expand';
++
++export const ACTIVE_BOOK: AmAmStatus[] = ['onboarding', 'active', 'at_risk', 'renewing', 'paused'];
++
++export type AmHealthComponents = {
++  kpi_delivery: number;
++  engagement: number;
++  financial: number;
++  satisfaction: number;
++  contract_support: number;
++};
++
++export const DEFAULT_WEIGHTS: AmHealthComponents = {
++  kpi_delivery: 30,
++  engagement: 20,
++  financial: 20,
++  satisfaction: 15,
++  contract_support: 15,
++};
+diff --git a/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts b/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts
+new file mode 100644
+index 00000000..1f87f8eb
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts
+@@ -0,0 +1,91 @@
++import { ForbiddenException } from '@nestjs/common';
++import { Reflector } from '@nestjs/core';
++import { AM_REQUIRED_ACTION_KEY, AM_REQUIRED_SECTION_KEY, StaffAmGuard } from './staff-am.guard';
++
++function parseCaps(caps: string[]): Array<{ section: string; action: string }> {
++  return caps.map((cap) => {
++    const [section, action] = cap.split(':');
++    return { section, action };
++  });
++}
++
++function ctx(
++  opts: { staffId: number; caps: string[]; internal?: boolean },
++  action: 'view' | 'view_all' | 'edit' | 'assign' | 'manage' = 'view',
++  section: 'crm_am' | 'crm_am.finance' = 'crm_am',
++) {
++  const staffAuth = {
++    resolveCrmStaffUserId: jest.fn().mockResolvedValue(opts.staffId <= 0 ? opts.staffId : opts.staffId),
++    me: jest.fn().mockResolvedValue({ caps: parseCaps(opts.caps) }),
++    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, capSection: string, capAction: string) =>
++      caps.some((c) => c.section === capSection && c.action === capAction),
++    ),
++  };
++  const reflector = {
++    get: jest.fn((key: string) => {
++      if (key === AM_REQUIRED_ACTION_KEY) return action;
++      if (key === AM_REQUIRED_SECTION_KEY) return section;
++      return undefined;
++    }),
++  };
++  const guard = new StaffAmGuard(staffAuth as never, reflector as unknown as Reflector);
++  const executionContext = {
++    switchToHttp: () => ({
++      getRequest: () => ({
++        staffUser: opts.internal ? undefined : { sub: String(opts.staffId) },
++        staffAuthVia: opts.internal ? 'internal' : 'jwt',
++      }),
++    }),
++    getHandler: () => ({}),
++  } as never;
++  return { guard, executionContext, staffAuth };
++}
++
++describe('StaffAmGuard', () => {
++  it('denies staffId<=0', async () => {
++    const { guard, executionContext } = ctx({ staffId: 0, caps: ['crm_am:view'] });
++    await expect(guard.canActivate(executionContext)).rejects.toMatchObject({ status: 403 });
++  });
++
++  it('allows view with crm_am:view', async () => {
++    const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_am:view'] });
++    await expect(guard.canActivate(executionContext)).resolves.toBe(true);
++  });
++
++  it('allows view with crm_am:view_all', async () => {
++    const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_am:view_all'] });
++    await expect(guard.canActivate(executionContext)).resolves.toBe(true);
++  });
++
++  it('denies edit without crm_am:edit', async () => {
++    const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_am:view'] }, 'edit');
++    await expect(guard.canActivate(executionContext)).rejects.toMatchObject({ status: 403 });
++  });
++
++  it('allows edit with crm_am:edit', async () => {
++    const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_am:view', 'crm_am:edit'] }, 'edit');
++    await expect(guard.canActivate(executionContext)).resolves.toBe(true);
++  });
++
++  it('throws ForbiddenException for missing cap', async () => {
++    const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_leads:view'] }, 'edit');
++    await expect(guard.canActivate(executionContext)).rejects.toBeInstanceOf(ForbiddenException);
++  });
++
++  it('allows internal key without caps', async () => {
++    const { guard, executionContext } = ctx({ staffId: 0, caps: [], internal: true });
++    await expect(guard.canActivate(executionContext)).resolves.toBe(true);
++  });
++
++  it('checks crm_am.finance for finance endpoints', async () => {
++    const { guard, executionContext } = ctx(
++      { staffId: 3, caps: ['crm_am:view'] },
++      'view',
++      'crm_am.finance',
++    );
++    await expect(guard.canActivate(executionContext)).rejects.toMatchObject({ status: 403 });
++
++    const ok = ctx({ staffId: 3, caps: ['crm_am.finance:view'] }, 'view', 'crm_am.finance');
++    await expect(ok.guard.canActivate(ok.executionContext)).resolves.toBe(true);
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/guards/staff-am.guard.ts b/services/ptt-crm-api/src/am/guards/staff-am.guard.ts
+new file mode 100644
+index 00000000..3bc47fca
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/guards/staff-am.guard.ts
+@@ -0,0 +1,62 @@
++import {
++  applyDecorators,
++  CanActivate,
++  ExecutionContext,
++  ForbiddenException,
++  Injectable,
++  SetMetadata,
++  UnauthorizedException,
++} from '@nestjs/common';
++import { Reflector } from '@nestjs/core';
++import { Request } from 'express';
++import { StaffAuthService } from '../../staff-auth/staff-auth.service';
++import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
++
++export type AmCapAction = 'view' | 'view_all' | 'edit' | 'assign' | 'manage';
++export type AmCapSection = 'crm_am' | 'crm_am.finance';
++
++export const AM_REQUIRED_ACTION_KEY = 'amRequiredAction';
++export const AM_REQUIRED_SECTION_KEY = 'amRequiredSection';
++
++export const RequireAmAction = (action: AmCapAction) => SetMetadata(AM_REQUIRED_ACTION_KEY, action);
++
++export const RequireAmFinanceAction = (action: AmCapAction = 'view') =>
++  applyDecorators(
++    SetMetadata(AM_REQUIRED_SECTION_KEY, 'crm_am.finance' satisfies AmCapSection),
++    SetMetadata(AM_REQUIRED_ACTION_KEY, action),
++  );
++
++type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
++
++@Injectable()
++export class StaffAmGuard implements CanActivate {
++  constructor(
++    private readonly staffAuth: StaffAuthService,
++    private readonly reflector: Reflector,
++  ) {}
++
++  async canActivate(context: ExecutionContext): Promise<boolean> {
++    const req = context.switchToHttp().getRequest<StaffReq>();
++    if (req.staffAuthVia === 'internal') return true;
++    if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
++
++    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
++    if (staffId == null || staffId <= 0) {
++      throw new ForbiddenException({ error: 'am_unresolved_staff' });
++    }
++
++    const action =
++      this.reflector.get<AmCapAction | undefined>(AM_REQUIRED_ACTION_KEY, context.getHandler()) ?? 'view';
++    const section =
++      this.reflector.get<AmCapSection | undefined>(AM_REQUIRED_SECTION_KEY, context.getHandler()) ?? 'crm_am';
++
++    const me = await this.staffAuth.me(req.staffUser);
++    const allowed =
++      this.staffAuth.hasCap(me.caps, section, action) ||
++      (action === 'view' && this.staffAuth.hasCap(me.caps, section, 'view_all'));
++    if (!allowed) {
++      throw new ForbiddenException({ error: 'missing_cap', section, action });
++    }
++    return true;
++  }
++}
+diff --git a/services/ptt-crm-api/src/app.module.ts b/services/ptt-crm-api/src/app.module.ts
+index 8f979ccc..c07713c6 100644
+--- a/services/ptt-crm-api/src/app.module.ts
++++ b/services/ptt-crm-api/src/app.module.ts
+@@ -12,20 +12,21 @@ import { CrmLeadsLegacyModule } from './crm-leads-legacy/crm-leads-legacy.module
+ import { CrmStaffModule } from './crm-staff/crm-staff.module';
+ import { KpiModule } from './kpi/kpi.module';
+ import { KpiGroupsModule } from './kpi-groups/kpi-groups.module';
+ import { KpiTypesModule } from './kpi-types/kpi-types.module';
+ import { KpiHubModule } from './kpi-hub/kpi-hub.module';
+ import { SalesModule } from './sales/sales.module';
+ import { CustomersModule } from './customers/customers.module';
+ import { IntakeModule } from './intake/intake.module';
+ import { CeoCommandModule } from './ceo-command/ceo-command.module';
+ import { CsdModule } from './csd/csd.module';
++import { AmModule } from './am/am.module';
+ import { IwrModule } from './iwr/iwr.module';
+ import { MetaTrackingModule } from './meta-tracking/meta-tracking.module';
+ import { MetaAlertsModule } from './meta-alerts/meta-alerts.module';
+ import { AiIntelligenceModule } from './ai-intelligence/ai-intelligence.module';
+ import { AutomationWorkflowsModule } from './automation-workflows/automation-workflows.module';
+ import { PlaybooksModule } from './playbooks/playbooks.module';
+ import { CrmSearchModule } from './crm-search/crm-search.module';
+ import { CustomerTimelineModule } from './customer-timeline/customer-timeline.module';
+ import { MetaIntelligenceModule } from './meta-intelligence/meta-intelligence.module';
+ import { MetaCreativeRegistryModule } from './meta-creative-registry/meta-creative-registry.module';
+@@ -127,20 +128,21 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
+     GtmModule,
+     GtmCmsModule,
+     LeadsContractModule,
+     CatalogModule,
+     CrmConfigModule,
+     CrmLeadsLegacyModule,
+     CustomersModule,
+     IntakeModule,
+     CeoCommandModule,
+     CsdModule,
++    AmModule,
+     IwrModule,
+     CasesModule,
+     TicketsModule,
+     SalesModule,
+     KpiModule,
+     KpiGroupsModule,
+     KpiTypesModule,
+     KpiHubModule,
+     CrmStaffModule,
+     ProposalsModule,

@@ -1,0 +1,1593 @@
+# Review package: 0921985e9b3578fb7925345f1981bf58eb3cf99d..4c9254beebafe51e1f239744b34933078a88b43d
+
+## Commits
+4c9254be feat(am): add saved views and bulk owner transfer
+
+## Files changed
+ .../ops-web/src/app/crm/account-management/am.css  |  53 ++++
+ .../src/components/crm/am/AmAccountsList.tsx       | 327 ++++++++++++++++++++-
+ .../src/lib/crm/am-accounts-views.util.spec.ts     |  27 ++
+ .../ops-web/src/lib/crm/am-accounts-views.util.ts  |  20 ++
+ services/ops-web/src/lib/crm/am-api.ts             |  51 ++++
+ .../src/am/am-accounts-transfer.spec.ts            | 128 ++++++++
+ services/ptt-crm-api/src/am/am-accounts.service.ts | 115 +++++++-
+ .../ptt-crm-api/src/am/am-views.service.spec.ts    |  77 +++++
+ services/ptt-crm-api/src/am/am-views.service.ts    | 153 ++++++++++
+ services/ptt-crm-api/src/am/am.controller.ts       |  40 ++-
+ services/ptt-crm-api/src/am/am.module.ts           |   4 +
+ .../src/am/guards/staff-am.guard.spec.ts           |   5 +
+ 12 files changed, 989 insertions(+), 11 deletions(-)
+
+## Diff
+diff --git a/services/ops-web/src/app/crm/account-management/am.css b/services/ops-web/src/app/crm/account-management/am.css
+index 228eb73a..1e891e51 100644
+--- a/services/ops-web/src/app/crm/account-management/am.css
++++ b/services/ops-web/src/app/crm/account-management/am.css
+@@ -671,20 +671,73 @@
+   justify-content: space-between;
+   align-items: center;
+   gap: 8px;
+ }
+ 
+ .am-list__pager-btns {
+   display: flex;
+   gap: 6px;
+ }
+ 
++.am-list__save-view {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 8px;
++  align-items: center;
++}
++
++.am-list__save-view input[type='text'],
++.am-list__save-view input:not([type]) {
++  height: 34px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  padding: 0 10px;
++  min-width: 180px;
++}
++
++.am-list__check {
++  width: 36px;
++}
++
++.am-bulk {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: 8px;
++  padding: 10px 12px;
++  background: #eff6ff;
++  border: 1px solid #bfdbfe;
++  border-radius: 10px;
++  font-weight: 600;
++}
++
++.am-check {
++  display: inline-flex;
++  align-items: center;
++  gap: 6px;
++  font-size: 13px;
++}
++
++.am-field textarea {
++  min-height: 72px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  padding: 8px 10px;
++  font: inherit;
++}
++
++.am-field legend {
++  color: #6b7280;
++  font-weight: 600;
++  font-size: 13px;
++}
++
+ .am-pill {
+   display: inline-flex;
+   border-radius: 99px;
+   padding: 2px 8px;
+   font-size: 12px;
+   font-weight: 700;
+ }
+ 
+ .am-pill--ok {
+   background: #dcfce7;
+diff --git a/services/ops-web/src/components/crm/am/AmAccountsList.tsx b/services/ops-web/src/components/crm/am/AmAccountsList.tsx
+index fbd3e112..97ae0b9c 100644
+--- a/services/ops-web/src/components/crm/am/AmAccountsList.tsx
++++ b/services/ops-web/src/components/crm/am/AmAccountsList.tsx
+@@ -1,23 +1,34 @@
+ 'use client';
+ 
+ import Link from 'next/link';
+ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+-import { fetchAmAccounts, type AmAccountListItem } from '@/lib/crm/am-api';
++import { fetchStaffRoster, type StaffRosterRow } from '@/lib/api';
++import {
++  createAmView,
++  fetchAmAccounts,
++  fetchAmViews,
++  transferAmAccounts,
++  type AmAccountListItem,
++  type AmSavedView,
++} from '@/lib/crm/am-api';
+ import { bandCopy, vnd } from '@/lib/crm/am-format';
+ import {
+   accountCell,
+   activeAccountView,
+   applyAccountView,
++  canAssignAmAccounts,
+   canSeeUnassignedAccounts,
++  canShareAmView,
+   parentChildLabel,
++  viewQueryFromSearch,
+   visibleAccountViews,
+   type AmAccountsViewPreset,
+ } from '@/lib/crm/am-accounts-views.util';
+ import { useAmPage } from './AmShell';
+ 
+ const LIFECYCLES = [
+   { value: '', label: 'Lifecycle' },
+   { value: 'pending_handover', label: 'Chờ handover' },
+   { value: 'onboarding', label: 'Onboarding' },
+   { value: 'active', label: 'Active' },
+@@ -69,25 +80,49 @@ export function AmAccountsList() {
+   const searchParams = useSearchParams();
+   const searchKey = searchParams.toString();
+   const search = useMemo(() => new URLSearchParams(searchKey), [searchKey]);
+ 
+   const [items, setItems] = useState<AmAccountListItem[]>([]);
+   const [total, setTotal] = useState(0);
+   const [page, setPage] = useState(1);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState('');
+   const [qDraft, setQDraft] = useState(search.get('q') ?? '');
++  const [selected, setSelected] = useState<Record<string, boolean>>({});
++  const [savedViews, setSavedViews] = useState<AmSavedView[]>([]);
++  const [viewName, setViewName] = useState('');
++  const [viewShared, setViewShared] = useState(false);
++  const [viewBusy, setViewBusy] = useState(false);
++  const [viewError, setViewError] = useState('');
++  const [transferOpen, setTransferOpen] = useState(false);
++  const [toStaffId, setToStaffId] = useState('');
++  const [keepSecondary, setKeepSecondary] = useState(true);
++  const [moveOpenTasks, setMoveOpenTasks] = useState(false);
++  const [reason, setReason] = useState('');
++  const [transferBusy, setTransferBusy] = useState(false);
++  const [transferError, setTransferError] = useState('');
++  const [roster, setRoster] = useState<StaffRosterRow[]>([]);
+ 
+   const canUnassigned = canSeeUnassignedAccounts(user);
++  const canAssign = canAssignAmAccounts(user);
++  const canShare = canShareAmView(user);
+   const views = visibleAccountViews(user);
+   const activeView = activeAccountView(search);
+   const pageSize = 50;
++  const selectedIds = useMemo(
++    () => Object.entries(selected).filter(([, on]) => on).map(([id]) => id),
++    [selected],
++  );
++  const selectedCount = selectedIds.length;
++  const pageIds = items.map((row) => row.agency_client_id);
++  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected[id]);
++  const activeSavedView = savedViews.find((view) => view.id === search.get('view'));
+ 
+   const replaceSearch = useCallback(
+     (next: URLSearchParams) => {
+       const qs = next.toString();
+       router.replace(qs ? `${pathname}?${qs}` : pathname);
+     },
+     [pathname, router],
+   );
+ 
+   const setParam = useCallback(
+@@ -113,20 +148,50 @@ export function AmAccountsList() {
+       const current = search.get('sort');
+       setParam('sort', current === key ? `-${key}` : key);
+     },
+     [search, setParam],
+   );
+ 
+   useEffect(() => {
+     setQDraft(search.get('q') ?? '');
+   }, [search]);
+ 
++  useEffect(() => {
++    let cancelled = false;
++    void (async () => {
++      try {
++        const out = await fetchAmViews(token);
++        if (!cancelled) setSavedViews(out.items ?? []);
++      } catch {
++        if (!cancelled) setSavedViews([]);
++      }
++    })();
++    return () => {
++      cancelled = true;
++    };
++  }, [token]);
++
++  useEffect(() => {
++    if (!canAssign) return;
++    let cancelled = false;
++    void fetchStaffRoster(token)
++      .then((out) => {
++        if (!cancelled) setRoster(out.staff ?? []);
++      })
++      .catch(() => {
++        if (!cancelled) setRoster([]);
++      });
++    return () => {
++      cancelled = true;
++    };
++  }, [canAssign, token]);
++
+   useEffect(() => {
+     let cancelled = false;
+     void (async () => {
+       setLoading(true);
+       setError('');
+       try {
+         const query = queryFromSearch(search);
+         if (!query.scope) query.scope = scope;
+         const out = await fetchAmAccounts(token, query);
+         if (cancelled) return;
+@@ -145,48 +210,170 @@ export function AmAccountsList() {
+     return () => {
+       cancelled = true;
+     };
+   }, [scope, search, token]);
+ 
+   function onSearch(ev: FormEvent) {
+     ev.preventDefault();
+     setParam('q', qDraft.trim());
+   }
+ 
++  function toggleRow(id: string, on: boolean) {
++    setSelected((prev) => ({ ...prev, [id]: on }));
++  }
++
++  function togglePage(on: boolean) {
++    setSelected((prev) => {
++      const next = { ...prev };
++      for (const id of pageIds) next[id] = on;
++      return next;
++    });
++  }
++
++  function applySaved(view: AmSavedView) {
++    const next = new URLSearchParams();
++    for (const [key, value] of Object.entries(view.query_json ?? {})) {
++      if (value) next.set(key, String(value));
++    }
++    next.set('view', view.id);
++    replaceSearch(next);
++  }
++
++  async function onSaveView(ev: FormEvent) {
++    ev.preventDefault();
++    const name = viewName.trim();
++    if (!name) {
++      setViewError('Nhập tên view');
++      return;
++    }
++    setViewBusy(true);
++    setViewError('');
++    try {
++      const created = await createAmView(token, {
++        name,
++        shared: canShare && viewShared,
++        page: 'accounts',
++        query_json: viewQueryFromSearch(search),
++      });
++      setSavedViews((prev) => [created, ...prev.filter((row) => row.id !== created.id)]);
++      setViewName('');
++      setViewShared(false);
++    } catch (err) {
++      setViewError(err instanceof Error ? err.message : 'Không lưu được view');
++    } finally {
++      setViewBusy(false);
++    }
++  }
++
++  async function onTransfer(ev: FormEvent) {
++    ev.preventDefault();
++    const staffId = Number(toStaffId);
++    const why = reason.trim();
++    if (!why) {
++      setTransferError('Lý do chuyển giao là bắt buộc');
++      return;
++    }
++    if (!Number.isFinite(staffId) || staffId <= 0) {
++      setTransferError('Chọn owner mới');
++      return;
++    }
++    setTransferBusy(true);
++    setTransferError('');
++    try {
++      await transferAmAccounts(token, {
++        agency_client_ids: selectedIds,
++        to_staff_id: staffId,
++        reason: why,
++        keep_secondary: keepSecondary,
++        move_open_tasks: moveOpenTasks,
++      });
++      setTransferOpen(false);
++      setSelected({});
++      setReason('');
++      setToStaffId('');
++      const query = queryFromSearch(search);
++      if (!query.scope) query.scope = scope;
++      const out = await fetchAmAccounts(token, query);
++      setItems(out.items);
++      setTotal(out.total);
++      setPage(out.page);
++    } catch (err) {
++      setTransferError(err instanceof Error ? err.message : 'Không chuyển được owner');
++    } finally {
++      setTransferBusy(false);
++    }
++  }
++
+   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+   const to = Math.min(page * pageSize, total);
+   const maxPage = Math.max(1, Math.ceil(total / pageSize));
+ 
+   return (
+     <section className="am-list">
+       <div className="am-list__head">
+         <div>
+           <h1>Khách hàng</h1>
+           <p className="am-muted">{total ? `${total} khách` : 'Danh sách theo phạm vi hiện tại'}</p>
+         </div>
+       </div>
+ 
+       <div className="am-chips" role="tablist" aria-label="Saved views">
+         {views.map((view) => (
+           <button
+             key={view.id}
+             type="button"
+             role="tab"
+-            aria-selected={activeView === view.id}
+-            className={`am-chip${activeView === view.id ? ' is-on' : ''}`}
++            aria-selected={!activeSavedView && activeView === view.id}
++            className={`am-chip${!activeSavedView && activeView === view.id ? ' is-on' : ''}`}
+             onClick={() => applyView(view)}
+           >
+             {view.label}
+           </button>
+         ))}
++        {savedViews.map((view) => (
++          <button
++            key={view.id}
++            type="button"
++            role="tab"
++            aria-selected={activeSavedView?.id === view.id}
++            className={`am-chip${activeSavedView?.id === view.id ? ' is-on' : ''}`}
++            onClick={() => applySaved(view)}
++          >
++            {view.name}
++            {view.shared ? ' · chung' : ''}
++          </button>
++        ))}
+       </div>
+ 
++      <form className="am-list__save-view" onSubmit={(ev) => void onSaveView(ev)}>
++        <input
++          value={viewName}
++          onChange={(ev) => setViewName(ev.target.value)}
++          placeholder="Tên view"
++          aria-label="Tên view"
++        />
++        {canShare ? (
++          <label className="am-check">
++            <input
++              type="checkbox"
++              checked={viewShared}
++              onChange={(ev) => setViewShared(ev.target.checked)}
++            />
++            Chia sẻ
++          </label>
++        ) : null}
++        <button type="submit" className="am-btn" disabled={viewBusy}>
++          Lưu view
++        </button>
++        {viewError ? <span className="am-muted">{viewError}</span> : null}
++      </form>
++
+       <form className="am-list__filters" onSubmit={onSearch}>
+         <input
+           className="am-list__q"
+           value={qDraft}
+           onChange={(ev) => setQDraft(ev.target.value)}
+           placeholder="Tên, mã…"
+           aria-label="Tìm khách hàng"
+         />
+         <select
+           aria-label="Owner"
+@@ -238,24 +425,53 @@ export function AmAccountsList() {
+         </button>
+       </form>
+ 
+       {error ? (
+         <div className="am-widget__error">
+           <p>Không tải được danh sách.</p>
+           <p className="am-muted">{error}</p>
+         </div>
+       ) : null}
+ 
++      {selectedCount > 0 ? (
++        <div className="am-bulk" role="region" aria-label="Bulk actions">
++          <span>Đã chọn {selectedCount} khách hàng</span>
++          {canAssign ? (
++            <button
++              type="button"
++              className="am-btn am-btn--primary"
++              onClick={() => {
++                setTransferError('');
++                setTransferOpen(true);
++              }}
++            >
++              Đổi Owner
++            </button>
++          ) : null}
++          <button type="button" className="am-btn" onClick={() => setSelected({})}>
++            Bỏ chọn
++          </button>
++        </div>
++      ) : null}
++
+       <div className="am-tbl-wrap am-list__table">
+         <table className="am-table">
+           <thead>
+             <tr>
++              <th className="am-list__check">
++                <input
++                  type="checkbox"
++                  checked={allPageSelected}
++                  onChange={(ev) => togglePage(ev.target.checked)}
++                  aria-label="Chọn trang này"
++                />
++              </th>
+               <th>
+                 <button type="button" className="am-list__sort" onClick={() => toggleSort('name')}>
+                   Khách hàng
+                 </button>
+               </th>
+               <th>Owner</th>
+               <th>Team</th>
+               <th>Lifecycle</th>
+               <th>Health</th>
+               <th>
+@@ -267,38 +483,46 @@ export function AmAccountsList() {
+                 <button type="button" className="am-list__sort" onClick={() => toggleSort('ends_on')}>
+                   Gia hạn
+                 </button>
+               </th>
+               <th>SLA</th>
+             </tr>
+           </thead>
+           <tbody>
+             {loading ? (
+               <tr>
+-                <td colSpan={8} className="am-muted">
++                <td colSpan={9} className="am-muted">
+                   Đang tải…
+                 </td>
+               </tr>
+             ) : items.length === 0 ? (
+               <tr>
+-                <td colSpan={8} className="am-muted">
++                <td colSpan={9} className="am-muted">
+                   Không có khách trong bộ lọc này.
+                 </td>
+               </tr>
+             ) : (
+               items.map((row) => {
+                 const childLabel = parentChildLabel(row.child_count, row.is_parent);
+                 const ownerText =
+                   row.owner_label ??
+                   (row.owner_staff_id == null && canUnassigned ? 'Chưa gán' : null);
+                 return (
+                   <tr key={row.agency_client_id}>
++                    <td className="am-list__check">
++                      <input
++                        type="checkbox"
++                        checked={Boolean(selected[row.agency_client_id])}
++                        onChange={(ev) => toggleRow(row.agency_client_id, ev.target.checked)}
++                        aria-label={`Chọn ${row.name}`}
++                      />
++                    </td>
+                     <td>
+                       <Link
+                         className="am-link"
+                         href={`/crm/account-management/clients/${row.agency_client_id}`}
+                       >
+                         {accountCell(row.name)}
+                       </Link>
+                       <div className="am-muted">
+                         {accountCell(row.code)}
+                         {row.parent_name ? ` · ${row.parent_name}` : ''}
+@@ -345,13 +569,106 @@ export function AmAccountsList() {
+           <button
+             type="button"
+             className="am-btn"
+             disabled={page >= maxPage}
+             onClick={() => setParam('page', String(page + 1))}
+           >
+             Tiếp
+           </button>
+         </div>
+       </div>
++
++      {transferOpen ? (
++        <div
++          className="am-drawer-bg"
++          onMouseDown={(ev) => {
++            if (ev.target === ev.currentTarget && !transferBusy) setTransferOpen(false);
++          }}
++        >
++          <div className="am-drawer" role="dialog" aria-modal="true" aria-label="Đổi Owner">
++            <div className="am-drawer__head">
++              <h2>Đổi Owner</h2>
++              <button type="button" className="am-btn" onClick={() => setTransferOpen(false)}>
++                ×
++              </button>
++            </div>
++            <p className="am-muted">Chuyển owner cho {selectedCount} khách hàng</p>
++            <form className="am-form" onSubmit={(ev) => void onTransfer(ev)}>
++              <label className="am-field">
++                <span>Owner mới *</span>
++                <select
++                  value={toStaffId}
++                  onChange={(ev) => setToStaffId(ev.target.value)}
++                  aria-label="Owner mới"
++                >
++                  <option value="">Chọn owner</option>
++                  {roster.map((row) => (
++                    <option key={row.id} value={row.id}>
++                      {row.display_name || row.email}
++                      {row.email && row.display_name !== row.email ? ` · ${row.email}` : ''}
++                    </option>
++                  ))}
++                </select>
++                <input
++                  inputMode="numeric"
++                  value={toStaffId}
++                  onChange={(ev) => setToStaffId(ev.target.value.trim())}
++                  placeholder="Staff ID"
++                  aria-label="Staff ID owner mới"
++                  required
++                />
++              </label>
++              <label className="am-check">
++                <input
++                  type="checkbox"
++                  checked={keepSecondary}
++                  onChange={(ev) => setKeepSecondary(ev.target.checked)}
++                />
++                Giữ owner cũ là secondary owner
++              </label>
++              <fieldset className="am-field">
++                <legend>Chuyển các task đang mở</legend>
++                <label className="am-check">
++                  <input
++                    type="radio"
++                    name="move_open_tasks"
++                    checked={!moveOpenTasks}
++                    onChange={() => setMoveOpenTasks(false)}
++                  />
++                  Không chuyển
++                </label>
++                <label className="am-check">
++                  <input
++                    type="radio"
++                    name="move_open_tasks"
++                    checked={moveOpenTasks}
++                    onChange={() => setMoveOpenTasks(true)}
++                  />
++                  Chuyển sang owner mới
++                </label>
++              </fieldset>
++              <label className="am-field">
++                <span>Lý do chuyển giao *</span>
++                <textarea
++                  value={reason}
++                  onChange={(ev) => setReason(ev.target.value)}
++                  required
++                  rows={3}
++                  aria-label="Lý do chuyển giao"
++                />
++              </label>
++              {transferError ? <p className="am-widget__error">{transferError}</p> : null}
++              <div className="am-form__actions">
++                <button type="button" className="am-btn" onClick={() => setTransferOpen(false)}>
++                  Hủy
++                </button>
++                <button type="submit" className="am-btn am-btn--primary" disabled={transferBusy}>
++                  Xác nhận chuyển
++                </button>
++              </div>
++            </form>
++          </div>
++        </div>
++      ) : null}
+     </section>
+   );
+ }
+diff --git a/services/ops-web/src/lib/crm/am-accounts-views.util.spec.ts b/services/ops-web/src/lib/crm/am-accounts-views.util.spec.ts
+index 49d2640f..e1cebd5e 100644
+--- a/services/ops-web/src/lib/crm/am-accounts-views.util.spec.ts
++++ b/services/ops-web/src/lib/crm/am-accounts-views.util.spec.ts
+@@ -1,19 +1,22 @@
+ import { describe, expect, it } from 'vitest';
+ import type { StoredStaffUser } from '@/lib/auth';
+ import {
+   accountCell,
+   activeAccountView,
+   applyAccountView,
+   AM_ACCOUNT_VIEWS,
++  canAssignAmAccounts,
+   canSeeUnassignedAccounts,
++  canShareAmView,
+   parentChildLabel,
++  viewQueryFromSearch,
+   visibleAccountViews,
+ } from './am-accounts-views.util';
+ 
+ function user(caps: Array<{ section: string; action: string }>): StoredStaffUser {
+   return {
+     id: '1',
+     email: 'u@pttads.vn',
+     display_name: 'Test',
+     position_id: 2,
+     caps,
+@@ -65,10 +68,34 @@ describe('saved-view chips as URL presets', () => {
+     const viewOnly = user([{ section: 'crm_am', action: 'view' }]);
+     expect(canSeeUnassignedAccounts(viewOnly)).toBe(false);
+     expect(visibleAccountViews(viewOnly).some((view) => view.id === 'unassigned')).toBe(false);
+     expect(
+       visibleAccountViews(user([{ section: 'crm_am', action: 'assign' }])).some(
+         (view) => view.id === 'unassigned',
+       ),
+     ).toBe(true);
+   });
+ });
++
++describe('saved view + transfer caps', () => {
++  it('hides bulk assign from view-only users', () => {
++    const viewOnly = user([{ section: 'crm_am', action: 'view' }]);
++    expect(canAssignAmAccounts(viewOnly)).toBe(false);
++    expect(canShareAmView(viewOnly)).toBe(false);
++    expect(canAssignAmAccounts(user([{ section: 'crm_am', action: 'assign' }]))).toBe(true);
++    expect(
++      canShareAmView(
++        user([
++          { section: 'crm_am', action: 'assign' },
++          { section: 'crm_am', action: 'view_all' },
++        ]),
++      ),
++    ).toBe(true);
++  });
++
++  it('drops page from saved query_json', () => {
++    expect(viewQueryFromSearch(new URLSearchParams('owner=me&page=2&q=an'))).toEqual({
++      owner: 'me',
++      q: 'an',
++    });
++  });
++});
+diff --git a/services/ops-web/src/lib/crm/am-accounts-views.util.ts b/services/ops-web/src/lib/crm/am-accounts-views.util.ts
+index 7c64ff12..46abf6c6 100644
+--- a/services/ops-web/src/lib/crm/am-accounts-views.util.ts
++++ b/services/ops-web/src/lib/crm/am-accounts-views.util.ts
+@@ -22,20 +22,40 @@ const VIEW_PARAM_KEYS = ['owner', 'band', 'sort', 'ends_within', 'parent'] as co
+ const KEEP_PARAM_KEYS = ['scope', 'q', 'team', 'lifecycle', 'industry'] as const;
+ 
+ export function canSeeUnassignedAccounts(user: StoredStaffUser | null | undefined): boolean {
+   return (
+     hasCap(user ?? null, 'crm_am', 'assign') ||
+     hasCap(user ?? null, 'crm_am', 'view_all') ||
+     hasCap(user ?? null, 'crm_am', 'manage')
+   );
+ }
+ 
++export function canAssignAmAccounts(user: StoredStaffUser | null | undefined): boolean {
++  return hasCap(user ?? null, 'crm_am', 'assign') || hasCap(user ?? null, 'crm_am', 'manage');
++}
++
++export function canShareAmView(user: StoredStaffUser | null | undefined): boolean {
++  return (
++    hasCap(user ?? null, 'crm_am', 'manage') ||
++    (hasCap(user ?? null, 'crm_am', 'assign') && hasCap(user ?? null, 'crm_am', 'view_all'))
++  );
++}
++
++export function viewQueryFromSearch(search: URLSearchParams): Record<string, string> {
++  const out: Record<string, string> = {};
++  search.forEach((value, key) => {
++    if (key === 'page' || !value) return;
++    out[key] = value;
++  });
++  return out;
++}
++
+ export function visibleAccountViews(user: StoredStaffUser | null | undefined): AmAccountsViewPreset[] {
+   const allowUnassigned = canSeeUnassignedAccounts(user);
+   return AM_ACCOUNT_VIEWS.filter((view) => !view.requiresAssign || allowUnassigned);
+ }
+ 
+ function fingerprint(search: URLSearchParams): Record<string, string> {
+   const out: Record<string, string> = {};
+   for (const key of VIEW_PARAM_KEYS) {
+     const value = search.get(key);
+     if (value) out[key] = value;
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index 0d0968d4..b11a47d8 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -210,20 +210,71 @@ export type AmAccountsListQuery = {
+   band?: string;
+   lifecycle?: string;
+   industry?: string;
+   sort?: string;
+   page?: string;
+   page_size?: string;
+   parent?: string;
+   ends_within?: string;
+ };
+ 
++export type AmSavedView = {
++  id: string;
++  name: string;
++  shared: boolean;
++  page: string;
++  query_json: Record<string, string | undefined>;
++  owner_staff_id: number;
++  created_at: string;
++};
++
++export type AmCreateViewBody = {
++  name: string;
++  shared?: boolean;
++  page?: string;
++  query_json?: Record<string, string>;
++};
++
++export async function fetchAmViews(token: string): Promise<{ items: AmSavedView[] }> {
++  return amFetch<{ items: AmSavedView[] }>(token, '/api/crm/am/views');
++}
++
++export async function createAmView(token: string, body: AmCreateViewBody): Promise<AmSavedView> {
++  return amFetch<AmSavedView>(token, '/api/crm/am/views', {
++    method: 'POST',
++    body: JSON.stringify(body),
++  });
++}
++
++export type AmTransferBody = {
++  agency_client_ids: string[];
++  to_staff_id: number;
++  reason: string;
++  keep_secondary?: boolean;
++  backup_staff_id?: number;
++  move_open_tasks?: boolean;
++};
++
++export type AmTransferResult = {
++  transferred: number;
++  to_staff_id: number;
++  moved_tasks: number;
++  keep_secondary: boolean;
++};
++
++export async function transferAmAccounts(token: string, body: AmTransferBody): Promise<AmTransferResult> {
++  return amFetch<AmTransferResult>(token, '/api/crm/am/accounts/transfer', {
++    method: 'POST',
++    body: JSON.stringify(body),
++  });
++}
++
+ export async function fetchAmAccounts(
+   token: string,
+   query: AmAccountsListQuery = {},
+ ): Promise<AmAccountsList> {
+   const params = new URLSearchParams();
+   for (const [key, value] of Object.entries(query)) {
+     if (value) params.set(key, value);
+   }
+   if (!params.has('page_size')) params.set('page_size', '50');
+   const suffix = params.toString() ? `?${params.toString()}` : '';
+diff --git a/services/ptt-crm-api/src/am/am-accounts-transfer.spec.ts b/services/ptt-crm-api/src/am/am-accounts-transfer.spec.ts
+new file mode 100644
+index 00000000..04ffed68
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-accounts-transfer.spec.ts
+@@ -0,0 +1,128 @@
++import { AmAccountsService } from './am-accounts.service';
++
++const CLIENT_ID = '19d722af-0000-4000-8000-000000000001';
++
++describe('AmAccountsService.transfer', () => {
++  const agency = { createClient: jest.fn() };
++  const db = {
++    sqls: [] as string[],
++    query: jest.fn(async (sql: string) => {
++      db.sqls.push(sql);
++      if (/select/i.test(sql) && /account_owner_staff_id/i.test(sql)) {
++        return {
++          rows: [{ agency_client_id: CLIENT_ID, account_owner_staff_id: 3, backup_staff_id: null }],
++          rowCount: 1,
++        };
++      }
++      return { rows: [], rowCount: 1 };
++    }),
++  };
++  const staffAuth = {
++    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, section: string, action: string) =>
++      caps.some((c) => c.section === section && c.action === action),
++    ),
++  };
++  const audit = {
++    calls: [] as Array<{ action: string; entity_type: string; payload_json?: Record<string, unknown> }>,
++    insert: jest.fn(async (row: { action: string; entity_type: string; payload_json?: Record<string, unknown> }) => {
++      audit.calls.push(row);
++    }),
++  };
++
++  const assignActor = {
++    staffId: 1,
++    caps: [{ section: 'crm_am', action: 'assign' }],
++    via: 'jwt' as const,
++  };
++  const viewActor = {
++    staffId: 2,
++    caps: [{ section: 'crm_am', action: 'view' }],
++    via: 'jwt' as const,
++  };
++
++  let service: AmAccountsService;
++
++  beforeEach(() => {
++    db.sqls.length = 0;
++    audit.calls.length = 0;
++    jest.clearAllMocks();
++    db.query.mockImplementation(async (sql: string) => {
++      db.sqls.push(sql);
++      if (/select/i.test(sql) && /account_owner_staff_id/i.test(sql)) {
++        return {
++          rows: [{ agency_client_id: CLIENT_ID, account_owner_staff_id: 3, backup_staff_id: null }],
++          rowCount: 1,
++        };
++      }
++      return { rows: [], rowCount: 1 };
++    });
++    service = new AmAccountsService(
++      agency as never,
++      db as never,
++      staffAuth as never,
++      undefined,
++      audit as never,
++    );
++  });
++
++  it('rejects transfer without reason', async () => {
++    await expect(
++      service.transfer(
++        { agency_client_ids: [CLIENT_ID], to_staff_id: 9, reason: '' },
++        assignActor,
++      ),
++    ).rejects.toMatchObject({ status: 400 });
++    expect(db.query).not.toHaveBeenCalled();
++  });
++
++  it('rejects view user with 403', async () => {
++    await expect(
++      service.transfer(
++        { agency_client_ids: [CLIENT_ID], to_staff_id: 9, reason: 'handover' },
++        viewActor,
++      ),
++    ).rejects.toMatchObject({ status: 403 });
++    expect(db.query).not.toHaveBeenCalled();
++  });
++
++  it('moves open tasks only when move_open_tasks is true', async () => {
++    await service.transfer(
++      {
++        agency_client_ids: [CLIENT_ID],
++        to_staff_id: 9,
++        reason: 'handover',
++        move_open_tasks: false,
++      },
++      assignActor,
++    );
++    expect(db.sqls.some((sql) => /update\s+crm_am_tasks/i.test(sql))).toBe(false);
++
++    db.sqls.length = 0;
++    await service.transfer(
++      {
++        agency_client_ids: [CLIENT_ID],
++        to_staff_id: 9,
++        reason: 'handover',
++        move_open_tasks: true,
++      },
++      assignActor,
++    );
++    expect(db.sqls.some((sql) => /update\s+crm_am_tasks/i.test(sql))).toBe(true);
++  });
++
++  it('writes account.transfer audit and a single owner', async () => {
++    await service.transfer(
++      {
++        agency_client_ids: [CLIENT_ID],
++        to_staff_id: 9,
++        reason: 'handover',
++        keep_secondary: true,
++      },
++      assignActor,
++    );
++    expect(audit.calls[0]?.action).toBe('account.transfer');
++    const ownerUpdate = db.sqls.find((sql) => /update\s+crm_am_account_ext/i.test(sql)) ?? '';
++    expect(ownerUpdate).toMatch(/account_owner_staff_id/);
++    expect(ownerUpdate).toMatch(/backup_staff_id/);
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-accounts.service.ts b/services/ptt-crm-api/src/am/am-accounts.service.ts
+index ae4b7a41..83062479 100644
+--- a/services/ptt-crm-api/src/am/am-accounts.service.ts
++++ b/services/ptt-crm-api/src/am/am-accounts.service.ts
+@@ -1,21 +1,22 @@
+ import { Inject, Injectable, OnModuleDestroy, Optional, forwardRef } from '@nestjs/common';
+ import { Pool } from 'pg';
+ import { AgencyService } from '../agency/agency.service';
+ import { AppConfigService } from '../config/app-config.service';
+ import { StaffAuthService } from '../staff-auth/staff-auth.service';
+ import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
+ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+-import { AM_TENANT_ID } from './am-audit.repository';
++import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
+ import { AmDashboardService } from './am-dashboard.service';
+ import { amThrow } from './am-http';
+ import { amScopeSql, resolveAmScope } from './am-scope.util';
++import { isUuid } from './am-tasks.service';
+ import type { AmScope } from './am.types';
+ 
+ export type AmCreateAccountBody =
+   | { mode: 'create'; code: string; name: string; industry_slug?: string; owner_am_id?: string }
+   | { mode: 'attach'; agency_client_id: string; owner_staff_id?: number };
+ 
+ export type AmAccountActor = {
+   staffId: number;
+   caps: StaffSectionCap[];
+   via?: 'internal' | 'jwt';
+@@ -60,20 +61,36 @@ export type AmAccountsListResult = {
+   items: AmAccountListItem[];
+   total: number;
+   page: number;
+ };
+ 
+ export type AmAccountsListReq = {
+   staffUser?: StaffJwtPayload;
+   staffAuthVia?: 'internal' | 'jwt';
+ };
+ 
++export type AmTransferBody = {
++  agency_client_ids: string[];
++  to_staff_id: number;
++  reason: string;
++  keep_secondary?: boolean;
++  backup_staff_id?: number;
++  move_open_tasks?: boolean;
++};
++
++export type AmTransferResult = {
++  transferred: number;
++  to_staff_id: number;
++  moved_tasks: number;
++  keep_secondary: boolean;
++};
++
+ export type AmAccountsDb = {
+   query(
+     sql: string,
+     params?: unknown[],
+   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+ };
+ 
+ const EXT_UPSERT = `
+ INSERT INTO crm_am_account_ext (
+   agency_client_id, tenant_id, account_owner_staff_id, am_status, updated_at
+@@ -177,20 +194,21 @@ export class AmAccountsRepository implements OnModuleDestroy, AmAccountsDb {
+   }
+ }
+ 
+ @Injectable()
+ export class AmAccountsService {
+   constructor(
+     @Inject(forwardRef(() => AgencyService)) private readonly agency: AgencyService,
+     private readonly db: AmAccountsRepository,
+     private readonly staffAuth: StaffAuthService,
+     @Optional() private readonly dashboard?: AmDashboardService,
++    @Optional() private readonly audit?: AmAuditRepository,
+   ) {}
+ 
+   async list(req: AmAccountsListReq, q: AmAccountsListQuery): Promise<AmAccountsListResult> {
+     const actor = await this.resolveListActor(req, q.scope);
+     const page = Math.max(1, Number.parseInt(String(q.page ?? '1'), 10) || 1);
+     const pageSize = Math.min(100, Math.max(1, Number.parseInt(String(q.page_size ?? '50'), 10) || 50));
+     const owner = String(q.owner ?? '').trim();
+     if (owner === 'unassigned' && !actor.canSeeUnassigned) {
+       return { items: [], total: 0, page };
+     }
+@@ -211,20 +229,115 @@ export class AmAccountsService {
+   async createAccount(body: AmCreateAccountBody, actor: AmAccountActor) {
+     if (body.mode === 'create') {
+       return this.createFromAgency(body, actor);
+     }
+     if (body.mode === 'attach') {
+       return this.attachExisting(body, actor);
+     }
+     amThrow(400, { error: 'invalid_mode' });
+   }
+ 
++  async transfer(body: AmTransferBody, actor: AmAccountActor): Promise<AmTransferResult> {
++    if (!this.canAssign(actor)) {
++      amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'assign' });
++    }
++    const reason = String(body.reason ?? '').trim();
++    if (!reason) amThrow(400, { error: 'reason_required' });
++    const toStaffId = Number(body.to_staff_id);
++    if (!Number.isFinite(toStaffId) || toStaffId <= 0) {
++      amThrow(400, { error: 'to_staff_id_required' });
++    }
++    const ids = [...new Set((body.agency_client_ids ?? []).map((id) => String(id ?? '').trim()).filter(Boolean))];
++    if (!ids.length || ids.some((id) => !isUuid(id))) {
++      amThrow(400, { error: 'agency_client_ids_required' });
++    }
++    const keepSecondary = Boolean(body.keep_secondary);
++    const moveOpenTasks = Boolean(body.move_open_tasks);
++    const backupStaffId = keepSecondary ? num(body.backup_staff_id) : null;
++
++    const current = await this.db.query(
++      `SELECT agency_client_id::text AS agency_client_id,
++              account_owner_staff_id,
++              backup_staff_id
++         FROM crm_am_account_ext
++        WHERE tenant_id = $1 AND agency_client_id = ANY($2::uuid[])`,
++      [AM_TENANT_ID, ids],
++    );
++    const previous = current.rows.map((row) => ({
++      agency_client_id: String(row.agency_client_id ?? ''),
++      account_owner_staff_id: num(row.account_owner_staff_id),
++      backup_staff_id: num(row.backup_staff_id),
++    }));
++
++    await this.db.query(
++      `UPDATE crm_am_account_ext
++          SET account_owner_staff_id = $2,
++              backup_staff_id = CASE
++                WHEN $3::boolean THEN COALESCE($4::int, NULLIF(account_owner_staff_id, $2))
++                ELSE NULL
++              END,
++              updated_at = now()
++        WHERE tenant_id = $1 AND agency_client_id = ANY($5::uuid[])`,
++      [AM_TENANT_ID, toStaffId, keepSecondary, backupStaffId, ids],
++    );
++    await this.db.query(`UPDATE clients SET owner_am_id = $1 WHERE id = ANY($2::uuid[])`, [
++      String(toStaffId),
++      ids,
++    ]);
++
++    let movedTasks = 0;
++    if (moveOpenTasks) {
++      const moved = await this.db.query(
++        `UPDATE crm_am_tasks
++            SET assignee_staff_id = $2,
++                updated_at = now()
++          WHERE tenant_id = $1
++            AND agency_client_id = ANY($3::uuid[])
++            AND dismissed_at IS NULL
++            AND status NOT IN ('closed', 'cancelled', 'resolved')`,
++        [AM_TENANT_ID, toStaffId, ids],
++      );
++      movedTasks = Number(moved.rowCount ?? 0);
++    }
++
++    await this.audit?.insert({
++      actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
++      action: 'account.transfer',
++      entity_type: 'account',
++      entity_id: ids.length === 1 ? ids[0] : null,
++      payload_json: {
++        agency_client_ids: ids,
++        to_staff_id: toStaffId,
++        reason,
++        keep_secondary: keepSecondary,
++        backup_staff_id: backupStaffId,
++        move_open_tasks: moveOpenTasks,
++        previous,
++      },
++    });
++    this.dashboard?.dropCache();
++    return {
++      transferred: ids.length,
++      to_staff_id: toStaffId,
++      moved_tasks: movedTasks,
++      keep_secondary: keepSecondary,
++    };
++  }
++
++  private canAssign(actor: AmAccountActor): boolean {
++    if (actor.via === 'internal') return true;
++    return (
++      this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'assign') ||
++      this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'manage')
++    );
++  }
++
+   private canAgencyWrite(actor: AmAccountActor): boolean {
+     if (actor.via === 'internal') return true;
+     return (
+       this.staffAuth.hasCap(actor.caps ?? [], 'crm_agency', 'create') ||
+       this.staffAuth.hasCap(actor.caps ?? [], 'crm_agency', 'write')
+     );
+   }
+ 
+   private async createFromAgency(
+     body: Extract<AmCreateAccountBody, { mode: 'create' }>,
+diff --git a/services/ptt-crm-api/src/am/am-views.service.spec.ts b/services/ptt-crm-api/src/am/am-views.service.spec.ts
+new file mode 100644
+index 00000000..88bf7b9a
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-views.service.spec.ts
+@@ -0,0 +1,77 @@
++import { AmViewsService } from './am-views.service';
++
++describe('AmViewsService', () => {
++  const db = {
++    query: jest.fn(async (): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> => ({
++      rows: [],
++      rowCount: 0,
++    })),
++  };
++  const staffAuth = {
++    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, section: string, action: string) =>
++      caps.some((c) => c.section === section && c.action === action),
++    ),
++  };
++
++  const viewActor = {
++    staffId: 4,
++    caps: [{ section: 'crm_am', action: 'view' }],
++  };
++  const leadActor = {
++    staffId: 5,
++    caps: [
++      { section: 'crm_am', action: 'assign' },
++      { section: 'crm_am', action: 'view_all' },
++    ],
++  };
++
++  let service: AmViewsService;
++
++  beforeEach(() => {
++    jest.clearAllMocks();
++    db.query.mockResolvedValue({ rows: [], rowCount: 0 });
++    service = new AmViewsService(db as never, staffAuth as never);
++  });
++
++  it('rejects shared view from view-only user', async () => {
++    await expect(
++      service.create({ name: 'Team', shared: true, query_json: { owner: 'me' } }, viewActor),
++    ).rejects.toMatchObject({ status: 403 });
++    expect(db.query).not.toHaveBeenCalled();
++  });
++
++  it('rejects an 11th personal view', async () => {
++    db.query.mockResolvedValueOnce({
++      rows: [{ count: 10 }],
++      rowCount: 1,
++    });
++    await expect(
++      service.create({ name: 'Extra', query_json: {} }, viewActor),
++    ).rejects.toMatchObject({ status: 400 });
++  });
++
++  it('lets a team lead save a shared view', async () => {
++    db.query
++      .mockResolvedValueOnce({ rows: [{ count: 1 }], rowCount: 1 })
++      .mockResolvedValueOnce({
++        rows: [
++          {
++            id: '19d722af-0000-4000-8000-0000000000aa',
++            name: 'Team',
++            shared: true,
++            page: 'accounts',
++            query_json: { owner: 'me' },
++            owner_staff_id: 5,
++            created_at: '2026-09-05T00:00:00.000Z',
++          },
++        ],
++        rowCount: 1,
++      });
++    const out = await service.create(
++      { name: 'Team', shared: true, query_json: { owner: 'me' } },
++      leadActor,
++    );
++    expect(out.shared).toBe(true);
++    expect(out.name).toBe('Team');
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-views.service.ts b/services/ptt-crm-api/src/am/am-views.service.ts
+new file mode 100644
+index 00000000..f0992cf1
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-views.service.ts
+@@ -0,0 +1,153 @@
++import { Injectable, OnModuleDestroy } from '@nestjs/common';
++import { Pool } from 'pg';
++import { AppConfigService } from '../config/app-config.service';
++import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
++import { StaffAuthService } from '../staff-auth/staff-auth.service';
++import { AM_TENANT_ID } from './am-audit.repository';
++import { amThrow } from './am-http';
++
++export const AM_MAX_SAVED_VIEWS = 10;
++
++export type AmSavedView = {
++  id: string;
++  name: string;
++  shared: boolean;
++  page: string;
++  query_json: Record<string, unknown>;
++  owner_staff_id: number;
++  created_at: string;
++};
++
++export type AmCreateViewBody = {
++  name: string;
++  shared?: boolean;
++  page?: string;
++  query_json?: Record<string, unknown>;
++};
++
++export type AmViewActor = {
++  staffId: number;
++  caps: StaffSectionCap[];
++};
++
++export type AmViewsDb = {
++  query(
++    sql: string,
++    params?: unknown[],
++  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
++};
++
++function isMissingRelation(err: unknown): boolean {
++  const e = err as { code?: string; message?: string };
++  return e.code === '42P01' || /does not exist/i.test(e.message ?? '');
++}
++
++function asQueryJson(raw: unknown): Record<string, unknown> {
++  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
++  return raw as Record<string, unknown>;
++}
++
++function mapView(row: Record<string, unknown>): AmSavedView {
++  const created = row.created_at;
++  return {
++    id: String(row.id ?? ''),
++    name: String(row.name ?? ''),
++    shared: Boolean(row.shared),
++    page: String(row.page ?? 'accounts'),
++    query_json: asQueryJson(row.query_json),
++    owner_staff_id: Number(row.owner_staff_id ?? 0),
++    created_at:
++      created instanceof Date ? created.toISOString() : String(created ?? ''),
++  };
++}
++
++@Injectable()
++export class AmViewsRepository implements OnModuleDestroy, AmViewsDb {
++  private pool: Pool | null = null;
++
++  constructor(private readonly config: AppConfigService) {}
++
++  private get db(): Pool {
++    if (!this.pool) {
++      this.pool = new Pool({ connectionString: this.config.databaseUrl });
++    }
++    return this.pool;
++  }
++
++  onModuleDestroy(): void {
++    void this.pool?.end();
++    this.pool = null;
++  }
++
++  async query(
++    sql: string,
++    params?: unknown[],
++  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }> {
++    return this.db.query(sql, params);
++  }
++}
++
++@Injectable()
++export class AmViewsService {
++  constructor(
++    private readonly db: AmViewsRepository,
++    private readonly staffAuth: StaffAuthService,
++  ) {}
++
++  canShare(caps: StaffSectionCap[]): boolean {
++    const has = (action: string) => this.staffAuth.hasCap(caps ?? [], 'crm_am', action);
++    return has('manage') || (has('assign') && has('view_all'));
++  }
++
++  async list(staffId: number): Promise<{ items: AmSavedView[] }> {
++    if (staffId <= 0) return { items: [] };
++    try {
++      const result = await this.db.query(
++        `SELECT id::text AS id, name, shared, page, query_json, owner_staff_id, created_at
++           FROM crm_am_saved_views
++          WHERE tenant_id = $1 AND (owner_staff_id = $2 OR shared = TRUE)
++          ORDER BY shared ASC, created_at DESC`,
++        [AM_TENANT_ID, staffId],
++      );
++      return { items: result.rows.map((row) => mapView(row)) };
++    } catch (err) {
++      if (isMissingRelation(err)) return { items: [] };
++      throw err;
++    }
++  }
++
++  async create(body: AmCreateViewBody, actor: AmViewActor): Promise<AmSavedView> {
++    const name = String(body.name ?? '').trim();
++    if (!name) amThrow(400, { error: 'name_required' });
++    const shared = Boolean(body.shared);
++    if (shared && !this.canShare(actor.caps ?? [])) {
++      amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'manage' });
++    }
++    const page = String(body.page ?? 'accounts').trim() || 'accounts';
++    const queryJson = asQueryJson(body.query_json);
++    const count = await this.countOwn(actor.staffId);
++    if (count >= AM_MAX_SAVED_VIEWS) {
++      amThrow(400, { error: 'view_limit', max: AM_MAX_SAVED_VIEWS });
++    }
++    const result = await this.db.query(
++      `INSERT INTO crm_am_saved_views (
++         tenant_id, owner_staff_id, name, shared, page, query_json
++       ) VALUES ($1, $2, $3, $4, $5, $6::jsonb)
++       RETURNING id::text AS id, name, shared, page, query_json, owner_staff_id, created_at`,
++      [AM_TENANT_ID, actor.staffId, name, shared, page, JSON.stringify(queryJson)],
++    );
++    const row = result.rows[0];
++    if (!row) amThrow(500, { error: 'view_insert_failed' });
++    return mapView(row);
++  }
++
++  private async countOwn(staffId: number): Promise<number> {
++    const result = await this.db.query(
++      `SELECT COUNT(*)::int AS count
++         FROM crm_am_saved_views
++        WHERE tenant_id = $1 AND owner_staff_id = $2`,
++      [AM_TENANT_ID, staffId],
++    );
++    return Number(result.rows[0]?.count ?? 0);
++  }
++}
+diff --git a/services/ptt-crm-api/src/am/am.controller.ts b/services/ptt-crm-api/src/am/am.controller.ts
+index 88b7c5cb..707fdedd 100644
+--- a/services/ptt-crm-api/src/am/am.controller.ts
++++ b/services/ptt-crm-api/src/am/am.controller.ts
+@@ -1,55 +1,64 @@
+ import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+ import { Request } from 'express';
+ import { StaffAuthService } from '../staff-auth/staff-auth.service';
+ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+ import {
+   AmAccountsService,
+   type AmAccountsListQuery,
+   type AmCreateAccountBody,
++  type AmTransferBody,
+ } from './am-accounts.service';
+ import { AmDashboardService } from './am-dashboard.service';
+ import { AmHealthService } from './am-health.service';
+ import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
+ import { AmSearchService } from './am-search.service';
+ import { AmNotificationsService } from './am-notifications.service';
+ import { AmSettingsService } from './am-settings.service';
+ import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
++import { AmViewsService, type AmCreateViewBody } from './am-views.service';
+ import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
+ import type { AmScope } from './am.types';
++import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
+ 
+ export type AuthedReq = Request & {
+   staffUser?: StaffJwtPayload;
+   staffAuthVia?: 'internal' | 'jwt';
+ };
+ 
+ @Controller('api/crm/am')
+ @UseGuards(StaffOrInternalKeyGuard, StaffAmGuard)
+ export class AmController {
+   constructor(
+     private readonly dashboard: AmDashboardService,
+     private readonly tasks: AmTasksService,
+     private readonly accounts: AmAccountsService,
+     private readonly plans: AmPlansService,
+     private readonly searchService: AmSearchService,
+     private readonly health: AmHealthService,
+     private readonly settings: AmSettingsService,
+     private readonly notifications: AmNotificationsService,
++    private readonly views: AmViewsService,
+     private readonly staffAuth: StaffAuthService,
+   ) {}
+ 
+   private async actorStaffId(req: AuthedReq): Promise<number> {
+     if (!req.staffUser) return 0;
+     return (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
+   }
+ 
++  private async actorCaps(req: AuthedReq): Promise<StaffSectionCap[]> {
++    if (req.staffAuthVia === 'internal' || !req.staffUser) return [];
++    return (await this.staffAuth.me(req.staffUser)).caps;
++  }
++
+   @Get('command-center')
+   @RequireAmAction('view')
+   commandCenter(@Req() req: AuthedReq, @Query() q: { from?: string; to?: string; scope?: AmScope }) {
+     return this.dashboard.get(req, q);
+   }
+ 
+   @Get('search')
+   @RequireAmAction('view')
+   search(@Req() req: AuthedReq, @Query() q: { q?: string; scope?: AmScope }) {
+     return this.searchService.search(req, q);
+@@ -99,27 +108,48 @@ export class AmController {
+ 
+   @Get('accounts')
+   @RequireAmAction('view')
+   async listAccounts(@Req() req: AuthedReq, @Query() q: AmAccountsListQuery) {
+     return this.accounts.list(req, q);
+   }
+ 
+   @Post('accounts')
+   @RequireAmAction('edit')
+   async createAccount(@Req() req: AuthedReq, @Body() body: AmCreateAccountBody) {
+-    const caps =
+-      req.staffAuthVia === 'internal' || !req.staffUser
+-        ? []
+-        : (await this.staffAuth.me(req.staffUser)).caps;
+     return this.accounts.createAccount(body, {
+       staffId: await this.actorStaffId(req),
+-      caps,
++      caps: await this.actorCaps(req),
+       via: req.staffAuthVia,
+     });
+   }
+ 
++  @Post('accounts/transfer')
++  @RequireAmAction('assign')
++  async transferAccounts(@Req() req: AuthedReq, @Body() body: AmTransferBody) {
++    return this.accounts.transfer(body, {
++      staffId: await this.actorStaffId(req),
++      caps: await this.actorCaps(req),
++      via: req.staffAuthVia === 'internal' ? 'internal' : 'jwt',
++    });
++  }
++
++  @Get('views')
++  @RequireAmAction('view')
++  async listViews(@Req() req: AuthedReq) {
++    return this.views.list(await this.actorStaffId(req));
++  }
++
++  @Post('views')
++  @RequireAmAction('view')
++  async createView(@Req() req: AuthedReq, @Body() body: AmCreateViewBody) {
++    return this.views.create(body, {
++      staffId: await this.actorStaffId(req),
++      caps: await this.actorCaps(req),
++    });
++  }
++
+   @Post('plans')
+   @RequireAmAction('edit')
+   async createPlan(@Req() req: AuthedReq, @Body() body: AmCreatePlanInput) {
+     return this.plans.create(body, await this.actorStaffId(req));
+   }
+ }
+diff --git a/services/ptt-crm-api/src/am/am.module.ts b/services/ptt-crm-api/src/am/am.module.ts
+index 459ee908..1813915c 100644
+--- a/services/ptt-crm-api/src/am/am.module.ts
++++ b/services/ptt-crm-api/src/am/am.module.ts
+@@ -4,20 +4,21 @@ import { ConfigModule } from '../config/config.module';
+ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+ import { AmAccountsRepository, AmAccountsService } from './am-accounts.service';
+ import { AmAuditRepository } from './am-audit.repository';
+ import { AmDashboardService } from './am-dashboard.service';
+ import { AmHealthRepository, AmHealthService } from './am-health.service';
+ import { AmPlansRepository, AmPlansService } from './am-plans.service';
+ import { AmSearchRepository, AmSearchService } from './am-search.service';
+ import { AmNotificationsRepository, AmNotificationsService } from './am-notifications.service';
+ import { AmSettingsRepository, AmSettingsService } from './am-settings.service';
+ import { AmTasksRepository, AmTasksService } from './am-tasks.service';
++import { AmViewsRepository, AmViewsService } from './am-views.service';
+ import { AmController } from './am.controller';
+ import { StaffAmGuard } from './guards/staff-am.guard';
+ 
+ @Module({
+   imports: [ConfigModule, StaffAuthModule, forwardRef(() => AgencyModule)],
+   controllers: [AmController],
+   providers: [
+     StaffAmGuard,
+     AmDashboardService,
+     AmAuditRepository,
+@@ -28,25 +29,28 @@ import { StaffAmGuard } from './guards/staff-am.guard';
+     AmPlansRepository,
+     AmPlansService,
+     AmSearchRepository,
+     AmSearchService,
+     AmHealthRepository,
+     AmHealthService,
+     AmSettingsRepository,
+     AmSettingsService,
+     AmNotificationsRepository,
+     AmNotificationsService,
++    AmViewsRepository,
++    AmViewsService,
+   ],
+   exports: [
+     StaffAmGuard,
+     AmDashboardService,
+     AmAuditRepository,
+     AmTasksService,
+     AmAccountsService,
+     AmPlansService,
+     AmSearchService,
+     AmHealthService,
+     AmSettingsService,
+     AmNotificationsService,
++    AmViewsService,
+   ],
+ })
+ export class AmModule {}
+diff --git a/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts b/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts
+index 1f87f8eb..3719878c 100644
+--- a/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts
++++ b/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts
+@@ -55,20 +55,25 @@ describe('StaffAmGuard', () => {
+   it('allows view with crm_am:view_all', async () => {
+     const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_am:view_all'] });
+     await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+   });
+ 
+   it('denies edit without crm_am:edit', async () => {
+     const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_am:view'] }, 'edit');
+     await expect(guard.canActivate(executionContext)).rejects.toMatchObject({ status: 403 });
+   });
+ 
++  it('denies assign without crm_am:assign (view user 403)', async () => {
++    const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_am:view'] }, 'assign');
++    await expect(guard.canActivate(executionContext)).rejects.toMatchObject({ status: 403 });
++  });
++
+   it('allows edit with crm_am:edit', async () => {
+     const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_am:view', 'crm_am:edit'] }, 'edit');
+     await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+   });
+ 
+   it('throws ForbiddenException for missing cap', async () => {
+     const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_leads:view'] }, 'edit');
+     await expect(guard.canActivate(executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+   });
+ 

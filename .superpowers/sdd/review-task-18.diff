@@ -1,0 +1,2348 @@
+# Review package: cb0a182f..a680c09dca68ec3c2bd8ca77c92ef2f82014224b
+
+## Commits
+a680c09d feat(am): add onboarding workspace and go-live gate
+
+## Files changed
+ .../ops-web/src/app/crm/account-management/am.css  |  75 +++
+ .../account-management/onboarding/[id]/page.tsx    |   6 +-
+ .../app/crm/account-management/settings/page.tsx   |   4 +-
+ .../ops-web/src/components/crm/am/AmHandover.tsx   |   8 +-
+ .../ops-web/src/components/crm/am/AmOnboarding.tsx | 476 +++++++++++++++++
+ .../ops-web/src/components/crm/am/AmSettings.tsx   | 412 +++++++++++++++
+ services/ops-web/src/lib/crm/am-api.ts             | 125 +++++
+ .../ops-web/src/lib/crm/am-onboarding.util.spec.ts |  41 ++
+ services/ops-web/src/lib/crm/am-onboarding.util.ts |  75 +++
+ .../src/am/am-onboarding.service.spec.ts           | 201 ++++++++
+ .../ptt-crm-api/src/am/am-onboarding.service.ts    | 563 +++++++++++++++++++++
+ services/ptt-crm-api/src/am/am.controller.ts       |  63 +++
+ 12 files changed, 2043 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/services/ops-web/src/app/crm/account-management/am.css b/services/ops-web/src/app/crm/account-management/am.css
+index f38d9e7e..3bb937f8 100644
+--- a/services/ops-web/src/app/crm/account-management/am.css
++++ b/services/ops-web/src/app/crm/account-management/am.css
+@@ -1116,10 +1116,85 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
+ .am-handover__dl dd {
+   margin: 2px 0 0;
+   color: #111827;
+ }
+ 
+ .am-handover__reason {
+   margin-top: 12px;
+   padding-top: 12px;
+   border-top: 1px solid #f3f4f6;
+ }
++
++.am-onboard__grid {
++  display: grid;
++  grid-template-columns: 220px 1fr;
++  gap: 12px;
++}
++
++.am-onboard__nav {
++  display: grid;
++  gap: 4px;
++  align-content: start;
++  min-height: auto;
++}
++
++.am-onboard__nav button {
++  text-align: left;
++  border: 0;
++  background: none;
++  padding: 8px;
++  border-radius: 8px;
++  font: inherit;
++  cursor: pointer;
++}
++
++.am-onboard__nav button.is-active {
++  background: #eff6ff;
++  color: var(--am-accent);
++  font-weight: 600;
++}
++
++.am-onboard__items {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++  display: grid;
++  gap: 10px;
++}
++
++.am-onboard__modal {
++  position: absolute;
++  top: 50%;
++  left: 50%;
++  transform: translate(-50%, -50%);
++  width: min(480px, calc(100% - 24px));
++  background: #fff;
++  border-radius: var(--am-radius);
++  padding: 18px;
++  box-shadow: 0 24px 50px rgba(17, 24, 39, 0.2);
++}
++
++.am-onboard__name {
++  height: 34px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  padding: 0 10px;
++  min-width: 180px;
++}
++
++.am-onboard__item-edit {
++  display: grid;
++  gap: 6px;
++}
++
++.am-milestone-strip {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 8px;
++  margin-top: 8px;
++}
++
++@media (max-width: 720px) {
++  .am-onboard__grid {
++    grid-template-columns: 1fr;
++  }
++}
+diff --git a/services/ops-web/src/app/crm/account-management/onboarding/[id]/page.tsx b/services/ops-web/src/app/crm/account-management/onboarding/[id]/page.tsx
+index 6cf1e1ed..e977ec81 100644
+--- a/services/ops-web/src/app/crm/account-management/onboarding/[id]/page.tsx
++++ b/services/ops-web/src/app/crm/account-management/onboarding/[id]/page.tsx
+@@ -1,5 +1,5 @@
+-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++import { AmOnboarding } from '@/components/crm/am/AmOnboarding';
+ 
+-export default function AmOnboardingDetailPage() {
+-  return <AmPlaceholder title="Onboarding" wave={2} />;
++export default function AmOnboardingDetailPage({ params }: { params: { id: string } }) {
++  return <AmOnboarding caseId={params.id} />;
+ }
+diff --git a/services/ops-web/src/app/crm/account-management/settings/page.tsx b/services/ops-web/src/app/crm/account-management/settings/page.tsx
+index 551b8ee1..3a28f5fd 100644
+--- a/services/ops-web/src/app/crm/account-management/settings/page.tsx
++++ b/services/ops-web/src/app/crm/account-management/settings/page.tsx
+@@ -1,5 +1,5 @@
+-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++import { AmSettings } from '@/components/crm/am/AmSettings';
+ 
+ export default function AmSettingsPage() {
+-  return <AmPlaceholder title="Cấu hình" wave={2} />;
++  return <AmSettings />;
+ }
+diff --git a/services/ops-web/src/components/crm/am/AmHandover.tsx b/services/ops-web/src/components/crm/am/AmHandover.tsx
+index 6c2d4265..7459f91d 100644
+--- a/services/ops-web/src/components/crm/am/AmHandover.tsx
++++ b/services/ops-web/src/components/crm/am/AmHandover.tsx
+@@ -40,20 +40,21 @@ export function AmHandover({
+   initialStep = 'commercial',
+   onClose,
+   onChanged,
+ }: {
+   handover: AmHandoverRow;
+   initialStep?: AmHandoverStepId;
+   onClose: () => void;
+   onChanged: (row: AmHandoverRow) => void;
+ }) {
+   const { token, canEdit } = useAmPage();
++  const router = useRouter();
+   const [step, setStep] = useState<AmHandoverStepId>(initialStep);
+   const [checklist, setChecklist] = useState<AmHandoverChecklistState>({});
+   const [reasonAction, setReasonAction] = useState<ReasonAction | null>(null);
+   const [reason, setReason] = useState('');
+   const [busy, setBusy] = useState(false);
+   const [error, setError] = useState('');
+ 
+   const canAccept = amHandoverCanAccept(checklist);
+   const pending = handover.status === 'pending_am' || handover.status === 'needs_info';
+ 
+@@ -81,21 +82,26 @@ export function AmHandover({
+   async function runAction(action: 'accept' | ReasonAction) {
+     if (!token || !canEdit || !pending) return;
+     setBusy(true);
+     setError('');
+     try {
+       if (action === 'accept') {
+         if (!canAccept) {
+           setError('checklist_required');
+           return;
+         }
+-        onChanged(await acceptAmHandover(token, handover.id, checklist as AmHandoverChecklist));
++        const accepted = await acceptAmHandover(token, handover.id, checklist as AmHandoverChecklist);
++        onChanged(accepted);
++        if (accepted.onboarding_case_id) {
++          router.push(`/crm/account-management/onboarding/${accepted.onboarding_case_id}`);
++          return;
++        }
+         onClose();
+         return;
+       }
+       if (amHandoverReasonError(action, reason)) {
+         setError('reason_required');
+         return;
+       }
+       const next =
+         action === 'reject'
+           ? await rejectAmHandover(token, handover.id, reason.trim())
+diff --git a/services/ops-web/src/components/crm/am/AmOnboarding.tsx b/services/ops-web/src/components/crm/am/AmOnboarding.tsx
+new file mode 100644
+index 00000000..e25a1316
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmOnboarding.tsx
+@@ -0,0 +1,476 @@
++'use client';
++
++import Link from 'next/link';
++import { usePathname, useRouter, useSearchParams } from 'next/navigation';
++import { useCallback, useEffect, useMemo, useState } from 'react';
++import { ApiError } from '@/lib/api';
++import {
++  fetchAmOnboardingCase,
++  goLiveAmOnboardingCase,
++  patchAmOnboardingCase,
++  type AmOnboardingCase,
++  type AmOnboardingCaseItem,
++} from '@/lib/crm/am-api';
++import {
++  AM_ONBOARDING_TABS,
++  amGoLiveBlocked,
++  amOnboardingDash,
++  amRequiredOpenCount,
++  amTrackCopy,
++  formatAmOnboardingDate,
++  parseAmOnboardingTab,
++  type AmOnboardingTabId,
++} from '@/lib/crm/am-onboarding.util';
++import { useAmPage } from './AmShell';
++
++type ChecklistFilter = 'all' | 'open' | 'overdue';
++
++function trackClass(track: AmOnboardingCase['track']): string {
++  if (track === 'on_track') return 'am-pill am-pill--ok';
++  if (track === 'at_risk') return 'am-pill am-pill--watch';
++  return 'am-pill am-pill--crit';
++}
++
++function isChecklist(item: AmOnboardingCaseItem): boolean {
++  return item.kind !== 'milestone';
++}
++
++function isOverdue(item: AmOnboardingCaseItem, today: string): boolean {
++  return !item.done && Boolean(item.due_on) && item.due_on < today;
++}
++
++function todayYmd(): string {
++  return new Intl.DateTimeFormat('en-CA', {
++    timeZone: 'Asia/Ho_Chi_Minh',
++    year: 'numeric',
++    month: '2-digit',
++    day: '2-digit',
++  }).format(new Date());
++}
++
++function goLiveErrorCopy(code: string): string {
++  if (code === 'required_open') return 'Còn hạng mục bắt buộc chưa hoàn thành.';
++  if (code === 'override_reason_required') return 'Cần lý do override khi còn hạng mục bắt buộc.';
++  if (code === 'invalid_go_live_on') return 'Ngày Go-live phải là YYYY-MM-DD.';
++  if (code === 'already_closed') return 'Case đã đóng.';
++  return code;
++}
++
++export function AmOnboarding({ caseId }: { caseId: string }) {
++  const { token, canEdit } = useAmPage();
++  const router = useRouter();
++  const pathname = usePathname() ?? `/crm/account-management/onboarding/${caseId}`;
++  const searchParams = useSearchParams();
++  const tab = parseAmOnboardingTab(searchParams.get('tab'));
++
++  const [data, setData] = useState<AmOnboardingCase | null>(null);
++  const [draft, setDraft] = useState<AmOnboardingCaseItem[]>([]);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++  const [busy, setBusy] = useState(false);
++  const [filter, setFilter] = useState<ChecklistFilter>('all');
++  const [modalOpen, setModalOpen] = useState(false);
++  const [goLiveOn, setGoLiveOn] = useState('');
++  const [notes, setNotes] = useState('');
++  const [override, setOverride] = useState(false);
++  const [overrideReason, setOverrideReason] = useState('');
++  const [modalError, setModalError] = useState('');
++
++  const load = useCallback(async () => {
++    if (!token || !caseId) return;
++    setLoading(true);
++    setError('');
++    try {
++      const next = await fetchAmOnboardingCase(token, caseId);
++      setData(next);
++      setDraft(next.items);
++    } catch (err) {
++      setData(null);
++      setDraft([]);
++      setError(err instanceof ApiError && err.status === 404 ? 'not_found' : 'load_failed');
++    } finally {
++      setLoading(false);
++    }
++  }, [caseId, token]);
++
++  useEffect(() => {
++    void load();
++  }, [load]);
++
++  function setTab(next: AmOnboardingTabId) {
++    const qs = new URLSearchParams(searchParams.toString());
++    if (next === 'overview') qs.delete('tab');
++    else qs.set('tab', next);
++    const suffix = qs.toString();
++    router.replace(suffix ? `${pathname}?${suffix}` : pathname);
++  }
++
++  const open = data?.status === 'open';
++  const canToggle = Boolean(canEdit && open);
++  const today = todayYmd();
++  const checklist = useMemo(() => draft.filter(isChecklist), [draft]);
++  const milestones = useMemo(() => draft.filter((item) => item.kind === 'milestone'), [draft]);
++  const visibleChecklist = useMemo(() => {
++    if (filter === 'open') return checklist.filter((item) => !item.done);
++    if (filter === 'overdue') return checklist.filter((item) => isOverdue(item, today));
++    return checklist;
++  }, [checklist, filter, today]);
++  const dirty = useMemo(() => {
++    if (!data) return [];
++    return draft.filter((item) => {
++      const orig = data.items.find((row) => row.id === item.id);
++      return orig && orig.done !== item.done;
++    });
++  }, [data, draft]);
++
++  async function saveChecklist() {
++    if (!token || !data || !canToggle || busy || !dirty.length) return;
++    setBusy(true);
++    setError('');
++    try {
++      const next = await patchAmOnboardingCase(
++        token,
++        data.id,
++        dirty.map((item) => ({ id: item.id, done: item.done })),
++      );
++      setData(next);
++      setDraft(next.items);
++    } catch (err) {
++      setError(err instanceof ApiError ? err.message : 'Không lưu được checklist.');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  function openGoLive() {
++    if (!canEdit || !open || !data) return;
++    setGoLiveOn(data.go_live_on ?? '');
++    setNotes('');
++    setOverride(false);
++    setOverrideReason('');
++    setModalError('');
++    setModalOpen(true);
++  }
++
++  async function confirmGoLive() {
++    if (!token || !data || !canEdit || !open || busy) return;
++    if (!/^\d{4}-\d{2}-\d{2}$/.test(goLiveOn)) {
++      setModalError('invalid_go_live_on');
++      return;
++    }
++    const blocked = amGoLiveBlocked(draft, override);
++    if (blocked) {
++      setModalError('required_open');
++      return;
++    }
++    if (amGoLiveBlocked(draft, false) && !overrideReason.trim()) {
++      setModalError('override_reason_required');
++      return;
++    }
++    setBusy(true);
++    setModalError('');
++    try {
++      const next = await goLiveAmOnboardingCase(token, data.id, {
++        go_live_on: goLiveOn,
++        override: amGoLiveBlocked(draft, false) ? true : undefined,
++        override_reason: overrideReason.trim() || undefined,
++        notes: notes.trim() || undefined,
++      });
++      setData(next);
++      setDraft(next.items);
++      setModalOpen(false);
++    } catch (err) {
++      setModalError(err instanceof ApiError ? err.message : 'go_live_failed');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  if (loading) {
++    return (
++      <section className="am-page">
++        <p className="am-muted">Đang tải onboarding…</p>
++      </section>
++    );
++  }
++
++  if (!data) {
++    return (
++      <section className="am-page">
++        <p className="am-crumb">
++          <Link href="/crm/account-management/onboarding">Onboarding</Link>
++        </p>
++        <div className="am-widget__error">
++          <p>
++            {error === 'not_found'
++              ? 'Không tìm thấy case onboarding trong phạm vi của bạn.'
++              : 'Không tải được onboarding. Thử lại.'}
++          </p>
++        </div>
++      </section>
++    );
++  }
++
++  const required = amRequiredOpenCount(draft);
++  const stakeholders = Object.entries(data.stakeholders ?? {});
++
++  return (
++    <section className="am-page am-onboard">
++      <p className="am-crumb">
++        <Link href="/crm/account-management/onboarding">Onboarding</Link>
++        {' / '}
++        {data.name || data.code}
++      </p>
++      <header className="am-360__head">
++        <div>
++          <h1>{data.name || data.code || '—'}</h1>
++          <p className="am-muted">
++            {amOnboardingDash(data.progress_pct)}% hoàn thành · Go-live {formatAmOnboardingDate(data.go_live_on)} ·
++            Owner {amOnboardingDash(data.owner_name)} · Delivery {amOnboardingDash(data.delivery_owner)}
++          </p>
++        </div>
++        <span className={trackClass(data.track)}>{amTrackCopy(data.track)}</span>
++      </header>
++
++      {error && error !== 'not_found' && error !== 'load_failed' ? (
++        <p className="am-banner">{error}</p>
++      ) : null}
++
++      <div className="am-onboard__grid">
++        <nav className="am-widget am-onboard__nav" aria-label="Onboarding">
++          {AM_ONBOARDING_TABS.map((item) => (
++            <button
++              key={item.id}
++              type="button"
++              className={item.id === tab ? 'is-active' : ''}
++              onClick={() => setTab(item.id)}
++            >
++              {item.label}
++            </button>
++          ))}
++        </nav>
++
++        <div className="am-widget">
++          {tab === 'overview' ? (
++            <div>
++              <h2>Tổng quan</h2>
++              <p>
++                Tiến độ {amOnboardingDash(data.progress_pct)}% · {amTrackCopy(data.track)} · Go-live{' '}
++                {formatAmOnboardingDate(data.go_live_on)}
++              </p>
++              <div className="am-milestone-strip">
++                {milestones.length === 0 ? (
++                  <span className="am-muted">—</span>
++                ) : (
++                  milestones.map((item) => (
++                    <span key={item.id} className={item.done ? 'am-pill am-pill--ok' : 'am-pill'}>
++                      {item.title || '—'} {item.done ? '✓' : ''}
++                    </span>
++                  ))
++                )}
++              </div>
++            </div>
++          ) : null}
++
++          {tab === 'checklist' ? (
++            <div>
++              <div className="am-widget__head">
++                <h2>Checklist</h2>
++                <div className="am-chips">
++                  {(
++                    [
++                      ['all', 'Tất cả'],
++                      ['open', 'Chưa làm'],
++                      ['overdue', 'Quá hạn'],
++                    ] as const
++                  ).map(([id, label]) => (
++                    <button
++                      key={id}
++                      type="button"
++                      className={`am-chip${filter === id ? ' is-on' : ''}`}
++                      onClick={() => setFilter(id)}
++                    >
++                      {label}
++                    </button>
++                  ))}
++                </div>
++              </div>
++              {visibleChecklist.length === 0 ? (
++                <p className="am-muted">—</p>
++              ) : (
++                <ul className="am-onboard__items">
++                  {visibleChecklist.map((item) => (
++                    <li key={item.id}>
++                      <label className="am-field am-field--check">
++                        <span>
++                          <input
++                            type="checkbox"
++                            checked={item.done}
++                            disabled={!canToggle}
++                            onChange={(ev) =>
++                              setDraft((prev) =>
++                                prev.map((row) =>
++                                  row.id === item.id ? { ...row, done: ev.target.checked } : row,
++                                ),
++                              )
++                            }
++                          />
++                          {item.title || '—'}
++                        </span>
++                      </label>
++                      <p className="am-muted">
++                        {item.owner_role || '—'} · {formatAmOnboardingDate(item.due_on)}
++                        {item.required ? ' · Required' : ''}
++                        {isOverdue(item, today) ? ' · Quá hạn' : ''}
++                      </p>
++                    </li>
++                  ))}
++                </ul>
++              )}
++            </div>
++          ) : null}
++
++          {tab === 'milestones' ? (
++            <div>
++              <h2>Milestones</h2>
++              {milestones.length === 0 ? (
++                <p className="am-muted">—</p>
++              ) : (
++                <ul className="am-onboard__items">
++                  {milestones.map((item) => (
++                    <li key={item.id}>
++                      {item.done ? '✓ ' : '☐ '}
++                      {item.title || '—'}
++                      <p className="am-muted">
++                        {item.owner_role || '—'} · {formatAmOnboardingDate(item.due_on)}
++                      </p>
++                    </li>
++                  ))}
++                </ul>
++              )}
++            </div>
++          ) : null}
++
++          {tab === 'stakeholders' ? (
++            <div>
++              <h2>Stakeholders</h2>
++              {stakeholders.length === 0 ? (
++                <p className="am-muted">—</p>
++              ) : (
++                <dl className="am-handover__dl">
++                  {stakeholders.map(([key, value]) => (
++                    <div key={key}>
++                      <dt>{key}</dt>
++                      <dd>
++                        {value == null || value === ''
++                          ? '—'
++                          : typeof value === 'object'
++                            ? JSON.stringify(value)
++                            : String(value)}
++                      </dd>
++                    </div>
++                  ))}
++                </dl>
++              )}
++            </div>
++          ) : null}
++
++          {tab === 'documents' || tab === 'activity' ? (
++            <div>
++              <h2>{tab === 'documents' ? 'Tài liệu' : 'Activity'}</h2>
++              <p className="am-muted">—</p>
++            </div>
++          ) : null}
++
++          <div className="am-form__actions">
++            {tab === 'checklist' ? (
++              <button
++                type="button"
++                className="am-btn"
++                disabled={!canToggle || busy || dirty.length === 0}
++                onClick={() => void saveChecklist()}
++              >
++                Lưu thay đổi
++              </button>
++            ) : null}
++            {canEdit && open ? (
++              <button type="button" className="am-btn am-btn--primary" onClick={openGoLive}>
++                Đánh dấu sẵn sàng Go-live
++              </button>
++            ) : null}
++          </div>
++        </div>
++      </div>
++
++      {modalOpen ? (
++        <div className="am-drawer-bg" role="presentation" onClick={() => setModalOpen(false)}>
++          <div
++            className="am-onboard__modal"
++            role="dialog"
++            aria-labelledby="am-golive-title"
++            onClick={(ev) => ev.stopPropagation()}
++          >
++            <div className="am-widget__head">
++              <h2 id="am-golive-title">Xác nhận Go-live</h2>
++              <button type="button" className="am-btn" onClick={() => setModalOpen(false)}>
++                ×
++              </button>
++            </div>
++            <p>
++              {required.done}/{required.required} hạng mục bắt buộc hoàn thành
++            </p>
++            {data.health_fresh_24h ? null : (
++              <p className="am-banner">Báo cáo dashboard chưa có dữ liệu 24 giờ</p>
++            )}
++            {modalError ? <p className="am-banner">{goLiveErrorCopy(modalError)}</p> : null}
++            <label className="am-field">
++              <span>Ngày Go-live thực tế *</span>
++              <input type="date" value={goLiveOn} onChange={(ev) => setGoLiveOn(ev.target.value)} />
++            </label>
++            <label className="am-field">
++              <span>Ghi chú</span>
++              <textarea value={notes} onChange={(ev) => setNotes(ev.target.value)} rows={3} />
++            </label>
++            {amGoLiveBlocked(draft, false) ? (
++              <>
++                <label className="am-field am-field--check">
++                  <span>
++                    <input
++                      type="checkbox"
++                      checked={override}
++                      onChange={(ev) => setOverride(ev.target.checked)}
++                    />
++                    Override hạng mục bắt buộc còn mở
++                  </span>
++                </label>
++                {override ? (
++                  <label className="am-field">
++                    <span>Lý do override *</span>
++                    <textarea
++                      value={overrideReason}
++                      onChange={(ev) => setOverrideReason(ev.target.value)}
++                      rows={3}
++                    />
++                  </label>
++                ) : null}
++              </>
++            ) : null}
++            <div className="am-form__actions">
++              <button type="button" className="am-btn" onClick={() => setModalOpen(false)}>
++                Hủy
++              </button>
++              <button
++                type="button"
++                className="am-btn am-btn--primary"
++                disabled={busy || !goLiveOn}
++                onClick={() => void confirmGoLive()}
++              >
++                Xác nhận Go-live
++              </button>
++            </div>
++          </div>
++        </div>
++      ) : null}
++    </section>
++  );
++}
+diff --git a/services/ops-web/src/components/crm/am/AmSettings.tsx b/services/ops-web/src/components/crm/am/AmSettings.tsx
+new file mode 100644
+index 00000000..aa2cb6d2
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmSettings.tsx
+@@ -0,0 +1,412 @@
++'use client';
++
++import { useCallback, useEffect, useState } from 'react';
++import { ApiError } from '@/lib/api';
++import { hasCap } from '@/lib/auth';
++import {
++  cloneAmOnboardingTemplate,
++  createAmOnboardingTemplate,
++  fetchAmOnboardingTemplates,
++  patchAmOnboardingTemplate,
++  publishAmOnboardingTemplate,
++  type AmOnboardingTemplate,
++  type AmOnboardingTemplateItem,
++} from '@/lib/crm/am-api';
++import { amOnboardingDash } from '@/lib/crm/am-onboarding.util';
++import { useAmPage } from './AmShell';
++
++function emptyItem(): AmOnboardingTemplateItem {
++  const id =
++    typeof crypto !== 'undefined' && 'randomUUID' in crypto
++      ? crypto.randomUUID()
++      : `item-${Date.now()}-${Math.random().toString(16).slice(2)}`;
++  return {
++    id,
++    kind: 'checklist',
++    phase: '',
++    title: '',
++    owner_role: '',
++    due_offset_days: 0,
++    required: false,
++  };
++}
++
++function statusClass(status: AmOnboardingTemplate['status']): string {
++  return status === 'published' ? 'am-pill am-pill--ok' : 'am-pill am-pill--watch';
++}
++
++export function AmSettings() {
++  const { token, user } = useAmPage();
++  const canManage = hasCap(user, 'crm_am', 'manage');
++  const [items, setItems] = useState<AmOnboardingTemplate[]>([]);
++  const [selectedId, setSelectedId] = useState<string | null>(null);
++  const [draftItems, setDraftItems] = useState<AmOnboardingTemplateItem[]>([]);
++  const [draftName, setDraftName] = useState('');
++  const [createName, setCreateName] = useState('');
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++  const [busy, setBusy] = useState(false);
++
++  const selected = items.find((row) => row.id === selectedId) ?? null;
++  const published = selected?.status === 'published';
++  const canEditDraft = Boolean(canManage && selected && !published);
++
++  const load = useCallback(async () => {
++    if (!token) return;
++    setLoading(true);
++    setError('');
++    try {
++      const out = await fetchAmOnboardingTemplates(token);
++      setItems(out.items);
++    } catch (err) {
++      setItems([]);
++      setError(err instanceof ApiError ? err.message : 'Không tải được template.');
++    } finally {
++      setLoading(false);
++    }
++  }, [token]);
++
++  useEffect(() => {
++    void load();
++  }, [load]);
++
++  useEffect(() => {
++    if (!selected) {
++      setDraftItems([]);
++      setDraftName('');
++      return;
++    }
++    setDraftItems(selected.items);
++    setDraftName(selected.name);
++  }, [selected]);
++
++  function selectRow(row: AmOnboardingTemplate) {
++    setSelectedId(row.id);
++  }
++
++  async function onCreate() {
++    if (!token || !canManage || busy) return;
++    const name = createName.trim();
++    if (!name) {
++      setError('Cần tên template.');
++      return;
++    }
++    setBusy(true);
++    setError('');
++    try {
++      const created = await createAmOnboardingTemplate(token, { name, items: [] });
++      setItems((prev) => [created, ...prev]);
++      setSelectedId(created.id);
++      setCreateName('');
++    } catch (err) {
++      setError(err instanceof ApiError ? err.message : 'Không tạo được template.');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  async function onSave() {
++    if (!token || !selected || !canEditDraft || busy) return;
++    setBusy(true);
++    setError('');
++    try {
++      const next = await patchAmOnboardingTemplate(token, selected.id, {
++        name: draftName.trim() || selected.name,
++        items: draftItems,
++      });
++      setItems((prev) => prev.map((row) => (row.id === next.id ? next : row)));
++    } catch (err) {
++      setError(
++        err instanceof ApiError && err.message === 'template_published'
++          ? 'Template đã xuất bản — nhân bản thành draft để sửa.'
++          : err instanceof ApiError
++            ? err.message
++            : 'Không lưu được template.',
++      );
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  async function onPublish() {
++    if (!token || !selected || !canEditDraft || busy) return;
++    setBusy(true);
++    setError('');
++    try {
++      const next = await publishAmOnboardingTemplate(token, selected.id);
++      setItems((prev) => prev.map((row) => (row.id === next.id ? next : row)));
++    } catch (err) {
++      setError(err instanceof ApiError ? err.message : 'Không xuất bản được.');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  async function onClone() {
++    if (!token || !selected || !canManage || busy) return;
++    setBusy(true);
++    setError('');
++    try {
++      const next = await cloneAmOnboardingTemplate(token, selected.id);
++      setItems((prev) => [next, ...prev].sort((a, b) => b.version - a.version));
++      setSelectedId(next.id);
++    } catch (err) {
++      setError(err instanceof ApiError ? err.message : 'Không nhân bản được.');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  return (
++    <section className="am-page">
++      <p className="am-crumb">Account Management / Cấu hình</p>
++      <header className="am-360__head">
++        <div>
++          <h1>Cấu hình / Onboarding templates</h1>
++          <p className="am-muted">Published không sửa được — nhân bản thành draft.</p>
++        </div>
++        {canManage ? (
++          <div className="am-form__actions">
++            <input
++              className="am-onboard__name"
++              value={createName}
++              onChange={(ev) => setCreateName(ev.target.value)}
++              placeholder="Tên template"
++            />
++            <button type="button" className="am-btn am-btn--primary" disabled={busy} onClick={() => void onCreate()}>
++              + Tạo template
++            </button>
++          </div>
++        ) : null}
++      </header>
++
++      {error ? <p className="am-banner">{error}</p> : null}
++
++      <div className="am-widget">
++        <table className="am-table">
++          <thead>
++            <tr>
++              <th>Tên</th>
++              <th>Version</th>
++              <th>Status</th>
++            </tr>
++          </thead>
++          <tbody>
++            {loading ? (
++              <tr>
++                <td colSpan={3} className="am-muted">
++                  Đang tải…
++                </td>
++              </tr>
++            ) : items.length === 0 ? (
++              <tr>
++                <td colSpan={3} className="am-muted">
++                  —
++                </td>
++              </tr>
++            ) : (
++              items.map((row) => (
++                <tr key={row.id} className={row.id === selectedId ? 'is-on' : undefined}>
++                  <td>
++                    <button type="button" className="am-link" onClick={() => selectRow(row)}>
++                      {row.name || '—'}
++                    </button>
++                  </td>
++                  <td>v{row.version}</td>
++                  <td>
++                    <span className={statusClass(row.status)}>{row.status === 'published' ? 'Published' : 'Draft'}</span>
++                  </td>
++                </tr>
++              ))
++            )}
++          </tbody>
++        </table>
++      </div>
++
++      {selected ? (
++        <div className="am-widget">
++          <div className="am-widget__head">
++            <h2>
++              {canEditDraft ? (
++                <input
++                  className="am-onboard__name"
++                  value={draftName}
++                  onChange={(ev) => setDraftName(ev.target.value)}
++                />
++              ) : (
++                selected.name
++              )}{' '}
++              <span className={statusClass(selected.status)}>
++                {selected.status === 'published' ? 'Published' : 'Draft'}
++              </span>
++            </h2>
++            <div className="am-form__actions">
++              {canManage && published ? (
++                <button type="button" className="am-btn" disabled={busy} onClick={() => void onClone()}>
++                  Nhân bản thành draft
++                </button>
++              ) : null}
++              {canEditDraft ? (
++                <>
++                  <button
++                    type="button"
++                    className="am-btn"
++                    onClick={() => setDraftItems((prev) => [...prev, emptyItem()])}
++                  >
++                    + Hạng mục
++                  </button>
++                  <button type="button" className="am-btn" disabled={busy} onClick={() => void onSave()}>
++                    Lưu
++                  </button>
++                  <button
++                    type="button"
++                    className="am-btn am-btn--primary"
++                    disabled={busy}
++                    onClick={() => void onPublish()}
++                  >
++                    Xuất bản
++                  </button>
++                </>
++              ) : null}
++            </div>
++          </div>
++
++          <table className="am-table">
++            <thead>
++              <tr>
++                <th>Giai đoạn</th>
++                <th>Hạng mục</th>
++                <th>Owner mặc định</th>
++                <th>Hạn (T+n)</th>
++                <th>Required</th>
++                {canEditDraft ? <th></th> : null}
++              </tr>
++            </thead>
++            <tbody>
++              {draftItems.length === 0 ? (
++                <tr>
++                  <td colSpan={canEditDraft ? 6 : 5} className="am-muted">
++                    —
++                  </td>
++                </tr>
++              ) : (
++                draftItems.map((item, index) => (
++                  <tr key={item.id || index}>
++                    <td>
++                      {canEditDraft ? (
++                        <input
++                          value={item.phase}
++                          onChange={(ev) =>
++                            setDraftItems((prev) =>
++                              prev.map((row) => (row.id === item.id ? { ...row, phase: ev.target.value } : row)),
++                            )
++                          }
++                        />
++                      ) : (
++                        amOnboardingDash(item.phase)
++                      )}
++                    </td>
++                    <td>
++                      {canEditDraft ? (
++                        <span className="am-onboard__item-edit">
++                          <select
++                            value={item.kind}
++                            onChange={(ev) =>
++                              setDraftItems((prev) =>
++                                prev.map((row) =>
++                                  row.id === item.id
++                                    ? { ...row, kind: ev.target.value === 'milestone' ? 'milestone' : 'checklist' }
++                                    : row,
++                                ),
++                              )
++                            }
++                          >
++                            <option value="checklist">Checklist</option>
++                            <option value="milestone">Milestone</option>
++                          </select>
++                          <input
++                            value={item.title}
++                            onChange={(ev) =>
++                              setDraftItems((prev) =>
++                                prev.map((row) => (row.id === item.id ? { ...row, title: ev.target.value } : row)),
++                              )
++                            }
++                          />
++                        </span>
++                      ) : (
++                        amOnboardingDash(item.title)
++                      )}
++                    </td>
++                    <td>
++                      {canEditDraft ? (
++                        <input
++                          value={item.owner_role}
++                          onChange={(ev) =>
++                            setDraftItems((prev) =>
++                              prev.map((row) => (row.id === item.id ? { ...row, owner_role: ev.target.value } : row)),
++                            )
++                          }
++                        />
++                      ) : (
++                        amOnboardingDash(item.owner_role)
++                      )}
++                    </td>
++                    <td>
++                      {canEditDraft ? (
++                        <input
++                          type="number"
++                          value={item.due_offset_days}
++                          onChange={(ev) =>
++                            setDraftItems((prev) =>
++                              prev.map((row) =>
++                                row.id === item.id
++                                  ? { ...row, due_offset_days: Number(ev.target.value) || 0 }
++                                  : row,
++                              ),
++                            )
++                          }
++                        />
++                      ) : (
++                        `T+${item.due_offset_days}`
++                      )}
++                    </td>
++                    <td>
++                      {canEditDraft ? (
++                        <input
++                          type="checkbox"
++                          checked={item.required}
++                          onChange={(ev) =>
++                            setDraftItems((prev) =>
++                              prev.map((row) =>
++                                row.id === item.id ? { ...row, required: ev.target.checked } : row,
++                              ),
++                            )
++                          }
++                        />
++                      ) : item.required ? (
++                        '✓'
++                      ) : (
++                        '—'
++                      )}
++                    </td>
++                    {canEditDraft ? (
++                      <td>
++                        <button
++                          type="button"
++                          className="am-link"
++                          onClick={() => setDraftItems((prev) => prev.filter((row) => row.id !== item.id))}
++                        >
++                          Xóa
++                        </button>
++                      </td>
++                    ) : null}
++                  </tr>
++                ))
++              )}
++            </tbody>
++          </table>
++        </div>
++      ) : null}
++    </section>
++  );
++}
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index 922955c1..44ce8d31 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -555,10 +555,135 @@ export async function rejectAmHandover(token: string, id: string, reason: string
+ export async function needsInfoAmHandover(
+   token: string,
+   id: string,
+   reason: string,
+ ): Promise<AmHandover> {
+   return amFetch<AmHandover>(token, `/api/crm/am/handovers/${encodeURIComponent(id)}/needs-info`, {
+     method: 'POST',
+     body: JSON.stringify({ reason }),
+   });
+ }
++
++export type AmOnboardingItemKind = 'checklist' | 'milestone';
++export type AmOnboardingCaseStatus = 'open' | 'closed';
++export type AmOnboardingTrack = 'on_track' | 'at_risk' | 'blocked';
++export type AmOnboardingTemplateStatus = 'draft' | 'published';
++
++export type AmOnboardingTemplateItem = {
++  id: string;
++  kind: AmOnboardingItemKind;
++  phase: string;
++  title: string;
++  owner_role: string;
++  due_offset_days: number;
++  required: boolean;
++};
++
++export type AmOnboardingCaseItem = AmOnboardingTemplateItem & {
++  done: boolean;
++  done_at: string | null;
++  due_on: string | null;
++};
++
++export type AmOnboardingCase = {
++  id: string;
++  agency_client_id: string;
++  name: string;
++  code: string;
++  status: AmOnboardingCaseStatus;
++  go_live_on: string | null;
++  override_reason: string | null;
++  items: AmOnboardingCaseItem[];
++  progress_pct: number | null;
++  owner_name: string | null;
++  delivery_owner: string | null;
++  track: AmOnboardingTrack;
++  health_fresh_24h: boolean;
++  stakeholders: Record<string, unknown>;
++  activity: unknown[];
++  documents: unknown[];
++};
++
++export type AmOnboardingTemplate = {
++  id: string;
++  name: string;
++  version: number;
++  status: AmOnboardingTemplateStatus;
++  items: AmOnboardingTemplateItem[];
++};
++
++export async function fetchAmOnboardingCase(token: string, id: string): Promise<AmOnboardingCase> {
++  return amFetch<AmOnboardingCase>(token, `/api/crm/am/onboarding-cases/${encodeURIComponent(id)}`);
++}
++
++export async function patchAmOnboardingCase(
++  token: string,
++  id: string,
++  items: Array<{ id: string; done: boolean }>,
++): Promise<AmOnboardingCase> {
++  return amFetch<AmOnboardingCase>(token, `/api/crm/am/onboarding-cases/${encodeURIComponent(id)}`, {
++    method: 'PATCH',
++    body: JSON.stringify({ items }),
++  });
++}
++
++export async function goLiveAmOnboardingCase(
++  token: string,
++  id: string,
++  body: { go_live_on: string; override?: boolean; override_reason?: string; notes?: string },
++): Promise<AmOnboardingCase> {
++  return amFetch<AmOnboardingCase>(
++    token,
++    `/api/crm/am/onboarding-cases/${encodeURIComponent(id)}/go-live`,
++    { method: 'POST', body: JSON.stringify(body) },
++  );
++}
++
++export async function fetchAmOnboardingTemplates(
++  token: string,
++): Promise<{ items: AmOnboardingTemplate[] }> {
++  return amFetch<{ items: AmOnboardingTemplate[] }>(token, '/api/crm/am/onboarding-templates');
++}
++
++export async function createAmOnboardingTemplate(
++  token: string,
++  body: { name: string; items: AmOnboardingTemplateItem[] },
++): Promise<AmOnboardingTemplate> {
++  return amFetch<AmOnboardingTemplate>(token, '/api/crm/am/onboarding-templates', {
++    method: 'POST',
++    body: JSON.stringify(body),
++  });
++}
++
++export async function patchAmOnboardingTemplate(
++  token: string,
++  id: string,
++  body: { name?: string; items?: AmOnboardingTemplateItem[] },
++): Promise<AmOnboardingTemplate> {
++  return amFetch<AmOnboardingTemplate>(
++    token,
++    `/api/crm/am/onboarding-templates/${encodeURIComponent(id)}`,
++    { method: 'PATCH', body: JSON.stringify(body) },
++  );
++}
++
++export async function cloneAmOnboardingTemplate(
++  token: string,
++  id: string,
++): Promise<AmOnboardingTemplate> {
++  return amFetch<AmOnboardingTemplate>(
++    token,
++    `/api/crm/am/onboarding-templates/${encodeURIComponent(id)}/clone`,
++    { method: 'POST' },
++  );
++}
++
++export async function publishAmOnboardingTemplate(
++  token: string,
++  id: string,
++): Promise<AmOnboardingTemplate> {
++  return amFetch<AmOnboardingTemplate>(
++    token,
++    `/api/crm/am/onboarding-templates/${encodeURIComponent(id)}/publish`,
++    { method: 'POST' },
++  );
++}
+diff --git a/services/ops-web/src/lib/crm/am-onboarding.util.spec.ts b/services/ops-web/src/lib/crm/am-onboarding.util.spec.ts
+new file mode 100644
+index 00000000..3a929731
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-onboarding.util.spec.ts
+@@ -0,0 +1,41 @@
++import { describe, expect, it } from 'vitest';
++import {
++  AM_ONBOARDING_TABS,
++  amGoLiveBlocked,
++  parseAmOnboardingTab,
++} from './am-onboarding.util';
++
++describe('am-onboarding', () => {
++  it('uses six workspace nav labels', () => {
++    expect(AM_ONBOARDING_TABS.map((tab) => tab.label)).toEqual([
++      'Tổng quan',
++      'Checklist',
++      'Milestones',
++      'Stakeholders',
++      'Tài liệu',
++      'Activity',
++    ]);
++  });
++
++  it('parses workspace tab from URL or defaults to overview', () => {
++    expect(parseAmOnboardingTab('checklist')).toBe('checklist');
++    expect(parseAmOnboardingTab('milestones')).toBe('milestones');
++    expect(parseAmOnboardingTab('unknown')).toBe('overview');
++    expect(parseAmOnboardingTab(null)).toBe('overview');
++  });
++
++  it('blocks go-live when a required item is open and override is off', () => {
++    const items = [
++      {
++        id: 'a',
++        kind: 'checklist' as const,
++        required: true,
++        done: false,
++      },
++    ];
++    expect(amGoLiveBlocked(items, false)).toBe(true);
++    expect(amGoLiveBlocked(items, true)).toBe(false);
++    expect(amGoLiveBlocked([{ ...items[0], done: true }], false)).toBe(false);
++    expect(amGoLiveBlocked([{ ...items[0], required: false }], false)).toBe(false);
++  });
++});
+diff --git a/services/ops-web/src/lib/crm/am-onboarding.util.ts b/services/ops-web/src/lib/crm/am-onboarding.util.ts
+new file mode 100644
+index 00000000..0339536a
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-onboarding.util.ts
+@@ -0,0 +1,75 @@
++export type AmOnboardingTabId =
++  | 'overview'
++  | 'checklist'
++  | 'milestones'
++  | 'stakeholders'
++  | 'documents'
++  | 'activity';
++
++export type AmOnboardingTab = {
++  id: AmOnboardingTabId;
++  label: string;
++};
++
++export const AM_ONBOARDING_TABS: AmOnboardingTab[] = [
++  { id: 'overview', label: 'Tổng quan' },
++  { id: 'checklist', label: 'Checklist' },
++  { id: 'milestones', label: 'Milestones' },
++  { id: 'stakeholders', label: 'Stakeholders' },
++  { id: 'documents', label: 'Tài liệu' },
++  { id: 'activity', label: 'Activity' },
++];
++
++export type AmOnboardingTrack = 'on_track' | 'at_risk' | 'blocked';
++
++export const AM_ONBOARDING_TRACK_COPY: Record<AmOnboardingTrack, string> = {
++  on_track: 'On Track',
++  at_risk: 'At Risk',
++  blocked: 'Blocked',
++};
++
++export type AmGoLiveItem = {
++  required?: boolean;
++  done?: boolean;
++};
++
++export function parseAmOnboardingTab(raw: string | null | undefined): AmOnboardingTabId {
++  const hit = AM_ONBOARDING_TABS.find((tab) => tab.id === raw);
++  return hit?.id ?? 'overview';
++}
++
++export function amGoLiveBlocked(items: AmGoLiveItem[] | null | undefined, override?: boolean): boolean {
++  if (override) return false;
++  return (items ?? []).some((item) => item.required === true && item.done !== true);
++}
++
++export function amRequiredOpenCount(items: AmGoLiveItem[] | null | undefined): {
++  required: number;
++  done: number;
++} {
++  const requiredItems = (items ?? []).filter((item) => item.required === true);
++  return {
++    required: requiredItems.length,
++    done: requiredItems.filter((item) => item.done === true).length,
++  };
++}
++
++export function amTrackCopy(track: string | null | undefined): string {
++  if (track === 'on_track' || track === 'at_risk' || track === 'blocked') {
++    return AM_ONBOARDING_TRACK_COPY[track];
++  }
++  return track || '—';
++}
++
++export function amOnboardingDash(value: string | number | null | undefined): string {
++  if (value == null || value === '') return '—';
++  return String(value);
++}
++
++export function formatAmOnboardingDate(value: string | null | undefined): string {
++  if (!value) return '—';
++  const ymd = value.slice(0, 10);
++  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
++  if (!match) return ymd;
++  return `${match[3]}/${match[2]}/${match[1]}`;
++}
+diff --git a/services/ptt-crm-api/src/am/am-onboarding.service.spec.ts b/services/ptt-crm-api/src/am/am-onboarding.service.spec.ts
+index e45100fd..f7239e07 100644
+--- a/services/ptt-crm-api/src/am/am-onboarding.service.spec.ts
++++ b/services/ptt-crm-api/src/am/am-onboarding.service.spec.ts
+@@ -165,10 +165,211 @@ describe('AmOnboardingService handover', () => {
+       error: 'already_processed',
+     });
+ 
+     expect(
+       db.query.mock.calls.some(([sql]) => /insert into crm_am_onboarding_cases/i.test(String(sql))),
+     ).toBe(false);
+     expect(audit.insert).not.toHaveBeenCalled();
+     expect(audit.calls).toEqual([]);
+   });
+ });
++
++const CASE_ID = '19d722af-0000-4000-8000-0000000000cc';
++const TEMPLATE_ID = '19d722af-0000-4000-8000-0000000000bb';
++
++describe('AmOnboardingService workspace', () => {
++  const viewReq = {
++    staffUser: { sub: '19d722af-0000-4000-8000-000000000007' },
++    staffAuthVia: 'jwt' as const,
++  } as never;
++
++  const db: {
++    query: jest.MockedFunction<QueryFn>;
++    withTransaction: jest.MockedFunction<(fn: (query: QueryFn) => Promise<unknown>) => Promise<unknown>>;
++  } = {
++    query: jest.fn(async (_sql: string) => ({ rows: [], rowCount: 0 })),
++    withTransaction: jest.fn(async (fn) => fn(db.query)),
++  };
++  const staffAuth = {
++    resolveCrmStaffUserId: jest.fn(async () => STAFF_ID),
++    me: jest.fn(async () => ({
++      caps: [
++        { section: 'crm_am', action: 'view' },
++        { section: 'crm_am', action: 'edit' },
++        { section: 'crm_am', action: 'view_all' },
++        { section: 'crm_am', action: 'manage' },
++      ],
++    })),
++    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, section: string, action: string) =>
++      caps.some((c) => c.section === section && c.action === action),
++    ),
++  };
++  const audit = {
++    calls: [] as Array<{ action: string; entity_type?: string; entity_id?: string }>,
++    insert: jest.fn(async (row: { action: string; entity_type?: string; entity_id?: string }) => {
++      audit.calls.push(row);
++    }),
++  };
++
++  const openCaseRow = {
++    id: CASE_ID,
++    agency_client_id: CLIENT_ID,
++    template_id: TEMPLATE_ID,
++    status: 'open',
++    go_live_on: null,
++    override_reason: null,
++    created_at: '2026-09-01T03:00:00.000Z',
++    items_json: [
++      {
++        id: 'item-required',
++        kind: 'checklist',
++        phase: 'Kickoff',
++        title: 'Kickoff meeting',
++        owner_role: 'Account Manager',
++        due_offset_days: 3,
++        required: true,
++        done: false,
++        done_at: null,
++        due_on: '2026-09-04',
++      },
++    ],
++    name: 'Bloom Spa',
++    code: 'BL01',
++    owner_name: 'Trần Anh',
++  };
++
++  const publishedTemplate = {
++    id: TEMPLATE_ID,
++    name: 'Agency — Social',
++    version: 3,
++    status: 'published',
++    items_json: [
++      {
++        id: 'item-required',
++        kind: 'checklist',
++        phase: 'Kickoff',
++        title: 'Kickoff meeting',
++        owner_role: 'Account Manager',
++        due_offset_days: 3,
++        required: true,
++      },
++    ],
++  };
++
++  let service: AmOnboardingService;
++
++  beforeEach(() => {
++    audit.calls.length = 0;
++    jest.clearAllMocks();
++    staffAuth.me.mockResolvedValue({
++      caps: [
++        { section: 'crm_am', action: 'view' },
++        { section: 'crm_am', action: 'edit' },
++        { section: 'crm_am', action: 'view_all' },
++        { section: 'crm_am', action: 'manage' },
++      ],
++    });
++    db.withTransaction.mockImplementation(async (fn) => fn(db.query));
++    db.query.mockImplementation(async (sql: string) => {
++      const text = String(sql);
++      if (/from crm_am_onboarding_cases/i.test(text) && /select/i.test(text)) {
++        return { rows: [openCaseRow], rowCount: 1 };
++      }
++      if (/from crm_am_onboarding_templates/i.test(text) && /select/i.test(text)) {
++        return { rows: [publishedTemplate], rowCount: 1 };
++      }
++      return { rows: [], rowCount: 0 };
++    });
++    service = new AmOnboardingService(db as never, staffAuth as never, audit as never);
++  });
++
++  it('go-live with a required item open and no override is 400 required_open', async () => {
++    await expect(
++      service.goLive(viewReq, CASE_ID, { go_live_on: '2026-10-01' }, STAFF_ID),
++    ).rejects.toMatchObject({
++      status: 400,
++      error: 'required_open',
++    });
++
++    expect(audit.calls).toEqual([]);
++    expect(audit.insert).not.toHaveBeenCalled();
++    expect(db.withTransaction).not.toHaveBeenCalled();
++    expect(
++      db.query.mock.calls.some(([sql]) => /update crm_am_onboarding_cases/i.test(String(sql))),
++    ).toBe(false);
++    expect(
++      db.query.mock.calls.some(([sql]) => /update crm_am_account_ext/i.test(String(sql))),
++    ).toBe(false);
++  });
++
++  it('PATCH published template is 409 template_published', async () => {
++    await expect(
++      service.patchTemplate(viewReq, TEMPLATE_ID, {
++        items: publishedTemplate.items_json,
++      }),
++    ).rejects.toMatchObject({
++      status: 409,
++      error: 'template_published',
++    });
++
++    expect(
++      db.query.mock.calls.some(([sql]) => /update crm_am_onboarding_templates/i.test(String(sql))),
++    ).toBe(false);
++  });
++
++  it('go-live override without reason is 400 override_reason_required', async () => {
++    await expect(
++      service.goLive(
++        viewReq,
++        CASE_ID,
++        { go_live_on: '2026-10-01', override: true, override_reason: '   ' },
++        STAFF_ID,
++      ),
++    ).rejects.toMatchObject({
++      status: 400,
++      error: 'override_reason_required',
++    });
++    expect(audit.calls).toEqual([]);
++    expect(db.withTransaction).not.toHaveBeenCalled();
++  });
++
++  it('go-live with override and reason closes the case and writes audit', async () => {
++    db.query.mockImplementation(async (sql: string) => {
++      const text = String(sql);
++      if (/from crm_am_onboarding_cases/i.test(text) && /select/i.test(text)) {
++        return { rows: [openCaseRow], rowCount: 1 };
++      }
++      if (/update crm_am_onboarding_cases/i.test(text)) {
++        return { rows: [], rowCount: 1 };
++      }
++      if (/update crm_am_account_ext/i.test(text)) {
++        return { rows: [], rowCount: 1 };
++      }
++      return { rows: [], rowCount: 0 };
++    });
++
++    const out = await service.goLive(
++      viewReq,
++      CASE_ID,
++      { go_live_on: '2026-10-01', override: true, override_reason: 'Director approved' },
++      STAFF_ID,
++    );
++
++    expect(out.status).toBe('closed');
++    expect(out.go_live_on).toBe('2026-10-01');
++    expect(db.withTransaction).toHaveBeenCalled();
++    const caseSql = db.query.mock.calls
++      .map(([sql]) => String(sql))
++      .find((sql) => /update crm_am_onboarding_cases/i.test(sql));
++    expect(caseSql).toMatch(/status\s*=\s*'closed'/i);
++    expect(caseSql).toMatch(/status\s*=\s*'open'/i);
++    const extSql = db.query.mock.calls
++      .map(([sql]) => String(sql))
++      .find((sql) => /update crm_am_account_ext/i.test(sql));
++    expect(extSql).toMatch(/am_status\s*=\s*'active'/i);
++    expect(audit.calls[0]).toMatchObject({
++      action: 'onboarding.go_live',
++      entity_type: 'onboarding_case',
++      entity_id: CASE_ID,
++    });
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-onboarding.service.ts b/services/ptt-crm-api/src/am/am-onboarding.service.ts
+index 616dc19d..4b254d6c 100644
+--- a/services/ptt-crm-api/src/am/am-onboarding.service.ts
++++ b/services/ptt-crm-api/src/am/am-onboarding.service.ts
+@@ -51,20 +51,105 @@ export type AmHandoverReq = {
+ export type AmHandoverQuery = (
+   sql: string,
+   params?: unknown[],
+ ) => Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+ 
+ export type AmHandoverDb = {
+   query: AmHandoverQuery;
+   withTransaction?<T>(fn: (query: AmHandoverQuery) => Promise<T>): Promise<T>;
+ };
+ 
++export type AmOnboardingItemKind = 'checklist' | 'milestone';
++export type AmOnboardingCaseStatus = 'open' | 'closed';
++export type AmOnboardingTrack = 'on_track' | 'at_risk' | 'blocked';
++export type AmOnboardingTemplateStatus = 'draft' | 'published';
++
++export type AmOnboardingTemplateItem = {
++  id: string;
++  kind: AmOnboardingItemKind;
++  phase: string;
++  title: string;
++  owner_role: string;
++  due_offset_days: number;
++  required: boolean;
++};
++
++export type AmOnboardingCaseItem = AmOnboardingTemplateItem & {
++  done: boolean;
++  done_at: string | null;
++  due_on: string | null;
++};
++
++export type AmOnboardingCase = {
++  id: string;
++  agency_client_id: string;
++  name: string;
++  code: string;
++  status: AmOnboardingCaseStatus;
++  go_live_on: string | null;
++  override_reason: string | null;
++  items: AmOnboardingCaseItem[];
++  progress_pct: number | null;
++  owner_name: string | null;
++  delivery_owner: string | null;
++  track: AmOnboardingTrack;
++  health_fresh_24h: boolean;
++  stakeholders: Record<string, unknown>;
++  activity: unknown[];
++  documents: unknown[];
++};
++
++export type AmOnboardingCaseListItem = {
++  id: string;
++  agency_client_id: string;
++  name: string;
++  code: string;
++  status: AmOnboardingCaseStatus;
++  go_live_on: string | null;
++  progress_pct: number | null;
++  track: AmOnboardingTrack;
++};
++
++export type AmOnboardingCaseListQuery = {
++  scope?: AmScope;
++  agency_client_id?: string;
++};
++
++export type AmOnboardingTemplate = {
++  id: string;
++  name: string;
++  version: number;
++  status: AmOnboardingTemplateStatus;
++  items: AmOnboardingTemplateItem[];
++};
++
++export type AmGoLiveBody = {
++  go_live_on?: string;
++  override?: boolean;
++  override_reason?: string;
++  notes?: string;
++};
++
++export type AmPatchCaseBody = {
++  items?: Array<{ id: string; done: boolean }>;
++};
++
++export type AmPatchTemplateBody = {
++  name?: string;
++  items?: unknown;
++};
++
++export type AmCreateTemplateBody = {
++  name?: string;
++  items?: unknown;
++};
++
+ const HANDOVER_COLS = `
+   h.id::text AS id,
+   h.agency_client_id::text AS agency_client_id,
+   h.status,
+   h.commercial_json,
+   h.scope_json,
+   h.stakeholders_json,
+   h.reject_reason,
+   h.accepted_by_staff_id,
+   h.accepted_at,
+@@ -75,20 +160,44 @@ const HANDOVER_COLS = `
+ 
+ const HANDOVER_FROM = `
+   FROM crm_am_handovers h
+   INNER JOIN crm_am_account_ext e
+           ON e.agency_client_id = h.agency_client_id AND e.tenant_id = h.tenant_id
+   INNER JOIN clients c ON c.id = h.agency_client_id
+ `;
+ 
+ const ACTIONABLE: AmHandoverStatus[] = ['pending_am', 'needs_info'];
+ 
++const ICT = 'Asia/Ho_Chi_Minh';
++
++const CASE_COLS = `
++  oc.id::text AS id,
++  oc.agency_client_id::text AS agency_client_id,
++  oc.template_id::text AS template_id,
++  oc.status,
++  oc.go_live_on,
++  oc.items_json,
++  oc.override_reason,
++  oc.created_at,
++  c.name,
++  c.code,
++  owner.name AS owner_name
++`;
++
++const CASE_FROM = `
++  FROM crm_am_onboarding_cases oc
++  INNER JOIN crm_am_account_ext e
++          ON e.agency_client_id = oc.agency_client_id AND e.tenant_id = oc.tenant_id
++  INNER JOIN clients c ON c.id = oc.agency_client_id
++  LEFT JOIN crm_staff owner ON owner.id = e.account_owner_staff_id
++`;
++
+ @Injectable()
+ export class AmOnboardingRepository implements OnModuleDestroy, AmHandoverDb {
+   private pool: Pool | null = null;
+ 
+   constructor(private readonly config: AppConfigService) {}
+ 
+   private get db(): Pool {
+     if (!this.pool) {
+       this.pool = new Pool({ connectionString: this.config.databaseUrl });
+     }
+@@ -295,20 +404,207 @@ export class AmOnboardingService {
+     await this.audit.insert({
+       actor_staff_id: staffId > 0 ? staffId : null,
+       action: 'handover.needs_info',
+       entity_type: 'handover',
+       entity_id: id,
+       payload_json: { agency_client_id: current.agency_client_id, reason },
+     });
+     return { ...current, status: 'needs_info', reject_reason: reason };
+   }
+ 
++  async listCases(
++    req: AmHandoverReq,
++    q: AmOnboardingCaseListQuery,
++  ): Promise<{ items: AmOnboardingCaseListItem[] }> {
++    const actor = await this.resolveActor(req, q.scope);
++    const bound = this.scopedWhere(actor, 2);
++    const params: unknown[] = [AM_TENANT_ID, ...bound.params];
++    const where = [`oc.tenant_id = $1`, bound.sql];
++    const clientId = String(q.agency_client_id ?? '').trim();
++    if (clientId) {
++      if (!isUuid(clientId)) amThrow(400, { error: 'invalid_agency_client_id' });
++      params.push(clientId);
++      where.push(`oc.agency_client_id = $${params.length}::uuid`);
++    }
++    const result = await this.db.query(
++      `SELECT ${CASE_COLS} ${CASE_FROM}
++        WHERE ${where.join(' AND ')}
++        ORDER BY oc.created_at DESC`,
++      params,
++    );
++    return { items: result.rows.map(mapCaseListItem) };
++  }
++
++  async getCase(req: AmHandoverReq, id: string): Promise<AmOnboardingCase> {
++    const row = await this.requireCase(req, id);
++    const extras = await this.loadCaseExtras(row.agency_client_id);
++    return mapCaseDetail(row, extras);
++  }
++
++  async patchCase(req: AmHandoverReq, id: string, body: AmPatchCaseBody): Promise<AmOnboardingCase> {
++    const row = await this.requireCase(req, id);
++    if (row.status === 'closed') amThrow(409, { error: 'case_closed' });
++    const items = hydrateCaseItems(row.items_json, row.created_at);
++    const toggles = Array.isArray(body.items) ? body.items : [];
++    for (const toggle of toggles) {
++      const itemId = String(toggle?.id ?? '').trim();
++      const hit = items.find((item) => item.id === itemId);
++      if (!hit) amThrow(400, { error: 'invalid_item_id' });
++      hit.done = toggle.done === true;
++      hit.done_at = hit.done ? new Date().toISOString() : null;
++    }
++    await this.db.query(
++      `UPDATE crm_am_onboarding_cases
++          SET items_json = $2::jsonb
++        WHERE tenant_id = $1 AND id = $3::uuid`,
++      [AM_TENANT_ID, JSON.stringify(items), id],
++    );
++    return this.getCase(req, id);
++  }
++
++  async goLive(
++    req: AmHandoverReq,
++    id: string,
++    body: AmGoLiveBody,
++    staffId: number,
++  ): Promise<AmOnboardingCase> {
++    const goLiveOn = String(body.go_live_on ?? '').trim();
++    if (!/^\d{4}-\d{2}-\d{2}$/.test(goLiveOn)) {
++      amThrow(400, { error: 'invalid_go_live_on' });
++    }
++    const row = await this.requireCase(req, id);
++    if (row.status === 'closed') amThrow(409, { error: 'already_closed' });
++    const items = hydrateCaseItems(row.items_json, row.created_at);
++    const blocked = items.some((item) => item.required && !item.done);
++    const override = body.override === true;
++    const reason = String(body.override_reason ?? '').trim();
++    if (blocked && !override) amThrow(400, { error: 'required_open' });
++    if (blocked && override && !reason) amThrow(400, { error: 'override_reason_required' });
++
++    await this.inTx(async (query) => {
++      const updated = await query(
++        `UPDATE crm_am_onboarding_cases
++            SET status = 'closed',
++                go_live_on = $2::date,
++                override_reason = $3
++          WHERE tenant_id = $1 AND id = $4::uuid AND status = 'open'`,
++        [AM_TENANT_ID, goLiveOn, reason || null, id],
++      );
++      if ((updated.rowCount ?? 0) === 0) {
++        amThrow(409, { error: 'already_closed' });
++      }
++      await query(
++        `UPDATE crm_am_account_ext
++            SET am_status = 'active', updated_at = now()
++          WHERE tenant_id = $1 AND agency_client_id = $2::uuid`,
++        [AM_TENANT_ID, row.agency_client_id],
++      );
++    });
++
++    await this.audit.insert({
++      actor_staff_id: staffId > 0 ? staffId : null,
++      action: 'onboarding.go_live',
++      entity_type: 'onboarding_case',
++      entity_id: id,
++      payload_json: {
++        agency_client_id: row.agency_client_id,
++        go_live_on: goLiveOn,
++        override,
++        override_reason: reason || null,
++        notes: String(body.notes ?? '').trim() || null,
++      },
++    });
++
++    const extras = await this.loadCaseExtras(row.agency_client_id);
++    return mapCaseDetail(
++      { ...row, status: 'closed', go_live_on: goLiveOn, override_reason: reason || null },
++      extras,
++    );
++  }
++
++  async listTemplates(_req: AmHandoverReq): Promise<{ items: AmOnboardingTemplate[] }> {
++    const result = await this.db.query(
++      `SELECT id::text AS id, name, version, status, items_json
++         FROM crm_am_onboarding_templates
++        WHERE tenant_id = $1
++        ORDER BY version DESC, name ASC`,
++      [AM_TENANT_ID],
++    );
++    return { items: result.rows.map(mapTemplate) };
++  }
++
++  async createTemplate(_req: AmHandoverReq, body: AmCreateTemplateBody): Promise<AmOnboardingTemplate> {
++    const name = String(body.name ?? '').trim();
++    if (!name) amThrow(400, { error: 'invalid_name' });
++    const items = validateTemplateItems(body.items);
++    const version = await this.nextTemplateVersion(name);
++    const inserted = await this.db.query(
++      `INSERT INTO crm_am_onboarding_templates (tenant_id, name, version, status, items_json)
++       VALUES ($1, $2, $3, 'draft', $4::jsonb)
++       RETURNING id::text AS id, name, version, status, items_json`,
++      [AM_TENANT_ID, name, version, JSON.stringify(items)],
++    );
++    const row = inserted.rows[0];
++    if (!row) amThrow(400, { error: 'invalid_items' });
++    return mapTemplate(row);
++  }
++
++  async patchTemplate(
++    _req: AmHandoverReq,
++    id: string,
++    body: AmPatchTemplateBody,
++  ): Promise<AmOnboardingTemplate> {
++    const current = await this.requireTemplate(id);
++    if (current.status === 'published') amThrow(409, { error: 'template_published' });
++    const name = body.name != null ? String(body.name).trim() : current.name;
++    if (!name) amThrow(400, { error: 'invalid_name' });
++    const items = body.items != null ? validateTemplateItems(body.items) : current.items;
++    const updated = await this.db.query(
++      `UPDATE crm_am_onboarding_templates
++          SET name = $2, items_json = $3::jsonb
++        WHERE tenant_id = $1 AND id = $4::uuid AND status = 'draft'
++       RETURNING id::text AS id, name, version, status, items_json`,
++      [AM_TENANT_ID, name, JSON.stringify(items), id],
++    );
++    const row = updated.rows[0];
++    if (!row) amThrow(409, { error: 'template_published' });
++    return mapTemplate(row);
++  }
++
++  async cloneTemplate(_req: AmHandoverReq, id: string): Promise<AmOnboardingTemplate> {
++    const current = await this.requireTemplate(id);
++    const version = await this.nextTemplateVersion(current.name);
++    const inserted = await this.db.query(
++      `INSERT INTO crm_am_onboarding_templates (tenant_id, name, version, status, items_json)
++       VALUES ($1, $2, $3, 'draft', $4::jsonb)
++       RETURNING id::text AS id, name, version, status, items_json`,
++      [AM_TENANT_ID, current.name, version, JSON.stringify(current.items)],
++    );
++    const row = inserted.rows[0];
++    if (!row) amThrow(400, { error: 'invalid_items' });
++    return mapTemplate(row);
++  }
++
++  async publishTemplate(_req: AmHandoverReq, id: string): Promise<AmOnboardingTemplate> {
++    const current = await this.requireTemplate(id);
++    const updated = await this.db.query(
++      `UPDATE crm_am_onboarding_templates
++          SET status = 'published'
++        WHERE tenant_id = $1 AND id = $2::uuid
++       RETURNING id::text AS id, name, version, status, items_json`,
++      [AM_TENANT_ID, current.id],
++    );
++    const row = updated.rows[0];
++    if (!row) amThrow(404, { error: 'not_found' });
++    return mapTemplate(row);
++  }
++
+   private async requireActionable(req: AmHandoverReq, id: string): Promise<AmHandover> {
+     if (!isUuid(id)) amThrow(400, { error: 'invalid_handover_id' });
+     const actor = await this.resolveActor(req, undefined);
+     const row = await this.loadScoped(actor, id);
+     if (!row) amThrow(404, { error: 'not_found' });
+     if (!ACTIONABLE.includes(row.status)) {
+       amThrow(409, { error: 'handover_not_pending' });
+     }
+     return row;
+   }
+@@ -421,20 +717,87 @@ export class AmOnboardingService {
+           WHERE cs.id = $1`,
+         [staffId],
+       );
+       return result.rows
+         .map((row) => Number(row.id))
+         .filter((n) => Number.isFinite(n) && n > 0);
+     } catch {
+       return [];
+     }
+   }
++
++  private async requireCase(req: AmHandoverReq, id: string): Promise<CaseRow> {
++    if (!isUuid(id)) amThrow(400, { error: 'invalid_onboarding_case_id' });
++    const actor = await this.resolveActor(req, undefined);
++    const bound = this.scopedWhere(actor, 3);
++    const result = await this.db.query(
++      `SELECT ${CASE_COLS} ${CASE_FROM}
++        WHERE oc.tenant_id = $1 AND oc.id = $2::uuid AND ${bound.sql}
++        LIMIT 1`,
++      [AM_TENANT_ID, id, ...bound.params],
++    );
++    const row = result.rows[0];
++    if (!row) amThrow(404, { error: 'not_found' });
++    return mapCaseRow(row);
++  }
++
++  private async loadCaseExtras(agencyClientId: string): Promise<CaseExtras> {
++    const today = ictYmd();
++    const [handover, health] = await Promise.all([
++      this.db.query(
++        `SELECT stakeholders_json
++           FROM crm_am_handovers
++          WHERE tenant_id = $1 AND agency_client_id = $2::uuid AND status = 'accepted'
++          ORDER BY accepted_at DESC NULLS LAST, created_at DESC
++          LIMIT 1`,
++        [AM_TENANT_ID, agencyClientId],
++      ),
++      this.db.query(
++        `SELECT 1 AS ok
++           FROM crm_am_health_snapshots
++          WHERE tenant_id = $1 AND agency_client_id = $2::uuid AND as_of = $3::date
++          LIMIT 1`,
++        [AM_TENANT_ID, agencyClientId, today],
++      ),
++    ]);
++    const stakeholders = asObj(handover.rows[0]?.stakeholders_json);
++    const delivery = stakeholders.delivery_owner;
++    return {
++      stakeholders,
++      delivery_owner: delivery == null || delivery === '' ? null : String(delivery),
++      health_fresh_24h: health.rows.length > 0,
++    };
++  }
++
++  private async requireTemplate(id: string): Promise<AmOnboardingTemplate> {
++    if (!isUuid(id)) amThrow(400, { error: 'invalid_template_id' });
++    const result = await this.db.query(
++      `SELECT id::text AS id, name, version, status, items_json
++         FROM crm_am_onboarding_templates
++        WHERE tenant_id = $1 AND id = $2::uuid
++        LIMIT 1`,
++      [AM_TENANT_ID, id],
++    );
++    const row = result.rows[0];
++    if (!row) amThrow(404, { error: 'not_found' });
++    return mapTemplate(row);
++  }
++
++  private async nextTemplateVersion(name: string): Promise<number> {
++    const result = await this.db.query(
++      `SELECT COALESCE(MAX(version), 0) + 1 AS version
++         FROM crm_am_onboarding_templates
++        WHERE tenant_id = $1 AND name = $2`,
++      [AM_TENANT_ID, name],
++    );
++    return Number(result.rows[0]?.version ?? 1) || 1;
++  }
+ }
+ 
+ type HandoverActor = {
+   staffId: number;
+   scope: AmScope;
+   teamIds: number[];
+ };
+ 
+ function checklistComplete(checklist: AmHandoverChecklist | undefined): boolean {
+   if (!checklist) return false;
+@@ -487,20 +850,220 @@ function asObj(value: unknown): Record<string, unknown> {
+       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+         return parsed as Record<string, unknown>;
+       }
+     } catch {
+       return {};
+     }
+   }
+   return {};
+ }
+ 
++type CaseRow = {
++  id: string;
++  agency_client_id: string;
++  template_id: string | null;
++  status: AmOnboardingCaseStatus;
++  go_live_on: string | null;
++  items_json: unknown;
++  override_reason: string | null;
++  created_at: string | Date | null;
++  name: string;
++  code: string;
++  owner_name: string | null;
++};
++
++type CaseExtras = {
++  stakeholders: Record<string, unknown>;
++  delivery_owner: string | null;
++  health_fresh_24h: boolean;
++};
++
++function ictYmd(now = new Date()): string {
++  return new Intl.DateTimeFormat('en-CA', {
++    timeZone: ICT,
++    year: 'numeric',
++    month: '2-digit',
++    day: '2-digit',
++  }).format(now);
++}
++
++function addDaysYmd(ymd: string, days: number): string {
++  const [year, month, day] = ymd.split('-').map((part) => Number(part));
++  const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1, (day || 1) + days));
++  return dt.toISOString().slice(0, 10);
++}
++
++function asDateOnly(value: unknown): string | null {
++  if (value == null || value === '') return null;
++  if (value instanceof Date && !Number.isNaN(value.getTime())) {
++    return value.toISOString().slice(0, 10);
++  }
++  const raw = String(value);
++  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
++  const parsed = new Date(raw);
++  if (Number.isNaN(parsed.getTime())) return null;
++  return parsed.toISOString().slice(0, 10);
++}
++
++function asItems(value: unknown): unknown[] {
++  if (Array.isArray(value)) return value;
++  if (typeof value === 'string') {
++    try {
++      const parsed = JSON.parse(value) as unknown;
++      return Array.isArray(parsed) ? parsed : [];
++    } catch {
++      return [];
++    }
++  }
++  return [];
++}
++
++function hydrateCaseItems(raw: unknown, createdAt: string | Date | null): AmOnboardingCaseItem[] {
++  const createdYmd = createdAt ? ictYmd(new Date(createdAt)) : ictYmd();
++  return asItems(raw).map((row) => {
++    const item = row && typeof row === 'object' && !Array.isArray(row) ? (row as Record<string, unknown>) : {};
++    const offset = Number(item.due_offset_days);
++    const dueOffset = Number.isFinite(offset) ? offset : 0;
++    return {
++      id: String(item.id ?? ''),
++      kind: item.kind === 'milestone' ? 'milestone' : 'checklist',
++      phase: String(item.phase ?? ''),
++      title: String(item.title ?? ''),
++      owner_role: String(item.owner_role ?? ''),
++      due_offset_days: dueOffset,
++      required: item.required === true,
++      done: item.done === true,
++      done_at: item.done_at == null || item.done_at === '' ? null : String(item.done_at),
++      due_on: asDateOnly(item.due_on) ?? addDaysYmd(createdYmd, dueOffset),
++    };
++  });
++}
++
++function progressPct(items: AmOnboardingCaseItem[]): number | null {
++  if (!items.length) return null;
++  const done = items.filter((item) => item.done).length;
++  return Math.round((done / items.length) * 100);
++}
++
++function caseTrack(items: AmOnboardingCaseItem[], today = ictYmd()): AmOnboardingTrack {
++  const overdue = items.filter((item) => !item.done && item.due_on != null && item.due_on < today);
++  if (overdue.some((item) => item.required)) return 'blocked';
++  if (overdue.length) return 'at_risk';
++  return 'on_track';
++}
++
++function validateTemplateItems(raw: unknown): AmOnboardingTemplateItem[] {
++  if (!Array.isArray(raw)) amThrow(400, { error: 'invalid_items' });
++  return raw.map((row) => {
++    const item = row && typeof row === 'object' && !Array.isArray(row) ? (row as Record<string, unknown>) : {};
++    const id = String(item.id ?? '').trim();
++    const title = String(item.title ?? '').trim();
++    const kind = item.kind;
++    const offset = Number(item.due_offset_days);
++    if (
++      !id ||
++      !title ||
++      (kind !== 'checklist' && kind !== 'milestone') ||
++      !Number.isFinite(offset) ||
++      typeof item.required !== 'boolean'
++    ) {
++      amThrow(400, { error: 'invalid_items' });
++    }
++    return {
++      id,
++      kind,
++      phase: String(item.phase ?? ''),
++      title,
++      owner_role: String(item.owner_role ?? ''),
++      due_offset_days: offset,
++      required: item.required,
++    };
++  });
++}
++
++function mapTemplate(row: Record<string, unknown>): AmOnboardingTemplate {
++  const status = String(row.status ?? 'draft') === 'published' ? 'published' : 'draft';
++  return {
++    id: String(row.id ?? ''),
++    name: String(row.name ?? ''),
++    version: Number(row.version ?? 1) || 1,
++    status,
++    items: asItems(row.items_json).map((entry) => {
++      const item =
++        entry && typeof entry === 'object' && !Array.isArray(entry) ? (entry as Record<string, unknown>) : {};
++      const offset = Number(item.due_offset_days);
++      return {
++        id: String(item.id ?? ''),
++        kind: item.kind === 'milestone' ? 'milestone' : 'checklist',
++        phase: String(item.phase ?? ''),
++        title: String(item.title ?? ''),
++        owner_role: String(item.owner_role ?? ''),
++        due_offset_days: Number.isFinite(offset) ? offset : 0,
++        required: item.required === true,
++      };
++    }),
++  };
++}
++
++function mapCaseRow(row: Record<string, unknown>): CaseRow {
++  return {
++    id: String(row.id ?? ''),
++    agency_client_id: String(row.agency_client_id ?? ''),
++    template_id: row.template_id == null || row.template_id === '' ? null : String(row.template_id),
++    status: String(row.status ?? 'open') === 'closed' ? 'closed' : 'open',
++    go_live_on: asDateOnly(row.go_live_on),
++    items_json: row.items_json,
++    override_reason: row.override_reason == null || row.override_reason === '' ? null : String(row.override_reason),
++    created_at: row.created_at == null ? null : (row.created_at as string | Date),
++    name: String(row.name ?? ''),
++    code: String(row.code ?? ''),
++    owner_name: row.owner_name == null || row.owner_name === '' ? null : String(row.owner_name),
++  };
++}
++
++function mapCaseDetail(row: CaseRow, extras: CaseExtras): AmOnboardingCase {
++  const items = hydrateCaseItems(row.items_json, row.created_at);
++  return {
++    id: row.id,
++    agency_client_id: row.agency_client_id,
++    name: row.name,
++    code: row.code,
++    status: row.status,
++    go_live_on: row.go_live_on,
++    override_reason: row.override_reason,
++    items,
++    progress_pct: progressPct(items),
++    owner_name: row.owner_name,
++    delivery_owner: extras.delivery_owner,
++    track: caseTrack(items),
++    health_fresh_24h: extras.health_fresh_24h,
++    stakeholders: extras.stakeholders,
++    activity: [],
++    documents: [],
++  };
++}
++
++function mapCaseListItem(row: Record<string, unknown>): AmOnboardingCaseListItem {
++  const mapped = mapCaseRow(row);
++  const items = hydrateCaseItems(mapped.items_json, mapped.created_at);
++  return {
++    id: mapped.id,
++    agency_client_id: mapped.agency_client_id,
++    name: mapped.name,
++    code: mapped.code,
++    status: mapped.status,
++    go_live_on: mapped.go_live_on,
++    progress_pct: progressPct(items),
++    track: caseTrack(items),
++  };
++}
++
+ function mapHandover(row: Record<string, unknown>): AmHandover {
+   return {
+     id: String(row.id ?? ''),
+     agency_client_id: String(row.agency_client_id ?? ''),
+     status: String(row.status ?? 'draft') as AmHandoverStatus,
+     commercial_json: asObj(row.commercial_json),
+     scope_json: asObj(row.scope_json),
+     stakeholders_json: asObj(row.stakeholders_json),
+     reject_reason: row.reject_reason == null || row.reject_reason === '' ? null : String(row.reject_reason),
+     accepted_by_staff_id: row.accepted_by_staff_id == null ? null : Number(row.accepted_by_staff_id),
+diff --git a/services/ptt-crm-api/src/am/am.controller.ts b/services/ptt-crm-api/src/am/am.controller.ts
+index 9641cafe..7f5998a9 100644
+--- a/services/ptt-crm-api/src/am/am.controller.ts
++++ b/services/ptt-crm-api/src/am/am.controller.ts
+@@ -14,22 +14,27 @@ import {
+ import { AmDashboardService } from './am-dashboard.service';
+ import { AmHealthService } from './am-health.service';
+ import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
+ import { AmSearchService } from './am-search.service';
+ import { AmNotificationsService } from './am-notifications.service';
+ import { AmSettingsService } from './am-settings.service';
+ import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
+ import { AmViewsService, type AmCreateViewBody } from './am-views.service';
+ import {
+   AmOnboardingService,
++  type AmCreateTemplateBody,
++  type AmGoLiveBody,
+   type AmHandoverChecklist,
+   type AmHandoverListQuery,
++  type AmOnboardingCaseListQuery,
++  type AmPatchCaseBody,
++  type AmPatchTemplateBody,
+ } from './am-onboarding.service';
+ import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
+ import type { AmScope } from './am.types';
+ import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
+ 
+ export type AuthedReq = Request & {
+   staffUser?: StaffJwtPayload;
+   staffAuthVia?: 'internal' | 'jwt';
+ };
+ 
+@@ -229,11 +234,69 @@ export class AmController {
+ 
+   @Post('handovers/:id/needs-info')
+   @RequireAmAction('edit')
+   async needsInfoHandover(
+     @Req() req: AuthedReq,
+     @Param('id') id: string,
+     @Body() body: { reason?: string },
+   ) {
+     return this.onboarding.needsInfo(req, id, body ?? {}, await this.actorStaffId(req));
+   }
++
++  @Get('onboarding-cases')
++  @RequireAmAction('view')
++  listOnboardingCases(@Req() req: AuthedReq, @Query() q: AmOnboardingCaseListQuery) {
++    return this.onboarding.listCases(req, q);
++  }
++
++  @Get('onboarding-cases/:id')
++  @RequireAmAction('view')
++  getOnboardingCase(@Req() req: AuthedReq, @Param('id') id: string) {
++    return this.onboarding.getCase(req, id);
++  }
++
++  @Patch('onboarding-cases/:id')
++  @RequireAmAction('edit')
++  patchOnboardingCase(@Req() req: AuthedReq, @Param('id') id: string, @Body() body: AmPatchCaseBody) {
++    return this.onboarding.patchCase(req, id, body ?? {});
++  }
++
++  @Post('onboarding-cases/:id/go-live')
++  @RequireAmAction('edit')
++  async goLiveOnboardingCase(@Req() req: AuthedReq, @Param('id') id: string, @Body() body: AmGoLiveBody) {
++    return this.onboarding.goLive(req, id, body ?? {}, await this.actorStaffId(req));
++  }
++
++  @Get('onboarding-templates')
++  @RequireAmAction('view')
++  listOnboardingTemplates(@Req() req: AuthedReq) {
++    return this.onboarding.listTemplates(req);
++  }
++
++  @Post('onboarding-templates')
++  @RequireAmAction('manage')
++  createOnboardingTemplate(@Req() req: AuthedReq, @Body() body: AmCreateTemplateBody) {
++    return this.onboarding.createTemplate(req, body ?? {});
++  }
++
++  @Patch('onboarding-templates/:id')
++  @RequireAmAction('manage')
++  patchOnboardingTemplate(
++    @Req() req: AuthedReq,
++    @Param('id') id: string,
++    @Body() body: AmPatchTemplateBody,
++  ) {
++    return this.onboarding.patchTemplate(req, id, body ?? {});
++  }
++
++  @Post('onboarding-templates/:id/clone')
++  @RequireAmAction('manage')
++  cloneOnboardingTemplate(@Req() req: AuthedReq, @Param('id') id: string) {
++    return this.onboarding.cloneTemplate(req, id);
++  }
++
++  @Post('onboarding-templates/:id/publish')
++  @RequireAmAction('manage')
++  publishOnboardingTemplate(@Req() req: AuthedReq, @Param('id') id: string) {
++    return this.onboarding.publishTemplate(req, id);
++  }
+ }

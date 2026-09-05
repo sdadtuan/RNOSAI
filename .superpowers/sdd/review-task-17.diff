@@ -1,0 +1,1576 @@
+# Review package: 96ecf65714081ccd9f600d5189828929a2e69a28..b10cee8566058aa52a4a8fb0af5c30162428cca7
+
+## Commits
+b10cee85 feat(am): add Sales-to-AM handover workspace
+
+## Files changed
+ .../ops-web/src/app/crm/account-management/am.css  |  85 +++-
+ .../app/crm/account-management/onboarding/page.tsx |   6 +-
+ .../ops-web/src/components/crm/am/AmHandover.tsx   | 432 +++++++++++++++++++
+ services/ops-web/src/lib/crm/am-api.ts             |  75 ++++
+ .../ops-web/src/lib/crm/am-handover.util.spec.ts   |  40 ++
+ services/ops-web/src/lib/crm/am-handover.util.ts   |  58 +++
+ .../src/am/am-onboarding.service.spec.ts           | 131 ++++++
+ .../ptt-crm-api/src/am/am-onboarding.service.ts    | 472 +++++++++++++++++++++
+ services/ptt-crm-api/src/am/am.controller.ts       |  48 +++
+ services/ptt-crm-api/src/am/am.module.ts           |   4 +
+ 10 files changed, 1348 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/services/ops-web/src/app/crm/account-management/am.css b/services/ops-web/src/app/crm/account-management/am.css
+index d6765d2b..f38d9e7e 100644
+--- a/services/ops-web/src/app/crm/account-management/am.css
++++ b/services/ops-web/src/app/crm/account-management/am.css
+@@ -372,28 +372,35 @@
+   gap: 4px;
+   font-size: 13px;
+ }
+ 
+ .am-field span {
+   color: #6b7280;
+   font-weight: 600;
+ }
+ 
+ .am-field input,
+-.am-field select {
++.am-field select,
++.am-field textarea {
+   height: 36px;
+   border: 1px solid #e5e7eb;
+   border-radius: 10px;
+   padding: 0 10px;
+   background: #fff;
+ }
+ 
++.am-field textarea {
++  height: auto;
++  padding: 8px 10px;
++  resize: vertical;
++}
++
+ .am-form__actions {
+   display: flex;
+   justify-content: flex-end;
+   gap: 8px;
+   margin-top: 8px;
+ }
+ 
+ .am-tabs {
+   display: flex;
+   gap: 4px;
+@@ -1033,10 +1040,86 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
+   color: #111827;
+ }
+ 
+ @media (max-width: 720px) {
+   .am-split,
+   .am-cov,
+   .am-360__grid {
+     grid-template-columns: 1fr;
+   }
+ }
++
++.am-handover {
++  position: absolute;
++  top: 4vh;
++  left: 50%;
++  transform: translateX(-50%);
++  width: min(880px, 96vw);
++  max-height: 92vh;
++  overflow: auto;
++  background: #fff;
++  border-radius: var(--am-radius);
++  padding: 18px 20px 16px;
++  box-shadow: 0 24px 50px rgba(17, 24, 39, 0.2);
++}
++
++.am-handover__head {
++  display: flex;
++  justify-content: space-between;
++  align-items: flex-start;
++  gap: 12px;
++  margin-bottom: 12px;
++}
++
++.am-handover__head h2 {
++  margin: 0 0 4px;
++  font-size: 20px;
++  color: var(--am-navy);
++}
++
++.am-handover__steps {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 6px;
++  margin-bottom: 12px;
++}
++
++.am-handover__steps button {
++  height: 34px;
++  padding: 0 10px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  background: #fff;
++  color: #374151;
++  font-size: 13px;
++  font-weight: 600;
++}
++
++.am-handover__steps button.is-active {
++  background: var(--am-accent);
++  border-color: var(--am-accent);
++  color: #fff;
++}
++
++.am-handover__dl {
++  display: grid;
++  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
++  gap: 10px 16px;
++  margin: 0;
++}
++
++.am-handover__dl dt {
++  font-size: 12px;
++  color: #6b7280;
++  font-weight: 600;
++}
++
++.am-handover__dl dd {
++  margin: 2px 0 0;
++  color: #111827;
++}
++
++.am-handover__reason {
++  margin-top: 12px;
++  padding-top: 12px;
++  border-top: 1px solid #f3f4f6;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/onboarding/page.tsx b/services/ops-web/src/app/crm/account-management/onboarding/page.tsx
+index f23818ef..0b1db439 100644
+--- a/services/ops-web/src/app/crm/account-management/onboarding/page.tsx
++++ b/services/ops-web/src/app/crm/account-management/onboarding/page.tsx
+@@ -1,5 +1,7 @@
+-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++'use client';
++
++import { AmOnboardingQueue } from '@/components/crm/am/AmHandover';
+ 
+ export default function AmOnboardingPage() {
+-  return <AmPlaceholder title="Onboarding" wave={2} />;
++  return <AmOnboardingQueue />;
+ }
+diff --git a/services/ops-web/src/components/crm/am/AmHandover.tsx b/services/ops-web/src/components/crm/am/AmHandover.tsx
+new file mode 100644
+index 00000000..6c2d4265
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmHandover.tsx
+@@ -0,0 +1,432 @@
++'use client';
++
++import { usePathname, useRouter, useSearchParams } from 'next/navigation';
++import { useCallback, useEffect, useMemo, useState } from 'react';
++import { ApiError } from '@/lib/api';
++import {
++  acceptAmHandover,
++  fetchAmHandovers,
++  needsInfoAmHandover,
++  rejectAmHandover,
++  type AmHandover as AmHandoverRow,
++  type AmHandoverChecklist,
++} from '@/lib/crm/am-api';
++import {
++  AM_HANDOVER_CHECKLIST,
++  AM_HANDOVER_STEPS,
++  amHandoverCanAccept,
++  amHandoverReasonError,
++  amHandoverStatusCopy,
++  amJsonField,
++  parseAmHandoverStep,
++  type AmHandoverChecklistState,
++  type AmHandoverStepId,
++} from '@/lib/crm/am-handover.util';
++import { useAmPage } from './AmShell';
++
++type ReasonAction = 'reject' | 'needs_info';
++
++function displayPairs(data: Record<string, unknown>, keys: Array<{ key: string; label: string }>) {
++  const known = new Set(keys.map((row) => row.key));
++  const extras = Object.keys(data).filter((key) => !known.has(key));
++  return [
++    ...keys.map((row) => ({ ...row, value: amJsonField(data, row.key) })),
++    ...extras.map((key) => ({ key, label: key, value: amJsonField(data, key) })),
++  ];
++}
++
++export function AmHandover({
++  handover,
++  initialStep = 'commercial',
++  onClose,
++  onChanged,
++}: {
++  handover: AmHandoverRow;
++  initialStep?: AmHandoverStepId;
++  onClose: () => void;
++  onChanged: (row: AmHandoverRow) => void;
++}) {
++  const { token, canEdit } = useAmPage();
++  const [step, setStep] = useState<AmHandoverStepId>(initialStep);
++  const [checklist, setChecklist] = useState<AmHandoverChecklistState>({});
++  const [reasonAction, setReasonAction] = useState<ReasonAction | null>(null);
++  const [reason, setReason] = useState('');
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState('');
++
++  const canAccept = amHandoverCanAccept(checklist);
++  const pending = handover.status === 'pending_am' || handover.status === 'needs_info';
++
++  const commercial = displayPairs(handover.commercial_json, [
++    { key: 'value_vnd', label: 'Giá trị' },
++    { key: 'term', label: 'Kỳ hạn' },
++    { key: 'billing', label: 'Billing' },
++    { key: 'starts_on', label: 'Ngày hiệu lực' },
++    { key: 'package', label: 'Gói dịch vụ' },
++    { key: 'sla', label: 'SLA' },
++  ]);
++  const scope = displayPairs(handover.scope_json, [
++    { key: 'goal', label: 'Mục tiêu kinh doanh' },
++    { key: 'kpi', label: 'KPI cam kết' },
++    { key: 'in_scope', label: 'Phạm vi bao gồm' },
++    { key: 'out_of_scope', label: 'Không bao gồm' },
++    { key: 'sales_notes', label: 'Rủi ro/ghi chú từ Sales' },
++  ]);
++  const stakeholders = displayPairs(handover.stakeholders_json, [
++    { key: 'primary', label: 'Stakeholder chính' },
++    { key: 'delivery_owner', label: 'Owner Delivery' },
++    { key: 'access', label: 'Quyền truy cập' },
++  ]);
++
++  async function runAction(action: 'accept' | ReasonAction) {
++    if (!token || !canEdit || !pending) return;
++    setBusy(true);
++    setError('');
++    try {
++      if (action === 'accept') {
++        if (!canAccept) {
++          setError('checklist_required');
++          return;
++        }
++        onChanged(await acceptAmHandover(token, handover.id, checklist as AmHandoverChecklist));
++        onClose();
++        return;
++      }
++      if (amHandoverReasonError(action, reason)) {
++        setError('reason_required');
++        return;
++      }
++      const next =
++        action === 'reject'
++          ? await rejectAmHandover(token, handover.id, reason.trim())
++          : await needsInfoAmHandover(token, handover.id, reason.trim());
++      onChanged(next);
++      setReasonAction(null);
++      onClose();
++    } catch (err) {
++      setError(err instanceof ApiError ? err.message : 'handover_failed');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  return (
++    <div className="am-drawer-bg" role="presentation" onClick={onClose}>
++      <div
++        className="am-handover"
++        role="dialog"
++        aria-labelledby="am-handover-title"
++        onClick={(ev) => ev.stopPropagation()}
++      >
++        <div className="am-handover__head">
++          <div>
++            <p className="am-crumb">Handover Sales → AM</p>
++            <h2 id="am-handover-title">Handover khách hàng: {handover.name || handover.code}</h2>
++            <p className="am-muted">
++              {handover.code} · {amHandoverStatusCopy(handover.status)}
++            </p>
++          </div>
++          <button type="button" className="am-btn" onClick={onClose}>
++            Đóng
++          </button>
++        </div>
++
++        <div className="am-handover__steps" role="tablist">
++          {AM_HANDOVER_STEPS.map((item, index) => (
++            <button
++              key={item.id}
++              type="button"
++              role="tab"
++              className={item.id === step ? 'is-active' : ''}
++              aria-selected={item.id === step}
++              onClick={() => setStep(item.id)}
++            >
++              {index + 1}. {item.label}
++            </button>
++          ))}
++        </div>
++
++        {error ? (
++          <p className="am-banner">
++            {error === 'checklist_required'
++              ? 'Tick đủ checklist AM trước khi xác nhận.'
++              : error === 'reason_required'
++                ? 'Từ chối / yêu cầu bổ sung bắt buộc nêu lý do.'
++                : error}
++          </p>
++        ) : null}
++
++        {step === 'commercial' ? (
++          <section className="am-widget">
++            <h3>Thông tin thương mại</h3>
++            <dl className="am-handover__dl">
++              {commercial.map((row) => (
++                <div key={row.key}>
++                  <dt>{row.label}</dt>
++                  <dd>{row.value}</dd>
++                </div>
++              ))}
++            </dl>
++          </section>
++        ) : null}
++
++        {step === 'scope' ? (
++          <section className="am-widget">
++            <h3>Scope & KPI</h3>
++            <dl className="am-handover__dl">
++              {scope.map((row) => (
++                <div key={row.key}>
++                  <dt>{row.label}</dt>
++                  <dd>{row.value}</dd>
++                </div>
++              ))}
++            </dl>
++          </section>
++        ) : null}
++
++        {step === 'stakeholder' ? (
++          <section className="am-widget">
++            <h3>Stakeholder</h3>
++            <dl className="am-handover__dl">
++              {stakeholders.map((row) => (
++                <div key={row.key}>
++                  <dt>{row.label}</dt>
++                  <dd>{row.value}</dd>
++                </div>
++              ))}
++            </dl>
++          </section>
++        ) : null}
++
++        {step === 'confirm' ? (
++          <section className="am-widget">
++            <h3>Checklist xác nhận AM</h3>
++            <div className="am-form">
++              {AM_HANDOVER_CHECKLIST.map((item) => (
++                <label key={item.key} className="am-field am-field--check">
++                  <span>
++                    <input
++                      type="checkbox"
++                      checked={Boolean(checklist[item.key])}
++                      disabled={!canEdit || !pending}
++                      onChange={(ev) =>
++                        setChecklist((prev) => ({ ...prev, [item.key]: ev.target.checked }))
++                      }
++                    />
++                    {item.label}
++                  </span>
++                </label>
++              ))}
++            </div>
++            {handover.reject_reason ? (
++              <p className="am-muted">Lý do gần nhất: {handover.reject_reason}</p>
++            ) : null}
++          </section>
++        ) : null}
++
++        <div className="am-form__actions">
++          <button
++            type="button"
++            className="am-btn"
++            disabled={!canEdit || !pending || busy}
++            onClick={() => {
++              setReason('');
++              setReasonAction('needs_info');
++            }}
++          >
++            Yêu cầu bổ sung thông tin
++          </button>
++          <button
++            type="button"
++            className="am-btn"
++            disabled={!canEdit || !pending || busy}
++            onClick={() => {
++              setReason('');
++              setReasonAction('reject');
++            }}
++          >
++            Từ chối handover
++          </button>
++          <button
++            type="button"
++            className="am-btn am-btn--primary"
++            disabled={!canEdit || !pending || busy || !canAccept}
++            onClick={() => void runAction('accept')}
++          >
++            Xác nhận nhận bàn giao
++          </button>
++        </div>
++
++        {reasonAction ? (
++          <div className="am-handover__reason">
++            <label className="am-field">
++              <span>{reasonAction === 'reject' ? 'Lý do từ chối *' : 'Thông tin cần bổ sung *'}</span>
++              <textarea
++                value={reason}
++                onChange={(ev) => setReason(ev.target.value)}
++                rows={3}
++              />
++            </label>
++            <div className="am-form__actions">
++              <button type="button" className="am-btn" onClick={() => setReasonAction(null)}>
++                Hủy
++              </button>
++              <button
++                type="button"
++                className="am-btn am-btn--primary"
++                disabled={busy || Boolean(amHandoverReasonError(reasonAction, reason))}
++                onClick={() => void runAction(reasonAction)}
++              >
++                Gửi
++              </button>
++            </div>
++          </div>
++        ) : null}
++      </div>
++    </div>
++  );
++}
++
++export function AmOnboardingQueue() {
++  const { token, scope } = useAmPage();
++  const router = useRouter();
++  const pathname = usePathname() ?? '/crm/account-management/onboarding';
++  const searchParams = useSearchParams();
++  const searchKey = searchParams.toString();
++  const search = useMemo(() => new URLSearchParams(searchKey), [searchKey]);
++  const selectedId = search.get('handover');
++  const agencyClientId = search.get('agency_client_id');
++  const stepHint = parseAmHandoverStep(search.get('step'));
++
++  const [items, setItems] = useState<AmHandoverRow[]>([]);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++  const [open, setOpen] = useState<AmHandoverRow | null>(null);
++
++  const load = useCallback(async () => {
++    if (!token) return;
++    setLoading(true);
++    setError('');
++    try {
++      const query: { scope?: typeof scope; agency_client_id?: string } = { scope };
++      if (agencyClientId) query.agency_client_id = agencyClientId;
++      const out = await fetchAmHandovers(token, query);
++      setItems(out.items);
++    } catch (err) {
++      setItems([]);
++      setError(err instanceof ApiError ? err.message : 'Không tải được hàng chờ handover.');
++    } finally {
++      setLoading(false);
++    }
++  }, [agencyClientId, scope, token]);
++
++  useEffect(() => {
++    void load();
++  }, [load]);
++
++  useEffect(() => {
++    if (!items.length) {
++      setOpen(null);
++      return;
++    }
++    const hit =
++      items.find((row) => row.id === selectedId) ??
++      (agencyClientId ? items.find((row) => row.agency_client_id === agencyClientId) : undefined);
++    setOpen(hit ?? null);
++  }, [agencyClientId, items, selectedId]);
++
++  const openRow = (row: AmHandoverRow) => {
++    const next = new URLSearchParams(search.toString());
++    next.set('handover', row.id);
++    next.set('agency_client_id', row.agency_client_id);
++    if (!next.get('step')) next.set('step', stepHint);
++    router.replace(`${pathname}?${next.toString()}`);
++  };
++
++  const closeModal = () => {
++    const next = new URLSearchParams(search.toString());
++    next.delete('handover');
++    router.replace(next.toString() ? `${pathname}?${next.toString()}` : pathname);
++    setOpen(null);
++  };
++
++  return (
++    <div className="am-page">
++      <p className="am-crumb">Account Management / Onboarding</p>
++      <div className="am-360__head">
++        <div>
++          <h1>Hàng chờ handover</h1>
++          <p className="am-muted">Sales → AM · 4 bước Thương mại, Scope & KPI, Stakeholder, Xác nhận</p>
++        </div>
++        <button type="button" className="am-btn" onClick={() => void load()}>
++          Tải lại
++        </button>
++      </div>
++
++      {error ? <p className="am-banner">{error}</p> : null}
++
++      <div className="am-widget">
++        <table className="am-table">
++          <thead>
++            <tr>
++              <th>Khách</th>
++              <th>Trạng thái</th>
++              <th>Lifecycle</th>
++              <th></th>
++            </tr>
++          </thead>
++          <tbody>
++            {loading ? (
++              <tr>
++                <td colSpan={4} className="am-muted">
++                  Đang tải…
++                </td>
++              </tr>
++            ) : items.length === 0 ? (
++              <tr>
++                <td colSpan={4} className="am-muted">
++                  Không có handover chờ AM xác nhận.
++                </td>
++              </tr>
++            ) : (
++              items.map((row) => (
++                <tr key={row.id}>
++                  <td>
++                    <button type="button" className="am-link" onClick={() => openRow(row)}>
++                      {row.name || row.code}
++                    </button>
++                    <div className="am-muted">{row.code}</div>
++                  </td>
++                  <td>{amHandoverStatusCopy(row.status)}</td>
++                  <td>{row.am_status}</td>
++                  <td>
++                    <button type="button" className="am-btn" onClick={() => openRow(row)}>
++                      Mở handover
++                    </button>
++                  </td>
++                </tr>
++              ))
++            )}
++          </tbody>
++        </table>
++      </div>
++
++      {open ? (
++        <AmHandover
++          handover={open}
++          initialStep={stepHint}
++          onClose={closeModal}
++          onChanged={(row) => {
++            setItems((prev) => {
++              if (row.status === 'accepted' || row.status === 'rejected') {
++                return prev.filter((item) => item.id !== row.id);
++              }
++              return prev.map((item) => (item.id === row.id ? row : item));
++            });
++            setOpen(row.status === 'pending_am' || row.status === 'needs_info' ? row : null);
++          }}
++        />
++      ) : null}
++    </div>
++  );
++}
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index e995329e..922955c1 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -480,10 +480,85 @@ export type AmNotificationItem = {
+ };
+ 
+ export type AmNotifications = {
+   items: AmNotificationItem[];
+   unread: number;
+ };
+ 
+ export async function fetchAmNotifications(token: string): Promise<AmNotifications> {
+   return amFetch<AmNotifications>(token, '/api/crm/am/notifications');
+ }
++
++export type AmHandoverStatus = 'draft' | 'pending_am' | 'accepted' | 'rejected' | 'needs_info';
++
++export type AmHandoverChecklist = {
++  understood_scope?: boolean;
++  stakeholders_access?: boolean;
++  delivery_owner?: boolean;
++};
++
++export type AmHandover = {
++  id: string;
++  agency_client_id: string;
++  status: AmHandoverStatus;
++  commercial_json: Record<string, unknown>;
++  scope_json: Record<string, unknown>;
++  stakeholders_json: Record<string, unknown>;
++  reject_reason: string | null;
++  accepted_by_staff_id: number | null;
++  accepted_at: string | null;
++  name: string;
++  code: string;
++  am_status: string;
++  onboarding_case_id?: string | null;
++};
++
++export type AmHandoverListQuery = {
++  scope?: AmScope;
++  agency_client_id?: string;
++  status?: string;
++};
++
++export async function fetchAmHandovers(
++  token: string,
++  query: AmHandoverListQuery = {},
++): Promise<{ items: AmHandover[] }> {
++  const params = new URLSearchParams();
++  if (query.scope) params.set('scope', query.scope);
++  if (query.agency_client_id) params.set('agency_client_id', query.agency_client_id);
++  if (query.status) params.set('status', query.status);
++  const suffix = params.toString() ? `?${params.toString()}` : '';
++  return amFetch<{ items: AmHandover[] }>(token, `/api/crm/am/handovers${suffix}`);
++}
++
++export async function fetchAmHandover(token: string, id: string): Promise<AmHandover> {
++  return amFetch<AmHandover>(token, `/api/crm/am/handovers/${encodeURIComponent(id)}`);
++}
++
++export async function acceptAmHandover(
++  token: string,
++  id: string,
++  checklist: AmHandoverChecklist,
++): Promise<AmHandover> {
++  return amFetch<AmHandover>(token, `/api/crm/am/handovers/${encodeURIComponent(id)}/accept`, {
++    method: 'POST',
++    body: JSON.stringify({ checklist }),
++  });
++}
++
++export async function rejectAmHandover(token: string, id: string, reason: string): Promise<AmHandover> {
++  return amFetch<AmHandover>(token, `/api/crm/am/handovers/${encodeURIComponent(id)}/reject`, {
++    method: 'POST',
++    body: JSON.stringify({ reason }),
++  });
++}
++
++export async function needsInfoAmHandover(
++  token: string,
++  id: string,
++  reason: string,
++): Promise<AmHandover> {
++  return amFetch<AmHandover>(token, `/api/crm/am/handovers/${encodeURIComponent(id)}/needs-info`, {
++    method: 'POST',
++    body: JSON.stringify({ reason }),
++  });
++}
+diff --git a/services/ops-web/src/lib/crm/am-handover.util.spec.ts b/services/ops-web/src/lib/crm/am-handover.util.spec.ts
+new file mode 100644
+index 00000000..97c84e04
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-handover.util.spec.ts
+@@ -0,0 +1,40 @@
++import { describe, expect, it } from 'vitest';
++import {
++  AM_HANDOVER_CHECKLIST,
++  AM_HANDOVER_STEPS,
++  amHandoverCanAccept,
++  amHandoverReasonError,
++  amHandoverStatusCopy,
++} from './am-handover.util';
++
++describe('am-handover', () => {
++  it('uses four AM steps Thương mại → Scope & KPI → Stakeholder → Xác nhận', () => {
++    expect(AM_HANDOVER_STEPS.map((step) => step.label)).toEqual([
++      'Thương mại',
++      'Scope & KPI',
++      'Stakeholder',
++      'Xác nhận',
++    ]);
++    expect(AM_HANDOVER_CHECKLIST).toHaveLength(3);
++  });
++
++  it('blocks accept until every required AM checklist item is ticked', () => {
++    expect(amHandoverCanAccept({})).toBe(false);
++    expect(amHandoverCanAccept({ understood_scope: true })).toBe(false);
++    expect(
++      amHandoverCanAccept({
++        understood_scope: true,
++        stakeholders_access: true,
++        delivery_owner: true,
++      }),
++    ).toBe(true);
++  });
++
++  it('requires a reason for reject and needs_info', () => {
++    expect(amHandoverReasonError('reject', '')).toBe('reason_required');
++    expect(amHandoverReasonError('needs_info', '   ')).toBe('reason_required');
++    expect(amHandoverReasonError('reject', 'Thiếu KPI')).toBe('');
++    expect(amHandoverReasonError('accept', '')).toBe('');
++    expect(amHandoverStatusCopy('pending_am')).toBe('Chờ AM xác nhận');
++  });
++});
+diff --git a/services/ops-web/src/lib/crm/am-handover.util.ts b/services/ops-web/src/lib/crm/am-handover.util.ts
+new file mode 100644
+index 00000000..0f5e7346
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-handover.util.ts
+@@ -0,0 +1,58 @@
++export type AmHandoverStepId = 'commercial' | 'scope' | 'stakeholder' | 'confirm';
++
++export type AmHandoverStep = {
++  id: AmHandoverStepId;
++  label: string;
++};
++
++export const AM_HANDOVER_STEPS: AmHandoverStep[] = [
++  { id: 'commercial', label: 'Thương mại' },
++  { id: 'scope', label: 'Scope & KPI' },
++  { id: 'stakeholder', label: 'Stakeholder' },
++  { id: 'confirm', label: 'Xác nhận' },
++];
++
++export const AM_HANDOVER_CHECKLIST = [
++  { key: 'understood_scope', label: 'Tôi đã hiểu scope, KPI và exclusion' },
++  { key: 'stakeholders_access', label: 'Tôi đã nhận đủ thông tin stakeholder và quyền truy cập' },
++  { key: 'delivery_owner', label: 'Tôi đã thống nhất owner Delivery/Onboarding' },
++] as const;
++
++export type AmHandoverChecklistKey = (typeof AM_HANDOVER_CHECKLIST)[number]['key'];
++export type AmHandoverChecklistState = Partial<Record<AmHandoverChecklistKey, boolean>>;
++
++export const AM_HANDOVER_STATUS_COPY: Record<string, string> = {
++  draft: 'Nháp',
++  pending_am: 'Chờ AM xác nhận',
++  accepted: 'Đã nhận bàn giao',
++  rejected: 'Từ chối',
++  needs_info: 'Cần bổ sung thông tin',
++};
++
++export function amHandoverStatusCopy(status: string): string {
++  return AM_HANDOVER_STATUS_COPY[status] ?? status;
++}
++
++export function amHandoverCanAccept(checklist: AmHandoverChecklistState): boolean {
++  return AM_HANDOVER_CHECKLIST.every((item) => checklist[item.key] === true);
++}
++
++export function amHandoverReasonError(
++  action: 'accept' | 'reject' | 'needs_info',
++  reason: string,
++): string {
++  if (action === 'accept') return '';
++  return String(reason ?? '').trim() ? '' : 'reason_required';
++}
++
++export function parseAmHandoverStep(raw: string | null | undefined): AmHandoverStepId {
++  const hit = AM_HANDOVER_STEPS.find((step) => step.id === raw);
++  return hit?.id ?? 'commercial';
++}
++
++export function amJsonField(data: Record<string, unknown> | null | undefined, key: string): string {
++  const value = data?.[key];
++  if (value == null || value === '') return '—';
++  if (typeof value === 'object') return JSON.stringify(value);
++  return String(value);
++}
+diff --git a/services/ptt-crm-api/src/am/am-onboarding.service.spec.ts b/services/ptt-crm-api/src/am/am-onboarding.service.spec.ts
+new file mode 100644
+index 00000000..bc610d6f
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-onboarding.service.spec.ts
+@@ -0,0 +1,131 @@
++import { AmOnboardingService } from './am-onboarding.service';
++
++const HANDOVER_ID = '19d722af-0000-4000-8000-0000000000aa';
++const CLIENT_ID = '19d722af-0000-4000-8000-000000000001';
++const STAFF_ID = 7;
++
++const COMPLETE_CHECKLIST = {
++  understood_scope: true,
++  stakeholders_access: true,
++  delivery_owner: true,
++};
++
++type QueryFn = (
++  sql: string,
++  params?: unknown[],
++) => Promise<{ rows: Record<string, unknown>[]; rowCount: number }>;
++
++describe('AmOnboardingService handover', () => {
++  const viewReq = {
++    staffUser: { sub: '19d722af-0000-4000-8000-000000000007' },
++    staffAuthVia: 'jwt' as const,
++  } as never;
++
++  const db = {
++    query: jest.fn<ReturnType<QueryFn>, Parameters<QueryFn>>(),
++  };
++  const staffAuth = {
++    resolveCrmStaffUserId: jest.fn(async () => STAFF_ID),
++    me: jest.fn(async () => ({
++      caps: [
++        { section: 'crm_am', action: 'view' },
++        { section: 'crm_am', action: 'edit' },
++        { section: 'crm_am', action: 'view_all' },
++      ],
++    })),
++    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, section: string, action: string) =>
++      caps.some((c) => c.section === section && c.action === action),
++    ),
++  };
++  const audit = {
++    calls: [] as Array<{ action: string; entity_type?: string; entity_id?: string }>,
++    insert: jest.fn(async (row: { action: string; entity_type?: string; entity_id?: string }) => {
++      audit.calls.push(row);
++    }),
++  };
++
++  const handoverRow = {
++    id: HANDOVER_ID,
++    agency_client_id: CLIENT_ID,
++    status: 'pending_am',
++    commercial_json: { value_vnd: 504_000_000 },
++    scope_json: { kpi: '60 booking/tháng' },
++    stakeholders_json: { primary: 'Lan' },
++    reject_reason: null,
++    accepted_by_staff_id: null,
++    accepted_at: null,
++    name: 'Bloom Spa',
++    code: 'BL01',
++    am_status: 'pending_handover',
++  };
++
++  let service: AmOnboardingService;
++
++  beforeEach(() => {
++    audit.calls.length = 0;
++    jest.clearAllMocks();
++    staffAuth.me.mockResolvedValue({
++      caps: [
++        { section: 'crm_am', action: 'view' },
++        { section: 'crm_am', action: 'edit' },
++        { section: 'crm_am', action: 'view_all' },
++      ],
++    });
++    db.query.mockImplementation(async (sql: string) => {
++      const text = String(sql);
++      if (/from crm_am_handovers/i.test(text) && /select/i.test(text)) {
++        return { rows: [handoverRow], rowCount: 1 };
++      }
++      if (/from crm_am_onboarding_templates/i.test(text)) {
++        return {
++          rows: [{ id: '19d722af-0000-4000-8000-0000000000bb', items_json: [{ title: 'Kickoff' }] }],
++          rowCount: 1,
++        };
++      }
++      if (/insert into crm_am_onboarding_cases/i.test(text)) {
++        return { rows: [{ id: '19d722af-0000-4000-8000-0000000000cc' }], rowCount: 1 };
++      }
++      return { rows: [], rowCount: 0 };
++    });
++    service = new AmOnboardingService(db as never, staffAuth as never, audit as never);
++  });
++
++  it('accept without checklist is 400', async () => {
++    await expect(service.accept(viewReq, HANDOVER_ID, {}, STAFF_ID)).rejects.toMatchObject({
++      status: 400,
++      error: 'checklist_required',
++    });
++    expect(audit.calls).toEqual([]);
++    expect(db.query.mock.calls.some(([sql]) => /update crm_am_handovers/i.test(String(sql)))).toBe(
++      false,
++    );
++  });
++
++  it('reject without reason is 400', async () => {
++    await expect(service.reject(viewReq, HANDOVER_ID, {}, STAFF_ID)).rejects.toMatchObject({
++      status: 400,
++      error: 'reason_required',
++    });
++    await expect(service.reject(viewReq, HANDOVER_ID, { reason: '   ' }, STAFF_ID)).rejects.toMatchObject({
++      status: 400,
++      error: 'reason_required',
++    });
++    expect(audit.calls).toEqual([]);
++  });
++
++  it('accept writes audit handover.accept', async () => {
++    const out = await service.accept(viewReq, HANDOVER_ID, { checklist: COMPLETE_CHECKLIST }, STAFF_ID);
++    expect(out.status).toBe('accepted');
++    expect(out.am_status).toBe('onboarding');
++    expect(out.onboarding_case_id).toBeTruthy();
++    expect(audit.calls[0]).toMatchObject({
++      action: 'handover.accept',
++      entity_type: 'handover',
++      entity_id: HANDOVER_ID,
++    });
++    const statusSql = db.query.mock.calls
++      .map(([sql]) => String(sql))
++      .find((sql) => /update crm_am_account_ext/i.test(sql));
++    expect(statusSql).toMatch(/am_status\s*=\s*'onboarding'/i);
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-onboarding.service.ts b/services/ptt-crm-api/src/am/am-onboarding.service.ts
+new file mode 100644
+index 00000000..0881278a
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-onboarding.service.ts
+@@ -0,0 +1,472 @@
++import { Injectable, OnModuleDestroy } from '@nestjs/common';
++import { Pool } from 'pg';
++import { AppConfigService } from '../config/app-config.service';
++import { StaffAuthService } from '../staff-auth/staff-auth.service';
++import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
++import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
++import { amThrow } from './am-http';
++import { amScopeSql, resolveAmScope } from './am-scope.util';
++import { isUuid } from './am-tasks.service';
++import type { AmScope } from './am.types';
++
++export const AM_HANDOVER_CHECKLIST_KEYS = [
++  'understood_scope',
++  'stakeholders_access',
++  'delivery_owner',
++] as const;
++
++export type AmHandoverChecklistKey = (typeof AM_HANDOVER_CHECKLIST_KEYS)[number];
++
++export type AmHandoverStatus = 'draft' | 'pending_am' | 'accepted' | 'rejected' | 'needs_info';
++
++export type AmHandoverChecklist = Partial<Record<AmHandoverChecklistKey, boolean>>;
++
++export type AmHandover = {
++  id: string;
++  agency_client_id: string;
++  status: AmHandoverStatus;
++  commercial_json: Record<string, unknown>;
++  scope_json: Record<string, unknown>;
++  stakeholders_json: Record<string, unknown>;
++  reject_reason: string | null;
++  accepted_by_staff_id: number | null;
++  accepted_at: string | null;
++  name: string;
++  code: string;
++  am_status: string;
++  onboarding_case_id?: string | null;
++};
++
++export type AmHandoverListQuery = {
++  scope?: AmScope;
++  agency_client_id?: string;
++  status?: string;
++};
++
++export type AmHandoverReq = {
++  staffUser?: StaffJwtPayload;
++  staffAuthVia?: 'internal' | 'jwt';
++};
++
++export type AmHandoverDb = {
++  query: (
++    sql: string,
++    params?: unknown[],
++  ) => Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
++};
++
++const HANDOVER_COLS = `
++  h.id::text AS id,
++  h.agency_client_id::text AS agency_client_id,
++  h.status,
++  h.commercial_json,
++  h.scope_json,
++  h.stakeholders_json,
++  h.reject_reason,
++  h.accepted_by_staff_id,
++  h.accepted_at,
++  c.name,
++  c.code,
++  e.am_status
++`;
++
++const HANDOVER_FROM = `
++  FROM crm_am_handovers h
++  INNER JOIN crm_am_account_ext e
++          ON e.agency_client_id = h.agency_client_id AND e.tenant_id = h.tenant_id
++  INNER JOIN clients c ON c.id = h.agency_client_id
++`;
++
++const ACTIONABLE: AmHandoverStatus[] = ['pending_am', 'needs_info'];
++
++@Injectable()
++export class AmOnboardingRepository implements OnModuleDestroy, AmHandoverDb {
++  private pool: Pool | null = null;
++
++  constructor(private readonly config: AppConfigService) {}
++
++  private get db(): Pool {
++    if (!this.pool) {
++      this.pool = new Pool({ connectionString: this.config.databaseUrl });
++    }
++    return this.pool;
++  }
++
++  onModuleDestroy(): void {
++    void this.pool?.end();
++    this.pool = null;
++  }
++
++  async query(
++    sql: string,
++    params?: unknown[],
++  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }> {
++    return this.db.query(sql, params);
++  }
++}
++
++@Injectable()
++export class AmOnboardingService {
++  constructor(
++    private readonly db: AmOnboardingRepository,
++    private readonly staffAuth: StaffAuthService,
++    private readonly audit: AmAuditRepository,
++  ) {}
++
++  async list(req: AmHandoverReq, q: AmHandoverListQuery): Promise<{ items: AmHandover[] }> {
++    const actor = await this.resolveActor(req, q.scope);
++    const bound = this.scopedWhere(actor, 2);
++    const params: unknown[] = [AM_TENANT_ID, ...bound.params];
++    const where = [`h.tenant_id = $1`, bound.sql];
++
++    const clientId = String(q.agency_client_id ?? '').trim();
++    if (clientId) {
++      if (!isUuid(clientId)) amThrow(400, { error: 'invalid_agency_client_id' });
++      params.push(clientId);
++      where.push(`h.agency_client_id = $${params.length}::uuid`);
++    }
++
++    const statuses = csv(q.status);
++    const allowed = statuses.filter((s) =>
++      ['draft', 'pending_am', 'accepted', 'rejected', 'needs_info'].includes(s),
++    );
++    if (allowed.length) {
++      params.push(allowed);
++      where.push(`h.status = ANY($${params.length}::text[])`);
++    } else if (!clientId) {
++      params.push(ACTIONABLE);
++      where.push(`h.status = ANY($${params.length}::text[])`);
++    }
++
++    const result = await this.db.query(
++      `SELECT ${HANDOVER_COLS} ${HANDOVER_FROM}
++        WHERE ${where.join(' AND ')}
++        ORDER BY h.created_at DESC`,
++      params,
++    );
++    let items = result.rows.map(mapHandover);
++    if (clientId && items.length === 0) {
++      const created = await this.ensurePending(actor, clientId);
++      if (created) items = [created];
++    }
++    return { items };
++  }
++
++  async get(req: AmHandoverReq, id: string): Promise<AmHandover> {
++    if (!isUuid(id)) amThrow(400, { error: 'invalid_handover_id' });
++    const actor = await this.resolveActor(req, undefined);
++    const row = await this.loadScoped(actor, id);
++    if (!row) amThrow(404, { error: 'not_found' });
++    return row;
++  }
++
++  async accept(
++    req: AmHandoverReq,
++    id: string,
++    body: { checklist?: AmHandoverChecklist },
++    staffId: number,
++  ): Promise<AmHandover> {
++    if (!checklistComplete(body.checklist)) {
++      amThrow(400, { error: 'checklist_required' });
++    }
++    const current = await this.requireActionable(req, id);
++    const acceptedAt = new Date().toISOString();
++
++    await this.db.query(
++      `UPDATE crm_am_handovers
++          SET status = 'accepted',
++              accepted_by_staff_id = $2,
++              accepted_at = $3::timestamptz,
++              reject_reason = NULL
++        WHERE tenant_id = $1 AND id = $4::uuid`,
++      [AM_TENANT_ID, staffId > 0 ? staffId : null, acceptedAt, id],
++    );
++    await this.db.query(
++      `UPDATE crm_am_account_ext
++          SET am_status = 'onboarding', updated_at = now()
++        WHERE tenant_id = $1 AND agency_client_id = $2::uuid`,
++      [AM_TENANT_ID, current.agency_client_id],
++    );
++
++    const template = await this.publishedTemplate();
++    const itemsJson = template?.items_json ?? [];
++    const inserted = await this.db.query(
++      `INSERT INTO crm_am_onboarding_cases (
++         tenant_id, agency_client_id, template_id, status, items_json
++       ) VALUES ($1, $2::uuid, $3, 'open', $4::jsonb)
++       RETURNING id::text AS id`,
++      [AM_TENANT_ID, current.agency_client_id, template?.id ?? null, JSON.stringify(itemsJson)],
++    );
++    const onboardingCaseId = String(inserted.rows[0]?.id ?? '');
++
++    await this.audit.insert({
++      actor_staff_id: staffId > 0 ? staffId : null,
++      action: 'handover.accept',
++      entity_type: 'handover',
++      entity_id: id,
++      payload_json: {
++        agency_client_id: current.agency_client_id,
++        onboarding_case_id: onboardingCaseId || null,
++        template_id: template?.id ?? null,
++      },
++    });
++
++    return {
++      ...current,
++      status: 'accepted',
++      am_status: 'onboarding',
++      accepted_by_staff_id: staffId > 0 ? staffId : null,
++      accepted_at: acceptedAt,
++      reject_reason: null,
++      onboarding_case_id: onboardingCaseId || null,
++    };
++  }
++
++  async reject(
++    req: AmHandoverReq,
++    id: string,
++    body: { reason?: string },
++    staffId: number,
++  ): Promise<AmHandover> {
++    const reason = requireReason(body.reason);
++    const current = await this.requireActionable(req, id);
++    await this.db.query(
++      `UPDATE crm_am_handovers
++          SET status = 'rejected', reject_reason = $2
++        WHERE tenant_id = $1 AND id = $3::uuid`,
++      [AM_TENANT_ID, reason, id],
++    );
++    await this.audit.insert({
++      actor_staff_id: staffId > 0 ? staffId : null,
++      action: 'handover.reject',
++      entity_type: 'handover',
++      entity_id: id,
++      payload_json: { agency_client_id: current.agency_client_id, reason },
++    });
++    return { ...current, status: 'rejected', reject_reason: reason };
++  }
++
++  async needsInfo(
++    req: AmHandoverReq,
++    id: string,
++    body: { reason?: string },
++    staffId: number,
++  ): Promise<AmHandover> {
++    const reason = requireReason(body.reason);
++    const current = await this.requireActionable(req, id);
++    await this.db.query(
++      `UPDATE crm_am_handovers
++          SET status = 'needs_info', reject_reason = $2
++        WHERE tenant_id = $1 AND id = $3::uuid`,
++      [AM_TENANT_ID, reason, id],
++    );
++    await this.audit.insert({
++      actor_staff_id: staffId > 0 ? staffId : null,
++      action: 'handover.needs_info',
++      entity_type: 'handover',
++      entity_id: id,
++      payload_json: { agency_client_id: current.agency_client_id, reason },
++    });
++    return { ...current, status: 'needs_info', reject_reason: reason };
++  }
++
++  private async requireActionable(req: AmHandoverReq, id: string): Promise<AmHandover> {
++    if (!isUuid(id)) amThrow(400, { error: 'invalid_handover_id' });
++    const actor = await this.resolveActor(req, undefined);
++    const row = await this.loadScoped(actor, id);
++    if (!row) amThrow(404, { error: 'not_found' });
++    if (!ACTIONABLE.includes(row.status)) {
++      amThrow(409, { error: 'handover_not_pending' });
++    }
++    return row;
++  }
++
++  private async loadScoped(actor: HandoverActor, id: string): Promise<AmHandover | null> {
++    const bound = this.scopedWhere(actor, 3);
++    const result = await this.db.query(
++      `SELECT ${HANDOVER_COLS} ${HANDOVER_FROM}
++        WHERE h.tenant_id = $1 AND h.id = $2::uuid AND ${bound.sql}
++        LIMIT 1`,
++      [AM_TENANT_ID, id, ...bound.params],
++    );
++    const row = result.rows[0];
++    return row ? mapHandover(row) : null;
++  }
++
++  private async ensurePending(actor: HandoverActor, agencyClientId: string): Promise<AmHandover | null> {
++    const bound = this.scopedWhere(actor, 3);
++    const found = await this.db.query(
++      `SELECT e.agency_client_id::text AS agency_client_id, e.am_status, c.name, c.code
++         FROM crm_am_account_ext e
++         INNER JOIN clients c ON c.id = e.agency_client_id
++        WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}
++        LIMIT 1`,
++      [AM_TENANT_ID, agencyClientId, ...bound.params],
++    );
++    const account = found.rows[0];
++    if (!account) return null;
++    const inserted = await this.db.query(
++      `INSERT INTO crm_am_handovers (tenant_id, agency_client_id, status)
++       VALUES ($1, $2::uuid, 'pending_am')
++       RETURNING id::text AS id, agency_client_id::text AS agency_client_id, status,
++                 commercial_json, scope_json, stakeholders_json, reject_reason,
++                 accepted_by_staff_id, accepted_at`,
++      [AM_TENANT_ID, agencyClientId],
++    );
++    const row = inserted.rows[0];
++    if (!row) return null;
++    return mapHandover({
++      ...row,
++      name: account.name,
++      code: account.code,
++      am_status: account.am_status,
++    });
++  }
++
++  private async publishedTemplate(): Promise<{ id: string; items_json: unknown } | null> {
++    const result = await this.db.query(
++      `SELECT id::text AS id, items_json
++         FROM crm_am_onboarding_templates
++        WHERE tenant_id = $1 AND status = 'published'
++        ORDER BY version DESC
++        LIMIT 1`,
++      [AM_TENANT_ID],
++    );
++    const row = result.rows[0];
++    if (!row) return null;
++    return { id: String(row.id), items_json: row.items_json ?? [] };
++  }
++
++  private scopedWhere(actor: HandoverActor, startAt: number): { sql: string; params: unknown[] } {
++    return bindScopeSql(
++      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
++      startAt,
++    );
++  }
++
++  private async resolveActor(req: AmHandoverReq, requested: AmScope | undefined): Promise<HandoverActor> {
++    const internal = req.staffAuthVia === 'internal';
++    const staffId = req.staffUser
++      ? ((await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0)
++      : 0;
++    if (internal && !req.staffUser) {
++      return {
++        staffId,
++        scope: resolveAmScope({ requested, hasViewAll: true, canTeam: true }),
++        teamIds: [],
++      };
++    }
++    if (!req.staffUser) {
++      return { staffId, scope: 'me', teamIds: [] };
++    }
++    const me = await this.staffAuth.me(req.staffUser);
++    const has = (action: string) => this.staffAuth.hasCap(me.caps, 'crm_am', action);
++    const hasViewAll = has('view_all') || has('manage');
++    const canTeam = hasViewAll || has('assign');
++    const scope = resolveAmScope({ requested, hasViewAll, canTeam });
++    const teamIds = scope === 'team' ? await this.loadTeamIds(staffId) : [];
++    return { staffId, scope, teamIds };
++  }
++
++  private async loadTeamIds(staffId: number): Promise<number[]> {
++    if (staffId <= 0) return [];
++    try {
++      const result = await this.db.query(
++        `SELECT t.id
++           FROM crm_staff cs
++           JOIN staff_users u ON lower(trim(u.email)) = lower(trim(cs.email))
++           JOIN staff_user_teams sut ON sut.user_id = u.id
++           JOIN staff_teams t ON t.id = sut.team_id AND t.active IS TRUE
++          WHERE cs.id = $1`,
++        [staffId],
++      );
++      return result.rows
++        .map((row) => Number(row.id))
++        .filter((n) => Number.isFinite(n) && n > 0);
++    } catch {
++      return [];
++    }
++  }
++}
++
++type HandoverActor = {
++  staffId: number;
++  scope: AmScope;
++  teamIds: number[];
++};
++
++function checklistComplete(checklist: AmHandoverChecklist | undefined): boolean {
++  if (!checklist) return false;
++  return AM_HANDOVER_CHECKLIST_KEYS.every((key) => checklist[key] === true);
++}
++
++function requireReason(raw: string | undefined): string {
++  const reason = String(raw ?? '').trim();
++  if (!reason) amThrow(400, { error: 'reason_required' });
++  return reason;
++}
++
++function bindScopeSql(
++  fragment: { sql: string; params: unknown[] },
++  startAt: number,
++): { sql: string; params: unknown[] } {
++  let sql = fragment.sql;
++  const params: unknown[] = [];
++  let i = startAt;
++  if (sql.includes('$teams')) {
++    sql = sql.replaceAll('$teams', `$${i++}`);
++    params.push(fragment.params[0]);
++    if (sql.includes('$staff')) {
++      sql = sql.replaceAll('$staff', `$${i++}`);
++      params.push(fragment.params[1] ?? fragment.params[0]);
++    }
++    return { sql, params };
++  }
++  if (sql.includes('$staff')) {
++    sql = sql.replaceAll('$staff', `$${i}`);
++    params.push(fragment.params[0]);
++  }
++  return { sql, params };
++}
++
++function csv(raw: string | undefined): string[] {
++  return String(raw ?? '')
++    .split(',')
++    .map((s) => s.trim())
++    .filter(Boolean);
++}
++
++function asObj(value: unknown): Record<string, unknown> {
++  if (value && typeof value === 'object' && !Array.isArray(value)) {
++    return value as Record<string, unknown>;
++  }
++  if (typeof value === 'string') {
++    try {
++      const parsed = JSON.parse(value) as unknown;
++      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
++        return parsed as Record<string, unknown>;
++      }
++    } catch {
++      return {};
++    }
++  }
++  return {};
++}
++
++function mapHandover(row: Record<string, unknown>): AmHandover {
++  return {
++    id: String(row.id ?? ''),
++    agency_client_id: String(row.agency_client_id ?? ''),
++    status: String(row.status ?? 'draft') as AmHandoverStatus,
++    commercial_json: asObj(row.commercial_json),
++    scope_json: asObj(row.scope_json),
++    stakeholders_json: asObj(row.stakeholders_json),
++    reject_reason: row.reject_reason == null || row.reject_reason === '' ? null : String(row.reject_reason),
++    accepted_by_staff_id: row.accepted_by_staff_id == null ? null : Number(row.accepted_by_staff_id),
++    accepted_at: row.accepted_at == null ? null : new Date(String(row.accepted_at)).toISOString(),
++    name: String(row.name ?? ''),
++    code: String(row.code ?? ''),
++    am_status: String(row.am_status ?? 'pending_handover'),
++    onboarding_case_id: row.onboarding_case_id == null ? null : String(row.onboarding_case_id),
++  };
++}
+diff --git a/services/ptt-crm-api/src/am/am.controller.ts b/services/ptt-crm-api/src/am/am.controller.ts
+index 306dcb04..9641cafe 100644
+--- a/services/ptt-crm-api/src/am/am.controller.ts
++++ b/services/ptt-crm-api/src/am/am.controller.ts
+@@ -12,20 +12,25 @@ import {
+   type AmTransferBody,
+ } from './am-accounts.service';
+ import { AmDashboardService } from './am-dashboard.service';
+ import { AmHealthService } from './am-health.service';
+ import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
+ import { AmSearchService } from './am-search.service';
+ import { AmNotificationsService } from './am-notifications.service';
+ import { AmSettingsService } from './am-settings.service';
+ import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
+ import { AmViewsService, type AmCreateViewBody } from './am-views.service';
++import {
++  AmOnboardingService,
++  type AmHandoverChecklist,
++  type AmHandoverListQuery,
++} from './am-onboarding.service';
+ import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
+ import type { AmScope } from './am.types';
+ import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
+ 
+ export type AuthedReq = Request & {
+   staffUser?: StaffJwtPayload;
+   staffAuthVia?: 'internal' | 'jwt';
+ };
+ 
+ @Controller('api/crm/am')
+@@ -34,20 +39,21 @@ export class AmController {
+   constructor(
+     private readonly dashboard: AmDashboardService,
+     private readonly tasks: AmTasksService,
+     private readonly accounts: AmAccountsService,
+     private readonly plans: AmPlansService,
+     private readonly searchService: AmSearchService,
+     private readonly health: AmHealthService,
+     private readonly settings: AmSettingsService,
+     private readonly notifications: AmNotificationsService,
+     private readonly views: AmViewsService,
++    private readonly onboarding: AmOnboardingService,
+     private readonly staffAuth: StaffAuthService,
+   ) {}
+ 
+   private async actorStaffId(req: AuthedReq): Promise<number> {
+     if (!req.staffUser) return 0;
+     return (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
+   }
+ 
+   private async actorCaps(req: AuthedReq): Promise<StaffSectionCap[]> {
+     if (req.staffAuthVia === 'internal' || !req.staffUser) return [];
+@@ -181,11 +187,53 @@ export class AmController {
+       staffId: await this.actorStaffId(req),
+       caps: await this.actorCaps(req),
+     });
+   }
+ 
+   @Post('plans')
+   @RequireAmAction('edit')
+   async createPlan(@Req() req: AuthedReq, @Body() body: AmCreatePlanInput) {
+     return this.plans.create(body, await this.actorStaffId(req));
+   }
++
++  @Get('handovers')
++  @RequireAmAction('view')
++  listHandovers(@Req() req: AuthedReq, @Query() q: AmHandoverListQuery) {
++    return this.onboarding.list(req, q);
++  }
++
++  @Get('handovers/:id')
++  @RequireAmAction('view')
++  getHandover(@Req() req: AuthedReq, @Param('id') id: string) {
++    return this.onboarding.get(req, id);
++  }
++
++  @Post('handovers/:id/accept')
++  @RequireAmAction('edit')
++  async acceptHandover(
++    @Req() req: AuthedReq,
++    @Param('id') id: string,
++    @Body() body: { checklist?: AmHandoverChecklist },
++  ) {
++    return this.onboarding.accept(req, id, body ?? {}, await this.actorStaffId(req));
++  }
++
++  @Post('handovers/:id/reject')
++  @RequireAmAction('edit')
++  async rejectHandover(
++    @Req() req: AuthedReq,
++    @Param('id') id: string,
++    @Body() body: { reason?: string },
++  ) {
++    return this.onboarding.reject(req, id, body ?? {}, await this.actorStaffId(req));
++  }
++
++  @Post('handovers/:id/needs-info')
++  @RequireAmAction('edit')
++  async needsInfoHandover(
++    @Req() req: AuthedReq,
++    @Param('id') id: string,
++    @Body() body: { reason?: string },
++  ) {
++    return this.onboarding.needsInfo(req, id, body ?? {}, await this.actorStaffId(req));
++  }
+ }
+diff --git a/services/ptt-crm-api/src/am/am.module.ts b/services/ptt-crm-api/src/am/am.module.ts
+index 1813915c..94e9e84f 100644
+--- a/services/ptt-crm-api/src/am/am.module.ts
++++ b/services/ptt-crm-api/src/am/am.module.ts
+@@ -5,20 +5,21 @@ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+ import { AmAccountsRepository, AmAccountsService } from './am-accounts.service';
+ import { AmAuditRepository } from './am-audit.repository';
+ import { AmDashboardService } from './am-dashboard.service';
+ import { AmHealthRepository, AmHealthService } from './am-health.service';
+ import { AmPlansRepository, AmPlansService } from './am-plans.service';
+ import { AmSearchRepository, AmSearchService } from './am-search.service';
+ import { AmNotificationsRepository, AmNotificationsService } from './am-notifications.service';
+ import { AmSettingsRepository, AmSettingsService } from './am-settings.service';
+ import { AmTasksRepository, AmTasksService } from './am-tasks.service';
+ import { AmViewsRepository, AmViewsService } from './am-views.service';
++import { AmOnboardingRepository, AmOnboardingService } from './am-onboarding.service';
+ import { AmController } from './am.controller';
+ import { StaffAmGuard } from './guards/staff-am.guard';
+ 
+ @Module({
+   imports: [ConfigModule, StaffAuthModule, forwardRef(() => AgencyModule)],
+   controllers: [AmController],
+   providers: [
+     StaffAmGuard,
+     AmDashboardService,
+     AmAuditRepository,
+@@ -31,26 +32,29 @@ import { StaffAmGuard } from './guards/staff-am.guard';
+     AmSearchRepository,
+     AmSearchService,
+     AmHealthRepository,
+     AmHealthService,
+     AmSettingsRepository,
+     AmSettingsService,
+     AmNotificationsRepository,
+     AmNotificationsService,
+     AmViewsRepository,
+     AmViewsService,
++    AmOnboardingRepository,
++    AmOnboardingService,
+   ],
+   exports: [
+     StaffAmGuard,
+     AmDashboardService,
+     AmAuditRepository,
+     AmTasksService,
+     AmAccountsService,
+     AmPlansService,
+     AmSearchService,
+     AmHealthService,
+     AmSettingsService,
+     AmNotificationsService,
+     AmViewsService,
++    AmOnboardingService,
+   ],
+ })
+ export class AmModule {}

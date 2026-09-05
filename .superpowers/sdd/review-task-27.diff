@@ -1,0 +1,1751 @@
+# Review package: 6e7e6d76..c9ddf4344a053039491e1688a060be8a061f938c
+
+## Commits
+c9ddf434 feat(am): add health and risk center on the AM scorecard
+
+## Files changed
+ .../ops-web/src/app/crm/account-management/am.css  |  48 ++
+ .../crm/account-management/health/[id]/page.tsx    |   6 +-
+ .../src/app/crm/account-management/health/page.tsx |   4 +-
+ .../src/components/crm/am/AmHealthCenter.tsx       | 168 ++++++
+ .../src/components/crm/am/AmHealthDetail.tsx       | 245 +++++++++
+ services/ops-web/src/lib/crm/am-api.ts             |  89 +++
+ .../src/lib/crm/am-health-center.util.spec.ts      |  20 +
+ .../ops-web/src/lib/crm/am-health-center.util.ts   |  75 +++
+ .../ptt-crm-api/src/am/am-health.service.spec.ts   | 181 +++++++
+ services/ptt-crm-api/src/am/am-health.service.ts   | 603 ++++++++++++++++++++-
+ services/ptt-crm-api/src/am/am.controller.ts       |  15 +
+ 11 files changed, 1445 insertions(+), 9 deletions(-)
+
+## Diff
+diff --git a/services/ops-web/src/app/crm/account-management/am.css b/services/ops-web/src/app/crm/account-management/am.css
+index ea7070d5..5e277d3e 100644
+--- a/services/ops-web/src/app/crm/account-management/am.css
++++ b/services/ops-web/src/app/crm/account-management/am.css
+@@ -1455,10 +1455,58 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
+ 
+ .am-timeline__kind {
+   font-weight: 700;
+   text-transform: uppercase;
+   color: var(--am-navy);
+ }
+ 
+ .am-timeline__row p {
+   margin: 0;
+ }
++
++.am-page__head {
++  display: flex;
++  flex-wrap: wrap;
++  justify-content: space-between;
++  gap: 12px;
++  margin-bottom: 14px;
++}
++
++.am-page__head h1 {
++  margin: 0 0 4px;
++}
++
++.am-spark {
++  display: flex;
++  align-items: flex-end;
++  gap: 8px;
++  height: 88px;
++  margin: 8px 0;
++}
++
++.am-spark__col {
++  flex: 1;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  justify-content: flex-end;
++  height: 100%;
++  gap: 6px;
++}
++
++.am-spark__bar {
++  width: 100%;
++  max-width: 28px;
++  background: var(--am-navy);
++  border-radius: 3px 3px 0 0;
++  min-height: 4px;
++}
++
++.am-spark__bar--empty {
++  background: #e5e7eb;
++  height: 4px;
++}
++
++.am-spark__col span {
++  font-size: 11px;
++  color: #6b7280;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/health/[id]/page.tsx b/services/ops-web/src/app/crm/account-management/health/[id]/page.tsx
+index c9fb1555..baca58d3 100644
+--- a/services/ops-web/src/app/crm/account-management/health/[id]/page.tsx
++++ b/services/ops-web/src/app/crm/account-management/health/[id]/page.tsx
+@@ -1,5 +1,5 @@
+-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++import { AmHealthDetail } from '@/components/crm/am/AmHealthDetail';
+ 
+-export default function AmHealthDetailPage() {
+-  return <AmPlaceholder title="Health & Risk" wave={3} />;
++export default function AmHealthDetailPage({ params }: { params: { id: string } }) {
++  return <AmHealthDetail agencyClientId={params.id} />;
+ }
+diff --git a/services/ops-web/src/app/crm/account-management/health/page.tsx b/services/ops-web/src/app/crm/account-management/health/page.tsx
+index 4408e122..850302c9 100644
+--- a/services/ops-web/src/app/crm/account-management/health/page.tsx
++++ b/services/ops-web/src/app/crm/account-management/health/page.tsx
+@@ -1,5 +1,5 @@
+-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++import { AmHealthCenter } from '@/components/crm/am/AmHealthCenter';
+ 
+ export default function AmHealthPage() {
+-  return <AmPlaceholder title="Health & Risk" wave={3} />;
++  return <AmHealthCenter />;
+ }
+diff --git a/services/ops-web/src/components/crm/am/AmHealthCenter.tsx b/services/ops-web/src/components/crm/am/AmHealthCenter.tsx
+new file mode 100644
+index 00000000..96c788e5
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmHealthCenter.tsx
+@@ -0,0 +1,168 @@
++'use client';
++
++import Link from 'next/link';
++import { useCallback, useEffect, useState } from 'react';
++import { hasCap } from '@/lib/auth';
++import { fetchAmHealthCenter, type AmHealthCenter as AmHealthCenterData } from '@/lib/crm/am-api';
++import { bandCopy } from '@/lib/crm/am-format';
++import {
++  AM_HEALTH_TILES,
++  amHealthDelta,
++  amHealthEmpty,
++  amHealthMoney,
++  amHealthRecoveryCopy,
++  amHealthSparkHeight,
++  amHealthTileValue,
++} from '@/lib/crm/am-health-center.util';
++import { useAmPage } from './AmShell';
++
++function bandClass(band: string | null | undefined): string {
++  if (band === 'healthy') return 'am-pill am-pill--ok';
++  if (band === 'watch') return 'am-pill am-pill--watch';
++  if (band === 'at_risk') return 'am-pill am-pill--risk';
++  if (band === 'critical') return 'am-pill am-pill--crit';
++  return 'am-pill';
++}
++
++export function AmHealthCenter() {
++  const { token, scope, user } = useAmPage();
++  const canManage = hasCap(user, 'crm_am', 'manage');
++  const [data, setData] = useState<AmHealthCenterData | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++
++  const load = useCallback(async () => {
++    if (!token) return;
++    setLoading(true);
++    setError('');
++    try {
++      setData(await fetchAmHealthCenter(token, { scope }));
++    } catch {
++      setData(null);
++      setError('load_failed');
++    } finally {
++      setLoading(false);
++    }
++  }, [scope, token]);
++
++  useEffect(() => {
++    void load();
++  }, [load]);
++
++  const hide = data?.hide_amounts === true;
++  const spark = data?.sparkline ?? [];
++
++  return (
++    <section className="am-page">
++      <header className="am-page__head">
++        <div>
++          <h1>Health & Risk Center</h1>
++          <p className="am-muted">Điểm sức khỏe theo scorecard AM. Churned không tính vào band.</p>
++        </div>
++        {canManage ? (
++          <Link className="am-btn" href="/crm/account-management/settings">
++            Cấu hình scorecard
++          </Link>
++        ) : null}
++      </header>
++
++      {error ? (
++        <div className="am-widget__error">
++          <p>Không tải được Health & Risk.</p>
++          <button type="button" className="am-btn" onClick={() => void load()}>
++            Retry
++          </button>
++        </div>
++      ) : null}
++
++      <div className="am-tiles">
++        {AM_HEALTH_TILES.map((tile) => (
++          <article key={tile.key} className="am-tile">
++            <span>{tile.label}</span>
++            <strong>{loading && !data ? '—' : amHealthTileValue(tile.key, data?.tiles ?? null, hide)}</strong>
++          </article>
++        ))}
++      </div>
++
++      <section className="am-widget">
++        <div className="am-widget__head">
++          <h2>Biến động điểm sức khỏe</h2>
++        </div>
++        {spark.length === 0 ? (
++          <p className="am-muted">—</p>
++        ) : (
++          <>
++            <div className="am-spark" aria-label="Average score last 6 months">
++              {spark.map((point) => (
++                <div key={point.as_of} className="am-spark__col">
++                  <div
++                    className={`am-spark__bar${point.avg == null ? ' am-spark__bar--empty' : ''}`}
++                    style={{ height: `${amHealthSparkHeight(point.avg)}%` }}
++                    title={point.avg == null ? '—' : String(point.avg)}
++                  />
++                  <span>{point.as_of.slice(0, 7) || '—'}</span>
++                </div>
++              ))}
++            </div>
++            <p className="am-muted">
++              {spark
++                .map((point) => (point.avg == null ? '—' : String(point.avg)))
++                .join(' · ')}
++            </p>
++          </>
++        )}
++      </section>
++
++      <section className="am-widget">
++        <div className="am-widget__head">
++          <h2>Account rủi ro</h2>
++        </div>
++        {loading && !data ? (
++          <p className="am-muted">Đang tải…</p>
++        ) : !data?.risky.length ? (
++          <p className="am-muted">—</p>
++        ) : (
++          <div className="am-tbl-wrap">
++            <table className="am-table">
++              <thead>
++                <tr>
++                  <th>Account</th>
++                  <th>Score</th>
++                  <th>Δ 30d</th>
++                  <th>Revenue</th>
++                  <th>Owner</th>
++                  <th>Open risks</th>
++                  <th>Recovery</th>
++                </tr>
++              </thead>
++              <tbody>
++                {data.risky.map((row) => (
++                  <tr key={row.agency_client_id}>
++                    <td>
++                      <Link
++                        className="am-link"
++                        href={`/crm/account-management/health/${row.agency_client_id}`}
++                      >
++                        {amHealthEmpty(row.name)}
++                      </Link>
++                    </td>
++                    <td>
++                      <span className={bandClass(row.band)}>
++                        {amHealthEmpty(row.score)} · {bandCopy(row.band)}
++                      </span>
++                    </td>
++                    <td>{amHealthDelta(row.delta_30d)}</td>
++                    <td>{amHealthMoney(hide, row.mrr_vnd)}</td>
++                    <td>{amHealthEmpty(row.owner_label)}</td>
++                    <td>{amHealthEmpty(row.open_risks)}</td>
++                    <td>{amHealthRecoveryCopy(row.recovery_status)}</td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          </div>
++        )}
++      </section>
++    </section>
++  );
++}
+diff --git a/services/ops-web/src/components/crm/am/AmHealthDetail.tsx b/services/ops-web/src/components/crm/am/AmHealthDetail.tsx
+new file mode 100644
+index 00000000..410a8bb5
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmHealthDetail.tsx
+@@ -0,0 +1,245 @@
++'use client';
++
++import Link from 'next/link';
++import { useCallback, useEffect, useState } from 'react';
++import { ApiError } from '@/lib/api';
++import { hasCap } from '@/lib/auth';
++import {
++  fetchAmHealthDetail,
++  overrideAmHealth,
++  recomputeAmHealth,
++  type AmHealthDetail as AmHealthDetailData,
++} from '@/lib/crm/am-api';
++import { bandCopy, type AmHealthBand } from '@/lib/crm/am-format';
++import {
++  AM_HEALTH_COMPONENT_LABELS,
++  amHealthEmpty,
++} from '@/lib/crm/am-health-center.util';
++import { useAmPage } from './AmShell';
++
++function bandClass(band: string | null | undefined): string {
++  if (band === 'healthy') return 'am-pill am-pill--ok';
++  if (band === 'watch') return 'am-pill am-pill--watch';
++  if (band === 'at_risk') return 'am-pill am-pill--risk';
++  if (band === 'critical') return 'am-pill am-pill--crit';
++  return 'am-pill';
++}
++
++export function AmHealthDetail({ agencyClientId }: { agencyClientId: string }) {
++  const { token, user } = useAmPage();
++  const canManage = hasCap(user, 'crm_am', 'manage');
++  const [data, setData] = useState<AmHealthDetailData | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++  const [busy, setBusy] = useState(false);
++  const [banner, setBanner] = useState('');
++  const [overrideBand, setOverrideBand] = useState<AmHealthBand>('watch');
++  const [overrideReason, setOverrideReason] = useState('');
++  const [overrideUntil, setOverrideUntil] = useState('');
++  const [overrideError, setOverrideError] = useState('');
++
++  const load = useCallback(async () => {
++    if (!token || !agencyClientId) return;
++    setLoading(true);
++    setError('');
++    try {
++      const next = await fetchAmHealthDetail(token, agencyClientId);
++      setData(next);
++      if (next.band) setOverrideBand(next.band);
++    } catch (err) {
++      setData(null);
++      setError(err instanceof ApiError && err.status === 404 ? 'not_found' : 'load_failed');
++    } finally {
++      setLoading(false);
++    }
++  }, [agencyClientId, token]);
++
++  useEffect(() => {
++    void load();
++  }, [load]);
++
++  async function onRecompute() {
++    if (!canManage || busy) return;
++    setBusy(true);
++    setBanner('');
++    try {
++      await recomputeAmHealth(token);
++      setBanner('Đã tính lại scorecard.');
++      await load();
++    } catch (err) {
++      setBanner(err instanceof ApiError ? err.message : 'Không tính lại được.');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  if (error) {
++    return (
++      <section className="am-page">
++        <p className="am-crumb">
++          <Link href="/crm/account-management/health">Health & Risk</Link>
++        </p>
++        <div className="am-widget__error">
++          <p>{error === 'not_found' ? 'Không tìm thấy khách trong phạm vi của bạn.' : 'Không tải được health detail.'}</p>
++          <button type="button" className="am-btn" onClick={() => void load()}>
++            Retry
++          </button>
++        </div>
++      </section>
++    );
++  }
++
++  return (
++    <section className="am-page">
++      <p className="am-crumb">
++        <Link href="/crm/account-management/health">Health & Risk</Link>
++        {' / '}
++        {amHealthEmpty(data?.name)}
++      </p>
++
++      <header className="am-page__head">
++        <div>
++          <h1>Health Score — {amHealthEmpty(data?.name)}</h1>
++          <div className="am-360__meta">
++            <span className={bandClass(data?.band)}>
++              {amHealthEmpty(data?.score)} / 100 · {bandCopy(data?.band ?? null)}
++            </span>
++            <span>Cập nhật: {amHealthEmpty(data?.as_of)}</span>
++            <span>Scorecard v{amHealthEmpty(data?.scorecard_version)}</span>
++          </div>
++        </div>
++        {canManage ? (
++          <button type="button" className="am-btn" disabled={busy} onClick={() => void onRecompute()}>
++            Tính lại
++          </button>
++        ) : null}
++      </header>
++
++      {data?.override ? (
++        <p className="am-banner">
++          Health override: {data.override.band} đến {data.override.until}. {data.override.reason}
++        </p>
++      ) : null}
++      {banner ? <p className="am-banner">{banner}</p> : null}
++
++      {canManage ? (
++        <form
++          className="am-scorecard__override"
++          onSubmit={(ev) => {
++            ev.preventDefault();
++            void (async () => {
++              if (busy) return;
++              const reason = overrideReason.trim();
++              if (!reason) {
++                setOverrideError('reason_required');
++                return;
++              }
++              if (!overrideUntil || !overrideBand) {
++                setOverrideError('override_until_invalid');
++                return;
++              }
++              setBusy(true);
++              setOverrideError('');
++              try {
++                await overrideAmHealth(token, agencyClientId, {
++                  band: overrideBand,
++                  reason,
++                  until: overrideUntil,
++                });
++                setBanner('Đã ghi health override');
++                await load();
++              } catch (err) {
++                setOverrideError(err instanceof ApiError ? err.message : 'Không ghi được override.');
++              } finally {
++                setBusy(false);
++              }
++            })();
++          }}
++        >
++          <span className="am-muted">Override health</span>
++          <select
++            value={overrideBand}
++            onChange={(ev) => setOverrideBand(ev.target.value as AmHealthBand)}
++          >
++            <option value="healthy">healthy</option>
++            <option value="watch">watch</option>
++            <option value="at_risk">at_risk</option>
++            <option value="critical">critical</option>
++          </select>
++          <input
++            placeholder="Lý do"
++            value={overrideReason}
++            onChange={(ev) => setOverrideReason(ev.target.value)}
++          />
++          <input
++            type="date"
++            value={overrideUntil}
++            onChange={(ev) => setOverrideUntil(ev.target.value)}
++          />
++          <button type="submit" className="am-btn" disabled={busy}>
++            Ghi
++          </button>
++          {overrideError ? <span className="am-banner">{overrideError}</span> : null}
++        </form>
++      ) : null}
++
++      <section className="am-widget">
++        <div className="am-widget__head">
++          <h2>Trend</h2>
++        </div>
++        {loading && !data ? (
++          <p className="am-muted">Đang tải…</p>
++        ) : (
++          <p>{(data?.trend ?? []).map((point) => amHealthEmpty(point.score)).join(' ─ ') || '—'}</p>
++        )}
++      </section>
++
++      <section className="am-widget">
++        <div className="am-widget__head">
++          <h2>Thành phần</h2>
++        </div>
++        {!data?.contribution.length ? (
++          <p className="am-muted">—</p>
++        ) : (
++          <div className="am-tbl-wrap">
++            <table className="am-table">
++              <thead>
++                <tr>
++                  <th>Thành phần</th>
++                  <th>Điểm</th>
++                  <th>Trọng số</th>
++                  <th>Đóng góp</th>
++                </tr>
++              </thead>
++              <tbody>
++                {data.contribution.map((row) => (
++                  <tr key={row.key}>
++                    <td>{AM_HEALTH_COMPONENT_LABELS[row.key] ?? row.key}</td>
++                    <td>{amHealthEmpty(row.score)}</td>
++                    <td>{amHealthEmpty(row.weight)}%</td>
++                    <td>{amHealthEmpty(row.points)}</td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          </div>
++        )}
++      </section>
++
++      <section className="am-widget">
++        <div className="am-widget__head">
++          <h2>Tín hiệu</h2>
++        </div>
++        {!data?.signals.length ? (
++          <p className="am-muted">—</p>
++        ) : (
++          <ul className="am-work">
++            {data.signals.map((signal) => (
++              <li key={signal}>{signal}</li>
++            ))}
++          </ul>
++        )}
++      </section>
++    </section>
++  );
++}
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index c6d740ec..982a7505 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -566,20 +566,109 @@ export async function fetchAmSettings(token: string): Promise<AmSettings> {
+   return amFetch<AmSettings>(token, '/api/crm/am/settings');
+ }
+ 
+ export async function putAmSettings(token: string, body: AmPublishSettingsBody): Promise<AmSettings> {
+   return amFetch<AmSettings>(token, '/api/crm/am/settings', {
+     method: 'PUT',
+     body: JSON.stringify(body),
+   });
+ }
+ 
++export type AmHealthCenterTiles = {
++  healthy: number;
++  watch: number;
++  at_risk: number;
++  critical: number;
++  revenue_at_risk_vnd: number | null;
++  open_risks: number;
++};
++
++export type AmHealthRiskyRow = {
++  agency_client_id: string;
++  name: string;
++  score: number | null;
++  band: 'at_risk' | 'critical';
++  delta_30d: number | null;
++  mrr_vnd: number | null;
++  owner_label: string;
++  open_risks: number;
++  recovery_status: string | null;
++};
++
++export type AmHealthCenter = {
++  hide_amounts: boolean;
++  tiles: AmHealthCenterTiles;
++  sparkline: Array<{ as_of: string; avg: number | null }>;
++  risky: AmHealthRiskyRow[];
++};
++
++export type AmHealthContribution = {
++  key: string;
++  score: number;
++  weight: number;
++  points: number;
++};
++
++export type AmHealthDetail = {
++  agency_client_id: string;
++  name: string;
++  score: number | null;
++  band: AmHealthBand | null;
++  as_of: string | null;
++  scorecard_version: number | null;
++  thin_data: boolean;
++  override: AmHealthOverride | null;
++  weights: {
++    kpi_delivery: number;
++    engagement: number;
++    financial: number;
++    satisfaction: number;
++    contract_support: number;
++  };
++  components: {
++    kpi_delivery: number;
++    engagement: number;
++    financial: number;
++    satisfaction: number;
++    contract_support: number;
++  } | null;
++  contribution: AmHealthContribution[];
++  trend: Array<{ as_of: string; score: number | null }>;
++  signals: string[];
++};
++
++export async function fetchAmHealthCenter(
++  token: string,
++  query: AmCommandCenterQuery = {},
++): Promise<AmHealthCenter> {
++  const params = new URLSearchParams();
++  if (query.scope) params.set('scope', query.scope);
++  if (query.from) params.set('from', query.from);
++  if (query.to) params.set('to', query.to);
++  const suffix = params.toString() ? `?${params.toString()}` : '';
++  return amFetch<AmHealthCenter>(token, `/api/crm/am/health${suffix}`);
++}
++
++export async function fetchAmHealthDetail(token: string, agencyClientId: string): Promise<AmHealthDetail> {
++  return amFetch<AmHealthDetail>(token, `/api/crm/am/health/${encodeURIComponent(agencyClientId)}`);
++}
++
++export async function recomputeAmHealth(
++  token: string,
++  body: { as_of?: string } = {},
++): Promise<{ as_of: string; computed: number; skipped: number }> {
++  return amFetch(token, '/api/crm/am/health/recompute', {
++    method: 'POST',
++    body: JSON.stringify(body),
++  });
++}
++
+ export async function overrideAmHealth(
+   token: string,
+   agencyClientId: string,
+   body: { band: AmHealthBand; reason: string; until: string },
+ ): Promise<{ agency_client_id: string; band: AmHealthBand; reason: string; until: string }> {
+   return amFetch(token, `/api/crm/am/health/${encodeURIComponent(agencyClientId)}/override`, {
+     method: 'POST',
+     body: JSON.stringify(body),
+   });
+ }
+diff --git a/services/ops-web/src/lib/crm/am-health-center.util.spec.ts b/services/ops-web/src/lib/crm/am-health-center.util.spec.ts
+new file mode 100644
+index 00000000..89187254
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-health-center.util.spec.ts
+@@ -0,0 +1,20 @@
++import { describe, expect, it } from 'vitest';
++import { AM_HEALTH_BAND_KEYS, AM_HEALTH_TILES } from './am-health-center.util';
++
++describe('am-health-center', () => {
++  it('defines exactly six tiles with four band labels', () => {
++    expect(AM_HEALTH_TILES).toHaveLength(6);
++    expect(AM_HEALTH_TILES.map((tile) => tile.label)).toEqual([
++      'Healthy',
++      'Watch',
++      'At Risk',
++      'Critical',
++      'Revenue at risk',
++      'Open risks',
++    ]);
++    expect(AM_HEALTH_BAND_KEYS).toEqual(['healthy', 'watch', 'at_risk', 'critical']);
++    expect(AM_HEALTH_TILES.filter((tile) => AM_HEALTH_BAND_KEYS.includes(tile.key as typeof AM_HEALTH_BAND_KEYS[number]))).toHaveLength(
++      4,
++    );
++  });
++});
+diff --git a/services/ops-web/src/lib/crm/am-health-center.util.ts b/services/ops-web/src/lib/crm/am-health-center.util.ts
+new file mode 100644
+index 00000000..e77dceaa
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-health-center.util.ts
+@@ -0,0 +1,75 @@
++import { bandCopy, dash, vnd, type AmHealthBand } from './am-format';
++
++export const AM_HEALTH_BAND_KEYS = ['healthy', 'watch', 'at_risk', 'critical'] as const;
++
++export type AmHealthTileKey =
++  | (typeof AM_HEALTH_BAND_KEYS)[number]
++  | 'revenue_at_risk'
++  | 'open_risks';
++
++export const AM_HEALTH_TILES: Array<{ key: AmHealthTileKey; label: string }> = [
++  { key: 'healthy', label: 'Healthy' },
++  { key: 'watch', label: 'Watch' },
++  { key: 'at_risk', label: 'At Risk' },
++  { key: 'critical', label: 'Critical' },
++  { key: 'revenue_at_risk', label: 'Revenue at risk' },
++  { key: 'open_risks', label: 'Open risks' },
++];
++
++export const AM_HEALTH_COMPONENT_LABELS: Record<string, string> = {
++  kpi_delivery: 'KPI Delivery',
++  engagement: 'Engagement',
++  financial: 'Financial',
++  satisfaction: 'Satisfaction',
++  contract_support: 'Contract & Support',
++};
++
++export function amHealthEmpty(value: string | number | null | undefined): string {
++  if (value == null || value === '') return '—';
++  return String(value);
++}
++
++export function amHealthMoney(hideAmounts: boolean, value: number | null | undefined): string {
++  if (hideAmounts) return '—';
++  return vnd(value);
++}
++
++export function amHealthDelta(delta: number | null | undefined): string {
++  if (delta == null) return '—';
++  if (delta > 0) return `+${delta}`;
++  return String(delta);
++}
++
++export function amHealthTileValue(
++  key: AmHealthTileKey,
++  tiles: {
++    healthy: number;
++    watch: number;
++    at_risk: number;
++    critical: number;
++    revenue_at_risk_vnd: number | null;
++    open_risks: number;
++  } | null,
++  hideAmounts: boolean,
++): string {
++  if (!tiles) return '—';
++  if (key === 'revenue_at_risk') return amHealthMoney(hideAmounts, tiles.revenue_at_risk_vnd);
++  if (key === 'open_risks') return dash(tiles.open_risks);
++  return dash(tiles[key]);
++}
++
++export function amHealthSparkHeight(avg: number | null | undefined): number {
++  if (avg == null || !Number.isFinite(avg) || avg <= 0) return 4;
++  return Math.max(4, Math.min(100, avg));
++}
++
++export function amHealthBandLabel(band: AmHealthBand | null | undefined): string {
++  return bandCopy(band);
++}
++
++export function amHealthRecoveryCopy(status: string | null | undefined): string {
++  if (!status) return '—';
++  if (status === 'open') return 'Open';
++  if (status === 'closed') return 'Closed';
++  return status;
++}
+diff --git a/services/ptt-crm-api/src/am/am-health.service.spec.ts b/services/ptt-crm-api/src/am/am-health.service.spec.ts
+index c22e0006..3870f53f 100644
+--- a/services/ptt-crm-api/src/am/am-health.service.spec.ts
++++ b/services/ptt-crm-api/src/am/am-health.service.spec.ts
+@@ -192,10 +192,191 @@ describe('AmHealthService', () => {
+         { staffUser: { sub: '7' }, staffAuthVia: 'jwt' } as never,
+         ACTIVE_ID,
+         { band: 'watch', reason: 'temp hold', until },
+         7,
+       ),
+     ).rejects.toMatchObject({ status: 400, error: 'override_until_invalid' });
+     expect(repo.upsertSnapshot).not.toHaveBeenCalled();
+     expect(repo.applyOverride).not.toHaveBeenCalled();
+   });
+ });
++
++const CENTER_A = '19d722af-0000-4000-8000-000000000001';
++const CENTER_B = '19d722af-0000-4000-8000-000000000002';
++const CENTER_C = '19d722af-0000-4000-8000-000000000003';
++const CENTER_D = '19d722af-0000-4000-8000-000000000004';
++
++describe('AmHealthService center', () => {
++  const repo = {
++    listAccounts: jest.fn(),
++    upsertSnapshot: jest.fn(),
++    loadWeights: jest.fn(),
++    applyOverride: jest.fn(),
++    findAccount: jest.fn(),
++    loadCenterRows: jest.fn(),
++    loadSparkline: jest.fn(),
++    countOpenRisks: jest.fn(),
++    loadTeamIds: jest.fn(),
++    loadDetail: jest.fn(),
++    loadTrend: jest.fn(),
++  };
++  const audit = { insert: jest.fn() };
++  const dashboard = { dropCache: jest.fn() };
++  const staffAuth = {
++    resolveCrmStaffUserId: jest.fn(async () => 7),
++    me: jest.fn(async () => ({
++      caps: [
++        { section: 'crm_am', action: 'view' },
++        { section: 'crm_am', action: 'view_all' },
++        { section: 'crm_am.finance', action: 'view' },
++      ],
++    })),
++    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, section: string, action: string) =>
++      caps.some((c) => c.section === section && c.action === action),
++    ),
++  };
++  const req = {
++    staffUser: { sub: '7' },
++    staffAuthVia: 'jwt' as const,
++  } as never;
++
++  let service: AmHealthService;
++
++  beforeEach(() => {
++    jest.clearAllMocks();
++    repo.loadTeamIds.mockResolvedValue([]);
++    repo.loadSparkline.mockResolvedValue([]);
++    repo.countOpenRisks.mockResolvedValue(0);
++    service = new AmHealthService(
++      repo as never,
++      audit as never,
++      dashboard as never,
++      undefined,
++      staffAuth as never,
++    );
++  });
++
++  it('center tiles has exactly four band keys plus money and open risks', async () => {
++    repo.loadCenterRows.mockResolvedValue([
++      {
++        agency_client_id: CENTER_A,
++        name: 'Healthy Co',
++        am_status: 'active',
++        score: 90,
++        band: 'healthy',
++        override_band: null,
++        override_until: null,
++        owner_label: 'Minh',
++        open_risks: 0,
++        recovery_status: null,
++        prior_score: 88,
++        mrr_vnd: 10_000_000,
++      },
++      {
++        agency_client_id: CENTER_B,
++        name: 'Watch Co',
++        am_status: 'active',
++        score: 70,
++        band: 'watch',
++        override_band: null,
++        override_until: null,
++        owner_label: 'Anh',
++        open_risks: 0,
++        recovery_status: null,
++        prior_score: 72,
++        mrr_vnd: 20_000_000,
++      },
++      {
++        agency_client_id: CENTER_C,
++        name: 'Risk Co',
++        am_status: 'active',
++        score: 50,
++        band: 'at_risk',
++        override_band: null,
++        override_until: null,
++        owner_label: 'Hương',
++        open_risks: 1,
++        recovery_status: 'open',
++        prior_score: 60,
++        mrr_vnd: 30_000_000,
++      },
++      {
++        agency_client_id: CENTER_D,
++        name: 'Crit Co',
++        am_status: 'active',
++        score: 20,
++        band: 'critical',
++        override_band: null,
++        override_until: null,
++        owner_label: 'Lan',
++        open_risks: 2,
++        recovery_status: 'open',
++        prior_score: 40,
++        mrr_vnd: 40_000_000,
++      },
++    ]);
++    repo.countOpenRisks.mockResolvedValue(3);
++
++    const out = await service.center(req, { scope: 'all' });
++
++    expect(Object.keys(out.tiles)).toEqual([
++      'healthy',
++      'watch',
++      'at_risk',
++      'critical',
++      'revenue_at_risk_vnd',
++      'open_risks',
++    ]);
++    expect(out.tiles).not.toHaveProperty('churned');
++    expect(out.tiles.healthy).toBe(1);
++    expect(out.tiles.watch).toBe(1);
++    expect(out.tiles.at_risk).toBe(1);
++    expect(out.tiles.critical).toBe(1);
++    expect(out.tiles.open_risks).toBe(3);
++    expect(out.tiles.revenue_at_risk_vnd).toBe(70_000_000);
++  });
++
++  it('does not count a churned account in any band tile', async () => {
++    repo.loadCenterRows.mockResolvedValue([
++      {
++        agency_client_id: CENTER_A,
++        name: 'Healthy Co',
++        am_status: 'active',
++        score: 90,
++        band: 'healthy',
++        override_band: null,
++        override_until: null,
++        owner_label: 'Minh',
++        open_risks: 0,
++        recovery_status: null,
++        prior_score: null,
++        mrr_vnd: 10_000_000,
++      },
++      {
++        agency_client_id: CHURNED_ID,
++        name: 'Gone Co',
++        am_status: 'churned',
++        score: 10,
++        band: 'critical',
++        override_band: null,
++        override_until: null,
++        owner_label: 'Minh',
++        open_risks: 9,
++        recovery_status: null,
++        prior_score: 12,
++        mrr_vnd: 999_000_000,
++      },
++    ]);
++    repo.countOpenRisks.mockResolvedValue(0);
++
++    const out = await service.center(req, { scope: 'all' });
++
++    expect(out.tiles.healthy).toBe(1);
++    expect(out.tiles.watch).toBe(0);
++    expect(out.tiles.at_risk).toBe(0);
++    expect(out.tiles.critical).toBe(0);
++    expect(out.tiles.revenue_at_risk_vnd).toBeNull();
++    expect(out.risky).toEqual([]);
++    expect(out.risky.some((row) => row.agency_client_id === CHURNED_ID)).toBe(false);
++  });
++});
++
+diff --git a/services/ptt-crm-api/src/am/am-health.service.ts b/services/ptt-crm-api/src/am/am-health.service.ts
+index e4ac81a8..882c130d 100644
+--- a/services/ptt-crm-api/src/am/am-health.service.ts
++++ b/services/ptt-crm-api/src/am/am-health.service.ts
+@@ -7,20 +7,22 @@ import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
+ import { AmDashboardService } from './am-dashboard.service';
+ import { amThrow } from './am-http';
+ import {
+   bandFromScore,
+   DEFAULT_BANDS,
+   DEFAULT_WEIGHTS,
+   isActiveBook,
+   weightedScore,
+   type AmBandRanges,
+ } from './am-health.util';
++import { sumRevenueAtRisk } from './am-dashboard.service';
++import { monthlyRecurringVnd } from './am-money.util';
+ import { AmSettingsService } from './am-settings.service';
+ import { amScopeSql, resolveAmScope } from './am-scope.util';
+ import { isUuid } from './am-tasks.service';
+ import type { AmAmStatus, AmHealthBand, AmHealthComponents, AmScope } from './am.types';
+ 
+ export type AmHealthAccountRow = {
+   agency_client_id: string;
+   am_status: AmAmStatus;
+   created_at: string;
+   has_active_contract: boolean;
+@@ -67,37 +69,133 @@ export type AmHealthOverrideResult = {
+ 
+ export type AmHealthLatestSnapshot = {
+   as_of: string;
+   score: number;
+   band: AmHealthBand;
+   components: AmHealthComponents;
+   scorecard_version: number;
+   thin_data: boolean;
+ };
+ 
++export type AmHealthCenterRow = {
++  agency_client_id: string;
++  name: string;
++  am_status: AmAmStatus;
++  score: number | null;
++  band: AmHealthBand | null;
++  override_band: AmHealthBand | null;
++  override_until: string | null;
++  owner_label: string;
++  open_risks: number;
++  recovery_status: string | null;
++  prior_score: number | null;
++  mrr_vnd: number | null;
++};
++
++export type AmHealthCenterQuery = { scope?: AmScope; from?: string; to?: string };
++
++export type AmHealthCenterTiles = {
++  healthy: number;
++  watch: number;
++  at_risk: number;
++  critical: number;
++  revenue_at_risk_vnd: number | null;
++  open_risks: number;
++};
++
++export type AmHealthRiskyRow = {
++  agency_client_id: string;
++  name: string;
++  score: number | null;
++  band: 'at_risk' | 'critical';
++  delta_30d: number | null;
++  mrr_vnd: number | null;
++  owner_label: string;
++  open_risks: number;
++  recovery_status: string | null;
++};
++
++export type AmHealthCenterResult = {
++  hide_amounts: boolean;
++  tiles: AmHealthCenterTiles;
++  sparkline: Array<{ as_of: string; avg: number | null }>;
++  risky: AmHealthRiskyRow[];
++};
++
++export type AmHealthDetailRow = {
++  agency_client_id: string;
++  name: string;
++  score: number | null;
++  band: AmHealthBand | null;
++  as_of: string | null;
++  scorecard_version: number | null;
++  thin_data: boolean;
++  override_band: AmHealthBand | null;
++  override_reason: string | null;
++  override_until: string | null;
++  components: AmHealthComponents | null;
++};
++
++export type AmHealthContribution = {
++  key: keyof AmHealthComponents;
++  score: number;
++  weight: number;
++  points: number;
++};
++
++export type AmHealthDetailResult = {
++  agency_client_id: string;
++  name: string;
++  score: number | null;
++  band: AmHealthBand | null;
++  as_of: string | null;
++  scorecard_version: number | null;
++  thin_data: boolean;
++  override: { band: AmHealthBand; reason: string; until: string } | null;
++  weights: AmHealthComponents;
++  components: AmHealthComponents | null;
++  contribution: AmHealthContribution[];
++  trend: Array<{ as_of: string; score: number | null }>;
++  signals: string[];
++};
++
+ export type AmHealthStore = {
+   listAccounts(): Promise<AmHealthAccountRow[]>;
+   upsertSnapshot(input: AmHealthSnapshotInput): Promise<void>;
+   loadWeights(): Promise<AmHealthComponents>;
+   applyOverride(input: {
+     agency_client_id: string;
+     band: AmHealthBand;
+     reason: string;
+     until: string;
+     as_of: string;
+     fallback: Omit<AmHealthSnapshotInput, 'agency_client_id' | 'as_of'>;
+   }): Promise<void>;
+   findAccount(
+     agencyClientId: string,
+     scopeSql: string,
+     scopeParams: unknown[],
+   ): Promise<boolean>;
++  loadCenterRows(scopeSql: string, scopeParams: unknown[], asOf: string): Promise<AmHealthCenterRow[]>;
++  loadSparkline(
++    scopeSql: string,
++    scopeParams: unknown[],
++    months: string[],
++  ): Promise<Array<{ as_of: string; avg: number | null }>>;
++  countOpenRisks(scopeSql: string, scopeParams: unknown[]): Promise<number>;
++  loadTeamIds(staffId: number): Promise<number[]>;
++  loadDetail(
++    agencyClientId: string,
++    scopeSql: string,
++    scopeParams: unknown[],
++  ): Promise<AmHealthDetailRow | null>;
++  loadTrend(agencyClientId: string): Promise<Array<{ as_of: string; score: number | null }>>;
+ };
+ 
+ export type AmHealthReq = {
+   staffUser?: StaffJwtPayload;
+   staffAuthVia?: 'internal' | 'jwt';
+ };
+ 
+ const HEALTH_BANDS = new Set<AmHealthBand>(['healthy', 'watch', 'at_risk', 'critical']);
+ 
+ const ICT = 'Asia/Ho_Chi_Minh';
+@@ -301,20 +399,302 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
+         JSON.stringify(input.fallback.components),
+         input.fallback.scorecard_version,
+         input.fallback.thin_data,
+         input.band,
+         input.reason,
+         input.until,
+       ],
+     );
+   }
+ 
++  async loadCenterRows(
++    scopeSql: string,
++    scopeParams: unknown[],
++    asOf: string,
++  ): Promise<AmHealthCenterRow[]> {
++    const sql = `
++      SELECT
++        e.agency_client_id::text AS agency_client_id,
++        e.am_status,
++        c.name,
++        COALESCE(owner.name, '') AS owner_label,
++        snap.score,
++        snap.band,
++        snap.override_band,
++        snap.override_until,
++        prior.score AS prior_score,
++        COALESCE(risks.open_risks, 0)::int AS open_risks,
++        rec.status AS recovery_status,
++        COALESCE(cts.contracts, '[]'::json) AS contracts
++      FROM crm_am_account_ext e
++      INNER JOIN clients c ON c.id = e.agency_client_id
++      LEFT JOIN crm_staff owner ON owner.id = e.account_owner_staff_id
++      LEFT JOIN LATERAL (
++        SELECT h.score, h.band, h.override_band, h.override_until
++          FROM crm_am_health_snapshots h
++         WHERE h.tenant_id = $1
++           AND h.agency_client_id = e.agency_client_id
++           AND h.as_of <= $2::date
++         ORDER BY h.as_of DESC
++         LIMIT 1
++      ) snap ON TRUE
++      LEFT JOIN LATERAL (
++        SELECT h.score
++          FROM crm_am_health_snapshots h
++         WHERE h.tenant_id = $1
++           AND h.agency_client_id = e.agency_client_id
++           AND h.as_of <= ($2::date - INTERVAL '30 days')
++         ORDER BY h.as_of DESC
++         LIMIT 1
++      ) prior ON TRUE
++      LEFT JOIN LATERAL (
++        SELECT COUNT(*)::int AS open_risks
++          FROM crm_am_risks r
++         WHERE r.tenant_id = $1
++           AND r.agency_client_id = e.agency_client_id
++           AND r.status = 'open'
++      ) risks ON TRUE
++      LEFT JOIN LATERAL (
++        SELECT p.status
++          FROM crm_am_recovery_plans p
++         WHERE p.tenant_id = $1
++           AND p.agency_client_id = e.agency_client_id
++         ORDER BY p.created_at DESC
++         LIMIT 1
++      ) rec ON TRUE
++      LEFT JOIN LATERAL (
++        SELECT json_agg(json_build_object(
++          'status', ct.status,
++          'billing_type', ct.billing_type,
++          'amount_vnd', ct.amount_vnd,
++          'starts_on', ct.starts_on,
++          'ends_on', ct.ends_on
++        )) AS contracts
++          FROM crm_contracts ct
++         WHERE TRIM(COALESCE(ct.agency_client_id, '')) = e.agency_client_id::text
++      ) cts ON TRUE
++      WHERE e.tenant_id = $1
++        AND ${scopeSql}`;
++    try {
++      const result = await this.db.query(sql, [AM_TENANT_ID, asOf, ...scopeParams]);
++      return result.rows.map(mapCenterRow);
++    } catch (err) {
++      if (!isMissingRelation(err)) throw err;
++      return this.loadCenterRowsLite(scopeSql, scopeParams, asOf);
++    }
++  }
++
++  async loadSparkline(
++    scopeSql: string,
++    scopeParams: unknown[],
++    months: string[],
++  ): Promise<Array<{ as_of: string; avg: number | null }>> {
++    const empty = months.map((as_of) => ({ as_of, avg: null as number | null }));
++    if (!months.length) return empty;
++    const from = months[0];
++    const last = months[months.length - 1];
++    const toExclusive = addMonthsYmd(last, 1);
++    const sql = `
++      SELECT to_char(date_trunc('month', h.as_of), 'YYYY-MM-01') AS month_start,
++             AVG(h.score)::float AS avg
++        FROM crm_am_health_snapshots h
++        JOIN crm_am_account_ext e
++          ON e.tenant_id = h.tenant_id AND e.agency_client_id = h.agency_client_id
++       WHERE h.tenant_id = $1
++         AND h.as_of >= $2::date
++         AND h.as_of < $3::date
++         AND e.am_status <> 'churned'
++         AND ${scopeSql}
++       GROUP BY 1`;
++    try {
++      const result = await this.db.query<{ month_start: string; avg: string | number | null }>(
++        sql,
++        [AM_TENANT_ID, from, toExclusive, ...scopeParams],
++      );
++      const byMonth = new Map<string, number | null>();
++      for (const row of result.rows) {
++        const key = String(row.month_start ?? '').slice(0, 10);
++        const avg = row.avg == null ? null : Number(row.avg);
++        byMonth.set(key, avg != null && Number.isFinite(avg) ? round1(avg) : null);
++      }
++      return months.map((as_of) => ({ as_of, avg: byMonth.get(as_of) ?? null }));
++    } catch (err) {
++      if (isMissingRelation(err)) return empty;
++      throw err;
++    }
++  }
++
++  async countOpenRisks(scopeSql: string, scopeParams: unknown[]): Promise<number> {
++    try {
++      const result = await this.db.query<{ n: string | number }>(
++        `SELECT COUNT(*)::int AS n
++           FROM crm_am_risks r
++           JOIN crm_am_account_ext e
++             ON e.tenant_id = r.tenant_id AND e.agency_client_id = r.agency_client_id
++          WHERE r.tenant_id = $1
++            AND r.status = 'open'
++            AND ${scopeSql}`,
++        [AM_TENANT_ID, ...scopeParams],
++      );
++      return Number(result.rows[0]?.n ?? 0) || 0;
++    } catch (err) {
++      if (isMissingRelation(err)) return 0;
++      throw err;
++    }
++  }
++
++  async loadTeamIds(staffId: number): Promise<number[]> {
++    if (staffId <= 0) return [];
++    try {
++      const result = await this.db.query(
++        `SELECT t.id
++           FROM crm_staff cs
++           JOIN staff_users u ON lower(trim(u.email)) = lower(trim(cs.email))
++           JOIN staff_user_teams sut ON sut.user_id = u.id
++           JOIN staff_teams t ON t.id = sut.team_id AND t.active IS TRUE
++          WHERE cs.id = $1`,
++        [staffId],
++      );
++      return result.rows
++        .map((row) => Number(row.id))
++        .filter((n) => Number.isFinite(n) && n > 0);
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++
++  async loadDetail(
++    agencyClientId: string,
++    scopeSql: string,
++    scopeParams: unknown[],
++  ): Promise<AmHealthDetailRow | null> {
++    const sql = `
++      SELECT
++        e.agency_client_id::text AS agency_client_id,
++        c.name,
++        snap.as_of,
++        snap.score,
++        snap.band,
++        snap.components_json,
++        snap.scorecard_version,
++        snap.thin_data,
++        snap.override_band,
++        snap.override_reason,
++        snap.override_until
++      FROM crm_am_account_ext e
++      INNER JOIN clients c ON c.id = e.agency_client_id
++      LEFT JOIN LATERAL (
++        SELECT h.as_of, h.score, h.band, h.components_json, h.scorecard_version,
++               h.thin_data, h.override_band, h.override_reason, h.override_until
++          FROM crm_am_health_snapshots h
++         WHERE h.tenant_id = $1 AND h.agency_client_id = e.agency_client_id
++         ORDER BY h.as_of DESC
++         LIMIT 1
++      ) snap ON TRUE
++      WHERE e.tenant_id = $1
++        AND e.agency_client_id = $2::uuid
++        AND ${scopeSql}
++      LIMIT 1`;
++    try {
++      const result = await this.db.query(sql, [AM_TENANT_ID, agencyClientId, ...scopeParams]);
++      const row = result.rows[0];
++      if (!row) return null;
++      return {
++        agency_client_id: String(row.agency_client_id ?? ''),
++        name: String(row.name ?? ''),
++        score: row.score == null ? null : Number(row.score),
++        band: row.band ? (String(row.band) as AmHealthBand) : null,
++        as_of: dayStr(row.as_of),
++        scorecard_version: row.scorecard_version == null ? null : Number(row.scorecard_version),
++        thin_data: Boolean(row.thin_data),
++        override_band: row.override_band ? (String(row.override_band) as AmHealthBand) : null,
++        override_reason: row.override_reason != null ? String(row.override_reason) : null,
++        override_until: dayStr(row.override_until),
++        components: row.components_json ? parseWeights(row.components_json) : null,
++      };
++    } catch (err) {
++      if (isMissingRelation(err)) return null;
++      throw err;
++    }
++  }
++
++  async loadTrend(agencyClientId: string): Promise<Array<{ as_of: string; score: number | null }>> {
++    try {
++      const result = await this.db.query(
++        `SELECT as_of, score
++           FROM crm_am_health_snapshots
++          WHERE tenant_id = $1 AND agency_client_id = $2::uuid
++          ORDER BY as_of DESC
++          LIMIT 4`,
++        [AM_TENANT_ID, agencyClientId],
++      );
++      return result.rows
++        .map((row) => ({
++          as_of: dayStr(row.as_of) ?? '',
++          score: row.score == null ? null : Number(row.score),
++        }))
++        .reverse();
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++
++  private async loadCenterRowsLite(
++    scopeSql: string,
++    scopeParams: unknown[],
++    asOf: string,
++  ): Promise<AmHealthCenterRow[]> {
++    const sql = `
++      SELECT
++        e.agency_client_id::text AS agency_client_id,
++        e.am_status,
++        c.name,
++        COALESCE(owner.name, '') AS owner_label,
++        snap.score,
++        snap.band,
++        snap.override_band,
++        snap.override_until,
++        prior.score AS prior_score
++      FROM crm_am_account_ext e
++      INNER JOIN clients c ON c.id = e.agency_client_id
++      LEFT JOIN crm_staff owner ON owner.id = e.account_owner_staff_id
++      LEFT JOIN LATERAL (
++        SELECT h.score, h.band, h.override_band, h.override_until
++          FROM crm_am_health_snapshots h
++         WHERE h.tenant_id = $1
++           AND h.agency_client_id = e.agency_client_id
++           AND h.as_of <= $2::date
++         ORDER BY h.as_of DESC
++         LIMIT 1
++      ) snap ON TRUE
++      LEFT JOIN LATERAL (
++        SELECT h.score
++          FROM crm_am_health_snapshots h
++         WHERE h.tenant_id = $1
++           AND h.agency_client_id = e.agency_client_id
++           AND h.as_of <= ($2::date - INTERVAL '30 days')
++         ORDER BY h.as_of DESC
++         LIMIT 1
++      ) prior ON TRUE
++      WHERE e.tenant_id = $1
++        AND ${scopeSql}`;
++    try {
++      const result = await this.db.query(sql, [AM_TENANT_ID, asOf, ...scopeParams]);
++      return result.rows.map((row) => mapCenterRow({ ...row, open_risks: 0, recovery_status: null, contracts: [] }));
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++
+   private async loadLatestOverride(
+     agencyClientId: string,
+   ): Promise<{ band: string | null; reason: string | null; until: string | null } | null> {
+     try {
+       const result = await this.db.query(
+         `SELECT override_band, override_reason, override_until
+            FROM crm_am_health_snapshots
+           WHERE tenant_id = $1 AND agency_client_id = $2::uuid
+           ORDER BY as_of DESC
+           LIMIT 1`,
+@@ -513,77 +893,292 @@ export class AmHealthService {
+     await this.audit.insert({
+       actor_staff_id: actorStaffId > 0 ? actorStaffId : null,
+       action: 'health.override',
+       entity_type: 'health_snapshot',
+       entity_id: id,
+       payload_json: { band, reason, until },
+     });
+     return { agency_client_id: id, band, reason, until };
+   }
+ 
++  async center(req: AmHealthReq, query: AmHealthCenterQuery = {}): Promise<AmHealthCenterResult> {
++    const actor = await this.resolveActor(req, query.scope);
++    const scopeFrag = amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds });
++    const asOf = parseAsOf(query.to);
++    const months = last6MonthsIct(asOf);
++    const hideAmounts = await this.shouldHideAmounts(req);
++    const rowsBound = bindScopeSql(scopeFrag, 3);
++    const sparkBound = bindScopeSql(scopeFrag, 4);
++    const riskBound = bindScopeSql(scopeFrag, 2);
++    const [rows, sparkline, openRisks] = await Promise.all([
++      this.repo.loadCenterRows(rowsBound.sql, rowsBound.params, asOf),
++      this.repo.loadSparkline(sparkBound.sql, sparkBound.params, months),
++      this.repo.countOpenRisks(riskBound.sql, riskBound.params),
++    ]);
++    const book = rows.filter((row) => row.am_status !== 'churned');
++    const tiles: AmHealthCenterTiles = {
++      healthy: 0,
++      watch: 0,
++      at_risk: 0,
++      critical: 0,
++      revenue_at_risk_vnd: null,
++      open_risks: openRisks,
++    };
++    const riskRows: AmHealthRiskyRow[] = [];
++    const moneyRows: Array<{ band: string; mrr: number | null }> = [];
++    for (const row of book) {
++      const band = effectiveCenterBand(row, asOf);
++      if (band) tiles[band] += 1;
++      moneyRows.push({ band: band ?? '', mrr: row.mrr_vnd });
++      if (band === 'at_risk' || band === 'critical') {
++        const delta =
++          row.score != null && row.prior_score != null ? round1(row.score - row.prior_score) : null;
++        riskRows.push({
++          agency_client_id: row.agency_client_id,
++          name: row.name,
++          score: row.score,
++          band,
++          delta_30d: delta,
++          mrr_vnd: hideAmounts ? null : row.mrr_vnd,
++          owner_label: row.owner_label || 'Chưa gán',
++          open_risks: row.open_risks,
++          recovery_status: row.recovery_status,
++        });
++      }
++    }
++    const atRisk = sumRevenueAtRisk(moneyRows);
++    tiles.revenue_at_risk_vnd = hideAmounts ? null : atRisk.vnd;
++    riskRows.sort((a, b) => {
++      const rank = { critical: 0, at_risk: 1 };
++      const br = rank[a.band] - rank[b.band];
++      if (br) return br;
++      return (b.mrr_vnd ?? 0) - (a.mrr_vnd ?? 0);
++    });
++    return { hide_amounts: hideAmounts, tiles, sparkline, risky: riskRows };
++  }
++
++  async detail(req: AmHealthReq, agencyClientId: string): Promise<AmHealthDetailResult> {
++    const id = String(agencyClientId ?? '').trim();
++    if (!isUuid(id)) amThrow(404, { error: 'not_found' });
++    const actor = await this.resolveActor(req);
++    const bound = bindScopeSql(
++      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
++      3,
++    );
++    const row = await this.repo.loadDetail(id, bound.sql, bound.params);
++    if (!row) amThrow(404, { error: 'not_found' });
++    const scorecard = await this.loadScorecard();
++    const today = ictYmd();
++    const overrideActive = Boolean(
++      row.override_band && row.override_until && row.override_until >= today && HEALTH_BANDS.has(row.override_band),
++    );
++    const override = overrideActive
++      ? {
++          band: row.override_band as AmHealthBand,
++          reason: row.override_reason ?? '',
++          until: row.override_until ?? '',
++        }
++      : null;
++    const band = override ? override.band : row.band;
++    const components = row.components;
++    const contribution: AmHealthContribution[] = components
++      ? (Object.keys(scorecard.weights) as Array<keyof AmHealthComponents>).map((key) => ({
++          key,
++          score: components[key],
++          weight: scorecard.weights[key],
++          points: round1((components[key] * scorecard.weights[key]) / 100),
++        }))
++      : [];
++    const trendRaw = await this.repo.loadTrend(id);
++    const trend = padTrend(trendRaw);
++    return {
++      agency_client_id: row.agency_client_id,
++      name: row.name,
++      score: row.score,
++      band,
++      as_of: row.as_of,
++      scorecard_version: row.scorecard_version ?? scorecard.scorecard_version,
++      thin_data: row.thin_data,
++      override,
++      weights: scorecard.weights,
++      components,
++      contribution,
++      trend,
++      signals: deriveSignals({ thin_data: row.thin_data, override, components }),
++    };
++  }
++
+   private async loadScorecard(): Promise<{
+     weights: AmHealthComponents;
+     bands: AmBandRanges;
+     scorecard_version: number;
+   }> {
+     if (this.settings) {
+       const row = await this.settings.get();
+       return {
+         weights: row.weights,
+         bands: row.bands,
+         scorecard_version: row.scorecard_version || 1,
+       };
+     }
+     return {
+       weights: await this.repo.loadWeights(),
+       bands: { ...DEFAULT_BANDS },
+       scorecard_version: 1,
+     };
+   }
+ 
+-  private async resolveActor(req: AmHealthReq): Promise<{
++  private async shouldHideAmounts(req: AmHealthReq): Promise<boolean> {
++    if (req.staffAuthVia === 'internal' && !req.staffUser) return false;
++    if (!req.staffUser || !this.staffAuth) return true;
++    const me = await this.staffAuth.me(req.staffUser);
++    return !(
++      this.staffAuth.hasCap(me.caps, 'crm_am.finance', 'view') ||
++      this.staffAuth.hasCap(me.caps, 'crm_am', 'manage')
++    );
++  }
++
++  private async resolveActor(
++    req: AmHealthReq,
++    requested: AmScope | undefined = 'all',
++  ): Promise<{
+     staffId: number;
+     scope: AmScope;
+     teamIds: number[];
+   }> {
+     const internal = req.staffAuthVia === 'internal';
+     const staffId = req.staffUser
+       ? ((await this.staffAuth?.resolveCrmStaffUserId(req.staffUser)) ?? 0)
+       : 0;
+     if (internal && !req.staffUser) {
+-      return { staffId, scope: resolveAmScope({ requested: 'all', hasViewAll: true, canTeam: true }), teamIds: [] };
++      return { staffId, scope: resolveAmScope({ requested, hasViewAll: true, canTeam: true }), teamIds: [] };
+     }
+     if (!req.staffUser || !this.staffAuth) {
+       return { staffId, scope: 'me', teamIds: [] };
+     }
+     const me = await this.staffAuth.me(req.staffUser);
+     const has = (action: string) => this.staffAuth!.hasCap(me.caps, 'crm_am', action);
+     const hasViewAll = has('view_all') || has('manage');
+     const canTeam = hasViewAll || has('assign');
+-    const scope = resolveAmScope({ requested: 'all', hasViewAll, canTeam });
+-    return { staffId, scope, teamIds: [] };
++    const scope = resolveAmScope({ requested, hasViewAll, canTeam });
++    const teamIds = scope === 'team' ? await this.repo.loadTeamIds(staffId) : [];
++    return { staffId, scope, teamIds };
+   }
+ }
+ 
+ function addDaysYmd(ymd: string, days: number): string {
+   const [year, month, day] = ymd.split('-').map((part) => Number(part));
+   const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1, (day || 1) + days));
+   return dt.toISOString().slice(0, 10);
+ }
+ 
+ function dayStr(value: unknown): string | null {
+   if (value == null || value === '') return null;
+   if (value instanceof Date) return value.toISOString().slice(0, 10);
+   const s = String(value);
+   return s.length >= 10 ? s.slice(0, 10) : s;
+ }
+ 
++function last6MonthsIct(asOf: string): string[] {
++  const [year, month] = asOf.split('-').map((part) => Number(part));
++  const out: string[] = [];
++  for (let i = 5; i >= 0; i -= 1) {
++    const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1 - i, 1));
++    out.push(`${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-01`);
++  }
++  return out;
++}
++
++function addMonthsYmd(ymd: string, months: number): string {
++  const [year, month, day] = ymd.split('-').map((part) => Number(part));
++  const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1 + months, day || 1));
++  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
++}
++
++function effectiveCenterBand(row: AmHealthCenterRow, asOf: string): AmHealthBand | null {
++  if (row.override_band && row.override_until && row.override_until >= asOf) {
++    return HEALTH_BANDS.has(row.override_band) ? row.override_band : null;
++  }
++  if (row.band && HEALTH_BANDS.has(row.band)) return row.band;
++  if (row.score != null) return bandFromScore(row.score);
++  return null;
++}
++
++function mapCenterRow(row: Record<string, unknown>): AmHealthCenterRow {
++  return {
++    agency_client_id: String(row.agency_client_id ?? ''),
++    name: String(row.name ?? ''),
++    am_status: String(row.am_status ?? 'active') as AmAmStatus,
++    score: row.score == null ? null : Number(row.score),
++    band: row.band ? (String(row.band) as AmHealthBand) : null,
++    override_band: row.override_band ? (String(row.override_band) as AmHealthBand) : null,
++    override_until: dayStr(row.override_until),
++    owner_label: String(row.owner_label ?? ''),
++    open_risks: Number(row.open_risks ?? 0) || 0,
++    recovery_status: row.recovery_status != null ? String(row.recovery_status) : null,
++    prior_score: row.prior_score == null ? null : Number(row.prior_score),
++    mrr_vnd: accountMrrFromContracts(row.contracts),
++  };
++}
++
++function accountMrrFromContracts(raw: unknown): number | null {
++  const list = Array.isArray(raw) ? raw : [];
++  let sum = 0;
++  let any = false;
++  for (const item of list) {
++    const ct = item as Record<string, unknown>;
++    const status = String(ct.status ?? '').trim().toLowerCase();
++    if (status !== 'active' && status !== 'renewing') continue;
++    const mrr = monthlyRecurringVnd({
++      billingType: String(ct.billing_type ?? '').trim().toLowerCase(),
++      amountVnd: Number(ct.amount_vnd ?? 0),
++      startsOn: dayStr(ct.starts_on),
++      endsOn: dayStr(ct.ends_on),
++    });
++    if (mrr == null) continue;
++    sum += mrr;
++    any = true;
++  }
++  return any ? sum : null;
++}
++
++function padTrend(
++  rows: Array<{ as_of: string; score: number | null }>,
++): Array<{ as_of: string; score: number | null }> {
++  const out = [...rows];
++  while (out.length < 4) out.unshift({ as_of: '', score: null });
++  return out.slice(-4);
++}
++
++function deriveSignals(input: {
++  thin_data: boolean;
++  override: { band: AmHealthBand; reason: string; until: string } | null;
++  components: AmHealthComponents | null;
++}): string[] {
++  const out: string[] = [];
++  if (input.thin_data) out.push('Dữ liệu mỏng');
++  if (input.override) out.push(`Override ${input.override.band}`);
++  const labels: Record<keyof AmHealthComponents, string> = {
++    kpi_delivery: 'KPI Delivery',
++    engagement: 'Engagement',
++    financial: 'Financial',
++    satisfaction: 'Satisfaction',
++    contract_support: 'Contract & Support',
++  };
++  if (input.components) {
++    for (const key of Object.keys(labels) as Array<keyof AmHealthComponents>) {
++      if (input.components[key] < 60) out.push(`${labels[key]} thấp`);
++    }
++  }
++  return out;
++}
++
+ function bindScopeSql(
+   fragment: { sql: string; params: unknown[] },
+   startAt: number,
+ ): { sql: string; params: unknown[] } {
+   let sql = fragment.sql;
+   const params: unknown[] = [];
+   let i = startAt;
+   if (sql.includes('$teams')) {
+     sql = sql.replaceAll('$teams', `$${i++}`);
+     params.push(fragment.params[0]);
+diff --git a/services/ptt-crm-api/src/am/am.controller.ts b/services/ptt-crm-api/src/am/am.controller.ts
+index 08102211..81fa4ff9 100644
+--- a/services/ptt-crm-api/src/am/am.controller.ts
++++ b/services/ptt-crm-api/src/am/am.controller.ts
+@@ -113,20 +113,35 @@ export class AmController {
+   async putSettings(@Req() req: AuthedReq, @Body() body: AmPublishSettingsBody) {
+     return this.settings.publish(body ?? ({} as AmPublishSettingsBody), await this.actorStaffId(req));
+   }
+ 
+   @Get('notifications')
+   @RequireAmAction('view')
+   async listNotifications(@Req() req: AuthedReq) {
+     return this.notifications.list(await this.actorStaffId(req));
+   }
+ 
++  @Get('health')
++  @RequireAmAction('view')
++  listHealth(
++    @Req() req: AuthedReq,
++    @Query() q: { scope?: AmScope; from?: string; to?: string },
++  ) {
++    return this.health.center(req, q);
++  }
++
++  @Get('health/:agencyClientId')
++  @RequireAmAction('view')
++  getHealth(@Req() req: AuthedReq, @Param('agencyClientId') agencyClientId: string) {
++    return this.health.detail(req, agencyClientId);
++  }
++
+   @Post('health/recompute')
+   @RequireAmAction('manage')
+   async recomputeHealth(@Req() req: AuthedReq, @Body() body?: { as_of?: string }) {
+     return this.health.recompute({
+       asOf: body?.as_of,
+       actorStaffId: await this.actorStaffId(req),
+     });
+   }
+ 
+   @Post('health/:agencyClientId/override')

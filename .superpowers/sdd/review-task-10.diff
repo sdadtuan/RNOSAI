@@ -1,0 +1,657 @@
+# Review package: 7f85fa216bfbe5931812193b11a14cdb4f3b48ec..a16884212ab0523b6e6e97cea8c606c944d0cdee
+
+## Commits
+a1688421 feat(am): add settings read, notifications stub, and work-hours freshness
+
+## Files changed
+ .../ops-web/src/app/crm/account-management/am.css  | 80 +++++++++++++++++++
+ services/ops-web/src/components/crm/am/AmShell.tsx | 81 +++++++++++++++++++-
+ services/ops-web/src/lib/crm/am-api.ts             | 18 +++++
+ .../ops-web/src/lib/crm/am-notify.util.spec.ts     | 15 ++++
+ services/ops-web/src/lib/crm/am-notify.util.ts     |  3 +
+ .../src/am/am-notifications.service.spec.ts        | 54 +++++++++++++
+ .../ptt-crm-api/src/am/am-notifications.service.ts | 89 ++++++++++++++++++++++
+ services/ptt-crm-api/src/am/am.controller.ts       |  8 ++
+ services/ptt-crm-api/src/am/am.module.ts           |  4 +
+ 9 files changed, 349 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/services/ops-web/src/app/crm/account-management/am.css b/services/ops-web/src/app/crm/account-management/am.css
+index 70e8c1ea..ffb2be2f 100644
+--- a/services/ops-web/src/app/crm/account-management/am.css
++++ b/services/ops-web/src/app/crm/account-management/am.css
+@@ -171,20 +171,100 @@
+ .am-role {
+   font-size: 12px;
+   font-weight: 700;
+   color: var(--am-navy);
+   padding: 6px 10px;
+   border: 1px solid #e5e7eb;
+   border-radius: 10px;
+   background: #fff;
+ }
+ 
++.am-fresh {
++  font-size: 12px;
++  font-weight: 700;
++  color: var(--am-navy);
++  padding: 6px 10px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  background: #fff;
++  white-space: nowrap;
++}
++
++.am-fresh--stale {
++  color: var(--am-warn);
++  border-color: #fcd34d;
++  background: #fffbeb;
++}
++
++.am-bell {
++  position: relative;
++}
++
++.am-bell__btn {
++  position: relative;
++  height: 34px;
++  min-width: 34px;
++  padding: 0 10px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  background: #fff;
++  cursor: pointer;
++  font: inherit;
++}
++
++.am-bell__dot {
++  position: absolute;
++  top: 6px;
++  right: 6px;
++  width: 8px;
++  height: 8px;
++  border-radius: 50%;
++  background: var(--am-danger);
++}
++
++.am-bell__panel {
++  position: absolute;
++  right: 0;
++  top: 38px;
++  z-index: 20;
++  width: min(320px, 80vw);
++  background: #fff;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  padding: 10px;
++  box-shadow: 0 8px 24px rgba(15, 39, 71, 0.12);
++}
++
++.am-bell__head {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 8px;
++  margin-bottom: 8px;
++}
++
++.am-bell__list {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++  display: grid;
++  gap: 6px;
++  max-height: 280px;
++  overflow: auto;
++}
++
++.am-bell__list a {
++  color: var(--am-navy);
++  text-decoration: none;
++  font-weight: 600;
++}
++
+ .am-page {
+   padding: 18px 22px 40px;
+ }
+ 
+ .am-btn {
+   height: 34px;
+   padding: 0 11px;
+   border-radius: 10px;
+   border: 1px solid #e5e7eb;
+   background: #fff;
+diff --git a/services/ops-web/src/components/crm/am/AmShell.tsx b/services/ops-web/src/components/crm/am/AmShell.tsx
+index 4d537c90..0bf845e0 100644
+--- a/services/ops-web/src/components/crm/am/AmShell.tsx
++++ b/services/ops-web/src/components/crm/am/AmShell.tsx
+@@ -17,22 +17,29 @@ import { staffMe, staffRefresh } from '@/lib/api';
+ import {
+   clearSession,
+   getAccessToken,
+   getRefreshToken,
+   getStoredUser,
+   hasCap,
+   updateAccessToken,
+   updateStoredUser,
+   type StoredStaffUser,
+ } from '@/lib/auth';
+-import { fetchAmCommandCenter, type AmCommandCenter, type AmScope } from '@/lib/crm/am-api';
++import {
++  fetchAmCommandCenter,
++  fetchAmNotifications,
++  type AmCommandCenter,
++  type AmNotificationItem,
++  type AmScope,
++} from '@/lib/crm/am-api';
+ import { AM_NAV, canSeeAmNav, type AmNavItem } from '@/lib/crm/am-nav.util';
++import { showAmNotifyDot } from '@/lib/crm/am-notify.util';
+ import { AmCreateMenu } from './AmCreateMenu';
+ import { AmPalette } from './AmPalette';
+ 
+ export type AmRoleLabel = 'Admin' | 'Director' | 'AM';
+ export type AmDensity = 'comfortable' | 'compact';
+ export type AmCreateKind = 'client' | 'task' | 'plan';
+ 
+ export type AmPageContextValue = {
+   user: StoredStaffUser;
+   token: string;
+@@ -99,20 +106,23 @@ function AmShellInner({ children }: { children: ReactNode }) {
+ 
+   const [user, setUser] = useState<StoredStaffUser | null>(null);
+   const [token, setToken] = useState('');
+   const [data, setData] = useState<AmCommandCenter | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState('');
+   const [collapsed, setCollapsed] = useState(false);
+   const [density, setDensity] = useState<AmDensity>('comfortable');
+   const [createKind, setCreateKind] = useState<AmCreateKind | null>(null);
+   const [paletteOpen, setPaletteOpen] = useState(false);
++  const [notifyOpen, setNotifyOpen] = useState(false);
++  const [notifyItems, setNotifyItems] = useState<AmNotificationItem[]>([]);
++  const [notifyUnread, setNotifyUnread] = useState(0);
+ 
+   const canEdit = hasCap(user, 'crm_am', 'edit');
+   const roleLabel = amRoleLabel(user);
+   const canPickScope = hasCap(user, 'crm_am', 'view_all') || hasCap(user, 'crm_am', 'manage');
+ 
+   const ensureAuth = useCallback(async (): Promise<string | null> => {
+     let access = getAccessToken();
+     if (!access) {
+       router.replace('/login');
+       return null;
+@@ -156,39 +166,53 @@ function AmShellInner({ children }: { children: ReactNode }) {
+       const out = await fetchAmCommandCenter(access, { scope: nextScope });
+       setData(out);
+     } catch (err) {
+       setData(null);
+       setError(err instanceof Error ? err.message : 'Không tải được dashboard');
+     } finally {
+       setLoading(false);
+     }
+   }, []);
+ 
++  const loadNotifications = useCallback(async (access: string) => {
++    try {
++      const out = await fetchAmNotifications(access);
++      setNotifyItems(out.items);
++      setNotifyUnread(out.unread);
++    } catch {
++      setNotifyItems([]);
++      setNotifyUnread(0);
++    }
++  }, []);
++
+   const retry = useCallback(() => {
+     if (!token) return;
+     void loadCenter(token, scope);
+   }, [loadCenter, scope, token]);
+ 
+   useEffect(() => {
+     if (typeof window === 'undefined') return;
+     setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === '1');
+     setDensity(parseDensity(window.localStorage.getItem(DENSITY_KEY)));
+   }, []);
+ 
+   useEffect(() => {
+     void (async () => {
+       setLoading(true);
+       const access = await ensureAuth();
+-      if (access) await loadCenter(access, scope);
++      if (access) {
++        await loadCenter(access, scope);
++        await loadNotifications(access);
++      }
+       setLoading(false);
+     })();
+-  }, [ensureAuth, loadCenter, scope]);
++  }, [ensureAuth, loadCenter, loadNotifications, scope]);
+ 
+   function toggleCollapsed() {
+     setCollapsed((prev) => {
+       const next = !prev;
+       if (typeof window !== 'undefined') {
+         window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+       }
+       return next;
+     });
+   }
+@@ -323,20 +347,71 @@ function AmShellInner({ children }: { children: ReactNode }) {
+                   <span>Mật độ</span>
+                   <select
+                     value={density}
+                     onChange={(ev) => changeDensity(parseDensity(ev.target.value))}
+                     aria-label="Mật độ"
+                   >
+                     <option value="comfortable">Thoải mái</option>
+                     <option value="compact">Gọn</option>
+                   </select>
+                 </label>
++                <span
++                  className={`am-fresh${data?.freshness.stale ? ' am-fresh--stale' : ''}`}
++                  aria-label="Độ tươi dữ liệu"
++                >
++                  {data?.freshness.work_left_label ?? '—'}
++                </span>
++                <div className="am-bell">
++                  <button
++                    type="button"
++                    className="am-bell__btn"
++                    aria-label={
++                      showAmNotifyDot(notifyUnread)
++                        ? `Thông báo (${notifyUnread} chưa đọc)`
++                        : 'Thông báo'
++                    }
++                    onClick={() => {
++                      setNotifyOpen((prev) => !prev);
++                      if (token) void loadNotifications(token);
++                    }}
++                  >
++                    🔔
++                    {showAmNotifyDot(notifyUnread) ? <span className="am-bell__dot" /> : null}
++                  </button>
++                  {notifyOpen ? (
++                    <div className="am-bell__panel" role="dialog" aria-label="Thông báo Account Management">
++                      <div className="am-bell__head">
++                        <strong>Thông báo</strong>
++                        <button type="button" className="am-btn" onClick={() => setNotifyOpen(false)}>
++                          Đóng
++                        </button>
++                      </div>
++                      <ul className="am-bell__list">
++                        {notifyItems.length ? (
++                          notifyItems.map((item) => (
++                            <li key={item.id}>
++                              {item.href ? (
++                                <Link href={item.href} onClick={() => setNotifyOpen(false)}>
++                                  {item.title}
++                                </Link>
++                              ) : (
++                                <span>{item.title}</span>
++                              )}
++                            </li>
++                          ))
++                        ) : (
++                          <li className="muted">Không có thông báo.</li>
++                        )}
++                      </ul>
++                    </div>
++                  ) : null}
++                </div>
+                 <AmCreateMenu canEdit={canEdit} />
+               </header>
+               <AmPalette
+                 open={paletteOpen}
+                 onOpen={() => setPaletteOpen(true)}
+                 onClose={() => setPaletteOpen(false)}
+               />
+               <div className="am-page">{children}</div>
+             </div>
+           </div>
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index d055dae1..00198428 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -214,10 +214,28 @@ export type AmSearchItem = {
+ 
+ export async function fetchAmSearch(
+   token: string,
+   query: { q: string; scope?: AmScope },
+ ): Promise<{ items: AmSearchItem[] }> {
+   const params = new URLSearchParams();
+   params.set('q', query.q);
+   if (query.scope) params.set('scope', query.scope);
+   return amFetch<{ items: AmSearchItem[] }>(token, `/api/crm/am/search?${params.toString()}`);
+ }
++
++export type AmNotificationItem = {
++  id: string;
++  kind: string;
++  title: string;
++  href: string | null;
++  read_at: string | null;
++  created_at: string;
++};
++
++export type AmNotifications = {
++  items: AmNotificationItem[];
++  unread: number;
++};
++
++export async function fetchAmNotifications(token: string): Promise<AmNotifications> {
++  return amFetch<AmNotifications>(token, '/api/crm/am/notifications');
++}
+diff --git a/services/ops-web/src/lib/crm/am-notify.util.spec.ts b/services/ops-web/src/lib/crm/am-notify.util.spec.ts
+new file mode 100644
+index 00000000..84a8726d
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-notify.util.spec.ts
+@@ -0,0 +1,15 @@
++import { describe, expect, it } from 'vitest';
++import { showAmNotifyDot } from './am-notify.util';
++
++describe('showAmNotifyDot', () => {
++  it('shows the bell dot only when unread is greater than 0', () => {
++    expect(showAmNotifyDot(0)).toBe(false);
++    expect(showAmNotifyDot(1)).toBe(true);
++    expect(showAmNotifyDot(3)).toBe(true);
++  });
++
++  it('never treats a hard-coded 5 as the default unread count', () => {
++    expect(showAmNotifyDot(5)).toBe(true);
++    expect(showAmNotifyDot(0)).not.toBe(true);
++  });
++});
+diff --git a/services/ops-web/src/lib/crm/am-notify.util.ts b/services/ops-web/src/lib/crm/am-notify.util.ts
+new file mode 100644
+index 00000000..2e06547c
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-notify.util.ts
+@@ -0,0 +1,3 @@
++export function showAmNotifyDot(unread: number): boolean {
++  return Number(unread) > 0;
++}
+diff --git a/services/ptt-crm-api/src/am/am-notifications.service.spec.ts b/services/ptt-crm-api/src/am/am-notifications.service.spec.ts
+new file mode 100644
+index 00000000..604f1d75
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-notifications.service.spec.ts
+@@ -0,0 +1,54 @@
++import { AmNotificationsService } from './am-notifications.service';
++
++describe('AmNotificationsService', () => {
++  const repo = {
++    listForStaff: jest.fn(),
++  };
++
++  let service: AmNotificationsService;
++
++  beforeEach(() => {
++    jest.clearAllMocks();
++    service = new AmNotificationsService(repo as never);
++  });
++
++  it('returns empty items and unread 0 when staff is missing', async () => {
++    const out = await service.list(0);
++    expect(out).toEqual({ items: [], unread: 0 });
++    expect(repo.listForStaff).not.toHaveBeenCalled();
++  });
++
++  it('returns items and unread from unread rows, never a hard-coded 5', async () => {
++    repo.listForStaff.mockResolvedValue([
++      {
++        id: 'n1',
++        kind: 'sla.breached',
++        title: 'SLA trễ',
++        href: '/crm/account-management/work/1',
++        read_at: null,
++        created_at: '2026-09-05T01:00:00.000Z',
++      },
++      {
++        id: 'n2',
++        kind: 'invoice.paid',
++        title: 'HĐ đã thanh toán',
++        href: null,
++        read_at: '2026-09-04T10:00:00.000Z',
++        created_at: '2026-09-04T10:00:00.000Z',
++      },
++    ]);
++
++    const out = await service.list(7);
++
++    expect(out.items).toHaveLength(2);
++    expect(out.unread).toBe(1);
++    expect(out.unread).not.toBe(5);
++    expect(repo.listForStaff).toHaveBeenCalledWith(7);
++  });
++
++  it('returns unread 0 for an empty stub list', async () => {
++    repo.listForStaff.mockResolvedValue([]);
++    const out = await service.list(7);
++    expect(out).toEqual({ items: [], unread: 0 });
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-notifications.service.ts b/services/ptt-crm-api/src/am/am-notifications.service.ts
+new file mode 100644
+index 00000000..b5013df2
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-notifications.service.ts
+@@ -0,0 +1,89 @@
++import { Injectable, OnModuleDestroy } from '@nestjs/common';
++import { Pool } from 'pg';
++import { AppConfigService } from '../config/app-config.service';
++import { AM_TENANT_ID } from './am-audit.repository';
++
++export type AmNotificationItem = {
++  id: string;
++  kind: string;
++  title: string;
++  href: string | null;
++  read_at: string | null;
++  created_at: string;
++};
++
++function isMissingRelation(err: unknown): boolean {
++  const e = err as { code?: string; message?: string };
++  return e.code === '42P01' || /does not exist/i.test(e.message ?? '');
++}
++
++function text(value: unknown): string {
++  if (value == null) return '';
++  if (value instanceof Date) return value.toISOString();
++  return String(value);
++}
++
++function mapItem(row: Record<string, unknown>): AmNotificationItem {
++  return {
++    id: text(row.id),
++    kind: text(row.kind),
++    title: text(row.title),
++    href: row.href != null ? text(row.href) : null,
++    read_at: row.read_at ? text(row.read_at) : null,
++    created_at: text(row.created_at),
++  };
++}
++
++export type AmNotificationsStore = {
++  listForStaff(staffId: number): Promise<AmNotificationItem[]>;
++};
++
++@Injectable()
++export class AmNotificationsRepository implements OnModuleDestroy, AmNotificationsStore {
++  private pool: Pool | null = null;
++
++  constructor(private readonly config: AppConfigService) {}
++
++  private get db(): Pool {
++    if (!this.pool) {
++      this.pool = new Pool({ connectionString: this.config.databaseUrl });
++    }
++    return this.pool;
++  }
++
++  onModuleDestroy(): void {
++    void this.pool?.end();
++    this.pool = null;
++  }
++
++  async listForStaff(staffId: number): Promise<AmNotificationItem[]> {
++    try {
++      const result = await this.db.query(
++        `SELECT id::text AS id, kind, title, href, read_at, created_at
++           FROM crm_am_notifications
++          WHERE tenant_id = $1 AND staff_id = $2
++          ORDER BY created_at DESC
++          LIMIT 50`,
++        [AM_TENANT_ID, staffId],
++      );
++      return result.rows.map((row) => mapItem(row as Record<string, unknown>));
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++}
++
++@Injectable()
++export class AmNotificationsService {
++  constructor(private readonly repo: AmNotificationsRepository) {}
++
++  async list(staffId: number): Promise<{ items: AmNotificationItem[]; unread: number }> {
++    if (!staffId) return { items: [], unread: 0 };
++    const items = await this.repo.listForStaff(staffId);
++    return {
++      items,
++      unread: items.filter((item) => !item.read_at).length,
++    };
++  }
++}
+diff --git a/services/ptt-crm-api/src/am/am.controller.ts b/services/ptt-crm-api/src/am/am.controller.ts
+index db238aac..60183370 100644
+--- a/services/ptt-crm-api/src/am/am.controller.ts
++++ b/services/ptt-crm-api/src/am/am.controller.ts
+@@ -1,20 +1,21 @@
+ import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+ import { Request } from 'express';
+ import { StaffAuthService } from '../staff-auth/staff-auth.service';
+ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+ import { AmAccountsService, type AmCreateAccountBody } from './am-accounts.service';
+ import { AmDashboardService } from './am-dashboard.service';
+ import { AmHealthService } from './am-health.service';
+ import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
+ import { AmSearchService } from './am-search.service';
++import { AmNotificationsService } from './am-notifications.service';
+ import { AmSettingsService } from './am-settings.service';
+ import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
+ import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
+ import type { AmScope } from './am.types';
+ 
+ export type AuthedReq = Request & {
+   staffUser?: StaffJwtPayload;
+   staffAuthVia?: 'internal' | 'jwt';
+ };
+ 
+@@ -22,20 +23,21 @@ export type AuthedReq = Request & {
+ @UseGuards(StaffOrInternalKeyGuard, StaffAmGuard)
+ export class AmController {
+   constructor(
+     private readonly dashboard: AmDashboardService,
+     private readonly tasks: AmTasksService,
+     private readonly accounts: AmAccountsService,
+     private readonly plans: AmPlansService,
+     private readonly searchService: AmSearchService,
+     private readonly health: AmHealthService,
+     private readonly settings: AmSettingsService,
++    private readonly notifications: AmNotificationsService,
+     private readonly staffAuth: StaffAuthService,
+   ) {}
+ 
+   private async actorStaffId(req: AuthedReq): Promise<number> {
+     if (!req.staffUser) return 0;
+     return (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
+   }
+ 
+   @Get('command-center')
+   @RequireAmAction('view')
+@@ -48,20 +50,26 @@ export class AmController {
+   search(@Req() req: AuthedReq, @Query() q: { q?: string; scope?: AmScope }) {
+     return this.searchService.search(req, q);
+   }
+ 
+   @Get('settings')
+   @RequireAmAction('view')
+   getSettings() {
+     return this.settings.get();
+   }
+ 
++  @Get('notifications')
++  @RequireAmAction('view')
++  async listNotifications(@Req() req: AuthedReq) {
++    return this.notifications.list(await this.actorStaffId(req));
++  }
++
+   @Post('health/recompute')
+   @RequireAmAction('manage')
+   async recomputeHealth(@Req() req: AuthedReq, @Body() body?: { as_of?: string }) {
+     return this.health.recompute({
+       asOf: body?.as_of,
+       actorStaffId: await this.actorStaffId(req),
+     });
+   }
+ 
+   @Post('tasks')
+diff --git a/services/ptt-crm-api/src/am/am.module.ts b/services/ptt-crm-api/src/am/am.module.ts
+index 2af8e066..459ee908 100644
+--- a/services/ptt-crm-api/src/am/am.module.ts
++++ b/services/ptt-crm-api/src/am/am.module.ts
+@@ -1,20 +1,21 @@
+ import { Module, forwardRef } from '@nestjs/common';
+ import { AgencyModule } from '../agency/agency.module';
+ import { ConfigModule } from '../config/config.module';
+ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+ import { AmAccountsRepository, AmAccountsService } from './am-accounts.service';
+ import { AmAuditRepository } from './am-audit.repository';
+ import { AmDashboardService } from './am-dashboard.service';
+ import { AmHealthRepository, AmHealthService } from './am-health.service';
+ import { AmPlansRepository, AmPlansService } from './am-plans.service';
+ import { AmSearchRepository, AmSearchService } from './am-search.service';
++import { AmNotificationsRepository, AmNotificationsService } from './am-notifications.service';
+ import { AmSettingsRepository, AmSettingsService } from './am-settings.service';
+ import { AmTasksRepository, AmTasksService } from './am-tasks.service';
+ import { AmController } from './am.controller';
+ import { StaffAmGuard } from './guards/staff-am.guard';
+ 
+ @Module({
+   imports: [ConfigModule, StaffAuthModule, forwardRef(() => AgencyModule)],
+   controllers: [AmController],
+   providers: [
+     StaffAmGuard,
+@@ -25,24 +26,27 @@ import { StaffAmGuard } from './guards/staff-am.guard';
+     AmAccountsRepository,
+     AmAccountsService,
+     AmPlansRepository,
+     AmPlansService,
+     AmSearchRepository,
+     AmSearchService,
+     AmHealthRepository,
+     AmHealthService,
+     AmSettingsRepository,
+     AmSettingsService,
++    AmNotificationsRepository,
++    AmNotificationsService,
+   ],
+   exports: [
+     StaffAmGuard,
+     AmDashboardService,
+     AmAuditRepository,
+     AmTasksService,
+     AmAccountsService,
+     AmPlansService,
+     AmSearchService,
+     AmHealthService,
+     AmSettingsService,
++    AmNotificationsService,
+   ],
+ })
+ export class AmModule {}

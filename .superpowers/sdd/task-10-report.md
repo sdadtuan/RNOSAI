@@ -1,73 +1,80 @@
-# Task 10 Report — org_rollup + breadcrumb 5 lớp (T4)
+# Task 10 Report: Settings GET + notify stub + freshness
 
-**Branch:** `feat/ceo-lifecycle-tower-t3-t5`  
-**Date:** 2026-09-01  
-**Spec:** §16.4, §18 — CEO Lifecycle Tower design
+**Status:** DONE  
+**Branch:** `feat/am-os`  
+**Commit:** `a1688421` — feat(am): add settings read, notifications stub, and work-hours freshness  
+**Date:** 2026-09-05
 
-## Summary
+## Deliverables
 
-Implemented 5-layer org rollup (company → 6 departments → team → position → staff) and wired CEO tower UI breadcrumb + department panel with URL-synced filters.
+| File | Action |
+|------|--------|
+| `services/ptt-crm-api/src/am/am-settings.service.ts` | Reused Task 9 `GET /settings` (no duplicate) |
+| `services/ptt-crm-api/src/am/am-freshness.util.ts` + `.spec.ts` | Reused — Tue 09:30 ICT → `Giờ LV còn 8h`; Saturday → `Ngoài giờ LV` |
+| `services/ptt-crm-api/src/am/am-notifications.service.ts` | Created — stub list from `crm_am_notifications`; `{ items, unread }` |
+| `services/ptt-crm-api/src/am/am-notifications.service.spec.ts` | Created — empty staff; unread from `read_at`; empty stub |
+| `services/ptt-crm-api/src/am/am.controller.ts` | Modified — `GET /notifications` `@RequireAmAction('view')` |
+| `services/ptt-crm-api/src/am/am.module.ts` | Modified — register `AmNotificationsRepository` + `AmNotificationsService` (class tokens) |
+| `services/ops-web/src/lib/crm/am-api.ts` | Modified — `fetchAmNotifications` |
+| `services/ops-web/src/lib/crm/am-notify.util.ts` + `.spec.ts` | Created — `showAmNotifyDot(unread)` only when `unread > 0` |
+| `services/ops-web/src/components/crm/am/AmShell.tsx` | Modified — freshness chip + bell (empty list OK; **no** hard-coded `5`) |
+| `services/ops-web/src/app/crm/account-management/am.css` | Modified — `.am-fresh` / `.am-bell` |
 
-## Backend
+**Not done (out of scope):** mark-read, four event writers, `AmNotifyDrawer` (Task 40). `.superpowers/` not committed.
 
-### New: `ceo-tower-org.util.ts`
+## TDD evidence
 
-- `TOWER_DEPT_CATALOG` — 6 departments (HR/IT `outside_cycle: true`)
-- `resolveExceptionDepartment()` — prefers `department_code`, else sensor→dept map per §16.4 (S11 → null)
-- `buildOrgRollup()` — company PTT row + mandatory 6 department rows + dynamic team/position/staff rows; HR/IT counts forced to 0
-- `exceptionMatchesOrgFilters()` — post-classification filter using resolved department + team/position/staff_id
+### RED — spec before service
 
-### Modified: `ceo-tower-sensor.service.ts`
+```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-notifications.service.spec.ts src/am/am-freshness.util.spec.ts --no-coverage
 
-- Replaced stub `org_rollup` with `buildOrgRollup(rollupSource)` from classified rows (same base set as column counts, before severity/window/pagination)
-- Org filters (`department`, `team`, `position_code`, `staff_id`) applied in `buildPayload` via `exceptionMatchesOrgFilters` (department uses sensor fallback)
-
-## Frontend
-
-### Modified: `CeoLifecycleTower.tsx`
-
-- Breadcrumb: Công ty › [A|B factory if filtered] › phòng › team › chức vụ › người; **×** clears org filters
-- “Theo phòng” panel from `org_rollup` department entries; click sets `?department=DEPT-*`
-- HR/IT empty copy: `Không theo dõi trên tháp — mở /crm/staff hoặc /admin`
-- Query passes `department`, `team`, `position_code`, `staff_id` to `fetchCeoTower`
-
-### Modified: `ceo-tower-ui.util.ts`
-
-- `buildTowerBreadcrumb`, `departmentRollupEntries`, `deptRollupSummary`, `isOutsideCycleDepartment`, `TOWER_OUTSIDE_CYCLE_COPY`
-
-## Tests
-
-| Suite | Result |
-|-------|--------|
-| `ceo-tower-org.util.spec.ts` | PASS — sensor→dept map, 6 dept invariant, HR/IT zero counts, team/position/staff rollup |
-| `ceo-tower-sensor.service.spec.ts` | PASS — company + 6 departments in payload |
-| `ceo-tower-ui.util.spec.ts` | PASS — breadcrumb + outside-cycle copy |
-| `ceo-lifecycle-tower.spec.ts` (e2e) | Added T4 — Sales dept click, TEAM-SALES-AM filter, HR outside-cycle empty (not run in CI this session) |
-
-### Commands run
-
-```bash
-cd services/ptt-crm-api && npx jest src/ceo-command/ceo-tower-org.util.spec.ts src/ceo-command/ceo-tower-sensor.service.spec.ts --no-coverage
-# 44 passed
-
-cd services/ops-web && npx vitest run src/lib/crm/ceo-tower-ui.util.spec.ts
-# 7 passed
+PASS src/am/am-freshness.util.spec.ts
+FAIL src/am/am-notifications.service.spec.ts
+  ● Test suite failed to run
+    error TS2307: Cannot find module './am-notifications.service'
 ```
 
-## Concerns / follow-ups
+```
+$ cd services/ops-web && ./node_modules/.bin/vitest run src/lib/crm/am-notify.util.spec.ts
 
-1. **S1 factory B / CSKH source** — spec notes S1 may map to CSKH for board-sourced leads; current map always uses DEPT-SALES per task brief.
-2. **Team/position/staff breadcrumb clicks** — panel exposes department clicks; deeper levels filter via URL but no dedicated click targets on team/staff rollup rows yet (L4/L5 via future panel or queue row click).
-3. **Cache key** — org filter params still in cache key though filtering now happens in `buildPayload`; could dedupe cache entries in a later perf pass.
-4. **E2e** — T4 test uses mocked API with query-param filtering; full stack integration depends on roster data populating `department_code` on exceptions.
+FAIL src/lib/crm/am-notify.util.spec.ts
+  Error: Cannot find module './am-notify.util'
+```
 
-## Files touched
+Failure reason matches the brief: module/exports missing, not a typo. Freshness spec already existed and passed.
 
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-org.util.ts` (new)
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-org.util.spec.ts` (new)
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-sensor.service.ts`
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-sensor.service.spec.ts`
-- `services/ops-web/src/components/crm/ceo/CeoLifecycleTower.tsx`
-- `services/ops-web/src/lib/crm/ceo-tower-ui.util.ts`
-- `services/ops-web/src/lib/crm/ceo-tower-ui.util.spec.ts`
-- `services/ops-web/e2e/ceo-lifecycle-tower.spec.ts`
+### GREEN
+
+```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-notifications.service.spec.ts src/am/am-freshness.util.spec.ts --no-coverage
+
+PASS src/am/am-freshness.util.spec.ts
+PASS src/am/am-notifications.service.spec.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       7 passed, 7 total
+```
+
+```
+$ cd services/ops-web && ./node_modules/.bin/vitest run src/lib/crm/am-notify.util.spec.ts
+
+✓ src/lib/crm/am-notify.util.spec.ts (2 tests)
+```
+
+Brief assertions: Tuesday 09:30 ICT (`2026-09-01T02:30:00.000Z`) → `Giờ LV còn 8h`; Saturday → `Ngoài giờ LV`; notify `{ items, unread }` with unread counted from `read_at IS NULL` (never hard-coded `5`); bell dot only when `unread > 0`.
+
+## Behavior
+
+- `GET /api/crm/am/settings` — cap `view`. Reused Task 9 `AmSettingsService.get()`.
+- `GET /api/crm/am/notifications` — cap `view`. Returns `{ items, unread }`. Missing staff or missing table → `{ items: [], unread: 0 }`.
+- Unread = count of listed items with `read_at` null. Dot in AmShell via `showAmNotifyDot(unread)` only.
+- Freshness chip in AmShell topbar from `command-center.freshness.work_left_label` (already computed in dashboard). Stale → warn style.
+- Repositories injected as **class** tokens (`AmNotificationsRepository`), not type-only interfaces.
+
+## Concerns
+
+- Notify list is a read stub — no mark-read, no writers (`sla.breached` / `renewal.ending` / `health.drop` / `invoice.paid`) this wave.
+- Empty list is the Wave 1 default; bell never shows a hard-coded count.
+- Palette/bell not exercised in a logged-in browser this task (staff auth required).
+- Settings GET landed in Task 9; this task only reused it.

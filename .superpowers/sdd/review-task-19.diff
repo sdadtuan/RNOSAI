@@ -1,0 +1,1183 @@
+# Review package: 407805e5..9dcf49f1d6e62be748b8fb4081e79911a829ce69
+
+## Commits
+9dcf49f1 feat(am): add read-only contract catalog and detail
+
+## Files changed
+ .../crm/account-management/contracts/[id]/page.tsx |   6 +-
+ .../src/components/crm/am/AmContractDetail.tsx     | 253 ++++++++++++
+ services/ops-web/src/lib/crm/am-api.ts             |  71 ++++
+ .../ops-web/src/lib/crm/am-contract.util.spec.ts   |  30 ++
+ services/ops-web/src/lib/crm/am-contract.util.ts   |  64 +++
+ .../src/am/am-contracts.service.spec.ts            | 119 ++++++
+ .../ptt-crm-api/src/am/am-contracts.service.ts     | 441 +++++++++++++++++++++
+ services/ptt-crm-api/src/am/am.controller.ts       |  14 +
+ services/ptt-crm-api/src/am/am.module.ts           |   4 +
+ 9 files changed, 999 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/services/ops-web/src/app/crm/account-management/contracts/[id]/page.tsx b/services/ops-web/src/app/crm/account-management/contracts/[id]/page.tsx
+index ed09171e..6accb896 100644
+--- a/services/ops-web/src/app/crm/account-management/contracts/[id]/page.tsx
++++ b/services/ops-web/src/app/crm/account-management/contracts/[id]/page.tsx
+@@ -1,5 +1,5 @@
+-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++import { AmContractDetail } from '@/components/crm/am/AmContractDetail';
+ 
+-export default function AmContractDetailPage() {
+-  return <AmPlaceholder title="Hợp đồng" wave={2} />;
++export default function AmContractDetailPage({ params }: { params: { id: string } }) {
++  return <AmContractDetail contractId={params.id} />;
+ }
+diff --git a/services/ops-web/src/components/crm/am/AmContractDetail.tsx b/services/ops-web/src/components/crm/am/AmContractDetail.tsx
+new file mode 100644
+index 00000000..f500feb9
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmContractDetail.tsx
+@@ -0,0 +1,253 @@
++'use client';
++
++import Link from 'next/link';
++import { usePathname, useRouter, useSearchParams } from 'next/navigation';
++import { useCallback, useEffect, useState } from 'react';
++import { ApiError } from '@/lib/api';
++import { fetchAmContract, type AmContractDetail as AmContractDetailData } from '@/lib/crm/am-api';
++import {
++  AM_CONTRACT_TABS,
++  amContractAmountDisplay,
++  amContractDash,
++  amContractDaysCopy,
++  amContractLoadErrorCopy,
++  amContractLoadErrorKind,
++  formatAmContractDate,
++  parseAmContractTab,
++  type AmContractLoadError,
++  type AmContractTabId,
++} from '@/lib/crm/am-contract.util';
++import { AmPlaceholder } from './AmPlaceholder';
++import { useAmPage } from './AmShell';
++
++function statusClass(status: string): string {
++  if (/active|renewing/i.test(status)) return 'am-pill am-pill--ok';
++  if (/paused|draft/i.test(status)) return 'am-pill am-pill--watch';
++  if (/cancel|lost|churn/i.test(status)) return 'am-pill am-pill--crit';
++  return 'am-pill';
++}
++
++export function AmContractDetail({ contractId }: { contractId: string }) {
++  const { token } = useAmPage();
++  const router = useRouter();
++  const pathname = usePathname() ?? `/crm/account-management/contracts/${contractId}`;
++  const searchParams = useSearchParams();
++  const tab = parseAmContractTab(searchParams.get('tab'));
++
++  const [data, setData] = useState<AmContractDetailData | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState<AmContractLoadError | ''>('');
++
++  const load = useCallback(async () => {
++    if (!token || !contractId) return;
++    setLoading(true);
++    setError('');
++    try {
++      setData(await fetchAmContract(token, contractId));
++    } catch (err) {
++      setData(null);
++      setError(amContractLoadErrorKind(err instanceof ApiError ? err.status : undefined));
++    } finally {
++      setLoading(false);
++    }
++  }, [contractId, token]);
++
++  useEffect(() => {
++    void load();
++  }, [load]);
++
++  function setTab(next: AmContractTabId) {
++    const qs = new URLSearchParams(searchParams.toString());
++    if (next === 'overview') qs.delete('tab');
++    else qs.set('tab', next);
++    const suffix = qs.toString();
++    router.replace(suffix ? `${pathname}?${suffix}` : pathname);
++  }
++
++  if (loading) {
++    return (
++      <section className="am-page">
++        <p className="am-muted">Đang tải hợp đồng…</p>
++      </section>
++    );
++  }
++
++  if (error || !data) {
++    const kind: AmContractLoadError = error === 'not_found' ? 'not_found' : 'load_failed';
++    return (
++      <section className="am-page">
++        <p className="am-crumb">
++          <Link href="/crm/account-management/clients">Khách hàng</Link>
++        </p>
++        <div className="am-widget__error">
++          <p>{amContractLoadErrorCopy(kind)}</p>
++          <button type="button" className="am-btn" onClick={() => void load()}>
++            Retry
++          </button>
++        </div>
++      </section>
++    );
++  }
++
++  const heading = data.reference_code || data.title || '—';
++  const range = `${formatAmContractDate(data.starts_on)}–${formatAmContractDate(data.ends_on)}`;
++  const amount = amContractAmountDisplay(data.hide_amounts, data.amount_vnd);
++  const mrr = amContractAmountDisplay(data.hide_amounts, data.mrr_vnd);
++
++  return (
++    <section className="am-page am-360">
++      <p className="am-crumb">
++        {data.agency_client_id ? (
++          <Link href={`/crm/account-management/clients/${data.agency_client_id}`}>
++            {data.client_name || data.client_code || 'Khách hàng'}
++          </Link>
++        ) : (
++          <Link href="/crm/account-management/clients">Khách hàng</Link>
++        )}
++        {' / '}
++        {heading}
++      </p>
++
++      <header className="am-360__head">
++        <div>
++          <h1>{heading}</h1>
++          <p className="am-muted">
++            {amContractDash(data.client_name)} · {range} · {amContractDaysCopy(data.days_remaining)}
++          </p>
++        </div>
++        <span className={statusClass(data.status)}>{data.status || '—'}</span>
++      </header>
++
++      <nav className="am-360__tabs" aria-label="Hợp đồng">
++        {AM_CONTRACT_TABS.map((item) => (
++          <button
++            key={item.id}
++            type="button"
++            className={item.id === tab ? 'is-active' : ''}
++            onClick={() => setTab(item.id)}
++          >
++            {item.label}
++          </button>
++        ))}
++      </nav>
++
++      {tab === 'overview' ? (
++        <section className="am-widget">
++          <h2>Tổng quan</h2>
++          <p>
++            Giá trị HĐ <b>{amount}</b>
++            <br />
++            MRR <b>{mrr}</b>
++            <br />
++            Billing {amContractDash(data.billing_type)} · Ký {formatAmContractDate(data.signed_on)} ·
++            Hiệu lực {range}
++          </p>
++          <p>{data.notes.trim() ? data.notes : '—'}</p>
++        </section>
++      ) : null}
++
++      {tab === 'services' ? (
++        <section className="am-widget">
++          <h2>Dịch vụ &amp; giá</h2>
++          <div className="am-tbl-wrap">
++            <table className="am-table">
++              <thead>
++                <tr>
++                  <th>Dịch vụ</th>
++                  <th>Đơn giá/tháng</th>
++                  <th>Start</th>
++                  <th>End</th>
++                  <th>Status</th>
++                </tr>
++              </thead>
++              <tbody>
++                {data.line_items.length === 0 ? (
++                  <tr>
++                    <td colSpan={5} className="am-muted">
++                      —
++                    </td>
++                  </tr>
++                ) : (
++                  data.line_items.map((row, idx) => (
++                    <tr key={`${row.service_slug}-${idx}`}>
++                      <td>{row.title || row.service_slug || '—'}</td>
++                      <td>{amContractAmountDisplay(data.hide_amounts, row.amount_vnd)}</td>
++                      <td>{formatAmContractDate(row.starts_on)}</td>
++                      <td>{formatAmContractDate(row.ends_on)}</td>
++                      <td>{row.status || '—'}</td>
++                    </tr>
++                  ))
++                )}
++              </tbody>
++            </table>
++          </div>
++        </section>
++      ) : null}
++
++      {tab === 'payments' ? <AmPlaceholder title="Lịch thanh toán" wave={4} /> : null}
++
++      {tab === 'renewal' ? (
++        <section className="am-widget">
++          <h2>Gia hạn</h2>
++          <p>
++            Hết hạn {formatAmContractDate(data.renewal.ends_on)} · {amContractDaysCopy(data.renewal.days_remaining)} ·
++            Nhắc trước {amContractDash(data.renewal_reminder_days)} ngày
++          </p>
++          {data.renewal.open_case_id ? (
++            <p>
++              <Link className="am-link" href={`/crm/account-management/renewals/${data.renewal.open_case_id}`}>
++                Mở renewal case
++              </Link>
++            </p>
++          ) : (
++            <p className="am-muted">—</p>
++          )}
++        </section>
++      ) : null}
++
++      {tab === 'amendments' ? (
++        <section className="am-widget">
++          <h2>Phụ lục</h2>
++          <p className="am-muted">—</p>
++        </section>
++      ) : null}
++
++      {tab === 'documents' ? (
++        <section className="am-widget">
++          <h2>Tài liệu</h2>
++          <p className="am-muted">—</p>
++        </section>
++      ) : null}
++
++      {tab === 'audit' ? (
++        <section className="am-widget">
++          <h2>Audit</h2>
++          {data.audit.length === 0 ? (
++            <p className="am-muted">—</p>
++          ) : (
++            <div className="am-tbl-wrap">
++              <table className="am-table">
++                <thead>
++                  <tr>
++                    <th>Thời gian</th>
++                    <th>Sự kiện</th>
++                    <th>Actor</th>
++                  </tr>
++                </thead>
++                <tbody>
++                  {data.audit.map((row, idx) => (
++                    <tr key={`${row.created_at}-${idx}`}>
++                      <td>{row.created_at ? row.created_at.slice(0, 19).replace('T', ' ') : '—'}</td>
++                      <td>{row.event_type || '—'}</td>
++                      <td>{row.actor || '—'}</td>
++                    </tr>
++                  ))}
++                </tbody>
++              </table>
++            </div>
++          )}
++        </section>
++      ) : null}
++    </section>
++  );
++}
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index 44ce8d31..948ae1dd 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -680,10 +680,81 @@ export async function cloneAmOnboardingTemplate(
+ export async function publishAmOnboardingTemplate(
+   token: string,
+   id: string,
+ ): Promise<AmOnboardingTemplate> {
+   return amFetch<AmOnboardingTemplate>(
+     token,
+     `/api/crm/am/onboarding-templates/${encodeURIComponent(id)}/publish`,
+     { method: 'POST' },
+   );
+ }
++
++export type AmContractListItem = {
++  id: number;
++  reference_code: string;
++  title: string;
++  status: string;
++  billing_type: string;
++  service_slug: string;
++  starts_on: string | null;
++  ends_on: string | null;
++  days_remaining: number | null;
++  amount_vnd: number | null;
++  mrr_vnd: number | null;
++  agency_client_id: string;
++  client_name: string;
++  client_code: string;
++  hide_amounts: boolean;
++};
++
++export type AmContractLineItem = {
++  service_slug: string;
++  title: string;
++  amount_vnd: number | null;
++  starts_on: string | null;
++  ends_on: string | null;
++  status: string;
++};
++
++export type AmContractAuditItem = {
++  event_type: string;
++  actor: string;
++  created_at: string;
++  payload_json: Record<string, unknown> | null;
++};
++
++export type AmContractDetail = AmContractListItem & {
++  notes: string;
++  renewal_reminder_days: number | null;
++  signed_on: string | null;
++  line_items: AmContractLineItem[];
++  obligations: unknown[];
++  payment_schedule: unknown[];
++  amendments: unknown[];
++  documents: unknown[];
++  renewal: {
++    ends_on: string | null;
++    days_remaining: number | null;
++    open_case_id: string | null;
++  };
++  audit: AmContractAuditItem[];
++};
++
++export type AmContractsListQuery = {
++  agency_client_id?: string;
++  scope?: AmScope;
++};
++
++export async function fetchAmContracts(
++  token: string,
++  query: AmContractsListQuery = {},
++): Promise<{ items: AmContractListItem[] }> {
++  const params = new URLSearchParams();
++  if (query.agency_client_id) params.set('agency_client_id', query.agency_client_id);
++  if (query.scope) params.set('scope', query.scope);
++  const suffix = params.toString() ? `?${params.toString()}` : '';
++  return amFetch<{ items: AmContractListItem[] }>(token, `/api/crm/am/contracts${suffix}`);
++}
++
++export async function fetchAmContract(token: string, id: string): Promise<AmContractDetail> {
++  return amFetch<AmContractDetail>(token, `/api/crm/am/contracts/${encodeURIComponent(id)}`);
++}
+diff --git a/services/ops-web/src/lib/crm/am-contract.util.spec.ts b/services/ops-web/src/lib/crm/am-contract.util.spec.ts
+new file mode 100644
+index 00000000..6a31799b
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-contract.util.spec.ts
+@@ -0,0 +1,30 @@
++import { describe, expect, it } from 'vitest';
++import { AM_CONTRACT_TABS, amContractAmountDisplay, parseAmContractTab } from './am-contract.util';
++
++describe('am-contract', () => {
++  it('uses the seven contract tab labels', () => {
++    expect(AM_CONTRACT_TABS.map((tab) => tab.label)).toEqual([
++      'Tổng quan',
++      'Dịch vụ & giá',
++      'Lịch thanh toán',
++      'Gia hạn',
++      'Phụ lục',
++      'Tài liệu',
++      'Audit',
++    ]);
++  });
++
++  it('parses contract tab from URL or defaults to overview', () => {
++    expect(parseAmContractTab('services')).toBe('services');
++    expect(parseAmContractTab('payments')).toBe('payments');
++    expect(parseAmContractTab('unknown')).toBe('overview');
++    expect(parseAmContractTab(null)).toBe('overview');
++  });
++
++  it('shows em dash when hide_amounts or amount is null', () => {
++    expect(amContractAmountDisplay(true, 1_020_000_000)).toBe('—');
++    expect(amContractAmountDisplay(false, null)).toBe('—');
++    expect(amContractAmountDisplay(true, null)).toBe('—');
++    expect(amContractAmountDisplay(false, 1_020_000_000)).not.toBe('—');
++  });
++});
+diff --git a/services/ops-web/src/lib/crm/am-contract.util.ts b/services/ops-web/src/lib/crm/am-contract.util.ts
+new file mode 100644
+index 00000000..9b9629ea
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-contract.util.ts
+@@ -0,0 +1,64 @@
++import { vnd } from './am-format';
++
++export type AmContractTabId =
++  | 'overview'
++  | 'services'
++  | 'payments'
++  | 'renewal'
++  | 'amendments'
++  | 'documents'
++  | 'audit';
++
++export type AmContractTab = {
++  id: AmContractTabId;
++  label: string;
++};
++
++export const AM_CONTRACT_TABS: AmContractTab[] = [
++  { id: 'overview', label: 'Tổng quan' },
++  { id: 'services', label: 'Dịch vụ & giá' },
++  { id: 'payments', label: 'Lịch thanh toán' },
++  { id: 'renewal', label: 'Gia hạn' },
++  { id: 'amendments', label: 'Phụ lục' },
++  { id: 'documents', label: 'Tài liệu' },
++  { id: 'audit', label: 'Audit' },
++];
++
++export type AmContractLoadError = 'not_found' | 'load_failed';
++
++export function parseAmContractTab(raw: string | null | undefined): AmContractTabId {
++  const hit = AM_CONTRACT_TABS.find((tab) => tab.id === raw);
++  return hit?.id ?? 'overview';
++}
++
++export function amContractAmountDisplay(hide: boolean, amount: number | null | undefined): string {
++  if (hide || amount == null) return '—';
++  return vnd(amount);
++}
++
++export function amContractDash(value: string | number | null | undefined): string {
++  if (value == null || value === '') return '—';
++  return String(value);
++}
++
++export function formatAmContractDate(value: string | null | undefined): string {
++  if (!value) return '—';
++  const ymd = value.slice(0, 10);
++  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
++  if (!match) return ymd;
++  return `${match[3]}/${match[2]}/${match[1]}`;
++}
++
++export function amContractDaysCopy(days: number | null | undefined): string {
++  if (days == null) return '—';
++  return `Còn ${days} ngày`;
++}
++
++export function amContractLoadErrorKind(status: number | undefined): AmContractLoadError {
++  return status === 404 ? 'not_found' : 'load_failed';
++}
++
++export function amContractLoadErrorCopy(kind: AmContractLoadError): string {
++  if (kind === 'not_found') return 'Không tìm thấy hợp đồng trong phạm vi của bạn.';
++  return 'Không tải được hợp đồng. Thử lại.';
++}
+diff --git a/services/ptt-crm-api/src/am/am-contracts.service.spec.ts b/services/ptt-crm-api/src/am/am-contracts.service.spec.ts
+new file mode 100644
+index 00000000..cd224f50
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-contracts.service.spec.ts
+@@ -0,0 +1,119 @@
++import { RequestMethod } from '@nestjs/common';
++import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
++import { AmContractsService } from './am-contracts.service';
++import { AmController } from './am.controller';
++
++const CLIENT_ID = '19d722af-0000-4000-8000-000000000001';
++const STAFF_ID = 7;
++const AMOUNT = 1_020_000_000;
++
++type QueryFn = (
++  sql: string,
++  params?: unknown[],
++) => Promise<{ rows: Record<string, unknown>[]; rowCount: number }>;
++
++function controllerRoutes() {
++  return Object.getOwnPropertyNames(AmController.prototype)
++    .filter((name) => name !== 'constructor')
++    .map((name) => {
++      const fn = (AmController.prototype as unknown as Record<string, object>)[name];
++      return {
++        name,
++        path: String(Reflect.getMetadata(PATH_METADATA, fn) ?? ''),
++        method: Reflect.getMetadata(METHOD_METADATA, fn) as RequestMethod | undefined,
++      };
++    });
++}
++
++describe('AmContractsService hide_amounts', () => {
++  const viewReq = {
++    staffUser: { sub: '19d722af-0000-4000-8000-000000000007' },
++    staffAuthVia: 'jwt' as const,
++  } as never;
++
++  const db: { query: jest.MockedFunction<QueryFn> } = {
++    query: jest.fn(async (_sql: string) => ({ rows: [], rowCount: 0 })),
++  };
++  const staffAuth = {
++    resolveCrmStaffUserId: jest.fn(async () => STAFF_ID),
++    me: jest.fn(async () => ({ caps: [{ section: 'crm_am', action: 'view' }] })),
++    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, section: string, action: string) =>
++      caps.some((c) => c.section === section && c.action === action),
++    ),
++  };
++
++  const contractRow = {
++    id: 84,
++    reference_code: 'HD-TEST',
++    title: 'SEO Retainer',
++    status: 'active',
++    billing_type: 'monthly',
++    service_slug: 'seo',
++    starts_on: '2026-01-01',
++    ends_on: '2026-12-31',
++    amount_vnd: AMOUNT,
++    agency_client_id: CLIENT_ID,
++    client_name: 'An Phú',
++    client_code: 'AP01',
++    notes: 'read-only',
++    renewal_reminder_days: 30,
++    signed_on: '2025-12-15',
++  };
++
++  let service: AmContractsService;
++
++  beforeEach(() => {
++    jest.clearAllMocks();
++    staffAuth.resolveCrmStaffUserId.mockResolvedValue(STAFF_ID);
++    staffAuth.me.mockResolvedValue({ caps: [{ section: 'crm_am', action: 'view' }] });
++    db.query.mockImplementation(async (sql: string) => {
++      const text = String(sql);
++      if (/from crm_contracts/i.test(text)) {
++        return { rows: [contractRow], rowCount: 1 };
++      }
++      return { rows: [], rowCount: 0 };
++    });
++    service = new AmContractsService(db as never, staffAuth as never);
++  });
++
++  it('hides amount_vnd and mrr_vnd without crm_am.finance view or manage', async () => {
++    const out = await service.get(viewReq, '84');
++    expect(out.hide_amounts).toBe(true);
++    expect(out.amount_vnd).toBeNull();
++    expect(out.mrr_vnd).toBeNull();
++  });
++
++  it('maps amounts with finance view and keeps media mrr_vnd null', async () => {
++    staffAuth.me.mockResolvedValue({
++      caps: [
++        { section: 'crm_am', action: 'view' },
++        { section: 'crm_am.finance', action: 'view' },
++      ],
++    });
++    db.query.mockImplementation(async (sql: string) => {
++      const text = String(sql);
++      if (/from crm_contracts/i.test(text)) {
++        return { rows: [{ ...contractRow, billing_type: 'media' }], rowCount: 1 };
++      }
++      return { rows: [], rowCount: 0 };
++    });
++    const out = await service.get(viewReq, '84');
++    expect(out.hide_amounts).toBe(false);
++    expect(out.amount_vnd).toBe(AMOUNT);
++    expect(out.mrr_vnd).toBeNull();
++  });
++});
++
++describe('AmController contracts mutations', () => {
++  it('has no Patch/Put/Delete handler whose path includes contracts', () => {
++    const mutating = controllerRoutes().filter((route) => {
++      const method = route.method;
++      const isMutating =
++        method === RequestMethod.PATCH ||
++        method === RequestMethod.PUT ||
++        method === RequestMethod.DELETE;
++      return isMutating && /contracts/i.test(`${route.name} ${route.path}`);
++    });
++    expect(mutating).toEqual([]);
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-contracts.service.ts b/services/ptt-crm-api/src/am/am-contracts.service.ts
+new file mode 100644
+index 00000000..6af5ee3d
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-contracts.service.ts
+@@ -0,0 +1,441 @@
++import { Injectable, OnModuleDestroy } from '@nestjs/common';
++import { Pool } from 'pg';
++import { AppConfigService } from '../config/app-config.service';
++import { StaffAuthService } from '../staff-auth/staff-auth.service';
++import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
++import { AM_TENANT_ID } from './am-audit.repository';
++import { amThrow } from './am-http';
++import { monthlyRecurringVnd } from './am-money.util';
++import { amScopeSql, resolveAmScope } from './am-scope.util';
++import { isUuid } from './am-tasks.service';
++import type { AmScope } from './am.types';
++
++export type AmContractsReq = {
++  staffUser?: StaffJwtPayload;
++  staffAuthVia?: 'internal' | 'jwt';
++};
++
++export type AmContractsListQuery = {
++  agency_client_id?: string;
++  scope?: AmScope;
++};
++
++export type AmContractListItem = {
++  id: number;
++  reference_code: string;
++  title: string;
++  status: string;
++  billing_type: string;
++  service_slug: string;
++  starts_on: string | null;
++  ends_on: string | null;
++  days_remaining: number | null;
++  amount_vnd: number | null;
++  mrr_vnd: number | null;
++  agency_client_id: string;
++  client_name: string;
++  client_code: string;
++  hide_amounts: boolean;
++};
++
++export type AmContractLineItem = {
++  service_slug: string;
++  title: string;
++  amount_vnd: number | null;
++  starts_on: string | null;
++  ends_on: string | null;
++  status: string;
++};
++
++export type AmContractAuditItem = {
++  event_type: string;
++  actor: string;
++  created_at: string;
++  payload_json: Record<string, unknown> | null;
++};
++
++export type AmContractDetail = AmContractListItem & {
++  notes: string;
++  renewal_reminder_days: number | null;
++  signed_on: string | null;
++  line_items: AmContractLineItem[];
++  obligations: [];
++  payment_schedule: [];
++  amendments: [];
++  documents: [];
++  renewal: {
++    ends_on: string | null;
++    days_remaining: number | null;
++    open_case_id: string | null;
++  };
++  audit: AmContractAuditItem[];
++};
++
++export type AmContractsDb = {
++  query(
++    sql: string,
++    params?: unknown[],
++  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
++};
++
++const ICT = 'Asia/Ho_Chi_Minh';
++
++const CONTRACT_COLS = `
++  ct.id,
++  ct.reference_code,
++  ct.title,
++  ct.status,
++  ct.billing_type,
++  ct.service_slug,
++  ct.starts_on,
++  ct.ends_on,
++  ct.amount_vnd,
++  TRIM(COALESCE(ct.agency_client_id, '')) AS agency_client_id,
++  ct.notes,
++  ct.renewal_reminder_days,
++  ct.signed_on,
++  c.name AS client_name,
++  c.code AS client_code
++`;
++
++const CONTRACT_FROM = `
++  FROM crm_contracts ct
++  INNER JOIN crm_am_account_ext e
++          ON TRIM(COALESCE(ct.agency_client_id, '')) = e.agency_client_id::text
++         AND e.tenant_id = $1
++  INNER JOIN clients c ON c.id = e.agency_client_id
++`;
++
++@Injectable()
++export class AmContractsRepository implements OnModuleDestroy, AmContractsDb {
++  private pool: Pool | null = null;
++
++  constructor(private readonly config: AppConfigService) {}
++
++  private get db(): Pool {
++    if (!this.pool) {
++      this.pool = new Pool({ connectionString: this.config.databaseUrl });
++    }
++    return this.pool;
++  }
++
++  onModuleDestroy(): void {
++    void this.pool?.end();
++    this.pool = null;
++  }
++
++  async query(
++    sql: string,
++    params?: unknown[],
++  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }> {
++    return this.db.query(sql, params);
++  }
++}
++
++@Injectable()
++export class AmContractsService {
++  constructor(
++    private readonly db: AmContractsRepository,
++    private readonly staffAuth: StaffAuthService,
++  ) {}
++
++  async list(req: AmContractsReq, q: AmContractsListQuery): Promise<{ items: AmContractListItem[] }> {
++    const hideAmounts = await this.shouldHideAmounts(req);
++    const actor = await this.resolveActor(req, q.scope);
++    const bound = bindScopeSql(
++      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
++      2,
++    );
++    const params: unknown[] = [AM_TENANT_ID, ...bound.params];
++    const where = [bound.sql];
++
++    const clientId = String(q.agency_client_id ?? '').trim();
++    if (clientId) {
++      if (!isUuid(clientId)) amThrow(400, { error: 'invalid_agency_client_id' });
++      params.push(clientId);
++      where.push(`TRIM(COALESCE(ct.agency_client_id, '')) = $${params.length}`);
++    }
++
++    try {
++      const result = await this.db.query(
++        `SELECT ${CONTRACT_COLS} ${CONTRACT_FROM}
++          WHERE ${where.join(' AND ')}
++          ORDER BY ct.ends_on NULLS LAST, ct.id`,
++        params,
++      );
++      return { items: result.rows.map((row) => this.mapListItem(row, hideAmounts)) };
++    } catch (err) {
++      if (isMissingRelation(err)) return { items: [] };
++      throw err;
++    }
++  }
++
++  async get(req: AmContractsReq, rawId: string): Promise<AmContractDetail> {
++    const id = parseContractId(rawId);
++    const hideAmounts = await this.shouldHideAmounts(req);
++    const actor = await this.resolveActor(req, undefined);
++    const bound = bindScopeSql(
++      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
++      3,
++    );
++    let row: Record<string, unknown> | undefined;
++    try {
++      const result = await this.db.query(
++        `SELECT ${CONTRACT_COLS} ${CONTRACT_FROM}
++          WHERE ct.id = $2 AND ${bound.sql}
++          LIMIT 1`,
++        [AM_TENANT_ID, id, ...bound.params],
++      );
++      row = result.rows[0];
++    } catch (err) {
++      if (!isMissingRelation(err)) throw err;
++    }
++    if (!row) amThrow(404, { error: 'not_found' });
++
++    const list = this.mapListItem(row, hideAmounts);
++    const [openCaseId, audit] = await Promise.all([
++      this.loadOpenRenewalCaseId(id),
++      this.loadAudit(id),
++    ]);
++    return {
++      ...list,
++      notes: String(row.notes ?? ''),
++      renewal_reminder_days: num(row.renewal_reminder_days),
++      signed_on: dayStr(row.signed_on),
++      line_items: deriveLineItems(row, hideAmounts),
++      obligations: [],
++      payment_schedule: [],
++      amendments: [],
++      documents: [],
++      renewal: {
++        ends_on: list.ends_on,
++        days_remaining: list.days_remaining,
++        open_case_id: openCaseId,
++      },
++      audit,
++    };
++  }
++
++  private async shouldHideAmounts(req: AmContractsReq): Promise<boolean> {
++    if (req.staffAuthVia === 'internal' && !req.staffUser) return false;
++    if (!req.staffUser) return true;
++    const me = await this.staffAuth.me(req.staffUser);
++    return !(
++      this.staffAuth.hasCap(me.caps, 'crm_am.finance', 'view') ||
++      this.staffAuth.hasCap(me.caps, 'crm_am', 'manage')
++    );
++  }
++
++  private mapListItem(row: Record<string, unknown>, hideAmounts: boolean): AmContractListItem {
++    const billingType = String(row.billing_type ?? '');
++    const amount = num(row.amount_vnd);
++    const startsOn = dayStr(row.starts_on);
++    const endsOn = dayStr(row.ends_on);
++    const mrr = monthlyRecurringVnd({
++      billingType: billingType.trim().toLowerCase(),
++      amountVnd: amount ?? 0,
++      startsOn,
++      endsOn,
++    });
++    return {
++      id: Number(row.id ?? 0),
++      reference_code: String(row.reference_code ?? ''),
++      title: String(row.title ?? ''),
++      status: String(row.status ?? ''),
++      billing_type: billingType,
++      service_slug: String(row.service_slug ?? ''),
++      starts_on: startsOn,
++      ends_on: endsOn,
++      days_remaining: daysRemaining(endsOn),
++      amount_vnd: hideAmounts ? null : amount,
++      mrr_vnd: hideAmounts ? null : mrr,
++      agency_client_id: String(row.agency_client_id ?? ''),
++      client_name: String(row.client_name ?? ''),
++      client_code: String(row.client_code ?? ''),
++      hide_amounts: hideAmounts,
++    };
++  }
++
++  private async loadOpenRenewalCaseId(contractId: number): Promise<string | null> {
++    try {
++      const result = await this.db.query(
++        `SELECT id::text AS id
++           FROM crm_am_renewal_cases
++          WHERE contract_id = $1
++            AND status NOT IN ('renewed', 'lost')
++          LIMIT 1`,
++        [contractId],
++      );
++      const id = String(result.rows[0]?.id ?? '').trim();
++      return id || null;
++    } catch (err) {
++      if (isMissingRelation(err)) return null;
++      throw err;
++    }
++  }
++
++  private async loadAudit(contractId: number): Promise<AmContractAuditItem[]> {
++    try {
++      const result = await this.db.query(
++        `SELECT event_type, actor, created_at, payload_json
++           FROM crm_contract_events
++          WHERE contract_id = $1
++          ORDER BY created_at DESC
++          LIMIT 20`,
++        [contractId],
++      );
++      return result.rows.map((row) => ({
++        event_type: String(row.event_type ?? ''),
++        actor: String(row.actor ?? ''),
++        created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at ?? ''),
++        payload_json: asJson(row.payload_json),
++      }));
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++
++  private async resolveActor(
++    req: AmContractsReq,
++    requested: AmScope | undefined,
++  ): Promise<{ staffId: number; scope: AmScope; teamIds: number[] }> {
++    const internal = req.staffAuthVia === 'internal';
++    const staffId = req.staffUser
++      ? ((await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0)
++      : 0;
++    if (internal && !req.staffUser) {
++      return {
++        staffId,
++        scope: resolveAmScope({ requested, hasViewAll: true, canTeam: true }),
++        teamIds: [],
++      };
++    }
++    if (!req.staffUser) {
++      return { staffId, scope: 'me', teamIds: [] };
++    }
++    const me = await this.staffAuth.me(req.staffUser);
++    const has = (action: string) => this.staffAuth.hasCap(me.caps, 'crm_am', action);
++    const hasViewAll = has('view_all') || has('manage');
++    const canTeam = hasViewAll || has('assign');
++    const scope = resolveAmScope({ requested, hasViewAll, canTeam });
++    const teamIds = scope === 'team' ? await this.loadTeamIds(staffId) : [];
++    return { staffId, scope, teamIds };
++  }
++
++  private async loadTeamIds(staffId: number): Promise<number[]> {
++    if (staffId <= 0) return [];
++    try {
++      const result = await this.db.query(
++        `SELECT t.id
++           FROM crm_staff cs
++           JOIN staff_users u ON lower(trim(u.email)) = lower(trim(cs.email))
++           JOIN staff_user_teams sut ON sut.user_id = u.id
++           JOIN staff_teams t ON t.id = sut.team_id AND t.active IS TRUE
++          WHERE cs.id = $1`,
++        [staffId],
++      );
++      return result.rows
++        .map((row) => Number(row.id))
++        .filter((n) => Number.isFinite(n) && n > 0);
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++}
++
++function parseContractId(raw: string): number {
++  const s = String(raw ?? '').trim();
++  if (!/^\d+$/.test(s)) amThrow(400, { error: 'invalid_contract_id' });
++  const n = Number(s);
++  if (!Number.isInteger(n) || n <= 0) amThrow(400, { error: 'invalid_contract_id' });
++  return n;
++}
++
++function deriveLineItems(row: Record<string, unknown>, hideAmounts: boolean): AmContractLineItem[] {
++  const slug = String(row.service_slug ?? '').trim();
++  const title = String(row.title ?? '').trim();
++  if (!slug && !title) return [];
++  return [
++    {
++      service_slug: slug,
++      title,
++      amount_vnd: hideAmounts ? null : num(row.amount_vnd),
++      starts_on: dayStr(row.starts_on),
++      ends_on: dayStr(row.ends_on),
++      status: String(row.status ?? ''),
++    },
++  ];
++}
++
++function daysRemaining(endsOn: string | null): number | null {
++  if (!endsOn) return null;
++  const today = new Intl.DateTimeFormat('en-CA', {
++    timeZone: ICT,
++    year: 'numeric',
++    month: '2-digit',
++    day: '2-digit',
++  }).format(new Date());
++  const endMs = Date.parse(`${endsOn}T00:00:00+07:00`);
++  const todayMs = Date.parse(`${today}T00:00:00+07:00`);
++  if (!Number.isFinite(endMs) || !Number.isFinite(todayMs)) return null;
++  return Math.round((endMs - todayMs) / 86_400_000);
++}
++
++function bindScopeSql(
++  fragment: { sql: string; params: unknown[] },
++  startAt: number,
++): { sql: string; params: unknown[] } {
++  let sql = fragment.sql;
++  const params: unknown[] = [];
++  let i = startAt;
++  if (sql.includes('$teams')) {
++    sql = sql.replaceAll('$teams', `$${i++}`);
++    params.push(fragment.params[0]);
++    if (sql.includes('$staff')) {
++      sql = sql.replaceAll('$staff', `$${i++}`);
++      params.push(fragment.params[1] ?? fragment.params[0]);
++    }
++    return { sql, params };
++  }
++  if (sql.includes('$staff')) {
++    sql = sql.replaceAll('$staff', `$${i}`);
++    params.push(fragment.params[0]);
++  }
++  return { sql, params };
++}
++
++function isMissingRelation(err: unknown): boolean {
++  const e = err as { code?: string; message?: string };
++  return e.code === '42P01' || /does not exist/i.test(e.message ?? '');
++}
++
++function num(value: unknown): number | null {
++  if (value == null || value === '') return null;
++  const n = Number(value);
++  return Number.isFinite(n) ? n : null;
++}
++
++function dayStr(value: unknown): string | null {
++  if (value == null || value === '') return null;
++  if (value instanceof Date) return value.toISOString().slice(0, 10);
++  const s = String(value);
++  return s.length >= 10 ? s.slice(0, 10) : s;
++}
++
++function asJson(value: unknown): Record<string, unknown> | null {
++  if (value == null) return null;
++  if (typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
++  if (typeof value === 'string') {
++    try {
++      const parsed = JSON.parse(value) as unknown;
++      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
++        return parsed as Record<string, unknown>;
++      }
++    } catch {
++      return null;
++    }
++  }
++  return null;
++}
+diff --git a/services/ptt-crm-api/src/am/am.controller.ts b/services/ptt-crm-api/src/am/am.controller.ts
+index 7f5998a9..e74bf54b 100644
+--- a/services/ptt-crm-api/src/am/am.controller.ts
++++ b/services/ptt-crm-api/src/am/am.controller.ts
+@@ -22,20 +22,21 @@ import { AmViewsService, type AmCreateViewBody } from './am-views.service';
+ import {
+   AmOnboardingService,
+   type AmCreateTemplateBody,
+   type AmGoLiveBody,
+   type AmHandoverChecklist,
+   type AmHandoverListQuery,
+   type AmOnboardingCaseListQuery,
+   type AmPatchCaseBody,
+   type AmPatchTemplateBody,
+ } from './am-onboarding.service';
++import { AmContractsService, type AmContractsListQuery } from './am-contracts.service';
+ import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
+ import type { AmScope } from './am.types';
+ import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
+ 
+ export type AuthedReq = Request & {
+   staffUser?: StaffJwtPayload;
+   staffAuthVia?: 'internal' | 'jwt';
+ };
+ 
+ @Controller('api/crm/am')
+@@ -45,20 +46,21 @@ export class AmController {
+     private readonly dashboard: AmDashboardService,
+     private readonly tasks: AmTasksService,
+     private readonly accounts: AmAccountsService,
+     private readonly plans: AmPlansService,
+     private readonly searchService: AmSearchService,
+     private readonly health: AmHealthService,
+     private readonly settings: AmSettingsService,
+     private readonly notifications: AmNotificationsService,
+     private readonly views: AmViewsService,
+     private readonly onboarding: AmOnboardingService,
++    private readonly contracts: AmContractsService,
+     private readonly staffAuth: StaffAuthService,
+   ) {}
+ 
+   private async actorStaffId(req: AuthedReq): Promise<number> {
+     if (!req.staffUser) return 0;
+     return (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
+   }
+ 
+   private async actorCaps(req: AuthedReq): Promise<StaffSectionCap[]> {
+     if (req.staffAuthVia === 'internal' || !req.staffUser) return [];
+@@ -292,11 +294,23 @@ export class AmController {
+   @RequireAmAction('manage')
+   cloneOnboardingTemplate(@Req() req: AuthedReq, @Param('id') id: string) {
+     return this.onboarding.cloneTemplate(req, id);
+   }
+ 
+   @Post('onboarding-templates/:id/publish')
+   @RequireAmAction('manage')
+   publishOnboardingTemplate(@Req() req: AuthedReq, @Param('id') id: string) {
+     return this.onboarding.publishTemplate(req, id);
+   }
++
++  @Get('contracts')
++  @RequireAmAction('view')
++  listContracts(@Req() req: AuthedReq, @Query() q: AmContractsListQuery) {
++    return this.contracts.list(req, q);
++  }
++
++  @Get('contracts/:id')
++  @RequireAmAction('view')
++  getContract(@Req() req: AuthedReq, @Param('id') id: string) {
++    return this.contracts.get(req, id);
++  }
+ }
+diff --git a/services/ptt-crm-api/src/am/am.module.ts b/services/ptt-crm-api/src/am/am.module.ts
+index 94e9e84f..def9f9d8 100644
+--- a/services/ptt-crm-api/src/am/am.module.ts
++++ b/services/ptt-crm-api/src/am/am.module.ts
+@@ -6,20 +6,21 @@ import { AmAccountsRepository, AmAccountsService } from './am-accounts.service';
+ import { AmAuditRepository } from './am-audit.repository';
+ import { AmDashboardService } from './am-dashboard.service';
+ import { AmHealthRepository, AmHealthService } from './am-health.service';
+ import { AmPlansRepository, AmPlansService } from './am-plans.service';
+ import { AmSearchRepository, AmSearchService } from './am-search.service';
+ import { AmNotificationsRepository, AmNotificationsService } from './am-notifications.service';
+ import { AmSettingsRepository, AmSettingsService } from './am-settings.service';
+ import { AmTasksRepository, AmTasksService } from './am-tasks.service';
+ import { AmViewsRepository, AmViewsService } from './am-views.service';
+ import { AmOnboardingRepository, AmOnboardingService } from './am-onboarding.service';
++import { AmContractsRepository, AmContractsService } from './am-contracts.service';
+ import { AmController } from './am.controller';
+ import { StaffAmGuard } from './guards/staff-am.guard';
+ 
+ @Module({
+   imports: [ConfigModule, StaffAuthModule, forwardRef(() => AgencyModule)],
+   controllers: [AmController],
+   providers: [
+     StaffAmGuard,
+     AmDashboardService,
+     AmAuditRepository,
+@@ -34,27 +35,30 @@ import { StaffAmGuard } from './guards/staff-am.guard';
+     AmHealthRepository,
+     AmHealthService,
+     AmSettingsRepository,
+     AmSettingsService,
+     AmNotificationsRepository,
+     AmNotificationsService,
+     AmViewsRepository,
+     AmViewsService,
+     AmOnboardingRepository,
+     AmOnboardingService,
++    AmContractsRepository,
++    AmContractsService,
+   ],
+   exports: [
+     StaffAmGuard,
+     AmDashboardService,
+     AmAuditRepository,
+     AmTasksService,
+     AmAccountsService,
+     AmPlansService,
+     AmSearchService,
+     AmHealthService,
+     AmSettingsService,
+     AmNotificationsService,
+     AmViewsService,
+     AmOnboardingService,
++    AmContractsService,
+   ],
+ })
+ export class AmModule {}

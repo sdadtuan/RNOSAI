@@ -1,0 +1,2155 @@
+# Review package: 991bce0f616b88c9f334b75ff5f684f763e299dc..792da9c66f1ffa35f97ed47d2881902b5c9c1a9b
+
+## Commits
+792da9c6 feat(am): add Account 360 overview with parent/child
+
+## Files changed
+ .../ops-web/src/app/crm/account-management/am.css  |  73 +-
+ .../crm/account-management/clients/[id]/page.tsx   |   6 +-
+ .../ops-web/src/components/crm/am/AmAccount360.tsx | 899 +++++++++++++++++++++
+ .../src/lib/crm/am-account-360.util.spec.ts        |  37 +
+ .../ops-web/src/lib/crm/am-account-360.util.ts     |  55 ++
+ services/ops-web/src/lib/crm/am-api.ts             | 124 +++
+ .../ptt-crm-api/src/am/am-accounts-360.spec.ts     | 143 ++++
+ services/ptt-crm-api/src/am/am-accounts.service.ts | 575 +++++++++++++
+ services/ptt-crm-api/src/am/am.controller.ts       |  38 +-
+ 9 files changed, 1945 insertions(+), 5 deletions(-)
+
+## Diff
+diff --git a/services/ops-web/src/app/crm/account-management/am.css b/services/ops-web/src/app/crm/account-management/am.css
+index 1e891e51..ee36d24a 100644
+--- a/services/ops-web/src/app/crm/account-management/am.css
++++ b/services/ops-web/src/app/crm/account-management/am.css
+@@ -886,16 +886,87 @@ body:has(.ops-sidebar):has(.am-root) main.ops-page {
+   max-width: none !important;
+   width: auto !important;
+ }
+ 
+ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
+   padding: 0;
+   width: auto;
+   max-width: none;
+ }
+ 
++.am-360__head {
++  display: flex;
++  justify-content: space-between;
++  align-items: flex-start;
++  gap: 12px;
++}
++
++.am-360__head h1 {
++  margin: 0 0 8px;
++  font-size: 22px;
++  letter-spacing: -0.03em;
++  color: var(--am-navy);
++}
++
++.am-360__meta {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 8px 12px;
++  align-items: center;
++  font-size: 13px;
++  color: #4b5563;
++}
++
++.am-360__more {
++  position: relative;
++}
++
++.am-360__actions {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 8px;
++  margin: 14px 0;
++}
++
++.am-360__tabs {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 6px;
++  margin-bottom: 14px;
++}
++
++.am-360__tabs button {
++  height: 34px;
++  padding: 0 10px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  background: #fff;
++  color: #374151;
++  font-size: 13px;
++  font-weight: 600;
++}
++
++.am-360__tabs button.is-active {
++  background: var(--am-accent);
++  border-color: var(--am-accent);
++  color: #fff;
++}
++
++.am-360__grid {
++  display: grid;
++  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
++  gap: 12px;
++}
++
++.am-360__panel h2 {
++  margin: 0 0 8px;
++  font-size: 16px;
++  color: var(--am-navy);
++}
++
+ @media (max-width: 720px) {
+   .am-split,
+-  .am-cov {
++  .am-cov,
++  .am-360__grid {
+     grid-template-columns: 1fr;
+   }
+ }
+diff --git a/services/ops-web/src/app/crm/account-management/clients/[id]/page.tsx b/services/ops-web/src/app/crm/account-management/clients/[id]/page.tsx
+index 31361631..6a2d5195 100644
+--- a/services/ops-web/src/app/crm/account-management/clients/[id]/page.tsx
++++ b/services/ops-web/src/app/crm/account-management/clients/[id]/page.tsx
+@@ -1,5 +1,5 @@
+-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++import { AmAccount360 } from '@/components/crm/am/AmAccount360';
+ 
+-export default function AmClientDetailPage() {
+-  return <AmPlaceholder title="Chi tiết khách" wave={2} />;
++export default function AmClientDetailPage({ params }: { params: { id: string } }) {
++  return <AmAccount360 agencyClientId={params.id} />;
+ }
+diff --git a/services/ops-web/src/components/crm/am/AmAccount360.tsx b/services/ops-web/src/components/crm/am/AmAccount360.tsx
+new file mode 100644
+index 00000000..2e4edc8a
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmAccount360.tsx
+@@ -0,0 +1,899 @@
++'use client';
++
++import Link from 'next/link';
++import { usePathname, useRouter, useSearchParams } from 'next/navigation';
++import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
++import { ApiError, fetchStaffRoster, type StaffRosterRow } from '@/lib/api';
++import { hasCap } from '@/lib/auth';
++import {
++  createAmPlan,
++  createAmTask,
++  fetchAmAccount,
++  mergeAmAccount,
++  patchAmAccount,
++  transferAmAccounts,
++  type AmAccount360 as AmAccount360Data,
++  type AmAccountContact,
++} from '@/lib/crm/am-api';
++import {
++  AM_360_STATUS_COPY,
++  AM_360_TABS,
++  am360WaveCopy,
++  parseAm360Tab,
++  type Am360TabId,
++} from '@/lib/crm/am-account-360.util';
++import { canAssignAmAccounts } from '@/lib/crm/am-accounts-views.util';
++import { bandCopy, vnd } from '@/lib/crm/am-format';
++import { useToast } from '@/lib/toast';
++import { AmPlaceholder } from './AmPlaceholder';
++import { useAmPage } from './AmShell';
++
++type DrawerKind = 'edit' | 'contact' | 'owner' | 'lifecycle' | 'merge' | 'task' | 'renewal' | null;
++
++function bandClass(band: AmAccount360Data['band']): string {
++  if (band === 'healthy') return 'am-pill am-pill--ok';
++  if (band === 'watch') return 'am-pill am-pill--watch';
++  if (band === 'at_risk') return 'am-pill am-pill--risk';
++  if (band === 'critical') return 'am-pill am-pill--crit';
++  return 'am-pill';
++}
++
++function dashText(value: string | number | null | undefined): string {
++  if (value == null || value === '') return '—';
++  return String(value);
++}
++
++export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
++  const { token, user, canEdit } = useAmPage();
++  const { push } = useToast();
++  const router = useRouter();
++  const pathname = usePathname() ?? `/crm/account-management/clients/${agencyClientId}`;
++  const searchParams = useSearchParams();
++  const tab = parseAm360Tab(searchParams.get('tab'));
++
++  const [data, setData] = useState<AmAccount360Data | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++  const [menuOpen, setMenuOpen] = useState(false);
++  const [drawer, setDrawer] = useState<DrawerKind>(null);
++  const [busy, setBusy] = useState(false);
++  const [formError, setFormError] = useState('');
++  const [mergeHint, setMergeHint] = useState('');
++  const [roster, setRoster] = useState<StaffRosterRow[]>([]);
++
++  const canAssign = canAssignAmAccounts(user);
++  const canManage = hasCap(user, 'crm_am', 'manage');
++  const primary = data?.contacts.find((row) => row.is_primary) ?? data?.contacts[0] ?? null;
++
++  const load = useCallback(async () => {
++    if (!token || !agencyClientId) return;
++    setLoading(true);
++    setError('');
++    try {
++      setData(await fetchAmAccount(token, agencyClientId));
++    } catch (err) {
++      setData(null);
++      setError(err instanceof ApiError && err.status === 404 ? 'not_found' : 'load_failed');
++    } finally {
++      setLoading(false);
++    }
++  }, [agencyClientId, token]);
++
++  useEffect(() => {
++    void load();
++  }, [load]);
++
++  useEffect(() => {
++    if (!token || !canAssign) return;
++    void fetchStaffRoster(token)
++      .then((out) => setRoster(out.staff ?? []))
++      .catch(() => setRoster([]));
++  }, [canAssign, token]);
++
++  function setTab(next: Am360TabId) {
++    const qs = new URLSearchParams(searchParams.toString());
++    if (next === 'overview') qs.delete('tab');
++    else qs.set('tab', next);
++    const suffix = qs.toString();
++    router.replace(suffix ? `${pathname}?${suffix}` : pathname);
++  }
++
++  function openDrawer(kind: DrawerKind) {
++    setMenuOpen(false);
++    setFormError('');
++    setDrawer(kind);
++  }
++
++  async function onPatch(body: Parameters<typeof patchAmAccount>[2]) {
++    if (busy) return;
++    setBusy(true);
++    setFormError('');
++    try {
++      const next = await patchAmAccount(token, agencyClientId, body);
++      setData(next);
++      setDrawer(null);
++      push('Đã lưu', 'success');
++    } catch (err) {
++      setFormError(err instanceof Error ? err.message : 'Không lưu được');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  async function onArchive() {
++    if (!canManage || busy) return;
++    if (!window.confirm('Lưu trữ khách này? Lifecycle sẽ chuyển sang Paused.')) return;
++    await onPatch({ archive: true });
++  }
++
++  async function onMerge(ev: FormEvent<HTMLFormElement>) {
++    ev.preventDefault();
++    if (!canManage || busy) return;
++    const form = new FormData(ev.currentTarget);
++    const into = String(form.get('into_agency_client_id') ?? '').trim();
++    if (!into) {
++      setFormError('Cần khách đích');
++      return;
++    }
++    setBusy(true);
++    setFormError('');
++    try {
++      await mergeAmAccount(token, agencyClientId, into);
++      setMergeHint('');
++      setDrawer(null);
++      push('Đã hợp nhất', 'success');
++      await load();
++    } catch (err) {
++      const message = err instanceof Error ? err.message : 'merge_denied';
++      setFormError(message);
++      if (err instanceof ApiError && err.status === 403) {
++        setMergeHint(message);
++      }
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  async function onTransfer(ev: FormEvent<HTMLFormElement>) {
++    ev.preventDefault();
++    if (!canAssign || busy) return;
++    const form = new FormData(ev.currentTarget);
++    const toStaffId = Number(String(form.get('to_staff_id') ?? '').trim());
++    const reason = String(form.get('reason') ?? '').trim();
++    if (!toStaffId || !reason) {
++      setFormError('Cần owner và lý do');
++      return;
++    }
++    setBusy(true);
++    setFormError('');
++    try {
++      await transferAmAccounts(token, {
++        agency_client_ids: [agencyClientId],
++        to_staff_id: toStaffId,
++        reason,
++        keep_secondary: form.get('keep_secondary') === 'on',
++        move_open_tasks: form.get('move_open_tasks') === '1',
++      });
++      setDrawer(null);
++      push('Đã đổi owner', 'success');
++      await load();
++    } catch (err) {
++      setFormError(err instanceof Error ? err.message : 'Không đổi được owner');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  async function onCreateTask(ev: FormEvent<HTMLFormElement>) {
++    ev.preventDefault();
++    if (!canEdit || busy) return;
++    const form = new FormData(ev.currentTarget);
++    const title = String(form.get('title') ?? '').trim();
++    if (!title) {
++      setFormError('Cần tiêu đề');
++      return;
++    }
++    setBusy(true);
++    setFormError('');
++    try {
++      await createAmTask(token, { agency_client_id: agencyClientId, title });
++      setDrawer(null);
++      push('Đã tạo việc', 'success');
++      await load();
++    } catch (err) {
++      setFormError(err instanceof Error ? err.message : 'Không tạo được việc');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  async function onStartRenewal(ev: FormEvent<HTMLFormElement>) {
++    ev.preventDefault();
++    if (!canEdit || busy) return;
++    const form = new FormData(ev.currentTarget);
++    const period_key = String(form.get('period_key') ?? '').trim();
++    const contractRaw = String(form.get('contract_id') ?? '').trim();
++    if (!period_key) {
++      setFormError('Cần period');
++      return;
++    }
++    setBusy(true);
++    setFormError('');
++    try {
++      await createAmPlan(token, {
++        agency_client_id: agencyClientId,
++        kind: 'renewal',
++        period_key,
++        contract_id: contractRaw ? Number(contractRaw) : undefined,
++      });
++      setDrawer(null);
++      push('Đã bắt đầu gia hạn', 'success');
++      await load();
++    } catch (err) {
++      setFormError(err instanceof Error ? err.message : 'Không tạo được gia hạn');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  const activeContracts = useMemo(
++    () => (data?.contracts ?? []).filter((row) => /active|renewing/i.test(row.status)),
++    [data],
++  );
++
++  if (loading) {
++    return (
++      <section className="am-page">
++        <p className="am-muted">Đang tải Account 360…</p>
++      </section>
++    );
++  }
++
++  if (error === 'not_found' || !data) {
++    return (
++      <section className="am-page">
++        <p className="am-crumb">
++          <Link href="/crm/account-management/clients">Khách hàng</Link>
++        </p>
++        <div className="am-widget__error">
++          <p>Không tìm thấy khách trong phạm vi của bạn.</p>
++        </div>
++      </section>
++    );
++  }
++
++  const statusLabel = AM_360_STATUS_COPY[data.am_status] ?? data.am_status;
++  const activeTab = AM_360_TABS.find((item) => item.id === tab) ?? AM_360_TABS[0];
++
++  return (
++    <section className="am-page am-360">
++      <p className="am-crumb">
++        <Link href="/crm/account-management/clients">Khách hàng</Link>
++        {' / '}
++        {data.name}
++      </p>
++
++      <header className="am-360__head">
++        <div>
++          <h1>{data.name}</h1>
++          <div className="am-360__meta">
++            <span className="am-pill">{statusLabel}</span>
++            <Link
++              className={bandClass(data.band)}
++              href={`/crm/account-management/health/${data.agency_client_id}`}
++              title="Health & Risk"
++            >
++              {dashText(data.score)} / 100 · {bandCopy(data.band)}
++            </Link>
++            <span>Mã: {dashText(data.code)}</span>
++            <span>{dashText(data.industry)}</span>
++            <span>Tier {dashText(data.tier)}</span>
++            <span>{dashText(data.team_label)}</span>
++            {canAssign ? (
++              <button type="button" className="am-link" onClick={() => openDrawer('owner')}>
++                Owner: {dashText(data.owner_label)} ▾
++              </button>
++            ) : (
++              <span>Owner: {dashText(data.owner_label)}</span>
++            )}
++            {data.delivery_label ? <span>Delivery: {data.delivery_label}</span> : null}
++            {data.media_label ? <span>Media: {data.media_label}</span> : null}
++            <Link className="am-link" href={`/agency/clients/${data.agency_client_id}`}>
++              Mở Agency
++            </Link>
++          </div>
++        </div>
++        <div className="am-360__more">
++          <button
++            type="button"
++            className="am-btn"
++            aria-expanded={menuOpen}
++            aria-haspopup="menu"
++            onClick={() => setMenuOpen((v) => !v)}
++          >
++            ⋮
++          </button>
++          {menuOpen ? (
++            <div className="am-create__menu" role="menu">
++              <button type="button" role="menuitem" disabled={!canEdit} onClick={() => openDrawer('edit')}>
++                Sửa
++              </button>
++              <button type="button" role="menuitem" onClick={() => openDrawer('contact')}>
++                Contact
++              </button>
++              <button
++                type="button"
++                role="menuitem"
++                disabled={!canAssign}
++                title={canAssign ? 'Đổi owner' : 'Cần quyền crm_am.assign'}
++                onClick={() => openDrawer('owner')}
++              >
++                Đổi owner
++              </button>
++              <button
++                type="button"
++                role="menuitem"
++                disabled={!canEdit}
++                onClick={() => openDrawer('lifecycle')}
++              >
++                Lifecycle
++              </button>
++              <button
++                type="button"
++                role="menuitem"
++                disabled={!canManage}
++                title={canManage ? 'Lưu trữ' : 'Cần quyền crm_am.manage'}
++                onClick={() => void onArchive()}
++              >
++                Archive
++              </button>
++              <button
++                type="button"
++                role="menuitem"
++                disabled={!canManage}
++                title={
++                  canManage
++                    ? mergeHint || 'Hợp nhất khách trùng'
++                    : 'Cần quyền crm_am.manage'
++                }
++                onClick={() => openDrawer('merge')}
++              >
++                Merge
++              </button>
++            </div>
++          ) : null}
++        </div>
++      </header>
++
++      <div className="am-360__actions">
++        <button type="button" className="am-btn" disabled title="Mở ở Wave 3">
++          Log tương tác
++        </button>
++        <button
++          type="button"
++          className="am-btn"
++          disabled={!canEdit}
++          title={canEdit ? 'Tạo việc' : 'Cần quyền crm_am.edit'}
++          onClick={() => canEdit && openDrawer('task')}
++        >
++          Tạo việc
++        </button>
++        <button type="button" className="am-btn" disabled title="Mở ở Wave 3">
++          Tạo rủi ro
++        </button>
++        <button
++          type="button"
++          className="am-btn"
++          disabled={!canEdit}
++          title={canEdit ? 'Bắt đầu gia hạn' : 'Cần quyền crm_am.edit'}
++          onClick={() => canEdit && openDrawer('renewal')}
++        >
++          Bắt đầu gia hạn
++        </button>
++        <button type="button" className="am-btn" disabled title="Mở ở Wave 4">
++          Tạo cơ hội
++        </button>
++      </div>
++
++      <nav className="am-360__tabs" aria-label="Account 360">
++        {AM_360_TABS.map((item) => (
++          <button
++            key={item.id}
++            type="button"
++            className={item.id === tab ? 'is-active' : ''}
++            onClick={() => setTab(item.id)}
++          >
++            {item.label}
++          </button>
++        ))}
++      </nav>
++
++      {tab === 'overview' ? (
++        <OverviewPanel data={data} primary={primary} />
++      ) : tab === 'finance' ? (
++        <FinancePanel data={data} />
++      ) : tab === 'audit' ? (
++        <AuditPanel data={data} />
++      ) : (
++        <div className="am-360__panel">
++          <h2>{activeTab.label}</h2>
++          <AmPlaceholder title={activeTab.label} wave={activeTab.wave} />
++          <p className="am-muted">{am360WaveCopy(activeTab)}</p>
++        </div>
++      )}
++
++      {drawer ? (
++        <div
++          className="am-drawer-bg"
++          role="presentation"
++          onClick={(ev) => {
++            if (ev.target === ev.currentTarget && !busy) setDrawer(null);
++          }}
++        >
++          <div className="am-drawer" role="dialog" aria-modal="true">
++            <div className="am-drawer__head">
++              <strong>
++                {drawer === 'edit'
++                  ? 'Sửa khách'
++                  : drawer === 'contact'
++                    ? 'Contact'
++                    : drawer === 'owner'
++                      ? 'Đổi owner'
++                      : drawer === 'lifecycle'
++                        ? 'Lifecycle'
++                        : drawer === 'merge'
++                          ? 'Hợp nhất'
++                          : drawer === 'task'
++                            ? 'Tạo việc'
++                            : 'Bắt đầu gia hạn'}
++              </strong>
++              <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
++                Đóng
++              </button>
++            </div>
++            {drawer === 'edit' ? (
++              <form
++                className="am-form"
++                onSubmit={(ev) => {
++                  ev.preventDefault();
++                  const form = new FormData(ev.currentTarget);
++                  void onPatch({
++                    name: String(form.get('name') ?? '').trim() || undefined,
++                    tier: String(form.get('tier') ?? '').trim() || null,
++                    team_id: String(form.get('team_id') ?? '').trim()
++                      ? Number(form.get('team_id'))
++                      : null,
++                    parent_agency_client_id: String(form.get('parent_agency_client_id') ?? '').trim() || null,
++                  });
++                }}
++              >
++                <label className="am-field">
++                  <span>Tên</span>
++                  <input name="name" defaultValue={data.name} />
++                </label>
++                <label className="am-field">
++                  <span>Tier</span>
++                  <input name="tier" defaultValue={data.tier ?? ''} />
++                </label>
++                <label className="am-field">
++                  <span>Team ID</span>
++                  <input name="team_id" inputMode="numeric" defaultValue={data.team_id ?? ''} />
++                </label>
++                <label className="am-field">
++                  <span>Parent agency_client_id</span>
++                  <input
++                    name="parent_agency_client_id"
++                    defaultValue={data.parent_agency_client_id ?? ''}
++                  />
++                </label>
++                {formError ? <p className="am-banner">{formError}</p> : null}
++                <div className="am-form__actions">
++                  <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
++                    Hủy
++                  </button>
++                  <button type="submit" className="am-btn am-btn--primary" disabled={busy}>
++                    Lưu
++                  </button>
++                </div>
++              </form>
++            ) : null}
++            {drawer === 'contact' ? <ContactPanel contacts={data.contacts} primary={primary} /> : null}
++            {drawer === 'owner' ? (
++              <form className="am-form" onSubmit={(ev) => void onTransfer(ev)}>
++                <label className="am-field">
++                  <span>Owner mới (crm_staff ID) *</span>
++                  {roster.length > 0 ? (
++                    <select name="to_staff_id" defaultValue="" required>
++                      <option value="" disabled>
++                        Chọn owner
++                      </option>
++                      {roster.map((row) => (
++                        <option key={row.id} value={row.id}>
++                          {row.display_name || row.email}
++                        </option>
++                      ))}
++                    </select>
++                  ) : (
++                    <input name="to_staff_id" inputMode="numeric" placeholder="crm_staff ID" required />
++                  )}
++                </label>
++                <label className="am-check">
++                  <input type="checkbox" name="keep_secondary" defaultChecked />
++                  Giữ owner cũ là secondary
++                </label>
++                <label className="am-check">
++                  <input type="checkbox" name="move_open_tasks" value="1" />
++                  Chuyển task đang mở
++                </label>
++                <label className="am-field">
++                  <span>Lý do *</span>
++                  <textarea name="reason" required rows={3} />
++                </label>
++                {formError ? <p className="am-banner">{formError}</p> : null}
++                <div className="am-form__actions">
++                  <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
++                    Hủy
++                  </button>
++                  <button type="submit" className="am-btn am-btn--primary" disabled={busy}>
++                    Xác nhận
++                  </button>
++                </div>
++              </form>
++            ) : null}
++            {drawer === 'lifecycle' ? (
++              <form
++                className="am-form"
++                onSubmit={(ev) => {
++                  ev.preventDefault();
++                  const form = new FormData(ev.currentTarget);
++                  void onPatch({ am_status: String(form.get('am_status') ?? '') });
++                }}
++              >
++                <label className="am-field">
++                  <span>Lifecycle</span>
++                  <select name="am_status" defaultValue={data.am_status}>
++                    {Object.entries(AM_360_STATUS_COPY).map(([value, label]) => (
++                      <option key={value} value={value}>
++                        {label}
++                      </option>
++                    ))}
++                  </select>
++                </label>
++                {formError ? <p className="am-banner">{formError}</p> : null}
++                <div className="am-form__actions">
++                  <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
++                    Hủy
++                  </button>
++                  <button type="submit" className="am-btn am-btn--primary" disabled={busy}>
++                    Lưu
++                  </button>
++                </div>
++              </form>
++            ) : null}
++            {drawer === 'merge' ? (
++              <form className="am-form" onSubmit={(ev) => void onMerge(ev)}>
++                <label className="am-field">
++                  <span>Gộp vào agency_client_id *</span>
++                  <input name="into_agency_client_id" required placeholder="uuid khách đích" />
++                </label>
++                {formError ? (
++                  <p className="am-banner" title={formError}>
++                    {formError}
++                  </p>
++                ) : null}
++                <div className="am-form__actions">
++                  <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
++                    Hủy
++                  </button>
++                  <button type="submit" className="am-btn am-btn--primary" disabled={busy}>
++                    Hợp nhất
++                  </button>
++                </div>
++              </form>
++            ) : null}
++            {drawer === 'task' ? (
++              <form className="am-form" onSubmit={(ev) => void onCreateTask(ev)}>
++                <label className="am-field">
++                  <span>Tiêu đề *</span>
++                  <input name="title" required maxLength={200} />
++                </label>
++                {formError ? <p className="am-banner">{formError}</p> : null}
++                <div className="am-form__actions">
++                  <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
++                    Hủy
++                  </button>
++                  <button type="submit" className="am-btn am-btn--primary" disabled={busy}>
++                    Tạo việc
++                  </button>
++                </div>
++              </form>
++            ) : null}
++            {drawer === 'renewal' ? (
++              <form className="am-form" onSubmit={(ev) => void onStartRenewal(ev)}>
++                <label className="am-field">
++                  <span>Period *</span>
++                  <input name="period_key" required placeholder="2026-Q3" />
++                </label>
++                <label className="am-field">
++                  <span>Hợp đồng</span>
++                  {activeContracts.length ? (
++                    <select name="contract_id" defaultValue={String(activeContracts[0].id)}>
++                      {activeContracts.map((row) => (
++                        <option key={row.id} value={row.id}>
++                          {row.reference_code || row.title || row.id}
++                        </option>
++                      ))}
++                    </select>
++                  ) : (
++                    <input name="contract_id" type="number" min={1} placeholder="contract_id" />
++                  )}
++                </label>
++                {formError ? <p className="am-banner">{formError}</p> : null}
++                <div className="am-form__actions">
++                  <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
++                    Hủy
++                  </button>
++                  <button type="submit" className="am-btn am-btn--primary" disabled={busy}>
++                    Bắt đầu
++                  </button>
++                </div>
++              </form>
++            ) : null}
++          </div>
++        </div>
++      ) : null}
++    </section>
++  );
++}
++
++function OverviewPanel({
++  data,
++  primary,
++}: {
++  data: AmAccount360Data;
++  primary: AmAccountContact | null;
++}) {
++  const care = data.plans.find((row) => row.kind === 'care') ?? data.plans[0] ?? null;
++  return (
++    <div className="am-360__grid">
++      <div>
++        <section className="am-widget">
++          <div className="am-widget__head">
++            <h2>Tổng quan khách hàng</h2>
++          </div>
++          <p>Ngành: {dashText(data.industry)}</p>
++          <p>Ghi chú: {dashText(data.notes)}</p>
++          <p>Account Owner: {dashText(data.owner_label)}</p>
++          {data.delivery_label ? <p>Delivery: {data.delivery_label}</p> : null}
++          {data.parent_name ? <p>Parent: {data.parent_name}</p> : null}
++        </section>
++        <section className="am-widget">
++          <div className="am-widget__head">
++            <h2>KPI & Success Plan</h2>
++          </div>
++          {care ? (
++            <p>
++              {care.kind} · {care.period_key} · {care.status}
++              {care.due_on ? ` · hạn ${care.due_on}` : ''}
++            </p>
++          ) : (
++            <p className="am-muted">Chưa có success plan.</p>
++          )}
++        </section>
++        <section className="am-widget">
++          <div className="am-widget__head">
++            <h2>Dịch vụ đang hoạt động</h2>
++          </div>
++          {data.contracts.length === 0 ? (
++            <p className="am-muted">Chưa có hợp đồng.</p>
++          ) : (
++            <ul className="am-work">
++              {data.contracts.map((row) => (
++                <li key={row.id} className="am-work__row">
++                  <span>
++                    {row.title || row.reference_code || row.id} · {row.status}
++                  </span>
++                  <Link className="am-link" href={`/crm/account-management/contracts/${row.id}`}>
++                    Xem hợp đồng
++                  </Link>
++                </li>
++              ))}
++            </ul>
++          )}
++        </section>
++        {data.children.length > 0 ? (
++          <section className="am-widget">
++            <div className="am-widget__head">
++              <h2>Công ty con</h2>
++            </div>
++            <ul className="am-work">
++              {data.children.map((child) => (
++                <li key={child.agency_client_id} className="am-work__row">
++                  <Link
++                    className="am-link"
++                    href={`/crm/account-management/clients/${child.agency_client_id}`}
++                  >
++                    {child.name}
++                  </Link>
++                  <span className="am-muted">
++                    {child.code} · {AM_360_STATUS_COPY[child.am_status] ?? child.am_status} ·{' '}
++                    {dashText(child.owner_label)}
++                  </span>
++                </li>
++              ))}
++            </ul>
++          </section>
++        ) : null}
++      </div>
++      <div>
++        <section className="am-widget">
++          <div className="am-widget__head">
++            <h2>Hành động cần làm ({data.open_tasks.length})</h2>
++            <Link className="am-link" href="/crm/account-management/work">
++              Xem tất cả →
++            </Link>
++          </div>
++          {data.open_tasks.length === 0 ? (
++            <p className="am-muted">Không có việc mở.</p>
++          ) : (
++            <ul className="am-work">
++              {data.open_tasks.map((row) => (
++                <li key={row.id} className="am-work__row">
++                  <Link className="am-link" href={`/crm/account-management/work/${row.id}`}>
++                    {row.title}
++                  </Link>
++                  <span className="am-muted">{row.sla_label || row.status}</span>
++                </li>
++              ))}
++            </ul>
++          )}
++        </section>
++        <section className="am-widget">
++          <div className="am-widget__head">
++            <h2>Contact chính</h2>
++          </div>
++          {primary ? (
++            <>
++              <p>
++                <strong>{primary.full_name}</strong>
++                {primary.role_committee ? ` — ${primary.role_committee}` : ''}
++              </p>
++              <p className="am-muted">
++                {dashText(primary.phone)} · {dashText(primary.email)}
++              </p>
++              <p className="am-muted">Sentiment: {dashText(primary.sentiment)}</p>
++            </>
++          ) : (
++            <p className="am-muted">Chưa có contact.</p>
++          )}
++        </section>
++        <section className="am-widget">
++          <div className="am-widget__head">
++            <h2>Tóm tắt tài chính</h2>
++          </div>
++          <p>MRR: {data.hide_amounts ? '—' : vnd(data.mrr_vnd)}</p>
++          <p>Công nợ: {data.hide_amounts ? '—' : vnd(data.outstanding_vnd)}</p>
++          <p>Hóa đơn tiếp theo: {dashText(data.next_invoice_on)}</p>
++        </section>
++      </div>
++    </div>
++  );
++}
++
++function FinancePanel({ data }: { data: AmAccount360Data }) {
++  return (
++    <section className="am-widget">
++      <div className="am-widget__head">
++        <h2>Hợp đồng & Tài chính</h2>
++      </div>
++      <div className="am-tbl-wrap">
++        <table className="am-table">
++          <thead>
++            <tr>
++              <th>Hợp đồng</th>
++              <th>Trạng thái</th>
++              <th>Loại</th>
++              <th>Hiệu lực</th>
++              <th>Giá trị</th>
++            </tr>
++          </thead>
++          <tbody>
++            {data.contracts.length === 0 ? (
++              <tr>
++                <td colSpan={5} className="am-muted">
++                  Chưa có hợp đồng.
++                </td>
++              </tr>
++            ) : (
++              data.contracts.map((row) => (
++                <tr key={row.id}>
++                  <td>
++                    <Link className="am-link" href={`/crm/account-management/contracts/${row.id}`}>
++                      {row.reference_code || row.title || row.id}
++                    </Link>
++                    <div className="am-muted">{row.title}</div>
++                  </td>
++                  <td>{row.status}</td>
++                  <td>{row.billing_type || row.service_slug || '—'}</td>
++                  <td>
++                    {dashText(row.starts_on)} — {dashText(row.ends_on)}
++                  </td>
++                  <td>{data.hide_amounts ? '—' : vnd(row.amount_vnd)}</td>
++                </tr>
++              ))
++            )}
++          </tbody>
++        </table>
++      </div>
++    </section>
++  );
++}
++
++function AuditPanel({ data }: { data: AmAccount360Data }) {
++  return (
++    <section className="am-widget">
++      <div className="am-widget__head">
++        <h2>Audit</h2>
++      </div>
++      <div className="am-tbl-wrap">
++        <table className="am-table">
++          <thead>
++            <tr>
++              <th>Thời gian</th>
++              <th>Hành động</th>
++              <th>Thực thể</th>
++              <th>Actor</th>
++            </tr>
++          </thead>
++          <tbody>
++            {data.audit.length === 0 ? (
++              <tr>
++                <td colSpan={4} className="am-muted">
++                  Chưa có audit.
++                </td>
++              </tr>
++            ) : (
++              data.audit.map((row) => (
++                <tr key={row.id}>
++                  <td>{row.created_at ? row.created_at.slice(0, 19).replace('T', ' ') : '—'}</td>
++                  <td>{row.action}</td>
++                  <td>{row.entity_type}</td>
++                  <td>{dashText(row.actor_staff_id)}</td>
++                </tr>
++              ))
++            )}
++          </tbody>
++        </table>
++      </div>
++    </section>
++  );
++}
++
++function ContactPanel({
++  contacts,
++  primary,
++}: {
++  contacts: AmAccountContact[];
++  primary: AmAccountContact | null;
++}) {
++  if (!contacts.length) {
++    return <p className="am-muted">Chưa có contact. Thêm contact sẽ mở ở form Wave 2 (Task 16).</p>;
++  }
++  return (
++    <ul className="am-work">
++      {contacts.map((row) => (
++        <li key={row.id} className="am-work__row">
++          <div>
++            <strong>
++              {row.full_name}
++              {row.id === primary?.id ? ' · chính' : ''}
++            </strong>
++            <div className="am-muted">
++              {dashText(row.role_committee)} · {dashText(row.email)} · {dashText(row.phone)}
++            </div>
++          </div>
++        </li>
++      ))}
++    </ul>
++  );
++}
+diff --git a/services/ops-web/src/lib/crm/am-account-360.util.spec.ts b/services/ops-web/src/lib/crm/am-account-360.util.spec.ts
+new file mode 100644
+index 00000000..41866348
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-account-360.util.spec.ts
+@@ -0,0 +1,37 @@
++import { describe, expect, it } from 'vitest';
++import { AM_360_TABS, am360HasForbiddenTabs, am360WaveCopy, parseAm360Tab } from './am-account-360.util';
++
++describe('AM_360_TABS', () => {
++  it('has exactly 10 tabs and no Ads/Portal', () => {
++    expect(AM_360_TABS).toHaveLength(10);
++    expect(AM_360_TABS.map((tab) => tab.label)).toEqual([
++      'Tổng quan',
++      'Timeline',
++      'Dự án & dịch vụ',
++      'Công việc',
++      'Hợp đồng & Tài chính',
++      'Health & Risk',
++      'Cơ hội',
++      'Phản hồi',
++      'Tài liệu',
++      'Audit',
++    ]);
++    expect(am360HasForbiddenTabs()).toBe(false);
++  });
++
++  it('implements overview, finance and audit in Wave 2', () => {
++    const implemented = AM_360_TABS.filter((tab) => tab.implemented).map((tab) => tab.id);
++    expect(implemented).toEqual(['overview', 'finance', 'audit']);
++    expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'timeline')!)).toBe(
++      'Timeline — mở ở Wave 3',
++    );
++    expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'opportunities')!)).toBe(
++      'Cơ hội — mở ở Wave 4',
++    );
++  });
++
++  it('defaults unknown tab query to overview', () => {
++    expect(parseAm360Tab('ads')).toBe('overview');
++    expect(parseAm360Tab('finance')).toBe('finance');
++  });
++});
+diff --git a/services/ops-web/src/lib/crm/am-account-360.util.ts b/services/ops-web/src/lib/crm/am-account-360.util.ts
+new file mode 100644
+index 00000000..da708fd7
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-account-360.util.ts
+@@ -0,0 +1,55 @@
++export type Am360TabId =
++  | 'overview'
++  | 'timeline'
++  | 'projects'
++  | 'work'
++  | 'finance'
++  | 'health'
++  | 'opportunities'
++  | 'feedback'
++  | 'documents'
++  | 'audit';
++
++export type Am360Tab = {
++  id: Am360TabId;
++  label: string;
++  wave: 2 | 3 | 4;
++  implemented: boolean;
++};
++
++export const AM_360_TABS: Am360Tab[] = [
++  { id: 'overview', label: 'Tổng quan', wave: 2, implemented: true },
++  { id: 'timeline', label: 'Timeline', wave: 3, implemented: false },
++  { id: 'projects', label: 'Dự án & dịch vụ', wave: 3, implemented: false },
++  { id: 'work', label: 'Công việc', wave: 3, implemented: false },
++  { id: 'finance', label: 'Hợp đồng & Tài chính', wave: 2, implemented: true },
++  { id: 'health', label: 'Health & Risk', wave: 3, implemented: false },
++  { id: 'opportunities', label: 'Cơ hội', wave: 4, implemented: false },
++  { id: 'feedback', label: 'Phản hồi', wave: 4, implemented: false },
++  { id: 'documents', label: 'Tài liệu', wave: 3, implemented: false },
++  { id: 'audit', label: 'Audit', wave: 2, implemented: true },
++];
++
++export const AM_360_STATUS_COPY: Record<string, string> = {
++  pending_handover: 'Chờ handover',
++  onboarding: 'Onboarding',
++  active: 'Active',
++  at_risk: 'At risk',
++  renewing: 'Renewing',
++  paused: 'Paused',
++  churned: 'Churned',
++};
++
++export function parseAm360Tab(raw: string | null | undefined): Am360TabId {
++  const hit = AM_360_TABS.find((tab) => tab.id === raw);
++  return hit?.id ?? 'overview';
++}
++
++export function am360WaveCopy(tab: Am360Tab): string {
++  if (tab.implemented) return '';
++  return `${tab.label} — mở ở Wave ${tab.wave}`;
++}
++
++export function am360HasForbiddenTabs(tabs: Am360Tab[] = AM_360_TABS): boolean {
++  return tabs.some((tab) => /ads|portal/i.test(`${tab.id} ${tab.label}`));
++}
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index b11a47d8..f6a265df 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -281,20 +281,144 @@ export async function fetchAmAccounts(
+   return amFetch<AmAccountsList>(token, `/api/crm/am/accounts${suffix}`);
+ }
+ 
+ export async function createAmAccount(token: string, body: AmCreateAccountBody): Promise<AmAccountResult> {
+   return amFetch<AmAccountResult>(token, '/api/crm/am/accounts', {
+     method: 'POST',
+     body: JSON.stringify(body),
+   });
+ }
+ 
++export type AmAccountChild = {
++  agency_client_id: string;
++  name: string;
++  code: string;
++  owner_label: string | null;
++  am_status: string;
++};
++
++export type AmAccountContact = {
++  id: string;
++  full_name: string;
++  role_committee: string | null;
++  is_primary: boolean;
++  sentiment: string | null;
++  channel: string | null;
++  email: string | null;
++  phone: string | null;
++};
++
++export type AmAccountContract = {
++  id: number;
++  reference_code: string;
++  title: string;
++  status: string;
++  billing_type: string;
++  service_slug: string;
++  starts_on: string | null;
++  ends_on: string | null;
++  amount_vnd: number | null;
++};
++
++export type AmAccountOpenTask = {
++  id: string;
++  title: string;
++  status: string;
++  due_at: string | null;
++  sla_label: string | null;
++};
++
++export type AmAccountPlan = {
++  id: string;
++  kind: string;
++  period_key: string;
++  status: string;
++  due_on: string | null;
++};
++
++export type AmAccountAuditItem = {
++  id: number;
++  action: string;
++  entity_type: string;
++  actor_staff_id: number | null;
++  created_at: string;
++  payload_json: Record<string, unknown> | null;
++};
++
++export type AmAccount360 = {
++  agency_client_id: string;
++  code: string;
++  name: string;
++  industry: string | null;
++  notes: string | null;
++  am_status: string;
++  tier: string | null;
++  team_id: number | null;
++  team_label: string | null;
++  owner_staff_id: number | null;
++  owner_label: string | null;
++  delivery_label: string | null;
++  media_label: string | null;
++  parent_agency_client_id: string | null;
++  parent_name: string | null;
++  children: AmAccountChild[];
++  band: AmHealthBand | null;
++  score: number | null;
++  mrr_vnd: number | null;
++  outstanding_vnd: number | null;
++  next_invoice_on: string | null;
++  hide_amounts: boolean;
++  contacts: AmAccountContact[];
++  contracts: AmAccountContract[];
++  open_tasks: AmAccountOpenTask[];
++  plans: AmAccountPlan[];
++  audit: AmAccountAuditItem[];
++};
++
++export type AmPatchAccountBody = {
++  name?: string;
++  tier?: string | null;
++  team_id?: number | null;
++  am_status?: string;
++  parent_agency_client_id?: string | null;
++  archive?: boolean;
++};
++
++export async function fetchAmAccount(token: string, agencyClientId: string): Promise<AmAccount360> {
++  return amFetch<AmAccount360>(
++    token,
++    `/api/crm/am/accounts/${encodeURIComponent(agencyClientId)}`,
++  );
++}
++
++export async function patchAmAccount(
++  token: string,
++  agencyClientId: string,
++  body: AmPatchAccountBody,
++): Promise<AmAccount360> {
++  return amFetch<AmAccount360>(token, `/api/crm/am/accounts/${encodeURIComponent(agencyClientId)}`, {
++    method: 'PATCH',
++    body: JSON.stringify(body),
++  });
++}
++
++export async function mergeAmAccount(
++  token: string,
++  agencyClientId: string,
++  intoAgencyClientId: string,
++): Promise<{ merged: true; into_agency_client_id: string }> {
++  return amFetch(token, `/api/crm/am/accounts/${encodeURIComponent(agencyClientId)}/merge`, {
++    method: 'POST',
++    body: JSON.stringify({ into_agency_client_id: intoAgencyClientId }),
++  });
++}
++
+ export async function createAmPlan(token: string, body: AmCreatePlanInput): Promise<AmPlan> {
+   return amFetch<AmPlan>(token, '/api/crm/am/plans', {
+     method: 'POST',
+     body: JSON.stringify(body),
+   });
+ }
+ 
+ export async function fetchAmCommandCenter(
+   token: string,
+   query: AmCommandCenterQuery = {},
+diff --git a/services/ptt-crm-api/src/am/am-accounts-360.spec.ts b/services/ptt-crm-api/src/am/am-accounts-360.spec.ts
+new file mode 100644
+index 00000000..7af6ce9c
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-accounts-360.spec.ts
+@@ -0,0 +1,143 @@
++import { RequestMethod } from '@nestjs/common';
++import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
++import { AmAccountsService } from './am-accounts.service';
++import { AmController } from './am.controller';
++
++const PARENT_ID = '19d722af-0000-4000-8000-000000000001';
++const CHILD_ID = '19d722af-0000-4000-8000-000000000002';
++const OTHER_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
++const VIEW_STAFF_ID = 7;
++
++type QueryFn = (
++  sql: string,
++  params?: unknown[],
++) => Promise<{ rows: Record<string, unknown>[]; rowCount: number }>;
++
++function controllerRoutes() {
++  return Object.getOwnPropertyNames(AmController.prototype)
++    .filter((name) => name !== 'constructor')
++    .map((name) => {
++      const fn = (AmController.prototype as unknown as Record<string, object>)[name];
++      return {
++        name,
++        path: String(Reflect.getMetadata(PATH_METADATA, fn) ?? ''),
++        method: Reflect.getMetadata(METHOD_METADATA, fn) as RequestMethod | undefined,
++      };
++    });
++}
++
++describe('AmAccountsService.get 360', () => {
++  const viewReq = {
++    staffUser: { sub: '19d722af-0000-4000-8000-000000000007' },
++    staffAuthVia: 'jwt' as const,
++  } as never;
++
++  const agency = { createClient: jest.fn(), updateClient: jest.fn() };
++  const db = {
++    query: jest.fn<ReturnType<QueryFn>, Parameters<QueryFn>>(),
++  };
++  const staffAuth = {
++    resolveCrmStaffUserId: jest.fn(async () => VIEW_STAFF_ID),
++    me: jest.fn(async () => ({ caps: [{ section: 'crm_am', action: 'view' }] })),
++    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, section: string, action: string) =>
++      caps.some((c) => c.section === section && c.action === action),
++    ),
++  };
++
++  let service: AmAccountsService;
++
++  beforeEach(() => {
++    jest.clearAllMocks();
++    staffAuth.resolveCrmStaffUserId.mockResolvedValue(VIEW_STAFF_ID);
++    staffAuth.me.mockResolvedValue({ caps: [{ section: 'crm_am', action: 'view' }] });
++    db.query.mockResolvedValue({ rows: [], rowCount: 0 });
++    service = new AmAccountsService(agency as never, db as never, staffAuth as never);
++  });
++
++  it('returns 404 not 200 when the account is out of scope', async () => {
++    db.query.mockResolvedValue({ rows: [], rowCount: 0 });
++    await expect(service.get(viewReq, OTHER_ID)).rejects.toMatchObject({ status: 404 });
++    const scoped = db.query.mock.calls.find((call) => {
++      const sql = String(call[0]);
++      return /crm_am_account_ext/i.test(sql) && /select/i.test(sql);
++    });
++    expect(scoped).toBeTruthy();
++    expect(String(scoped?.[0])).toMatch(/account_owner_staff_id/);
++  });
++
++  it('returns children[] when the account is a parent', async () => {
++    staffAuth.me.mockResolvedValue({
++      caps: [
++        { section: 'crm_am', action: 'view' },
++        { section: 'crm_am', action: 'view_all' },
++      ],
++    });
++    db.query.mockImplementation(async (sql: string) => {
++      const text = String(sql);
++      if (/from crm_am_account_ext ch/i.test(text) && /parent_agency_client_id/i.test(text)) {
++        return {
++          rows: [
++            {
++              agency_client_id: CHILD_ID,
++              name: 'An Phu Con',
++              code: 'APC',
++              owner_label: 'Minh',
++              am_status: 'active',
++            },
++          ],
++          rowCount: 1,
++        };
++      }
++      if (/from crm_am_account_ext e/i.test(text) && /select/i.test(text) && /clients c/i.test(text)) {
++        return {
++          rows: [
++            {
++              agency_client_id: PARENT_ID,
++              code: 'AP01',
++              name: 'An Phu',
++              industry: 'agency',
++              notes: null,
++              am_status: 'active',
++              tier: 'A',
++              team_id: 1,
++              team_label: 'Enterprise',
++              owner_staff_id: 7,
++              owner_label: 'Minh',
++              parent_agency_client_id: null,
++              parent_name: null,
++              band: 'watch',
++              score: 72,
++              mrr_vnd: 85_000_000,
++              delivery_label: null,
++              media_label: null,
++            },
++          ],
++          rowCount: 1,
++        };
++      }
++      return { rows: [], rowCount: 0 };
++    });
++
++    const out = await service.get(viewReq, PARENT_ID);
++    expect(Array.isArray(out.children)).toBe(true);
++    expect(out.children).toEqual(
++      expect.arrayContaining([
++        expect.objectContaining({ agency_client_id: CHILD_ID, name: 'An Phu Con' }),
++      ]),
++    );
++  });
++});
++
++describe('AmController contract amount', () => {
++  it('does not expose PATCH amount on a contract endpoint', () => {
++    const patchContractAmount = controllerRoutes().filter((route) => {
++      const haystack = `${route.name} ${route.path}`;
++      return (
++        route.method === RequestMethod.PATCH &&
++        /contract/i.test(haystack) &&
++        /amount/i.test(haystack)
++      );
++    });
++    expect(patchContractAmount).toEqual([]);
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-accounts.service.ts b/services/ptt-crm-api/src/am/am-accounts.service.ts
+index 645e532e..9f46aea2 100644
+--- a/services/ptt-crm-api/src/am/am-accounts.service.ts
++++ b/services/ptt-crm-api/src/am/am-accounts.service.ts
+@@ -77,20 +77,130 @@ export type AmTransferBody = {
+   move_open_tasks?: boolean;
+ };
+ 
+ export type AmTransferResult = {
+   transferred: number;
+   to_staff_id: number;
+   moved_tasks: number;
+   keep_secondary: boolean;
+ };
+ 
++export type AmPatchAccountBody = {
++  name?: string;
++  tier?: string | null;
++  team_id?: number | null;
++  am_status?: string;
++  parent_agency_client_id?: string | null;
++  archive?: boolean;
++  amount_vnd?: unknown;
++};
++
++export type AmMergeAccountBody = {
++  into_agency_client_id: string;
++};
++
++export type AmAccountChild = {
++  agency_client_id: string;
++  name: string;
++  code: string;
++  owner_label: string | null;
++  am_status: string;
++};
++
++export type AmAccountContact = {
++  id: string;
++  full_name: string;
++  role_committee: string | null;
++  is_primary: boolean;
++  sentiment: string | null;
++  channel: string | null;
++  email: string | null;
++  phone: string | null;
++};
++
++export type AmAccountContract = {
++  id: number;
++  reference_code: string;
++  title: string;
++  status: string;
++  billing_type: string;
++  service_slug: string;
++  starts_on: string | null;
++  ends_on: string | null;
++  amount_vnd: number | null;
++};
++
++export type AmAccountOpenTask = {
++  id: string;
++  title: string;
++  status: string;
++  due_at: string | null;
++  sla_label: string | null;
++};
++
++export type AmAccountPlan = {
++  id: string;
++  kind: string;
++  period_key: string;
++  status: string;
++  due_on: string | null;
++};
++
++export type AmAccountAuditItem = {
++  id: number;
++  action: string;
++  entity_type: string;
++  actor_staff_id: number | null;
++  created_at: string;
++  payload_json: Record<string, unknown> | null;
++};
++
++export type AmAccount360 = {
++  agency_client_id: string;
++  code: string;
++  name: string;
++  industry: string | null;
++  notes: string | null;
++  am_status: string;
++  tier: string | null;
++  team_id: number | null;
++  team_label: string | null;
++  owner_staff_id: number | null;
++  owner_label: string | null;
++  delivery_label: string | null;
++  media_label: string | null;
++  parent_agency_client_id: string | null;
++  parent_name: string | null;
++  children: AmAccountChild[];
++  band: string | null;
++  score: number | null;
++  mrr_vnd: number | null;
++  outstanding_vnd: number | null;
++  next_invoice_on: string | null;
++  hide_amounts: boolean;
++  contacts: AmAccountContact[];
++  contracts: AmAccountContract[];
++  open_tasks: AmAccountOpenTask[];
++  plans: AmAccountPlan[];
++  audit: AmAccountAuditItem[];
++};
++
++const AM_STATUSES = new Set([
++  'pending_handover',
++  'onboarding',
++  'active',
++  'at_risk',
++  'renewing',
++  'paused',
++  'churned',
++]);
++
+ export type AmAccountsQuery = (
+   sql: string,
+   params?: unknown[],
+ ) => Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+ 
+ export type AmAccountsDb = {
+   query: AmAccountsQuery;
+   withTransaction?<T>(fn: (query: AmAccountsQuery) => Promise<T>): Promise<T>;
+ };
+ 
+@@ -352,20 +462,145 @@ export class AmAccountsService {
+     });
+     this.dashboard?.dropCache();
+     return {
+       transferred: writes.transferred,
+       to_staff_id: toStaffId,
+       moved_tasks: writes.movedTasks,
+       keep_secondary: keepSecondary,
+     };
+   }
+ 
++  async get(req: AmAccountsListReq, agencyClientId: string): Promise<AmAccount360> {
++    const id = String(agencyClientId ?? '').trim();
++    if (!isUuid(id)) amThrow(404, { error: 'not_found' });
++    const actor = await this.resolveListActor(req, undefined);
++    const hideAmounts = await this.shouldHideAmounts(req);
++    return this.load360(actor, id, hideAmounts);
++  }
++
++  async patch(
++    req: AmAccountsListReq,
++    agencyClientId: string,
++    body: AmPatchAccountBody,
++    actor: AmAccountActor,
++  ): Promise<AmAccount360> {
++    if (!this.canEdit(actor)) {
++      amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'edit' });
++    }
++    const id = String(agencyClientId ?? '').trim();
++    if (!isUuid(id)) amThrow(404, { error: 'not_found' });
++    const scoped = await this.resolveListActor(req, undefined);
++    const current = await this.loadAccountRow(scoped, id, true);
++    if (!current) amThrow(404, { error: 'not_found' });
++
++    const sets: string[] = ['updated_at = now()'];
++    const params: unknown[] = [AM_TENANT_ID, id];
++    if (body.archive === true) {
++      if (!this.canManage(actor)) {
++        amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'manage' });
++      }
++      sets.push(`am_status = ${pushParam(params, 'paused')}`);
++    } else if (body.am_status != null) {
++      const status = String(body.am_status).trim();
++      if (!AM_STATUSES.has(status)) amThrow(400, { error: 'am_status_invalid' });
++      sets.push(`am_status = ${pushParam(params, status)}`);
++    }
++    if ('tier' in body) {
++      const tier = body.tier == null || body.tier === '' ? null : String(body.tier).trim();
++      sets.push(`tier = ${pushParam(params, tier)}`);
++    }
++    if ('team_id' in body) {
++      const teamId = body.team_id == null || body.team_id === ('' as never) ? null : num(body.team_id);
++      if (body.team_id != null && teamId == null) amThrow(400, { error: 'team_id_invalid' });
++      sets.push(`team_id = ${pushParam(params, teamId)}`);
++    }
++    if ('parent_agency_client_id' in body) {
++      const parent = body.parent_agency_client_id == null || body.parent_agency_client_id === ''
++        ? null
++        : String(body.parent_agency_client_id).trim();
++      if (parent && (!isUuid(parent) || parent === id)) {
++        amThrow(400, { error: 'parent_invalid' });
++      }
++      sets.push(`parent_agency_client_id = ${pushParam(params, parent)}::uuid`);
++    }
++
++    const bound = bindScopeSql(
++      amScopeSql({ scope: scoped.scope, staffId: scoped.staffId, teamIds: scoped.teamIds }),
++      params.length + 1,
++    );
++    params.push(...bound.params);
++    await this.db.query(
++      `UPDATE crm_am_account_ext e
++          SET ${sets.join(', ')}
++        WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}`,
++      params,
++    );
++
++    const nextName = String(body.name ?? '').trim();
++    if (nextName && this.canAgencyWrite(actor)) {
++      await this.agency.updateClient(id, { name: nextName });
++    }
++
++    await this.audit?.insert({
++      actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
++      action: 'account.update',
++      entity_type: 'account',
++      entity_id: id,
++      payload_json: {
++        tier: body.tier,
++        team_id: body.team_id,
++        am_status: body.am_status,
++        parent_agency_client_id: body.parent_agency_client_id,
++        archive: body.archive === true,
++        name: nextName || undefined,
++      },
++    });
++    this.dashboard?.dropCache();
++    return this.load360(scoped, id, await this.shouldHideAmounts(req));
++  }
++
++  async merge(
++    req: AmAccountsListReq,
++    agencyClientId: string,
++    body: AmMergeAccountBody,
++    actor: AmAccountActor,
++  ): Promise<{ merged: true; into_agency_client_id: string }> {
++    if (!this.canManage(actor)) {
++      amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'manage' });
++    }
++    const id = String(agencyClientId ?? '').trim();
++    const into = String(body.into_agency_client_id ?? '').trim();
++    if (!isUuid(id) || !isUuid(into) || into === id) {
++      amThrow(400, { error: 'merge_target_invalid' });
++    }
++    const scoped = await this.resolveListActor(req, undefined);
++    const found = await this.loadScopedAccounts([id, into], scoped);
++    if (found.length < 2) {
++      amThrow(403, { error: 'merge_denied' });
++    }
++    await this.db.query(
++      `UPDATE crm_am_account_ext
++          SET parent_agency_client_id = $2::uuid, updated_at = now()
++        WHERE tenant_id = $3 AND agency_client_id = $1::uuid`,
++      [id, into, AM_TENANT_ID],
++    );
++    await this.audit?.insert({
++      actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
++      action: 'account.merge',
++      entity_type: 'account',
++      entity_id: id,
++      payload_json: { into_agency_client_id: into },
++    });
++    this.dashboard?.dropCache();
++    return { merged: true, into_agency_client_id: into };
++  }
++
+   private async inTx<T>(fn: (query: AmAccountsQuery) => Promise<T>): Promise<T> {
+     if (this.db.withTransaction) {
+       return this.db.withTransaction(fn);
+     }
+     return fn((sql, params) => this.db.query(sql, params));
+   }
+ 
+   private async requireCrmStaffId(rawId: number, field: string): Promise<number> {
+     try {
+       const direct = await this.db.query(`SELECT id FROM crm_staff WHERE id = $1 LIMIT 1`, [rawId]);
+@@ -438,20 +673,360 @@ export class AmAccountsService {
+   }
+ 
+   private canAssign(actor: AmAccountActor): boolean {
+     if (actor.via === 'internal') return true;
+     return (
+       this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'assign') ||
+       this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'manage')
+     );
+   }
+ 
++  private canEdit(actor: AmAccountActor): boolean {
++    if (actor.via === 'internal') return true;
++    return (
++      this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'edit') ||
++      this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'manage')
++    );
++  }
++
++  private canManage(actor: AmAccountActor): boolean {
++    if (actor.via === 'internal') return true;
++    return this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'manage');
++  }
++
++  private async shouldHideAmounts(req: AmAccountsListReq): Promise<boolean> {
++    if (req.staffAuthVia === 'internal' && !req.staffUser) return false;
++    if (!req.staffUser) return true;
++    const me = await this.staffAuth.me(req.staffUser);
++    return !(
++      this.staffAuth.hasCap(me.caps, 'crm_am.finance', 'view') ||
++      this.staffAuth.hasCap(me.caps, 'crm_am', 'manage')
++    );
++  }
++
++  private async load360(actor: ListActor, id: string, hideAmounts: boolean): Promise<AmAccount360> {
++    const row = await this.loadAccountRow(actor, id, true);
++    if (!row) amThrow(404, { error: 'not_found' });
++    const [children, contacts, contracts, openTasks, plans, audit] = await Promise.all([
++      this.loadChildren(id),
++      this.loadContacts(id),
++      this.loadContracts(id, hideAmounts),
++      this.loadOpenTasks(id),
++      this.loadPlans(id),
++      this.loadAudit(id),
++    ]);
++    const media = contracts.some((ct) => /media/i.test(ct.billing_type) || /media|ads/i.test(ct.service_slug));
++    const delivery = contracts.some(
++      (ct) => !/media/i.test(ct.billing_type) && /active|renewing/i.test(ct.status),
++    );
++    return {
++      agency_client_id: String(row.agency_client_id ?? ''),
++      code: String(row.code ?? ''),
++      name: String(row.name ?? ''),
++      industry: text(row.industry),
++      notes: text(row.notes),
++      am_status: String(row.am_status ?? 'active'),
++      tier: text(row.tier),
++      team_id: num(row.team_id),
++      team_label: text(row.team_label),
++      owner_staff_id: num(row.owner_staff_id),
++      owner_label: text(row.owner_label),
++      delivery_label: delivery ? text(row.delivery_label) ?? 'Delivery' : text(row.delivery_label),
++      media_label: media ? text(row.media_label) ?? 'Media' : text(row.media_label),
++      parent_agency_client_id: text(row.parent_agency_client_id),
++      parent_name: text(row.parent_name),
++      children,
++      band: text(row.band),
++      score: num(row.score),
++      mrr_vnd: hideAmounts ? null : num(row.mrr_vnd),
++      outstanding_vnd: null,
++      next_invoice_on: null,
++      hide_amounts: hideAmounts,
++      contacts,
++      contracts,
++      open_tasks: openTasks,
++      plans,
++      audit,
++    };
++  }
++
++  private async loadAccountRow(
++    actor: ListActor,
++    id: string,
++    includeTeam: boolean,
++  ): Promise<Record<string, unknown> | null> {
++    const params: unknown[] = [AM_TENANT_ID, id];
++    const bound = bindScopeSql(
++      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
++      params.length + 1,
++    );
++    params.push(...bound.params);
++    try {
++      const result = await this.db.query(
++        `SELECT
++            e.agency_client_id::text AS agency_client_id,
++            c.code,
++            c.name,
++            COALESCE(NULLIF(e.industry_override, ''), c.industry_slug) AS industry,
++            c.notes,
++            e.am_status,
++            e.tier,
++            e.team_id,
++            ${includeTeam ? 'team.name AS team_label' : 'NULL::text AS team_label'},
++            e.account_owner_staff_id AS owner_staff_id,
++            owner.name AS owner_label,
++            e.parent_agency_client_id::text AS parent_agency_client_id,
++            parent.name AS parent_name,
++            CASE
++              WHEN snap.override_band IS NOT NULL AND snap.override_until >= CURRENT_DATE
++                THEN snap.override_band
++              ELSE snap.band
++            END AS band,
++            snap.score,
++            mrr.mrr_vnd,
++            NULL::text AS delivery_label,
++            NULL::text AS media_label
++          FROM crm_am_account_ext e
++          INNER JOIN clients c ON c.id = e.agency_client_id
++          LEFT JOIN clients parent ON parent.id = e.parent_agency_client_id
++          LEFT JOIN crm_staff owner ON owner.id = e.account_owner_staff_id
++          ${includeTeam ? 'LEFT JOIN staff_teams team ON team.id = e.team_id' : ''}
++          LEFT JOIN LATERAL (
++            SELECT h.score, h.band, h.override_band, h.override_until
++              FROM crm_am_health_snapshots h
++             WHERE h.tenant_id = $1
++               AND h.agency_client_id = e.agency_client_id
++             ORDER BY h.as_of DESC
++             LIMIT 1
++          ) snap ON TRUE
++          ${contractJoins()}
++          WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}
++          LIMIT 1`,
++        params,
++      );
++      return result.rows[0] ?? null;
++    } catch (err) {
++      if (includeTeam && isMissingRelation(err)) {
++        return this.loadAccountRow(actor, id, false);
++      }
++      if (isMissingRelation(err)) return this.loadAccountRowMinimal(actor, id);
++      throw err;
++    }
++  }
++
++  private async loadAccountRowMinimal(
++    actor: ListActor,
++    id: string,
++  ): Promise<Record<string, unknown> | null> {
++    const params: unknown[] = [AM_TENANT_ID, id];
++    const bound = bindScopeSql(
++      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
++      params.length + 1,
++    );
++    params.push(...bound.params);
++    const result = await this.db.query(
++      `SELECT
++          e.agency_client_id::text AS agency_client_id,
++          c.code,
++          c.name,
++          c.industry_slug AS industry,
++          c.notes,
++          e.am_status,
++          e.tier,
++          e.team_id,
++          NULL::text AS team_label,
++          e.account_owner_staff_id AS owner_staff_id,
++          NULL::text AS owner_label,
++          e.parent_agency_client_id::text AS parent_agency_client_id,
++          NULL::text AS parent_name,
++          NULL::text AS band,
++          NULL::numeric AS score,
++          NULL::numeric AS mrr_vnd,
++          NULL::text AS delivery_label,
++          NULL::text AS media_label
++        FROM crm_am_account_ext e
++        INNER JOIN clients c ON c.id = e.agency_client_id
++       WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}
++       LIMIT 1`,
++      params,
++    );
++    return result.rows[0] ?? null;
++  }
++
++  private async loadChildren(id: string): Promise<AmAccountChild[]> {
++    try {
++      const result = await this.db.query(
++        `SELECT
++            ch.agency_client_id::text AS agency_client_id,
++            c.name,
++            c.code,
++            owner.name AS owner_label,
++            ch.am_status
++          FROM crm_am_account_ext ch
++          INNER JOIN clients c ON c.id = ch.agency_client_id
++          LEFT JOIN crm_staff owner ON owner.id = ch.account_owner_staff_id
++         WHERE ch.parent_agency_client_id = $1::uuid
++         ORDER BY c.name`,
++        [id],
++      );
++      return result.rows.map((row) => ({
++        agency_client_id: String(row.agency_client_id ?? ''),
++        name: String(row.name ?? ''),
++        code: String(row.code ?? ''),
++        owner_label: text(row.owner_label),
++        am_status: String(row.am_status ?? 'active'),
++      }));
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++
++  private async loadContacts(id: string): Promise<AmAccountContact[]> {
++    try {
++      const result = await this.db.query(
++        `SELECT id::text AS id, full_name, role_committee, is_primary, sentiment, channel, email, phone
++           FROM crm_am_contacts
++          WHERE agency_client_id = $1::uuid
++          ORDER BY is_primary DESC, full_name`,
++        [id],
++      );
++      return result.rows.map((row) => ({
++        id: String(row.id ?? ''),
++        full_name: String(row.full_name ?? ''),
++        role_committee: text(row.role_committee),
++        is_primary: Boolean(row.is_primary),
++        sentiment: text(row.sentiment),
++        channel: text(row.channel),
++        email: text(row.email),
++        phone: text(row.phone),
++      }));
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++
++  private async loadContracts(id: string, hideAmounts: boolean): Promise<AmAccountContract[]> {
++    try {
++      const result = await this.db.query(
++        `SELECT id, reference_code, title, status, billing_type, service_slug, starts_on, ends_on, amount_vnd
++           FROM crm_contracts
++          WHERE TRIM(COALESCE(agency_client_id, '')) = $1
++          ORDER BY ends_on NULLS LAST, id`,
++        [id],
++      );
++      return result.rows.map((row) => ({
++        id: Number(row.id ?? 0),
++        reference_code: String(row.reference_code ?? ''),
++        title: String(row.title ?? ''),
++        status: String(row.status ?? ''),
++        billing_type: String(row.billing_type ?? ''),
++        service_slug: String(row.service_slug ?? ''),
++        starts_on: dayStr(row.starts_on),
++        ends_on: dayStr(row.ends_on),
++        amount_vnd: hideAmounts ? null : num(row.amount_vnd),
++      }));
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++
++  private async loadOpenTasks(id: string): Promise<AmAccountOpenTask[]> {
++    try {
++      const result = await this.db.query(
++        `SELECT
++            id::text AS id,
++            title,
++            status,
++            due_at,
++            CASE
++              WHEN sla_resolve_due_at < now() THEN 'SLA quá hạn'
++              WHEN sla_resolve_due_at <= now() + interval '2 hours' THEN 'SLA sắp đến hạn'
++              ELSE NULL
++            END AS sla_label
++           FROM crm_am_tasks
++          WHERE agency_client_id = $1::uuid
++            AND dismissed_at IS NULL
++            AND status NOT IN ('closed', 'cancelled', 'resolved')
++          ORDER BY sla_resolve_due_at NULLS LAST, due_at NULLS LAST
++          LIMIT 20`,
++        [id],
++      );
++      return result.rows.map((row) => ({
++        id: String(row.id ?? ''),
++        title: String(row.title ?? ''),
++        status: String(row.status ?? ''),
++        due_at: row.due_at == null ? null : String(row.due_at),
++        sla_label: text(row.sla_label),
++      }));
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++
++  private async loadPlans(id: string): Promise<AmAccountPlan[]> {
++    try {
++      const result = await this.db.query(
++        `SELECT id::text AS id, kind, period_key, status, due_on
++           FROM crm_am_plans
++          WHERE agency_client_id = $1::uuid
++          ORDER BY due_on NULLS LAST`,
++        [id],
++      );
++      return result.rows.map((row) => ({
++        id: String(row.id ?? ''),
++        kind: String(row.kind ?? ''),
++        period_key: String(row.period_key ?? ''),
++        status: String(row.status ?? ''),
++        due_on: dayStr(row.due_on),
++      }));
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++
++  private async loadAudit(id: string): Promise<AmAccountAuditItem[]> {
++    try {
++      const result = await this.db.query(
++        `SELECT id, action, entity_type, actor_staff_id, created_at, payload_json
++           FROM crm_am_audit
++          WHERE tenant_id = $1
++            AND (
++              entity_id = $2
++              OR payload_json->>'agency_client_id' = $2
++              OR payload_json->'agency_client_ids' ? $2
++            )
++          ORDER BY created_at DESC
++          LIMIT 50`,
++        [AM_TENANT_ID, id],
++      );
++      return result.rows.map((row) => ({
++        id: Number(row.id ?? 0),
++        action: String(row.action ?? ''),
++        entity_type: String(row.entity_type ?? ''),
++        actor_staff_id: num(row.actor_staff_id),
++        created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at ?? ''),
++        payload_json:
++          row.payload_json && typeof row.payload_json === 'object'
++            ? (row.payload_json as Record<string, unknown>)
++            : null,
++      }));
++    } catch (err) {
++      if (isMissingRelation(err)) return [];
++      throw err;
++    }
++  }
++
+   private canAgencyWrite(actor: AmAccountActor): boolean {
+     if (actor.via === 'internal') return true;
+     return (
+       this.staffAuth.hasCap(actor.caps ?? [], 'crm_agency', 'create') ||
+       this.staffAuth.hasCap(actor.caps ?? [], 'crm_agency', 'write')
+     );
+   }
+ 
+   private async createFromAgency(
+     body: Extract<AmCreateAccountBody, { mode: 'create' }>,
+diff --git a/services/ptt-crm-api/src/am/am.controller.ts b/services/ptt-crm-api/src/am/am.controller.ts
+index 707fdedd..306dcb04 100644
+--- a/services/ptt-crm-api/src/am/am.controller.ts
++++ b/services/ptt-crm-api/src/am/am.controller.ts
+@@ -1,19 +1,21 @@
+-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
++import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+ import { Request } from 'express';
+ import { StaffAuthService } from '../staff-auth/staff-auth.service';
+ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+ import {
+   AmAccountsService,
+   type AmAccountsListQuery,
+   type AmCreateAccountBody,
++  type AmMergeAccountBody,
++  type AmPatchAccountBody,
+   type AmTransferBody,
+ } from './am-accounts.service';
+ import { AmDashboardService } from './am-dashboard.service';
+ import { AmHealthService } from './am-health.service';
+ import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
+ import { AmSearchService } from './am-search.service';
+ import { AmNotificationsService } from './am-notifications.service';
+ import { AmSettingsService } from './am-settings.service';
+ import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
+ import { AmViewsService, type AmCreateViewBody } from './am-views.service';
+@@ -125,20 +127,54 @@ export class AmController {
+   @Post('accounts/transfer')
+   @RequireAmAction('assign')
+   async transferAccounts(@Req() req: AuthedReq, @Body() body: AmTransferBody) {
+     return this.accounts.transfer(body, {
+       staffId: await this.actorStaffId(req),
+       caps: await this.actorCaps(req),
+       via: req.staffAuthVia === 'internal' ? 'internal' : 'jwt',
+     });
+   }
+ 
++  @Get('accounts/:agencyClientId')
++  @RequireAmAction('view')
++  async getAccount(@Req() req: AuthedReq, @Param('agencyClientId') agencyClientId: string) {
++    return this.accounts.get(req, agencyClientId);
++  }
++
++  @Patch('accounts/:agencyClientId')
++  @RequireAmAction('edit')
++  async patchAccount(
++    @Req() req: AuthedReq,
++    @Param('agencyClientId') agencyClientId: string,
++    @Body() body: AmPatchAccountBody,
++  ) {
++    return this.accounts.patch(req, agencyClientId, body, {
++      staffId: await this.actorStaffId(req),
++      caps: await this.actorCaps(req),
++      via: req.staffAuthVia === 'internal' ? 'internal' : 'jwt',
++    });
++  }
++
++  @Post('accounts/:agencyClientId/merge')
++  @RequireAmAction('manage')
++  async mergeAccount(
++    @Req() req: AuthedReq,
++    @Param('agencyClientId') agencyClientId: string,
++    @Body() body: AmMergeAccountBody,
++  ) {
++    return this.accounts.merge(req, agencyClientId, body, {
++      staffId: await this.actorStaffId(req),
++      caps: await this.actorCaps(req),
++      via: req.staffAuthVia === 'internal' ? 'internal' : 'jwt',
++    });
++  }
++
+   @Get('views')
+   @RequireAmAction('view')
+   async listViews(@Req() req: AuthedReq) {
+     return this.views.list(await this.actorStaffId(req));
+   }
+ 
+   @Post('views')
+   @RequireAmAction('view')
+   async createView(@Req() req: AuthedReq, @Body() body: AmCreateViewBody) {
+     return this.views.create(body, {

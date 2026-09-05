@@ -1,78 +1,48 @@
-# Task 13 Report: Capacity top 5 (T6) — CEO Lifecycle Tower
+# Task 13 Report: Accounts list API + UI-AM-02
 
 **Status:** DONE  
-**Branch:** `feat/ceo-lifecycle-tower-t6-t8`  
-**Base:** Task 12 commit `cf201164`  
-**Spec:** §21 — Năng lực & quá tải
+**Branch:** `feat/am-os`  
+**Commit:** `0921985e` — feat(am): add scoped account list with saved-view chips  
+**Date:** 2026-09-05
 
 ## Summary
 
-Implemented `capacity_top[]` (max 5 overloaded owners) on tower payload and a "Quá tải" UI panel. Counts red/amber exceptions by `owner_staff_id`, applies §21 thresholds, omits ok staff, sorts by `red_owned` desc.
+Added scoped `GET /api/crm/am/accounts` and replaced the Wave 2 clients placeholder with UI-AM-02. Default hides churned. `view` is forced through `amScopeSql` (`me`) so other owners cannot leak. `sort=ends_on` is `ORDER BY` on the server. Saved-view chips are URL query presets, not hardcoded rows.
 
 ## Backend
 
-### New: `ceo-tower-capacity.util.ts`
-
-- `CapacityRow`, `TowerRosterEntry`, `buildCapacityTop(exceptions, roster)`
-- Owner resolution: `owner_staff_id` → `suggest_params.staff_id` / `owner_staff_id`
-- Flags: amber if `red≥5` or `red+amber≥10`; red if `red≥8` or `red+amber≥15`
-
-### `ceo-tower-sensor.service.ts`
-
-- Loads roster via `CrmStaffPgRepository.listStaff(500)` (cached in bundle)
-- Adds `capacity_top` to payload when non-empty (from org-filtered exception rollup)
-- `TowerException.owner_staff_id` from `candidate.ownerId`
-- Degraded `{ source: 'capacity' }` when roster load fails
-
-### Types
-
-- `ceo-tower.types.ts`: `TowerCapacityRow`, typed `capacity_top`
+- `AmAccountsService.list` — filters `q`, `owner`, `team`, `band`, `lifecycle`, `industry`, `parent`, `ends_within`; page size default 50.
+- Scope via `resolveAmScope` + `amScopeSql`. Unassigned rows/chip only for `assign` / `view_all` / `manage`.
+- SQL uses `$N` placeholders only (no interpolated user values). Sort keys are allowlisted.
+- Degrades if `crm_contracts` or `staff_teams` is missing.
 
 ## Frontend
 
-### `CeoLifecycleTower.tsx`
-
-- Panel **Quá tải** (`data-testid="ceo-tower-capacity"`) — max 5 rows
-- Click name → sets L5 `staff_id=` in URL (toggle off if same)
-
-### `ceo-tower-api.ts`
-
-- Mirrored `TowerCapacityRow` + `owner_staff_id` on `TowerException`
+- `AmAccountsList` on `/crm/account-management/clients`
+- Chips: Tất cả · Của tôi · Cần chú ý · Gia hạn 90 ngày · Chưa gán owner · Parent group
+- URL is the filter source. Sticky header. Empty cells → `—`. Parent rows show `child_count`.
+- Density from AmShell. No bulk transfer (Task 14). No 360 (Task 15).
 
 ## Tests
 
-| Suite | Result |
-|-------|--------|
-| `ceo-tower-capacity.util.spec.ts` | PASS — 5 tests |
-| `ceo-tower-sensor.service.spec.ts` | PASS — 28 tests (incl. capacity_top integration) |
-
 ```bash
-cd services/ptt-crm-api && npx jest \
-  src/ceo-command/ceo-tower-capacity.util.spec.ts \
-  src/ceo-command/ceo-tower-sensor.service.spec.ts --no-coverage
-# 33 passed
+cd services/ptt-crm-api && ./node_modules/.bin/jest \
+  src/am/am-accounts.service.spec.ts \
+  src/am/am-accounts-list.spec.ts --no-coverage
+# 6 passed (create + list: churned hidden, view cannot see other owner, sort ends_on)
+
+cd services/ops-web && ./node_modules/.bin/vitest run \
+  src/lib/crm/am-accounts-views.util.spec.ts
+# 6 passed
 ```
 
 ## Concerns
 
-1. **Roster optional** — without `CrmStaffPgRepository` (tests) or on DB failure, names fall back to exception `owner_name`; degraded badge on `capacity` source.
-2. **No dedicated cap** — unlike finance strip, capacity always computes when overloaded owners exist; empty → property omitted (T1 test unchanged).
-3. **Owner-less S1** — exceptions with `owner_staff_id=null` are excluded from capacity counts (by design §21).
-4. **E2E** — no Playwright coverage for capacity panel click → `staff_id=` yet.
+1. `delegated_until` is always null — no column on `crm_am_account_ext`.
+2. Search `q` is name/code only (`clients` has no MST/phone/email).
+3. List UI not browser-verified (staff login required).
+4. Client 360 route remains a Wave 2 placeholder.
 
 ## Commit
 
-`feat(ceo-tower): capacity top 5 overloaded owners`
-
-## Files touched
-
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-capacity.util.ts` (new)
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-capacity.util.spec.ts` (new)
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-sensor.service.ts`
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-sensor.service.spec.ts`
-- `services/ptt-crm-api/src/ceo-command/ceo-tower.types.ts`
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-finance.util.ts`
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-org.util.ts`
-- `services/ptt-crm-api/src/ceo-command/ceo-tower-org.util.spec.ts`
-- `services/ops-web/src/components/crm/ceo/CeoLifecycleTower.tsx`
-- `services/ops-web/src/lib/crm/ceo-tower-api.ts`
+`feat(am): add scoped account list with saved-view chips`

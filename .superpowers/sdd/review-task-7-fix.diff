@@ -1,0 +1,297 @@
+# Review package: 6bf70726d190a720aeee62e912b154473af72a33..fd0d364d618cce811cd6f54892b8f4ee89fd76da
+
+## Commits
+fd0d364d fix(am): require renewal contract, keep attach owner, wrap plan seed
+
+## Files changed
+ .../ptt-crm-api/src/am/am-accounts.service.spec.ts | 10 +++++
+ services/ptt-crm-api/src/am/am-accounts.service.ts |  6 +--
+ .../ptt-crm-api/src/am/am-plans.service.spec.ts    | 43 ++++++++++++++++++++++
+ services/ptt-crm-api/src/am/am-plans.service.ts    | 27 +++++++++++---
+ 4 files changed, 77 insertions(+), 9 deletions(-)
+
+## Diff
+diff --git a/services/ptt-crm-api/src/am/am-accounts.service.spec.ts b/services/ptt-crm-api/src/am/am-accounts.service.spec.ts
+index 0ca16514..9f7b3cb0 100644
+--- a/services/ptt-crm-api/src/am/am-accounts.service.spec.ts
++++ b/services/ptt-crm-api/src/am/am-accounts.service.spec.ts
+@@ -36,11 +36,21 @@ describe('AmAccountsService', () => {
+   it('create does not INSERT into a second customer table', async () => {
+     await service.createAccount({ mode: 'create', code: 'AP01', name: 'An Phu' }, actor);
+     expect(agency.createClient).toHaveBeenCalled();
+     expect(db.inserts.some((s) => /insert into clients/i.test(s) && s.includes('am_'))).toBe(false);
+   });
+ 
+   it('attach does not call createClient', async () => {
+     await service.createAccount({ mode: 'attach', agency_client_id: 'uuid' }, actor);
+     expect(agency.createClient).not.toHaveBeenCalled();
+   });
++
++  it('attach does not overwrite an existing owner (first-writer-wins)', async () => {
++    await service.createAccount({ mode: 'attach', agency_client_id: 'uuid', owner_staff_id: 99 }, actor);
++    const upsert = db.query.mock.calls
++      .map((call) => String(call[0]))
++      .find((sql) => /crm_am_account_ext/i.test(sql));
++    expect(upsert).toMatch(
++      /COALESCE\s*\(\s*crm_am_account_ext\.account_owner_staff_id\s*,\s*EXCLUDED\.account_owner_staff_id\s*\)/i,
++    );
++  });
+ });
+diff --git a/services/ptt-crm-api/src/am/am-accounts.service.ts b/services/ptt-crm-api/src/am/am-accounts.service.ts
+index 15915b0b..55d8a1a6 100644
+--- a/services/ptt-crm-api/src/am/am-accounts.service.ts
++++ b/services/ptt-crm-api/src/am/am-accounts.service.ts
+@@ -12,60 +12,58 @@ export type AmCreateAccountBody =
+   | { mode: 'create'; code: string; name: string; industry_slug?: string; owner_am_id?: string }
+   | { mode: 'attach'; agency_client_id: string; owner_staff_id?: number };
+ 
+ export type AmAccountActor = {
+   staffId: number;
+   caps: StaffSectionCap[];
+   via?: 'internal' | 'jwt';
+ };
+ 
+ export type AmAccountsDb = {
+-  inserts: string[];
+   query(
+     sql: string,
+     params?: unknown[],
+   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+ };
+ 
+ const EXT_UPSERT = `
+ INSERT INTO crm_am_account_ext (
+   agency_client_id, tenant_id, account_owner_staff_id, am_status, updated_at
+ ) VALUES ($1::uuid, $2, $3, 'active', now())
+ ON CONFLICT (agency_client_id) DO UPDATE SET
+-  account_owner_staff_id = COALESCE(EXCLUDED.account_owner_staff_id, crm_am_account_ext.account_owner_staff_id),
++  -- first-writer-wins: keep existing owner; only set when current is null
++  account_owner_staff_id = COALESCE(crm_am_account_ext.account_owner_staff_id, EXCLUDED.account_owner_staff_id),
+   updated_at = now()
+ `;
+ 
+ @Injectable()
+ export class AmAccountsRepository implements OnModuleDestroy, AmAccountsDb {
+-  inserts: string[] = [];
+   private pool: Pool | null = null;
+ 
+   constructor(private readonly config: AppConfigService) {}
+ 
+   private get db(): Pool {
+     if (!this.pool) {
+       this.pool = new Pool({ connectionString: this.config.databaseUrl });
+     }
+     return this.pool;
+   }
+ 
+   onModuleDestroy(): void {
+     void this.pool?.end();
+     this.pool = null;
+   }
+ 
+   async query(
+     sql: string,
+     params?: unknown[],
+   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }> {
+-    if (/insert/i.test(sql)) this.inserts.push(sql);
+     return this.db.query(sql, params);
+   }
+ }
+ 
+ @Injectable()
+ export class AmAccountsService {
+   constructor(
+     @Inject(forwardRef(() => AgencyService)) private readonly agency: AgencyService,
+     private readonly db: AmAccountsRepository,
+     private readonly staffAuth: StaffAuthService,
+diff --git a/services/ptt-crm-api/src/am/am-plans.service.spec.ts b/services/ptt-crm-api/src/am/am-plans.service.spec.ts
+index 7de2ea43..b4e82f20 100644
+--- a/services/ptt-crm-api/src/am/am-plans.service.spec.ts
++++ b/services/ptt-crm-api/src/am/am-plans.service.spec.ts
+@@ -1,22 +1,65 @@
+ import { AmPlansService } from './am-plans.service';
+ 
+ describe('AmPlansService', () => {
+   const repo = {
+     insert: jest.fn(),
++    deleteById: jest.fn(),
+   };
+   const tasks = {
+     create: jest.fn(),
+   };
+ 
+   let plans: AmPlansService;
+ 
+   beforeEach(() => {
+     jest.clearAllMocks();
+     plans = new AmPlansService(repo as never, tasks as never);
+   });
+ 
+   it('renewal plan without contract_id is 400', async () => {
+     await expect(plans.create({ agency_client_id: 'c', kind: 'renewal', period_key: '2026-Q3' }, 1))
+       .rejects.toMatchObject({ error: 'contract_required' });
+   });
++
++  it.each([0, '', '0'])('renewal plan with contract_id %j is 400 contract_required', async (contractId) => {
++    await expect(
++      plans.create(
++        {
++          agency_client_id: 'c',
++          kind: 'renewal',
++          period_key: '2026-Q3',
++          contract_id: contractId as never,
++        },
++        1,
++      ),
++    ).rejects.toMatchObject({ error: 'contract_required' });
++  });
++
++  it('deletes the plan when seed tasks fail so retry is not 409-stuck', async () => {
++    const plan = {
++      id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
++      agency_client_id: '19d722af-0000-4000-8000-000000000001',
++      contract_id: null,
++      kind: 'care' as const,
++      period_key: '2026-Q3',
++      status: 'open',
++      owner_staff_id: 1,
++      due_on: null,
++    };
++    repo.insert.mockResolvedValue(plan);
++    tasks.create.mockRejectedValue(new Error('seed fail'));
++
++    await expect(
++      plans.create(
++        {
++          agency_client_id: '19d722af-0000-4000-8000-000000000001',
++          kind: 'care',
++          period_key: '2026-Q3',
++        },
++        1,
++      ),
++    ).rejects.toThrow('seed fail');
++
++    expect(repo.deleteById).toHaveBeenCalledWith(plan.id);
++  });
+ });
+diff --git a/services/ptt-crm-api/src/am/am-plans.service.ts b/services/ptt-crm-api/src/am/am-plans.service.ts
+index 830b1046..f7b0eb4a 100644
+--- a/services/ptt-crm-api/src/am/am-plans.service.ts
++++ b/services/ptt-crm-api/src/am/am-plans.service.ts
+@@ -21,20 +21,21 @@ export type AmPlanRow = {
+   contract_id: number | null;
+   kind: AmPlanKind;
+   period_key: string;
+   status: string;
+   owner_staff_id: number;
+   due_on: string | null;
+ };
+ 
+ export type AmPlansStore = {
+   insert(input: AmCreatePlanInput & { owner_staff_id: number }): Promise<AmPlanRow>;
++  deleteById(id: string): Promise<void>;
+ };
+ 
+ const PLAN_KINDS: AmPlanKind[] = ['care', 'qbr', 'renewal', 'expand'];
+ 
+ export const PLAN_SEED_TITLES: Record<AmPlanKind, string[]> = {
+   qbr: ['Chuẩn bị số liệu QBR', 'Đặt lịch QBR', 'Gửi biên bản'],
+   renewal: ['Rà soát phạm vi', 'Liên hệ stakeholder', 'Soạn đề xuất gia hạn'],
+   care: ['Gọi health-check', 'Lập recovery nếu Critical'],
+   expand: ['Xác nhận nhu cầu', 'Tạo bước next'],
+ };
+@@ -96,73 +97,89 @@ export class AmPlansRepository implements OnModuleDestroy, AmPlansStore {
+         input.agency_client_id,
+         input.contract_id ?? null,
+         input.kind,
+         input.period_key,
+         input.owner_staff_id,
+         input.due_on ?? null,
+       ],
+     );
+     return mapPlan(result.rows[0]);
+   }
++
++  async deleteById(id: string): Promise<void> {
++    await this.db.query(`DELETE FROM crm_am_plans WHERE tenant_id = $1 AND id = $2::uuid`, [
++      AM_TENANT_ID,
++      id,
++    ]);
++  }
+ }
+ 
+ @Injectable()
+ export class AmPlansService {
+   constructor(
+     private readonly repo: AmPlansRepository,
+     private readonly tasks: AmTasksService,
+     @Optional() private readonly dashboard?: AmDashboardService,
+   ) {}
+ 
+   async create(input: AmCreatePlanInput, staffId: number): Promise<AmPlanRow> {
+     const kind = input.kind;
+-    if (kind === 'renewal' && (input.contract_id == null || Number.isNaN(Number(input.contract_id)))) {
++    if (kind === 'renewal' && !(Number(input.contract_id) > 0)) {
+       amThrow(400, { error: 'contract_required' });
+     }
+ 
+     const agencyClientId = String(input.agency_client_id ?? '').trim();
+     const periodKey = String(input.period_key ?? '').trim();
+     if (!agencyClientId || !periodKey) {
+       amThrow(400, { error: 'agency_client_id_and_period_key_required' });
+     }
+     if (!PLAN_KINDS.includes(kind)) {
+       amThrow(400, { error: 'invalid_kind' });
+     }
+     if (!isUuid(agencyClientId)) {
+       amThrow(400, { error: 'invalid_agency_client_id' });
+     }
+ 
+     const contractId =
+       input.contract_id == null || input.contract_id === ('' as unknown as number)
+         ? undefined
+         : Number(input.contract_id);
+ 
++    let plan: AmPlanRow;
+     try {
+-      const plan = await this.repo.insert({
++      plan = await this.repo.insert({
+         agency_client_id: agencyClientId,
+         kind,
+         period_key: periodKey,
+         contract_id: contractId,
+         due_on: input.due_on,
+         owner_staff_id: staffId,
+       });
++    } catch (err) {
++      if (isUniqueViolation(err)) amThrow(409, { error: 'duplicate_plan' });
++      throw err;
++    }
++
++    try {
+       for (const title of PLAN_SEED_TITLES[kind]) {
+         await this.tasks.create(
+           {
+             agency_client_id: agencyClientId,
+             title,
+             kind: 'task',
+             source: 'plan',
+             source_ref: `${plan.id}:${title}`,
+             due_at: input.due_on ? `${input.due_on}T00:00:00.000Z` : undefined,
+           },
+           staffId,
+         );
+       }
+-      this.dashboard?.dropCache();
+-      return plan;
+     } catch (err) {
+-      if (isUniqueViolation(err)) amThrow(409, { error: 'duplicate_plan' });
++      // Seed uses AmTasksService (separate pool). Compensate so retry is not 409-stuck.
++      await this.repo.deleteById(plan.id);
+       throw err;
+     }
++
++    this.dashboard?.dropCache();
++    return plan;
+   }
+ }

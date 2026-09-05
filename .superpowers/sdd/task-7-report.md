@@ -1,42 +1,92 @@
-# Task 7 Report: DDL versions + learn_jobs (P2)
+# Task 7 Report: Tạo khách + Tạo plan
 
-**Status:** DONE_WITH_CONCERNS  
-**Branch:** `feat/intake-win-score-phase2` (current)  
-**Commit:** _(pending)_ — feat(mkt-ai): DDL playbook versions and learn jobs  
-**Pushed:** no
+**Status:** DONE  
+**Branch:** `feat/am-os`  
+**Commit:** `6bf70726` — feat(am): wrap agency client create and seed AM plans  
+**Date:** 2026-09-05
 
-## What shipped
+## Deliverables
 
-PostgreSQL schema for playbook versioning and learn-job tracking, wired into the existing MKT-AI DDL apply script after service policy DDL.
+| File | Action |
+|------|--------|
+| `services/ptt-crm-api/src/am/am-accounts.service.ts` | Created — wrap `AgencyService.createClient` + UPSERT `crm_am_account_ext`; attach upserts ext only |
+| `services/ptt-crm-api/src/am/am-accounts.service.spec.ts` | Created — create does not INSERT second customer table; attach skips `createClient` |
+| `services/ptt-crm-api/src/am/am-plans.service.ts` | Created — renewal requires `contract_id`; unique → 409; seed tasks by kind |
+| `services/ptt-crm-api/src/am/am-plans.service.spec.ts` | Created — renewal without contract → `{ error: 'contract_required' }` |
+| `services/ptt-crm-api/src/am/am-http.ts` | Created — `amThrow` so tests match `{ error }` and Nest still serializes body |
+| `services/ptt-crm-api/src/am/am.controller.ts` | Modified — `POST /api/crm/am/accounts`, `POST /api/crm/am/plans` + `RequireAmAction('edit')` |
+| `services/ptt-crm-api/src/am/am.module.ts` | Modified — `forwardRef(() => AgencyModule)` + register account/plan providers |
+| `services/ptt-crm-api/src/am/am-tasks.service.ts` | Modified — export `isUuid` for plan validation |
+| `services/ops-web/src/lib/crm/am-api.ts` | Modified — `createAmAccount` / `createAmPlan` |
+| `services/ops-web/src/components/crm/am/AmCreateMenu.tsx` | Modified — Khách (Tạo mới / Gắn đã có) + Renewal/Plan drawers |
+| `services/ops-web/src/components/crm/am/AmShell.tsx` | Modified — `openCreate` / `closeCreate` context |
+| `services/ops-web/src/components/crm/am/AmDashboard.tsx` | Modified — empty-book **Tạo khách** opens client drawer |
+| `services/ops-web/src/app/crm/account-management/am.css` | Modified — tabs + attach list |
 
-| File | Role |
-|------|------|
-| `docs/specs/2026-09-01-postgresql-ddl-mkt-ai-playbook-versions.sql` | `mkt_ai_playbook_versions` (status/depth/source CHECKs, one-active partial unique index), `mkt_ai_playbook_learn_jobs`, deferred FK from `mkt_ai_service_policy.active_version_id` → versions |
-| `scripts/apply_pg_ddl_mkt_ai_planner.sh` | Applies versions DDL after policy DDL (`DDL_VERSIONS`) |
+**Not done (out of scope):** palette (Task 8). `.superpowers/` not committed.
 
-## Step checklist
+## TDD evidence
 
-- [x] Create DDL file verbatim from plan Task 7
-- [x] Hook `apply_pg_ddl_mkt_ai_planner.sh` after policy DDL
-- [ ] **Apply local** — blocked: Postgres at `127.0.0.1:5433` not running (`connection refused`)
-- [x] **Commit** `feat(mkt-ai): DDL playbook versions and learn jobs`
+### RED — specs before services
 
-## DDL summary
+```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-accounts.service.spec.ts src/am/am-plans.service.spec.ts --no-coverage
 
-```sql
--- mkt_ai_playbook_versions: version_no per service_slug, status lifecycle, depth, document_json, source, learn_job_id, corpus_json, review fields
--- idx_mkt_ai_playbook_one_active: UNIQUE (service_slug) WHERE status = 'active'
--- mkt_ai_playbook_learn_jobs: queued/running/succeeded/failed, output_version_id FK
--- mkt_ai_service_policy_active_fk: DEFERRABLE FK active_version_id → mkt_ai_playbook_versions(id)
+FAIL src/am/am-accounts.service.spec.ts
+  ● Test suite failed to run
+    error TS2307: Cannot find module './am-accounts.service'
+
+FAIL src/am/am-plans.service.spec.ts
+  ● Test suite failed to run
+    error TS2307: Cannot find module './am-plans.service'
 ```
 
-## Apply command (when DB up)
+### GREEN
 
-```bash
-bash scripts/apply_pg_ddl_mkt_ai_planner.sh
 ```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-accounts.service.spec.ts src/am/am-plans.service.spec.ts --no-coverage
+
+PASS src/am/am-accounts.service.spec.ts
+PASS src/am/am-plans.service.spec.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       3 passed, 3 total
+```
+
+Brief assertions: `agency.createClient` called on create; no `INSERT INTO clients` with `am_` via AM db; attach does not call `createClient`; renewal without `contract_id` → `{ error: 'contract_required' }`.
+
+## Behavior
+
+- `POST /api/crm/am/accounts` `mode=create` — requires `crm_agency` create **or** write (or internal key). Else 403 `{ error: 'agency_write_required', fallback: '/agency/clients/new' }`. Then `AgencyService.createClient` + UPSERT ext. Never INSERT a second customer table.
+- `mode=attach` — 404 `{ error: 'client_not_found' }` if `clients.id` missing; UPSERT ext only.
+- `POST /api/crm/am/plans` — renewal without `contract_id` → 400 `{ error: 'contract_required' }`. Unique `(tenant, client, kind, period_key)` → 409 `{ error: 'duplicate_plan' }`.
+- Seed titles: qbr 3 / renewal 3 / care 2 / expand 2 as listed in the brief.
+- UI: + Tạo mới menu — Khách / Việc / Renewal-plan. Cơ hội + Log still disabled Wave 3/4. Client form matches `/agency/clients/new` (code, name, industry_slug, owner). Tab **Gắn đã có** searches `GET /api/v1/clients?q=`.
 
 ## Concerns
 
-1. **Local apply not verified** — dev Postgres not listening on port 5433 in this session. Re-run apply script when DB is up before Task 8 seed import.
-2. **FK ordering** — versions DDL must run after policy DDL (policy table created first; FK added in versions file). Script order is correct.
+- Attach search uses Agency list API (`crm_agency` view). Users with AM edit but no Agency view see empty hits; they can still fail closed rather than invent a second catalog.
+- Create-client / create-plan not exercised in a logged-in browser this task (staff auth required).
+- UI agency-write check is create **or** write; Agency page badge still create-only (`canAgencyWrite`).
+
+## Review fixes (Important)
+
+**Date:** 2026-09-05  
+**Commit:** `fd0d364d` — fix(am): require renewal contract, keep attach owner, wrap plan seed
+
+1. **Renewal `contract_id`** — reject unless `Number(contract_id) > 0`. Empty string, `0`, and `"0"` → 400 `{ error: 'contract_required' }`. Spec: `renewal plan with contract_id %j is 400 contract_required`.
+2. **Attach owner first-writer-wins** — `COALESCE(crm_am_account_ext.account_owner_staff_id, EXCLUDED.account_owner_staff_id)` plus comment. Spec: `attach does not overwrite an existing owner`.
+3. **Plan seed compensate** — insert plan, then seed via `AmTasksService` (separate pool). On seed throw, `DELETE` the plan (`deleteById`) so retry is not 409-stuck. Spec: `deletes the plan when seed tasks fail so retry is not 409-stuck`.
+4. **Minor** — production `inserts: string[]` spy removed from `AmAccountsRepository`; spy stays in the spec only.
+
+### GREEN (re-run)
+
+```
+$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-accounts.service.spec.ts src/am/am-plans.service.spec.ts --no-coverage
+
+PASS src/am/am-accounts.service.spec.ts
+PASS src/am/am-plans.service.spec.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       8 passed, 8 total
+```

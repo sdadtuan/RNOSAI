@@ -1,73 +1,45 @@
-# Task 12 Report: Hai lệnh C mới (T6) — CEO Lifecycle Tower
+# Task 12 Report: Wave 2 DDL
 
 **Status:** DONE  
-**Branch:** `feat/ceo-lifecycle-tower-t6-t8`  
-**Base:** `04c04703` on main  
-**Spec:** §20 — `remind_contract_approval`, `prioritize_solution_queue`
+**Branch:** `feat/am-os`  
+**Commit:** `d1ccedfd` — feat(am): add Wave 2 tables for 360, onboard, and renewal  
+**Date:** 2026-09-05
 
-## Summary
+## Deliverables
 
-Added two §20 CEO Command actions: remind GDKD to approve pending contracts (notification only, no status change) and prioritize Solution queue cases (notify MKT-01 + `meta_json.priority_consult='ceo'`). Enabled S3/S4 tower chips on the frontend.
+| File | Purpose |
+|------|---------|
+| `docs/specs/2026-09-05-postgresql-ddl-am-w2.sql` | Wave 2 DDL (verbatim from brief) |
+| `scripts/apply_pg_ddl_am_w2.sh` | Apply script (Wave 1 style; no RBAC seed) |
 
-## Backend
+## Tables & index
 
-### `ceo-command-action.catalog.ts`
+1. `crm_am_contacts` — 360 contact records  
+2. `crm_am_handovers` — handover workflow (`status` CHECK)  
+3. `crm_am_onboarding_templates` — template catalog (`UNIQUE tenant_id, name, version`)  
+4. `crm_am_onboarding_cases` — per-client onboarding  
+5. `crm_am_renewal_cases` — renewal pipeline (`status` CHECK)  
+6. `crm_am_renewal_open_uq` — partial unique index on open renewals
 
-- Added `remind_contract_approval`, `prioritize_solution_queue` to `CEO_ACTION_IDS`
-- `FORBIDDEN_PATTERNS`: `/duyet hop dong|approve contract/i` → `/crm/hub`
-- `validateActionParams`, `requiredCapsForAction` → `ceo_command.act`, `previewVi` per plan
-- Fixed `stripDiacritics` to normalize `đ/Đ` → `d/D` for Vietnamese contract phrases
-
-### `ceo-command-actions.service.ts`
-
-- **`remind_contract_approval`**: resolves GDKD via `submitted_to_staff_id` on approval (if present) or position `GDKD-01`; sends `staff_notifications` with `link_href=/crm/hub?lead_id=`; **no** contract status mutation
-- **`prioritize_solution_queue`**: `mergeLeadMeta({ priority_consult: 'ceo' })`; notifies `MKT-01`; no owner change
-- Helpers: `resolveStaffIdByPositionCode`, `resolveContractApprovalStaffId`
-
-### Module wiring
-
-- `ceo-command.module.ts`: imports `LeadsContractModule`
-- `leads.module.ts`: exports `PgLeadsWriteRepository`
-
-## Frontend
-
-### `ceo-tower-suggest.util.ts`
-
-- Removed `UPCOMING_ACTIONS` gate for S3/S4
-- Maps `remind_contract_approval` → `{ lead_id, contract_id? }`
-- Maps `prioritize_solution_queue` → `{ lead_id, note? }` (note from `title_vi` when absent)
-
-## Tests
-
-| Suite | Result |
-|-------|--------|
-| `ceo-command-action.catalog.spec.ts` | PASS — 9 tests |
-| `ceo-command-actions.service.spec.ts` | PASS — 2 tests |
-| `ceo-tower-suggest.util.spec.ts` | PASS — 13 tests |
+## Verification
 
 ```bash
-cd services/ptt-crm-api && npx jest \
-  src/ceo-command/ceo-command-action.catalog.spec.ts \
-  src/ceo-command/ceo-command-actions.service.spec.ts --no-coverage
-# 11 passed
-
-cd services/ops-web && npx vitest run src/lib/crm/ceo-tower-suggest.util.spec.ts
-# 13 passed
+./scripts/apply_pg_ddl_am_w2.sh
+# SKIP live apply — DATABASE_URL unset
+# OK  AM W2 DDL static verify (5 tables + crm_am_renewal_open_uq)
 ```
 
-## Concerns
+- Live `psql` apply skipped (no `DATABASE_URL` in env).  
+- Static grep confirms all 5 `CREATE TABLE IF NOT EXISTS` statements and `crm_am_renewal_open_uq` index.  
+- No RBAC seeding (per brief).
 
-1. **`submitted_to_staff_id`** — not in current `crm_contract_approvals` schema; code reads it opportunistically from approval row, falls back to `GDKD-01` position lookup.
-2. **Position resolution** — requires `crm_staff` + `crm_positions` rows for `GDKD-01` / `MKT-01`; fails with `gdkd_staff_not_found` / `mkt_staff_not_found` if roster empty.
-3. **E2E** — `ceo-lifecycle-tower.spec.ts` still expects S3/S4 chips disabled (`upcoming` tooltip); update in a follow-up when e2e is in scope.
+## Brief checklist
 
-## Files touched
+- [x] Create SQL spec (verbatim)  
+- [x] Create apply script (Wave 1 style, static fallback)  
+- [x] Static verify  
+- [ ] Live apply — pending `DATABASE_URL` / PO VPS step
 
-- `services/ptt-crm-api/src/ceo-command/ceo-command-action.catalog.ts`
-- `services/ptt-crm-api/src/ceo-command/ceo-command-action.catalog.spec.ts`
-- `services/ptt-crm-api/src/ceo-command/ceo-command-actions.service.ts`
-- `services/ptt-crm-api/src/ceo-command/ceo-command-actions.service.spec.ts` (new)
-- `services/ptt-crm-api/src/ceo-command/ceo-command.module.ts`
-- `services/ptt-crm-api/src/leads/leads.module.ts`
-- `services/ops-web/src/lib/crm/ceo-tower-suggest.util.ts`
-- `services/ops-web/src/lib/crm/ceo-tower-suggest.util.spec.ts`
+## Next
+
+Apply on target DB when `DATABASE_URL` is set: `./scripts/apply_pg_ddl_am_w2.sh`. Wave 2 services can depend on these tables.

@@ -1,0 +1,112 @@
+# Review package: fca2ec56b14ef65b2776a5135e84094f87e7a56f..732460e78030824973abd804490c8e61c23f8aba
+
+## Commits
+732460e7 fix(am): set dashboard loading during command-center retry
+
+## Files changed
+ .superpowers/sdd/task-5-report.md                  | 25 +++++++++++++++++++++-
+ services/ops-web/src/components/crm/am/AmShell.tsx |  3 +++
+ .../ops-web/src/lib/crm/am-dashboard.util.spec.ts  |  5 +++++
+ 3 files changed, 32 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/.superpowers/sdd/task-5-report.md b/.superpowers/sdd/task-5-report.md
+index 44db40f8..23fc74c6 100644
+--- a/.superpowers/sdd/task-5-report.md
++++ b/.superpowers/sdd/task-5-report.md
+@@ -99,11 +99,34 @@ Brief assertions: `dash(null)==='—'`, `bandCopy('watch')==='Cần theo dõi'`.
+ $ cd services/ops-web && npx vitest run src/lib/crm/am-format.spec.ts src/lib/crm/am-nav.util.spec.ts src/lib/crm/am-dashboard.util.spec.ts
+ 
+ PASS  src/lib/crm/am-format.spec.ts (5)
+ PASS  src/lib/crm/am-dashboard.util.spec.ts (3)
+ PASS  src/lib/crm/am-nav.util.spec.ts (5)
+ 
+ Test Files  3 passed (3)
+      Tests  13 passed (13)
+ ```
+ 
+-**Commit:** `fix(am): hide dashboard empty copy while command-center loads`
++**Commit:** `fca2ec56` — fix(am): hide dashboard empty copy while command-center loads
++
++## Review fix: loading during retry
++
++**Issue:** `retry`/`loadCenter` cleared error but left `loading=false`, so widgets showed empty-success copy during in-flight retry after a failed fetch.
++
++**Fix:**
++- `loadCenter` sets `loading=true` at start and `loading=false` in `finally` (covers retry and scope refetch).
++- Added util spec documenting retry-after-error must hide empty copy while loading.
++
++**Tests:**
++
++```
++$ cd services/ops-web && npx vitest run src/lib/crm/am-format.spec.ts src/lib/crm/am-nav.util.spec.ts src/lib/crm/am-dashboard.util.spec.ts
++
++PASS  src/lib/crm/am-dashboard.util.spec.ts (4)
++PASS  src/lib/crm/am-format.spec.ts (5)
++PASS  src/lib/crm/am-nav.util.spec.ts (5)
++
++Test Files  3 passed (3)
++     Tests  14 passed (14)
++```
++
++**Commit:** `30fe2b72` — fix(am): set dashboard loading during command-center retry
+diff --git a/services/ops-web/src/components/crm/am/AmShell.tsx b/services/ops-web/src/components/crm/am/AmShell.tsx
+index ba8a5374..733f3fc8 100644
+--- a/services/ops-web/src/components/crm/am/AmShell.tsx
++++ b/services/ops-web/src/components/crm/am/AmShell.tsx
+@@ -136,27 +136,30 @@ function AmShellInner({ children }: { children: ReactNode }) {
+       }
+       const out = await staffRefresh(refresh);
+       updateAccessToken(out.access_token);
+       access = out.access_token;
+       const me = await staffMe(access);
+       return finish(me, access);
+     }
+   }, [router]);
+ 
+   const loadCenter = useCallback(async (access: string, nextScope: AmScope) => {
++    setLoading(true);
+     setError('');
+     try {
+       const out = await fetchAmCommandCenter(access, { scope: nextScope });
+       setData(out);
+     } catch (err) {
+       setData(null);
+       setError(err instanceof Error ? err.message : 'Không tải được dashboard');
++    } finally {
++      setLoading(false);
+     }
+   }, []);
+ 
+   const retry = useCallback(() => {
+     if (!token) return;
+     void loadCenter(token, scope);
+   }, [loadCenter, scope, token]);
+ 
+   useEffect(() => {
+     if (typeof window === 'undefined') return;
+diff --git a/services/ops-web/src/lib/crm/am-dashboard.util.spec.ts b/services/ops-web/src/lib/crm/am-dashboard.util.spec.ts
+index 68a0d52d..73401f69 100644
+--- a/services/ops-web/src/lib/crm/am-dashboard.util.spec.ts
++++ b/services/ops-web/src/lib/crm/am-dashboard.util.spec.ts
+@@ -8,15 +8,20 @@ describe('isAmDashboardLoading', () => {
+     expect(isAmDashboardLoading(false, null)).toBe(false);
+   });
+ });
+ 
+ describe('shouldShowEmptyWidget', () => {
+   it('hides empty copy while loading or on error', () => {
+     expect(shouldShowEmptyWidget(true, '', [])).toBe(false);
+     expect(shouldShowEmptyWidget(false, 'fail', [])).toBe(false);
+   });
+ 
++  it('retry after error: cleared error + loading hides empty copy', () => {
++    // loadCenter clears error and sets loading before refetch
++    expect(shouldShowEmptyWidget(true, '', [])).toBe(false);
++  });
++
+   it('shows empty copy after a successful empty load', () => {
+     expect(shouldShowEmptyWidget(false, '', [])).toBe(true);
+     expect(shouldShowEmptyWidget(false, '', [{}])).toBe(false);
+   });
+ });

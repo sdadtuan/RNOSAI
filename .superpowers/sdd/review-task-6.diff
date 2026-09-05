@@ -1,0 +1,846 @@
+# Review package: 732460e78030824973abd804490c8e61c23f8aba..64a8bf44ec0d9be70b5912c371686ef051efc577
+
+## Commits
+64a8bf44 feat(am): claim today work items and create AM tasks
+
+## Files changed
+ .../ops-web/src/app/crm/account-management/am.css  |  34 +++
+ .../ops-web/src/components/crm/am/AmCreateMenu.tsx | 116 ++++++++-
+ .../ops-web/src/components/crm/am/AmDashboard.tsx  |  27 ++-
+ services/ops-web/src/lib/crm/am-api.ts             |  46 ++++
+ .../ptt-crm-api/src/am/am-tasks.service.spec.ts    |  58 +++++
+ services/ptt-crm-api/src/am/am-tasks.service.ts    | 266 +++++++++++++++++++++
+ services/ptt-crm-api/src/am/am.controller.ts       |  36 ++-
+ services/ptt-crm-api/src/am/am.module.ts           |   5 +-
+ 8 files changed, 578 insertions(+), 10 deletions(-)
+
+## Diff
+diff --git a/services/ops-web/src/app/crm/account-management/am.css b/services/ops-web/src/app/crm/account-management/am.css
+index 538f44a5..7c909779 100644
+--- a/services/ops-web/src/app/crm/account-management/am.css
++++ b/services/ops-web/src/app/crm/account-management/am.css
+@@ -237,20 +237,54 @@
+   padding: 18px;
+ }
+ 
+ .am-drawer__head {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   margin-bottom: 12px;
+ }
+ 
++.am-form {
++  display: flex;
++  flex-direction: column;
++  gap: 12px;
++}
++
++.am-field {
++  display: flex;
++  flex-direction: column;
++  gap: 4px;
++  font-size: 13px;
++}
++
++.am-field span {
++  color: #6b7280;
++  font-weight: 600;
++}
++
++.am-field input,
++.am-field select {
++  height: 36px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  padding: 0 10px;
++  background: #fff;
++}
++
++.am-form__actions {
++  display: flex;
++  justify-content: flex-end;
++  gap: 8px;
++  margin-top: 8px;
++}
++
+ .am-dash__head h1,
+ .am-placeholder__title {
+   margin: 0;
+   font-size: 22px;
+   letter-spacing: -0.03em;
+   color: var(--am-navy);
+ }
+ 
+ .am-crumb {
+   margin: 0 0 6px;
+diff --git a/services/ops-web/src/components/crm/am/AmCreateMenu.tsx b/services/ops-web/src/components/crm/am/AmCreateMenu.tsx
+index d720e8d8..e503607d 100644
+--- a/services/ops-web/src/components/crm/am/AmCreateMenu.tsx
++++ b/services/ops-web/src/components/crm/am/AmCreateMenu.tsx
+@@ -1,42 +1,96 @@
+ 'use client';
+ 
+-import { useEffect, useRef, useState } from 'react';
++import { FormEvent, useEffect, useRef, useState } from 'react';
++import { createAmTask, type AmTaskKind, type AmTaskPriority } from '@/lib/crm/am-api';
++import { useToast } from '@/lib/toast';
++import { useAmPage } from './AmShell';
+ 
+ type CreateKind = 'client' | 'task' | 'plan';
+ 
+ type AmCreateMenuProps = {
+   canEdit: boolean;
+ };
+ 
++const KIND_OPTS: Array<{ value: AmTaskKind; label: string }> = [
++  { value: 'task', label: 'Task' },
++  { value: 'client_request', label: 'Yêu cầu khách' },
++  { value: 'issue', label: 'Issue' },
++  { value: 'escalation', label: 'Escalate' },
++  { value: 'approval', label: 'Approval' },
++  { value: 'milestone', label: 'Milestone' },
++];
++
++const PRIORITY_OPTS: Array<{ value: AmTaskPriority; label: string }> = [
++  { value: 'low', label: 'Low' },
++  { value: 'medium', label: 'Medium' },
++  { value: 'high', label: 'High' },
++];
++
+ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
++  const { token, retry, data } = useAmPage();
++  const { push } = useToast();
+   const [open, setOpen] = useState(false);
+   const [stub, setStub] = useState<CreateKind | null>(null);
++  const [saving, setSaving] = useState(false);
+   const wrapRef = useRef<HTMLDivElement>(null);
++  const book = data?.my_book ?? [];
+ 
+   useEffect(() => {
+     function onDoc(ev: MouseEvent) {
+       if (!wrapRef.current?.contains(ev.target as Node)) setOpen(false);
+     }
+     document.addEventListener('mousedown', onDoc);
+     return () => document.removeEventListener('mousedown', onDoc);
+   }, []);
+ 
+   function openStub(kind: CreateKind) {
+     if (!canEdit) return;
+     setOpen(false);
+     setStub(kind);
+   }
+ 
+   const stubTitle =
+     stub === 'client' ? 'Tạo khách' : stub === 'task' ? 'Tạo việc' : stub === 'plan' ? 'Tạo Renewal/Plan' : '';
+ 
++  async function onCreateTask(ev: FormEvent<HTMLFormElement>) {
++    ev.preventDefault();
++    if (saving) return;
++    const form = new FormData(ev.currentTarget);
++    const agency_client_id = String(form.get('agency_client_id') ?? '').trim();
++    const title = String(form.get('title') ?? '').trim();
++    const kind = String(form.get('kind') ?? 'task') as AmTaskKind;
++    const priority = String(form.get('priority') ?? 'medium') as AmTaskPriority;
++    const dueRaw = String(form.get('due_at') ?? '').trim();
++    if (!agency_client_id || !title) {
++      push('Cần account và tiêu đề', 'error');
++      return;
++    }
++    setSaving(true);
++    try {
++      await createAmTask(token, {
++        agency_client_id,
++        title,
++        kind,
++        priority,
++        due_at: dueRaw ? new Date(dueRaw).toISOString() : undefined,
++      });
++      push('Đã tạo việc', 'success');
++      setStub(null);
++      retry();
++    } catch (err) {
++      push(err instanceof Error ? err.message : 'Không tạo được việc', 'error');
++    } finally {
++      setSaving(false);
++    }
++  }
++
+   return (
+     <div className="am-create" ref={wrapRef}>
+       <button
+         type="button"
+         className="am-btn am-btn--primary"
+         aria-expanded={open}
+         aria-haspopup="menu"
+         disabled={!canEdit}
+         title={canEdit ? 'Tạo mới' : 'Cần quyền crm_am.edit'}
+         onClick={() => canEdit && setOpen((v) => !v)}
+@@ -64,17 +118,75 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
+       ) : null}
+       {stub ? (
+         <div className="am-drawer-bg" role="presentation">
+           <div className="am-drawer" role="dialog" aria-label={stubTitle}>
+             <div className="am-drawer__head">
+               <strong>{stubTitle}</strong>
+               <button type="button" className="am-btn" onClick={() => setStub(null)}>
+                 Đóng
+               </button>
+             </div>
+-            <p className="am-muted">Drawer tạo mới mở ở Task 6–7.</p>
++            {stub === 'task' ? (
++              <form className="am-form" onSubmit={(ev) => void onCreateTask(ev)}>
++                <label className="am-field">
++                  <span>Loại</span>
++                  <select name="kind" defaultValue="task">
++                    {KIND_OPTS.map((opt) => (
++                      <option key={opt.value} value={opt.value}>
++                        {opt.label}
++                      </option>
++                    ))}
++                  </select>
++                </label>
++                <label className="am-field">
++                  <span>Account *</span>
++                  {book.length > 0 ? (
++                    <select name="agency_client_id" required defaultValue="">
++                      <option value="" disabled>
++                        Chọn khách
++                      </option>
++                      {book.map((row) => (
++                        <option key={row.agency_client_id} value={row.agency_client_id}>
++                          {row.name}
++                        </option>
++                      ))}
++                    </select>
++                  ) : (
++                    <input name="agency_client_id" required placeholder="agency_client_id" />
++                  )}
++                </label>
++                <label className="am-field">
++                  <span>Tiêu đề *</span>
++                  <input name="title" required maxLength={200} placeholder="Việc cần làm" />
++                </label>
++                <label className="am-field">
++                  <span>Priority</span>
++                  <select name="priority" defaultValue="medium">
++                    {PRIORITY_OPTS.map((opt) => (
++                      <option key={opt.value} value={opt.value}>
++                        {opt.label}
++                      </option>
++                    ))}
++                  </select>
++                </label>
++                <label className="am-field">
++                  <span>Hạn xử lý</span>
++                  <input name="due_at" type="datetime-local" />
++                </label>
++                <div className="am-form__actions">
++                  <button type="button" className="am-btn" onClick={() => setStub(null)}>
++                    Hủy
++                  </button>
++                  <button type="submit" className="am-btn am-btn--primary" disabled={saving}>
++                    {saving ? 'Đang tạo…' : 'Tạo việc'}
++                  </button>
++                </div>
++              </form>
++            ) : (
++              <p className="am-muted">Drawer tạo mới mở ở Task 7.</p>
++            )}
+           </div>
+         </div>
+       ) : null}
+     </div>
+   );
+ }
+diff --git a/services/ops-web/src/components/crm/am/AmDashboard.tsx b/services/ops-web/src/components/crm/am/AmDashboard.tsx
+index a2ce3c74..72cb365e 100644
+--- a/services/ops-web/src/components/crm/am/AmDashboard.tsx
++++ b/services/ops-web/src/components/crm/am/AmDashboard.tsx
+@@ -1,17 +1,19 @@
+ 'use client';
+ 
+ import Link from 'next/link';
+ import { useState, type ReactNode } from 'react';
+ import { isAmDashboardLoading, shouldShowEmptyWidget } from '@/lib/crm/am-dashboard.util';
++import { acceptAmTask } from '@/lib/crm/am-api';
+ import { bandCopy, dash, vnd } from '@/lib/crm/am-format';
+ import type { AmHealthBand } from '@/lib/crm/am-format';
++import { useToast } from '@/lib/toast';
+ import { useAmPage } from './AmShell';
+ 
+ const KPI_TILES = [
+   {
+     key: 'active',
+     label: 'Khách hàng active',
+     href: '/crm/account-management/clients',
+   },
+   {
+     key: 'mrr',
+@@ -127,24 +129,40 @@ function stackParts(values: Array<number | null | undefined>): number[] {
+   const total = nums.reduce((a, b) => a + b, 0);
+   if (total <= 0) return nums.map(() => 0);
+   return nums.map((n) => (n / total) * 100);
+ }
+ 
+ function WidgetLoading() {
+   return <p className="am-muted">Đang tải…</p>;
+ }
+ 
+ export function AmDashboard() {
+-  const { data, error, loading, retry, canEdit, scope } = useAmPage();
++  const { data, error, loading, retry, canEdit, scope, token } = useAmPage();
++  const { push } = useToast();
+   const [attentionSort, setAttentionSort] = useState<'health' | 'mrr' | 'renewal'>('health');
++  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+   const isLoading = isAmDashboardLoading(loading, data);
+ 
++  async function onAccept(id: string) {
++    if (!canEdit || acceptingId) return;
++    setAcceptingId(id);
++    try {
++      await acceptAmTask(token, id);
++      push('Đã nhận việc', 'success');
++      retry();
++    } catch (err) {
++      push(err instanceof Error ? err.message : 'Không nhận được việc', 'error');
++    } finally {
++      setAcceptingId(null);
++    }
++  }
++
+   const coverage = data?.coverage ?? null;
+   const today = data?.today_work ?? [];
+   const attention = [...(data?.attention ?? [])].sort((a, b) => {
+     if (attentionSort === 'mrr') return (b.mrr_vnd ?? -1) - (a.mrr_vnd ?? -1);
+     if (attentionSort === 'renewal') return (a.days_to_end ?? 9999) - (b.days_to_end ?? 9999);
+     const rank: Record<AmHealthBand, number> = { critical: 0, at_risk: 1, watch: 2, healthy: 3 };
+     return rank[a.band] - rank[b.band];
+   });
+   const book = data?.my_book ?? [];
+   const forecast = data?.forecast;
+@@ -226,27 +244,28 @@ export function AmDashboard() {
+               {today.map((item) => (
+                 <li key={item.id} className="am-work__row">
+                   <span className={`am-chip am-chip--${item.chip}`}>{CHIP_COPY[item.chip]}</span>
+                   <div>
+                     <b>{item.title}</b>
+                     <div className="am-muted">
+                       {item.account_name}
+                       {item.sla_label ? ` · ${item.sla_label}` : ''}
+                     </div>
+                   </div>
+-                  {item.can_accept ? (
++                  {item.can_accept && canEdit ? (
+                     <button
+                       type="button"
+                       className="am-btn"
+-                      onClick={() => window.alert('Nhận việc mở ở Task 6')}
++                      disabled={acceptingId === item.id}
++                      onClick={() => void onAccept(item.id)}
+                     >
+-                      Nhận xử lý
++                      {acceptingId === item.id ? 'Đang nhận…' : 'Nhận xử lý'}
+                     </button>
+                   ) : null}
+                 </li>
+               ))}
+             </ul>
+           )}
+         </Widget>
+ 
+         <Widget
+           title="Account cần chú ý"
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index 695d039d..0605fffb 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -92,20 +92,66 @@ async function amFetch<T>(token: string, path: string, init?: RequestInit): Prom
+     headers['Content-Type'] = 'application/json';
+   }
+   const res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: 'no-store' });
+   const body = await parseJson<T & { error?: string; message?: string }>(res);
+   if (!res.ok) {
+     throw new ApiError(body.error ?? body.message ?? 'AM request failed', res.status);
+   }
+   return body;
+ }
+ 
++export type AmTaskKind =
++  | 'task'
++  | 'client_request'
++  | 'issue'
++  | 'escalation'
++  | 'approval'
++  | 'milestone';
++
++export type AmTaskPriority = 'low' | 'medium' | 'high';
++
++export type AmCreateTaskInput = {
++  agency_client_id: string;
++  title: string;
++  kind?: AmTaskKind;
++  priority?: AmTaskPriority;
++  due_at?: string;
++  source?: string;
++  source_ref?: string;
++};
++
++export type AmTask = {
++  id: string;
++  agency_client_id: string;
++  title: string;
++  kind: AmTaskKind;
++  priority: AmTaskPriority;
++  status: string;
++  assignee_staff_id: number | null;
++  due_at: string | null;
++  source: string;
++  source_ref: string | null;
++};
++
++export async function acceptAmTask(token: string, id: string): Promise<AmTask> {
++  return amFetch<AmTask>(token, `/api/crm/am/tasks/${encodeURIComponent(id)}/accept`, {
++    method: 'POST',
++  });
++}
++
++export async function createAmTask(token: string, body: AmCreateTaskInput): Promise<AmTask> {
++  return amFetch<AmTask>(token, '/api/crm/am/tasks', {
++    method: 'POST',
++    body: JSON.stringify(body),
++  });
++}
++
+ export async function fetchAmCommandCenter(
+   token: string,
+   query: AmCommandCenterQuery = {},
+ ): Promise<AmCommandCenter> {
+   const params = new URLSearchParams();
+   if (query.scope) params.set('scope', query.scope);
+   if (query.from) params.set('from', query.from);
+   if (query.to) params.set('to', query.to);
+   const suffix = params.toString() ? `?${params.toString()}` : '';
+   return amFetch<AmCommandCenter>(token, `/api/crm/am/command-center${suffix}`);
+diff --git a/services/ptt-crm-api/src/am/am-tasks.service.spec.ts b/services/ptt-crm-api/src/am/am-tasks.service.spec.ts
+new file mode 100644
+index 00000000..03619fda
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-tasks.service.spec.ts
+@@ -0,0 +1,58 @@
++import { AmTasksService } from './am-tasks.service';
++
++describe('AmTasksService', () => {
++  const audit = {
++    calls: [] as Array<{ action: string }>,
++    insert: jest.fn(async (row: { action: string }) => {
++      audit.calls.push(row);
++    }),
++  };
++
++  const repo = {
++    findById: jest.fn(),
++    accept: jest.fn(),
++    findOpenBySourceRef: jest.fn(),
++    insert: jest.fn(),
++    dismiss: jest.fn(),
++  };
++
++  let service: AmTasksService;
++
++  beforeEach(() => {
++    audit.calls.length = 0;
++    jest.clearAllMocks();
++    repo.findById.mockResolvedValue({
++      id: 'task-1',
++      assignee_staff_id: null,
++      status: 'new',
++    });
++    repo.accept.mockImplementation(async (id: string, staffId: number) => ({
++      id,
++      assignee_staff_id: staffId,
++      status: 'in_progress',
++    }));
++    repo.findOpenBySourceRef.mockResolvedValue({ id: 'existing', source: 'csd', source_ref: 'T-1' });
++    service = new AmTasksService(repo as never, audit as never);
++  });
++
++  it('accept assigns current staff and writes audit', async () => {
++    const out = await service.accept('task-1', 42);
++    expect(out.assignee_staff_id).toBe(42);
++    expect(out.status).toBe('in_progress');
++    expect(audit.calls[0].action).toBe('task.accept');
++  });
++
++  it('rejects duplicate open source_ref', async () => {
++    await expect(
++      service.create(
++        {
++          agency_client_id: 'c1',
++          title: 'A',
++          source: 'csd',
++          source_ref: 'T-1',
++        },
++        1,
++      ),
++    ).rejects.toMatchObject({ status: 409 });
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-tasks.service.ts b/services/ptt-crm-api/src/am/am-tasks.service.ts
+new file mode 100644
+index 00000000..83d5ecb9
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-tasks.service.ts
+@@ -0,0 +1,266 @@
++import {
++  BadRequestException,
++  ConflictException,
++  Injectable,
++  NotFoundException,
++  OnModuleDestroy,
++  Optional,
++} from '@nestjs/common';
++import { Pool } from 'pg';
++import { AppConfigService } from '../config/app-config.service';
++import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
++import { AmDashboardService } from './am-dashboard.service';
++import type { AmTaskKind, AmTaskStatus } from './am.types';
++
++export type AmTaskPriority = 'low' | 'medium' | 'high';
++
++export type AmTaskRow = {
++  id: string;
++  agency_client_id: string;
++  title: string;
++  kind: AmTaskKind;
++  priority: AmTaskPriority;
++  status: AmTaskStatus;
++  assignee_staff_id: number | null;
++  due_at: string | null;
++  source: string;
++  source_ref: string | null;
++  dismissed_at: string | null;
++};
++
++export type AmCreateTaskInput = {
++  agency_client_id: string;
++  title: string;
++  kind?: AmTaskKind;
++  priority?: AmTaskPriority;
++  due_at?: string;
++  source?: string;
++  source_ref?: string;
++};
++
++export type AmTasksStore = {
++  findById(id: string): Promise<AmTaskRow | null>;
++  accept(id: string, staffId: number): Promise<AmTaskRow | null>;
++  findOpenBySourceRef(source: string, sourceRef: string): Promise<AmTaskRow | null>;
++  insert(input: AmCreateTaskInput): Promise<AmTaskRow>;
++  dismiss(source: string, sourceRef: string): Promise<number>;
++};
++
++const TASK_KINDS: AmTaskKind[] = [
++  'task',
++  'client_request',
++  'issue',
++  'escalation',
++  'approval',
++  'milestone',
++];
++const TASK_PRIORITIES: AmTaskPriority[] = ['low', 'medium', 'high'];
++
++const TASK_COLS = `
++  id::text AS id,
++  agency_client_id::text AS agency_client_id,
++  title,
++  kind,
++  priority,
++  status,
++  assignee_staff_id,
++  due_at,
++  source,
++  source_ref,
++  dismissed_at
++`;
++
++function mapTask(row: Record<string, unknown>): AmTaskRow {
++  return {
++    id: String(row.id),
++    agency_client_id: String(row.agency_client_id ?? ''),
++    title: String(row.title ?? ''),
++    kind: (TASK_KINDS.includes(String(row.kind) as AmTaskKind) ? row.kind : 'task') as AmTaskKind,
++    priority: (TASK_PRIORITIES.includes(String(row.priority) as AmTaskPriority)
++      ? row.priority
++      : 'medium') as AmTaskPriority,
++    status: String(row.status ?? 'new') as AmTaskStatus,
++    assignee_staff_id: row.assignee_staff_id == null ? null : Number(row.assignee_staff_id),
++    due_at: row.due_at == null ? null : new Date(String(row.due_at)).toISOString(),
++    source: String(row.source ?? 'manual'),
++    source_ref: row.source_ref == null || row.source_ref === '' ? null : String(row.source_ref),
++    dismissed_at: row.dismissed_at == null ? null : new Date(String(row.dismissed_at)).toISOString(),
++  };
++}
++
++function isUniqueViolation(err: unknown): boolean {
++  return (err as { code?: string }).code === '23505';
++}
++
++@Injectable()
++export class AmTasksRepository implements OnModuleDestroy, AmTasksStore {
++  private pool: Pool | null = null;
++
++  constructor(private readonly config: AppConfigService) {}
++
++  private get db(): Pool {
++    if (!this.pool) {
++      this.pool = new Pool({ connectionString: this.config.databaseUrl });
++    }
++    return this.pool;
++  }
++
++  onModuleDestroy(): void {
++    void this.pool?.end();
++    this.pool = null;
++  }
++
++  async findById(id: string): Promise<AmTaskRow | null> {
++    const result = await this.db.query(
++      `SELECT ${TASK_COLS} FROM crm_am_tasks WHERE tenant_id = $1 AND id = $2::uuid LIMIT 1`,
++      [AM_TENANT_ID, id],
++    );
++    const row = result.rows[0];
++    return row ? mapTask(row) : null;
++  }
++
++  async accept(id: string, staffId: number): Promise<AmTaskRow | null> {
++    const result = await this.db.query(
++      `UPDATE crm_am_tasks
++          SET assignee_staff_id = $2,
++              status = 'in_progress',
++              updated_at = now()
++        WHERE tenant_id = $1 AND id = $3::uuid
++        RETURNING ${TASK_COLS}`,
++      [AM_TENANT_ID, staffId, id],
++    );
++    const row = result.rows[0];
++    return row ? mapTask(row) : null;
++  }
++
++  async findOpenBySourceRef(source: string, sourceRef: string): Promise<AmTaskRow | null> {
++    const result = await this.db.query(
++      `SELECT ${TASK_COLS}
++         FROM crm_am_tasks
++        WHERE tenant_id = $1
++          AND source = $2
++          AND source_ref = $3
++          AND dismissed_at IS NULL
++          AND status NOT IN ('cancelled', 'closed')
++        LIMIT 1`,
++      [AM_TENANT_ID, source, sourceRef],
++    );
++    const row = result.rows[0];
++    return row ? mapTask(row) : null;
++  }
++
++  async insert(input: AmCreateTaskInput): Promise<AmTaskRow> {
++    const result = await this.db.query(
++      `INSERT INTO crm_am_tasks (
++         tenant_id, agency_client_id, title, kind, priority, status,
++         source, source_ref, due_at
++       ) VALUES ($1, $2::uuid, $3, $4, $5, 'new', $6, $7, $8)
++       RETURNING ${TASK_COLS}`,
++      [
++        AM_TENANT_ID,
++        input.agency_client_id,
++        input.title,
++        input.kind ?? 'task',
++        input.priority ?? 'medium',
++        input.source ?? 'manual',
++        input.source_ref ?? null,
++        input.due_at ?? null,
++      ],
++    );
++    return mapTask(result.rows[0]);
++  }
++
++  async dismiss(source: string, sourceRef: string): Promise<number> {
++    const result = await this.db.query(
++      `UPDATE crm_am_tasks
++          SET dismissed_at = now(),
++              updated_at = now()
++        WHERE tenant_id = $1
++          AND source = $2
++          AND source_ref = $3
++          AND dismissed_at IS NULL`,
++      [AM_TENANT_ID, source, sourceRef],
++    );
++    return result.rowCount ?? 0;
++  }
++}
++
++@Injectable()
++export class AmTasksService {
++  constructor(
++    private readonly repo: AmTasksRepository,
++    private readonly audit: AmAuditRepository,
++    @Optional() private readonly dashboard?: AmDashboardService,
++  ) {}
++
++  async accept(id: string, staffId: number): Promise<AmTaskRow> {
++    const existing = await this.repo.findById(id);
++    if (!existing) throw new NotFoundException({ error: 'task_not_found' });
++    const out = (await this.repo.accept(id, staffId)) ?? {
++      ...existing,
++      assignee_staff_id: staffId,
++      status: 'in_progress' as const,
++    };
++    await this.audit.insert({
++      actor_staff_id: staffId || null,
++      action: 'task.accept',
++      entity_type: 'task',
++      entity_id: out.id,
++      payload_json: { assignee_staff_id: staffId, status: out.status },
++    });
++    this.dashboard?.dropCache();
++    return out;
++  }
++
++  async create(input: AmCreateTaskInput, _staffId: number): Promise<AmTaskRow> {
++    const agencyClientId = String(input.agency_client_id ?? '').trim();
++    const title = String(input.title ?? '').trim();
++    if (!agencyClientId || !title) {
++      throw new BadRequestException({ error: 'agency_client_id_and_title_required' });
++    }
++    const source = String(input.source ?? 'manual').trim() || 'manual';
++    const sourceRef = input.source_ref != null ? String(input.source_ref).trim() : '';
++    const kind = TASK_KINDS.includes(input.kind as AmTaskKind) ? (input.kind as AmTaskKind) : 'task';
++    const priority = TASK_PRIORITIES.includes(input.priority as AmTaskPriority)
++      ? (input.priority as AmTaskPriority)
++      : 'medium';
++    const payload: AmCreateTaskInput = {
++      agency_client_id: agencyClientId,
++      title,
++      kind,
++      priority,
++      due_at: input.due_at,
++      source,
++      source_ref: sourceRef || undefined,
++    };
++    if (payload.source_ref) {
++      const dup = await this.repo.findOpenBySourceRef(source, payload.source_ref);
++      if (dup) throw new ConflictException({ error: 'duplicate_source_ref' });
++    }
++    try {
++      const out = await this.repo.insert(payload);
++      this.dashboard?.dropCache();
++      return out;
++    } catch (err) {
++      if (isUniqueViolation(err)) throw new ConflictException({ error: 'duplicate_source_ref' });
++      throw err;
++    }
++  }
++
++  async dismiss(body: { source: string; source_ref: string }, staffId: number): Promise<{ dismissed: number }> {
++    const source = String(body.source ?? '').trim();
++    const sourceRef = String(body.source_ref ?? '').trim();
++    if (!source || !sourceRef) {
++      throw new BadRequestException({ error: 'source_and_source_ref_required' });
++    }
++    const dismissed = await this.repo.dismiss(source, sourceRef);
++    await this.audit.insert({
++      actor_staff_id: staffId || null,
++      action: 'task.dismiss',
++      entity_type: 'task',
++      payload_json: { source, source_ref: sourceRef, dismissed },
++    });
++    this.dashboard?.dropCache();
++    return { dismissed };
++  }
++}
+diff --git a/services/ptt-crm-api/src/am/am.controller.ts b/services/ptt-crm-api/src/am/am.controller.ts
+index 98647f58..b83470d3 100644
+--- a/services/ptt-crm-api/src/am/am.controller.ts
++++ b/services/ptt-crm-api/src/am/am.controller.ts
+@@ -1,24 +1,56 @@
+-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
++import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+ import { Request } from 'express';
++import { StaffAuthService } from '../staff-auth/staff-auth.service';
+ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+ import { AmDashboardService } from './am-dashboard.service';
++import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
+ import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
+ import type { AmScope } from './am.types';
+ 
+ export type AuthedReq = Request & {
+   staffUser?: StaffJwtPayload;
+   staffAuthVia?: 'internal' | 'jwt';
+ };
+ 
+ @Controller('api/crm/am')
+ @UseGuards(StaffOrInternalKeyGuard, StaffAmGuard)
+ export class AmController {
+-  constructor(private readonly dashboard: AmDashboardService) {}
++  constructor(
++    private readonly dashboard: AmDashboardService,
++    private readonly tasks: AmTasksService,
++    private readonly staffAuth: StaffAuthService,
++  ) {}
++
++  private async actorStaffId(req: AuthedReq): Promise<number> {
++    if (!req.staffUser) return 0;
++    return (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
++  }
+ 
+   @Get('command-center')
+   @RequireAmAction('view')
+   commandCenter(@Req() req: AuthedReq, @Query() q: { from?: string; to?: string; scope?: AmScope }) {
+     return this.dashboard.get(req, q);
+   }
++
++  @Post('tasks')
++  @RequireAmAction('edit')
++  async createTask(@Req() req: AuthedReq, @Body() body: AmCreateTaskInput) {
++    return this.tasks.create(body, await this.actorStaffId(req));
++  }
++
++  @Post('tasks/dismiss')
++  @RequireAmAction('edit')
++  async dismissTask(
++    @Req() req: AuthedReq,
++    @Body() body: { source: string; source_ref: string },
++  ) {
++    return this.tasks.dismiss(body, await this.actorStaffId(req));
++  }
++
++  @Post('tasks/:id/accept')
++  @RequireAmAction('edit')
++  async acceptTask(@Req() req: AuthedReq, @Param('id') id: string) {
++    return this.tasks.accept(id, await this.actorStaffId(req));
++  }
+ }
+diff --git a/services/ptt-crm-api/src/am/am.module.ts b/services/ptt-crm-api/src/am/am.module.ts
+index 94ee8f04..533545a6 100644
+--- a/services/ptt-crm-api/src/am/am.module.ts
++++ b/services/ptt-crm-api/src/am/am.module.ts
+@@ -1,15 +1,16 @@
+ import { Module } from '@nestjs/common';
+ import { ConfigModule } from '../config/config.module';
+ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
+ import { AmAuditRepository } from './am-audit.repository';
+ import { AmDashboardService } from './am-dashboard.service';
++import { AmTasksRepository, AmTasksService } from './am-tasks.service';
+ import { AmController } from './am.controller';
+ import { StaffAmGuard } from './guards/staff-am.guard';
+ 
+ @Module({
+   imports: [ConfigModule, StaffAuthModule],
+   controllers: [AmController],
+-  providers: [StaffAmGuard, AmDashboardService, AmAuditRepository],
+-  exports: [StaffAmGuard, AmDashboardService, AmAuditRepository],
++  providers: [StaffAmGuard, AmDashboardService, AmAuditRepository, AmTasksRepository, AmTasksService],
++  exports: [StaffAmGuard, AmDashboardService, AmAuditRepository, AmTasksService],
+ })
+ export class AmModule {}

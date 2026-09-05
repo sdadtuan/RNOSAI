@@ -1,0 +1,2053 @@
+# Review package: 7d110b57..7fe65db4fb7b1703168c5583df0b688e61ececd3
+
+## Commits
+7fe65db4 feat(am): add scorecard settings and health override
+
+## Files changed
+ docs/specs/2026-09-05-postgresql-ddl-am-w2.sql     |   3 +
+ .../ops-web/src/app/crm/account-management/am.css  |  37 +++
+ .../ops-web/src/components/crm/am/AmAccount360.tsx |  72 +++++
+ .../ops-web/src/components/crm/am/AmSettings.tsx   | 169 ++++++++++++
+ services/ops-web/src/lib/crm/am-api.ts             |  59 +++++
+ .../ops-web/src/lib/crm/am-settings.util.spec.ts   |  44 +++
+ services/ops-web/src/lib/crm/am-settings.util.ts   |  58 ++++
+ services/ptt-crm-api/src/am/am-accounts.service.ts |  22 +-
+ .../ptt-crm-api/src/am/am-health.service.spec.ts   |  35 +++
+ services/ptt-crm-api/src/am/am-health.service.ts   | 294 ++++++++++++++++++++-
+ services/ptt-crm-api/src/am/am-health.util.spec.ts |  11 +
+ services/ptt-crm-api/src/am/am-health.util.ts      |  26 +-
+ .../ptt-crm-api/src/am/am-settings.service.spec.ts |  62 +++++
+ services/ptt-crm-api/src/am/am-settings.service.ts | 278 +++++++++++++++++--
+ services/ptt-crm-api/src/am/am.controller.ts       |  22 +-
+ .../src/am/guards/staff-am.guard.spec.ts           |   7 +
+ 16 files changed, 1156 insertions(+), 43 deletions(-)
+
+## Diff
+diff --git a/docs/specs/2026-09-05-postgresql-ddl-am-w2.sql b/docs/specs/2026-09-05-postgresql-ddl-am-w2.sql
+index 33160007..cbf7b1fb 100644
+--- a/docs/specs/2026-09-05-postgresql-ddl-am-w2.sql
++++ b/docs/specs/2026-09-05-postgresql-ddl-am-w2.sql
+@@ -68,10 +68,13 @@ CREATE TABLE IF NOT EXISTS crm_am_renewal_cases (
+   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+   CONSTRAINT crm_am_renewal_status_chk CHECK (
+     status IN ('not_started','evaluating','negotiating','decided','renewed','lost','paused')
+   )
+ );
+ 
+ CREATE UNIQUE INDEX IF NOT EXISTS crm_am_renewal_open_uq
+   ON crm_am_renewal_cases (tenant_id, contract_id)
+   WHERE status NOT IN ('renewed','lost');
++
++ALTER TABLE crm_am_settings
++  ADD COLUMN IF NOT EXISTS scorecard_version INTEGER NOT NULL DEFAULT 1;
+diff --git a/services/ops-web/src/app/crm/account-management/am.css b/services/ops-web/src/app/crm/account-management/am.css
+index 5ed73f59..1f753e94 100644
+--- a/services/ops-web/src/app/crm/account-management/am.css
++++ b/services/ops-web/src/app/crm/account-management/am.css
+@@ -918,20 +918,57 @@ body:has(.ops-sidebar):has(.am-root) main.ops-page {
+   max-width: none !important;
+   width: auto !important;
+ }
+ 
+ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
+   padding: 0;
+   width: auto;
+   max-width: none;
+ }
+ 
++.am-scorecard {
++  display: grid;
++  gap: 16px;
++}
++
++.am-scorecard__grid {
++  display: grid;
++  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
++  gap: 10px;
++}
++
++.am-scorecard__pair {
++  display: flex;
++  gap: 6px;
++}
++
++.am-scorecard__pair input {
++  min-width: 0;
++}
++
++.am-scorecard__override {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: 8px;
++  margin: 10px 0;
++}
++
++.am-scorecard__override input,
++.am-scorecard__override select {
++  height: 36px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  padding: 0 10px;
++  background: #fff;
++}
++
+ .am-360__head {
+   display: flex;
+   justify-content: space-between;
+   align-items: flex-start;
+   gap: 12px;
+ }
+ 
+ .am-360__head h1 {
+   margin: 0 0 8px;
+   font-size: 22px;
+diff --git a/services/ops-web/src/components/crm/am/AmAccount360.tsx b/services/ops-web/src/components/crm/am/AmAccount360.tsx
+index 06504812..9cc0105c 100644
+--- a/services/ops-web/src/components/crm/am/AmAccount360.tsx
++++ b/services/ops-web/src/components/crm/am/AmAccount360.tsx
+@@ -3,20 +3,21 @@
+ import Link from 'next/link';
+ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+ import { ApiError, fetchStaffRoster, type StaffRosterRow } from '@/lib/api';
+ import { hasCap } from '@/lib/auth';
+ import {
+   createAmPlan,
+   createAmTask,
+   fetchAmAccount,
+   mergeAmAccount,
++  overrideAmHealth,
+   patchAmAccount,
+   transferAmAccounts,
+   type AmAccount360 as AmAccount360Data,
+   type AmAccountContact,
+ } from '@/lib/crm/am-api';
+ import {
+   AM_360_STATUS_COPY,
+   AM_360_TABS,
+   am360LoadErrorCopy,
+   am360LoadErrorKind,
+@@ -58,20 +59,24 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
+ 
+   const [data, setData] = useState<AmAccount360Data | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState<Am360LoadError | ''>('');
+   const [menuOpen, setMenuOpen] = useState(false);
+   const [drawer, setDrawer] = useState<DrawerKind>(null);
+   const [busy, setBusy] = useState(false);
+   const [formError, setFormError] = useState('');
+   const [mergeHint, setMergeHint] = useState('');
+   const [roster, setRoster] = useState<StaffRosterRow[]>([]);
++  const [overrideBand, setOverrideBand] = useState<AmAccount360Data['band']>('watch');
++  const [overrideReason, setOverrideReason] = useState('');
++  const [overrideUntil, setOverrideUntil] = useState('');
++  const [overrideError, setOverrideError] = useState('');
+ 
+   const canAssign = canAssignAmAccounts(user);
+   const canManage = hasCap(user, 'crm_am', 'manage');
+   const primary = data?.contacts.find((row) => row.is_primary) ?? data?.contacts[0] ?? null;
+ 
+   const load = useCallback(async () => {
+     if (!token || !agencyClientId) return;
+     setLoading(true);
+     setError('');
+     try {
+@@ -379,20 +384,87 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
+                 }
+                 onClick={() => openDrawer('merge')}
+               >
+                 Merge
+               </button>
+             </div>
+           ) : null}
+         </div>
+       </header>
+ 
++      {data.override ? (
++        <p className="am-banner">
++          Health override: {data.override.band} đến {data.override.until}. {data.override.reason}
++        </p>
++      ) : null}
++
++      {canManage ? (
++        <form
++          className="am-scorecard__override"
++          onSubmit={(ev) => {
++            ev.preventDefault();
++            void (async () => {
++              if (busy) return;
++              const reason = overrideReason.trim();
++              if (!reason) {
++                setOverrideError('reason_required');
++                return;
++              }
++              if (!overrideUntil || !overrideBand) {
++                setOverrideError('override_until_invalid');
++                return;
++              }
++              setBusy(true);
++              setOverrideError('');
++              try {
++                await overrideAmHealth(token, agencyClientId, {
++                  band: overrideBand,
++                  reason,
++                  until: overrideUntil,
++                });
++                push('Đã ghi health override', 'success');
++                await load();
++              } catch (err) {
++                setOverrideError(err instanceof ApiError ? err.message : 'Không ghi được override.');
++              } finally {
++                setBusy(false);
++              }
++            })();
++          }}
++        >
++          <span className="am-muted">Override health</span>
++          <select
++            value={overrideBand ?? 'watch'}
++            onChange={(ev) => setOverrideBand(ev.target.value as AmAccount360Data['band'])}
++          >
++            <option value="healthy">healthy</option>
++            <option value="watch">watch</option>
++            <option value="at_risk">at_risk</option>
++            <option value="critical">critical</option>
++          </select>
++          <input
++            placeholder="Lý do"
++            value={overrideReason}
++            onChange={(ev) => setOverrideReason(ev.target.value)}
++          />
++          <input
++            type="date"
++            value={overrideUntil}
++            onChange={(ev) => setOverrideUntil(ev.target.value)}
++          />
++          <button type="submit" className="am-btn" disabled={busy}>
++            Ghi
++          </button>
++          {overrideError ? <span className="am-banner">{overrideError}</span> : null}
++        </form>
++      ) : null}
++
+       <div className="am-360__actions">
+         <button type="button" className="am-btn" disabled title="Mở ở Wave 3">
+           Log tương tác
+         </button>
+         <button
+           type="button"
+           className="am-btn"
+           disabled={!canEdit}
+           title={canEdit ? 'Tạo việc' : 'Cần quyền crm_am.edit'}
+           onClick={() => canEdit && openDrawer('task')}
+diff --git a/services/ops-web/src/components/crm/am/AmSettings.tsx b/services/ops-web/src/components/crm/am/AmSettings.tsx
+index f909a3f1..0bf95cfa 100644
+--- a/services/ops-web/src/components/crm/am/AmSettings.tsx
++++ b/services/ops-web/src/components/crm/am/AmSettings.tsx
+@@ -1,27 +1,50 @@
+ 'use client';
+ 
+ import { useCallback, useEffect, useMemo, useState } from 'react';
+ import { ApiError } from '@/lib/api';
+ import { hasCap } from '@/lib/auth';
+ import {
+   cloneAmOnboardingTemplate,
+   createAmOnboardingTemplate,
+   fetchAmOnboardingTemplates,
++  fetchAmSettings,
+   patchAmOnboardingTemplate,
+   publishAmOnboardingTemplate,
++  putAmSettings,
+   type AmOnboardingTemplate,
+   type AmOnboardingTemplateItem,
++  type AmSettings as AmSettingsData,
+ } from '@/lib/crm/am-api';
+ import { amOnboardingDash } from '@/lib/crm/am-onboarding.util';
++import {
++  amSettingsBandsError,
++  amSettingsPublishErrorCopy,
++  amSettingsWeightsError,
++} from '@/lib/crm/am-settings.util';
+ import { useAmPage } from './AmShell';
+ 
++const WEIGHT_FIELDS: Array<{ key: keyof AmSettingsData['weights']; label: string }> = [
++  { key: 'kpi_delivery', label: 'KPI / Delivery' },
++  { key: 'engagement', label: 'Engagement' },
++  { key: 'financial', label: 'Financial' },
++  { key: 'satisfaction', label: 'Satisfaction' },
++  { key: 'contract_support', label: 'Contract / Support' },
++];
++
++const BAND_FIELDS: Array<{ key: keyof AmSettingsData['bands']; label: string }> = [
++  { key: 'healthy', label: 'Healthy' },
++  { key: 'watch', label: 'Watch' },
++  { key: 'at_risk', label: 'At risk' },
++  { key: 'critical', label: 'Critical' },
++];
++
+ function emptyItem(): AmOnboardingTemplateItem {
+   const id =
+     typeof crypto !== 'undefined' && 'randomUUID' in crypto
+       ? crypto.randomUUID()
+       : `item-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+   return {
+     id,
+     kind: 'checklist',
+     phase: '',
+     title: '',
+@@ -39,40 +62,53 @@ export function AmSettings() {
+   const { token, user } = useAmPage();
+   const canManage = hasCap(user, 'crm_am', 'manage');
+   const [items, setItems] = useState<AmOnboardingTemplate[]>([]);
+   const [selectedId, setSelectedId] = useState<string | null>(null);
+   const [draftItems, setDraftItems] = useState<AmOnboardingTemplateItem[]>([]);
+   const [draftName, setDraftName] = useState('');
+   const [createName, setCreateName] = useState('');
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState('');
+   const [busy, setBusy] = useState(false);
++  const [settings, setSettings] = useState<AmSettingsData | null>(null);
++  const [draftWeights, setDraftWeights] = useState<AmSettingsData['weights'] | null>(null);
++  const [draftBands, setDraftBands] = useState<AmSettingsData['bands'] | null>(null);
++  const [scorecardError, setScorecardError] = useState('');
++  const [scorecardBusy, setScorecardBusy] = useState(false);
+ 
+   const selected = items.find((row) => row.id === selectedId) ?? null;
+   const published = selected?.status === 'published';
+   const canEditDraft = Boolean(canManage && selected && !published);
+   const dirty = useMemo(() => {
+     if (!selected) return false;
+     if (draftName !== selected.name) return true;
+     return JSON.stringify(draftItems) !== JSON.stringify(selected.items);
+   }, [selected, draftName, draftItems]);
+ 
+   const load = useCallback(async () => {
+     if (!token) return;
+     setLoading(true);
+     setError('');
+     try {
+       const out = await fetchAmOnboardingTemplates(token);
+       setItems(out.items);
+     } catch (err) {
+       setItems([]);
+       setError(err instanceof ApiError ? err.message : 'Không tải được template.');
++    }
++    try {
++      const scorecard = await fetchAmSettings(token);
++      setSettings(scorecard);
++      setDraftWeights(scorecard.weights);
++      setDraftBands(scorecard.bands);
++    } catch (err) {
++      setScorecardError(err instanceof ApiError ? err.message : 'Không tải được scorecard.');
+     } finally {
+       setLoading(false);
+     }
+   }, [token]);
+ 
+   useEffect(() => {
+     void load();
+   }, [load]);
+ 
+   useEffect(() => {
+@@ -153,20 +189,60 @@ export function AmSettings() {
+           ? 'Template đã xuất bản — nhân bản thành draft để sửa.'
+           : err instanceof ApiError
+             ? err.message
+             : 'Không xuất bản được.',
+       );
+     } finally {
+       setBusy(false);
+     }
+   }
+ 
++  async function onPublishScorecard() {
++    if (!token || !canManage || !draftWeights || !draftBands || scorecardBusy) return;
++    const weightsCode = amSettingsWeightsError(draftWeights);
++    if (weightsCode) {
++      setScorecardError(amSettingsPublishErrorCopy(weightsCode));
++      return;
++    }
++    const bandsCode = amSettingsBandsError(draftBands);
++    if (bandsCode) {
++      setScorecardError(amSettingsPublishErrorCopy(bandsCode));
++      return;
++    }
++    setScorecardBusy(true);
++    setScorecardError('');
++    try {
++      const next = await putAmSettings(token, {
++        weights: draftWeights,
++        bands: draftBands,
++        quota_accounts_per_am: settings?.quota_accounts_per_am,
++        watch_ends_on_days: settings?.watch_ends_on_days,
++        health_drop_alert: settings?.health_drop_alert,
++        rollup_parent_health: settings?.rollup_parent_health,
++      });
++      setSettings(next);
++      setDraftWeights(next.weights);
++      setDraftBands(next.bands);
++    } catch (err) {
++      const code = err instanceof ApiError ? err.message : '';
++      setScorecardError(
++        code === 'weights_sum' || code === 'bands_overlap'
++          ? amSettingsPublishErrorCopy(code)
++          : err instanceof ApiError
++            ? err.message
++            : 'Không xuất bản được scorecard.',
++      );
++    } finally {
++      setScorecardBusy(false);
++    }
++  }
++
+   async function onClone() {
+     if (!token || !selected || !canManage || busy) return;
+     setBusy(true);
+     setError('');
+     try {
+       const next = await cloneAmOnboardingTemplate(token, selected.id);
+       setItems((prev) => [next, ...prev].sort((a, b) => b.version - a.version));
+       setSelectedId(next.id);
+     } catch (err) {
+       setError(err instanceof ApiError ? err.message : 'Không nhân bản được.');
+@@ -193,20 +269,113 @@ export function AmSettings() {
+             />
+             <button type="button" className="am-btn am-btn--primary" disabled={busy} onClick={() => void onCreate()}>
+               + Tạo template
+             </button>
+           </div>
+         ) : null}
+       </header>
+ 
+       {error ? <p className="am-banner">{error}</p> : null}
+ 
++      <div className="am-widget">
++        <div className="am-widget__head">
++          <h2>Scorecard</h2>
++          <span className="am-muted">v{settings?.scorecard_version ?? 1}</span>
++        </div>
++        {scorecardError ? <p className="am-banner">{scorecardError}</p> : null}
++        <div className="am-scorecard">
++          <div>
++            <p className="am-muted">Trọng số (tổng 100)</p>
++            <div className="am-scorecard__grid">
++              {WEIGHT_FIELDS.map((field) => (
++                <label key={field.key} className="am-field">
++                  <span>{field.label}</span>
++                  {canManage && draftWeights ? (
++                    <input
++                      type="number"
++                      value={draftWeights[field.key]}
++                      onChange={(ev) =>
++                        setDraftWeights((prev) =>
++                          prev ? { ...prev, [field.key]: Number(ev.target.value) } : prev,
++                        )
++                      }
++                    />
++                  ) : (
++                    <strong>{draftWeights?.[field.key] ?? '—'}</strong>
++                  )}
++                </label>
++              ))}
++            </div>
++          </div>
++          <div>
++            <p className="am-muted">Ngưỡng band (0–100, không chồng)</p>
++            <div className="am-scorecard__grid">
++              {BAND_FIELDS.map((field) => (
++                <label key={field.key} className="am-field">
++                  <span>{field.label}</span>
++                  {canManage && draftBands ? (
++                    <span className="am-scorecard__pair">
++                      <input
++                        type="number"
++                        value={draftBands[field.key][0]}
++                        onChange={(ev) =>
++                          setDraftBands((prev) =>
++                            prev
++                              ? {
++                                  ...prev,
++                                  [field.key]: [Number(ev.target.value), prev[field.key][1]],
++                                }
++                              : prev,
++                          )
++                        }
++                      />
++                      <input
++                        type="number"
++                        value={draftBands[field.key][1]}
++                        onChange={(ev) =>
++                          setDraftBands((prev) =>
++                            prev
++                              ? {
++                                  ...prev,
++                                  [field.key]: [prev[field.key][0], Number(ev.target.value)],
++                                }
++                              : prev,
++                          )
++                        }
++                      />
++                    </span>
++                  ) : (
++                    <strong>
++                      {draftBands
++                        ? `${draftBands[field.key][0]}–${draftBands[field.key][1]}`
++                        : '—'}
++                    </strong>
++                  )}
++                </label>
++              ))}
++            </div>
++          </div>
++        </div>
++        {canManage ? (
++          <div className="am-form__actions">
++            <button
++              type="button"
++              className="am-btn am-btn--primary"
++              disabled={scorecardBusy || !draftWeights}
++              onClick={() => void onPublishScorecard()}
++            >
++              Xuất bản scorecard
++            </button>
++          </div>
++        ) : null}
++      </div>
++
+       <div className="am-widget">
+         <table className="am-table">
+           <thead>
+             <tr>
+               <th>Tên</th>
+               <th>Version</th>
+               <th>Status</th>
+             </tr>
+           </thead>
+           <tbody>
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index a9dbf1b8..7e7904cc 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -350,20 +350,26 @@ export type AmAccountPlan = {
+ 
+ export type AmAccountAuditItem = {
+   id: number;
+   action: string;
+   entity_type: string;
+   actor_staff_id: number | null;
+   created_at: string;
+   payload_json: Record<string, unknown> | null;
+ };
+ 
++export type AmHealthOverride = {
++  band: AmHealthBand;
++  reason: string;
++  until: string;
++};
++
+ export type AmAccount360 = {
+   agency_client_id: string;
+   code: string;
+   name: string;
+   industry: string | null;
+   notes: string | null;
+   am_status: string;
+   tier: string | null;
+   team_id: number | null;
+   team_label: string | null;
+@@ -374,20 +380,21 @@ export type AmAccount360 = {
+   parent_agency_client_id: string | null;
+   parent_name: string | null;
+   children: AmAccountChild[];
+   band: AmHealthBand | null;
+   score: number | null;
+   mrr_vnd: number | null;
+   outstanding_vnd: number | null;
+   next_invoice_on: string | null;
+   hide_amounts: boolean;
+   name_unchanged?: boolean;
++  override?: AmHealthOverride | null;
+   contacts: AmAccountContact[];
+   contracts: AmAccountContract[];
+   open_tasks: AmAccountOpenTask[];
+   plans: AmAccountPlan[];
+   audit: AmAccountAuditItem[];
+ };
+ 
+ export type AmPatchAccountBody = {
+   name?: string;
+   tier?: string | null;
+@@ -413,20 +420,72 @@ export async function patchAmAccount(
+   token: string,
+   agencyClientId: string,
+   body: AmPatchAccountBody,
+ ): Promise<AmAccount360> {
+   return amFetch<AmAccount360>(token, `/api/crm/am/accounts/${encodeURIComponent(agencyClientId)}`, {
+     method: 'PATCH',
+     body: JSON.stringify(body),
+   });
+ }
+ 
++export type AmSettings = {
++  weights: {
++    kpi_delivery: number;
++    engagement: number;
++    financial: number;
++    satisfaction: number;
++    contract_support: number;
++  };
++  bands: {
++    healthy: [number, number];
++    watch: [number, number];
++    at_risk: [number, number];
++    critical: [number, number];
++  };
++  quota_accounts_per_am: number;
++  watch_ends_on_days: number;
++  health_drop_alert: number;
++  rollup_parent_health: boolean;
++  scorecard_version: number;
++};
++
++export type AmPublishSettingsBody = {
++  weights: AmSettings['weights'];
++  bands: AmSettings['bands'];
++  quota_accounts_per_am?: number;
++  watch_ends_on_days?: number;
++  health_drop_alert?: number;
++  rollup_parent_health?: boolean;
++};
++
++export async function fetchAmSettings(token: string): Promise<AmSettings> {
++  return amFetch<AmSettings>(token, '/api/crm/am/settings');
++}
++
++export async function putAmSettings(token: string, body: AmPublishSettingsBody): Promise<AmSettings> {
++  return amFetch<AmSettings>(token, '/api/crm/am/settings', {
++    method: 'PUT',
++    body: JSON.stringify(body),
++  });
++}
++
++export async function overrideAmHealth(
++  token: string,
++  agencyClientId: string,
++  body: { band: AmHealthBand; reason: string; until: string },
++): Promise<{ agency_client_id: string; band: AmHealthBand; reason: string; until: string }> {
++  return amFetch(token, `/api/crm/am/health/${encodeURIComponent(agencyClientId)}/override`, {
++    method: 'POST',
++    body: JSON.stringify(body),
++  });
++}
++
+ export async function mergeAmAccount(
+   token: string,
+   agencyClientId: string,
+   intoAgencyClientId: string,
+ ): Promise<{ merged: true; into_agency_client_id: string }> {
+   return amFetch(token, `/api/crm/am/accounts/${encodeURIComponent(agencyClientId)}/merge`, {
+     method: 'POST',
+     body: JSON.stringify({ into_agency_client_id: intoAgencyClientId }),
+   });
+ }
+diff --git a/services/ops-web/src/lib/crm/am-settings.util.spec.ts b/services/ops-web/src/lib/crm/am-settings.util.spec.ts
+new file mode 100644
+index 00000000..88a42b48
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-settings.util.spec.ts
+@@ -0,0 +1,44 @@
++import { describe, expect, it } from 'vitest';
++import { amSettingsBandsError, amSettingsWeightsError } from './am-settings.util';
++
++describe('am-settings', () => {
++  it('amSettingsWeightsError when weights do not sum to 100', () => {
++    expect(
++      amSettingsWeightsError({
++        kpi_delivery: 29,
++        engagement: 20,
++        financial: 20,
++        satisfaction: 15,
++        contract_support: 15,
++      }),
++    ).toBe('weights_sum');
++    expect(
++      amSettingsWeightsError({
++        kpi_delivery: 30,
++        engagement: 20,
++        financial: 20,
++        satisfaction: 15,
++        contract_support: 15,
++      }),
++    ).toBeNull();
++  });
++
++  it('amSettingsBandsError when bands overlap or are not contiguous 0-100', () => {
++    expect(
++      amSettingsBandsError({
++        healthy: [80, 100],
++        watch: [60, 80],
++        at_risk: [40, 59],
++        critical: [0, 39],
++      }),
++    ).toBe('bands_overlap');
++    expect(
++      amSettingsBandsError({
++        healthy: [80, 100],
++        watch: [60, 79],
++        at_risk: [40, 59],
++        critical: [0, 39],
++      }),
++    ).toBeNull();
++  });
++});
+diff --git a/services/ops-web/src/lib/crm/am-settings.util.ts b/services/ops-web/src/lib/crm/am-settings.util.ts
+new file mode 100644
+index 00000000..d996e62d
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-settings.util.ts
+@@ -0,0 +1,58 @@
++export type AmSettingsWeights = {
++  kpi_delivery: number;
++  engagement: number;
++  financial: number;
++  satisfaction: number;
++  contract_support: number;
++};
++
++export type AmSettingsBands = {
++  healthy: [number, number];
++  watch: [number, number];
++  at_risk: [number, number];
++  critical: [number, number];
++};
++
++const WEIGHT_KEYS: Array<keyof AmSettingsWeights> = [
++  'kpi_delivery',
++  'engagement',
++  'financial',
++  'satisfaction',
++  'contract_support',
++];
++
++const BAND_KEYS: Array<keyof AmSettingsBands> = ['healthy', 'watch', 'at_risk', 'critical'];
++
++export function amSettingsWeightsError(weights: AmSettingsWeights): 'weights_sum' | null {
++  let sum = 0;
++  for (const key of WEIGHT_KEYS) {
++    const n = Number(weights[key]);
++    if (!Number.isFinite(n) || n < 0) return 'weights_sum';
++    sum += n;
++  }
++  return sum === 100 ? null : 'weights_sum';
++}
++
++export function amSettingsBandsError(bands: AmSettingsBands): 'bands_overlap' | null {
++  const ranges: Array<[number, number]> = [];
++  for (const key of BAND_KEYS) {
++    const pair = bands[key];
++    if (!Array.isArray(pair) || pair.length < 2) return 'bands_overlap';
++    const lo = Number(pair[0]);
++    const hi = Number(pair[1]);
++    if (!Number.isInteger(lo) || !Number.isInteger(hi) || lo > hi) return 'bands_overlap';
++    ranges.push([lo, hi]);
++  }
++  ranges.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
++  if (ranges[0][0] !== 0 || ranges[ranges.length - 1][1] !== 100) return 'bands_overlap';
++  for (let i = 1; i < ranges.length; i += 1) {
++    if (ranges[i][0] !== ranges[i - 1][1] + 1) return 'bands_overlap';
++  }
++  return null;
++}
++
++export function amSettingsPublishErrorCopy(code: string): string {
++  if (code === 'weights_sum') return 'weights_sum — tổng trọng số phải bằng 100.';
++  if (code === 'bands_overlap') return 'bands_overlap — ngưỡng không được chồng và phải liền 0–100.';
++  return code;
++}
+diff --git a/services/ptt-crm-api/src/am/am-accounts.service.ts b/services/ptt-crm-api/src/am/am-accounts.service.ts
+index f632e655..51c0a808 100644
+--- a/services/ptt-crm-api/src/am/am-accounts.service.ts
++++ b/services/ptt-crm-api/src/am/am-accounts.service.ts
+@@ -189,20 +189,21 @@ export type AmAccount360 = {
+   parent_agency_client_id: string | null;
+   parent_name: string | null;
+   children: AmAccountChild[];
+   band: string | null;
+   score: number | null;
+   mrr_vnd: number | null;
+   outstanding_vnd: number | null;
+   next_invoice_on: string | null;
+   hide_amounts: boolean;
+   name_unchanged?: boolean;
++  override: { band: string; reason: string; until: string } | null;
+   contacts: AmAccountContact[];
+   contracts: AmAccountContract[];
+   open_tasks: AmAccountOpenTask[];
+   plans: AmAccountPlan[];
+   audit: AmAccountAuditItem[];
+ };
+ 
+ const AM_STATUSES = new Set([
+   'pending_handover',
+   'onboarding',
+@@ -293,20 +294,38 @@ function text(value: unknown): string | null {
+   return String(value);
+ }
+ 
+ function dayStr(value: unknown): string | null {
+   if (value == null || value === '') return null;
+   if (value instanceof Date) return value.toISOString().slice(0, 10);
+   const s = String(value);
+   return s.length >= 10 ? s.slice(0, 10) : s;
+ }
+ 
++function ictToday(): string {
++  return new Intl.DateTimeFormat('en-CA', {
++    timeZone: 'Asia/Ho_Chi_Minh',
++    year: 'numeric',
++    month: '2-digit',
++    day: '2-digit',
++  }).format(new Date());
++}
++
++function activeOverride(
++  row: Record<string, unknown>,
++): { band: string; reason: string; until: string } | null {
++  const band = text(row.override_band);
++  const until = dayStr(row.override_until);
++  if (!band || !until || until < ictToday()) return null;
++  return { band, reason: text(row.override_reason) ?? '', until };
++}
++
+ @Injectable()
+ export class AmAccountsRepository implements OnModuleDestroy, AmAccountsDb {
+   private pool: Pool | null = null;
+ 
+   constructor(private readonly config: AppConfigService) {}
+ 
+   private get db(): Pool {
+     if (!this.pool) {
+       this.pool = new Pool({ connectionString: this.config.databaseUrl });
+     }
+@@ -810,20 +829,21 @@ export class AmAccountsService {
+       media_label: media ? text(row.media_label) ?? 'Media' : text(row.media_label),
+       parent_agency_client_id: text(row.parent_agency_client_id),
+       parent_name: text(row.parent_name),
+       children,
+       band: text(row.band),
+       score: num(row.score),
+       mrr_vnd: hideAmounts ? null : num(row.mrr_vnd),
+       outstanding_vnd: null,
+       next_invoice_on: null,
+       hide_amounts: hideAmounts,
++      override: activeOverride(row),
+       contacts,
+       contracts,
+       open_tasks: openTasks,
+       plans,
+       audit,
+     };
+   }
+ 
+   private async loadAccountRow(
+     actor: ListActor,
+@@ -860,21 +880,21 @@ export class AmAccountsService {
+             snap.score,
+             mrr.mrr_vnd,
+             NULL::text AS delivery_label,
+             NULL::text AS media_label
+           FROM crm_am_account_ext e
+           INNER JOIN clients c ON c.id = e.agency_client_id
+           LEFT JOIN clients parent ON parent.id = e.parent_agency_client_id
+           LEFT JOIN crm_staff owner ON owner.id = e.account_owner_staff_id
+           ${includeTeam ? 'LEFT JOIN staff_teams team ON team.id = e.team_id' : ''}
+           LEFT JOIN LATERAL (
+-            SELECT h.score, h.band, h.override_band, h.override_until
++            SELECT h.score, h.band, h.override_band, h.override_until, h.override_reason
+               FROM crm_am_health_snapshots h
+              WHERE h.tenant_id = $1
+                AND h.agency_client_id = e.agency_client_id
+              ORDER BY h.as_of DESC
+              LIMIT 1
+           ) snap ON TRUE
+           ${contractJoins()}
+           WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}
+           LIMIT 1`,
+         params,
+diff --git a/services/ptt-crm-api/src/am/am-health.service.spec.ts b/services/ptt-crm-api/src/am/am-health.service.spec.ts
+index 0091b44e..d5a4d257 100644
+--- a/services/ptt-crm-api/src/am/am-health.service.spec.ts
++++ b/services/ptt-crm-api/src/am/am-health.service.spec.ts
+@@ -1,21 +1,39 @@
+ import { DEFAULT_WEIGHTS } from './am.types';
+ import { AmHealthService, HEALTH_SNAPSHOT_UPSERT } from './am-health.service';
+ 
+ const ACTIVE_ID = '19d722af-0000-4000-8000-000000000001';
+ const CHURNED_ID = '19d722af-0000-4000-8000-000000000099';
++const ICT = 'Asia/Ho_Chi_Minh';
++
++function ictYmd(now = new Date()): string {
++  return new Intl.DateTimeFormat('en-CA', {
++    timeZone: ICT,
++    year: 'numeric',
++    month: '2-digit',
++    day: '2-digit',
++  }).format(now);
++}
++
++function addDaysYmd(ymd: string, days: number): string {
++  const [year, month, day] = ymd.split('-').map((part) => Number(part));
++  const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1, (day || 1) + days));
++  return dt.toISOString().slice(0, 10);
++}
+ 
+ describe('AmHealthService', () => {
+   const repo = {
+     listAccounts: jest.fn(),
+     upsertSnapshot: jest.fn(),
+     loadWeights: jest.fn(),
++    applyOverride: jest.fn(),
++    findAccount: jest.fn(),
+   };
+   const audit = { insert: jest.fn() };
+   const dashboard = { dropCache: jest.fn() };
+ 
+   let service: AmHealthService;
+ 
+   beforeEach(() => {
+     jest.clearAllMocks();
+     repo.loadWeights.mockResolvedValue({ ...DEFAULT_WEIGHTS });
+     repo.upsertSnapshot.mockResolvedValue(undefined);
+@@ -99,12 +117,29 @@ describe('AmHealthService', () => {
+       at_risk: 0,
+       critical: 0,
+       avg: 72,
+     });
+   });
+ 
+   it('upserts snapshots on conflict of tenant, client, and as_of', () => {
+     expect(HEALTH_SNAPSHOT_UPSERT).toMatch(
+       /ON CONFLICT\s*\(\s*tenant_id\s*,\s*agency_client_id\s*,\s*as_of\s*\)/i,
+     );
++    expect(HEALTH_SNAPSHOT_UPSERT).not.toMatch(
++      /DO UPDATE SET[\s\S]*scorecard_version\s*=\s*EXCLUDED\.scorecard_version/i,
++    );
++  });
++
++  it('rejects override until today+31 ICT with 400 override_until_invalid and does not write', async () => {
++    const until = addDaysYmd(ictYmd(), 31);
++    await expect(
++      service.override(
++        { staffUser: { sub: '7' }, staffAuthVia: 'jwt' } as never,
++        ACTIVE_ID,
++        { band: 'watch', reason: 'temp hold', until },
++        7,
++      ),
++    ).rejects.toMatchObject({ status: 400, error: 'override_until_invalid' });
++    expect(repo.upsertSnapshot).not.toHaveBeenCalled();
++    expect(repo.applyOverride).not.toHaveBeenCalled();
+   });
+ });
+diff --git a/services/ptt-crm-api/src/am/am-health.service.ts b/services/ptt-crm-api/src/am/am-health.service.ts
+index 2355e347..0f82cb30 100644
+--- a/services/ptt-crm-api/src/am/am-health.service.ts
++++ b/services/ptt-crm-api/src/am/am-health.service.ts
+@@ -1,17 +1,30 @@
+ import { Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
+ import { Pool } from 'pg';
+ import { AppConfigService } from '../config/app-config.service';
++import { StaffAuthService } from '../staff-auth/staff-auth.service';
++import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+ import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
+ import { AmDashboardService } from './am-dashboard.service';
+-import { bandFromScore, DEFAULT_WEIGHTS, isActiveBook, weightedScore } from './am-health.util';
+-import type { AmAmStatus, AmHealthBand, AmHealthComponents } from './am.types';
++import { amThrow } from './am-http';
++import {
++  bandFromScore,
++  DEFAULT_BANDS,
++  DEFAULT_WEIGHTS,
++  isActiveBook,
++  weightedScore,
++  type AmBandRanges,
++} from './am-health.util';
++import { AmSettingsService } from './am-settings.service';
++import { amScopeSql, resolveAmScope } from './am-scope.util';
++import { isUuid } from './am-tasks.service';
++import type { AmAmStatus, AmHealthBand, AmHealthComponents, AmScope } from './am.types';
+ 
+ export type AmHealthAccountRow = {
+   agency_client_id: string;
+   am_status: AmAmStatus;
+   created_at: string;
+   has_active_contract: boolean;
+   csd_breached: boolean;
+ };
+ 
+ export type AmHealthSnapshotInput = {
+@@ -32,39 +45,79 @@ export type AmHealthDist = {
+   avg: number | null;
+ };
+ 
+ export type AmHealthRecomputeResult = {
+   as_of: string;
+   computed: number;
+   skipped: number;
+   dist: AmHealthDist;
+ };
+ 
++export type AmHealthOverrideBody = {
++  band?: string;
++  reason?: string;
++  until?: string;
++};
++
++export type AmHealthOverrideResult = {
++  agency_client_id: string;
++  band: AmHealthBand;
++  reason: string;
++  until: string;
++};
++
++export type AmHealthLatestSnapshot = {
++  as_of: string;
++  score: number;
++  band: AmHealthBand;
++  components: AmHealthComponents;
++  scorecard_version: number;
++  thin_data: boolean;
++};
++
+ export type AmHealthStore = {
+   listAccounts(): Promise<AmHealthAccountRow[]>;
+   upsertSnapshot(input: AmHealthSnapshotInput): Promise<void>;
+   loadWeights(): Promise<AmHealthComponents>;
++  applyOverride(input: {
++    agency_client_id: string;
++    band: AmHealthBand;
++    reason: string;
++    until: string;
++    as_of: string;
++    fallback: Omit<AmHealthSnapshotInput, 'agency_client_id' | 'as_of'>;
++  }): Promise<void>;
++  findAccount(
++    agencyClientId: string,
++    scopeSql: string,
++    scopeParams: unknown[],
++  ): Promise<boolean>;
++};
++
++export type AmHealthReq = {
++  staffUser?: StaffJwtPayload;
++  staffAuthVia?: 'internal' | 'jwt';
+ };
+ 
++const HEALTH_BANDS = new Set<AmHealthBand>(['healthy', 'watch', 'at_risk', 'critical']);
++
+ const ICT = 'Asia/Ho_Chi_Minh';
+-const SCORECARD_VERSION = 1;
+ 
+ export const HEALTH_SNAPSHOT_UPSERT = `
+ INSERT INTO crm_am_health_snapshots (
+   tenant_id, agency_client_id, as_of, score, band, components_json,
+   scorecard_version, thin_data
+ ) VALUES ($1, $2::uuid, $3::date, $4, $5, $6::jsonb, $7, $8)
+ ON CONFLICT (tenant_id, agency_client_id, as_of) DO UPDATE SET
+   score = EXCLUDED.score,
+   band = EXCLUDED.band,
+   components_json = EXCLUDED.components_json,
+-  scorecard_version = EXCLUDED.scorecard_version,
+   thin_data = EXCLUDED.thin_data
+ `;
+ 
+ function isMissingRelation(err: unknown): boolean {
+   const e = err as { code?: string; message?: string };
+   return e.code === '42P01' || /does not exist/i.test(e.message ?? '');
+ }
+ 
+ function ictYmd(now = new Date()): string {
+   return new Intl.DateTimeFormat('en-CA', {
+@@ -179,20 +232,109 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
+         `SELECT weights_json FROM crm_am_settings WHERE tenant_id = $1 LIMIT 1`,
+         [AM_TENANT_ID],
+       );
+       return parseWeights(result.rows[0]?.weights_json);
+     } catch (err) {
+       if (isMissingRelation(err)) return { ...DEFAULT_WEIGHTS };
+       throw err;
+     }
+   }
+ 
++  async findAccount(
++    agencyClientId: string,
++    scopeSql: string,
++    scopeParams: unknown[],
++  ): Promise<boolean> {
++    try {
++      const result = await this.db.query(
++        `SELECT 1
++           FROM crm_am_account_ext e
++          WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${scopeSql}
++          LIMIT 1`,
++        [AM_TENANT_ID, agencyClientId, ...scopeParams],
++      );
++      return (result.rowCount ?? 0) > 0;
++    } catch (err) {
++      if (isMissingRelation(err)) return false;
++      throw err;
++    }
++  }
++
++  async applyOverride(input: {
++    agency_client_id: string;
++    band: AmHealthBand;
++    reason: string;
++    until: string;
++    as_of: string;
++    fallback: Omit<AmHealthSnapshotInput, 'agency_client_id' | 'as_of'>;
++  }): Promise<void> {
++    const latest = await this.loadLatestSnapshot(input.agency_client_id);
++    if (latest) {
++      await this.db.query(
++        `UPDATE crm_am_health_snapshots
++            SET override_band = $3, override_reason = $4, override_until = $5::date
++          WHERE tenant_id = $1 AND agency_client_id = $2::uuid AND as_of = $6::date`,
++        [AM_TENANT_ID, input.agency_client_id, input.band, input.reason, input.until, latest.as_of],
++      );
++      return;
++    }
++    await this.db.query(
++      `INSERT INTO crm_am_health_snapshots (
++         tenant_id, agency_client_id, as_of, score, band, components_json,
++         scorecard_version, thin_data, override_band, override_reason, override_until
++       ) VALUES ($1, $2::uuid, $3::date, $4, $5, $6::jsonb, $7, $8, $9, $10, $11::date)
++       ON CONFLICT (tenant_id, agency_client_id, as_of) DO UPDATE SET
++         override_band = EXCLUDED.override_band,
++         override_reason = EXCLUDED.override_reason,
++         override_until = EXCLUDED.override_until`,
++      [
++        AM_TENANT_ID,
++        input.agency_client_id,
++        input.as_of,
++        input.fallback.score,
++        input.fallback.band,
++        JSON.stringify(input.fallback.components),
++        input.fallback.scorecard_version,
++        input.fallback.thin_data,
++        input.band,
++        input.reason,
++        input.until,
++      ],
++    );
++  }
++
++  private async loadLatestSnapshot(agencyClientId: string): Promise<AmHealthLatestSnapshot | null> {
++    try {
++      const result = await this.db.query(
++        `SELECT as_of, score, band, components_json, scorecard_version, thin_data
++           FROM crm_am_health_snapshots
++          WHERE tenant_id = $1 AND agency_client_id = $2::uuid
++          ORDER BY as_of DESC
++          LIMIT 1`,
++        [AM_TENANT_ID, agencyClientId],
++      );
++      const row = result.rows[0];
++      if (!row) return null;
++      return {
++        as_of: dayStr(row.as_of) ?? '',
++        score: Number(row.score),
++        band: String(row.band) as AmHealthBand,
++        components: parseWeights(row.components_json),
++        scorecard_version: Number(row.scorecard_version ?? 1),
++        thin_data: Boolean(row.thin_data),
++      };
++    } catch (err) {
++      if (isMissingRelation(err)) return null;
++      throw err;
++    }
++  }
++
+   private async loadExt(): Promise<Array<Pick<AmHealthAccountRow, 'agency_client_id' | 'am_status' | 'created_at'>>> {
+     try {
+       const result = await this.db.query(
+         `SELECT agency_client_id::text AS agency_client_id, am_status, created_at
+          FROM crm_am_account_ext
+          WHERE tenant_id = $1`,
+         [AM_TENANT_ID],
+       );
+       return result.rows.map((row) => ({
+         agency_client_id: String(row.agency_client_id ?? ''),
+@@ -237,56 +379,192 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
+     }
+   }
+ }
+ 
+ @Injectable()
+ export class AmHealthService {
+   constructor(
+     private readonly repo: AmHealthRepository,
+     private readonly audit: AmAuditRepository,
+     @Optional() private readonly dashboard?: AmDashboardService,
++    @Optional() private readonly settings?: AmSettingsService,
++    @Optional() private readonly staffAuth?: StaffAuthService,
+   ) {}
+ 
+   async recompute(input: { asOf?: string; actorStaffId?: number } = {}): Promise<AmHealthRecomputeResult> {
+     const asOf = parseAsOf(input.asOf);
+-    const [accounts, weights] = await Promise.all([this.repo.listAccounts(), this.repo.loadWeights()]);
++    const scorecard = await this.loadScorecard();
++    const accounts = await this.repo.listAccounts();
+     const dist = emptyDist();
+     let sum = 0;
+     let computed = 0;
+     let skipped = 0;
+ 
+     for (const account of accounts) {
+       if (account.am_status === 'churned' || !isActiveBook(account.am_status)) {
+         skipped += 1;
+         continue;
+       }
+       const components = stubHealthComponents({
+         hasActiveContract: account.has_active_contract,
+         csdBreached: account.csd_breached,
+       });
+-      const score = round1(weightedScore(components, weights));
+-      const band = bandFromScore(score);
++      const score = round1(weightedScore(components, scorecard.weights));
++      const band = bandFromScore(score, scorecard.bands);
+       await this.repo.upsertSnapshot({
+         agency_client_id: account.agency_client_id,
+         as_of: asOf,
+         score,
+         band,
+         components,
+-        scorecard_version: SCORECARD_VERSION,
++        scorecard_version: scorecard.scorecard_version,
+         thin_data: wave1ThinData(account, asOf),
+       });
+       dist[band] += 1;
+       sum += score;
+       computed += 1;
+     }
+ 
+     dist.avg = computed ? round1(sum / computed) : null;
+     this.dashboard?.dropCache();
+     await this.audit.insert({
+       actor_staff_id: input.actorStaffId && input.actorStaffId > 0 ? input.actorStaffId : null,
+       action: 'health.recompute',
+       entity_type: 'health_snapshot',
+       payload_json: { as_of: asOf, computed, skipped },
+     });
+     return { as_of: asOf, computed, skipped, dist };
+   }
++
++  async override(
++    req: AmHealthReq,
++    agencyClientId: string,
++    body: AmHealthOverrideBody,
++    actorStaffId: number,
++  ): Promise<AmHealthOverrideResult> {
++    const reason = String(body.reason ?? '').trim();
++    if (!reason) amThrow(400, { error: 'reason_required' });
++    const band = String(body.band ?? '').trim() as AmHealthBand;
++    if (!HEALTH_BANDS.has(band)) amThrow(400, { error: 'invalid_band' });
++    const until = String(body.until ?? '').trim();
++    if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) amThrow(400, { error: 'override_until_invalid' });
++    const today = ictYmd();
++    const maxUntil = addDaysYmd(today, 30);
++    if (until < today || until > maxUntil) amThrow(400, { error: 'override_until_invalid' });
++
++    const id = String(agencyClientId ?? '').trim();
++    if (!isUuid(id)) amThrow(404, { error: 'not_found' });
++    const actor = await this.resolveActor(req);
++    const bound = bindScopeSql(
++      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
++      3,
++    );
++    const visible = await this.repo.findAccount(id, bound.sql, bound.params);
++    if (!visible) amThrow(404, { error: 'not_found' });
++
++    const scorecard = await this.loadScorecard();
++    const fallbackComponents = stubHealthComponents({ hasActiveContract: false, csdBreached: false });
++    const fallbackScore = round1(weightedScore(fallbackComponents, scorecard.weights));
++    await this.repo.applyOverride({
++      agency_client_id: id,
++      band,
++      reason,
++      until,
++      as_of: today,
++      fallback: {
++        score: fallbackScore,
++        band: bandFromScore(fallbackScore, scorecard.bands),
++        components: fallbackComponents,
++        scorecard_version: scorecard.scorecard_version,
++        thin_data: true,
++      },
++    });
++    this.dashboard?.dropCache();
++    await this.audit.insert({
++      actor_staff_id: actorStaffId > 0 ? actorStaffId : null,
++      action: 'health.override',
++      entity_type: 'health_snapshot',
++      entity_id: id,
++      payload_json: { band, reason, until },
++    });
++    return { agency_client_id: id, band, reason, until };
++  }
++
++  private async loadScorecard(): Promise<{
++    weights: AmHealthComponents;
++    bands: AmBandRanges;
++    scorecard_version: number;
++  }> {
++    if (this.settings) {
++      const row = await this.settings.get();
++      return {
++        weights: row.weights,
++        bands: row.bands,
++        scorecard_version: row.scorecard_version || 1,
++      };
++    }
++    return {
++      weights: await this.repo.loadWeights(),
++      bands: { ...DEFAULT_BANDS },
++      scorecard_version: 1,
++    };
++  }
++
++  private async resolveActor(req: AmHealthReq): Promise<{
++    staffId: number;
++    scope: AmScope;
++    teamIds: number[];
++  }> {
++    const internal = req.staffAuthVia === 'internal';
++    const staffId = req.staffUser
++      ? ((await this.staffAuth?.resolveCrmStaffUserId(req.staffUser)) ?? 0)
++      : 0;
++    if (internal && !req.staffUser) {
++      return { staffId, scope: resolveAmScope({ requested: 'all', hasViewAll: true, canTeam: true }), teamIds: [] };
++    }
++    if (!req.staffUser || !this.staffAuth) {
++      return { staffId, scope: 'me', teamIds: [] };
++    }
++    const me = await this.staffAuth.me(req.staffUser);
++    const has = (action: string) => this.staffAuth!.hasCap(me.caps, 'crm_am', action);
++    const hasViewAll = has('view_all') || has('manage');
++    const canTeam = hasViewAll || has('assign');
++    const scope = resolveAmScope({ requested: 'all', hasViewAll, canTeam });
++    return { staffId, scope, teamIds: [] };
++  }
++}
++
++function addDaysYmd(ymd: string, days: number): string {
++  const [year, month, day] = ymd.split('-').map((part) => Number(part));
++  const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1, (day || 1) + days));
++  return dt.toISOString().slice(0, 10);
++}
++
++function dayStr(value: unknown): string | null {
++  if (value == null || value === '') return null;
++  if (value instanceof Date) return value.toISOString().slice(0, 10);
++  const s = String(value);
++  return s.length >= 10 ? s.slice(0, 10) : s;
++}
++
++function bindScopeSql(
++  fragment: { sql: string; params: unknown[] },
++  startAt: number,
++): { sql: string; params: unknown[] } {
++  let sql = fragment.sql;
++  const params: unknown[] = [];
++  let i = startAt;
++  if (sql.includes('$teams')) {
++    sql = sql.replaceAll('$teams', `$${i++}`);
++    params.push(fragment.params[0]);
++    if (sql.includes('$staff')) {
++      sql = sql.replaceAll('$staff', `$${i++}`);
++      params.push(fragment.params[1] ?? fragment.params[0]);
++    }
++    return { sql, params };
++  }
++  if (sql.includes('$staff')) {
++    sql = sql.replaceAll('$staff', `$${i}`);
++    params.push(fragment.params[0]);
++  }
++  return { sql, params };
+ }
+diff --git a/services/ptt-crm-api/src/am/am-health.util.spec.ts b/services/ptt-crm-api/src/am/am-health.util.spec.ts
+index 32f9c61f..c2fd72cc 100644
+--- a/services/ptt-crm-api/src/am/am-health.util.spec.ts
++++ b/services/ptt-crm-api/src/am/am-health.util.spec.ts
+@@ -1,20 +1,31 @@
+ import { bandFromScore, isActiveBook, weightedScore } from './am-health.util';
+ 
+ describe('am-health.util', () => {
+   it('maps scores to 4 bands', () => {
+     expect(bandFromScore(80)).toBe('healthy');
+     expect(bandFromScore(79)).toBe('watch');
+     expect(bandFromScore(59)).toBe('at_risk');
+     expect(bandFromScore(39)).toBe('critical');
+   });
+ 
++  it('uses settings bands when provided', () => {
++    const bands = {
++      healthy: [90, 100] as [number, number],
++      watch: [70, 89] as [number, number],
++      at_risk: [40, 69] as [number, number],
++      critical: [0, 39] as [number, number],
++    };
++    expect(bandFromScore(80, bands)).toBe('watch');
++    expect(bandFromScore(90, bands)).toBe('healthy');
++  });
++
+   it('weights perfect components to 100', () => {
+     expect(
+       weightedScore({
+         kpi_delivery: 100,
+         engagement: 100,
+         financial: 100,
+         satisfaction: 100,
+         contract_support: 100,
+       }),
+     ).toBe(100);
+diff --git a/services/ptt-crm-api/src/am/am-health.util.ts b/services/ptt-crm-api/src/am/am-health.util.ts
+index 4ad7d611..4d38f43e 100644
+--- a/services/ptt-crm-api/src/am/am-health.util.ts
++++ b/services/ptt-crm-api/src/am/am-health.util.ts
+@@ -2,24 +2,42 @@ import {
+   ACTIVE_BOOK,
+   AmAmStatus,
+   AmHealthBand,
+   AmHealthComponents,
+   DEFAULT_WEIGHTS,
+ } from './am.types';
+ 
+ export { ACTIVE_BOOK, DEFAULT_WEIGHTS };
+ export type { AmAmStatus, AmHealthBand, AmHealthComponents };
+ 
+-export function bandFromScore(score: number): AmHealthBand {
+-  if (score >= 80) return 'healthy';
+-  if (score >= 60) return 'watch';
+-  if (score >= 40) return 'at_risk';
++export type AmBandRanges = {
++  healthy: [number, number];
++  watch: [number, number];
++  at_risk: [number, number];
++  critical: [number, number];
++};
++
++export const DEFAULT_BANDS: AmBandRanges = {
++  healthy: [80, 100],
++  watch: [60, 79],
++  at_risk: [40, 59],
++  critical: [0, 39],
++};
++
++const BAND_KEYS: AmHealthBand[] = ['healthy', 'watch', 'at_risk', 'critical'];
++
++export function bandFromScore(score: number, bands: AmBandRanges = DEFAULT_BANDS): AmHealthBand {
++  for (const key of BAND_KEYS) {
++    const [lo, hi] = bands[key];
++    if (score >= lo && score <= hi) return key;
++  }
++  if (score > 100) return 'healthy';
+   return 'critical';
+ }
+ 
+ export function weightedScore(
+   components: AmHealthComponents,
+   weights: AmHealthComponents = DEFAULT_WEIGHTS,
+ ): number {
+   const w = weights;
+   return (
+     (components.kpi_delivery * w.kpi_delivery +
+diff --git a/services/ptt-crm-api/src/am/am-settings.service.spec.ts b/services/ptt-crm-api/src/am/am-settings.service.spec.ts
+new file mode 100644
+index 00000000..a2c6105f
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-settings.service.spec.ts
+@@ -0,0 +1,62 @@
++import { DEFAULT_WEIGHTS } from './am.types';
++import { AmSettingsService } from './am-settings.service';
++
++const VALID_BANDS = {
++  healthy: [80, 100] as [number, number],
++  watch: [60, 79] as [number, number],
++  at_risk: [40, 59] as [number, number],
++  critical: [0, 39] as [number, number],
++};
++
++describe('AmSettingsService.publish', () => {
++  const repo = {
++    load: jest.fn(),
++    save: jest.fn(),
++  };
++  const audit = { insert: jest.fn() };
++  let service: AmSettingsService;
++
++  beforeEach(() => {
++    jest.clearAllMocks();
++    service = new AmSettingsService(repo as never, audit as never);
++  });
++
++  it('rejects weights 29/20/20/15/15 with 400 weights_sum and does not UPDATE', async () => {
++    await expect(
++      service.publish(
++        {
++          weights: {
++            kpi_delivery: 29,
++            engagement: 20,
++            financial: 20,
++            satisfaction: 15,
++            contract_support: 15,
++          },
++          bands: VALID_BANDS,
++        },
++        7,
++      ),
++    ).rejects.toMatchObject({ status: 400, error: 'weights_sum' });
++    expect(repo.save).not.toHaveBeenCalled();
++    expect(audit.insert).not.toHaveBeenCalled();
++  });
++
++  it('rejects overlapping bands with 400 bands_overlap and does not UPDATE', async () => {
++    await expect(
++      service.publish(
++        {
++          weights: { ...DEFAULT_WEIGHTS },
++          bands: {
++            healthy: [80, 100],
++            watch: [60, 80],
++            at_risk: [40, 59],
++            critical: [0, 39],
++          },
++        },
++        7,
++      ),
++    ).rejects.toMatchObject({ status: 400, error: 'bands_overlap' });
++    expect(repo.save).not.toHaveBeenCalled();
++    expect(audit.insert).not.toHaveBeenCalled();
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-settings.service.ts b/services/ptt-crm-api/src/am/am-settings.service.ts
+index 0aa06226..74723bd5 100644
+--- a/services/ptt-crm-api/src/am/am-settings.service.ts
++++ b/services/ptt-crm-api/src/am/am-settings.service.ts
+@@ -1,54 +1,68 @@
+ import { Injectable, OnModuleDestroy } from '@nestjs/common';
+ import { Pool } from 'pg';
+ import { AppConfigService } from '../config/app-config.service';
+-import { AM_TENANT_ID } from './am-audit.repository';
+-import { DEFAULT_WEIGHTS } from './am-health.util';
++import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
++import { amThrow } from './am-http';
++import { DEFAULT_BANDS, DEFAULT_WEIGHTS, type AmBandRanges } from './am-health.util';
+ import type { AmHealthComponents } from './am.types';
+ 
+-export type AmBandRanges = {
+-  healthy: [number, number];
+-  watch: [number, number];
+-  at_risk: [number, number];
+-  critical: [number, number];
+-};
++export type { AmBandRanges };
+ 
+ export type AmSettings = {
+   weights: AmHealthComponents;
+   bands: AmBandRanges;
+   quota_accounts_per_am: number;
+   watch_ends_on_days: number;
+   health_drop_alert: number;
+   rollup_parent_health: boolean;
++  scorecard_version: number;
+ };
+ 
+-const DEFAULT_BANDS: AmBandRanges = {
+-  healthy: [80, 100],
+-  watch: [60, 79],
+-  at_risk: [40, 59],
+-  critical: [0, 39],
++export type AmPublishSettingsBody = {
++  weights: AmHealthComponents;
++  bands: AmBandRanges;
++  quota_accounts_per_am?: number;
++  watch_ends_on_days?: number;
++  health_drop_alert?: number;
++  rollup_parent_health?: boolean;
+ };
+ 
++const WEIGHT_KEYS: Array<keyof AmHealthComponents> = [
++  'kpi_delivery',
++  'engagement',
++  'financial',
++  'satisfaction',
++  'contract_support',
++];
++
++const BAND_KEYS: Array<keyof AmBandRanges> = ['healthy', 'watch', 'at_risk', 'critical'];
++
+ const DEFAULT_SETTINGS: AmSettings = {
+   weights: { ...DEFAULT_WEIGHTS },
+-  bands: DEFAULT_BANDS,
++  bands: { ...DEFAULT_BANDS },
+   quota_accounts_per_am: 40,
+   watch_ends_on_days: 30,
+   health_drop_alert: 10,
+   rollup_parent_health: false,
++  scorecard_version: 1,
+ };
+ 
+ function isMissingRelation(err: unknown): boolean {
+   const e = err as { code?: string; message?: string };
+   return e.code === '42P01' || /does not exist/i.test(e.message ?? '');
+ }
+ 
++function isUndefinedColumn(err: unknown): boolean {
++  return (err as { code?: string }).code === '42703';
++}
++
+ function asPair(value: unknown, fallback: [number, number]): [number, number] {
+   if (!Array.isArray(value) || value.length < 2) return fallback;
+   const a = Number(value[0]);
+   const b = Number(value[1]);
+   if (!Number.isFinite(a) || !Number.isFinite(b)) return fallback;
+   return [a, b];
+ }
+ 
+ function parseWeights(raw: unknown): AmHealthComponents {
+   if (!raw || typeof raw !== 'object') return { ...DEFAULT_WEIGHTS };
+@@ -60,75 +74,285 @@ function parseWeights(raw: unknown): AmHealthComponents {
+   return {
+     kpi_delivery: num('kpi_delivery'),
+     engagement: num('engagement'),
+     financial: num('financial'),
+     satisfaction: num('satisfaction'),
+     contract_support: num('contract_support'),
+   };
+ }
+ 
+ function parseBands(raw: unknown): AmBandRanges {
+-  if (!raw || typeof raw !== 'object') return DEFAULT_BANDS;
++  if (!raw || typeof raw !== 'object') return { ...DEFAULT_BANDS };
+   const row = raw as Record<string, unknown>;
+   return {
+     healthy: asPair(row.healthy, DEFAULT_BANDS.healthy),
+     watch: asPair(row.watch, DEFAULT_BANDS.watch),
+     at_risk: asPair(row.at_risk, DEFAULT_BANDS.at_risk),
+     critical: asPair(row.critical, DEFAULT_BANDS.critical),
+   };
+ }
+ 
++function rowToSettings(row: Record<string, unknown>, versionFallback = 1): AmSettings {
++  const version = Number(row.scorecard_version);
++  return {
++    weights: parseWeights(row.weights_json),
++    bands: parseBands(row.bands_json),
++    quota_accounts_per_am: Number(row.quota_accounts_per_am ?? DEFAULT_SETTINGS.quota_accounts_per_am),
++    watch_ends_on_days: Number(row.watch_ends_on_days ?? DEFAULT_SETTINGS.watch_ends_on_days),
++    health_drop_alert: Number(row.health_drop_alert ?? DEFAULT_SETTINGS.health_drop_alert),
++    rollup_parent_health: Boolean(row.rollup_parent_health),
++    scorecard_version: Number.isFinite(version) && version > 0 ? version : versionFallback,
++  };
++}
++
++export function validateSettingsWeights(weights: AmHealthComponents): 'weights_sum' | null {
++  let sum = 0;
++  for (const key of WEIGHT_KEYS) {
++    const n = Number(weights[key]);
++    if (!Number.isFinite(n) || n < 0) return 'weights_sum';
++    sum += n;
++  }
++  return sum === 100 ? null : 'weights_sum';
++}
++
++export function validateSettingsBands(bands: AmBandRanges): 'bands_overlap' | null {
++  const ranges: Array<[number, number]> = [];
++  for (const key of BAND_KEYS) {
++    const pair = bands[key];
++    if (!Array.isArray(pair) || pair.length < 2) return 'bands_overlap';
++    const lo = Number(pair[0]);
++    const hi = Number(pair[1]);
++    if (!Number.isInteger(lo) || !Number.isInteger(hi) || lo > hi) return 'bands_overlap';
++    ranges.push([lo, hi]);
++  }
++  ranges.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
++  if (ranges[0][0] !== 0 || ranges[ranges.length - 1][1] !== 100) return 'bands_overlap';
++  for (let i = 1; i < ranges.length; i += 1) {
++    if (ranges[i][0] !== ranges[i - 1][1] + 1) return 'bands_overlap';
++  }
++  return null;
++}
++
+ @Injectable()
+ export class AmSettingsRepository implements OnModuleDestroy {
+   private pool: Pool | null = null;
+ 
+   constructor(private readonly config: AppConfigService) {}
+ 
+   private get db(): Pool {
+     if (!this.pool) {
+       this.pool = new Pool({ connectionString: this.config.databaseUrl });
+     }
+     return this.pool;
+   }
+ 
+   onModuleDestroy(): void {
+     void this.pool?.end();
+     this.pool = null;
+   }
+ 
+   async load(): Promise<AmSettings> {
++    try {
++      return await this.loadWithVersion();
++    } catch (err) {
++      if (isUndefinedColumn(err)) {
++        return this.loadWithoutVersion();
++      }
++      if (isMissingRelation(err)) {
++        return { ...DEFAULT_SETTINGS, weights: { ...DEFAULT_WEIGHTS }, bands: { ...DEFAULT_BANDS } };
++      }
++      throw err;
++    }
++  }
++
++  async save(next: AmSettings, actorStaffId: number): Promise<AmSettings> {
++    try {
++      return await this.saveWithVersion(next, actorStaffId);
++    } catch (err) {
++      if (isUndefinedColumn(err)) {
++        await this.saveWithoutVersion(next, actorStaffId);
++        return { ...next, scorecard_version: 1 };
++      }
++      if (isMissingRelation(err)) {
++        return { ...next, scorecard_version: next.scorecard_version || 1 };
++      }
++      throw err;
++    }
++  }
++
++  private async loadWithVersion(): Promise<AmSettings> {
++    const result = await this.db.query(
++      `SELECT weights_json, bands_json, quota_accounts_per_am, watch_ends_on_days,
++              health_drop_alert, rollup_parent_health, scorecard_version
++         FROM crm_am_settings
++        WHERE tenant_id = $1
++        LIMIT 1`,
++      [AM_TENANT_ID],
++    );
++    const row = result.rows[0];
++    if (!row) return { ...DEFAULT_SETTINGS, weights: { ...DEFAULT_WEIGHTS }, bands: { ...DEFAULT_BANDS } };
++    return rowToSettings(row);
++  }
++
++  private async loadWithoutVersion(): Promise<AmSettings> {
+     try {
+       const result = await this.db.query(
+         `SELECT weights_json, bands_json, quota_accounts_per_am, watch_ends_on_days,
+                 health_drop_alert, rollup_parent_health
+-         FROM crm_am_settings
+-         WHERE tenant_id = $1
+-         LIMIT 1`,
++           FROM crm_am_settings
++          WHERE tenant_id = $1
++          LIMIT 1`,
+         [AM_TENANT_ID],
+       );
+       const row = result.rows[0];
+       if (!row) return { ...DEFAULT_SETTINGS, weights: { ...DEFAULT_WEIGHTS }, bands: { ...DEFAULT_BANDS } };
+-      return {
+-        weights: parseWeights(row.weights_json),
+-        bands: parseBands(row.bands_json),
+-        quota_accounts_per_am: Number(row.quota_accounts_per_am ?? DEFAULT_SETTINGS.quota_accounts_per_am),
+-        watch_ends_on_days: Number(row.watch_ends_on_days ?? DEFAULT_SETTINGS.watch_ends_on_days),
+-        health_drop_alert: Number(row.health_drop_alert ?? DEFAULT_SETTINGS.health_drop_alert),
+-        rollup_parent_health: Boolean(row.rollup_parent_health),
+-      };
++      return rowToSettings(row, 1);
+     } catch (err) {
+       if (isMissingRelation(err)) {
+         return { ...DEFAULT_SETTINGS, weights: { ...DEFAULT_WEIGHTS }, bands: { ...DEFAULT_BANDS } };
+       }
+       throw err;
+     }
+   }
++
++  private async saveWithVersion(next: AmSettings, actorStaffId: number): Promise<AmSettings> {
++    const result = await this.db.query(
++      `INSERT INTO crm_am_settings (
++         tenant_id, weights_json, bands_json, quota_accounts_per_am, watch_ends_on_days,
++         health_drop_alert, rollup_parent_health, updated_at, updated_by_staff_id, scorecard_version
++       ) VALUES ($1, $2::jsonb, $3::jsonb, $4, $5, $6, $7, now(), $8, $9)
++       ON CONFLICT (tenant_id) DO UPDATE SET
++         weights_json = EXCLUDED.weights_json,
++         bands_json = EXCLUDED.bands_json,
++         quota_accounts_per_am = EXCLUDED.quota_accounts_per_am,
++         watch_ends_on_days = EXCLUDED.watch_ends_on_days,
++         health_drop_alert = EXCLUDED.health_drop_alert,
++         rollup_parent_health = EXCLUDED.rollup_parent_health,
++         updated_at = now(),
++         updated_by_staff_id = EXCLUDED.updated_by_staff_id,
++         scorecard_version = EXCLUDED.scorecard_version
++       RETURNING weights_json, bands_json, quota_accounts_per_am, watch_ends_on_days,
++                 health_drop_alert, rollup_parent_health, scorecard_version`,
++      [
++        AM_TENANT_ID,
++        JSON.stringify(next.weights),
++        JSON.stringify(next.bands),
++        next.quota_accounts_per_am,
++        next.watch_ends_on_days,
++        next.health_drop_alert,
++        next.rollup_parent_health,
++        actorStaffId > 0 ? actorStaffId : null,
++        next.scorecard_version,
++      ],
++    );
++    return rowToSettings(result.rows[0] ?? next);
++  }
++
++  private async saveWithoutVersion(next: AmSettings, actorStaffId: number): Promise<void> {
++    await this.db.query(
++      `INSERT INTO crm_am_settings (
++         tenant_id, weights_json, bands_json, quota_accounts_per_am, watch_ends_on_days,
++         health_drop_alert, rollup_parent_health, updated_at, updated_by_staff_id
++       ) VALUES ($1, $2::jsonb, $3::jsonb, $4, $5, $6, $7, now(), $8)
++       ON CONFLICT (tenant_id) DO UPDATE SET
++         weights_json = EXCLUDED.weights_json,
++         bands_json = EXCLUDED.bands_json,
++         quota_accounts_per_am = EXCLUDED.quota_accounts_per_am,
++         watch_ends_on_days = EXCLUDED.watch_ends_on_days,
++         health_drop_alert = EXCLUDED.health_drop_alert,
++         rollup_parent_health = EXCLUDED.rollup_parent_health,
++         updated_at = now(),
++         updated_by_staff_id = EXCLUDED.updated_by_staff_id`,
++      [
++        AM_TENANT_ID,
++        JSON.stringify(next.weights),
++        JSON.stringify(next.bands),
++        next.quota_accounts_per_am,
++        next.watch_ends_on_days,
++        next.health_drop_alert,
++        next.rollup_parent_health,
++        actorStaffId > 0 ? actorStaffId : null,
++      ],
++    );
++  }
+ }
+ 
+ @Injectable()
+ export class AmSettingsService {
+-  constructor(private readonly repo: AmSettingsRepository) {}
++  constructor(
++    private readonly repo: AmSettingsRepository,
++    private readonly audit: AmAuditRepository,
++  ) {}
+ 
+   get(): Promise<AmSettings> {
+     return this.repo.load();
+   }
++
++  async publish(body: AmPublishSettingsBody, actorStaffId: number): Promise<AmSettings> {
++    const weights = parsePublishWeights(body.weights);
++    const bands = parsePublishBands(body.bands);
++    const weightsErr = validateSettingsWeights(weights);
++    if (weightsErr) amThrow(400, { error: weightsErr });
++    const bandsErr = validateSettingsBands(bands);
++    if (bandsErr) amThrow(400, { error: bandsErr });
++
++    const current = await this.repo.load();
++    const next: AmSettings = {
++      weights,
++      bands,
++      quota_accounts_per_am: intOr(body.quota_accounts_per_am, current.quota_accounts_per_am),
++      watch_ends_on_days: intOr(body.watch_ends_on_days, current.watch_ends_on_days),
++      health_drop_alert: intOr(body.health_drop_alert, current.health_drop_alert),
++      rollup_parent_health:
++        typeof body.rollup_parent_health === 'boolean'
++          ? body.rollup_parent_health
++          : current.rollup_parent_health,
++      scorecard_version: current.scorecard_version + 1,
++    };
++    const saved = await this.repo.save(next, actorStaffId);
++    await this.audit.insert({
++      actor_staff_id: actorStaffId > 0 ? actorStaffId : null,
++      action: 'settings.publish',
++      entity_type: 'am_settings',
++      payload_json: { scorecard_version: saved.scorecard_version },
++    });
++    return saved;
++  }
++}
++
++function parsePublishWeights(raw: unknown): AmHealthComponents {
++  if (!raw || typeof raw !== 'object') {
++    amThrow(400, { error: 'weights_sum' });
++  }
++  const row = raw as Record<string, unknown>;
++  return {
++    kpi_delivery: Number(row.kpi_delivery),
++    engagement: Number(row.engagement),
++    financial: Number(row.financial),
++    satisfaction: Number(row.satisfaction),
++    contract_support: Number(row.contract_support),
++  };
++}
++
++function parsePublishBands(raw: unknown): AmBandRanges {
++  if (!raw || typeof raw !== 'object') {
++    amThrow(400, { error: 'bands_overlap' });
++  }
++  const row = raw as Record<string, unknown>;
++  const pair = (key: keyof AmBandRanges): [number, number] => {
++    const value = row[key];
++    if (!Array.isArray(value) || value.length < 2) return [Number.NaN, Number.NaN];
++    return [Number(value[0]), Number(value[1])];
++  };
++  return {
++    healthy: pair('healthy'),
++    watch: pair('watch'),
++    at_risk: pair('at_risk'),
++    critical: pair('critical'),
++  };
++}
++
++function intOr(value: unknown, fallback: number): number {
++  if (value == null || value === '') return fallback;
++  const n = Number(value);
++  return Number.isFinite(n) ? n : fallback;
+ }
+diff --git a/services/ptt-crm-api/src/am/am.controller.ts b/services/ptt-crm-api/src/am/am.controller.ts
+index ced54623..c2cb1c66 100644
+--- a/services/ptt-crm-api/src/am/am.controller.ts
++++ b/services/ptt-crm-api/src/am/am.controller.ts
+@@ -1,29 +1,29 @@
+-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
++import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+ import { Request } from 'express';
+ import { StaffAuthService } from '../staff-auth/staff-auth.service';
+ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+ import {
+   AmAccountsService,
+   type AmAccountsListQuery,
+   type AmCreateAccountBody,
+   type AmMergeAccountBody,
+   type AmPatchAccountBody,
+   type AmTransferBody,
+ } from './am-accounts.service';
+ import { AmDashboardService } from './am-dashboard.service';
+-import { AmHealthService } from './am-health.service';
++import { AmHealthService, type AmHealthOverrideBody } from './am-health.service';
+ import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
+ import { AmSearchService } from './am-search.service';
+ import { AmNotificationsService } from './am-notifications.service';
+-import { AmSettingsService } from './am-settings.service';
++import { AmSettingsService, type AmPublishSettingsBody } from './am-settings.service';
+ import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
+ import { AmViewsService, type AmCreateViewBody } from './am-views.service';
+ import {
+   AmOnboardingService,
+   type AmCreateTemplateBody,
+   type AmGoLiveBody,
+   type AmHandoverChecklist,
+   type AmHandoverListQuery,
+   type AmOnboardingCaseListQuery,
+   type AmPatchCaseBody,
+@@ -87,35 +87,51 @@ export class AmController {
+   search(@Req() req: AuthedReq, @Query() q: { q?: string; scope?: AmScope }) {
+     return this.searchService.search(req, q);
+   }
+ 
+   @Get('settings')
+   @RequireAmAction('view')
+   getSettings() {
+     return this.settings.get();
+   }
+ 
++  @Put('settings')
++  @RequireAmAction('manage')
++  async putSettings(@Req() req: AuthedReq, @Body() body: AmPublishSettingsBody) {
++    return this.settings.publish(body ?? ({} as AmPublishSettingsBody), await this.actorStaffId(req));
++  }
++
+   @Get('notifications')
+   @RequireAmAction('view')
+   async listNotifications(@Req() req: AuthedReq) {
+     return this.notifications.list(await this.actorStaffId(req));
+   }
+ 
+   @Post('health/recompute')
+   @RequireAmAction('manage')
+   async recomputeHealth(@Req() req: AuthedReq, @Body() body?: { as_of?: string }) {
+     return this.health.recompute({
+       asOf: body?.as_of,
+       actorStaffId: await this.actorStaffId(req),
+     });
+   }
+ 
++  @Post('health/:agencyClientId/override')
++  @RequireAmAction('manage')
++  async overrideHealth(
++    @Req() req: AuthedReq,
++    @Param('agencyClientId') agencyClientId: string,
++    @Body() body: AmHealthOverrideBody,
++  ) {
++    return this.health.override(req, agencyClientId, body ?? {}, await this.actorStaffId(req));
++  }
++
+   @Post('tasks')
+   @RequireAmAction('edit')
+   async createTask(@Req() req: AuthedReq, @Body() body: AmCreateTaskInput) {
+     return this.tasks.create(body, await this.actorStaffId(req));
+   }
+ 
+   @Post('tasks/dismiss')
+   @RequireAmAction('edit')
+   async dismissTask(
+     @Req() req: AuthedReq,
+diff --git a/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts b/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts
+index d0fea07e..77327ef1 100644
+--- a/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts
++++ b/services/ptt-crm-api/src/am/guards/staff-am.guard.spec.ts
+@@ -1,12 +1,13 @@
+ import { ForbiddenException } from '@nestjs/common';
+ import { Reflector } from '@nestjs/core';
++import { AmController } from '../am.controller';
+ import { AM_REQUIRED_ACTION_KEY, AM_REQUIRED_SECTION_KEY, StaffAmGuard } from './staff-am.guard';
+ 
+ function parseCaps(caps: string[]): Array<{ section: string; action: string }> {
+   return caps.map((cap) => {
+     const [section, action] = cap.split(':');
+     return { section, action };
+   });
+ }
+ 
+ function ctx(
+@@ -80,20 +81,26 @@ describe('StaffAmGuard', () => {
+   it('throws ForbiddenException for missing cap', async () => {
+     const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_leads:view'] }, 'edit');
+     await expect(guard.canActivate(executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+   });
+ 
+   it('allows internal key without caps', async () => {
+     const { guard, executionContext } = ctx({ staffId: 0, caps: [], internal: true });
+     await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+   });
+ 
++  it('PUT settings metadata action is manage so view-only cannot pass the guard', () => {
++    expect(Reflect.getMetadata(AM_REQUIRED_ACTION_KEY, AmController.prototype.putSettings)).toBe(
++      'manage',
++    );
++  });
++
+   it('checks crm_am.finance for finance endpoints', async () => {
+     const { guard, executionContext } = ctx(
+       { staffId: 3, caps: ['crm_am:view'] },
+       'view',
+       'crm_am.finance',
+     );
+     await expect(guard.canActivate(executionContext)).rejects.toMatchObject({ status: 403 });
+ 
+     const ok = ctx({ staffId: 3, caps: ['crm_am.finance:view'] }, 'view', 'crm_am.finance');
+     await expect(ok.guard.canActivate(ok.executionContext)).resolves.toBe(true);

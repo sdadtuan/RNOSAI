@@ -1,0 +1,705 @@
+# Review package: 792da9c66f1ffa35f97ed47d2881902b5c9c1a9b..7dd289c621a5373043eac0a5faf43eb823095728
+
+## Commits
+7dd289c6 fix(am): distinguish 360 load errors and validate parent patch
+
+## Files changed
+ .superpowers/sdd/task-15-report.md                 | 125 +++++++++++++++++++++
+ .../ops-web/src/components/crm/am/AmAccount360.tsx |  35 ++++--
+ .../src/lib/crm/am-account-360.util.spec.ts        |  35 +++++-
+ .../ops-web/src/lib/crm/am-account-360.util.ts     |  29 +++++
+ services/ops-web/src/lib/crm/am-api.ts             |   1 +
+ .../ptt-crm-api/src/am/am-accounts-360.spec.ts     | 102 +++++++++++++++++
+ services/ptt-crm-api/src/am/am-accounts.service.ts |  25 ++++-
+ 7 files changed, 339 insertions(+), 13 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/task-15-report.md b/.superpowers/sdd/task-15-report.md
+new file mode 100644
+index 00000000..d5a9d91e
+--- /dev/null
++++ b/.superpowers/sdd/task-15-report.md
+@@ -0,0 +1,125 @@
++# Task 15 Report: Account 360 Overview (UI-AM-03)
++
++**Status:** DONE_WITH_CONCERNS  
++**Branch:** `feat/am-os`  
++**Commit:** `792da9c6` — feat(am): add Account 360 overview with parent/child  
++**Date:** 2026-09-05
++
++## Summary
++
++Replaced the Wave 2 `clients/[id]` placeholder with Account 360. Added `GET/PATCH /api/crm/am/accounts/:agencyClientId` (CLASS/JWT + `amScopeSql`; out-of-scope → **404 not 200**). Parent responses include `children[]`. PATCH updates ext (tier, team, status, parent) and name via AgencyService when the caller has agency write. No PATCH contract-amount route. 10 tabs; Wave 2 implements Tổng quan + Hợp đồng & Tài chính (read) + Audit. No Ads/Portal tabs.
++
++## Backend
++
++### GET `accounts/:agencyClientId` (`view`)
++
++- Scope via `amScopeSql` (same actor rules as list). Missing / out-of-scope → 404 `not_found`.
++- Payload: identity, lifecycle, health, tier, team, owner, Delivery/Media labels if derived, `children[]`, contacts, contracts, open tasks, plans, audit.
++- Amounts (`mrr_vnd`, contract `amount_vnd`) null when `hide_amounts` (no `crm_am.finance` view / manage).
++
++### PATCH `accounts/:agencyClientId` (`edit`)
++
++- Ext: `tier`, `team_id`, `am_status`, `parent_agency_client_id`, `archive` (manage → `paused`).
++- Name only through `AgencyService.updateClient` if `crm_agency` create/write.
++- Ignores `amount_vnd`. Audit `account.update`.
++
++### POST `accounts/:agencyClientId/merge` (`manage`)
++
++- Body `{ into_agency_client_id }`. Out-of-scope / missing target → 403 `merge_denied` (UI tooltip).
++
++## Frontend
++
++- Header: name, lifecycle, health badge → `/health/[id]`, code, industry, tier, team, Owner ▾ (`assign` + transfer), Delivery/Media if present, Agency deep-link.
++- Quick actions: Log / Tạo rủi ro W3 disable; Tạo việc; Bắt đầu gia hạn; Tạo cơ hội W4 disable; no AI.
++- `⋮`: sửa / contact / đổi owner / lifecycle / archive (`manage`) / merge (`manage`, 403 tooltip).
++- Other tabs: real heading + `Mở ở Wave n` (not 404).
++
++## TDD Evidence
++
++**RED** (before `get`):
++
++```bash
++cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-accounts-360.spec.ts --no-coverage
++```
++
++- TS2339: `Property 'get' does not exist on type 'AmAccountsService'` (feature missing).
++
++**GREEN:**
++
++```bash
++cd services/ptt-crm-api && ./node_modules/.bin/jest \
++  src/am/am-accounts-360.spec.ts \
++  src/am/am-accounts.service.spec.ts \
++  src/am/am-accounts-list.spec.ts \
++  src/am/am-accounts-transfer.spec.ts \
++  src/am/guards/staff-am.guard.spec.ts --no-coverage
++# 5 suites, 27 passed
++```
++
++Required cases: out-of-scope 404 not 200; parent returns `children[]`; no PATCH contract amount route.
++
++Frontend vitest: `am-account-360.util.spec.ts` — 10 tabs, no Ads/Portal, Wave 2 implements overview/finance/audit.
++
++## Files changed
++
++- `services/ptt-crm-api/src/am/am-accounts.service.ts`
++- `services/ptt-crm-api/src/am/am.controller.ts`
++- `services/ptt-crm-api/src/am/am-accounts-360.spec.ts` (new)
++- `services/ops-web/src/lib/crm/am-api.ts`
++- `services/ops-web/src/lib/crm/am-account-360.util.ts` (new)
++- `services/ops-web/src/lib/crm/am-account-360.util.spec.ts` (new)
++- `services/ops-web/src/components/crm/am/AmAccount360.tsx` (new)
++- `services/ops-web/src/app/crm/account-management/clients/[id]/page.tsx`
++- `services/ops-web/src/app/crm/account-management/am.css`
++
++## Concerns
++
++1. **UI not browser-verified** — staff login required; verified via unit tests only.
++2. **Merge is a thin Wave 2 action** — sets `parent_agency_client_id` on the source; not a full legal merge / identity collapse.
++3. **Delivery/Media labels** are derived from contracts (`media` billing/slug vs other active HĐ), not dedicated owner columns.
++4. **Contact add** deferred to Task 16; 360 lists existing `crm_am_contacts` only.
++5. **Roster owner picker** still uses `staff_users.id` (transfer remaps to `crm_staff` by email), same as Task 14.
++
++## Review follow-up (Important)
++
++**Commit:** `fix(am): distinguish 360 load errors and validate parent patch`
++
++Fixed three Important findings. UI still not browser-verified.
++
++### 1. Load failure must not look like 404
++
++`AmAccount360` already tagged `not_found` vs `load_failed`, but `!data` reused the scope-not-found sentence. Scope copy now only renders on HTTP 404. Other failures use `Không tải được Account 360. Thử lại.`
++
++### 2. Name save without `crm_agency` write
++
++PATCH with `name` and no `crm_agency` create/write skips `AgencyService.updateClient`, returns `name_unchanged: true`, and does not audit a name change. UI disables the name field and toasts `Tên không đổi — cần quyền crm_agency.write` (info), not success-as-changed.
++
++### 3. Parent PATCH scope
++
++Parent UUID/self → 400 `parent_invalid`. Missing / out-of-scope parent uses `loadScopedAccounts` (same as merge) → 403 `parent_denied` before UPDATE.
++
++### RED
++
++```
++$ cd services/ptt-crm-api && ./node_modules/.bin/jest src/am/am-accounts-360.spec.ts --no-coverage
++TS2339: Property 'name_unchanged' does not exist on type 'AmAccount360'.
++
++$ cd services/ops-web && ./node_modules/.bin/vitest run src/lib/crm/am-account-360.util.spec.ts
++TypeError: am360LoadErrorKind is not a function
++TypeError: canEditAmAccountName is not a function
++```
++
++### GREEN
++
++```
++$ cd services/ptt-crm-api && ./node_modules/.bin/jest \
++  src/am/am-accounts-360.spec.ts \
++  src/am/am-accounts.service.spec.ts \
++  src/am/am-accounts-list.spec.ts \
++  src/am/am-accounts-transfer.spec.ts \
++  src/am/guards/staff-am.guard.spec.ts --no-coverage
++# 5 suites, 30 passed
++
++$ cd services/ops-web && ./node_modules/.bin/vitest run src/lib/crm/am-account-360.util.spec.ts
++# 5 passed
++```
+diff --git a/services/ops-web/src/components/crm/am/AmAccount360.tsx b/services/ops-web/src/components/crm/am/AmAccount360.tsx
+index 2e4edc8a..98e8bb0a 100644
+--- a/services/ops-web/src/components/crm/am/AmAccount360.tsx
++++ b/services/ops-web/src/components/crm/am/AmAccount360.tsx
+@@ -11,22 +11,27 @@ import {
+   fetchAmAccount,
+   mergeAmAccount,
+   patchAmAccount,
+   transferAmAccounts,
+   type AmAccount360 as AmAccount360Data,
+   type AmAccountContact,
+ } from '@/lib/crm/am-api';
+ import {
+   AM_360_STATUS_COPY,
+   AM_360_TABS,
++  am360LoadErrorCopy,
++  am360LoadErrorKind,
++  am360PatchToast,
+   am360WaveCopy,
++  canEditAmAccountName,
+   parseAm360Tab,
++  type Am360LoadError,
+   type Am360TabId,
+ } from '@/lib/crm/am-account-360.util';
+ import { canAssignAmAccounts } from '@/lib/crm/am-accounts-views.util';
+ import { bandCopy, vnd } from '@/lib/crm/am-format';
+ import { useToast } from '@/lib/toast';
+ import { AmPlaceholder } from './AmPlaceholder';
+ import { useAmPage } from './AmShell';
+ 
+ type DrawerKind = 'edit' | 'contact' | 'owner' | 'lifecycle' | 'merge' | 'task' | 'renewal' | null;
+ 
+@@ -46,41 +51,42 @@ function dashText(value: string | number | null | undefined): string {
+ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
+   const { token, user, canEdit } = useAmPage();
+   const { push } = useToast();
+   const router = useRouter();
+   const pathname = usePathname() ?? `/crm/account-management/clients/${agencyClientId}`;
+   const searchParams = useSearchParams();
+   const tab = parseAm360Tab(searchParams.get('tab'));
+ 
+   const [data, setData] = useState<AmAccount360Data | null>(null);
+   const [loading, setLoading] = useState(true);
+-  const [error, setError] = useState('');
++  const [error, setError] = useState<Am360LoadError | ''>('');
+   const [menuOpen, setMenuOpen] = useState(false);
+   const [drawer, setDrawer] = useState<DrawerKind>(null);
+   const [busy, setBusy] = useState(false);
+   const [formError, setFormError] = useState('');
+   const [mergeHint, setMergeHint] = useState('');
+   const [roster, setRoster] = useState<StaffRosterRow[]>([]);
+ 
+   const canAssign = canAssignAmAccounts(user);
+   const canManage = hasCap(user, 'crm_am', 'manage');
++  const canEditName = canEditAmAccountName(user);
+   const primary = data?.contacts.find((row) => row.is_primary) ?? data?.contacts[0] ?? null;
+ 
+   const load = useCallback(async () => {
+     if (!token || !agencyClientId) return;
+     setLoading(true);
+     setError('');
+     try {
+       setData(await fetchAmAccount(token, agencyClientId));
+     } catch (err) {
+       setData(null);
+-      setError(err instanceof ApiError && err.status === 404 ? 'not_found' : 'load_failed');
++      setError(am360LoadErrorKind(err instanceof ApiError ? err.status : undefined));
+     } finally {
+       setLoading(false);
+     }
+   }, [agencyClientId, token]);
+ 
+   useEffect(() => {
+     void load();
+   }, [load]);
+ 
+   useEffect(() => {
+@@ -105,21 +111,25 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
+   }
+ 
+   async function onPatch(body: Parameters<typeof patchAmAccount>[2]) {
+     if (busy) return;
+     setBusy(true);
+     setFormError('');
+     try {
+       const next = await patchAmAccount(token, agencyClientId, body);
+       setData(next);
+       setDrawer(null);
+-      push('Đã lưu', 'success');
++      const toast = am360PatchToast({
++        nameRequested: Boolean(body.name?.trim()),
++        nameUnchanged: Boolean(next.name_unchanged),
++      });
++      push(toast.message, toast.tone);
+     } catch (err) {
+       setFormError(err instanceof Error ? err.message : 'Không lưu được');
+     } finally {
+       setBusy(false);
+     }
+   }
+ 
+   async function onArchive() {
+     if (!canManage || busy) return;
+     if (!window.confirm('Lưu trữ khách này? Lifecycle sẽ chuyển sang Paused.')) return;
+@@ -242,28 +252,29 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
+   );
+ 
+   if (loading) {
+     return (
+       <section className="am-page">
+         <p className="am-muted">Đang tải Account 360…</p>
+       </section>
+     );
+   }
+ 
+-  if (error === 'not_found' || !data) {
++  if (error === 'not_found' || error === 'load_failed' || !data) {
++    const kind: Am360LoadError = error === 'not_found' ? 'not_found' : 'load_failed';
+     return (
+       <section className="am-page">
+         <p className="am-crumb">
+           <Link href="/crm/account-management/clients">Khách hàng</Link>
+         </p>
+         <div className="am-widget__error">
+-          <p>Không tìm thấy khách trong phạm vi của bạn.</p>
++          <p>{am360LoadErrorCopy(kind)}</p>
+         </div>
+       </section>
+     );
+   }
+ 
+   const statusLabel = AM_360_STATUS_COPY[data.am_status] ?? data.am_status;
+   const activeTab = AM_360_TABS.find((item) => item.id === tab) ?? AM_360_TABS[0];
+ 
+   return (
+     <section className="am-page am-360">
+@@ -451,33 +462,43 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
+                 Đóng
+               </button>
+             </div>
+             {drawer === 'edit' ? (
+               <form
+                 className="am-form"
+                 onSubmit={(ev) => {
+                   ev.preventDefault();
+                   const form = new FormData(ev.currentTarget);
+                   void onPatch({
+-                    name: String(form.get('name') ?? '').trim() || undefined,
++                    name: canEditName
++                      ? String(form.get('name') ?? '').trim() || undefined
++                      : undefined,
+                     tier: String(form.get('tier') ?? '').trim() || null,
+                     team_id: String(form.get('team_id') ?? '').trim()
+                       ? Number(form.get('team_id'))
+                       : null,
+                     parent_agency_client_id: String(form.get('parent_agency_client_id') ?? '').trim() || null,
+                   });
+                 }}
+               >
+                 <label className="am-field">
+                   <span>Tên</span>
+-                  <input name="name" defaultValue={data.name} />
++                  <input
++                    name="name"
++                    defaultValue={data.name}
++                    disabled={!canEditName}
++                    title={canEditName ? 'Tên khách' : 'Cần quyền crm_agency.write'}
++                  />
+                 </label>
++                {!canEditName ? (
++                  <p className="am-muted">Tên chỉ đổi được khi có quyền crm_agency.write.</p>
++                ) : null}
+                 <label className="am-field">
+                   <span>Tier</span>
+                   <input name="tier" defaultValue={data.tier ?? ''} />
+                 </label>
+                 <label className="am-field">
+                   <span>Team ID</span>
+                   <input name="team_id" inputMode="numeric" defaultValue={data.team_id ?? ''} />
+                 </label>
+                 <label className="am-field">
+                   <span>Parent agency_client_id</span>
+diff --git a/services/ops-web/src/lib/crm/am-account-360.util.spec.ts b/services/ops-web/src/lib/crm/am-account-360.util.spec.ts
+index 41866348..e08db4d8 100644
+--- a/services/ops-web/src/lib/crm/am-account-360.util.spec.ts
++++ b/services/ops-web/src/lib/crm/am-account-360.util.spec.ts
+@@ -1,12 +1,26 @@
+ import { describe, expect, it } from 'vitest';
+-import { AM_360_TABS, am360HasForbiddenTabs, am360WaveCopy, parseAm360Tab } from './am-account-360.util';
++import type { StoredStaffUser } from '@/lib/auth';
++import {
++  AM_360_TABS,
++  am360HasForbiddenTabs,
++  am360LoadErrorCopy,
++  am360LoadErrorKind,
++  am360PatchToast,
++  am360WaveCopy,
++  canEditAmAccountName,
++  parseAm360Tab,
++} from './am-account-360.util';
++
++function user(caps: StoredStaffUser['caps']): StoredStaffUser {
++  return { id: '1', email: 'a', display_name: 'A', position_id: 1, caps };
++}
+ 
+ describe('AM_360_TABS', () => {
+   it('has exactly 10 tabs and no Ads/Portal', () => {
+     expect(AM_360_TABS).toHaveLength(10);
+     expect(AM_360_TABS.map((tab) => tab.label)).toEqual([
+       'Tổng quan',
+       'Timeline',
+       'Dự án & dịch vụ',
+       'Công việc',
+       'Hợp đồng & Tài chính',
+@@ -27,11 +41,30 @@ describe('AM_360_TABS', () => {
+     );
+     expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'opportunities')!)).toBe(
+       'Cơ hội — mở ở Wave 4',
+     );
+   });
+ 
+   it('defaults unknown tab query to overview', () => {
+     expect(parseAm360Tab('ads')).toBe('overview');
+     expect(parseAm360Tab('finance')).toBe('finance');
+   });
++
++  it('uses scope-not-found copy only for HTTP 404', () => {
++    expect(am360LoadErrorKind(404)).toBe('not_found');
++    expect(am360LoadErrorKind(500)).toBe('load_failed');
++    expect(am360LoadErrorKind(undefined)).toBe('load_failed');
++    expect(am360LoadErrorCopy('not_found')).toBe('Không tìm thấy khách trong phạm vi của bạn.');
++    expect(am360LoadErrorCopy('load_failed')).toBe('Không tải được Account 360. Thử lại.');
++    expect(am360LoadErrorCopy('load_failed')).not.toBe(am360LoadErrorCopy('not_found'));
++  });
++
++  it('does not toast success when name is unchanged without crm_agency write', () => {
++    expect(canEditAmAccountName(user([{ section: 'crm_am', action: 'edit' }]))).toBe(false);
++    expect(canEditAmAccountName(user([{ section: 'crm_agency', action: 'write' }]))).toBe(true);
++    const toast = am360PatchToast({ nameRequested: true, nameUnchanged: true });
++    expect(toast.tone).not.toBe('success');
++    expect(toast.message).toMatch(/tên không đổi/i);
++    expect(toast.message).toMatch(/crm_agency/i);
++    expect(am360PatchToast({ nameRequested: false, nameUnchanged: false }).tone).toBe('success');
++  });
+ });
+diff --git a/services/ops-web/src/lib/crm/am-account-360.util.ts b/services/ops-web/src/lib/crm/am-account-360.util.ts
+index da708fd7..14558987 100644
+--- a/services/ops-web/src/lib/crm/am-account-360.util.ts
++++ b/services/ops-web/src/lib/crm/am-account-360.util.ts
+@@ -1,10 +1,12 @@
++import { hasCap, type StoredStaffUser } from '@/lib/auth';
++
+ export type Am360TabId =
+   | 'overview'
+   | 'timeline'
+   | 'projects'
+   | 'work'
+   | 'finance'
+   | 'health'
+   | 'opportunities'
+   | 'feedback'
+   | 'documents'
+@@ -46,10 +48,37 @@ export function parseAm360Tab(raw: string | null | undefined): Am360TabId {
+ }
+ 
+ export function am360WaveCopy(tab: Am360Tab): string {
+   if (tab.implemented) return '';
+   return `${tab.label} — mở ở Wave ${tab.wave}`;
+ }
+ 
+ export function am360HasForbiddenTabs(tabs: Am360Tab[] = AM_360_TABS): boolean {
+   return tabs.some((tab) => /ads|portal/i.test(`${tab.id} ${tab.label}`));
+ }
++
++export type Am360LoadError = 'not_found' | 'load_failed';
++
++export function am360LoadErrorKind(status: number | undefined): Am360LoadError {
++  return status === 404 ? 'not_found' : 'load_failed';
++}
++
++export function am360LoadErrorCopy(kind: Am360LoadError): string {
++  if (kind === 'not_found') return 'Không tìm thấy khách trong phạm vi của bạn.';
++  return 'Không tải được Account 360. Thử lại.';
++}
++
++export function canEditAmAccountName(user: StoredStaffUser | null | undefined): boolean {
++  return (
++    hasCap(user ?? null, 'crm_agency', 'create') || hasCap(user ?? null, 'crm_agency', 'write')
++  );
++}
++
++export function am360PatchToast(opts: {
++  nameRequested: boolean;
++  nameUnchanged: boolean;
++}): { message: string; tone: 'success' | 'info' } {
++  if (opts.nameRequested && opts.nameUnchanged) {
++    return { message: 'Tên không đổi — cần quyền crm_agency.write', tone: 'info' };
++  }
++  return { message: 'Đã lưu', tone: 'success' };
++}
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index f6a265df..2baa9ab3 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -360,20 +360,21 @@ export type AmAccount360 = {
+   media_label: string | null;
+   parent_agency_client_id: string | null;
+   parent_name: string | null;
+   children: AmAccountChild[];
+   band: AmHealthBand | null;
+   score: number | null;
+   mrr_vnd: number | null;
+   outstanding_vnd: number | null;
+   next_invoice_on: string | null;
+   hide_amounts: boolean;
++  name_unchanged?: boolean;
+   contacts: AmAccountContact[];
+   contracts: AmAccountContract[];
+   open_tasks: AmAccountOpenTask[];
+   plans: AmAccountPlan[];
+   audit: AmAccountAuditItem[];
+ };
+ 
+ export type AmPatchAccountBody = {
+   name?: string;
+   tier?: string | null;
+diff --git a/services/ptt-crm-api/src/am/am-accounts-360.spec.ts b/services/ptt-crm-api/src/am/am-accounts-360.spec.ts
+index 7af6ce9c..983f8eee 100644
+--- a/services/ptt-crm-api/src/am/am-accounts-360.spec.ts
++++ b/services/ptt-crm-api/src/am/am-accounts-360.spec.ts
+@@ -121,20 +121,122 @@ describe('AmAccountsService.get 360', () => {
+     const out = await service.get(viewReq, PARENT_ID);
+     expect(Array.isArray(out.children)).toBe(true);
+     expect(out.children).toEqual(
+       expect.arrayContaining([
+         expect.objectContaining({ agency_client_id: CHILD_ID, name: 'An Phu Con' }),
+       ]),
+     );
+   });
+ });
+ 
++describe('AmAccountsService.patch 360', () => {
++  const editReq = {
++    staffUser: { sub: '19d722af-0000-4000-8000-000000000007' },
++    staffAuthVia: 'jwt' as const,
++  } as never;
++
++  const agency = { createClient: jest.fn(), updateClient: jest.fn() };
++  const db = {
++    query: jest.fn<ReturnType<QueryFn>, Parameters<QueryFn>>(),
++  };
++  const staffAuth = {
++    resolveCrmStaffUserId: jest.fn(async () => VIEW_STAFF_ID),
++    me: jest.fn(async () => ({
++      caps: [{ section: 'crm_am', action: 'edit' }],
++    })),
++    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, section: string, action: string) =>
++      caps.some((c) => c.section === section && c.action === action),
++    ),
++  };
++
++  const accountRow = {
++    agency_client_id: CHILD_ID,
++    code: 'APC',
++    name: 'An Phu Con',
++    industry: 'agency',
++    notes: null,
++    am_status: 'active',
++    tier: 'A',
++    team_id: 1,
++    team_label: 'Enterprise',
++    owner_staff_id: 7,
++    owner_label: 'Minh',
++    parent_agency_client_id: null,
++    parent_name: null,
++    band: 'watch',
++    score: 72,
++    mrr_vnd: 85_000_000,
++    delivery_label: null,
++    media_label: null,
++  };
++
++  let service: AmAccountsService;
++  let scopedParentIds: string[];
++
++  function mockPatchQueries(sql: string) {
++    const text = String(sql);
++    if (/agency_client_id = ANY\(\$\d+::uuid\[\]\)/i.test(text)) {
++      return {
++        rows: scopedParentIds.map((id) => ({ agency_client_id: id })),
++        rowCount: scopedParentIds.length,
++      };
++    }
++    if (/from crm_am_account_ext e/i.test(text) && /select/i.test(text) && /clients c/i.test(text)) {
++      return { rows: [accountRow], rowCount: 1 };
++    }
++    if (/update\s+crm_am_account_ext/i.test(text)) {
++      return { rows: [], rowCount: 1 };
++    }
++    return { rows: [], rowCount: 0 };
++  }
++
++  beforeEach(() => {
++    jest.clearAllMocks();
++    scopedParentIds = [];
++    staffAuth.resolveCrmStaffUserId.mockResolvedValue(VIEW_STAFF_ID);
++    staffAuth.me.mockResolvedValue({ caps: [{ section: 'crm_am', action: 'edit' }] });
++    db.query.mockImplementation(async (sql: string) => mockPatchQueries(sql));
++    service = new AmAccountsService(agency as never, db as never, staffAuth as never);
++  });
++
++  const editActor = {
++    staffId: VIEW_STAFF_ID,
++    caps: [{ section: 'crm_am', action: 'edit' }],
++    via: 'jwt' as const,
++  };
++
++  it('returns name_unchanged and does not call AgencyService when caller lacks crm_agency write', async () => {
++    const out = await service.patch(editReq, CHILD_ID, { name: 'New Name', tier: 'B' }, editActor);
++    expect(agency.updateClient).not.toHaveBeenCalled();
++    expect(out.name_unchanged).toBe(true);
++    expect(out.name).toBe('An Phu Con');
++  });
++
++  it('rejects parent PATCH when parent is missing or out of scope', async () => {
++    scopedParentIds = [];
++    await expect(
++      service.patch(editReq, CHILD_ID, { parent_agency_client_id: OTHER_ID }, editActor),
++    ).rejects.toMatchObject({ status: 403, error: 'parent_denied' });
++    const updates = db.query.mock.calls.filter((call) => /update\s+crm_am_account_ext/i.test(String(call[0])));
++    expect(updates).toHaveLength(0);
++  });
++
++  it('rejects parent PATCH with 400 when parent id is invalid', async () => {
++    await expect(
++      service.patch(editReq, CHILD_ID, { parent_agency_client_id: CHILD_ID }, editActor),
++    ).rejects.toMatchObject({ status: 400, error: 'parent_invalid' });
++    await expect(
++      service.patch(editReq, CHILD_ID, { parent_agency_client_id: 'not-a-uuid' }, editActor),
++    ).rejects.toMatchObject({ status: 400, error: 'parent_invalid' });
++  });
++});
++
+ describe('AmController contract amount', () => {
+   it('does not expose PATCH amount on a contract endpoint', () => {
+     const patchContractAmount = controllerRoutes().filter((route) => {
+       const haystack = `${route.name} ${route.path}`;
+       return (
+         route.method === RequestMethod.PATCH &&
+         /contract/i.test(haystack) &&
+         /amount/i.test(haystack)
+       );
+     });
+diff --git a/services/ptt-crm-api/src/am/am-accounts.service.ts b/services/ptt-crm-api/src/am/am-accounts.service.ts
+index 9f46aea2..d442911b 100644
+--- a/services/ptt-crm-api/src/am/am-accounts.service.ts
++++ b/services/ptt-crm-api/src/am/am-accounts.service.ts
+@@ -170,20 +170,21 @@ export type AmAccount360 = {
+   media_label: string | null;
+   parent_agency_client_id: string | null;
+   parent_name: string | null;
+   children: AmAccountChild[];
+   band: string | null;
+   score: number | null;
+   mrr_vnd: number | null;
+   outstanding_vnd: number | null;
+   next_invoice_on: string | null;
+   hide_amounts: boolean;
++  name_unchanged?: boolean;
+   contacts: AmAccountContact[];
+   contracts: AmAccountContract[];
+   open_tasks: AmAccountOpenTask[];
+   plans: AmAccountPlan[];
+   audit: AmAccountAuditItem[];
+ };
+ 
+ const AM_STATUSES = new Set([
+   'pending_handover',
+   'onboarding',
+@@ -510,59 +511,73 @@ export class AmAccountsService {
+     }
+     if ('team_id' in body) {
+       const teamId = body.team_id == null || body.team_id === ('' as never) ? null : num(body.team_id);
+       if (body.team_id != null && teamId == null) amThrow(400, { error: 'team_id_invalid' });
+       sets.push(`team_id = ${pushParam(params, teamId)}`);
+     }
+     if ('parent_agency_client_id' in body) {
+       const parent = body.parent_agency_client_id == null || body.parent_agency_client_id === ''
+         ? null
+         : String(body.parent_agency_client_id).trim();
+-      if (parent && (!isUuid(parent) || parent === id)) {
+-        amThrow(400, { error: 'parent_invalid' });
++      if (parent) {
++        if (!isUuid(parent) || parent === id) {
++          amThrow(400, { error: 'parent_invalid' });
++        }
++        const found = await this.loadScopedAccounts([parent], scoped);
++        if (found.length < 1) {
++          amThrow(403, { error: 'parent_denied' });
++        }
+       }
+       sets.push(`parent_agency_client_id = ${pushParam(params, parent)}::uuid`);
+     }
+ 
+     const bound = bindScopeSql(
+       amScopeSql({ scope: scoped.scope, staffId: scoped.staffId, teamIds: scoped.teamIds }),
+       params.length + 1,
+     );
+     params.push(...bound.params);
+     await this.db.query(
+       `UPDATE crm_am_account_ext e
+           SET ${sets.join(', ')}
+         WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}`,
+       params,
+     );
+ 
+     const nextName = String(body.name ?? '').trim();
+-    if (nextName && this.canAgencyWrite(actor)) {
++    const nameRequested = Boolean(nextName);
++    const canWriteName = this.canAgencyWrite(actor);
++    let nameUnchanged = false;
++    if (nextName && canWriteName) {
+       await this.agency.updateClient(id, { name: nextName });
++    } else if (nameRequested) {
++      nameUnchanged = true;
+     }
+ 
+     await this.audit?.insert({
+       actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
+       action: 'account.update',
+       entity_type: 'account',
+       entity_id: id,
+       payload_json: {
+         tier: body.tier,
+         team_id: body.team_id,
+         am_status: body.am_status,
+         parent_agency_client_id: body.parent_agency_client_id,
+         archive: body.archive === true,
+-        name: nextName || undefined,
++        name: nameUnchanged ? undefined : nextName || undefined,
++        name_unchanged: nameUnchanged || undefined,
+       },
+     });
+     this.dashboard?.dropCache();
+-    return this.load360(scoped, id, await this.shouldHideAmounts(req));
++    const out = await this.load360(scoped, id, await this.shouldHideAmounts(req));
++    if (nameUnchanged) out.name_unchanged = true;
++    return out;
+   }
+ 
+   async merge(
+     req: AmAccountsListReq,
+     agencyClientId: string,
+     body: AmMergeAccountBody,
+     actor: AmAccountActor,
+   ): Promise<{ merged: true; into_agency_client_id: string }> {
+     if (!this.canManage(actor)) {
+       amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'manage' });

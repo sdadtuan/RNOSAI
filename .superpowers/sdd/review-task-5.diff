@@ -1,0 +1,1960 @@
+# Review package: bbdbea46550a4ee86ffd2a620df4662b19f2a7bd..8a9afc11e11c9c74a6d1fa3fa3a19a11328ff8e3
+
+## Commits
+8a9afc11 feat(am): add AmShell and Wave 1 dashboard matching UI-AM-01
+
+## Files changed
+ .../ops-web/src/app/crm/account-management/am.css  | 526 +++++++++++++++++++++
+ .../crm/account-management/clients/[id]/page.tsx   |   5 +
+ .../app/crm/account-management/clients/page.tsx    |   5 +
+ .../crm/account-management/contracts/[id]/page.tsx |   5 +
+ .../app/crm/account-management/feedback/page.tsx   |   5 +
+ .../crm/account-management/health/[id]/page.tsx    |   5 +
+ .../src/app/crm/account-management/health/page.tsx |   5 +
+ .../src/app/crm/account-management/layout.tsx      |   7 +
+ .../account-management/onboarding/[id]/page.tsx    |   5 +
+ .../app/crm/account-management/onboarding/page.tsx |   5 +
+ .../crm/account-management/opportunities/page.tsx  |   5 +
+ .../src/app/crm/account-management/page.tsx        |   7 +
+ .../crm/account-management/renewals/[id]/page.tsx  |   5 +
+ .../app/crm/account-management/renewals/page.tsx   |   5 +
+ .../app/crm/account-management/reports/page.tsx    |   5 +
+ .../app/crm/account-management/settings/page.tsx   |   5 +
+ .../app/crm/account-management/work/[id]/page.tsx  |   5 +
+ .../src/app/crm/account-management/work/page.tsx   |   5 +
+ services/ops-web/src/components/OpsNav.tsx         |  11 +
+ .../ops-web/src/components/crm/am/AmCreateMenu.tsx |  80 ++++
+ .../ops-web/src/components/crm/am/AmDashboard.tsx  | 407 ++++++++++++++++
+ .../src/components/crm/am/AmPlaceholder.tsx        |  15 +
+ services/ops-web/src/components/crm/am/AmShell.tsx | 327 +++++++++++++
+ .../ops-web/src/components/layout/nav-icons.tsx    |   3 +
+ services/ops-web/src/lib/crm/am-api.ts             | 112 +++++
+ services/ops-web/src/lib/crm/am-format.spec.ts     |  31 ++
+ services/ops-web/src/lib/crm/am-format.ts          |  18 +
+ 27 files changed, 1619 insertions(+)
+
+## Diff
+diff --git a/services/ops-web/src/app/crm/account-management/am.css b/services/ops-web/src/app/crm/account-management/am.css
+new file mode 100644
+index 00000000..538f44a5
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/am.css
+@@ -0,0 +1,526 @@
++:root {
++  --am-navy: #0f2747;
++  --am-accent: #2563eb;
++  --am-ok: #16a34a;
++  --am-warn: #d97706;
++  --am-danger: #dc2626;
++  --am-info: #0891b2;
++  --am-bg: #f7f8fa;
++  --am-radius: 12px;
++}
++
++.am-root {
++  display: flex;
++  align-items: stretch;
++  min-height: calc(100vh - var(--ops-chrome-h, 56px));
++  width: 100%;
++  background: var(--am-bg);
++  color: #111827;
++}
++
++.am-root--collapsed .am-sidebar {
++  flex-basis: 64px;
++  width: 64px;
++  max-width: 64px;
++}
++
++.am-root--compact .am-tile,
++.am-root--compact .am-widget {
++  padding: 10px;
++}
++
++.am-root--compact .am-table td,
++.am-root--compact .am-table th {
++  padding: 5px 8px;
++}
++
++.am-sidebar {
++  display: flex;
++  flex-direction: column;
++  flex: 0 0 248px;
++  width: 248px;
++  max-width: 248px;
++  background: var(--am-navy);
++  color: #cbd5e1;
++  min-height: 100%;
++}
++
++.am-sidebar__nav {
++  display: flex;
++  flex-direction: column;
++  gap: 2px;
++  padding: 10px 8px;
++  flex: 1;
++}
++
++.am-sidebar__group-label {
++  margin: 10px 10px 4px;
++  font-size: 10px;
++  font-weight: 800;
++  letter-spacing: 0.08em;
++  color: #94a3b8;
++}
++
++.am-sidebar__link {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  border-radius: 10px;
++  padding: 8px 10px;
++  color: #e2e8f0;
++  text-decoration: none;
++  font-size: 13px;
++}
++
++.am-sidebar__link:hover {
++  background: #16355c;
++}
++
++.am-sidebar__link.is-active {
++  background: var(--am-accent);
++  color: #fff;
++  font-weight: 600;
++}
++
++.am-sidebar__foot {
++  padding: 10px;
++  border-top: 1px solid #16355c;
++  font-size: 11px;
++  color: #94a3b8;
++}
++
++.am-sidebar__foot b {
++  display: block;
++  color: #e2e8f0;
++}
++
++.am-sidebar__collapse {
++  margin-top: 8px;
++  width: 100%;
++  border: 0;
++  background: #16355c;
++  color: #94a3b8;
++  border-radius: 8px;
++  padding: 8px;
++}
++
++.am-column {
++  flex: 1;
++  min-width: 0;
++  display: flex;
++  flex-direction: column;
++}
++
++.am-top {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  gap: 8px;
++  padding: 10px 18px;
++  background: #fff;
++  border-bottom: 1px solid #e5e7eb;
++}
++
++.am-search {
++  flex: 1;
++  min-width: 180px;
++  height: 34px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  padding: 0 10px;
++  background: #f9fafb;
++}
++
++.am-scope,
++.am-density {
++  display: flex;
++  align-items: center;
++  gap: 6px;
++  font-size: 12px;
++  color: #6b7280;
++}
++
++.am-scope select,
++.am-density select {
++  height: 34px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  background: #fff;
++  padding: 0 8px;
++  font-weight: 600;
++}
++
++.am-role {
++  font-size: 12px;
++  font-weight: 700;
++  color: var(--am-navy);
++  padding: 6px 10px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  background: #fff;
++}
++
++.am-page {
++  padding: 18px 22px 40px;
++}
++
++.am-btn {
++  height: 34px;
++  padding: 0 11px;
++  border-radius: 10px;
++  border: 1px solid #e5e7eb;
++  background: #fff;
++  font-weight: 600;
++  font-size: 13px;
++  cursor: pointer;
++}
++
++.am-btn--primary {
++  background: var(--am-accent);
++  border-color: var(--am-accent);
++  color: #fff;
++}
++
++.am-btn:disabled {
++  opacity: 0.5;
++  cursor: not-allowed;
++}
++
++.am-create {
++  position: relative;
++}
++
++.am-create__menu {
++  position: absolute;
++  right: 0;
++  top: 38px;
++  z-index: 20;
++  min-width: 210px;
++  display: grid;
++  gap: 2px;
++  padding: 6px;
++  background: #fff;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++}
++
++.am-create__menu button {
++  border: 0;
++  background: none;
++  text-align: left;
++  padding: 8px;
++  border-radius: 8px;
++}
++
++.am-create__menu button:hover:not(:disabled) {
++  background: #eff6ff;
++}
++
++.am-create__menu button:disabled {
++  color: #9ca3af;
++}
++
++.am-drawer-bg {
++  position: fixed;
++  inset: 0;
++  background: rgba(17, 24, 39, 0.4);
++  z-index: 60;
++}
++
++.am-drawer {
++  position: absolute;
++  top: 0;
++  right: 0;
++  width: min(420px, 100%);
++  height: 100%;
++  background: #fff;
++  padding: 18px;
++}
++
++.am-drawer__head {
++  display: flex;
++  justify-content: space-between;
++  align-items: center;
++  margin-bottom: 12px;
++}
++
++.am-dash__head h1,
++.am-placeholder__title {
++  margin: 0;
++  font-size: 22px;
++  letter-spacing: -0.03em;
++  color: var(--am-navy);
++}
++
++.am-crumb {
++  margin: 0 0 6px;
++  font-size: 12px;
++  color: #6b7280;
++}
++
++.am-sub,
++.am-muted {
++  color: #6b7280;
++  font-size: 13px;
++}
++
++.am-banner {
++  background: #fee2e2;
++  color: #991b1b;
++  border-radius: 8px;
++  padding: 8px 10px;
++  font-weight: 600;
++}
++
++.am-tiles {
++  display: grid;
++  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
++  gap: 10px;
++  margin: 12px 0;
++}
++
++.am-tile {
++  background: #fff;
++  border: 1px solid #e5e7eb;
++  border-radius: var(--am-radius);
++  padding: 12px;
++  text-decoration: none;
++  color: inherit;
++  min-height: 96px;
++}
++
++.am-tile span {
++  display: block;
++  font-size: 12px;
++  color: #6b7280;
++}
++
++.am-tile strong {
++  display: block;
++  margin: 4px 0 2px;
++  font-size: 20px;
++}
++
++.am-tile em {
++  font-style: normal;
++  font-size: 12px;
++  color: var(--am-ok);
++}
++
++.am-split {
++  display: grid;
++  grid-template-columns: 1fr 1fr;
++  gap: 12px;
++}
++
++.am-widget {
++  background: #fff;
++  border: 1px solid #e5e7eb;
++  border-radius: var(--am-radius);
++  padding: 14px;
++  min-height: 180px;
++  margin-bottom: 12px;
++}
++
++.am-widget__head {
++  display: flex;
++  justify-content: space-between;
++  align-items: center;
++  gap: 8px;
++  margin-bottom: 8px;
++}
++
++.am-widget__head h2 {
++  margin: 0;
++  font-size: 14px;
++}
++
++.am-widget__error {
++  min-height: 120px;
++  display: grid;
++  place-content: center;
++  gap: 8px;
++  text-align: center;
++}
++
++.am-empty,
++.am-placeholder__wave {
++  color: #6b7280;
++}
++
++.am-link {
++  color: var(--am-accent);
++  font-weight: 600;
++  font-size: 13px;
++  text-decoration: none;
++  background: none;
++  border: 0;
++  padding: 0;
++}
++
++.am-work {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++}
++
++.am-work__row {
++  display: grid;
++  grid-template-columns: auto 1fr auto;
++  gap: 8px;
++  align-items: center;
++  padding: 8px 0;
++  border-bottom: 1px solid #f3f4f6;
++}
++
++.am-chips {
++  display: flex;
++  gap: 6px;
++  flex-wrap: wrap;
++}
++
++.am-chip {
++  border: 1px solid #e5e7eb;
++  background: #fff;
++  border-radius: 99px;
++  padding: 4px 10px;
++  font-size: 12px;
++}
++
++.am-chip.is-on,
++.am-chip--overdue {
++  background: var(--am-navy);
++  color: #fff;
++  border-color: var(--am-navy);
++}
++
++.am-chip--today {
++  background: #ffedd5;
++  color: #9a3412;
++}
++
++.am-chip--soon {
++  background: #fef3c7;
++  color: #92400e;
++}
++
++.am-chip--unassigned {
++  background: #f3f4f6;
++  color: #374151;
++}
++
++.am-table {
++  width: 100%;
++  border-collapse: collapse;
++  font-size: 13px;
++}
++
++.am-table th {
++  text-align: left;
++  font-size: 11px;
++  color: #6b7280;
++  padding: 8px;
++  border-bottom: 1px solid #e5e7eb;
++}
++
++.am-table td {
++  padding: 8px;
++  border-bottom: 1px solid #f3f4f6;
++}
++
++.am-tbl-wrap {
++  overflow: auto;
++}
++
++.am-pill {
++  display: inline-flex;
++  border-radius: 99px;
++  padding: 2px 8px;
++  font-size: 12px;
++  font-weight: 700;
++}
++
++.am-pill--ok {
++  background: #dcfce7;
++  color: #166534;
++}
++
++.am-pill--watch {
++  background: #fef3c7;
++  color: #92400e;
++}
++
++.am-pill--risk {
++  background: #ffedd5;
++  color: #9a3412;
++}
++
++.am-pill--crit {
++  background: #fee2e2;
++  color: #991b1b;
++}
++
++.am-cov {
++  display: grid;
++  grid-template-columns: repeat(4, 1fr);
++  gap: 8px;
++}
++
++.am-cov > div {
++  background: #f8fafc;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  padding: 10px;
++}
++
++.am-stack {
++  display: flex;
++  height: 18px;
++  border-radius: 99px;
++  overflow: hidden;
++  background: #e5e7eb;
++}
++
++.am-stack i {
++  display: block;
++  height: 100%;
++}
++
++.am-legend {
++  display: flex;
++  gap: 10px;
++  flex-wrap: wrap;
++  font-size: 12px;
++}
++
++.am-placeholder {
++  background: #fff;
++  border: 1px solid #e5e7eb;
++  border-radius: var(--am-radius);
++  padding: 24px;
++  min-height: 180px;
++}
++
++html.ops-shell-bitrix body:has(.am-root) main.bitrix-crm-page,
++html.ops-shell-bitrix body:has(.am-root) main.ops-page--full,
++body:has(.ops-sidebar):has(.am-root) main.ops-page {
++  padding-top: calc(var(--ops-chrome-h, 56px) + 0.25rem) !important;
++  padding-bottom: 0 !important;
++  padding-left: 0 !important;
++  padding-right: 0 !important;
++  max-width: none !important;
++  width: auto !important;
++}
++
++html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
++  padding: 0;
++  width: auto;
++  max-width: none;
++}
++
++@media (max-width: 720px) {
++  .am-split,
++  .am-cov {
++    grid-template-columns: 1fr;
++  }
++}
+diff --git a/services/ops-web/src/app/crm/account-management/clients/[id]/page.tsx b/services/ops-web/src/app/crm/account-management/clients/[id]/page.tsx
+new file mode 100644
+index 00000000..31361631
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/clients/[id]/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmClientDetailPage() {
++  return <AmPlaceholder title="Chi tiết khách" wave={2} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/clients/page.tsx b/services/ops-web/src/app/crm/account-management/clients/page.tsx
+new file mode 100644
+index 00000000..407db7cd
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/clients/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmClientsPage() {
++  return <AmPlaceholder title="Danh sách" wave={2} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/contracts/[id]/page.tsx b/services/ops-web/src/app/crm/account-management/contracts/[id]/page.tsx
+new file mode 100644
+index 00000000..ed09171e
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/contracts/[id]/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmContractDetailPage() {
++  return <AmPlaceholder title="Hợp đồng" wave={2} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/feedback/page.tsx b/services/ops-web/src/app/crm/account-management/feedback/page.tsx
+new file mode 100644
+index 00000000..119c575a
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/feedback/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmFeedbackPage() {
++  return <AmPlaceholder title="Feedback" wave={4} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/health/[id]/page.tsx b/services/ops-web/src/app/crm/account-management/health/[id]/page.tsx
+new file mode 100644
+index 00000000..c9fb1555
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/health/[id]/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmHealthDetailPage() {
++  return <AmPlaceholder title="Health & Risk" wave={3} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/health/page.tsx b/services/ops-web/src/app/crm/account-management/health/page.tsx
+new file mode 100644
+index 00000000..4408e122
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/health/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmHealthPage() {
++  return <AmPlaceholder title="Health & Risk" wave={3} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/layout.tsx b/services/ops-web/src/app/crm/account-management/layout.tsx
+new file mode 100644
+index 00000000..e8bf084d
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/layout.tsx
+@@ -0,0 +1,7 @@
++import type { ReactNode } from 'react';
++import { AmShell } from '@/components/crm/am/AmShell';
++import './am.css';
++
++export default function AmLayout({ children }: { children: ReactNode }) {
++  return <AmShell>{children}</AmShell>;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/onboarding/[id]/page.tsx b/services/ops-web/src/app/crm/account-management/onboarding/[id]/page.tsx
+new file mode 100644
+index 00000000..6cf1e1ed
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/onboarding/[id]/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmOnboardingDetailPage() {
++  return <AmPlaceholder title="Onboarding" wave={2} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/onboarding/page.tsx b/services/ops-web/src/app/crm/account-management/onboarding/page.tsx
+new file mode 100644
+index 00000000..f23818ef
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/onboarding/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmOnboardingPage() {
++  return <AmPlaceholder title="Onboarding" wave={2} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/opportunities/page.tsx b/services/ops-web/src/app/crm/account-management/opportunities/page.tsx
+new file mode 100644
+index 00000000..c1c828e8
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/opportunities/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmOpportunitiesPage() {
++  return <AmPlaceholder title="Opportunities" wave={4} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/page.tsx b/services/ops-web/src/app/crm/account-management/page.tsx
+new file mode 100644
+index 00000000..0d260100
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/page.tsx
+@@ -0,0 +1,7 @@
++'use client';
++
++import { AmDashboard } from '@/components/crm/am/AmDashboard';
++
++export default function AmDashboardPage() {
++  return <AmDashboard />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/renewals/[id]/page.tsx b/services/ops-web/src/app/crm/account-management/renewals/[id]/page.tsx
+new file mode 100644
+index 00000000..cb965fb8
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/renewals/[id]/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmRenewalDetailPage() {
++  return <AmPlaceholder title="Gia hạn" wave={2} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/renewals/page.tsx b/services/ops-web/src/app/crm/account-management/renewals/page.tsx
+new file mode 100644
+index 00000000..e80582b3
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/renewals/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmRenewalsPage() {
++  return <AmPlaceholder title="Gia hạn" wave={2} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/reports/page.tsx b/services/ops-web/src/app/crm/account-management/reports/page.tsx
+new file mode 100644
+index 00000000..178cc135
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/reports/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmReportsPage() {
++  return <AmPlaceholder title="Báo cáo" wave={4} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/settings/page.tsx b/services/ops-web/src/app/crm/account-management/settings/page.tsx
+new file mode 100644
+index 00000000..551b8ee1
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/settings/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmSettingsPage() {
++  return <AmPlaceholder title="Cấu hình" wave={2} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/work/[id]/page.tsx b/services/ops-web/src/app/crm/account-management/work/[id]/page.tsx
+new file mode 100644
+index 00000000..13a93fe3
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/work/[id]/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmWorkDetailPage() {
++  return <AmPlaceholder title="Work Queue" wave={3} />;
++}
+diff --git a/services/ops-web/src/app/crm/account-management/work/page.tsx b/services/ops-web/src/app/crm/account-management/work/page.tsx
+new file mode 100644
+index 00000000..74dbd21d
+--- /dev/null
++++ b/services/ops-web/src/app/crm/account-management/work/page.tsx
+@@ -0,0 +1,5 @@
++import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
++
++export default function AmWorkPage() {
++  return <AmPlaceholder title="Work Queue" wave={3} />;
++}
+diff --git a/services/ops-web/src/components/OpsNav.tsx b/services/ops-web/src/components/OpsNav.tsx
+index 1ca464f8..b3889f42 100644
+--- a/services/ops-web/src/components/OpsNav.tsx
++++ b/services/ops-web/src/components/OpsNav.tsx
+@@ -12,20 +12,21 @@ import { staffMe } from '@/lib/api';
+ import { fetchReviewQueueCount } from '@/lib/api';
+ import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
+ import { emailGateAEnabled, emailJourneysEnabled, emailModuleEnabled } from '@/lib/email-flags';
+ import { winKpiSolutionEnabled, winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
+ import { StaffNotificationBell } from '@/components/staff/StaffNotificationBell';
+ import { StaffAvatarMenu } from '@/components/account/StaffAvatarMenu';
+ import { BrandLogo } from '@/components/brand/BrandLogo';
+ import { canViewEmailGateA } from '@/lib/email/caps';
+ import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
+ import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
++import { canSeeAmNav } from '@/lib/crm/am-nav.util';
+ import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
+ import { canSeeIwrNav } from '@/lib/crm/iwr-nav.util';
+ import { fetchCsdChatUnreadCount } from '@/lib/crm/csd-api';
+ import { canSeeCeoNav } from '@/lib/crm/ceo-command-thread.util';
+ import {
+   canViewSeoAeo,
+   canViewSeoAuthority,
+   canViewSeoAutomations,
+   canViewSeoContent,
+   canViewSeoBi,
+@@ -110,20 +111,21 @@ const PAGE_TITLES: Record<string, string> = {
+   '/': 'Bảng điều khiển',
+   '/crm': 'Bảng CSKH',
+   '/crm/cskh-board': 'Bảng CSKH SLA',
+   '/crm/tickets': 'Ticket CS',
+   '/crm/csd': 'Service Desk',
+   '/crm/csd/tickets': 'Ticket SD',
+   '/crm/csd/chat': 'Chat SD',
+   '/crm/csd/email': 'Email SD',
+   '/crm/csd/reports': 'Báo cáo SD',
+   '/crm/csd/reports/templates': 'Mẫu báo cáo',
++  '/crm/account-management': 'Account Management',
+   '/crm/internal-reports': 'BC công việc',
+   '/crm/internal-reports/inbox': 'Hộp thư BC',
+   '/crm/internal-reports/dashboards': 'Dashboard BC',
+   '/crm/internal-reports/schedules': 'Lịch BC',
+   '/crm/internal-reports/lists': 'DS phân phối BC',
+   '/crm/internal-reports/team': 'Cây kỳ',
+   '/crm/internal-reports/templates': 'Mẫu BC nội bộ',
+   '/crm/internal-reports/builder': 'Report builder BC',
+   '/crm/leads': 'Quản lý Lead',
+   '/crm/operational/leads': 'Lead CSKH vận hành',
+@@ -269,20 +271,21 @@ function pageTitleFor(pathname: string): string {
+     pathname !== '/crm/research/taxonomy'
+   ) {
+     return 'Workspace nghiên cứu';
+   }
+   if (pathname.startsWith('/crm/marketing-plan/') && pathname !== '/crm/marketing-plan') {
+     return 'Chi tiết kế hoạch';
+   }
+   if (pathname.startsWith('/crm/service-delivery/') && pathname !== '/crm/service-delivery') {
+     return 'Service lifecycle';
+   }
++  if (pathname.startsWith('/crm/account-management')) return PAGE_TITLES['/crm/account-management'];
+   if (pathname.startsWith('/crm/staff/') && pathname !== '/crm/staff') return 'Workspace nhân viên';
+   if (pathname.startsWith('/crm/re-projects/') && pathname !== '/crm/re-projects') return 'Chi tiết dự án BĐS';
+   if (pathname.startsWith('/crm/b2b-projects/') && pathname !== '/crm/b2b-projects') return 'Chi tiết dự án PTT';
+   if (pathname.startsWith('/agency/clients/')) return 'Chi tiết client';
+   if (pathname.startsWith('/email/templates/') && pathname !== '/email/templates') return 'Template editor';
+   if (pathname.startsWith('/email/campaigns/') && pathname.endsWith('/review')) return 'Campaign review';
+   if (pathname.startsWith('/email/campaigns/') && pathname !== '/email/campaigns') return 'Campaign detail';
+   if (pathname.startsWith('/email/journeys/') && pathname !== '/email/journeys') return 'Journey canvas';
+   if (pathname.startsWith('/email/clients/') && pathname !== '/email/clients') return 'Client workspace';
+   if (pathname.startsWith('/seo/content/') && pathname !== '/seo/content') return 'Content detail';
+@@ -426,20 +429,28 @@ function buildSections(
+     serviceDesk.push({ href: '/crm/csd/email', label: 'Email' });
+     serviceDesk.push({ href: '/crm/csd/reports', label: 'Báo cáo' });
+     if (hasCap(user, 'csd', 'manage')) {
+       serviceDesk.push({ href: '/crm/csd/reports/templates', label: 'Mẫu báo cáo' });
+     }
+   }
+   if (serviceDesk.length) {
+     sections.push({ label: 'Service Desk', links: serviceDesk, defaultOpen: true });
+   }
+ 
++  if (canSeeAmNav(user)) {
++    sections.push({
++      label: 'Account Management',
++      links: [{ href: '/crm/account-management', label: 'Account Management' }],
++      defaultOpen: true,
++    });
++  }
++
+   const salesContract: NavLink[] = [];
+   if (hasCap(user, 'crm_board', 'view')) {
+     salesContract.push({ href: '/crm/orders', label: 'Đơn hàng' });
+   }
+   if (hasCap(user, 'crm_re_projects', 'view') || hasCap(user, 'crm_re_projects_products', 'view')) {
+     salesContract.push({ href: '/crm/re-projects', label: 'Dự án BĐS' });
+   }
+   if (hasCap(user, 'crm_b2b_projects', 'view')) {
+     salesContract.push({ href: '/crm/b2b-gdkd', label: 'GDKD command center' });
+   }
+diff --git a/services/ops-web/src/components/crm/am/AmCreateMenu.tsx b/services/ops-web/src/components/crm/am/AmCreateMenu.tsx
+new file mode 100644
+index 00000000..d720e8d8
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmCreateMenu.tsx
+@@ -0,0 +1,80 @@
++'use client';
++
++import { useEffect, useRef, useState } from 'react';
++
++type CreateKind = 'client' | 'task' | 'plan';
++
++type AmCreateMenuProps = {
++  canEdit: boolean;
++};
++
++export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
++  const [open, setOpen] = useState(false);
++  const [stub, setStub] = useState<CreateKind | null>(null);
++  const wrapRef = useRef<HTMLDivElement>(null);
++
++  useEffect(() => {
++    function onDoc(ev: MouseEvent) {
++      if (!wrapRef.current?.contains(ev.target as Node)) setOpen(false);
++    }
++    document.addEventListener('mousedown', onDoc);
++    return () => document.removeEventListener('mousedown', onDoc);
++  }, []);
++
++  function openStub(kind: CreateKind) {
++    if (!canEdit) return;
++    setOpen(false);
++    setStub(kind);
++  }
++
++  const stubTitle =
++    stub === 'client' ? 'Tạo khách' : stub === 'task' ? 'Tạo việc' : stub === 'plan' ? 'Tạo Renewal/Plan' : '';
++
++  return (
++    <div className="am-create" ref={wrapRef}>
++      <button
++        type="button"
++        className="am-btn am-btn--primary"
++        aria-expanded={open}
++        aria-haspopup="menu"
++        disabled={!canEdit}
++        title={canEdit ? 'Tạo mới' : 'Cần quyền crm_am.edit'}
++        onClick={() => canEdit && setOpen((v) => !v)}
++      >
++        + Tạo mới ▾
++      </button>
++      {open ? (
++        <div className="am-create__menu" role="menu">
++          <button type="button" role="menuitem" onClick={() => openStub('client')}>
++            Khách
++          </button>
++          <button type="button" role="menuitem" onClick={() => openStub('task')}>
++            Việc
++          </button>
++          <button type="button" role="menuitem" onClick={() => openStub('plan')}>
++            Renewal/Plan
++          </button>
++          <button type="button" role="menuitem" disabled title="Mở ở Wave 4">
++            Cơ hội
++          </button>
++          <button type="button" role="menuitem" disabled title="Mở ở Wave 3">
++            Log tương tác
++          </button>
++        </div>
++      ) : null}
++      {stub ? (
++        <div className="am-drawer-bg" role="presentation">
++          <div className="am-drawer" role="dialog" aria-label={stubTitle}>
++            <div className="am-drawer__head">
++              <strong>{stubTitle}</strong>
++              <button type="button" className="am-btn" onClick={() => setStub(null)}>
++                Đóng
++              </button>
++            </div>
++            <p className="am-muted">Drawer tạo mới mở ở Task 6–7.</p>
++          </div>
++        </div>
++      ) : null}
++    </div>
++  );
++}
+diff --git a/services/ops-web/src/components/crm/am/AmDashboard.tsx b/services/ops-web/src/components/crm/am/AmDashboard.tsx
+new file mode 100644
+index 00000000..7e972b93
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmDashboard.tsx
+@@ -0,0 +1,407 @@
++'use client';
++
++import Link from 'next/link';
++import { useState, type ReactNode } from 'react';
++import { bandCopy, dash, vnd } from '@/lib/crm/am-format';
++import type { AmHealthBand } from '@/lib/crm/am-format';
++import { useAmPage } from './AmShell';
++
++const KPI_TILES = [
++  {
++    key: 'active',
++    label: 'Khách hàng active',
++    href: '/crm/account-management/clients',
++  },
++  {
++    key: 'mrr',
++    label: 'MRR hiện tại',
++    href: '/crm/account-management/clients?sort=mrr',
++  },
++  {
++    key: 'renewal',
++    label: 'Gia hạn 90 ngày',
++    href: '/crm/account-management/renewals?window=90',
++  },
++  {
++    key: 'risk',
++    label: 'Revenue at risk',
++    href: '/crm/account-management/health?band=at_risk,critical',
++  },
++  {
++    key: 'sla',
++    label: 'SLA quá hạn',
++    href: '/crm/account-management/work?sla=breached',
++  },
++  {
++    key: 'csat',
++    label: 'CSAT',
++    href: '/crm/account-management/feedback',
++  },
++] as const;
++
++const CHIP_COPY: Record<'overdue' | 'today' | 'soon' | 'unassigned', string> = {
++  overdue: 'Quá hạn',
++  today: 'Hôm nay',
++  soon: 'Sắp hạn',
++  unassigned: 'Chưa nhận',
++};
++
++function Widget({
++  title,
++  minClass,
++  error,
++  onRetry,
++  extra,
++  children,
++}: {
++  title: string;
++  minClass?: string;
++  error: string;
++  onRetry: () => void;
++  extra?: ReactNode;
++  children: ReactNode;
++}) {
++  return (
++    <section className={`am-widget ${minClass ?? ''}`.trim()}>
++      <div className="am-widget__head">
++        <h2>{title}</h2>
++        {extra}
++      </div>
++      {error ? (
++        <div className="am-widget__error">
++          <p>Không tải được khối này.</p>
++          <button type="button" className="am-btn" onClick={onRetry}>
++            Retry
++          </button>
++        </div>
++      ) : (
++        children
++      )}
++    </section>
++  );
++}
++
++function bandClass(band: AmHealthBand | null | undefined): string {
++  if (band === 'healthy') return 'am-pill am-pill--ok';
++  if (band === 'watch') return 'am-pill am-pill--watch';
++  if (band === 'at_risk') return 'am-pill am-pill--risk';
++  if (band === 'critical') return 'am-pill am-pill--crit';
++  return 'am-pill';
++}
++
++function kpiValue(key: (typeof KPI_TILES)[number]['key'], data: ReturnType<typeof useAmPage>['data']): string {
++  if (!data) return '—';
++  const k = data.kpis;
++  if (key === 'active') return dash(k.active_accounts);
++  if (key === 'mrr') return vnd(k.mrr_vnd);
++  if (key === 'renewal') return vnd(k.renewal_90d_vnd);
++  if (key === 'risk') return vnd(k.revenue_at_risk_vnd);
++  if (key === 'sla') return dash(k.sla_overdue);
++  return dash(k.csat);
++}
++
++function kpiHint(key: (typeof KPI_TILES)[number]['key'], data: ReturnType<typeof useAmPage>['data']): string | null {
++  if (!data) return null;
++  if (key === 'renewal' && data.kpis.renewal_90d_count != null) {
++    return `${data.kpis.renewal_90d_count} case`;
++  }
++  if (key === 'risk' && data.kpis.revenue_at_risk_count != null) {
++    return `${data.kpis.revenue_at_risk_count} account`;
++  }
++  const delta = data.kpis.deltas?.[key];
++  if (delta == null) return null;
++  const sign = delta > 0 ? '+' : '';
++  return `${sign}${delta}`;
++}
++
++function withScope(href: string, scope: string): string {
++  const [path, qs] = href.split('?');
++  const params = new URLSearchParams(qs ?? '');
++  params.set('scope', scope);
++  return `${path}?${params.toString()}`;
++}
++
++function stackParts(values: Array<number | null | undefined>): number[] {
++  const nums = values.map((n) => (n == null || n < 0 ? 0 : n));
++  const total = nums.reduce((a, b) => a + b, 0);
++  if (total <= 0) return nums.map(() => 0);
++  return nums.map((n) => (n / total) * 100);
++}
++
++export function AmDashboard() {
++  const { data, error, retry, canEdit, scope } = useAmPage();
++  const [attentionSort, setAttentionSort] = useState<'health' | 'mrr' | 'renewal'>('health');
++
++  const coverage = data?.coverage ?? null;
++  const today = data?.today_work ?? [];
++  const attention = [...(data?.attention ?? [])].sort((a, b) => {
++    if (attentionSort === 'mrr') return (b.mrr_vnd ?? -1) - (a.mrr_vnd ?? -1);
++    if (attentionSort === 'renewal') return (a.days_to_end ?? 9999) - (b.days_to_end ?? 9999);
++    const rank: Record<AmHealthBand, number> = { critical: 0, at_risk: 1, watch: 2, healthy: 3 };
++    return rank[a.band] - rank[b.band];
++  });
++  const book = data?.my_book ?? [];
++  const forecast = data?.forecast;
++  const health = data?.health_dist;
++  const fcPct = stackParts([
++    forecast?.committed_vnd,
++    forecast?.likely_vnd,
++    forecast?.risk_vnd,
++    forecast?.unlikely_vnd,
++  ]);
++  const hPct = stackParts([health?.healthy, health?.watch, health?.at_risk, health?.critical]);
++
++  const subtitleBits = [
++    data?.period ? `${data.period.from} → ${data.period.to}` : null,
++    scope === 'me' ? 'Phạm vi Của tôi' : scope === 'team' ? 'Phạm vi Team' : 'Phạm vi Toàn bộ',
++    data ? `tải ${dash(data.load.accounts)}/${dash(data.load.quota)}` : null,
++    data?.freshness.work_left_label,
++  ].filter(Boolean);
++
++  return (
++    <div className="am-dash">
++      <div className="am-dash__head">
++        <div>
++          <p className="am-crumb">Tổng quan / Account Management</p>
++          <h1>Bàn làm việc hôm nay</h1>
++          <p className="am-sub">{subtitleBits.join(' · ') || '—'}</p>
++          {data?.freshness.stale ? <p className="am-banner">Dữ liệu đang cũ — kiểm tra đồng bộ.</p> : null}
++        </div>
++      </div>
++
++      <div className="am-tiles">
++        {KPI_TILES.map((tile) => (
++          <Link key={tile.key} href={withScope(tile.href, scope)} className="am-tile">
++            <span>{tile.label}</span>
++            <strong>{error ? '—' : kpiValue(tile.key, data)}</strong>
++            <em>{error ? '' : kpiHint(tile.key, data) ?? ''}</em>
++          </Link>
++        ))}
++      </div>
++
++      {coverage ? (
++        <section className="am-widget">
++          <div className="am-widget__head">
++            <h2>Điều hành danh mục</h2>
++          </div>
++          <div className="am-cov">
++            <div>
++              <span className="am-muted">Tải trung bình</span>
++              <strong>{dash(coverage.avg_load)}</strong>
++            </div>
++            <div>
++              <span className="am-muted">Chưa gán</span>
++              <strong>{dash(coverage.unassigned)}</strong>
++            </div>
++            <div>
++              <span className="am-muted">Ủy quyền</span>
++              <strong>{dash(coverage.delegated)}</strong>
++            </div>
++            <div>
++              <span className="am-muted">QBR tuần này</span>
++              <strong>{dash(coverage.qbr_this_week)}</strong>
++            </div>
++          </div>
++        </section>
++      ) : null}
++
++      <div className="am-split">
++        <Widget title="Hàng đợi 2 giờ tới" error={error} onRetry={retry} extra={
++          <Link className="am-link" href={withScope('/crm/account-management/work', scope)}>
++            Inbox đầy đủ →
++          </Link>
++        }>
++          {today.length === 0 ? (
++            <p className="am-empty">Bạn đã xử lý xong các việc ưu tiên hôm nay.</p>
++          ) : (
++            <ul className="am-work">
++              {today.map((item) => (
++                <li key={item.id} className="am-work__row">
++                  <span className={`am-chip am-chip--${item.chip}`}>{CHIP_COPY[item.chip]}</span>
++                  <div>
++                    <b>{item.title}</b>
++                    <div className="am-muted">
++                      {item.account_name}
++                      {item.sla_label ? ` · ${item.sla_label}` : ''}
++                    </div>
++                  </div>
++                  {item.can_accept ? (
++                    <button
++                      type="button"
++                      className="am-btn"
++                      onClick={() => window.alert('Nhận việc mở ở Task 6')}
++                    >
++                      Nhận xử lý
++                    </button>
++                  ) : null}
++                </li>
++              ))}
++            </ul>
++          )}
++        </Widget>
++
++        <Widget
++          title="Account cần chú ý"
++          error={error}
++          onRetry={retry}
++          extra={
++            <div className="am-chips">
++              <button
++                type="button"
++                className={`am-chip${attentionSort === 'health' ? ' is-on' : ''}`}
++                onClick={() => setAttentionSort('health')}
++              >
++                Health
++              </button>
++              <button
++                type="button"
++                className={`am-chip${attentionSort === 'mrr' ? ' is-on' : ''}`}
++                onClick={() => setAttentionSort('mrr')}
++              >
++                Doanh thu
++              </button>
++              <button
++                type="button"
++                className={`am-chip${attentionSort === 'renewal' ? ' is-on' : ''}`}
++                onClick={() => setAttentionSort('renewal')}
++              >
++                Gia hạn
++              </button>
++            </div>
++          }
++        >
++          {attention.length === 0 ? (
++            <p className="am-empty">Không có account cần chú ý.</p>
++          ) : (
++            <table className="am-table">
++              <tbody>
++                {attention.map((row) => (
++                  <tr key={row.agency_client_id}>
++                    <td>{row.name}</td>
++                    <td>
++                      <span className={bandClass(row.band)}>
++                        {dash(row.score)} {bandCopy(row.band)}
++                      </span>
++                    </td>
++                    <td>{vnd(row.mrr_vnd)}</td>
++                    <td>{row.days_to_end == null ? '—' : `${row.days_to_end} ngày`}</td>
++                    <td>
++                      <Link className="am-link" href={`/crm/account-management/clients/${row.agency_client_id}`}>
++                        Mở
++                      </Link>
++                    </td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          )}
++          <Link className="am-link" href={withScope('/crm/account-management/health', scope)}>
++            Xem Risk Center →
++          </Link>
++        </Widget>
++      </div>
++
++      <div className="am-split">
++        <Widget title="Renewal forecast" error={error} onRetry={retry}>
++          {forecast && fcPct.some((n) => n > 0) ? (
++            <>
++              <div className="am-stack" aria-hidden>
++                <i style={{ width: `${fcPct[0]}%`, background: '#16A34A' }} />
++                <i style={{ width: `${fcPct[1]}%`, background: '#2563EB' }} />
++                <i style={{ width: `${fcPct[2]}%`, background: '#D97706' }} />
++                <i style={{ width: `${fcPct[3]}%`, background: '#DC2626' }} />
++              </div>
++              <p className="am-legend">
++                <span>Committed {vnd(forecast.committed_vnd)}</span>
++                <span>Likely {vnd(forecast.likely_vnd)}</span>
++                <span>Risk {vnd(forecast.risk_vnd)}</span>
++                <span>Unlikely {vnd(forecast.unlikely_vnd)}</span>
++              </p>
++            </>
++          ) : (
++            <p className="am-empty">—</p>
++          )}
++        </Widget>
++
++        <Widget title="Phân bố Health" error={error} onRetry={retry}>
++          {health ? (
++            <>
++              <p className="am-muted">TB {dash(health.avg)}</p>
++              <div className="am-stack" aria-hidden>
++                <i style={{ width: `${hPct[0]}%`, background: '#16A34A' }} />
++                <i style={{ width: `${hPct[1]}%`, background: '#D97706' }} />
++                <i style={{ width: `${hPct[2]}%`, background: '#EA580C' }} />
++                <i style={{ width: `${hPct[3]}%`, background: '#DC2626' }} />
++              </div>
++              <p className="am-legend">
++                <span className="am-pill am-pill--ok">Khỏe mạnh {health.healthy}</span>
++                <span className="am-pill am-pill--watch">Cần theo dõi {health.watch}</span>
++                <span className="am-pill am-pill--risk">Có rủi ro {health.at_risk}</span>
++                <span className="am-pill am-pill--crit">Nghiêm trọng {health.critical}</span>
++              </p>
++            </>
++          ) : (
++            <p className="am-empty">—</p>
++          )}
++        </Widget>
++      </div>
++
++      <Widget title="Sổ khách đang giữ" error={error} onRetry={retry}>
++        {book.length === 0 && !error ? (
++          <div className="am-empty-book">
++            <p className="am-empty">Chưa có khách trong sổ.</p>
++            {canEdit ? (
++              <button
++                type="button"
++                className="am-btn am-btn--primary"
++                onClick={() => window.alert('Tạo khách mở ở Task 7')}
++              >
++                Tạo khách
++              </button>
++            ) : null}
++          </div>
++        ) : (
++          <div className="am-tbl-wrap">
++            <table className="am-table">
++              <thead>
++                <tr>
++                  <th>Khách hàng</th>
++                  <th>Owner</th>
++                  <th>Gói</th>
++                  <th>Health</th>
++                  <th>MRR</th>
++                  <th>Gia hạn</th>
++                  <th>Việc tiếp theo</th>
++                </tr>
++              </thead>
++              <tbody>
++                {book.map((row) => (
++                  <tr key={row.agency_client_id}>
++                    <td>
++                      <Link href={`/crm/account-management/clients/${row.agency_client_id}`}>
++                        {row.name}
++                      </Link>
++                      {row.is_parent && row.child_count > 0 ? (
++                        <div className="am-muted">Parent · {row.child_count} đơn vị con</div>
++                      ) : null}
++                    </td>
++                    <td>{row.owner_label || '—'}</td>
++                    <td>{row.package_label || '—'}</td>
++                    <td>
++                      <span className={bandClass(row.band)}>
++                        {dash(row.score)} {bandCopy(row.band)}
++                      </span>
++                    </td>
++                    <td>{vnd(row.mrr_vnd)}</td>
++                    <td>{row.ends_on || '—'}</td>
++                    <td>{row.next_action || '—'}</td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          </div>
++        )}
++      </Widget>
++    </div>
++  );
++}
+diff --git a/services/ops-web/src/components/crm/am/AmPlaceholder.tsx b/services/ops-web/src/components/crm/am/AmPlaceholder.tsx
+new file mode 100644
+index 00000000..2d69f5d6
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmPlaceholder.tsx
+@@ -0,0 +1,15 @@
++type AmPlaceholderProps = {
++  title: string;
++  wave: 2 | 3 | 4;
++};
++
++export function AmPlaceholder({ title, wave }: AmPlaceholderProps) {
++  return (
++    <div className="am-placeholder">
++      <h1 className="am-placeholder__title">{title}</h1>
++      <p className="am-placeholder__wave">
++        {title} — mở ở Wave {wave}
++      </p>
++    </div>
++  );
++}
+diff --git a/services/ops-web/src/components/crm/am/AmShell.tsx b/services/ops-web/src/components/crm/am/AmShell.tsx
+new file mode 100644
+index 00000000..ba8a5374
+--- /dev/null
++++ b/services/ops-web/src/components/crm/am/AmShell.tsx
+@@ -0,0 +1,327 @@
++'use client';
++
++import Link from 'next/link';
++import { usePathname, useRouter, useSearchParams } from 'next/navigation';
++import {
++  createContext,
++  Suspense,
++  useCallback,
++  useContext,
++  useEffect,
++  useMemo,
++  useState,
++  type ReactNode,
++} from 'react';
++import { StaffPageShell } from '@/components/layout';
++import { staffMe, staffRefresh } from '@/lib/api';
++import {
++  clearSession,
++  getAccessToken,
++  getRefreshToken,
++  getStoredUser,
++  hasCap,
++  updateAccessToken,
++  updateStoredUser,
++  type StoredStaffUser,
++} from '@/lib/auth';
++import { fetchAmCommandCenter, type AmCommandCenter, type AmScope } from '@/lib/crm/am-api';
++import { AM_NAV, canSeeAmNav, type AmNavItem } from '@/lib/crm/am-nav.util';
++import { AmCreateMenu } from './AmCreateMenu';
++
++export type AmRoleLabel = 'Admin' | 'Director' | 'AM';
++export type AmDensity = 'comfortable' | 'compact';
++
++export type AmPageContextValue = {
++  user: StoredStaffUser;
++  token: string;
++  canEdit: boolean;
++  roleLabel: AmRoleLabel;
++  scope: AmScope;
++  data: AmCommandCenter | null;
++  loading: boolean;
++  error: string;
++  retry: () => void;
++};
++
++const AmPageContext = createContext<AmPageContextValue | null>(null);
++
++export function useAmPage(): AmPageContextValue {
++  const ctx = useContext(AmPageContext);
++  if (!ctx) {
++    throw new Error('useAmPage must be used inside AmShell');
++  }
++  return ctx;
++}
++
++const COLLAPSE_KEY = 'am-sidebar-collapsed';
++const DENSITY_KEY = 'am-density';
++
++function amRoleLabel(user: StoredStaffUser | null): AmRoleLabel {
++  if (hasCap(user, 'crm_am', 'manage')) return 'Admin';
++  if (hasCap(user, 'crm_am', 'view_all')) return 'Director';
++  return 'AM';
++}
++
++function parseScope(raw: string | null): AmScope {
++  if (raw === 'team' || raw === 'all') return raw;
++  return 'me';
++}
++
++function parseDensity(raw: string | null): AmDensity {
++  return raw === 'compact' ? 'compact' : 'comfortable';
++}
++
++function navIsActive(pathname: string, href: string): boolean {
++  if (href === '/crm/account-management') return pathname === href;
++  return pathname === href || pathname.startsWith(`${href}/`);
++}
++
++function groupNav(items: AmNavItem[]): Array<{ group: AmNavItem['group']; items: AmNavItem[] }> {
++  const groups: Array<{ group: AmNavItem['group']; items: AmNavItem[] }> = [];
++  for (const item of items) {
++    const last = groups[groups.length - 1];
++    if (last && last.group === item.group) last.items.push(item);
++    else groups.push({ group: item.group, items: [item] });
++  }
++  return groups;
++}
++
++function AmShellInner({ children }: { children: ReactNode }) {
++  const router = useRouter();
++  const pathname = usePathname() ?? '';
++  const searchParams = useSearchParams();
++  const scope = parseScope(searchParams.get('scope'));
++
++  const [user, setUser] = useState<StoredStaffUser | null>(null);
++  const [token, setToken] = useState('');
++  const [data, setData] = useState<AmCommandCenter | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [error, setError] = useState('');
++  const [collapsed, setCollapsed] = useState(false);
++  const [density, setDensity] = useState<AmDensity>('comfortable');
++
++  const canEdit = hasCap(user, 'crm_am', 'edit');
++  const roleLabel = amRoleLabel(user);
++  const canPickScope = hasCap(user, 'crm_am', 'view_all') || hasCap(user, 'crm_am', 'manage');
++
++  const ensureAuth = useCallback(async (): Promise<string | null> => {
++    let access = getAccessToken();
++    if (!access) {
++      router.replace('/login');
++      return null;
++    }
++    const cached = getStoredUser();
++    if (cached) setUser(cached);
++
++    async function finish(me: StoredStaffUser, accessToken: string): Promise<string | null> {
++      setUser(me);
++      updateStoredUser(me);
++      if (!canSeeAmNav(me)) {
++        router.replace(`/403?from=${encodeURIComponent(window.location.pathname)}`);
++        return null;
++      }
++      setToken(accessToken);
++      return accessToken;
++    }
++
++    try {
++      const me = await staffMe(access);
++      return finish(me, access);
++    } catch {
++      const refresh = getRefreshToken();
++      if (!refresh) {
++        clearSession();
++        router.replace('/login');
++        return null;
++      }
++      const out = await staffRefresh(refresh);
++      updateAccessToken(out.access_token);
++      access = out.access_token;
++      const me = await staffMe(access);
++      return finish(me, access);
++    }
++  }, [router]);
++
++  const loadCenter = useCallback(async (access: string, nextScope: AmScope) => {
++    setError('');
++    try {
++      const out = await fetchAmCommandCenter(access, { scope: nextScope });
++      setData(out);
++    } catch (err) {
++      setData(null);
++      setError(err instanceof Error ? err.message : 'Không tải được dashboard');
++    }
++  }, []);
++
++  const retry = useCallback(() => {
++    if (!token) return;
++    void loadCenter(token, scope);
++  }, [loadCenter, scope, token]);
++
++  useEffect(() => {
++    if (typeof window === 'undefined') return;
++    setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === '1');
++    setDensity(parseDensity(window.localStorage.getItem(DENSITY_KEY)));
++  }, []);
++
++  useEffect(() => {
++    void (async () => {
++      setLoading(true);
++      const access = await ensureAuth();
++      if (access) await loadCenter(access, scope);
++      setLoading(false);
++    })();
++  }, [ensureAuth, loadCenter, scope]);
++
++  function toggleCollapsed() {
++    setCollapsed((prev) => {
++      const next = !prev;
++      if (typeof window !== 'undefined') {
++        window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
++      }
++      return next;
++    });
++  }
++
++  function changeDensity(next: AmDensity) {
++    setDensity(next);
++    if (typeof window !== 'undefined') {
++      window.localStorage.setItem(DENSITY_KEY, next);
++    }
++  }
++
++  function changeScope(next: AmScope) {
++    const params = new URLSearchParams(searchParams.toString());
++    if (next === 'me') params.delete('scope');
++    else params.set('scope', next);
++    const qs = params.toString();
++    router.replace(qs ? `${pathname}?${qs}` : pathname);
++  }
++
++  function logout() {
++    clearSession();
++    router.push('/login');
++  }
++
++  const groups = useMemo(() => groupNav(AM_NAV), []);
++  const loadOver = data != null && data.load.accounts > data.load.quota;
++  const ctx = useMemo<AmPageContextValue | null>(() => {
++    if (!user || !token) return null;
++    return {
++      user,
++      token,
++      canEdit,
++      roleLabel,
++      scope,
++      data,
++      loading,
++      error,
++      retry,
++    };
++  }, [canEdit, data, error, loading, retry, roleLabel, scope, token, user]);
++
++  const rootClass = [
++    'am-root',
++    collapsed ? 'am-root--collapsed' : '',
++    density === 'compact' ? 'am-root--compact' : '',
++  ]
++    .filter(Boolean)
++    .join(' ');
++
++  return (
++    <StaffPageShell user={user} onLogout={logout} loading={loading && !user} width="full">
++      {user && ctx ? (
++        <AmPageContext.Provider value={ctx}>
++          <div className={rootClass} data-density={density}>
++            <aside className="am-sidebar" aria-label="Account Management">
++              <nav className="am-sidebar__nav">
++                {groups.map((group) => (
++                  <div key={group.group} className="am-sidebar__group">
++                    {collapsed ? null : <p className="am-sidebar__group-label">{group.group}</p>}
++                    {group.items.map((item) => (
++                      <Link
++                        key={item.href}
++                        href={item.href}
++                        className={`am-sidebar__link${navIsActive(pathname, item.href) ? ' is-active' : ''}`}
++                        title={item.label}
++                      >
++                        <span>{collapsed ? item.label.slice(0, 1) : item.label}</span>
++                      </Link>
++                    ))}
++                  </div>
++                ))}
++              </nav>
++              <div className="am-sidebar__foot">
++                {collapsed ? null : (
++                  <>
++                    <b>{user.display_name || user.email}</b>
++                    <span>
++                      {roleLabel}
++                      {loadOver ? ` · tải ${data.load.accounts}/${data.load.quota}` : ''}
++                    </span>
++                  </>
++                )}
++                <button
++                  type="button"
++                  className="am-sidebar__collapse"
++                  onClick={toggleCollapsed}
++                  title={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
++                  aria-label={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
++                >
++                  {collapsed ? '»' : '« Thu gọn'}
++                </button>
++              </div>
++            </aside>
++            <div className="am-column">
++              <header className="am-top">
++                <input
++                  type="search"
++                  className="am-search"
++                  placeholder="Tìm account, HĐ, việc…"
++                  aria-label="Tìm kiếm Account Management"
++                />
++                <label className="am-scope">
++                  <span>Phạm vi</span>
++                  <select
++                    value={scope}
++                    disabled={!canPickScope && scope === 'me'}
++                    onChange={(ev) => changeScope(parseScope(ev.target.value))}
++                    aria-label="Phạm vi"
++                  >
++                    <option value="me">Của tôi</option>
++                    {canPickScope ? <option value="team">Team</option> : null}
++                    {canPickScope ? <option value="all">Toàn bộ</option> : null}
++                  </select>
++                </label>
++                <span className="am-role" aria-label="Vai trò">
++                  {roleLabel}
++                </span>
++                <label className="am-density">
++                  <span>Mật độ</span>
++                  <select
++                    value={density}
++                    onChange={(ev) => changeDensity(parseDensity(ev.target.value))}
++                    aria-label="Mật độ"
++                  >
++                    <option value="comfortable">Thoải mái</option>
++                    <option value="compact">Gọn</option>
++                  </select>
++                </label>
++                <AmCreateMenu canEdit={canEdit} />
++              </header>
++              <div className="am-page">{children}</div>
++            </div>
++          </div>
++        </AmPageContext.Provider>
++      ) : null}
++    </StaffPageShell>
++  );
++}
++
++export function AmShell({ children }: { children: ReactNode }) {
++  return (
++    <Suspense fallback={<p className="muted">Đang tải…</p>}>
++      <AmShellInner>{children}</AmShellInner>
++    </Suspense>
++  );
++}
+diff --git a/services/ops-web/src/components/layout/nav-icons.tsx b/services/ops-web/src/components/layout/nav-icons.tsx
+index 5a687219..e43a7b91 100644
+--- a/services/ops-web/src/components/layout/nav-icons.tsx
++++ b/services/ops-web/src/components/layout/nav-icons.tsx
+@@ -462,20 +462,21 @@ export const LINK_ICONS: Record<string, string> = {
+   '/crm/b2b/leads': 'sales',
+   '/crm/operational/leads/new': 'leads',
+   '/crm/b2b/leads/new': 'sales',
+   '/crm/cskh-board': 'sla',
+   '/crm/gdkd-enterprise': 'kpi',
+   '/crm/intake': 'checklist',
+   '/crm/leads/review-queue': 'inbox',
+   '/crm/solution/queue': 'inbox',
+   '/crm/tickets': 'ticket',
+   '/crm/csd': 'sla',
++  '/crm/account-management': 'customers',
+   '/crm/csd/tickets': 'ticket',
+   '/crm/csd/chat': 'query',
+   '/crm/csd/email': 'email',
+   '/crm/csd/email/unmatched': 'inbox',
+   '/crm/csd/reports': 'report',
+   '/crm/csd/reports/templates': 'template',
+   '/crm/customers': 'customers',
+   '/crm/catalog': 'catalog',
+   '/crm/hub': 'hub',
+   '/crm/sales': 'sales',
+@@ -590,20 +591,21 @@ export const SECTION_ICONS: Record<string, string> = {
+   'Hệ thống': 'settings',
+   Agency: 'agency',
+   'Quảng cáo': 'megaphone',
+   SEO: 'seo',
+   Email: 'email',
+   AI: 'agent',
+   'Cấu hình': 'settings',
+   GTM: 'inbox',
+   'KPI Hub': 'kpi',
+   'Service Desk': 'ticket',
++  'Account Management': 'customers',
+ };
+ 
+ /** Shorter labels for sidebar headers. */
+ export const SECTION_LABELS: Record<string, string> = {
+   'Tổng quan': 'Tổng quan',
+   'CRM · CSKH vận hành': 'Vận hành',
+   'Vận hành CSKH': 'Vận hành CSKH',
+   'Vận hành': 'Vận hành',
+   'CRM · B2B Sales': 'Bán hàng',
+   'Bán hàng': 'Bán hàng',
+@@ -618,20 +620,21 @@ export const SECTION_LABELS: Record<string, string> = {
+   'Agency & Client': 'Agency',
+   'Kênh quảng cáo': 'Quảng cáo',
+   'SEO / AEO': 'SEO',
+   'Email Marketing': 'Email',
+   'AI & Automation': 'AI',
+   'Quản trị hệ thống': 'Hệ thống',
+   'Cấu hình CRM': 'Cấu hình',
+   GTM: 'inbox',
+   'KPI Hub': 'KPI Hub',
+   'Service Desk': 'Service Desk',
++  'Account Management': 'Account Management',
+ };
+ 
+ export function sectionShortLabel(fullLabel: string): string {
+   return SECTION_LABELS[fullLabel] ?? fullLabel;
+ }
+ 
+ export function sectionIcon(fullLabel: string): string {
+   const short = sectionShortLabel(fullLabel);
+   return SECTION_ICONS[short] ?? 'dot';
+ }
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+new file mode 100644
+index 00000000..695d039d
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -0,0 +1,112 @@
++import { API_BASE, ApiError, parseJson } from '@/lib/api';
++import type { AmHealthBand } from './am-format';
++
++export type AmScope = 'me' | 'team' | 'all';
++export type AmRole = 'am' | 'director' | 'admin';
++
++export type AmCommandCenter = {
++  period: { from: string; to: string };
++  scope: AmScope;
++  freshness: { as_of: string; stale: boolean; work_left_label: string | null };
++  role: AmRole;
++  load: { accounts: number; quota: number };
++  kpis: {
++    active_accounts: number | null;
++    mrr_vnd: number | null;
++    renewal_90d_vnd: number | null;
++    renewal_90d_count: number | null;
++    revenue_at_risk_vnd: number | null;
++    revenue_at_risk_count: number | null;
++    sla_overdue: number | null;
++    csat: number | null;
++    deltas?: Partial<Record<string, number>>;
++  };
++  coverage: null | {
++    avg_load: number | null;
++    unassigned: number;
++    delegated: number;
++    qbr_this_week: number;
++  };
++  today_work: Array<{
++    id: string;
++    due_at: string | null;
++    title: string;
++    account_name: string;
++    sla_label: string | null;
++    chip: 'overdue' | 'today' | 'soon' | 'unassigned';
++    can_accept: boolean;
++  }>;
++  attention: Array<{
++    agency_client_id: string;
++    name: string;
++    parent_name: string | null;
++    band: AmHealthBand;
++    score: number | null;
++    mrr_vnd: number | null;
++    days_to_end: number | null;
++  }>;
++  forecast: {
++    committed_vnd: number | null;
++    likely_vnd: number | null;
++    risk_vnd: number | null;
++    unlikely_vnd: number | null;
++  };
++  health_dist: {
++    healthy: number;
++    watch: number;
++    at_risk: number;
++    critical: number;
++    avg: number | null;
++  };
++  my_book: Array<{
++    agency_client_id: string;
++    name: string;
++    is_parent: boolean;
++    child_count: number;
++    owner_label: string;
++    package_label: string;
++    score: number | null;
++    band: AmHealthBand | null;
++    mrr_vnd: number | null;
++    ends_on: string | null;
++    next_action: string | null;
++  }>;
++};
++
++export type AmCommandCenterQuery = {
++  scope?: AmScope;
++  from?: string;
++  to?: string;
++};
++
++function authHeaders(token: string): HeadersInit {
++  return { Authorization: `Bearer ${token}` };
++}
++
++async function amFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
++  const headers: Record<string, string> = {
++    ...(authHeaders(token) as Record<string, string>),
++    ...((init?.headers as Record<string, string> | undefined) ?? {}),
++  };
++  if (init?.body && !headers['Content-Type'] && typeof init.body === 'string') {
++    headers['Content-Type'] = 'application/json';
++  }
++  const res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: 'no-store' });
++  const body = await parseJson<T & { error?: string; message?: string }>(res);
++  if (!res.ok) {
++    throw new ApiError(body.error ?? body.message ?? 'AM request failed', res.status);
++  }
++  return body;
++}
++
++export async function fetchAmCommandCenter(
++  token: string,
++  query: AmCommandCenterQuery = {},
++): Promise<AmCommandCenter> {
++  const params = new URLSearchParams();
++  if (query.scope) params.set('scope', query.scope);
++  if (query.from) params.set('from', query.from);
++  if (query.to) params.set('to', query.to);
++  const suffix = params.toString() ? `?${params.toString()}` : '';
++  return amFetch<AmCommandCenter>(token, `/api/crm/am/command-center${suffix}`);
++}
+diff --git a/services/ops-web/src/lib/crm/am-format.spec.ts b/services/ops-web/src/lib/crm/am-format.spec.ts
+new file mode 100644
+index 00000000..5f6ae599
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-format.spec.ts
+@@ -0,0 +1,31 @@
++import { describe, expect, it } from 'vitest';
++import { bandCopy, dash } from './am-format';
++
++describe('dash', () => {
++  it('returns an em dash for null', () => {
++    expect(dash(null)).toBe('—');
++  });
++
++  it('returns an em dash for undefined', () => {
++    expect(dash(undefined)).toBe('—');
++  });
++
++  it('stringifies zero and other numbers', () => {
++    expect(dash(0)).toBe('0');
++    expect(dash(12)).toBe('12');
++  });
++});
++
++describe('bandCopy', () => {
++  it('maps watch to Cần theo dõi', () => {
++    expect(bandCopy('watch')).toBe('Cần theo dõi');
++  });
++
++  it('maps remaining bands and missing values', () => {
++    expect(bandCopy('healthy')).toBe('Khỏe mạnh');
++    expect(bandCopy('at_risk')).toBe('Có rủi ro');
++    expect(bandCopy('critical')).toBe('Nghiêm trọng');
++    expect(bandCopy(null)).toBe('—');
++    expect(bandCopy(undefined)).toBe('—');
++  });
++});
+diff --git a/services/ops-web/src/lib/crm/am-format.ts b/services/ops-web/src/lib/crm/am-format.ts
+new file mode 100644
+index 00000000..28b4b376
+--- /dev/null
++++ b/services/ops-web/src/lib/crm/am-format.ts
+@@ -0,0 +1,18 @@
++export type AmHealthBand = 'healthy' | 'watch' | 'at_risk' | 'critical';
++
++export function dash(n: number | null | undefined): string {
++  return n == null ? '—' : String(n);
++}
++
++export function bandCopy(band: AmHealthBand | null | undefined): string {
++  if (band === 'healthy') return 'Khỏe mạnh';
++  if (band === 'watch') return 'Cần theo dõi';
++  if (band === 'at_risk') return 'Có rủi ro';
++  if (band === 'critical') return 'Nghiêm trọng';
++  return '—';
++}
++
++export function vnd(n: number | null | undefined): string {
++  if (n == null) return '—';
++  return n.toLocaleString('vi-VN');
++}

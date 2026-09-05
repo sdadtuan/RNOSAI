@@ -1,0 +1,189 @@
+# Review package: 186025f79f87d55a4ddb650338517e47dc8d7369..acb8acbe4e7d7ff819e3d548cf50734c1ae2b9c8
+
+## Commits
+acb8acbe feat(am): add Wave 1 PostgreSQL tables for Account Management OS
+
+## Files changed
+ docs/specs/2026-09-05-postgresql-ddl-am.sql | 141 ++++++++++++++++++++++++++++
+ scripts/apply_pg_ddl_am.sh                  |  25 +++++
+ 2 files changed, 166 insertions(+)
+
+## Diff
+diff --git a/docs/specs/2026-09-05-postgresql-ddl-am.sql b/docs/specs/2026-09-05-postgresql-ddl-am.sql
+new file mode 100644
+index 00000000..15ededce
+--- /dev/null
++++ b/docs/specs/2026-09-05-postgresql-ddl-am.sql
+@@ -0,0 +1,141 @@
++CREATE TABLE IF NOT EXISTS crm_am_account_ext (
++  agency_client_id UUID PRIMARY KEY,
++  tenant_id TEXT NOT NULL DEFAULT 'PTT',
++  account_owner_staff_id INTEGER,
++  backup_staff_id INTEGER,
++  team_id INTEGER,
++  parent_agency_client_id UUID,
++  tier TEXT,
++  am_status TEXT NOT NULL DEFAULT 'active',
++  industry_override TEXT,
++  quota_exempt BOOLEAN NOT NULL DEFAULT FALSE,
++  churned_at TIMESTAMPTZ,
++  churn_reason TEXT,
++  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
++  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
++  CONSTRAINT crm_am_account_ext_status_chk CHECK (
++    am_status IN ('pending_handover','onboarding','active','at_risk','renewing','paused','churned')
++  ),
++  CONSTRAINT crm_am_account_ext_parent_chk CHECK (
++    parent_agency_client_id IS NULL OR parent_agency_client_id <> agency_client_id
++  )
++);
++
++CREATE INDEX IF NOT EXISTS crm_am_account_ext_owner_idx
++  ON crm_am_account_ext (tenant_id, account_owner_staff_id);
++CREATE INDEX IF NOT EXISTS crm_am_account_ext_team_idx
++  ON crm_am_account_ext (tenant_id, team_id);
++CREATE INDEX IF NOT EXISTS crm_am_account_ext_parent_idx
++  ON crm_am_account_ext (parent_agency_client_id);
++
++CREATE TABLE IF NOT EXISTS crm_am_plans (
++  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++  tenant_id TEXT NOT NULL DEFAULT 'PTT',
++  agency_client_id UUID NOT NULL,
++  contract_id BIGINT,
++  kind TEXT NOT NULL,
++  period_key TEXT NOT NULL,
++  status TEXT NOT NULL DEFAULT 'open',
++  owner_staff_id INTEGER NOT NULL,
++  due_on DATE,
++  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
++  CONSTRAINT crm_am_plans_kind_chk CHECK (kind IN ('care','qbr','renewal','expand')),
++  UNIQUE (tenant_id, agency_client_id, kind, period_key)
++);
++
++CREATE TABLE IF NOT EXISTS crm_am_tasks (
++  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++  tenant_id TEXT NOT NULL DEFAULT 'PTT',
++  agency_client_id UUID NOT NULL,
++  plan_id UUID REFERENCES crm_am_plans(id),
++  title TEXT NOT NULL,
++  kind TEXT NOT NULL DEFAULT 'task',
++  priority TEXT NOT NULL DEFAULT 'medium',
++  status TEXT NOT NULL DEFAULT 'new',
++  assignee_staff_id INTEGER,
++  due_at TIMESTAMPTZ,
++  source TEXT NOT NULL DEFAULT 'manual',
++  source_ref TEXT,
++  dismissed_at TIMESTAMPTZ,
++  sla_first_due_at TIMESTAMPTZ,
++  sla_resolve_due_at TIMESTAMPTZ,
++  sla_paused BOOLEAN NOT NULL DEFAULT FALSE,
++  waiting_client_reason TEXT,
++  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
++  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
++  CONSTRAINT crm_am_tasks_kind_chk CHECK (
++    kind IN ('task','client_request','issue','escalation','approval','milestone')
++  ),
++  CONSTRAINT crm_am_tasks_status_chk CHECK (
++    status IN ('new','in_progress','waiting_client','waiting_internal','resolved','closed','cancelled')
++  )
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS crm_am_tasks_source_ref_uq
++  ON crm_am_tasks (tenant_id, source, source_ref)
++  WHERE source_ref IS NOT NULL AND dismissed_at IS NULL
++    AND status NOT IN ('cancelled','closed');
++
++CREATE TABLE IF NOT EXISTS crm_am_health_snapshots (
++  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++  tenant_id TEXT NOT NULL DEFAULT 'PTT',
++  agency_client_id UUID NOT NULL,
++  as_of DATE NOT NULL,
++  score NUMERIC(5,1) NOT NULL,
++  band TEXT NOT NULL,
++  components_json JSONB NOT NULL,
++  scorecard_version INTEGER NOT NULL DEFAULT 1,
++  thin_data BOOLEAN NOT NULL DEFAULT FALSE,
++  override_band TEXT,
++  override_reason TEXT,
++  override_until DATE,
++  UNIQUE (tenant_id, agency_client_id, as_of),
++  CONSTRAINT crm_am_health_band_chk CHECK (band IN ('healthy','watch','at_risk','critical'))
++);
++
++CREATE TABLE IF NOT EXISTS crm_am_settings (
++  tenant_id TEXT PRIMARY KEY DEFAULT 'PTT',
++  weights_json JSONB NOT NULL DEFAULT '{"kpi_delivery":30,"engagement":20,"financial":20,"satisfaction":15,"contract_support":15}',
++  bands_json JSONB NOT NULL DEFAULT '{"healthy":[80,100],"watch":[60,79],"at_risk":[40,59],"critical":[0,39]}',
++  quota_accounts_per_am INTEGER NOT NULL DEFAULT 40,
++  watch_ends_on_days INTEGER NOT NULL DEFAULT 30,
++  health_drop_alert INTEGER NOT NULL DEFAULT 10,
++  rollup_parent_health BOOLEAN NOT NULL DEFAULT FALSE,
++  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
++  updated_by_staff_id INTEGER
++);
++
++INSERT INTO crm_am_settings (tenant_id) VALUES ('PTT') ON CONFLICT DO NOTHING;
++
++CREATE TABLE IF NOT EXISTS crm_am_saved_views (
++  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++  tenant_id TEXT NOT NULL DEFAULT 'PTT',
++  owner_staff_id INTEGER NOT NULL,
++  name TEXT NOT NULL,
++  shared BOOLEAN NOT NULL DEFAULT FALSE,
++  page TEXT NOT NULL,
++  query_json JSONB NOT NULL,
++  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
++);
++
++CREATE TABLE IF NOT EXISTS crm_am_notifications (
++  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++  tenant_id TEXT NOT NULL DEFAULT 'PTT',
++  staff_id INTEGER NOT NULL,
++  kind TEXT NOT NULL,
++  title TEXT NOT NULL,
++  href TEXT,
++  read_at TIMESTAMPTZ,
++  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
++);
++
++CREATE TABLE IF NOT EXISTS crm_am_audit (
++  id BIGSERIAL PRIMARY KEY,
++  tenant_id TEXT NOT NULL DEFAULT 'PTT',
++  actor_staff_id INTEGER,
++  action TEXT NOT NULL,
++  entity_type TEXT NOT NULL,
++  entity_id TEXT,
++  payload_json JSONB,
++  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
++);
+diff --git a/scripts/apply_pg_ddl_am.sh b/scripts/apply_pg_ddl_am.sh
+new file mode 100755
+index 00000000..f5a5fd8c
+--- /dev/null
++++ b/scripts/apply_pg_ddl_am.sh
+@@ -0,0 +1,25 @@
++#!/usr/bin/env bash
++# Apply Account Management OS PostgreSQL DDL (AM-20260905)
++set -euo pipefail
++
++ROOT="$(cd "$(dirname "$0")/.." && pwd)"
++cd "$ROOT"
++
++if [[ -f "$ROOT/.env" ]]; then
++  set -a
++  # shellcheck disable=SC1091
++  source "$ROOT/.env"
++  set +a
++fi
++
++URL="${DATABASE_URL:-}"
++if [[ -z "$URL" ]]; then
++  echo "Set DATABASE_URL in .env" >&2
++  exit 1
++fi
++
++DDL="$ROOT/docs/specs/2026-09-05-postgresql-ddl-am.sql"
++echo "Applying AM DDL..."
++echo "    DATABASE_URL=${URL%%@*}@…"
++psql "$URL" -v ON_ERROR_STOP=1 -f "$DDL"
++echo "OK  AM DDL applied (crm_am_* tables)"

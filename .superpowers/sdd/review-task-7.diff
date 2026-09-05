@@ -1,0 +1,1424 @@
+# Review package: 2d8c75b2ccef97d1091cda99dbbe3bc4bdd3c33f..6bf70726d190a720aeee62e912b154473af72a33
+
+## Commits
+6bf70726 feat(am): wrap agency client create and seed AM plans
+
+## Files changed
+ .../ops-web/src/app/crm/account-management/am.css  |  41 ++
+ .../ops-web/src/components/crm/am/AmCreateMenu.tsx | 414 +++++++++++++++++++--
+ .../ops-web/src/components/crm/am/AmDashboard.tsx  |   4 +-
+ services/ops-web/src/components/crm/am/AmShell.tsx |  17 +-
+ services/ops-web/src/lib/crm/am-api.ts             |  45 +++
+ .../ptt-crm-api/src/am/am-accounts.service.spec.ts |  46 +++
+ services/ptt-crm-api/src/am/am-accounts.service.ts | 138 +++++++
+ services/ptt-crm-api/src/am/am-http.ts             |   5 +
+ .../ptt-crm-api/src/am/am-plans.service.spec.ts    |  22 ++
+ services/ptt-crm-api/src/am/am-plans.service.ts    | 168 +++++++++
+ services/ptt-crm-api/src/am/am-tasks.service.ts    |   2 +-
+ services/ptt-crm-api/src/am/am.controller.ts       |  24 ++
+ services/ptt-crm-api/src/am/am.module.ts           |  21 +-
+ 13 files changed, 904 insertions(+), 43 deletions(-)
+
+## Diff
+diff --git a/services/ops-web/src/app/crm/account-management/am.css b/services/ops-web/src/app/crm/account-management/am.css
+index 7c909779..47add6bd 100644
+--- a/services/ops-web/src/app/crm/account-management/am.css
++++ b/services/ops-web/src/app/crm/account-management/am.css
+@@ -271,20 +271,61 @@
+   background: #fff;
+ }
+ 
+ .am-form__actions {
+   display: flex;
+   justify-content: flex-end;
+   gap: 8px;
+   margin-top: 8px;
+ }
+ 
++.am-tabs {
++  display: flex;
++  gap: 4px;
++  margin-bottom: 12px;
++}
++
++.am-tabs button {
++  flex: 1;
++  height: 34px;
++  border: 1px solid #e5e7eb;
++  border-radius: 10px;
++  background: #fff;
++  color: #374151;
++  font-size: 13px;
++  font-weight: 600;
++}
++
++.am-tabs button.is-active {
++  background: var(--am-accent);
++  border-color: var(--am-accent);
++  color: #fff;
++}
++
++.am-attach-list {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++  max-height: 220px;
++  overflow: auto;
++}
++
++.am-attach-list label {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  font-size: 13px;
++}
++
+ .am-dash__head h1,
+ .am-placeholder__title {
+   margin: 0;
+   font-size: 22px;
+   letter-spacing: -0.03em;
+   color: var(--am-navy);
+ }
+ 
+ .am-crumb {
+   margin: 0 0 6px;
+diff --git a/services/ops-web/src/components/crm/am/AmCreateMenu.tsx b/services/ops-web/src/components/crm/am/AmCreateMenu.tsx
+index e503607d..4b9f2b96 100644
+--- a/services/ops-web/src/components/crm/am/AmCreateMenu.tsx
++++ b/services/ops-web/src/components/crm/am/AmCreateMenu.tsx
+@@ -1,63 +1,135 @@
+ 'use client';
+ 
++import Link from 'next/link';
+ import { FormEvent, useEffect, useRef, useState } from 'react';
+-import { createAmTask, type AmTaskKind, type AmTaskPriority } from '@/lib/crm/am-api';
++import { IndustrySelect } from '@/components/agency/IndustrySelect';
++import { OwnerAmSelect } from '@/components/agency/OwnerAmSelect';
++import { ApiError, fetchAgencyClients, type AgencyClient } from '@/lib/api';
++import { hasCap } from '@/lib/auth';
++import {
++  createAmAccount,
++  createAmPlan,
++  createAmTask,
++  type AmPlanKind,
++  type AmTaskKind,
++  type AmTaskPriority,
++} from '@/lib/crm/am-api';
+ import { useToast } from '@/lib/toast';
+-import { useAmPage } from './AmShell';
+-
+-type CreateKind = 'client' | 'task' | 'plan';
++import { useAmPage, type AmCreateKind } from './AmShell';
+ 
+ type AmCreateMenuProps = {
+   canEdit: boolean;
+ };
+ 
+ const KIND_OPTS: Array<{ value: AmTaskKind; label: string }> = [
+   { value: 'task', label: 'Task' },
+   { value: 'client_request', label: 'Yêu cầu khách' },
+   { value: 'issue', label: 'Issue' },
+   { value: 'escalation', label: 'Escalate' },
+   { value: 'approval', label: 'Approval' },
+   { value: 'milestone', label: 'Milestone' },
+ ];
+ 
+ const PRIORITY_OPTS: Array<{ value: AmTaskPriority; label: string }> = [
+   { value: 'low', label: 'Low' },
+   { value: 'medium', label: 'Medium' },
+   { value: 'high', label: 'High' },
+ ];
+ 
++const PLAN_KIND_OPTS: Array<{ value: AmPlanKind; label: string }> = [
++  { value: 'care', label: 'Care' },
++  { value: 'qbr', label: 'QBR' },
++  { value: 'renewal', label: 'Renewal' },
++  { value: 'expand', label: 'Expand' },
++];
++
+ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
+-  const { token, retry, data } = useAmPage();
++  const { token, retry, data, user, createKind, openCreate, closeCreate } = useAmPage();
+   const { push } = useToast();
+   const [open, setOpen] = useState(false);
+-  const [stub, setStub] = useState<CreateKind | null>(null);
+   const [saving, setSaving] = useState(false);
++  const [clientTab, setClientTab] = useState<'create' | 'attach'>('create');
++  const [code, setCode] = useState('');
++  const [name, setName] = useState('');
++  const [industrySlug, setIndustrySlug] = useState('');
++  const [ownerAmId, setOwnerAmId] = useState('');
++  const [attachQ, setAttachQ] = useState('');
++  const [attachHits, setAttachHits] = useState<AgencyClient[]>([]);
++  const [attachPicked, setAttachPicked] = useState('');
++  const [attachSearching, setAttachSearching] = useState(false);
++  const [planKind, setPlanKind] = useState<AmPlanKind>('care');
+   const wrapRef = useRef<HTMLDivElement>(null);
+   const book = data?.my_book ?? [];
++  const agencyWrite = hasCap(user, 'crm_agency', 'create') || hasCap(user, 'crm_agency', 'write');
+ 
+   useEffect(() => {
+     function onDoc(ev: MouseEvent) {
+       if (!wrapRef.current?.contains(ev.target as Node)) setOpen(false);
+     }
+     document.addEventListener('mousedown', onDoc);
+     return () => document.removeEventListener('mousedown', onDoc);
+   }, []);
+ 
+-  function openStub(kind: CreateKind) {
++  useEffect(() => {
++    if (createKind !== 'client') return;
++    setClientTab('create');
++    setCode('');
++    setName('');
++    setIndustrySlug('');
++    setOwnerAmId(user.email ?? '');
++    setAttachQ('');
++    setAttachHits([]);
++    setAttachPicked('');
++  }, [createKind, user.email]);
++
++  useEffect(() => {
++    if (createKind !== 'client' || clientTab !== 'attach') return;
++    const q = attachQ.trim();
++    if (q.length < 2) {
++      setAttachHits([]);
++      return;
++    }
++    let cancelled = false;
++    const t = window.setTimeout(() => {
++      setAttachSearching(true);
++      void fetchAgencyClients(token, { q })
++        .then((out) => {
++          if (!cancelled) setAttachHits(out.clients ?? []);
++        })
++        .catch(() => {
++          if (!cancelled) setAttachHits([]);
++        })
++        .finally(() => {
++          if (!cancelled) setAttachSearching(false);
++        });
++    }, 300);
++    return () => {
++      cancelled = true;
++      window.clearTimeout(t);
++    };
++  }, [attachQ, clientTab, createKind, token]);
++
++  function openStub(kind: AmCreateKind) {
+     if (!canEdit) return;
+     setOpen(false);
+-    setStub(kind);
++    openCreate(kind);
+   }
+ 
+   const stubTitle =
+-    stub === 'client' ? 'Tạo khách' : stub === 'task' ? 'Tạo việc' : stub === 'plan' ? 'Tạo Renewal/Plan' : '';
++    createKind === 'client'
++      ? 'Tạo khách'
++      : createKind === 'task'
++        ? 'Tạo việc'
++        : createKind === 'plan'
++          ? 'Tạo Renewal/Plan'
++          : '';
+ 
+   async function onCreateTask(ev: FormEvent<HTMLFormElement>) {
+     ev.preventDefault();
+     if (saving) return;
+     const form = new FormData(ev.currentTarget);
+     const agency_client_id = String(form.get('agency_client_id') ?? '').trim();
+     const title = String(form.get('title') ?? '').trim();
+     const kind = String(form.get('kind') ?? 'task') as AmTaskKind;
+     const priority = String(form.get('priority') ?? 'medium') as AmTaskPriority;
+     const dueRaw = String(form.get('due_at') ?? '').trim();
+@@ -68,29 +140,120 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
+     setSaving(true);
+     try {
+       await createAmTask(token, {
+         agency_client_id,
+         title,
+         kind,
+         priority,
+         due_at: dueRaw ? new Date(dueRaw).toISOString() : undefined,
+       });
+       push('Đã tạo việc', 'success');
+-      setStub(null);
++      closeCreate();
+       retry();
+     } catch (err) {
+       push(err instanceof Error ? err.message : 'Không tạo được việc', 'error');
+     } finally {
+       setSaving(false);
+     }
+   }
+ 
++  async function onCreateClient(ev: FormEvent<HTMLFormElement>) {
++    ev.preventDefault();
++    if (saving) return;
++    if (!agencyWrite) {
++      push('Cần quyền crm_agency.create — mở Agency để tạo khách', 'error');
++      return;
++    }
++    if (!code.trim() || !name.trim() || !industrySlug) {
++      push('Cần mã, tên và ngành', 'error');
++      return;
++    }
++    setSaving(true);
++    try {
++      await createAmAccount(token, {
++        mode: 'create',
++        code: code.trim().toUpperCase(),
++        name: name.trim(),
++        industry_slug: industrySlug || undefined,
++        owner_am_id: ownerAmId.trim() || user.email || undefined,
++      });
++      push('Đã tạo khách', 'success');
++      closeCreate();
++      retry();
++    } catch (err) {
++      if (err instanceof ApiError && err.message === 'agency_write_required') {
++        push('Cần quyền tạo Agency client', 'error');
++      } else {
++        push(err instanceof Error ? err.message : 'Không tạo được khách', 'error');
++      }
++    } finally {
++      setSaving(false);
++    }
++  }
++
++  async function onAttachClient(ev: FormEvent<HTMLFormElement>) {
++    ev.preventDefault();
++    if (saving) return;
++    const id = attachPicked.trim();
++    if (!id) {
++      push('Chọn khách đã có', 'error');
++      return;
++    }
++    setSaving(true);
++    try {
++      await createAmAccount(token, { mode: 'attach', agency_client_id: id });
++      push('Đã gắn khách vào AM', 'success');
++      closeCreate();
++      retry();
++    } catch (err) {
++      push(err instanceof Error ? err.message : 'Không gắn được khách', 'error');
++    } finally {
++      setSaving(false);
++    }
++  }
++
++  async function onCreatePlan(ev: FormEvent<HTMLFormElement>) {
++    ev.preventDefault();
++    if (saving) return;
++    const form = new FormData(ev.currentTarget);
++    const agency_client_id = String(form.get('agency_client_id') ?? '').trim();
++    const kind = String(form.get('kind') ?? 'care') as AmPlanKind;
++    const period_key = String(form.get('period_key') ?? '').trim();
++    const contractRaw = String(form.get('contract_id') ?? '').trim();
++    const due_on = String(form.get('due_on') ?? '').trim();
++    if (!agency_client_id || !period_key) {
++      push('Cần account và period', 'error');
++      return;
++    }
++    if (kind === 'renewal' && !contractRaw) {
++      push('Renewal cần contract_id', 'error');
++      return;
++    }
++    setSaving(true);
++    try {
++      await createAmPlan(token, {
++        agency_client_id,
++        kind,
++        period_key,
++        contract_id: contractRaw ? Number(contractRaw) : undefined,
++        due_on: due_on || undefined,
++      });
++      push('Đã tạo plan', 'success');
++      closeCreate();
++      retry();
++    } catch (err) {
++      push(err instanceof Error ? err.message : 'Không tạo được plan', 'error');
++    } finally {
++      setSaving(false);
++    }
++  }
++
+   return (
+     <div className="am-create" ref={wrapRef}>
+       <button
+         type="button"
+         className="am-btn am-btn--primary"
+         aria-expanded={open}
+         aria-haspopup="menu"
+         disabled={!canEdit}
+         title={canEdit ? 'Tạo mới' : 'Cần quyền crm_am.edit'}
+         onClick={() => canEdit && setOpen((v) => !v)}
+@@ -109,84 +272,265 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
+             Renewal/Plan
+           </button>
+           <button type="button" role="menuitem" disabled title="Mở ở Wave 4">
+             Cơ hội
+           </button>
+           <button type="button" role="menuitem" disabled title="Mở ở Wave 3">
+             Log tương tác
+           </button>
+         </div>
+       ) : null}
+-      {stub ? (
+-        <div className="am-drawer-bg" role="presentation">
++      {createKind ? (
++        <div
++          className="am-drawer-bg"
++          role="presentation"
++          onClick={(ev) => {
++            if (ev.target === ev.currentTarget) closeCreate();
++          }}
++        >
+           <div className="am-drawer" role="dialog" aria-label={stubTitle}>
+             <div className="am-drawer__head">
+               <strong>{stubTitle}</strong>
+-              <button type="button" className="am-btn" onClick={() => setStub(null)}>
++              <button type="button" className="am-btn" onClick={closeCreate}>
+                 Đóng
+               </button>
+             </div>
+-            {stub === 'task' ? (
++            {createKind === 'task' ? (
+               <form className="am-form" onSubmit={(ev) => void onCreateTask(ev)}>
+                 <label className="am-field">
+                   <span>Loại</span>
+                   <select name="kind" defaultValue="task">
+                     {KIND_OPTS.map((opt) => (
+                       <option key={opt.value} value={opt.value}>
+                         {opt.label}
+                       </option>
+                     ))}
+                   </select>
+                 </label>
+-                <label className="am-field">
+-                  <span>Account *</span>
+-                  {book.length > 0 ? (
+-                    <select name="agency_client_id" required defaultValue="">
+-                      <option value="" disabled>
+-                        Chọn khách
+-                      </option>
+-                      {book.map((row) => (
+-                        <option key={row.agency_client_id} value={row.agency_client_id}>
+-                          {row.name}
+-                        </option>
+-                      ))}
+-                    </select>
+-                  ) : (
+-                    <input name="agency_client_id" required placeholder="agency_client_id" />
+-                  )}
+-                </label>
++                <AccountField book={book} />
+                 <label className="am-field">
+                   <span>Tiêu đề *</span>
+                   <input name="title" required maxLength={200} placeholder="Việc cần làm" />
+                 </label>
+                 <label className="am-field">
+                   <span>Priority</span>
+                   <select name="priority" defaultValue="medium">
+                     {PRIORITY_OPTS.map((opt) => (
+                       <option key={opt.value} value={opt.value}>
+                         {opt.label}
+                       </option>
+                     ))}
+                   </select>
+                 </label>
+                 <label className="am-field">
+                   <span>Hạn xử lý</span>
+                   <input name="due_at" type="datetime-local" />
+                 </label>
+                 <div className="am-form__actions">
+-                  <button type="button" className="am-btn" onClick={() => setStub(null)}>
++                  <button type="button" className="am-btn" onClick={closeCreate}>
+                     Hủy
+                   </button>
+                   <button type="submit" className="am-btn am-btn--primary" disabled={saving}>
+                     {saving ? 'Đang tạo…' : 'Tạo việc'}
+                   </button>
+                 </div>
+               </form>
+-            ) : (
+-              <p className="am-muted">Drawer tạo mới mở ở Task 7.</p>
+-            )}
++            ) : null}
++            {createKind === 'client' ? (
++              <>
++                <div className="am-tabs" role="tablist">
++                  <button
++                    type="button"
++                    role="tab"
++                    className={clientTab === 'create' ? 'is-active' : ''}
++                    aria-selected={clientTab === 'create'}
++                    onClick={() => setClientTab('create')}
++                  >
++                    Tạo mới
++                  </button>
++                  <button
++                    type="button"
++                    role="tab"
++                    className={clientTab === 'attach' ? 'is-active' : ''}
++                    aria-selected={clientTab === 'attach'}
++                    onClick={() => setClientTab('attach')}
++                  >
++                    Gắn đã có
++                  </button>
++                </div>
++                {clientTab === 'create' ? (
++                  !agencyWrite ? (
++                    <p className="am-muted">
++                      Cần quyền crm_agency.create.{' '}
++                      <Link href="/agency/clients/new">Mở /agency/clients/new</Link>
++                    </p>
++                  ) : (
++                    <form className="am-form" onSubmit={(ev) => void onCreateClient(ev)}>
++                      <label className="am-field">
++                        <span>Mã (CODE) *</span>
++                        <input
++                          value={code}
++                          onChange={(e) => setCode(e.target.value)}
++                          required
++                          placeholder="AP01"
++                        />
++                      </label>
++                      <label className="am-field">
++                        <span>Tên *</span>
++                        <input
++                          value={name}
++                          onChange={(e) => setName(e.target.value)}
++                          required
++                          placeholder="An Phu"
++                        />
++                      </label>
++                      <label className="am-field">
++                        <span>Ngành *</span>
++                        <IndustrySelect
++                          token={token}
++                          value={industrySlug}
++                          onChange={setIndustrySlug}
++                          required
++                        />
++                      </label>
++                      <label className="am-field">
++                        <span>Owner AM</span>
++                        <OwnerAmSelect token={token} value={ownerAmId} onChange={setOwnerAmId} />
++                      </label>
++                      <div className="am-form__actions">
++                        <button type="button" className="am-btn" onClick={closeCreate}>
++                          Hủy
++                        </button>
++                        <button
++                          type="submit"
++                          className="am-btn am-btn--primary"
++                          disabled={saving || !industrySlug}
++                        >
++                          {saving ? 'Đang tạo…' : 'Tạo khách'}
++                        </button>
++                      </div>
++                    </form>
++                  )
++                ) : (
++                  <form className="am-form" onSubmit={(ev) => void onAttachClient(ev)}>
++                    <label className="am-field">
++                      <span>Tìm clients *</span>
++                      <input
++                        value={attachQ}
++                        onChange={(e) => {
++                          setAttachQ(e.target.value);
++                          setAttachPicked('');
++                        }}
++                        placeholder="Mã hoặc tên (≥ 2 ký tự)"
++                      />
++                    </label>
++                    {attachSearching ? <p className="am-muted">Đang tìm…</p> : null}
++                    {attachHits.length > 0 ? (
++                      <ul className="am-attach-list">
++                        {attachHits.map((row) => (
++                          <li key={row.id}>
++                            <label>
++                              <input
++                                type="radio"
++                                name="agency_client_id"
++                                checked={attachPicked === row.id}
++                                onChange={() => setAttachPicked(row.id)}
++                              />
++                              <span>
++                                {row.code} · {row.name}
++                              </span>
++                            </label>
++                          </li>
++                        ))}
++                      </ul>
++                    ) : attachQ.trim().length >= 2 && !attachSearching ? (
++                      <p className="am-muted">Không tìm thấy clients.</p>
++                    ) : null}
++                    <div className="am-form__actions">
++                      <button type="button" className="am-btn" onClick={closeCreate}>
++                        Hủy
++                      </button>
++                      <button
++                        type="submit"
++                        className="am-btn am-btn--primary"
++                        disabled={saving || !attachPicked}
++                      >
++                        {saving ? 'Đang gắn…' : 'Gắn khách'}
++                      </button>
++                    </div>
++                  </form>
++                )}
++              </>
++            ) : null}
++            {createKind === 'plan' ? (
++              <form className="am-form" onSubmit={(ev) => void onCreatePlan(ev)}>
++                <label className="am-field">
++                  <span>Loại *</span>
++                  <select
++                    name="kind"
++                    value={planKind}
++                    onChange={(e) => setPlanKind(e.target.value as AmPlanKind)}
++                  >
++                    {PLAN_KIND_OPTS.map((opt) => (
++                      <option key={opt.value} value={opt.value}>
++                        {opt.label}
++                      </option>
++                    ))}
++                  </select>
++                </label>
++                <AccountField book={book} />
++                <label className="am-field">
++                  <span>Period *</span>
++                  <input name="period_key" required placeholder="2026-Q3" />
++                </label>
++                <label className="am-field">
++                  <span>{planKind === 'renewal' ? 'Hợp đồng *' : 'Hợp đồng'}</span>
++                  <input
++                    name="contract_id"
++                    type="number"
++                    min={1}
++                    required={planKind === 'renewal'}
++                    placeholder="contract_id"
++                  />
++                </label>
++                <label className="am-field">
++                  <span>Hạn</span>
++                  <input name="due_on" type="date" />
++                </label>
++                <div className="am-form__actions">
++                  <button type="button" className="am-btn" onClick={closeCreate}>
++                    Hủy
++                  </button>
++                  <button type="submit" className="am-btn am-btn--primary" disabled={saving}>
++                    {saving ? 'Đang tạo…' : 'Tạo plan'}
++                  </button>
++                </div>
++              </form>
++            ) : null}
+           </div>
+         </div>
+       ) : null}
+     </div>
+   );
+ }
++
++function AccountField({ book }: { book: Array<{ agency_client_id: string; name: string }> }) {
++  return (
++    <label className="am-field">
++      <span>Account *</span>
++      {book.length > 0 ? (
++        <select name="agency_client_id" required defaultValue="">
++          <option value="" disabled>
++            Chọn khách
++          </option>
++          {book.map((row) => (
++            <option key={row.agency_client_id} value={row.agency_client_id}>
++              {row.name}
++            </option>
++          ))}
++        </select>
++      ) : (
++        <input name="agency_client_id" required placeholder="agency_client_id" />
++      )}
++    </label>
++  );
++}
+diff --git a/services/ops-web/src/components/crm/am/AmDashboard.tsx b/services/ops-web/src/components/crm/am/AmDashboard.tsx
+index 72cb365e..a870dd8c 100644
+--- a/services/ops-web/src/components/crm/am/AmDashboard.tsx
++++ b/services/ops-web/src/components/crm/am/AmDashboard.tsx
+@@ -129,21 +129,21 @@ function stackParts(values: Array<number | null | undefined>): number[] {
+   const total = nums.reduce((a, b) => a + b, 0);
+   if (total <= 0) return nums.map(() => 0);
+   return nums.map((n) => (n / total) * 100);
+ }
+ 
+ function WidgetLoading() {
+   return <p className="am-muted">Đang tải…</p>;
+ }
+ 
+ export function AmDashboard() {
+-  const { data, error, loading, retry, canEdit, scope, token } = useAmPage();
++  const { data, error, loading, retry, canEdit, scope, token, openCreate } = useAmPage();
+   const { push } = useToast();
+   const [attentionSort, setAttentionSort] = useState<'health' | 'mrr' | 'renewal'>('health');
+   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+   const isLoading = isAmDashboardLoading(loading, data);
+ 
+   async function onAccept(id: string) {
+     if (!canEdit || acceptingId) return;
+     setAcceptingId(id);
+     try {
+       await acceptAmTask(token, id);
+@@ -378,21 +378,21 @@ export function AmDashboard() {
+       <Widget title="Sổ khách đang giữ" error={error} onRetry={retry}>
+         {isLoading ? (
+           <WidgetLoading />
+         ) : shouldShowEmptyWidget(loading, error, book) ? (
+           <div className="am-empty-book">
+             <p className="am-empty">Chưa có khách trong sổ.</p>
+             {canEdit ? (
+               <button
+                 type="button"
+                 className="am-btn am-btn--primary"
+-                onClick={() => window.alert('Tạo khách mở ở Task 7')}
++                onClick={() => openCreate('client')}
+               >
+                 Tạo khách
+               </button>
+             ) : null}
+           </div>
+         ) : (
+           <div className="am-tbl-wrap">
+             <table className="am-table">
+               <thead>
+                 <tr>
+diff --git a/services/ops-web/src/components/crm/am/AmShell.tsx b/services/ops-web/src/components/crm/am/AmShell.tsx
+index 733f3fc8..3065b653 100644
+--- a/services/ops-web/src/components/crm/am/AmShell.tsx
++++ b/services/ops-web/src/components/crm/am/AmShell.tsx
+@@ -23,31 +23,35 @@ import {
+   updateAccessToken,
+   updateStoredUser,
+   type StoredStaffUser,
+ } from '@/lib/auth';
+ import { fetchAmCommandCenter, type AmCommandCenter, type AmScope } from '@/lib/crm/am-api';
+ import { AM_NAV, canSeeAmNav, type AmNavItem } from '@/lib/crm/am-nav.util';
+ import { AmCreateMenu } from './AmCreateMenu';
+ 
+ export type AmRoleLabel = 'Admin' | 'Director' | 'AM';
+ export type AmDensity = 'comfortable' | 'compact';
++export type AmCreateKind = 'client' | 'task' | 'plan';
+ 
+ export type AmPageContextValue = {
+   user: StoredStaffUser;
+   token: string;
+   canEdit: boolean;
+   roleLabel: AmRoleLabel;
+   scope: AmScope;
+   data: AmCommandCenter | null;
+   loading: boolean;
+   error: string;
+   retry: () => void;
++  createKind: AmCreateKind | null;
++  openCreate: (kind: AmCreateKind) => void;
++  closeCreate: () => void;
+ };
+ 
+ const AmPageContext = createContext<AmPageContextValue | null>(null);
+ 
+ export function useAmPage(): AmPageContextValue {
+   const ctx = useContext(AmPageContext);
+   if (!ctx) {
+     throw new Error('useAmPage must be used inside AmShell');
+   }
+   return ctx;
+@@ -92,20 +96,21 @@ function AmShellInner({ children }: { children: ReactNode }) {
+   const searchParams = useSearchParams();
+   const scope = parseScope(searchParams.get('scope'));
+ 
+   const [user, setUser] = useState<StoredStaffUser | null>(null);
+   const [token, setToken] = useState('');
+   const [data, setData] = useState<AmCommandCenter | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState('');
+   const [collapsed, setCollapsed] = useState(false);
+   const [density, setDensity] = useState<AmDensity>('comfortable');
++  const [createKind, setCreateKind] = useState<AmCreateKind | null>(null);
+ 
+   const canEdit = hasCap(user, 'crm_am', 'edit');
+   const roleLabel = amRoleLabel(user);
+   const canPickScope = hasCap(user, 'crm_am', 'view_all') || hasCap(user, 'crm_am', 'manage');
+ 
+   const ensureAuth = useCallback(async (): Promise<string | null> => {
+     let access = getAccessToken();
+     if (!access) {
+       router.replace('/login');
+       return null;
+@@ -201,34 +206,44 @@ function AmShellInner({ children }: { children: ReactNode }) {
+     router.replace(qs ? `${pathname}?${qs}` : pathname);
+   }
+ 
+   function logout() {
+     clearSession();
+     router.push('/login');
+   }
+ 
+   const groups = useMemo(() => groupNav(AM_NAV), []);
+   const loadOver = data != null && data.load.accounts > data.load.quota;
++  const openCreate = useCallback((kind: AmCreateKind) => {
++    if (!canEdit) return;
++    setCreateKind(kind);
++  }, [canEdit]);
++
++  const closeCreate = useCallback(() => setCreateKind(null), []);
++
+   const ctx = useMemo<AmPageContextValue | null>(() => {
+     if (!user || !token) return null;
+     return {
+       user,
+       token,
+       canEdit,
+       roleLabel,
+       scope,
+       data,
+       loading,
+       error,
+       retry,
++      createKind,
++      openCreate,
++      closeCreate,
+     };
+-  }, [canEdit, data, error, loading, retry, roleLabel, scope, token, user]);
++  }, [canEdit, closeCreate, createKind, data, error, loading, openCreate, retry, roleLabel, scope, token, user]);
+ 
+   const rootClass = [
+     'am-root',
+     collapsed ? 'am-root--collapsed' : '',
+     density === 'compact' ? 'am-root--compact' : '',
+   ]
+     .filter(Boolean)
+     .join(' ');
+ 
+   return (
+diff --git a/services/ops-web/src/lib/crm/am-api.ts b/services/ops-web/src/lib/crm/am-api.ts
+index 0605fffb..966a3361 100644
+--- a/services/ops-web/src/lib/crm/am-api.ts
++++ b/services/ops-web/src/lib/crm/am-api.ts
+@@ -138,20 +138,65 @@ export async function acceptAmTask(token: string, id: string): Promise<AmTask> {
+   });
+ }
+ 
+ export async function createAmTask(token: string, body: AmCreateTaskInput): Promise<AmTask> {
+   return amFetch<AmTask>(token, '/api/crm/am/tasks', {
+     method: 'POST',
+     body: JSON.stringify(body),
+   });
+ }
+ 
++export type AmPlanKind = 'care' | 'qbr' | 'renewal' | 'expand';
++
++export type AmCreateAccountBody =
++  | { mode: 'create'; code: string; name: string; industry_slug?: string; owner_am_id?: string }
++  | { mode: 'attach'; agency_client_id: string; owner_staff_id?: number };
++
++export type AmAccountResult = {
++  agency_client_id: string;
++  mode: 'create' | 'attach';
++  client?: { id: string; code: string; name: string };
++};
++
++export type AmCreatePlanInput = {
++  agency_client_id: string;
++  kind: AmPlanKind;
++  period_key: string;
++  contract_id?: number;
++  due_on?: string;
++};
++
++export type AmPlan = {
++  id: string;
++  agency_client_id: string;
++  contract_id: number | null;
++  kind: AmPlanKind;
++  period_key: string;
++  status: string;
++  owner_staff_id: number;
++  due_on: string | null;
++};
++
++export async function createAmAccount(token: string, body: AmCreateAccountBody): Promise<AmAccountResult> {
++  return amFetch<AmAccountResult>(token, '/api/crm/am/accounts', {
++    method: 'POST',
++    body: JSON.stringify(body),
++  });
++}
++
++export async function createAmPlan(token: string, body: AmCreatePlanInput): Promise<AmPlan> {
++  return amFetch<AmPlan>(token, '/api/crm/am/plans', {
++    method: 'POST',
++    body: JSON.stringify(body),
++  });
++}
++
+ export async function fetchAmCommandCenter(
+   token: string,
+   query: AmCommandCenterQuery = {},
+ ): Promise<AmCommandCenter> {
+   const params = new URLSearchParams();
+   if (query.scope) params.set('scope', query.scope);
+   if (query.from) params.set('from', query.from);
+   if (query.to) params.set('to', query.to);
+   const suffix = params.toString() ? `?${params.toString()}` : '';
+   return amFetch<AmCommandCenter>(token, `/api/crm/am/command-center${suffix}`);
+diff --git a/services/ptt-crm-api/src/am/am-accounts.service.spec.ts b/services/ptt-crm-api/src/am/am-accounts.service.spec.ts
+new file mode 100644
+index 00000000..0ca16514
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-accounts.service.spec.ts
+@@ -0,0 +1,46 @@
++import { AmAccountsService } from './am-accounts.service';
++
++describe('AmAccountsService', () => {
++  const agency = {
++    createClient: jest.fn(),
++  };
++
++  const db = {
++    inserts: [] as string[],
++    query: jest.fn(async (sql: string) => {
++      if (/insert/i.test(sql)) db.inserts.push(sql);
++      return { rows: [{ id: 'uuid' }], rowCount: 1 };
++    }),
++  };
++
++  const staffAuth = {
++    hasCap: jest.fn(() => true),
++  };
++
++  const actor = { staffId: 1, caps: [{ section: 'crm_agency', action: 'create' }] };
++
++  let service: AmAccountsService;
++
++  beforeEach(() => {
++    db.inserts.length = 0;
++    jest.clearAllMocks();
++    staffAuth.hasCap.mockReturnValue(true);
++    agency.createClient.mockResolvedValue({
++      id: '19d722af-0000-4000-8000-000000000001',
++      code: 'AP01',
++      name: 'An Phu',
++    });
++    service = new AmAccountsService(agency as never, db as never, staffAuth as never);
++  });
++
++  it('create does not INSERT into a second customer table', async () => {
++    await service.createAccount({ mode: 'create', code: 'AP01', name: 'An Phu' }, actor);
++    expect(agency.createClient).toHaveBeenCalled();
++    expect(db.inserts.some((s) => /insert into clients/i.test(s) && s.includes('am_'))).toBe(false);
++  });
++
++  it('attach does not call createClient', async () => {
++    await service.createAccount({ mode: 'attach', agency_client_id: 'uuid' }, actor);
++    expect(agency.createClient).not.toHaveBeenCalled();
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-accounts.service.ts b/services/ptt-crm-api/src/am/am-accounts.service.ts
+new file mode 100644
+index 00000000..15915b0b
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-accounts.service.ts
+@@ -0,0 +1,138 @@
++import { Inject, Injectable, OnModuleDestroy, Optional, forwardRef } from '@nestjs/common';
++import { Pool } from 'pg';
++import { AgencyService } from '../agency/agency.service';
++import { AppConfigService } from '../config/app-config.service';
++import { StaffAuthService } from '../staff-auth/staff-auth.service';
++import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
++import { AM_TENANT_ID } from './am-audit.repository';
++import { AmDashboardService } from './am-dashboard.service';
++import { amThrow } from './am-http';
++
++export type AmCreateAccountBody =
++  | { mode: 'create'; code: string; name: string; industry_slug?: string; owner_am_id?: string }
++  | { mode: 'attach'; agency_client_id: string; owner_staff_id?: number };
++
++export type AmAccountActor = {
++  staffId: number;
++  caps: StaffSectionCap[];
++  via?: 'internal' | 'jwt';
++};
++
++export type AmAccountsDb = {
++  inserts: string[];
++  query(
++    sql: string,
++    params?: unknown[],
++  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
++};
++
++const EXT_UPSERT = `
++INSERT INTO crm_am_account_ext (
++  agency_client_id, tenant_id, account_owner_staff_id, am_status, updated_at
++) VALUES ($1::uuid, $2, $3, 'active', now())
++ON CONFLICT (agency_client_id) DO UPDATE SET
++  account_owner_staff_id = COALESCE(EXCLUDED.account_owner_staff_id, crm_am_account_ext.account_owner_staff_id),
++  updated_at = now()
++`;
++
++@Injectable()
++export class AmAccountsRepository implements OnModuleDestroy, AmAccountsDb {
++  inserts: string[] = [];
++  private pool: Pool | null = null;
++
++  constructor(private readonly config: AppConfigService) {}
++
++  private get db(): Pool {
++    if (!this.pool) {
++      this.pool = new Pool({ connectionString: this.config.databaseUrl });
++    }
++    return this.pool;
++  }
++
++  onModuleDestroy(): void {
++    void this.pool?.end();
++    this.pool = null;
++  }
++
++  async query(
++    sql: string,
++    params?: unknown[],
++  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }> {
++    if (/insert/i.test(sql)) this.inserts.push(sql);
++    return this.db.query(sql, params);
++  }
++}
++
++@Injectable()
++export class AmAccountsService {
++  constructor(
++    @Inject(forwardRef(() => AgencyService)) private readonly agency: AgencyService,
++    private readonly db: AmAccountsRepository,
++    private readonly staffAuth: StaffAuthService,
++    @Optional() private readonly dashboard?: AmDashboardService,
++  ) {}
++
++  async createAccount(body: AmCreateAccountBody, actor: AmAccountActor) {
++    if (body.mode === 'create') {
++      return this.createFromAgency(body, actor);
++    }
++    if (body.mode === 'attach') {
++      return this.attachExisting(body, actor);
++    }
++    amThrow(400, { error: 'invalid_mode' });
++  }
++
++  private canAgencyWrite(actor: AmAccountActor): boolean {
++    if (actor.via === 'internal') return true;
++    return (
++      this.staffAuth.hasCap(actor.caps ?? [], 'crm_agency', 'create') ||
++      this.staffAuth.hasCap(actor.caps ?? [], 'crm_agency', 'write')
++    );
++  }
++
++  private async createFromAgency(
++    body: Extract<AmCreateAccountBody, { mode: 'create' }>,
++    actor: AmAccountActor,
++  ) {
++    if (!this.canAgencyWrite(actor)) {
++      amThrow(403, { error: 'agency_write_required', fallback: '/agency/clients/new' });
++    }
++    const client = await this.agency.createClient({
++      code: body.code,
++      name: body.name,
++      industry_slug: body.industry_slug,
++      owner_am_id: body.owner_am_id,
++    });
++    await this.upsertExt(client.id, actor.staffId);
++    this.dashboard?.dropCache();
++    return { agency_client_id: client.id, mode: 'create' as const, client };
++  }
++
++  private async attachExisting(
++    body: Extract<AmCreateAccountBody, { mode: 'attach' }>,
++    actor: AmAccountActor,
++  ) {
++    const agencyClientId = String(body.agency_client_id ?? '').trim();
++    if (!agencyClientId) {
++      amThrow(400, { error: 'agency_client_id_required' });
++    }
++    const found = await this.db.query(`SELECT id::text FROM clients WHERE id::text = $1 LIMIT 1`, [
++      agencyClientId,
++    ]);
++    if ((found.rowCount ?? found.rows.length) === 0) {
++      amThrow(404, { error: 'client_not_found' });
++    }
++    const ownerStaffId = body.owner_staff_id ?? actor.staffId;
++    await this.upsertExt(agencyClientId, ownerStaffId);
++    this.dashboard?.dropCache();
++    return { agency_client_id: agencyClientId, mode: 'attach' as const };
++  }
++
++  private async upsertExt(agencyClientId: string, ownerStaffId: number): Promise<void> {
++    await this.db.query(EXT_UPSERT, [
++      agencyClientId,
++      AM_TENANT_ID,
++      ownerStaffId > 0 ? ownerStaffId : null,
++    ]);
++  }
++}
+diff --git a/services/ptt-crm-api/src/am/am-http.ts b/services/ptt-crm-api/src/am/am-http.ts
+new file mode 100644
+index 00000000..ffe86cc6
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-http.ts
+@@ -0,0 +1,5 @@
++import { HttpException } from '@nestjs/common';
++
++export function amThrow(status: number, body: Record<string, unknown>): never {
++  throw Object.assign(new HttpException(body, status), body);
++}
+diff --git a/services/ptt-crm-api/src/am/am-plans.service.spec.ts b/services/ptt-crm-api/src/am/am-plans.service.spec.ts
+new file mode 100644
+index 00000000..7de2ea43
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-plans.service.spec.ts
+@@ -0,0 +1,22 @@
++import { AmPlansService } from './am-plans.service';
++
++describe('AmPlansService', () => {
++  const repo = {
++    insert: jest.fn(),
++  };
++  const tasks = {
++    create: jest.fn(),
++  };
++
++  let plans: AmPlansService;
++
++  beforeEach(() => {
++    jest.clearAllMocks();
++    plans = new AmPlansService(repo as never, tasks as never);
++  });
++
++  it('renewal plan without contract_id is 400', async () => {
++    await expect(plans.create({ agency_client_id: 'c', kind: 'renewal', period_key: '2026-Q3' }, 1))
++      .rejects.toMatchObject({ error: 'contract_required' });
++  });
++});
+diff --git a/services/ptt-crm-api/src/am/am-plans.service.ts b/services/ptt-crm-api/src/am/am-plans.service.ts
+new file mode 100644
+index 00000000..830b1046
+--- /dev/null
++++ b/services/ptt-crm-api/src/am/am-plans.service.ts
+@@ -0,0 +1,168 @@
++import { Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
++import { Pool } from 'pg';
++import { AppConfigService } from '../config/app-config.service';
++import { AM_TENANT_ID } from './am-audit.repository';
++import { AmDashboardService } from './am-dashboard.service';
++import { amThrow } from './am-http';
++import { AmTasksService, isUuid } from './am-tasks.service';
++import type { AmPlanKind } from './am.types';
++
++export type AmCreatePlanInput = {
++  agency_client_id: string;
++  kind: AmPlanKind;
++  period_key: string;
++  contract_id?: number;
++  due_on?: string;
++};
++
++export type AmPlanRow = {
++  id: string;
++  agency_client_id: string;
++  contract_id: number | null;
++  kind: AmPlanKind;
++  period_key: string;
++  status: string;
++  owner_staff_id: number;
++  due_on: string | null;
++};
++
++export type AmPlansStore = {
++  insert(input: AmCreatePlanInput & { owner_staff_id: number }): Promise<AmPlanRow>;
++};
++
++const PLAN_KINDS: AmPlanKind[] = ['care', 'qbr', 'renewal', 'expand'];
++
++export const PLAN_SEED_TITLES: Record<AmPlanKind, string[]> = {
++  qbr: ['Chuẩn bị số liệu QBR', 'Đặt lịch QBR', 'Gửi biên bản'],
++  renewal: ['Rà soát phạm vi', 'Liên hệ stakeholder', 'Soạn đề xuất gia hạn'],
++  care: ['Gọi health-check', 'Lập recovery nếu Critical'],
++  expand: ['Xác nhận nhu cầu', 'Tạo bước next'],
++};
++
++const PLAN_COLS = `
++  id::text AS id,
++  agency_client_id::text AS agency_client_id,
++  contract_id,
++  kind,
++  period_key,
++  status,
++  owner_staff_id,
++  due_on
++`;
++
++function mapPlan(row: Record<string, unknown>): AmPlanRow {
++  return {
++    id: String(row.id),
++    agency_client_id: String(row.agency_client_id ?? ''),
++    contract_id: row.contract_id == null ? null : Number(row.contract_id),
++    kind: String(row.kind) as AmPlanKind,
++    period_key: String(row.period_key ?? ''),
++    status: String(row.status ?? 'open'),
++    owner_staff_id: Number(row.owner_staff_id ?? 0),
++    due_on: row.due_on == null ? null : String(row.due_on).slice(0, 10),
++  };
++}
++
++function isUniqueViolation(err: unknown): boolean {
++  return (err as { code?: string }).code === '23505';
++}
++
++@Injectable()
++export class AmPlansRepository implements OnModuleDestroy, AmPlansStore {
++  private pool: Pool | null = null;
++
++  constructor(private readonly config: AppConfigService) {}
++
++  private get db(): Pool {
++    if (!this.pool) {
++      this.pool = new Pool({ connectionString: this.config.databaseUrl });
++    }
++    return this.pool;
++  }
++
++  onModuleDestroy(): void {
++    void this.pool?.end();
++    this.pool = null;
++  }
++
++  async insert(input: AmCreatePlanInput & { owner_staff_id: number }): Promise<AmPlanRow> {
++    const result = await this.db.query(
++      `INSERT INTO crm_am_plans (
++         tenant_id, agency_client_id, contract_id, kind, period_key, status, owner_staff_id, due_on
++       ) VALUES ($1, $2::uuid, $3, $4, $5, 'open', $6, $7)
++       RETURNING ${PLAN_COLS}`,
++      [
++        AM_TENANT_ID,
++        input.agency_client_id,
++        input.contract_id ?? null,
++        input.kind,
++        input.period_key,
++        input.owner_staff_id,
++        input.due_on ?? null,
++      ],
++    );
++    return mapPlan(result.rows[0]);
++  }
++}
++
++@Injectable()
++export class AmPlansService {
++  constructor(
++    private readonly repo: AmPlansRepository,
++    private readonly tasks: AmTasksService,
++    @Optional() private readonly dashboard?: AmDashboardService,
++  ) {}
++
++  async create(input: AmCreatePlanInput, staffId: number): Promise<AmPlanRow> {
++    const kind = input.kind;
++    if (kind === 'renewal' && (input.contract_id == null || Number.isNaN(Number(input.contract_id)))) {
++      amThrow(400, { error: 'contract_required' });
++    }
++
++    const agencyClientId = String(input.agency_client_id ?? '').trim();
++    const periodKey = String(input.period_key ?? '').trim();
++    if (!agencyClientId || !periodKey) {
++      amThrow(400, { error: 'agency_client_id_and_period_key_required' });
++    }
++    if (!PLAN_KINDS.includes(kind)) {
++      amThrow(400, { error: 'invalid_kind' });
++    }
++    if (!isUuid(agencyClientId)) {
++      amThrow(400, { error: 'invalid_agency_client_id' });
++    }
++
++    const contractId =
++      input.contract_id == null || input.contract_id === ('' as unknown as number)
++        ? undefined
++        : Number(input.contract_id);
++
++    try {
++      const plan = await this.repo.insert({
++        agency_client_id: agencyClientId,
++        kind,
++        period_key: periodKey,
++        contract_id: contractId,
++        due_on: input.due_on,
++        owner_staff_id: staffId,
++      });
++      for (const title of PLAN_SEED_TITLES[kind]) {
++        await this.tasks.create(
++          {
++            agency_client_id: agencyClientId,
++            title,
++            kind: 'task',
++            source: 'plan',
++            source_ref: `${plan.id}:${title}`,
++            due_at: input.due_on ? `${input.due_on}T00:00:00.000Z` : undefined,
++          },
++          staffId,
++        );
++      }
++      this.dashboard?.dropCache();
++      return plan;
++    } catch (err) {
++      if (isUniqueViolation(err)) amThrow(409, { error: 'duplicate_plan' });
++      throw err;
++    }
++  }
++}
+diff --git a/services/ptt-crm-api/src/am/am-tasks.service.ts b/services/ptt-crm-api/src/am/am-tasks.service.ts
+index 1d823221..60367503 100644
+--- a/services/ptt-crm-api/src/am/am-tasks.service.ts
++++ b/services/ptt-crm-api/src/am/am-tasks.service.ts
+@@ -85,21 +85,21 @@ function mapTask(row: Record<string, unknown>): AmTaskRow {
+     source: String(row.source ?? 'manual'),
+     source_ref: row.source_ref == null || row.source_ref === '' ? null : String(row.source_ref),
+     dismissed_at: row.dismissed_at == null ? null : new Date(String(row.dismissed_at)).toISOString(),
+   };
+ }
+ 
+ function isUniqueViolation(err: unknown): boolean {
+   return (err as { code?: string }).code === '23505';
+ }
+ 
+-function isUuid(value: string): boolean {
++export function isUuid(value: string): boolean {
+   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+     value.trim(),
+   );
+ }
+ 
+ @Injectable()
+ export class AmTasksRepository implements OnModuleDestroy, AmTasksStore {
+   private pool: Pool | null = null;
+ 
+   constructor(private readonly config: AppConfigService) {}
+diff --git a/services/ptt-crm-api/src/am/am.controller.ts b/services/ptt-crm-api/src/am/am.controller.ts
+index b83470d3..475e6d16 100644
+--- a/services/ptt-crm-api/src/am/am.controller.ts
++++ b/services/ptt-crm-api/src/am/am.controller.ts
+@@ -1,31 +1,35 @@
+ import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+ import { Request } from 'express';
+ import { StaffAuthService } from '../staff-auth/staff-auth.service';
+ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
+ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
++import { AmAccountsService, type AmCreateAccountBody } from './am-accounts.service';
+ import { AmDashboardService } from './am-dashboard.service';
++import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
+ import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
+ import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
+ import type { AmScope } from './am.types';
+ 
+ export type AuthedReq = Request & {
+   staffUser?: StaffJwtPayload;
+   staffAuthVia?: 'internal' | 'jwt';
+ };
+ 
+ @Controller('api/crm/am')
+ @UseGuards(StaffOrInternalKeyGuard, StaffAmGuard)
+ export class AmController {
+   constructor(
+     private readonly dashboard: AmDashboardService,
+     private readonly tasks: AmTasksService,
++    private readonly accounts: AmAccountsService,
++    private readonly plans: AmPlansService,
+     private readonly staffAuth: StaffAuthService,
+   ) {}
+ 
+   private async actorStaffId(req: AuthedReq): Promise<number> {
+     if (!req.staffUser) return 0;
+     return (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
+   }
+ 
+   @Get('command-center')
+   @RequireAmAction('view')
+@@ -46,11 +50,31 @@ export class AmController {
+     @Body() body: { source: string; source_ref: string },
+   ) {
+     return this.tasks.dismiss(body, await this.actorStaffId(req));
+   }
+ 
+   @Post('tasks/:id/accept')
+   @RequireAmAction('edit')
+   async acceptTask(@Req() req: AuthedReq, @Param('id') id: string) {
+     return this.tasks.accept(id, await this.actorStaffId(req));
+   }
++
++  @Post('accounts')
++  @RequireAmAction('edit')
++  async createAccount(@Req() req: AuthedReq, @Body() body: AmCreateAccountBody) {
++    const caps =
++      req.staffAuthVia === 'internal' || !req.staffUser
++        ? []
++        : (await this.staffAuth.me(req.staffUser)).caps;
++    return this.accounts.createAccount(body, {
++      staffId: await this.actorStaffId(req),
++      caps,
++      via: req.staffAuthVia,
++    });
++  }
++
++  @Post('plans')
++  @RequireAmAction('edit')
++  async createPlan(@Req() req: AuthedReq, @Body() body: AmCreatePlanInput) {
++    return this.plans.create(body, await this.actorStaffId(req));
++  }
+ }
+diff --git a/services/ptt-crm-api/src/am/am.module.ts b/services/ptt-crm-api/src/am/am.module.ts
+index 533545a6..70a3549d 100644
+--- a/services/ptt-crm-api/src/am/am.module.ts
++++ b/services/ptt-crm-api/src/am/am.module.ts
+@@ -1,16 +1,29 @@
+-import { Module } from '@nestjs/common';
++import { Module, forwardRef } from '@nestjs/common';
++import { AgencyModule } from '../agency/agency.module';
+ import { ConfigModule } from '../config/config.module';
+ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
++import { AmAccountsRepository, AmAccountsService } from './am-accounts.service';
+ import { AmAuditRepository } from './am-audit.repository';
+ import { AmDashboardService } from './am-dashboard.service';
++import { AmPlansRepository, AmPlansService } from './am-plans.service';
+ import { AmTasksRepository, AmTasksService } from './am-tasks.service';
+ import { AmController } from './am.controller';
+ import { StaffAmGuard } from './guards/staff-am.guard';
+ 
+ @Module({
+-  imports: [ConfigModule, StaffAuthModule],
++  imports: [ConfigModule, StaffAuthModule, forwardRef(() => AgencyModule)],
+   controllers: [AmController],
+-  providers: [StaffAmGuard, AmDashboardService, AmAuditRepository, AmTasksRepository, AmTasksService],
+-  exports: [StaffAmGuard, AmDashboardService, AmAuditRepository, AmTasksService],
++  providers: [
++    StaffAmGuard,
++    AmDashboardService,
++    AmAuditRepository,
++    AmTasksRepository,
++    AmTasksService,
++    AmAccountsRepository,
++    AmAccountsService,
++    AmPlansRepository,
++    AmPlansService,
++  ],
++  exports: [StaffAmGuard, AmDashboardService, AmAuditRepository, AmTasksService, AmAccountsService, AmPlansService],
+ })
+ export class AmModule {}
