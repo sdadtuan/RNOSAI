@@ -1,0 +1,16 @@
+# AM renewal at 06:00 ICT.
+# Detect timedatectl and pick one. Do not enable both.
+# If host TZ is UTC use 23:00; if Asia/Ho_Chi_Minh use 06:00.
+# OnCalendar=*-*-* 23:00:00 is 06:00 ICT when the host clock is UTC.
+# If the VPS timezone is already Asia/Ho_Chi_Minh, use OnCalendar=*-*-* 06:00:00 instead.
+
+[Unit]
+Description=AM renewal at 06:00 ICT
+
+[Timer]
+OnCalendar=*-*-* 23:00:00
+Persistent=true
+Unit=ptt-crm-am-renewal.service
+
+[Install]
+WantedBy=timers.target
