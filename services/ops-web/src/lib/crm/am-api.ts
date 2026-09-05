@@ -145,6 +145,55 @@ export async function createAmTask(token: string, body: AmCreateTaskInput): Prom
   });
 }
 
+export type AmWorkInbox = 'me' | 'team' | 'unassigned' | 'all';
+
+export type AmWorkQueueItem = AmTask & {
+  account_name: string | null;
+  assignee_label: string | null;
+  sla_first_due_at: string | null;
+  sla_resolve_due_at: string | null;
+  sla_paused: boolean;
+  sla_clock: number | 'paused' | null;
+  overdue: boolean;
+};
+
+export type AmWorkQueueList = {
+  items: AmWorkQueueItem[];
+  counts: { me: number | null; team: number | null; unassigned: number | null };
+  work_hours: string;
+};
+
+export type AmWorkQueueQuery = {
+  inbox?: string;
+  scope?: AmScope;
+  sla?: string;
+  kind?: string;
+  status?: string;
+  priority?: string;
+};
+
+export async function fetchAmWorkQueue(
+  token: string,
+  query: AmWorkQueueQuery = {},
+): Promise<AmWorkQueueList> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value) params.set(key, value);
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return amFetch<AmWorkQueueList>(token, `/api/crm/am/tasks${suffix}`);
+}
+
+export async function acceptAmTasksBulk(
+  token: string,
+  ids: string[],
+): Promise<{ accepted: number; items: AmTask[] }> {
+  return amFetch<{ accepted: number; items: AmTask[] }>(token, '/api/crm/am/tasks/accept-bulk', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
+}
+
 export type AmPlanKind = 'care' | 'qbr' | 'renewal' | 'expand';
 
 export type AmCreateAccountBody =

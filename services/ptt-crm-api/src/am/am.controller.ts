@@ -17,7 +17,7 @@ import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
 import { AmSearchService } from './am-search.service';
 import { AmNotificationsService } from './am-notifications.service';
 import { AmSettingsService, type AmPublishSettingsBody } from './am-settings.service';
-import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
+import { AmTasksService, type AmCreateTaskInput, type AmTasksListQuery } from './am-tasks.service';
 import { AmViewsService, type AmCreateViewBody } from './am-views.service';
 import {
   AmOnboardingService,
@@ -125,6 +125,12 @@ export class AmController {
     return this.health.override(req, agencyClientId, body ?? {}, await this.actorStaffId(req));
   }
 
+  @Get('tasks')
+  @RequireAmAction('view')
+  listTasks(@Req() req: AuthedReq, @Query() q: AmTasksListQuery) {
+    return this.tasks.list(req, q);
+  }
+
   @Post('tasks')
   @RequireAmAction('edit')
   async createTask(@Req() req: AuthedReq, @Body() body: AmCreateTaskInput) {
@@ -138,6 +144,12 @@ export class AmController {
     @Body() body: { source: string; source_ref: string },
   ) {
     return this.tasks.dismiss(body, await this.actorStaffId(req));
+  }
+
+  @Post('tasks/accept-bulk')
+  @RequireAmAction('edit')
+  async acceptTasksBulk(@Req() req: AuthedReq, @Body() body: { ids?: string[] }) {
+    return this.tasks.acceptBulk(req, body ?? {}, await this.actorStaffId(req));
   }
 
   @Post('tasks/:id/accept')

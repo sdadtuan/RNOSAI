@@ -1,5 +1,5 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+import { AmWorkQueue } from '@/components/crm/am/AmWorkQueue';
 
 export default function AmWorkPage() {
-  return <AmPlaceholder title="Work Queue" wave={3} />;
+  return <AmWorkQueue />;
 }

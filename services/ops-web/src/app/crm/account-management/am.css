@@ -1321,3 +1321,57 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
     grid-template-columns: 1fr;
   }
 }
+
+.am-workq__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.am-workq__head h1 {
+  margin: 0 0 4px;
+}
+
+.am-workq__actions,
+.am-workq__views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.am-workq__week {
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+}
+
+.am-workq__row--danger td {
+  background: #fef2f2;
+}
+
+.am-pill--pri-high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.am-pill--pri-medium {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.am-pill--pri-low {
+  background: #dcfce7;
+  color: #166534;
+}
+
+@media (max-width: 960px) {
+  .am-workq__week {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .am-workq__week {
+    grid-template-columns: 1fr;
+  }
+}
