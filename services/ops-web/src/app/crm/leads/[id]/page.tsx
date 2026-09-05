@@ -1308,6 +1308,15 @@ export default function CrmLeadDetailPage() {
                 showPresalesBlock={stageVis.showPresalesBlock}
                 highlightAfterCall={b2CallJustPlaced}
                 readOnly={pipelineReadOnly}
+                slaLabel={copilotContext?.sla.banner.title || copilotContext?.sla.worst_sla_tier || 'SLA'}
+                slaCountdown={null}
+                slaState={
+                  copilotContext?.sla.worst_sla_state === 'breach' ||
+                  copilotContext?.sla.worst_sla_state === 'warning'
+                    ? copilotContext.sla.worst_sla_state
+                    : 'ok'
+                }
+                slaDetail={copilotContext?.sla.banner.message ?? null}
               />
             ) : null}
 

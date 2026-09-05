@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
 import { LeadPipelineDoneAccordion } from '@/components/crm/LeadPipelineDoneAccordion';
+import { LeadPipelineSlaStrip } from '@/components/crm/LeadPipelineSlaStrip';
 import { resolveFunnelStepper } from '@/lib/crm/funnel-stepper.util';
 import type {
   FunnelPrimaryAction,
@@ -35,6 +36,10 @@ export function LeadSalesPipelineTab({
   showPresalesBlock,
   highlightAfterCall,
   readOnly,
+  slaLabel,
+  slaCountdown,
+  slaState,
+  slaDetail,
 }: {
   token: string;
   leadId: number;
@@ -57,6 +62,10 @@ export function LeadSalesPipelineTab({
   showPresalesBlock?: boolean;
   highlightAfterCall?: boolean;
   readOnly?: boolean;
+  slaLabel?: string;
+  slaCountdown?: string | null;
+  slaState?: 'ok' | 'warning' | 'breach';
+  slaDetail?: string | null;
 }) {
   const stepperVm = useMemo(() => resolveFunnelStepper(stepperInput), [stepperInput]);
   const activeState = stepperVm.steps.find((s) => s.key === activeStepKey)?.state ?? 'current';
@@ -68,7 +77,12 @@ export function LeadSalesPipelineTab({
 
   return (
     <div className="lead-pipeline-tab" role="tabpanel" id="lead-pipeline-panel">
-      <div className="lead-pipeline-sla" data-stub="a5" />
+      <LeadPipelineSlaStrip
+        worstLabel={slaLabel ?? 'SLA'}
+        countdown={slaCountdown ?? null}
+        state={slaState ?? 'ok'}
+        detail={slaDetail ? <p>{slaDetail}</p> : <p className="muted">Không có chi tiết SLA.</p>}
+      />
       <div className="lead-pipeline-tab__head">
         <CrmFunnelStepper
           {...stepperInput}
