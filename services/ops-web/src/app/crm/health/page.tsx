@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CsHealthDashboardPanel } from '@/components/ai/CsHealthDashboardPanel';
+import { AmCsHealthStrip } from '@/components/crm/health/AmCsHealthStrip';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
+import { canSeeAmHealthStrip } from '@/lib/crm/am-cs-health-strip.util';
 import {
   clearSession,
   getAccessToken,
@@ -95,7 +97,14 @@ export default function CrmHealthPage() {
       periodHint="Sắp xếp theo churn risk · lọc ticket spike · RNOS-19"
       error={error || undefined}
     >
-      {token ? <CsHealthDashboardPanel token={token} /> : <p className="muted">Đang tải…</p>}
+      {token ? (
+        <>
+          {canSeeAmHealthStrip(user) ? <AmCsHealthStrip token={token} /> : null}
+          <CsHealthDashboardPanel token={token} />
+        </>
+      ) : (
+        <p className="muted">Đang tải…</p>
+      )}
     </DashboardShell>
   );
 }
