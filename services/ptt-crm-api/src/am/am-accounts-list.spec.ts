@@ -71,4 +71,12 @@ describe('AmAccountsService.list', () => {
     const sql = listSql(db);
     expect(sql).toMatch(/ORDER BY[\s\S]*ends_on/i);
   });
+
+  it('fills delegated_until from active outbound delegation', async () => {
+    await service.list(viewReq, {});
+    const sql = listSql(db);
+    expect(sql).toMatch(/crm_am_delegations/);
+    expect(sql).toMatch(/MAX\(\s*d\.ends_on/i);
+    expect(sql).toMatch(/d\.from_staff_id = e\.account_owner_staff_id/);
+  });
 });

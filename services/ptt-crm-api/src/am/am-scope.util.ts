@@ -29,7 +29,20 @@ export function amScopeSql(opts: {
     };
   }
   return {
-    sql: "(e.account_owner_staff_id = $staff OR EXISTS (SELECT 1 FROM crm_am_tasks t WHERE t.agency_client_id = e.agency_client_id AND t.assignee_staff_id = $staff AND t.status NOT IN ('closed','cancelled')))",
+    sql: `(e.account_owner_staff_id = $staff
+   OR EXISTS (
+        SELECT 1 FROM crm_am_tasks t
+         WHERE t.agency_client_id = e.agency_client_id
+           AND t.assignee_staff_id = $staff
+           AND t.status NOT IN ('closed','cancelled')
+      )
+   OR EXISTS (
+        SELECT 1 FROM crm_am_delegations d
+         WHERE d.tenant_id = e.tenant_id
+           AND d.to_staff_id = $staff
+           AND d.from_staff_id = e.account_owner_staff_id
+           AND CURRENT_DATE BETWEEN d.starts_on AND d.ends_on
+      ))`,
     params: [opts.staffId],
   };
 }

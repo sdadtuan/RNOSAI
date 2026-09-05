@@ -2,6 +2,7 @@ import {
   AM_CSAT_CLIENTS_JOIN,
   amCsatSql,
   averageCsat,
+  coverageOf,
   emptyKpis,
   showCoverage,
   sumRevenueAtRisk,
@@ -61,6 +62,22 @@ describe('am-dashboard.service', () => {
     expect(showCoverage('team', 'am')).toBe(false);
     expect(showCoverage('team', 'director')).toBe(true);
     expect(showCoverage('all', 'admin')).toBe(true);
+  });
+
+  it('counts coverage.delegated from active outbound delegations, not backup_staff_id', () => {
+    const coverage = coverageOf(
+      [
+        { account_owner_staff_id: 1, backup_staff_id: 9 },
+        { account_owner_staff_id: 2, backup_staff_id: null },
+        { account_owner_staff_id: 2, backup_staff_id: 3 },
+        { account_owner_staff_id: null, backup_staff_id: 4 },
+      ],
+      4,
+      new Set([2]),
+    );
+    expect(coverage.delegated).toBe(2);
+    expect(coverage.unassigned).toBe(1);
+    expect(coverage.qbr_this_week).toBe(4);
   });
 
   it('classifies today_work chip by Asia/Ho_Chi_Minh calendar day', () => {

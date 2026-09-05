@@ -608,6 +608,43 @@ export async function putAmSettings(token: string, body: AmPublishSettingsBody):
   });
 }
 
+export type AmDelegation = {
+  id: string;
+  from_staff_id: number;
+  to_staff_id: number;
+  starts_on: string;
+  ends_on: string;
+  reason: string | null;
+};
+
+export type AmCreateDelegationInput = {
+  from_staff_id?: number;
+  to_staff_id: number;
+  starts_on: string;
+  ends_on: string;
+  reason?: string;
+};
+
+export async function fetchAmDelegations(token: string): Promise<{ items: AmDelegation[] }> {
+  return amFetch<{ items: AmDelegation[] }>(token, '/api/crm/am/delegations');
+}
+
+export async function createAmDelegation(
+  token: string,
+  body: AmCreateDelegationInput,
+): Promise<AmDelegation> {
+  return amFetch<AmDelegation>(token, '/api/crm/am/delegations', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function cancelAmDelegation(token: string, id: string): Promise<AmDelegation> {
+  return amFetch<AmDelegation>(token, `/api/crm/am/delegations/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+  });
+}
+
 export type AmCustomField = {
   id: string;
   api_key: string;

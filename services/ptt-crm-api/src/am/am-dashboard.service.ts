@@ -399,14 +399,16 @@ export class AmDashboardService implements OnModuleDestroy {
   ): Promise<AmCommandCenter> {
     const asOf = period.to;
     const today = ictYmd(now);
-    const [book, todayWork, slaOverdue, quota, qbrThisWeek, csat] = await Promise.all([
-      this.loadBook(staffId, scope, teamIds, asOf),
-      this.loadTodayWork(staffId, scope, teamIds, now),
-      this.loadSlaOverdue(staffId, scope, teamIds),
-      this.loadQuota(),
-      this.loadQbrThisWeek(staffId, scope, teamIds, today),
-      this.loadCsat(staffId, scope, teamIds),
-    ]);
+    const [book, todayWork, slaOverdue, quota, qbrThisWeek, csat, delegatedOwnerIds] =
+      await Promise.all([
+        this.loadBook(staffId, scope, teamIds, asOf),
+        this.loadTodayWork(staffId, scope, teamIds, now),
+        this.loadSlaOverdue(staffId, scope, teamIds),
+        this.loadQuota(),
+        this.loadQbrThisWeek(staffId, scope, teamIds, today),
+        this.loadCsat(staffId, scope, teamIds),
+        this.loadDelegatedOwnerIds(),
+      ]);
 
     const active = book.filter((row) => isActiveBook(row.am_status as AmAmStatus));
     const freshnessAsOf = latestSnapAsOf(book) ?? now.toISOString();
@@ -460,7 +462,7 @@ export class AmDashboardService implements OnModuleDestroy {
         sla_overdue: slaOverdue,
         csat,
       },
-      coverage: showCoverage(scope, role) ? coverageOf(active, qbrThisWeek) : null,
+      coverage: showCoverage(scope, role) ? coverageOf(active, qbrThisWeek, delegatedOwnerIds) : null,
       today_work: todayWork,
       attention: attentionOf(active, asOf),
       forecast,
@@ -735,6 +737,24 @@ export class AmDashboardService implements OnModuleDestroy {
       throw err;
     }
   }
+
+  private async loadDelegatedOwnerIds(): Promise<Set<number>> {
+    try {
+      const result = await this.db.query<{ from_staff_id: number }>(
+        `SELECT DISTINCT from_staff_id
+           FROM crm_am_delegations
+          WHERE tenant_id = $1
+            AND CURRENT_DATE BETWEEN starts_on AND ends_on`,
+        [AM_TENANT_ID],
+      );
+      return new Set(
+        result.rows.map((row) => Number(row.from_staff_id)).filter((n) => Number.isFinite(n) && n > 0),
+      );
+    } catch (err) {
+      if (isMissingRelation(err)) return new Set();
+      throw err;
+    }
+  }
 }
 
 function mapBookRow(row: Record<string, unknown>): BookRow {
@@ -857,14 +877,20 @@ function forecastFromBands(active: BookRow[], asOf: string): AmCommandCenter['fo
   };
 }
 
-function coverageOf(active: BookRow[], qbrThisWeek: number): NonNullable<AmCommandCenter['coverage']> {
+export function coverageOf(
+  active: Array<{ account_owner_staff_id: number | null; backup_staff_id?: number | null }>,
+  qbrThisWeek: number,
+  delegatedOwnerIds: ReadonlySet<number> = new Set(),
+): NonNullable<AmCommandCenter['coverage']> {
   const owners = new Map<number, number>();
   let unassigned = 0;
   let delegated = 0;
   for (const row of active) {
     if (row.account_owner_staff_id == null) unassigned += 1;
     else owners.set(row.account_owner_staff_id, (owners.get(row.account_owner_staff_id) ?? 0) + 1);
-    if (row.backup_staff_id != null) delegated += 1;
+    if (row.account_owner_staff_id != null && delegatedOwnerIds.has(row.account_owner_staff_id)) {
+      delegated += 1;
+    }
   }
   const loads = [...owners.values()];
   const avg_load = loads.length ? loads.reduce((a, b) => a + b, 0) / loads.length : null;

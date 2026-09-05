@@ -23,4 +23,10 @@ describe('am-scope.util', () => {
       "t.status NOT IN ('closed','cancelled')",
     );
   });
+
+  it('includes active delegations in me scope', () => {
+    const { sql } = amScopeSql({ scope: 'me', staffId: 3, teamIds: [] });
+    expect(sql).toMatch(/crm_am_delegations/);
+    expect(sql).toMatch(/d\.to_staff_id = \$staff/);
+  });
 });

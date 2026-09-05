@@ -89,6 +89,7 @@ import {
   type AmPatchSlaInput,
 } from './am-sla-policies.service';
 import { AmAiService, type AmAiDraftBody, type AmAiFeedbackBody } from './am-ai.service';
+import { AmDelegationsService, type AmCreateDelegationInput } from './am-delegations.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -125,6 +126,7 @@ export class AmController {
     private readonly fields: AmFieldsService,
     private readonly slaPolicies: AmSlaPoliciesService,
     private readonly ai: AmAiService,
+    private readonly delegations: AmDelegationsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -154,6 +156,28 @@ export class AmController {
   @RequireAmAction('view')
   getSettings() {
     return this.settings.get();
+  }
+
+  @Get('delegations')
+  @RequireAmAction('view')
+  async listDelegations(@Req() req: AuthedReq) {
+    return this.delegations.list(await this.actorStaffId(req), await this.actorCaps(req));
+  }
+
+  @Post('delegations')
+  @RequireAmAction('edit')
+  async createDelegation(@Req() req: AuthedReq, @Body() body: AmCreateDelegationInput) {
+    return this.delegations.create(
+      body ?? ({} as AmCreateDelegationInput),
+      await this.actorStaffId(req),
+      await this.actorCaps(req),
+    );
+  }
+
+  @Post('delegations/:id/cancel')
+  @RequireAmAction('edit')
+  async cancelDelegation(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.delegations.cancel(id, await this.actorStaffId(req), await this.actorCaps(req));
   }
 
   @Put('settings')

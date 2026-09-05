@@ -1,13 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ApiError } from '@/lib/api';
+import { ApiError, fetchStaffRoster, type StaffRosterRow } from '@/lib/api';
 import { hasCap } from '@/lib/auth';
 import {
+  cancelAmDelegation,
   cloneAmOnboardingTemplate,
+  createAmDelegation,
   createAmField,
   createAmOnboardingTemplate,
   createAmSlaPolicy,
+  fetchAmDelegations,
   fetchAmFields,
   fetchAmOnboardingTemplates,
   fetchAmSettings,
@@ -19,11 +22,13 @@ import {
   publishAmOnboardingTemplate,
   putAmSettings,
   type AmCustomField,
+  type AmDelegation,
   type AmOnboardingTemplate,
   type AmOnboardingTemplateItem,
   type AmSettings as AmSettingsData,
   type AmSlaPolicy,
 } from '@/lib/crm/am-api';
+import { amDelegationErrorCopy, amDelegationFormError } from '@/lib/crm/am-delegation.util';
 import { amOnboardingDash } from '@/lib/crm/am-onboarding.util';
 import {
   AM_BDS_FIELD_TEMPLATES,
@@ -169,8 +174,9 @@ function slaToDraft(row: AmSlaPolicy): SlaDraft {
 }
 
 export function AmSettings() {
-  const { token, user } = useAmPage();
+  const { token, user, canEdit } = useAmPage();
   const canManage = hasCap(user, 'crm_am', 'manage');
+  const canDelegate = canEdit || canManage;
   const [items, setItems] = useState<AmOnboardingTemplate[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftItems, setDraftItems] = useState<AmOnboardingTemplateItem[]>([]);
@@ -192,6 +198,15 @@ export function AmSettings() {
   const [slaDraft, setSlaDraft] = useState<SlaDraft | null>(null);
   const [slaError, setSlaError] = useState('');
   const [slaBusy, setSlaBusy] = useState(false);
+  const [delegations, setDelegations] = useState<AmDelegation[]>([]);
+  const [delegationRoster, setDelegationRoster] = useState<StaffRosterRow[]>([]);
+  const [fromStaffId, setFromStaffId] = useState('');
+  const [toStaffId, setToStaffId] = useState('');
+  const [startsOn, setStartsOn] = useState('');
+  const [endsOn, setEndsOn] = useState('');
+  const [delegationReason, setDelegationReason] = useState('');
+  const [delegationError, setDelegationError] = useState('');
+  const [delegationBusy, setDelegationBusy] = useState(false);
 
   const selected = items.find((row) => row.id === selectedId) ?? null;
   const published = selected?.status === 'published';
@@ -227,10 +242,20 @@ export function AmSettings() {
       setSlaPolicies(slaOut.items);
     } catch (err) {
       setFieldError(err instanceof ApiError ? err.message : 'Không tải được trường / SLA.');
+    }
+    try {
+      const [delOut, rosterOut] = await Promise.all([
+        fetchAmDelegations(token),
+        canDelegate ? fetchStaffRoster(token) : Promise.resolve({ staff: [] as StaffRosterRow[] }),
+      ]);
+      setDelegations(delOut.items);
+      setDelegationRoster(rosterOut.staff ?? []);
+    } catch (err) {
+      setDelegationError(err instanceof ApiError ? err.message : 'Không tải được ủy quyền.');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [canDelegate, token]);
 
   useEffect(() => {
     void load();
@@ -495,6 +520,62 @@ export function AmSettings() {
     }
   }
 
+  function staffOptionLabel(row: StaffRosterRow): string {
+    return row.display_name || row.email;
+  }
+
+  async function onCreateDelegation() {
+    if (!token || !canDelegate || delegationBusy) return;
+    const to = Number(toStaffId);
+    const from = canManage && fromStaffId ? Number(fromStaffId) : undefined;
+    const code = amDelegationFormError({
+      from_staff_id: from,
+      to_staff_id: to,
+      starts_on: startsOn,
+      ends_on: endsOn,
+    });
+    if (code) {
+      setDelegationError(amDelegationErrorCopy(code));
+      return;
+    }
+    setDelegationBusy(true);
+    setDelegationError('');
+    try {
+      const created = await createAmDelegation(token, {
+        ...(from ? { from_staff_id: from } : {}),
+        to_staff_id: to,
+        starts_on: startsOn,
+        ends_on: endsOn,
+        reason: delegationReason.trim() || undefined,
+      });
+      setDelegations((prev) => [created, ...prev.filter((row) => row.id !== created.id)]);
+      setToStaffId('');
+      setStartsOn('');
+      setEndsOn('');
+      setDelegationReason('');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Không tạo được ủy quyền.';
+      setDelegationError(amDelegationErrorCopy(msg));
+    } finally {
+      setDelegationBusy(false);
+    }
+  }
+
+  async function onCancelDelegation(id: string) {
+    if (!token || !canDelegate || delegationBusy) return;
+    setDelegationBusy(true);
+    setDelegationError('');
+    try {
+      await cancelAmDelegation(token, id);
+      setDelegations((prev) => prev.filter((row) => row.id !== id));
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Không hủy được ủy quyền.';
+      setDelegationError(amDelegationErrorCopy(msg));
+    } finally {
+      setDelegationBusy(false);
+    }
+  }
+
   async function onClone() {
     if (!token || !selected || !canManage || busy) return;
     setBusy(true);
@@ -534,6 +615,133 @@ export function AmSettings() {
       </header>
 
       {error ? <p className="am-banner">{error}</p> : null}
+
+      <div className="am-widget">
+        <div className="am-widget__head">
+          <h2>Ủy quyền khi nghỉ</h2>
+        </div>
+        {delegationError ? <p className="am-banner">{delegationError}</p> : null}
+        {canDelegate ? (
+          <div className="am-form">
+            <label className="am-field">
+              <span>Từ</span>
+              {canManage ? (
+                <select
+                  value={fromStaffId}
+                  onChange={(ev) => setFromStaffId(ev.target.value)}
+                  aria-label="AM ủy quyền"
+                >
+                  <option value="">Tôi</option>
+                  {delegationRoster.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {staffOptionLabel(row)}
+                      {row.email && row.display_name !== row.email ? ` · ${row.email}` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <strong>Tôi</strong>
+              )}
+            </label>
+            <label className="am-field">
+              <span>Đến</span>
+              <select
+                value={toStaffId}
+                onChange={(ev) => setToStaffId(ev.target.value)}
+                aria-label="AM nhận ủy quyền"
+              >
+                <option value="">Chọn AM</option>
+                {delegationRoster.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {staffOptionLabel(row)}
+                    {row.email && row.display_name !== row.email ? ` · ${row.email}` : ''}
+                  </option>
+                ))}
+              </select>
+              <input
+                inputMode="numeric"
+                value={toStaffId}
+                onChange={(ev) => setToStaffId(ev.target.value.trim())}
+                placeholder="crm_staff ID"
+                aria-label="crm_staff ID người nhận"
+              />
+            </label>
+            <div className="am-split">
+              <label className="am-field">
+                <span>Từ ngày</span>
+                <input type="date" value={startsOn} onChange={(ev) => setStartsOn(ev.target.value)} />
+              </label>
+              <label className="am-field">
+                <span>Đến ngày</span>
+                <input type="date" value={endsOn} onChange={(ev) => setEndsOn(ev.target.value)} />
+              </label>
+            </div>
+            <label className="am-field">
+              <span>Lý do</span>
+              <input
+                value={delegationReason}
+                onChange={(ev) => setDelegationReason(ev.target.value)}
+                placeholder="Nghỉ phép, công tác…"
+              />
+            </label>
+            <div className="am-form__actions">
+              <button
+                type="button"
+                className="am-btn am-btn--primary"
+                disabled={delegationBusy}
+                onClick={() => void onCreateDelegation()}
+              >
+                Tạo ủy quyền
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="am-muted">Cần quyền edit để tạo ủy quyền.</p>
+        )}
+        <table className="am-table">
+          <thead>
+            <tr>
+              <th>Từ</th>
+              <th>Đến</th>
+              <th>Khoảng</th>
+              <th>Lý do</th>
+              {canDelegate ? <th></th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {delegations.length === 0 ? (
+              <tr>
+                <td colSpan={canDelegate ? 5 : 4} className="am-muted">
+                  —
+                </td>
+              </tr>
+            ) : (
+              delegations.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.from_staff_id}</td>
+                  <td>{row.to_staff_id}</td>
+                  <td>
+                    {row.starts_on}–{row.ends_on}
+                  </td>
+                  <td>{row.reason || '—'}</td>
+                  {canDelegate ? (
+                    <td>
+                      <button
+                        type="button"
+                        className="am-link"
+                        disabled={delegationBusy}
+                        onClick={() => void onCancelDelegation(row.id)}
+                      >
+                        Hủy sớm
+                      </button>
+                    </td>
+                  ) : null}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <div className="am-widget">
         <div className="am-widget__head">

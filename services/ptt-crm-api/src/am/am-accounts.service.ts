@@ -435,14 +435,19 @@ export class AmAccountsService {
     }
 
     try {
-      return await this.queryList(actor, q, page, pageSize, true, true);
+      return await this.queryList(actor, q, page, pageSize, true, true, true);
     } catch (err) {
       if (!isMissingRelation(err)) throw err;
       try {
-        return await this.queryList(actor, q, page, pageSize, false, true);
+        return await this.queryList(actor, q, page, pageSize, false, true, true);
       } catch (inner) {
         if (!isMissingRelation(inner)) throw inner;
-        return this.queryList(actor, q, page, pageSize, false, false);
+        try {
+          return await this.queryList(actor, q, page, pageSize, false, false, true);
+        } catch (inner2) {
+          if (!isMissingRelation(inner2)) throw inner2;
+          return this.queryList(actor, q, page, pageSize, false, false, false);
+        }
       }
     }
   }
@@ -1336,6 +1341,7 @@ export class AmAccountsService {
     pageSize: number,
     includeContracts: boolean,
     includeTeam: boolean,
+    includeDelegations: boolean,
   ): Promise<AmAccountsListResult> {
     const params: unknown[] = [AM_TENANT_ID];
     const bound = bindScopeSql(
@@ -1418,7 +1424,15 @@ export class AmAccountsService {
           COALESCE(child.child_count, 0)::int AS child_count,
           e.account_owner_staff_id AS owner_staff_id,
           owner.name AS owner_label,
-          NULL::text AS delegated_until,
+          ${
+            includeDelegations
+              ? `(SELECT MAX(d.ends_on)::text
+                    FROM crm_am_delegations d
+                   WHERE d.tenant_id = e.tenant_id
+                     AND d.from_staff_id = e.account_owner_staff_id
+                     AND CURRENT_DATE BETWEEN d.starts_on AND d.ends_on)`
+              : 'NULL::text'
+          } AS delegated_until,
           ${includeTeam ? 'team.name AS team_label' : 'NULL::text AS team_label'},
           e.am_status,
           CASE

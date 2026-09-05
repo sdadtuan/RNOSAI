@@ -12,6 +12,7 @@ import {
   type AmAccountListItem,
   type AmSavedView,
 } from '@/lib/crm/am-api';
+import { amDelegationUntilLabel } from '@/lib/crm/am-delegation.util';
 import { bandCopy, vnd } from '@/lib/crm/am-format';
 import {
   accountCell,
@@ -509,6 +510,7 @@ export function AmAccountsList() {
                 const ownerText =
                   row.owner_label ??
                   (row.owner_staff_id == null && canUnassigned ? 'Chưa gán' : null);
+                const untilLabel = amDelegationUntilLabel(row.delegated_until);
                 return (
                   <tr key={row.agency_client_id}>
                     <td className="am-list__check am-m01-hide">
@@ -534,9 +536,7 @@ export function AmAccountsList() {
                     </td>
                     <td>
                       {accountCell(ownerText)}
-                      {row.delegated_until ? (
-                        <div className="am-muted">ủy quyền đến {row.delegated_until}</div>
-                      ) : null}
+                      {untilLabel ? <div className="am-muted">{untilLabel}</div> : null}
                     </td>
                     <td>{accountCell(row.team_label)}</td>
                     <td>{accountCell(STATUS_COPY[row.am_status] ?? row.am_status)}</td>
