@@ -41,6 +41,7 @@ import {
 } from '@/lib/crm/am-m01.util';
 import { useToast } from '@/lib/toast';
 import { amRecoveryRequiredCopy } from '@/lib/crm/am-risk.util';
+import { AmAccountWork } from './AmAccountWork';
 import { AmAiDrawer } from './AmAiDrawer';
 import { AmContactDrawer } from './AmContactDrawer';
 import { AmFeedback } from './AmFeedback';
@@ -617,6 +618,8 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         </>
       ) : tab === 'timeline' ? (
         <AmTimeline agencyClientId={agencyClientId} />
+      ) : tab === 'work' ? (
+        <AmAccountWork agencyClientId={agencyClientId} />
       ) : tab === 'finance' ? (
         <FinancePanel data={data} agencyClientId={agencyClientId} />
       ) : tab === 'opportunities' ? (

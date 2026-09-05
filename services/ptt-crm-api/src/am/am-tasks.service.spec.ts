@@ -255,6 +255,24 @@ describe('AmTasksService', () => {
     );
   });
 
+  it('filters the queue by agency_client_id when provided', async () => {
+    const target = '19d722af-0000-4000-8000-000000000001';
+    const other = '19d722af-0000-4000-8000-000000000002';
+    repo.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const text = String(sql);
+      if (/t\.title/.test(text) && /from crm_am_tasks/i.test(text)) {
+        expect(text).toMatch(/t\.agency_client_id::text = \$\d+/);
+        expect(params).toContain(target);
+        expect(params).not.toContain(other);
+        return { rows: [issueRow({ agency_client_id: target })], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const out = await service.list(viewReq as never, { agency_client_id: target, inbox: 'me' });
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0].agency_client_id).toBe(target);
+  });
+
   it('resolve issue without category returns 400 category_required', async () => {
     repo.query.mockResolvedValue({ rows: [issueRow()], rowCount: 1 });
     await expect(

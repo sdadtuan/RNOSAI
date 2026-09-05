@@ -38,6 +38,7 @@ describe('AM_360_TABS', () => {
     expect(implemented).toEqual([
       'overview',
       'timeline',
+      'work',
       'finance',
       'opportunities',
       'feedback',

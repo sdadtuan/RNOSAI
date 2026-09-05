@@ -55,6 +55,7 @@ export type AmTasksListQuery = {
   kind?: string;
   status?: string;
   priority?: string;
+  agency_client_id?: string;
 };
 
 export type AmTaskOverdueInput = {
@@ -441,6 +442,15 @@ export class AmTasksService {
     if (priority) {
       params.push(priority);
       where.push(`t.priority = $${params.length}`);
+    }
+
+    const agencyClientId = String(q.agency_client_id ?? '').trim();
+    if (agencyClientId) {
+      if (!isUuid(agencyClientId)) {
+        return { items: [], counts: emptyCounts, work_hours: WORK_HOURS };
+      }
+      params.push(agencyClientId);
+      where.push(`t.agency_client_id::text = $${params.length}`);
     }
 
     let items: AmWorkQueueItem[] = [];

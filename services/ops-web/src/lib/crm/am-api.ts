@@ -171,6 +171,7 @@ export type AmWorkQueueQuery = {
   kind?: string;
   status?: string;
   priority?: string;
+  agency_client_id?: string;
 };
 
 export async function fetchAmWorkQueue(
