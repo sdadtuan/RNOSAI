@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
-import { Request } from 'express';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -332,8 +332,15 @@ export class AmController {
 
   @Get('accounts/export')
   @RequireAmAction('view')
-  async exportAccounts(@Req() req: AuthedReq, @Query() q: AmAccountsListQuery) {
-    return this.accounts.exportCsv(req, q);
+  async exportAccounts(
+    @Req() req: AuthedReq,
+    @Query() q: AmAccountsListQuery,
+    @Res() res: Response,
+  ) {
+    const out = await this.accounts.exportCsv(req, q);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="am-accounts.csv"');
+    res.send(out.csv);
   }
 
   @Get('accounts/:agencyClientId')

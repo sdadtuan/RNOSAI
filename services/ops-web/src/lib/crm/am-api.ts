@@ -1,4 +1,5 @@
 import { API_BASE, ApiError, parseJson } from '@/lib/api';
+import { amExportCsvFromResponse } from './am-export.util';
 import type { AmHealthBand } from './am-format';
 
 export type AmScope = 'me' | 'team' | 'all';
@@ -403,7 +404,24 @@ export async function exportAmAccounts(
     if (value) params.set(key, value);
   }
   const suffix = params.toString() ? `?${params.toString()}` : '';
-  return amFetch<AmAccountsExportResult>(token, `/api/crm/am/accounts/export${suffix}`);
+  const res = await fetch(`${API_BASE}/api/crm/am/accounts/export${suffix}`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    let error = 'AM request failed';
+    try {
+      const body = JSON.parse(text) as { error?: string; message?: string };
+      error = body.error ?? body.message ?? error;
+    } catch {
+      /* 400 export_too_large stays JSON; other errors may be plain text */
+    }
+    throw new ApiError(error, res.status);
+  }
+  const csv = amExportCsvFromResponse(res.headers.get('Content-Type'), text);
+  const lines = csv.split('\n').filter((line) => line.length > 0);
+  return { csv, rows: Math.max(0, lines.length - 1) };
 }
 
 export async function fetchAmAccounts(

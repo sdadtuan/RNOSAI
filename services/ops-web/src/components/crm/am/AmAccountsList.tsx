@@ -15,7 +15,7 @@ import {
   type AmSavedView,
   type AmScope,
 } from '@/lib/crm/am-api';
-import { amExportTooLargeCopy } from '@/lib/crm/am-export.util';
+import { amExportDownloadCsv, amExportTooLargeCopy } from '@/lib/crm/am-export.util';
 import { amDelegationUntilLabel } from '@/lib/crm/am-delegation.util';
 import { bandCopy, vnd } from '@/lib/crm/am-format';
 import {
@@ -334,7 +334,8 @@ export function AmAccountsList() {
       const query = queryFromSearch(search);
       if (!query.scope) query.scope = scope;
       const out = await exportAmAccounts(token, query);
-      const blob = new Blob([out.csv], { type: 'text/csv; charset=utf-8' });
+      const csv = amExportDownloadCsv(out);
+      const blob = new Blob([csv], { type: 'text/csv; charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
