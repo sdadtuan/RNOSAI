@@ -36,17 +36,30 @@ describe('AmTasksService', () => {
   });
 
   it('accept assigns current staff and writes audit', async () => {
-    const out = await service.accept('task-1', 42);
+    const taskId = '19d722af-0000-4000-8000-000000000002';
+    repo.findById.mockResolvedValue({
+      id: taskId,
+      assignee_staff_id: null,
+      status: 'new',
+    });
+    const out = await service.accept(taskId, 42);
     expect(out.assignee_staff_id).toBe(42);
     expect(out.status).toBe('in_progress');
     expect(audit.calls[0].action).toBe('task.accept');
+  });
+
+  it('rejects non-UUID agency_client_id', async () => {
+    await expect(
+      service.create({ agency_client_id: 'c1', title: 'A' }, 1),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(repo.insert).not.toHaveBeenCalled();
   });
 
   it('rejects duplicate open source_ref', async () => {
     await expect(
       service.create(
         {
-          agency_client_id: 'c1',
+          agency_client_id: '19d722af-0000-4000-8000-000000000001',
           title: 'A',
           source: 'csd',
           source_ref: 'T-1',

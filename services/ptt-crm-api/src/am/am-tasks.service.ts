@@ -92,6 +92,12 @@ function isUniqueViolation(err: unknown): boolean {
   return (err as { code?: string }).code === '23505';
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  );
+}
+
 @Injectable()
 export class AmTasksRepository implements OnModuleDestroy, AmTasksStore {
   private pool: Pool | null = null;
@@ -194,6 +200,12 @@ export class AmTasksService {
   ) {}
 
   async accept(id: string, staffId: number): Promise<AmTaskRow> {
+    if (!isUuid(id)) {
+      throw new BadRequestException({ error: 'invalid_task_id' });
+    }
+    if (staffId <= 0) {
+      throw new BadRequestException({ error: 'invalid_staff_id' });
+    }
     const existing = await this.repo.findById(id);
     if (!existing) throw new NotFoundException({ error: 'task_not_found' });
     const out = (await this.repo.accept(id, staffId)) ?? {
@@ -217,6 +229,9 @@ export class AmTasksService {
     const title = String(input.title ?? '').trim();
     if (!agencyClientId || !title) {
       throw new BadRequestException({ error: 'agency_client_id_and_title_required' });
+    }
+    if (!isUuid(agencyClientId)) {
+      throw new BadRequestException({ error: 'invalid_agency_client_id' });
     }
     const source = String(input.source ?? 'manual').trim() || 'manual';
     const sourceRef = input.source_ref != null ? String(input.source_ref).trim() : '';
