@@ -55,23 +55,21 @@ run_local() {
 
   echo "== 5/5 restart services (local systemd if present) =="
   if command -v systemctl >/dev/null 2>&1; then
-    if sudo -n systemctl restart ptt-crm-api ptt-ops-web 2>/dev/null; then
-      sleep 2
+    # sudoers allows one unit per command, not "restart a b"
+    restarted=0
+    for unit in ptt-crm-api ptt-ops-web; do
+      if sudo -n /usr/bin/systemctl restart "$unit" 2>/dev/null; then
+        echo "OK  restarted $unit"
+        restarted=1
+      else
+        echo "WARN  sudo restart failed for $unit"
+      fi
+    done
+    if [[ "$restarted" == "1" ]]; then
+      sleep 4
       systemctl is-active ptt-crm-api ptt-ops-web
     else
-      echo "WARN  sudo systemctl restart skipped"
-      if systemctl is-active --quiet ptt-ops-web 2>/dev/null; then
-        pid="$(systemctl show ptt-ops-web -p MainPID --value 2>/dev/null || true)"
-        if [[ -n "$pid" && "$pid" != "0" ]] && kill -HUP "$pid" 2>/dev/null; then
-          sleep 3
-          systemctl is-active ptt-ops-web && echo "OK  ptt-ops-web restarted via HUP (deploy user)"
-        else
-          echo "      Run: sudo systemctl restart ptt-crm-api ptt-ops-web"
-        fi
-      else
-        echo "      Run: sudo systemctl restart ptt-crm-api ptt-ops-web"
-      fi
-      echo "      Without restart, ops-web may serve stale sidebar until restarted."
+      echo "      Run: sudo /usr/bin/systemctl restart ptt-crm-api && sudo /usr/bin/systemctl restart ptt-ops-web"
     fi
   fi
 
