@@ -573,6 +573,11 @@
   margin-bottom: 12px;
 }
 
+.am-cs-health-strip {
+  min-height: 0;
+  padding: 10px;
+}
+
 .am-widget__head {
   display: flex;
   justify-content: space-between;

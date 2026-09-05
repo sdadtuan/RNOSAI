@@ -46,7 +46,7 @@ export function AmCsHealthStrip({ token }: { token: string }) {
   const avg = showDash ? null : amCsHealthStripAvg(data?.sparkline);
 
   return (
-    <section className="am-widget am-root--compact" aria-label="AM Health snapshot">
+    <section className="am-widget am-cs-health-strip" aria-label="AM Health snapshot">
       <div className="am-widget__head">
         <h2>AM Health</h2>
         <Link className="am-link" href="/crm/account-management/health">
