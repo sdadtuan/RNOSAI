@@ -20,6 +20,7 @@ import { AmSettingsService } from './am-settings.service';
 import { AmRisksService } from './am-risks.service';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
 import { isUuid } from './am-tasks.service';
+import { csdSlaRate, type CsdSlaRateRow } from './am-csd-sla.util';
 import type { AmAmStatus, AmHealthBand, AmHealthComponents, AmScope } from './am.types';
 
 export type AmHealthAccountRow = {
@@ -118,6 +119,7 @@ export type AmHealthRiskyRow = {
 export type AmHealthCenterResult = {
   hide_amounts: boolean;
   tiles: AmHealthCenterTiles;
+  sla_pct: number | null;
   sparkline: Array<{ as_of: string; avg: number | null }>;
   risky: AmHealthRiskyRow[];
 };
@@ -184,6 +186,11 @@ export type AmHealthStore = {
     months: string[],
   ): Promise<Array<{ as_of: string; avg: number | null }>>;
   countOpenRisks(scopeSql: string, scopeParams: unknown[]): Promise<number>;
+  loadCsdSlaRows(
+    scopeSql: string,
+    scopeParams: unknown[],
+    filter: { created_from: string; created_to: string },
+  ): Promise<CsdSlaRateRow[]>;
   loadTeamIds(staffId: number): Promise<number[]>;
   loadDetail(
     agencyClientId: string,
@@ -521,6 +528,56 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
       return months.map((as_of) => ({ as_of, avg: byMonth.get(as_of) ?? null }));
     } catch (err) {
       if (isMissingRelation(err)) return empty;
+      throw err;
+    }
+  }
+
+  async loadCsdSlaRows(
+    scopeSql: string,
+    scopeParams: unknown[],
+    filter: { created_from: string; created_to: string },
+  ): Promise<CsdSlaRateRow[]> {
+    const sql = `
+      SELECT
+        t.scope_status,
+        t.status,
+        t.sla_status,
+        t.first_response_at,
+        t.sla_response_due_at,
+        t.resolved_at,
+        t.closed_at,
+        t.sla_resolution_due_at,
+        t.created_at
+      FROM csd_tickets t
+      INNER JOIN crm_am_account_ext e
+        ON e.agency_client_id::text = t.client_account_id
+       AND e.tenant_id = $1
+      WHERE t.is_deleted = FALSE
+        AND t.created_at >= $2::date
+        AND t.created_at < ($3::date + INTERVAL '1 day')
+        AND ${scopeSql}`;
+    try {
+      const result = await this.db.query(sql, [
+        AM_TENANT_ID,
+        filter.created_from,
+        filter.created_to,
+        ...scopeParams,
+      ]);
+      return result.rows.map((row) => ({
+        scope_status: row.scope_status != null ? String(row.scope_status) : null,
+        status: row.status != null ? String(row.status) : null,
+        sla_status: row.sla_status != null ? String(row.sla_status) : null,
+        created_at: isoTs(row.created_at),
+        first_response_at: isoTs(row.first_response_at),
+        first_response_due_at: isoTs(row.sla_response_due_at),
+        sla_response_due_at: isoTs(row.sla_response_due_at),
+        resolved_at: isoTs(row.resolved_at),
+        closed_at: isoTs(row.closed_at),
+        resolve_due_at: isoTs(row.sla_resolution_due_at),
+        sla_resolution_due_at: isoTs(row.sla_resolution_due_at),
+      }));
+    } catch (err) {
+      if (isMissingRelation(err)) return [];
       throw err;
     }
   }
@@ -913,10 +970,17 @@ export class AmHealthService {
     const rowsBound = bindScopeSql(scopeFrag, 3);
     const sparkBound = bindScopeSql(scopeFrag, 4);
     const riskBound = bindScopeSql(scopeFrag, 2);
-    const [rows, sparkline, openRisks] = await Promise.all([
+    const slaBound = bindScopeSql(scopeFrag, 4);
+    const slaFilter = {
+      created_from:
+        query.from && /^\d{4}-\d{2}-\d{2}$/.test(query.from) ? query.from : `${asOf.slice(0, 7)}-01`,
+      created_to: asOf,
+    };
+    const [rows, sparkline, openRisks, slaRows] = await Promise.all([
       this.repo.loadCenterRows(rowsBound.sql, rowsBound.params, asOf),
       this.repo.loadSparkline(sparkBound.sql, sparkBound.params, months),
       this.repo.countOpenRisks(riskBound.sql, riskBound.params),
+      this.repo.loadCsdSlaRows(slaBound.sql, slaBound.params, slaFilter),
     ]);
     const book = rows.filter((row) => row.am_status !== 'churned');
     const tiles: AmHealthCenterTiles = {
@@ -957,7 +1021,8 @@ export class AmHealthService {
       if (br) return br;
       return (b.mrr_vnd ?? 0) - (a.mrr_vnd ?? 0);
     });
-    return { hide_amounts: hideAmounts, tiles, sparkline, risky: riskRows };
+    const sla_pct = csdSlaRate(slaRows, { ...slaFilter, scope_status: 'in_scope' });
+    return { hide_amounts: hideAmounts, tiles, sla_pct, sparkline, risky: riskRows };
   }
 
   async detail(req: AmHealthReq, agencyClientId: string): Promise<AmHealthDetailResult> {
@@ -1081,6 +1146,13 @@ function dayStr(value: unknown): string | null {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   const s = String(value);
   return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+function isoTs(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) return value.toISOString();
+  const s = String(value);
+  return s || null;
 }
 
 function last6MonthsIct(asOf: string): string[] {

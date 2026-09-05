@@ -11,6 +11,7 @@ import {
   amHealthEmpty,
   amHealthMoney,
   amHealthRecoveryCopy,
+  amHealthSlaCaption,
   amHealthSparkHeight,
   amHealthTileValue,
 } from '@/lib/crm/am-health-center.util';
@@ -80,6 +81,9 @@ export function AmHealthCenter() {
           <article key={tile.key} className="am-tile">
             <span>{tile.label}</span>
             <strong>{loading && !data ? '—' : amHealthTileValue(tile.key, data?.tiles ?? null, hide)}</strong>
+            {tile.key === 'open_risks' && amHealthSlaCaption(data?.sla_pct) ? (
+              <p className="am-muted">{amHealthSlaCaption(data?.sla_pct)}</p>
+            ) : null}
           </article>
         ))}
       </div>

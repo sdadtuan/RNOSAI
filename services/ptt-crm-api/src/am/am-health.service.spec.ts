@@ -1,5 +1,6 @@
 import { DEFAULT_WEIGHTS } from './am.types';
 import { AM_TENANT_ID } from './am-audit.repository';
+import { TEN_TICKET_SLA_FIXTURE } from './am-csd-sla.fixture';
 import { AmHealthRepository, AmHealthService, HEALTH_SNAPSHOT_UPSERT } from './am-health.service';
 
 const ACTIVE_ID = '19d722af-0000-4000-8000-000000000001';
@@ -215,6 +216,7 @@ describe('AmHealthService center', () => {
     loadCenterRows: jest.fn(),
     loadSparkline: jest.fn(),
     countOpenRisks: jest.fn(),
+    loadCsdSlaRows: jest.fn(),
     loadTeamIds: jest.fn(),
     loadDetail: jest.fn(),
     loadTrend: jest.fn(),
@@ -246,6 +248,7 @@ describe('AmHealthService center', () => {
     repo.loadTeamIds.mockResolvedValue([]);
     repo.loadSparkline.mockResolvedValue([]);
     repo.countOpenRisks.mockResolvedValue(0);
+    repo.loadCsdSlaRows.mockResolvedValue([]);
     service = new AmHealthService(
       repo as never,
       audit as never,
@@ -377,6 +380,27 @@ describe('AmHealthService center', () => {
     expect(out.tiles.revenue_at_risk_vnd).toBeNull();
     expect(out.risky).toEqual([]);
     expect(out.risky.some((row) => row.agency_client_id === CHURNED_ID)).toBe(false);
+  });
+
+  it('exposes sla_pct beside tiles and does not add a seventh tile key', async () => {
+    repo.loadCenterRows.mockResolvedValue([]);
+    repo.loadCsdSlaRows.mockResolvedValue(TEN_TICKET_SLA_FIXTURE);
+
+    const out = await service.center(req, { scope: 'all', from: '2026-08-01', to: '2026-09-05' });
+
+    expect(out.sla_pct).toBe(70);
+    expect(out.tiles).not.toHaveProperty('sla_pct');
+    expect(Object.keys(out.tiles)).toHaveLength(6);
+    expect(repo.loadCsdSlaRows).toHaveBeenCalled();
+  });
+
+  it('returns sla_pct null when CSD sample is empty', async () => {
+    repo.loadCenterRows.mockResolvedValue([]);
+    repo.loadCsdSlaRows.mockResolvedValue([]);
+
+    const out = await service.center(req, { scope: 'all' });
+
+    expect(out.sla_pct).toBeNull();
   });
 });
 

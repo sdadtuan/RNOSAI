@@ -599,6 +599,7 @@ export type AmHealthRiskyRow = {
 export type AmHealthCenter = {
   hide_amounts: boolean;
   tiles: AmHealthCenterTiles;
+  sla_pct?: number | null;
   sparkline: Array<{ as_of: string; avg: number | null }>;
   risky: AmHealthRiskyRow[];
 };

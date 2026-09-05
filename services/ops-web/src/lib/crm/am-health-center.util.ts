@@ -73,3 +73,9 @@ export function amHealthRecoveryCopy(status: string | null | undefined): string 
   if (status === 'closed') return 'Closed';
   return status;
 }
+
+export function amHealthSlaCaption(pct: number | null | undefined): string {
+  if (pct == null || !Number.isFinite(pct)) return '';
+  const n = Number.isInteger(pct) ? String(pct) : String(Math.round(pct * 10) / 10);
+  return `SLA ${n}%`;
+}
