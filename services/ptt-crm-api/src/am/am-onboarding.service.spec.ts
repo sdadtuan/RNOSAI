@@ -21,8 +21,12 @@ describe('AmOnboardingService handover', () => {
     staffAuthVia: 'jwt' as const,
   } as never;
 
-  const db = {
-    query: jest.fn<ReturnType<QueryFn>, Parameters<QueryFn>>(),
+  const db: {
+    query: jest.MockedFunction<QueryFn>;
+    withTransaction: jest.MockedFunction<(fn: (query: QueryFn) => Promise<unknown>) => Promise<unknown>>;
+  } = {
+    query: jest.fn(async (_sql: string) => ({ rows: [], rowCount: 0 })),
+    withTransaction: jest.fn(async (fn) => fn(db.query)),
   };
   const staffAuth = {
     resolveCrmStaffUserId: jest.fn(async () => STAFF_ID),
@@ -71,6 +75,7 @@ describe('AmOnboardingService handover', () => {
         { section: 'crm_am', action: 'view_all' },
       ],
     });
+    db.withTransaction.mockImplementation(async (fn) => fn(db.query));
     db.query.mockImplementation(async (sql: string) => {
       const text = String(sql);
       if (/from crm_am_handovers/i.test(text) && /select/i.test(text)) {
@@ -81,6 +86,9 @@ describe('AmOnboardingService handover', () => {
           rows: [{ id: '19d722af-0000-4000-8000-0000000000bb', items_json: [{ title: 'Kickoff' }] }],
           rowCount: 1,
         };
+      }
+      if (/update crm_am_handovers/i.test(text)) {
+        return { rows: [], rowCount: 1 };
       }
       if (/insert into crm_am_onboarding_cases/i.test(text)) {
         return { rows: [{ id: '19d722af-0000-4000-8000-0000000000cc' }], rowCount: 1 };
@@ -96,6 +104,7 @@ describe('AmOnboardingService handover', () => {
       error: 'checklist_required',
     });
     expect(audit.calls).toEqual([]);
+    expect(db.withTransaction).not.toHaveBeenCalled();
     expect(db.query.mock.calls.some(([sql]) => /update crm_am_handovers/i.test(String(sql)))).toBe(
       false,
     );
@@ -127,5 +136,39 @@ describe('AmOnboardingService handover', () => {
       .map(([sql]) => String(sql))
       .find((sql) => /update crm_am_account_ext/i.test(sql));
     expect(statusSql).toMatch(/am_status\s*=\s*'onboarding'/i);
+    expect(db.withTransaction).toHaveBeenCalled();
+    const handoverSql = db.query.mock.calls
+      .map(([sql]) => String(sql))
+      .find((sql) => /update crm_am_handovers/i.test(sql));
+    expect(handoverSql).toMatch(/status\s+IN\s*\(\s*'pending_am'\s*,\s*'needs_info'\s*\)/i);
+  });
+
+  it('accept returns 409 when concurrent/already-accepted UPDATE has rowCount 0', async () => {
+    db.query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from crm_am_handovers/i.test(text) && /select/i.test(text)) {
+        return { rows: [handoverRow], rowCount: 1 };
+      }
+      if (/update crm_am_handovers/i.test(text)) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (/insert into crm_am_onboarding_cases/i.test(text)) {
+        return { rows: [{ id: '19d722af-0000-4000-8000-0000000000cc' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(
+      service.accept(viewReq, HANDOVER_ID, { checklist: COMPLETE_CHECKLIST }, STAFF_ID),
+    ).rejects.toMatchObject({
+      status: 409,
+      error: 'already_processed',
+    });
+
+    expect(
+      db.query.mock.calls.some(([sql]) => /insert into crm_am_onboarding_cases/i.test(String(sql))),
+    ).toBe(false);
+    expect(audit.insert).not.toHaveBeenCalled();
+    expect(audit.calls).toEqual([]);
   });
 });

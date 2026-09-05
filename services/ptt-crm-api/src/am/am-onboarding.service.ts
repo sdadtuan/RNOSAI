@@ -48,11 +48,14 @@ export type AmHandoverReq = {
   staffAuthVia?: 'internal' | 'jwt';
 };
 
+export type AmHandoverQuery = (
+  sql: string,
+  params?: unknown[],
+) => Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+
 export type AmHandoverDb = {
-  query: (
-    sql: string,
-    params?: unknown[],
-  ) => Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+  query: AmHandoverQuery;
+  withTransaction?<T>(fn: (query: AmHandoverQuery) => Promise<T>): Promise<T>;
 };
 
 const HANDOVER_COLS = `
@@ -102,6 +105,25 @@ export class AmOnboardingRepository implements OnModuleDestroy, AmHandoverDb {
     params?: unknown[],
   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }> {
     return this.db.query(sql, params);
+  }
+
+  async withTransaction<T>(fn: (query: AmHandoverQuery) => Promise<T>): Promise<T> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await fn((sql, params) => client.query(sql, params));
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* connection may already be broken */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 }
 
@@ -172,32 +194,42 @@ export class AmOnboardingService {
     const current = await this.requireActionable(req, id);
     const acceptedAt = new Date().toISOString();
 
-    await this.db.query(
-      `UPDATE crm_am_handovers
-          SET status = 'accepted',
-              accepted_by_staff_id = $2,
-              accepted_at = $3::timestamptz,
-              reject_reason = NULL
-        WHERE tenant_id = $1 AND id = $4::uuid`,
-      [AM_TENANT_ID, staffId > 0 ? staffId : null, acceptedAt, id],
-    );
-    await this.db.query(
-      `UPDATE crm_am_account_ext
-          SET am_status = 'onboarding', updated_at = now()
-        WHERE tenant_id = $1 AND agency_client_id = $2::uuid`,
-      [AM_TENANT_ID, current.agency_client_id],
-    );
+    const { onboardingCaseId, templateId } = await this.inTx(async (query) => {
+      const updated = await query(
+        `UPDATE crm_am_handovers
+            SET status = 'accepted',
+                accepted_by_staff_id = $2,
+                accepted_at = $3::timestamptz,
+                reject_reason = NULL
+          WHERE tenant_id = $1 AND id = $4::uuid
+            AND status IN ('pending_am', 'needs_info')`,
+        [AM_TENANT_ID, staffId > 0 ? staffId : null, acceptedAt, id],
+      );
+      if ((updated.rowCount ?? 0) === 0) {
+        amThrow(409, { error: 'already_processed' });
+      }
 
-    const template = await this.publishedTemplate();
-    const itemsJson = template?.items_json ?? [];
-    const inserted = await this.db.query(
-      `INSERT INTO crm_am_onboarding_cases (
-         tenant_id, agency_client_id, template_id, status, items_json
-       ) VALUES ($1, $2::uuid, $3, 'open', $4::jsonb)
-       RETURNING id::text AS id`,
-      [AM_TENANT_ID, current.agency_client_id, template?.id ?? null, JSON.stringify(itemsJson)],
-    );
-    const onboardingCaseId = String(inserted.rows[0]?.id ?? '');
+      await query(
+        `UPDATE crm_am_account_ext
+            SET am_status = 'onboarding', updated_at = now()
+          WHERE tenant_id = $1 AND agency_client_id = $2::uuid`,
+        [AM_TENANT_ID, current.agency_client_id],
+      );
+
+      const template = await this.publishedTemplate(query);
+      const itemsJson = template?.items_json ?? [];
+      const inserted = await query(
+        `INSERT INTO crm_am_onboarding_cases (
+           tenant_id, agency_client_id, template_id, status, items_json
+         ) VALUES ($1, $2::uuid, $3, 'open', $4::jsonb)
+         RETURNING id::text AS id`,
+        [AM_TENANT_ID, current.agency_client_id, template?.id ?? null, JSON.stringify(itemsJson)],
+      );
+      return {
+        onboardingCaseId: String(inserted.rows[0]?.id ?? ''),
+        templateId: template?.id ?? null,
+      };
+    });
 
     await this.audit.insert({
       actor_staff_id: staffId > 0 ? staffId : null,
@@ -207,7 +239,7 @@ export class AmOnboardingService {
       payload_json: {
         agency_client_id: current.agency_client_id,
         onboarding_case_id: onboardingCaseId || null,
-        template_id: template?.id ?? null,
+        template_id: templateId,
       },
     });
 
@@ -323,8 +355,17 @@ export class AmOnboardingService {
     });
   }
 
-  private async publishedTemplate(): Promise<{ id: string; items_json: unknown } | null> {
-    const result = await this.db.query(
+  private async inTx<T>(fn: (query: AmHandoverQuery) => Promise<T>): Promise<T> {
+    if (this.db.withTransaction) {
+      return this.db.withTransaction(fn);
+    }
+    return fn((sql, params) => this.db.query(sql, params));
+  }
+
+  private async publishedTemplate(
+    query: AmHandoverQuery = (sql, params) => this.db.query(sql, params),
+  ): Promise<{ id: string; items_json: unknown } | null> {
+    const result = await query(
       `SELECT id::text AS id, items_json
          FROM crm_am_onboarding_templates
         WHERE tenant_id = $1 AND status = 'published'
