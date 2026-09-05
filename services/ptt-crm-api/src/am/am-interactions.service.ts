@@ -225,19 +225,32 @@ export class AmInteractionsService {
       payload_json: { agency_client_id: clientId, kind },
     });
 
-    for (let i = 0; i < actionItems.length; i += 1) {
-      const item = actionItems[i];
+    const stamped = [...actionItems];
+    let stampedAny = false;
+    for (let i = 0; i < stamped.length; i += 1) {
+      const item = stamped[i];
       if (item.done !== true || !item.title) continue;
-      await this.tasks.create(
+      const task = await this.tasks.create(
         {
           agency_client_id: clientId,
           title: item.title,
           source: 'interaction',
-          source_ref: `interaction:${out.id}:${i}`,
+          source_ref: `${out.id}:${i}`,
           due_at: item.due_at,
         },
         staffId,
       );
+      stamped[i] = { ...item, done: true, task_id: task.id };
+      stampedAny = true;
+    }
+    if (stampedAny) {
+      await this.db.query(
+        `UPDATE crm_am_interactions
+            SET action_items_json = $3::jsonb
+          WHERE tenant_id = $1 AND id = $2::uuid`,
+        [AM_TENANT_ID, out.id, JSON.stringify(stamped)],
+      );
+      return { ...out, action_items: stamped };
     }
 
     return out;

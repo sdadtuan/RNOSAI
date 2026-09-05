@@ -130,11 +130,103 @@ describe('AmInteractionsService', () => {
         agency_client_id: CLIENT_ID,
         title: 'Gửi recap',
         source: 'interaction',
-        source_ref: `interaction:${INTERACTION_ID}:0`,
+        source_ref: `${INTERACTION_ID}:0`,
       }),
       STAFF_ID,
     );
     expect(audit.calls.some((row) => row.action === 'interaction.create')).toBe(true);
+  });
+
+  it('create with a done action item then toTask(0) is idempotent', async () => {
+    const taskId = '19d722af-0000-4000-8000-0000000000cc';
+    const createdByRef = new Map<string, string>();
+    let storedItems: Array<{ title: string; done?: boolean; task_id?: string }> = [
+      { title: 'Gửi recap', done: true },
+    ];
+
+    repo.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const text = String(sql);
+      if (/INSERT\s+INTO\s+crm_am_interactions/i.test(text)) {
+        return {
+          rows: [
+            {
+              id: INTERACTION_ID,
+              agency_client_id: CLIENT_ID,
+              kind: 'meeting',
+              occurred_at: '2026-09-04T15:30:00.000Z',
+              actor_staff_id: STAFF_ID,
+              summary: 'QBR Q3',
+              sentiment: 'neutral',
+              visibility: 'internal',
+              attendees_json: ['Minh'],
+              action_items_json: storedItems,
+              created_at: '2026-09-04T15:31:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (/UPDATE\s+crm_am_interactions/i.test(text) && /action_items_json/i.test(text)) {
+        storedItems = JSON.parse(String(params?.[2])) as typeof storedItems;
+        return { rows: [], rowCount: 1 };
+      }
+      if (/source_ref/i.test(text) && /dismissed_at/i.test(text)) {
+        const ref = String(params?.[2] ?? '');
+        const found = createdByRef.get(ref);
+        return found ? { rows: [{ id: found }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (/FROM\s+crm_am_interactions/i.test(text)) {
+        return {
+          rows: [
+            {
+              id: INTERACTION_ID,
+              agency_client_id: CLIENT_ID,
+              kind: 'meeting',
+              occurred_at: '2026-09-04T15:30:00.000Z',
+              actor_staff_id: STAFF_ID,
+              summary: 'QBR Q3',
+              sentiment: 'neutral',
+              visibility: 'internal',
+              attendees_json: ['Minh'],
+              action_items_json: storedItems,
+              created_at: '2026-09-04T15:31:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      return { rows: [{ agency_client_id: CLIENT_ID }], rowCount: 1 };
+    });
+    tasks.create.mockImplementation(async (input: { source_ref?: string }) => {
+      const ref = String(input.source_ref ?? '');
+      createdByRef.set(ref, taskId);
+      return { id: taskId };
+    });
+
+    await service.create(
+      viewReq,
+      {
+        agency_client_id: CLIENT_ID,
+        kind: 'meeting',
+        occurred_at: '2026-09-04T15:30:00.000Z',
+        summary: 'QBR Q3',
+        attendees: ['Minh'],
+        action_items: [{ title: 'Gửi recap', done: true }],
+      },
+      STAFF_ID,
+    );
+
+    const again = await service.toTask(viewReq, INTERACTION_ID, 0);
+    expect(again.created).toBe(false);
+    expect(again.task_id).toBe(taskId);
+    expect(tasks.create).toHaveBeenCalledTimes(1);
+    expect(tasks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'interaction',
+        source_ref: `${INTERACTION_ID}:0`,
+      }),
+      STAFF_ID,
+    );
   });
 
   it('creates one AM task from an action item and is idempotent', async () => {
