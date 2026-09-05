@@ -279,7 +279,9 @@ export class AmInteractionsService {
       amThrow(400, { error: 'attendees_required' });
     }
     const actionItems =
-      body.action_items != null ? normalizeActionItems(body.action_items) : current.action_items;
+      body.action_items != null
+        ? mergeStoredTaskIds(normalizeActionItems(body.action_items), current.action_items)
+        : current.action_items;
     const visibility =
       body.visibility != null
         ? String(body.visibility).trim() || current.visibility
@@ -315,14 +317,14 @@ export class AmInteractionsService {
     if (id.startsWith('audit:')) amThrow(409, { error: 'system_readonly' });
     if (!isUuid(id)) amThrow(400, { error: 'invalid_interaction_id' });
 
+    const actor = await this.resolveActor(req, undefined);
+    const current = await this.loadScoped(actor, id);
+
     const indexStr = String(rawIndex ?? '').trim();
     if (!/^\d+$/.test(indexStr)) {
       amThrow(400, { error: 'action_item_not_found' });
     }
     const index = Number(indexStr);
-
-    const actor = await this.resolveActor(req, undefined);
-    const current = await this.loadScoped(actor, id);
     const item = current.action_items[index];
     if (!item) amThrow(400, { error: 'action_item_not_found' });
 
@@ -544,6 +546,23 @@ function normalizeAttendees(raw: unknown): string[] {
 }
 
 function normalizeActionItems(raw: unknown): AmInteractionActionItem[] {
+  return parseActionItemList(raw, { acceptTaskId: false });
+}
+
+function mergeStoredTaskIds(
+  incoming: AmInteractionActionItem[],
+  stored: AmInteractionActionItem[],
+): AmInteractionActionItem[] {
+  return incoming.map((item, i) => {
+    const taskId = stored[i]?.task_id || stored.find((row) => row.title === item.title)?.task_id;
+    return taskId ? { ...item, task_id: taskId } : item;
+  });
+}
+
+function parseActionItemList(
+  raw: unknown,
+  opts: { acceptTaskId: boolean },
+): AmInteractionActionItem[] {
   if (!Array.isArray(raw)) return [];
   const items: AmInteractionActionItem[] = [];
   for (const item of raw) {
@@ -552,7 +571,7 @@ function normalizeActionItems(raw: unknown): AmInteractionActionItem[] {
     const title = String(rec.title ?? '').trim();
     if (!title) continue;
     const due = rec.due_at != null ? String(rec.due_at).trim() : '';
-    const taskId = rec.task_id != null ? String(rec.task_id).trim() : '';
+    const taskId = opts.acceptTaskId && rec.task_id != null ? String(rec.task_id).trim() : '';
     items.push({
       title,
       done: rec.done === true,
@@ -623,7 +642,7 @@ function asActionItems(value: unknown): AmInteractionActionItem[] {
       return [];
     }
   }
-  return normalizeActionItems(raw);
+  return parseActionItemList(raw, { acceptTaskId: true });
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

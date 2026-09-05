@@ -137,6 +137,101 @@ describe('AmInteractionsService', () => {
     expect(audit.calls.some((row) => row.action === 'interaction.create')).toBe(true);
   });
 
+  it('create ignores client-supplied action item task_id and still creates a real task', async () => {
+    const fakeTaskId = '19d722af-0000-4000-8000-0000000000ff';
+    const realTaskId = '19d722af-0000-4000-8000-0000000000cc';
+    repo.query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/INSERT/i.test(text)) {
+        return {
+          rows: [
+            {
+              id: INTERACTION_ID,
+              agency_client_id: CLIENT_ID,
+              kind: 'meeting',
+              occurred_at: '2026-09-04T15:30:00.000Z',
+              actor_staff_id: STAFF_ID,
+              summary: 'QBR Q3',
+              sentiment: 'neutral',
+              visibility: 'internal',
+              attendees_json: ['Minh'],
+              action_items_json: [{ title: 'Gửi recap', done: true }],
+              created_at: '2026-09-04T15:31:00.000Z',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      return { rows: [{ agency_client_id: CLIENT_ID }], rowCount: 1 };
+    });
+    tasks.create.mockResolvedValue({ id: realTaskId });
+
+    const out = await service.create(
+      viewReq,
+      {
+        agency_client_id: CLIENT_ID,
+        kind: 'meeting',
+        occurred_at: '2026-09-04T15:30:00.000Z',
+        summary: 'QBR Q3',
+        attendees: ['Minh'],
+        action_items: [{ title: 'Gửi recap', done: true, task_id: fakeTaskId }],
+      },
+      STAFF_ID,
+    );
+
+    expect(tasks.create).toHaveBeenCalledTimes(1);
+    expect(out.action_items[0].task_id).toBe(realTaskId);
+    expect(out.action_items[0].task_id).not.toBe(fakeTaskId);
+    const insertCall = repo.query.mock.calls.find(([sql]) =>
+      /INSERT\s+INTO\s+crm_am_interactions/i.test(String(sql)),
+    );
+    expect(insertCall).toBeTruthy();
+    expect(JSON.stringify(insertCall?.[1])).not.toContain(fakeTaskId);
+  });
+
+  it('patch keeps stored task_id and ignores a client-supplied task_id', async () => {
+    const storedTaskId = '19d722af-0000-4000-8000-0000000000cc';
+    const fakeTaskId = '19d722af-0000-4000-8000-0000000000ff';
+    const interactionRow = {
+      id: INTERACTION_ID,
+      agency_client_id: CLIENT_ID,
+      kind: 'note',
+      occurred_at: '2026-09-04T08:00:00.000Z',
+      actor_staff_id: STAFF_ID,
+      summary: 'QBR',
+      sentiment: null,
+      visibility: 'internal',
+      attendees_json: [],
+      action_items_json: [{ title: 'Gửi QBR', done: true, task_id: storedTaskId }],
+      created_at: '2026-09-04T08:00:00.000Z',
+    };
+    let patchedJson = '';
+    repo.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const text = String(sql);
+      if (/UPDATE\s+crm_am_interactions/i.test(text)) {
+        patchedJson = String(params?.[6] ?? '');
+        return {
+          rows: [{ ...interactionRow, action_items_json: JSON.parse(patchedJson) }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [interactionRow], rowCount: 1 };
+    });
+
+    const out = await service.patch(
+      viewReq,
+      INTERACTION_ID,
+      {
+        action_items: [{ title: 'Gửi QBR', done: true, task_id: fakeTaskId }],
+      },
+      STAFF_ID,
+    );
+
+    expect(out.action_items[0].task_id).toBe(storedTaskId);
+    expect(patchedJson).toContain(storedTaskId);
+    expect(patchedJson).not.toContain(fakeTaskId);
+  });
+
   it('create with a done action item then toTask(0) is idempotent', async () => {
     const taskId = '19d722af-0000-4000-8000-0000000000cc';
     const createdByRef = new Map<string, string>();
@@ -348,4 +443,14 @@ describe('AmInteractionsService', () => {
       expect(tasks.create).not.toHaveBeenCalled();
     },
   );
+
+  it('returns 404 not_found for an inaccessible interaction even when index is 0abc', async () => {
+    repo.query.mockResolvedValue({ rows: [], rowCount: 0 });
+
+    await expect(service.toTask(viewReq, INTERACTION_ID, '0abc')).rejects.toMatchObject({
+      status: 404,
+      error: 'not_found',
+    });
+    expect(tasks.create).not.toHaveBeenCalled();
+  });
 });
