@@ -338,6 +338,8 @@
     ],
     "crm_am": ["view", "view_all", "edit", "assign", "manage"],
     "crm_am.finance": ["view"],
+    "crm_revops": ["view", "view_team", "view_all", "manage"],
+    "crm_revops.commission": ["view", "manage"],
     "spc": [
       "edit",
       "publish",
@@ -1195,6 +1197,20 @@
       "description": "Xem snapshot công nợ / invoice AM. Không sửa Paid."
     },
     {
+      "id": "crm_revops",
+      "label": "Revenue Operations",
+      "group": "CRM",
+      "page": "/crm/revenue-ops",
+      "description": "RevOps shell: command center, SLA, reports, territory, approvals."
+    },
+    {
+      "id": "crm_revops.commission",
+      "label": "Revenue Operations — Hoa hồng",
+      "group": "CRM",
+      "page": "/crm/revenue-ops",
+      "description": "Xem / quản lý commission plan và payout batch."
+    },
+    {
       "id": "spc",
       "label": "SPC — Service Product Catalog",
       "group": "CRM — Admin",
@@ -1971,6 +1987,8 @@
     "csd",
     "crm_am",
     "crm_am.finance",
+    "crm_revops",
+    "crm_revops.commission",
     "spc",
     "crm_ai_insights",
     "crm_hr_leave",
