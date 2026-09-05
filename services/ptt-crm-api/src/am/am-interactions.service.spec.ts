@@ -136,4 +136,92 @@ describe('AmInteractionsService', () => {
     );
     expect(audit.calls.some((row) => row.action === 'interaction.create')).toBe(true);
   });
+
+  it('creates one AM task from an action item and is idempotent', async () => {
+    const interactionId = '19d722af-0000-4000-8000-0000000000aa';
+    const taskId = '19d722af-0000-4000-8000-0000000000cc';
+    const editReq = viewReq;
+    const interactionRow = {
+      id: interactionId,
+      agency_client_id: CLIENT_ID,
+      kind: 'note',
+      occurred_at: '2026-09-04T08:00:00.000Z',
+      actor_staff_id: STAFF_ID,
+      summary: 'QBR',
+      sentiment: null,
+      visibility: 'internal',
+      attendees_json: [],
+      action_items_json: [{ title: 'Gửi QBR' }],
+      created_at: '2026-09-04T08:00:00.000Z',
+    };
+
+    repo.query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/source_ref/i.test(text) && /dismissed_at/i.test(text)) {
+        return tasks.create.mock.calls.length > 0
+          ? { rows: [{ id: taskId }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
+      if (/UPDATE/i.test(text)) {
+        return {
+          rows: [
+            {
+              ...interactionRow,
+              action_items_json: [{ title: 'Gửi QBR', done: true, task_id: taskId }],
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      return { rows: [interactionRow], rowCount: 1 };
+    });
+    tasks.create.mockResolvedValue({ id: taskId });
+
+    const first = await service.toTask(editReq, interactionId, 0);
+    expect(first.created).toBe(true);
+    expect(first.action_items[0].task_id).toBeTruthy();
+    expect(tasks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agency_client_id: CLIENT_ID,
+        title: 'Gửi QBR',
+        kind: 'task',
+        source: 'interaction',
+        source_ref: `${interactionId}:0`,
+      }),
+      STAFF_ID,
+    );
+    expect(audit.calls.some((row) => row.action === 'interaction.action_item_to_task')).toBe(true);
+
+    const second = await service.toTask(editReq, interactionId, 0);
+    expect(second.created).toBe(false);
+    expect(second.task_id).toBe(first.task_id);
+    expect(tasks.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 400 for out-of-range index', async () => {
+    const interactionId = INTERACTION_ID;
+    const editReq = viewReq;
+    repo.query.mockResolvedValue({
+      rows: [
+        {
+          id: interactionId,
+          agency_client_id: CLIENT_ID,
+          kind: 'note',
+          occurred_at: '2026-09-04T08:00:00.000Z',
+          actor_staff_id: STAFF_ID,
+          summary: 'QBR',
+          sentiment: null,
+          visibility: 'internal',
+          attendees_json: [],
+          action_items_json: [{ title: 'Gửi QBR' }],
+          created_at: '2026-09-04T08:00:00.000Z',
+        },
+      ],
+      rowCount: 1,
+    });
+
+    await expect(service.toTask(editReq, interactionId, 9)).rejects.toMatchObject({
+      status: 400,
+    });
+  });
 });

@@ -34,6 +34,7 @@ export function amTimelineErrorCopy(code: string): string {
   if (code === 'agency_client_id_required' || code === 'invalid_agency_client_id') {
     return 'Cần chọn account';
   }
+  if (code === 'action_item_not_found') return 'Không thấy action item';
   return code;
 }
 

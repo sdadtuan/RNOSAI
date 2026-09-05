@@ -707,6 +707,16 @@ export class AmController {
     return this.interactions.patch(req, id, body ?? {}, await this.actorStaffId(req));
   }
 
+  @Post('interactions/:id/action-items/:index/to-task')
+  @RequireAmAction('edit')
+  actionItemToTask(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('index') index: string,
+  ) {
+    return this.interactions.toTask(req, id, index);
+  }
+
   @Get('ai/status')
   @RequireAmAction('view')
   getAiStatus() {

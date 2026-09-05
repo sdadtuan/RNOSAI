@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   amTimelineComposerError,
+  amTimelineErrorCopy,
   amTimelineRowEditable,
 } from './am-timeline.util';
 
@@ -21,5 +22,9 @@ describe('am-timeline', () => {
     expect(amTimelineRowEditable({ kind: 'system' })).toBe(false);
     expect(amTimelineRowEditable({ kind: 'meeting' })).toBe(true);
     expect(amTimelineRowEditable({ kind: 'note' })).toBe(true);
+  });
+
+  it('maps action_item_not_found', () => {
+    expect(amTimelineErrorCopy('action_item_not_found')).toBe('Không thấy action item');
   });
 });

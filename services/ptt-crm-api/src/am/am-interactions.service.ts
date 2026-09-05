@@ -15,6 +15,13 @@ export type AmInteractionActionItem = {
   title: string;
   done?: boolean;
   due_at?: string;
+  task_id?: string;
+};
+
+export type AmActionItemToTaskResult = {
+  task_id: string;
+  created: boolean;
+  action_items: AmInteractionActionItem[];
 };
 
 export type AmInteractionRow = {
@@ -286,6 +293,96 @@ export class AmInteractionsService {
     return mapRow(row);
   }
 
+  async toTask(
+    req: AmInteractionsReq,
+    rawId: string,
+    rawIndex: number | string,
+  ): Promise<AmActionItemToTaskResult> {
+    const id = String(rawId ?? '').trim();
+    if (id.startsWith('audit:')) amThrow(409, { error: 'system_readonly' });
+    if (!isUuid(id)) amThrow(400, { error: 'invalid_interaction_id' });
+
+    const index = Number.parseInt(String(rawIndex), 10);
+    if (!Number.isInteger(index) || index < 0) {
+      amThrow(400, { error: 'action_item_not_found' });
+    }
+
+    const actor = await this.resolveActor(req, undefined);
+    const current = await this.loadScoped(actor, id);
+    const item = current.action_items[index];
+    if (!item) amThrow(400, { error: 'action_item_not_found' });
+
+    const sourceRef = `${id}:${index}`;
+    const existingId = await this.findOpenTaskId('interaction', sourceRef);
+    let created = false;
+    let taskId = existingId || item.task_id || '';
+
+    if (!existingId && !item.task_id) {
+      try {
+        const task = await this.tasks.create(
+          {
+            agency_client_id: current.agency_client_id,
+            title: item.title,
+            kind: 'task',
+            due_at: item.due_at,
+            source: 'interaction',
+            source_ref: sourceRef,
+          },
+          actor.staffId,
+        );
+        taskId = task.id;
+        created = true;
+      } catch (err) {
+        if (!isDuplicateSourceRef(err)) throw err;
+        const again = await this.findOpenTaskId('interaction', sourceRef);
+        if (!again) throw err;
+        taskId = again;
+      }
+    }
+
+    const actionItems = current.action_items.map((row, i) =>
+      i === index ? { ...row, done: true, task_id: taskId } : row,
+    );
+
+    await this.db.query(
+      `UPDATE crm_am_interactions
+          SET action_items_json = $3::jsonb
+        WHERE tenant_id = $1 AND id = $2::uuid`,
+      [AM_TENANT_ID, id, JSON.stringify(actionItems)],
+    );
+
+    await this.audit.insert({
+      actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
+      action: 'interaction.action_item_to_task',
+      entity_type: 'interaction',
+      entity_id: id,
+      payload_json: { index, task_id: taskId, created },
+    });
+
+    return { task_id: taskId, created, action_items: actionItems };
+  }
+
+  private async findOpenTaskId(source: string, sourceRef: string): Promise<string | null> {
+    try {
+      const result = await this.db.query(
+        `SELECT id::text AS id
+           FROM crm_am_tasks
+          WHERE tenant_id = $1
+            AND source = $2
+            AND source_ref = $3
+            AND dismissed_at IS NULL
+            AND status NOT IN ('cancelled', 'closed')
+          LIMIT 1`,
+        [AM_TENANT_ID, source, sourceRef],
+      );
+      const id = result.rows[0]?.id;
+      return id ? String(id) : null;
+    } catch (err) {
+      if (isMissingRelation(err)) return null;
+      throw err;
+    }
+  }
+
   private async requireScopedClient(
     actor: { scope: AmScope; staffId: number; teamIds: number[] },
     clientId: string,
@@ -441,10 +538,12 @@ function normalizeActionItems(raw: unknown): AmInteractionActionItem[] {
     const title = String(rec.title ?? '').trim();
     if (!title) continue;
     const due = rec.due_at != null ? String(rec.due_at).trim() : '';
+    const taskId = rec.task_id != null ? String(rec.task_id).trim() : '';
     items.push({
       title,
       done: rec.done === true,
       ...(due ? { due_at: due } : {}),
+      ...(taskId ? { task_id: taskId } : {}),
     });
   }
   return items;
@@ -567,4 +666,22 @@ function bindScopeSql(
 function isMissingRelation(err: unknown): boolean {
   const e = err as { code?: string; message?: string };
   return e.code === '42P01' || /does not exist/i.test(e.message ?? '');
+}
+
+function isDuplicateSourceRef(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as {
+    status?: number;
+    error?: string;
+    getStatus?: () => number;
+    getResponse?: () => unknown;
+  };
+  if (e.error === 'duplicate_source_ref') return true;
+  const status = typeof e.getStatus === 'function' ? e.getStatus() : e.status;
+  if (status !== 409) return false;
+  const res = typeof e.getResponse === 'function' ? e.getResponse() : null;
+  if (res && typeof res === 'object' && (res as { error?: string }).error === 'duplicate_source_ref') {
+    return true;
+  }
+  return true;
 }

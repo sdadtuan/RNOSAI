@@ -1546,6 +1546,13 @@ export type AmInteractionActionItem = {
   title: string;
   done?: boolean;
   due_at?: string;
+  task_id?: string;
+};
+
+export type AmActionItemToTaskResult = {
+  task_id: string;
+  created: boolean;
+  action_items: AmInteractionActionItem[];
 };
 
 export type AmInteraction = {
@@ -1660,6 +1667,18 @@ export async function patchAmInteraction(
     method: 'PATCH',
     body: JSON.stringify(body),
   });
+}
+
+export async function amActionItemToTask(
+  token: string,
+  interactionId: string,
+  index: number,
+): Promise<AmActionItemToTaskResult> {
+  return amFetch<AmActionItemToTaskResult>(
+    token,
+    `/api/crm/am/interactions/${encodeURIComponent(interactionId)}/action-items/${index}/to-task`,
+    { method: 'POST' },
+  );
 }
 
 export type AmFinanceInvoice = {

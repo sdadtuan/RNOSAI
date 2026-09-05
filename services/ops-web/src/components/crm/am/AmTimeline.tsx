@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { ApiError } from '@/lib/api';
 import {
+  amActionItemToTask,
   createAmInteraction,
   fetchAmInteractions,
   type AmInteraction,
@@ -54,6 +56,7 @@ export function AmTimeline({ agencyClientId, book = [], composerOnly, onSaved }:
   const [rows, setRows] = useState<AmInteraction[]>([]);
   const [loading, setLoading] = useState(!composerOnly && Boolean(agencyClientId));
   const [loadError, setLoadError] = useState('');
+  const [tickingKey, setTickingKey] = useState('');
 
   useEffect(() => {
     if (agencyClientId) setClientId(agencyClientId);
@@ -133,6 +136,24 @@ export function AmTimeline({ agencyClientId, book = [], composerOnly, onSaved }:
       setFormError(code ? amTimelineErrorCopy(code) : 'Không lưu được tương tác');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onTickActionItem(row: AmInteraction, index: number) {
+    const item = row.action_items[index];
+    if (!canEdit || !token || !item || item.task_id || tickingKey) return;
+    const key = `${row.id}:${index}`;
+    setTickingKey(key);
+    try {
+      const out = await amActionItemToTask(token, row.id, index);
+      setRows((prev) =>
+        prev.map((entry) => (entry.id === row.id ? { ...entry, action_items: out.action_items } : entry)),
+      );
+    } catch (caught) {
+      const code = caught instanceof ApiError ? caught.message : '';
+      push(code ? amTimelineErrorCopy(code) : 'Không tạo được task', 'error');
+    } finally {
+      setTickingKey('');
     }
   }
 
@@ -289,12 +310,36 @@ export function AmTimeline({ agencyClientId, book = [], composerOnly, onSaved }:
                   <p className="am-muted">Người tham gia: {row.attendees.join(', ')}</p>
                 ) : null}
                 {row.action_items.length > 0 ? (
-                  <ul className="am-muted">
-                    {row.action_items.map((item, idx) => (
-                      <li key={`${row.id}-${idx}`}>
-                        {item.done ? '☑' : '☐'} {item.title}
-                      </li>
-                    ))}
+                  <ul className="am-timeline__actions">
+                    {row.action_items.map((item, idx) => {
+                      const key = `${row.id}:${idx}`;
+                      return (
+                        <li key={key} className="am-check am-timeline__item">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(item.task_id)}
+                            disabled={
+                              Boolean(item.task_id) ||
+                              !canEdit ||
+                              system ||
+                              tickingKey === key
+                            }
+                            onChange={(ev) => {
+                              if (ev.target.checked) void onTickActionItem(row, idx);
+                            }}
+                          />
+                          <span>{item.title}</span>
+                          {item.task_id ? (
+                            <Link
+                              className="am-link"
+                              href={`/crm/account-management/work/${item.task_id}`}
+                            >
+                              Task
+                            </Link>
+                          ) : null}
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : null}
               </li>
