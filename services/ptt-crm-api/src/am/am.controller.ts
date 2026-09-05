@@ -5,8 +5,10 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { AmAccountsService, type AmCreateAccountBody } from './am-accounts.service';
 import { AmDashboardService } from './am-dashboard.service';
+import { AmHealthService } from './am-health.service';
 import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
 import { AmSearchService } from './am-search.service';
+import { AmSettingsService } from './am-settings.service';
 import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
@@ -25,6 +27,8 @@ export class AmController {
     private readonly accounts: AmAccountsService,
     private readonly plans: AmPlansService,
     private readonly searchService: AmSearchService,
+    private readonly health: AmHealthService,
+    private readonly settings: AmSettingsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -43,6 +47,21 @@ export class AmController {
   @RequireAmAction('view')
   search(@Req() req: AuthedReq, @Query() q: { q?: string; scope?: AmScope }) {
     return this.searchService.search(req, q);
+  }
+
+  @Get('settings')
+  @RequireAmAction('view')
+  getSettings() {
+    return this.settings.get();
+  }
+
+  @Post('health/recompute')
+  @RequireAmAction('manage')
+  async recomputeHealth(@Req() req: AuthedReq, @Body() body?: { as_of?: string }) {
+    return this.health.recompute({
+      asOf: body?.as_of,
+      actorStaffId: await this.actorStaffId(req),
+    });
   }
 
   @Post('tasks')
