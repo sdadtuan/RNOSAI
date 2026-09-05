@@ -64,3 +64,8 @@ export function parseAmOppStage(raw: string | null | undefined): AmOppStage | ''
   if (!raw) return '';
   return (AM_OPP_STAGES as readonly string[]).includes(raw) ? (raw as AmOppStage) : '';
 }
+
+/** Bump the 360-embedded AmGrowth key after header create so the tab list reloads. */
+export function amGrowthNextRefreshNonce(current: number): number {
+  return current + 1;
+}

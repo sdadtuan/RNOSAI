@@ -3,6 +3,7 @@ import {
   AM_OPP_STAGES,
   amGrowthKpiSubtitle,
   amGrowthMoney,
+  amGrowthNextRefreshNonce,
   amGrowthOpenStages,
   amGrowthStageLabel,
   amGrowthWeighted,
@@ -40,5 +41,10 @@ describe('am-growth.util', () => {
     ).toMatch(/Pipeline/);
     expect(amGrowthStageLabel('qualify')).toBe('Qualify');
     expect(amGrowthStageLabel('unknown')).toBe('—');
+  });
+
+  it('increments the 360 growth refresh nonce so embedded AmGrowth remounts', () => {
+    expect(amGrowthNextRefreshNonce(0)).toBe(1);
+    expect(amGrowthNextRefreshNonce(4)).toBe(5);
   });
 });

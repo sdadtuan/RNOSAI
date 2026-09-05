@@ -29,6 +29,7 @@ import {
 } from '@/lib/crm/am-account-360.util';
 import { canAssignAmAccounts } from '@/lib/crm/am-accounts-views.util';
 import { bandCopy, vnd } from '@/lib/crm/am-format';
+import { amGrowthNextRefreshNonce } from '@/lib/crm/am-growth.util';
 import { useToast } from '@/lib/toast';
 import { amRecoveryRequiredCopy } from '@/lib/crm/am-risk.util';
 import { AmContactDrawer } from './AmContactDrawer';
@@ -86,6 +87,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
   const [overrideReason, setOverrideReason] = useState('');
   const [overrideUntil, setOverrideUntil] = useState('');
   const [overrideError, setOverrideError] = useState('');
+  const [growthRefreshNonce, setGrowthRefreshNonce] = useState(0);
 
   const canAssign = canAssignAmAccounts(user);
   const canManage = hasCap(user, 'crm_am', 'manage');
@@ -547,7 +549,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
       ) : tab === 'finance' ? (
         <FinancePanel data={data} />
       ) : tab === 'opportunities' ? (
-        <AmGrowth agencyClientId={agencyClientId} embedded />
+        <AmGrowth key={growthRefreshNonce} agencyClientId={agencyClientId} embedded />
       ) : tab === 'audit' ? (
         <AuditPanel data={data} />
       ) : (
@@ -586,6 +588,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
           onClose={() => setDrawer(null)}
           onSaved={() => {
             setDrawer(null);
+            setGrowthRefreshNonce(amGrowthNextRefreshNonce);
             void load();
           }}
         />
