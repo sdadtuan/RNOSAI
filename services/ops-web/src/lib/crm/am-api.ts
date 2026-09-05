@@ -487,3 +487,78 @@ export type AmNotifications = {
 export async function fetchAmNotifications(token: string): Promise<AmNotifications> {
   return amFetch<AmNotifications>(token, '/api/crm/am/notifications');
 }
+
+export type AmHandoverStatus = 'draft' | 'pending_am' | 'accepted' | 'rejected' | 'needs_info';
+
+export type AmHandoverChecklist = {
+  understood_scope?: boolean;
+  stakeholders_access?: boolean;
+  delivery_owner?: boolean;
+};
+
+export type AmHandover = {
+  id: string;
+  agency_client_id: string;
+  status: AmHandoverStatus;
+  commercial_json: Record<string, unknown>;
+  scope_json: Record<string, unknown>;
+  stakeholders_json: Record<string, unknown>;
+  reject_reason: string | null;
+  accepted_by_staff_id: number | null;
+  accepted_at: string | null;
+  name: string;
+  code: string;
+  am_status: string;
+  onboarding_case_id?: string | null;
+};
+
+export type AmHandoverListQuery = {
+  scope?: AmScope;
+  agency_client_id?: string;
+  status?: string;
+};
+
+export async function fetchAmHandovers(
+  token: string,
+  query: AmHandoverListQuery = {},
+): Promise<{ items: AmHandover[] }> {
+  const params = new URLSearchParams();
+  if (query.scope) params.set('scope', query.scope);
+  if (query.agency_client_id) params.set('agency_client_id', query.agency_client_id);
+  if (query.status) params.set('status', query.status);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return amFetch<{ items: AmHandover[] }>(token, `/api/crm/am/handovers${suffix}`);
+}
+
+export async function fetchAmHandover(token: string, id: string): Promise<AmHandover> {
+  return amFetch<AmHandover>(token, `/api/crm/am/handovers/${encodeURIComponent(id)}`);
+}
+
+export async function acceptAmHandover(
+  token: string,
+  id: string,
+  checklist: AmHandoverChecklist,
+): Promise<AmHandover> {
+  return amFetch<AmHandover>(token, `/api/crm/am/handovers/${encodeURIComponent(id)}/accept`, {
+    method: 'POST',
+    body: JSON.stringify({ checklist }),
+  });
+}
+
+export async function rejectAmHandover(token: string, id: string, reason: string): Promise<AmHandover> {
+  return amFetch<AmHandover>(token, `/api/crm/am/handovers/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function needsInfoAmHandover(
+  token: string,
+  id: string,
+  reason: string,
+): Promise<AmHandover> {
+  return amFetch<AmHandover>(token, `/api/crm/am/handovers/${encodeURIComponent(id)}/needs-info`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}

@@ -1,5 +1,7 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+'use client';
+
+import { AmOnboardingQueue } from '@/components/crm/am/AmHandover';
 
 export default function AmOnboardingPage() {
-  return <AmPlaceholder title="Onboarding" wave={2} />;
+  return <AmOnboardingQueue />;
 }

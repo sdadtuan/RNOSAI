@@ -379,12 +379,19 @@
 }
 
 .am-field input,
-.am-field select {
+.am-field select,
+.am-field textarea {
   height: 36px;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   padding: 0 10px;
   background: #fff;
+}
+
+.am-field textarea {
+  height: auto;
+  padding: 8px 10px;
+  resize: vertical;
 }
 
 .am-form__actions {
@@ -1039,4 +1046,80 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
   .am-360__grid {
     grid-template-columns: 1fr;
   }
+}
+
+.am-handover {
+  position: absolute;
+  top: 4vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(880px, 96vw);
+  max-height: 92vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: var(--am-radius);
+  padding: 18px 20px 16px;
+  box-shadow: 0 24px 50px rgba(17, 24, 39, 0.2);
+}
+
+.am-handover__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.am-handover__head h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  color: var(--am-navy);
+}
+
+.am-handover__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.am-handover__steps button {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.am-handover__steps button.is-active {
+  background: var(--am-accent);
+  border-color: var(--am-accent);
+  color: #fff;
+}
+
+.am-handover__dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.am-handover__dl dt {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.am-handover__dl dd {
+  margin: 2px 0 0;
+  color: #111827;
+}
+
+.am-handover__reason {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
 }

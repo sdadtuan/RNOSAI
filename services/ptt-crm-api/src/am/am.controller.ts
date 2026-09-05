@@ -19,6 +19,11 @@ import { AmNotificationsService } from './am-notifications.service';
 import { AmSettingsService } from './am-settings.service';
 import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
 import { AmViewsService, type AmCreateViewBody } from './am-views.service';
+import {
+  AmOnboardingService,
+  type AmHandoverChecklist,
+  type AmHandoverListQuery,
+} from './am-onboarding.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -41,6 +46,7 @@ export class AmController {
     private readonly settings: AmSettingsService,
     private readonly notifications: AmNotificationsService,
     private readonly views: AmViewsService,
+    private readonly onboarding: AmOnboardingService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -187,5 +193,47 @@ export class AmController {
   @RequireAmAction('edit')
   async createPlan(@Req() req: AuthedReq, @Body() body: AmCreatePlanInput) {
     return this.plans.create(body, await this.actorStaffId(req));
+  }
+
+  @Get('handovers')
+  @RequireAmAction('view')
+  listHandovers(@Req() req: AuthedReq, @Query() q: AmHandoverListQuery) {
+    return this.onboarding.list(req, q);
+  }
+
+  @Get('handovers/:id')
+  @RequireAmAction('view')
+  getHandover(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.onboarding.get(req, id);
+  }
+
+  @Post('handovers/:id/accept')
+  @RequireAmAction('edit')
+  async acceptHandover(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { checklist?: AmHandoverChecklist },
+  ) {
+    return this.onboarding.accept(req, id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Post('handovers/:id/reject')
+  @RequireAmAction('edit')
+  async rejectHandover(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.onboarding.reject(req, id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Post('handovers/:id/needs-info')
+  @RequireAmAction('edit')
+  async needsInfoHandover(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.onboarding.needsInfo(req, id, body ?? {}, await this.actorStaffId(req));
   }
 }
