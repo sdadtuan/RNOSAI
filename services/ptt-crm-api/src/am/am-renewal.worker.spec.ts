@@ -128,6 +128,47 @@ describe('AmRenewalWorker', () => {
     expect(String(notifications.notify.mock.calls[0][0].title)).not.toMatch(/\d{2,}\.\d{3}/);
   });
 
+  it('inserts renewal.ending when ends_on is a Date 14 days from asOf', async () => {
+    const notifications = { notify: jest.fn() };
+    db.query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from crm_contracts/i.test(text) && /select/i.test(text)) {
+        return {
+          rows: [
+            {
+              id: 84,
+              agency_client_id: CLIENT_ID,
+              status: 'active',
+              ends_on: new Date('2026-09-19T00:00:00Z'),
+              client_name: 'EduNext',
+              contract_ref: 'HD-84',
+              account_owner_staff_id: 11,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (/from crm_am_renewal_cases/i.test(text) && /select/i.test(text)) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (/insert into crm_am_renewal_cases/i.test(text)) {
+        return { rows: [{ id: '19d722af-0000-4000-8000-0000000000aa' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    worker = new AmRenewalWorker(db as never, notifications as never);
+
+    await worker.run({ asOf: AS_OF });
+
+    expect(notifications.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        staff_id: 11,
+        kind: 'renewal.ending',
+        href: '/crm/account-management/renewals',
+      }),
+    );
+  });
+
   it('does not notify renewal.ending when account owner is null', async () => {
     const notifications = { notify: jest.fn() };
     db.query.mockImplementation(async (sql: string) => {

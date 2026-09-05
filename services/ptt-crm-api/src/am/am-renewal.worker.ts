@@ -100,7 +100,7 @@ export class AmRenewalWorker {
 
   private async notifyEnding(row: Record<string, unknown>, asOf: string): Promise<void> {
     if (!this.notifications) return;
-    const days = daysUntil(asOf, String(row.ends_on ?? ''));
+    const days = daysUntil(asOf, row.ends_on);
     if (!NOTIFY_WINDOWS.has(days)) return;
     const ownerId = Number(row.account_owner_staff_id);
     if (!Number.isInteger(ownerId) || ownerId <= 0) return;
@@ -134,11 +134,19 @@ function addDaysYmd(ymd: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
-function daysUntil(asOf: string, endsOn: string): number {
+function daysUntil(asOf: string, endsOn: unknown): number {
+  const ymd = dayStr(endsOn);
   const start = Date.parse(`${asOf}T00:00:00Z`);
-  const end = Date.parse(`${String(endsOn).slice(0, 10)}T00:00:00Z`);
+  const end = ymd ? Date.parse(`${ymd}T00:00:00Z`) : Number.NaN;
   if (!Number.isFinite(start) || !Number.isFinite(end)) return Number.NaN;
   return Math.round((end - start) / 86_400_000);
+}
+
+function dayStr(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const s = String(value);
+  return s.length >= 10 ? s.slice(0, 10) : s;
 }
 
 function isMissingRelation(err: unknown): boolean {

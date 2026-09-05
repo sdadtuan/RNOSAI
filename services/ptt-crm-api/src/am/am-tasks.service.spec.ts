@@ -243,6 +243,9 @@ describe('AmTasksService', () => {
         href: `/crm/account-management/work/${TASK_ID}`,
       }),
     );
+    expect(notifications.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'sla.breached' }),
+    );
     expect(String(notifications.insert.mock.calls[0][0].title)).toMatch(/Fix CPL/);
     expect(String(notifications.insert.mock.calls[0][0].title)).toMatch(/EduNext/);
     expect(out.escalation_level).toBe('director');
