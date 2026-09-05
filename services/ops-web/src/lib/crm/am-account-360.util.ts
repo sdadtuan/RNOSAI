@@ -22,7 +22,7 @@ export type Am360Tab = {
 export const AM_360_TABS: Am360Tab[] = [
   { id: 'overview', label: 'Tổng quan', wave: 2, implemented: true },
   { id: 'timeline', label: 'Timeline', wave: 3, implemented: true },
-  { id: 'projects', label: 'Dự án & dịch vụ', wave: 3, implemented: false },
+  { id: 'projects', label: 'Dự án & dịch vụ', wave: 3, implemented: true },
   { id: 'work', label: 'Công việc', wave: 3, implemented: true },
   { id: 'finance', label: 'Hợp đồng & Tài chính', wave: 2, implemented: true },
   { id: 'health', label: 'Health & Risk', wave: 3, implemented: true },

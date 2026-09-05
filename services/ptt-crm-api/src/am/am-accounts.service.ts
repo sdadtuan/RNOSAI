@@ -148,6 +148,27 @@ export type AmAccountContract = {
   amount_vnd: number | null;
 };
 
+export type AmAccountProjectContract = {
+  id: number;
+  title: string;
+  service_slug: string;
+  status: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  href: string;
+};
+
+export type AmAccountDeliveryLink = {
+  id: string;
+  name: string;
+  href: string;
+};
+
+export type AmAccountProjects = {
+  contracts: AmAccountProjectContract[];
+  delivery: AmAccountDeliveryLink[];
+};
+
 export type AmAccountOpenTask = {
   id: string;
   title: string;
@@ -273,6 +294,11 @@ function isMissingRelation(err: unknown): boolean {
   return e.code === '42P01' || /does not exist/i.test(e.message ?? '');
 }
 
+function isMissingColumn(err: unknown): boolean {
+  const e = err as { code?: string; message?: string };
+  return e.code === '42703' || /column .* does not exist/i.test(e.message ?? '') || /missing column/i.test(e.message ?? '');
+}
+
 function csv(raw: string | undefined): string[] {
   return String(raw ?? '')
     .split(',')
@@ -301,6 +327,28 @@ function dayStr(value: unknown): string | null {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   const s = String(value);
   return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+export function mapAccountProjectContract(row: Record<string, unknown>): AmAccountProjectContract {
+  const id = Number(row.id);
+  return {
+    id,
+    title: String(row.title ?? ''),
+    service_slug: String(row.service_slug ?? ''),
+    status: String(row.status ?? ''),
+    starts_on: row.starts_on ? String(row.starts_on instanceof Date ? row.starts_on.toISOString() : row.starts_on).slice(0, 10) : null,
+    ends_on: row.ends_on ? String(row.ends_on instanceof Date ? row.ends_on.toISOString() : row.ends_on).slice(0, 10) : null,
+    href: `/crm/account-management/contracts/${id}`,
+  };
+}
+
+export function mapAccountDeliveryLink(row: Record<string, unknown>): AmAccountDeliveryLink {
+  const id = String(row.id ?? '');
+  return {
+    id,
+    name: String(row.name ?? ''),
+    href: `/crm/delivery-projects/${id}`,
+  };
 }
 
 function ictToday(): string {
@@ -516,6 +564,40 @@ export class AmAccountsService {
     const actor = await this.resolveListActor(req, undefined);
     const hideAmounts = await this.shouldHideAmounts(req);
     return this.load360(actor, id, hideAmounts);
+  }
+
+  async projects(req: AmAccountsListReq, agencyClientId: string): Promise<AmAccountProjects> {
+    const id = String(agencyClientId ?? '').trim();
+    if (!isUuid(id)) amThrow(404, { error: 'not_found' });
+    const actor = await this.resolveListActor(req, undefined);
+    const scoped = await this.loadAccountRow(actor, id, true);
+    if (!scoped) amThrow(404, { error: 'not_found' });
+
+    const contractsResult = await this.db.query(
+      `SELECT ct.id, ct.title, ct.service_slug, ct.status, ct.starts_on, ct.ends_on
+         FROM crm_contracts ct
+        WHERE TRIM(COALESCE(ct.agency_client_id, '')) = $1
+        ORDER BY ct.ends_on NULLS LAST, ct.id`,
+      [id],
+    );
+    const contracts = contractsResult.rows.map(mapAccountProjectContract);
+
+    let delivery: AmAccountDeliveryLink[] = [];
+    try {
+      const deliveryResult = await this.db.query(
+        `SELECT d.id::text AS id, COALESCE(d.name, d.code, d.id::text) AS name
+           FROM crm_delivery_projects d
+           JOIN crm_b2b_projects b ON b.id = d.b2b_project_id
+          WHERE b.agency_client_id::text = $1 OR b.client_id::text = $1`,
+        [id],
+      );
+      delivery = deliveryResult.rows.map(mapAccountDeliveryLink);
+    } catch (err) {
+      if (!isMissingRelation(err) && !isMissingColumn(err)) throw err;
+      delivery = [];
+    }
+
+    return { contracts, delivery };
   }
 
   async patch(

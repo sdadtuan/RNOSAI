@@ -299,6 +299,12 @@ export class AmController {
     return this.accounts.get(req, agencyClientId);
   }
 
+  @Get('accounts/:agencyClientId/projects')
+  @RequireAmAction('view')
+  async getAccountProjects(@Req() req: AuthedReq, @Param('agencyClientId') agencyClientId: string) {
+    return this.accounts.projects(req, agencyClientId);
+  }
+
   @Patch('accounts/:agencyClientId')
   @RequireAmAction('edit')
   async patchAccount(

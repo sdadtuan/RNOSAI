@@ -525,6 +525,37 @@ export async function fetchAmAccount(token: string, agencyClientId: string): Pro
   );
 }
 
+export type AmAccountProjectContract = {
+  id: number;
+  title: string;
+  service_slug: string;
+  status: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  href: string;
+};
+
+export type AmAccountDeliveryLink = {
+  id: string;
+  name: string;
+  href: string;
+};
+
+export type AmAccountProjects = {
+  contracts: AmAccountProjectContract[];
+  delivery: AmAccountDeliveryLink[];
+};
+
+export async function fetchAmAccountProjects(
+  token: string,
+  agencyClientId: string,
+): Promise<AmAccountProjects> {
+  return amFetch<AmAccountProjects>(
+    token,
+    `/api/crm/am/accounts/${encodeURIComponent(agencyClientId)}/projects`,
+  );
+}
+
 export async function patchAmAccount(
   token: string,
   agencyClientId: string,
