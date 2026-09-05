@@ -532,6 +532,7 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
              ON e.tenant_id = r.tenant_id AND e.agency_client_id = r.agency_client_id
           WHERE r.tenant_id = $1
             AND r.status = 'open'
+            AND e.am_status <> 'churned'
             AND ${scopeSql}`,
         [AM_TENANT_ID, ...scopeParams],
       );

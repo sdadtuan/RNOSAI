@@ -380,3 +380,22 @@ describe('AmHealthService center', () => {
   });
 });
 
+describe('AmHealthRepository', () => {
+  it('countOpenRisks excludes churned accounts from COUNT SQL', async () => {
+    const query = jest.fn(async (_sql: string, _params?: unknown[]) => ({
+      rows: [{ n: 0 }],
+      rowCount: 1,
+    }));
+    const store = new AmHealthRepository({ databaseUrl: 'postgres://x' } as never);
+    (store as unknown as { pool: { query: typeof query } }).pool = { query };
+
+    await store.countOpenRisks('TRUE', []);
+
+    expect(query).toHaveBeenCalled();
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toMatch(/am_status/i);
+    expect(sql).toMatch(/churned/i);
+    expect(sql).toMatch(/am_status\s*(<>|!=|NOT\s+IN)/i);
+  });
+});
+
