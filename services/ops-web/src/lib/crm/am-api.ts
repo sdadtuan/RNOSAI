@@ -1389,13 +1389,21 @@ export type AmContractAuditItem = {
   payload_json: Record<string, unknown> | null;
 };
 
+export type AmPaymentRow = {
+  due_on: string;
+  amount_vnd: number | null;
+  status: 'upcoming' | 'overdue';
+  source: 'derived';
+};
+
 export type AmContractDetail = AmContractListItem & {
   notes: string;
   renewal_reminder_days: number | null;
   signed_on: string | null;
   line_items: AmContractLineItem[];
   obligations: unknown[];
-  payment_schedule: unknown[];
+  payment_schedule: AmPaymentRow[];
+  payment_schedule_truncated?: boolean;
   amendments: unknown[];
   documents: AmDocument[];
   renewal: {

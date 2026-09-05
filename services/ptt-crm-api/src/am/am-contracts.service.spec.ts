@@ -1,7 +1,17 @@
 import { RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { AmContractsService } from './am-contracts.service';
+import { derivePaymentSchedule } from './am-payment-schedule.util';
 import { AmController } from './am.controller';
+
+function ictToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
 
 const CLIENT_ID = '19d722af-0000-4000-8000-000000000001';
 const STAFF_ID = 7;
@@ -81,6 +91,17 @@ describe('AmContractsService hide_amounts', () => {
     expect(out.hide_amounts).toBe(true);
     expect(out.amount_vnd).toBeNull();
     expect(out.mrr_vnd).toBeNull();
+    const derived = derivePaymentSchedule({
+      billing_type: 'monthly',
+      amount_vnd: AMOUNT,
+      starts_on: '2026-01-01',
+      ends_on: '2026-12-31',
+      signed_on: '2025-12-15',
+      as_of: ictToday(),
+    });
+    expect(out.payment_schedule).toEqual(derived.map((row) => ({ ...row, amount_vnd: null })));
+    expect(out.payment_schedule_truncated).toBe(false);
+    expect(out.payment_schedule.every((row) => row.source === 'derived')).toBe(true);
   });
 
   it('maps amounts with finance view and keeps media mrr_vnd null', async () => {
@@ -101,6 +122,44 @@ describe('AmContractsService hide_amounts', () => {
     expect(out.hide_amounts).toBe(false);
     expect(out.amount_vnd).toBe(AMOUNT);
     expect(out.mrr_vnd).toBeNull();
+    expect(out.payment_schedule).toEqual(
+      derivePaymentSchedule({
+        billing_type: 'media',
+        amount_vnd: AMOUNT,
+        starts_on: '2026-01-01',
+        ends_on: '2026-12-31',
+        signed_on: '2025-12-15',
+        as_of: ictToday(),
+      }),
+    );
+    expect(out.payment_schedule_truncated).toBe(false);
+  });
+
+  it('caps payment_schedule at 36 and sets truncated', async () => {
+    staffAuth.me.mockResolvedValue({
+      caps: [
+        { section: 'crm_am', action: 'view' },
+        { section: 'crm_am.finance', action: 'view' },
+      ],
+    });
+    db.query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from crm_contracts/i.test(text)) {
+        return {
+          rows: [{ ...contractRow, starts_on: '2024-01-01', ends_on: '2028-12-01' }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const out = await service.get(viewReq, '84');
+    expect(out.payment_schedule).toHaveLength(36);
+    expect(out.payment_schedule_truncated).toBe(true);
+    expect(out.payment_schedule[0]).toMatchObject({
+      due_on: '2024-01-01',
+      amount_vnd: AMOUNT,
+      source: 'derived',
+    });
   });
 });
 

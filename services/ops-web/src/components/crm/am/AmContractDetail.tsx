@@ -17,8 +17,8 @@ import {
   type AmContractLoadError,
   type AmContractTabId,
 } from '@/lib/crm/am-contract.util';
+import { amPaymentStatusCopy } from '@/lib/crm/am-payment-schedule.util';
 import { AmDocumentsPanel } from './AmDocumentsPanel';
-import { AmPlaceholder } from './AmPlaceholder';
 import { useAmPage } from './AmShell';
 
 function statusClass(status: string): string {
@@ -185,7 +185,7 @@ export function AmContractDetail({ contractId }: { contractId: string }) {
         </section>
       ) : null}
 
-      {tab === 'payments' ? <AmPlaceholder title="Lịch thanh toán" wave={4} /> : null}
+      {tab === 'payments' ? <PaymentsPanel data={data} /> : null}
 
       {tab === 'renewal' ? (
         <section className="am-widget">
@@ -210,6 +210,7 @@ export function AmContractDetail({ contractId }: { contractId: string }) {
         <section className="am-widget">
           <h2>Phụ lục</h2>
           <p className="am-muted">—</p>
+          <p className="am-muted">SoR hợp đồng chưa có phụ lục.</p>
         </section>
       ) : null}
 
@@ -252,6 +253,40 @@ export function AmContractDetail({ contractId }: { contractId: string }) {
           )}
         </section>
       ) : null}
+    </section>
+  );
+}
+
+function PaymentsPanel({ data }: { data: AmContractDetailData }) {
+  const rows = data.payment_schedule ?? [];
+  return (
+    <section className="am-widget">
+      <h2>Lịch thanh toán</h2>
+      {data.payment_schedule_truncated ? <p className="am-muted">Chỉ hiện 36 kỳ đầu</p> : null}
+      {rows.length === 0 ? (
+        <p className="am-muted">—</p>
+      ) : (
+        <div className="am-tbl-wrap">
+          <table className="am-table">
+            <thead>
+              <tr>
+                <th>Ngày</th>
+                <th>Số tiền</th>
+                <th>Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, idx) => (
+                <tr key={`${row.due_on}-${idx}`}>
+                  <td>{formatAmContractDate(row.due_on)}</td>
+                  <td>{amContractAmountDisplay(data.hide_amounts, row.amount_vnd)}</td>
+                  <td>{amPaymentStatusCopy(row.status)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }

@@ -7,6 +7,7 @@ import { AM_TENANT_ID } from './am-audit.repository';
 import { listAmDocuments, type AmDocument } from './am-documents.service';
 import { amThrow } from './am-http';
 import { monthlyRecurringVnd } from './am-money.util';
+import { derivePaymentScheduleResult, type AmPaymentRow } from './am-payment-schedule.util';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
 import { isUuid } from './am-tasks.service';
 import type { AmScope } from './am.types';
@@ -61,7 +62,8 @@ export type AmContractDetail = AmContractListItem & {
   signed_on: string | null;
   line_items: AmContractLineItem[];
   obligations: [];
-  payment_schedule: [];
+  payment_schedule: AmPaymentRow[];
+  payment_schedule_truncated: boolean;
   amendments: [];
   documents: AmDocument[];
   renewal: {
@@ -194,6 +196,16 @@ export class AmContractsService {
     if (!row) amThrow(404, { error: 'not_found' });
 
     const list = this.mapListItem(row, hideAmounts);
+    const signedOn = dayStr(row.signed_on);
+    const scheduleInput = {
+      billing_type: list.billing_type,
+      amount_vnd: num(row.amount_vnd),
+      starts_on: list.starts_on,
+      ends_on: list.ends_on,
+      signed_on: signedOn,
+      as_of: ictToday(),
+    };
+    const derived = derivePaymentScheduleResult(scheduleInput);
     const [openCaseId, audit, documents] = await Promise.all([
       this.loadOpenRenewalCaseId(id),
       this.loadAudit(id),
@@ -203,10 +215,13 @@ export class AmContractsService {
       ...list,
       notes: String(row.notes ?? ''),
       renewal_reminder_days: num(row.renewal_reminder_days),
-      signed_on: dayStr(row.signed_on),
+      signed_on: signedOn,
       line_items: deriveLineItems(row, hideAmounts),
       obligations: [],
-      payment_schedule: [],
+      payment_schedule: hideAmounts
+        ? derived.rows.map((item) => ({ ...item, amount_vnd: null }))
+        : derived.rows,
+      payment_schedule_truncated: derived.truncated,
       amendments: [],
       documents,
       renewal: {
@@ -371,14 +386,18 @@ function deriveLineItems(row: Record<string, unknown>, hideAmounts: boolean): Am
   ];
 }
 
-function daysRemaining(endsOn: string | null): number | null {
-  if (!endsOn) return null;
-  const today = new Intl.DateTimeFormat('en-CA', {
+function ictToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
     timeZone: ICT,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+}
+
+function daysRemaining(endsOn: string | null): number | null {
+  if (!endsOn) return null;
+  const today = ictToday();
   const endMs = Date.parse(`${endsOn}T00:00:00+07:00`);
   const todayMs = Date.parse(`${today}T00:00:00+07:00`);
   if (!Number.isFinite(endMs) || !Number.isFinite(todayMs)) return null;
