@@ -14,6 +14,8 @@ import { AmTasksRepository, AmTasksService } from './am-tasks.service';
 import { AmViewsRepository, AmViewsService } from './am-views.service';
 import { AmOnboardingRepository, AmOnboardingService } from './am-onboarding.service';
 import { AmContractsRepository, AmContractsService } from './am-contracts.service';
+import { AmRenewalsRepository, AmRenewalsService } from './am-renewals.service';
+import { AmRenewalWorker } from './am-renewal.worker';
 import { AmController } from './am.controller';
 import { StaffAmGuard } from './guards/staff-am.guard';
 
@@ -44,6 +46,9 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmOnboardingService,
     AmContractsRepository,
     AmContractsService,
+    AmRenewalsRepository,
+    AmRenewalsService,
+    AmRenewalWorker,
   ],
   exports: [
     StaffAmGuard,
@@ -59,6 +64,8 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmViewsService,
     AmOnboardingService,
     AmContractsService,
+    AmRenewalsService,
+    AmRenewalWorker,
   ],
 })
 export class AmModule {}

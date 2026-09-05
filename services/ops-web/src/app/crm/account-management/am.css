@@ -1198,3 +1198,89 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
     grid-template-columns: 1fr;
   }
 }
+
+.am-btn--danger {
+  background: var(--am-danger);
+  border-color: var(--am-danger);
+  color: #fff;
+}
+
+.am-renewal__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.am-renewal__head h1 {
+  margin: 0 0 4px;
+}
+
+.am-renewal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.am-kanban {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.am-kanban__col {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--am-radius);
+  padding: 12px;
+  min-height: 180px;
+}
+
+.am-kanban__col h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.am-kcard {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.am-kcard a {
+  color: var(--am-navy);
+  text-decoration: none;
+}
+
+.am-kcard__move span {
+  font-size: 11px;
+}
+
+.am-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+@media (max-width: 960px) {
+  .am-kanban {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .am-kanban {
+    grid-template-columns: 1fr;
+  }
+}

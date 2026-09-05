@@ -30,6 +30,13 @@ import {
   type AmPatchTemplateBody,
 } from './am-onboarding.service';
 import { AmContractsService, type AmContractsListQuery } from './am-contracts.service';
+import {
+  AmRenewalsService,
+  type AmPatchRenewalBody,
+  type AmRenewalsListQuery,
+  type AmStartRenewalBody,
+} from './am-renewals.service';
+import { AmRenewalWorker } from './am-renewal.worker';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -54,6 +61,8 @@ export class AmController {
     private readonly views: AmViewsService,
     private readonly onboarding: AmOnboardingService,
     private readonly contracts: AmContractsService,
+    private readonly renewals: AmRenewalsService,
+    private readonly renewalWorker: AmRenewalWorker,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -312,5 +321,35 @@ export class AmController {
   @RequireAmAction('view')
   getContract(@Req() req: AuthedReq, @Param('id') id: string) {
     return this.contracts.get(req, id);
+  }
+
+  @Get('renewals')
+  @RequireAmAction('view')
+  listRenewals(@Req() req: AuthedReq, @Query() q: AmRenewalsListQuery) {
+    return this.renewals.list(req, q);
+  }
+
+  @Post('renewals/window-job')
+  @RequireAmAction('manage')
+  runRenewalWindowJob(@Body() body?: { as_of?: string }) {
+    return this.renewalWorker.run({ asOf: body?.as_of });
+  }
+
+  @Post('renewals')
+  @RequireAmAction('edit')
+  async startRenewal(@Req() req: AuthedReq, @Body() body: AmStartRenewalBody) {
+    return this.renewals.start(req, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Get('renewals/:id')
+  @RequireAmAction('view')
+  getRenewal(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.renewals.get(req, id);
+  }
+
+  @Patch('renewals/:id')
+  @RequireAmAction('edit')
+  async patchRenewal(@Req() req: AuthedReq, @Param('id') id: string, @Body() body: AmPatchRenewalBody) {
+    return this.renewals.patch(req, id, body ?? {}, await this.actorStaffId(req));
   }
 }

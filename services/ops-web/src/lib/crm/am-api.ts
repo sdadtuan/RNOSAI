@@ -758,3 +758,109 @@ export async function fetchAmContracts(
 export async function fetchAmContract(token: string, id: string): Promise<AmContractDetail> {
   return amFetch<AmContractDetail>(token, `/api/crm/am/contracts/${encodeURIComponent(id)}`);
 }
+
+export type AmRenewalStatus =
+  | 'not_started'
+  | 'evaluating'
+  | 'negotiating'
+  | 'decided'
+  | 'renewed'
+  | 'lost'
+  | 'paused';
+
+export type AmRenewalForecast = 'committed' | 'likely' | 'risk' | 'unlikely';
+
+export type AmRenewalCard = {
+  id: string;
+  agency_client_id: string;
+  name: string;
+  owner_label: string;
+  status: AmRenewalStatus;
+  forecast: AmRenewalForecast | null;
+  forecast_pct: number | null;
+  next_action: string | null;
+  mrr_vnd: number | null;
+  days_remaining: number | null;
+  score: number | null;
+  band: AmHealthBand | null;
+  ends_on: string | null;
+  contract_id: number;
+};
+
+export type AmRenewalColumn = {
+  id: string;
+  label: string;
+  count: number;
+  mrr_vnd: number | null;
+  items: AmRenewalCard[];
+};
+
+export type AmRenewalPipeline = {
+  hide_amounts: boolean;
+  header: {
+    renewable_vnd: number | null;
+    weighted_vnd: number | null;
+    at_risk_vnd: number | null;
+  };
+  columns: AmRenewalColumn[];
+};
+
+export type AmRenewalCase = AmRenewalCard & {
+  hide_amounts: boolean;
+  contract_ref: string;
+  lost_reason: string | null;
+  lost_on: string | null;
+  lessons: string | null;
+  new_contract_id: number | null;
+};
+
+export type AmRenewalsListQuery = {
+  scope?: AmScope;
+  window?: string;
+};
+
+export type AmPatchRenewalBody = {
+  status?: AmRenewalStatus;
+  forecast?: AmRenewalForecast | null;
+  forecast_pct?: number | null;
+  next_action?: string | null;
+  lost_reason?: string;
+  lost_on?: string;
+  lessons?: string;
+  new_contract_id?: number | null;
+  recoverable?: boolean;
+  override?: boolean;
+};
+
+export async function fetchAmRenewals(
+  token: string,
+  query: AmRenewalsListQuery = {},
+): Promise<AmRenewalPipeline> {
+  const params = new URLSearchParams();
+  if (query.scope) params.set('scope', query.scope);
+  if (query.window) params.set('window', query.window);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return amFetch<AmRenewalPipeline>(token, `/api/crm/am/renewals${suffix}`);
+}
+
+export async function fetchAmRenewal(token: string, id: string): Promise<AmRenewalCase> {
+  return amFetch<AmRenewalCase>(token, `/api/crm/am/renewals/${encodeURIComponent(id)}`);
+}
+
+export async function startAmRenewal(token: string, contractId: number): Promise<AmRenewalCase> {
+  return amFetch<AmRenewalCase>(token, '/api/crm/am/renewals', {
+    method: 'POST',
+    body: JSON.stringify({ contract_id: contractId }),
+  });
+}
+
+export async function patchAmRenewal(
+  token: string,
+  id: string,
+  body: AmPatchRenewalBody,
+): Promise<AmRenewalCase> {
+  return amFetch<AmRenewalCase>(token, `/api/crm/am/renewals/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}

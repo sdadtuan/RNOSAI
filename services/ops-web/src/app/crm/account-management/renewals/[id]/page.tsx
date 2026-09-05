@@ -1,5 +1,5 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+import { AmRenewalCase } from '@/components/crm/am/AmRenewalCase';
 
-export default function AmRenewalDetailPage() {
-  return <AmPlaceholder title="Gia hạn" wave={2} />;
+export default function AmRenewalDetailPage({ params }: { params: { id: string } }) {
+  return <AmRenewalCase caseId={params.id} />;
 }

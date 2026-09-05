@@ -1,5 +1,5 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+import { AmRenewalKanban } from '@/components/crm/am/AmRenewalKanban';
 
 export default function AmRenewalsPage() {
-  return <AmPlaceholder title="Gia hạn" wave={2} />;
+  return <AmRenewalKanban />;
 }
