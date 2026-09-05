@@ -5,10 +5,11 @@ import { AppConfigService } from '../config/app-config.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
-import { AM_TENANT_ID } from './am-audit.repository';
+import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
 import { AmDashboardService } from './am-dashboard.service';
 import { amThrow } from './am-http';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
+import { isUuid } from './am-tasks.service';
 import type { AmScope } from './am.types';
 
 export type AmCreateAccountBody =
@@ -65,6 +66,22 @@ export type AmAccountsListResult = {
 export type AmAccountsListReq = {
   staffUser?: StaffJwtPayload;
   staffAuthVia?: 'internal' | 'jwt';
+};
+
+export type AmTransferBody = {
+  agency_client_ids: string[];
+  to_staff_id: number;
+  reason: string;
+  keep_secondary?: boolean;
+  backup_staff_id?: number;
+  move_open_tasks?: boolean;
+};
+
+export type AmTransferResult = {
+  transferred: number;
+  to_staff_id: number;
+  moved_tasks: number;
+  keep_secondary: boolean;
 };
 
 export type AmAccountsDb = {
@@ -184,6 +201,7 @@ export class AmAccountsService {
     private readonly db: AmAccountsRepository,
     private readonly staffAuth: StaffAuthService,
     @Optional() private readonly dashboard?: AmDashboardService,
+    @Optional() private readonly audit?: AmAuditRepository,
   ) {}
 
   async list(req: AmAccountsListReq, q: AmAccountsListQuery): Promise<AmAccountsListResult> {
@@ -216,6 +234,101 @@ export class AmAccountsService {
       return this.attachExisting(body, actor);
     }
     amThrow(400, { error: 'invalid_mode' });
+  }
+
+  async transfer(body: AmTransferBody, actor: AmAccountActor): Promise<AmTransferResult> {
+    if (!this.canAssign(actor)) {
+      amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'assign' });
+    }
+    const reason = String(body.reason ?? '').trim();
+    if (!reason) amThrow(400, { error: 'reason_required' });
+    const toStaffId = Number(body.to_staff_id);
+    if (!Number.isFinite(toStaffId) || toStaffId <= 0) {
+      amThrow(400, { error: 'to_staff_id_required' });
+    }
+    const ids = [...new Set((body.agency_client_ids ?? []).map((id) => String(id ?? '').trim()).filter(Boolean))];
+    if (!ids.length || ids.some((id) => !isUuid(id))) {
+      amThrow(400, { error: 'agency_client_ids_required' });
+    }
+    const keepSecondary = Boolean(body.keep_secondary);
+    const moveOpenTasks = Boolean(body.move_open_tasks);
+    const backupStaffId = keepSecondary ? num(body.backup_staff_id) : null;
+
+    const current = await this.db.query(
+      `SELECT agency_client_id::text AS agency_client_id,
+              account_owner_staff_id,
+              backup_staff_id
+         FROM crm_am_account_ext
+        WHERE tenant_id = $1 AND agency_client_id = ANY($2::uuid[])`,
+      [AM_TENANT_ID, ids],
+    );
+    const previous = current.rows.map((row) => ({
+      agency_client_id: String(row.agency_client_id ?? ''),
+      account_owner_staff_id: num(row.account_owner_staff_id),
+      backup_staff_id: num(row.backup_staff_id),
+    }));
+
+    await this.db.query(
+      `UPDATE crm_am_account_ext
+          SET account_owner_staff_id = $2,
+              backup_staff_id = CASE
+                WHEN $3::boolean THEN COALESCE($4::int, NULLIF(account_owner_staff_id, $2))
+                ELSE NULL
+              END,
+              updated_at = now()
+        WHERE tenant_id = $1 AND agency_client_id = ANY($5::uuid[])`,
+      [AM_TENANT_ID, toStaffId, keepSecondary, backupStaffId, ids],
+    );
+    await this.db.query(`UPDATE clients SET owner_am_id = $1 WHERE id = ANY($2::uuid[])`, [
+      String(toStaffId),
+      ids,
+    ]);
+
+    let movedTasks = 0;
+    if (moveOpenTasks) {
+      const moved = await this.db.query(
+        `UPDATE crm_am_tasks
+            SET assignee_staff_id = $2,
+                updated_at = now()
+          WHERE tenant_id = $1
+            AND agency_client_id = ANY($3::uuid[])
+            AND dismissed_at IS NULL
+            AND status NOT IN ('closed', 'cancelled', 'resolved')`,
+        [AM_TENANT_ID, toStaffId, ids],
+      );
+      movedTasks = Number(moved.rowCount ?? 0);
+    }
+
+    await this.audit?.insert({
+      actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
+      action: 'account.transfer',
+      entity_type: 'account',
+      entity_id: ids.length === 1 ? ids[0] : null,
+      payload_json: {
+        agency_client_ids: ids,
+        to_staff_id: toStaffId,
+        reason,
+        keep_secondary: keepSecondary,
+        backup_staff_id: backupStaffId,
+        move_open_tasks: moveOpenTasks,
+        previous,
+      },
+    });
+    this.dashboard?.dropCache();
+    return {
+      transferred: ids.length,
+      to_staff_id: toStaffId,
+      moved_tasks: movedTasks,
+      keep_secondary: keepSecondary,
+    };
+  }
+
+  private canAssign(actor: AmAccountActor): boolean {
+    if (actor.via === 'internal') return true;
+    return (
+      this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'assign') ||
+      this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'manage')
+    );
   }
 
   private canAgencyWrite(actor: AmAccountActor): boolean {

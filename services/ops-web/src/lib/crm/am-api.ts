@@ -217,6 +217,57 @@ export type AmAccountsListQuery = {
   ends_within?: string;
 };
 
+export type AmSavedView = {
+  id: string;
+  name: string;
+  shared: boolean;
+  page: string;
+  query_json: Record<string, string | undefined>;
+  owner_staff_id: number;
+  created_at: string;
+};
+
+export type AmCreateViewBody = {
+  name: string;
+  shared?: boolean;
+  page?: string;
+  query_json?: Record<string, string>;
+};
+
+export async function fetchAmViews(token: string): Promise<{ items: AmSavedView[] }> {
+  return amFetch<{ items: AmSavedView[] }>(token, '/api/crm/am/views');
+}
+
+export async function createAmView(token: string, body: AmCreateViewBody): Promise<AmSavedView> {
+  return amFetch<AmSavedView>(token, '/api/crm/am/views', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export type AmTransferBody = {
+  agency_client_ids: string[];
+  to_staff_id: number;
+  reason: string;
+  keep_secondary?: boolean;
+  backup_staff_id?: number;
+  move_open_tasks?: boolean;
+};
+
+export type AmTransferResult = {
+  transferred: number;
+  to_staff_id: number;
+  moved_tasks: number;
+  keep_secondary: boolean;
+};
+
+export async function transferAmAccounts(token: string, body: AmTransferBody): Promise<AmTransferResult> {
+  return amFetch<AmTransferResult>(token, '/api/crm/am/accounts/transfer', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchAmAccounts(
   token: string,
   query: AmAccountsListQuery = {},

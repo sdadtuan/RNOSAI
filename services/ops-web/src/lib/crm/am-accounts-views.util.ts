@@ -29,6 +29,26 @@ export function canSeeUnassignedAccounts(user: StoredStaffUser | null | undefine
   );
 }
 
+export function canAssignAmAccounts(user: StoredStaffUser | null | undefined): boolean {
+  return hasCap(user ?? null, 'crm_am', 'assign') || hasCap(user ?? null, 'crm_am', 'manage');
+}
+
+export function canShareAmView(user: StoredStaffUser | null | undefined): boolean {
+  return (
+    hasCap(user ?? null, 'crm_am', 'manage') ||
+    (hasCap(user ?? null, 'crm_am', 'assign') && hasCap(user ?? null, 'crm_am', 'view_all'))
+  );
+}
+
+export function viewQueryFromSearch(search: URLSearchParams): Record<string, string> {
+  const out: Record<string, string> = {};
+  search.forEach((value, key) => {
+    if (key === 'page' || !value) return;
+    out[key] = value;
+  });
+  return out;
+}
+
 export function visibleAccountViews(user: StoredStaffUser | null | undefined): AmAccountsViewPreset[] {
   const allowUnassigned = canSeeUnassignedAccounts(user);
   return AM_ACCOUNT_VIEWS.filter((view) => !view.requiresAssign || allowUnassigned);

@@ -62,6 +62,11 @@ describe('StaffAmGuard', () => {
     await expect(guard.canActivate(executionContext)).rejects.toMatchObject({ status: 403 });
   });
 
+  it('denies assign without crm_am:assign (view user 403)', async () => {
+    const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_am:view'] }, 'assign');
+    await expect(guard.canActivate(executionContext)).rejects.toMatchObject({ status: 403 });
+  });
+
   it('allows edit with crm_am:edit', async () => {
     const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_am:view', 'crm_am:edit'] }, 'edit');
     await expect(guard.canActivate(executionContext)).resolves.toBe(true);

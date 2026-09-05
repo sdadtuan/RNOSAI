@@ -678,6 +678,59 @@
   gap: 6px;
 }
 
+.am-list__save-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.am-list__save-view input[type='text'],
+.am-list__save-view input:not([type]) {
+  height: 34px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0 10px;
+  min-width: 180px;
+}
+
+.am-list__check {
+  width: 36px;
+}
+
+.am-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.am-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.am-field textarea {
+  min-height: 72px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.am-field legend {
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 13px;
+}
+
 .am-pill {
   display: inline-flex;
   border-radius: 99px;

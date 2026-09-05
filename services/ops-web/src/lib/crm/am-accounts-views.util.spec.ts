@@ -5,8 +5,11 @@ import {
   activeAccountView,
   applyAccountView,
   AM_ACCOUNT_VIEWS,
+  canAssignAmAccounts,
   canSeeUnassignedAccounts,
+  canShareAmView,
   parentChildLabel,
+  viewQueryFromSearch,
   visibleAccountViews,
 } from './am-accounts-views.util';
 
@@ -70,5 +73,29 @@ describe('saved-view chips as URL presets', () => {
         (view) => view.id === 'unassigned',
       ),
     ).toBe(true);
+  });
+});
+
+describe('saved view + transfer caps', () => {
+  it('hides bulk assign from view-only users', () => {
+    const viewOnly = user([{ section: 'crm_am', action: 'view' }]);
+    expect(canAssignAmAccounts(viewOnly)).toBe(false);
+    expect(canShareAmView(viewOnly)).toBe(false);
+    expect(canAssignAmAccounts(user([{ section: 'crm_am', action: 'assign' }]))).toBe(true);
+    expect(
+      canShareAmView(
+        user([
+          { section: 'crm_am', action: 'assign' },
+          { section: 'crm_am', action: 'view_all' },
+        ]),
+      ),
+    ).toBe(true);
+  });
+
+  it('drops page from saved query_json', () => {
+    expect(viewQueryFromSearch(new URLSearchParams('owner=me&page=2&q=an'))).toEqual({
+      owner: 'me',
+      q: 'an',
+    });
   });
 });

@@ -7,6 +7,7 @@ import {
   AmAccountsService,
   type AmAccountsListQuery,
   type AmCreateAccountBody,
+  type AmTransferBody,
 } from './am-accounts.service';
 import { AmDashboardService } from './am-dashboard.service';
 import { AmHealthService } from './am-health.service';
@@ -15,8 +16,10 @@ import { AmSearchService } from './am-search.service';
 import { AmNotificationsService } from './am-notifications.service';
 import { AmSettingsService } from './am-settings.service';
 import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
+import { AmViewsService, type AmCreateViewBody } from './am-views.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
+import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
 
 export type AuthedReq = Request & {
   staffUser?: StaffJwtPayload;
@@ -35,12 +38,18 @@ export class AmController {
     private readonly health: AmHealthService,
     private readonly settings: AmSettingsService,
     private readonly notifications: AmNotificationsService,
+    private readonly views: AmViewsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
   private async actorStaffId(req: AuthedReq): Promise<number> {
     if (!req.staffUser) return 0;
     return (await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0;
+  }
+
+  private async actorCaps(req: AuthedReq): Promise<StaffSectionCap[]> {
+    if (req.staffAuthVia === 'internal' || !req.staffUser) return [];
+    return (await this.staffAuth.me(req.staffUser)).caps;
   }
 
   @Get('command-center')
@@ -106,14 +115,35 @@ export class AmController {
   @Post('accounts')
   @RequireAmAction('edit')
   async createAccount(@Req() req: AuthedReq, @Body() body: AmCreateAccountBody) {
-    const caps =
-      req.staffAuthVia === 'internal' || !req.staffUser
-        ? []
-        : (await this.staffAuth.me(req.staffUser)).caps;
     return this.accounts.createAccount(body, {
       staffId: await this.actorStaffId(req),
-      caps,
+      caps: await this.actorCaps(req),
       via: req.staffAuthVia,
+    });
+  }
+
+  @Post('accounts/transfer')
+  @RequireAmAction('assign')
+  async transferAccounts(@Req() req: AuthedReq, @Body() body: AmTransferBody) {
+    return this.accounts.transfer(body, {
+      staffId: await this.actorStaffId(req),
+      caps: await this.actorCaps(req),
+      via: req.staffAuthVia === 'internal' ? 'internal' : 'jwt',
+    });
+  }
+
+  @Get('views')
+  @RequireAmAction('view')
+  async listViews(@Req() req: AuthedReq) {
+    return this.views.list(await this.actorStaffId(req));
+  }
+
+  @Post('views')
+  @RequireAmAction('view')
+  async createView(@Req() req: AuthedReq, @Body() body: AmCreateViewBody) {
+    return this.views.create(body, {
+      staffId: await this.actorStaffId(req),
+      caps: await this.actorCaps(req),
     });
   }
 

@@ -3,14 +3,25 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchAmAccounts, type AmAccountListItem } from '@/lib/crm/am-api';
+import { fetchStaffRoster, type StaffRosterRow } from '@/lib/api';
+import {
+  createAmView,
+  fetchAmAccounts,
+  fetchAmViews,
+  transferAmAccounts,
+  type AmAccountListItem,
+  type AmSavedView,
+} from '@/lib/crm/am-api';
 import { bandCopy, vnd } from '@/lib/crm/am-format';
 import {
   accountCell,
   activeAccountView,
   applyAccountView,
+  canAssignAmAccounts,
   canSeeUnassignedAccounts,
+  canShareAmView,
   parentChildLabel,
+  viewQueryFromSearch,
   visibleAccountViews,
   type AmAccountsViewPreset,
 } from '@/lib/crm/am-accounts-views.util';
@@ -76,11 +87,35 @@ export function AmAccountsList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [qDraft, setQDraft] = useState(search.get('q') ?? '');
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [savedViews, setSavedViews] = useState<AmSavedView[]>([]);
+  const [viewName, setViewName] = useState('');
+  const [viewShared, setViewShared] = useState(false);
+  const [viewBusy, setViewBusy] = useState(false);
+  const [viewError, setViewError] = useState('');
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [toStaffId, setToStaffId] = useState('');
+  const [keepSecondary, setKeepSecondary] = useState(true);
+  const [moveOpenTasks, setMoveOpenTasks] = useState(false);
+  const [reason, setReason] = useState('');
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [transferError, setTransferError] = useState('');
+  const [roster, setRoster] = useState<StaffRosterRow[]>([]);
 
   const canUnassigned = canSeeUnassignedAccounts(user);
+  const canAssign = canAssignAmAccounts(user);
+  const canShare = canShareAmView(user);
   const views = visibleAccountViews(user);
   const activeView = activeAccountView(search);
   const pageSize = 50;
+  const selectedIds = useMemo(
+    () => Object.entries(selected).filter(([, on]) => on).map(([id]) => id),
+    [selected],
+  );
+  const selectedCount = selectedIds.length;
+  const pageIds = items.map((row) => row.agency_client_id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected[id]);
+  const activeSavedView = savedViews.find((view) => view.id === search.get('view'));
 
   const replaceSearch = useCallback(
     (next: URLSearchParams) => {
@@ -123,6 +158,36 @@ export function AmAccountsList() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      try {
+        const out = await fetchAmViews(token);
+        if (!cancelled) setSavedViews(out.items ?? []);
+      } catch {
+        if (!cancelled) setSavedViews([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!canAssign) return;
+    let cancelled = false;
+    void fetchStaffRoster(token)
+      .then((out) => {
+        if (!cancelled) setRoster(out.staff ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setRoster([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canAssign, token]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
       setLoading(true);
       setError('');
       try {
@@ -152,6 +217,92 @@ export function AmAccountsList() {
     setParam('q', qDraft.trim());
   }
 
+  function toggleRow(id: string, on: boolean) {
+    setSelected((prev) => ({ ...prev, [id]: on }));
+  }
+
+  function togglePage(on: boolean) {
+    setSelected((prev) => {
+      const next = { ...prev };
+      for (const id of pageIds) next[id] = on;
+      return next;
+    });
+  }
+
+  function applySaved(view: AmSavedView) {
+    const next = new URLSearchParams();
+    for (const [key, value] of Object.entries(view.query_json ?? {})) {
+      if (value) next.set(key, String(value));
+    }
+    next.set('view', view.id);
+    replaceSearch(next);
+  }
+
+  async function onSaveView(ev: FormEvent) {
+    ev.preventDefault();
+    const name = viewName.trim();
+    if (!name) {
+      setViewError('Nhập tên view');
+      return;
+    }
+    setViewBusy(true);
+    setViewError('');
+    try {
+      const created = await createAmView(token, {
+        name,
+        shared: canShare && viewShared,
+        page: 'accounts',
+        query_json: viewQueryFromSearch(search),
+      });
+      setSavedViews((prev) => [created, ...prev.filter((row) => row.id !== created.id)]);
+      setViewName('');
+      setViewShared(false);
+    } catch (err) {
+      setViewError(err instanceof Error ? err.message : 'Không lưu được view');
+    } finally {
+      setViewBusy(false);
+    }
+  }
+
+  async function onTransfer(ev: FormEvent) {
+    ev.preventDefault();
+    const staffId = Number(toStaffId);
+    const why = reason.trim();
+    if (!why) {
+      setTransferError('Lý do chuyển giao là bắt buộc');
+      return;
+    }
+    if (!Number.isFinite(staffId) || staffId <= 0) {
+      setTransferError('Chọn owner mới');
+      return;
+    }
+    setTransferBusy(true);
+    setTransferError('');
+    try {
+      await transferAmAccounts(token, {
+        agency_client_ids: selectedIds,
+        to_staff_id: staffId,
+        reason: why,
+        keep_secondary: keepSecondary,
+        move_open_tasks: moveOpenTasks,
+      });
+      setTransferOpen(false);
+      setSelected({});
+      setReason('');
+      setToStaffId('');
+      const query = queryFromSearch(search);
+      if (!query.scope) query.scope = scope;
+      const out = await fetchAmAccounts(token, query);
+      setItems(out.items);
+      setTotal(out.total);
+      setPage(out.page);
+    } catch (err) {
+      setTransferError(err instanceof Error ? err.message : 'Không chuyển được owner');
+    } finally {
+      setTransferBusy(false);
+    }
+  }
+
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
   const maxPage = Math.max(1, Math.ceil(total / pageSize));
@@ -171,14 +322,50 @@ export function AmAccountsList() {
             key={view.id}
             type="button"
             role="tab"
-            aria-selected={activeView === view.id}
-            className={`am-chip${activeView === view.id ? ' is-on' : ''}`}
+            aria-selected={!activeSavedView && activeView === view.id}
+            className={`am-chip${!activeSavedView && activeView === view.id ? ' is-on' : ''}`}
             onClick={() => applyView(view)}
           >
             {view.label}
           </button>
         ))}
+        {savedViews.map((view) => (
+          <button
+            key={view.id}
+            type="button"
+            role="tab"
+            aria-selected={activeSavedView?.id === view.id}
+            className={`am-chip${activeSavedView?.id === view.id ? ' is-on' : ''}`}
+            onClick={() => applySaved(view)}
+          >
+            {view.name}
+            {view.shared ? ' · chung' : ''}
+          </button>
+        ))}
       </div>
+
+      <form className="am-list__save-view" onSubmit={(ev) => void onSaveView(ev)}>
+        <input
+          value={viewName}
+          onChange={(ev) => setViewName(ev.target.value)}
+          placeholder="Tên view"
+          aria-label="Tên view"
+        />
+        {canShare ? (
+          <label className="am-check">
+            <input
+              type="checkbox"
+              checked={viewShared}
+              onChange={(ev) => setViewShared(ev.target.checked)}
+            />
+            Chia sẻ
+          </label>
+        ) : null}
+        <button type="submit" className="am-btn" disabled={viewBusy}>
+          Lưu view
+        </button>
+        {viewError ? <span className="am-muted">{viewError}</span> : null}
+      </form>
 
       <form className="am-list__filters" onSubmit={onSearch}>
         <input
@@ -245,10 +432,39 @@ export function AmAccountsList() {
         </div>
       ) : null}
 
+      {selectedCount > 0 ? (
+        <div className="am-bulk" role="region" aria-label="Bulk actions">
+          <span>Đã chọn {selectedCount} khách hàng</span>
+          {canAssign ? (
+            <button
+              type="button"
+              className="am-btn am-btn--primary"
+              onClick={() => {
+                setTransferError('');
+                setTransferOpen(true);
+              }}
+            >
+              Đổi Owner
+            </button>
+          ) : null}
+          <button type="button" className="am-btn" onClick={() => setSelected({})}>
+            Bỏ chọn
+          </button>
+        </div>
+      ) : null}
+
       <div className="am-tbl-wrap am-list__table">
         <table className="am-table">
           <thead>
             <tr>
+              <th className="am-list__check">
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  onChange={(ev) => togglePage(ev.target.checked)}
+                  aria-label="Chọn trang này"
+                />
+              </th>
               <th>
                 <button type="button" className="am-list__sort" onClick={() => toggleSort('name')}>
                   Khách hàng
@@ -274,13 +490,13 @@ export function AmAccountsList() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className="am-muted">
+                <td colSpan={9} className="am-muted">
                   Đang tải…
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={8} className="am-muted">
+                <td colSpan={9} className="am-muted">
                   Không có khách trong bộ lọc này.
                 </td>
               </tr>
@@ -292,6 +508,14 @@ export function AmAccountsList() {
                   (row.owner_staff_id == null && canUnassigned ? 'Chưa gán' : null);
                 return (
                   <tr key={row.agency_client_id}>
+                    <td className="am-list__check">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(selected[row.agency_client_id])}
+                        onChange={(ev) => toggleRow(row.agency_client_id, ev.target.checked)}
+                        aria-label={`Chọn ${row.name}`}
+                      />
+                    </td>
                     <td>
                       <Link
                         className="am-link"
@@ -352,6 +576,99 @@ export function AmAccountsList() {
           </button>
         </div>
       </div>
+
+      {transferOpen ? (
+        <div
+          className="am-drawer-bg"
+          onMouseDown={(ev) => {
+            if (ev.target === ev.currentTarget && !transferBusy) setTransferOpen(false);
+          }}
+        >
+          <div className="am-drawer" role="dialog" aria-modal="true" aria-label="Đổi Owner">
+            <div className="am-drawer__head">
+              <h2>Đổi Owner</h2>
+              <button type="button" className="am-btn" onClick={() => setTransferOpen(false)}>
+                ×
+              </button>
+            </div>
+            <p className="am-muted">Chuyển owner cho {selectedCount} khách hàng</p>
+            <form className="am-form" onSubmit={(ev) => void onTransfer(ev)}>
+              <label className="am-field">
+                <span>Owner mới *</span>
+                <select
+                  value={toStaffId}
+                  onChange={(ev) => setToStaffId(ev.target.value)}
+                  aria-label="Owner mới"
+                >
+                  <option value="">Chọn owner</option>
+                  {roster.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.display_name || row.email}
+                      {row.email && row.display_name !== row.email ? ` · ${row.email}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  inputMode="numeric"
+                  value={toStaffId}
+                  onChange={(ev) => setToStaffId(ev.target.value.trim())}
+                  placeholder="Staff ID"
+                  aria-label="Staff ID owner mới"
+                  required
+                />
+              </label>
+              <label className="am-check">
+                <input
+                  type="checkbox"
+                  checked={keepSecondary}
+                  onChange={(ev) => setKeepSecondary(ev.target.checked)}
+                />
+                Giữ owner cũ là secondary owner
+              </label>
+              <fieldset className="am-field">
+                <legend>Chuyển các task đang mở</legend>
+                <label className="am-check">
+                  <input
+                    type="radio"
+                    name="move_open_tasks"
+                    checked={!moveOpenTasks}
+                    onChange={() => setMoveOpenTasks(false)}
+                  />
+                  Không chuyển
+                </label>
+                <label className="am-check">
+                  <input
+                    type="radio"
+                    name="move_open_tasks"
+                    checked={moveOpenTasks}
+                    onChange={() => setMoveOpenTasks(true)}
+                  />
+                  Chuyển sang owner mới
+                </label>
+              </fieldset>
+              <label className="am-field">
+                <span>Lý do chuyển giao *</span>
+                <textarea
+                  value={reason}
+                  onChange={(ev) => setReason(ev.target.value)}
+                  required
+                  rows={3}
+                  aria-label="Lý do chuyển giao"
+                />
+              </label>
+              {transferError ? <p className="am-widget__error">{transferError}</p> : null}
+              <div className="am-form__actions">
+                <button type="button" className="am-btn" onClick={() => setTransferOpen(false)}>
+                  Hủy
+                </button>
+                <button type="submit" className="am-btn am-btn--primary" disabled={transferBusy}>
+                  Xác nhận chuyển
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
