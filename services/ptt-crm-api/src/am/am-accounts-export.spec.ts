@@ -42,15 +42,15 @@ describe('AmAccountsService export + bulkTag', () => {
 
   it('adds tags without dropping existing ones', async () => {
     const CLIENT_ID = '19d722af-0000-4000-8000-000000000001';
-    db.query.mockImplementation(async function (sql: string) {
+    const updates: Array<{ sql: string; params: unknown[] }> = [];
+    db.query.mockImplementation(async (sql: string, params?: unknown[]) => {
       const text = String(sql);
+      if (/^\s*update/i.test(text)) {
+        updates.push({ sql: text, params: params ?? [] });
+        return { rows: [], rowCount: 1 };
+      }
       if (/select/i.test(text) && /tags/i.test(text)) {
         return { rows: [{ agency_client_id: CLIENT_ID, tags: ['a'] }], rowCount: 1 };
-      }
-      if (/update/i.test(text)) {
-        expect(JSON.stringify(arguments[1])).toMatch(/a/);
-        expect(JSON.stringify(arguments[1])).toMatch(/b/);
-        return { rows: [], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };
     });
@@ -60,6 +60,13 @@ describe('AmAccountsService export + bulkTag', () => {
       mode: 'add',
     });
     expect(out.updated).toBe(1);
+    expect(updates).toHaveLength(1);
+    expect(updates[0].sql).toMatch(/unnest/i);
+    expect(updates[0].sql).toMatch(/\|\|/);
+    expect(updates[0].sql).toMatch(/distinct/i);
+    const written = JSON.stringify(updates[0].params);
+    expect(written).toMatch(/b/);
+    expect(written).not.toMatch(/"a"/);
   });
 
   it('assign lead can tag team-visible accounts and 403s outside that scope', async () => {
@@ -76,6 +83,9 @@ describe('AmAccountsService export + bulkTag', () => {
       if (/staff_user_teams|staff_teams/i.test(text)) {
         return { rows: [{ id: 3 }], rowCount: 1 };
       }
+      if (/^\s*update/i.test(text)) {
+        return { rows: [], rowCount: 1 };
+      }
       if (/select/i.test(text) && /tags/i.test(text)) {
         expect(text).toMatch(/team_id\s*=\s*ANY/i);
         const ids = Array.isArray(params?.[1]) ? (params[1] as string[]) : [];
@@ -83,9 +93,6 @@ describe('AmAccountsService export + bulkTag', () => {
           ? [{ agency_client_id: TEAM_CLIENT, tags: ['a'] }]
           : [];
         return { rows, rowCount: rows.length };
-      }
-      if (/update/i.test(text)) {
-        return { rows: [], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };
     });
@@ -132,5 +139,34 @@ describe('AmAccountsService export + bulkTag', () => {
     const countSql = String(db.query.mock.calls[0]?.[0] ?? '');
     expect(countSql).toMatch(/am_status\s*(<>|!=|NOT\s+IN)/i);
     expect(countSql).toMatch(/churned/i);
+  });
+
+  it('blanks mrr_vnd for manage without crm_am.finance view', async () => {
+    staffAuth.me.mockResolvedValue({
+      caps: [{ section: 'crm_am', action: 'manage' }],
+    });
+    db.query
+      .mockResolvedValueOnce({ rows: [{ count: 1 }], rowCount: 1 })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            agency_client_id: '19d722af-0000-4000-8000-000000000001',
+            code: 'AP01',
+            name: 'An Phu',
+            owner_staff_id: 7,
+            team_id: 3,
+            am_status: 'active',
+            health_band: 'healthy',
+            mrr_vnd: 1_500_000,
+            ends_on: '2026-10-01',
+          },
+        ],
+        rowCount: 1,
+      });
+    const out = await service.exportCsv(viewReq, {});
+    expect(out.rows).toBe(1);
+    expect(out.csv).not.toMatch(/1500000/);
+    const dataLine = out.csv.split('\n')[1] ?? '';
+    expect(dataLine.split(',')[7]).toBe('');
   });
 });

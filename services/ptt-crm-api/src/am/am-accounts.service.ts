@@ -489,23 +489,25 @@ export class AmAccountsService {
       amThrow(403, { error: 'out_of_scope' });
     }
 
-    let updated = 0;
-    for (const row of current) {
-      const next = [...new Set([...row.tags, ...incoming])];
-      const params: unknown[] = [AM_TENANT_ID, row.agency_client_id, next];
-      const bound = bindScopeSql(
-        amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
-        params.length + 1,
-      );
-      params.push(...bound.params);
-      const result = await this.db.query(
-        `UPDATE crm_am_account_ext e
-            SET tags = $3::text[], updated_at = now()
-          WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}`,
-        params,
-      );
-      updated += Number(result.rowCount ?? 0);
-    }
+    const params: unknown[] = [AM_TENANT_ID, ids, incoming];
+    const bound = bindScopeSql(
+      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
+      params.length + 1,
+    );
+    params.push(...bound.params);
+    const result = await this.db.query(
+      `UPDATE crm_am_account_ext e
+          SET tags = (
+                SELECT ARRAY(
+                  SELECT DISTINCT t
+                  FROM unnest(COALESCE(e.tags, ARRAY[]::text[]) || $3::text[]) AS t
+                )
+              ),
+              updated_at = now()
+        WHERE e.tenant_id = $1 AND e.agency_client_id = ANY($2::uuid[]) AND ${bound.sql}`,
+      params,
+    );
+    const updated = Number(result.rowCount ?? 0);
 
     await this.audit?.insert({
       actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
@@ -972,6 +974,13 @@ export class AmAccountsService {
       this.staffAuth.hasCap(me.caps, 'crm_am.finance', 'view') ||
       this.staffAuth.hasCap(me.caps, 'crm_am', 'manage')
     );
+  }
+
+  private async shouldHideExportAmounts(req: AmAccountsListReq): Promise<boolean> {
+    if (req.staffAuthVia === 'internal' && !req.staffUser) return false;
+    if (!req.staffUser) return true;
+    const me = await this.staffAuth.me(req.staffUser);
+    return !this.staffAuth.hasCap(me.caps, 'crm_am.finance', 'view');
   }
 
   private async load360(actor: ListActor, id: string, hideAmounts: boolean): Promise<AmAccount360> {
@@ -1453,7 +1462,7 @@ export class AmAccountsService {
     if (count >= 10000) {
       amThrow(400, { error: 'export_too_large', max: 10000 });
     }
-    const hideAmounts = await this.shouldHideAmounts(req);
+    const hideAmounts = await this.shouldHideExportAmounts(req);
     const rows = await this.fetchExportRows(actor, q, includeContracts);
     return { csv: buildAccountsCsv(rows, hideAmounts), rows: rows.length };
   }
