@@ -62,6 +62,48 @@ describe('AmAccountsService export + bulkTag', () => {
     expect(out.updated).toBe(1);
   });
 
+  it('assign lead can tag team-visible accounts and 403s outside that scope', async () => {
+    const TEAM_CLIENT = '19d722af-0000-4000-8000-000000000001';
+    const OUTSIDE = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    staffAuth.me.mockResolvedValue({
+      caps: [
+        { section: 'crm_am', action: 'edit' },
+        { section: 'crm_am', action: 'assign' },
+      ],
+    });
+    db.query.mockImplementation(async function (sql: string, params?: unknown[]) {
+      const text = String(sql);
+      if (/staff_user_teams|staff_teams/i.test(text)) {
+        return { rows: [{ id: 3 }], rowCount: 1 };
+      }
+      if (/select/i.test(text) && /tags/i.test(text)) {
+        expect(text).toMatch(/team_id\s*=\s*ANY/i);
+        const ids = Array.isArray(params?.[1]) ? (params[1] as string[]) : [];
+        const rows = ids.includes(TEAM_CLIENT)
+          ? [{ agency_client_id: TEAM_CLIENT, tags: ['a'] }]
+          : [];
+        return { rows, rowCount: rows.length };
+      }
+      if (/update/i.test(text)) {
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const out = await service.bulkTag(editReq, {
+      agency_client_ids: [TEAM_CLIENT],
+      tags: ['vip'],
+      mode: 'add',
+    });
+    expect(out.updated).toBe(1);
+    await expect(
+      service.bulkTag(editReq, {
+        agency_client_ids: [OUTSIDE],
+        tags: ['vip'],
+        mode: 'add',
+      }),
+    ).rejects.toMatchObject({ status: 403, error: 'out_of_scope' });
+  });
+
   it('blanks mrr_vnd without crm_am.finance and hides churned by default', async () => {
     db.query
       .mockResolvedValueOnce({ rows: [{ count: 1 }], rowCount: 1 })

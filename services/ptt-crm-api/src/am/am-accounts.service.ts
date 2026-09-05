@@ -482,7 +482,7 @@ export class AmAccountsService {
       amThrow(400, { error: 'tags_required' });
     }
 
-    const actor = await this.resolveListActor(req, undefined);
+    const actor = await this.resolveListActor(req, 'max');
     const current = await this.loadScopedTags(ids, actor);
     const found = new Set(current.map((row) => row.agency_client_id));
     if (ids.some((id) => !found.has(id))) {
@@ -1684,16 +1684,17 @@ export class AmAccountsService {
 
   private async resolveListActor(
     req: AmAccountsListReq,
-    requested: AmScope | undefined,
+    requested: AmScope | undefined | 'max',
   ): Promise<ListActor> {
     const internal = req.staffAuthVia === 'internal';
     const staffId = req.staffUser
       ? ((await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0)
       : 0;
     if (internal && !req.staffUser) {
+      const wanted: AmScope | undefined = requested === 'max' ? 'all' : requested;
       return {
         staffId,
-        scope: resolveAmScope({ requested, hasViewAll: true, canTeam: true }),
+        scope: resolveAmScope({ requested: wanted, hasViewAll: true, canTeam: true }),
         teamIds: [],
         canSeeUnassigned: true,
       };
@@ -1706,7 +1707,9 @@ export class AmAccountsService {
     const hasViewAll = has('view_all') || has('manage');
     const canTeam = hasViewAll || has('assign');
     const canSeeUnassigned = has('assign') || hasViewAll;
-    const scope = resolveAmScope({ requested, hasViewAll, canTeam });
+    const wanted: AmScope | undefined =
+      requested === 'max' ? (hasViewAll ? 'all' : canTeam ? 'team' : 'me') : requested;
+    const scope = resolveAmScope({ requested: wanted, hasViewAll, canTeam });
     const teamIds = scope === 'team' ? await this.loadTeamIds(staffId) : [];
     return { staffId, scope, teamIds, canSeeUnassigned };
   }

@@ -36,3 +36,5 @@ CREATE INDEX IF NOT EXISTS crm_am_delegations_to_idx
   ON crm_am_delegations (tenant_id, to_staff_id, starts_on, ends_on);
 CREATE INDEX IF NOT EXISTS crm_am_delegations_from_idx
   ON crm_am_delegations (tenant_id, from_staff_id, starts_on, ends_on);
+
+ALTER TABLE crm_am_account_ext ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';

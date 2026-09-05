@@ -25,10 +25,16 @@ verify_ddl_static() {
       missing=1
     fi
   done
+  for column in tags; do
+    if ! grep -q "ADD COLUMN IF NOT EXISTS ${column}" "$DDL"; then
+      echo "MISSING column: ${column}" >&2
+      missing=1
+    fi
+  done
   if [[ "$missing" -ne 0 ]]; then
     exit 1
   fi
-  echo "OK  AM G1 DDL static verify (documents + delegations)"
+  echo "OK  AM G1 DDL static verify (documents + delegations + account_ext.tags)"
 }
 
 URL="${DATABASE_URL:-}"
@@ -41,4 +47,4 @@ fi
 echo "Applying AM G1 DDL..."
 echo "    DATABASE_URL=${URL%%@*}@…"
 psql "$URL" -v ON_ERROR_STOP=1 -f "$DDL"
-echo "OK  AM G1 DDL applied (documents, delegations)"
+echo "OK  AM G1 DDL applied (documents, delegations, account_ext.tags)"
