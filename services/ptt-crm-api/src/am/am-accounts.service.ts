@@ -177,6 +177,7 @@ export type AmAccount360 = {
   outstanding_vnd: number | null;
   next_invoice_on: string | null;
   hide_amounts: boolean;
+  name_unchanged?: boolean;
   contacts: AmAccountContact[];
   contracts: AmAccountContract[];
   open_tasks: AmAccountOpenTask[];
@@ -517,8 +518,14 @@ export class AmAccountsService {
       const parent = body.parent_agency_client_id == null || body.parent_agency_client_id === ''
         ? null
         : String(body.parent_agency_client_id).trim();
-      if (parent && (!isUuid(parent) || parent === id)) {
-        amThrow(400, { error: 'parent_invalid' });
+      if (parent) {
+        if (!isUuid(parent) || parent === id) {
+          amThrow(400, { error: 'parent_invalid' });
+        }
+        const found = await this.loadScopedAccounts([parent], scoped);
+        if (found.length < 1) {
+          amThrow(403, { error: 'parent_denied' });
+        }
       }
       sets.push(`parent_agency_client_id = ${pushParam(params, parent)}::uuid`);
     }
@@ -536,8 +543,13 @@ export class AmAccountsService {
     );
 
     const nextName = String(body.name ?? '').trim();
-    if (nextName && this.canAgencyWrite(actor)) {
+    const nameRequested = Boolean(nextName);
+    const canWriteName = this.canAgencyWrite(actor);
+    let nameUnchanged = false;
+    if (nextName && canWriteName) {
       await this.agency.updateClient(id, { name: nextName });
+    } else if (nameRequested) {
+      nameUnchanged = true;
     }
 
     await this.audit?.insert({
@@ -551,11 +563,14 @@ export class AmAccountsService {
         am_status: body.am_status,
         parent_agency_client_id: body.parent_agency_client_id,
         archive: body.archive === true,
-        name: nextName || undefined,
+        name: nameUnchanged ? undefined : nextName || undefined,
+        name_unchanged: nameUnchanged || undefined,
       },
     });
     this.dashboard?.dropCache();
-    return this.load360(scoped, id, await this.shouldHideAmounts(req));
+    const out = await this.load360(scoped, id, await this.shouldHideAmounts(req));
+    if (nameUnchanged) out.name_unchanged = true;
+    return out;
   }
 
   async merge(

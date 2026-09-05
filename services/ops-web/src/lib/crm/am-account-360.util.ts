@@ -1,3 +1,5 @@
+import { hasCap, type StoredStaffUser } from '@/lib/auth';
+
 export type Am360TabId =
   | 'overview'
   | 'timeline'
@@ -52,4 +54,31 @@ export function am360WaveCopy(tab: Am360Tab): string {
 
 export function am360HasForbiddenTabs(tabs: Am360Tab[] = AM_360_TABS): boolean {
   return tabs.some((tab) => /ads|portal/i.test(`${tab.id} ${tab.label}`));
+}
+
+export type Am360LoadError = 'not_found' | 'load_failed';
+
+export function am360LoadErrorKind(status: number | undefined): Am360LoadError {
+  return status === 404 ? 'not_found' : 'load_failed';
+}
+
+export function am360LoadErrorCopy(kind: Am360LoadError): string {
+  if (kind === 'not_found') return 'Không tìm thấy khách trong phạm vi của bạn.';
+  return 'Không tải được Account 360. Thử lại.';
+}
+
+export function canEditAmAccountName(user: StoredStaffUser | null | undefined): boolean {
+  return (
+    hasCap(user ?? null, 'crm_agency', 'create') || hasCap(user ?? null, 'crm_agency', 'write')
+  );
+}
+
+export function am360PatchToast(opts: {
+  nameRequested: boolean;
+  nameUnchanged: boolean;
+}): { message: string; tone: 'success' | 'info' } {
+  if (opts.nameRequested && opts.nameUnchanged) {
+    return { message: 'Tên không đổi — cần quyền crm_agency.write', tone: 'info' };
+  }
+  return { message: 'Đã lưu', tone: 'success' };
 }

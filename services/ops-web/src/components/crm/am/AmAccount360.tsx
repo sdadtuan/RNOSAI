@@ -18,8 +18,13 @@ import {
 import {
   AM_360_STATUS_COPY,
   AM_360_TABS,
+  am360LoadErrorCopy,
+  am360LoadErrorKind,
+  am360PatchToast,
   am360WaveCopy,
+  canEditAmAccountName,
   parseAm360Tab,
+  type Am360LoadError,
   type Am360TabId,
 } from '@/lib/crm/am-account-360.util';
 import { canAssignAmAccounts } from '@/lib/crm/am-accounts-views.util';
@@ -53,7 +58,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
 
   const [data, setData] = useState<AmAccount360Data | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Am360LoadError | ''>('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawer, setDrawer] = useState<DrawerKind>(null);
   const [busy, setBusy] = useState(false);
@@ -63,6 +68,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
 
   const canAssign = canAssignAmAccounts(user);
   const canManage = hasCap(user, 'crm_am', 'manage');
+  const canEditName = canEditAmAccountName(user);
   const primary = data?.contacts.find((row) => row.is_primary) ?? data?.contacts[0] ?? null;
 
   const load = useCallback(async () => {
@@ -73,7 +79,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
       setData(await fetchAmAccount(token, agencyClientId));
     } catch (err) {
       setData(null);
-      setError(err instanceof ApiError && err.status === 404 ? 'not_found' : 'load_failed');
+      setError(am360LoadErrorKind(err instanceof ApiError ? err.status : undefined));
     } finally {
       setLoading(false);
     }
@@ -112,7 +118,11 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
       const next = await patchAmAccount(token, agencyClientId, body);
       setData(next);
       setDrawer(null);
-      push('Đã lưu', 'success');
+      const toast = am360PatchToast({
+        nameRequested: Boolean(body.name?.trim()),
+        nameUnchanged: Boolean(next.name_unchanged),
+      });
+      push(toast.message, toast.tone);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Không lưu được');
     } finally {
@@ -249,14 +259,15 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
     );
   }
 
-  if (error === 'not_found' || !data) {
+  if (error === 'not_found' || error === 'load_failed' || !data) {
+    const kind: Am360LoadError = error === 'not_found' ? 'not_found' : 'load_failed';
     return (
       <section className="am-page">
         <p className="am-crumb">
           <Link href="/crm/account-management/clients">Khách hàng</Link>
         </p>
         <div className="am-widget__error">
-          <p>Không tìm thấy khách trong phạm vi của bạn.</p>
+          <p>{am360LoadErrorCopy(kind)}</p>
         </div>
       </section>
     );
@@ -458,7 +469,9 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
                   ev.preventDefault();
                   const form = new FormData(ev.currentTarget);
                   void onPatch({
-                    name: String(form.get('name') ?? '').trim() || undefined,
+                    name: canEditName
+                      ? String(form.get('name') ?? '').trim() || undefined
+                      : undefined,
                     tier: String(form.get('tier') ?? '').trim() || null,
                     team_id: String(form.get('team_id') ?? '').trim()
                       ? Number(form.get('team_id'))
@@ -469,8 +482,16 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
               >
                 <label className="am-field">
                   <span>Tên</span>
-                  <input name="name" defaultValue={data.name} />
+                  <input
+                    name="name"
+                    defaultValue={data.name}
+                    disabled={!canEditName}
+                    title={canEditName ? 'Tên khách' : 'Cần quyền crm_agency.write'}
+                  />
                 </label>
+                {!canEditName ? (
+                  <p className="am-muted">Tên chỉ đổi được khi có quyền crm_agency.write.</p>
+                ) : null}
                 <label className="am-field">
                   <span>Tier</span>
                   <input name="tier" defaultValue={data.tier ?? ''} />

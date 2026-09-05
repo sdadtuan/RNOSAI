@@ -367,6 +367,7 @@ export type AmAccount360 = {
   outstanding_vnd: number | null;
   next_invoice_on: string | null;
   hide_amounts: boolean;
+  name_unchanged?: boolean;
   contacts: AmAccountContact[];
   contracts: AmAccountContract[];
   open_tasks: AmAccountOpenTask[];
