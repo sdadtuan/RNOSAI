@@ -1,7 +1,12 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AmController } from '../am.controller';
-import { AM_REQUIRED_ACTION_KEY, AM_REQUIRED_SECTION_KEY, StaffAmGuard } from './staff-am.guard';
+import {
+  AM_REQUIRED_ACTION_KEY,
+  AM_REQUIRED_ANY_ACTION_KEY,
+  AM_REQUIRED_SECTION_KEY,
+  StaffAmGuard,
+} from './staff-am.guard';
 
 function parseCaps(caps: string[]): Array<{ section: string; action: string }> {
   return caps.map((cap) => {
@@ -12,7 +17,7 @@ function parseCaps(caps: string[]): Array<{ section: string; action: string }> {
 
 function ctx(
   opts: { staffId: number; caps: string[]; internal?: boolean },
-  action: 'view' | 'view_all' | 'edit' | 'assign' | 'manage' = 'view',
+  action: 'view' | 'view_all' | 'edit' | 'assign' | 'manage' | Array<'view' | 'view_all' | 'edit' | 'assign' | 'manage'> = 'view',
   section: 'crm_am' | 'crm_am.finance' = 'crm_am',
 ) {
   const staffAuth = {
@@ -24,7 +29,8 @@ function ctx(
   };
   const reflector = {
     get: jest.fn((key: string) => {
-      if (key === AM_REQUIRED_ACTION_KEY) return action;
+      if (key === AM_REQUIRED_ANY_ACTION_KEY) return Array.isArray(action) ? action : undefined;
+      if (key === AM_REQUIRED_ACTION_KEY) return Array.isArray(action) ? undefined : action;
       if (key === AM_REQUIRED_SECTION_KEY) return section;
       return undefined;
     }),
@@ -92,6 +98,29 @@ describe('StaffAmGuard', () => {
     expect(Reflect.getMetadata(AM_REQUIRED_ACTION_KEY, AmController.prototype.putSettings)).toBe(
       'manage',
     );
+  });
+
+  it('allows manage-only on edit-or-manage metadata and still denies a normal edit route', async () => {
+    const anyOk = ctx({ staffId: 3, caps: ['crm_am:manage'] }, ['edit', 'manage']);
+    await expect(anyOk.guard.canActivate(anyOk.executionContext)).resolves.toBe(true);
+
+    const editDenied = ctx({ staffId: 3, caps: ['crm_am:manage'] }, 'edit');
+    await expect(editDenied.guard.canActivate(editDenied.executionContext)).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it('delegation create and cancel require edit or manage, not edit alone', () => {
+    expect(Reflect.getMetadata(AM_REQUIRED_ANY_ACTION_KEY, AmController.prototype.createDelegation)).toEqual([
+      'edit',
+      'manage',
+    ]);
+    expect(Reflect.getMetadata(AM_REQUIRED_ANY_ACTION_KEY, AmController.prototype.cancelDelegation)).toEqual([
+      'edit',
+      'manage',
+    ]);
+    expect(Reflect.getMetadata(AM_REQUIRED_ACTION_KEY, AmController.prototype.createDelegation)).toBeUndefined();
+    expect(Reflect.getMetadata(AM_REQUIRED_ACTION_KEY, AmController.prototype.putSettings)).toBe('manage');
   });
 
   it('checks crm_am.finance for finance endpoints', async () => {

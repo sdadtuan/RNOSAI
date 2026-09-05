@@ -665,6 +665,12 @@ export type AmDelegation = {
   reason: string | null;
 };
 
+export type AmDelegationStaff = {
+  id: number;
+  email: string;
+  display_name: string;
+};
+
 export type AmCreateDelegationInput = {
   from_staff_id?: number;
   to_staff_id: number;
@@ -673,8 +679,10 @@ export type AmCreateDelegationInput = {
   reason?: string;
 };
 
-export async function fetchAmDelegations(token: string): Promise<{ items: AmDelegation[] }> {
-  return amFetch<{ items: AmDelegation[] }>(token, '/api/crm/am/delegations');
+export async function fetchAmDelegations(
+  token: string,
+): Promise<{ items: AmDelegation[]; staff?: AmDelegationStaff[] }> {
+  return amFetch<{ items: AmDelegation[]; staff?: AmDelegationStaff[] }>(token, '/api/crm/am/delegations');
 }
 
 export async function createAmDelegation(

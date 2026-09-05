@@ -23,12 +23,19 @@ import {
   putAmSettings,
   type AmCustomField,
   type AmDelegation,
+  type AmDelegationStaff,
   type AmOnboardingTemplate,
   type AmOnboardingTemplateItem,
   type AmSettings as AmSettingsData,
   type AmSlaPolicy,
 } from '@/lib/crm/am-api';
-import { amDelegationErrorCopy, amDelegationFormError } from '@/lib/crm/am-delegation.util';
+import {
+  amDelegationCrmStaffByEmail,
+  amDelegationCrmStaffId,
+  amDelegationErrorCopy,
+  amDelegationFormError,
+  amDelegationSelectOptions,
+} from '@/lib/crm/am-delegation.util';
 import { amOnboardingDash } from '@/lib/crm/am-onboarding.util';
 import {
   AM_BDS_FIELD_TEMPLATES,
@@ -200,6 +207,7 @@ export function AmSettings() {
   const [slaBusy, setSlaBusy] = useState(false);
   const [delegations, setDelegations] = useState<AmDelegation[]>([]);
   const [delegationRoster, setDelegationRoster] = useState<StaffRosterRow[]>([]);
+  const [delegationStaff, setDelegationStaff] = useState<AmDelegationStaff[]>([]);
   const [fromStaffId, setFromStaffId] = useState('');
   const [toStaffId, setToStaffId] = useState('');
   const [startsOn, setStartsOn] = useState('');
@@ -208,6 +216,10 @@ export function AmSettings() {
   const [delegationError, setDelegationError] = useState('');
   const [delegationBusy, setDelegationBusy] = useState(false);
 
+  const delegationOptions = useMemo(
+    () => amDelegationSelectOptions(delegationRoster, amDelegationCrmStaffByEmail(delegationStaff)),
+    [delegationRoster, delegationStaff],
+  );
   const selected = items.find((row) => row.id === selectedId) ?? null;
   const published = selected?.status === 'published';
   const canEditDraft = Boolean(canManage && selected && !published);
@@ -249,6 +261,7 @@ export function AmSettings() {
         canDelegate ? fetchStaffRoster(token) : Promise.resolve({ staff: [] as StaffRosterRow[] }),
       ]);
       setDelegations(delOut.items);
+      setDelegationStaff(delOut.staff ?? []);
       setDelegationRoster(rosterOut.staff ?? []);
     } catch (err) {
       setDelegationError(err instanceof ApiError ? err.message : 'Không tải được ủy quyền.');
@@ -520,22 +533,18 @@ export function AmSettings() {
     }
   }
 
-  function staffOptionLabel(row: StaffRosterRow): string {
-    return row.display_name || row.email;
-  }
-
   async function onCreateDelegation() {
     if (!token || !canDelegate || delegationBusy) return;
-    const to = Number(toStaffId);
-    const from = canManage && fromStaffId ? Number(fromStaffId) : undefined;
+    const to = amDelegationCrmStaffId({ id: toStaffId });
+    const from = canManage && fromStaffId ? amDelegationCrmStaffId({ id: fromStaffId }) : undefined;
     const code = amDelegationFormError({
       from_staff_id: from,
       to_staff_id: to,
       starts_on: startsOn,
       ends_on: endsOn,
     });
-    if (code) {
-      setDelegationError(amDelegationErrorCopy(code));
+    if (to == null || code) {
+      setDelegationError(amDelegationErrorCopy(code ?? 'to_staff_id_required'));
       return;
     }
     setDelegationBusy(true);
@@ -632,10 +641,10 @@ export function AmSettings() {
                   aria-label="AM ủy quyền"
                 >
                   <option value="">Tôi</option>
-                  {delegationRoster.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {staffOptionLabel(row)}
-                      {row.email && row.display_name !== row.email ? ` · ${row.email}` : ''}
+                  {delegationOptions.map((row) => (
+                    <option key={row.crm_staff_id} value={String(row.crm_staff_id)}>
+                      {row.label}
+                      {row.email && row.label !== row.email ? ` · ${row.email}` : ''}
                     </option>
                   ))}
                 </select>
@@ -651,10 +660,10 @@ export function AmSettings() {
                 aria-label="AM nhận ủy quyền"
               >
                 <option value="">Chọn AM</option>
-                {delegationRoster.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {staffOptionLabel(row)}
-                    {row.email && row.display_name !== row.email ? ` · ${row.email}` : ''}
+                {delegationOptions.map((row) => (
+                  <option key={row.crm_staff_id} value={String(row.crm_staff_id)}>
+                    {row.label}
+                    {row.email && row.label !== row.email ? ` · ${row.email}` : ''}
                   </option>
                 ))}
               </select>

@@ -24,6 +24,12 @@ export type AmCreateDelegationInput = {
   reason?: string;
 };
 
+export type AmDelegationStaff = {
+  id: number;
+  email: string;
+  display_name: string;
+};
+
 export type AmDelegationsDb = {
   query(
     sql: string,
@@ -106,8 +112,12 @@ export class AmDelegationsService {
     private readonly staffAuth: StaffAuthService,
   ) {}
 
-  async list(actorStaffId: number, caps: StaffSectionCap[] = []): Promise<{ items: AmDelegation[] }> {
+  async list(
+    actorStaffId: number,
+    caps: StaffSectionCap[] = [],
+  ): Promise<{ items: AmDelegation[]; staff: AmDelegationStaff[] }> {
     const canManage = this.canManage(caps);
+    let items: AmDelegation[] = [];
     try {
       const result = await this.db.query(
         `SELECT ${DELEGATION_RETURNING}
@@ -118,11 +128,11 @@ export class AmDelegationsService {
           ORDER BY starts_on, ends_on, id`,
         [AM_TENANT_ID, canManage, actorStaffId],
       );
-      return { items: result.rows.map(mapDelegation) };
+      items = result.rows.map(mapDelegation);
     } catch (err) {
-      if (isMissingRelation(err)) return { items: [] };
-      throw err;
+      if (!isMissingRelation(err)) throw err;
     }
+    return { items, staff: await this.listStaff() };
   }
 
   async create(
@@ -209,6 +219,36 @@ export class AmDelegationsService {
 
   private canManage(caps: StaffSectionCap[]): boolean {
     return this.staffAuth.hasCap(caps, 'crm_am', 'manage');
+  }
+
+  private async listStaff(): Promise<AmDelegationStaff[]> {
+    try {
+      const result = await this.db.query(
+        `SELECT cs.id,
+                cs.email,
+                COALESCE(NULLIF(trim(cs.name), ''), NULLIF(trim(u.display_name), ''), cs.email) AS display_name
+           FROM crm_staff cs
+           LEFT JOIN staff_users u ON lower(trim(cs.email)) = lower(trim(u.email))
+          WHERE cs.active = TRUE
+            AND cs.email IS NOT NULL
+            AND trim(cs.email) <> ''
+          ORDER BY display_name, cs.id`,
+      );
+      return result.rows
+        .map((row) => {
+          const id = staffId(row.id);
+          if (id == null) return null;
+          return {
+            id,
+            email: String(row.email ?? ''),
+            display_name: String(row.display_name ?? row.email ?? ''),
+          };
+        })
+        .filter((row): row is AmDelegationStaff => row != null);
+    } catch (err) {
+      if (!isMissingRelation(err)) throw err;
+      return [];
+    }
   }
 
   private async requireCrmStaffId(rawId: number, field: string): Promise<number> {

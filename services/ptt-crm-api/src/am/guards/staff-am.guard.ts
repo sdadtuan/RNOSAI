@@ -16,9 +16,13 @@ export type AmCapAction = 'view' | 'view_all' | 'edit' | 'assign' | 'manage';
 export type AmCapSection = 'crm_am' | 'crm_am.finance';
 
 export const AM_REQUIRED_ACTION_KEY = 'amRequiredAction';
+export const AM_REQUIRED_ANY_ACTION_KEY = 'amRequiredAnyAction';
 export const AM_REQUIRED_SECTION_KEY = 'amRequiredSection';
 
 export const RequireAmAction = (action: AmCapAction) => SetMetadata(AM_REQUIRED_ACTION_KEY, action);
+
+export const RequireAmAnyAction = (actions: AmCapAction[]) =>
+  SetMetadata(AM_REQUIRED_ANY_ACTION_KEY, actions);
 
 export const RequireAmFinanceAction = (action: AmCapAction = 'view') =>
   applyDecorators(
@@ -45,20 +49,28 @@ export class StaffAmGuard implements CanActivate {
       throw new ForbiddenException({ error: 'am_unresolved_staff' });
     }
 
+    const anyActions =
+      this.reflector.get<AmCapAction[] | undefined>(AM_REQUIRED_ANY_ACTION_KEY, context.getHandler()) ??
+      undefined;
     const action =
       this.reflector.get<AmCapAction | undefined>(AM_REQUIRED_ACTION_KEY, context.getHandler()) ?? 'view';
     const section =
       this.reflector.get<AmCapSection | undefined>(AM_REQUIRED_SECTION_KEY, context.getHandler()) ?? 'crm_am';
 
     const me = await this.staffAuth.me(req.staffUser);
-    const allowed =
-      this.staffAuth.hasCap(me.caps, section, action) ||
-      (action === 'view' && this.staffAuth.hasCap(me.caps, section, 'view_all')) ||
-      (action === 'assign' &&
+    const satisfies = (wanted: AmCapAction) =>
+      this.staffAuth.hasCap(me.caps, section, wanted) ||
+      (wanted === 'view' && this.staffAuth.hasCap(me.caps, section, 'view_all')) ||
+      (wanted === 'assign' &&
         section === 'crm_am' &&
         this.staffAuth.hasCap(me.caps, section, 'manage'));
+    const allowed = anyActions?.length ? anyActions.some(satisfies) : satisfies(action);
     if (!allowed) {
-      throw new ForbiddenException({ error: 'missing_cap', section, action });
+      throw new ForbiddenException({
+        error: 'missing_cap',
+        section,
+        action: anyActions?.length ? anyActions.join('|') : action,
+      });
     }
     return true;
   }

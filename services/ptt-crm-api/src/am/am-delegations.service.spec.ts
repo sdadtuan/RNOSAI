@@ -85,6 +85,18 @@ describe('AmDelegationsService', () => {
     );
   });
 
+  it('lists crm_staff ids for roster mapping', async () => {
+    db.query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/FROM crm_staff cs/i.test(text)) {
+        return { rows: [{ id: 42, email: 'am@ptt.vn', display_name: 'AM One' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const out = await service.list(7, [{ section: 'crm_am', action: 'edit' }]);
+    expect(out.staff).toEqual([{ id: 42, email: 'am@ptt.vn', display_name: 'AM One' }]);
+  });
+
   it('cancel sets ends_on to yesterday for own active row', async () => {
     db.query.mockImplementation(async (sql: string) => {
       const text = String(sql);
