@@ -15,6 +15,11 @@ describe('shouldShowEmptyWidget', () => {
     expect(shouldShowEmptyWidget(false, 'fail', [])).toBe(false);
   });
 
+  it('retry after error: cleared error + loading hides empty copy', () => {
+    // loadCenter clears error and sets loading before refetch
+    expect(shouldShowEmptyWidget(true, '', [])).toBe(false);
+  });
+
   it('shows empty copy after a successful empty load', () => {
     expect(shouldShowEmptyWidget(false, '', [])).toBe(true);
     expect(shouldShowEmptyWidget(false, '', [{}])).toBe(false);

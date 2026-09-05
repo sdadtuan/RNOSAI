@@ -106,4 +106,27 @@ Test Files  3 passed (3)
      Tests  13 passed (13)
 ```
 
-**Commit:** `fix(am): hide dashboard empty copy while command-center loads`
+**Commit:** `fca2ec56` — fix(am): hide dashboard empty copy while command-center loads
+
+## Review fix: loading during retry
+
+**Issue:** `retry`/`loadCenter` cleared error but left `loading=false`, so widgets showed empty-success copy during in-flight retry after a failed fetch.
+
+**Fix:**
+- `loadCenter` sets `loading=true` at start and `loading=false` in `finally` (covers retry and scope refetch).
+- Added util spec documenting retry-after-error must hide empty copy while loading.
+
+**Tests:**
+
+```
+$ cd services/ops-web && npx vitest run src/lib/crm/am-format.spec.ts src/lib/crm/am-nav.util.spec.ts src/lib/crm/am-dashboard.util.spec.ts
+
+PASS  src/lib/crm/am-dashboard.util.spec.ts (4)
+PASS  src/lib/crm/am-format.spec.ts (5)
+PASS  src/lib/crm/am-nav.util.spec.ts (5)
+
+Test Files  3 passed (3)
+     Tests  14 passed (14)
+```
+
+**Commit:** `30fe2b72` — fix(am): set dashboard loading during command-center retry

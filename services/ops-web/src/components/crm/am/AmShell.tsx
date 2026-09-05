@@ -143,6 +143,7 @@ function AmShellInner({ children }: { children: ReactNode }) {
   }, [router]);
 
   const loadCenter = useCallback(async (access: string, nextScope: AmScope) => {
+    setLoading(true);
     setError('');
     try {
       const out = await fetchAmCommandCenter(access, { scope: nextScope });
@@ -150,6 +151,8 @@ function AmShellInner({ children }: { children: ReactNode }) {
     } catch (err) {
       setData(null);
       setError(err instanceof Error ? err.message : 'Không tải được dashboard');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
