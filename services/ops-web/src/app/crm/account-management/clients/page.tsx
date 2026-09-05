@@ -1,5 +1,7 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+'use client';
+
+import { AmAccountsList } from '@/components/crm/am/AmAccountsList';
 
 export default function AmClientsPage() {
-  return <AmPlaceholder title="Danh sách" wave={2} />;
+  return <AmAccountsList />;
 }

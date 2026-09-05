@@ -605,6 +605,79 @@
   overflow: auto;
 }
 
+.am-list {
+  display: grid;
+  gap: 12px;
+}
+
+.am-list__head h1 {
+  margin: 0;
+  font-size: 22px;
+  color: var(--am-navy);
+}
+
+.am-list__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.am-list__filters input,
+.am-list__filters select {
+  height: 34px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 10px;
+  font: inherit;
+}
+
+.am-list__q {
+  min-width: 220px;
+  flex: 1;
+}
+
+.am-list__team {
+  width: 96px;
+}
+
+.am-list__table {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--am-radius);
+  max-height: calc(100vh - 280px);
+}
+
+.am-list__table .am-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
+}
+
+.am-list__sort {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+}
+
+.am-list__pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.am-list__pager-btns {
+  display: flex;
+  gap: 6px;
+}
+
 .am-pill {
   display: inline-flex;
   border-radius: 99px;

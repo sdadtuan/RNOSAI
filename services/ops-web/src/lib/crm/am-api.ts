@@ -176,6 +176,60 @@ export type AmPlan = {
   due_on: string | null;
 };
 
+export type AmAccountListItem = {
+  agency_client_id: string;
+  code: string;
+  name: string;
+  parent_id: string | null;
+  parent_name: string | null;
+  is_parent: boolean;
+  child_count: number;
+  owner_staff_id: number | null;
+  owner_label: string | null;
+  delegated_until: string | null;
+  team_label: string | null;
+  am_status: string;
+  band: AmHealthBand | null;
+  score: number | null;
+  mrr_vnd: number | null;
+  ends_on: string | null;
+  sla_label: string | null;
+};
+
+export type AmAccountsList = {
+  items: AmAccountListItem[];
+  total: number;
+  page: number;
+};
+
+export type AmAccountsListQuery = {
+  scope?: AmScope;
+  q?: string;
+  owner?: string;
+  team?: string;
+  band?: string;
+  lifecycle?: string;
+  industry?: string;
+  sort?: string;
+  page?: string;
+  page_size?: string;
+  parent?: string;
+  ends_within?: string;
+};
+
+export async function fetchAmAccounts(
+  token: string,
+  query: AmAccountsListQuery = {},
+): Promise<AmAccountsList> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value) params.set(key, value);
+  }
+  if (!params.has('page_size')) params.set('page_size', '50');
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return amFetch<AmAccountsList>(token, `/api/crm/am/accounts${suffix}`);
+}
+
 export async function createAmAccount(token: string, body: AmCreateAccountBody): Promise<AmAccountResult> {
   return amFetch<AmAccountResult>(token, '/api/crm/am/accounts', {
     method: 'POST',

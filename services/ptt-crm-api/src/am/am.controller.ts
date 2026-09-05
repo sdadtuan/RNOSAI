@@ -3,7 +3,11 @@ import { Request } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
-import { AmAccountsService, type AmCreateAccountBody } from './am-accounts.service';
+import {
+  AmAccountsService,
+  type AmAccountsListQuery,
+  type AmCreateAccountBody,
+} from './am-accounts.service';
 import { AmDashboardService } from './am-dashboard.service';
 import { AmHealthService } from './am-health.service';
 import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
@@ -91,6 +95,12 @@ export class AmController {
   @RequireAmAction('edit')
   async acceptTask(@Req() req: AuthedReq, @Param('id') id: string) {
     return this.tasks.accept(id, await this.actorStaffId(req));
+  }
+
+  @Get('accounts')
+  @RequireAmAction('view')
+  async listAccounts(@Req() req: AuthedReq, @Query() q: AmAccountsListQuery) {
+    return this.accounts.list(req, q);
   }
 
   @Post('accounts')
