@@ -83,6 +83,7 @@ import {
   type AmCreateSlaInput,
   type AmPatchSlaInput,
 } from './am-sla-policies.service';
+import { AmAiService, type AmAiDraftBody, type AmAiFeedbackBody } from './am-ai.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -117,6 +118,7 @@ export class AmController {
     private readonly feedback: AmFeedbackService,
     private readonly fields: AmFieldsService,
     private readonly slaPolicies: AmSlaPoliciesService,
+    private readonly ai: AmAiService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -673,5 +675,23 @@ export class AmController {
     @Body() body: AmPatchInteractionInput,
   ) {
     return this.interactions.patch(req, id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Get('ai/status')
+  @RequireAmAction('view')
+  getAiStatus() {
+    return this.ai.status();
+  }
+
+  @Post('ai/draft')
+  @RequireAmAction('view')
+  async createAiDraft(@Req() req: AuthedReq, @Body() body: AmAiDraftBody) {
+    return this.ai.draft(req, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Post('ai/feedback')
+  @RequireAmAction('view')
+  async createAiFeedback(@Req() req: AuthedReq, @Body() body: AmAiFeedbackBody) {
+    return this.ai.feedback(req, body ?? {}, await this.actorStaffId(req));
   }
 }

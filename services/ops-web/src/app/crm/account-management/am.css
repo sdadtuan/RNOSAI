@@ -360,6 +360,33 @@
   margin-bottom: 12px;
 }
 
+.am-ai-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.am-ai-draft {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.am-ai-evidence {
+  margin: 0;
+  padding: 8px;
+  font-size: 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+  overflow: auto;
+}
+
+.am-ai-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .am-form {
   display: flex;
   flex-direction: column;

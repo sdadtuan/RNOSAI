@@ -24,6 +24,7 @@ import { AmFinanceRepository, AmFinanceService } from './am-finance.service';
 import { AmFeedbackRepository, AmFeedbackService } from './am-feedback.service';
 import { AmFieldsRepository, AmFieldsService } from './am-fields.service';
 import { AmSlaPoliciesRepository, AmSlaPoliciesService } from './am-sla-policies.service';
+import { AmAiRepository, AmAiService } from './am-ai.service';
 import { AmController } from './am.controller';
 import { StaffAmGuard } from './guards/staff-am.guard';
 
@@ -73,6 +74,8 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmFieldsService,
     AmSlaPoliciesRepository,
     AmSlaPoliciesService,
+    AmAiRepository,
+    AmAiService,
   ],
   exports: [
     StaffAmGuard,
@@ -98,6 +101,7 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmFeedbackService,
     AmFieldsService,
     AmSlaPoliciesService,
+    AmAiService,
   ],
 })
 export class AmModule {}

@@ -1682,6 +1682,49 @@ export async function followupAmFeedback(
   });
 }
 
+export type AmAiKind = 'summary' | 'health' | 'qbr' | 'followup';
+
+export type AmAiStatus = { enabled: boolean };
+
+export type AmAiDraft = {
+  draft: string;
+  evidence: unknown;
+  draft_id: string;
+};
+
+export type AmAiDraftInput = {
+  agency_client_id: string;
+  kind: AmAiKind;
+  prompt?: string;
+};
+
+export type AmAiFeedbackInput = {
+  draft_id?: string;
+  kind: AmAiKind;
+  rating: 'up' | 'down';
+};
+
+export async function fetchAmAiStatus(token: string): Promise<AmAiStatus> {
+  return amFetch<AmAiStatus>(token, '/api/crm/am/ai/status');
+}
+
+export async function createAmAiDraft(token: string, body: AmAiDraftInput): Promise<AmAiDraft> {
+  return amFetch<AmAiDraft>(token, '/api/crm/am/ai/draft', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function postAmAiFeedback(
+  token: string,
+  body: AmAiFeedbackInput,
+): Promise<{ ok: boolean }> {
+  return amFetch<{ ok: boolean }>(token, '/api/crm/am/ai/feedback', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchAmSurveys(token: string): Promise<{ items: AmSurvey[] }> {
   return amFetch<{ items: AmSurvey[] }>(token, '/api/crm/am/surveys');
 }

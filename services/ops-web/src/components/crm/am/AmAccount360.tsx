@@ -9,13 +9,16 @@ import {
   createAmPlan,
   createAmTask,
   fetchAmAccount,
+  fetchAmAiStatus,
   mergeAmAccount,
   overrideAmHealth,
   patchAmAccount,
   transferAmAccounts,
   type AmAccount360 as AmAccount360Data,
   type AmAccountContact,
+  type AmPlanKind,
 } from '@/lib/crm/am-api';
+import { amAiAskButtonProps, type AmAiOpenFormAction } from '@/lib/crm/am-ai.util';
 import {
   AM_360_STATUS_COPY,
   AM_360_TABS,
@@ -32,11 +35,12 @@ import { bandCopy, vnd } from '@/lib/crm/am-format';
 import { amGrowthNextRefreshNonce } from '@/lib/crm/am-growth.util';
 import { useToast } from '@/lib/toast';
 import { amRecoveryRequiredCopy } from '@/lib/crm/am-risk.util';
+import { AmAiDrawer } from './AmAiDrawer';
 import { AmContactDrawer } from './AmContactDrawer';
 import { AmFeedback } from './AmFeedback';
 import { AmFinance } from './AmFinance';
 import { AmGrowth } from './AmGrowth';
-import { AmOpportunityForm } from './AmOpportunityForm';
+import { AmOpportunityForm, type AmOpportunityDraft } from './AmOpportunityForm';
 import { AmPlaceholder } from './AmPlaceholder';
 import { AmRiskForm } from './AmRiskForm';
 import { AmTimeline } from './AmTimeline';
@@ -53,6 +57,8 @@ type DrawerKind =
   | 'interaction'
   | 'risk'
   | 'opportunity'
+  | 'ai'
+  | 'plan'
   | null;
 
 function bandClass(band: AmAccount360Data['band']): string {
@@ -90,6 +96,12 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
   const [overrideUntil, setOverrideUntil] = useState('');
   const [overrideError, setOverrideError] = useState('');
   const [growthRefreshNonce, setGrowthRefreshNonce] = useState(0);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [taskPrefill, setTaskPrefill] = useState('');
+  const [oppDraft, setOppDraft] = useState<AmOpportunityDraft | undefined>();
+  const [planPrefill, setPlanPrefill] = useState<{ kind: AmPlanKind; period_key?: string }>({
+    kind: 'qbr',
+  });
 
   const canAssign = canAssignAmAccounts(user);
   const canManage = hasCap(user, 'crm_am', 'manage');
@@ -120,6 +132,13 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
       .catch(() => setRoster([]));
   }, [canAssign, token]);
 
+  useEffect(() => {
+    if (!token) return;
+    void fetchAmAiStatus(token)
+      .then((out) => setAiEnabled(Boolean(out.enabled)))
+      .catch(() => setAiEnabled(false));
+  }, [token]);
+
   function setTab(next: Am360TabId) {
     const qs = new URLSearchParams(searchParams.toString());
     if (next === 'overview') qs.delete('tab');
@@ -131,7 +150,31 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
   function openDrawer(kind: DrawerKind) {
     setMenuOpen(false);
     setFormError('');
+    if (kind !== 'task') setTaskPrefill('');
+    if (kind !== 'opportunity') setOppDraft(undefined);
     setDrawer(kind);
+  }
+
+  function openFormFromAi(action: AmAiOpenFormAction) {
+    if (action.form === 'task') {
+      setTaskPrefill(action.prefill.title);
+      setOppDraft(undefined);
+      setDrawer('task');
+      return;
+    }
+    if (action.form === 'opportunity') {
+      setOppDraft({
+        agency_client_id: agencyClientId,
+        title: action.prefill.title,
+        next_step: action.prefill.next_step,
+        source: action.prefill.source ?? 'ai',
+        ai_evidence_json: action.prefill.ai_evidence_json,
+      });
+      setDrawer('opportunity');
+      return;
+    }
+    setPlanPrefill({ kind: action.prefill.kind, period_key: action.prefill.period_key });
+    setDrawer('plan');
   }
 
   async function onPatch(body: Parameters<typeof patchAmAccount>[2]): Promise<boolean> {
@@ -529,6 +572,15 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         >
           Tạo cơ hội
         </button>
+        <button
+          type="button"
+          className="am-btn"
+          disabled={!aiEnabled}
+          title={amAiAskButtonProps(aiEnabled).title}
+          onClick={() => aiEnabled && openDrawer('ai')}
+        >
+          Hỏi AI
+        </button>
       </div>
 
       <nav className="am-360__tabs" aria-label="Account 360">
@@ -589,16 +641,30 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         <AmOpportunityForm
           agencyClientId={agencyClientId}
           canEdit={canEdit}
+          draft={oppDraft}
           onClose={() => setDrawer(null)}
           onSaved={() => {
             setDrawer(null);
+            setOppDraft(undefined);
             setGrowthRefreshNonce(amGrowthNextRefreshNonce);
             void load();
           }}
         />
       ) : null}
+      {drawer === 'ai' ? (
+        <AmAiDrawer
+          agencyClientId={agencyClientId}
+          token={token}
+          onClose={() => setDrawer(null)}
+          onOpenForm={openFormFromAi}
+        />
+      ) : null}
 
-      {drawer && drawer !== 'contact' && drawer !== 'risk' && drawer !== 'opportunity' ? (
+      {drawer &&
+      drawer !== 'contact' &&
+      drawer !== 'risk' &&
+      drawer !== 'opportunity' &&
+      drawer !== 'ai' ? (
         <div
           className="am-drawer-bg"
           role="presentation"
@@ -619,7 +685,9 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
                         ? 'Tạo việc'
                         : drawer === 'interaction'
                           ? 'Log tương tác'
-                          : 'Bắt đầu gia hạn'}
+                          : drawer === 'plan'
+                            ? 'Tạo plan'
+                            : 'Bắt đầu gia hạn'}
               </strong>
               <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
                 Đóng
@@ -732,7 +800,13 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
               <form className="am-form" onSubmit={(ev) => void onCreateTask(ev)}>
                 <label className="am-field">
                   <span>Tiêu đề *</span>
-                  <input name="title" required maxLength={200} />
+                  <input
+                    key={taskPrefill || 'task'}
+                    name="title"
+                    required
+                    maxLength={200}
+                    defaultValue={taskPrefill}
+                  />
                 </label>
                 {formError ? <p className="am-banner">{formError}</p> : null}
                 <div className="am-form__actions">
@@ -741,6 +815,66 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
                   </button>
                   <button type="submit" className="am-btn am-btn--primary" disabled={busy}>
                     Tạo việc
+                  </button>
+                </div>
+              </form>
+            ) : null}
+            {drawer === 'plan' ? (
+              <form
+                className="am-form"
+                onSubmit={(ev) => {
+                  ev.preventDefault();
+                  if (!canEdit || busy) return;
+                  const form = new FormData(ev.currentTarget);
+                  const period_key = String(form.get('period_key') ?? '').trim();
+                  const kind = String(form.get('kind') ?? planPrefill.kind) as AmPlanKind;
+                  if (!period_key) {
+                    setFormError('Cần period');
+                    return;
+                  }
+                  setBusy(true);
+                  setFormError('');
+                  void createAmPlan(token, {
+                    agency_client_id: agencyClientId,
+                    kind,
+                    period_key,
+                  })
+                    .then(async () => {
+                      setDrawer(null);
+                      push('Đã tạo plan', 'success');
+                      await load();
+                    })
+                    .catch((err) => {
+                      setFormError(err instanceof Error ? err.message : 'Không tạo được plan');
+                    })
+                    .finally(() => setBusy(false));
+                }}
+              >
+                <label className="am-field">
+                  <span>Loại *</span>
+                  <select name="kind" defaultValue={planPrefill.kind}>
+                    <option value="care">Care</option>
+                    <option value="qbr">QBR</option>
+                    <option value="renewal">Renewal</option>
+                    <option value="expand">Expand</option>
+                  </select>
+                </label>
+                <label className="am-field">
+                  <span>Period *</span>
+                  <input
+                    name="period_key"
+                    required
+                    placeholder="2026-Q3"
+                    defaultValue={planPrefill.period_key ?? ''}
+                  />
+                </label>
+                {formError ? <p className="am-banner">{formError}</p> : null}
+                <div className="am-form__actions">
+                  <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
+                    Hủy
+                  </button>
+                  <button type="submit" className="am-btn am-btn--primary" disabled={busy}>
+                    Tạo plan
                   </button>
                 </div>
               </form>
