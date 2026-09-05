@@ -1,5 +1,5 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+import { AmOnboarding } from '@/components/crm/am/AmOnboarding';
 
-export default function AmOnboardingDetailPage() {
-  return <AmPlaceholder title="Onboarding" wave={2} />;
+export default function AmOnboardingDetailPage({ params }: { params: { id: string } }) {
+  return <AmOnboarding caseId={params.id} />;
 }

@@ -21,8 +21,13 @@ import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
 import { AmViewsService, type AmCreateViewBody } from './am-views.service';
 import {
   AmOnboardingService,
+  type AmCreateTemplateBody,
+  type AmGoLiveBody,
   type AmHandoverChecklist,
   type AmHandoverListQuery,
+  type AmOnboardingCaseListQuery,
+  type AmPatchCaseBody,
+  type AmPatchTemplateBody,
 } from './am-onboarding.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
@@ -235,5 +240,63 @@ export class AmController {
     @Body() body: { reason?: string },
   ) {
     return this.onboarding.needsInfo(req, id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Get('onboarding-cases')
+  @RequireAmAction('view')
+  listOnboardingCases(@Req() req: AuthedReq, @Query() q: AmOnboardingCaseListQuery) {
+    return this.onboarding.listCases(req, q);
+  }
+
+  @Get('onboarding-cases/:id')
+  @RequireAmAction('view')
+  getOnboardingCase(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.onboarding.getCase(req, id);
+  }
+
+  @Patch('onboarding-cases/:id')
+  @RequireAmAction('edit')
+  patchOnboardingCase(@Req() req: AuthedReq, @Param('id') id: string, @Body() body: AmPatchCaseBody) {
+    return this.onboarding.patchCase(req, id, body ?? {});
+  }
+
+  @Post('onboarding-cases/:id/go-live')
+  @RequireAmAction('edit')
+  async goLiveOnboardingCase(@Req() req: AuthedReq, @Param('id') id: string, @Body() body: AmGoLiveBody) {
+    return this.onboarding.goLive(req, id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Get('onboarding-templates')
+  @RequireAmAction('view')
+  listOnboardingTemplates(@Req() req: AuthedReq) {
+    return this.onboarding.listTemplates(req);
+  }
+
+  @Post('onboarding-templates')
+  @RequireAmAction('manage')
+  createOnboardingTemplate(@Req() req: AuthedReq, @Body() body: AmCreateTemplateBody) {
+    return this.onboarding.createTemplate(req, body ?? {});
+  }
+
+  @Patch('onboarding-templates/:id')
+  @RequireAmAction('manage')
+  patchOnboardingTemplate(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: AmPatchTemplateBody,
+  ) {
+    return this.onboarding.patchTemplate(req, id, body ?? {});
+  }
+
+  @Post('onboarding-templates/:id/clone')
+  @RequireAmAction('manage')
+  cloneOnboardingTemplate(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.onboarding.cloneTemplate(req, id);
+  }
+
+  @Post('onboarding-templates/:id/publish')
+  @RequireAmAction('manage')
+  publishOnboardingTemplate(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.onboarding.publishTemplate(req, id);
   }
 }

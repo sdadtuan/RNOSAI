@@ -562,3 +562,128 @@ export async function needsInfoAmHandover(
     body: JSON.stringify({ reason }),
   });
 }
+
+export type AmOnboardingItemKind = 'checklist' | 'milestone';
+export type AmOnboardingCaseStatus = 'open' | 'closed';
+export type AmOnboardingTrack = 'on_track' | 'at_risk' | 'blocked';
+export type AmOnboardingTemplateStatus = 'draft' | 'published';
+
+export type AmOnboardingTemplateItem = {
+  id: string;
+  kind: AmOnboardingItemKind;
+  phase: string;
+  title: string;
+  owner_role: string;
+  due_offset_days: number;
+  required: boolean;
+};
+
+export type AmOnboardingCaseItem = AmOnboardingTemplateItem & {
+  done: boolean;
+  done_at: string | null;
+  due_on: string | null;
+};
+
+export type AmOnboardingCase = {
+  id: string;
+  agency_client_id: string;
+  name: string;
+  code: string;
+  status: AmOnboardingCaseStatus;
+  go_live_on: string | null;
+  override_reason: string | null;
+  items: AmOnboardingCaseItem[];
+  progress_pct: number | null;
+  owner_name: string | null;
+  delivery_owner: string | null;
+  track: AmOnboardingTrack;
+  health_fresh_24h: boolean;
+  stakeholders: Record<string, unknown>;
+  activity: unknown[];
+  documents: unknown[];
+};
+
+export type AmOnboardingTemplate = {
+  id: string;
+  name: string;
+  version: number;
+  status: AmOnboardingTemplateStatus;
+  items: AmOnboardingTemplateItem[];
+};
+
+export async function fetchAmOnboardingCase(token: string, id: string): Promise<AmOnboardingCase> {
+  return amFetch<AmOnboardingCase>(token, `/api/crm/am/onboarding-cases/${encodeURIComponent(id)}`);
+}
+
+export async function patchAmOnboardingCase(
+  token: string,
+  id: string,
+  items: Array<{ id: string; done: boolean }>,
+): Promise<AmOnboardingCase> {
+  return amFetch<AmOnboardingCase>(token, `/api/crm/am/onboarding-cases/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ items }),
+  });
+}
+
+export async function goLiveAmOnboardingCase(
+  token: string,
+  id: string,
+  body: { go_live_on: string; override?: boolean; override_reason?: string; notes?: string },
+): Promise<AmOnboardingCase> {
+  return amFetch<AmOnboardingCase>(
+    token,
+    `/api/crm/am/onboarding-cases/${encodeURIComponent(id)}/go-live`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export async function fetchAmOnboardingTemplates(
+  token: string,
+): Promise<{ items: AmOnboardingTemplate[] }> {
+  return amFetch<{ items: AmOnboardingTemplate[] }>(token, '/api/crm/am/onboarding-templates');
+}
+
+export async function createAmOnboardingTemplate(
+  token: string,
+  body: { name: string; items: AmOnboardingTemplateItem[] },
+): Promise<AmOnboardingTemplate> {
+  return amFetch<AmOnboardingTemplate>(token, '/api/crm/am/onboarding-templates', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchAmOnboardingTemplate(
+  token: string,
+  id: string,
+  body: { name?: string; items?: AmOnboardingTemplateItem[] },
+): Promise<AmOnboardingTemplate> {
+  return amFetch<AmOnboardingTemplate>(
+    token,
+    `/api/crm/am/onboarding-templates/${encodeURIComponent(id)}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+  );
+}
+
+export async function cloneAmOnboardingTemplate(
+  token: string,
+  id: string,
+): Promise<AmOnboardingTemplate> {
+  return amFetch<AmOnboardingTemplate>(
+    token,
+    `/api/crm/am/onboarding-templates/${encodeURIComponent(id)}/clone`,
+    { method: 'POST' },
+  );
+}
+
+export async function publishAmOnboardingTemplate(
+  token: string,
+  id: string,
+): Promise<AmOnboardingTemplate> {
+  return amFetch<AmOnboardingTemplate>(
+    token,
+    `/api/crm/am/onboarding-templates/${encodeURIComponent(id)}/publish`,
+    { method: 'POST' },
+  );
+}

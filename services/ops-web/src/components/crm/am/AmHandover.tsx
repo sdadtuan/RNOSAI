@@ -47,6 +47,7 @@ export function AmHandover({
   onChanged: (row: AmHandoverRow) => void;
 }) {
   const { token, canEdit } = useAmPage();
+  const router = useRouter();
   const [step, setStep] = useState<AmHandoverStepId>(initialStep);
   const [checklist, setChecklist] = useState<AmHandoverChecklistState>({});
   const [reasonAction, setReasonAction] = useState<ReasonAction | null>(null);
@@ -88,7 +89,12 @@ export function AmHandover({
           setError('checklist_required');
           return;
         }
-        onChanged(await acceptAmHandover(token, handover.id, checklist as AmHandoverChecklist));
+        const accepted = await acceptAmHandover(token, handover.id, checklist as AmHandoverChecklist);
+        onChanged(accepted);
+        if (accepted.onboarding_case_id) {
+          router.push(`/crm/account-management/onboarding/${accepted.onboarding_case_id}`);
+          return;
+        }
         onClose();
         return;
       }
