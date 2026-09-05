@@ -682,7 +682,7 @@ export class AmController {
   @Post('documents')
   @RequireAmAction('edit')
   async createDocument(@Req() req: AuthedReq, @Body() body: AmCreateDocumentInput) {
-    return this.documents.create(body ?? {}, await this.actorStaffId(req));
+    return this.documents.create(req, body ?? {}, await this.actorStaffId(req));
   }
 
   @Get('interactions')

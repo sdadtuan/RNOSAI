@@ -219,7 +219,11 @@ export class AmDocumentsService {
     return listAmDocuments(this.db, filter);
   }
 
-  async create(body: AmCreateDocumentInput, staffId: number): Promise<AmDocument> {
+  async create(
+    req: AmDocumentsReq,
+    body: AmCreateDocumentInput,
+    staffId: number,
+  ): Promise<AmDocument> {
     const clientId = requireClientId(body.agency_client_id);
     const title = String(body.title ?? '').trim();
     if (!title || title.length > 200) amThrow(400, { error: 'invalid_title' });
@@ -228,6 +232,9 @@ export class AmDocumentsService {
     const contractId = optionalContractId(body.contract_id);
     const onboardingCaseId = optionalUuid(body.onboarding_case_id, 'invalid_onboarding_case_id');
     const interactionId = optionalUuid(body.interaction_id, 'invalid_interaction_id');
+
+    const actor = await this.resolveActor(req, undefined);
+    await this.requireScopedClient(actor, clientId);
 
     try {
       const inserted = await this.db.query(
