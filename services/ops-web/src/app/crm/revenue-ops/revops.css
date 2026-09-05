@@ -1,0 +1,305 @@
+:root {
+  --revops-primary: #17692f;
+  --revops-navy: #0f172a;
+  --revops-sidebar: #0b1220;
+}
+
+.revops-shell {
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr);
+  min-height: 100vh;
+  width: 100%;
+  background: #f8fafc;
+  color: var(--revops-navy);
+}
+
+.revops-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--revops-sidebar);
+  color: #cbd5e1;
+}
+
+.revops-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 72px;
+  padding: 0 20px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.revops-brand__logo {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #17692f, #22c55e);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.revops-brand strong {
+  display: block;
+  color: #fff;
+  font-size: 17px;
+}
+
+.revops-brand small {
+  display: block;
+  margin-top: 2px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.revops-nav {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: auto;
+  padding: 16px 10px;
+}
+
+.revops-nav__title {
+  margin: 16px 10px 8px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.revops-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #cbd5e1;
+  text-decoration: none;
+  text-align: left;
+}
+
+.revops-nav-item:hover {
+  background: #172033;
+  color: #fff;
+}
+
+.revops-nav-item.is-active {
+  background: var(--revops-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.revops-nav-item__icon {
+  width: 18px;
+  text-align: center;
+}
+
+.revops-userbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-top: 1px solid #1e293b;
+}
+
+.revops-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #fde68a;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.revops-userbox b {
+  display: block;
+  color: #fff;
+  font-size: 13px;
+}
+
+.revops-userbox small {
+  display: block;
+  margin-top: 3px;
+  color: #94a3b8;
+}
+
+.revops-column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.revops-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 72px;
+  padding: 0 28px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.revops-crumb {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.revops-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.revops-search {
+  width: 260px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  outline: 0;
+}
+
+.revops-iconbtn {
+  width: 38px;
+  height: 38px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.revops-route-map {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 28px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 11px;
+}
+
+.revops-route-map b {
+  margin-right: 4px;
+  color: #64748b;
+}
+
+.revops-route-chip {
+  padding: 3px 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.revops-route-chip code {
+  font-size: 10px;
+  color: var(--revops-primary);
+}
+
+.revops-page {
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 2rem;
+}
+
+.revops-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.revops-page-head h1 {
+  margin: 0;
+  font-size: 25px;
+  letter-spacing: -0.03em;
+}
+
+.revops-page-head p {
+  margin: 7px 0 0;
+  color: #64748b;
+}
+
+.revops-mobile-nav {
+  display: none;
+}
+
+html.ops-shell-bitrix body:has(.revops-shell) main.bitrix-crm-page,
+html.ops-shell-bitrix body:has(.revops-shell) main.ops-page--full,
+body:has(.ops-sidebar):has(.revops-shell) main.ops-page {
+  padding-top: calc(var(--ops-chrome-h, 56px) + 0.25rem) !important;
+  padding-bottom: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  max-width: none !important;
+  width: auto !important;
+}
+
+html.ops-shell-bitrix body:has(.revops-shell) .bitrix-crm-page__inner {
+  padding: 0;
+  width: auto;
+  max-width: none;
+}
+
+@media (max-width: 760px) {
+  .revops-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .revops-sidebar {
+    display: none;
+  }
+
+  .revops-search {
+    display: none;
+  }
+
+  .revops-topbar,
+  .revops-route-map {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+
+  .revops-page {
+    padding: 18px 14px 75px;
+  }
+
+  .revops-mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .revops-mobile-nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 52px;
+    padding: 8px 4px;
+    color: #475569;
+    font-size: 10px;
+    text-decoration: none;
+  }
+
+  .revops-mobile-nav a.is-active {
+    color: var(--revops-primary);
+    font-weight: 700;
+  }
+}
