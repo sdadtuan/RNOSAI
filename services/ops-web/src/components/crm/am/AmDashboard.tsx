@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
+import { isAmDashboardLoading, shouldShowEmptyWidget } from '@/lib/crm/am-dashboard.util';
 import { bandCopy, dash, vnd } from '@/lib/crm/am-format';
 import type { AmHealthBand } from '@/lib/crm/am-format';
 import { useAmPage } from './AmShell';
@@ -128,9 +129,14 @@ function stackParts(values: Array<number | null | undefined>): number[] {
   return nums.map((n) => (n / total) * 100);
 }
 
+function WidgetLoading() {
+  return <p className="am-muted">Đang tải…</p>;
+}
+
 export function AmDashboard() {
-  const { data, error, retry, canEdit, scope } = useAmPage();
+  const { data, error, loading, retry, canEdit, scope } = useAmPage();
   const [attentionSort, setAttentionSort] = useState<'health' | 'mrr' | 'renewal'>('health');
+  const isLoading = isAmDashboardLoading(loading, data);
 
   const coverage = data?.coverage ?? null;
   const today = data?.today_work ?? [];
@@ -211,7 +217,9 @@ export function AmDashboard() {
             Inbox đầy đủ →
           </Link>
         }>
-          {today.length === 0 ? (
+          {isLoading ? (
+            <WidgetLoading />
+          ) : shouldShowEmptyWidget(loading, error, today) ? (
             <p className="am-empty">Bạn đã xử lý xong các việc ưu tiên hôm nay.</p>
           ) : (
             <ul className="am-work">
@@ -270,7 +278,9 @@ export function AmDashboard() {
             </div>
           }
         >
-          {attention.length === 0 ? (
+          {isLoading ? (
+            <WidgetLoading />
+          ) : shouldShowEmptyWidget(loading, error, attention) ? (
             <p className="am-empty">Không có account cần chú ý.</p>
           ) : (
             <table className="am-table">
@@ -347,7 +357,9 @@ export function AmDashboard() {
       </div>
 
       <Widget title="Sổ khách đang giữ" error={error} onRetry={retry}>
-        {book.length === 0 && !error ? (
+        {isLoading ? (
+          <WidgetLoading />
+        ) : shouldShowEmptyWidget(loading, error, book) ? (
           <div className="am-empty-book">
             <p className="am-empty">Chưa có khách trong sổ.</p>
             {canEdit ? (
