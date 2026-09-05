@@ -44,6 +44,12 @@ import {
   type AmStartRenewalBody,
 } from './am-renewals.service';
 import { AmRenewalWorker } from './am-renewal.worker';
+import {
+  AmInteractionsService,
+  type AmCreateInteractionInput,
+  type AmInteractionsListQuery,
+  type AmPatchInteractionInput,
+} from './am-interactions.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -70,6 +76,7 @@ export class AmController {
     private readonly contracts: AmContractsService,
     private readonly renewals: AmRenewalsService,
     private readonly renewalWorker: AmRenewalWorker,
+    private readonly interactions: AmInteractionsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -418,5 +425,27 @@ export class AmController {
   @RequireAmAction('edit')
   async patchRenewal(@Req() req: AuthedReq, @Param('id') id: string, @Body() body: AmPatchRenewalBody) {
     return this.renewals.patch(req, id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Get('interactions')
+  @RequireAmAction('view')
+  listInteractions(@Req() req: AuthedReq, @Query() q: AmInteractionsListQuery) {
+    return this.interactions.list(req, q);
+  }
+
+  @Post('interactions')
+  @RequireAmAction('edit')
+  async createInteraction(@Req() req: AuthedReq, @Body() body: AmCreateInteractionInput) {
+    return this.interactions.create(req, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Patch('interactions/:id')
+  @RequireAmAction('edit')
+  async patchInteraction(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: AmPatchInteractionInput,
+  ) {
+    return this.interactions.patch(req, id, body ?? {}, await this.actorStaffId(req));
   }
 }

@@ -1028,3 +1028,76 @@ export async function patchAmRenewal(
     body: JSON.stringify(body),
   });
 }
+
+export type AmInteractionKind = 'note' | 'call' | 'meeting' | 'email' | 'system';
+
+export type AmInteractionActionItem = {
+  title: string;
+  done?: boolean;
+  due_at?: string;
+};
+
+export type AmInteraction = {
+  id: string;
+  agency_client_id: string;
+  kind: AmInteractionKind;
+  occurred_at: string;
+  actor_staff_id: number | null;
+  summary: string;
+  sentiment: string | null;
+  visibility: string;
+  attendees: string[];
+  action_items: AmInteractionActionItem[];
+  created_at: string;
+  editable: boolean;
+};
+
+export type AmCreateInteractionInput = {
+  agency_client_id: string;
+  kind: Exclude<AmInteractionKind, 'system'>;
+  occurred_at?: string;
+  summary: string;
+  sentiment?: string;
+  visibility?: string;
+  attendees?: string[];
+  action_items?: AmInteractionActionItem[];
+};
+
+export type AmPatchInteractionInput = {
+  summary?: string;
+  sentiment?: string | null;
+  visibility?: string;
+  attendees?: string[];
+  action_items?: AmInteractionActionItem[];
+};
+
+export async function fetchAmInteractions(
+  token: string,
+  query: { agency_client_id: string; scope?: AmScope },
+): Promise<{ items: AmInteraction[] }> {
+  const params = new URLSearchParams();
+  params.set('agency_client_id', query.agency_client_id);
+  if (query.scope) params.set('scope', query.scope);
+  return amFetch<{ items: AmInteraction[] }>(token, `/api/crm/am/interactions?${params.toString()}`);
+}
+
+export async function createAmInteraction(
+  token: string,
+  body: AmCreateInteractionInput,
+): Promise<AmInteraction> {
+  return amFetch<AmInteraction>(token, '/api/crm/am/interactions', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchAmInteraction(
+  token: string,
+  id: string,
+  body: AmPatchInteractionInput,
+): Promise<AmInteraction> {
+  return amFetch<AmInteraction>(token, `/api/crm/am/interactions/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}

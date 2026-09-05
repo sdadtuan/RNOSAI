@@ -15,6 +15,7 @@ import {
   type AmTaskPriority,
 } from '@/lib/crm/am-api';
 import { useToast } from '@/lib/toast';
+import { AmTimeline } from './AmTimeline';
 import { useAmPage, type AmCreateKind } from './AmShell';
 
 type AmCreateMenuProps = {
@@ -122,7 +123,9 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
         ? 'Tạo việc'
         : createKind === 'plan'
           ? 'Tạo Renewal/Plan'
-          : '';
+          : createKind === 'interaction'
+            ? 'Log tương tác'
+            : '';
 
   async function onCreateTask(ev: FormEvent<HTMLFormElement>) {
     ev.preventDefault();
@@ -277,7 +280,7 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
           <button type="button" role="menuitem" disabled title="Mở ở Wave 4">
             Cơ hội
           </button>
-          <button type="button" role="menuitem" disabled title="Mở ở Wave 3">
+          <button type="button" role="menuitem" onClick={() => openStub('interaction')}>
             Log tương tác
           </button>
         </div>
@@ -463,6 +466,16 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
                   </form>
                 )}
               </>
+            ) : null}
+            {createKind === 'interaction' ? (
+              <AmTimeline
+                book={book}
+                composerOnly
+                onSaved={() => {
+                  closeCreate();
+                  retry();
+                }}
+              />
             ) : null}
             {createKind === 'plan' ? (
               <form className="am-form" onSubmit={(ev) => void onCreatePlan(ev)}>

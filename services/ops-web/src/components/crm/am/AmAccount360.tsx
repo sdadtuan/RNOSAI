@@ -32,9 +32,19 @@ import { bandCopy, vnd } from '@/lib/crm/am-format';
 import { useToast } from '@/lib/toast';
 import { AmContactDrawer } from './AmContactDrawer';
 import { AmPlaceholder } from './AmPlaceholder';
+import { AmTimeline } from './AmTimeline';
 import { useAmPage } from './AmShell';
 
-type DrawerKind = 'edit' | 'contact' | 'owner' | 'lifecycle' | 'merge' | 'task' | 'renewal' | null;
+type DrawerKind =
+  | 'edit'
+  | 'contact'
+  | 'owner'
+  | 'lifecycle'
+  | 'merge'
+  | 'task'
+  | 'renewal'
+  | 'interaction'
+  | null;
 
 function bandClass(band: AmAccount360Data['band']): string {
   if (band === 'healthy') return 'am-pill am-pill--ok';
@@ -459,7 +469,13 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
       ) : null}
 
       <div className="am-360__actions">
-        <button type="button" className="am-btn" disabled title="Mở ở Wave 3">
+        <button
+          type="button"
+          className="am-btn"
+          disabled={!canEdit}
+          title={canEdit ? 'Log tương tác' : 'Cần quyền crm_am.edit'}
+          onClick={() => canEdit && openDrawer('interaction')}
+        >
           Log tương tác
         </button>
         <button
@@ -503,6 +519,8 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
 
       {tab === 'overview' ? (
         <OverviewPanel data={data} primary={primary} />
+      ) : tab === 'timeline' ? (
+        <AmTimeline agencyClientId={agencyClientId} />
       ) : tab === 'finance' ? (
         <FinancePanel data={data} />
       ) : tab === 'audit' ? (
@@ -545,12 +563,24 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
                       ? 'Hợp nhất'
                       : drawer === 'task'
                         ? 'Tạo việc'
-                        : 'Bắt đầu gia hạn'}
+                        : drawer === 'interaction'
+                          ? 'Log tương tác'
+                          : 'Bắt đầu gia hạn'}
               </strong>
               <button type="button" className="am-btn" onClick={() => setDrawer(null)}>
                 Đóng
               </button>
             </div>
+            {drawer === 'interaction' ? (
+              <AmTimeline
+                agencyClientId={agencyClientId}
+                composerOnly
+                onSaved={() => {
+                  setDrawer(null);
+                  void load();
+                }}
+              />
+            ) : null}
             {drawer === 'owner' ? (
               <form className="am-form" onSubmit={(ev) => void onTransfer(ev)}>
                 <label className="am-field">

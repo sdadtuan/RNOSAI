@@ -33,12 +33,10 @@ describe('AM_360_TABS', () => {
     expect(am360HasForbiddenTabs()).toBe(false);
   });
 
-  it('implements overview, finance and audit in Wave 2', () => {
+  it('implements overview, finance, audit and Wave 3 timeline', () => {
     const implemented = AM_360_TABS.filter((tab) => tab.implemented).map((tab) => tab.id);
-    expect(implemented).toEqual(['overview', 'finance', 'audit']);
-    expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'timeline')!)).toBe(
-      'Timeline — mở ở Wave 3',
-    );
+    expect(implemented).toEqual(['overview', 'timeline', 'finance', 'audit']);
+    expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'timeline')!)).toBe('');
     expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'opportunities')!)).toBe(
       'Cơ hội — mở ở Wave 4',
     );

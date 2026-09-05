@@ -16,6 +16,7 @@ import { AmOnboardingRepository, AmOnboardingService } from './am-onboarding.ser
 import { AmContractsRepository, AmContractsService } from './am-contracts.service';
 import { AmRenewalsRepository, AmRenewalsService } from './am-renewals.service';
 import { AmRenewalWorker } from './am-renewal.worker';
+import { AmInteractionsRepository, AmInteractionsService } from './am-interactions.service';
 import { AmController } from './am.controller';
 import { StaffAmGuard } from './guards/staff-am.guard';
 
@@ -49,6 +50,8 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmRenewalsRepository,
     AmRenewalsService,
     AmRenewalWorker,
+    AmInteractionsRepository,
+    AmInteractionsService,
   ],
   exports: [
     StaffAmGuard,
@@ -66,6 +69,7 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmContractsService,
     AmRenewalsService,
     AmRenewalWorker,
+    AmInteractionsService,
   ],
 })
 export class AmModule {}
