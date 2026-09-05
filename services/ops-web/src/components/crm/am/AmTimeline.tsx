@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { ApiError } from '@/lib/api';
 import {
   amActionItemToTask,
+  createAmDocument,
   createAmInteraction,
   fetchAmInteractions,
   type AmInteraction,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/crm/am-api';
 import {
   AM_TIMELINE_KINDS,
+  amTimelineAttachError,
   amTimelineComposerError,
   amTimelineErrorCopy,
   amTimelineKindLabel,
@@ -50,6 +52,8 @@ export function AmTimeline({ agencyClientId, book = [], composerOnly, onSaved }:
   const [summary, setSummary] = useState('');
   const [sentiment, setSentiment] = useState('');
   const [visibility, setVisibility] = useState('internal');
+  const [attachmentTitle, setAttachmentTitle] = useState('');
+  const [attachmentHref, setAttachmentHref] = useState('');
   const [items, setItems] = useState<ActionDraft[]>([{ title: '', done: false, due_at: '' }]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -89,6 +93,8 @@ export function AmTimeline({ agencyClientId, book = [], composerOnly, onSaved }:
     setSummary('');
     setSentiment('');
     setVisibility('internal');
+    setAttachmentTitle('');
+    setAttachmentHref('');
     setItems([{ title: '', done: false, due_at: '' }]);
     setFormError('');
   }
@@ -99,12 +105,17 @@ export function AmTimeline({ agencyClientId, book = [], composerOnly, onSaved }:
     const accountId = (agencyClientId || clientId).trim();
     const attendeeList = parseAttendeesInput(attendees);
     const err = amTimelineComposerError({ kind, attendees: attendeeList, summary });
+    const attachErr = amTimelineAttachError({ href: attachmentHref, title: attachmentTitle });
     if (!accountId) {
       setFormError('Cần chọn account');
       return;
     }
     if (err) {
       setFormError(err);
+      return;
+    }
+    if (attachErr) {
+      setFormError(attachErr);
       return;
     }
     const actionItems: AmInteractionActionItem[] = items
@@ -117,7 +128,7 @@ export function AmTimeline({ agencyClientId, book = [], composerOnly, onSaved }:
     setSaving(true);
     setFormError('');
     try {
-      await createAmInteraction(token, {
+      const created = await createAmInteraction(token, {
         agency_client_id: accountId,
         kind,
         occurred_at: occurredAt ? new Date(occurredAt).toISOString() : undefined,
@@ -127,6 +138,23 @@ export function AmTimeline({ agencyClientId, book = [], composerOnly, onSaved }:
         attendees: attendeeList,
         action_items: actionItems,
       });
+      const href = attachmentHref.trim();
+      if (href) {
+        try {
+          await createAmDocument(token, {
+            agency_client_id: accountId,
+            title: attachmentTitle.trim(),
+            href,
+            interaction_id: created.id,
+          });
+        } catch {
+          push('Đã ghi tương tác — không lưu được link', 'info');
+          resetComposer();
+          if (!composerOnly) await load();
+          onSaved?.();
+          return;
+        }
+      }
       push('Đã lưu tương tác', 'success');
       resetComposer();
       if (!composerOnly) await load();
@@ -237,6 +265,24 @@ export function AmTimeline({ agencyClientId, book = [], composerOnly, onSaved }:
               <option value="internal">Internal</option>
               <option value="shared">Shared with client</option>
             </select>
+          </label>
+          <label className="am-field">
+            <span>Tiêu đề tài liệu</span>
+            <input
+              value={attachmentTitle}
+              onChange={(ev) => setAttachmentTitle(ev.target.value)}
+              maxLength={200}
+              placeholder="Tùy chọn"
+            />
+          </label>
+          <label className="am-field">
+            <span>Link tài liệu</span>
+            <input
+              name="attachment_href"
+              value={attachmentHref}
+              onChange={(ev) => setAttachmentHref(ev.target.value)}
+              placeholder="https:// hoặc /"
+            />
           </label>
           <div className="am-timeline__actions">
             <span>Action items</span>

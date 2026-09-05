@@ -5,9 +5,11 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError } from '@/lib/api';
 import {
+  fetchAmInteractions,
   fetchAmOnboardingCase,
   goLiveAmOnboardingCase,
   patchAmOnboardingCase,
+  type AmInteraction,
   type AmOnboardingCase,
   type AmOnboardingCaseItem,
 } from '@/lib/crm/am-api';
@@ -21,6 +23,7 @@ import {
   parseAmOnboardingTab,
   type AmOnboardingTabId,
 } from '@/lib/crm/am-onboarding.util';
+import { amTimelineKindLabel } from '@/lib/crm/am-timeline.util';
 import { AmDocumentsPanel } from './AmDocumentsPanel';
 import { useAmPage } from './AmShell';
 
@@ -59,7 +62,7 @@ function goLiveErrorCopy(code: string): string {
 }
 
 export function AmOnboarding({ caseId }: { caseId: string }) {
-  const { token, canEdit } = useAmPage();
+  const { token, canEdit, scope } = useAmPage();
   const router = useRouter();
   const pathname = usePathname() ?? `/crm/account-management/onboarding/${caseId}`;
   const searchParams = useSearchParams();
@@ -77,6 +80,7 @@ export function AmOnboarding({ caseId }: { caseId: string }) {
   const [override, setOverride] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
   const [modalError, setModalError] = useState('');
+  const [activity, setActivity] = useState<AmInteraction[]>([]);
 
   const load = useCallback(async () => {
     if (!token || !caseId) return;
@@ -98,6 +102,21 @@ export function AmOnboarding({ caseId }: { caseId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (tab !== 'activity' || !token || !data?.agency_client_id) return;
+    let cancelled = false;
+    void fetchAmInteractions(token, { agency_client_id: data.agency_client_id, scope })
+      .then((out) => {
+        if (!cancelled) setActivity(out.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setActivity([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, token, data?.agency_client_id, scope]);
 
   function setTab(next: AmOnboardingTabId) {
     const qs = new URLSearchParams(searchParams.toString());
@@ -397,7 +416,23 @@ export function AmOnboarding({ caseId }: { caseId: string }) {
           {tab === 'activity' ? (
             <div>
               <h2>Activity</h2>
-              <p className="am-muted">—</p>
+              {activity.length === 0 ? (
+                <p className="am-muted">—</p>
+              ) : (
+                <ul className="am-onboard__items">
+                  {activity.map((row) => (
+                    <li key={row.id}>
+                      <div className="am-timeline__meta">
+                        <span className="am-timeline__kind">{amTimelineKindLabel(row.kind)}</span>
+                        <time dateTime={row.occurred_at}>
+                          {new Date(row.occurred_at).toLocaleString('vi-VN')}
+                        </time>
+                      </div>
+                      <p>{row.summary || '—'}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           ) : null}
 

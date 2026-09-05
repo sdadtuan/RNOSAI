@@ -1,3 +1,5 @@
+import { isSafeAmDocumentHref } from './am-document-href';
+
 export type AmTimelineKind = 'note' | 'call' | 'meeting' | 'email' | 'system';
 
 export type AmTimelineComposerInput = {
@@ -12,6 +14,15 @@ export const AM_TIMELINE_KINDS: Array<{ value: Exclude<AmTimelineKind, 'system'>
   { value: 'meeting', label: 'Cuộc họp' },
   { value: 'email', label: 'Email' },
 ];
+
+export function amTimelineAttachError(input: { href?: string; title?: string }): string {
+  const href = String(input.href ?? '').trim();
+  const title = String(input.title ?? '').trim();
+  if (!href && !title) return '';
+  if (!title) return 'Cần tiêu đề tài liệu';
+  if (!isSafeAmDocumentHref(href)) return 'Link phải là http(s) hoặc đường dẫn /';
+  return '';
+}
 
 export function amTimelineComposerError(input: AmTimelineComposerInput): string {
   if (!String(input.summary ?? '').trim()) return 'Cần tóm tắt';
