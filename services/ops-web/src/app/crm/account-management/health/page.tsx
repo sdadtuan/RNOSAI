@@ -1,5 +1,5 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+import { AmHealthCenter } from '@/components/crm/am/AmHealthCenter';
 
 export default function AmHealthPage() {
-  return <AmPlaceholder title="Health & Risk" wave={3} />;
+  return <AmHealthCenter />;
 }

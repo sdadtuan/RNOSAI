@@ -14,6 +14,8 @@ import {
   weightedScore,
   type AmBandRanges,
 } from './am-health.util';
+import { sumRevenueAtRisk } from './am-dashboard.service';
+import { monthlyRecurringVnd } from './am-money.util';
 import { AmSettingsService } from './am-settings.service';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
 import { isUuid } from './am-tasks.service';
@@ -74,6 +76,88 @@ export type AmHealthLatestSnapshot = {
   thin_data: boolean;
 };
 
+export type AmHealthCenterRow = {
+  agency_client_id: string;
+  name: string;
+  am_status: AmAmStatus;
+  score: number | null;
+  band: AmHealthBand | null;
+  override_band: AmHealthBand | null;
+  override_until: string | null;
+  owner_label: string;
+  open_risks: number;
+  recovery_status: string | null;
+  prior_score: number | null;
+  mrr_vnd: number | null;
+};
+
+export type AmHealthCenterQuery = { scope?: AmScope; from?: string; to?: string };
+
+export type AmHealthCenterTiles = {
+  healthy: number;
+  watch: number;
+  at_risk: number;
+  critical: number;
+  revenue_at_risk_vnd: number | null;
+  open_risks: number;
+};
+
+export type AmHealthRiskyRow = {
+  agency_client_id: string;
+  name: string;
+  score: number | null;
+  band: 'at_risk' | 'critical';
+  delta_30d: number | null;
+  mrr_vnd: number | null;
+  owner_label: string;
+  open_risks: number;
+  recovery_status: string | null;
+};
+
+export type AmHealthCenterResult = {
+  hide_amounts: boolean;
+  tiles: AmHealthCenterTiles;
+  sparkline: Array<{ as_of: string; avg: number | null }>;
+  risky: AmHealthRiskyRow[];
+};
+
+export type AmHealthDetailRow = {
+  agency_client_id: string;
+  name: string;
+  score: number | null;
+  band: AmHealthBand | null;
+  as_of: string | null;
+  scorecard_version: number | null;
+  thin_data: boolean;
+  override_band: AmHealthBand | null;
+  override_reason: string | null;
+  override_until: string | null;
+  components: AmHealthComponents | null;
+};
+
+export type AmHealthContribution = {
+  key: keyof AmHealthComponents;
+  score: number;
+  weight: number;
+  points: number;
+};
+
+export type AmHealthDetailResult = {
+  agency_client_id: string;
+  name: string;
+  score: number | null;
+  band: AmHealthBand | null;
+  as_of: string | null;
+  scorecard_version: number | null;
+  thin_data: boolean;
+  override: { band: AmHealthBand; reason: string; until: string } | null;
+  weights: AmHealthComponents;
+  components: AmHealthComponents | null;
+  contribution: AmHealthContribution[];
+  trend: Array<{ as_of: string; score: number | null }>;
+  signals: string[];
+};
+
 export type AmHealthStore = {
   listAccounts(): Promise<AmHealthAccountRow[]>;
   upsertSnapshot(input: AmHealthSnapshotInput): Promise<void>;
@@ -91,6 +175,20 @@ export type AmHealthStore = {
     scopeSql: string,
     scopeParams: unknown[],
   ): Promise<boolean>;
+  loadCenterRows(scopeSql: string, scopeParams: unknown[], asOf: string): Promise<AmHealthCenterRow[]>;
+  loadSparkline(
+    scopeSql: string,
+    scopeParams: unknown[],
+    months: string[],
+  ): Promise<Array<{ as_of: string; avg: number | null }>>;
+  countOpenRisks(scopeSql: string, scopeParams: unknown[]): Promise<number>;
+  loadTeamIds(staffId: number): Promise<number[]>;
+  loadDetail(
+    agencyClientId: string,
+    scopeSql: string,
+    scopeParams: unknown[],
+  ): Promise<AmHealthDetailRow | null>;
+  loadTrend(agencyClientId: string): Promise<Array<{ as_of: string; score: number | null }>>;
 };
 
 export type AmHealthReq = {
@@ -308,6 +406,288 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
     );
   }
 
+  async loadCenterRows(
+    scopeSql: string,
+    scopeParams: unknown[],
+    asOf: string,
+  ): Promise<AmHealthCenterRow[]> {
+    const sql = `
+      SELECT
+        e.agency_client_id::text AS agency_client_id,
+        e.am_status,
+        c.name,
+        COALESCE(owner.name, '') AS owner_label,
+        snap.score,
+        snap.band,
+        snap.override_band,
+        snap.override_until,
+        prior.score AS prior_score,
+        COALESCE(risks.open_risks, 0)::int AS open_risks,
+        rec.status AS recovery_status,
+        COALESCE(cts.contracts, '[]'::json) AS contracts
+      FROM crm_am_account_ext e
+      INNER JOIN clients c ON c.id = e.agency_client_id
+      LEFT JOIN crm_staff owner ON owner.id = e.account_owner_staff_id
+      LEFT JOIN LATERAL (
+        SELECT h.score, h.band, h.override_band, h.override_until
+          FROM crm_am_health_snapshots h
+         WHERE h.tenant_id = $1
+           AND h.agency_client_id = e.agency_client_id
+           AND h.as_of <= $2::date
+         ORDER BY h.as_of DESC
+         LIMIT 1
+      ) snap ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT h.score
+          FROM crm_am_health_snapshots h
+         WHERE h.tenant_id = $1
+           AND h.agency_client_id = e.agency_client_id
+           AND h.as_of <= ($2::date - INTERVAL '30 days')
+         ORDER BY h.as_of DESC
+         LIMIT 1
+      ) prior ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS open_risks
+          FROM crm_am_risks r
+         WHERE r.tenant_id = $1
+           AND r.agency_client_id = e.agency_client_id
+           AND r.status = 'open'
+      ) risks ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT p.status
+          FROM crm_am_recovery_plans p
+         WHERE p.tenant_id = $1
+           AND p.agency_client_id = e.agency_client_id
+         ORDER BY p.created_at DESC
+         LIMIT 1
+      ) rec ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT json_agg(json_build_object(
+          'status', ct.status,
+          'billing_type', ct.billing_type,
+          'amount_vnd', ct.amount_vnd,
+          'starts_on', ct.starts_on,
+          'ends_on', ct.ends_on
+        )) AS contracts
+          FROM crm_contracts ct
+         WHERE TRIM(COALESCE(ct.agency_client_id, '')) = e.agency_client_id::text
+      ) cts ON TRUE
+      WHERE e.tenant_id = $1
+        AND ${scopeSql}`;
+    try {
+      const result = await this.db.query(sql, [AM_TENANT_ID, asOf, ...scopeParams]);
+      return result.rows.map(mapCenterRow);
+    } catch (err) {
+      if (!isMissingRelation(err)) throw err;
+      return this.loadCenterRowsLite(scopeSql, scopeParams, asOf);
+    }
+  }
+
+  async loadSparkline(
+    scopeSql: string,
+    scopeParams: unknown[],
+    months: string[],
+  ): Promise<Array<{ as_of: string; avg: number | null }>> {
+    const empty = months.map((as_of) => ({ as_of, avg: null as number | null }));
+    if (!months.length) return empty;
+    const from = months[0];
+    const last = months[months.length - 1];
+    const toExclusive = addMonthsYmd(last, 1);
+    const sql = `
+      SELECT to_char(date_trunc('month', h.as_of), 'YYYY-MM-01') AS month_start,
+             AVG(h.score)::float AS avg
+        FROM crm_am_health_snapshots h
+        JOIN crm_am_account_ext e
+          ON e.tenant_id = h.tenant_id AND e.agency_client_id = h.agency_client_id
+       WHERE h.tenant_id = $1
+         AND h.as_of >= $2::date
+         AND h.as_of < $3::date
+         AND e.am_status <> 'churned'
+         AND ${scopeSql}
+       GROUP BY 1`;
+    try {
+      const result = await this.db.query<{ month_start: string; avg: string | number | null }>(
+        sql,
+        [AM_TENANT_ID, from, toExclusive, ...scopeParams],
+      );
+      const byMonth = new Map<string, number | null>();
+      for (const row of result.rows) {
+        const key = String(row.month_start ?? '').slice(0, 10);
+        const avg = row.avg == null ? null : Number(row.avg);
+        byMonth.set(key, avg != null && Number.isFinite(avg) ? round1(avg) : null);
+      }
+      return months.map((as_of) => ({ as_of, avg: byMonth.get(as_of) ?? null }));
+    } catch (err) {
+      if (isMissingRelation(err)) return empty;
+      throw err;
+    }
+  }
+
+  async countOpenRisks(scopeSql: string, scopeParams: unknown[]): Promise<number> {
+    try {
+      const result = await this.db.query<{ n: string | number }>(
+        `SELECT COUNT(*)::int AS n
+           FROM crm_am_risks r
+           JOIN crm_am_account_ext e
+             ON e.tenant_id = r.tenant_id AND e.agency_client_id = r.agency_client_id
+          WHERE r.tenant_id = $1
+            AND r.status = 'open'
+            AND ${scopeSql}`,
+        [AM_TENANT_ID, ...scopeParams],
+      );
+      return Number(result.rows[0]?.n ?? 0) || 0;
+    } catch (err) {
+      if (isMissingRelation(err)) return 0;
+      throw err;
+    }
+  }
+
+  async loadTeamIds(staffId: number): Promise<number[]> {
+    if (staffId <= 0) return [];
+    try {
+      const result = await this.db.query(
+        `SELECT t.id
+           FROM crm_staff cs
+           JOIN staff_users u ON lower(trim(u.email)) = lower(trim(cs.email))
+           JOIN staff_user_teams sut ON sut.user_id = u.id
+           JOIN staff_teams t ON t.id = sut.team_id AND t.active IS TRUE
+          WHERE cs.id = $1`,
+        [staffId],
+      );
+      return result.rows
+        .map((row) => Number(row.id))
+        .filter((n) => Number.isFinite(n) && n > 0);
+    } catch (err) {
+      if (isMissingRelation(err)) return [];
+      throw err;
+    }
+  }
+
+  async loadDetail(
+    agencyClientId: string,
+    scopeSql: string,
+    scopeParams: unknown[],
+  ): Promise<AmHealthDetailRow | null> {
+    const sql = `
+      SELECT
+        e.agency_client_id::text AS agency_client_id,
+        c.name,
+        snap.as_of,
+        snap.score,
+        snap.band,
+        snap.components_json,
+        snap.scorecard_version,
+        snap.thin_data,
+        snap.override_band,
+        snap.override_reason,
+        snap.override_until
+      FROM crm_am_account_ext e
+      INNER JOIN clients c ON c.id = e.agency_client_id
+      LEFT JOIN LATERAL (
+        SELECT h.as_of, h.score, h.band, h.components_json, h.scorecard_version,
+               h.thin_data, h.override_band, h.override_reason, h.override_until
+          FROM crm_am_health_snapshots h
+         WHERE h.tenant_id = $1 AND h.agency_client_id = e.agency_client_id
+         ORDER BY h.as_of DESC
+         LIMIT 1
+      ) snap ON TRUE
+      WHERE e.tenant_id = $1
+        AND e.agency_client_id = $2::uuid
+        AND ${scopeSql}
+      LIMIT 1`;
+    try {
+      const result = await this.db.query(sql, [AM_TENANT_ID, agencyClientId, ...scopeParams]);
+      const row = result.rows[0];
+      if (!row) return null;
+      return {
+        agency_client_id: String(row.agency_client_id ?? ''),
+        name: String(row.name ?? ''),
+        score: row.score == null ? null : Number(row.score),
+        band: row.band ? (String(row.band) as AmHealthBand) : null,
+        as_of: dayStr(row.as_of),
+        scorecard_version: row.scorecard_version == null ? null : Number(row.scorecard_version),
+        thin_data: Boolean(row.thin_data),
+        override_band: row.override_band ? (String(row.override_band) as AmHealthBand) : null,
+        override_reason: row.override_reason != null ? String(row.override_reason) : null,
+        override_until: dayStr(row.override_until),
+        components: row.components_json ? parseWeights(row.components_json) : null,
+      };
+    } catch (err) {
+      if (isMissingRelation(err)) return null;
+      throw err;
+    }
+  }
+
+  async loadTrend(agencyClientId: string): Promise<Array<{ as_of: string; score: number | null }>> {
+    try {
+      const result = await this.db.query(
+        `SELECT as_of, score
+           FROM crm_am_health_snapshots
+          WHERE tenant_id = $1 AND agency_client_id = $2::uuid
+          ORDER BY as_of DESC
+          LIMIT 4`,
+        [AM_TENANT_ID, agencyClientId],
+      );
+      return result.rows
+        .map((row) => ({
+          as_of: dayStr(row.as_of) ?? '',
+          score: row.score == null ? null : Number(row.score),
+        }))
+        .reverse();
+    } catch (err) {
+      if (isMissingRelation(err)) return [];
+      throw err;
+    }
+  }
+
+  private async loadCenterRowsLite(
+    scopeSql: string,
+    scopeParams: unknown[],
+    asOf: string,
+  ): Promise<AmHealthCenterRow[]> {
+    const sql = `
+      SELECT
+        e.agency_client_id::text AS agency_client_id,
+        e.am_status,
+        c.name,
+        COALESCE(owner.name, '') AS owner_label,
+        snap.score,
+        snap.band,
+        snap.override_band,
+        snap.override_until,
+        prior.score AS prior_score
+      FROM crm_am_account_ext e
+      INNER JOIN clients c ON c.id = e.agency_client_id
+      LEFT JOIN crm_staff owner ON owner.id = e.account_owner_staff_id
+      LEFT JOIN LATERAL (
+        SELECT h.score, h.band, h.override_band, h.override_until
+          FROM crm_am_health_snapshots h
+         WHERE h.tenant_id = $1
+           AND h.agency_client_id = e.agency_client_id
+           AND h.as_of <= $2::date
+         ORDER BY h.as_of DESC
+         LIMIT 1
+      ) snap ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT h.score
+          FROM crm_am_health_snapshots h
+         WHERE h.tenant_id = $1
+           AND h.agency_client_id = e.agency_client_id
+           AND h.as_of <= ($2::date - INTERVAL '30 days')
+         ORDER BY h.as_of DESC
+         LIMIT 1
+      ) prior ON TRUE
+      WHERE e.tenant_id = $1
+        AND ${scopeSql}`;
+    try {
+      const result = await this.db.query(sql, [AM_TENANT_ID, asOf, ...scopeParams]);
+      return result.rows.map((row) => mapCenterRow({ ...row, open_risks: 0, recovery_status: null, contracts: [] }));
+    } catch (err) {
+      if (isMissingRelation(err)) return [];
+      throw err;
+    }
+  }
+
   private async loadLatestOverride(
     agencyClientId: string,
   ): Promise<{ band: string | null; reason: string | null; until: string | null } | null> {
@@ -520,6 +900,113 @@ export class AmHealthService {
     return { agency_client_id: id, band, reason, until };
   }
 
+  async center(req: AmHealthReq, query: AmHealthCenterQuery = {}): Promise<AmHealthCenterResult> {
+    const actor = await this.resolveActor(req, query.scope);
+    const scopeFrag = amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds });
+    const asOf = parseAsOf(query.to);
+    const months = last6MonthsIct(asOf);
+    const hideAmounts = await this.shouldHideAmounts(req);
+    const rowsBound = bindScopeSql(scopeFrag, 3);
+    const sparkBound = bindScopeSql(scopeFrag, 4);
+    const riskBound = bindScopeSql(scopeFrag, 2);
+    const [rows, sparkline, openRisks] = await Promise.all([
+      this.repo.loadCenterRows(rowsBound.sql, rowsBound.params, asOf),
+      this.repo.loadSparkline(sparkBound.sql, sparkBound.params, months),
+      this.repo.countOpenRisks(riskBound.sql, riskBound.params),
+    ]);
+    const book = rows.filter((row) => row.am_status !== 'churned');
+    const tiles: AmHealthCenterTiles = {
+      healthy: 0,
+      watch: 0,
+      at_risk: 0,
+      critical: 0,
+      revenue_at_risk_vnd: null,
+      open_risks: openRisks,
+    };
+    const riskRows: AmHealthRiskyRow[] = [];
+    const moneyRows: Array<{ band: string; mrr: number | null }> = [];
+    for (const row of book) {
+      const band = effectiveCenterBand(row, asOf);
+      if (band) tiles[band] += 1;
+      moneyRows.push({ band: band ?? '', mrr: row.mrr_vnd });
+      if (band === 'at_risk' || band === 'critical') {
+        const delta =
+          row.score != null && row.prior_score != null ? round1(row.score - row.prior_score) : null;
+        riskRows.push({
+          agency_client_id: row.agency_client_id,
+          name: row.name,
+          score: row.score,
+          band,
+          delta_30d: delta,
+          mrr_vnd: hideAmounts ? null : row.mrr_vnd,
+          owner_label: row.owner_label || 'Chưa gán',
+          open_risks: row.open_risks,
+          recovery_status: row.recovery_status,
+        });
+      }
+    }
+    const atRisk = sumRevenueAtRisk(moneyRows);
+    tiles.revenue_at_risk_vnd = hideAmounts ? null : atRisk.vnd;
+    riskRows.sort((a, b) => {
+      const rank = { critical: 0, at_risk: 1 };
+      const br = rank[a.band] - rank[b.band];
+      if (br) return br;
+      return (b.mrr_vnd ?? 0) - (a.mrr_vnd ?? 0);
+    });
+    return { hide_amounts: hideAmounts, tiles, sparkline, risky: riskRows };
+  }
+
+  async detail(req: AmHealthReq, agencyClientId: string): Promise<AmHealthDetailResult> {
+    const id = String(agencyClientId ?? '').trim();
+    if (!isUuid(id)) amThrow(404, { error: 'not_found' });
+    const actor = await this.resolveActor(req);
+    const bound = bindScopeSql(
+      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
+      3,
+    );
+    const row = await this.repo.loadDetail(id, bound.sql, bound.params);
+    if (!row) amThrow(404, { error: 'not_found' });
+    const scorecard = await this.loadScorecard();
+    const today = ictYmd();
+    const overrideActive = Boolean(
+      row.override_band && row.override_until && row.override_until >= today && HEALTH_BANDS.has(row.override_band),
+    );
+    const override = overrideActive
+      ? {
+          band: row.override_band as AmHealthBand,
+          reason: row.override_reason ?? '',
+          until: row.override_until ?? '',
+        }
+      : null;
+    const band = override ? override.band : row.band;
+    const components = row.components;
+    const contribution: AmHealthContribution[] = components
+      ? (Object.keys(scorecard.weights) as Array<keyof AmHealthComponents>).map((key) => ({
+          key,
+          score: components[key],
+          weight: scorecard.weights[key],
+          points: round1((components[key] * scorecard.weights[key]) / 100),
+        }))
+      : [];
+    const trendRaw = await this.repo.loadTrend(id);
+    const trend = padTrend(trendRaw);
+    return {
+      agency_client_id: row.agency_client_id,
+      name: row.name,
+      score: row.score,
+      band,
+      as_of: row.as_of,
+      scorecard_version: row.scorecard_version ?? scorecard.scorecard_version,
+      thin_data: row.thin_data,
+      override,
+      weights: scorecard.weights,
+      components,
+      contribution,
+      trend,
+      signals: deriveSignals({ thin_data: row.thin_data, override, components }),
+    };
+  }
+
   private async loadScorecard(): Promise<{
     weights: AmHealthComponents;
     bands: AmBandRanges;
@@ -540,7 +1027,20 @@ export class AmHealthService {
     };
   }
 
-  private async resolveActor(req: AmHealthReq): Promise<{
+  private async shouldHideAmounts(req: AmHealthReq): Promise<boolean> {
+    if (req.staffAuthVia === 'internal' && !req.staffUser) return false;
+    if (!req.staffUser || !this.staffAuth) return true;
+    const me = await this.staffAuth.me(req.staffUser);
+    return !(
+      this.staffAuth.hasCap(me.caps, 'crm_am.finance', 'view') ||
+      this.staffAuth.hasCap(me.caps, 'crm_am', 'manage')
+    );
+  }
+
+  private async resolveActor(
+    req: AmHealthReq,
+    requested: AmScope | undefined = 'all',
+  ): Promise<{
     staffId: number;
     scope: AmScope;
     teamIds: number[];
@@ -550,7 +1050,7 @@ export class AmHealthService {
       ? ((await this.staffAuth?.resolveCrmStaffUserId(req.staffUser)) ?? 0)
       : 0;
     if (internal && !req.staffUser) {
-      return { staffId, scope: resolveAmScope({ requested: 'all', hasViewAll: true, canTeam: true }), teamIds: [] };
+      return { staffId, scope: resolveAmScope({ requested, hasViewAll: true, canTeam: true }), teamIds: [] };
     }
     if (!req.staffUser || !this.staffAuth) {
       return { staffId, scope: 'me', teamIds: [] };
@@ -559,8 +1059,9 @@ export class AmHealthService {
     const has = (action: string) => this.staffAuth!.hasCap(me.caps, 'crm_am', action);
     const hasViewAll = has('view_all') || has('manage');
     const canTeam = hasViewAll || has('assign');
-    const scope = resolveAmScope({ requested: 'all', hasViewAll, canTeam });
-    return { staffId, scope, teamIds: [] };
+    const scope = resolveAmScope({ requested, hasViewAll, canTeam });
+    const teamIds = scope === 'team' ? await this.repo.loadTeamIds(staffId) : [];
+    return { staffId, scope, teamIds };
   }
 }
 
@@ -575,6 +1076,100 @@ function dayStr(value: unknown): string | null {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   const s = String(value);
   return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+function last6MonthsIct(asOf: string): string[] {
+  const [year, month] = asOf.split('-').map((part) => Number(part));
+  const out: string[] = [];
+  for (let i = 5; i >= 0; i -= 1) {
+    const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1 - i, 1));
+    out.push(`${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-01`);
+  }
+  return out;
+}
+
+function addMonthsYmd(ymd: string, months: number): string {
+  const [year, month, day] = ymd.split('-').map((part) => Number(part));
+  const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1 + months, day || 1));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
+
+function effectiveCenterBand(row: AmHealthCenterRow, asOf: string): AmHealthBand | null {
+  if (row.override_band && row.override_until && row.override_until >= asOf) {
+    return HEALTH_BANDS.has(row.override_band) ? row.override_band : null;
+  }
+  if (row.band && HEALTH_BANDS.has(row.band)) return row.band;
+  if (row.score != null) return bandFromScore(row.score);
+  return null;
+}
+
+function mapCenterRow(row: Record<string, unknown>): AmHealthCenterRow {
+  return {
+    agency_client_id: String(row.agency_client_id ?? ''),
+    name: String(row.name ?? ''),
+    am_status: String(row.am_status ?? 'active') as AmAmStatus,
+    score: row.score == null ? null : Number(row.score),
+    band: row.band ? (String(row.band) as AmHealthBand) : null,
+    override_band: row.override_band ? (String(row.override_band) as AmHealthBand) : null,
+    override_until: dayStr(row.override_until),
+    owner_label: String(row.owner_label ?? ''),
+    open_risks: Number(row.open_risks ?? 0) || 0,
+    recovery_status: row.recovery_status != null ? String(row.recovery_status) : null,
+    prior_score: row.prior_score == null ? null : Number(row.prior_score),
+    mrr_vnd: accountMrrFromContracts(row.contracts),
+  };
+}
+
+function accountMrrFromContracts(raw: unknown): number | null {
+  const list = Array.isArray(raw) ? raw : [];
+  let sum = 0;
+  let any = false;
+  for (const item of list) {
+    const ct = item as Record<string, unknown>;
+    const status = String(ct.status ?? '').trim().toLowerCase();
+    if (status !== 'active' && status !== 'renewing') continue;
+    const mrr = monthlyRecurringVnd({
+      billingType: String(ct.billing_type ?? '').trim().toLowerCase(),
+      amountVnd: Number(ct.amount_vnd ?? 0),
+      startsOn: dayStr(ct.starts_on),
+      endsOn: dayStr(ct.ends_on),
+    });
+    if (mrr == null) continue;
+    sum += mrr;
+    any = true;
+  }
+  return any ? sum : null;
+}
+
+function padTrend(
+  rows: Array<{ as_of: string; score: number | null }>,
+): Array<{ as_of: string; score: number | null }> {
+  const out = [...rows];
+  while (out.length < 4) out.unshift({ as_of: '', score: null });
+  return out.slice(-4);
+}
+
+function deriveSignals(input: {
+  thin_data: boolean;
+  override: { band: AmHealthBand; reason: string; until: string } | null;
+  components: AmHealthComponents | null;
+}): string[] {
+  const out: string[] = [];
+  if (input.thin_data) out.push('Dữ liệu mỏng');
+  if (input.override) out.push(`Override ${input.override.band}`);
+  const labels: Record<keyof AmHealthComponents, string> = {
+    kpi_delivery: 'KPI Delivery',
+    engagement: 'Engagement',
+    financial: 'Financial',
+    satisfaction: 'Satisfaction',
+    contract_support: 'Contract & Support',
+  };
+  if (input.components) {
+    for (const key of Object.keys(labels) as Array<keyof AmHealthComponents>) {
+      if (input.components[key] < 60) out.push(`${labels[key]} thấp`);
+    }
+  }
+  return out;
 }
 
 function bindScopeSql(

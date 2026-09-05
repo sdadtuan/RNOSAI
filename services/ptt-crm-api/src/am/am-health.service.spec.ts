@@ -199,3 +199,184 @@ describe('AmHealthService', () => {
     expect(repo.applyOverride).not.toHaveBeenCalled();
   });
 });
+
+const CENTER_A = '19d722af-0000-4000-8000-000000000001';
+const CENTER_B = '19d722af-0000-4000-8000-000000000002';
+const CENTER_C = '19d722af-0000-4000-8000-000000000003';
+const CENTER_D = '19d722af-0000-4000-8000-000000000004';
+
+describe('AmHealthService center', () => {
+  const repo = {
+    listAccounts: jest.fn(),
+    upsertSnapshot: jest.fn(),
+    loadWeights: jest.fn(),
+    applyOverride: jest.fn(),
+    findAccount: jest.fn(),
+    loadCenterRows: jest.fn(),
+    loadSparkline: jest.fn(),
+    countOpenRisks: jest.fn(),
+    loadTeamIds: jest.fn(),
+    loadDetail: jest.fn(),
+    loadTrend: jest.fn(),
+  };
+  const audit = { insert: jest.fn() };
+  const dashboard = { dropCache: jest.fn() };
+  const staffAuth = {
+    resolveCrmStaffUserId: jest.fn(async () => 7),
+    me: jest.fn(async () => ({
+      caps: [
+        { section: 'crm_am', action: 'view' },
+        { section: 'crm_am', action: 'view_all' },
+        { section: 'crm_am.finance', action: 'view' },
+      ],
+    })),
+    hasCap: jest.fn((caps: Array<{ section: string; action: string }>, section: string, action: string) =>
+      caps.some((c) => c.section === section && c.action === action),
+    ),
+  };
+  const req = {
+    staffUser: { sub: '7' },
+    staffAuthVia: 'jwt' as const,
+  } as never;
+
+  let service: AmHealthService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    repo.loadTeamIds.mockResolvedValue([]);
+    repo.loadSparkline.mockResolvedValue([]);
+    repo.countOpenRisks.mockResolvedValue(0);
+    service = new AmHealthService(
+      repo as never,
+      audit as never,
+      dashboard as never,
+      undefined,
+      staffAuth as never,
+    );
+  });
+
+  it('center tiles has exactly four band keys plus money and open risks', async () => {
+    repo.loadCenterRows.mockResolvedValue([
+      {
+        agency_client_id: CENTER_A,
+        name: 'Healthy Co',
+        am_status: 'active',
+        score: 90,
+        band: 'healthy',
+        override_band: null,
+        override_until: null,
+        owner_label: 'Minh',
+        open_risks: 0,
+        recovery_status: null,
+        prior_score: 88,
+        mrr_vnd: 10_000_000,
+      },
+      {
+        agency_client_id: CENTER_B,
+        name: 'Watch Co',
+        am_status: 'active',
+        score: 70,
+        band: 'watch',
+        override_band: null,
+        override_until: null,
+        owner_label: 'Anh',
+        open_risks: 0,
+        recovery_status: null,
+        prior_score: 72,
+        mrr_vnd: 20_000_000,
+      },
+      {
+        agency_client_id: CENTER_C,
+        name: 'Risk Co',
+        am_status: 'active',
+        score: 50,
+        band: 'at_risk',
+        override_band: null,
+        override_until: null,
+        owner_label: 'Hương',
+        open_risks: 1,
+        recovery_status: 'open',
+        prior_score: 60,
+        mrr_vnd: 30_000_000,
+      },
+      {
+        agency_client_id: CENTER_D,
+        name: 'Crit Co',
+        am_status: 'active',
+        score: 20,
+        band: 'critical',
+        override_band: null,
+        override_until: null,
+        owner_label: 'Lan',
+        open_risks: 2,
+        recovery_status: 'open',
+        prior_score: 40,
+        mrr_vnd: 40_000_000,
+      },
+    ]);
+    repo.countOpenRisks.mockResolvedValue(3);
+
+    const out = await service.center(req, { scope: 'all' });
+
+    expect(Object.keys(out.tiles)).toEqual([
+      'healthy',
+      'watch',
+      'at_risk',
+      'critical',
+      'revenue_at_risk_vnd',
+      'open_risks',
+    ]);
+    expect(out.tiles).not.toHaveProperty('churned');
+    expect(out.tiles.healthy).toBe(1);
+    expect(out.tiles.watch).toBe(1);
+    expect(out.tiles.at_risk).toBe(1);
+    expect(out.tiles.critical).toBe(1);
+    expect(out.tiles.open_risks).toBe(3);
+    expect(out.tiles.revenue_at_risk_vnd).toBe(70_000_000);
+  });
+
+  it('does not count a churned account in any band tile', async () => {
+    repo.loadCenterRows.mockResolvedValue([
+      {
+        agency_client_id: CENTER_A,
+        name: 'Healthy Co',
+        am_status: 'active',
+        score: 90,
+        band: 'healthy',
+        override_band: null,
+        override_until: null,
+        owner_label: 'Minh',
+        open_risks: 0,
+        recovery_status: null,
+        prior_score: null,
+        mrr_vnd: 10_000_000,
+      },
+      {
+        agency_client_id: CHURNED_ID,
+        name: 'Gone Co',
+        am_status: 'churned',
+        score: 10,
+        band: 'critical',
+        override_band: null,
+        override_until: null,
+        owner_label: 'Minh',
+        open_risks: 9,
+        recovery_status: null,
+        prior_score: 12,
+        mrr_vnd: 999_000_000,
+      },
+    ]);
+    repo.countOpenRisks.mockResolvedValue(0);
+
+    const out = await service.center(req, { scope: 'all' });
+
+    expect(out.tiles.healthy).toBe(1);
+    expect(out.tiles.watch).toBe(0);
+    expect(out.tiles.at_risk).toBe(0);
+    expect(out.tiles.critical).toBe(0);
+    expect(out.tiles.revenue_at_risk_vnd).toBeNull();
+    expect(out.risky).toEqual([]);
+    expect(out.risky.some((row) => row.agency_client_id === CHURNED_ID)).toBe(false);
+  });
+});
+

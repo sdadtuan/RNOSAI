@@ -120,6 +120,21 @@ export class AmController {
     return this.notifications.list(await this.actorStaffId(req));
   }
 
+  @Get('health')
+  @RequireAmAction('view')
+  listHealth(
+    @Req() req: AuthedReq,
+    @Query() q: { scope?: AmScope; from?: string; to?: string },
+  ) {
+    return this.health.center(req, q);
+  }
+
+  @Get('health/:agencyClientId')
+  @RequireAmAction('view')
+  getHealth(@Req() req: AuthedReq, @Param('agencyClientId') agencyClientId: string) {
+    return this.health.detail(req, agencyClientId);
+  }
+
   @Post('health/recompute')
   @RequireAmAction('manage')
   async recomputeHealth(@Req() req: AuthedReq, @Body() body?: { as_of?: string }) {

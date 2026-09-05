@@ -573,6 +573,95 @@ export async function putAmSettings(token: string, body: AmPublishSettingsBody):
   });
 }
 
+export type AmHealthCenterTiles = {
+  healthy: number;
+  watch: number;
+  at_risk: number;
+  critical: number;
+  revenue_at_risk_vnd: number | null;
+  open_risks: number;
+};
+
+export type AmHealthRiskyRow = {
+  agency_client_id: string;
+  name: string;
+  score: number | null;
+  band: 'at_risk' | 'critical';
+  delta_30d: number | null;
+  mrr_vnd: number | null;
+  owner_label: string;
+  open_risks: number;
+  recovery_status: string | null;
+};
+
+export type AmHealthCenter = {
+  hide_amounts: boolean;
+  tiles: AmHealthCenterTiles;
+  sparkline: Array<{ as_of: string; avg: number | null }>;
+  risky: AmHealthRiskyRow[];
+};
+
+export type AmHealthContribution = {
+  key: string;
+  score: number;
+  weight: number;
+  points: number;
+};
+
+export type AmHealthDetail = {
+  agency_client_id: string;
+  name: string;
+  score: number | null;
+  band: AmHealthBand | null;
+  as_of: string | null;
+  scorecard_version: number | null;
+  thin_data: boolean;
+  override: AmHealthOverride | null;
+  weights: {
+    kpi_delivery: number;
+    engagement: number;
+    financial: number;
+    satisfaction: number;
+    contract_support: number;
+  };
+  components: {
+    kpi_delivery: number;
+    engagement: number;
+    financial: number;
+    satisfaction: number;
+    contract_support: number;
+  } | null;
+  contribution: AmHealthContribution[];
+  trend: Array<{ as_of: string; score: number | null }>;
+  signals: string[];
+};
+
+export async function fetchAmHealthCenter(
+  token: string,
+  query: AmCommandCenterQuery = {},
+): Promise<AmHealthCenter> {
+  const params = new URLSearchParams();
+  if (query.scope) params.set('scope', query.scope);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return amFetch<AmHealthCenter>(token, `/api/crm/am/health${suffix}`);
+}
+
+export async function fetchAmHealthDetail(token: string, agencyClientId: string): Promise<AmHealthDetail> {
+  return amFetch<AmHealthDetail>(token, `/api/crm/am/health/${encodeURIComponent(agencyClientId)}`);
+}
+
+export async function recomputeAmHealth(
+  token: string,
+  body: { as_of?: string } = {},
+): Promise<{ as_of: string; computed: number; skipped: number }> {
+  return amFetch(token, '/api/crm/am/health/recompute', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function overrideAmHealth(
   token: string,
   agencyClientId: string,
