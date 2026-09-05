@@ -1434,3 +1434,35 @@ export async function patchAmInteraction(
     body: JSON.stringify(body),
   });
 }
+
+export type AmFinanceInvoice = {
+  id: string | number;
+  number: string | null;
+  status: string | null;
+  issued_on: string | null;
+  due_on: string | null;
+  amount_vnd: number | null;
+  paid_vnd: number | null;
+  aging_days: number | null;
+};
+
+export type AmFinanceSnapshot = {
+  hidden: boolean;
+  stale: boolean;
+  source: string | null;
+  last_sync: string | null;
+  erp_href: '/crm/invoices';
+  kpis: {
+    mrr_vnd: number | null;
+    active_total_vnd: number | null;
+    outstanding_vnd: number | null;
+    overdue_vnd: number | null;
+    next_invoice_on: string | null;
+    next_invoice_vnd: number | null;
+  };
+  invoices: AmFinanceInvoice[];
+};
+
+export async function fetchAmFinance(token: string, agencyClientId: string): Promise<AmFinanceSnapshot> {
+  return amFetch<AmFinanceSnapshot>(token, `/api/crm/am/finance/${encodeURIComponent(agencyClientId)}`);
+}

@@ -33,6 +33,7 @@ import { amGrowthNextRefreshNonce } from '@/lib/crm/am-growth.util';
 import { useToast } from '@/lib/toast';
 import { amRecoveryRequiredCopy } from '@/lib/crm/am-risk.util';
 import { AmContactDrawer } from './AmContactDrawer';
+import { AmFinance } from './AmFinance';
 import { AmGrowth } from './AmGrowth';
 import { AmOpportunityForm } from './AmOpportunityForm';
 import { AmPlaceholder } from './AmPlaceholder';
@@ -547,7 +548,7 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
       ) : tab === 'timeline' ? (
         <AmTimeline agencyClientId={agencyClientId} />
       ) : tab === 'finance' ? (
-        <FinancePanel data={data} />
+        <FinancePanel data={data} agencyClientId={agencyClientId} />
       ) : tab === 'opportunities' ? (
         <AmGrowth key={growthRefreshNonce} agencyClientId={agencyClientId} embedded />
       ) : tab === 'audit' ? (
@@ -913,52 +914,55 @@ function OverviewPanel({
   );
 }
 
-function FinancePanel({ data }: { data: AmAccount360Data }) {
+function FinancePanel({ data, agencyClientId }: { data: AmAccount360Data; agencyClientId: string }) {
   return (
-    <section className="am-widget">
-      <div className="am-widget__head">
-        <h2>Hợp đồng & Tài chính</h2>
-      </div>
-      <div className="am-tbl-wrap">
-        <table className="am-table">
-          <thead>
-            <tr>
-              <th>Hợp đồng</th>
-              <th>Trạng thái</th>
-              <th>Loại</th>
-              <th>Hiệu lực</th>
-              <th>Giá trị</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.contracts.length === 0 ? (
+    <>
+      <section className="am-widget">
+        <div className="am-widget__head">
+          <h2>Hợp đồng & Tài chính</h2>
+        </div>
+        <div className="am-tbl-wrap">
+          <table className="am-table">
+            <thead>
               <tr>
-                <td colSpan={5} className="am-muted">
-                  Chưa có hợp đồng.
-                </td>
+                <th>Hợp đồng</th>
+                <th>Trạng thái</th>
+                <th>Loại</th>
+                <th>Hiệu lực</th>
+                <th>Giá trị</th>
               </tr>
-            ) : (
-              data.contracts.map((row) => (
-                <tr key={row.id}>
-                  <td>
-                    <Link className="am-link" href={`/crm/account-management/contracts/${row.id}`}>
-                      {row.reference_code || row.title || row.id}
-                    </Link>
-                    <div className="am-muted">{row.title}</div>
+            </thead>
+            <tbody>
+              {data.contracts.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="am-muted">
+                    Chưa có hợp đồng.
                   </td>
-                  <td>{row.status}</td>
-                  <td>{row.billing_type || row.service_slug || '—'}</td>
-                  <td>
-                    {dashText(row.starts_on)} — {dashText(row.ends_on)}
-                  </td>
-                  <td>{data.hide_amounts ? '—' : vnd(row.amount_vnd)}</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
+              ) : (
+                data.contracts.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <Link className="am-link" href={`/crm/account-management/contracts/${row.id}`}>
+                        {row.reference_code || row.title || row.id}
+                      </Link>
+                      <div className="am-muted">{row.title}</div>
+                    </td>
+                    <td>{row.status}</td>
+                    <td>{row.billing_type || row.service_slug || '—'}</td>
+                    <td>
+                      {dashText(row.starts_on)} — {dashText(row.ends_on)}
+                    </td>
+                    <td>{data.hide_amounts ? '—' : vnd(row.amount_vnd)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <AmFinance agencyClientId={agencyClientId} />
+    </>
   );
 }
 

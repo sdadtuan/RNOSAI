@@ -64,6 +64,7 @@ import {
   type AmPatchOpportunityInput,
 } from './am-opportunities.service';
 import { AmReportsService } from './am-reports.service';
+import { AmFinanceService } from './am-finance.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -94,6 +95,7 @@ export class AmController {
     private readonly risks: AmRisksService,
     private readonly opportunities: AmOpportunitiesService,
     private readonly reports: AmReportsService,
+    private readonly finance: AmFinanceService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -526,6 +528,12 @@ export class AmController {
     @Query() q: { from?: string; to?: string; scope?: AmScope },
   ) {
     return this.reports.retention(req, q);
+  }
+
+  @Get('finance/:agencyClientId')
+  @RequireAmAction('view')
+  getFinance(@Req() req: AuthedReq, @Param('agencyClientId') agencyClientId: string) {
+    return this.finance.get(req, agencyClientId);
   }
 
   @Get('interactions')
