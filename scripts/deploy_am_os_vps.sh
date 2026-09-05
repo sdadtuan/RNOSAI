@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy Account Management OS — Wave 1–4 DDL + ptt-crm-api + ops-web.
+# Deploy Account Management OS — Wave 1–4 + G1 DDL + ptt-crm-api + ops-web.
 # Do NOT export AM_AI_ENABLED=1 — AI draft stays off unless ops set it later.
 # Do NOT grant crm_am caps here — seed_am_rbac.sh is catalog-only.
 #
@@ -27,33 +27,34 @@ run_local() {
     set +a
   fi
 
-  echo "== 0/5 apply AM DDL (W1–W4) =="
+  echo "== 0/6 apply AM DDL (W1–W4 + G1) =="
   bash "$ROOT/scripts/apply_pg_ddl_am.sh"
   bash "$ROOT/scripts/apply_pg_ddl_am_w2.sh"
   bash "$ROOT/scripts/apply_pg_ddl_am_w3.sh"
   bash "$ROOT/scripts/apply_pg_ddl_am_w4.sh"
+  bash "$ROOT/scripts/apply_pg_ddl_am_g1.sh"
 
-  echo "== 1/5 AM RBAC catalog (no user grants) =="
+  echo "== 1/6 AM RBAC catalog (no user grants) =="
   bash "$ROOT/scripts/seed_am_rbac.sh"
 
-  echo "== 2/5 ptt-crm-api build + AM tests =="
+  echo "== 2/6 ptt-crm-api build + AM tests =="
   cd "$ROOT/services/ptt-crm-api"
   npm ci
   export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
   npm run build
-  npx jest --testPathPattern='src/am' --no-coverage
+  npx jest --config jest.config.js src/am --forceExit --no-coverage
 
-  echo "== 3/5 ops-web AM unit tests =="
+  echo "== 3/6 ops-web AM unit tests =="
   cd "$ROOT/services/ops-web"
   npm ci
-  npm run test:unit -- src/lib/crm/am-
+  npx vitest run src/lib/crm/am-*.spec.ts src/lib/crm/am-*.util.spec.ts src/lib/auth.spec.ts
 
-  echo "== 4/5 ops-web build =="
+  echo "== 4/6 ops-web build =="
   cd "$ROOT"
   export NEXT_PUBLIC_PTT_API_URL="${NEXT_PUBLIC_PTT_API_URL:-https://rs.pttads.vn}"
   "$ROOT/scripts/deploy_ops_web.sh" build
 
-  echo "== 5/5 restart services (local systemd if present) =="
+  echo "== 5/6 restart services (one unit per command) =="
   if command -v systemctl >/dev/null 2>&1; then
     # sudoers allows one unit per command, not "restart a b"
     restarted=0
@@ -67,9 +68,43 @@ run_local() {
     done
     if [[ "$restarted" == "1" ]]; then
       sleep 4
-      systemctl is-active ptt-crm-api ptt-ops-web
+      systemctl is-active ptt-crm-api
+      systemctl is-active ptt-ops-web
     else
-      echo "      Run: sudo /usr/bin/systemctl restart ptt-crm-api && sudo /usr/bin/systemctl restart ptt-ops-web"
+      echo "      Run: sudo /usr/bin/systemctl restart ptt-crm-api"
+      echo "           sudo /usr/bin/systemctl restart ptt-ops-web"
+    fi
+  fi
+
+  echo "== 6/6 install AM health + renewal timers =="
+  bash "$ROOT/scripts/check_am_job_units.sh"
+  if command -v systemctl >/dev/null 2>&1; then
+    installed=0
+    for unit in \
+      ptt-crm-am-health.service \
+      ptt-crm-am-health.timer \
+      ptt-crm-am-renewal.service \
+      ptt-crm-am-renewal.timer
+    do
+      if sudo -n /usr/bin/cp "$ROOT/deploy/systemd/$unit" "/etc/systemd/system/$unit" 2>/dev/null; then
+        echo "OK  installed $unit"
+        installed=1
+      else
+        echo "WARN  could not copy $unit"
+      fi
+    done
+    if [[ "$installed" == "1" ]]; then
+      sudo -n /usr/bin/systemctl daemon-reload || echo "WARN  daemon-reload failed"
+      if sudo -n /usr/bin/systemctl enable --now ptt-crm-am-health.timer 2>/dev/null; then
+        echo "OK  enabled ptt-crm-am-health.timer"
+      else
+        echo "WARN  enable ptt-crm-am-health.timer failed"
+      fi
+      if sudo -n /usr/bin/systemctl enable --now ptt-crm-am-renewal.timer 2>/dev/null; then
+        echo "OK  enabled ptt-crm-am-renewal.timer"
+      else
+        echo "WARN  enable ptt-crm-am-renewal.timer failed"
+      fi
     fi
   fi
 
