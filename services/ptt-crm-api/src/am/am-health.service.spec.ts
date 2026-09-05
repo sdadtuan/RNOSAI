@@ -1,5 +1,6 @@
 import { DEFAULT_WEIGHTS } from './am.types';
-import { AmHealthService, HEALTH_SNAPSHOT_UPSERT } from './am-health.service';
+import { AM_TENANT_ID } from './am-audit.repository';
+import { AmHealthRepository, AmHealthService, HEALTH_SNAPSHOT_UPSERT } from './am-health.service';
 
 const ACTIVE_ID = '19d722af-0000-4000-8000-000000000001';
 const CHURNED_ID = '19d722af-0000-4000-8000-000000000099';
@@ -126,6 +127,61 @@ describe('AmHealthService', () => {
     );
     expect(HEALTH_SNAPSHOT_UPSERT).not.toMatch(
       /DO UPDATE SET[\s\S]*scorecard_version\s*=\s*EXCLUDED\.scorecard_version/i,
+    );
+  });
+
+  it('copies an active override onto a new as_of INSERT and does not overwrite scorecard_version', async () => {
+    const today = ictYmd();
+    const until = addDaysYmd(today, 7);
+    const asOf = today;
+    const query = jest.fn();
+    query.mockImplementation(async (sql: string) => {
+      if (/select/i.test(sql) && /crm_am_health_snapshots/i.test(sql)) {
+        return {
+          rows: [
+            {
+              as_of: addDaysYmd(today, -1),
+              override_band: 'watch',
+              override_reason: 'temp hold',
+              override_until: until,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    const store = new AmHealthRepository({ databaseUrl: 'postgres://x' } as never);
+    (store as unknown as { pool: { query: typeof query } }).pool = { query };
+
+    await store.upsertSnapshot({
+      agency_client_id: ACTIVE_ID,
+      as_of: asOf,
+      score: 72,
+      band: 'watch',
+      components: {
+        kpi_delivery: 70,
+        engagement: 70,
+        financial: 80,
+        satisfaction: 70,
+        contract_support: 70,
+      },
+      scorecard_version: 2,
+      thin_data: true,
+    });
+
+    const insert = query.mock.calls.find(([sql]) =>
+      /insert\s+into\s+crm_am_health_snapshots/i.test(String(sql)),
+    ) as [string, unknown[]] | undefined;
+    expect(insert).toBeDefined();
+    expect(insert![0]).toMatch(/override_band/i);
+    expect(insert![0]).toMatch(/override_reason/i);
+    expect(insert![0]).toMatch(/override_until/i);
+    expect(insert![0]).not.toMatch(
+      /DO UPDATE SET[\s\S]*scorecard_version\s*=\s*EXCLUDED\.scorecard_version/i,
+    );
+    expect(insert![1]).toEqual(
+      expect.arrayContaining([AM_TENANT_ID, ACTIVE_ID, asOf, 'watch', 'temp hold', until]),
     );
   });
 

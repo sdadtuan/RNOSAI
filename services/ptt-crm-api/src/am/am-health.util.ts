@@ -26,9 +26,9 @@ export const DEFAULT_BANDS: AmBandRanges = {
 const BAND_KEYS: AmHealthBand[] = ['healthy', 'watch', 'at_risk', 'critical'];
 
 export function bandFromScore(score: number, bands: AmBandRanges = DEFAULT_BANDS): AmHealthBand {
-  for (const key of BAND_KEYS) {
-    const [lo, hi] = bands[key];
-    if (score >= lo && score <= hi) return key;
+  const ordered = [...BAND_KEYS].sort((a, b) => bands[b][0] - bands[a][0]);
+  for (const key of ordered) {
+    if (score >= bands[key][0]) return key;
   }
   if (score > 100) return 'healthy';
   return 'critical';

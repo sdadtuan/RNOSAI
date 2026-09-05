@@ -105,8 +105,8 @@ const ICT = 'Asia/Ho_Chi_Minh';
 export const HEALTH_SNAPSHOT_UPSERT = `
 INSERT INTO crm_am_health_snapshots (
   tenant_id, agency_client_id, as_of, score, band, components_json,
-  scorecard_version, thin_data
-) VALUES ($1, $2::uuid, $3::date, $4, $5, $6::jsonb, $7, $8)
+  scorecard_version, thin_data, override_band, override_reason, override_until
+) VALUES ($1, $2::uuid, $3::date, $4, $5, $6::jsonb, $7, $8, $9, $10, $11::date)
 ON CONFLICT (tenant_id, agency_client_id, as_of) DO UPDATE SET
   score = EXCLUDED.score,
   band = EXCLUDED.band,
@@ -214,6 +214,9 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
   }
 
   async upsertSnapshot(input: AmHealthSnapshotInput): Promise<void> {
+    const previous = await this.loadLatestOverride(input.agency_client_id);
+    const today = ictYmd();
+    const carry = Boolean(previous?.until && previous.until >= today);
     await this.db.query(HEALTH_SNAPSHOT_UPSERT, [
       AM_TENANT_ID,
       input.agency_client_id,
@@ -223,6 +226,9 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
       JSON.stringify(input.components),
       input.scorecard_version,
       input.thin_data,
+      carry ? previous?.band : null,
+      carry ? previous?.reason : null,
+      carry ? previous?.until : null,
     ]);
   }
 
@@ -300,6 +306,31 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
         input.until,
       ],
     );
+  }
+
+  private async loadLatestOverride(
+    agencyClientId: string,
+  ): Promise<{ band: string | null; reason: string | null; until: string | null } | null> {
+    try {
+      const result = await this.db.query(
+        `SELECT override_band, override_reason, override_until
+           FROM crm_am_health_snapshots
+          WHERE tenant_id = $1 AND agency_client_id = $2::uuid
+          ORDER BY as_of DESC
+          LIMIT 1`,
+        [AM_TENANT_ID, agencyClientId],
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      return {
+        band: row.override_band != null ? String(row.override_band) : null,
+        reason: row.override_reason != null ? String(row.override_reason) : null,
+        until: dayStr(row.override_until),
+      };
+    } catch (err) {
+      if (isMissingRelation(err)) return null;
+      throw err;
+    }
   }
 
   private async loadLatestSnapshot(agencyClientId: string): Promise<AmHealthLatestSnapshot | null> {

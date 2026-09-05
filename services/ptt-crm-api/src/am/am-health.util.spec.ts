@@ -8,6 +8,12 @@ describe('am-health.util', () => {
     expect(bandFromScore(39)).toBe('critical');
   });
 
+  it('maps fractional scores just below integer floors to the lower band', () => {
+    expect(bandFromScore(79.5)).toBe('watch');
+    expect(bandFromScore(59.5)).toBe('at_risk');
+    expect(bandFromScore(39.5)).toBe('critical');
+  });
+
   it('uses settings bands when provided', () => {
     const bands = {
       healthy: [90, 100] as [number, number],
