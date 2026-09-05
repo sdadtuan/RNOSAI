@@ -129,6 +129,13 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     anyOf: [{ section: 'csd', action: 'admin' }],
   },
   {
+    prefix: '/crm/account-management',
+    anyOf: [
+      { section: 'crm_am', action: 'view' },
+      { section: 'crm_am', action: 'view_all' },
+    ],
+  },
+  {
     prefix: '/crm/csd',
     anyOf: [{ section: 'csd', action: 'view' }],
   },

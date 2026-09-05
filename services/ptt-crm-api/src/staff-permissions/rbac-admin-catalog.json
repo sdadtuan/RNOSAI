@@ -333,6 +333,8 @@
       "manage",
       "admin"
     ],
+    "crm_am": ["view", "view_all", "edit", "assign", "manage"],
+    "crm_am.finance": ["view"],
     "spc": [
       "edit",
       "publish",
@@ -1176,6 +1178,20 @@
       "description": "Ticket / chat / email / báo cáo agency — không phải ticket CSKH."
     },
     {
+      "id": "crm_am",
+      "label": "Account Management",
+      "group": "CRM",
+      "page": "/crm/account-management",
+      "description": "AM post-contract: retain / renew / expand / health."
+    },
+    {
+      "id": "crm_am.finance",
+      "label": "Account Management — Tài chính",
+      "group": "CRM",
+      "page": "/crm/account-management",
+      "description": "Xem snapshot công nợ / invoice AM. Không sửa Paid."
+    },
+    {
       "id": "spc",
       "label": "SPC — Service Product Catalog",
       "group": "CRM — Admin",
@@ -1950,6 +1966,8 @@
     "ai_admin",
     "ceo_command",
     "csd",
+    "crm_am",
+    "crm_am.finance",
     "spc",
     "crm_ai_insights",
     "crm_hr_leave",

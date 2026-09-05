@@ -130,4 +130,21 @@ describe('rbac-routes', () => {
     expect(canAccessPath('/crm/ceo', ownerWeekly, 'crm')).toBe(true);
     expect(canAccessPath('/crm/ceo', ceo, 'crm')).toBe(true);
   });
+
+  it('AM path requires crm_am.view or view_all — agency-only is 403', () => {
+    const agency = user([{ section: 'crm_agency', action: 'view' }]);
+    expect(canAccessPath('/crm/account-management', agency, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/account-management/clients', agency, 'crm')).toBe(false);
+  });
+
+  it('crm_am.view can open AM routes', () => {
+    const am = user([{ section: 'crm_am', action: 'view' }]);
+    expect(canAccessPath('/crm/account-management', am, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/account-management/renewals/x', am, 'crm')).toBe(true);
+  });
+
+  it('crm_am.view_all can open AM routes', () => {
+    const dir = user([{ section: 'crm_am', action: 'view_all' }]);
+    expect(canAccessPath('/crm/account-management', dir, 'crm')).toBe(true);
+  });
 });
