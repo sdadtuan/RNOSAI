@@ -1,0 +1,15 @@
+# RNOSAI AM health recompute (oneshot).
+# Paths must match the live unit — read /etc/systemd/system/ptt-crm-api.service
+# on the VPS before installing; default WorkingDirectory is the API release dir.
+# Do not add @nestjs/schedule. Do not set AM_AI_ENABLED.
+
+[Unit]
+Description=RNOSAI AM health recompute
+After=ptt-crm-api.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/www/rnosai/services/ptt-crm-api
+EnvironmentFile=-/var/www/rnosai/services/ptt-crm-api/.env
+ExecStart=/usr/bin/node dist/scripts/run_am_job.js health
+User=www-data

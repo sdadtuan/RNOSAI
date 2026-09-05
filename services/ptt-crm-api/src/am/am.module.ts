@@ -15,6 +15,7 @@ import { AmViewsRepository, AmViewsService } from './am-views.service';
 import { AmOnboardingRepository, AmOnboardingService } from './am-onboarding.service';
 import { AmContractsRepository, AmContractsService } from './am-contracts.service';
 import { AmRenewalsRepository, AmRenewalsService } from './am-renewals.service';
+import { AmHealthWorker } from './am-health.worker';
 import { AmRenewalWorker } from './am-renewal.worker';
 import { AmInteractionsRepository, AmInteractionsService } from './am-interactions.service';
 import { AmDocumentsRepository, AmDocumentsService } from './am-documents.service';
@@ -46,6 +47,7 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmSearchService,
     AmHealthRepository,
     AmHealthService,
+    AmHealthWorker,
     AmSettingsRepository,
     AmSettingsService,
     AmNotificationsRepository,
@@ -89,6 +91,7 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmPlansService,
     AmSearchService,
     AmHealthService,
+    AmHealthWorker,
     AmSettingsService,
     AmNotificationsService,
     AmViewsService,

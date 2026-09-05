@@ -1,0 +1,16 @@
+# AM health at 02:00 ICT.
+# Detect timedatectl and pick one. Do not enable both.
+# If host TZ is UTC use 19:00; if Asia/Ho_Chi_Minh use 02:00.
+# OnCalendar=*-*-* 19:00:00 is 02:00 ICT when the host clock is UTC.
+# If the VPS timezone is already Asia/Ho_Chi_Minh, use OnCalendar=*-*-* 02:00:00 instead.
+
+[Unit]
+Description=AM health at 02:00 ICT
+
+[Timer]
+OnCalendar=*-*-* 19:00:00
+Persistent=true
+Unit=ptt-crm-am-health.service
+
+[Install]
+WantedBy=timers.target
