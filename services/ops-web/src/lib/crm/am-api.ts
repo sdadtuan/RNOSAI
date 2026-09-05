@@ -201,3 +201,23 @@ export async function fetchAmCommandCenter(
   const suffix = params.toString() ? `?${params.toString()}` : '';
   return amFetch<AmCommandCenter>(token, `/api/crm/am/command-center${suffix}`);
 }
+
+export type AmSearchGroup = 'account' | 'contract' | 'task';
+
+export type AmSearchItem = {
+  group: AmSearchGroup;
+  id: string;
+  title: string;
+  subtitle: string | null;
+  href: string;
+};
+
+export async function fetchAmSearch(
+  token: string,
+  query: { q: string; scope?: AmScope },
+): Promise<{ items: AmSearchItem[] }> {
+  const params = new URLSearchParams();
+  params.set('q', query.q);
+  if (query.scope) params.set('scope', query.scope);
+  return amFetch<{ items: AmSearchItem[] }>(token, `/api/crm/am/search?${params.toString()}`);
+}

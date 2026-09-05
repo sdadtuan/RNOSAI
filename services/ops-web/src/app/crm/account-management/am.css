@@ -129,6 +129,24 @@
   border-radius: 10px;
   padding: 0 10px;
   background: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #6b7280;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.am-search__kbd {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 1px 6px;
+  background: #fff;
 }
 
 .am-scope,
@@ -574,6 +592,82 @@
   border-radius: var(--am-radius);
   padding: 24px;
   min-height: 180px;
+}
+
+.am-palette-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.4);
+  z-index: 70;
+}
+
+.am-palette {
+  position: fixed;
+  left: 50%;
+  top: 10vh;
+  transform: translateX(-50%);
+  width: min(680px, 94vw);
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 24px 50px rgba(17, 24, 39, 0.2);
+}
+
+.am-palette__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.am-palette__input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #f9fafb;
+}
+
+.am-palette__list {
+  max-height: 52vh;
+  overflow: auto;
+  margin-top: 8px;
+}
+
+.am-palette__group-label,
+.am-palette__hint,
+.am-palette__meta {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 8px 4px 4px;
+}
+
+.am-palette__row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.am-palette__row.is-active,
+.am-palette__row:hover {
+  background: #eff6ff;
+}
+
+.am-palette__empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 4px;
 }
 
 html.ops-shell-bitrix body:has(.am-root) main.bitrix-crm-page,

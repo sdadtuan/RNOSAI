@@ -6,6 +6,7 @@ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { AmAccountsService, type AmCreateAccountBody } from './am-accounts.service';
 import { AmDashboardService } from './am-dashboard.service';
 import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
+import { AmSearchService } from './am-search.service';
 import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
@@ -23,6 +24,7 @@ export class AmController {
     private readonly tasks: AmTasksService,
     private readonly accounts: AmAccountsService,
     private readonly plans: AmPlansService,
+    private readonly searchService: AmSearchService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -35,6 +37,12 @@ export class AmController {
   @RequireAmAction('view')
   commandCenter(@Req() req: AuthedReq, @Query() q: { from?: string; to?: string; scope?: AmScope }) {
     return this.dashboard.get(req, q);
+  }
+
+  @Get('search')
+  @RequireAmAction('view')
+  search(@Req() req: AuthedReq, @Query() q: { q?: string; scope?: AmScope }) {
+    return this.searchService.search(req, q);
   }
 
   @Post('tasks')

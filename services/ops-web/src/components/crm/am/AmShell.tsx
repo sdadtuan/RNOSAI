@@ -27,6 +27,7 @@ import {
 import { fetchAmCommandCenter, type AmCommandCenter, type AmScope } from '@/lib/crm/am-api';
 import { AM_NAV, canSeeAmNav, type AmNavItem } from '@/lib/crm/am-nav.util';
 import { AmCreateMenu } from './AmCreateMenu';
+import { AmPalette } from './AmPalette';
 
 export type AmRoleLabel = 'Admin' | 'Director' | 'AM';
 export type AmDensity = 'comfortable' | 'compact';
@@ -104,6 +105,7 @@ function AmShellInner({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [density, setDensity] = useState<AmDensity>('comfortable');
   const [createKind, setCreateKind] = useState<AmCreateKind | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const canEdit = hasCap(user, 'crm_am', 'edit');
   const roleLabel = amRoleLabel(user);
@@ -292,12 +294,15 @@ function AmShellInner({ children }: { children: ReactNode }) {
             </aside>
             <div className="am-column">
               <header className="am-top">
-                <input
-                  type="search"
+                <button
+                  type="button"
                   className="am-search"
-                  placeholder="Tìm account, HĐ, việc…"
+                  onClick={() => setPaletteOpen(true)}
                   aria-label="Tìm kiếm Account Management"
-                />
+                >
+                  <span>Tìm account, HĐ, việc…</span>
+                  <kbd className="am-search__kbd">⌘K</kbd>
+                </button>
                 <label className="am-scope">
                   <span>Phạm vi</span>
                   <select
@@ -327,6 +332,11 @@ function AmShellInner({ children }: { children: ReactNode }) {
                 </label>
                 <AmCreateMenu canEdit={canEdit} />
               </header>
+              <AmPalette
+                open={paletteOpen}
+                onOpen={() => setPaletteOpen(true)}
+                onClose={() => setPaletteOpen(false)}
+              />
               <div className="am-page">{children}</div>
             </div>
           </div>
