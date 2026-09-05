@@ -314,6 +314,38 @@ describe('AmInteractionsService', () => {
 
     await expect(service.toTask(editReq, interactionId, 9)).rejects.toMatchObject({
       status: 400,
+      error: 'action_item_not_found',
     });
   });
+
+  it.each(['0abc', '0.5'])(
+    'returns 400 action_item_not_found for invalid index %s and does not create a task',
+    async (badIndex) => {
+      const interactionId = INTERACTION_ID;
+      repo.query.mockResolvedValue({
+        rows: [
+          {
+            id: interactionId,
+            agency_client_id: CLIENT_ID,
+            kind: 'note',
+            occurred_at: '2026-09-04T08:00:00.000Z',
+            actor_staff_id: STAFF_ID,
+            summary: 'QBR',
+            sentiment: null,
+            visibility: 'internal',
+            attendees_json: [],
+            action_items_json: [{ title: 'Gửi QBR' }],
+            created_at: '2026-09-04T08:00:00.000Z',
+          },
+        ],
+        rowCount: 1,
+      });
+
+      await expect(service.toTask(viewReq, interactionId, badIndex)).rejects.toMatchObject({
+        status: 400,
+        error: 'action_item_not_found',
+      });
+      expect(tasks.create).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -315,10 +315,11 @@ export class AmInteractionsService {
     if (id.startsWith('audit:')) amThrow(409, { error: 'system_readonly' });
     if (!isUuid(id)) amThrow(400, { error: 'invalid_interaction_id' });
 
-    const index = Number.parseInt(String(rawIndex), 10);
-    if (!Number.isInteger(index) || index < 0) {
+    const indexStr = String(rawIndex ?? '').trim();
+    if (!/^\d+$/.test(indexStr)) {
       amThrow(400, { error: 'action_item_not_found' });
     }
+    const index = Number(indexStr);
 
     const actor = await this.resolveActor(req, undefined);
     const current = await this.loadScoped(actor, id);
