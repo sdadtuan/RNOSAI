@@ -8,6 +8,7 @@ import { AmDashboardService } from './am-dashboard.service';
 import { AmHealthService } from './am-health.service';
 import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
 import { AmSearchService } from './am-search.service';
+import { AmNotificationsService } from './am-notifications.service';
 import { AmSettingsService } from './am-settings.service';
 import { AmTasksService, type AmCreateTaskInput } from './am-tasks.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
@@ -29,6 +30,7 @@ export class AmController {
     private readonly searchService: AmSearchService,
     private readonly health: AmHealthService,
     private readonly settings: AmSettingsService,
+    private readonly notifications: AmNotificationsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -53,6 +55,12 @@ export class AmController {
   @RequireAmAction('view')
   getSettings() {
     return this.settings.get();
+  }
+
+  @Get('notifications')
+  @RequireAmAction('view')
+  async listNotifications(@Req() req: AuthedReq) {
+    return this.notifications.list(await this.actorStaffId(req));
   }
 
   @Post('health/recompute')

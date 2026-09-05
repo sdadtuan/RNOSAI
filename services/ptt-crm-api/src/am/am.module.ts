@@ -8,6 +8,7 @@ import { AmDashboardService } from './am-dashboard.service';
 import { AmHealthRepository, AmHealthService } from './am-health.service';
 import { AmPlansRepository, AmPlansService } from './am-plans.service';
 import { AmSearchRepository, AmSearchService } from './am-search.service';
+import { AmNotificationsRepository, AmNotificationsService } from './am-notifications.service';
 import { AmSettingsRepository, AmSettingsService } from './am-settings.service';
 import { AmTasksRepository, AmTasksService } from './am-tasks.service';
 import { AmController } from './am.controller';
@@ -32,6 +33,8 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmHealthService,
     AmSettingsRepository,
     AmSettingsService,
+    AmNotificationsRepository,
+    AmNotificationsService,
   ],
   exports: [
     StaffAmGuard,
@@ -43,6 +46,7 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmSearchService,
     AmHealthService,
     AmSettingsService,
+    AmNotificationsService,
   ],
 })
 export class AmModule {}

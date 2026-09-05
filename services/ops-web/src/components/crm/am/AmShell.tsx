@@ -24,8 +24,15 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
-import { fetchAmCommandCenter, type AmCommandCenter, type AmScope } from '@/lib/crm/am-api';
+import {
+  fetchAmCommandCenter,
+  fetchAmNotifications,
+  type AmCommandCenter,
+  type AmNotificationItem,
+  type AmScope,
+} from '@/lib/crm/am-api';
 import { AM_NAV, canSeeAmNav, type AmNavItem } from '@/lib/crm/am-nav.util';
+import { showAmNotifyDot } from '@/lib/crm/am-notify.util';
 import { AmCreateMenu } from './AmCreateMenu';
 import { AmPalette } from './AmPalette';
 
@@ -106,6 +113,9 @@ function AmShellInner({ children }: { children: ReactNode }) {
   const [density, setDensity] = useState<AmDensity>('comfortable');
   const [createKind, setCreateKind] = useState<AmCreateKind | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifyItems, setNotifyItems] = useState<AmNotificationItem[]>([]);
+  const [notifyUnread, setNotifyUnread] = useState(0);
 
   const canEdit = hasCap(user, 'crm_am', 'edit');
   const roleLabel = amRoleLabel(user);
@@ -163,6 +173,17 @@ function AmShellInner({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loadNotifications = useCallback(async (access: string) => {
+    try {
+      const out = await fetchAmNotifications(access);
+      setNotifyItems(out.items);
+      setNotifyUnread(out.unread);
+    } catch {
+      setNotifyItems([]);
+      setNotifyUnread(0);
+    }
+  }, []);
+
   const retry = useCallback(() => {
     if (!token) return;
     void loadCenter(token, scope);
@@ -178,10 +199,13 @@ function AmShellInner({ children }: { children: ReactNode }) {
     void (async () => {
       setLoading(true);
       const access = await ensureAuth();
-      if (access) await loadCenter(access, scope);
+      if (access) {
+        await loadCenter(access, scope);
+        await loadNotifications(access);
+      }
       setLoading(false);
     })();
-  }, [ensureAuth, loadCenter, scope]);
+  }, [ensureAuth, loadCenter, loadNotifications, scope]);
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -330,6 +354,57 @@ function AmShellInner({ children }: { children: ReactNode }) {
                     <option value="compact">Gọn</option>
                   </select>
                 </label>
+                <span
+                  className={`am-fresh${data?.freshness.stale ? ' am-fresh--stale' : ''}`}
+                  aria-label="Độ tươi dữ liệu"
+                >
+                  {data?.freshness.work_left_label ?? '—'}
+                </span>
+                <div className="am-bell">
+                  <button
+                    type="button"
+                    className="am-bell__btn"
+                    aria-label={
+                      showAmNotifyDot(notifyUnread)
+                        ? `Thông báo (${notifyUnread} chưa đọc)`
+                        : 'Thông báo'
+                    }
+                    onClick={() => {
+                      setNotifyOpen((prev) => !prev);
+                      if (token) void loadNotifications(token);
+                    }}
+                  >
+                    🔔
+                    {showAmNotifyDot(notifyUnread) ? <span className="am-bell__dot" /> : null}
+                  </button>
+                  {notifyOpen ? (
+                    <div className="am-bell__panel" role="dialog" aria-label="Thông báo Account Management">
+                      <div className="am-bell__head">
+                        <strong>Thông báo</strong>
+                        <button type="button" className="am-btn" onClick={() => setNotifyOpen(false)}>
+                          Đóng
+                        </button>
+                      </div>
+                      <ul className="am-bell__list">
+                        {notifyItems.length ? (
+                          notifyItems.map((item) => (
+                            <li key={item.id}>
+                              {item.href ? (
+                                <Link href={item.href} onClick={() => setNotifyOpen(false)}>
+                                  {item.title}
+                                </Link>
+                              ) : (
+                                <span>{item.title}</span>
+                              )}
+                            </li>
+                          ))
+                        ) : (
+                          <li className="muted">Không có thông báo.</li>
+                        )}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
                 <AmCreateMenu canEdit={canEdit} />
               </header>
               <AmPalette

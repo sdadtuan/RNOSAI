@@ -221,3 +221,21 @@ export async function fetchAmSearch(
   if (query.scope) params.set('scope', query.scope);
   return amFetch<{ items: AmSearchItem[] }>(token, `/api/crm/am/search?${params.toString()}`);
 }
+
+export type AmNotificationItem = {
+  id: string;
+  kind: string;
+  title: string;
+  href: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+export type AmNotifications = {
+  items: AmNotificationItem[];
+  unread: number;
+};
+
+export async function fetchAmNotifications(token: string): Promise<AmNotifications> {
+  return amFetch<AmNotifications>(token, '/api/crm/am/notifications');
+}
