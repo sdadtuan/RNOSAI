@@ -278,6 +278,47 @@
   margin-top: 8px;
 }
 
+.am-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.am-tabs button {
+  flex: 1;
+  height: 34px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.am-tabs button.is-active {
+  background: var(--am-accent);
+  border-color: var(--am-accent);
+  color: #fff;
+}
+
+.am-attach-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.am-attach-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
 .am-dash__head h1,
 .am-placeholder__title {
   margin: 0;

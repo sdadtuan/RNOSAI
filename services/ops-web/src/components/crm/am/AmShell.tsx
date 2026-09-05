@@ -30,6 +30,7 @@ import { AmCreateMenu } from './AmCreateMenu';
 
 export type AmRoleLabel = 'Admin' | 'Director' | 'AM';
 export type AmDensity = 'comfortable' | 'compact';
+export type AmCreateKind = 'client' | 'task' | 'plan';
 
 export type AmPageContextValue = {
   user: StoredStaffUser;
@@ -41,6 +42,9 @@ export type AmPageContextValue = {
   loading: boolean;
   error: string;
   retry: () => void;
+  createKind: AmCreateKind | null;
+  openCreate: (kind: AmCreateKind) => void;
+  closeCreate: () => void;
 };
 
 const AmPageContext = createContext<AmPageContextValue | null>(null);
@@ -99,6 +103,7 @@ function AmShellInner({ children }: { children: ReactNode }) {
   const [error, setError] = useState('');
   const [collapsed, setCollapsed] = useState(false);
   const [density, setDensity] = useState<AmDensity>('comfortable');
+  const [createKind, setCreateKind] = useState<AmCreateKind | null>(null);
 
   const canEdit = hasCap(user, 'crm_am', 'edit');
   const roleLabel = amRoleLabel(user);
@@ -208,6 +213,13 @@ function AmShellInner({ children }: { children: ReactNode }) {
 
   const groups = useMemo(() => groupNav(AM_NAV), []);
   const loadOver = data != null && data.load.accounts > data.load.quota;
+  const openCreate = useCallback((kind: AmCreateKind) => {
+    if (!canEdit) return;
+    setCreateKind(kind);
+  }, [canEdit]);
+
+  const closeCreate = useCallback(() => setCreateKind(null), []);
+
   const ctx = useMemo<AmPageContextValue | null>(() => {
     if (!user || !token) return null;
     return {
@@ -220,8 +232,11 @@ function AmShellInner({ children }: { children: ReactNode }) {
       loading,
       error,
       retry,
+      createKind,
+      openCreate,
+      closeCreate,
     };
-  }, [canEdit, data, error, loading, retry, roleLabel, scope, token, user]);
+  }, [canEdit, closeCreate, createKind, data, error, loading, openCreate, retry, roleLabel, scope, token, user]);
 
   const rootClass = [
     'am-root',

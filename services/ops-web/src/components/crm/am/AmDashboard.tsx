@@ -136,7 +136,7 @@ function WidgetLoading() {
 }
 
 export function AmDashboard() {
-  const { data, error, loading, retry, canEdit, scope, token } = useAmPage();
+  const { data, error, loading, retry, canEdit, scope, token, openCreate } = useAmPage();
   const { push } = useToast();
   const [attentionSort, setAttentionSort] = useState<'health' | 'mrr' | 'renewal'>('health');
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
@@ -385,7 +385,7 @@ export function AmDashboard() {
               <button
                 type="button"
                 className="am-btn am-btn--primary"
-                onClick={() => window.alert('Tạo khách mở ở Task 7')}
+                onClick={() => openCreate('client')}
               >
                 Tạo khách
               </button>

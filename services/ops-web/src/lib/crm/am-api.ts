@@ -145,6 +145,51 @@ export async function createAmTask(token: string, body: AmCreateTaskInput): Prom
   });
 }
 
+export type AmPlanKind = 'care' | 'qbr' | 'renewal' | 'expand';
+
+export type AmCreateAccountBody =
+  | { mode: 'create'; code: string; name: string; industry_slug?: string; owner_am_id?: string }
+  | { mode: 'attach'; agency_client_id: string; owner_staff_id?: number };
+
+export type AmAccountResult = {
+  agency_client_id: string;
+  mode: 'create' | 'attach';
+  client?: { id: string; code: string; name: string };
+};
+
+export type AmCreatePlanInput = {
+  agency_client_id: string;
+  kind: AmPlanKind;
+  period_key: string;
+  contract_id?: number;
+  due_on?: string;
+};
+
+export type AmPlan = {
+  id: string;
+  agency_client_id: string;
+  contract_id: number | null;
+  kind: AmPlanKind;
+  period_key: string;
+  status: string;
+  owner_staff_id: number;
+  due_on: string | null;
+};
+
+export async function createAmAccount(token: string, body: AmCreateAccountBody): Promise<AmAccountResult> {
+  return amFetch<AmAccountResult>(token, '/api/crm/am/accounts', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function createAmPlan(token: string, body: AmCreatePlanInput): Promise<AmPlan> {
+  return amFetch<AmPlan>(token, '/api/crm/am/plans', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchAmCommandCenter(
   token: string,
   query: AmCommandCenterQuery = {},
