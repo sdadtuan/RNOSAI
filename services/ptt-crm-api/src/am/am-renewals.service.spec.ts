@@ -133,6 +133,58 @@ describe('AmRenewalsService', () => {
     );
   });
 
+  it('PATCH lost with recoverable true and no lessons is 400 lost_fields_required and does not UPDATE', async () => {
+    db.query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/from crm_am_renewal_cases/i.test(text) && /select/i.test(text)) {
+        return { rows: [openCaseRow], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(
+      service.patch(
+        viewReq,
+        CASE_ID,
+        {
+          status: 'lost',
+          lost_reason: 'Budget cut',
+          lost_on: '2026-09-01',
+          recoverable: true,
+        },
+        STAFF_ID,
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      error: 'lost_fields_required',
+    });
+    expect(db.query.mock.calls.some(([sql]) => /update crm_am_renewal_cases/i.test(String(sql)))).toBe(
+      false,
+    );
+  });
+
+  it('PATCH forecast only keeps existing recoverable prefix on lessons', async () => {
+    const tagged = { ...openCaseRow, lessons: '[recoverable] budget cut' };
+    db.query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (/update crm_am_renewal_cases/i.test(text)) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (/from crm_am_renewal_cases/i.test(text) && /select/i.test(text)) {
+        return { rows: [tagged], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await service.patch(viewReq, CASE_ID, { forecast: 'committed' }, STAFF_ID);
+
+    const updateCall = db.query.mock.calls.find(([sql]) =>
+      /update crm_am_renewal_cases/i.test(String(sql)),
+    );
+    expect(updateCall).toBeDefined();
+    expect(String(updateCall?.[1]?.[7])).toContain('[recoverable]');
+  });
+
   it('PATCH renewed without new_contract_id is 400 new_contract_required', async () => {
     db.query.mockImplementation(async (sql: string) => {
       const text = String(sql);

@@ -329,7 +329,11 @@ export class AmRenewalsService {
       body.lost_reason !== undefined ? String(body.lost_reason ?? '').trim() : trimOrNull(current.lost_reason);
     const nextLostOn = body.lost_on !== undefined ? parseLostOn(body.lost_on) : dayStr(current.lost_on);
     const rawLessons = body.lessons !== undefined ? String(body.lessons ?? '') : String(current.lessons ?? '');
-    const nextLessons = applyRecoverable(rawLessons, body.recoverable);
+    const userLessons = stripRecoverablePrefix(rawLessons);
+    const nextLessons =
+      body.recoverable === undefined
+        ? trimOrNull(rawLessons)
+        : applyRecoverable(rawLessons, body.recoverable);
     const nextContractId =
       body.new_contract_id !== undefined
         ? parseOptionalContractId(body.new_contract_id)
@@ -349,7 +353,7 @@ export class AmRenewalsService {
     }
 
     if (nextStatus === 'lost') {
-      if (!String(nextLostReason ?? '').trim() || !nextLostOn || !String(nextLessons ?? '').trim()) {
+      if (!String(nextLostReason ?? '').trim() || !nextLostOn || !userLessons) {
         amThrow(400, { error: 'lost_fields_required' });
       }
     }
@@ -622,9 +626,12 @@ function parseLostOn(raw: string | undefined): string | null {
   return value;
 }
 
-function applyRecoverable(lessons: string, recoverable: boolean | undefined): string | null {
-  const body = lessons.replace(/^\[(?:not_)?recoverable\]\s*/i, '');
-  if (recoverable == null) return trimOrNull(body) ?? trimOrNull(lessons);
+function stripRecoverablePrefix(lessons: string): string {
+  return lessons.replace(/^\[(?:not_)?recoverable\]\s*/i, '').trim();
+}
+
+function applyRecoverable(lessons: string, recoverable: boolean): string | null {
+  const body = stripRecoverablePrefix(lessons);
   const prefix = recoverable ? '[recoverable] ' : '[not_recoverable] ';
   const next = `${prefix}${body}`.trim();
   return next || prefix.trim();
