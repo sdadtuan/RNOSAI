@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { StoredStaffUser } from '@/lib/auth';
-import { amCsHealthStripAvg, canSeeAmHealthStrip } from './am-cs-health-strip.util';
+import {
+  amCsHealthStripAvg,
+  canSeeAmHealthStrip,
+  canSeeCrmHealthPage,
+  canSeeCsHealthDashboard,
+} from './am-cs-health-strip.util';
 
 function user(caps: Array<{ section: string; action: string }>): StoredStaffUser {
   return {
@@ -16,6 +21,15 @@ describe('canSeeAmHealthStrip', () => {
   it('shows the strip only with crm_am.view', () => {
     expect(canSeeAmHealthStrip(user([{ section: 'crm_agency', action: 'view' }]))).toBe(false);
     expect(canSeeAmHealthStrip(user([{ section: 'crm_am', action: 'view' }]))).toBe(true);
+  });
+});
+
+describe('crm health page gate', () => {
+  it('lets crm_am.view onto the page but not the CS panel', () => {
+    const amOnly = user([{ section: 'crm_am', action: 'view' }]);
+    expect(canSeeCrmHealthPage(amOnly)).toBe(true);
+    expect(canSeeCsHealthDashboard(amOnly)).toBe(false);
+    expect(canSeeCsHealthDashboard(user([{ section: 'crm_agency', action: 'view' }]))).toBe(true);
   });
 });
 

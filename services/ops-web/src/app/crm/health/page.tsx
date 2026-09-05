@@ -5,13 +5,16 @@ import { useRouter } from 'next/navigation';
 import { CsHealthDashboardPanel } from '@/components/ai/CsHealthDashboardPanel';
 import { AmCsHealthStrip } from '@/components/crm/health/AmCsHealthStrip';
 import { DashboardShell } from '@/components/kpi/DashboardShell';
-import { canSeeAmHealthStrip } from '@/lib/crm/am-cs-health-strip.util';
+import {
+  canSeeAmHealthStrip,
+  canSeeCrmHealthPage,
+  canSeeCsHealthDashboard,
+} from '@/lib/crm/am-cs-health-strip.util';
 import {
   clearSession,
   getAccessToken,
   getRefreshToken,
   getStoredUser,
-  hasCap,
   updateAccessToken,
   updateStoredUser,
   type StoredStaffUser,
@@ -24,11 +27,8 @@ export default function CrmHealthPage() {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  const canView =
-    user &&
-    (hasCap(user, 'crm_agency', 'view') ||
-      hasCap(user, 'crm_board', 'view') ||
-      hasCap(user, 'ai_admin', 'view'));
+  const canView = canSeeCrmHealthPage(user);
+  const canViewCs = canSeeCsHealthDashboard(user);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -84,7 +84,7 @@ export default function CrmHealthPage() {
   if (!canView) {
     return (
       <DashboardShell user={user} onLogout={logout} title="CS Health score" error="Không có quyền xem churn health.">
-        <p className="muted">Cần crm_agency.view hoặc crm_board.view.</p>
+        <p className="muted">Cần crm_am.view, crm_agency.view, crm_board.view hoặc ai_admin.view.</p>
       </DashboardShell>
     );
   }
@@ -100,7 +100,7 @@ export default function CrmHealthPage() {
       {token ? (
         <>
           {canSeeAmHealthStrip(user) ? <AmCsHealthStrip token={token} /> : null}
-          <CsHealthDashboardPanel token={token} />
+          {canViewCs ? <CsHealthDashboardPanel token={token} /> : null}
         </>
       ) : (
         <p className="muted">Đang tải…</p>
