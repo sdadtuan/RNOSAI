@@ -288,6 +288,130 @@ export async function createAmAccount(token: string, body: AmCreateAccountBody):
   });
 }
 
+export type AmAccountChild = {
+  agency_client_id: string;
+  name: string;
+  code: string;
+  owner_label: string | null;
+  am_status: string;
+};
+
+export type AmAccountContact = {
+  id: string;
+  full_name: string;
+  role_committee: string | null;
+  is_primary: boolean;
+  sentiment: string | null;
+  channel: string | null;
+  email: string | null;
+  phone: string | null;
+};
+
+export type AmAccountContract = {
+  id: number;
+  reference_code: string;
+  title: string;
+  status: string;
+  billing_type: string;
+  service_slug: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  amount_vnd: number | null;
+};
+
+export type AmAccountOpenTask = {
+  id: string;
+  title: string;
+  status: string;
+  due_at: string | null;
+  sla_label: string | null;
+};
+
+export type AmAccountPlan = {
+  id: string;
+  kind: string;
+  period_key: string;
+  status: string;
+  due_on: string | null;
+};
+
+export type AmAccountAuditItem = {
+  id: number;
+  action: string;
+  entity_type: string;
+  actor_staff_id: number | null;
+  created_at: string;
+  payload_json: Record<string, unknown> | null;
+};
+
+export type AmAccount360 = {
+  agency_client_id: string;
+  code: string;
+  name: string;
+  industry: string | null;
+  notes: string | null;
+  am_status: string;
+  tier: string | null;
+  team_id: number | null;
+  team_label: string | null;
+  owner_staff_id: number | null;
+  owner_label: string | null;
+  delivery_label: string | null;
+  media_label: string | null;
+  parent_agency_client_id: string | null;
+  parent_name: string | null;
+  children: AmAccountChild[];
+  band: AmHealthBand | null;
+  score: number | null;
+  mrr_vnd: number | null;
+  outstanding_vnd: number | null;
+  next_invoice_on: string | null;
+  hide_amounts: boolean;
+  contacts: AmAccountContact[];
+  contracts: AmAccountContract[];
+  open_tasks: AmAccountOpenTask[];
+  plans: AmAccountPlan[];
+  audit: AmAccountAuditItem[];
+};
+
+export type AmPatchAccountBody = {
+  name?: string;
+  tier?: string | null;
+  team_id?: number | null;
+  am_status?: string;
+  parent_agency_client_id?: string | null;
+  archive?: boolean;
+};
+
+export async function fetchAmAccount(token: string, agencyClientId: string): Promise<AmAccount360> {
+  return amFetch<AmAccount360>(
+    token,
+    `/api/crm/am/accounts/${encodeURIComponent(agencyClientId)}`,
+  );
+}
+
+export async function patchAmAccount(
+  token: string,
+  agencyClientId: string,
+  body: AmPatchAccountBody,
+): Promise<AmAccount360> {
+  return amFetch<AmAccount360>(token, `/api/crm/am/accounts/${encodeURIComponent(agencyClientId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function mergeAmAccount(
+  token: string,
+  agencyClientId: string,
+  intoAgencyClientId: string,
+): Promise<{ merged: true; into_agency_client_id: string }> {
+  return amFetch(token, `/api/crm/am/accounts/${encodeURIComponent(agencyClientId)}/merge`, {
+    method: 'POST',
+    body: JSON.stringify({ into_agency_client_id: intoAgencyClientId }),
+  });
+}
+
 export async function createAmPlan(token: string, body: AmCreatePlanInput): Promise<AmPlan> {
   return amFetch<AmPlan>(token, '/api/crm/am/plans', {
     method: 'POST',

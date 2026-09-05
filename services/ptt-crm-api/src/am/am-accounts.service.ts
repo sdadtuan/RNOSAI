@@ -84,6 +84,116 @@ export type AmTransferResult = {
   keep_secondary: boolean;
 };
 
+export type AmPatchAccountBody = {
+  name?: string;
+  tier?: string | null;
+  team_id?: number | null;
+  am_status?: string;
+  parent_agency_client_id?: string | null;
+  archive?: boolean;
+  amount_vnd?: unknown;
+};
+
+export type AmMergeAccountBody = {
+  into_agency_client_id: string;
+};
+
+export type AmAccountChild = {
+  agency_client_id: string;
+  name: string;
+  code: string;
+  owner_label: string | null;
+  am_status: string;
+};
+
+export type AmAccountContact = {
+  id: string;
+  full_name: string;
+  role_committee: string | null;
+  is_primary: boolean;
+  sentiment: string | null;
+  channel: string | null;
+  email: string | null;
+  phone: string | null;
+};
+
+export type AmAccountContract = {
+  id: number;
+  reference_code: string;
+  title: string;
+  status: string;
+  billing_type: string;
+  service_slug: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  amount_vnd: number | null;
+};
+
+export type AmAccountOpenTask = {
+  id: string;
+  title: string;
+  status: string;
+  due_at: string | null;
+  sla_label: string | null;
+};
+
+export type AmAccountPlan = {
+  id: string;
+  kind: string;
+  period_key: string;
+  status: string;
+  due_on: string | null;
+};
+
+export type AmAccountAuditItem = {
+  id: number;
+  action: string;
+  entity_type: string;
+  actor_staff_id: number | null;
+  created_at: string;
+  payload_json: Record<string, unknown> | null;
+};
+
+export type AmAccount360 = {
+  agency_client_id: string;
+  code: string;
+  name: string;
+  industry: string | null;
+  notes: string | null;
+  am_status: string;
+  tier: string | null;
+  team_id: number | null;
+  team_label: string | null;
+  owner_staff_id: number | null;
+  owner_label: string | null;
+  delivery_label: string | null;
+  media_label: string | null;
+  parent_agency_client_id: string | null;
+  parent_name: string | null;
+  children: AmAccountChild[];
+  band: string | null;
+  score: number | null;
+  mrr_vnd: number | null;
+  outstanding_vnd: number | null;
+  next_invoice_on: string | null;
+  hide_amounts: boolean;
+  contacts: AmAccountContact[];
+  contracts: AmAccountContract[];
+  open_tasks: AmAccountOpenTask[];
+  plans: AmAccountPlan[];
+  audit: AmAccountAuditItem[];
+};
+
+const AM_STATUSES = new Set([
+  'pending_handover',
+  'onboarding',
+  'active',
+  'at_risk',
+  'renewing',
+  'paused',
+  'churned',
+]);
+
 export type AmAccountsQuery = (
   sql: string,
   params?: unknown[],
@@ -359,6 +469,131 @@ export class AmAccountsService {
     };
   }
 
+  async get(req: AmAccountsListReq, agencyClientId: string): Promise<AmAccount360> {
+    const id = String(agencyClientId ?? '').trim();
+    if (!isUuid(id)) amThrow(404, { error: 'not_found' });
+    const actor = await this.resolveListActor(req, undefined);
+    const hideAmounts = await this.shouldHideAmounts(req);
+    return this.load360(actor, id, hideAmounts);
+  }
+
+  async patch(
+    req: AmAccountsListReq,
+    agencyClientId: string,
+    body: AmPatchAccountBody,
+    actor: AmAccountActor,
+  ): Promise<AmAccount360> {
+    if (!this.canEdit(actor)) {
+      amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'edit' });
+    }
+    const id = String(agencyClientId ?? '').trim();
+    if (!isUuid(id)) amThrow(404, { error: 'not_found' });
+    const scoped = await this.resolveListActor(req, undefined);
+    const current = await this.loadAccountRow(scoped, id, true);
+    if (!current) amThrow(404, { error: 'not_found' });
+
+    const sets: string[] = ['updated_at = now()'];
+    const params: unknown[] = [AM_TENANT_ID, id];
+    if (body.archive === true) {
+      if (!this.canManage(actor)) {
+        amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'manage' });
+      }
+      sets.push(`am_status = ${pushParam(params, 'paused')}`);
+    } else if (body.am_status != null) {
+      const status = String(body.am_status).trim();
+      if (!AM_STATUSES.has(status)) amThrow(400, { error: 'am_status_invalid' });
+      sets.push(`am_status = ${pushParam(params, status)}`);
+    }
+    if ('tier' in body) {
+      const tier = body.tier == null || body.tier === '' ? null : String(body.tier).trim();
+      sets.push(`tier = ${pushParam(params, tier)}`);
+    }
+    if ('team_id' in body) {
+      const teamId = body.team_id == null || body.team_id === ('' as never) ? null : num(body.team_id);
+      if (body.team_id != null && teamId == null) amThrow(400, { error: 'team_id_invalid' });
+      sets.push(`team_id = ${pushParam(params, teamId)}`);
+    }
+    if ('parent_agency_client_id' in body) {
+      const parent = body.parent_agency_client_id == null || body.parent_agency_client_id === ''
+        ? null
+        : String(body.parent_agency_client_id).trim();
+      if (parent && (!isUuid(parent) || parent === id)) {
+        amThrow(400, { error: 'parent_invalid' });
+      }
+      sets.push(`parent_agency_client_id = ${pushParam(params, parent)}::uuid`);
+    }
+
+    const bound = bindScopeSql(
+      amScopeSql({ scope: scoped.scope, staffId: scoped.staffId, teamIds: scoped.teamIds }),
+      params.length + 1,
+    );
+    params.push(...bound.params);
+    await this.db.query(
+      `UPDATE crm_am_account_ext e
+          SET ${sets.join(', ')}
+        WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}`,
+      params,
+    );
+
+    const nextName = String(body.name ?? '').trim();
+    if (nextName && this.canAgencyWrite(actor)) {
+      await this.agency.updateClient(id, { name: nextName });
+    }
+
+    await this.audit?.insert({
+      actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
+      action: 'account.update',
+      entity_type: 'account',
+      entity_id: id,
+      payload_json: {
+        tier: body.tier,
+        team_id: body.team_id,
+        am_status: body.am_status,
+        parent_agency_client_id: body.parent_agency_client_id,
+        archive: body.archive === true,
+        name: nextName || undefined,
+      },
+    });
+    this.dashboard?.dropCache();
+    return this.load360(scoped, id, await this.shouldHideAmounts(req));
+  }
+
+  async merge(
+    req: AmAccountsListReq,
+    agencyClientId: string,
+    body: AmMergeAccountBody,
+    actor: AmAccountActor,
+  ): Promise<{ merged: true; into_agency_client_id: string }> {
+    if (!this.canManage(actor)) {
+      amThrow(403, { error: 'missing_cap', section: 'crm_am', action: 'manage' });
+    }
+    const id = String(agencyClientId ?? '').trim();
+    const into = String(body.into_agency_client_id ?? '').trim();
+    if (!isUuid(id) || !isUuid(into) || into === id) {
+      amThrow(400, { error: 'merge_target_invalid' });
+    }
+    const scoped = await this.resolveListActor(req, undefined);
+    const found = await this.loadScopedAccounts([id, into], scoped);
+    if (found.length < 2) {
+      amThrow(403, { error: 'merge_denied' });
+    }
+    await this.db.query(
+      `UPDATE crm_am_account_ext
+          SET parent_agency_client_id = $2::uuid, updated_at = now()
+        WHERE tenant_id = $3 AND agency_client_id = $1::uuid`,
+      [id, into, AM_TENANT_ID],
+    );
+    await this.audit?.insert({
+      actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
+      action: 'account.merge',
+      entity_type: 'account',
+      entity_id: id,
+      payload_json: { into_agency_client_id: into },
+    });
+    this.dashboard?.dropCache();
+    return { merged: true, into_agency_client_id: into };
+  }
+
   private async inTx<T>(fn: (query: AmAccountsQuery) => Promise<T>): Promise<T> {
     if (this.db.withTransaction) {
       return this.db.withTransaction(fn);
@@ -443,6 +678,346 @@ export class AmAccountsService {
       this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'assign') ||
       this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'manage')
     );
+  }
+
+  private canEdit(actor: AmAccountActor): boolean {
+    if (actor.via === 'internal') return true;
+    return (
+      this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'edit') ||
+      this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'manage')
+    );
+  }
+
+  private canManage(actor: AmAccountActor): boolean {
+    if (actor.via === 'internal') return true;
+    return this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', 'manage');
+  }
+
+  private async shouldHideAmounts(req: AmAccountsListReq): Promise<boolean> {
+    if (req.staffAuthVia === 'internal' && !req.staffUser) return false;
+    if (!req.staffUser) return true;
+    const me = await this.staffAuth.me(req.staffUser);
+    return !(
+      this.staffAuth.hasCap(me.caps, 'crm_am.finance', 'view') ||
+      this.staffAuth.hasCap(me.caps, 'crm_am', 'manage')
+    );
+  }
+
+  private async load360(actor: ListActor, id: string, hideAmounts: boolean): Promise<AmAccount360> {
+    const row = await this.loadAccountRow(actor, id, true);
+    if (!row) amThrow(404, { error: 'not_found' });
+    const [children, contacts, contracts, openTasks, plans, audit] = await Promise.all([
+      this.loadChildren(id),
+      this.loadContacts(id),
+      this.loadContracts(id, hideAmounts),
+      this.loadOpenTasks(id),
+      this.loadPlans(id),
+      this.loadAudit(id),
+    ]);
+    const media = contracts.some((ct) => /media/i.test(ct.billing_type) || /media|ads/i.test(ct.service_slug));
+    const delivery = contracts.some(
+      (ct) => !/media/i.test(ct.billing_type) && /active|renewing/i.test(ct.status),
+    );
+    return {
+      agency_client_id: String(row.agency_client_id ?? ''),
+      code: String(row.code ?? ''),
+      name: String(row.name ?? ''),
+      industry: text(row.industry),
+      notes: text(row.notes),
+      am_status: String(row.am_status ?? 'active'),
+      tier: text(row.tier),
+      team_id: num(row.team_id),
+      team_label: text(row.team_label),
+      owner_staff_id: num(row.owner_staff_id),
+      owner_label: text(row.owner_label),
+      delivery_label: delivery ? text(row.delivery_label) ?? 'Delivery' : text(row.delivery_label),
+      media_label: media ? text(row.media_label) ?? 'Media' : text(row.media_label),
+      parent_agency_client_id: text(row.parent_agency_client_id),
+      parent_name: text(row.parent_name),
+      children,
+      band: text(row.band),
+      score: num(row.score),
+      mrr_vnd: hideAmounts ? null : num(row.mrr_vnd),
+      outstanding_vnd: null,
+      next_invoice_on: null,
+      hide_amounts: hideAmounts,
+      contacts,
+      contracts,
+      open_tasks: openTasks,
+      plans,
+      audit,
+    };
+  }
+
+  private async loadAccountRow(
+    actor: ListActor,
+    id: string,
+    includeTeam: boolean,
+  ): Promise<Record<string, unknown> | null> {
+    const params: unknown[] = [AM_TENANT_ID, id];
+    const bound = bindScopeSql(
+      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
+      params.length + 1,
+    );
+    params.push(...bound.params);
+    try {
+      const result = await this.db.query(
+        `SELECT
+            e.agency_client_id::text AS agency_client_id,
+            c.code,
+            c.name,
+            COALESCE(NULLIF(e.industry_override, ''), c.industry_slug) AS industry,
+            c.notes,
+            e.am_status,
+            e.tier,
+            e.team_id,
+            ${includeTeam ? 'team.name AS team_label' : 'NULL::text AS team_label'},
+            e.account_owner_staff_id AS owner_staff_id,
+            owner.name AS owner_label,
+            e.parent_agency_client_id::text AS parent_agency_client_id,
+            parent.name AS parent_name,
+            CASE
+              WHEN snap.override_band IS NOT NULL AND snap.override_until >= CURRENT_DATE
+                THEN snap.override_band
+              ELSE snap.band
+            END AS band,
+            snap.score,
+            mrr.mrr_vnd,
+            NULL::text AS delivery_label,
+            NULL::text AS media_label
+          FROM crm_am_account_ext e
+          INNER JOIN clients c ON c.id = e.agency_client_id
+          LEFT JOIN clients parent ON parent.id = e.parent_agency_client_id
+          LEFT JOIN crm_staff owner ON owner.id = e.account_owner_staff_id
+          ${includeTeam ? 'LEFT JOIN staff_teams team ON team.id = e.team_id' : ''}
+          LEFT JOIN LATERAL (
+            SELECT h.score, h.band, h.override_band, h.override_until
+              FROM crm_am_health_snapshots h
+             WHERE h.tenant_id = $1
+               AND h.agency_client_id = e.agency_client_id
+             ORDER BY h.as_of DESC
+             LIMIT 1
+          ) snap ON TRUE
+          ${contractJoins()}
+          WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}
+          LIMIT 1`,
+        params,
+      );
+      return result.rows[0] ?? null;
+    } catch (err) {
+      if (includeTeam && isMissingRelation(err)) {
+        return this.loadAccountRow(actor, id, false);
+      }
+      if (isMissingRelation(err)) return this.loadAccountRowMinimal(actor, id);
+      throw err;
+    }
+  }
+
+  private async loadAccountRowMinimal(
+    actor: ListActor,
+    id: string,
+  ): Promise<Record<string, unknown> | null> {
+    const params: unknown[] = [AM_TENANT_ID, id];
+    const bound = bindScopeSql(
+      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
+      params.length + 1,
+    );
+    params.push(...bound.params);
+    const result = await this.db.query(
+      `SELECT
+          e.agency_client_id::text AS agency_client_id,
+          c.code,
+          c.name,
+          c.industry_slug AS industry,
+          c.notes,
+          e.am_status,
+          e.tier,
+          e.team_id,
+          NULL::text AS team_label,
+          e.account_owner_staff_id AS owner_staff_id,
+          NULL::text AS owner_label,
+          e.parent_agency_client_id::text AS parent_agency_client_id,
+          NULL::text AS parent_name,
+          NULL::text AS band,
+          NULL::numeric AS score,
+          NULL::numeric AS mrr_vnd,
+          NULL::text AS delivery_label,
+          NULL::text AS media_label
+        FROM crm_am_account_ext e
+        INNER JOIN clients c ON c.id = e.agency_client_id
+       WHERE e.tenant_id = $1 AND e.agency_client_id = $2::uuid AND ${bound.sql}
+       LIMIT 1`,
+      params,
+    );
+    return result.rows[0] ?? null;
+  }
+
+  private async loadChildren(id: string): Promise<AmAccountChild[]> {
+    try {
+      const result = await this.db.query(
+        `SELECT
+            ch.agency_client_id::text AS agency_client_id,
+            c.name,
+            c.code,
+            owner.name AS owner_label,
+            ch.am_status
+          FROM crm_am_account_ext ch
+          INNER JOIN clients c ON c.id = ch.agency_client_id
+          LEFT JOIN crm_staff owner ON owner.id = ch.account_owner_staff_id
+         WHERE ch.parent_agency_client_id = $1::uuid
+         ORDER BY c.name`,
+        [id],
+      );
+      return result.rows.map((row) => ({
+        agency_client_id: String(row.agency_client_id ?? ''),
+        name: String(row.name ?? ''),
+        code: String(row.code ?? ''),
+        owner_label: text(row.owner_label),
+        am_status: String(row.am_status ?? 'active'),
+      }));
+    } catch (err) {
+      if (isMissingRelation(err)) return [];
+      throw err;
+    }
+  }
+
+  private async loadContacts(id: string): Promise<AmAccountContact[]> {
+    try {
+      const result = await this.db.query(
+        `SELECT id::text AS id, full_name, role_committee, is_primary, sentiment, channel, email, phone
+           FROM crm_am_contacts
+          WHERE agency_client_id = $1::uuid
+          ORDER BY is_primary DESC, full_name`,
+        [id],
+      );
+      return result.rows.map((row) => ({
+        id: String(row.id ?? ''),
+        full_name: String(row.full_name ?? ''),
+        role_committee: text(row.role_committee),
+        is_primary: Boolean(row.is_primary),
+        sentiment: text(row.sentiment),
+        channel: text(row.channel),
+        email: text(row.email),
+        phone: text(row.phone),
+      }));
+    } catch (err) {
+      if (isMissingRelation(err)) return [];
+      throw err;
+    }
+  }
+
+  private async loadContracts(id: string, hideAmounts: boolean): Promise<AmAccountContract[]> {
+    try {
+      const result = await this.db.query(
+        `SELECT id, reference_code, title, status, billing_type, service_slug, starts_on, ends_on, amount_vnd
+           FROM crm_contracts
+          WHERE TRIM(COALESCE(agency_client_id, '')) = $1
+          ORDER BY ends_on NULLS LAST, id`,
+        [id],
+      );
+      return result.rows.map((row) => ({
+        id: Number(row.id ?? 0),
+        reference_code: String(row.reference_code ?? ''),
+        title: String(row.title ?? ''),
+        status: String(row.status ?? ''),
+        billing_type: String(row.billing_type ?? ''),
+        service_slug: String(row.service_slug ?? ''),
+        starts_on: dayStr(row.starts_on),
+        ends_on: dayStr(row.ends_on),
+        amount_vnd: hideAmounts ? null : num(row.amount_vnd),
+      }));
+    } catch (err) {
+      if (isMissingRelation(err)) return [];
+      throw err;
+    }
+  }
+
+  private async loadOpenTasks(id: string): Promise<AmAccountOpenTask[]> {
+    try {
+      const result = await this.db.query(
+        `SELECT
+            id::text AS id,
+            title,
+            status,
+            due_at,
+            CASE
+              WHEN sla_resolve_due_at < now() THEN 'SLA quá hạn'
+              WHEN sla_resolve_due_at <= now() + interval '2 hours' THEN 'SLA sắp đến hạn'
+              ELSE NULL
+            END AS sla_label
+           FROM crm_am_tasks
+          WHERE agency_client_id = $1::uuid
+            AND dismissed_at IS NULL
+            AND status NOT IN ('closed', 'cancelled', 'resolved')
+          ORDER BY sla_resolve_due_at NULLS LAST, due_at NULLS LAST
+          LIMIT 20`,
+        [id],
+      );
+      return result.rows.map((row) => ({
+        id: String(row.id ?? ''),
+        title: String(row.title ?? ''),
+        status: String(row.status ?? ''),
+        due_at: row.due_at == null ? null : String(row.due_at),
+        sla_label: text(row.sla_label),
+      }));
+    } catch (err) {
+      if (isMissingRelation(err)) return [];
+      throw err;
+    }
+  }
+
+  private async loadPlans(id: string): Promise<AmAccountPlan[]> {
+    try {
+      const result = await this.db.query(
+        `SELECT id::text AS id, kind, period_key, status, due_on
+           FROM crm_am_plans
+          WHERE agency_client_id = $1::uuid
+          ORDER BY due_on NULLS LAST`,
+        [id],
+      );
+      return result.rows.map((row) => ({
+        id: String(row.id ?? ''),
+        kind: String(row.kind ?? ''),
+        period_key: String(row.period_key ?? ''),
+        status: String(row.status ?? ''),
+        due_on: dayStr(row.due_on),
+      }));
+    } catch (err) {
+      if (isMissingRelation(err)) return [];
+      throw err;
+    }
+  }
+
+  private async loadAudit(id: string): Promise<AmAccountAuditItem[]> {
+    try {
+      const result = await this.db.query(
+        `SELECT id, action, entity_type, actor_staff_id, created_at, payload_json
+           FROM crm_am_audit
+          WHERE tenant_id = $1
+            AND (
+              entity_id = $2
+              OR payload_json->>'agency_client_id' = $2
+              OR payload_json->'agency_client_ids' ? $2
+            )
+          ORDER BY created_at DESC
+          LIMIT 50`,
+        [AM_TENANT_ID, id],
+      );
+      return result.rows.map((row) => ({
+        id: Number(row.id ?? 0),
+        action: String(row.action ?? ''),
+        entity_type: String(row.entity_type ?? ''),
+        actor_staff_id: num(row.actor_staff_id),
+        created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at ?? ''),
+        payload_json:
+          row.payload_json && typeof row.payload_json === 'object'
+            ? (row.payload_json as Record<string, unknown>)
+            : null,
+      }));
+    } catch (err) {
+      if (isMissingRelation(err)) return [];
+      throw err;
+    }
   }
 
   private canAgencyWrite(actor: AmAccountActor): boolean {

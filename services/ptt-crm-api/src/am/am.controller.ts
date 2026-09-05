@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
@@ -7,6 +7,8 @@ import {
   AmAccountsService,
   type AmAccountsListQuery,
   type AmCreateAccountBody,
+  type AmMergeAccountBody,
+  type AmPatchAccountBody,
   type AmTransferBody,
 } from './am-accounts.service';
 import { AmDashboardService } from './am-dashboard.service';
@@ -126,6 +128,40 @@ export class AmController {
   @RequireAmAction('assign')
   async transferAccounts(@Req() req: AuthedReq, @Body() body: AmTransferBody) {
     return this.accounts.transfer(body, {
+      staffId: await this.actorStaffId(req),
+      caps: await this.actorCaps(req),
+      via: req.staffAuthVia === 'internal' ? 'internal' : 'jwt',
+    });
+  }
+
+  @Get('accounts/:agencyClientId')
+  @RequireAmAction('view')
+  async getAccount(@Req() req: AuthedReq, @Param('agencyClientId') agencyClientId: string) {
+    return this.accounts.get(req, agencyClientId);
+  }
+
+  @Patch('accounts/:agencyClientId')
+  @RequireAmAction('edit')
+  async patchAccount(
+    @Req() req: AuthedReq,
+    @Param('agencyClientId') agencyClientId: string,
+    @Body() body: AmPatchAccountBody,
+  ) {
+    return this.accounts.patch(req, agencyClientId, body, {
+      staffId: await this.actorStaffId(req),
+      caps: await this.actorCaps(req),
+      via: req.staffAuthVia === 'internal' ? 'internal' : 'jwt',
+    });
+  }
+
+  @Post('accounts/:agencyClientId/merge')
+  @RequireAmAction('manage')
+  async mergeAccount(
+    @Req() req: AuthedReq,
+    @Param('agencyClientId') agencyClientId: string,
+    @Body() body: AmMergeAccountBody,
+  ) {
+    return this.accounts.merge(req, agencyClientId, body, {
       staffId: await this.actorStaffId(req),
       caps: await this.actorCaps(req),
       via: req.staffAuthVia === 'internal' ? 'internal' : 'jwt',

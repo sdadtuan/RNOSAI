@@ -893,9 +893,80 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
   max-width: none;
 }
 
+.am-360__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.am-360__head h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+  color: var(--am-navy);
+}
+
+.am-360__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.am-360__more {
+  position: relative;
+}
+
+.am-360__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.am-360__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.am-360__tabs button {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.am-360__tabs button.is-active {
+  background: var(--am-accent);
+  border-color: var(--am-accent);
+  color: #fff;
+}
+
+.am-360__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 12px;
+}
+
+.am-360__panel h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: var(--am-navy);
+}
+
 @media (max-width: 720px) {
   .am-split,
-  .am-cov {
+  .am-cov,
+  .am-360__grid {
     grid-template-columns: 1fr;
   }
 }
