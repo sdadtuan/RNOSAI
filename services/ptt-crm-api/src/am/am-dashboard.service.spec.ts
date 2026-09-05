@@ -1,4 +1,10 @@
-import { emptyKpis, showCoverage, sumRevenueAtRisk, todayWorkChip } from './am-dashboard.service';
+import {
+  averageCsat,
+  emptyKpis,
+  showCoverage,
+  sumRevenueAtRisk,
+  todayWorkChip,
+} from './am-dashboard.service';
 
 describe('am-dashboard.service', () => {
   it('counts revenue at risk only for at_risk ∪ critical', () => {
@@ -28,6 +34,16 @@ describe('am-dashboard.service', () => {
     expect(kpis.revenue_at_risk_vnd).toBeNull();
     expect(kpis.sla_overdue).toBeNull();
     expect(kpis.deltas).toBeUndefined();
+  });
+
+  it('CSAT average helper stays null when no rows', () => {
+    expect(averageCsat([])).toBeNull();
+    expect(averageCsat([null, undefined])).toBeNull();
+  });
+
+  it('CSAT average helper averages scores when at least one row exists', () => {
+    expect(averageCsat([3, 5])).toBe(4);
+    expect(averageCsat([4])).toBe(4);
   });
 
   it('hides coverage unless team/all and director/admin', () => {

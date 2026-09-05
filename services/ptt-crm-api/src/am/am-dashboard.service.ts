@@ -42,6 +42,17 @@ export function emptyKpis(): AmCommandCenter['kpis'] {
   };
 }
 
+export function averageCsat(scores: Array<number | string | null | undefined>): number | null {
+  const nums: number[] = [];
+  for (const raw of scores) {
+    if (raw == null || raw === '') continue;
+    const n = Number(raw);
+    if (Number.isFinite(n)) nums.push(n);
+  }
+  if (nums.length < 1) return null;
+  return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+
 export function sumRevenueAtRisk(rows: RevenueAtRiskRow[]): { vnd: number | null; count: number } {
   let vnd = 0;
   let count = 0;
@@ -372,12 +383,13 @@ export class AmDashboardService implements OnModuleDestroy {
   ): Promise<AmCommandCenter> {
     const asOf = period.to;
     const today = ictYmd(now);
-    const [book, todayWork, slaOverdue, quota, qbrThisWeek] = await Promise.all([
+    const [book, todayWork, slaOverdue, quota, qbrThisWeek, csat] = await Promise.all([
       this.loadBook(staffId, scope, teamIds, asOf),
       this.loadTodayWork(staffId, scope, teamIds, now),
       this.loadSlaOverdue(staffId, scope, teamIds),
       this.loadQuota(),
       this.loadQbrThisWeek(staffId, scope, teamIds, today),
+      this.loadCsat(staffId, scope, teamIds),
     ]);
 
     const active = book.filter((row) => isActiveBook(row.am_status as AmAmStatus));
@@ -395,7 +407,7 @@ export class AmDashboardService implements OnModuleDestroy {
         freshness,
         role,
         load: { accounts: 0, quota },
-        kpis: emptyKpis(),
+        kpis: { ...emptyKpis(), csat },
         coverage: showCoverage(scope, role)
           ? { avg_load: null, unassigned: 0, delegated: 0, qbr_this_week: qbrThisWeek }
           : null,
@@ -430,7 +442,7 @@ export class AmDashboardService implements OnModuleDestroy {
         revenue_at_risk_vnd: atRisk.count ? atRisk.vnd : null,
         revenue_at_risk_count: atRisk.count ? atRisk.count : null,
         sla_overdue: slaOverdue,
-        csat: null,
+        csat,
       },
       coverage: showCoverage(scope, role) ? coverageOf(active, qbrThisWeek) : null,
       today_work: todayWork,
@@ -635,6 +647,34 @@ export class AmDashboardService implements OnModuleDestroy {
     try {
       const result = await this.db.query<{ n: number }>(sql, [AM_TENANT_ID, ...bound.params]);
       return Number(result.rows[0]?.n ?? 0);
+    } catch (err) {
+      if (isMissingRelation(err)) return null;
+      throw err;
+    }
+  }
+
+  private async loadCsat(
+    staffId: number,
+    scope: AmScope,
+    teamIds: number[],
+  ): Promise<number | null> {
+    const bound = bindScopeSql(amScopeSql({ scope, staffId, teamIds }), 2);
+    const sql = `
+      SELECT f.score
+      FROM crm_am_feedback f
+      INNER JOIN crm_am_account_ext e
+        ON e.agency_client_id = f.agency_client_id
+       AND e.tenant_id = $1
+      WHERE f.tenant_id = $1
+        AND f.kind = 'csat'
+        AND f.score IS NOT NULL
+        AND ${bound.sql}`;
+    try {
+      const result = await this.db.query<{ score: number | string }>(sql, [
+        AM_TENANT_ID,
+        ...bound.params,
+      ]);
+      return averageCsat(result.rows.map((row) => row.score));
     } catch (err) {
       if (isMissingRelation(err)) return null;
       throw err;

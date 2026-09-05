@@ -1466,3 +1466,102 @@ export type AmFinanceSnapshot = {
 export async function fetchAmFinance(token: string, agencyClientId: string): Promise<AmFinanceSnapshot> {
   return amFetch<AmFinanceSnapshot>(token, `/api/crm/am/finance/${encodeURIComponent(agencyClientId)}`);
 }
+
+export type AmFeedbackKind = 'csat' | 'nps' | 'complaint' | 'response' | 'comment';
+
+export type AmFeedbackItem = {
+  id: string;
+  agency_client_id: string;
+  account_name: string | null;
+  kind: AmFeedbackKind;
+  score: number | null;
+  comment: string | null;
+  followup_task_id: string | null;
+  csd_ticket_id: string | null;
+  csd_href: string | null;
+  created_at: string;
+};
+
+export type AmFeedbackKpis = {
+  csat: number | null;
+  nps: number | null;
+  response_pct: number | null;
+  complaints_open: number | null;
+};
+
+export type AmFeedbackList = {
+  items: AmFeedbackItem[];
+  kpis: AmFeedbackKpis;
+};
+
+export type AmCreateFeedbackInput = {
+  agency_client_id: string;
+  kind: AmFeedbackKind;
+  score?: number | null;
+  comment?: string | null;
+  csd_ticket_id?: string | null;
+};
+
+export type AmSurvey = {
+  id: string;
+  name: string;
+  template: string;
+  channel: string | null;
+  audience_json: unknown;
+  no_recontact_days: number | null;
+  csat_task_threshold: number;
+  created_at: string;
+};
+
+export type AmCreateSurveyInput = {
+  name: string;
+  template: string;
+  channel?: string | null;
+  audience_json?: unknown;
+  no_recontact_days?: number | null;
+  csat_task_threshold?: number | null;
+};
+
+export async function fetchAmFeedback(
+  token: string,
+  query: { agency_client_id?: string; scope?: AmScope; kind?: string } = {},
+): Promise<AmFeedbackList> {
+  const params = new URLSearchParams();
+  if (query.agency_client_id) params.set('agency_client_id', query.agency_client_id);
+  if (query.scope) params.set('scope', query.scope);
+  if (query.kind) params.set('kind', query.kind);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return amFetch<AmFeedbackList>(token, `/api/crm/am/feedback${suffix}`);
+}
+
+export async function createAmFeedback(
+  token: string,
+  body: AmCreateFeedbackInput,
+): Promise<AmFeedbackItem> {
+  return amFetch<AmFeedbackItem>(token, '/api/crm/am/feedback', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function followupAmFeedback(
+  token: string,
+  id: string,
+  body: { csd_ticket_id?: string } = {},
+): Promise<AmFeedbackItem> {
+  return amFetch<AmFeedbackItem>(token, `/api/crm/am/feedback/${encodeURIComponent(id)}/followup`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchAmSurveys(token: string): Promise<{ items: AmSurvey[] }> {
+  return amFetch<{ items: AmSurvey[] }>(token, '/api/crm/am/surveys');
+}
+
+export async function createAmSurvey(token: string, body: AmCreateSurveyInput): Promise<AmSurvey> {
+  return amFetch<AmSurvey>(token, '/api/crm/am/surveys', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}

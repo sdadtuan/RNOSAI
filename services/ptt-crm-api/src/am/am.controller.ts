@@ -65,6 +65,13 @@ import {
 } from './am-opportunities.service';
 import { AmReportsService } from './am-reports.service';
 import { AmFinanceService } from './am-finance.service';
+import {
+  AmFeedbackService,
+  type AmCreateFeedbackInput,
+  type AmCreateSurveyInput,
+  type AmFeedbackListQuery,
+  type AmFollowupInput,
+} from './am-feedback.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -96,6 +103,7 @@ export class AmController {
     private readonly opportunities: AmOpportunitiesService,
     private readonly reports: AmReportsService,
     private readonly finance: AmFinanceService,
+    private readonly feedback: AmFeedbackService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -534,6 +542,40 @@ export class AmController {
   @RequireAmAction('view')
   getFinance(@Req() req: AuthedReq, @Param('agencyClientId') agencyClientId: string) {
     return this.finance.get(req, agencyClientId);
+  }
+
+  @Get('feedback')
+  @RequireAmAction('view')
+  listFeedback(@Req() req: AuthedReq, @Query() q: AmFeedbackListQuery) {
+    return this.feedback.list(req, q);
+  }
+
+  @Post('feedback')
+  @RequireAmAction('edit')
+  async createFeedback(@Req() req: AuthedReq, @Body() body: AmCreateFeedbackInput) {
+    return this.feedback.create(req, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Post('feedback/:id/followup')
+  @RequireAmAction('edit')
+  async followupFeedback(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: AmFollowupInput,
+  ) {
+    return this.feedback.followup(req, id, await this.actorStaffId(req), body ?? {});
+  }
+
+  @Get('surveys')
+  @RequireAmAction('view')
+  listSurveys(@Req() req: AuthedReq) {
+    return this.feedback.listSurveys(req);
+  }
+
+  @Post('surveys')
+  @RequireAmAction('edit')
+  async createSurvey(@Req() req: AuthedReq, @Body() body: AmCreateSurveyInput) {
+    return this.feedback.createSurvey(req, body ?? {}, await this.actorStaffId(req));
   }
 
   @Get('interactions')

@@ -33,11 +33,19 @@ describe('AM_360_TABS', () => {
     expect(am360HasForbiddenTabs()).toBe(false);
   });
 
-  it('implements overview, finance, audit, Wave 3 timeline, and Wave 4 opportunities', () => {
+  it('implements overview, finance, audit, Wave 3 timeline, and Wave 4 opportunities + feedback', () => {
     const implemented = AM_360_TABS.filter((tab) => tab.implemented).map((tab) => tab.id);
-    expect(implemented).toEqual(['overview', 'timeline', 'finance', 'opportunities', 'audit']);
+    expect(implemented).toEqual([
+      'overview',
+      'timeline',
+      'finance',
+      'opportunities',
+      'feedback',
+      'audit',
+    ]);
     expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'timeline')!)).toBe('');
     expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'opportunities')!)).toBe('');
+    expect(am360WaveCopy(AM_360_TABS.find((tab) => tab.id === 'feedback')!)).toBe('');
   });
 
   it('defaults unknown tab query to overview', () => {

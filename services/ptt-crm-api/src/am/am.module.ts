@@ -21,6 +21,7 @@ import { AmRisksRepository, AmRisksService } from './am-risks.service';
 import { AmOpportunitiesRepository, AmOpportunitiesService } from './am-opportunities.service';
 import { AmReportsRepository, AmReportsService } from './am-reports.service';
 import { AmFinanceRepository, AmFinanceService } from './am-finance.service';
+import { AmFeedbackRepository, AmFeedbackService } from './am-feedback.service';
 import { AmController } from './am.controller';
 import { StaffAmGuard } from './guards/staff-am.guard';
 
@@ -64,6 +65,8 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmReportsService,
     AmFinanceRepository,
     AmFinanceService,
+    AmFeedbackRepository,
+    AmFeedbackService,
   ],
   exports: [
     StaffAmGuard,
@@ -86,6 +89,7 @@ import { StaffAmGuard } from './guards/staff-am.guard';
     AmOpportunitiesService,
     AmReportsService,
     AmFinanceService,
+    AmFeedbackService,
   ],
 })
 export class AmModule {}

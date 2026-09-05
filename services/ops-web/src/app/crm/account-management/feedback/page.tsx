@@ -1,5 +1,5 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+import { AmFeedback } from '@/components/crm/am/AmFeedback';
 
 export default function AmFeedbackPage() {
-  return <AmPlaceholder title="Feedback" wave={4} />;
+  return <AmFeedback />;
 }

@@ -27,7 +27,7 @@ export const AM_360_TABS: Am360Tab[] = [
   { id: 'finance', label: 'Hợp đồng & Tài chính', wave: 2, implemented: true },
   { id: 'health', label: 'Health & Risk', wave: 3, implemented: false },
   { id: 'opportunities', label: 'Cơ hội', wave: 4, implemented: true },
-  { id: 'feedback', label: 'Phản hồi', wave: 4, implemented: false },
+  { id: 'feedback', label: 'Phản hồi', wave: 4, implemented: true },
   { id: 'documents', label: 'Tài liệu', wave: 3, implemented: false },
   { id: 'audit', label: 'Audit', wave: 2, implemented: true },
 ];

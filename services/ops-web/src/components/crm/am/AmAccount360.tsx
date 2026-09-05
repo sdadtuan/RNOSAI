@@ -33,6 +33,7 @@ import { amGrowthNextRefreshNonce } from '@/lib/crm/am-growth.util';
 import { useToast } from '@/lib/toast';
 import { amRecoveryRequiredCopy } from '@/lib/crm/am-risk.util';
 import { AmContactDrawer } from './AmContactDrawer';
+import { AmFeedback } from './AmFeedback';
 import { AmFinance } from './AmFinance';
 import { AmGrowth } from './AmGrowth';
 import { AmOpportunityForm } from './AmOpportunityForm';
@@ -551,6 +552,8 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         <FinancePanel data={data} agencyClientId={agencyClientId} />
       ) : tab === 'opportunities' ? (
         <AmGrowth key={growthRefreshNonce} agencyClientId={agencyClientId} embedded />
+      ) : tab === 'feedback' ? (
+        <AmFeedback agencyClientId={agencyClientId} embedded />
       ) : tab === 'audit' ? (
         <AuditPanel data={data} />
       ) : (
