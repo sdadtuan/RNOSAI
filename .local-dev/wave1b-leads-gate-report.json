@@ -1,0 +1,41 @@
+{
+  "wave": "1b",
+  "component": "crm_leads_legacy",
+  "ok": true,
+  "generated_at": "2026-08-31T15:36:08+00:00",
+  "checks": [
+    {
+      "id": "W1B-G01",
+      "ok": true,
+      "label": "Nest leads v1 + legacy shim module",
+      "path": "services/ptt-crm-api/src/leads/leads.controller.ts"
+    },
+    {
+      "id": "W1B-G02",
+      "ok": true,
+      "label": "ops-web lead detail parity",
+      "path": "services/ops-web/src/app/crm/leads/[id]/page.tsx"
+    },
+    {
+      "id": "W1B-G03",
+      "ok": true,
+      "label": "Leads legacy Nest upstream",
+      "actual": true,
+      "expected": true
+    },
+    {
+      "id": "W1B-G04",
+      "ok": true,
+      "label": "Flask leads legacy write guard",
+      "note": "flask retired"
+    },
+    {
+      "id": "W1B-G05",
+      "ok": true,
+      "label": "Nest build",
+      "skipped": true
+    }
+  ],
+  "failed_ids": [],
+  "runbook": "docs/runbooks/crm-flask-retirement-master-checklist.md"
+}

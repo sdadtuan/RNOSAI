@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST='{"components/automation/AutomationWorkflowsPanel.tsx -> @/lib/automation-api":{"id":15731,"files":[]},"components/deal-room/DealRoomL1Panel.tsx -> @/lib/api":{"id":71837,"files":[]}}';
