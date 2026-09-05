@@ -28,6 +28,7 @@ export type AmPlanRow = {
 
 export type AmPlansStore = {
   insert(input: AmCreatePlanInput & { owner_staff_id: number }): Promise<AmPlanRow>;
+  deleteById(id: string): Promise<void>;
 };
 
 const PLAN_KINDS: AmPlanKind[] = ['care', 'qbr', 'renewal', 'expand'];
@@ -103,6 +104,13 @@ export class AmPlansRepository implements OnModuleDestroy, AmPlansStore {
     );
     return mapPlan(result.rows[0]);
   }
+
+  async deleteById(id: string): Promise<void> {
+    await this.db.query(`DELETE FROM crm_am_plans WHERE tenant_id = $1 AND id = $2::uuid`, [
+      AM_TENANT_ID,
+      id,
+    ]);
+  }
 }
 
 @Injectable()
@@ -115,7 +123,7 @@ export class AmPlansService {
 
   async create(input: AmCreatePlanInput, staffId: number): Promise<AmPlanRow> {
     const kind = input.kind;
-    if (kind === 'renewal' && (input.contract_id == null || Number.isNaN(Number(input.contract_id)))) {
+    if (kind === 'renewal' && !(Number(input.contract_id) > 0)) {
       amThrow(400, { error: 'contract_required' });
     }
 
@@ -136,8 +144,9 @@ export class AmPlansService {
         ? undefined
         : Number(input.contract_id);
 
+    let plan: AmPlanRow;
     try {
-      const plan = await this.repo.insert({
+      plan = await this.repo.insert({
         agency_client_id: agencyClientId,
         kind,
         period_key: periodKey,
@@ -145,6 +154,12 @@ export class AmPlansService {
         due_on: input.due_on,
         owner_staff_id: staffId,
       });
+    } catch (err) {
+      if (isUniqueViolation(err)) amThrow(409, { error: 'duplicate_plan' });
+      throw err;
+    }
+
+    try {
       for (const title of PLAN_SEED_TITLES[kind]) {
         await this.tasks.create(
           {
@@ -158,11 +173,13 @@ export class AmPlansService {
           staffId,
         );
       }
-      this.dashboard?.dropCache();
-      return plan;
     } catch (err) {
-      if (isUniqueViolation(err)) amThrow(409, { error: 'duplicate_plan' });
+      // Seed uses AmTasksService (separate pool). Compensate so retry is not 409-stuck.
+      await this.repo.deleteById(plan.id);
       throw err;
     }
+
+    this.dashboard?.dropCache();
+    return plan;
   }
 }

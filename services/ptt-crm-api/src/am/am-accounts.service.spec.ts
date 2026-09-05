@@ -43,4 +43,14 @@ describe('AmAccountsService', () => {
     await service.createAccount({ mode: 'attach', agency_client_id: 'uuid' }, actor);
     expect(agency.createClient).not.toHaveBeenCalled();
   });
+
+  it('attach does not overwrite an existing owner (first-writer-wins)', async () => {
+    await service.createAccount({ mode: 'attach', agency_client_id: 'uuid', owner_staff_id: 99 }, actor);
+    const upsert = db.query.mock.calls
+      .map((call) => String(call[0]))
+      .find((sql) => /crm_am_account_ext/i.test(sql));
+    expect(upsert).toMatch(
+      /COALESCE\s*\(\s*crm_am_account_ext\.account_owner_staff_id\s*,\s*EXCLUDED\.account_owner_staff_id\s*\)/i,
+    );
+  });
 });

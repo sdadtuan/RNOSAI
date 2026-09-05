@@ -19,7 +19,6 @@ export type AmAccountActor = {
 };
 
 export type AmAccountsDb = {
-  inserts: string[];
   query(
     sql: string,
     params?: unknown[],
@@ -31,13 +30,13 @@ INSERT INTO crm_am_account_ext (
   agency_client_id, tenant_id, account_owner_staff_id, am_status, updated_at
 ) VALUES ($1::uuid, $2, $3, 'active', now())
 ON CONFLICT (agency_client_id) DO UPDATE SET
-  account_owner_staff_id = COALESCE(EXCLUDED.account_owner_staff_id, crm_am_account_ext.account_owner_staff_id),
+  -- first-writer-wins: keep existing owner; only set when current is null
+  account_owner_staff_id = COALESCE(crm_am_account_ext.account_owner_staff_id, EXCLUDED.account_owner_staff_id),
   updated_at = now()
 `;
 
 @Injectable()
 export class AmAccountsRepository implements OnModuleDestroy, AmAccountsDb {
-  inserts: string[] = [];
   private pool: Pool | null = null;
 
   constructor(private readonly config: AppConfigService) {}
@@ -58,7 +57,6 @@ export class AmAccountsRepository implements OnModuleDestroy, AmAccountsDb {
     sql: string,
     params?: unknown[],
   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }> {
-    if (/insert/i.test(sql)) this.inserts.push(sql);
     return this.db.query(sql, params);
   }
 }
