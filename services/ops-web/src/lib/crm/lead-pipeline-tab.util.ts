@@ -1,3 +1,4 @@
+import { isLeadPipelineTabEnabled } from '@/lib/crm/lead-pipeline-flags';
 import { showPresalesForFlow, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 import type { PresalesFunnelStepKey } from '@/lib/crm/funnel-stepper.types';
 
@@ -19,6 +20,12 @@ export function shouldShowPipelineTab(flowKind: LeadFlowKind): boolean {
 
 export function pipelineStepQuery(step: PresalesFunnelStepKey): string {
   return `?tab=pipeline&step=${step}`;
+}
+
+export function leadDetailHref(leadId: number): string {
+  return isLeadPipelineTabEnabled()
+    ? `/crm/leads/${leadId}?tab=pipeline`
+    : `/crm/leads/${leadId}`;
 }
 
 export function mapLegacyHashToPipeline(

@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   defaultLeadWorkspaceTab,
+  leadDetailHref,
   mapLegacyHashToPipeline,
   pipelineStepQuery,
   shouldShowPipelineTab,
@@ -77,5 +78,22 @@ describe('defaultLeadWorkspaceTab', () => {
 describe('pipelineStepQuery', () => {
   it('builds query for readiness links', () => {
     expect(pipelineStepQuery('b2')).toBe('?tab=pipeline&step=b2');
+  });
+});
+
+describe('leadDetailHref', () => {
+  const prev = process.env.NEXT_PUBLIC_LEAD_PIPELINE_TAB;
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_LEAD_PIPELINE_TAB = prev;
+  });
+
+  it('keeps plain href when flag off', () => {
+    process.env.NEXT_PUBLIC_LEAD_PIPELINE_TAB = '0';
+    expect(leadDetailHref(9)).toBe('/crm/leads/9');
+  });
+
+  it('adds pipeline tab when flag on', () => {
+    process.env.NEXT_PUBLIC_LEAD_PIPELINE_TAB = '1';
+    expect(leadDetailHref(9)).toBe('/crm/leads/9?tab=pipeline');
   });
 });
