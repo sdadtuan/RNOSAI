@@ -42,15 +42,35 @@ export function emptyKpis(): AmCommandCenter['kpis'] {
   };
 }
 
-export function sumRevenueAtRisk(rows: RevenueAtRiskRow[]): { vnd: number; count: number } {
+export function sumRevenueAtRisk(rows: RevenueAtRiskRow[]): { vnd: number | null; count: number } {
   let vnd = 0;
   let count = 0;
+  let anyMoney = false;
   for (const row of rows) {
     if (row.band !== 'at_risk' && row.band !== 'critical') continue;
     count += 1;
-    if (row.mrr != null) vnd += row.mrr;
+    if (row.mrr != null) {
+      vnd += row.mrr;
+      anyMoney = true;
+    }
   }
-  return { vnd, count };
+  return { vnd: anyMoney && vnd !== 0 ? vnd : null, count };
+}
+
+export function todayWorkChip(
+  dueAt: unknown,
+  assigneeStaffId: number | null,
+  now: Date,
+): AmCommandCenter['today_work'][number]['chip'] {
+  if (assigneeStaffId == null) return 'unassigned';
+  const due =
+    dueAt instanceof Date ? dueAt : dueAt != null && dueAt !== '' ? new Date(String(dueAt)) : null;
+  if (!due || !Number.isFinite(due.getTime())) return 'soon';
+  const dueDay = ictYmd(due);
+  const today = ictYmd(now);
+  if (dueDay < today) return 'overdue';
+  if (dueDay === today) return 'today';
+  return 'soon';
 }
 
 export function showCoverage(scope: AmScope, role: AmRole): boolean {
@@ -589,8 +609,7 @@ export class AmDashboardService implements OnModuleDestroy {
       LIMIT 50`;
     try {
       const result = await this.db.query(sql, [AM_TENANT_ID, ...bound.params]);
-      const today = ictYmd(now);
-      return result.rows.map((row) => mapTodayWork(row, today, now));
+      return result.rows.map((row) => mapTodayWork(row, now));
     } catch (err) {
       if (isMissingRelation(err)) return [];
       throw err;
@@ -708,24 +727,17 @@ function mapBookRow(row: Record<string, unknown>): BookRow {
 
 function mapTodayWork(
   row: Record<string, unknown>,
-  today: string,
   now: Date,
 ): AmCommandCenter['today_work'][number] {
   const dueAt = isoTs(row.due_at);
   const assignee = num(row.assignee_staff_id);
-  const dueDay = dueAt ? dueAt.slice(0, 10) : null;
-  let chip: AmCommandCenter['today_work'][number]['chip'] = 'soon';
-  if (assignee == null) chip = 'unassigned';
-  else if (dueDay && dueDay < today) chip = 'overdue';
-  else if (dueDay === today) chip = 'today';
-  else chip = 'soon';
   return {
     id: String(row.id),
     due_at: dueAt,
     title: String(row.title ?? ''),
     account_name: String(row.account_name ?? ''),
     sla_label: slaLabel(isoTs(row.sla_resolve_due_at), now),
-    chip,
+    chip: todayWorkChip(row.due_at, assignee, now),
     can_accept: assignee == null,
   };
 }
