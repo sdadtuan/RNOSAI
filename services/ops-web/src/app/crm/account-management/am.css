@@ -244,6 +244,40 @@
   margin-bottom: 12px;
 }
 
+.am-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.am-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.am-field span {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.am-field input,
+.am-field select {
+  height: 36px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #fff;
+}
+
+.am-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .am-dash__head h1,
 .am-placeholder__title {
   margin: 0;

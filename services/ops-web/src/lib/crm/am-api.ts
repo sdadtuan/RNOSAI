@@ -99,6 +99,52 @@ async function amFetch<T>(token: string, path: string, init?: RequestInit): Prom
   return body;
 }
 
+export type AmTaskKind =
+  | 'task'
+  | 'client_request'
+  | 'issue'
+  | 'escalation'
+  | 'approval'
+  | 'milestone';
+
+export type AmTaskPriority = 'low' | 'medium' | 'high';
+
+export type AmCreateTaskInput = {
+  agency_client_id: string;
+  title: string;
+  kind?: AmTaskKind;
+  priority?: AmTaskPriority;
+  due_at?: string;
+  source?: string;
+  source_ref?: string;
+};
+
+export type AmTask = {
+  id: string;
+  agency_client_id: string;
+  title: string;
+  kind: AmTaskKind;
+  priority: AmTaskPriority;
+  status: string;
+  assignee_staff_id: number | null;
+  due_at: string | null;
+  source: string;
+  source_ref: string | null;
+};
+
+export async function acceptAmTask(token: string, id: string): Promise<AmTask> {
+  return amFetch<AmTask>(token, `/api/crm/am/tasks/${encodeURIComponent(id)}/accept`, {
+    method: 'POST',
+  });
+}
+
+export async function createAmTask(token: string, body: AmCreateTaskInput): Promise<AmTask> {
+  return amFetch<AmTask>(token, '/api/crm/am/tasks', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchAmCommandCenter(
   token: string,
   query: AmCommandCenterQuery = {},

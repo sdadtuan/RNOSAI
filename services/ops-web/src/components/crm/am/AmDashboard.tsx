@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { isAmDashboardLoading, shouldShowEmptyWidget } from '@/lib/crm/am-dashboard.util';
+import { acceptAmTask } from '@/lib/crm/am-api';
 import { bandCopy, dash, vnd } from '@/lib/crm/am-format';
 import type { AmHealthBand } from '@/lib/crm/am-format';
+import { useToast } from '@/lib/toast';
 import { useAmPage } from './AmShell';
 
 const KPI_TILES = [
@@ -134,9 +136,25 @@ function WidgetLoading() {
 }
 
 export function AmDashboard() {
-  const { data, error, loading, retry, canEdit, scope } = useAmPage();
+  const { data, error, loading, retry, canEdit, scope, token } = useAmPage();
+  const { push } = useToast();
   const [attentionSort, setAttentionSort] = useState<'health' | 'mrr' | 'renewal'>('health');
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const isLoading = isAmDashboardLoading(loading, data);
+
+  async function onAccept(id: string) {
+    if (!canEdit || acceptingId) return;
+    setAcceptingId(id);
+    try {
+      await acceptAmTask(token, id);
+      push('Đã nhận việc', 'success');
+      retry();
+    } catch (err) {
+      push(err instanceof Error ? err.message : 'Không nhận được việc', 'error');
+    } finally {
+      setAcceptingId(null);
+    }
+  }
 
   const coverage = data?.coverage ?? null;
   const today = data?.today_work ?? [];
@@ -233,13 +251,14 @@ export function AmDashboard() {
                       {item.sla_label ? ` · ${item.sla_label}` : ''}
                     </div>
                   </div>
-                  {item.can_accept ? (
+                  {item.can_accept && canEdit ? (
                     <button
                       type="button"
                       className="am-btn"
-                      onClick={() => window.alert('Nhận việc mở ở Task 6')}
+                      disabled={acceptingId === item.id}
+                      onClick={() => void onAccept(item.id)}
                     >
-                      Nhận xử lý
+                      {acceptingId === item.id ? 'Đang nhận…' : 'Nhận xử lý'}
                     </button>
                   ) : null}
                 </li>
