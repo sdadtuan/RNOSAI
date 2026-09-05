@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
-import { AM_TENANT_ID } from './am-audit.repository';
+import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
 import { AmDashboardService } from './am-dashboard.service';
 import { amThrow } from './am-http';
 import { AmRisksService } from './am-risks.service';
@@ -122,6 +122,7 @@ export class AmPlansService {
     private readonly tasks: AmTasksService,
     @Optional() private readonly dashboard?: AmDashboardService,
     @Optional() private readonly risks?: AmRisksService,
+    @Optional() private readonly audit?: AmAuditRepository,
   ) {}
 
   async create(
@@ -145,11 +146,17 @@ export class AmPlansService {
     if (!isUuid(agencyClientId)) {
       amThrow(400, { error: 'invalid_agency_client_id' });
     }
+    let careOverride = false;
     if (kind === 'care') {
+      const recoveryRequired = await this.risks?.isRecoveryRequired(agencyClientId);
       await this.risks?.assertCriticalRecovery(agencyClientId, {
         override_reason: input.override_reason,
         manage: opts?.manage,
       });
+      careOverride =
+        Boolean(recoveryRequired) &&
+        Boolean(opts?.manage) &&
+        Boolean(String(input.override_reason ?? '').trim());
     }
 
     const contractId =
@@ -193,6 +200,20 @@ export class AmPlansService {
     }
 
     this.dashboard?.dropCache();
+
+    if (careOverride) {
+      await this.audit?.insert({
+        actor_staff_id: staffId > 0 ? staffId : null,
+        action: 'plan.care_override',
+        entity_type: 'plan',
+        entity_id: plan.id,
+        payload_json: {
+          agency_client_id: agencyClientId,
+          override_reason: String(input.override_reason ?? '').trim(),
+        },
+      });
+    }
+
     return plan;
   }
 }

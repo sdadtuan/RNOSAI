@@ -260,6 +260,9 @@ export class AmRisksService {
     const riskId = optionalUuid(body.risk_id, 'invalid_risk_id');
     const actor = await this.resolveActor(req, undefined);
     await this.requireScopedClient(actor, clientId);
+    if (riskId) {
+      await this.requireRiskForClient(clientId, riskId);
+    }
     const inserted = await this.db.query(
       `INSERT INTO crm_am_recovery_plans (
          tenant_id, agency_client_id, risk_id, goal, rca, actions_json, exit_criteria, status
@@ -403,6 +406,22 @@ export class AmRisksService {
       return mapRecovery(row);
     } catch (err) {
       if (isMissingRelation(err)) amThrow(404, { error: 'not_found' });
+      throw err;
+    }
+  }
+
+  private async requireRiskForClient(clientId: string, riskId: string): Promise<void> {
+    try {
+      const result = await this.db.query(
+        `SELECT id::text AS id
+           FROM crm_am_risks
+          WHERE tenant_id = $1 AND agency_client_id = $2::uuid AND id = $3::uuid
+          LIMIT 1`,
+        [AM_TENANT_ID, clientId, riskId],
+      );
+      if (!result.rows[0]) amThrow(404, { error: 'risk_not_found' });
+    } catch (err) {
+      if (isMissingRelation(err)) amThrow(404, { error: 'risk_not_found' });
       throw err;
     }
   }
