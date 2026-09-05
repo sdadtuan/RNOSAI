@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { AM_TENANT_ID } from './am-audit.repository';
+import { AmNotificationsService } from './am-notifications.service';
 import { AmRenewalsRepository } from './am-renewals.service';
 import { isUuid } from './am-tasks.service';
 
 const ICT = 'Asia/Ho_Chi_Minh';
 const WINDOW_OFFSETS = [90, 60, 30, 14, 7, 1] as const;
+const NOTIFY_WINDOWS = new Set([14, 7, 1]);
 
 export type AmRenewalWorkerResult = {
   inserted: number;
@@ -13,7 +15,10 @@ export type AmRenewalWorkerResult = {
 
 @Injectable()
 export class AmRenewalWorker {
-  constructor(private readonly db: AmRenewalsRepository) {}
+  constructor(
+    private readonly db: AmRenewalsRepository,
+    @Optional() private readonly notifications?: AmNotificationsService,
+  ) {}
 
   async run(opts?: { asOf?: string }): Promise<AmRenewalWorkerResult> {
     const asOf = parseAsOf(opts?.asOf);
@@ -24,12 +29,21 @@ export class AmRenewalWorker {
         `SELECT ct.id,
                 TRIM(COALESCE(ct.agency_client_id, '')) AS agency_client_id,
                 ct.ends_on,
-                ct.status
+                ct.status,
+                ct.reference_code AS contract_ref,
+                c.name AS client_name,
+                e.account_owner_staff_id
            FROM crm_contracts ct
+           LEFT JOIN clients c
+                  ON TRIM(COALESCE(ct.agency_client_id, '')) <> ''
+                 AND c.id::text = TRIM(COALESCE(ct.agency_client_id, ''))
+           LEFT JOIN crm_am_account_ext e
+                  ON e.tenant_id = $2
+                 AND e.agency_client_id::text = TRIM(COALESCE(ct.agency_client_id, ''))
           WHERE lower(ct.status) IN ('active', 'renewing')
             AND ct.ends_on IS NOT NULL
             AND ct.ends_on::date = ANY($1::date[])`,
-        [dates],
+        [dates, AM_TENANT_ID],
       );
       rows = result.rows;
     } catch (err) {
@@ -46,6 +60,7 @@ export class AmRenewalWorker {
         skipped += 1;
         continue;
       }
+      await this.notifyEnding(row, asOf);
       const open = await this.hasOpenCase(contractId);
       if (open) {
         skipped += 1;
@@ -82,6 +97,22 @@ export class AmRenewalWorker {
     );
     return result.rows.length > 0;
   }
+
+  private async notifyEnding(row: Record<string, unknown>, asOf: string): Promise<void> {
+    if (!this.notifications) return;
+    const days = daysUntil(asOf, String(row.ends_on ?? ''));
+    if (!NOTIFY_WINDOWS.has(days)) return;
+    const ownerId = Number(row.account_owner_staff_id);
+    if (!Number.isInteger(ownerId) || ownerId <= 0) return;
+    const client = String(row.client_name ?? '').trim() || 'hợp đồng';
+    const ref = String(row.contract_ref ?? '').trim();
+    await this.notifications.notify({
+      staff_id: ownerId,
+      kind: 'renewal.ending',
+      title: ref ? `Gia hạn: ${client} · ${ref}` : `Gia hạn: ${client}`,
+      href: '/crm/account-management/renewals',
+    });
+  }
 }
 
 function parseAsOf(raw: string | undefined): string {
@@ -101,6 +132,13 @@ function addDaysYmd(ymd: string, days: number): string {
   const [year, month, day] = ymd.split('-').map((part) => Number(part));
   const dt = new Date(Date.UTC(year || 1970, (month || 1) - 1, (day || 1) + days));
   return dt.toISOString().slice(0, 10);
+}
+
+function daysUntil(asOf: string, endsOn: string): number {
+  const start = Date.parse(`${asOf}T00:00:00Z`);
+  const end = Date.parse(`${String(endsOn).slice(0, 10)}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return Number.NaN;
+  return Math.round((end - start) / 86_400_000);
 }
 
 function isMissingRelation(err: unknown): boolean {

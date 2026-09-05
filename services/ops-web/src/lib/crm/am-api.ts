@@ -1112,6 +1112,17 @@ export async function fetchAmNotifications(token: string): Promise<AmNotificatio
   return amFetch<AmNotifications>(token, '/api/crm/am/notifications');
 }
 
+export async function markAmNotificationRead(
+  token: string,
+  id: string,
+): Promise<{ id: string; read_at: string }> {
+  return amFetch<{ id: string; read_at: string }>(
+    token,
+    `/api/crm/am/notifications/${encodeURIComponent(id)}/read`,
+    { method: 'POST', body: '{}' },
+  );
+}
+
 export type AmHandoverStatus = 'draft' | 'pending_am' | 'accepted' | 'rejected' | 'needs_info';
 
 export type AmHandoverChecklist = {

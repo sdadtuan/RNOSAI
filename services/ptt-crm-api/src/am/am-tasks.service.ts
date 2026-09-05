@@ -701,12 +701,27 @@ export class AmTasksService {
     );
     const title = String(row.title ?? '').trim() || 'task';
     const account = emptyToNull(row.account_name) ?? 'account';
+    const href = `/crm/account-management/work/${id}`;
     await this.notifications.insert({
       staff_id: recipient,
       kind: 'escalation',
       title: `Escalate: ${title} · ${account}`,
-      href: `/crm/account-management/work/${id}`,
+      href,
     });
+    if (
+      amTaskOverdue({
+        status: String(row.status ?? ''),
+        sla_paused: Boolean(row.sla_paused),
+        sla_resolve_due_at: isoOrNull(row.sla_resolve_due_at),
+      })
+    ) {
+      await this.notifications.insert({
+        staff_id: recipient,
+        kind: 'sla.breached',
+        title: `SLA trễ: ${title} · ${account}`,
+        href,
+      });
+    }
     await this.audit.insert({
       actor_staff_id: staffId || null,
       action: 'task.escalate',

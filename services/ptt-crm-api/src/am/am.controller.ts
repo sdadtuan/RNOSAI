@@ -162,6 +162,12 @@ export class AmController {
     return this.notifications.list(await this.actorStaffId(req));
   }
 
+  @Post('notifications/:id/read')
+  @RequireAmAction('view')
+  async markNotificationRead(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.notifications.markRead(id, await this.actorStaffId(req));
+  }
+
   @Get('health')
   @RequireAmAction('view')
   listHealth(

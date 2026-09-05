@@ -34,6 +34,7 @@ import {
 import { AM_NAV, canSeeAmNav, type AmNavItem } from '@/lib/crm/am-nav.util';
 import { showAmNotifyDot } from '@/lib/crm/am-notify.util';
 import { AmCreateMenu } from './AmCreateMenu';
+import { AmNotifyDrawer } from './AmNotifyDrawer';
 import { AmPalette } from './AmPalette';
 
 export type AmRoleLabel = 'Admin' | 'Director' | 'AM';
@@ -377,33 +378,15 @@ function AmShellInner({ children }: { children: ReactNode }) {
                     🔔
                     {showAmNotifyDot(notifyUnread) ? <span className="am-bell__dot" /> : null}
                   </button>
-                  {notifyOpen ? (
-                    <div className="am-bell__panel" role="dialog" aria-label="Thông báo Account Management">
-                      <div className="am-bell__head">
-                        <strong>Thông báo</strong>
-                        <button type="button" className="am-btn" onClick={() => setNotifyOpen(false)}>
-                          Đóng
-                        </button>
-                      </div>
-                      <ul className="am-bell__list">
-                        {notifyItems.length ? (
-                          notifyItems.map((item) => (
-                            <li key={item.id}>
-                              {item.href ? (
-                                <Link href={item.href} onClick={() => setNotifyOpen(false)}>
-                                  {item.title}
-                                </Link>
-                              ) : (
-                                <span>{item.title}</span>
-                              )}
-                            </li>
-                          ))
-                        ) : (
-                          <li className="muted">Không có thông báo.</li>
-                        )}
-                      </ul>
-                    </div>
-                  ) : null}
+                  <AmNotifyDrawer
+                    open={notifyOpen}
+                    items={notifyItems}
+                    token={token}
+                    onClose={() => setNotifyOpen(false)}
+                    onMarked={() => {
+                      if (token) void loadNotifications(token);
+                    }}
+                  />
                 </div>
                 <AmCreateMenu canEdit={canEdit} />
               </header>

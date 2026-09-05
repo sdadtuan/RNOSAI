@@ -252,10 +252,36 @@
   overflow: auto;
 }
 
-.am-bell__list a {
+.am-bell__list a,
+.am-bell__item {
   color: var(--am-navy);
   text-decoration: none;
   font-weight: 600;
+}
+
+.am-bell__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.am-bell__item:not(.am-bell__item--unread) {
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.am-bell__kind {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
 }
 
 .am-page {

@@ -29,9 +29,11 @@ describe('AmHealthService', () => {
     loadWeights: jest.fn(),
     applyOverride: jest.fn(),
     findAccount: jest.fn(),
+    loadLatestScore: jest.fn(),
   };
   const audit = { insert: jest.fn() };
   const dashboard = { dropCache: jest.fn() };
+  const notifications = { notify: jest.fn() };
 
   let service: AmHealthService;
 
@@ -39,6 +41,7 @@ describe('AmHealthService', () => {
     jest.clearAllMocks();
     repo.loadWeights.mockResolvedValue({ ...DEFAULT_WEIGHTS });
     repo.upsertSnapshot.mockResolvedValue(undefined);
+    repo.loadLatestScore.mockResolvedValue(null);
     service = new AmHealthService(repo as never, audit as never, dashboard as never);
   });
 
@@ -198,6 +201,69 @@ describe('AmHealthService', () => {
     ).rejects.toMatchObject({ status: 400, error: 'override_until_invalid' });
     expect(repo.upsertSnapshot).not.toHaveBeenCalled();
     expect(repo.applyOverride).not.toHaveBeenCalled();
+  });
+
+  it('inserts health.drop when previous score minus new score is at least health_drop_alert', async () => {
+    repo.listAccounts.mockResolvedValue([
+      {
+        agency_client_id: ACTIVE_ID,
+        am_status: 'active',
+        created_at: '2025-01-01T00:00:00.000Z',
+        has_active_contract: true,
+        csd_breached: false,
+        account_owner_staff_id: 11,
+      },
+    ]);
+    repo.loadLatestScore.mockResolvedValue(85);
+    const settings = { get: jest.fn(async () => ({ health_drop_alert: 10 })) };
+    service = new AmHealthService(
+      repo as never,
+      audit as never,
+      dashboard as never,
+      settings as never,
+      undefined,
+      undefined,
+      notifications as never,
+    );
+
+    await service.recompute({ asOf: '2026-09-05' });
+
+    expect(repo.upsertSnapshot).toHaveBeenCalledWith(expect.objectContaining({ score: 72 }));
+    expect(notifications.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        staff_id: 11,
+        kind: 'health.drop',
+        href: `/crm/account-management/health/${ACTIVE_ID}`,
+      }),
+    );
+  });
+
+  it('does not insert health.drop when the drop is below the alert threshold', async () => {
+    repo.listAccounts.mockResolvedValue([
+      {
+        agency_client_id: ACTIVE_ID,
+        am_status: 'active',
+        created_at: '2025-01-01T00:00:00.000Z',
+        has_active_contract: true,
+        csd_breached: false,
+        account_owner_staff_id: 11,
+      },
+    ]);
+    repo.loadLatestScore.mockResolvedValue(78);
+    const settings = { get: jest.fn(async () => ({ health_drop_alert: 10 })) };
+    service = new AmHealthService(
+      repo as never,
+      audit as never,
+      dashboard as never,
+      settings as never,
+      undefined,
+      undefined,
+      notifications as never,
+    );
+
+    await service.recompute({ asOf: '2026-09-05' });
+
+    expect(notifications.notify).not.toHaveBeenCalled();
   });
 });
 

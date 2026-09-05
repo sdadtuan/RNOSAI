@@ -16,6 +16,7 @@ import {
 } from './am-health.util';
 import { sumRevenueAtRisk } from './am-dashboard.service';
 import { monthlyRecurringVnd } from './am-money.util';
+import { AmNotificationsService } from './am-notifications.service';
 import { AmSettingsService } from './am-settings.service';
 import { AmRisksService } from './am-risks.service';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
@@ -29,6 +30,7 @@ export type AmHealthAccountRow = {
   created_at: string;
   has_active_contract: boolean;
   csd_breached: boolean;
+  account_owner_staff_id: number | null;
 };
 
 export type AmHealthSnapshotInput = {
@@ -165,6 +167,7 @@ export type AmHealthDetailResult = {
 export type AmHealthStore = {
   listAccounts(): Promise<AmHealthAccountRow[]>;
   upsertSnapshot(input: AmHealthSnapshotInput): Promise<void>;
+  loadLatestScore(agencyClientId: string): Promise<number | null>;
   loadWeights(): Promise<AmHealthComponents>;
   applyOverride(input: {
     agency_client_id: string;
@@ -318,6 +321,11 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
       has_active_contract: activeContracts.has(row.agency_client_id),
       csd_breached: breached.has(row.agency_client_id),
     }));
+  }
+
+  async loadLatestScore(agencyClientId: string): Promise<number | null> {
+    const snap = await this.loadLatestSnapshot(agencyClientId);
+    return snap && Number.isFinite(snap.score) ? snap.score : null;
   }
 
   async upsertSnapshot(input: AmHealthSnapshotInput): Promise<void> {
@@ -799,10 +807,12 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
     }
   }
 
-  private async loadExt(): Promise<Array<Pick<AmHealthAccountRow, 'agency_client_id' | 'am_status' | 'created_at'>>> {
+  private async loadExt(): Promise<
+    Array<Pick<AmHealthAccountRow, 'agency_client_id' | 'am_status' | 'created_at' | 'account_owner_staff_id'>>
+  > {
     try {
       const result = await this.db.query(
-        `SELECT agency_client_id::text AS agency_client_id, am_status, created_at
+        `SELECT agency_client_id::text AS agency_client_id, am_status, created_at, account_owner_staff_id
          FROM crm_am_account_ext
          WHERE tenant_id = $1`,
         [AM_TENANT_ID],
@@ -811,6 +821,8 @@ export class AmHealthRepository implements OnModuleDestroy, AmHealthStore {
         agency_client_id: String(row.agency_client_id ?? ''),
         am_status: String(row.am_status ?? 'active') as AmAmStatus,
         created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at ?? ''),
+        account_owner_staff_id:
+          row.account_owner_staff_id == null ? null : Number(row.account_owner_staff_id) || null,
       }));
     } catch (err) {
       if (isMissingRelation(err)) return [];
@@ -860,11 +872,13 @@ export class AmHealthService {
     @Optional() private readonly settings?: AmSettingsService,
     @Optional() private readonly staffAuth?: StaffAuthService,
     @Optional() private readonly risks?: AmRisksService,
+    @Optional() private readonly notifications?: AmNotificationsService,
   ) {}
 
   async recompute(input: { asOf?: string; actorStaffId?: number } = {}): Promise<AmHealthRecomputeResult> {
     const asOf = parseAsOf(input.asOf);
     const scorecard = await this.loadScorecard();
+    const dropAlert = Number((await this.settings?.get())?.health_drop_alert ?? 10);
     const accounts = await this.repo.listAccounts();
     const dist = emptyDist();
     let sum = 0;
@@ -876,6 +890,7 @@ export class AmHealthService {
         skipped += 1;
         continue;
       }
+      const previous = await this.repo.loadLatestScore(account.agency_client_id);
       const components = stubHealthComponents({
         hasActiveContract: account.has_active_contract,
         csdBreached: account.csd_breached,
@@ -891,6 +906,7 @@ export class AmHealthService {
         scorecard_version: scorecard.scorecard_version,
         thin_data: wave1ThinData(account, asOf),
       });
+      await this.notifyHealthDrop(account, previous, score, dropAlert);
       dist[band] += 1;
       sum += score;
       computed += 1;
@@ -905,6 +921,24 @@ export class AmHealthService {
       payload_json: { as_of: asOf, computed, skipped },
     });
     return { as_of: asOf, computed, skipped, dist };
+  }
+
+  private async notifyHealthDrop(
+    account: AmHealthAccountRow,
+    previous: number | null,
+    score: number,
+    dropAlert: number,
+  ): Promise<void> {
+    if (!this.notifications || previous == null || !Number.isFinite(dropAlert)) return;
+    if (previous - score < dropAlert) return;
+    const ownerId = Number(account.account_owner_staff_id);
+    if (!Number.isInteger(ownerId) || ownerId <= 0) return;
+    await this.notifications.notify({
+      staff_id: ownerId,
+      kind: 'health.drop',
+      title: `Health giảm: ${previous} → ${score}`,
+      href: `/crm/account-management/health/${account.agency_client_id}`,
+    });
   }
 
   async override(
