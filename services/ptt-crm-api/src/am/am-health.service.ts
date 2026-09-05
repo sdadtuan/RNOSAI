@@ -17,6 +17,7 @@ import {
 import { sumRevenueAtRisk } from './am-dashboard.service';
 import { monthlyRecurringVnd } from './am-money.util';
 import { AmSettingsService } from './am-settings.service';
+import { AmRisksService } from './am-risks.service';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
 import { isUuid } from './am-tasks.service';
 import type { AmAmStatus, AmHealthBand, AmHealthComponents, AmScope } from './am.types';
@@ -156,6 +157,7 @@ export type AmHealthDetailResult = {
   contribution: AmHealthContribution[];
   trend: Array<{ as_of: string; score: number | null }>;
   signals: string[];
+  recovery_required: boolean;
 };
 
 export type AmHealthStore = {
@@ -800,6 +802,7 @@ export class AmHealthService {
     @Optional() private readonly dashboard?: AmDashboardService,
     @Optional() private readonly settings?: AmSettingsService,
     @Optional() private readonly staffAuth?: StaffAuthService,
+    @Optional() private readonly risks?: AmRisksService,
   ) {}
 
   async recompute(input: { asOf?: string; actorStaffId?: number } = {}): Promise<AmHealthRecomputeResult> {
@@ -1005,6 +1008,7 @@ export class AmHealthService {
       contribution,
       trend,
       signals: deriveSignals({ thin_data: row.thin_data, override, components }),
+      recovery_required: this.risks ? await this.risks.isRecoveryRequired(id) : false,
     };
   }
 

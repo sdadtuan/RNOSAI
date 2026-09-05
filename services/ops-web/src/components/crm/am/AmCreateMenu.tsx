@@ -62,6 +62,7 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const book = data?.my_book ?? [];
   const agencyWrite = hasCap(user, 'crm_agency', 'create') || hasCap(user, 'crm_agency', 'write');
+  const canManage = hasCap(user, 'crm_am', 'manage');
 
   useEffect(() => {
     function onDoc(ev: MouseEvent) {
@@ -223,6 +224,7 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
     const period_key = String(form.get('period_key') ?? '').trim();
     const contractRaw = String(form.get('contract_id') ?? '').trim();
     const due_on = String(form.get('due_on') ?? '').trim();
+    const override_reason = String(form.get('override_reason') ?? '').trim();
     if (!agency_client_id || !period_key) {
       push('Cần account và period', 'error');
       return;
@@ -239,6 +241,7 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
         period_key,
         contract_id: contractRaw ? Number(contractRaw) : undefined,
         due_on: due_on || undefined,
+        override_reason: override_reason || undefined,
       });
       push('Đã tạo plan', 'success');
       closeCreate();
@@ -512,6 +515,12 @@ export function AmCreateMenu({ canEdit }: AmCreateMenuProps) {
                   <span>Hạn</span>
                   <input name="due_on" type="date" />
                 </label>
+                {canManage && planKind === 'care' ? (
+                  <label className="am-field">
+                    <span>Override recovery (Director)</span>
+                    <input name="override_reason" placeholder="Lý do nếu Critical chưa có recovery" />
+                  </label>
+                ) : null}
                 <div className="am-form__actions">
                   <button type="button" className="am-btn" onClick={closeCreate}>
                     Hủy

@@ -15,6 +15,8 @@ import {
   AM_HEALTH_COMPONENT_LABELS,
   amHealthEmpty,
 } from '@/lib/crm/am-health-center.util';
+import { amRecoveryRequiredCopy } from '@/lib/crm/am-risk.util';
+import { AmRiskForm } from './AmRiskForm';
 import { useAmPage } from './AmShell';
 
 function bandClass(band: string | null | undefined): string {
@@ -26,8 +28,9 @@ function bandClass(band: string | null | undefined): string {
 }
 
 export function AmHealthDetail({ agencyClientId }: { agencyClientId: string }) {
-  const { token, user } = useAmPage();
+  const { token, user, canEdit } = useAmPage();
   const canManage = hasCap(user, 'crm_am', 'manage');
+  const [showRecovery, setShowRecovery] = useState(false);
   const [data, setData] = useState<AmHealthDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -120,7 +123,33 @@ export function AmHealthDetail({ agencyClientId }: { agencyClientId: string }) {
           Health override: {data.override.band} đến {data.override.until}. {data.override.reason}
         </p>
       ) : null}
+      {data?.recovery_required ? (
+        <p className="am-banner" role="alert">
+          {amRecoveryRequiredCopy()}{' '}
+          {canEdit ? (
+            <button type="button" className="am-link" onClick={() => setShowRecovery(true)}>
+              Tạo recovery
+            </button>
+          ) : (
+            <Link className="am-link" href={`/crm/account-management/clients/${agencyClientId}`}>
+              Mở 360
+            </Link>
+          )}
+        </p>
+      ) : null}
       {banner ? <p className="am-banner">{banner}</p> : null}
+      {showRecovery ? (
+        <AmRiskForm
+          agencyClientId={agencyClientId}
+          canEdit={canEdit}
+          mode="recovery"
+          onClose={() => setShowRecovery(false)}
+          onSaved={() => {
+            setShowRecovery(false);
+            void load();
+          }}
+        />
+      ) : null}
 
       {canManage ? (
         <form

@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { AM_TENANT_ID } from './am-audit.repository';
 import { AmDashboardService } from './am-dashboard.service';
 import { amThrow } from './am-http';
+import { AmRisksService } from './am-risks.service';
 import { AmTasksService, isUuid } from './am-tasks.service';
 import type { AmPlanKind } from './am.types';
 
@@ -13,6 +14,7 @@ export type AmCreatePlanInput = {
   period_key: string;
   contract_id?: number;
   due_on?: string;
+  override_reason?: string;
 };
 
 export type AmPlanRow = {
@@ -119,9 +121,14 @@ export class AmPlansService {
     private readonly repo: AmPlansRepository,
     private readonly tasks: AmTasksService,
     @Optional() private readonly dashboard?: AmDashboardService,
+    @Optional() private readonly risks?: AmRisksService,
   ) {}
 
-  async create(input: AmCreatePlanInput, staffId: number): Promise<AmPlanRow> {
+  async create(
+    input: AmCreatePlanInput,
+    staffId: number,
+    opts?: { manage?: boolean },
+  ): Promise<AmPlanRow> {
     const kind = input.kind;
     if (kind === 'renewal' && !(Number(input.contract_id) > 0)) {
       amThrow(400, { error: 'contract_required' });
@@ -137,6 +144,12 @@ export class AmPlansService {
     }
     if (!isUuid(agencyClientId)) {
       amThrow(400, { error: 'invalid_agency_client_id' });
+    }
+    if (kind === 'care') {
+      await this.risks?.assertCriticalRecovery(agencyClientId, {
+        override_reason: input.override_reason,
+        manage: opts?.manage,
+      });
     }
 
     const contractId =

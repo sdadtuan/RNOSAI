@@ -8,6 +8,7 @@ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
 import { AmDashboardService } from './am-dashboard.service';
 import { amThrow } from './am-http';
+import { AmRisksService } from './am-risks.service';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
 import { isUuid } from './am-tasks.service';
 import type { AmScope } from './am.types';
@@ -202,6 +203,7 @@ export type AmAccount360 = {
   open_tasks: AmAccountOpenTask[];
   plans: AmAccountPlan[];
   audit: AmAccountAuditItem[];
+  recovery_required: boolean;
 };
 
 const AM_STATUSES = new Set([
@@ -372,6 +374,7 @@ export class AmAccountsService {
     private readonly staffAuth: StaffAuthService,
     @Optional() private readonly dashboard?: AmDashboardService,
     @Optional() private readonly audit?: AmAuditRepository,
+    @Optional() private readonly risks?: AmRisksService,
   ) {}
 
   async list(req: AmAccountsListReq, q: AmAccountsListQuery): Promise<AmAccountsListResult> {
@@ -801,14 +804,16 @@ export class AmAccountsService {
   private async load360(actor: ListActor, id: string, hideAmounts: boolean): Promise<AmAccount360> {
     const row = await this.loadAccountRow(actor, id, true);
     if (!row) amThrow(404, { error: 'not_found' });
-    const [children, contacts, contracts, openTasks, plans, audit] = await Promise.all([
-      this.loadChildren(id),
-      this.loadContacts(id),
-      this.loadContracts(id, hideAmounts),
-      this.loadOpenTasks(id),
-      this.loadPlans(id),
-      this.loadAudit(id),
-    ]);
+    const [children, contacts, contracts, openTasks, plans, audit, recoveryRequired] =
+      await Promise.all([
+        this.loadChildren(id),
+        this.loadContacts(id),
+        this.loadContracts(id, hideAmounts),
+        this.loadOpenTasks(id),
+        this.loadPlans(id),
+        this.loadAudit(id),
+        this.risks?.isRecoveryRequired(id) ?? Promise.resolve(false),
+      ]);
     const media = contracts.some((ct) => /media/i.test(ct.billing_type) || /media|ads/i.test(ct.service_slug));
     const delivery = contracts.some(
       (ct) => !/media/i.test(ct.billing_type) && /active|renewing/i.test(ct.status),
@@ -842,6 +847,7 @@ export class AmAccountsService {
       open_tasks: openTasks,
       plans,
       audit,
+      recovery_required: recoveryRequired,
     };
   }
 

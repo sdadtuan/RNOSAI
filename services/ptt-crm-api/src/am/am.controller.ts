@@ -50,6 +50,13 @@ import {
   type AmInteractionsListQuery,
   type AmPatchInteractionInput,
 } from './am-interactions.service';
+import {
+  AmRisksService,
+  type AmCloseRecoveryInput,
+  type AmCreateRecoveryInput,
+  type AmCreateRiskInput,
+  type AmRisksListQuery,
+} from './am-risks.service';
 import { RequireAmAction, StaffAmGuard } from './guards/staff-am.guard';
 import type { AmScope } from './am.types';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
@@ -77,6 +84,7 @@ export class AmController {
     private readonly renewals: AmRenewalsService,
     private readonly renewalWorker: AmRenewalWorker,
     private readonly interactions: AmInteractionsService,
+    private readonly risks: AmRisksService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -297,7 +305,45 @@ export class AmController {
   @Post('plans')
   @RequireAmAction('edit')
   async createPlan(@Req() req: AuthedReq, @Body() body: AmCreatePlanInput) {
-    return this.plans.create(body, await this.actorStaffId(req));
+    const caps = await this.actorCaps(req);
+    const manage =
+      req.staffAuthVia === 'internal' ||
+      caps.some((cap) => cap.section === 'crm_am' && cap.action === 'manage');
+    return this.plans.create(body, await this.actorStaffId(req), { manage });
+  }
+
+  @Get('risks')
+  @RequireAmAction('view')
+  listRisks(@Req() req: AuthedReq, @Query() q: AmRisksListQuery) {
+    return this.risks.listRisks(req, q);
+  }
+
+  @Post('risks')
+  @RequireAmAction('edit')
+  async createRisk(@Req() req: AuthedReq, @Body() body: AmCreateRiskInput) {
+    return this.risks.createRisk(req, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Get('recovery-plans')
+  @RequireAmAction('view')
+  listRecoveryPlans(@Req() req: AuthedReq, @Query() q: AmRisksListQuery) {
+    return this.risks.listRecovery(req, q);
+  }
+
+  @Post('recovery-plans')
+  @RequireAmAction('edit')
+  async createRecoveryPlan(@Req() req: AuthedReq, @Body() body: AmCreateRecoveryInput) {
+    return this.risks.createRecovery(req, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Post('recovery-plans/:id/close')
+  @RequireAmAction('edit')
+  async closeRecoveryPlan(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: AmCloseRecoveryInput,
+  ) {
+    return this.risks.close(req, id, body ?? {}, await this.actorStaffId(req));
   }
 
   @Get('handovers')

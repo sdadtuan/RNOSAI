@@ -268,6 +268,7 @@ export type AmCreatePlanInput = {
   period_key: string;
   contract_id?: number;
   due_on?: string;
+  override_reason?: string;
 };
 
 export type AmPlan = {
@@ -498,6 +499,7 @@ export type AmAccount360 = {
   open_tasks: AmAccountOpenTask[];
   plans: AmAccountPlan[];
   audit: AmAccountAuditItem[];
+  recovery_required?: boolean;
 };
 
 export type AmPatchAccountBody = {
@@ -634,6 +636,7 @@ export type AmHealthDetail = {
   contribution: AmHealthContribution[];
   trend: Array<{ as_of: string; score: number | null }>;
   signals: string[];
+  recovery_required?: boolean;
 };
 
 export async function fetchAmHealthCenter(
@@ -686,6 +689,104 @@ export async function mergeAmAccount(
 
 export async function createAmPlan(token: string, body: AmCreatePlanInput): Promise<AmPlan> {
   return amFetch<AmPlan>(token, '/api/crm/am/plans', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export type AmRiskSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export type AmRisk = {
+  id: string;
+  agency_client_id: string;
+  category: string;
+  severity: AmRiskSeverity;
+  probability: number | null;
+  impact: number | null;
+  evidence: string;
+  owner_staff_id: number | null;
+  due_on: string | null;
+  status: string;
+  created_at: string;
+};
+
+export type AmRecoveryPlan = {
+  id: string;
+  agency_client_id: string;
+  risk_id: string | null;
+  goal: string;
+  rca: string | null;
+  actions: unknown[];
+  exit_criteria: string | null;
+  outcome: string | null;
+  lesson: string | null;
+  status: string;
+  created_at: string;
+};
+
+export type AmCreateRiskInput = {
+  agency_client_id: string;
+  category: string;
+  severity: string;
+  probability?: number;
+  impact?: number;
+  evidence: string;
+  owner_staff_id?: number;
+  due_on?: string;
+};
+
+export type AmCreateRecoveryInput = {
+  agency_client_id: string;
+  risk_id?: string;
+  goal: string;
+  rca?: string;
+  actions?: unknown[];
+  exit_criteria?: string;
+};
+
+export async function fetchAmRisks(
+  token: string,
+  query: { agency_client_id: string; scope?: AmScope },
+): Promise<{ items: AmRisk[] }> {
+  const params = new URLSearchParams();
+  params.set('agency_client_id', query.agency_client_id);
+  if (query.scope) params.set('scope', query.scope);
+  return amFetch<{ items: AmRisk[] }>(token, `/api/crm/am/risks?${params.toString()}`);
+}
+
+export async function createAmRisk(token: string, body: AmCreateRiskInput): Promise<AmRisk> {
+  return amFetch<AmRisk>(token, '/api/crm/am/risks', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchAmRecoveryPlans(
+  token: string,
+  query: { agency_client_id: string; scope?: AmScope },
+): Promise<{ items: AmRecoveryPlan[] }> {
+  const params = new URLSearchParams();
+  params.set('agency_client_id', query.agency_client_id);
+  if (query.scope) params.set('scope', query.scope);
+  return amFetch<{ items: AmRecoveryPlan[] }>(token, `/api/crm/am/recovery-plans?${params.toString()}`);
+}
+
+export async function createAmRecoveryPlan(
+  token: string,
+  body: AmCreateRecoveryInput,
+): Promise<AmRecoveryPlan> {
+  return amFetch<AmRecoveryPlan>(token, '/api/crm/am/recovery-plans', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function closeAmRecoveryPlan(
+  token: string,
+  id: string,
+  body: { outcome: string; lesson: string },
+): Promise<AmRecoveryPlan> {
+  return amFetch<AmRecoveryPlan>(token, `/api/crm/am/recovery-plans/${encodeURIComponent(id)}/close`, {
     method: 'POST',
     body: JSON.stringify(body),
   });

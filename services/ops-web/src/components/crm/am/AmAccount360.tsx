@@ -30,8 +30,10 @@ import {
 import { canAssignAmAccounts } from '@/lib/crm/am-accounts-views.util';
 import { bandCopy, vnd } from '@/lib/crm/am-format';
 import { useToast } from '@/lib/toast';
+import { amRecoveryRequiredCopy } from '@/lib/crm/am-risk.util';
 import { AmContactDrawer } from './AmContactDrawer';
 import { AmPlaceholder } from './AmPlaceholder';
+import { AmRiskForm } from './AmRiskForm';
 import { AmTimeline } from './AmTimeline';
 import { useAmPage } from './AmShell';
 
@@ -44,6 +46,7 @@ type DrawerKind =
   | 'task'
   | 'renewal'
   | 'interaction'
+  | 'risk'
   | null;
 
 function bandClass(band: AmAccount360Data['band']): string {
@@ -406,6 +409,11 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
           Health override: {data.override.band} đến {data.override.until}. {data.override.reason}
         </p>
       ) : null}
+      {data.recovery_required ? (
+        <p className="am-banner" role="alert">
+          {amRecoveryRequiredCopy()}
+        </p>
+      ) : null}
 
       {canManage ? (
         <form
@@ -487,7 +495,13 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
         >
           Tạo việc
         </button>
-        <button type="button" className="am-btn" disabled title="Mở ở Wave 3">
+        <button
+          type="button"
+          className="am-btn"
+          disabled={!canEdit}
+          title={canEdit ? 'Tạo rủi ro' : 'Cần quyền crm_am.edit'}
+          onClick={() => canEdit && openDrawer('risk')}
+        >
           Tạo rủi ro
         </button>
         <button
@@ -543,8 +557,19 @@ export function AmAccount360({ agencyClientId }: { agencyClientId: string }) {
           onSave={(contact) => onPatch({ contacts: [contact] })}
         />
       ) : null}
+      {drawer === 'risk' ? (
+        <AmRiskForm
+          agencyClientId={agencyClientId}
+          canEdit={canEdit}
+          onClose={() => setDrawer(null)}
+          onSaved={() => {
+            setDrawer(null);
+            void load();
+          }}
+        />
+      ) : null}
 
-      {drawer && drawer !== 'contact' ? (
+      {drawer && drawer !== 'contact' && drawer !== 'risk' ? (
         <div
           className="am-drawer-bg"
           role="presentation"
