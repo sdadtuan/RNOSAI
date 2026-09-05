@@ -84,11 +84,14 @@ export type AmTransferResult = {
   keep_secondary: boolean;
 };
 
+export type AmAccountsQuery = (
+  sql: string,
+  params?: unknown[],
+) => Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+
 export type AmAccountsDb = {
-  query(
-    sql: string,
-    params?: unknown[],
-  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+  query: AmAccountsQuery;
+  withTransaction?<T>(fn: (query: AmAccountsQuery) => Promise<T>): Promise<T>;
 };
 
 const EXT_UPSERT = `
@@ -192,6 +195,25 @@ export class AmAccountsRepository implements OnModuleDestroy, AmAccountsDb {
   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }> {
     return this.db.query(sql, params);
   }
+
+  async withTransaction<T>(fn: (query: AmAccountsQuery) => Promise<T>): Promise<T> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await fn((sql, params) => client.query(sql, params));
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* connection may already be broken */
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 @Injectable()
@@ -242,62 +264,75 @@ export class AmAccountsService {
     }
     const reason = String(body.reason ?? '').trim();
     if (!reason) amThrow(400, { error: 'reason_required' });
-    const toStaffId = Number(body.to_staff_id);
-    if (!Number.isFinite(toStaffId) || toStaffId <= 0) {
+    const rawToStaffId = Number(body.to_staff_id);
+    if (!Number.isFinite(rawToStaffId) || rawToStaffId <= 0) {
       amThrow(400, { error: 'to_staff_id_required' });
     }
     const ids = [...new Set((body.agency_client_ids ?? []).map((id) => String(id ?? '').trim()).filter(Boolean))];
     if (!ids.length || ids.some((id) => !isUuid(id))) {
       amThrow(400, { error: 'agency_client_ids_required' });
     }
+    const toStaffId = await this.requireCrmStaffId(rawToStaffId, 'to_staff_id');
     const keepSecondary = Boolean(body.keep_secondary);
     const moveOpenTasks = Boolean(body.move_open_tasks);
-    const backupStaffId = keepSecondary ? num(body.backup_staff_id) : null;
-
-    const current = await this.db.query(
-      `SELECT agency_client_id::text AS agency_client_id,
-              account_owner_staff_id,
-              backup_staff_id
-         FROM crm_am_account_ext
-        WHERE tenant_id = $1 AND agency_client_id = ANY($2::uuid[])`,
-      [AM_TENANT_ID, ids],
-    );
-    const previous = current.rows.map((row) => ({
-      agency_client_id: String(row.agency_client_id ?? ''),
-      account_owner_staff_id: num(row.account_owner_staff_id),
-      backup_staff_id: num(row.backup_staff_id),
-    }));
-
-    await this.db.query(
-      `UPDATE crm_am_account_ext
-          SET account_owner_staff_id = $2,
-              backup_staff_id = CASE
-                WHEN $3::boolean THEN COALESCE($4::int, NULLIF(account_owner_staff_id, $2))
-                ELSE NULL
-              END,
-              updated_at = now()
-        WHERE tenant_id = $1 AND agency_client_id = ANY($5::uuid[])`,
-      [AM_TENANT_ID, toStaffId, keepSecondary, backupStaffId, ids],
-    );
-    await this.db.query(`UPDATE clients SET owner_am_id = $1 WHERE id = ANY($2::uuid[])`, [
-      String(toStaffId),
-      ids,
-    ]);
-
-    let movedTasks = 0;
-    if (moveOpenTasks) {
-      const moved = await this.db.query(
-        `UPDATE crm_am_tasks
-            SET assignee_staff_id = $2,
-                updated_at = now()
-          WHERE tenant_id = $1
-            AND agency_client_id = ANY($3::uuid[])
-            AND dismissed_at IS NULL
-            AND status NOT IN ('closed', 'cancelled', 'resolved')`,
-        [AM_TENANT_ID, toStaffId, ids],
-      );
-      movedTasks = Number(moved.rowCount ?? 0);
+    let backupStaffId = keepSecondary ? num(body.backup_staff_id) : null;
+    if (backupStaffId != null) {
+      backupStaffId = await this.requireCrmStaffId(backupStaffId, 'backup_staff_id');
     }
+
+    const scopedActor = await this.resolveTransferActor(actor);
+    const current = await this.loadScopedAccounts(ids, scopedActor);
+    const found = new Set(current.map((row) => row.agency_client_id));
+    if (ids.some((id) => !found.has(id))) {
+      amThrow(403, { error: 'out_of_scope' });
+    }
+
+    const writes = await this.inTx(async (query) => {
+      const extParams: unknown[] = [AM_TENANT_ID, toStaffId, keepSecondary, backupStaffId, ids];
+      const extBound = bindScopeSql(
+        amScopeSql({
+          scope: scopedActor.scope,
+          staffId: scopedActor.staffId,
+          teamIds: scopedActor.teamIds,
+        }),
+        extParams.length + 1,
+      );
+      extParams.push(...extBound.params);
+      const updated = await query(
+        `UPDATE crm_am_account_ext e
+            SET account_owner_staff_id = $2,
+                backup_staff_id = CASE
+                  WHEN $3::boolean THEN COALESCE($4::int, NULLIF(account_owner_staff_id, $2))
+                  ELSE NULL
+                END,
+                updated_at = now()
+          WHERE e.tenant_id = $1 AND e.agency_client_id = ANY($5::uuid[]) AND ${extBound.sql}`,
+        extParams,
+      );
+      const transferred = Number(updated.rowCount ?? 0);
+      if (transferred > 0) {
+        await query(`UPDATE clients SET owner_am_id = $1 WHERE id = ANY($2::uuid[])`, [
+          String(toStaffId),
+          ids,
+        ]);
+      }
+
+      let movedTasks = 0;
+      if (moveOpenTasks && transferred > 0) {
+        const moved = await query(
+          `UPDATE crm_am_tasks
+              SET assignee_staff_id = $2,
+                  updated_at = now()
+            WHERE tenant_id = $1
+              AND agency_client_id = ANY($3::uuid[])
+              AND dismissed_at IS NULL
+              AND status NOT IN ('closed', 'cancelled', 'resolved')`,
+          [AM_TENANT_ID, toStaffId, ids],
+        );
+        movedTasks = Number(moved.rowCount ?? 0);
+      }
+      return { transferred, movedTasks };
+    });
 
     await this.audit?.insert({
       actor_staff_id: actor.staffId > 0 ? actor.staffId : null,
@@ -311,16 +346,95 @@ export class AmAccountsService {
         keep_secondary: keepSecondary,
         backup_staff_id: backupStaffId,
         move_open_tasks: moveOpenTasks,
-        previous,
+        previous: current,
+        scope: scopedActor.scope,
       },
     });
     this.dashboard?.dropCache();
     return {
-      transferred: ids.length,
+      transferred: writes.transferred,
       to_staff_id: toStaffId,
-      moved_tasks: movedTasks,
+      moved_tasks: writes.movedTasks,
       keep_secondary: keepSecondary,
     };
+  }
+
+  private async inTx<T>(fn: (query: AmAccountsQuery) => Promise<T>): Promise<T> {
+    if (this.db.withTransaction) {
+      return this.db.withTransaction(fn);
+    }
+    return fn((sql, params) => this.db.query(sql, params));
+  }
+
+  private async requireCrmStaffId(rawId: number, field: string): Promise<number> {
+    try {
+      const direct = await this.db.query(`SELECT id FROM crm_staff WHERE id = $1 LIMIT 1`, [rawId]);
+      const directId = num(direct.rows[0]?.id);
+      if (directId && directId > 0) return directId;
+      const mapped = await this.db.query(
+        `SELECT cs.id
+           FROM staff_users u
+           JOIN crm_staff cs ON lower(trim(cs.email)) = lower(trim(u.email))
+          WHERE u.id = $1
+          LIMIT 1`,
+        [rawId],
+      );
+      const mappedId = num(mapped.rows[0]?.id);
+      if (mappedId && mappedId > 0) return mappedId;
+    } catch (err) {
+      if (!isMissingRelation(err)) throw err;
+    }
+    amThrow(400, { error: `${field}_invalid` });
+  }
+
+  private async resolveTransferActor(actor: AmAccountActor): Promise<ListActor> {
+    if (actor.via === 'internal') {
+      return { staffId: actor.staffId, scope: 'all', teamIds: [], canSeeUnassigned: true };
+    }
+    const has = (action: string) => this.staffAuth.hasCap(actor.caps ?? [], 'crm_am', action);
+    const hasViewAll = has('view_all') || has('manage');
+    const canTeam = hasViewAll || has('assign');
+    const requested: AmScope = hasViewAll ? 'all' : canTeam ? 'team' : 'me';
+    const scope = resolveAmScope({ requested, hasViewAll, canTeam });
+    if (scope === 'all') {
+      return { staffId: actor.staffId, scope: 'all', teamIds: [], canSeeUnassigned: true };
+    }
+    const teamIds = scope === 'team' ? await this.loadTeamIds(actor.staffId) : [];
+    if (scope === 'team' && teamIds.length) {
+      return { staffId: actor.staffId, scope: 'team', teamIds, canSeeUnassigned: true };
+    }
+    return { staffId: actor.staffId, scope: 'me', teamIds: [], canSeeUnassigned: false };
+  }
+
+  private async loadScopedAccounts(
+    ids: string[],
+    actor: ListActor,
+  ): Promise<
+    Array<{
+      agency_client_id: string;
+      account_owner_staff_id: number | null;
+      backup_staff_id: number | null;
+    }>
+  > {
+    const params: unknown[] = [AM_TENANT_ID, ids];
+    const bound = bindScopeSql(
+      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
+      params.length + 1,
+    );
+    params.push(...bound.params);
+    const current = await this.db.query(
+      `SELECT e.agency_client_id::text AS agency_client_id,
+              e.account_owner_staff_id,
+              e.backup_staff_id
+         FROM crm_am_account_ext e
+        WHERE e.tenant_id = $1 AND e.agency_client_id = ANY($2::uuid[]) AND ${bound.sql}`,
+      params,
+    );
+    return current.rows.map((row) => ({
+      agency_client_id: String(row.agency_client_id ?? ''),
+      account_owner_staff_id: num(row.account_owner_staff_id),
+      backup_staff_id: num(row.backup_staff_id),
+    }));
   }
 
   private canAssign(actor: AmAccountActor): boolean {

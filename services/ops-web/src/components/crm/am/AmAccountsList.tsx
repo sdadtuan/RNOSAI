@@ -612,10 +612,13 @@ export function AmAccountsList() {
                   inputMode="numeric"
                   value={toStaffId}
                   onChange={(ev) => setToStaffId(ev.target.value.trim())}
-                  placeholder="Staff ID"
-                  aria-label="Staff ID owner mới"
+                  placeholder="crm_staff ID"
+                  aria-label="crm_staff ID owner mới"
                   required
                 />
+                <span className="am-muted">
+                  Owner là crm_staff.id. Roster staff_users.id được map theo email nếu chưa có trên crm_staff.
+                </span>
               </label>
               <label className="am-check">
                 <input

@@ -53,7 +53,10 @@ export class StaffAmGuard implements CanActivate {
     const me = await this.staffAuth.me(req.staffUser);
     const allowed =
       this.staffAuth.hasCap(me.caps, section, action) ||
-      (action === 'view' && this.staffAuth.hasCap(me.caps, section, 'view_all'));
+      (action === 'view' && this.staffAuth.hasCap(me.caps, section, 'view_all')) ||
+      (action === 'assign' &&
+        section === 'crm_am' &&
+        this.staffAuth.hasCap(me.caps, section, 'manage'));
     if (!allowed) {
       throw new ForbiddenException({ error: 'missing_cap', section, action });
     }

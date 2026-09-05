@@ -82,6 +82,7 @@ describe('saved view + transfer caps', () => {
     expect(canAssignAmAccounts(viewOnly)).toBe(false);
     expect(canShareAmView(viewOnly)).toBe(false);
     expect(canAssignAmAccounts(user([{ section: 'crm_am', action: 'assign' }]))).toBe(true);
+    expect(canAssignAmAccounts(user([{ section: 'crm_am', action: 'manage' }]))).toBe(true);
     expect(
       canShareAmView(
         user([
