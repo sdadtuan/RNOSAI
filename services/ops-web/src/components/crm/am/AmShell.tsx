@@ -34,6 +34,7 @@ import {
 import { AM_NAV, canSeeAmNav, type AmNavItem } from '@/lib/crm/am-nav.util';
 import { showAmNotifyDot } from '@/lib/crm/am-notify.util';
 import { AmCreateMenu } from './AmCreateMenu';
+import { AmHelpDrawer } from './AmHelpDrawer';
 import { AmNotifyDrawer } from './AmNotifyDrawer';
 import { AmPalette } from './AmPalette';
 
@@ -115,6 +116,7 @@ function AmShellInner({ children }: { children: ReactNode }) {
   const [createKind, setCreateKind] = useState<AmCreateKind | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [notifyOpen, setNotifyOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [notifyItems, setNotifyItems] = useState<AmNotificationItem[]>([]);
   const [notifyUnread, setNotifyUnread] = useState(0);
 
@@ -388,6 +390,15 @@ function AmShellInner({ children }: { children: ReactNode }) {
                     }}
                   />
                 </div>
+                <button
+                  type="button"
+                  className="am-help"
+                  aria-label="Hướng dẫn"
+                  onClick={() => setHelpOpen(true)}
+                >
+                  ❔
+                </button>
+                <AmHelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
                 <AmCreateMenu canEdit={canEdit} />
               </header>
               <AmPalette

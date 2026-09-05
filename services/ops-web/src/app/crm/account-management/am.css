@@ -195,6 +195,42 @@
   background: #fffbeb;
 }
 
+.am-help {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+
+.am-help__body {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.am-help__links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.am-help__link {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.am-help__link:hover {
+  background: #eff6ff;
+}
+
 .am-bell {
   position: relative;
 }
