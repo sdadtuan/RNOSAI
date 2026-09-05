@@ -194,6 +194,62 @@ export async function acceptAmTasksBulk(
   });
 }
 
+export type AmWorkEscalationLevel = 'lead' | 'director' | 'executive';
+
+export type AmWorkItemDetail = AmWorkQueueItem & {
+  waiting_client_reason: string | null;
+  resolution_summary: string | null;
+  resolution_category: string | null;
+  escalation_level: string | null;
+  csd_ticket_id: string | null;
+  csd_href: string | null;
+  suggested_escalation_level?: AmWorkEscalationLevel | null;
+  created_at?: string | null;
+};
+
+export async function fetchAmWorkItem(token: string, id: string): Promise<AmWorkItemDetail> {
+  return amFetch<AmWorkItemDetail>(token, `/api/crm/am/tasks/${encodeURIComponent(id)}`);
+}
+
+export async function waitingClientAmTask(
+  token: string,
+  id: string,
+  body: { reason: string; evidence?: string },
+): Promise<AmWorkItemDetail> {
+  return amFetch<AmWorkItemDetail>(
+    token,
+    `/api/crm/am/tasks/${encodeURIComponent(id)}/waiting-client`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export async function resolveAmTask(
+  token: string,
+  id: string,
+  body: { summary: string; category?: string },
+): Promise<AmWorkItemDetail> {
+  return amFetch<AmWorkItemDetail>(token, `/api/crm/am/tasks/${encodeURIComponent(id)}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function escalateAmTask(
+  token: string,
+  id: string,
+  body: {
+    level: AmWorkEscalationLevel;
+    recipient_staff_id: number;
+    summary: string;
+    reason?: string;
+  },
+): Promise<AmWorkItemDetail> {
+  return amFetch<AmWorkItemDetail>(token, `/api/crm/am/tasks/${encodeURIComponent(id)}/escalate`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export type AmPlanKind = 'care' | 'qbr' | 'renewal' | 'expand';
 
 export type AmCreateAccountBody =

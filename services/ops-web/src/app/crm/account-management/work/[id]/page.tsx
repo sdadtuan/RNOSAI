@@ -1,5 +1,5 @@
-import { AmPlaceholder } from '@/components/crm/am/AmPlaceholder';
+import { AmWorkItem } from '@/components/crm/am/AmWorkItem';
 
-export default function AmWorkDetailPage() {
-  return <AmPlaceholder title="Work Queue" wave={3} />;
+export default function AmWorkDetailPage({ params }: { params: { id: string } }) {
+  return <AmWorkItem taskId={params.id} />;
 }

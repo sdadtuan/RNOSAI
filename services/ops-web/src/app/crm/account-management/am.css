@@ -1375,3 +1375,20 @@ html.ops-shell-bitrix body:has(.am-root) .bitrix-crm-page__inner {
     grid-template-columns: 1fr;
   }
 }
+
+.am-workitem__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.am-workitem__grid {
+  margin-top: 12px;
+}
+
+@media (max-width: 720px) {
+  .am-workitem__grid {
+    grid-template-columns: 1fr;
+  }
+}

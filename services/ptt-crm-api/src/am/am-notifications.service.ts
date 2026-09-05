@@ -34,8 +34,16 @@ function mapItem(row: Record<string, unknown>): AmNotificationItem {
   };
 }
 
+export type AmNotificationInsert = {
+  staff_id: number;
+  kind: string;
+  title: string;
+  href?: string | null;
+};
+
 export type AmNotificationsStore = {
   listForStaff(staffId: number): Promise<AmNotificationItem[]>;
+  insert(input: AmNotificationInsert): Promise<AmNotificationItem>;
 };
 
 @Injectable()
@@ -54,6 +62,16 @@ export class AmNotificationsRepository implements OnModuleDestroy, AmNotificatio
   onModuleDestroy(): void {
     void this.pool?.end();
     this.pool = null;
+  }
+
+  async insert(input: AmNotificationInsert): Promise<AmNotificationItem> {
+    const result = await this.db.query(
+      `INSERT INTO crm_am_notifications (tenant_id, staff_id, kind, title, href)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id::text AS id, kind, title, href, read_at, created_at`,
+      [AM_TENANT_ID, input.staff_id, input.kind, input.title, input.href ?? null],
+    );
+    return mapItem(result.rows[0] as Record<string, unknown>);
   }
 
   async listForStaff(staffId: number): Promise<AmNotificationItem[]> {

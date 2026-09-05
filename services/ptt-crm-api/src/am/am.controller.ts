@@ -17,7 +17,14 @@ import { AmPlansService, type AmCreatePlanInput } from './am-plans.service';
 import { AmSearchService } from './am-search.service';
 import { AmNotificationsService } from './am-notifications.service';
 import { AmSettingsService, type AmPublishSettingsBody } from './am-settings.service';
-import { AmTasksService, type AmCreateTaskInput, type AmTasksListQuery } from './am-tasks.service';
+import {
+  AmTasksService,
+  type AmCreateTaskInput,
+  type AmEscalateTaskInput,
+  type AmResolveTaskInput,
+  type AmTasksListQuery,
+  type AmWaitingClientInput,
+} from './am-tasks.service';
 import { AmViewsService, type AmCreateViewBody } from './am-views.service';
 import {
   AmOnboardingService,
@@ -156,6 +163,38 @@ export class AmController {
   @RequireAmAction('edit')
   async acceptTask(@Req() req: AuthedReq, @Param('id') id: string) {
     return this.tasks.accept(id, await this.actorStaffId(req));
+  }
+
+  @Get('tasks/:id')
+  @RequireAmAction('view')
+  getTask(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.tasks.view(req, id);
+  }
+
+  @Post('tasks/:id/waiting-client')
+  @RequireAmAction('edit')
+  async waitingClientTask(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: AmWaitingClientInput,
+  ) {
+    return this.tasks.waitingClient(req, id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Post('tasks/:id/resolve')
+  @RequireAmAction('edit')
+  async resolveTask(@Req() req: AuthedReq, @Param('id') id: string, @Body() body: AmResolveTaskInput) {
+    return this.tasks.resolve(req, id, body ?? {}, await this.actorStaffId(req));
+  }
+
+  @Post('tasks/:id/escalate')
+  @RequireAmAction('edit')
+  async escalateTask(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: AmEscalateTaskInput,
+  ) {
+    return this.tasks.escalate(req, id, body ?? {}, await this.actorStaffId(req));
   }
 
   @Get('accounts')

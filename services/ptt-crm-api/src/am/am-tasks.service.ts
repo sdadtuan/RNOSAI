@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
   OnModuleDestroy,
@@ -13,6 +14,7 @@ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { AmAuditRepository, AM_TENANT_ID } from './am-audit.repository';
 import { AmDashboardService } from './am-dashboard.service';
 import { amThrow } from './am-http';
+import { AmNotificationsRepository } from './am-notifications.service';
 import { amScopeSql, resolveAmScope } from './am-scope.util';
 import type { AmScope, AmTaskKind, AmTaskStatus } from './am.types';
 
@@ -85,6 +87,30 @@ export type AmWorkQueueList = {
   work_hours: string;
 };
 
+export type AmEscalationLevel = 'lead' | 'director' | 'executive';
+
+export type AmWorkItemDetail = AmWorkQueueItem & {
+  waiting_client_reason: string | null;
+  resolution_summary: string | null;
+  resolution_category: string | null;
+  escalation_level: string | null;
+  csd_ticket_id: string | null;
+  csd_href: string | null;
+  suggested_escalation_level: AmEscalationLevel | null;
+  created_at: string | null;
+};
+
+export type AmWaitingClientInput = { reason?: string; evidence?: string };
+export type AmResolveTaskInput = { summary?: string; category?: string };
+export type AmEscalateTaskInput = {
+  level?: string;
+  recipient_staff_id?: number;
+  summary?: string;
+  reason?: string;
+};
+
+export type AmCsdResolveDummy = { resolve: (...args: unknown[]) => unknown };
+
 export type AmTasksReq = {
   staffUser?: StaffJwtPayload;
   staffAuthVia?: 'internal' | 'jwt';
@@ -116,6 +142,26 @@ export function amTaskSlaClock(row: AmTaskOverdueInput, now = Date.now()): numbe
   return due - now;
 }
 
+export function amSuggestedEscalationLevel(
+  row: {
+    created_at?: string | null;
+    sla_first_due_at?: string | null;
+    sla_resolve_due_at?: string | null;
+  },
+  now = Date.now(),
+): AmEscalationLevel | null {
+  const startRaw = row.created_at || row.sla_first_due_at;
+  const start = startRaw ? Date.parse(startRaw) : NaN;
+  const end = row.sla_resolve_due_at ? Date.parse(row.sla_resolve_due_at) : NaN;
+  if (!Number.isFinite(end)) return null;
+  if (!Number.isFinite(start) || end <= start) return now >= end ? 'executive' : null;
+  const used = ((now - start) / (end - start)) * 100;
+  if (used >= 100) return 'executive';
+  if (used >= 90) return 'director';
+  if (used >= 70) return 'lead';
+  return null;
+}
+
 const TASK_KINDS: AmTaskKind[] = [
   'task',
   'client_request',
@@ -135,9 +181,40 @@ const TASK_STATUSES: AmTaskStatus[] = [
   'cancelled',
 ];
 const WORK_HOURS = 'Giờ LV 08:30–17:30';
+const ESCALATION_LEVELS: AmEscalationLevel[] = ['lead', 'director', 'executive'];
 const SLA_BREACHED_SQL =
   `NOT (t.status = 'waiting_client' AND t.sla_paused IS TRUE)` +
   ` AND t.sla_resolve_due_at IS NOT NULL AND t.sla_resolve_due_at < now()`;
+const WORK_ITEM_COLS = `
+           t.id::text AS id,
+           t.agency_client_id::text AS agency_client_id,
+           NULLIF(TRIM(COALESCE(c.name, '')), '') AS account_name,
+           t.title,
+           t.kind,
+           t.priority,
+           t.status,
+           t.assignee_staff_id,
+           NULLIF(TRIM(COALESCE(assignee.name, '')), '') AS assignee_label,
+           t.due_at,
+           t.sla_first_due_at,
+           t.sla_resolve_due_at,
+           t.sla_paused,
+           t.source,
+           t.source_ref,
+           t.waiting_client_reason,
+           t.resolution_summary,
+           t.resolution_category,
+           t.escalation_level,
+           t.csd_ticket_id::text AS csd_ticket_id,
+           t.created_at
+`;
+const WORK_ITEM_FROM = `
+         FROM crm_am_tasks t
+         INNER JOIN crm_am_account_ext e
+                 ON e.agency_client_id = t.agency_client_id AND e.tenant_id = $1
+         LEFT JOIN clients c ON c.id = t.agency_client_id
+         LEFT JOIN crm_staff assignee ON assignee.id = t.assignee_staff_id
+`;
 
 const TASK_COLS = `
   id::text AS id,
@@ -287,7 +364,9 @@ export class AmTasksService {
     private readonly repo: AmTasksRepository,
     private readonly audit: AmAuditRepository,
     private readonly staffAuth: StaffAuthService,
+    private readonly notifications: AmNotificationsRepository,
     @Optional() private readonly dashboard?: AmDashboardService,
+    @Optional() @Inject('AM_CSD_RESOLVE') private readonly csd?: AmCsdResolveDummy,
   ) {}
 
   async list(req: AmTasksReq, q: AmTasksListQuery): Promise<AmWorkQueueList> {
@@ -351,27 +430,8 @@ export class AmTasksService {
     let items: AmWorkQueueItem[] = [];
     try {
       const result = await this.repo.query(
-        `SELECT
-           t.id::text AS id,
-           t.agency_client_id::text AS agency_client_id,
-           NULLIF(TRIM(COALESCE(c.name, '')), '') AS account_name,
-           t.title,
-           t.kind,
-           t.priority,
-           t.status,
-           t.assignee_staff_id,
-           NULLIF(TRIM(COALESCE(assignee.name, '')), '') AS assignee_label,
-           t.due_at,
-           t.sla_first_due_at,
-           t.sla_resolve_due_at,
-           t.sla_paused,
-           t.source,
-           t.source_ref
-         FROM crm_am_tasks t
-         INNER JOIN crm_am_account_ext e
-                 ON e.agency_client_id = t.agency_client_id AND e.tenant_id = $1
-         LEFT JOIN clients c ON c.id = t.agency_client_id
-         LEFT JOIN crm_staff assignee ON assignee.id = t.assignee_staff_id
+        `SELECT ${WORK_ITEM_COLS}
+         ${WORK_ITEM_FROM}
          WHERE ${where.join(' AND ')}
          ORDER BY t.due_at NULLS LAST, t.created_at`,
         params,
@@ -512,6 +572,152 @@ export class AmTasksService {
     return { dismissed };
   }
 
+  async view(req: AmTasksReq, id: string): Promise<AmWorkItemDetail> {
+    return mapWorkDetail(await this.loadScopedRow(req, id));
+  }
+
+  async waitingClient(
+    req: AmTasksReq,
+    id: string,
+    body: AmWaitingClientInput,
+    staffId: number,
+  ): Promise<AmWorkItemDetail> {
+    const reason = String(body.reason ?? '').trim();
+    if (!reason) amThrow(400, { error: 'reason_required' });
+    const evidence = body.evidence != null ? String(body.evidence).trim() : '';
+    const stored = evidence ? `${reason}\n\nEvidence: ${evidence}` : reason;
+    const row = await this.loadScopedRow(req, id);
+    await this.repo.query(
+      `UPDATE crm_am_tasks
+          SET status = 'waiting_client',
+              sla_paused = TRUE,
+              waiting_client_reason = $3,
+              updated_at = now()
+        WHERE tenant_id = $1 AND id = $2::uuid`,
+      [AM_TENANT_ID, id, stored],
+    );
+    await this.audit.insert({
+      actor_staff_id: staffId || null,
+      action: 'task.waiting_client',
+      entity_type: 'task',
+      entity_id: id,
+      payload_json: { reason: stored },
+    });
+    this.dashboard?.dropCache();
+    return mapWorkDetail({
+      ...row,
+      status: 'waiting_client',
+      sla_paused: true,
+      waiting_client_reason: stored,
+    });
+  }
+
+  async resolve(
+    req: AmTasksReq,
+    id: string,
+    body: AmResolveTaskInput,
+    staffId: number,
+  ): Promise<AmWorkItemDetail> {
+    const summary = String(body.summary ?? '').trim();
+    if (!summary) amThrow(400, { error: 'summary_required' });
+    const row = await this.loadScopedRow(req, id);
+    const category = body.category != null ? String(body.category).trim() : '';
+    if (String(row.kind ?? '') === 'issue' && !category) {
+      amThrow(400, { error: 'category_required' });
+    }
+    await this.repo.query(
+      `UPDATE crm_am_tasks
+          SET status = 'resolved',
+              resolution_summary = $3,
+              resolution_category = $4,
+              updated_at = now()
+        WHERE tenant_id = $1 AND id = $2::uuid`,
+      [AM_TENANT_ID, id, summary, category || null],
+    );
+    await this.audit.insert({
+      actor_staff_id: staffId || null,
+      action: 'task.resolve',
+      entity_type: 'task',
+      entity_id: id,
+      payload_json: { summary, category: category || null },
+    });
+    this.dashboard?.dropCache();
+    return mapWorkDetail({
+      ...row,
+      status: 'resolved',
+      resolution_summary: summary,
+      resolution_category: category || null,
+    });
+  }
+
+  async escalate(
+    req: AmTasksReq,
+    id: string,
+    body: AmEscalateTaskInput,
+    staffId: number,
+  ): Promise<AmWorkItemDetail> {
+    const level = String(body.level ?? '').trim();
+    if (!ESCALATION_LEVELS.includes(level as AmEscalationLevel)) {
+      amThrow(400, { error: 'invalid_level' });
+    }
+    const recipient = Number(body.recipient_staff_id);
+    if (!Number.isInteger(recipient) || recipient <= 0) {
+      amThrow(400, { error: 'invalid_recipient_staff_id' });
+    }
+    const summary = String(body.summary ?? '').trim();
+    if (!summary) amThrow(400, { error: 'summary_required' });
+    const reason = body.reason != null ? String(body.reason).trim() : '';
+    const row = await this.loadScopedRow(req, id);
+    await this.repo.query(
+      `UPDATE crm_am_tasks
+          SET escalation_level = $3,
+              updated_at = now()
+        WHERE tenant_id = $1 AND id = $2::uuid`,
+      [AM_TENANT_ID, id, level],
+    );
+    const title = String(row.title ?? '').trim() || 'task';
+    const account = emptyToNull(row.account_name) ?? 'account';
+    await this.notifications.insert({
+      staff_id: recipient,
+      kind: 'escalation',
+      title: `Escalate: ${title} · ${account}`,
+      href: `/crm/account-management/work/${id}`,
+    });
+    await this.audit.insert({
+      actor_staff_id: staffId || null,
+      action: 'task.escalate',
+      entity_type: 'task',
+      entity_id: id,
+      payload_json: { level, recipient_staff_id: recipient, summary, reason: reason || null },
+    });
+    this.dashboard?.dropCache();
+    return mapWorkDetail({ ...row, escalation_level: level });
+  }
+
+  private async loadScopedRow(req: AmTasksReq, id: string): Promise<Record<string, unknown>> {
+    if (!isUuid(id)) amThrow(400, { error: 'invalid_task_id' });
+    const actor = await this.resolveActor(req, undefined);
+    const bound = bindScopeSql(
+      amScopeSql({ scope: actor.scope, staffId: actor.staffId, teamIds: actor.teamIds }),
+      3,
+    );
+    let row: Record<string, unknown> | undefined;
+    try {
+      const result = await this.repo.query(
+        `SELECT ${WORK_ITEM_COLS}
+         ${WORK_ITEM_FROM}
+         WHERE t.tenant_id = $1 AND t.id = $2::uuid AND ${bound.sql}
+         LIMIT 1`,
+        [AM_TENANT_ID, id, ...bound.params],
+      );
+      row = result.rows[0];
+    } catch (err) {
+      if (!isMissingRelation(err)) throw err;
+    }
+    if (!row) amThrow(404, { error: 'not_found' });
+    return row;
+  }
+
   private async resolveActor(
     req: AmTasksReq,
     requested: AmScope | undefined,
@@ -632,6 +838,26 @@ function isoOrNull(value: unknown): string | null {
   if (value == null || value === '') return null;
   const ms = Date.parse(String(value));
   return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+function mapWorkDetail(row: Record<string, unknown>): AmWorkItemDetail {
+  const item = mapWorkItem(row);
+  const csdTicketId = emptyToNull(row.csd_ticket_id);
+  return {
+    ...item,
+    waiting_client_reason: emptyToNull(row.waiting_client_reason),
+    resolution_summary: emptyToNull(row.resolution_summary),
+    resolution_category: emptyToNull(row.resolution_category),
+    escalation_level: emptyToNull(row.escalation_level),
+    csd_ticket_id: csdTicketId,
+    csd_href: csdTicketId ? `/crm/csd/tickets/${csdTicketId}` : null,
+    suggested_escalation_level: amSuggestedEscalationLevel({
+      created_at: isoOrNull(row.created_at),
+      sla_first_due_at: item.sla_first_due_at,
+      sla_resolve_due_at: item.sla_resolve_due_at,
+    }),
+    created_at: isoOrNull(row.created_at),
+  };
 }
 
 function mapWorkItem(row: Record<string, unknown>): AmWorkQueueItem {
