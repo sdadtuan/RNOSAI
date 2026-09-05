@@ -380,6 +380,7 @@ export type AmBulkTagInput = {
   agency_client_ids: string[];
   tags: string[];
   mode: 'add';
+  scope?: AmScope;
 };
 
 export type AmBulkTagResult = { updated: number };

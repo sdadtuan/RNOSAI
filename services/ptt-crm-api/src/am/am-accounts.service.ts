@@ -68,6 +68,7 @@ export type AmBulkTagInput = {
   agency_client_ids: string[];
   tags: string[];
   mode: 'add';
+  scope?: AmScope;
 };
 
 export type AmBulkTagResult = { updated: number };
@@ -464,7 +465,11 @@ export class AmAccountsService {
     }
   }
 
-  async bulkTag(req: AmAccountsListReq, body: AmBulkTagInput): Promise<AmBulkTagResult> {
+  async bulkTag(
+    req: AmAccountsListReq,
+    body: AmBulkTagInput,
+    q: AmAccountsListQuery = {},
+  ): Promise<AmBulkTagResult> {
     if (String(body?.mode ?? '') !== 'add') {
       amThrow(400, { error: 'mode_invalid' });
     }
@@ -482,7 +487,7 @@ export class AmAccountsService {
       amThrow(400, { error: 'tags_required' });
     }
 
-    const actor = await this.resolveListActor(req, 'max');
+    const actor = await this.resolveListActor(req, body.scope ?? q.scope);
     const current = await this.loadScopedTags(ids, actor);
     const found = new Set(current.map((row) => row.agency_client_id));
     if (ids.some((id) => !found.has(id))) {
@@ -499,8 +504,9 @@ export class AmAccountsService {
       `UPDATE crm_am_account_ext e
           SET tags = (
                 SELECT ARRAY(
-                  SELECT DISTINCT t
+                  SELECT DISTINCT btrim(t)
                   FROM unnest(COALESCE(e.tags, ARRAY[]::text[]) || $3::text[]) AS t
+                  WHERE btrim(t) <> ''
                 )
               ),
               updated_at = now()

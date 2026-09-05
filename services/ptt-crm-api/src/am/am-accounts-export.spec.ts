@@ -63,6 +63,8 @@ describe('AmAccountsService export + bulkTag', () => {
     expect(updates).toHaveLength(1);
     expect(updates[0].sql).toMatch(/unnest/i);
     expect(updates[0].sql).toMatch(/\|\|/);
+    expect(updates[0].sql).toMatch(/btrim\s*\(\s*t\s*\)/i);
+    expect(updates[0].sql).toMatch(/btrim\s*\(\s*t\s*\)\s*<>\s*''/i);
     expect(updates[0].sql).toMatch(/distinct/i);
     const written = JSON.stringify(updates[0].params);
     expect(written).toMatch(/b/);
@@ -100,6 +102,7 @@ describe('AmAccountsService export + bulkTag', () => {
       agency_client_ids: [TEAM_CLIENT],
       tags: ['vip'],
       mode: 'add',
+      scope: 'team',
     });
     expect(out.updated).toBe(1);
     await expect(
@@ -107,8 +110,41 @@ describe('AmAccountsService export + bulkTag', () => {
         agency_client_ids: [OUTSIDE],
         tags: ['vip'],
         mode: 'add',
+        scope: 'team',
       }),
     ).rejects.toMatchObject({ status: 403, error: 'out_of_scope' });
+  });
+
+  it('assign user can tag me-visible task/delegation id when requesting scope=me', async () => {
+    const DELEGATED = '19d722af-0000-4000-8000-000000000002';
+    staffAuth.me.mockResolvedValue({
+      caps: [
+        { section: 'crm_am', action: 'edit' },
+        { section: 'crm_am', action: 'assign' },
+      ],
+    });
+    db.query.mockImplementation(async function (sql: string) {
+      const text = String(sql);
+      if (/staff_user_teams|staff_teams/i.test(text)) {
+        throw new Error('me scope must not load team ids');
+      }
+      if (/^\s*update/i.test(text)) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (/select/i.test(text) && /tags/i.test(text)) {
+        expect(text).toMatch(/crm_am_tasks|crm_am_delegations/i);
+        expect(text).not.toMatch(/team_id\s*=\s*ANY/i);
+        return { rows: [{ agency_client_id: DELEGATED, tags: [] }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const out = await service.bulkTag(editReq, {
+      agency_client_ids: [DELEGATED],
+      tags: ['vip'],
+      mode: 'add',
+      scope: 'me',
+    });
+    expect(out.updated).toBe(1);
   });
 
   it('blanks mrr_vnd without crm_am.finance and hides churned by default', async () => {

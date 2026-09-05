@@ -326,8 +326,8 @@ export class AmController {
 
   @Post('accounts/bulk-tag')
   @RequireAmAction('edit')
-  async bulkTag(@Req() req: AuthedReq, @Body() body: AmBulkTagInput) {
-    return this.accounts.bulkTag(req, body ?? {});
+  async bulkTag(@Req() req: AuthedReq, @Query() q: AmAccountsListQuery, @Body() body: AmBulkTagInput) {
+    return this.accounts.bulkTag(req, body ?? {}, q);
   }
 
   @Get('accounts/export')

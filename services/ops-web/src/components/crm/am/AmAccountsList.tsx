@@ -13,6 +13,7 @@ import {
   transferAmAccounts,
   type AmAccountListItem,
   type AmSavedView,
+  type AmScope,
 } from '@/lib/crm/am-api';
 import { amExportTooLargeCopy } from '@/lib/crm/am-export.util';
 import { amDelegationUntilLabel } from '@/lib/crm/am-delegation.util';
@@ -314,7 +315,14 @@ export function AmAccountsList() {
     const tags = raw.split(',').map((part) => part.trim()).filter(Boolean);
     if (!tags.length) return;
     try {
-      await bulkTagAmAccounts(token, { agency_client_ids: selectedIds, tags, mode: 'add' });
+      const query = queryFromSearch(search);
+      if (!query.scope) query.scope = scope;
+      await bulkTagAmAccounts(token, {
+        agency_client_ids: selectedIds,
+        tags,
+        mode: 'add',
+        scope: (query.scope as AmScope) || scope,
+      });
       setSelected({});
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không gắn được tag');
