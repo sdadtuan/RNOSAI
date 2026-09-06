@@ -8,7 +8,7 @@ import {
   type AmAccountListItem,
   type AmOppStage,
 } from '@/lib/crm/am-api';
-import { AM_OPP_KIND_OPTS, AM_OPP_STAGES } from '@/lib/crm/am-growth.util';
+import { AM_OPP_KIND_OPTS, AM_OPP_STAGES, amGrowthStageLabel } from '@/lib/crm/am-growth.util';
 import { useToast } from '@/lib/toast';
 import { RevOpsModalFrame } from '../RevOpsModalFrame';
 
@@ -135,9 +135,9 @@ export function RevOpsGrowthModal({
           <label className="revops-field">
             <span>Stage</span>
             <select value={stage} onChange={(ev) => setStage(ev.target.value as AmOppStage)}>
-              {AM_OPP_STAGES.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
+              {AM_OPP_STAGES.map((opt) => (
+                <option key={opt} value={opt}>
+                  {amGrowthStageLabel(opt)}
                 </option>
               ))}
             </select>
