@@ -12,6 +12,8 @@ function user(caps: Array<{ section: string; action: string }>): StoredStaffUser
   };
 }
 
+const userWith = user;
+
 describe('hasCap (fail-closed R1-S2)', () => {
   it('returns false when user is null', () => {
     expect(hasCap(null, 'crm_leads', 'view')).toBe(false);
@@ -158,6 +160,13 @@ describe('rbac-routes', () => {
   it('crm_am.view_all can open AM routes', () => {
     const dir = user([{ section: 'crm_am', action: 'view_all' }]);
     expect(canAccessPath('/crm/account-management', dir, 'crm')).toBe(true);
+  });
+
+  it('Creative OS path requires crm_cp.view — agency-only is 403', () => {
+    const cpView = userWith([{ section: 'crm_cp', action: 'view' }]);
+    const agency = userWith([{ section: 'crm_board', action: 'view' }]);
+    expect(canAccessPath('/crm/creative-os', agency, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/creative-os/projects', cpView, 'crm')).toBe(true);
   });
 
   it('/crm/health admits original CS caps plus crm_am.view without widening /crm', () => {

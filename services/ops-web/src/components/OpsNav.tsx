@@ -151,6 +151,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/sop': 'Quy trình SOP',
   '/crm/launch-qa': 'Launch QA',
   '/crm/creatives': 'Creative Hub',
+  '/crm/creative-os': 'Sản xuất sáng tạo',
   '/crm/campaign-writes': 'Campaign Write',
   '/crm/sales': 'Kinh doanh',
   '/crm/kpi': 'KPI',
@@ -531,6 +532,11 @@ function buildSections(
     delivery.push({ href: '/crm/sop', label: 'Quy trình SOP' });
     delivery.push({ href: '/crm/launch-qa', label: 'Launch QA' });
     delivery.push({ href: '/crm/creatives', label: 'Creative Hub' });
+  }
+  if (hasCap(user, 'crm_cp', 'view') || hasCap(user, 'crm_cp', 'view_all')) {
+    delivery.push({ href: '/crm/creative-os', label: 'Sản xuất sáng tạo' });
+  }
+  if (hasCap(user, 'crm_board', 'view')) {
     delivery.push({ href: '/crm/campaign-writes', label: 'Campaign Write' });
     if (isOpsDvFeEnabled()) {
       delivery.push({ href: '/crm/ops/catalog', label: 'Catalog DV21' });

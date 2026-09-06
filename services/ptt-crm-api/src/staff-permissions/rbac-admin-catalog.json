@@ -54,7 +54,8 @@
     "view_pii",
     "write",
     "generate",
-    "run"
+    "run",
+    "execute"
   ],
   "extra_action_labels": {
     "act": "Điều hành (Xác nhận)",
@@ -74,7 +75,8 @@
     "run": "Chạy job (desk/deep)",
     "manage": "Quản lý",
     "publish": "Xuất bản",
-    "send": "Gửi"
+    "send": "Gửi",
+    "execute": "Thực thi"
   },
   "section_actions": {
     "crm_board_funnel": [
@@ -338,6 +340,16 @@
     ],
     "crm_am": ["view", "view_all", "edit", "assign", "manage"],
     "crm_am.finance": ["view"],
+    "crm_cp": ["view", "view_all", "edit", "manage"],
+    "crm_cp.render": ["execute"],
+    "crm_cp.render_high_cost": ["execute"],
+    "crm_cp.export_final": ["execute"],
+    "crm_cp.publish": ["execute"],
+    "crm_cp.brand": ["edit"],
+    "crm_cp.manage_brand_rule": ["manage"],
+    "crm_cp.approve_legal": ["execute"],
+    "crm_cp.finance": ["view"],
+    "crm_cp.view_audit": ["view"],
     "crm_revops": ["view", "view_team", "view_all", "manage"],
     "crm_revops.commission": ["view", "manage"],
     "spc": [
@@ -1197,6 +1209,76 @@
       "description": "Xem snapshot công nợ / invoice AM. Không sửa Paid."
     },
     {
+      "id": "crm_cp",
+      "label": "Creative Production OS",
+      "group": "CRM",
+      "page": "/crm/creative-os",
+      "description": "Truy cập và quản lý không gian sản xuất sáng tạo."
+    },
+    {
+      "id": "crm_cp.render",
+      "label": "Creative Production OS — Render",
+      "group": "CRM",
+      "page": "/crm/creative-os",
+      "description": "Thực thi tác vụ render."
+    },
+    {
+      "id": "crm_cp.render_high_cost",
+      "label": "Creative Production OS — Render chi phí cao",
+      "group": "CRM",
+      "page": "/crm/creative-os",
+      "description": "Thực thi tác vụ render có chi phí cao."
+    },
+    {
+      "id": "crm_cp.export_final",
+      "label": "Creative Production OS — Xuất bản cuối",
+      "group": "CRM",
+      "page": "/crm/creative-os",
+      "description": "Xuất file thành phẩm cuối."
+    },
+    {
+      "id": "crm_cp.publish",
+      "label": "Creative Production OS — Phát hành",
+      "group": "CRM",
+      "page": "/crm/creative-os",
+      "description": "Phát hành thành phẩm sáng tạo."
+    },
+    {
+      "id": "crm_cp.brand",
+      "label": "Creative Production OS — Thương hiệu",
+      "group": "CRM",
+      "page": "/crm/creative-os",
+      "description": "Chỉnh sửa dữ liệu thương hiệu."
+    },
+    {
+      "id": "crm_cp.manage_brand_rule",
+      "label": "Creative Production OS — Quy tắc thương hiệu",
+      "group": "CRM",
+      "page": "/crm/creative-os",
+      "description": "Quản lý quy tắc thương hiệu."
+    },
+    {
+      "id": "crm_cp.approve_legal",
+      "label": "Creative Production OS — Duyệt pháp lý",
+      "group": "CRM",
+      "page": "/crm/creative-os",
+      "description": "Thực thi phê duyệt pháp lý."
+    },
+    {
+      "id": "crm_cp.finance",
+      "label": "Creative Production OS — Tài chính",
+      "group": "CRM",
+      "page": "/crm/creative-os",
+      "description": "Xem dữ liệu tài chính sản xuất."
+    },
+    {
+      "id": "crm_cp.view_audit",
+      "label": "Creative Production OS — Nhật ký",
+      "group": "CRM",
+      "page": "/crm/creative-os",
+      "description": "Xem nhật ký kiểm toán."
+    },
+    {
       "id": "crm_revops",
       "label": "Revenue Operations",
       "group": "CRM",
@@ -1987,6 +2069,16 @@
     "csd",
     "crm_am",
     "crm_am.finance",
+    "crm_cp",
+    "crm_cp.render",
+    "crm_cp.render_high_cost",
+    "crm_cp.export_final",
+    "crm_cp.publish",
+    "crm_cp.brand",
+    "crm_cp.manage_brand_rule",
+    "crm_cp.approve_legal",
+    "crm_cp.finance",
+    "crm_cp.view_audit",
     "crm_revops",
     "crm_revops.commission",
     "spc",
