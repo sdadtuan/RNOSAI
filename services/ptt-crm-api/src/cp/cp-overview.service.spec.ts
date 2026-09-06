@@ -1,9 +1,11 @@
 import {
   buildActionSql,
+  buildHealthSql,
   buildKpiSql,
   makeOverview,
   mapActionRows,
   renderSuccessRate,
+  slotUsage,
 } from './cp-overview.service';
 
 describe('CpOverviewService', () => {
@@ -49,7 +51,7 @@ describe('CpOverviewService', () => {
     expect(out.kpis.credits_remaining).toBeNull();
   });
 
-  it('uses ICT boundaries and draft autosaved range predicates in KPI SQL', () => {
+  it('uses ICT boundaries and draft created range predicates in KPI SQL', () => {
     const built = buildKpiSql({
       scope: 'me',
       staffId: 1,
@@ -57,13 +59,20 @@ describe('CpOverviewService', () => {
       to: '2026-09-07',
     });
     expect(built.sql).toContain("AT TIME ZONE 'Asia/Ho_Chi_Minh'");
-    expect(built.sql).toContain('d.autosaved_at');
-    expect(built.sql).toContain('d.autosaved_at AT TIME ZONE');
+    expect(built.sql).toContain('d.created_at');
+    expect(built.sql).toContain('d.created_at AT TIME ZONE');
+    expect(built.sql).not.toContain('d.autosaved_at AT TIME ZONE');
   });
 
   it('uses ICT boundaries in action SQL', () => {
     expect(buildActionSql({ scope: 'me', staffId: 1 }).sql).toContain(
       "AT TIME ZONE 'Asia/Ho_Chi_Minh'",
     );
+  });
+
+  it('counts only preparing and rendering jobs as occupied slots', () => {
+    expect(slotUsage(['queued', 'preparing', 'rendering', 'completed'])).toBe(2);
+    const sql = buildHealthSql();
+    expect(sql).toContain("state IN ('preparing','rendering')");
   });
 });

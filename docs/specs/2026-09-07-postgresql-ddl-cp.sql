@@ -195,8 +195,11 @@ CREATE TABLE IF NOT EXISTS crm_cp_video_drafts (
   brand_kit_version_id UUID,
   revision INTEGER NOT NULL DEFAULT 1,
   autosaved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT crm_cp_draft_mode_chk CHECK (input_mode IN ('prompt','script','url','template'))
 );
+ALTER TABLE crm_cp_video_drafts
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 CREATE TABLE IF NOT EXISTS crm_cp_scenes (
   draft_id UUID NOT NULL REFERENCES crm_cp_video_drafts(id) ON DELETE CASCADE,

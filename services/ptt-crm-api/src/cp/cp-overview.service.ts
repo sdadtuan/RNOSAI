@@ -8,7 +8,8 @@ import { CpKpis } from './cp.types';
 const TENANT_ID = 'PTT';
 const ICT_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const PAGE_SIZE = 50;
-const IN_FLIGHT_STATES = new Set(['queued', 'preparing', 'rendering']);
+const QUEUE_STATES = new Set(['queued', 'preparing', 'rendering']);
+const SLOT_STATES = new Set(['preparing', 'rendering']);
 const TERMINAL_STATES = new Set(['completed', 'failed']);
 
 export type CpOverviewScope = {
@@ -71,6 +72,14 @@ type RenderCounts = { completed: number; failed: number; cancelled?: number };
 export function renderSuccessRate(counts: RenderCounts): number | null {
   const attempted = counts.completed + counts.failed;
   return attempted > 0 ? counts.completed / attempted : null;
+}
+
+export function slotUsage(states: Iterable<unknown>): number {
+  let used = 0;
+  for (const state of states) {
+    if (SLOT_STATES.has(String(state))) used += 1;
+  }
+  return used;
 }
 
 function finiteNumber(value: unknown): number | null {
@@ -203,8 +212,8 @@ export function buildKpiSql(query: CpKpiQuery): OverviewSql {
        SELECT
          (SELECT NULLIF(COUNT(*), 0)::int
             FROM crm_cp_video_drafts d JOIN scoped_projects p ON p.id = d.project_id
-           WHERE ($1::date IS NULL OR (d.autosaved_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
-             AND ($2::date IS NULL OR (d.autosaved_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')
+           WHERE ($1::date IS NULL OR (d.created_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
+             AND ($2::date IS NULL OR (d.created_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')
          ) AS videos_created,
          (SELECT NULLIF(COUNT(*), 0)::int
             FROM crm_cp_video_versions v
@@ -353,6 +362,32 @@ export function buildActionSql(query: CpOverviewScope): OverviewSql {
   };
 }
 
+export function buildHealthSql(): string {
+  const duration = stageDurationSql('j');
+  return `WITH jobs AS (
+         SELECT j.*, ${duration} AS duration_sec
+           FROM crm_cp_render_jobs j
+           JOIN crm_cp_video_drafts d ON d.id = j.draft_id
+           JOIN crm_cp_projects p ON p.id = d.project_id
+          WHERE p.tenant_id = '${TENANT_ID}'
+       ),
+       stub_terminal AS (
+         SELECT * FROM jobs WHERE provider = 'stub' AND state IN ('completed', 'failed')
+       )
+       SELECT
+         CASE WHEN (SELECT COUNT(*) FROM jobs) = 0 THEN NULL
+              ELSE (SELECT COUNT(*)::int FROM jobs WHERE state IN ('queued','preparing','rendering'))
+          END AS queue_depth,
+         CASE WHEN (SELECT COUNT(*) FROM jobs) = 0 THEN NULL
+              ELSE (SELECT COUNT(*)::int FROM jobs WHERE state IN ('preparing','rendering'))
+          END AS slots_used,
+         (SELECT concurrent_slots FROM crm_cp_settings WHERE tenant_id = '${TENANT_ID}') AS slots_max,
+         (SELECT COUNT(*) FILTER (WHERE state = 'completed')::int FROM stub_terminal) AS completed,
+         (SELECT COUNT(*) FILTER (WHERE state = 'failed')::int FROM stub_terminal) AS failed,
+         (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_sec)
+            FROM stub_terminal WHERE duration_sec IS NOT NULL) AS p95_sec`;
+}
+
 @Injectable()
 export class CpOverviewService implements OnModuleDestroy {
   private pool: Pool | null = null;
@@ -385,28 +420,7 @@ export class CpOverviewService implements OnModuleDestroy {
   }
 
   async getHealth(): Promise<CpHealth> {
-    const duration = stageDurationSql('j');
-    const result = await this.db.query<Record<string, unknown>>(
-      `WITH jobs AS (
-         SELECT j.*, ${duration} AS duration_sec
-           FROM crm_cp_render_jobs j
-           JOIN crm_cp_video_drafts d ON d.id = j.draft_id
-           JOIN crm_cp_projects p ON p.id = d.project_id
-          WHERE p.tenant_id = '${TENANT_ID}'
-       ),
-       stub_terminal AS (
-         SELECT * FROM jobs WHERE provider = 'stub' AND state IN ('completed', 'failed')
-       )
-       SELECT
-         CASE WHEN (SELECT COUNT(*) FROM jobs) = 0 THEN NULL
-              ELSE (SELECT COUNT(*)::int FROM jobs WHERE state IN ('queued','preparing','rendering'))
-          END AS queue_depth,
-         (SELECT concurrent_slots FROM crm_cp_settings WHERE tenant_id = '${TENANT_ID}') AS slots_max,
-         (SELECT COUNT(*) FILTER (WHERE state = 'completed')::int FROM stub_terminal) AS completed,
-         (SELECT COUNT(*) FILTER (WHERE state = 'failed')::int FROM stub_terminal) AS failed,
-         (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_sec)
-            FROM stub_terminal WHERE duration_sec IS NOT NULL) AS p95_sec`,
-    );
+    const result = await this.db.query<Record<string, unknown>>(buildHealthSql());
     const row = result.rows[0] ?? {};
     const queueDepth = finiteNumber(row.queue_depth);
     const successRate = renderSuccessRate({
@@ -415,7 +429,7 @@ export class CpOverviewService implements OnModuleDestroy {
     });
     return {
       queue_depth: queueDepth,
-      slots: { used: queueDepth, max: finiteNumber(row.slots_max) },
+      slots: { used: finiteNumber(row.slots_used), max: finiteNumber(row.slots_max) },
       providers: [
         {
           id: 'stub',
@@ -519,7 +533,7 @@ class FixtureOverview {
     const scopedDrafts = (this.fixtures.drafts ?? []).filter(inScope);
     const drafts = scopedDrafts.filter(
       (draft) =>
-        inIctRange(draft.autosaved_at ?? draft.autosavedAt, query.from, query.to),
+        inIctRange(draft.created_at ?? draft.createdAt, query.from, query.to),
     );
     const draftIds = new Set(scopedDrafts.map((draft) => String(draft.id)));
     const jobs = this.fixtures.jobs.filter(
@@ -588,7 +602,10 @@ class FixtureOverview {
 
   async getHealth(): Promise<CpHealth> {
     const jobs = this.fixtures.jobs;
-    const queueDepth = jobs.length ? jobs.filter((job) => IN_FLIGHT_STATES.has(String(job.state))).length : null;
+    const queueDepth = jobs.length
+      ? jobs.filter((job) => QUEUE_STATES.has(String(job.state))).length
+      : null;
+    const slotsUsed = jobs.length ? slotUsage(jobs.map((job) => job.state)) : null;
     const terminal = jobs.filter(
       (job) => job.provider === 'stub' && TERMINAL_STATES.has(String(job.state)),
     );
@@ -601,7 +618,7 @@ class FixtureOverview {
     return {
       queue_depth: queueDepth,
       slots: {
-        used: queueDepth,
+        used: slotsUsed,
         max: finiteNumber(this.fixtures.settings?.concurrent_slots),
       },
       providers: [{ id: 'stub', success_pct: rate == null ? null : rate * 100, p95_sec: percentile95(durations) }],
