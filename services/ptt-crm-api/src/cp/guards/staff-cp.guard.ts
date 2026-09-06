@@ -13,7 +13,17 @@ import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
 
 export type CpCapAction = 'view' | 'edit' | 'manage' | 'execute';
-export type CpCapSection = 'crm_cp' | 'crm_cp.render';
+export type CpCapSection =
+  | 'crm_cp'
+  | 'crm_cp.render'
+  | 'crm_cp.render_high_cost'
+  | 'crm_cp.export_final'
+  | 'crm_cp.publish'
+  | 'crm_cp.brand'
+  | 'crm_cp.manage_brand_rule'
+  | 'crm_cp.approve_legal'
+  | 'crm_cp.finance'
+  | 'crm_cp.view_audit';
 
 export const CP_REQUIRED_ACTION_KEY = 'cpRequiredAction';
 export const CP_REQUIRED_SECTION_KEY = 'cpRequiredSection';
