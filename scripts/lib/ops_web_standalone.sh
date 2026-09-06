@@ -68,6 +68,7 @@ ops_web_verify_static() {
 
 ops_web_build() {
   local app_dir root api_url pwa_enabled mkt_ai_planner lmp_enabled
+  local lead_pipeline_tab revops_shell revops_route_catalog
   root="$(ops_web_root)"
   app_dir="$(ops_web_dir)"
   api_url="${NEXT_PUBLIC_PTT_API_URL:-https://rs.pttads.vn}"
@@ -81,6 +82,9 @@ ops_web_build() {
   fi
   mkt_ai_planner="${NEXT_PUBLIC_MKT_AI_PLANNER:-0}"
   lmp_enabled="${NEXT_PUBLIC_LEAD_MEETING_PREP:-0}"
+  lead_pipeline_tab="${NEXT_PUBLIC_LEAD_PIPELINE_TAB:-0}"
+  revops_shell="${NEXT_PUBLIC_REVOPS_SHELL:-0}"
+  revops_route_catalog="${NEXT_PUBLIC_REVOPS_ROUTE_CATALOG:-0}"
 
   cd "$app_dir"
   echo "== ops-web build =="
@@ -88,6 +92,9 @@ ops_web_build() {
   echo "NEXT_PUBLIC_PWA_ENABLED=$pwa_enabled"
   echo "NEXT_PUBLIC_MKT_AI_PLANNER=$mkt_ai_planner"
   echo "NEXT_PUBLIC_LEAD_MEETING_PREP=$lmp_enabled"
+  echo "NEXT_PUBLIC_LEAD_PIPELINE_TAB=$lead_pipeline_tab"
+  echo "NEXT_PUBLIC_REVOPS_SHELL=$revops_shell"
+  echo "NEXT_PUBLIC_REVOPS_ROUTE_CATALOG=$revops_route_catalog"
   git -C "$root" log -1 --oneline
 
   npm ci
@@ -95,6 +102,9 @@ ops_web_build() {
   export NEXT_PUBLIC_PWA_ENABLED="$pwa_enabled"
   export NEXT_PUBLIC_MKT_AI_PLANNER="$mkt_ai_planner"
   export NEXT_PUBLIC_LEAD_MEETING_PREP="$lmp_enabled"
+  export NEXT_PUBLIC_LEAD_PIPELINE_TAB="$lead_pipeline_tab"
+  export NEXT_PUBLIC_REVOPS_SHELL="$revops_shell"
+  export NEXT_PUBLIC_REVOPS_ROUTE_CATALOG="$revops_route_catalog"
   npm run build
   ops_web_sync_static
 }
