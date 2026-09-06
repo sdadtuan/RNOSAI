@@ -197,7 +197,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         const kanban = mode === 'kanban';
         const data = await fetchLeads(accessToken, {
           q: search || undefined,
-          status: p1Filters?.status ?? filterStatus || undefined,
+          status: p1Filters?.status ?? (filterStatus || undefined),
           source: filterSource || undefined,
           channel: filterChannel || undefined,
           owner_id: ownerId,
