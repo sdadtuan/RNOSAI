@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS crm_cp_settings (
   models_json JSONB NOT NULL DEFAULT '[]',
   policy_json JSONB NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_by_staff_id INTEGER
+  updated_by_staff_id INTEGER,
+  CONSTRAINT crm_cp_settings_tenant_chk CHECK (tenant_id = 'PTT')
 );
 INSERT INTO crm_cp_settings (tenant_id) VALUES ('PTT') ON CONFLICT DO NOTHING;
 
@@ -40,7 +41,8 @@ CREATE TABLE IF NOT EXISTS crm_cp_projects (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT crm_cp_projects_status_chk CHECK (
     status IN ('draft','active','at_risk','in_review','completed','archived')
-  )
+  ),
+  CONSTRAINT crm_cp_projects_tenant_chk CHECK (tenant_id = 'PTT')
 );
 CREATE INDEX IF NOT EXISTS crm_cp_projects_client_idx
   ON crm_cp_projects (tenant_id, agency_client_id);
@@ -115,7 +117,8 @@ CREATE TABLE IF NOT EXISTS crm_cp_brand_kits (
   project_id UUID,
   name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft',
-  CONSTRAINT crm_cp_kit_scope_chk CHECK (scope_type IN ('tenant','client','project'))
+  CONSTRAINT crm_cp_kit_scope_chk CHECK (scope_type IN ('tenant','client','project')),
+  CONSTRAINT crm_cp_brand_kits_tenant_chk CHECK (tenant_id = 'PTT')
 );
 
 CREATE TABLE IF NOT EXISTS crm_cp_brand_kit_versions (
@@ -132,7 +135,7 @@ CREATE TABLE IF NOT EXISTS crm_cp_assets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id TEXT NOT NULL DEFAULT 'PTT',
   agency_client_id UUID NOT NULL REFERENCES clients(id),
-  project_id UUID,
+  project_id UUID REFERENCES crm_cp_projects(id),
   owner_staff_id INTEGER NOT NULL,
   filename TEXT NOT NULL,
   mime TEXT NOT NULL,
@@ -142,7 +145,8 @@ CREATE TABLE IF NOT EXISTS crm_cp_assets (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT crm_cp_assets_state_chk CHECK (
     state IN ('uploading','processing','ready','quarantined','failed','archived','deleted')
-  )
+  ),
+  CONSTRAINT crm_cp_assets_tenant_chk CHECK (tenant_id = 'PTT')
 );
 
 CREATE TABLE IF NOT EXISTS crm_cp_asset_versions (
@@ -181,6 +185,7 @@ CREATE TABLE IF NOT EXISTS crm_cp_asset_usages (
 CREATE TABLE IF NOT EXISTS crm_cp_video_drafts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES crm_cp_projects(id),
+  agency_client_id UUID NOT NULL REFERENCES clients(id),
   deliverable_id UUID,
   name TEXT NOT NULL,
   input_mode TEXT NOT NULL DEFAULT 'prompt',
@@ -258,7 +263,8 @@ CREATE TABLE IF NOT EXISTS crm_cp_credit_ledger (
   UNIQUE (tenant_id, idempotency_key),
   CONSTRAINT crm_cp_ledger_kind_chk CHECK (
     kind IN ('grant','reserve','charge','release','refund','adjustment','expiry')
-  )
+  ),
+  CONSTRAINT crm_cp_credit_ledger_tenant_chk CHECK (tenant_id = 'PTT')
 );
 
 CREATE TABLE IF NOT EXISTS crm_cp_activity (
@@ -270,7 +276,8 @@ CREATE TABLE IF NOT EXISTS crm_cp_activity (
   resource_id TEXT,
   payload_json JSONB,
   ip TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT crm_cp_activity_tenant_chk CHECK (tenant_id = 'PTT')
 );
 
 CREATE TABLE IF NOT EXISTS crm_cp_saved_views (
@@ -281,7 +288,8 @@ CREATE TABLE IF NOT EXISTS crm_cp_saved_views (
   name TEXT NOT NULL,
   query_json JSONB NOT NULL,
   shared BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT crm_cp_saved_views_tenant_chk CHECK (tenant_id = 'PTT')
 );
 
 CREATE TABLE IF NOT EXISTS crm_cp_credit_allocations (
