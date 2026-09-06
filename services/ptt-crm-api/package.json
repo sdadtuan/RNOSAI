@@ -10,6 +10,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "test": "jest",
+    "test:revops": "jest src/revops",
     "test:e2e": "jest --config ./test/jest-e2e.config.js"
   },
   "engines": {

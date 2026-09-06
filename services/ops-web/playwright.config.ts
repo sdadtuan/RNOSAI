@@ -40,6 +40,8 @@ export default defineConfig({
           NEXT_PUBLIC_PWA_ENABLED: process.env.NEXT_PUBLIC_PWA_ENABLED ?? '1',
           NEXT_PUBLIC_WIN_ORG_UI: process.env.NEXT_PUBLIC_WIN_ORG_UI ?? '1',
           NEXT_PUBLIC_WIN_KPI_SOLUTION: process.env.NEXT_PUBLIC_WIN_KPI_SOLUTION ?? '1',
+          NEXT_PUBLIC_REVOPS_SHELL: process.env.NEXT_PUBLIC_REVOPS_SHELL ?? '0',
+          NEXT_PUBLIC_LEAD_PIPELINE_TAB: process.env.NEXT_PUBLIC_LEAD_PIPELINE_TAB ?? '0',
         },
       },
 });
