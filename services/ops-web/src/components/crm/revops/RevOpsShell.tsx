@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
+  Suspense,
   createContext,
   useCallback,
   useContext,
@@ -31,6 +32,7 @@ import {
   canSeeRevopsNav,
 } from '@/lib/crm/revops-nav.util';
 import { RevOpsRouteCatalog } from './RevOpsRouteCatalog';
+import { RevOpsModalsProvider } from './RevOpsModalsProvider';
 
 export type RevopsPageContextValue = {
   user: StoredStaffUser;
@@ -165,7 +167,9 @@ export function RevOpsShell({
     <StaffPageShell user={user} onLogout={logout} loading={loading && !user} width="full">
       {user && ctx ? (
         <RevopsPageContext.Provider value={ctx}>
-          <div className="revops-shell">
+          <Suspense fallback={null}>
+            <RevOpsModalsProvider>
+              <div className="revops-shell">
             <aside className="revops-sidebar" aria-label="Revenue Operations">
               <div className="revops-brand">
                 <div className="revops-brand__logo" aria-hidden>
@@ -262,7 +266,9 @@ export function RevOpsShell({
                 })}
               </nav>
             </div>
-          </div>
+            </div>
+            </RevOpsModalsProvider>
+          </Suspense>
         </RevopsPageContext.Provider>
       ) : null}
     </StaffPageShell>
