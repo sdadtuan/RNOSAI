@@ -783,6 +783,24 @@ html.ops-shell-bitrix body:has(.revops-shell) .bitrix-crm-page__inner {
   font-size: 12px;
 }
 
+html.revops-embed .kpi-hub-sidebar,
+html.revops-embed .am-sidebar {
+  display: none !important;
+}
+
+html.revops-embed .kpi-hub-shell {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+html.revops-embed .kpi-hub-shell--collapsed {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+html.revops-embed .am-root .am-column {
+  flex: 1;
+  min-width: 0;
+}
+
 @media (max-width: 760px) {
   .revops-kpi-grid {
     grid-template-columns: minmax(0, 1fr);

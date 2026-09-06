@@ -106,6 +106,15 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     anyOf: [{ section: 'crm_leads', action: 'view' }],
   },
   {
+    prefix: '/crm/revenue-ops',
+    anyOf: [
+      { section: 'crm_revops', action: 'view' },
+      { section: 'crm_revops', action: 'view_team' },
+      { section: 'crm_revops', action: 'view_all' },
+      { section: 'crm_revops', action: 'manage' },
+    ],
+  },
+  {
     prefix: '/crm/leads',
     anyOf: [{ section: 'crm_leads', action: 'view' }],
   },
