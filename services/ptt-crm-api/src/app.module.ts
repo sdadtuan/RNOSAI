@@ -20,6 +20,7 @@ import { IntakeModule } from './intake/intake.module';
 import { CeoCommandModule } from './ceo-command/ceo-command.module';
 import { CsdModule } from './csd/csd.module';
 import { AmModule } from './am/am.module';
+import { RevopsModule } from './revops/revops.module';
 import { IwrModule } from './iwr/iwr.module';
 import { MetaTrackingModule } from './meta-tracking/meta-tracking.module';
 import { MetaAlertsModule } from './meta-alerts/meta-alerts.module';
@@ -136,6 +137,7 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     CeoCommandModule,
     CsdModule,
     AmModule,
+    RevopsModule,
     IwrModule,
     CasesModule,
     TicketsModule,
