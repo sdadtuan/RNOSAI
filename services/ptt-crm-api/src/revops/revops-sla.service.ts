@@ -61,7 +61,7 @@ const COMPOSE_LEADS_SQL = `
                ORDER BY al.created_at ASC LIMIT 1),
              l.received_at,
              l.created_at
-           ) + ($2 || ' minutes')::interval
+           ) + ($1::text || ' minutes')::interval
          ) AS due_at,
          COALESCE(NULLIF(trim(l.full_name), ''), 'Lead #' || l.sqlite_lead_id::text) AS title
     FROM crm_leads l
@@ -80,7 +80,7 @@ const COMPOSE_HANDOVER_SQL = `
   SELECT 'handover_accept' AS entity_type,
          h.id::text AS entity_id,
          e.account_owner_staff_id::int AS owner_id,
-         (h.created_at + ($2 || ' minutes')::interval) AS due_at,
+         (h.created_at + ($2::text || ' minutes')::interval) AS due_at,
          COALESCE(c.name, c.code, 'Handover') AS title
     FROM crm_am_handovers h
     JOIN crm_am_account_ext e ON e.agency_client_id = h.agency_client_id AND e.tenant_id = h.tenant_id
@@ -94,7 +94,7 @@ const COMPOSE_RENEWAL_SQL = `
   SELECT 'renewal_prep' AS entity_type,
          r.id::text AS entity_id,
          e.account_owner_staff_id::int AS owner_id,
-         (r.updated_at + ($2 || ' minutes')::interval) AS due_at,
+         (r.updated_at + ($2::text || ' minutes')::interval) AS due_at,
          COALESCE(c.name, 'Renewal') AS title
     FROM crm_am_renewal_cases r
     JOIN crm_am_account_ext e ON e.agency_client_id = r.agency_client_id AND e.tenant_id = r.tenant_id
@@ -370,15 +370,21 @@ export class RevopsSlaService {
   ): Promise<ComposedSlaSourceRow[]> {
     try {
       if (entityType === 'lead_first_response') {
-        const out = await this.db.query(COMPOSE_LEADS_SQL, [REVOPS_TENANT_ID, durationMinutes]);
+        const out = await this.db.query(COMPOSE_LEADS_SQL, [String(durationMinutes)]);
         return out.rows as ComposedSlaSourceRow[];
       }
       if (entityType === 'handover_accept') {
-        const out = await this.db.query(COMPOSE_HANDOVER_SQL, [REVOPS_TENANT_ID, durationMinutes]);
+        const out = await this.db.query(COMPOSE_HANDOVER_SQL, [
+          REVOPS_TENANT_ID,
+          String(durationMinutes),
+        ]);
         return out.rows as ComposedSlaSourceRow[];
       }
       if (entityType === 'renewal_prep') {
-        const out = await this.db.query(COMPOSE_RENEWAL_SQL, [REVOPS_TENANT_ID, durationMinutes]);
+        const out = await this.db.query(COMPOSE_RENEWAL_SQL, [
+          REVOPS_TENANT_ID,
+          String(durationMinutes),
+        ]);
         return out.rows as ComposedSlaSourceRow[];
       }
       return [];
