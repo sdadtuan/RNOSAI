@@ -12,12 +12,20 @@ export const OUTBOUND_BUTTON =
   /gửi zalo|gửi email|gửi sms|send (email|sms|message)|gửi tin nhắn/i;
 
 export async function apiReachable(request: APIRequestContext): Promise<boolean> {
-  try {
-    const health = await request.get(`${API_URL}/api/v1/ai/health`, { timeout: 8_000 });
-    return health.ok();
-  } catch {
-    return false;
+  const probes = [
+    `${API_URL}/api/v1/ai/health`,
+    `${API_URL}/api/crm/revops/command-center`,
+    `${API_URL}/api/v1/staff/auth/login`,
+  ];
+  for (const url of probes) {
+    try {
+      const res = await request.get(url, { timeout: 8_000 });
+      if (res.ok() || res.status() === 401 || res.status() === 405) return true;
+    } catch {
+      /* try next probe */
+    }
   }
+  return false;
 }
 
 export async function staffToken(request: APIRequestContext): Promise<string> {
@@ -30,7 +38,42 @@ export async function staffToken(request: APIRequestContext): Promise<string> {
   return body.access_token!;
 }
 
+/** Inject staff session via API (works when ops-web and API hosts differ on VPS). */
 export async function loginAsStaff(page: Page): Promise<void> {
+  const login = await page.request.post(`${API_URL}/api/v1/staff/auth/login`, {
+    data: { email: STAFF_EMAIL, password: STAFF_PASSWORD },
+  });
+  if (login.ok()) {
+    const body = (await login.json()) as { access_token: string; refresh_token?: string };
+    const meRes = await page.request.get(`${API_URL}/api/v1/staff/auth/me`, {
+      headers: { Authorization: `Bearer ${body.access_token}` },
+    });
+    expect(meRes.ok(), `staff me: ${meRes.status()} ${await meRes.text()}`).toBeTruthy();
+    const user = await meRes.json();
+    await page.goto('/login');
+    await page.evaluate(
+      ({ accessToken, refreshToken, userJson }) => {
+        sessionStorage.setItem('ptt_ops_access_token', accessToken);
+        sessionStorage.setItem('ptt_ops_refresh_token', refreshToken);
+        sessionStorage.setItem('ptt_ops_user', userJson);
+        document.cookie = 'ptt_ops_auth=1; path=/; SameSite=Lax';
+        try {
+          const u = JSON.parse(userJson) as { position_code?: string };
+          document.cookie = `ptt_ops_position_code=${encodeURIComponent(u.position_code ?? '')}; path=/; SameSite=Lax`;
+        } catch {
+          /* ignore */
+        }
+      },
+      {
+        accessToken: body.access_token,
+        refreshToken: body.refresh_token ?? body.access_token,
+        userJson: JSON.stringify(user),
+      },
+    );
+    await page.goto('/crm');
+    await expect(page).not.toHaveURL(/\/login/, { timeout: 20_000 });
+    return;
+  }
   await page.goto('/login');
   await page.locator('#email').fill(STAFF_EMAIL);
   await page.locator('#password').fill(STAFF_PASSWORD);
