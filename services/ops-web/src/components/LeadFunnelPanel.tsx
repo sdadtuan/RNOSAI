@@ -511,7 +511,7 @@ export function LeadFunnelPanel({
               inReview={inReview}
               busy={busy}
               highlightAfterCall={highlightAfterCall}
-              onSubmit={(plan) => void submitB2Outcome(plan)}
+              onSubmit={(plan) => submitB2Outcome(plan)}
               onError={setPanelError}
             />
           }
@@ -591,7 +591,7 @@ export function LeadFunnelPanel({
             inReview={inReview}
             busy={busy}
             highlightAfterCall={highlightAfterCall}
-            onSubmit={(plan) => void submitB2Outcome(plan)}
+            onSubmit={(plan) => submitB2Outcome(plan)}
             onError={setPanelError}
           />
           {showPresalesBlock &&
