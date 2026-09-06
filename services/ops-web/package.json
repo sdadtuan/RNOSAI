@@ -10,7 +10,8 @@
     "lint": "next lint",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
-    "test:unit:revops-w1": "vitest run src/lib/crm/revops src/lib/crm/lead-pipeline src/components/crm/revops/revops-modal.util.spec.ts",
+    "test:unit:revops-w1": "vitest run src/lib/crm/revops src/lib/crm/lead-pipeline src/lib/crm/leads-inbox-revops.util.spec.ts src/components/crm/revops/revops-modal.util.spec.ts",
+    "test:unit:revops-w2": "npm run test:unit:revops-w1",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:ai-copilot": "playwright test e2e/ai-copilot.spec.ts",
@@ -58,7 +59,8 @@
     "test:e2e:admin-control-plane": "playwright test e2e/admin-control-plane-*.spec.ts",
     "test:e2e:admin-audit": "playwright test e2e/admin-control-plane-r3-audit.spec.ts",
     "test:e2e:admin-a11y": "playwright test e2e/admin-control-plane-p3.spec.ts --grep a11y",
-    "test:e2e:revops-w1": "NEXT_PUBLIC_REVOPS_SHELL=1 NEXT_PUBLIC_LEAD_PIPELINE_TAB=1 playwright test e2e/revops-shell-w1.spec.ts e2e/lead-pipeline-tab.spec.ts"
+    "test:e2e:revops-w1": "NEXT_PUBLIC_REVOPS_SHELL=1 NEXT_PUBLIC_LEAD_PIPELINE_TAB=1 playwright test e2e/revops-shell-w1.spec.ts e2e/lead-pipeline-tab.spec.ts",
+    "test:e2e:revops-w2": "NEXT_PUBLIC_REVOPS_SHELL=1 NEXT_PUBLIC_LEAD_PIPELINE_TAB=1 playwright test e2e/revops-shell-w1.spec.ts e2e/revops-w2-uat.spec.ts e2e/lead-pipeline-tab.spec.ts"
   },
   "engines": {
     "node": ">=22.0.0"

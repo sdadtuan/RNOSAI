@@ -1,0 +1,56 @@
+{
+  "wave": "W2",
+  "component": "revops_enterprise_wave2",
+  "srs": "REVOPS-ENT-001 v2.0 §5 + plan Task B9–B13",
+  "branch": "feat/revops-w2-b10",
+  "environment": "staging",
+  "signed_at": null,
+  "ok": false,
+  "flags_required": {
+    "NEXT_PUBLIC_REVOPS_SHELL": "1",
+    "NEXT_PUBLIC_LEAD_PIPELINE_TAB": "1"
+  },
+  "gates": {
+    "ptt_crm_api_test_revops": false,
+    "ops_web_unit_revops_w2": false,
+    "playwright_revops_w1_regression": false,
+    "playwright_revops_w2_uat": false
+  },
+  "w2_acceptance": {
+    "pipeline_kanban_five_columns": false,
+    "pipeline_card_opens_deal_room": false,
+    "approvals_facade_kpi_row_and_matrix": false,
+    "approval_modal_comment_required": false,
+    "approval_kpi_approve_e2e": false,
+    "handover_alias_embed_redirect": false,
+    "handover_modal_required_fields": false,
+    "handover_record_in_am_onboarding": false,
+    "quick_create_w2_modals_wired": false,
+    "leads_inbox_icp_sla_p1_footer": false
+  },
+  "manual_staging": {
+    "director_pipeline_kanban_to_deal_room": false,
+    "am_approves_kpi_from_revops_center": false,
+    "sales_creates_handover_via_quick_create": false,
+    "revops_embed_leads_bulk_assign_modal": false,
+    "lead_p1_saved_view_filters_unassigned_moi": false
+  },
+  "commands": {
+    "gate": "./scripts/revops_w2_gate.sh",
+    "gate_no_e2e": "./scripts/revops_w2_gate.sh --skip-e2e",
+    "api": "cd services/ptt-crm-api && npm run test:revops",
+    "unit": "cd services/ops-web && npm run test:unit:revops-w2",
+    "e2e": "cd services/ops-web && npm run test:e2e:revops-w2"
+  },
+  "artifacts": {
+    "plan": "docs/superpowers/plans/2026-09-06-revops-enterprise-and-lead-pipeline.md",
+    "srs": "docs/superpowers/specs/2026-09-05-revops-enterprise-mockup-srs.md",
+    "w1_signoff": "docs/evidence/revops-w1-signoff.json"
+  },
+  "signoffs": {
+    "product_owner": null,
+    "qa": null,
+    "engineering": null
+  },
+  "notes": "W2 gate per plan Task B13. Set ok=true only when gates + w2_acceptance + manual_staging are true and signoffs filled. Blocks Wave 3 (B14+) per plan."
+}

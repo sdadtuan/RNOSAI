@@ -149,3 +149,38 @@ export async function fetchRevopsPipeline(
   const suffix = params.toString() ? `?${params.toString()}` : '';
   return revopsFetch<RevopsPipelineDto>(token, `/api/crm/revops/pipeline${suffix}`);
 }
+
+export type RevopsApprovalKind = 'discount' | 'commission' | 'clawback' | 'account_reassignment';
+
+export type RevopsApprovalItem = {
+  id: string;
+  kind: RevopsApprovalKind;
+  sourceKind: string;
+  title: string;
+  typeLabel: string;
+  relatedRecord: string;
+  requestedBy: string;
+  amountImpact: string | null;
+  currentStep: string;
+  dueAt: string | null;
+  status: string;
+  href: string | null;
+  canAct: boolean;
+  isOverdue: boolean;
+};
+
+export type RevopsApprovalsDto = {
+  kpis: {
+    waitingForMe: number;
+    pendingAll: number;
+    approvedToday: number;
+    overdue: number;
+  };
+  queue: RevopsApprovalItem[];
+  discountMatrix: Array<{ band: string; steps: string[] }>;
+  fetchedAt: string;
+};
+
+export async function fetchRevopsApprovals(token: string): Promise<RevopsApprovalsDto> {
+  return revopsFetch<RevopsApprovalsDto>(token, '/api/crm/revops/approvals');
+}

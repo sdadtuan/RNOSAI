@@ -15,6 +15,7 @@ import { leadOptionLabel, suggestAssignees } from '../revops-modal.util';
 
 export type RevOpsAssignContext = {
   leadId?: number;
+  leadIds?: number[];
   leadLabel?: string;
 };
 
@@ -39,11 +40,20 @@ export function RevOpsAssignModal({
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const bulkLeadIds = context?.leadIds?.filter((id) => id > 0) ?? [];
   const selectedLeadId = context?.leadId ?? (leadId ? Number(leadId) : 0);
+  const assignLeadIds =
+    bulkLeadIds.length > 0 ? bulkLeadIds : selectedLeadId > 0 ? [selectedLeadId] : [];
   const selectedLead = leads.find((l) => l.id === selectedLeadId);
   const leadLabel =
     context?.leadLabel ??
-    (selectedLead ? selectedLead.full_name : selectedLeadId > 0 ? `Lead #${selectedLeadId}` : '—');
+    (bulkLeadIds.length > 1
+      ? `${bulkLeadIds.length} leads đã chọn`
+      : selectedLead
+        ? selectedLead.full_name
+        : selectedLeadId > 0
+          ? `Lead #${selectedLeadId}`
+          : '—');
 
   const suggestions = useMemo(
     () => suggestAssignees(staff, selectedLeadId || 1, 3),
@@ -77,17 +87,24 @@ export function RevOpsAssignModal({
   }, [open, context?.leadId]);
 
   async function assignTo(staffRow: CrmStaffRow, suggestionIndex: number) {
-    if (saving || !selectedLeadId) {
+    if (saving || assignLeadIds.length === 0) {
       push('Chọn lead cần phân bổ trước', 'error');
       return;
     }
     setSaving(true);
     try {
-      await assignLead(token, selectedLeadId, {
-        to_user_id: staffRow.id,
-        reason: reason.trim() || `Routing engine suggestion #${suggestionIndex + 1}`,
-      });
-      push(`Đã phân lead cho ${staffRow.name}.`, 'success');
+      for (const id of assignLeadIds) {
+        await assignLead(token, id, {
+          to_user_id: staffRow.id,
+          reason: reason.trim() || `Routing engine suggestion #${suggestionIndex + 1}`,
+        });
+      }
+      push(
+        assignLeadIds.length > 1
+          ? `Đã phân ${assignLeadIds.length} leads cho ${staffRow.name}.`
+          : `Đã phân lead cho ${staffRow.name}.`,
+        'success',
+      );
       onAssigned?.();
       onClose();
     } catch (err) {
@@ -110,7 +127,7 @@ export function RevOpsAssignModal({
       }
     >
       {loading ? <p className="revops-muted">Đang tải…</p> : null}
-      {!context?.leadId ? (
+      {!context?.leadId && bulkLeadIds.length === 0 ? (
         <label className="revops-field revops-field--full">
           <span>
             Lead <span className="revops-req">*</span>
@@ -150,7 +167,7 @@ export function RevOpsAssignModal({
             <button
               type="button"
               className={`revops-btn${idx === 0 ? ' revops-btn--primary' : ''}`}
-              disabled={saving || !selectedLeadId}
+              disabled={saving || assignLeadIds.length === 0}
               onClick={() => void assignTo(row, idx)}
             >
               Giao lead

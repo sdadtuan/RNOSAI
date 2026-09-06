@@ -6,12 +6,15 @@ export type LeadsColumnId =
   | 'kind'
   | 'project'
   | 'ai_band'
+  | 'icp_score'
   | 'sla'
+  | 'first_response_sla'
   | 'in_call'
   | 'source'
   | 'channel'
   | 'score'
-  | 'date';
+  | 'date'
+  | 'actions';
 
 export const LEADS_COLUMNS_STORAGE_KEY = 'crm.leads.columns.v1';
 
@@ -28,12 +31,15 @@ export const LEADS_COLUMN_DEFS: Array<{
   { id: 'kind', label: 'Loại', defaultVisible: true },
   { id: 'project', label: 'Dự án', defaultVisible: true },
   { id: 'ai_band', label: 'AI band', defaultVisible: false },
+  { id: 'icp_score', label: 'ICP / Score', defaultVisible: true },
   { id: 'sla', label: 'SLA', defaultVisible: false },
+  { id: 'first_response_sla', label: 'First response SLA', defaultVisible: true },
   { id: 'in_call', label: 'Đang gọi', defaultVisible: false },
   { id: 'source', label: 'Nguồn', defaultVisible: true },
   { id: 'channel', label: 'Kênh', defaultVisible: true },
   { id: 'score', label: 'AI Score', defaultVisible: true, scoreOnly: true },
   { id: 'date', label: 'Ngày', defaultVisible: true },
+  { id: 'actions', label: 'Action', defaultVisible: true },
 ];
 
 export function defaultLeadsVisibleColumns(showScores: boolean): Set<LeadsColumnId> {
@@ -51,9 +57,10 @@ export function defaultB2bLeadsVisibleColumns(): Set<LeadsColumnId> {
     'phone',
     'status',
     'project',
-    'ai_band',
-    'sla',
+    'icp_score',
+    'first_response_sla',
     'in_call',
+    'actions',
     'date',
   ]);
 }

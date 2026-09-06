@@ -83,6 +83,6 @@ import { KpiHubWorkspaceService } from './workspace/kpi-hub-workspace.service';
     StaffKpiHubSettingsViewGuard,
     StaffKpiHubSettingsManageGuard,
   ],
-  exports: [KpiHubDictionaryService, KpiHubDashboardService, KpiHubAlertEngineService, KpiHubFactsService, KpiHubTargetsService],
+  exports: [KpiHubDictionaryService, KpiHubDashboardService, KpiHubAlertEngineService, KpiHubFactsService, KpiHubTargetsService, KpiHubApprovalsService],
 })
 export class KpiHubModule {}

@@ -29,6 +29,7 @@ import {
 import { AmViewsService, type AmCreateViewBody } from './am-views.service';
 import {
   AmOnboardingService,
+  type AmCreateHandoverBody,
   type AmCreateTemplateBody,
   type AmGoLiveBody,
   type AmHandoverChecklist,
@@ -446,6 +447,12 @@ export class AmController {
   @RequireAmAction('view')
   listHandovers(@Req() req: AuthedReq, @Query() q: AmHandoverListQuery) {
     return this.onboarding.list(req, q);
+  }
+
+  @Post('handovers')
+  @RequireAmAction('edit')
+  createHandover(@Req() req: AuthedReq, @Body() body: AmCreateHandoverBody) {
+    return this.onboarding.create(req, body ?? { agency_client_id: '' });
   }
 
   @Get('handovers/:id')

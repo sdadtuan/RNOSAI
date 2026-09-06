@@ -16,11 +16,16 @@ import {
   RevOpsAssignModal,
   type RevOpsAssignContext,
 } from './modals/RevOpsAssignModal';
+import { RevOpsAccountModal } from './modals/RevOpsAccountModal';
+import { RevOpsAccountPlanModal } from './modals/RevOpsAccountPlanModal';
 import { RevOpsDealModal } from './modals/RevOpsDealModal';
 import {
   RevOpsDuplicateModal,
   type RevOpsDuplicateContext,
 } from './modals/RevOpsDuplicateModal';
+import { RevOpsGrowthModal } from './modals/RevOpsGrowthModal';
+import { RevOpsHandoverModal } from './modals/RevOpsHandoverModal';
+import { RevOpsKpiModal } from './modals/RevOpsKpiModal';
 import { RevOpsLeadModal } from './modals/RevOpsLeadModal';
 import { RevOpsQuoteModal } from './modals/RevOpsQuoteModal';
 
@@ -31,6 +36,11 @@ export type RevopsModalsApi = {
   openDuplicate: (ctx: RevOpsDuplicateContext) => void;
   openDeal: (leadId?: number) => void;
   openQuote: (leadId?: number) => void;
+  openAccount: () => void;
+  openHandover: (agencyClientId?: string) => void;
+  openAccountPlan: (agencyClientId?: string) => void;
+  openGrowth: (agencyClientId?: string) => void;
+  openKpi: () => void;
 };
 
 const RevopsModalsContext = createContext<RevopsModalsApi | null>(null);
@@ -55,6 +65,14 @@ export function RevOpsModalsProvider({ children }: { children: ReactNode }) {
   const [dealLeadId, setDealLeadId] = useState<number | undefined>();
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteLeadId, setQuoteLeadId] = useState<number | undefined>();
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [handoverOpen, setHandoverOpen] = useState(false);
+  const [handoverClientId, setHandoverClientId] = useState<string | undefined>();
+  const [planOpen, setPlanOpen] = useState(false);
+  const [planClientId, setPlanClientId] = useState<string | undefined>();
+  const [growthOpen, setGrowthOpen] = useState(false);
+  const [growthClientId, setGrowthClientId] = useState<string | undefined>();
+  const [kpiOpen, setKpiOpen] = useState(false);
 
   const duplicateFromQuery = useMemo(() => {
     const leadId = Number(searchParams.get('duplicate_lead') ?? searchParams.get('lead_id') ?? '');
@@ -94,6 +112,20 @@ export function RevOpsModalsProvider({ children }: { children: ReactNode }) {
         setQuoteLeadId(leadId);
         setQuoteOpen(true);
       },
+      openAccount: () => setAccountOpen(true),
+      openHandover: (agencyClientId) => {
+        setHandoverClientId(agencyClientId);
+        setHandoverOpen(true);
+      },
+      openAccountPlan: (agencyClientId) => {
+        setPlanClientId(agencyClientId);
+        setPlanOpen(true);
+      },
+      openGrowth: (agencyClientId) => {
+        setGrowthClientId(agencyClientId);
+        setGrowthOpen(true);
+      },
+      openKpi: () => setKpiOpen(true),
     }),
     [],
   );
@@ -105,6 +137,9 @@ export function RevOpsModalsProvider({ children }: { children: ReactNode }) {
       setAssignCtx(null);
       setAssignOpen(true);
     }
+    if (action === 'account') setAccountOpen(true);
+    if (action === 'handover') setHandoverOpen(true);
+    if (action === 'kpi') setKpiOpen(true);
   }, []);
 
   return (
@@ -146,6 +181,26 @@ export function RevOpsModalsProvider({ children }: { children: ReactNode }) {
         presetLeadId={quoteLeadId}
         onClose={() => setQuoteOpen(false)}
       />
+      <RevOpsAccountModal open={accountOpen} token={token} onClose={() => setAccountOpen(false)} />
+      <RevOpsHandoverModal
+        open={handoverOpen}
+        token={token}
+        presetAgencyClientId={handoverClientId}
+        onClose={() => setHandoverOpen(false)}
+      />
+      <RevOpsAccountPlanModal
+        open={planOpen}
+        token={token}
+        presetAgencyClientId={planClientId}
+        onClose={() => setPlanOpen(false)}
+      />
+      <RevOpsGrowthModal
+        open={growthOpen}
+        token={token}
+        presetAgencyClientId={growthClientId}
+        onClose={() => setGrowthOpen(false)}
+      />
+      <RevOpsKpiModal open={kpiOpen} token={token} onClose={() => setKpiOpen(false)} />
     </RevopsModalsContext.Provider>
   );
 }

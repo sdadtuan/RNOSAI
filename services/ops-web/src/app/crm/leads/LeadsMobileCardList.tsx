@@ -7,6 +7,10 @@ import { LeadReviewQueueTag } from '@/components/crm/LeadReviewQueueTag';
 import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { WinEmptyState } from '@/components/win';
 import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
+import {
+  leadIcpScoreTag,
+  leadIcpScoreTagClass,
+} from '@/lib/crm/leads-inbox-revops.util';
 
 interface Props {
   rows: LeadRow[];
@@ -17,6 +21,7 @@ interface Props {
   scoresPending?: boolean;
   showLeadKindTags?: boolean;
   detailHref?: (leadId: number) => string;
+  onAssignLead?: (leadId: number) => void;
   emptyActions?: ReactNode;
 }
 
@@ -47,6 +52,7 @@ export function LeadsMobileCardList({
   scoresPending = false,
   showLeadKindTags = true,
   detailHref = (id) => leadDetailHref(id),
+  onAssignLead,
   emptyActions,
 }: Props) {
   if (!loading && rows.length === 0) {
@@ -69,6 +75,7 @@ export function LeadsMobileCardList({
             ? ownerNameById[lead.owner_id] ?? `NV #${lead.owner_id}`
             : 'Chưa phân';
         const sla = slaLabel(lead);
+        const icpTag = leadIcpScoreTag(lead, scoreMap[String(lead.id)]);
         const phoneDigits = lead.phone?.replace(/\D/g, '') ?? '';
 
         return (
@@ -87,6 +94,7 @@ export function LeadsMobileCardList({
                   {showLeadKindTags && lead.review_queue?.active ? (
                     <LeadReviewQueueTag lead={lead} compact />
                   ) : null}
+                  {icpTag ? <span className={leadIcpScoreTagClass(icpTag)}>{icpTag}</span> : null}
                 </div>
               </div>
               <p className="win-leads-mobile-card__meta">
@@ -106,6 +114,20 @@ export function LeadsMobileCardList({
               </p>
             </div>
             <div className="win-leads-mobile-card__actions">
+              {onAssignLead ? (
+                <button
+                  type="button"
+                  className="win-leads-mobile-card__action"
+                  onClick={() => onAssignLead(lead.id)}
+                >
+                  Phân bổ
+                </button>
+              ) : null}
+              {lead.owner_id ? (
+                <Link href={detailHref(lead.id)} className="win-leads-mobile-card__action">
+                  Chăm lead
+                </Link>
+              ) : null}
               {phoneDigits ? (
                 <a className="win-leads-mobile-card__action" href={`tel:${phoneDigits}`}>
                   Gọi

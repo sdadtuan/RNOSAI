@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
 import { LeadsColumnPicker } from '@/components/crm/LeadsColumnPicker';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
+import { LeadsRevopsInboxFooter } from '@/components/crm/LeadsRevopsInboxFooter';
 import { LeadKanbanBoard } from '@/components/crm/LeadKanbanBoard';
 import { LeadSignalKpiStrip } from '@/components/crm/LeadSignalKpiStrip';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
@@ -66,6 +67,15 @@ import {
 } from '@/lib/crm/leads-list-url';
 import { readLeadsVisibleColumns, defaultB2bLeadsVisibleColumns, type LeadsColumnId } from '@/lib/crm/leads-columns';
 import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
+import {
+  isLeadP1SavedView,
+  leadP1Filters,
+  shouldShowFirstResponseSlaColumn,
+} from '@/lib/crm/leads-inbox-revops.util';
+import {
+  RevOpsAssignModal,
+  type RevOpsAssignContext,
+} from '@/components/crm/revops/modals/RevOpsAssignModal';
 
 const PAGE_SIZE = 50;
 const PAGE_SIZE_KANBAN = 300;
@@ -82,6 +92,8 @@ type LeadKindFilter = 'pipeline' | 'review' | 'all';
 
 export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLeadsFlowScope }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const revopsEmbedded = searchParams.get('revops') === '1';
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [token, setToken] = useState('');
   const [rows, setRows] = useState<LeadRow[]>([]);
@@ -112,6 +124,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     flowScope === 'b2b_prospect' ? defaultB2bLeadsVisibleColumns() : readLeadsVisibleColumns(false),
   );
   const [viewMode, setViewMode] = useState<LeadsViewMode>('list');
+  const [savedView, setSavedView] = useState('');
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignCtx, setAssignCtx] = useState<RevOpsAssignContext | null>(null);
   const urlReadyRef = useRef(false);
 
   const listHref = leadsListHref(flowScope);
@@ -132,6 +147,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   );
   const canCreate = useMemo(() => hasCap(user, 'crm_leads', 'edit'), [user]);
   const canReviewQueue = useMemo(() => hasCap(user, 'crm_leads', 'assign'), [user]);
+  const canAssign = useMemo(
+    () => hasCap(user, 'crm_leads', 'assign') || hasCap(user, 'crm_leads', 'edit'),
+    [user],
+  );
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -172,15 +191,17 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       setLoading(true);
       setError('');
       try {
+        const p1 = isLeadP1SavedView(savedView);
+        const p1Filters = p1 ? leadP1Filters() : null;
         const ownerId = listTab === 'mine' && user?.id ? Number(user.id) : undefined;
         const kanban = mode === 'kanban';
         const data = await fetchLeads(accessToken, {
           q: search || undefined,
-          status: filterStatus || undefined,
+          status: p1Filters?.status ?? filterStatus || undefined,
           source: filterSource || undefined,
           channel: filterChannel || undefined,
           owner_id: ownerId,
-          unassigned_only: listTab === 'unassigned',
+          unassigned_only: p1Filters?.unassigned_only ?? listTab === 'unassigned',
           review_queue_only: leadKind === 'review' ? true : undefined,
           hide_review_queue:
             flowScope === 'b2b_prospect' || leadKind === 'all' ? false : undefined,
@@ -197,7 +218,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         setLoading(false);
       }
     },
-    [filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, user?.id, viewMode],
+    [filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, savedView, user?.id, viewMode],
   );
 
   useEffect(() => {
@@ -214,6 +235,11 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     setFilterChannel(parsed.channel);
     setQ(parsed.q);
     setQuery(parsed.q);
+    setSavedView(parsed.savedView);
+    if (isLeadP1SavedView(parsed.savedView)) {
+      setListTab('unassigned');
+      setFilterStatus('moi');
+    }
     urlReadyRef.current = true;
   }, [flowScope]);
 
@@ -227,9 +253,11 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         source: filterSource,
         channel: filterChannel,
         q: query,
+        savedView,
       },
       flowScope,
     );
+    if (revopsEmbedded) params.set('revops', '1');
     const qs = params.toString();
     router.replace(qs ? `${listHref}?${qs}` : listHref, { scroll: false });
   }, [
@@ -239,8 +267,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     filterSource,
     filterChannel,
     query,
+    savedView,
     listHref,
     flowScope,
+    revopsEmbedded,
     router,
   ]);
 
@@ -274,7 +304,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   useEffect(() => {
     if (!token) return;
     void loadLeads(token, 0, query);
-  }, [token, query, listTab, leadKind, filterStatus, filterSource, filterChannel, loadLeads]);
+  }, [token, query, listTab, leadKind, filterStatus, filterSource, filterChannel, savedView, loadLeads]);
 
   useEffect(() => {
     if (!token || flowScope !== 'b2b_prospect') {
@@ -336,7 +366,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   }
 
   async function handleBulkAssign() {
-    if (!token || !bulkOwnerId || !selectedList.length) return;
+    if (!token || !selectedList.length) return;
+    if (revopsEmbedded) {
+      setAssignCtx({ leadIds: selectedList, leadLabel: `${selectedList.length} leads đã chọn` });
+      setAssignOpen(true);
+      return;
+    }
+    if (!bulkOwnerId) return;
     const staff = staffOptions.find((row) => String(row.id) === bulkOwnerId);
     if (!staff) return;
     setBulkBusy(true);
@@ -354,6 +390,23 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     } finally {
       setBulkBusy(false);
     }
+  }
+
+  function openAssignModal(leadId: number) {
+    const lead = rows.find((row) => row.id === leadId);
+    setAssignCtx({
+      leadId,
+      leadLabel: lead?.full_name || `Lead #${leadId}`,
+    });
+    setAssignOpen(true);
+  }
+
+  function applyLeadP1View() {
+    setSavedView('p1');
+    setListTab('unassigned');
+    setFilterStatus('moi');
+    setOffset(0);
+    setSelectedIds(new Set());
   }
 
   const selectedList = useMemo(() => [...selectedIds], [selectedIds]);
@@ -383,6 +436,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     setVisibleColumns(readLeadsVisibleColumns(showScores));
   }, [showScores]);
 
+  const showFirstResponseSla = useMemo(() => shouldShowFirstResponseSlaColumn(rows), [rows]);
+
   const filterChips = useMemo(
     () =>
       buildLeadsFilterChips(
@@ -393,6 +448,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           source: filterSource,
           channel: filterChannel,
           q: query,
+          savedView,
         },
         flowScope,
         {
@@ -407,6 +463,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       filterSource,
       filterChannel,
       query,
+      savedView,
       flowScope,
       sourceOptions,
       channelOptions,
@@ -588,6 +645,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
                 source: filterSource,
                 channel: filterChannel,
                 q: query,
+                savedView,
               },
               chipId,
             );
@@ -596,6 +654,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             setFilterStatus(next.status);
             setFilterSource(next.source);
             setFilterChannel(next.channel);
+            setSavedView(next.savedView);
             setQ(next.q);
             setQuery(next.q);
             setOffset(0);
@@ -610,6 +669,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
                 source: filterSource,
                 channel: filterChannel,
                 q: query,
+                savedView,
               },
               flowScope,
             );
@@ -618,6 +678,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             setFilterStatus(next.status);
             setFilterSource(next.source);
             setFilterChannel(next.channel);
+            setSavedView(next.savedView);
             setQ(next.q);
             setQuery(next.q);
             setOffset(0);
@@ -667,6 +728,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             ))}
           </select>
           <FilterBarActions>
+            <button
+              type="button"
+              className={`btn btn-sm btn-ghost${savedView === 'p1' ? ' is-active' : ''}`}
+              onClick={() => applyLeadP1View()}
+            >
+              Lead P1
+            </button>
             {canReviewQueue && flowScope !== 'b2b_prospect' ? (
               <Link href="/crm/leads/review-queue" className="btn btn-sm btn-ghost">
                 Inbox GDKD →
@@ -680,26 +748,28 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
 
         {canImport ? (
           <BulkActionBar count={selectedList.length}>
-            <select
-              className="kpi-select"
-              value={bulkOwnerId}
-              onChange={(e) => setBulkOwnerId(e.target.value)}
-              aria-label="Chọn owner bulk assign"
-            >
-              <option value="">Gán owner…</option>
-              {staffOptions.map((staff) => (
-                <option key={staff.id} value={staff.id}>
-                  {staff.name}
-                </option>
-              ))}
-            </select>
+            {!revopsEmbedded ? (
+              <select
+                className="kpi-select"
+                value={bulkOwnerId}
+                onChange={(e) => setBulkOwnerId(e.target.value)}
+                aria-label="Chọn owner bulk assign"
+              >
+                <option value="">Gán owner…</option>
+                {staffOptions.map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             <button
               type="button"
               className="btn btn-sm"
-              disabled={bulkBusy || !bulkOwnerId}
+              disabled={bulkBusy || selectedList.length === 0 || (!revopsEmbedded && !bulkOwnerId)}
               onClick={() => void handleBulkAssign()}
             >
-              Bulk assign
+              {revopsEmbedded ? 'Phân bổ (modal)' : 'Bulk assign'}
             </button>
           </BulkActionBar>
         ) : null}
@@ -742,10 +812,30 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
               scoreMap={scoreMap}
               scoresPending={scoresPending}
               showLeadKindTags={showLeadKindTags}
+              showFirstResponseSla={showFirstResponseSla}
+              onAssignLead={canAssign ? openAssignModal : undefined}
               emptyActions={emptyActions}
             />
           )}
         </PullToRefresh>
+
+        {revopsEmbedded && viewMode === 'list' ? <LeadsRevopsInboxFooter /> : null}
+
+        {token ? (
+          <RevOpsAssignModal
+            open={assignOpen}
+            token={token}
+            context={assignCtx}
+            onClose={() => {
+              setAssignOpen(false);
+              setAssignCtx(null);
+            }}
+            onAssigned={() => {
+              setSelectedIds(new Set());
+              void loadLeads(token, offset, query);
+            }}
+          />
+        ) : null}
 
         {viewMode === 'list' ? (
           <PageFooter meta={`Hiển thị ${rows.length} / ${total.toLocaleString('vi-VN')} leads`}>

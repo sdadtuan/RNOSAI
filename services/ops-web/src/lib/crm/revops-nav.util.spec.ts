@@ -28,7 +28,7 @@ describe('REVOPS_NAV_GROUPS', () => {
       ['leads', '/crm/leads?revops=1'],
       ['pipeline', '/crm/revenue-ops/pipeline'],
       ['accounts', '/crm/account-management/clients?revops=1'],
-      ['handover', '/crm/account-management/onboarding?revops=1'],
+      ['handover', '/crm/leads/handover?revops=1'],
       ['renewal', '/crm/account-management/renewals?revops=1'],
       ['kpi', '/crm/kpi-hub/sales?revops=1'],
       ['sla', '/crm/revenue-ops/sla'],

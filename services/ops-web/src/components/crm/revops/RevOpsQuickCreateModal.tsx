@@ -23,21 +23,21 @@ const TILES = [
     icon: '◌',
     title: 'Account mới',
     sub: 'Tạo khách hàng/doanh nghiệp',
-    href: '/crm/account-management/clients/new',
+    action: 'account' as const,
   },
   {
     id: 'handover',
     icon: '⇄',
     title: 'Handover',
     sub: 'Khởi tạo hồ sơ bàn giao Sales',
-    href: '/crm/account-management/onboarding?revops=1',
+    action: 'handover' as const,
   },
   {
     id: 'kpi',
     icon: '◈',
     title: 'Giao KPI',
     sub: 'Giao target kỳ mới',
-    href: '/crm/kpi-hub/targets?revops=1',
+    action: 'kpi' as const,
   },
   {
     id: 'assign',
@@ -48,7 +48,13 @@ const TILES = [
   },
 ] as const;
 
-export type RevOpsQuickTileAction = 'lead' | 'deal' | 'assign';
+export type RevOpsQuickTileAction =
+  | 'lead'
+  | 'deal'
+  | 'assign'
+  | 'account'
+  | 'handover'
+  | 'kpi';
 
 export function RevOpsQuickCreateModal({
   open,
@@ -59,15 +65,9 @@ export function RevOpsQuickCreateModal({
   onClose: () => void;
   onPick: (action: RevOpsQuickTileAction) => void;
 }) {
-  const router = useRouter();
-
   function onTile(tile: (typeof TILES)[number]) {
     onClose();
-    if ('href' in tile && tile.href) {
-      router.push(tile.href);
-      return;
-    }
-    if ('action' in tile && tile.action) onPick(tile.action);
+    onPick(tile.action);
   }
 
   return (

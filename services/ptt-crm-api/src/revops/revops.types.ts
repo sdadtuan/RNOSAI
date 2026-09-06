@@ -115,3 +115,39 @@ export type RevopsPipelineQuery = {
   view?: 'kanban' | 'list' | string;
   scope?: RevopsScope | string;
 };
+
+export type RevopsApprovalKind = 'discount' | 'commission' | 'clawback' | 'account_reassignment';
+
+export type RevopsApprovalItem = {
+  id: string;
+  kind: RevopsApprovalKind;
+  sourceKind: string;
+  title: string;
+  typeLabel: string;
+  relatedRecord: string;
+  requestedBy: string;
+  amountImpact: string | null;
+  currentStep: string;
+  dueAt: string | null;
+  status: string;
+  href: string | null;
+  canAct: boolean;
+  isOverdue: boolean;
+};
+
+export type RevopsDiscountMatrixRow = {
+  band: string;
+  steps: string[];
+};
+
+export type RevopsApprovalsDto = {
+  kpis: {
+    waitingForMe: number;
+    pendingAll: number;
+    approvedToday: number;
+    overdue: number;
+  };
+  queue: RevopsApprovalItem[];
+  discountMatrix: RevopsDiscountMatrixRow[];
+  fetchedAt: string;
+};

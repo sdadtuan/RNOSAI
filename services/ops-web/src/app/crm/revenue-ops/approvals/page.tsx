@@ -1,10 +1,12 @@
-export default function RevenueOpsApprovalsPage() {
+'use client';
+
+import { Suspense } from 'react';
+import { RevOpsApprovalsPage } from '@/components/crm/revops/RevOpsApprovalsPage';
+
+export default function RevenueOpsApprovalsRoutePage() {
   return (
-    <header className="revops-page-head">
-      <div>
-        <h1>Approval Center</h1>
-        <p>Đang triển khai Wave 2.</p>
-      </div>
-    </header>
+    <Suspense fallback={<p className="revops-muted">Đang tải…</p>}>
+      <RevOpsApprovalsPage />
+    </Suspense>
   );
 }

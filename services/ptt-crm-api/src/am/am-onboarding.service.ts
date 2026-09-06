@@ -44,6 +44,13 @@ export type AmHandoverListQuery = {
   status?: string;
 };
 
+export type AmCreateHandoverBody = {
+  agency_client_id: string;
+  commercial_json?: Record<string, unknown>;
+  scope_json?: Record<string, unknown>;
+  stakeholders_json?: Record<string, unknown>;
+};
+
 export type AmHandoverReq = {
   staffUser?: StaffJwtPayload;
   staffAuthVia?: 'internal' | 'jwt';
@@ -282,6 +289,36 @@ export class AmOnboardingService {
       if (created) items = [created];
     }
     return { items };
+  }
+
+  async create(req: AmHandoverReq, body: AmCreateHandoverBody): Promise<AmHandover> {
+    const agencyClientId = String(body.agency_client_id ?? '').trim();
+    if (!isUuid(agencyClientId)) amThrow(400, { error: 'invalid_agency_client_id' });
+    const actor = await this.resolveActor(req, undefined);
+    const row = await this.ensurePending(actor, agencyClientId);
+    if (!row) amThrow(404, { error: 'account_not_found' });
+
+    const commercial = body.commercial_json ?? null;
+    const scope = body.scope_json ?? null;
+    const stakeholders = body.stakeholders_json ?? null;
+    if (commercial || scope || stakeholders) {
+      await this.db.query(
+        `UPDATE crm_am_handovers
+            SET commercial_json = COALESCE($3::jsonb, commercial_json),
+                scope_json = COALESCE($4::jsonb, scope_json),
+                stakeholders_json = COALESCE($5::jsonb, stakeholders_json)
+          WHERE tenant_id = $1 AND id = $2::uuid`,
+        [
+          AM_TENANT_ID,
+          row.id,
+          commercial ? JSON.stringify(commercial) : null,
+          scope ? JSON.stringify(scope) : null,
+          stakeholders ? JSON.stringify(stakeholders) : null,
+        ],
+      );
+      return this.get(req, row.id);
+    }
+    return row;
   }
 
   async get(req: AmHandoverReq, id: string): Promise<AmHandover> {

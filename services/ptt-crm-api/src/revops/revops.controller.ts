@@ -5,7 +5,9 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
 import { RequireRevopsAction, StaffRevopsGuard } from './guards/staff-revops.guard';
+import { RevopsApprovalsService } from './revops-approvals.service';
 import { RevopsDashboardService } from './revops-dashboard.service';
+import type { RevopsApprovalsDto } from './revops.types';
 import type { RevopsCommandCenterDto } from './revops.types';
 import { RevopsPipelineService } from './revops-pipeline.service';
 import type { RevopsPipelineDto } from './revops.types';
@@ -21,6 +23,7 @@ export class RevopsController {
   constructor(
     private readonly dashboard: RevopsDashboardService,
     private readonly pipeline: RevopsPipelineService,
+    private readonly approvals: RevopsApprovalsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -49,5 +52,11 @@ export class RevopsController {
     const caps: StaffSectionCap[] =
       req.staffAuthVia === 'internal' || !req.staffUser ? [] : (await this.staffAuth.me(req.staffUser)).caps;
     return this.pipeline.get({ staffId, caps }, { view, scope });
+  }
+
+  @Get('approvals')
+  @RequireRevopsAction('view')
+  async approvalsQueue(): Promise<RevopsApprovalsDto> {
+    return this.approvals.list();
   }
 }

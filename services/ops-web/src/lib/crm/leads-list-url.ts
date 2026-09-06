@@ -10,6 +10,7 @@ export interface LeadsListUrlState {
   source: string;
   channel: string;
   q: string;
+  savedView: string;
 }
 
 export interface LeadsFilterChip {
@@ -46,6 +47,7 @@ export function parseLeadsListUrl(
     source: searchParams.get('source')?.trim() ?? '',
     channel: searchParams.get('channel')?.trim() ?? '',
     q: searchParams.get('q')?.trim() ?? '',
+    savedView: searchParams.get('view')?.trim() ?? '',
   };
 }
 
@@ -58,6 +60,7 @@ export function buildLeadsListSearchParams(
   if (state.status) params.set('status', state.status);
   if (state.source) params.set('source', state.source);
   if (state.channel) params.set('channel', state.channel);
+  if (state.savedView) params.set('view', state.savedView);
   if (state.owner === 'mine') params.set('owner', 'me');
   else if (state.owner === 'unassigned') params.set('owner', 'unassigned');
   if (flowScope !== 'b2b_prospect') {
@@ -110,6 +113,9 @@ export function buildLeadsFilterChips(
       label: `Kênh: ${labels.channelLabel?.(state.channel) ?? state.channel}`,
     });
   }
+  if (state.savedView === 'p1') {
+    chips.push({ id: 'view', label: 'Lead P1' });
+  }
   return chips;
 }
 
@@ -130,6 +136,8 @@ export function clearLeadsFilterField(
       return { ...state, source: '' };
     case 'channel':
       return { ...state, channel: '' };
+    case 'view':
+      return { ...state, savedView: '' };
     default:
       return state;
   }
@@ -146,5 +154,6 @@ export function clearAllLeadsFilters(
     source: '',
     channel: '',
     q: '',
+    savedView: '',
   };
 }

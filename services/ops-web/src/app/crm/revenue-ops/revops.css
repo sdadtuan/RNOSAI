@@ -887,6 +887,55 @@ html.ops-shell-bitrix body:has(.revops-shell) .bitrix-crm-page__inner {
   font-weight: 600;
 }
 
+.revops-table--compact td,
+.revops-table--compact th {
+  padding: 8px 10px;
+}
+
+.revops-approval-hint {
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.revops-btn--danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.revops-btn--danger:hover {
+  background: #fee2e2;
+}
+
+.crm-leads-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.leads-revops-footer {
+  margin-top: 16px;
+}
+
+.leads-revops-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.leads-revops-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.leads-revops-steps span {
+  color: #64748b;
+  font-size: 12px;
+}
+
 html.revops-embed .kpi-hub-sidebar,
 html.revops-embed .am-sidebar {
   display: none !important;

@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { LeadRow } from '@/lib/api';
@@ -9,6 +11,12 @@ import { LeadsMobileCardList } from '@/app/crm/leads/LeadsMobileCardList';
 import { WinEmptyState } from '@/components/win';
 import type { LeadsColumnId } from '@/lib/crm/leads-columns';
 import { b2bAiBandLabel, b2bSlaStateLabel } from '@/lib/b2b-hot-alarm';
+import {
+  leadFirstResponseSlaLabel,
+  leadIcpScoreTag,
+  leadIcpScoreTagClass,
+  shouldShowFirstResponseSlaColumn,
+} from '@/lib/crm/leads-inbox-revops.util';
 import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
 
 interface Props {
@@ -24,10 +32,17 @@ interface Props {
   scoreMap?: Record<string, LeadScoreSummary>;
   scoresPending?: boolean;
   showLeadKindTags?: boolean;
+  showFirstResponseSla?: boolean;
+  onAssignLead?: (leadId: number) => void;
   emptyActions?: ReactNode;
 }
 
-function colSpan(visible: Set<LeadsColumnId>, showLeadKindTags: boolean, showScores: boolean): number {
+function colSpan(
+  visible: Set<LeadsColumnId>,
+  showLeadKindTags: boolean,
+  showScores: boolean,
+  showFirstResponseSla: boolean,
+): number {
   let n = 1;
   if (visible.has('id')) n += 1;
   if (visible.has('name')) n += 1;
@@ -36,12 +51,15 @@ function colSpan(visible: Set<LeadsColumnId>, showLeadKindTags: boolean, showSco
   if (showLeadKindTags && visible.has('kind')) n += 1;
   if (visible.has('project')) n += 1;
   if (visible.has('ai_band')) n += 1;
+  if (visible.has('icp_score')) n += 1;
   if (visible.has('sla')) n += 1;
+  if (showFirstResponseSla && visible.has('first_response_sla')) n += 1;
   if (visible.has('in_call')) n += 1;
   if (visible.has('source')) n += 1;
   if (visible.has('channel')) n += 1;
   if (showScores && visible.has('score')) n += 1;
   if (visible.has('date')) n += 1;
+  if (visible.has('actions')) n += 1;
   return n;
 }
 
@@ -58,8 +76,12 @@ export function CrmLeadsList({
   scoreMap = {},
   scoresPending = false,
   showLeadKindTags = true,
+  showFirstResponseSla: showFirstResponseSlaProp,
+  onAssignLead,
   emptyActions,
 }: Props) {
+  const showFirstResponseSla =
+    showFirstResponseSlaProp ?? shouldShowFirstResponseSlaColumn(rows);
   const allSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
   const someSelected = rows.some((row) => selectedIds.has(row.id));
   const showEmpty = !loading && rows.length === 0;
@@ -100,87 +122,137 @@ export function CrmLeadsList({
               {showLeadKindTags && visibleColumns.has('kind') ? <th>Loại</th> : null}
               {visibleColumns.has('project') ? <th>Dự án</th> : null}
               {visibleColumns.has('ai_band') ? <th>AI</th> : null}
+              {visibleColumns.has('icp_score') ? <th>ICP / Score</th> : null}
               {visibleColumns.has('sla') ? <th>SLA</th> : null}
+              {showFirstResponseSla && visibleColumns.has('first_response_sla') ? (
+                <th>First response SLA</th>
+              ) : null}
               {visibleColumns.has('in_call') ? <th>Gọi</th> : null}
               {visibleColumns.has('source') ? <th>Nguồn</th> : null}
               {visibleColumns.has('channel') ? <th>Kênh</th> : null}
               {showScores && visibleColumns.has('score') ? <th>AI Score</th> : null}
               {visibleColumns.has('date') ? <th>Ngày</th> : null}
+              {visibleColumns.has('actions') ? <th>Action</th> : null}
             </tr>
           </thead>
           <tbody>
-            {rows.map((lead) => (
-              <tr
-                key={lead.id}
-                className={[
-                  selectedIds.has(lead.id) ? 'crm-leads-row--selected' : undefined,
-                  lead.review_queue?.active ? 'crm-leads-row--review-queue' : undefined,
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                <td>
-                  <input
-                    type="checkbox"
-                    aria-label={`Chọn lead ${lead.id}`}
-                    checked={selectedIds.has(lead.id)}
-                    onChange={() => onToggleSelect(lead.id)}
-                  />
-                </td>
-                {visibleColumns.has('id') ? (
+            {rows.map((lead) => {
+              const icpTag = leadIcpScoreTag(lead, scoreMap[String(lead.id)]);
+              const slaLabel = leadFirstResponseSlaLabel(lead);
+              return (
+                <tr
+                  key={lead.id}
+                  className={[
+                    selectedIds.has(lead.id) ? 'crm-leads-row--selected' : undefined,
+                    lead.review_queue?.active ? 'crm-leads-row--review-queue' : undefined,
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
                   <td>
-                    <Link href={leadDetailHref(lead.id)} className="nav-link">
-                      {lead.id}
-                    </Link>
+                    <input
+                      type="checkbox"
+                      aria-label={`Chọn lead ${lead.id}`}
+                      checked={selectedIds.has(lead.id)}
+                      onChange={() => onToggleSelect(lead.id)}
+                    />
                   </td>
-                ) : null}
-                {visibleColumns.has('name') ? (
-                  <td>
-                    <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
-                      {lead.full_name || '—'}
-                      <WinScopeBadge clientId={lead.client_id} />
-                    </span>
-                  </td>
-                ) : null}
-                {visibleColumns.has('phone') ? <td>{lead.phone || '—'}</td> : null}
-                {visibleColumns.has('status') ? <td>{lead.status}</td> : null}
-                {showLeadKindTags && visibleColumns.has('kind') ? (
-                  <td>{lead.review_queue?.active ? <LeadReviewQueueTag lead={lead} /> : '—'}</td>
-                ) : null}
-                {visibleColumns.has('project') ? (
-                  <td>
-                    {lead.project_code ||
-                      (lead.b2b_project_id
-                        ? projectLabelById[lead.b2b_project_id] ?? lead.b2b_project_id.slice(0, 8)
-                        : '—')}
-                  </td>
-                ) : null}
-                {visibleColumns.has('ai_band') ? (
-                  <td>{b2bAiBandLabel(lead.ai_band ?? null)}</td>
-                ) : null}
-                {visibleColumns.has('sla') ? (
-                  <td>
-                    <span className={`b2b-sla-pill b2b-sla-pill--${lead.sla_state ?? 'na'}`}>
-                      {b2bSlaStateLabel(lead.sla_state ?? null)}
-                    </span>
-                  </td>
-                ) : null}
-                {visibleColumns.has('in_call') ? (
-                  <td>{lead.in_call ? '📞' : '—'}</td>
-                ) : null}
-                {visibleColumns.has('source') ? <td>{lead.source}</td> : null}
-                {visibleColumns.has('channel') ? <td>{lead.channel || '—'}</td> : null}
-                {showScores && visibleColumns.has('score') ? (
-                  <td>
-                    <LeadScoreBadge score={scoreMap[String(lead.id)]} pending={scoresPending} />
-                  </td>
-                ) : null}
-                {visibleColumns.has('date') ? <td>{lead.created_at?.slice(0, 10) ?? '—'}</td> : null}
-              </tr>
-            ))}
+                  {visibleColumns.has('id') ? (
+                    <td>
+                      <Link href={leadDetailHref(lead.id)} className="nav-link">
+                        {lead.id}
+                      </Link>
+                    </td>
+                  ) : null}
+                  {visibleColumns.has('name') ? (
+                    <td>
+                      <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                        {lead.full_name || '—'}
+                        <WinScopeBadge clientId={lead.client_id} />
+                        {!lead.owner_id ? (
+                          <span className="revops-tag revops-tag--orange">Unassigned</span>
+                        ) : null}
+                      </span>
+                    </td>
+                  ) : null}
+                  {visibleColumns.has('phone') ? <td>{lead.phone || '—'}</td> : null}
+                  {visibleColumns.has('status') ? <td>{lead.status}</td> : null}
+                  {showLeadKindTags && visibleColumns.has('kind') ? (
+                    <td>{lead.review_queue?.active ? <LeadReviewQueueTag lead={lead} /> : '—'}</td>
+                  ) : null}
+                  {visibleColumns.has('project') ? (
+                    <td>
+                      {lead.project_code ||
+                        (lead.b2b_project_id
+                          ? projectLabelById[lead.b2b_project_id] ?? lead.b2b_project_id.slice(0, 8)
+                          : '—')}
+                    </td>
+                  ) : null}
+                  {visibleColumns.has('ai_band') ? (
+                    <td>{b2bAiBandLabel(lead.ai_band ?? null)}</td>
+                  ) : null}
+                  {visibleColumns.has('icp_score') ? (
+                    <td>
+                      {icpTag ? (
+                        <span className={leadIcpScoreTagClass(icpTag)}>{icpTag}</span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                  ) : null}
+                  {visibleColumns.has('sla') ? (
+                    <td>
+                      <span className={`b2b-sla-pill b2b-sla-pill--${lead.sla_state ?? 'na'}`}>
+                        {b2bSlaStateLabel(lead.sla_state ?? null)}
+                      </span>
+                    </td>
+                  ) : null}
+                  {showFirstResponseSla && visibleColumns.has('first_response_sla') ? (
+                    <td>{slaLabel ?? '—'}</td>
+                  ) : null}
+                  {visibleColumns.has('in_call') ? (
+                    <td>{lead.in_call ? '📞' : '—'}</td>
+                  ) : null}
+                  {visibleColumns.has('source') ? <td>{lead.source}</td> : null}
+                  {visibleColumns.has('channel') ? <td>{lead.channel || '—'}</td> : null}
+                  {showScores && visibleColumns.has('score') ? (
+                    <td>
+                      <LeadScoreBadge score={scoreMap[String(lead.id)]} pending={scoresPending} />
+                    </td>
+                  ) : null}
+                  {visibleColumns.has('date') ? <td>{lead.created_at?.slice(0, 10) ?? '—'}</td> : null}
+                  {visibleColumns.has('actions') ? (
+                    <td>
+                      <div className="crm-leads-actions">
+                        {onAssignLead ? (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            onClick={() => onAssignLead(lead.id)}
+                          >
+                            Phân bổ
+                          </button>
+                        ) : null}
+                        {lead.owner_id ? (
+                          <Link href={leadDetailHref(lead.id)} className="btn btn-sm btn-ghost">
+                            Chăm lead
+                          </Link>
+                        ) : null}
+                        <Link href={`/crm/leads/${lead.id}`} className="btn btn-sm btn-ghost">
+                          Mở
+                        </Link>
+                      </div>
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
             {loading ? (
               <tr>
-                <td colSpan={colSpan(visibleColumns, showLeadKindTags, showScores)} className="muted">
+                <td
+                  colSpan={colSpan(visibleColumns, showLeadKindTags, showScores, showFirstResponseSla)}
+                  className="muted"
+                >
                   Đang tải…
                 </td>
               </tr>
@@ -197,6 +269,7 @@ export function CrmLeadsList({
         scoreMap={scoreMap}
         scoresPending={scoresPending}
         showLeadKindTags={showLeadKindTags}
+        onAssignLead={onAssignLead}
         emptyActions={emptyActions}
       />
     </>

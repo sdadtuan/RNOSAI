@@ -1290,6 +1290,23 @@ export async function fetchAmHandovers(
   return amFetch<{ items: AmHandover[] }>(token, `/api/crm/am/handovers${suffix}`);
 }
 
+export type AmCreateHandoverInput = {
+  agency_client_id: string;
+  commercial_json?: Record<string, unknown>;
+  scope_json?: Record<string, unknown>;
+  stakeholders_json?: Record<string, unknown>;
+};
+
+export async function createAmHandover(
+  token: string,
+  body: AmCreateHandoverInput,
+): Promise<AmHandover> {
+  return amFetch<AmHandover>(token, '/api/crm/am/handovers', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchAmHandover(token: string, id: string): Promise<AmHandover> {
   return amFetch<AmHandover>(token, `/api/crm/am/handovers/${encodeURIComponent(id)}`);
 }

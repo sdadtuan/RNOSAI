@@ -33,7 +33,7 @@ export const REVOPS_NAV_GROUPS: RevopsNavGroup[] = [
       {
         id: 'handover',
         label: 'Handover & Onboarding',
-        href: '/crm/account-management/onboarding?revops=1',
+        href: '/crm/leads/handover?revops=1',
         icon: 'handover',
       },
       {
@@ -75,6 +75,9 @@ export function activeRevopsHref(pathname: string): string {
   const exact = items.find((i) => i.href.split('?')[0] === pathname);
   if (exact) return exact.href;
   if (pathname.startsWith('/crm/leads')) return '/crm/leads?revops=1';
+  if (pathname.startsWith('/crm/leads/handover')) {
+    return '/crm/leads/handover?revops=1';
+  }
   if (pathname.startsWith('/crm/account-management/onboarding')) {
     return '/crm/account-management/onboarding?revops=1';
   }

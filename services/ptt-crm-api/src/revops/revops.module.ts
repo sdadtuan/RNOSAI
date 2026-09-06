@@ -3,6 +3,7 @@ import { KpiHubModule } from '../kpi-hub/kpi-hub.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffRevopsGuard } from './guards/staff-revops.guard';
 import { RevopsActionsService } from './revops-actions.service';
+import { RevopsApprovalsService } from './revops-approvals.service';
 import { RevopsDashboardService } from './revops-dashboard.service';
 import { RevopsPipelineRepository } from './revops-pipeline.repository';
 import { RevopsPipelineService } from './revops-pipeline.service';
@@ -17,9 +18,10 @@ import { RevopsController } from './revops.controller';
     RevopsDashboardService,
     RevopsPipelineService,
     RevopsPipelineRepository,
+    RevopsApprovalsService,
     RevopsActionsService,
     RevopsTeamPerformanceService,
   ],
-  exports: [RevopsDashboardService, RevopsPipelineService],
+  exports: [RevopsDashboardService, RevopsPipelineService, RevopsApprovalsService],
 })
 export class RevopsModule {}
