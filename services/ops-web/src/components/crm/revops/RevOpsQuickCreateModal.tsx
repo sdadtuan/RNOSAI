@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { RevOpsModalFrame } from '../RevOpsModalFrame';
+import { RevOpsModalFrame } from './RevOpsModalFrame';
 
 const TILES = [
   {
