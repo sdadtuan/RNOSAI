@@ -7,6 +7,8 @@ import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
 import { RequireRevopsAction, StaffRevopsGuard } from './guards/staff-revops.guard';
 import { RevopsDashboardService } from './revops-dashboard.service';
 import type { RevopsCommandCenterDto } from './revops.types';
+import { RevopsPipelineService } from './revops-pipeline.service';
+import type { RevopsPipelineDto } from './revops.types';
 
 type AuthedReq = Request & {
   staffUser?: StaffJwtPayload;
@@ -18,6 +20,7 @@ type AuthedReq = Request & {
 export class RevopsController {
   constructor(
     private readonly dashboard: RevopsDashboardService,
+    private readonly pipeline: RevopsPipelineService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -33,5 +36,18 @@ export class RevopsController {
     const caps: StaffSectionCap[] =
       req.staffAuthVia === 'internal' || !req.staffUser ? [] : (await this.staffAuth.me(req.staffUser)).caps;
     return this.dashboard.get({ staffId, caps }, { period, bu, scope });
+  }
+
+  @Get('pipeline')
+  @RequireRevopsAction('view')
+  async pipelineView(
+    @Req() req: AuthedReq,
+    @Query('view') view?: string,
+    @Query('scope') scope?: string,
+  ): Promise<RevopsPipelineDto> {
+    const staffId = req.staffUser ? ((await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0) : 0;
+    const caps: StaffSectionCap[] =
+      req.staffAuthVia === 'internal' || !req.staffUser ? [] : (await this.staffAuth.me(req.staffUser)).caps;
+    return this.pipeline.get({ staffId, caps }, { view, scope });
   }
 }

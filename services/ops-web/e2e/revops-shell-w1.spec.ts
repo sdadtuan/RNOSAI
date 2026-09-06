@@ -31,3 +31,19 @@ test('embed mode hides KPI Hub inner sidebar', async ({ page, request }) => {
   await expect(page.locator('html')).toHaveClass(/revops-embed/);
   await expect(page.locator('.kpi-hub-sidebar')).toBeHidden();
 });
+
+test('pipeline kanban renders 5 stage columns', async ({ page, request }) => {
+  test.skip(!(await apiReachable(request)), 'API down');
+  test.skip(process.env.NEXT_PUBLIC_REVOPS_SHELL !== '1', 'flag off');
+  await loginAsStaff(page);
+  await page.goto('/crm/revenue-ops/pipeline');
+  await expect(page.getByRole('heading', { name: 'Pipeline & Deal Management' })).toBeVisible();
+  const kanban = page.getByTestId('revops-pipeline-kanban');
+  await expect(kanban).toBeVisible();
+  await expect(kanban.locator('.revops-kanban-col')).toHaveCount(5);
+  await expect(kanban.getByRole('heading', { name: 'Discovery' })).toBeVisible();
+  await expect(kanban.getByRole('heading', { name: 'Qualified' })).toBeVisible();
+  await expect(kanban.getByRole('heading', { name: 'Proposal' })).toBeVisible();
+  await expect(kanban.getByRole('heading', { name: 'Negotiation' })).toBeVisible();
+  await expect(kanban.getByRole('heading', { name: 'Contract Review' })).toBeVisible();
+});

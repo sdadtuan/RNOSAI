@@ -783,6 +783,110 @@ html.ops-shell-bitrix body:has(.revops-shell) .bitrix-crm-page__inner {
   font-size: 12px;
 }
 
+.revops-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.revops-tab {
+  padding: 8px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.revops-tab.is-active {
+  border-color: var(--revops-primary);
+  background: #ecfdf3;
+  color: var(--revops-primary);
+}
+
+.revops-kanban {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.revops-kanban-col {
+  min-width: 200px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.revops-kanban-col__head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.revops-kanban-col__head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.revops-kanban-col__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 80px;
+  padding: 10px;
+}
+
+.revops-kanban-empty {
+  margin: 0;
+  font-size: 12px;
+  text-align: center;
+}
+
+.revops-kanban-card {
+  display: block;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.revops-kanban-card:hover {
+  border-color: #86efac;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.revops-kanban-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.revops-kanban-card__top strong {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.revops-kanban-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 html.revops-embed .kpi-hub-sidebar,
 html.revops-embed .am-sidebar {
   display: none !important;
@@ -808,6 +912,10 @@ html.revops-embed .am-root .am-column {
 
   .revops-funnel {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .revops-kanban {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .revops-form-grid,

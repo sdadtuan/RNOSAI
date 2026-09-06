@@ -1,33 +1,12 @@
 'use client';
 
-import {
-  RevOpsQuickCreateButton,
-  useRevopsModals,
-} from '@/components/crm/revops/RevOpsModalsProvider';
+import { Suspense } from 'react';
+import { RevOpsPipelinePage } from '@/components/crm/revops/RevOpsPipelinePage';
 
-function PipelineActions() {
-  const { openDeal, openQuote } = useRevopsModals();
+export default function RevenueOpsPipelineRoutePage() {
   return (
-    <div className="revops-page-actions">
-      <button type="button" className="revops-btn" onClick={() => openQuote()}>
-        Tạo báo giá
-      </button>
-      <button type="button" className="revops-btn revops-btn--primary" onClick={() => openDeal()}>
-        ＋ Tạo deal
-      </button>
-      <RevOpsQuickCreateButton />
-    </div>
-  );
-}
-
-export default function RevenueOpsPipelinePage() {
-  return (
-    <header className="revops-page-head">
-      <div>
-        <h1>Pipeline & Deal Management</h1>
-        <p>Đang triển khai Wave 2.</p>
-      </div>
-      <PipelineActions />
-    </header>
+    <Suspense fallback={<p className="revops-muted">Đang tải…</p>}>
+      <RevOpsPipelinePage />
+    </Suspense>
   );
 }

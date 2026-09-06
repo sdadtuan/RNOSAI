@@ -99,3 +99,53 @@ export async function fetchRevopsCommandCenter(
   const suffix = params.toString() ? `?${params.toString()}` : '';
   return revopsFetch<RevopsCommandCenterDto>(token, `/api/crm/revops/command-center${suffix}`);
 }
+
+export type RevopsPipelineStage =
+  | 'discovery'
+  | 'qualified'
+  | 'proposal'
+  | 'negotiation'
+  | 'contract_review';
+
+export type RevopsPipelineDto = {
+  view: 'kanban' | 'list';
+  kpis: {
+    totalVnd: number | null;
+    weightedVnd: number | null;
+    commitVnd: number | null;
+    staleCount: number;
+  };
+  columns: Array<{
+    stage: RevopsPipelineStage;
+    count: number;
+    valueVnd: number | null;
+    cards: Array<{
+      id: string;
+      leadId: number;
+      name: string;
+      product: string;
+      amountVnd: number | null;
+      closeDate: string | null;
+      owner: string;
+      risk: string | null;
+      href: string;
+    }>;
+  }>;
+  fetchedAt: string;
+};
+
+export type RevopsPipelineQuery = {
+  view?: 'kanban' | 'list';
+  scope?: string;
+};
+
+export async function fetchRevopsPipeline(
+  token: string,
+  query: RevopsPipelineQuery = {},
+): Promise<RevopsPipelineDto> {
+  const params = new URLSearchParams();
+  if (query.view) params.set('view', query.view);
+  if (query.scope) params.set('scope', query.scope);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return revopsFetch<RevopsPipelineDto>(token, `/api/crm/revops/pipeline${suffix}`);
+}

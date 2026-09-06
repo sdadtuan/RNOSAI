@@ -76,3 +76,42 @@ export type RevopsDashboardActor = {
   staffId: number;
   caps: Array<{ section: string; action: string }>;
 };
+
+export type RevopsPipelineStage =
+  | 'discovery'
+  | 'qualified'
+  | 'proposal'
+  | 'negotiation'
+  | 'contract_review';
+
+export type RevopsPipelineDto = {
+  view: 'kanban' | 'list';
+  kpis: {
+    totalVnd: number | null;
+    weightedVnd: number | null;
+    commitVnd: number | null;
+    staleCount: number;
+  };
+  columns: Array<{
+    stage: RevopsPipelineStage;
+    count: number;
+    valueVnd: number | null;
+    cards: Array<{
+      id: string;
+      leadId: number;
+      name: string;
+      product: string;
+      amountVnd: number | null;
+      closeDate: string | null;
+      owner: string;
+      risk: string | null;
+      href: string;
+    }>;
+  }>;
+  fetchedAt: string;
+};
+
+export type RevopsPipelineQuery = {
+  view?: 'kanban' | 'list' | string;
+  scope?: RevopsScope | string;
+};

@@ -4,13 +4,22 @@ import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffRevopsGuard } from './guards/staff-revops.guard';
 import { RevopsActionsService } from './revops-actions.service';
 import { RevopsDashboardService } from './revops-dashboard.service';
+import { RevopsPipelineRepository } from './revops-pipeline.repository';
+import { RevopsPipelineService } from './revops-pipeline.service';
 import { RevopsTeamPerformanceService } from './revops-team-performance.service';
 import { RevopsController } from './revops.controller';
 
 @Module({
   imports: [StaffAuthModule, KpiHubModule],
   controllers: [RevopsController],
-  providers: [StaffRevopsGuard, RevopsDashboardService, RevopsActionsService, RevopsTeamPerformanceService],
-  exports: [RevopsDashboardService],
+  providers: [
+    StaffRevopsGuard,
+    RevopsDashboardService,
+    RevopsPipelineService,
+    RevopsPipelineRepository,
+    RevopsActionsService,
+    RevopsTeamPerformanceService,
+  ],
+  exports: [RevopsDashboardService, RevopsPipelineService],
 })
 export class RevopsModule {}
