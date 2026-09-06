@@ -62,7 +62,7 @@ export function RevOpsCommandCenter() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { token } = useRevopsPage();
-  const { openAssign } = useRevopsModals();
+  const { openAssign, openCommissionPlan, openPayout } = useRevopsModals();
 
   const period = searchParams.get('period') ?? currentPeriodValue();
   const bu = searchParams.get('bu') ?? 'all';
@@ -221,9 +221,17 @@ export function RevOpsCommandCenter() {
                 {formatRevopsVndCompact(data.commission.approvedVnd)} approved ·{' '}
                 {formatRevopsVndCompact(data.commission.pendingVnd)} pending
               </small>
-              {data.commission.estimatedVnd == null ? (
-                <span className="revops-tag revops-tag--gray">Wave 3</span>
-              ) : null}
+              <div className="revops-page-actions" style={{ marginTop: '0.5rem' }}>
+                {data.commission.estimatedVnd == null ? (
+                  <span className="revops-tag revops-tag--gray">Chưa có giao dịch</span>
+                ) : null}
+                <button type="button" className="revops-btn revops-btn--sm" onClick={openCommissionPlan}>
+                  Plan
+                </button>
+                <button type="button" className="revops-btn revops-btn--sm" onClick={openPayout}>
+                  Payout
+                </button>
+              </div>
             </article>
           </div>
 

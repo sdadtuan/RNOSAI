@@ -1,10 +1,12 @@
-export default function RevenueOpsSlaPage() {
+'use client';
+
+import { Suspense } from 'react';
+import { RevOpsSlaPage } from '@/components/crm/revops/RevOpsSlaPage';
+
+export default function RevenueOpsSlaRoutePage() {
   return (
-    <header className="revops-page-head">
-      <div>
-        <h1>SLA & Escalation Center</h1>
-        <p>Đang triển khai Wave 3.</p>
-      </div>
-    </header>
+    <Suspense fallback={<p className="revops-muted">Đang tải…</p>}>
+      <RevOpsSlaPage />
+    </Suspense>
   );
 }

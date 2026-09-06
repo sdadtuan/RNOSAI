@@ -1,5 +1,6 @@
 import { KpiHubDashboardService } from '../kpi-hub/dashboard/kpi-hub-dashboard.service';
 import { RevopsActionsService } from './revops-actions.service';
+import { RevopsCommissionService } from './revops-commission.service';
 import { RevopsDashboardService } from './revops-dashboard.service';
 import { RevopsTeamPerformanceService } from './revops-team-performance.service';
 import type { RevopsDashboardActor } from './revops.types';
@@ -67,7 +68,7 @@ const actor: RevopsDashboardActor = {
 };
 
 describe('RevopsDashboardService', () => {
-  it('maps KPI Hub sales revenue, keeps commission null, and stamps ISO fetchedAt', async () => {
+  it('maps KPI Hub sales revenue, wires commission summary, and stamps ISO fetchedAt', async () => {
     const kpiHub = {
       getDashboard: jest.fn().mockResolvedValue(salesHub()),
     } as unknown as KpiHubDashboardService;
@@ -75,8 +76,15 @@ describe('RevopsDashboardService', () => {
       todayQueue: jest.fn().mockResolvedValue([]),
       atRisk: jest.fn().mockResolvedValue([]),
     } as unknown as RevopsActionsService;
+    const commissionSvc = {
+      getSummary: jest.fn().mockResolvedValue({
+        estimatedVnd: 2_000_000,
+        approvedVnd: 1_500_000,
+        pendingVnd: 500_000,
+      }),
+    } as unknown as RevopsCommissionService;
     const team = new RevopsTeamPerformanceService();
-    const svc = new RevopsDashboardService(kpiHub, actions, team);
+    const svc = new RevopsDashboardService(kpiHub, actions, team, commissionSvc);
 
     const out = await svc.get(actor, { period: '2026-09', bu: 'hn' });
 
@@ -96,11 +104,10 @@ describe('RevopsDashboardService', () => {
     ]);
     expect(out.teamPerformance).toHaveLength(1);
     expect(out.commission).toEqual({
-      estimatedVnd: null,
-      approvedVnd: null,
-      pendingVnd: null,
+      estimatedVnd: 2_000_000,
+      approvedVnd: 1_500_000,
+      pendingVnd: 500_000,
     });
-    expect(out.commission.estimatedVnd).toBeNull();
     expect(out.fetchedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(kpiHub.getDashboard).toHaveBeenCalledWith(
       expect.objectContaining({ persona: 'sales', from: '2026-09-01', department_id: 'hn' }),
@@ -115,7 +122,14 @@ describe('RevopsDashboardService', () => {
       todayQueue: jest.fn().mockResolvedValue([]),
       atRisk: jest.fn().mockResolvedValue([]),
     } as unknown as RevopsActionsService;
-    const svc = new RevopsDashboardService(kpiHub, actions, new RevopsTeamPerformanceService());
+    const commissionSvc = {
+      getSummary: jest.fn().mockResolvedValue({
+        estimatedVnd: null,
+        approvedVnd: null,
+        pendingVnd: null,
+      }),
+    } as unknown as RevopsCommissionService;
+    const svc = new RevopsDashboardService(kpiHub, actions, new RevopsTeamPerformanceService(), commissionSvc);
 
     const out = await svc.get({ staffId: 2, caps: [{ section: 'crm_revops', action: 'view' }] }, {});
 

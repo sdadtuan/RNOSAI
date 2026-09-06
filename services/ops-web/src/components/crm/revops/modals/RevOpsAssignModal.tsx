@@ -9,6 +9,7 @@ import {
   type CrmStaffRow,
   type LeadRow,
 } from '@/lib/api';
+import { simulateRevopsRouting } from '@/lib/crm/revops-api';
 import { useToast } from '@/lib/toast';
 import { RevOpsModalFrame } from '../RevOpsModalFrame';
 import { leadOptionLabel, suggestAssignees } from '../revops-modal.util';
@@ -39,6 +40,9 @@ export function RevOpsAssignModal({
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [routingSuggestions, setRoutingSuggestions] = useState<
+    Array<{ staffId: number; name: string; ruleName: string; score: number }>
+  >([]);
 
   const bulkLeadIds = context?.leadIds?.filter((id) => id > 0) ?? [];
   const selectedLeadId = context?.leadId ?? (leadId ? Number(leadId) : 0);
@@ -55,14 +59,32 @@ export function RevOpsAssignModal({
           ? `Lead #${selectedLeadId}`
           : '—');
 
-  const suggestions = useMemo(
+  const fallbackSuggestions = useMemo(
     () => suggestAssignees(staff, selectedLeadId || 1, 3),
     [staff, selectedLeadId],
   );
 
+  const suggestions = useMemo(() => {
+    if (routingSuggestions.length > 0) {
+      return routingSuggestions
+        .map((row) => staff.find((s) => s.id === row.staffId))
+        .filter((s): s is CrmStaffRow => Boolean(s));
+    }
+    return fallbackSuggestions;
+  }, [routingSuggestions, staff, fallbackSuggestions]);
+
+  const suggestionMeta = useMemo(() => {
+    const map = new Map<number, { ruleName: string; score: number }>();
+    for (const row of routingSuggestions) {
+      map.set(row.staffId, { ruleName: row.ruleName, score: row.score });
+    }
+    return map;
+  }, [routingSuggestions]);
+
   useEffect(() => {
     if (!open || !token) return;
     setLoading(true);
+    setRoutingSuggestions([]);
     void Promise.all([
       fetchCrmStaffList(token).catch(() => ({ staff: [], summary: {} })),
       fetchLeads(token, { limit: 30, unassigned_only: true, lead_flow_kind: 'b2b_prospect' }).catch(() => ({
@@ -78,6 +100,25 @@ export function RevOpsAssignModal({
       })
       .finally(() => setLoading(false));
   }, [open, token]);
+
+  useEffect(() => {
+    if (!open || !token || selectedLeadId <= 0) {
+      setRoutingSuggestions([]);
+      return;
+    }
+    void simulateRevopsRouting(token, selectedLeadId)
+      .then((out) =>
+        setRoutingSuggestions(
+          (out.rankedOwners ?? []).map((row) => ({
+            staffId: row.staffId,
+            name: row.name,
+            ruleName: row.ruleName,
+            score: row.score,
+          })),
+        ),
+      )
+      .catch(() => setRoutingSuggestions([]));
+  }, [open, token, selectedLeadId]);
 
   useEffect(() => {
     if (!open) return;
@@ -96,7 +137,7 @@ export function RevOpsAssignModal({
       for (const id of assignLeadIds) {
         await assignLead(token, id, {
           to_user_id: staffRow.id,
-          reason: reason.trim() || `Routing engine suggestion #${suggestionIndex + 1}`,
+          reason: reason.trim() || `Routing: ${suggestionMeta.get(staffRow.id)?.ruleName ?? `suggestion #${suggestionIndex + 1}`}`,
         });
       }
       push(
@@ -152,7 +193,9 @@ export function RevOpsAssignModal({
           </p>
         ) : null}
       </div>
-      <h3 className="revops-modal__section">Gợi ý phân bổ (W1)</h3>
+      <h3 className="revops-modal__section">
+        Gợi ý phân bổ {routingSuggestions.length > 0 ? '(RevOps routing)' : '(W1 fallback)'}
+      </h3>
       <div className="revops-list">
         {suggestions.map((row, idx) => (
           <div key={row.id} className="revops-list-row">
@@ -161,7 +204,9 @@ export function RevOpsAssignModal({
                 {idx + 1}. {row.name}
               </b>
               <p className="revops-sub">
-                {row.department || 'Sales'} · Round-robin · {row.email}
+                {suggestionMeta.get(row.id)?.ruleName ?? row.department ?? 'Sales'} ·{' '}
+                {suggestionMeta.get(row.id) ? `score ${suggestionMeta.get(row.id)!.score}` : 'Round-robin'} ·{' '}
+                {row.email}
               </p>
             </div>
             <button

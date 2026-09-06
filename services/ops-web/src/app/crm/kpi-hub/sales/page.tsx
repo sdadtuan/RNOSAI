@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Suspense, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { RevOpsEmbedFrame } from '@/components/crm/revops/RevOpsEmbedFrame';
 import { KpiHubPageGate } from '@/components/kpi-hub/KpiHubPageGate';
 import { KpiHubShell } from '@/components/kpi-hub/KpiHubShell';
@@ -10,6 +11,7 @@ import { CcDataTrust } from '@/components/kpi-hub/command-center/CcDataTrust';
 import { CcFunnel } from '@/components/kpi-hub/command-center/CcFunnel';
 import { CcKpiTiles } from '@/components/kpi-hub/command-center/CcKpiTiles';
 import { CcPageToolbar } from '@/components/kpi-hub/command-center/CcPageToolbar';
+import { SalesCommissionPanel } from '@/components/kpi-hub/command-center/SalesCommissionPanel';
 import { SalesDealsAtRisk } from '@/components/kpi-hub/command-center/SalesDealsAtRisk';
 import { SalesPipelineChart } from '@/components/kpi-hub/command-center/SalesPipelineChart';
 import { SalesSlaGauge } from '@/components/kpi-hub/command-center/SalesSlaGauge';
@@ -26,6 +28,8 @@ const DEFAULT_SALES = {
 };
 
 export default function SalesCommandCenterPage() {
+  const searchParams = useSearchParams();
+  const revopsEmbed = searchParams.get('revops') === '1';
   const token = getAccessToken() ?? '';
   const user = getStoredUser();
   const [compare, setCompare] = useState(true);
@@ -70,6 +74,7 @@ export default function SalesCommandCenterPage() {
                 testIdPrefix="sales"
                 weightedBadge={sales.weighted_badge}
               />
+              {revopsEmbed ? <SalesCommissionPanel token={token} compact /> : null}
               <div className="cc-row cc-row--2">
                 <SalesPipelineChart sales={sales} testId="sales-pipeline" />
                 <SalesSlaGauge sales={sales} testId="sales-sla-gauge" />

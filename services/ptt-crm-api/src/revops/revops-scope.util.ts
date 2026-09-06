@@ -8,6 +8,23 @@ export function hasRevopsCap(
   return caps.some((c) => c.section === 'crm_revops' && c.action === action);
 }
 
+export function hasRevopsCommissionCap(
+  caps: Array<{ section: string; action: string }> | undefined,
+  action: 'view' | 'manage',
+): boolean {
+  if (!caps?.length) return false;
+  if (caps.some((c) => c.section === 'crm_revops' && c.action === 'manage')) return true;
+  if (action === 'manage') {
+    return caps.some((c) => c.section === 'crm_revops.commission' && c.action === 'manage');
+  }
+  return caps.some(
+    (c) =>
+      (c.section === 'crm_revops.commission' && (c.action === 'view' || c.action === 'manage')) ||
+      (c.section === 'crm_revops' &&
+        (c.action === 'view' || c.action === 'view_team' || c.action === 'view_all' || c.action === 'manage')),
+  );
+}
+
 export function canSeeRevops(caps: Array<{ section: string; action: string }> | undefined): boolean {
   return (
     hasRevopsCap(caps, 'view') ||

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { KpiHubDashboardService } from '../kpi-hub/dashboard/kpi-hub-dashboard.service';
 import type { CommandCenterResponse, CommandTile } from '../kpi-hub/command-center/command-center.builder';
 import { RevopsActionsService } from './revops-actions.service';
+import { RevopsCommissionService } from './revops-commission.service';
 import { resolveRevopsBuFilter, resolveRevopsScope } from './revops-scope.util';
 import { RevopsTeamPerformanceService } from './revops-team-performance.service';
 import type {
@@ -71,6 +72,7 @@ export class RevopsDashboardService {
     private readonly kpiHub: KpiHubDashboardService,
     private readonly actions: RevopsActionsService,
     private readonly teamPerf: RevopsTeamPerformanceService,
+    private readonly commissionSvc: RevopsCommissionService,
   ) {}
 
   async get(actor: RevopsDashboardActor, query: RevopsDashboardQuery): Promise<RevopsCommandCenterDto> {
@@ -79,7 +81,11 @@ export class RevopsDashboardService {
     const buFilter = resolveRevopsBuFilter({ scope, requestedBu: query.bu });
     const bu = buFilter ?? (scope === 'me' ? 'me' : query.bu?.trim() || 'all');
 
-    const [todayQueue, atRisk] = await Promise.all([this.actions.todayQueue(), this.actions.atRisk()]);
+    const [todayQueue, atRisk, commission] = await Promise.all([
+      this.actions.todayQueue(),
+      this.actions.atRisk(),
+      this.commissionSvc.getSummary(),
+    ]);
     const extras = { todayQueue, atRisk, fetchedAt: new Date().toISOString() };
 
     let hub: CommandCenterResponse | null = null;
@@ -90,7 +96,7 @@ export class RevopsDashboardService {
         department_id: buFilter,
       })) as CommandCenterResponse;
     } catch {
-      return emptyCenter(period, bu, extras);
+      return { ...emptyCenter(period, bu, extras), commission };
     }
 
     const revenueTile = tileOf(hub, 'SAL_008');
@@ -128,7 +134,7 @@ export class RevopsDashboardService {
         atRisk: hub.sales?.sla.overdue_count ?? 0,
         breaches: 0,
       },
-      commission: { ...EMPTY_COMMISSION },
+      commission,
       funnel,
       teamRevenue: this.teamPerf.teamRevenueFromRows(teamPerformance),
       teamPerformance,

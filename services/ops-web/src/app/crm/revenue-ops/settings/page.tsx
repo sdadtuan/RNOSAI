@@ -1,10 +1,12 @@
-export default function RevenueOpsSettingsPage() {
+'use client';
+
+import { Suspense } from 'react';
+import { RevOpsSettingsPage } from '@/components/crm/revops/RevOpsSettingsPage';
+
+export default function RevenueOpsSettingsRoutePage() {
   return (
-    <header className="revops-page-head">
-      <div>
-        <h1>Cấu hình & Audit</h1>
-        <p>Đang triển khai Wave 4.</p>
-      </div>
-    </header>
+    <Suspense fallback={<p className="revops-muted">Đang tải…</p>}>
+      <RevOpsSettingsPage />
+    </Suspense>
   );
 }

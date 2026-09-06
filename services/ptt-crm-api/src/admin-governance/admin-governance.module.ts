@@ -30,6 +30,6 @@ import { AccessReviewCertifyGuard } from './guards/access-review-certify.guard';
     AdminIntegrationsService,
     AccessReviewCertifyGuard,
   ],
-  exports: [AccessReviewCampaignService, GuestAccountExpiryService],
+  exports: [AccessReviewCampaignService, GuestAccountExpiryService, AdminIntegrationsService],
 })
 export class AdminGovernanceModule {}

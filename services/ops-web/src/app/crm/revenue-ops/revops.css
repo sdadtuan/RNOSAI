@@ -434,6 +434,12 @@ html.ops-shell-bitrix body:has(.revops-shell) .bitrix-crm-page__inner {
   gap: 12px;
 }
 
+.revops-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .revops-card {
   padding: 12px;
   border: 1px solid #e2e8f0;
@@ -444,6 +450,26 @@ html.ops-shell-bitrix body:has(.revops-shell) .bitrix-crm-page__inner {
 .revops-card h3 {
   margin: 0 0 8px;
   font-size: 14px;
+}
+
+.revops-panel {
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.revops-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.revops-panel-head h2 {
+  margin: 0;
+  font-size: 16px;
 }
 
 .revops-link {
@@ -614,6 +640,15 @@ html.ops-shell-bitrix body:has(.revops-shell) .bitrix-crm-page__inner {
 .revops-tag--gray {
   background: #f1f5f9;
   color: #475569;
+}
+
+.revops-tag--purple {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.revops-down {
+  color: #dc2626;
 }
 
 .revops-card--panel {
@@ -969,6 +1004,7 @@ html.revops-embed .am-root .am-column {
 
   .revops-form-grid,
   .revops-grid-2,
+  .revops-grid-3,
   .revops-quick-grid {
     grid-template-columns: minmax(0, 1fr);
   }

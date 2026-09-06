@@ -26,6 +26,11 @@ import {
 import { RevOpsGrowthModal } from './modals/RevOpsGrowthModal';
 import { RevOpsHandoverModal } from './modals/RevOpsHandoverModal';
 import { RevOpsKpiModal } from './modals/RevOpsKpiModal';
+import { RevOpsCommissionPlanModal } from './modals/RevOpsCommissionPlanModal';
+import { RevOpsPayoutModal } from './modals/RevOpsPayoutModal';
+import { RevOpsSlaPolicyModal } from './modals/RevOpsSlaPolicyModal';
+import { RevOpsTerritoryModal } from './modals/RevOpsTerritoryModal';
+import { RevOpsRoutingModal } from './modals/RevOpsRoutingModal';
 import { RevOpsLeadModal } from './modals/RevOpsLeadModal';
 import { RevOpsQuoteModal } from './modals/RevOpsQuoteModal';
 
@@ -41,6 +46,11 @@ export type RevopsModalsApi = {
   openAccountPlan: (agencyClientId?: string) => void;
   openGrowth: (agencyClientId?: string) => void;
   openKpi: () => void;
+  openCommissionPlan: () => void;
+  openPayout: () => void;
+  openSlaPolicy: () => void;
+  openTerritory: () => void;
+  openRouting: () => void;
 };
 
 const RevopsModalsContext = createContext<RevopsModalsApi | null>(null);
@@ -73,6 +83,11 @@ export function RevOpsModalsProvider({ children }: { children: ReactNode }) {
   const [growthOpen, setGrowthOpen] = useState(false);
   const [growthClientId, setGrowthClientId] = useState<string | undefined>();
   const [kpiOpen, setKpiOpen] = useState(false);
+  const [commissionPlanOpen, setCommissionPlanOpen] = useState(false);
+  const [payoutOpen, setPayoutOpen] = useState(false);
+  const [slaPolicyOpen, setSlaPolicyOpen] = useState(false);
+  const [territoryOpen, setTerritoryOpen] = useState(false);
+  const [routingOpen, setRoutingOpen] = useState(false);
 
   const duplicateFromQuery = useMemo(() => {
     const leadId = Number(searchParams.get('duplicate_lead') ?? searchParams.get('lead_id') ?? '');
@@ -126,6 +141,11 @@ export function RevOpsModalsProvider({ children }: { children: ReactNode }) {
         setGrowthOpen(true);
       },
       openKpi: () => setKpiOpen(true),
+      openCommissionPlan: () => setCommissionPlanOpen(true),
+      openPayout: () => setPayoutOpen(true),
+      openSlaPolicy: () => setSlaPolicyOpen(true),
+      openTerritory: () => setTerritoryOpen(true),
+      openRouting: () => setRoutingOpen(true),
     }),
     [],
   );
@@ -201,6 +221,31 @@ export function RevOpsModalsProvider({ children }: { children: ReactNode }) {
         onClose={() => setGrowthOpen(false)}
       />
       <RevOpsKpiModal open={kpiOpen} token={token} onClose={() => setKpiOpen(false)} />
+      <RevOpsCommissionPlanModal
+        open={commissionPlanOpen}
+        token={token}
+        onClose={() => setCommissionPlanOpen(false)}
+        onCreated={() => window.dispatchEvent(new Event('revops-data-changed'))}
+      />
+      <RevOpsPayoutModal open={payoutOpen} token={token} onClose={() => setPayoutOpen(false)} />
+      <RevOpsSlaPolicyModal
+        open={slaPolicyOpen}
+        token={token}
+        onClose={() => setSlaPolicyOpen(false)}
+        onCreated={() => window.dispatchEvent(new Event('revops-data-changed'))}
+      />
+      <RevOpsTerritoryModal
+        open={territoryOpen}
+        token={token}
+        onClose={() => setTerritoryOpen(false)}
+        onCreated={() => window.dispatchEvent(new Event('revops-data-changed'))}
+      />
+      <RevOpsRoutingModal
+        open={routingOpen}
+        token={token}
+        onClose={() => setRoutingOpen(false)}
+        onCreated={() => window.dispatchEvent(new Event('revops-data-changed'))}
+      />
     </RevopsModalsContext.Provider>
   );
 }
