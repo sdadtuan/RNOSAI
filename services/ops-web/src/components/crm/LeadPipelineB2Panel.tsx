@@ -18,7 +18,7 @@ export function LeadPipelineB2Panel({
   inReview: boolean;
   busy: boolean;
   highlightAfterCall: boolean;
-  onSubmit: (plan: B2OutcomePlan) => void;
+  onSubmit: (plan: B2OutcomePlan) => Promise<void>;
   onError: (msg: string) => void;
 }) {
   const b2Stage = funnel.care_pipeline.stages[0];
