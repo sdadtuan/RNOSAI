@@ -199,7 +199,14 @@ CREATE TABLE IF NOT EXISTS crm_cp_video_drafts (
   CONSTRAINT crm_cp_draft_mode_chk CHECK (input_mode IN ('prompt','script','url','template'))
 );
 ALTER TABLE crm_cp_video_drafts
-  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ;
+UPDATE crm_cp_video_drafts
+  SET created_at = COALESCE(autosaved_at, created_at, now())
+  WHERE created_at IS NULL;
+ALTER TABLE crm_cp_video_drafts
+  ALTER COLUMN created_at SET DEFAULT now();
+ALTER TABLE crm_cp_video_drafts
+  ALTER COLUMN created_at SET NOT NULL;
 
 CREATE TABLE IF NOT EXISTS crm_cp_scenes (
   draft_id UUID NOT NULL REFERENCES crm_cp_video_drafts(id) ON DELETE CASCADE,
