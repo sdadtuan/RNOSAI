@@ -75,4 +75,13 @@ describe('readinessCheckHref', () => {
     expect(readinessCheckHref('no_pending_approval', 5)).toBe('/crm/hub');
     expect(readinessCheckHref('unknown_key', 5)).toBeNull();
   });
+
+  it('points B2/presales at pipeline query when helper used', () => {
+    const prev = process.env.NEXT_PUBLIC_LEAD_PIPELINE_TAB;
+    process.env.NEXT_PUBLIC_LEAD_PIPELINE_TAB = '1';
+    expect(readinessCheckHref('b2_complete', 5)).toBe('/crm/leads/5?tab=pipeline&step=b2');
+    expect(readinessCheckHref('presales_active', 5)).toBe('/crm/leads/5?tab=pipeline&step=consult');
+    expect(readinessCheckHref('presales_consult', 5)).toBe('/crm/leads/5?tab=pipeline&step=consult');
+    process.env.NEXT_PUBLIC_LEAD_PIPELINE_TAB = prev;
+  });
 });

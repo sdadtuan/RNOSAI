@@ -9,6 +9,7 @@ import { LeadsMobileCardList } from '@/app/crm/leads/LeadsMobileCardList';
 import { WinEmptyState } from '@/components/win';
 import type { LeadsColumnId } from '@/lib/crm/leads-columns';
 import { b2bAiBandLabel, b2bSlaStateLabel } from '@/lib/b2b-hot-alarm';
+import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
 
 interface Props {
   rows: LeadRow[];
@@ -128,7 +129,7 @@ export function CrmLeadsList({
                 </td>
                 {visibleColumns.has('id') ? (
                   <td>
-                    <Link href={`/crm/leads/${lead.id}`} className="nav-link">
+                    <Link href={leadDetailHref(lead.id)} className="nav-link">
                       {lead.id}
                     </Link>
                   </td>

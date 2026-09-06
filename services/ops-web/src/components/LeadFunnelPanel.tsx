@@ -19,8 +19,16 @@ import {
   submitLeadCareReport,
   type LeadFunnelSnapshot,
 } from '@/lib/api';
-import { LeadB2OutcomeCard } from '@/components/crm/LeadB2OutcomeCard';
+import { LeadPipelineB2Panel } from '@/components/crm/LeadPipelineB2Panel';
+import { LeadPipelineIntakePanel } from '@/components/crm/LeadPipelineIntakePanel';
+import { LeadPipelinePresalesPanel } from '@/components/crm/LeadPipelinePresalesPanel';
+import { LeadPipelineStepPanel } from '@/components/crm/LeadPipelineStepPanel';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
+import type {
+  FunnelStepState,
+  IntakeStepSummary,
+  PresalesFunnelStepKey,
+} from '@/lib/crm/funnel-stepper.types';
 import type { B2OutcomePlan } from '@/lib/crm/lead-b2-outcome';
 import { hasCap, canGenerateMktAiPlanner, canViewLmp, type StoredStaffUser } from '@/lib/auth';
 import { leadMeetingPrepEnabled } from '@/lib/crm/lmp-flags';
@@ -49,6 +57,10 @@ interface Props {
   showPresalesBlock?: boolean;
   /** S1: softphone vừa gọi — nhắc AM chọn outcome. */
   highlightAfterCall?: boolean;
+  layout?: 'legacy' | 'pipeline';
+  activeStepKey?: PresalesFunnelStepKey;
+  activeStepState?: FunnelStepState;
+  intakeSummary?: IntakeStepSummary | null;
 }
 
 const DEFAULT_PRESALES_SERVICES: Array<{ slug: string; name: string }> = [
@@ -92,6 +104,10 @@ export function LeadFunnelPanel({
   hideM1Card = false,
   showPresalesBlock = true,
   highlightAfterCall = false,
+  layout = 'legacy',
+  activeStepKey = 'b2',
+  activeStepState = 'current',
+  intakeSummary = null,
 }: Props) {
   const [funnel, setFunnel] = useState<LeadFunnelSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -382,8 +398,7 @@ export function LeadFunnelPanel({
     ? 'Funnel CSKH vận hành — B2 Liên hệ'
     : 'Funnel B2 → Pre-sales';
 
-  const b2Stage = funnel.care_pipeline.stages[0];
-  const b2Done = Boolean(b2Stage?.done);
+  const b2Done = Boolean(funnel.care_pipeline.stages[0]?.done);
   const showM1Card =
     showPresales && !b2Done && leadMeetingPrepEnabled() && canViewLmp(user);
   const showM2Card =
@@ -394,7 +409,6 @@ export function LeadFunnelPanel({
     leadMeetingPrepEnabled() &&
     canViewLmp(user);
   const inReview = funnel.review_queue.active;
-  const negativeReportCount = funnel.care_pipeline.b2_negative_report_count ?? 0;
 
   return (
     <section className="card stack-gap lead-funnel-panel" id="lead-funnel-panel" style={{ marginTop: '1rem' }}>
@@ -484,52 +498,36 @@ export function LeadFunnelPanel({
       <PresalesPolicyBanner funnel={funnel} user={user} token={token} action="release" />
       <PresalesPolicyBanner funnel={funnel} user={user} token={token} action="claim" />
 
-      <div className="card-inner" id="funnel-b2">
-        <h3 style={{ marginTop: 0 }}>B2 — {b2Stage?.label ?? 'Liên hệ lần đầu'}</h3>
-        {!funnel.care_pipeline.all_complete && canEdit && !inReview ? (
-          <LeadB2OutcomeCard
-            busy={busy}
-            retryCount={negativeReportCount}
-            lastNegativeLabel={funnel.care_pipeline.last_b2_care_status_label}
-            highlightAfterCall={highlightAfterCall}
-            onSubmit={(plan) => submitB2Outcome(plan)}
-            onError={setPanelError}
-          />
-        ) : null}
-        {funnel.care_pipeline.all_complete ? (
-          <p className="lead-b2-outcome__done">B2 đã xong</p>
-        ) : null}
-      </div>
-
-      {showPresalesBlock &&
-        showPresales &&
-        funnel.presales_on_lead_enabled &&
-        funnel.presales_care_gate.complete &&
-        !inReview && (
-        <div className="card-inner" id="funnel-presales">
-          <h3 style={{ marginTop: 0 }}>Pre-sales</h3>
-          {!funnel.presales && canEdit && (
-            <div className="stack-gap" style={{ marginTop: '0.5rem' }}>
-              <label style={{ display: 'grid', gap: '0.35rem' }}>
-                <span className="muted">Dịch vụ marketing (HĐ)</span>
-                <select
-                  value={selectedServiceSlug}
-                  disabled={busy}
-                  onChange={(e) => setSelectedServiceSlug(e.target.value)}
-                  style={{ width: '100%', maxWidth: '28rem' }}
-                >
-                  {presalesServiceOptions.map((item) => (
-                    <option key={item.slug} value={item.slug}>
-                      {item.name} ({item.slug})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                disabled={busy || !selectedServiceSlug}
-                onClick={() =>
+      {layout === 'pipeline' ? (
+        <LeadPipelineStepPanel
+          activeStepKey={activeStepKey}
+          stepState={activeStepState}
+          inReview={inReview}
+          reviewBanner={null}
+          b2={
+            <LeadPipelineB2Panel
+              funnel={funnel}
+              canEdit={canEdit}
+              inReview={inReview}
+              busy={busy}
+              highlightAfterCall={highlightAfterCall}
+              onSubmit={(plan) => void submitB2Outcome(plan)}
+              onError={setPanelError}
+            />
+          }
+          presalesLead={
+            !funnel.presales_care_gate.complete ? (
+              <p className="banner banner-warn">{funnel.presales_care_gate.message}</p>
+            ) : (
+              <LeadPipelinePresalesPanel
+                funnel={funnel}
+                canEdit={canEdit}
+                busy={busy}
+                selectedServiceSlug={selectedServiceSlug}
+                serviceOptions={presalesServiceOptions}
+                intakeHref={intakeHref}
+                onServiceChange={setSelectedServiceSlug}
+                onStartPresales={() =>
                   void run(async () => {
                     const slug = selectedServiceSlug.trim() || DEFAULT_PRESALES_SLUG;
                     const out = await ensureLeadPresales(token, leadId, slug);
@@ -538,46 +536,92 @@ export function LeadFunnelPanel({
                     onMessage?.('Đã bắt đầu pre-sales');
                   }, true)
                 }
-              >
-                Bắt đầu pre-sales
-              </button>
-            </div>
-          )}
-          {funnel.presales && (
-            <>
-              <p>
-                Giai đoạn: <strong>{funnel.presales.presales.stage}</strong> · Dịch vụ:{' '}
-                {funnel.presales.presales.service_slug || '—'}
-              </p>
-              {presalesStage === 'consult' || presalesStage === 'proposal' ? (
-                <div className="banner banner-info stack-gap" style={{ marginTop: '0.5rem' }}>
-                  <p style={{ margin: 0 }}>
-                    Workspace <strong>Tư vấn / Báo giá</strong> nằm trên tab{' '}
-                    <strong>Tư vấn</strong>. Chỉnh sửa R5 (gate G4) tại form bên dưới.
-                  </p>
-                  {onOpenConsultTab ? (
-                    <button type="button" className="btn btn-sm btn-primary" onClick={onOpenConsultTab}>
-                      Mở tab Tư vấn →
-                    </button>
-                  ) : null}
-                  {(presalesStage === 'consult' || presalesStage === 'proposal') && r5Form}
-                </div>
-              ) : (
-                <>
-                  {funnel.presales.presales.stage === 'lead' || !String(funnel.presales.presales.stage ?? '').trim() ? (
-                    <p style={{ margin: '0.5rem 0' }}>
-                      <Link href={intakeHref} className="nav-link">
-                        Mở Lead Intake (BANT) →
-                      </Link>
-                    </p>
-                  ) : (
-                    renderPresalesTasks()
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </div>
+                onOpenConsultTab={onOpenConsultTab}
+                tasks={renderPresalesTasks()}
+                r5Form={r5Form}
+                stage="lead"
+              />
+            )
+          }
+          intake={
+            <LeadPipelineIntakePanel
+              leadId={leadId}
+              serviceSlug={funnel.presales?.presales.service_slug || selectedServiceSlug}
+              intakeSummary={intakeSummary}
+            />
+          }
+          consult={
+            <LeadPipelinePresalesPanel
+              funnel={funnel}
+              canEdit={canEdit}
+              busy={busy}
+              selectedServiceSlug={selectedServiceSlug}
+              serviceOptions={presalesServiceOptions}
+              intakeHref={intakeHref}
+              onServiceChange={setSelectedServiceSlug}
+              onStartPresales={() => undefined}
+              onOpenConsultTab={onOpenConsultTab}
+              tasks={renderPresalesTasks()}
+              r5Form={r5Form}
+              stage="consult"
+            />
+          }
+          proposal={
+            <LeadPipelinePresalesPanel
+              funnel={funnel}
+              canEdit={canEdit}
+              busy={busy}
+              selectedServiceSlug={selectedServiceSlug}
+              serviceOptions={presalesServiceOptions}
+              intakeHref={intakeHref}
+              onServiceChange={setSelectedServiceSlug}
+              onStartPresales={() => undefined}
+              onOpenConsultTab={onOpenConsultTab}
+              tasks={renderPresalesTasks()}
+              r5Form={r5Form}
+              stage="proposal"
+            />
+          }
+        />
+      ) : (
+        <>
+          <LeadPipelineB2Panel
+            funnel={funnel}
+            canEdit={canEdit}
+            inReview={inReview}
+            busy={busy}
+            highlightAfterCall={highlightAfterCall}
+            onSubmit={(plan) => void submitB2Outcome(plan)}
+            onError={setPanelError}
+          />
+          {showPresalesBlock &&
+          showPresales &&
+          funnel.presales_on_lead_enabled &&
+          funnel.presales_care_gate.complete &&
+          !inReview ? (
+            <LeadPipelinePresalesPanel
+              funnel={funnel}
+              canEdit={canEdit}
+              busy={busy}
+              selectedServiceSlug={selectedServiceSlug}
+              serviceOptions={presalesServiceOptions}
+              intakeHref={intakeHref}
+              onServiceChange={setSelectedServiceSlug}
+              onStartPresales={() =>
+                void run(async () => {
+                  const slug = selectedServiceSlug.trim() || DEFAULT_PRESALES_SLUG;
+                  const out = await ensureLeadPresales(token, leadId, slug);
+                  setFunnel(out.funnel);
+                  onFunnelChange?.(out.funnel);
+                  onMessage?.('Đã bắt đầu pre-sales');
+                }, true)
+              }
+              onOpenConsultTab={onOpenConsultTab}
+              tasks={renderPresalesTasks()}
+              r5Form={r5Form}
+            />
+          ) : null}
+        </>
       )}
     </section>
   );

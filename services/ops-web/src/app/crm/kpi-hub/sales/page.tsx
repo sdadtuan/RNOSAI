@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
+import { RevOpsEmbedFrame } from '@/components/crm/revops/RevOpsEmbedFrame';
 import { KpiHubPageGate } from '@/components/kpi-hub/KpiHubPageGate';
 import { KpiHubShell } from '@/components/kpi-hub/KpiHubShell';
 import { CcAtRisk } from '@/components/kpi-hub/command-center/CcAtRisk';
@@ -42,51 +43,55 @@ export default function SalesCommandCenterPage() {
 
   return (
     <KpiHubPageGate section="crm_kpi_hub">
-      <KpiHubShell
-        title="Sales Command Center"
-        subtitle="Theo dõi pipeline, hiệu suất team, SLA xử lý lead và dự báo doanh thu."
-        showFreshness
-      >
-        <div className="cc-page">
-          <CcPageToolbar
-            compare={compare}
-            onCompareChange={setCompare}
-            chips={chips}
-            extraActions={
-              canCreateDeal ? (
-                <Link href="/crm/leads/new" className="kpi-hub-btn kpi-hub-btn--primary">
-                  + Tạo Deal
-                </Link>
-              ) : null
-            }
-          />
-          {error ? <p className="error">{error}</p> : null}
-          <CcKpiTiles
-            tiles={data.tiles}
-            loading={loading}
-            testIdPrefix="sales"
-            weightedBadge={sales.weighted_badge}
-          />
-          <div className="cc-row cc-row--2">
-            <SalesPipelineChart sales={sales} testId="sales-pipeline" />
-            <SalesSlaGauge sales={sales} testId="sales-sla-gauge" />
-          </div>
-          <div className="cc-row cc-row--2">
-            <CcFunnel funnel={data.funnel} title="Funnel Sales & Điểm nghẽn" testId="sales-funnel" />
-            <div className="cc-alerts-panel">
-              <CcAtRisk items={data.at_risk} title="Cảnh báo Sales" testId="sales-alerts" />
-              <Link href="/crm/kpi-hub/targets" className="kpi-hub-btn kpi-hub-btn--ghost cc-alerts-panel__cta">
-                Mở Alert Center
-              </Link>
+      <Suspense fallback={null}>
+        <RevOpsEmbedFrame>
+          <KpiHubShell
+            title="Sales Command Center"
+            subtitle="Theo dõi pipeline, hiệu suất team, SLA xử lý lead và dự báo doanh thu."
+            showFreshness
+          >
+            <div className="cc-page">
+              <CcPageToolbar
+                compare={compare}
+                onCompareChange={setCompare}
+                chips={chips}
+                extraActions={
+                  canCreateDeal ? (
+                    <Link href="/crm/leads/new" className="kpi-hub-btn kpi-hub-btn--primary">
+                      + Tạo Deal
+                    </Link>
+                  ) : null
+                }
+              />
+              {error ? <p className="error">{error}</p> : null}
+              <CcKpiTiles
+                tiles={data.tiles}
+                loading={loading}
+                testIdPrefix="sales"
+                weightedBadge={sales.weighted_badge}
+              />
+              <div className="cc-row cc-row--2">
+                <SalesPipelineChart sales={sales} testId="sales-pipeline" />
+                <SalesSlaGauge sales={sales} testId="sales-sla-gauge" />
+              </div>
+              <div className="cc-row cc-row--2">
+                <CcFunnel funnel={data.funnel} title="Funnel Sales & Điểm nghẽn" testId="sales-funnel" />
+                <div className="cc-alerts-panel">
+                  <CcAtRisk items={data.at_risk} title="Cảnh báo Sales" testId="sales-alerts" />
+                  <Link href="/crm/kpi-hub/targets" className="kpi-hub-btn kpi-hub-btn--ghost cc-alerts-panel__cta">
+                    Mở Alert Center
+                  </Link>
+                </div>
+              </div>
+              <div className="cc-row cc-row--3">
+                <SalesTeamTable sales={sales} testId="sales-team-table" />
+                <SalesDealsAtRisk sales={sales} testId="sales-deals-risk" />
+                <CcDataTrust trust={data.trust} testId="sales-trust" />
+              </div>
             </div>
-          </div>
-          <div className="cc-row cc-row--3">
-            <SalesTeamTable sales={sales} testId="sales-team-table" />
-            <SalesDealsAtRisk sales={sales} testId="sales-deals-risk" />
-            <CcDataTrust trust={data.trust} testId="sales-trust" />
-          </div>
-        </div>
-      </KpiHubShell>
+          </KpiHubShell>
+        </RevOpsEmbedFrame>
+      </Suspense>
     </KpiHubPageGate>
   );
 }

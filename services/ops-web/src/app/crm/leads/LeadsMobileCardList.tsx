@@ -6,6 +6,7 @@ import { LeadScoreBadge } from '@/components/ai/LeadScoreBadge';
 import { LeadReviewQueueTag } from '@/components/crm/LeadReviewQueueTag';
 import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { WinEmptyState } from '@/components/win';
+import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
 
 interface Props {
   rows: LeadRow[];
@@ -45,7 +46,7 @@ export function LeadsMobileCardList({
   scoreMap = {},
   scoresPending = false,
   showLeadKindTags = true,
-  detailHref = (id) => `/crm/leads/${id}`,
+  detailHref = (id) => leadDetailHref(id),
   emptyActions,
 }: Props) {
   if (!loading && rows.length === 0) {

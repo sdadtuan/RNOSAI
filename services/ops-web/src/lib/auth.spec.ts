@@ -61,6 +61,18 @@ describe('rbac-routes', () => {
     expect(canAccessPath('/crm/leads', user([]), 'crm')).toBe(false);
   });
 
+  it('/crm/revenue-ops requires crm_revops cap', () => {
+    expect(canAccessPath('/crm/revenue-ops', user([{ section: 'crm_revops', action: 'view' }]), 'crm')).toBe(
+      true,
+    );
+    expect(
+      canAccessPath('/crm/revenue-ops/pipeline', user([{ section: 'crm_revops', action: 'view_team' }]), 'crm'),
+    ).toBe(true);
+    expect(canAccessPath('/crm/revenue-ops', user([{ section: 'crm_leads', action: 'view' }]), 'crm')).toBe(
+      false,
+    );
+  });
+
   it('seo zone requires seo or agency view', () => {
     expect(canAccessPath('/seo/hub', user([{ section: 'crm_seo_aeo', action: 'view' }]), 'seo')).toBe(
       true,

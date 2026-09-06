@@ -1,3 +1,5 @@
+import { isLeadPipelineTabEnabled } from '@/lib/crm/lead-pipeline-flags';
+
 const UPSTREAM_SKIP = new Set(['no_pending_approval', 'contract_draft']);
 
 export function contractCreateReady(checks: Array<{ key: string; ok: boolean }>): boolean {
@@ -10,12 +12,13 @@ export function contractSubmitReady(checks: Array<{ key: string; ok: boolean }>)
 }
 
 export function readinessCheckHref(key: string, leadId: number): string | null {
+  const pipelineOn = isLeadPipelineTabEnabled();
   switch (key) {
     case 'b2_complete':
-      return '#funnel-b2';
+      return pipelineOn ? `/crm/leads/${leadId}?tab=pipeline&step=b2` : '#funnel-b2';
     case 'presales_active':
     case 'presales_consult':
-      return '#funnel-presales';
+      return pipelineOn ? `/crm/leads/${leadId}?tab=pipeline&step=consult` : '#funnel-presales';
     case 'presales_lead':
       return `/crm/intake?lead_id=${leadId}`;
     case 'presales_proposal':

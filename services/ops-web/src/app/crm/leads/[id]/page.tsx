@@ -5,6 +5,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { StaffPageShell } from '@/components/layout';
 import { LeadFunnelPanel } from '@/components/LeadFunnelPanel';
+import { LeadSalesPipelineTab } from '@/components/crm/LeadSalesPipelineTab';
+import { LeadContractTab } from '@/components/crm/LeadContractTab';
+import { isLeadPipelineTabEnabled } from '@/lib/crm/lead-pipeline-flags';
+import {
+  defaultLeadWorkspaceTab,
+  mapLegacyHashToPipeline,
+  shouldShowPipelineTab,
+  type LeadWorkspaceDesktopTab,
+} from '@/lib/crm/lead-pipeline-tab.util';
+import type { PresalesFunnelStepKey } from '@/lib/crm/funnel-stepper.types';
 import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
@@ -198,6 +208,8 @@ export default function CrmLeadDetailPage() {
   const [copilotDrawerOpen, setCopilotDrawerOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<LeadDetailTab>('detail');
   const [b2bPane, setB2bPane] = useState<B2bOverviewTab>('overview');
+  const [desktopTab, setDesktopTab] = useState<LeadWorkspaceDesktopTab>('pipeline');
+  const [pipelineStep, setPipelineStep] = useState<PresalesFunnelStepKey>('b2');
   const [copilotMessage, setCopilotMessage] = useState('');
   const [funnelSnap, setFunnelSnap] = useState<LeadFunnelSnapshot | null>(null);
   const [contractSummary, setContractSummary] = useState<LeadContractFlowSummary | null>(null);
@@ -248,6 +260,9 @@ export default function CrmLeadDetailPage() {
   );
   const showConsultTab = showB2bFlow && showLeadConsultTab(funnelSnap);
   const showLmpTab = leadMeetingPrepEnabled() && showB2bFlow;
+  const pipelineTabOn = isLeadPipelineTabEnabled();
+  const showPipelineTab =
+    pipelineTabOn && shouldShowPipelineTab(leadFlowKind) && hasCap(user, 'crm_leads', 'view');
   const prepDeepLink = searchParams.get('prep') === '1';
 
   const nba = useMemo(() => {
@@ -316,13 +331,16 @@ export default function CrmLeadDetailPage() {
 
   const openConsultTab = useCallback(() => {
     setB2bPane('consult');
+    setDesktopTab('consult');
     setMobileTab('detail');
     if (typeof window !== 'undefined') {
       const base = window.location.pathname + window.location.search;
       window.history.replaceState(null, '', `${base}${LEAD_CONSULT_TAB_HASH}`);
-      requestAnimationFrame(() => {
-        document.getElementById('funnel-presales')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
+      if (!isLeadPipelineTabEnabled()) {
+        requestAnimationFrame(() => {
+          document.getElementById('funnel-presales')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
     }
   }, []);
 
@@ -757,6 +775,37 @@ export default function CrmLeadDetailPage() {
   }, [funnelSnap, openConsultTab]);
 
   useEffect(() => {
+    if (!showPipelineTab) return;
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    const mapped = mapLegacyHashToPipeline(hash, funnelPresalesStage(funnelSnap));
+    const tab = defaultLeadWorkspaceTab({
+      flowKind: leadFlowKind,
+      status,
+      contractActive: Boolean(
+        contractSummary?.hasContract && contractSummary.contractStatus === 'active',
+      ),
+      hash,
+      searchTab: searchParams.get('tab'),
+      showConsult: showConsultTab,
+      showLmp: showLmpTab,
+    });
+    setDesktopTab(tab);
+    const stepFromQuery = searchParams.get('step') as PresalesFunnelStepKey | null;
+    if (mapped) setPipelineStep(mapped.step);
+    else if (stepFromQuery) setPipelineStep(stepFromQuery);
+  }, [
+    showPipelineTab,
+    leadId,
+    funnelSnap,
+    status,
+    contractSummary,
+    searchParams,
+    showConsultTab,
+    showLmpTab,
+    leadFlowKind,
+  ]);
+
+  useEffect(() => {
     if (prepDeepLink && showLmpTab) {
       openMeetingPrepTab();
     }
@@ -951,10 +1000,16 @@ export default function CrmLeadDetailPage() {
     copilotOn && !!lead && !loading && !!accessToken && !!user && layout.tablet && copilotDrawerOpen;
   const hideTimelinePane = useMobileTabs && mobileTab !== 'activity';
   const hidePropertyRail = useMobileTabs && mobileTab !== 'detail';
-  const hideOverviewContent = showConsultTab && b2bPane === 'consult';
+  const hideOverviewContent =
+    (showConsultTab && b2bPane === 'consult') || (showPipelineTab && desktopTab === 'consult');
   const showWorkPane = !useMobileTabs || mobileTab === 'detail';
   const showOverviewMain = showWorkPane && !hideOverviewContent;
-  const showConsultMain = showConsultTab && showWorkPane && b2bPane === 'consult';
+  const showConsultMain =
+    showConsultTab &&
+    showWorkPane &&
+    (b2bPane === 'consult' || (showPipelineTab && desktopTab === 'consult'));
+  const pipelineReadOnly =
+    status === 'won' || Boolean(contractSummary?.hasContract);
   const hideMainPane = useMobileTabs && mobileTab !== 'detail';
 
   function renderCopilotPanel(variant: 'column' | 'drawer' | 'sheet', onCloseDrawer?: () => void) {
@@ -1084,7 +1139,7 @@ export default function CrmLeadDetailPage() {
             }
           />
 
-          {stageVis.showNbaB2b && stageVis.showJourney && nba ? (
+          {stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab ? (
             <div className="lead-workspace-stage">
               <LeadNextActionCard
                 action={nba}
@@ -1106,7 +1161,7 @@ export default function CrmLeadDetailPage() {
             </div>
           ) : null}
 
-          {showSlaSciUnifiedPanel ? (
+          {showSlaSciUnifiedPanel && !showPipelineTab ? (
             <LeadSlaCarePanel
               token={accessToken!}
               leadId={leadId}
@@ -1176,8 +1231,96 @@ export default function CrmLeadDetailPage() {
 
             {showOverviewMain ? (
               <>
+            {showPipelineTab ? (
+              <div className="lead-pipeline-tabs" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={desktopTab === 'pipeline'}
+                  onClick={() => setDesktopTab('pipeline')}
+                >
+                  Pipeline bán hàng
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={desktopTab === 'contract'}
+                  onClick={() => setDesktopTab('contract')}
+                >
+                  Hợp đồng & Chốt
+                </button>
+                {showConsultTab ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={desktopTab === 'consult'}
+                    onClick={openConsultTab}
+                  >
+                    Tư vấn
+                  </button>
+                ) : null}
+                {showLmpTab ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={desktopTab === 'lmp'}
+                    onClick={openMeetingPrepTab}
+                  >
+                    Sales Cockpit
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
 
-            {accessToken ? (
+            {accessToken && showPipelineTab && desktopTab === 'pipeline' ? (
+              <LeadSalesPipelineTab
+                token={accessToken}
+                leadId={leadId}
+                user={user}
+                stepperInput={{
+                  leadId,
+                  funnel: funnelSnap,
+                  consultGate: null,
+                  intakeSummary: null,
+                  contract: contractSummary,
+                  context: 'lead_detail',
+                  scope: 'full_b2b',
+                }}
+                activeStepKey={pipelineStep}
+                onStepChange={setPipelineStep}
+                serviceSlug={presetServiceSlug}
+                syncFunnel={funnelSnap}
+                fetchOnMount={funnelSnap == null}
+                serviceOptions={catalogServices.map((service) => ({
+                  slug: service.slug,
+                  name: service.name,
+                }))}
+                onOpenConsultTab={showConsultTab ? openConsultTab : undefined}
+                onOpenMeetingPrepTab={showLmpTab ? openMeetingPrepTab : undefined}
+                onMessage={setMessage}
+                onFunnelChange={setFunnelSnap}
+                onFunnelUpdated={() => {
+                  setContractRefresh((n) => n + 1);
+                  const access = getAccessToken();
+                  if (access) void reloadTimeline(access);
+                }}
+                hideM1Card
+                showPresalesBlock={stageVis.showPresalesBlock}
+                highlightAfterCall={b2CallJustPlaced}
+                readOnly={pipelineReadOnly}
+                slaLabel={copilotContext?.sla.banner.title || copilotContext?.sla.worst_sla_tier || 'SLA'}
+                slaCountdown={null}
+                slaState={
+                  copilotContext?.sla.worst_sla_state === 'breach' ||
+                  copilotContext?.sla.worst_sla_state === 'warning'
+                    ? copilotContext.sla.worst_sla_state
+                    : 'ok'
+                }
+                slaDetail={copilotContext?.sla.banner.message ?? null}
+              />
+            ) : null}
+
+            {accessToken && !showPipelineTab ? (
               <LeadFunnelPanel
                 token={accessToken}
                 leadId={leadId}
@@ -1204,18 +1347,35 @@ export default function CrmLeadDetailPage() {
               />
             ) : null}
 
-            {accessToken && stageVis.showContractPanel ? (
-              <LeadContractPanel
-                token={accessToken}
-                leadId={leadId}
-                user={user}
-                refreshToken={contractRefresh}
-                onMessage={setMessage}
-                onLoaded={(summary, checks) => {
-                  setContractSummary(summary);
-                  setContractChecks(checks.map((c) => ({ key: c.key, ok: c.ok })));
-                }}
-              />
+            {accessToken &&
+            stageVis.showContractPanel &&
+            (!showPipelineTab || desktopTab === 'contract') ? (
+              <LeadContractTab>
+                {stageVis.showDealRoomBanner && showPipelineTab && desktopTab === 'contract' ? (
+                  <div className="deal-room-entry-banner">
+                    <div>
+                      <strong>Deal Room</strong>
+                      <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+                        1 màn: Consult + L1 R5 + báo giá + gates — chuẩn bị buổi chốt.
+                      </p>
+                    </div>
+                    <Link href={`/crm/leads/${leadId}/deal-room`} className="btn btn-sm btn-primary">
+                      Mở Deal Room →
+                    </Link>
+                  </div>
+                ) : null}
+                <LeadContractPanel
+                  token={accessToken}
+                  leadId={leadId}
+                  user={user}
+                  refreshToken={contractRefresh}
+                  onMessage={setMessage}
+                  onLoaded={(summary, checks) => {
+                    setContractSummary(summary);
+                    setContractChecks(checks.map((c) => ({ key: c.key, ok: c.ok })));
+                  }}
+                />
+              </LeadContractTab>
             ) : null}
               </>
             ) : null}
