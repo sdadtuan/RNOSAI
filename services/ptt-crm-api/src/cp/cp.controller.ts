@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
@@ -35,8 +35,11 @@ export class CpController {
       return { scope: requested ?? ('all' as const), staffId: 0, teamIds: [] };
     }
     const staffId = req.staffUser
-      ? ((await this.staffAuth.resolveCrmStaffUserId(req.staffUser)) ?? 0)
-      : 0;
+      ? await this.staffAuth.resolveCrmStaffUserId(req.staffUser)
+      : null;
+    if (staffId == null || staffId <= 0) {
+      throw new ForbiddenException({ error: 'cp_unresolved_staff' });
+    }
     const me = req.staffUser ? await this.staffAuth.me(req.staffUser) : null;
     const has = (action: string) =>
       me ? this.staffAuth.hasCap(me.caps, 'crm_cp', action) : false;

@@ -3,9 +3,10 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { kpiOrNull } from './cp-format.util';
 import { cpScopeSql, CpScope } from './cp-scope.util';
-import { CpKpis, emptyKpis } from './cp.types';
+import { CpKpis } from './cp.types';
 
 const TENANT_ID = 'PTT';
+const ICT_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const PAGE_SIZE = 50;
 const IN_FLIGHT_STATES = new Set(['queued', 'preparing', 'rendering']);
 const TERMINAL_STATES = new Set(['completed', 'failed']);
@@ -29,7 +30,7 @@ export type CpAction = {
   severity: string;
   title: string;
   resource_type: string;
-  resource_id: string;
+  resource_id: string | null;
   owner_staff_id: number | null;
   sla_at: string | null;
   href: string;
@@ -84,6 +85,24 @@ function iso(value: unknown): string | null {
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
+function ictYmd(value: unknown): string | null {
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (!Number.isFinite(date.getTime())) return null;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: ICT_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function inIctRange(value: unknown, from?: string, to?: string): boolean {
+  if (!from && !to) return true;
+  const day = ictYmd(value);
+  if (!day) return false;
+  return (!from || day >= from) && (!to || day <= to);
+}
+
 function countOrNull(rows: unknown[]): number | null {
   return rows.length ? rows.length : null;
 }
@@ -134,34 +153,20 @@ function stageDurationSql(alias: string): string {
   )`;
 }
 
-@Injectable()
-export class CpOverviewService implements OnModuleDestroy {
-  private pool: Pool | null = null;
+export type OverviewSql = { sql: string; params: unknown[] };
 
-  constructor(private readonly config: AppConfigService) {}
-
-  private get db(): Pool {
-    if (!this.pool) this.pool = new Pool({ connectionString: this.config.databaseUrl });
-    return this.pool;
-  }
-
-  onModuleDestroy(): void {
-    void this.pool?.end();
-    this.pool = null;
-  }
-
-  async getKpis(query: CpKpiQuery): Promise<{ last_updated: string; kpis: CpKpis }> {
-    const scope = bindScope(
-      cpScopeSql({
-        scope: query.scope,
-        staffId: query.staffId,
-        teamIds: query.teamIds ?? [],
-      }),
-      6,
-    );
-    const duration = stageDurationSql('j');
-    const result = await this.db.query<Record<string, unknown>>(
-      `WITH scoped_projects AS (
+export function buildKpiSql(query: CpKpiQuery): OverviewSql {
+  const scope = bindScope(
+    cpScopeSql({
+      scope: query.scope,
+      staffId: query.staffId,
+      teamIds: query.teamIds ?? [],
+    }),
+    6,
+  );
+  const duration = stageDurationSql('j');
+  return {
+    sql: `WITH scoped_projects AS (
          SELECT p.*
            FROM crm_cp_projects p
           WHERE p.tenant_id = '${TENANT_ID}'
@@ -178,16 +183,16 @@ export class CpOverviewService implements OnModuleDestroy {
            FROM crm_cp_render_jobs j
            JOIN crm_cp_video_drafts d ON d.id = j.draft_id
            JOIN scoped_projects p ON p.id = d.project_id
-          WHERE ($1::date IS NULL OR j.created_at >= $1::date)
-            AND ($2::date IS NULL OR j.created_at < $2::date + INTERVAL '1 day')
+          WHERE ($1::date IS NULL OR (j.created_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
+            AND ($2::date IS NULL OR (j.created_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')
        ),
        scoped_ledger AS (
          SELECT l.*
            FROM crm_cp_credit_ledger l
           WHERE l.tenant_id = '${TENANT_ID}'
             AND l.kind IN ('charge', 'reserve')
-            AND ($1::date IS NULL OR l.created_at >= $1::date)
-            AND ($2::date IS NULL OR l.created_at < $2::date + INTERVAL '1 day')
+            AND ($1::date IS NULL OR (l.created_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
+            AND ($2::date IS NULL OR (l.created_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')
             AND (
               EXISTS (SELECT 1 FROM scoped_projects p WHERE p.id = l.project_id)
               OR (l.project_id IS NULL AND EXISTS (
@@ -197,7 +202,10 @@ export class CpOverviewService implements OnModuleDestroy {
        )
        SELECT
          (SELECT NULLIF(COUNT(*), 0)::int
-            FROM crm_cp_video_drafts d JOIN scoped_projects p ON p.id = d.project_id) AS videos_created,
+            FROM crm_cp_video_drafts d JOIN scoped_projects p ON p.id = d.project_id
+           WHERE ($1::date IS NULL OR (d.autosaved_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
+             AND ($2::date IS NULL OR (d.autosaved_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')
+         ) AS videos_created,
          (SELECT NULLIF(COUNT(*), 0)::int
             FROM crm_cp_video_versions v
             JOIN crm_cp_video_drafts d ON d.id = v.draft_id
@@ -215,45 +223,59 @@ export class CpOverviewService implements OnModuleDestroy {
             FROM crm_cp_assets a
             JOIN scoped_projects p ON p.id = a.project_id
             JOIN crm_cp_asset_rights r ON r.asset_id = a.id
-           WHERE r.expiry_on <= CURRENT_DATE + 14 AND a.state <> 'archived') AS assets_expiring,
+           WHERE r.expiry_on <= (now() AT TIME ZONE '${ICT_TIMEZONE}')::date + 14
+             AND a.state <> 'archived') AS assets_expiring,
          (SELECT NULLIF(COUNT(*), 0)::int
             FROM crm_cp_tasks t JOIN scoped_projects p ON p.id = t.project_id
-           WHERE t.due_at < now() AND t.status NOT IN ('done', 'cancelled')) AS tasks_overdue`,
-      [
-        query.from ?? null,
-        query.to ?? null,
-        query.clientId ?? null,
-        query.lifecycleId ?? null,
-        query.ownerId ?? null,
-        ...scope.params,
-      ],
-    );
-    const row = result.rows[0] ?? {};
-    return {
-      last_updated: new Date().toISOString(),
-      kpis: {
-        videos_created: kpiOrNull(finiteNumber(row.videos_created)),
-        videos_approved: kpiOrNull(finiteNumber(row.videos_approved)),
-        render_success_rate: renderSuccessRate({
-          completed: Number(row.render_completed ?? 0),
-          failed: Number(row.render_failed ?? 0),
-        }),
-        render_avg_duration_sec: kpiOrNull(finiteNumber(row.render_avg_duration_sec)),
-        credits_used: kpiOrNull(finiteNumber(row.credits_used)),
-        credits_remaining: kpiOrNull(finiteNumber(row.credits_remaining)),
-        assets_expiring: kpiOrNull(finiteNumber(row.assets_expiring)),
-        tasks_overdue: kpiOrNull(finiteNumber(row.tasks_overdue)),
-      },
-    };
-  }
+           WHERE (t.due_at AT TIME ZONE '${ICT_TIMEZONE}') < (now() AT TIME ZONE '${ICT_TIMEZONE}')
+             AND t.status NOT IN ('done', 'cancelled')) AS tasks_overdue`,
+    params: [
+      query.from ?? null,
+      query.to ?? null,
+      query.clientId ?? null,
+      query.lifecycleId ?? null,
+      query.ownerId ?? null,
+      ...scope.params,
+    ],
+  };
+}
 
-  async getActions(query: CpOverviewScope): Promise<CpAction[]> {
-    const scope = bindScope(
-      cpScopeSql({ scope: query.scope, staffId: query.staffId, teamIds: query.teamIds ?? [] }),
-      1,
-    );
-    const result = await this.db.query<CpAction>(
-      `WITH scoped_projects AS (
+export function mapKpiRow(row: Record<string, unknown>): CpKpis {
+  return {
+    videos_created: kpiOrNull(finiteNumber(row.videos_created)),
+    videos_approved: kpiOrNull(finiteNumber(row.videos_approved)),
+    render_success_rate: renderSuccessRate({
+      completed: Number(row.render_completed ?? 0),
+      failed: Number(row.render_failed ?? 0),
+    }),
+    render_avg_duration_sec: kpiOrNull(finiteNumber(row.render_avg_duration_sec)),
+    credits_used: kpiOrNull(finiteNumber(row.credits_used)),
+    credits_remaining: kpiOrNull(finiteNumber(row.credits_remaining)),
+    assets_expiring: kpiOrNull(finiteNumber(row.assets_expiring)),
+    tasks_overdue: kpiOrNull(finiteNumber(row.tasks_overdue)),
+  };
+}
+
+export function mapActionRows(rows: Array<Record<string, unknown>>): CpAction[] {
+  return rows.map((row) => ({
+    kind: row.kind as CpAction['kind'],
+    severity: String(row.severity),
+    title: String(row.title),
+    resource_type: String(row.resource_type),
+    resource_id: row.resource_id == null || row.resource_id === '' ? null : String(row.resource_id),
+    owner_staff_id: finiteNumber(row.owner_staff_id),
+    sla_at: iso(row.sla_at),
+    href: String(row.href),
+  }));
+}
+
+export function buildActionSql(query: CpOverviewScope): OverviewSql {
+  const scope = bindScope(
+    cpScopeSql({ scope: query.scope, staffId: query.staffId, teamIds: query.teamIds ?? [] }),
+    1,
+  );
+  return {
+    sql: `WITH scoped_projects AS (
          SELECT p.* FROM crm_cp_projects p
           WHERE p.tenant_id = '${TENANT_ID}' AND ${scope.sql}
        ),
@@ -304,7 +326,8 @@ export class CpOverviewService implements OnModuleDestroy {
          FROM crm_cp_assets a
          JOIN crm_cp_asset_rights r ON r.asset_id = a.id
          JOIN scoped_projects p ON p.id = a.project_id
-        WHERE r.expiry_on <= CURRENT_DATE + 14 AND a.state <> 'archived'
+        WHERE r.expiry_on <= (now() AT TIME ZONE '${ICT_TIMEZONE}')::date + 14
+          AND a.state <> 'archived'
        UNION ALL
        SELECT 'budget_threshold',
               CASE
@@ -319,16 +342,46 @@ export class CpOverviewService implements OnModuleDestroy {
        UNION ALL
        SELECT e.action, CASE WHEN e.action = 'publish_failed' THEN 'critical' ELSE 'info' END,
               CASE WHEN e.action = 'publish_failed' THEN 'Publish failed' ELSE 'You were mentioned' END,
-              e.resource_type, COALESCE(e.resource_id, ''), 
+              e.resource_type, e.resource_id,
               CASE WHEN COALESCE(e.payload_json->>'owner_staff_id', '') ~ '^[0-9]+$'
                    THEN (e.payload_json->>'owner_staff_id')::int ELSE NULL END,
               e.payload_json->>'sla_at',
               COALESCE(e.payload_json->>'href', '/cp/activity')
          FROM action_events e
        ORDER BY severity, sla_at NULLS LAST`,
-      scope.params,
-    );
-    return result.rows;
+    params: scope.params,
+  };
+}
+
+@Injectable()
+export class CpOverviewService implements OnModuleDestroy {
+  private pool: Pool | null = null;
+
+  constructor(private readonly config: AppConfigService) {}
+
+  private get db(): Pool {
+    if (!this.pool) this.pool = new Pool({ connectionString: this.config.databaseUrl });
+    return this.pool;
+  }
+
+  onModuleDestroy(): void {
+    void this.pool?.end();
+    this.pool = null;
+  }
+
+  async getKpis(query: CpKpiQuery): Promise<{ last_updated: string; kpis: CpKpis }> {
+    const built = buildKpiSql(query);
+    const result = await this.db.query<Record<string, unknown>>(built.sql, built.params);
+    return {
+      last_updated: new Date().toISOString(),
+      kpis: mapKpiRow(result.rows[0] ?? {}),
+    };
+  }
+
+  async getActions(query: CpOverviewScope): Promise<CpAction[]> {
+    const built = buildActionSql(query);
+    const result = await this.db.query<Record<string, unknown>>(built.sql, built.params);
+    return mapActionRows(result.rows);
   }
 
   async getHealth(): Promise<CpHealth> {
@@ -459,14 +512,20 @@ class FixtureOverview {
         .map((project) => String(project.id)),
     );
     if (!projectIds.size) {
-      return { last_updated: new Date().toISOString(), kpis: emptyKpis() };
+      return { last_updated: new Date().toISOString(), kpis: mapKpiRow({}) };
     }
     const inScope = (row: Record<string, unknown>) =>
       projectIds.has(String(row.project_id ?? row.projectId ?? ''));
-    const drafts = (this.fixtures.drafts ?? []).filter(inScope);
-    const draftIds = new Set(drafts.map((draft) => String(draft.id)));
+    const scopedDrafts = (this.fixtures.drafts ?? []).filter(inScope);
+    const drafts = scopedDrafts.filter(
+      (draft) =>
+        inIctRange(draft.autosaved_at ?? draft.autosavedAt, query.from, query.to),
+    );
+    const draftIds = new Set(scopedDrafts.map((draft) => String(draft.id)));
     const jobs = this.fixtures.jobs.filter(
-      (job) => inScope(job) || draftIds.has(String(job.draft_id ?? job.draftId ?? '')),
+      (job) =>
+        (inScope(job) || draftIds.has(String(job.draft_id ?? job.draftId ?? ''))) &&
+        inIctRange(job.created_at ?? job.createdAt, query.from, query.to),
     );
     const terminal = {
       completed: jobs.filter((job) => job.state === 'completed').length,
@@ -477,7 +536,10 @@ class FixtureOverview {
       .map((job) => durationFromStageLog(job.stage_log_json ?? job.stageLog))
       .filter((n): n is number => n != null);
     const ledger = this.fixtures.ledger.filter(
-      (row) => inScope(row) && (row.kind === 'charge' || row.kind === 'reserve'),
+      (row) =>
+        inScope(row) &&
+        (row.kind === 'charge' || row.kind === 'reserve') &&
+        inIctRange(row.created_at ?? row.createdAt, query.from, query.to),
     );
     const creditsUsed = ledger
       .map((row) => finiteNumber(row.amount))
@@ -502,27 +564,26 @@ class FixtureOverview {
         draftIds.has(String(version.draft_id ?? version.draftId ?? '')) &&
         version.approval_status === 'final_approved',
     );
-    return {
-      last_updated: new Date().toISOString(),
-      kpis: {
-        videos_created: countOrNull(drafts),
-        videos_approved: countOrNull(versions),
-        render_success_rate: renderSuccessRate(terminal),
-        render_avg_duration_sec: completedDurations.length
-          ? completedDurations.reduce((sum, n) => sum + n, 0) / completedDurations.length
-          : null,
-        credits_used: creditsUsed.length ? creditsUsed.reduce((sum, n) => sum + n, 0) : null,
-        credits_remaining: allocated.length
-          ? allocated.reduce((sum, n) => sum + n, 0) - creditsUsed.reduce((sum, n) => sum + n, 0)
-          : null,
-        assets_expiring: countOrNull(expiring),
-        tasks_overdue: countOrNull(overdue),
-      },
+    const row = {
+      videos_created: countOrNull(drafts),
+      videos_approved: countOrNull(versions),
+      render_completed: terminal.completed,
+      render_failed: terminal.failed,
+      render_avg_duration_sec: completedDurations.length
+        ? completedDurations.reduce((sum, n) => sum + n, 0) / completedDurations.length
+        : null,
+      credits_used: creditsUsed.length ? creditsUsed.reduce((sum, n) => sum + n, 0) : null,
+      credits_remaining: allocated.length
+        ? allocated.reduce((sum, n) => sum + n, 0) - creditsUsed.reduce((sum, n) => sum + n, 0)
+        : null,
+      assets_expiring: countOrNull(expiring),
+      tasks_overdue: countOrNull(overdue),
     };
+    return { last_updated: new Date().toISOString(), kpis: mapKpiRow(row) };
   }
 
   async getActions(): Promise<CpAction[]> {
-    return this.fixtures.actions ?? [];
+    return mapActionRows((this.fixtures.actions ?? []) as Array<Record<string, unknown>>);
   }
 
   async getHealth(): Promise<CpHealth> {
