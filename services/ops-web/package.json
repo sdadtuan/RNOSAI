@@ -13,6 +13,7 @@
     "test:unit:revops-w1": "vitest run src/lib/crm/revops src/lib/crm/lead-pipeline src/lib/crm/leads-inbox-revops.util.spec.ts src/components/crm/revops/revops-modal.util.spec.ts",
     "test:unit:revops-w2": "npm run test:unit:revops-w1",
     "test:unit:revops-w3": "npm run test:unit:revops-w2",
+    "test:unit:am-w4": "vitest run src/lib/crm/am-growth.util.spec.ts src/lib/crm/am-reports.util.spec.ts src/lib/crm/am-finance.util.spec.ts src/lib/crm/am-feedback.util.spec.ts src/lib/crm/am-settings.util.spec.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:ai-copilot": "playwright test e2e/ai-copilot.spec.ts",
