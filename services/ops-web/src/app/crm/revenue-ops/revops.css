@@ -1060,4 +1060,11 @@ html.revops-embed .am-root .am-column {
     color: var(--revops-primary);
     font-weight: 700;
   }
+
+  html.revops-embed .am-root .am-column,
+  html.revops-embed .kpi-hub-shell,
+  html.revops-embed main.ops-page,
+  html.revops-embed main.bitrix-crm-page {
+    padding-bottom: 60px !important;
+  }
 }

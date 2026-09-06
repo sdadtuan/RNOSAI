@@ -504,6 +504,27 @@ flowchart TB
 
 ---
 
+## RevOps — điểm vào từ Lead → Account (Wave 3+)
+
+**Revenue Operations** (`/crm/revenue-ops?revops=1`) là shell điều hướng cho GDKD/AM xem toàn cảnh doanh thu, không thay thế module Lead/AM hiện có.
+
+| Bước trong luồng Lead | Mục RevOps | Route |
+|---|---|---|
+| Inbox + phân bổ lead | Leads & Routing | `/crm/leads?revops=1` |
+| Pipeline deal | Pipeline & Deal | `/crm/revenue-ops/pipeline` |
+| Won → bàn giao AM | Handover & Onboarding | `/crm/leads/handover?revops=1` → `/crm/account-management/onboarding?revops=1` |
+| Account + renewal | Account 360 / Renewal | `/crm/account-management/clients?revops=1` · `/crm/account-management/renewals?revops=1` |
+| KPI + hoa hồng | KPI & Hoa hồng | `/crm/kpi-hub/sales?revops=1` |
+| SLA lead first-response | SLA & Escalation | `/crm/revenue-ops/sla` |
+
+**Mobile:** 5 tab cố định (Home · Leads · Pipeline · Account · KPI) hiển thị cả trên embed `?revops=1`.
+
+**Bật trên prod:** env `NEXT_PUBLIC_REVOPS_SHELL=1` (build-time). Route catalog dev bar: `NEXT_PUBLIC_REVOPS_ROUTE_CATALOG=1` (mặc định tắt prod).
+
+Tài liệu kỹ thuật: [RevOps Enterprise plan](../superpowers/plans/2026-09-06-revops-enterprise-and-lead-pipeline.md) · mockup `docs/design/rnosai-revops-enterprise-mockup.html`.
+
+---
+
 ## Slide đào tạo (PowerPoint)
 
 File **`Leads_Ban_Giao_Luu_Do.pptx`** — 13 slide, **7 sơ đồ luồng dạng hình** (PNG nhúng):

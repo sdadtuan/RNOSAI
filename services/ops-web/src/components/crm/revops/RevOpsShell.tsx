@@ -26,13 +26,13 @@ import {
 } from '@/lib/auth';
 import { isRevopsRouteCatalogEnabled } from '@/lib/crm/revops-flags';
 import {
-  REVOPS_MOBILE_NAV,
   REVOPS_NAV_GROUPS,
   activeRevopsHref,
   canSeeRevopsNav,
 } from '@/lib/crm/revops-nav.util';
 import { RevOpsRouteCatalog } from './RevOpsRouteCatalog';
 import { RevOpsModalsProvider } from './RevOpsModalsProvider';
+import { RevOpsMobileNav } from './RevOpsMobileNav';
 
 export type RevopsPageContextValue = {
   user: StoredStaffUser;
@@ -249,22 +249,7 @@ export function RevOpsShell({
                 ) : null}
                 {children}
               </div>
-              <nav className="revops-mobile-nav" aria-label="Revenue Operations mobile">
-                {REVOPS_MOBILE_NAV.map((item) => {
-                  const active = item.href === activeHref;
-                  return (
-                    <Link
-                      key={item.id}
-                      href={item.href}
-                      className={active ? 'is-active' : undefined}
-                      aria-current={active ? 'page' : undefined}
-                    >
-                      <span aria-hidden>{NAV_ICONS[item.icon] ?? '•'}</span>
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
+              <RevOpsMobileNav />
             </div>
             </div>
             </RevOpsModalsProvider>
