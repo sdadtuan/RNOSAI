@@ -146,7 +146,7 @@ function CpShellInner({ children }: { children: ReactNode }) {
                 </select>
               </label>
             </header>
-            <main className="cp-main">{children}</main>
+            <div className="cp-main">{children}</div>
           </div>
         </div>
       ) : null}

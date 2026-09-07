@@ -131,6 +131,8 @@
 
 .cp-main {
   flex: 1;
+  width: 100%;
+  margin: 0;
   padding: 22px 24px 40px;
 }
 
@@ -615,13 +617,26 @@ html.ops-shell-bitrix body:has(.cp-root) main.ops-page--full,
 body:has(.ops-sidebar):has(.cp-root) main.ops-page {
   width: auto !important;
   max-width: none !important;
-  padding: calc(var(--ops-chrome-h, 56px) + 0.25rem) 0 0 !important;
+  padding-top: calc(var(--ops-chrome-h, 56px) + 0.25rem) !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 0 !important;
 }
 
 html.ops-shell-bitrix body:has(.cp-root) .bitrix-crm-page__inner {
   width: auto;
   max-width: none;
   padding: 0;
+}
+
+html.ops-shell-bitrix body:has(.cp-root) .cp-main,
+body:has(.ops-sidebar) .cp-main {
+  margin: 0 !important;
+  max-width: none !important;
+  width: auto !important;
+  min-height: 0;
+  padding: 22px 24px 40px !important;
+  background: transparent;
 }
 
 @media (max-width: 767px) {
