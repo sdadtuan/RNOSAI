@@ -3,6 +3,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Headers,
   Param,
   Patch,
   Post,
@@ -22,6 +23,7 @@ import {
 } from './cp-assets.service';
 import { CpBrandService, CpCreateKitInput } from './cp-brand.service';
 import { CpOverviewService } from './cp-overview.service';
+import { CpRendersService } from './cp-renders.service';
 import {
   CpBriefInput,
   CpCloseProjectInput,
@@ -32,7 +34,12 @@ import {
   CpTaskInput,
 } from './cp-projects.service';
 import { CpScope, resolveCpScope } from './cp-scope.util';
-import { RequireCpAction, StaffCpGuard } from './guards/staff-cp.guard';
+import { CpVideoDraftInput, CpVideosService } from './cp-videos.service';
+import {
+  RequireCpAction,
+  RequireCpSection,
+  StaffCpGuard,
+} from './guards/staff-cp.guard';
 
 type AuthedReq = Request & {
   staffUser?: StaffJwtPayload;
@@ -57,6 +64,8 @@ export class CpController {
     private readonly projects: CpProjectsService,
     private readonly assets: CpAssetsService,
     private readonly brand: CpBrandService,
+    private readonly videos: CpVideosService,
+    private readonly renders: CpRendersService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -210,6 +219,76 @@ export class CpController {
     @Query('scope') scope?: CpScope,
   ) {
     return this.brand.getKit(id, await this.scope(req, scope));
+  }
+
+  @Get('videos')
+  @RequireCpAction('view')
+  async listVideos(@Req() req: AuthedReq, @Query('scope') scope?: CpScope) {
+    return this.videos.list(await this.scope(req, scope));
+  }
+
+  @Post('videos')
+  @RequireCpAction('edit')
+  async createVideo(@Req() req: AuthedReq, @Body() body: CpVideoDraftInput) {
+    return this.videos.upsertDraft(body ?? {}, await this.scope(req));
+  }
+
+  @Get('videos/:id')
+  @RequireCpAction('view')
+  async getVideo(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.videos.get(id, await this.scope(req, scope));
+  }
+
+  @Patch('videos/:id')
+  @RequireCpAction('edit')
+  async patchVideo(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpVideoDraftInput,
+  ) {
+    return this.videos.patchDraft(id, body ?? {}, await this.scope(req));
+  }
+
+  @Post('videos/:id/render')
+  @RequireCpSection('crm_cp.render', 'execute')
+  async renderVideo(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.renders.submit(id, idempotencyKey ?? '', await this.scope(req));
+  }
+
+  @Get('renders')
+  @RequireCpAction('view')
+  async listRenders(@Req() req: AuthedReq, @Query('scope') scope?: CpScope) {
+    return this.renders.list(await this.scope(req, scope));
+  }
+
+  @Get('renders/:id')
+  @RequireCpAction('view')
+  async getRender(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.renders.get(id, await this.scope(req, scope));
+  }
+
+  @Post('renders/:id/retry')
+  @RequireCpSection('crm_cp.render', 'execute')
+  async retryRender(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.renders.retryJob(id, await this.scope(req));
+  }
+
+  @Post('renders/:id/cancel')
+  @RequireCpSection('crm_cp.render', 'execute')
+  async cancelRender(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.renders.cancelJob(id, await this.scope(req));
   }
 
   @Get('projects')
