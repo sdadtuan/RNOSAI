@@ -223,10 +223,11 @@ export class CpProjectsService {
         `UPDATE crm_cp_projects
             SET status = 'at_risk', updated_at = now()
           WHERE tenant_id = $1 AND id = $2::uuid
+            AND status NOT IN ('completed', 'archived')
           RETURNING *`,
         [CP_TENANT_ID, projectId],
       );
-      project = result.rows[0] ?? { ...project, status: 'at_risk' };
+      project = result.rows[0] ?? (await this.loadProject(projectId, scope));
     }
     return project;
   }
@@ -234,8 +235,12 @@ export class CpProjectsService {
   async patch(id: string, input: CpPatchProjectInput, scope: CpProjectScope) {
     const projectId = requiredUuid(id, 'invalid_project_id', 'invalid_project_id');
     const current = await this.loadProject(projectId, scope);
-    const status =
-      input.status === undefined ? String(current.status) : projectStatus(input.status);
+    const requestedStatus =
+      input.status === undefined ? undefined : projectStatus(input.status);
+    if (requestedStatus === 'completed' || requestedStatus === 'archived') {
+      cpThrow(400, { error: 'use_close' });
+    }
+    const status = requestedStatus ?? String(current.status);
     const lifecycleId =
       input.lifecycle_id === undefined ? current.lifecycle_id : nullableText(input.lifecycle_id);
     if (input.lifecycle_id !== undefined && lifecycleId) {

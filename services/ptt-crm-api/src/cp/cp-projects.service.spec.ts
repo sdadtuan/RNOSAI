@@ -150,4 +150,49 @@ describe('CpProjectsService', () => {
       repo.query.mock.calls.some(([sql]) => /INSERT INTO crm_cp_projects/i.test(sql)),
     ).toBe(false);
   });
+
+  it.each(['completed', 'archived'])('rejects PATCH status=%s with use_close', async (status) => {
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/FROM crm_cp_projects p/i.test(sql)) {
+        return {
+          rows: [{ id, status: 'active', owner_staff_id: 7, name: 'X', tags: [] }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(svc.patch(id, { status }, scope)).rejects.toMatchObject({
+      status: 400,
+      response: { error: 'use_close' },
+    });
+    expect(
+      repo.query.mock.calls.some(([sql]) => /UPDATE crm_cp_projects/i.test(sql)),
+    ).toBe(false);
+  });
+
+  it('guards the at-risk update against terminal project status', async () => {
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/SELECT p\.\* FROM crm_cp_projects p/i.test(sql)) {
+        return {
+          rows: [{ id, status: 'active', owner_staff_id: 7, credit_budget: 100 }],
+          rowCount: 1,
+        };
+      }
+      if (/AS overdue/i.test(sql)) {
+        return { rows: [{ overdue: true, credit_used: 0 }], rowCount: 1 };
+      }
+      if (/UPDATE crm_cp_projects/i.test(sql)) {
+        return { rows: [{ id, status: 'at_risk' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await svc.get(id, scope);
+
+    const updateSql = repo.query.mock.calls.find(([sql]) =>
+      /UPDATE crm_cp_projects/i.test(sql),
+    )?.[0];
+    expect(updateSql).toContain("status NOT IN ('completed', 'archived')");
+  });
 });
