@@ -19,6 +19,11 @@ import {
   CpRendersService,
 } from './cp-renders.service';
 import {
+  CP_SETTINGS_QUERY,
+  CpSettingsRepository,
+  CpSettingsService,
+} from './cp-settings.service';
+import {
   CP_VIDEOS_QUERY,
   CpVideosRepository,
   CpVideosService,
@@ -45,6 +50,9 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     { provide: CP_RENDERS_QUERY, useExisting: CpRendersRepository },
     CpRendersService,
     CpRenderWorker,
+    CpSettingsRepository,
+    { provide: CP_SETTINGS_QUERY, useExisting: CpSettingsRepository },
+    CpSettingsService,
     CpVideosRepository,
     { provide: CP_VIDEOS_QUERY, useExisting: CpVideosRepository },
     CpVideosService,

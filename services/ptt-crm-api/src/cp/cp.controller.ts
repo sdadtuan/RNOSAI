@@ -22,6 +22,7 @@ import {
   CpFinalizeAssetInput,
 } from './cp-assets.service';
 import { CpBrandService, CpCreateKitInput } from './cp-brand.service';
+import { CpLedgerGrantInput, CpLedgerService } from './cp-ledger.service';
 import { CpOverviewService } from './cp-overview.service';
 import { CpRendersService } from './cp-renders.service';
 import {
@@ -34,6 +35,7 @@ import {
   CpTaskInput,
 } from './cp-projects.service';
 import { CpScope, resolveCpScope } from './cp-scope.util';
+import { CpSettingsPatch, CpSettingsService } from './cp-settings.service';
 import { CpVideoDraftInput, CpVideosService } from './cp-videos.service';
 import {
   RequireCpAction,
@@ -66,6 +68,8 @@ export class CpController {
     private readonly brand: CpBrandService,
     private readonly videos: CpVideosService,
     private readonly renders: CpRendersService,
+    private readonly ledger: CpLedgerService,
+    private readonly settings: CpSettingsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -125,6 +129,34 @@ export class CpController {
       ...(await this.scope(req, query.scope)),
       cursor: query.cursor,
     });
+  }
+
+  @Get('settings')
+  @RequireCpAction('view')
+  getSettings() {
+    return this.settings.get();
+  }
+
+  @Patch('settings')
+  @RequireCpAction('manage')
+  async patchSettings(
+    @Req() req: AuthedReq,
+    @Body() body: CpSettingsPatch,
+  ) {
+    const actor = await this.scope(req);
+    return this.settings.patch(
+      body ?? {},
+      actor.staffId > 0 ? actor.staffId : null,
+    );
+  }
+
+  @Post('credits/grant')
+  @RequireCpSection('crm_cp.finance', 'execute')
+  grantCredits(
+    @Body() body: CpLedgerGrantInput,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.ledger.grant(body ?? {}, idempotencyKey ?? '');
   }
 
   @Get('assets')

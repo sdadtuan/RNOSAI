@@ -8,8 +8,34 @@ const clientId = '33333333-3333-4333-8333-333333333333';
 
 class LedgerMemory {
   rows: Array<Record<string, unknown>> = [];
+  allocations = new Map<string, number>();
 
   async query(sql: string, params: unknown[] = []) {
+    if (
+      sql.includes('WITH inserted_ledger AS') &&
+      sql.includes('crm_cp_credit_allocations')
+    ) {
+      const key = String(params[4]);
+      let row = this.rows.find((item) => item.idempotency_key === key);
+      if (!row) {
+        row = {
+          id: `grant-${this.rows.length + 1}`,
+          tenant_id: params[0],
+          kind: 'grant',
+          amount: params[1],
+          agency_client_id: params[2],
+          cost_center: params[3],
+          idempotency_key: key,
+        };
+        this.rows.push(row);
+        const client = String(params[2]);
+        this.allocations.set(
+          client,
+          (this.allocations.get(client) ?? 0) + Number(params[1]),
+        );
+      }
+      return { rows: [row] };
+    }
     if (sql.includes('SELECT * FROM crm_cp_credit_ledger')) {
       const existing = this.rows.find((row) => row.idempotency_key === params[1]);
       return { rows: existing ? [existing] : [] };
@@ -93,6 +119,24 @@ class RenderMemory {
 }
 
 describe('CpLedgerService', () => {
+  it('duplicate Idempotency-Key returns the same grant without double allocation', async () => {
+    const db = new LedgerMemory();
+    const ledger = new CpLedgerService(db);
+
+    const first = await ledger.grant({
+      amount: 25,
+      agency_client_id: clientId,
+    }, 'grant-25');
+    const duplicate = await ledger.grant({
+      amount: 25,
+      agency_client_id: clientId,
+    }, 'grant-25');
+
+    expect(duplicate).toEqual(first);
+    expect(db.rows.filter((row) => row.kind === 'grant')).toHaveLength(1);
+    expect(db.allocations.get(clientId)).toBe(25);
+  });
+
   it('duplicate Idempotency-Key does not double reserve', async () => {
     const ledgerDb = new LedgerMemory();
     const ledger = new CpLedgerService(ledgerDb);

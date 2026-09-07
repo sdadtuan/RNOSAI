@@ -29,6 +29,12 @@ export type CpLedgerWrite = {
   idempotencyKey: string;
 };
 
+export type CpLedgerGrantInput = {
+  amount?: number;
+  agency_client_id?: string;
+  cost_center?: string | null;
+};
+
 @Injectable()
 export class CpLedgerRepository implements CpLedgerQueryPort, OnModuleDestroy {
   private pool: Pool | null = null;
@@ -109,6 +115,52 @@ export class CpLedgerService {
     db: CpLedgerQueryPort = this.db,
   ) {
     return this.append({ ...input, kind: 'reserve' }, db);
+  }
+
+  async grant(
+    input: CpLedgerGrantInput,
+    idempotencyKey: string,
+  ): Promise<Record<string, unknown>> {
+    const key = requiredText(idempotencyKey, 'idempotency_key_required');
+    const amount = nonNegativeInteger(input.amount);
+    const agencyClientId = requiredUuid(
+      input.agency_client_id,
+      'invalid_agency_client_id',
+    );
+    const result = await this.db.query(
+      `WITH inserted_ledger AS (
+         INSERT INTO crm_cp_credit_ledger (
+           tenant_id, kind, amount, agency_client_id, cost_center, idempotency_key
+         ) VALUES ($1, 'grant', $2, $3::uuid, $4, $5)
+         ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+         RETURNING *
+       ), allocation AS (
+         INSERT INTO crm_cp_credit_allocations (agency_client_id, allocated)
+         SELECT agency_client_id, amount
+           FROM inserted_ledger
+         ON CONFLICT (agency_client_id) DO UPDATE
+           SET allocated = crm_cp_credit_allocations.allocated + EXCLUDED.allocated
+         RETURNING agency_client_id
+       )
+       SELECT inserted_ledger.*
+         FROM inserted_ledger`,
+      [
+        CP_TENANT_ID,
+        amount,
+        agencyClientId,
+        nullableText(input.cost_center),
+        key,
+      ],
+    );
+    if (result.rows[0]) return result.rows[0];
+
+    const existing = await this.db.query(
+      `SELECT * FROM crm_cp_credit_ledger
+        WHERE tenant_id = $1 AND idempotency_key = $2
+        LIMIT 1`,
+      [CP_TENANT_ID, key],
+    );
+    return existing.rows[0] ?? cpThrow(500, { error: 'ledger_insert_failed' });
   }
 
   async sum(kind: CpLedgerKind, projectId: string): Promise<number> {
