@@ -56,10 +56,13 @@ export class CpLedgerService {
     @Inject(CP_LEDGER_QUERY) private readonly db: CpLedgerQueryPort,
   ) {}
 
-  async append(input: CpLedgerWrite): Promise<Record<string, unknown>> {
+  async append(
+    input: CpLedgerWrite,
+    db: CpLedgerQueryPort = this.db,
+  ): Promise<Record<string, unknown>> {
     const key = requiredText(input.idempotencyKey, 'idempotency_key_required');
     const amount = nonNegativeInteger(input.amount);
-    const existing = await this.db.query(
+    const existing = await db.query(
       `SELECT * FROM crm_cp_credit_ledger
         WHERE tenant_id = $1 AND idempotency_key = $2
         LIMIT 1`,
@@ -72,7 +75,7 @@ export class CpLedgerService {
       return existing.rows[0];
     }
 
-    const inserted = await this.db.query(
+    const inserted = await db.query(
       `INSERT INTO crm_cp_credit_ledger (
          tenant_id, kind, amount, agency_client_id, project_id, job_id,
          cost_center, idempotency_key
@@ -92,7 +95,7 @@ export class CpLedgerService {
     );
     if (inserted.rows[0]) return inserted.rows[0];
 
-    const raced = await this.db.query(
+    const raced = await db.query(
       `SELECT * FROM crm_cp_credit_ledger
         WHERE tenant_id = $1 AND idempotency_key = $2
         LIMIT 1`,
@@ -101,8 +104,11 @@ export class CpLedgerService {
     return raced.rows[0] ?? cpThrow(500, { error: 'ledger_insert_failed' });
   }
 
-  reserve(input: Omit<CpLedgerWrite, 'kind'>) {
-    return this.append({ ...input, kind: 'reserve' });
+  reserve(
+    input: Omit<CpLedgerWrite, 'kind'>,
+    db: CpLedgerQueryPort = this.db,
+  ) {
+    return this.append({ ...input, kind: 'reserve' }, db);
   }
 
   async sum(kind: CpLedgerKind, projectId: string): Promise<number> {

@@ -18,8 +18,9 @@ export class CpRenderWorker {
   async process(
     job: Record<string, unknown>,
     snapshot: Record<string, unknown>,
+    db: CpRenderWorkerQueryPort = this.db,
   ): Promise<void> {
-    await this.db.query(
+    await db.query(
       `UPDATE crm_cp_render_jobs
           SET state = 'processing', stage = 'stub_render', progress = 50,
               stage_log_json = stage_log_json || $2::jsonb
@@ -32,7 +33,7 @@ export class CpRenderWorker {
         }]),
       ],
     );
-    await this.db.query(
+    await db.query(
       `INSERT INTO crm_cp_video_versions (
          draft_id, version_n, snapshot_json, qc_status, approval_status,
          immutable, output_uri, pricing_version
@@ -49,7 +50,7 @@ export class CpRenderWorker {
         CP_STUB_PRICING_VERSION,
       ],
     );
-    await this.db.query(
+    await db.query(
       `UPDATE crm_cp_render_jobs
           SET state = 'completed', stage = 'completed', progress = 100,
               stage_log_json = stage_log_json || $2::jsonb

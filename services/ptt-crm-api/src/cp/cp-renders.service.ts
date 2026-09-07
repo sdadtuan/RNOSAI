@@ -16,6 +16,14 @@ export interface CpRendersQueryPort {
     sql: string,
     params?: unknown[],
   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+  transaction<T>(work: (tx: CpRendersTransaction) => Promise<T>): Promise<T>;
+}
+
+export interface CpRendersTransaction {
+  query(
+    sql: string,
+    params?: unknown[],
+  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
 }
 
 export type CpRenderScope = {
@@ -37,6 +45,24 @@ export class CpRendersRepository implements CpRendersQueryPort, OnModuleDestroy 
 
   query(sql: string, params?: unknown[]) {
     return this.db.query(sql, params);
+  }
+
+  async transaction<T>(work: (tx: CpRendersTransaction) => Promise<T>): Promise<T> {
+    const client = await this.db.connect();
+    const tx: CpRendersTransaction = {
+      query: (sql, params) => client.query(sql, params),
+    };
+    try {
+      await client.query('BEGIN');
+      const result = await work(tx);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   onModuleDestroy(): void {
@@ -136,19 +162,21 @@ export class CpRendersService {
     scope: CpRenderScope,
   ): Promise<Record<string, unknown>> {
     const key = requiredText(idempotencyKey, 'idempotency_key_required');
-    const existing = await this.findByKey(key);
-    if (existing) return renderResponse(existing);
-
     const draft = await this.loadDraft(draftId, scope);
     const config = objectValue(draft.config_json);
-    const estimate = nonNegativeInteger(config.estimated_credits ?? 0, 'invalid_estimate');
+    const estimate = nullableNonNegativeInteger(
+      config.estimated_credits,
+      'invalid_estimate',
+    );
     const creditHard = config.credit_hard_cap === true;
-    const creditBlocked = hardCapBlocks({
-      allocated: Number(draft.credit_allocated ?? 0),
-      used: Number(draft.credit_used ?? 0),
-      reserve: estimate,
-      hard: creditHard,
-    });
+    const creditBlocked = estimate === null
+      ? false
+      : hardCapBlocks({
+        allocated: Number(draft.credit_allocated ?? 0),
+        used: Number(draft.credit_used ?? 0),
+        reserve: estimate,
+        hard: creditHard,
+      });
     const reasons = renderBlockReasons({
       aiEnabled: process.env.CP_AI_ENABLED === 'true',
       hasRenderCap: true,
@@ -167,53 +195,70 @@ export class CpRendersService {
       pricing_version: CP_STUB_PRICING_VERSION,
     };
     const correlationId = `${key}:${Date.now()}`;
-    const inserted = await this.db.query(
-      `INSERT INTO crm_cp_render_jobs (
-         draft_id, parent_job_id, state, stage, progress, provider,
-         idempotency_key, correlation_id, stage_log_json, attempt
-       ) VALUES (
-         $1::uuid, $2::uuid, 'queued', 'queued', 0, 'stub',
-         $3, $4, $5::jsonb, $6
-       )
-       ON CONFLICT (idempotency_key) DO NOTHING
-       RETURNING *`,
-      [
-        draft.id,
-        parentJobId,
-        key,
-        correlationId,
-        JSON.stringify([{ stage: 'queued', estimate, at: new Date().toISOString() }]),
-        attempt,
-      ],
-    );
-    const job = inserted.rows[0] ?? await this.findByKey(key);
-    if (!job) cpThrow(500, { error: 'render_insert_failed' });
+    return this.db.transaction(async (tx) => {
+      const existing = await this.findByKey(String(draft.id), key, tx);
+      if (existing) return renderResponse(existing);
 
-    if (inserted.rows[0]) {
-      await this.ledger.reserve({
-        amount: estimate,
-        agencyClientId: nullableText(draft.agency_client_id),
-        projectId: nullableText(draft.project_id),
-        jobId: String(job.id),
-        costCenter: nullableText(draft.cost_center),
-        idempotencyKey: `render:${key}:reserve`,
-      });
+      const inserted = await tx.query(
+        `INSERT INTO crm_cp_render_jobs (
+           draft_id, parent_job_id, state, stage, progress, provider,
+           idempotency_key, correlation_id, stage_log_json, attempt
+         ) VALUES (
+           $1::uuid, $2::uuid, 'queued', 'queued', 0, 'stub',
+           $3, $4, $5::jsonb, $6
+         )
+         ON CONFLICT (idempotency_key) DO NOTHING
+         RETURNING *`,
+        [
+          draft.id,
+          parentJobId,
+          key,
+          correlationId,
+          JSON.stringify([{ stage: 'queued', estimate, at: new Date().toISOString() }]),
+          attempt,
+        ],
+      );
+      const job = inserted.rows[0];
+      if (!job) {
+        const raced = await this.findByKey(String(draft.id), key, tx);
+        if (raced) return renderResponse(raced);
+        cpThrow(409, { error: 'idempotency_key_conflict' });
+      }
+
+      if (estimate !== null) {
+        await this.ledger.reserve({
+          amount: estimate,
+          agencyClientId: nullableText(draft.agency_client_id),
+          projectId: nullableText(draft.project_id),
+          jobId: String(job.id),
+          costCenter: nullableText(draft.cost_center),
+          idempotencyKey: `render:${key}:reserve`,
+        }, tx);
+      }
       await this.worker.process(job, {
         ...snapshot,
         render_job_id: job.id,
-      });
-    }
-    return renderResponse(job, estimate);
+      }, tx);
+      return renderResponse(job, estimate);
+    });
   }
 
-  private async findByKey(key: string) {
-    const result = await this.db.query(
+  private async findByKey(
+    draftId: string,
+    key: string,
+    db: CpRendersTransaction = this.db,
+  ) {
+    const result = await db.query(
       `SELECT j.*,
-              COALESCE((j.stage_log_json->0->>'estimate')::int, 0) AS estimate
+              (j.stage_log_json->0->>'estimate')::int AS estimate
          FROM crm_cp_render_jobs j
+         JOIN crm_cp_video_drafts d ON d.id = j.draft_id
+         JOIN crm_cp_projects p ON p.id = d.project_id
         WHERE j.idempotency_key = $1
+          AND j.draft_id = $2::uuid
+          AND p.tenant_id = $3
         LIMIT 1`,
-      [key],
+      [key, draftId, CP_TENANT_ID],
     );
     return result.rows[0] ?? null;
   }
@@ -295,11 +340,16 @@ export class CpRendersService {
   }
 }
 
-function renderResponse(job: Record<string, unknown>, estimate?: number) {
+function renderResponse(
+  job: Record<string, unknown>,
+  estimate?: number | null,
+) {
   return {
     ...job,
     job_id: job.id,
-    estimate: estimate ?? Number(job.estimate ?? 0),
+    estimate: estimate === undefined
+      ? nullableNumber(job.estimate)
+      : estimate,
   };
 }
 
@@ -352,10 +402,20 @@ function nullableText(value: unknown): string | null {
   return text || null;
 }
 
-function nonNegativeInteger(value: unknown, error: string): number {
+function nullableNonNegativeInteger(
+  value: unknown,
+  error: string,
+): number | null {
+  if (value == null || value === '') return null;
   const number = Number(value);
   if (!Number.isSafeInteger(number) || number < 0) cpThrow(400, { error });
   return number;
+}
+
+function nullableNumber(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function requiredUuid(value: unknown, error: string): string {

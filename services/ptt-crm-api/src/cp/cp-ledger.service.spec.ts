@@ -10,8 +10,12 @@ class LedgerMemory {
   rows: Array<Record<string, unknown>> = [];
 
   async query(sql: string, params: unknown[] = []) {
+    if (sql.includes('SELECT * FROM crm_cp_credit_ledger')) {
+      const existing = this.rows.find((row) => row.idempotency_key === params[1]);
+      return { rows: existing ? [existing] : [] };
+    }
     if (sql.includes('INSERT INTO crm_cp_credit_ledger')) {
-      const key = String(params[6]);
+      const key = String(params[7]);
       const existing = this.rows.find((row) => row.idempotency_key === key);
       if (existing) return { rows: [] };
       const row = {
@@ -38,7 +42,23 @@ class LedgerMemory {
 class RenderMemory {
   job: Record<string, unknown> | null = null;
 
-  async query(sql: string) {
+  constructor(private readonly ledgerDb?: LedgerMemory) {}
+
+  transaction<T>(work: (tx: RenderMemory) => Promise<T>) {
+    return work(this);
+  }
+
+  async query(sql: string, params: unknown[] = []) {
+    if (
+      this.ledgerDb &&
+      (
+        sql.includes('INSERT INTO crm_cp_credit_ledger') ||
+        sql.includes('SELECT * FROM crm_cp_credit_ledger') ||
+        sql.includes('SELECT COALESCE(SUM(amount)')
+      )
+    ) {
+      return this.ledgerDb.query(sql, params);
+    }
     if (sql.includes('FROM crm_cp_render_jobs') && sql.includes('idempotency_key')) {
       return { rows: this.job ? [this.job] : [] };
     }
@@ -77,12 +97,56 @@ describe('CpLedgerService', () => {
     const ledgerDb = new LedgerMemory();
     const ledger = new CpLedgerService(ledgerDb);
     const worker = { process: jest.fn().mockResolvedValue(undefined) } as unknown as CpRenderWorker;
-    const renders = new CpRendersService(new RenderMemory(), ledger, worker);
+    const renders = new CpRendersService(new RenderMemory(ledgerDb), ledger, worker);
 
     const a = await renders.submit(draftId, 'k9');
     const b = await renders.submit(draftId, 'k9');
 
     expect(a.job_id).toBe(b.job_id);
     expect(await ledger.sum('reserve', projectId)).toBe(a.estimate);
+  });
+
+  it('keeps missing estimated credits null and does not reserve', async () => {
+    const ledgerDb = new LedgerMemory();
+    const ledger = new CpLedgerService(ledgerDb);
+    const renderDb = new RenderMemory(ledgerDb);
+    const worker = { process: jest.fn().mockResolvedValue(undefined) } as unknown as CpRenderWorker;
+    const renders = new CpRendersService(renderDb, ledger, worker);
+    renderDb.query = async (sql: string) => {
+      if (sql.includes('FROM crm_cp_render_jobs')) return { rows: [] };
+      if (sql.includes('FROM crm_cp_video_drafts')) {
+        return {
+          rows: [{
+            id: draftId,
+            project_id: projectId,
+            agency_client_id: clientId,
+            config_json: {},
+            asset_state: 'ready',
+            rights_expired: false,
+            moderation_blocked: false,
+            qc_status: null,
+            asset_versions: [],
+            kit_version: null,
+          }],
+        };
+      }
+      if (sql.includes('INSERT INTO crm_cp_render_jobs')) {
+        return {
+          rows: [{
+            id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+            draft_id: draftId,
+            idempotency_key: 'no-estimate',
+            state: 'queued',
+            attempt: 1,
+          }],
+        };
+      }
+      return { rows: [] };
+    };
+
+    const result = await renders.submit(draftId, 'no-estimate');
+
+    expect(result.estimate).toBeNull();
+    expect(ledgerDb.rows).toHaveLength(0);
   });
 });
