@@ -14,14 +14,13 @@ import {
   getCpVideoVersionApi,
   getCpReportApi,
   isFallbackChildKey,
-  listCpPublishVersionsApi,
+  findCompletedVersionForDraft,
   listCpRendersApi,
   patchCpVideoApi,
   renderCpVideoApi,
   requireCompletedVersion,
   requireCpProject,
   requireFallbackRouting,
-  retryCpRenderApi,
   snapshotLanguage,
   stableSnapshot,
   staffToken,
@@ -129,11 +128,12 @@ test.describe('Creative Production OS W4 UAT', () => {
       );
     }
 
+    const submitKey = `cp-w4-fallback-${crypto.randomUUID()}`;
     const submitted = await renderCpVideoApi(
       request,
       token,
       String(created.json.id),
-      `cp-w4-fallback-${crypto.randomUUID()}`,
+      submitKey,
     );
     if (submitted.status === 403) {
       throw new Error(
@@ -143,38 +143,19 @@ test.describe('Creative Production OS W4 UAT', () => {
 
     const listed = await listCpRendersApi(request, token);
     expect(listed.ok, `list renders: ${listed.status} ${JSON.stringify(listed.json)}`).toBeTruthy();
-    const parentId = String(submitted.json.job_id ?? submitted.json.id ?? '');
-    let child = findFallbackChild(listed.json.items, parentId)
-      ?? findFallbackChild(listed.json.items);
-
-    if (
-      submitted.ok
-      && submitted.json.parent_job_id
-      && isFallbackChildKey(submitted.json.idempotency_key)
-    ) {
-      child = submitted.json;
-    }
-
-    if (!child) {
-      const retryable = (listed.json.items ?? []).find((row) => (
-        ['failed', 'cancelled', 'expired'].includes(String(row.state ?? ''))
-      ));
-      if (retryable?.id) {
-        const retried = await retryCpRenderApi(request, token, String(retryable.id));
-        if (retried.status === 403) {
-          throw new Error(
-            `Wave 4 prerequisite missing: staff lacks crm_cp.render (${retried.status} ${JSON.stringify(retried.json)})`,
-          );
-        }
-        if (
-          retried.ok
-          && retried.json.parent_job_id
-          && isFallbackChildKey(retried.json.idempotency_key)
-        ) {
-          child = retried.json;
-        }
-      }
-    }
+    const submitIsChild = Boolean(
+      submitted.json.parent_job_id
+      && String(submitted.json.idempotency_key ?? '').startsWith(`${submitKey}:r`),
+    );
+    const parentId = String(
+      submitIsChild
+        ? submitted.json.parent_job_id
+        : (submitted.json.job_id ?? submitted.json.id ?? ''),
+    );
+    const child = findFallbackChild(listed.json.items, parentId, submitKey)
+      ?? (submitIsChild && String(submitted.json.parent_job_id) === parentId
+        ? submitted.json
+        : undefined);
 
     if (!child) {
       throw new Error(
@@ -182,8 +163,8 @@ test.describe('Creative Production OS W4 UAT', () => {
       );
     }
 
-    expect(child.parent_job_id).toEqual(expect.any(String));
-    expect(String(child.parent_job_id).length).toBeGreaterThan(0);
+    expect(child.parent_job_id).toBe(parentId);
+    expect(String(child.idempotency_key ?? '').startsWith(`${submitKey}:r`)).toBeTruthy();
     expect(isFallbackChildKey(child.idempotency_key)).toBeTruthy();
     if (child.id) {
       const fetched = await getCpRenderApi(request, token, String(child.id));
@@ -230,14 +211,14 @@ test.describe('Creative Production OS W4 UAT', () => {
       );
     }
 
-    const versions = await listCpPublishVersionsApi(request, token);
-    const match = versions.find((row) => String(row.draft_id) === draftId);
+    const match = await findCompletedVersionForDraft(request, token, draftId);
     if (!match?.id) {
       throw new Error(`Wave 4 prerequisite missing: locale draft ${draftId} has no completed version`);
     }
     const before = await getCpVideoVersionApi(request, token, match.id);
     expect(before.ok, `locale version: ${before.status} ${JSON.stringify(before.json)}`).toBeTruthy();
     const beforeLanguage = snapshotLanguage(before.json.snapshot_json);
+    expect(beforeLanguage).toBe('vi');
     const beforeSnap = stableSnapshot(before.json.snapshot_json);
 
     const patched = await patchCpVideoApi(request, token, draftId, {

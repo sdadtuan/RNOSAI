@@ -40,8 +40,8 @@
       "coverage": "Service invalidates approval on draft patch (Task 20/35). Not re-run here; confirm on live API with an approved version."
     },
     "4_completed_version_unchanged_when_kit_or_asset_edited": {
-      "status": "automated",
-      "coverage": "W4 A/B + locale compare snapshot_json before/after. Kit/asset edit uses the same immutable snapshot rule (409 immutable)."
+      "status": "documented",
+      "coverage": "W4 A/B + locale compare snapshot_json before/after; those are not a kit/asset edit. Kit/asset immutability is the same snapshot rule (409 immutable); confirm on live API with a kit/asset mutation."
     },
     "5_batch_validate_partial_retry_error_csv_no_double_charge": {
       "status": "automated",

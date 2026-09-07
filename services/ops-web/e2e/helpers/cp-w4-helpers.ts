@@ -305,34 +305,51 @@ export async function requireCompletedVersion(
     );
   }
 
-  const versions = await listCpPublishVersionsApi(request, token);
-  const version = versions.find((row) => String(row.draft_id) === String(created.json.id))
-    ?? versions[0];
+  const version = await findCompletedVersionForDraft(
+    request,
+    token,
+    String(created.json.id),
+  );
   if (!version?.id) {
     throw new Error('Wave 4 prerequisite missing: render did not produce a video version');
-  }
-  const detail = await getCpVideoVersionApi(request, token, version.id);
-  if (!detail.ok) {
-    throw new Error(
-      `Wave 4 prerequisite missing: version ${version.id} (${detail.status} ${JSON.stringify(detail.json)})`,
-    );
   }
   return {
     projectId: project.id,
     draftId: String(created.json.id),
-    version: { ...version, ...detail.json, id: version.id, draft_id: String(created.json.id) },
+    version,
   };
+}
+
+export async function findCompletedVersionForDraft(
+  request: APIRequestContext,
+  token: string,
+  draftId: string,
+): Promise<CpVideoVersionDto | null> {
+  const versions = await listCpPublishVersionsApi(request, token);
+  for (const row of versions) {
+    if (!row?.id) continue;
+    const detail = await getCpVideoVersionApi(request, token, row.id);
+    if (!detail.ok) continue;
+    if (String(detail.json.draft_id ?? '') !== String(draftId)) continue;
+    return {
+      ...row,
+      ...detail.json,
+      id: row.id,
+      draft_id: String(draftId),
+    };
+  }
+  return null;
 }
 
 export function findFallbackChild(
   items: Array<Record<string, unknown>> | undefined,
-  parentId?: string | null,
+  parentId: string,
+  submitKey: string,
 ): Record<string, unknown> | undefined {
+  if (!parentId || !submitKey) return undefined;
+  const prefix = `${submitKey}:r`;
   return (items ?? []).find((row) => {
     const parent = row.parent_job_id == null ? '' : String(row.parent_job_id);
-    const keyOk = isFallbackChildKey(row.idempotency_key);
-    if (!keyOk || !parent) return false;
-    if (!parentId) return true;
-    return parent === parentId;
+    return parent === parentId && String(row.idempotency_key ?? '').startsWith(prefix);
   });
 }
