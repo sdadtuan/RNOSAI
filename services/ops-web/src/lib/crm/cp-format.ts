@@ -49,8 +49,36 @@ export type CpTrendPoint = {
   published: number | null;
 };
 
+export const MISSING_INGEST_COPY = 'Thiếu nguồn';
+
+export const CP_REPORT_TABS = [
+  { slug: 'executive', label: 'Điều hành' },
+  { slug: 'production', label: 'Sản xuất' },
+  { slug: 'credit', label: 'Credit' },
+  { slug: 'performance', label: 'Hiệu quả' },
+  { slug: 'governance', label: 'Quản trị' },
+] as const;
+
+export type CpReportSlug = (typeof CP_REPORT_TABS)[number]['slug'];
+
+export type CpSourcedMetric = {
+  value: number | null;
+  source: string;
+  freshness: string | null;
+};
+
 export function dash(value: unknown): string {
   return value == null ? '—' : String(value);
+}
+
+export function sourcedDisplay(metric: CpSourcedMetric | null | undefined): {
+  value: string;
+  missing: boolean;
+} {
+  if (metric == null || metric.value == null) {
+    return { value: '—', missing: true };
+  }
+  return { value: String(metric.value), missing: false };
 }
 
 export function hasTrendData(points: CpTrendPoint[]): boolean {

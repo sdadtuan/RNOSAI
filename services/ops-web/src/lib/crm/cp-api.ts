@@ -1741,6 +1741,64 @@ export function getCpQuality(token: string, scope: CpScope = 'me') {
   );
 }
 
+export type CpReportSlug =
+  | 'executive'
+  | 'production'
+  | 'credit'
+  | 'performance'
+  | 'governance';
+
+export type CpSourcedMetric = {
+  value: number | null;
+  source: string;
+  freshness: string | null;
+};
+
+export type CpReportQuery = CpOverviewQuery & {
+  project?: string;
+  channel?: string;
+  model?: string;
+  template?: string;
+  creator?: string;
+};
+
+export type CpReport = {
+  slug: CpReportSlug;
+  metrics?: Record<string, CpSourcedMetric>;
+  funnel?: Record<string, number | null> | null;
+  kpis?: Record<string, number | null | CpSourcedMetric>;
+  forecast?: { value: number | null; assumption: string };
+  [key: string]: unknown;
+};
+
+export type CpReportExportInput = {
+  slug: CpReportSlug;
+  format: 'csv' | 'xlsx' | 'pdf';
+};
+
+export function getCpReport(
+  token: string,
+  slug: CpReportSlug,
+  query: CpReportQuery = {},
+) {
+  return cpFetch<CpReport>(token, cpQueryPath(`/reports/${encodeURIComponent(slug)}`, query));
+}
+
+export function exportCpReport(
+  token: string,
+  input: CpReportExportInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ ok: boolean; slug: CpReportSlug; format: string; body?: string }>(
+    token,
+    cpQueryPath('/reports/export', { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 export async function getCpBatchErrorsCsv(
   token: string,
   batchId: string,

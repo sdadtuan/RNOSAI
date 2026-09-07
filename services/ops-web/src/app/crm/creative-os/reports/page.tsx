@@ -1,5 +1,5 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpReports } from '@/components/crm/cp/CpReports';
 
 export default function CreativeOsReportsPage() {
-  return <CpPlaceholder title="Báo cáo" />;
+  return <CpReports />;
 }

@@ -67,6 +67,7 @@ import {
   CpCollectionItemInput,
   CpCollectionsService,
 } from './cp-collections.service';
+import { CpReportExportInput, CpReportsService } from './cp-reports.service';
 import {
   RequireCpAction,
   RequireCpSection,
@@ -109,6 +110,7 @@ export class CpController {
     private readonly templates: CpTemplatesService,
     private readonly batches: CpBatchesService,
     private readonly collections: CpCollectionsService,
+    private readonly reports: CpReportsService,
   ) {}
 
   private async assertLegalApprovalCap(req: AuthedReq, input: CpApprovalInput) {
@@ -180,6 +182,43 @@ export class CpController {
       ...(await this.scope(req, query.scope)),
       cursor: query.cursor,
     });
+  }
+
+  @Get('reports/:slug')
+  @RequireCpAction('view')
+  async getReport(
+    @Req() req: AuthedReq,
+    @Param('slug') slug: string,
+    @Query() query: OverviewQuery & {
+      project?: string;
+      channel?: string;
+      model?: string;
+      template?: string;
+      creator?: string;
+    },
+  ) {
+    return this.reports.get(slug, {
+      ...(await this.scope(req, query.scope)),
+      from: query.from,
+      to: query.to,
+      client: query.client,
+      lifecycle: query.lifecycle,
+      project: query.project,
+      channel: query.channel,
+      model: query.model,
+      template: query.template,
+      creator: query.creator,
+    });
+  }
+
+  @Post('reports/export')
+  @RequireCpAction('view')
+  async exportReport(
+    @Req() req: AuthedReq,
+    @Body() body: CpReportExportInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.reports.export(body ?? {}, await this.scope(req, scope));
   }
 
   @Get('settings')

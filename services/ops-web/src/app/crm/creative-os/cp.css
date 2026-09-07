@@ -281,6 +281,19 @@
   gap: 10px;
 }
 
+.cp-kpi-grid--4 {
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+}
+
+.cp-report-missing {
+  display: inline;
+  margin-left: 4px;
+  color: #92400e;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
 .cp-kpi-tile {
   min-width: 0;
   border: 1px solid #e5e7eb;
