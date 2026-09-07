@@ -67,3 +67,9 @@ Asset service focused tests: 3/3 passed
 Ops web production build: passed
 PTT CRM API build: passed
 ```
+
+## Asset detail rights follow-up
+
+- Asset detail now renders returned `license_type`, `territory`, `channels`, `model_release`, `talent_release`, `expiry_on`, and `rights_status`.
+- Boolean releases render `Có` or `Không`; only nullish values render `—`.
+- Per instruction, this follow-up used targeted diagnostics and diff checks without running a package suite.

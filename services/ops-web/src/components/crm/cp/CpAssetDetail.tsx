@@ -23,6 +23,10 @@ function rightsClass(status: ReturnType<typeof rightsStatus>): string {
   return 'cp-pill';
 }
 
+function booleanLabel(value: boolean | null | undefined): string {
+  return value == null ? dash(value) : value ? 'Có' : 'Không';
+}
+
 export function CpAssetDetail() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
@@ -61,7 +65,7 @@ export function CpAssetDetail() {
     void load();
   }, [load]);
 
-  const status = rightsStatus(asset?.expiry_on);
+  const status = asset?.rights_status;
 
   return (
     <div className="cp-overview" aria-busy={loading}>
@@ -99,15 +103,16 @@ export function CpAssetDetail() {
         <section className="cp-card">
           <header className="cp-card__head"><h2>Rights</h2></header>
           <dl className="cp-health">
+            <div><dt>License</dt><dd>{dash(asset?.license_type)}</dd></div>
+            <div><dt>Territory</dt><dd>{asset?.territory == null ? dash(asset?.territory) : asset.territory.join(', ')}</dd></div>
+            <div><dt>Channels</dt><dd>{asset?.channels == null ? dash(asset?.channels) : asset.channels.join(', ')}</dd></div>
+            <div><dt>Model release</dt><dd>{booleanLabel(asset?.model_release)}</dd></div>
+            <div><dt>Talent release</dt><dd>{booleanLabel(asset?.talent_release)}</dd></div>
             <div><dt>Expiry</dt><dd>{dash(asset?.expiry_on)}</dd></div>
             <div>
-              <dt>Policy</dt>
+              <dt>Rights status</dt>
               <dd>{status ? <span className={rightsClass(status)}>{status}</span> : dash(null)}</dd>
             </div>
-            <div><dt>License</dt><dd>{dash(null)}</dd></div>
-            <div><dt>Territory</dt><dd>{dash(null)}</dd></div>
-            <div><dt>Channels</dt><dd>{dash(null)}</dd></div>
-            <div><dt>Release</dt><dd>{dash(null)}</dd></div>
           </dl>
           <Link className="cp-btn" href="/crm/creative-os/media?tab=rights">Mở Rights Center</Link>
         </section>
