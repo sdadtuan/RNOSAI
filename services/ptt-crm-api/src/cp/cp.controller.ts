@@ -20,6 +20,7 @@ import {
   CpCreateAssetInput,
   CpFinalizeAssetInput,
 } from './cp-assets.service';
+import { CpBrandService, CpCreateKitInput } from './cp-brand.service';
 import { CpOverviewService } from './cp-overview.service';
 import {
   CpBriefInput,
@@ -55,6 +56,7 @@ export class CpController {
     private readonly overview: CpOverviewService,
     private readonly projects: CpProjectsService,
     private readonly assets: CpAssetsService,
+    private readonly brand: CpBrandService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -166,6 +168,48 @@ export class CpController {
     @Query('scope') scope?: CpScope,
   ) {
     return this.assets.getAsset(id, await this.scope(req, scope));
+  }
+
+  @Get('brand-kits')
+  @RequireCpAction('view')
+  async listBrandKits(@Req() req: AuthedReq, @Query('scope') scope?: CpScope) {
+    return this.brand.listKits(await this.scope(req, scope));
+  }
+
+  @Post('brand-kits')
+  @RequireCpAction('edit')
+  async createBrandKit(@Req() req: AuthedReq, @Body() body: CpCreateKitInput) {
+    return this.brand.createKit(body ?? {}, await this.scope(req));
+  }
+
+  @Get('brand-kits/:id/versions')
+  @RequireCpAction('view')
+  async listBrandKitVersions(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.brand.listVersions(id, await this.scope(req, scope));
+  }
+
+  @Post('brand-kits/:id/versions')
+  @RequireCpAction('edit')
+  async saveBrandKitVersion(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.brand.saveVersion(id, body ?? {}, await this.scope(req));
+  }
+
+  @Get('brand-kits/:id')
+  @RequireCpAction('view')
+  async getBrandKit(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.brand.getKit(id, await this.scope(req, scope));
   }
 
   @Get('projects')
