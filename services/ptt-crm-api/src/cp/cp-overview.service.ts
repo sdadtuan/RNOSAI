@@ -62,7 +62,7 @@ export type OverviewFixtureBag = {
   drafts?: Array<Record<string, unknown>>;
   versions?: Array<Record<string, unknown>>;
   allocations?: Array<Record<string, unknown>>;
-  actions?: CpAction[];
+  actions?: Array<Record<string, unknown>>;
   activity?: CpActivity[];
   settings?: { concurrent_slots?: number | null };
 };
@@ -80,6 +80,75 @@ export function slotUsage(states: Iterable<unknown>): number {
     if (SLOT_STATES.has(String(state))) used += 1;
   }
   return used;
+}
+
+function numberList(...values: unknown[]): number[] {
+  return values
+    .flatMap((value) => (Array.isArray(value) ? value : value == null ? [] : [value]))
+    .map(Number)
+    .filter(Number.isFinite);
+}
+
+export function projectMatchesOverview(
+  project: Record<string, unknown>,
+  query: CpOverviewScope & {
+    clientId?: string;
+    lifecycleId?: string;
+    ownerId?: string;
+  },
+): boolean {
+  const memberRows = Array.isArray(project.members)
+    ? project.members.filter(
+        (member): member is Record<string, unknown> =>
+          member != null && typeof member === 'object',
+      )
+    : [];
+  const members = numberList(
+    project.member_staff_ids,
+    project.memberStaffIds,
+    memberRows.map((member) => member.staff_id ?? member.staffId),
+  );
+  const isMe =
+    Number(project.owner_staff_id ?? project.ownerStaffId) === query.staffId ||
+    members.includes(query.staffId);
+  let inScope = query.scope === 'all' || isMe;
+  if (query.scope === 'team' && (query.teamIds?.length ?? 0) > 0) {
+    const projectTeamIds = numberList(
+      project.owner_team_id,
+      project.owner_team_ids,
+      project.ownerTeamId,
+      project.ownerTeamIds,
+      project.member_team_ids,
+      project.memberTeamIds,
+      project.team_id,
+      project.team_ids,
+      project.teamIds,
+      memberRows.flatMap((member) =>
+        numberList(member.team_id, member.teamId, member.team_ids, member.teamIds),
+      ),
+    );
+    inScope = query.teamIds!.some((teamId) => projectTeamIds.includes(teamId));
+  }
+  if (!inScope) return false;
+  if (
+    query.clientId &&
+    String(project.agency_client_id ?? project.agencyClientId ?? '') !== query.clientId
+  ) {
+    return false;
+  }
+  if (
+    query.lifecycleId &&
+    String(project.lifecycle_id ?? project.lifecycleId ?? '') !== query.lifecycleId
+  ) {
+    return false;
+  }
+  if (
+    query.ownerId &&
+    String(project.owner_staff_id ?? project.ownerStaffId ?? '') !== query.ownerId
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function finiteNumber(value: unknown): number | null {
@@ -512,19 +581,86 @@ export class CpOverviewService implements OnModuleDestroy {
 class FixtureOverview {
   constructor(private readonly fixtures: OverviewFixtureBag) {}
 
-  async getKpis(query: CpKpiQuery): Promise<{ last_updated: string; kpis: CpKpis }> {
-    const projectIds = new Set(
+  private projectIds(query: CpOverviewScope & Partial<CpKpiQuery>): Set<string> {
+    return new Set(
       this.fixtures.projects
-        .filter((project) => {
-          if (query.scope === 'all') return true;
-          if (query.scope === 'me') {
-            const members = Array.isArray(project.member_staff_ids) ? project.member_staff_ids : [];
-            return Number(project.owner_staff_id) === query.staffId || members.includes(query.staffId);
-          }
-          return true;
-        })
+        .filter((project) => projectMatchesOverview(project, query))
         .map((project) => String(project.id)),
     );
+  }
+
+  private projectIdForResource(row: Record<string, unknown>): string | null {
+    const direct = row.project_id ?? row.projectId;
+    if (direct != null) return String(direct);
+    const payload =
+      row.payload && typeof row.payload === 'object'
+        ? (row.payload as Record<string, unknown>)
+        : row.payload_json && typeof row.payload_json === 'object'
+          ? (row.payload_json as Record<string, unknown>)
+          : null;
+    if (payload?.project_id != null) return String(payload.project_id);
+
+    const resourceType = String(row.resource_type ?? '');
+    const resourceId = row.resource_id == null ? null : String(row.resource_id);
+    if (!resourceId) return null;
+    if (resourceType === 'project') return resourceId;
+    if (resourceType === 'client') {
+      const project = this.fixtures.projects.find(
+        (item) => String(item.agency_client_id ?? item.agencyClientId ?? '') === resourceId,
+      );
+      return project ? String(project.id) : null;
+    }
+
+    const draftFor = (draftId: string) =>
+      this.fixtures.drafts?.find((draft) => String(draft.id) === draftId);
+    if (resourceType === 'video_draft') {
+      const draft = draftFor(resourceId);
+      return draft ? String(draft.project_id ?? draft.projectId ?? '') || null : null;
+    }
+    if (resourceType === 'video_version') {
+      const version = this.fixtures.versions?.find((item) => String(item.id) === resourceId);
+      const draft = version
+        ? draftFor(String(version.draft_id ?? version.draftId ?? ''))
+        : undefined;
+      return draft ? String(draft.project_id ?? draft.projectId ?? '') || null : null;
+    }
+    if (resourceType === 'render_job') {
+      const job = this.fixtures.jobs.find((item) => String(item.id) === resourceId);
+      const draft = job ? draftFor(String(job.draft_id ?? job.draftId ?? '')) : undefined;
+      return (
+        (job && String(job.project_id ?? job.projectId ?? '')) ||
+        (draft && String(draft.project_id ?? draft.projectId ?? '')) ||
+        null
+      );
+    }
+    const collection =
+      resourceType === 'asset'
+        ? this.fixtures.assets
+        : resourceType === 'task'
+          ? this.fixtures.tasks
+          : [];
+    const item = collection.find((candidate) => String(candidate.id) === resourceId);
+    return item ? String(item.project_id ?? item.projectId ?? '') || null : null;
+  }
+
+  private resourceInProjects(
+    row: Record<string, unknown>,
+    projectIds: ReadonlySet<string>,
+  ): boolean {
+    if (row.resource_type === 'client' && row.resource_id != null) {
+      return this.fixtures.projects.some(
+        (project) =>
+          projectIds.has(String(project.id)) &&
+          String(project.agency_client_id ?? project.agencyClientId ?? '') ===
+            String(row.resource_id),
+      );
+    }
+    const projectId = this.projectIdForResource(row);
+    return projectId != null && projectIds.has(projectId);
+  }
+
+  async getKpis(query: CpKpiQuery): Promise<{ last_updated: string; kpis: CpKpis }> {
+    const projectIds = this.projectIds(query);
     if (!projectIds.size) {
       return { last_updated: new Date().toISOString(), kpis: mapKpiRow({}) };
     }
@@ -596,8 +732,12 @@ class FixtureOverview {
     return { last_updated: new Date().toISOString(), kpis: mapKpiRow(row) };
   }
 
-  async getActions(): Promise<CpAction[]> {
-    return mapActionRows((this.fixtures.actions ?? []) as Array<Record<string, unknown>>);
+  async getActions(query: CpOverviewScope): Promise<CpAction[]> {
+    const projectIds = this.projectIds(query);
+    const rows = (this.fixtures.actions ?? []).filter((action) =>
+      this.resourceInProjects(action, projectIds),
+    );
+    return mapActionRows(rows);
   }
 
   async getHealth(): Promise<CpHealth> {
@@ -625,8 +765,13 @@ class FixtureOverview {
     };
   }
 
-  async listActivity(query: { cursor?: string }): Promise<{ items: CpActivity[]; next_cursor: string | null }> {
-    const all = this.fixtures.activity ?? [];
+  async listActivity(
+    query: CpOverviewScope & { cursor?: string },
+  ): Promise<{ items: CpActivity[]; next_cursor: string | null }> {
+    const projectIds = this.projectIds(query);
+    const all = (this.fixtures.activity ?? []).filter((activity) =>
+      this.resourceInProjects(activity as unknown as Record<string, unknown>, projectIds),
+    );
     const start = query.cursor ? all.findIndex((item) => item.id === query.cursor) + 1 : 0;
     const items = all.slice(start, start + PAGE_SIZE);
     return {

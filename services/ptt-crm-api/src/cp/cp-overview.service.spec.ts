@@ -75,4 +75,25 @@ describe('CpOverviewService', () => {
     const sql = buildHealthSql();
     expect(sql).toContain("state IN ('preparing','rendering')");
   });
+
+  it('applies the client filter to fixture projects', async () => {
+    const svc = makeOverview({
+      projects: [
+        { id: 'p1', owner_staff_id: 1, agency_client_id: 'client-1' },
+        { id: 'p2', owner_staff_id: 1, agency_client_id: 'client-2' },
+      ],
+      drafts: [
+        { id: 'd1', project_id: 'p1', created_at: '2026-09-01T00:00:00Z' },
+        { id: 'd2', project_id: 'p2', created_at: '2026-09-01T00:00:00Z' },
+      ],
+      jobs: [],
+      ledger: [],
+      assets: [],
+      tasks: [],
+    });
+
+    const out = await svc.getKpis({ scope: 'me', staffId: 1, clientId: 'client-1' });
+
+    expect(out.kpis.videos_created).toBe(1);
+  });
 });
