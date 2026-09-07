@@ -44,3 +44,26 @@ The focused contract covers missing expiry, the required block and warn examples
 
 - The Task 7 list/get payload exposes `expiry_on` and computed status but not the remaining rights row fields, so unavailable license, territory, channel, and release cells correctly render `—`.
 - Repository-wide `tsc --noEmit` remains non-zero because of existing unrelated E2E and utility-spec errors; no Task 14 path appeared in that output.
+
+## Important fixes follow-up
+
+- Moved bytes/hash finalize validation ahead of `createCpAsset`, preventing orphan `uploading` rows on client-side validation failure.
+- Expanded scoped asset reads with existing rights fields so selecting an asset hydrates every editor control.
+- Added controlled, prefilled rights inputs and a merge helper that preserves existing values, omits untouched blanks, and only changes nullable booleans when they already have values or the user toggles them.
+- Updated the rights table to render the returned license, territory, channels, and release data; the earlier payload limitation concern is resolved.
+
+TDD red:
+
+```text
+FAIL cp-media-form.util.spec.ts — Cannot find module './cp-media-form.util'
+FAIL cp-assets.service.spec.ts — expected SQL to contain r.license_type
+```
+
+TDD green and verification:
+
+```text
+Frontend focused tests: 9/9 passed
+Asset service focused tests: 3/3 passed
+Ops web production build: passed
+PTT CRM API build: passed
+```

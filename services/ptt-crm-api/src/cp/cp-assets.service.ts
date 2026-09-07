@@ -124,7 +124,9 @@ export class CpAssetsService {
   async listAssets(scope: CpAssetScope) {
     const bound = assetScope(scope, 2);
     const result = await this.db.query(
-      `SELECT a.*, r.expiry_on
+      `SELECT a.*, r.license_type, r.owner_name, r.effective_on, r.expiry_on,
+              r.territory, r.channels, r.restriction, r.model_release,
+              r.talent_release, r.proof_asset_id
          FROM crm_cp_assets a
          LEFT JOIN crm_cp_projects p ON p.id = a.project_id
          LEFT JOIN crm_cp_asset_rights r ON r.asset_id = a.id
@@ -248,7 +250,9 @@ export class CpAssetsService {
     const assetId = requiredUuid(id, 'invalid_asset_id', 'invalid_asset_id');
     const bound = assetScope(scope, 3);
     const result = await this.db.query(
-      `SELECT a.*, r.expiry_on
+      `SELECT a.*, r.license_type, r.owner_name, r.effective_on, r.expiry_on,
+              r.territory, r.channels, r.restriction, r.model_release,
+              r.talent_release, r.proof_asset_id
          FROM crm_cp_assets a
          LEFT JOIN crm_cp_projects p ON p.id = a.project_id
          LEFT JOIN crm_cp_asset_rights r ON r.asset_id = a.id

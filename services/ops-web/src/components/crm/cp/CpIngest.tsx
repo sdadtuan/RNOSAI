@@ -10,6 +10,7 @@ import {
   type CpAsset,
 } from '@/lib/crm/cp-api';
 import { dash } from '@/lib/crm/cp-format';
+import { parseCpFinalizeInput } from '@/lib/crm/cp-media-form.util';
 
 const MEDIA_TABS = [
   { label: 'Library', href: '/crm/creative-os/media' },
@@ -35,6 +36,17 @@ export function CpIngest() {
       setError('mime_not_allowed');
       return;
     }
+    let finalizeInput: ReturnType<typeof parseCpFinalizeInput>;
+    try {
+      finalizeInput = parseCpFinalizeInput(
+        form.get('finalize') === 'on',
+        String(form.get('bytes') ?? ''),
+        String(form.get('hash') ?? ''),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'invalid_finalize');
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -46,14 +58,8 @@ export function CpIngest() {
         filename: String(form.get('filename') ?? '').trim(),
         project_id: String(form.get('project_id') ?? '').trim() || null,
       });
-      if (form.get('finalize') === 'on') {
-        const rawBytes = String(form.get('bytes') ?? '').trim();
-        if (!rawBytes) throw new Error('bytes_required');
-        const bytes = Number(rawBytes);
-        const hash = String(form.get('hash') ?? '').trim();
-        if (!Number.isSafeInteger(bytes) || bytes < 0) throw new Error('invalid_bytes');
-        if (!hash) throw new Error('hash_required');
-        asset = await finalizeCpAsset(token, asset.id, { bytes, hash });
+      if (finalizeInput) {
+        asset = await finalizeCpAsset(token, asset.id, finalizeInput);
       }
       setCreated(asset);
       formElement.reset();

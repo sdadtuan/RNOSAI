@@ -163,7 +163,16 @@ export type CpAsset = {
   state: string;
   bytes: number | string | null;
   hash: string | null;
+  license_type?: string | null;
+  owner_name?: string | null;
+  effective_on?: string | null;
   expiry_on?: string | null;
+  territory?: string[];
+  channels?: string[];
+  restriction?: string | null;
+  model_release?: boolean | null;
+  talent_release?: boolean | null;
+  proof_asset_id?: string | null;
   rights_status?: 'ok' | 'warn' | 'block' | null;
   created_at: string;
 };
