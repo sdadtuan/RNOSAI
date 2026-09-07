@@ -1,5 +1,5 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpProjectForm } from '@/components/crm/cp/CpProjectForm';
 
 export default function CreativeOsNewProjectPage() {
-  return <CpPlaceholder title="Tạo dự án" />;
+  return <CpProjectForm />;
 }

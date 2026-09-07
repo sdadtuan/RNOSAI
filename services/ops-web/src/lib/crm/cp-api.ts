@@ -64,11 +64,75 @@ export type CpProjectSummary = {
   credit_budget: number | null;
 };
 
+export type CpProject = CpProjectSummary & {
+  industry: string | null;
+  objective: string | null;
+  start_at: string | null;
+  cost_center: string | null;
+  tags: string[];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type CpProjectInput = {
+  name: string;
+  agency_client_id: string;
+  owner_staff_id: number;
+  lifecycle_id?: string | null;
+  industry?: string | null;
+  objective?: string | null;
+  start_at?: string | null;
+  due_at?: string | null;
+  status?: string;
+  credit_budget?: number | null;
+  cost_center?: string | null;
+  tags?: string[];
+};
+
+export type CpBrief = {
+  id: string;
+  project_id: string;
+  version: number;
+  body_json: unknown;
+  approval_status: string;
+  created_by: number;
+  created_at?: string;
+};
+
+export type CpDeliverable = {
+  id: string;
+  project_id: string;
+  type: string;
+  status: string;
+  owner_staff_id: number | null;
+  due_at: string | null;
+  priority: string;
+  video_draft_id: string | null;
+  video_version_id: string | null;
+  vd_project_id: string | null;
+  content_item_id: string | null;
+};
+
+export type CpTask = {
+  id: string;
+  project_id: string;
+  title: string;
+  assignee_id: number | null;
+  due_at: string | null;
+  priority: string;
+  status: string;
+  depends_on_id: string | null;
+  am_task_id: string | null;
+  csd_ticket_id: string | null;
+};
+
 export type CpMilestone = {
   id: string;
   project_id: string;
   title: string;
   due_at: string | null;
+  owner_id?: number | null;
+  depends_on_id?: string | null;
   status?: string | null;
 };
 
@@ -139,7 +203,7 @@ export function listActivity(
 
 export function listCpProjects(
   token: string,
-  query: CpOverviewQuery & { status?: string } = {},
+  query: CpOverviewQuery & { status?: string; q?: string; cursor?: string } = {},
 ) {
   return cpFetch<{ items: CpProjectSummary[]; next_cursor: string | null }>(
     token,
@@ -152,4 +216,85 @@ export function listCpProjectMilestones(token: string, projectId: string) {
     token,
     `/projects/${encodeURIComponent(projectId)}/milestones`,
   );
+}
+
+export function createCpProject(token: string, input: CpProjectInput) {
+  return cpFetch<CpProject>(token, '/projects', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getCpProject(token: string, projectId: string) {
+  return cpFetch<CpProject>(token, `/projects/${encodeURIComponent(projectId)}`);
+}
+
+export function patchCpProject(
+  token: string,
+  projectId: string,
+  input: Partial<Omit<CpProjectInput, 'agency_client_id'>>,
+) {
+  return cpFetch<CpProject>(token, `/projects/${encodeURIComponent(projectId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function closeCpProject(token: string, projectId: string, archivePending = false) {
+  return cpFetch<CpProject>(token, `/projects/${encodeURIComponent(projectId)}/close`, {
+    method: 'POST',
+    body: JSON.stringify({ archive_pending: archivePending }),
+  });
+}
+
+function cpProjectCollectionPath(projectId: string, collection: string): string {
+  return `/projects/${encodeURIComponent(projectId)}/${collection}`;
+}
+
+export function listCpProjectBriefs(token: string, projectId: string) {
+  return cpFetch<{ items: CpBrief[] }>(token, cpProjectCollectionPath(projectId, 'briefs'));
+}
+
+export function createCpProjectBrief(
+  token: string,
+  projectId: string,
+  input: { body_json: unknown; approval_status?: string },
+) {
+  return cpFetch<CpBrief>(token, cpProjectCollectionPath(projectId, 'briefs'), {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function listCpProjectDeliverables(token: string, projectId: string) {
+  return cpFetch<{ items: CpDeliverable[] }>(
+    token,
+    cpProjectCollectionPath(projectId, 'deliverables'),
+  );
+}
+
+export function createCpProjectDeliverable(
+  token: string,
+  projectId: string,
+  input: Partial<Omit<CpDeliverable, 'id' | 'project_id'>>,
+) {
+  return cpFetch<CpDeliverable>(token, cpProjectCollectionPath(projectId, 'deliverables'), {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function listCpProjectTasks(token: string, projectId: string) {
+  return cpFetch<{ items: CpTask[] }>(token, cpProjectCollectionPath(projectId, 'tasks'));
+}
+
+export function createCpProjectTask(
+  token: string,
+  projectId: string,
+  input: Partial<Omit<CpTask, 'id' | 'project_id'>> & { title: string },
+) {
+  return cpFetch<CpTask>(token, cpProjectCollectionPath(projectId, 'tasks'), {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }

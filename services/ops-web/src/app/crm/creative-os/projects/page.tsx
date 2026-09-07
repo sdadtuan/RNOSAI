@@ -1,5 +1,5 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpProjectsList } from '@/components/crm/cp/CpProjectsList';
 
 export default function CreativeOsProjectsPage() {
-  return <CpPlaceholder title="Dự án" />;
+  return <CpProjectsList />;
 }

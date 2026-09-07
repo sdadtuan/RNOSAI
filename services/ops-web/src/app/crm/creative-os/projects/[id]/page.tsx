@@ -1,5 +1,14 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpProjectTimeline } from '@/components/crm/cp/CpProjectTimeline';
+import { CpProjectWorkspace } from '@/components/crm/cp/CpProjectWorkspace';
 
-export default function CreativeOsProjectDetailPage() {
-  return <CpPlaceholder title="Chi tiết dự án" />;
+export default function CreativeOsProjectDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { tab?: string };
+}) {
+  return searchParams.tab === 'timeline'
+    ? <CpProjectTimeline projectId={params.id} />
+    : <CpProjectWorkspace projectId={params.id} />;
 }
