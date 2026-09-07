@@ -1082,6 +1082,22 @@ body:has(.ops-sidebar) .cp-main {
   width: auto;
 }
 
+.cp-filters .form-combobox {
+  width: 100%;
+}
+
+.cp-filters .form-combobox__input {
+  width: 100%;
+  height: 34px;
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  padding: 0 8px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+}
+
 @media (max-width: 767px) {
   .cp-studio,
   .cp-scene-strip {

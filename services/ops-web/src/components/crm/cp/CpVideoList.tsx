@@ -2,16 +2,20 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormCombobox } from '@/components/form/FormCombobox';
 import { getAccessToken } from '@/lib/auth';
 import {
   createCpVideo,
   formatCpApiError,
+  listCpProjects,
   listCpVideos,
+  type CpProjectSummary,
   type CpScope,
   type CpVideoDraft,
 } from '@/lib/crm/cp-api';
 import { dash } from '@/lib/crm/cp-format';
+import { projectSearchOptions } from '@/lib/crm/cp-video-list.util';
 
 function scopeFrom(value: string | null): CpScope {
   return value === 'team' || value === 'all' ? value : 'me';
@@ -22,9 +26,13 @@ export function CpVideoList() {
   const searchParams = useSearchParams();
   const scope = scopeFrom(searchParams.get('scope'));
   const [videos, setVideos] = useState<CpVideoDraft[]>([]);
+  const [projects, setProjects] = useState<CpProjectSummary[]>([]);
+  const [projectId, setProjectId] = useState(searchParams.get('project') ?? '');
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+
+  const projectOptions = useMemo(() => projectSearchOptions(projects), [projects]);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -35,9 +43,15 @@ export function CpVideoList() {
     setLoading(true);
     setError('');
     try {
-      setVideos((await listCpVideos(token, scope)).items);
+      const [videoOut, projectOut] = await Promise.all([
+        listCpVideos(token, scope),
+        listCpProjects(token, { scope }),
+      ]);
+      setVideos(videoOut.items);
+      setProjects(projectOut.items);
     } catch (caught) {
       setVideos([]);
+      setProjects([]);
       setError(formatCpApiError(caught, 'Không tải được video drafts'));
     } finally {
       setLoading(false);
@@ -52,12 +66,16 @@ export function CpVideoList() {
     event.preventDefault();
     const token = getAccessToken();
     if (!token) return;
+    if (!projectId) {
+      setError('Chọn project trước khi mở Studio');
+      return;
+    }
     const form = new FormData(event.currentTarget);
     setCreating(true);
     setError('');
     try {
       const video = await createCpVideo(token, {
-        project_id: String(form.get('project_id') ?? '').trim(),
+        project_id: projectId,
         name: String(form.get('name') ?? '').trim(),
         input_mode: 'prompt',
         config_json: {},
@@ -88,10 +106,30 @@ export function CpVideoList() {
       <section className="cp-card">
         <div className="cp-card__head"><h2>Tạo draft</h2></div>
         <form className="cp-filters" onSubmit={create}>
-          <label><span>Project ID</span><input name="project_id" required /></label>
+          <label>
+            <span>Project</span>
+            <FormCombobox
+              value={projectId}
+              onChange={setProjectId}
+              options={projectOptions}
+              loading={loading}
+              allowCustom={false}
+              showCode={false}
+              placeholder="Tìm project…"
+              emptyMessage="Không có project khớp — tạo ở Dự án"
+            />
+          </label>
           <label><span>Tên video</span><input name="name" required /></label>
-          <button className="cp-btn cp-btn--primary" type="submit" disabled={creating}>{creating ? 'Đang tạo…' : 'Mở Studio'}</button>
+          <button className="cp-btn cp-btn--primary" type="submit" disabled={creating || !projectId}>
+            {creating ? 'Đang tạo…' : 'Mở Studio'}
+          </button>
         </form>
+        {!loading && !projects.length ? (
+          <p className="cp-muted">
+            Chưa có project.{' '}
+            <Link className="cp-link" href="/crm/creative-os/projects/new">Tạo project</Link>
+          </p>
+        ) : null}
       </section>
       <section className="cp-card">
         <div className="cp-table-wrap">
