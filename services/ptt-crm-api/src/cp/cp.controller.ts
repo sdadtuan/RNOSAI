@@ -60,7 +60,7 @@ import {
   CpContentOsHandoffService,
 } from './cp-content-os-handoff.service';
 import { CpTemplateInput, CpTemplateUseInput, CpTemplatesService } from './cp-templates.service';
-import { CpBatchInput, CpBatchesService } from './cp-batches.service';
+import { CpBatchInput, CpBatchItemPatch, CpBatchesService } from './cp-batches.service';
 import {
   RequireCpAction,
   RequireCpSection,
@@ -816,6 +816,18 @@ export class CpController {
     @Query('scope') scope?: CpScope,
   ) {
     return this.batches.run(id, await this.scope(req, scope));
+  }
+
+  @Patch('batches/:id/items/:rowNo')
+  @RequireCpAction('edit')
+  async patchBatchItem(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('rowNo') rowNo: string,
+    @Body() body: CpBatchItemPatch,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.batches.patchItem(id, rowNo, body ?? {}, await this.scope(req, scope));
   }
 
   @Post('batches/:id/items/:rowNo/retry')

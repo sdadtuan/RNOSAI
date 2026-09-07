@@ -53,6 +53,10 @@ export type CpBatchInput = {
   source?: CpBatchSource;
 };
 
+export type CpBatchItemPatch = {
+  row_json?: unknown;
+};
+
 export interface CpBatchesQueryPort {
   query(
     sql: string,
@@ -242,6 +246,44 @@ export class CpBatchesService {
     return { ...validated, items: results, status: 'running' };
   }
 
+  async patchItem(
+    id: string,
+    rowNo: number | string,
+    input: CpBatchItemPatch,
+    scope: CpBatchScope = DEFAULT_SCOPE,
+  ) {
+    const batch = await this.get(id, scope);
+    const n = Number(rowNo);
+    const item = (batch.items as Record<string, unknown>[]).find((row) => Number(row.row_no) === n)
+      ?? cpThrow(404, { error: 'not_found' });
+    if (item.status === 'completed') cpThrow(409, { error: 'item_not_patchable' });
+    const next = { ...objectValue(item.row_json), ...objectValue(input.row_json) };
+    await this.db.query(
+      `UPDATE crm_cp_batch_items
+          SET row_json = $1::jsonb
+        WHERE batch_id = $2::uuid AND row_no = $3
+        RETURNING *`,
+      [JSON.stringify(next), batch.id, n],
+    );
+    item.row_json = next;
+    const template = await this.loadTemplate(String(batch.template_id));
+    const checked = validateBatchRow(
+      next,
+      parseVarNames(template.variables_json),
+      asMapping(item.mapping_json),
+    );
+    await this.db.query(
+      `UPDATE crm_cp_batch_items
+          SET status = $1, error = $2
+        WHERE batch_id = $3::uuid AND row_no = $4
+        RETURNING *`,
+      [checked.status, checked.error, batch.id, n],
+    );
+    item.status = checked.status;
+    item.error = checked.error;
+    return item;
+  }
+
   async retryItem(id: string, rowNo: number | string, scope: CpBatchScope = DEFAULT_SCOPE) {
     const batch = await this.get(id, scope);
     const n = Number(rowNo);
@@ -322,7 +364,11 @@ export class CpBatchesService {
           variables: row,
         },
       }, scope);
-      const job = await this.renders.submit(String(draft.id), key, scope);
+      const submitted = await this.renders.submit(String(draft.id), key, scope);
+      const submittedId = nullableText(submitted.job_id ?? submitted.id);
+      const job = submittedId && isUnsuccessfulRender(submitted)
+        ? await this.renders.retryJob(submittedId, scope)
+        : submitted;
       const jobId = nullableText(job.job_id ?? job.id);
       item.status = 'completed';
       item.error = null;
@@ -360,18 +406,26 @@ export class CpBatchesService {
       const row = objectValue(item);
       return { row_no: index + 1, ...row };
     });
-    if (input.source?.type === 'crm') {
-      for (const value of Object.values(mapping)) assertCrmColumn(value);
-      if (Array.isArray(input.source.columns)) {
-        for (const column of input.source.columns) assertCrmColumn(column);
+    const source = input.source ?? {};
+    for (const value of Object.values(mapping)) {
+      if (isCrmRef(value)) assertCrmColumn(value);
+    }
+    if (Array.isArray(source.columns)) {
+      for (const column of source.columns) {
+        if (isCrmRef(column)) assertCrmColumn(column);
       }
-      if (!rows.length) {
-        const fetched = await this.fetchCrmRow(input.source, mapping);
-        if (fetched) rows.push({ row_no: 1, ...fetched });
-      }
-    } else {
-      for (const value of Object.values(mapping)) {
-        if (isCrmRef(value)) assertCrmColumn(value);
+    }
+    const wantsCrm = source.type === 'crm'
+      || Object.values(mapping).some(isCrmRef)
+      || (source.columns ?? []).some(isCrmRef);
+    if (wantsCrm) {
+      const fetched = await this.fetchCrmRow(source, mapping);
+      if (fetched) {
+        if (!rows.length) {
+          rows.push({ row_no: 1, ...fetched });
+        } else {
+          for (const row of rows) mergeCrmIntoRow(row, fetched, mapping);
+        }
       }
     }
     return rows;
@@ -481,6 +535,25 @@ export function validateBatchRow(
 
 export function assertCrmColumn(ref: string): { table: 'clients' | 'crm_service_lifecycle'; column: string; key: string } {
   return resolveCrmRef(ref);
+}
+
+function isUnsuccessfulRender(job: Record<string, unknown>): boolean {
+  return ['failed', 'cancelled', 'expired'].includes(String(job.state ?? job.status ?? ''));
+}
+
+function mergeCrmIntoRow(
+  row: Record<string, unknown>,
+  fetched: Record<string, unknown>,
+  mapping: Record<string, string>,
+) {
+  for (const [variable, sourceKey] of Object.entries(mapping)) {
+    if (!isCrmRef(sourceKey)) continue;
+    const key = normalizeCrmRef(sourceKey);
+    const value = fetched[variable] ?? fetched[key];
+    if (value == null || String(value).trim() === '') continue;
+    row[variable] = value;
+    row[key] = fetched[key] ?? value;
+  }
 }
 
 function isCrmRef(value: string): boolean {

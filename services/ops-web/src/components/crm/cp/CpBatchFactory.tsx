@@ -11,6 +11,7 @@ import {
   getCpBatch,
   getCpBatchErrorsCsv,
   listCpTemplates,
+  patchCpBatchItem,
   retryCpBatchItem,
   runCpBatch,
   validateCpBatch,
@@ -19,6 +20,7 @@ import {
   type CpScope,
   type CpTemplate,
 } from '@/lib/crm/cp-api';
+import { buildCpBatchSource } from '@/lib/crm/cp-batch-source';
 import { dash } from '@/lib/crm/cp-format';
 
 const STEPS = [
@@ -81,7 +83,10 @@ export function CpBatchFactory() {
   const [mapping, setMapping] = useState<Record<string, string>>(
     Object.fromEntries(CP_TEMPLATE_REQUIRED_VARS.map((name) => [name, name])),
   );
+  const [crmClientId, setCrmClientId] = useState('');
   const [crmLifecycleId, setCrmLifecycleId] = useState('');
+  const [rowEdits, setRowEdits] = useState<Record<string, Record<string, string>>>({});
+  const [patchedRows, setPatchedRows] = useState<Record<string, boolean>>({});
   const [ratio, setRatio] = useState('9:16');
   const [locale, setLocale] = useState('vi');
   const [batch, setBatch] = useState<CpBatchJob | null>(null);
@@ -121,12 +126,10 @@ export function CpBatchFactory() {
     setBusy('validate');
     setError('');
     try {
-      const usesCrm = Object.values(mapping).some((value) => (
-        /^(clients|service_lifecycle)\./.test(value)
-      ));
-      const source = usesCrm
-        ? { type: 'crm', lifecycle_id: crmLifecycleId.trim() || undefined }
-        : undefined;
+      const source = buildCpBatchSource(mapping, {
+        clientId: crmClientId,
+        lifecycleId: crmLifecycleId,
+      });
       const created = await createCpBatch(token, {
         template_id: templateId,
         project_id: projectId || null,
@@ -136,6 +139,8 @@ export function CpBatchFactory() {
       }, scope);
       const validated = await validateCpBatch(token, created.id, scope);
       setBatch(validated);
+      setRowEdits({});
+      setPatchedRows({});
     } catch (caught) {
       setError(formatCpApiError(caught, 'Không kiểm tra được batch'));
     } finally {
@@ -157,12 +162,44 @@ export function CpBatchFactory() {
     }
   }
 
+  async function persistInvalidRow(rowNo: number | string) {
+    const token = getAccessToken();
+    if (!token || !batch) return;
+    const key = String(rowNo);
+    const item = (batch.items ?? []).find((row) => String(row.row_no) === key);
+    const nextRow = {
+      ...(item?.row_json ?? {}),
+      ...(rowEdits[key] ?? {}),
+    };
+    setBusy(`patch:${rowNo}`);
+    setError('');
+    try {
+      await patchCpBatchItem(token, batch.id, rowNo, { row_json: nextRow }, scope);
+      setPatchedRows((current) => ({ ...current, [key]: true }));
+      setBatch(await getCpBatch(token, batch.id, scope));
+    } catch (caught) {
+      setError(formatCpApiError(caught, 'Không lưu được hàng'));
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function retry(rowNo: number | string) {
     const token = getAccessToken();
     if (!token || !batch) return;
     setBusy(`retry:${rowNo}`);
     setError('');
     try {
+      const key = String(rowNo);
+      const item = (batch.items ?? []).find((row) => String(row.row_no) === key);
+      if (item?.status === 'invalid') {
+        const nextRow = {
+          ...(item.row_json ?? {}),
+          ...(rowEdits[key] ?? {}),
+        };
+        await patchCpBatchItem(token, batch.id, rowNo, { row_json: nextRow }, scope);
+        setPatchedRows((current) => ({ ...current, [key]: true }));
+      }
       await retryCpBatchItem(token, batch.id, rowNo, scope);
       setBatch(await getCpBatch(token, batch.id, scope));
     } catch (caught) {
@@ -287,6 +324,10 @@ export function CpBatchFactory() {
               ))}
             </div>
             <label className="cp-field">
+              <span>CRM client_id (clients.*)</span>
+              <input value={crmClientId} onChange={(event) => setCrmClientId(event.target.value)} />
+            </label>
+            <label className="cp-field">
               <span>CRM lifecycle_id (allowlist clients + service_lifecycle)</span>
               <input value={crmLifecycleId} onChange={(event) => setCrmLifecycleId(event.target.value)} />
             </label>
@@ -376,7 +417,49 @@ export function CpBatchFactory() {
                       <td>{dash((row as Record<string, unknown>).cta as string | undefined)}</td>
                       <td>{dash(status)}</td>
                       <td>
-                        {status === 'failed' || status === 'invalid' ? (
+                        {status === 'invalid' ? (
+                          <div className="cp-actions">
+                            {CP_TEMPLATE_REQUIRED_VARS.map((name) => (
+                              <label key={name} className="cp-field">
+                                <span>{name}</span>
+                                <input
+                                  value={
+                                    rowEdits[String(rowNo)]?.[name]
+                                    ?? String((row as Record<string, unknown>)[name] ?? '')
+                                  }
+                                  onChange={(event) => {
+                                    const key = String(rowNo);
+                                    const value = event.target.value;
+                                    setRowEdits((current) => ({
+                                      ...current,
+                                      [key]: { ...(current[key] ?? {}), [name]: value },
+                                    }));
+                                  }}
+                                />
+                              </label>
+                            ))}
+                            <button
+                              className="cp-btn"
+                              type="button"
+                              disabled={busy === `patch:${rowNo}`}
+                              onClick={() => void persistInvalidRow(rowNo)}
+                            >
+                              {busy === `patch:${rowNo}` ? 'Đang lưu…' : 'Lưu hàng'}
+                            </button>
+                            {patchedRows[String(rowNo)]
+                              || Object.keys(rowEdits[String(rowNo)] ?? {}).length > 0 ? (
+                              <button
+                                className="cp-btn"
+                                type="button"
+                                disabled={busy === `retry:${rowNo}`}
+                                onClick={() => void retry(rowNo)}
+                              >
+                                Retry
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {status === 'failed' ? (
                           <button
                             className="cp-btn"
                             type="button"

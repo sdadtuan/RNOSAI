@@ -5,10 +5,12 @@ import {
   createCpTemplate,
   getCpBatchErrorsCsv,
   listCpTemplates,
+  patchCpBatchItem,
   runCpBatch,
   useCpTemplate,
   validateCpBatch,
 } from './cp-api';
+import { buildCpBatchSource } from './cp-batch-source';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -82,5 +84,44 @@ describe('CP template + batch API', () => {
       expect.stringContaining('/api/crm/cp/batches/batch-1/errors.csv?scope=me'),
     );
     expect(csv).toContain('missing_mapped_required');
+  });
+
+  it('builds a CRM source for mixed CSV + CRM mappings and collects client_id', () => {
+    const source = buildCpBatchSource({
+      project_name: 'clients.name',
+      price_from: 'price_from',
+      location: 'location',
+      cta: 'cta',
+      hotline: 'hotline',
+    }, {
+      clientId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      lifecycleId: '7',
+    });
+
+    expect(source).toEqual({
+      type: 'crm',
+      client_id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      lifecycle_id: '7',
+    });
+    expect(buildCpBatchSource({
+      project_name: 'project_name',
+      price_from: 'price_from',
+    }, { clientId: 'x' })).toBeUndefined();
+  });
+
+  it('patches one batch item row_json', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ row_no: 2, status: 'valid' }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await patchCpBatchItem('token', 'batch-1', 2, {
+      row_json: { price_from: 'Từ 9 tỷ' },
+    }, 'me');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/crm/cp/batches/batch-1/items/2?scope=me'),
+      expect.objectContaining({ method: 'PATCH' }),
+    );
   });
 });

@@ -125,6 +125,9 @@ class BatchQuery {
         row.batch_id === params[params.length - 2] && Number(row.row_no) === Number(params[params.length - 1])
       )) ?? this.items.find((row) => row.id === params[0]);
       if (!item) return { rows: [] };
+      if (sql.includes('row_json')) {
+        item.row_json = typeof params[0] === 'string' ? JSON.parse(String(params[0])) : params[0];
+      }
       if (sql.includes('status')) item.status = params[0];
       if (sql.includes('error')) item.error = params[1];
       if (sql.includes('job_id')) item.job_id = params[2] ?? item.job_id;
@@ -155,14 +158,28 @@ function makeService(
     submit?: jest.Mock;
     upsertDraft?: jest.Mock;
     reserve?: jest.Mock;
+    retryJob?: jest.Mock;
+    replayState?: string;
   } = {},
 ) {
   const charges: string[] = [];
   const submit = opts.submit ?? jest.fn(async (_draftId: string, key: string) => {
-    if (charges.includes(key)) return { job_id: `job-${key}`, idempotency_key: key, replayed: true };
+    if (charges.includes(key)) {
+      return {
+        job_id: `job-${key}`,
+        idempotency_key: key,
+        replayed: true,
+        state: opts.replayState ?? 'completed',
+      };
+    }
     charges.push(key);
-    return { id: `job-${key}`, job_id: `job-${key}`, idempotency_key: key };
+    return { id: `job-${key}`, job_id: `job-${key}`, idempotency_key: key, state: 'queued' };
   });
+  const retryJob = opts.retryJob ?? jest.fn(async (id: string) => ({
+    id,
+    job_id: `${id}:retry`,
+    state: 'queued',
+  }));
   const upsertDraft = opts.upsertDraft ?? jest.fn(async () => ({
     id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     project_id: PROJECT_ID,
@@ -174,9 +191,10 @@ function makeService(
     service: new CpBatchesService(
       db,
       { upsertDraft } as never,
-      { submit, retryJob: jest.fn(async (id: string) => ({ id, job_id: id })) } as never,
+      { submit, retryJob } as never,
     ),
     submit,
+    retryJob,
     upsertDraft,
     charges,
   };
@@ -297,10 +315,100 @@ describe('CpBatchesService', () => {
         template_id: TEMPLATE_ID,
         project_id: PROJECT_ID,
         source: { type: 'crm', lifecycle_id: 7 },
-        mapping: { project_name: 'leads.full_name' },
+        mapping: { project_name: 'clients.not_allowed' },
       }, 9, SCOPE),
     ).rejects.toMatchObject({
       response: { error: 'unknown_crm_column' },
     });
   });
+
+  it('creates mixed CSV + CRM mappings without asserting CSV columns as CRM', async () => {
+    const db = new BatchQuery();
+    db.crmRows = [{ 'clients.name': 'Peak Garden' }];
+    const { service } = makeService(db);
+
+    const created = await service.create({
+      template_id: TEMPLATE_ID,
+      project_id: PROJECT_ID,
+      source: { type: 'crm', client_id: CLIENT_ID, lifecycle_id: 7 },
+      rows: [{
+        price_from: 'Từ 2 tỷ',
+        location: 'Q7',
+        cta: 'Đăng ký tour',
+        hotline: '1900',
+      }],
+      mapping: {
+        project_name: 'clients.name',
+        price_from: 'price_from',
+        location: 'location',
+        cta: 'cta',
+        hotline: 'hotline',
+      },
+    }, 9, SCOPE);
+
+    expect(created.items).toHaveLength(1);
+    expect(created.items[0].row_json).toMatchObject({
+      project_name: 'Peak Garden',
+      price_from: 'Từ 2 tỷ',
+      cta: 'Đăng ký tour',
+    });
+    const validated = await service.validate(BATCH_ID, SCOPE);
+    expect(validated.valid_count).toBe(1);
+    expect(validated.invalid_count).toBe(0);
+  });
+
+  it('patches an invalid row_json so retry can become valid', async () => {
+    const db = new BatchQuery();
+    const { service, submit } = makeService(db);
+    await service.create({
+      template_id: TEMPLATE_ID,
+      project_id: PROJECT_ID,
+      rows: [sampleRow(1, 'price_from')],
+      mapping: Object.fromEntries(REQUIRED.map((key) => [key, key])),
+    }, 9, SCOPE);
+    await service.validate(BATCH_ID, SCOPE);
+    expect(db.items[0].status).toBe('invalid');
+
+    const stillInvalid = await service.retryItem(BATCH_ID, 1, SCOPE);
+    expect(stillInvalid.status).toBe('invalid');
+    expect(submit).not.toHaveBeenCalled();
+
+    const patched = await service.patchItem(BATCH_ID, 1, {
+      row_json: { ...sampleRow(1), price_from: 'Từ 9 tỷ' },
+    }, SCOPE);
+    expect(patched.status).toBe('valid');
+    expect(objectRow(db.items[0].row_json).price_from).toBe('Từ 9 tỷ');
+
+    const retried = await service.retryItem(BATCH_ID, 1, SCOPE);
+    expect(retried.status).toBe('completed');
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a replayed failed job instead of marking the item completed', async () => {
+    const db = new BatchQuery();
+    const { service, retryJob } = makeService(db, { replayState: 'failed' });
+    await service.create({
+      template_id: TEMPLATE_ID,
+      project_id: PROJECT_ID,
+      rows: [sampleRow(1)],
+      mapping: Object.fromEntries(REQUIRED.map((key) => [key, key])),
+    }, 9, SCOPE);
+    await service.validate(BATCH_ID, SCOPE);
+    await service.run(BATCH_ID, SCOPE);
+    expect(db.items[0].status).toBe('completed');
+
+    db.items[0].status = 'failed';
+    db.items[0].error = 'render_failed';
+
+    const rerun = await service.run(BATCH_ID, SCOPE);
+    expect(retryJob).toHaveBeenCalledWith(`job-${BATCH_ID}:1`, SCOPE);
+    expect(rerun.items[0].status).toBe('completed');
+    expect(rerun.items[0].job_id).toBe(`job-${BATCH_ID}:1:retry`);
+  });
 });
+
+function objectRow(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}

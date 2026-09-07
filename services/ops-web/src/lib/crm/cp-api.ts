@@ -1521,6 +1521,26 @@ export function runCpBatch(token: string, batchId: string, scope: CpScope = 'me'
   );
 }
 
+export function patchCpBatchItem(
+  token: string,
+  batchId: string,
+  rowNo: number | string,
+  input: { row_json?: Record<string, unknown> },
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpBatchItem>(
+    token,
+    cpQueryPath(
+      `/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(String(rowNo))}`,
+      { scope },
+    ),
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 export function retryCpBatchItem(
   token: string,
   batchId: string,
