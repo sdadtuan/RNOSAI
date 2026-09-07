@@ -1,0 +1,46 @@
+{
+  "wave": "W2",
+  "component": "creative_production_os_wave2",
+  "srs": "2026-09-07-creative-production-os-srs.md + plan Task 27",
+  "branch": "feat/cp-os-w2",
+  "head_commit": "bf64cc4f",
+  "environment": "local",
+  "evaluated_at": "2026-09-07T15:00:44+07:00",
+  "signed_at": null,
+  "ok": false,
+  "entry_required": {
+    "wave_2_implementation_present": true,
+    "note": "Wave 2 UAT specification was added, but no live API was reachable at http://127.0.0.1:3000."
+  },
+  "gates": {
+    "playwright_cp_w2_discovery": true,
+    "playwright_cp_w2_uat": false
+  },
+  "gate_notes": {
+    "playwright_cp_w2_discovery": "OPS_E2E_SKIP_SERVER=1 npx playwright test e2e/cp-w2-uat.spec.ts --list — 6 tests discovered",
+    "playwright_cp_w2_uat": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 npm run test:e2e:cp-w2 — exit 1; all 6 cases failed in beforeEach: Wave 2 prerequisite missing: API is unreachable at http://127.0.0.1:3000"
+  },
+  "w2_acceptance": {
+    "qc_blocked_export_409": false,
+    "hub_submit_201_creative_id": false,
+    "schedule_client_review_409": false,
+    "locked_scene_regenerate_overlay_unchanged": false,
+    "rights_expiry_blocks_publish_409": false,
+    "creative_os_pages_have_one_main": false
+  },
+  "commands": {
+    "uat": "cd services/ops-web && npm run test:e2e:cp-w2",
+    "discovery": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 npx playwright test e2e/cp-w2-uat.spec.ts --list"
+  },
+  "signoffs": {
+    "product_owner": null,
+    "qa": null,
+    "engineering": null
+  },
+  "blockers": [
+    "ptt-crm-api is not running on http://127.0.0.1:3000.",
+    "Missing API/token fails the suite (no skips).",
+    "No UAT case executed against a live API, so all six acceptance results remain false."
+  ],
+  "notes": "The spec and helper compile and Playwright discovers exactly six tests. This is intentionally not a green signoff. Wave 3 was not started."
+}
