@@ -1,0 +1,200 @@
+:root {
+  --cp-navy: #0f2747;
+  --cp-accent: #2563eb;
+  --cp-success: #16a34a;
+  --cp-warning: #d97706;
+  --cp-danger: #dc2626;
+  --cp-info: #0891b2;
+  --cp-bg: #f4f6f8;
+  --cp-radius: 12px;
+}
+
+.cp-root {
+  display: flex;
+  align-items: stretch;
+  min-height: calc(100vh - var(--ops-chrome-h, 56px));
+  width: 100%;
+  background: var(--cp-bg);
+  color: #111827;
+  font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+}
+
+.cp-root--collapsed .cp-sidebar {
+  flex-basis: 64px;
+  width: 64px;
+  max-width: 64px;
+}
+
+.cp-sidebar {
+  display: flex;
+  flex: 0 0 248px;
+  flex-direction: column;
+  width: 248px;
+  max-width: 248px;
+  min-height: 100%;
+  background: var(--cp-navy);
+  color: #cbd5e1;
+}
+
+.cp-sidebar__nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+}
+
+.cp-sidebar__link {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: #e2e8f0;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.cp-sidebar__link:hover {
+  background: #16355c;
+}
+
+.cp-sidebar__link--active {
+  background: var(--cp-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.cp-sidebar__foot {
+  padding: 10px;
+  border-top: 1px solid #16355c;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.cp-sidebar__foot b {
+  display: block;
+  color: #e2e8f0;
+}
+
+.cp-sidebar__collapse {
+  width: 100%;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px;
+  background: #16355c;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.cp-column {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cp-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 22px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.cp-product-name {
+  color: var(--cp-navy);
+  font-size: 15px;
+}
+
+.cp-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.cp-scope select {
+  height: 34px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0 8px;
+  background: #fff;
+  font: inherit;
+  font-weight: 600;
+}
+
+.cp-main {
+  flex: 1;
+  padding: 22px 24px 40px;
+}
+
+.cp-placeholder {
+  min-height: 180px;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--cp-radius);
+  padding: 24px;
+  background: #fff;
+}
+
+.cp-placeholder h1 {
+  margin: 0;
+  color: var(--cp-navy);
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.cp-muted {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.cp-empty {
+  color: var(--cp-navy);
+  font-size: 20px;
+}
+
+html.ops-shell-bitrix body:has(.cp-root) main.bitrix-crm-page,
+html.ops-shell-bitrix body:has(.cp-root) main.ops-page--full,
+body:has(.ops-sidebar):has(.cp-root) main.ops-page {
+  width: auto !important;
+  max-width: none !important;
+  padding: calc(var(--ops-chrome-h, 56px) + 0.25rem) 0 0 !important;
+}
+
+html.ops-shell-bitrix body:has(.cp-root) .bitrix-crm-page__inner {
+  width: auto;
+  max-width: none;
+  padding: 0;
+}
+
+@media (max-width: 767px) {
+  .cp-root {
+    flex-direction: column;
+  }
+
+  .cp-sidebar,
+  .cp-root--collapsed .cp-sidebar {
+    flex-basis: auto;
+    width: 100%;
+    max-width: none;
+  }
+
+  .cp-sidebar__nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cp-sidebar__foot {
+    display: none;
+  }
+
+  .cp-main {
+    padding: 18px 14px 32px;
+  }
+}
