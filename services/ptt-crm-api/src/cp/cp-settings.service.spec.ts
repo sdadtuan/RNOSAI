@@ -12,10 +12,13 @@ class SettingsMemory {
   row: Record<string, unknown> = {
     tenant_id: 'PTT',
     locale: 'vi-VN',
+    provider_private_config: 'must-not-leak',
     models_json: [{
       id: 'video-v1',
       max_res: '4k',
       api_key: 'model-key',
+      access_token: 'model-access-token',
+      arbitrary_provider_option: 'must-not-leak',
       credentials: { token: 'nested-token', endpoint: 'safe' },
     }],
     policy_json: {
@@ -46,7 +49,6 @@ describe('CpSettingsService', () => {
     const settings = await loadService(new SettingsMemory()).get();
 
     expect(settings).toEqual({
-      tenant_id: 'PTT',
       locale: 'vi-VN',
       models_json: [{
         id: 'video-v1',

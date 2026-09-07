@@ -40,3 +40,23 @@ Additional verification:
 ## Concerns
 
 - npm prints an existing `devdir` configuration deprecation warning.
+
+## Follow-up: GET allowlist hardening
+
+Commit target: `fix(cp): allowlist settings GET so secrets cannot leak`
+
+RED:
+
+- `npx jest src/cp/cp-settings.service.spec.ts`
+- 1 suite failed; 1 test failed and 1 passed
+- the response exposed `tenant_id`, an unknown settings column,
+  `access_token`, and an unknown model field
+
+GREEN:
+
+- GET now selects only documented response columns and projects the row through
+  the same explicit allowlist
+- every returned model is projected through the model allowlist
+- policy keys matching `/secret|token|password|credential|api_key/i` are removed;
+  non-object policies become `{}`
+- requested focused Jest command: 1 suite passed; 2 tests passed

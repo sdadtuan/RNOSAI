@@ -13,13 +13,7 @@ const MODEL_FIELDS = new Set([
   'region',
   'fallback_id',
 ]);
-const SECRET_FIELDS = new Set([
-  'api_key',
-  'secret',
-  'token',
-  'password',
-  'credentials',
-]);
+const POLICY_SECRET_FIELD = /secret|token|password|credential|api_key/i;
 const PATCH_FIELDS = [
   'locale',
   'timezone',
@@ -37,6 +31,11 @@ const PATCH_FIELDS = [
   'publish_native',
   'models_json',
   'policy_json',
+] as const;
+const RESPONSE_FIELDS = [
+  ...PATCH_FIELDS,
+  'updated_at',
+  'updated_by_staff_id',
 ] as const;
 
 export interface CpSettingsQueryPort {
@@ -83,7 +82,11 @@ export class CpSettingsService {
 
   async get(): Promise<Record<string, unknown> | null> {
     const result = await this.db.query(
-      `SELECT *
+      `SELECT locale, timezone, default_brand_kit_id, retention_days,
+              signed_url_ttl_min, restore_days, legal_hold, soft_alert_pct,
+              hard_cap_pct, high_cost_threshold, concurrent_slots,
+              watermark_draft, ai_enabled, publish_native, models_json,
+              policy_json, updated_at, updated_by_staff_id
          FROM crm_cp_settings
         WHERE tenant_id = $1
         LIMIT 1`,
@@ -103,7 +106,7 @@ export class CpSettingsService {
       if (!Object.prototype.hasOwnProperty.call(input, field)) continue;
       let value = input[field];
       if (field === 'models_json') value = sanitizeModels(value);
-      if (field === 'policy_json') value = stripSecrets(value);
+      if (field === 'policy_json') value = sanitizePolicy(value);
       params.push(value);
       const cast = field === 'default_brand_kit_id'
         ? '::uuid'
@@ -133,11 +136,14 @@ function sanitizeSettings(
   row: Record<string, unknown> | null,
 ): Record<string, unknown> | null {
   if (!row) return null;
-  return {
-    ...row,
-    models_json: stripSecrets(row.models_json),
-    policy_json: stripSecrets(row.policy_json),
-  };
+  const settings = Object.fromEntries(
+    RESPONSE_FIELDS
+      .filter((field) => Object.prototype.hasOwnProperty.call(row, field))
+      .map((field) => [field, row[field]]),
+  );
+  settings.models_json = sanitizeModels(row.models_json);
+  settings.policy_json = sanitizePolicy(row.policy_json);
+  return settings;
 }
 
 function sanitizeModels(value: unknown): Record<string, unknown>[] {
@@ -149,14 +155,25 @@ function sanitizeModels(value: unknown): Record<string, unknown>[] {
     ));
 }
 
-function stripSecrets(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stripSecrets);
-  if (!isRecord(value)) return value;
+function sanitizePolicy(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) return {};
+  return sanitizePolicyObject(value);
+}
+
+function sanitizePolicyObject(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(value)
-      .filter(([key]) => !SECRET_FIELDS.has(key.toLowerCase()))
-      .map(([key, item]) => [key, stripSecrets(item)]),
+      .filter(([key]) => !POLICY_SECRET_FIELD.test(key))
+      .map(([key, item]) => [key, sanitizePolicyValue(item)]),
   );
+}
+
+function sanitizePolicyValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizePolicyValue);
+  if (isRecord(value)) return sanitizePolicyObject(value);
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
