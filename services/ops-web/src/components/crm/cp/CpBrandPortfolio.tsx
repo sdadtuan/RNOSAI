@@ -78,13 +78,17 @@ export function CpBrandPortfolio() {
     setSubmitting(true);
     setError('');
     try {
-      const kit = await createKit(token, {
-        name,
-        scope_type: scopeType,
-        agency_client_id: scopeType === 'client' ? agencyClientId : null,
-        project_id: scopeType === 'project' ? projectId : null,
-      });
-      router.push(`/crm/creative-os/brand-kits/${kit.id}?tab=editor`);
+      const kit = await createKit(
+        token,
+        {
+          name,
+          scope_type: scopeType,
+          agency_client_id: scopeType === 'client' ? agencyClientId : null,
+          project_id: scopeType === 'project' ? projectId : null,
+        },
+        scope,
+      );
+      router.push(`/crm/creative-os/brand-kits/${kit.id}?tab=editor&scope=${scope}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không tạo được Brand Kit');
     } finally {
@@ -169,7 +173,7 @@ export function CpBrandPortfolio() {
                   <td>
                     <Link
                       className="cp-link"
-                      href={`/crm/creative-os/brand-kits/${kit.id}?tab=editor`}
+                      href={`/crm/creative-os/brand-kits/${kit.id}?tab=editor&scope=${scope}`}
                     >
                       {dash(kit.name)}
                     </Link>

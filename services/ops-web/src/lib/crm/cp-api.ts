@@ -497,8 +497,12 @@ export function listKits(token: string, scope: CpScope = 'me') {
   );
 }
 
-export function createKit(token: string, input: CpBrandKitInput) {
-  return cpFetch<CpBrandKit>(token, '/brand-kits', {
+export function createKit(
+  token: string,
+  input: CpBrandKitInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpBrandKit>(token, cpQueryPath('/brand-kits', { scope }), {
     method: 'POST',
     body: JSON.stringify(input),
   });
@@ -522,10 +526,11 @@ export function saveVersion(
   token: string,
   kitId: string,
   payload: CpBrandPayload,
+  scope: CpScope = 'me',
 ) {
   return cpFetch<CpBrandVersion>(
     token,
-    `/brand-kits/${encodeURIComponent(kitId)}/versions`,
+    cpQueryPath(`/brand-kits/${encodeURIComponent(kitId)}/versions`, { scope }),
     {
       method: 'POST',
       body: JSON.stringify(payload),

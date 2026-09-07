@@ -194,7 +194,7 @@ export function CpBrandEditor({
     setError('');
     setNotice('');
     try {
-      const created = await saveVersion(token, kitId, nextPayload);
+      const created = await saveVersion(token, kitId, nextPayload, scope);
       setPayload(nextPayload);
       setVersion(created.n);
       setNotice(`Đã tạo phiên bản mới v${created.n}`);
@@ -216,7 +216,9 @@ export function CpBrandEditor({
             {' · '}Mỗi lần lưu sẽ tạo một phiên bản mới.
           </p>
         </div>
-        <Link className="cp-btn" href="/crm/creative-os/brand-kits">Portfolio</Link>
+        <Link className="cp-btn" href={`/crm/creative-os/brand-kits?scope=${scope}`}>
+          Portfolio
+        </Link>
       </header>
 
       <nav className="cp-card__head" aria-label="Brand Kit">
@@ -225,7 +227,7 @@ export function CpBrandEditor({
             <Link
               key={tab.id}
               className={activeTab === tab.id ? 'cp-btn cp-btn--primary' : 'cp-btn'}
-              href={`/crm/creative-os/brand-kits/${kitId}?tab=${tab.id}`}
+              href={`/crm/creative-os/brand-kits/${kitId}?tab=${tab.id}&scope=${scope}`}
             >
               {tab.label}
             </Link>
