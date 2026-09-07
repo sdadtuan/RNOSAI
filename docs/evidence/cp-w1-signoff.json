@@ -1,0 +1,49 @@
+{
+  "wave": "W1",
+  "component": "creative_production_os_wave1",
+  "srs": "2026-09-07-creative-production-os-srs.md + plan Task 18",
+  "branch": "feat/cp-os",
+  "head_commit": "1b65a229",
+  "environment": "local",
+  "evaluated_at": "2026-09-07T11:50:44+07:00",
+  "signed_at": null,
+  "ok": false,
+  "entry_required": {
+    "wave_1_implementation_present": true,
+    "note": "Wave 1 UAT specification was added, but the configured Next.js web server did not become ready."
+  },
+  "gates": {
+    "playwright_cp_w1_discovery": true,
+    "playwright_cp_w1_uat": false,
+    "ops_web_typecheck": false
+  },
+  "gate_notes": {
+    "playwright_cp_w1_discovery": "OPS_E2E_SKIP_SERVER=1 npx playwright test e2e/cp-w1-uat.spec.ts --list — 6 tests discovered",
+    "playwright_cp_w1_uat": "cd services/ops-web && npx playwright test e2e/cp-w1-uat.spec.ts — exit 1 after 181687ms; repeated Watchpack EMFILE errors; webServer timed out after 180000ms",
+    "ops_web_typecheck": "npx tsc --noEmit --incremental false --pretty false — exit 2 from pre-existing diagnostics in unrelated e2e/src spec files; no cp-w1 diagnostics"
+  },
+  "w1_acceptance": {
+    "creative_os_denies_staff_without_crm_cp_view": false,
+    "overview_kpis_have_8_nullable_numeric_values_and_iso_timestamp": false,
+    "project_creation_requires_known_client": false,
+    "asset_creation_rejects_disallowed_mime": false,
+    "render_idempotency_reserves_credits_once": false,
+    "empty_overview_structure_and_no_mock_value": false
+  },
+  "commands": {
+    "uat": "cd services/ops-web && npx playwright test e2e/cp-w1-uat.spec.ts",
+    "discovery": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 npx playwright test e2e/cp-w1-uat.spec.ts --list"
+  },
+  "signoffs": {
+    "product_owner": null,
+    "qa": null,
+    "engineering": null
+  },
+  "blockers": [
+    "Next.js dev webServer emitted repeated EMFILE: too many open files watcher errors.",
+    "Playwright timed out waiting 180000ms for the configured webServer.",
+    "The repository-wide ops-web type-check has unrelated existing test diagnostics.",
+    "No UAT case executed, so all six acceptance results remain false."
+  ],
+  "notes": "The spec and helper compile and Playwright discovers exactly six tests. This is intentionally not a green signoff. Wave 2 was not started."
+}
