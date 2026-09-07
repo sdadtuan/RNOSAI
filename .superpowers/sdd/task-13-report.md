@@ -47,5 +47,26 @@ cd services/ops-web
 
 ## Concerns
 
-- The Task 6 project API has no `members` field. PRJ-02 renders the requested Members input, but it is intentionally not sent rather than persisting it to an unrelated field.
 - Repository-wide `tsc --noEmit` remains non-zero because of existing unrelated E2E and utility-spec type errors; no Task 13 paths appeared in its output.
+
+## Review follow-up verification
+
+Command:
+
+```bash
+cd services/ops-web
+./node_modules/.bin/vitest run src/lib/crm/cp-project-tabs.util.spec.ts
+```
+
+Output:
+
+```text
+✓ src/lib/crm/cp-project-tabs.util.spec.ts (1 test) 2ms
+Test Files  1 passed (1)
+Tests       1 passed (1)
+Duration    345ms
+```
+
+- Added `member_staff_ids?: number[]` while keeping `owner_staff_id` required.
+- Members now accepts comma-separated positive staff IDs and posts the parsed array on create.
+- Missing lifecycle now keeps its summary slot visible as `—`.

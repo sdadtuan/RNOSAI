@@ -24,6 +24,15 @@ export function CpProjectForm() {
     }
     const form = new FormData(event.currentTarget);
     const credit = optional(form, 'credit_budget');
+    const memberValues = String(form.get('members') ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const memberStaffIds = memberValues.map(Number);
+    if (memberStaffIds.some((value) => !Number.isInteger(value) || value <= 0)) {
+      setError('Members chỉ nhận staff ID nguyên dương, phân cách bằng dấu phẩy');
+      return;
+    }
     const input: CpProjectInput = {
       name: String(form.get('name') ?? '').trim(),
       agency_client_id: String(form.get('agency_client_id') ?? '').trim(),
@@ -37,6 +46,7 @@ export function CpProjectForm() {
       credit_budget: credit == null ? null : Number(credit),
       cost_center: optional(form, 'cost_center'),
       tags: String(form.get('tags') ?? '').split(',').map((tag) => tag.trim()).filter(Boolean),
+      member_staff_ids: memberStaffIds,
     };
     setSubmitting(true);
     setError('');
@@ -85,7 +95,7 @@ export function CpProjectForm() {
             <label><span>Bắt đầu</span><input name="start_at" type="date" /></label>
             <label><span>Hạn</span><input name="due_at" type="date" /></label>
             <label><span>Owner *</span><input name="owner_staff_id" type="number" min="1" required /></label>
-            <label><span>Members</span><input name="members" placeholder="Staff IDs hoặc tên thành viên" /></label>
+            <label><span>Members</span><input name="members" placeholder="12, 24, 36" /></label>
             <label><span>Credit budget</span><input name="credit_budget" type="number" min="0" /></label>
             <label><span>Cost center</span><input name="cost_center" /></label>
             <label><span>Tags</span><input name="tags" placeholder="q3, always-on, ai-video" /></label>

@@ -70,6 +70,7 @@ export type CpProject = CpProjectSummary & {
   start_at: string | null;
   cost_center: string | null;
   tags: string[];
+  member_staff_ids?: number[];
   created_at?: string;
   updated_at?: string;
 };
@@ -87,6 +88,7 @@ export type CpProjectInput = {
   credit_budget?: number | null;
   cost_center?: string | null;
   tags?: string[];
+  member_staff_ids?: number[];
 };
 
 export type CpBrief = {

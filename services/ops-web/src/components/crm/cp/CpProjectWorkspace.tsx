@@ -252,13 +252,14 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
               <p>{dash(project?.objective)}</p>
               <p className="cp-muted">
                 Khách: {project ? <a className="cp-link" href={`/crm/account-management/clients/${project.agency_client_id}`}>{project.agency_client_id}</a> : dash(null)}
-                {project?.lifecycle_id ? <> · Lifecycle: <a className="cp-link" href={`/crm/service-delivery/${project.lifecycle_id}?tab=content-os`}>{project.lifecycle_id}</a></> : null}
+                {' · Lifecycle: '}
+                {project?.lifecycle_id ? <a className="cp-link" href={`/crm/service-delivery/${project.lifecycle_id}?tab=content-os`}>{project.lifecycle_id}</a> : dash(null)}
               </p>
             </section>
             <section className="cp-card">
               <header className="cp-card__head"><h2>Quản trị</h2></header>
               <p>Owner: {dash(project?.owner_staff_id)}</p>
-              <p>Members: {dash(null)}</p>
+              <p>Members: {project?.member_staff_ids?.length ? project.member_staff_ids.join(', ') : dash(null)}</p>
               <p>Cost center: {dash(project?.cost_center)}</p>
               <form className="cp-filters" onSubmit={updateStatus}>
                 <label><span>Trạng thái</span><select name="status" key={project?.status} defaultValue={project?.status ?? 'draft'}><option value="draft">Draft</option><option value="active">Active</option><option value="at_risk">At Risk</option><option value="in_review">In Review</option></select></label>
