@@ -229,6 +229,9 @@ class SceneQuery {
     if (sql.includes('UPDATE crm_cp_scenes')) {
       const scene = this.scenes.find((row) => row.draft_id === params[0] && row.idx === params[1]);
       if (!scene) return { rows: [] };
+      if (/\blocked\s*=\s*false\b/.test(sql) && scene.locked === true) {
+        return { rows: [] };
+      }
       if (sql.includes('t_start')) {
         scene.t_start = params[2];
         scene.t_end = params[3];
@@ -241,10 +244,10 @@ class SceneQuery {
       return { rows: [{ ...scene }] };
     }
     if (sql.includes('crm_cp_scenes')) {
-      if (params.length >= 2 && (sql.includes('idx') || sql.includes('AND'))) {
-        return { rows: this.scenes.filter((row) => row.draft_id === params[0] && row.idx === params[1]) };
-      }
-      return { rows: this.scenes.filter((row) => row.draft_id === params[0]).sort((a, b) => Number(a.idx) - Number(b.idx)) };
+      const rows = params.length >= 2 && (sql.includes('idx') || sql.includes('AND'))
+        ? this.scenes.filter((row) => row.draft_id === params[0] && row.idx === params[1])
+        : this.scenes.filter((row) => row.draft_id === params[0]).sort((a, b) => Number(a.idx) - Number(b.idx));
+      return { rows: rows.map((row) => ({ ...row })) };
     }
     return { rows: [{ ...this.draft }] };
   }
@@ -317,5 +320,48 @@ describe('CpVideosService scenes and timeline', () => {
     expect(result.overlay).toBeTruthy();
     expect(result.vo).toBeTruthy();
     expect(result.visual).toBeTruthy();
+    expect(db.calls.some((call) => (
+      call.sql.includes('UPDATE crm_cp_scenes')
+      && /\blocked\s*=\s*false\b/.test(call.sql)
+    ))).toBe(true);
+  });
+
+  it('does not update a locked row even if a prior SELECT saw unlocked', async () => {
+    const db = new SceneQuery();
+    db.scenes = [lockedScene({
+      locked: false,
+      overlay: 'ORIGINAL',
+      vo: 'vo-1',
+      visual: 'vis-1',
+    })];
+    const originalQuery = db.query.bind(db);
+    let flipped = false;
+    db.query = async (sql: string, params: unknown[] = []) => {
+      const result = await originalQuery(sql, params);
+      if (!flipped && sql.includes('crm_cp_scenes') && sql.includes('SELECT')) {
+        db.scenes[0].locked = true;
+        flipped = true;
+      }
+      return result;
+    };
+    const videos = new CpVideosService(db);
+
+    const result = await videos.regenerateScene(DRAFT_ID, 0, SCENE_SCOPE);
+
+    expect(db.scenes[0]).toMatchObject({
+      overlay: 'ORIGINAL',
+      vo: 'vo-1',
+      visual: 'vis-1',
+      locked: true,
+    });
+    expect(result).toMatchObject({
+      overlay: 'ORIGINAL',
+      vo: 'vo-1',
+      visual: 'vis-1',
+    });
+    expect(db.calls.some((call) => (
+      call.sql.includes('UPDATE crm_cp_scenes')
+      && /\blocked\s*=\s*false\b/.test(call.sql)
+    ))).toBe(true);
   });
 });

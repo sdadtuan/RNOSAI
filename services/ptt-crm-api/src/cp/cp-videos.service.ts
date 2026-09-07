@@ -365,11 +365,11 @@ export class CpVideosService {
     const updated = await this.db.query(
       `UPDATE crm_cp_scenes
           SET visual = $3, vo = $4, overlay = $5
-        WHERE draft_id = $1::uuid AND idx = $2
+        WHERE draft_id = $1::uuid AND idx = $2 AND locked = false
         RETURNING *`,
       [draft.id, sceneIdx, generated.visual, generated.vo, generated.overlay],
     );
-    return updated.rows[0] ?? { ...scene, ...generated };
+    return updated.rows[0] ?? scene;
   }
 
   async patchVersion(

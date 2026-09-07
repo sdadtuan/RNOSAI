@@ -9,15 +9,20 @@ import {
   patchCpTimeline,
   type CpScene,
   type CpScope,
+  type CpTimelineResult,
 } from '@/lib/crm/cp-api';
 import { dash } from '@/lib/crm/cp-format';
 import {
+  CP_TIMELINE_SAVE_DEBOUNCE_MS,
   CP_TIMELINE_TRACKS,
+  createDebouncedSequencedSave,
   createUndoStack,
   durationSec,
   type CpTimelineMusic,
   type CpTimelineSnapshot,
 } from '@/lib/crm/cp-timeline.util';
+
+type TimelineSavePayload = { scenes: CpScene[]; music: CpTimelineMusic | null };
 
 function scopeFrom(value?: string): CpScope {
   return value === 'team' || value === 'all' ? value : 'me';
@@ -63,6 +68,7 @@ export function CpTimeline({
 }) {
   const scope = scopeFrom(scopeValue);
   const undo = useRef(createUndoStack<CpTimelineSnapshot>());
+  const saveRef = useRef<ReturnType<typeof createDebouncedSequencedSave<TimelineSavePayload, CpTimelineResult>> | null>(null);
   const [scenes, setScenes] = useState<CpScene[]>([]);
   const [music, setMusic] = useState<CpTimelineMusic | null>(null);
   const [revision, setRevision] = useState<number | string | null>(null);
@@ -99,6 +105,47 @@ export function CpTimeline({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const saver = createDebouncedSequencedSave<TimelineSavePayload, CpTimelineResult>({
+      delayMs: CP_TIMELINE_SAVE_DEBOUNCE_MS,
+      write: async (payload) => {
+        const token = getAccessToken();
+        if (!token) {
+          throw Object.assign(new Error('unauthenticated'), { unauthenticated: true });
+        }
+        setSaving(true);
+        setError('');
+        return patchCpTimeline(token, videoId, {
+          scenes: payload.scenes.map((scene) => ({
+            idx: scene.idx,
+            t_start: scene.t_start ?? null,
+            t_end: scene.t_end ?? null,
+          })),
+          music: payload.music,
+        }, scope);
+      },
+      apply: (result, payload) => {
+        setScenes(result.scenes);
+        setMusic(result.music ?? payload.music);
+        setRevision(result.revision);
+        setSaving(false);
+      },
+      onError: (caught) => {
+        setError(
+          caught && typeof caught === 'object' && 'unauthenticated' in caught
+            ? 'Phiên đăng nhập không hợp lệ'
+            : formatCpApiError(caught, 'Không lưu được timeline'),
+        );
+        setSaving(false);
+      },
+    });
+    saveRef.current = saver;
+    return () => {
+      saver.cancel();
+      saveRef.current = null;
+    };
+  }, [scope, videoId]);
+
   const total = useMemo(() => {
     const ends = scenes.map((scene) => Number(scene.t_end ?? 0));
     if (music?.t_end != null) ends.push(Number(music.t_end));
@@ -111,31 +158,10 @@ export function CpTimeline({
     setCanRedo(undo.current.canRedo());
   }
 
-  async function persist(nextScenes: CpScene[], nextMusic: CpTimelineMusic | null) {
-    const token = getAccessToken();
-    if (!token) {
-      setError('Phiên đăng nhập không hợp lệ');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      const result = await patchCpTimeline(token, videoId, {
-        scenes: nextScenes.map((scene) => ({
-          idx: scene.idx,
-          t_start: scene.t_start ?? null,
-          t_end: scene.t_end ?? null,
-        })),
-        music: nextMusic,
-      }, scope);
-      setScenes(result.scenes);
-      setMusic(result.music ?? nextMusic);
-      setRevision(result.revision);
-    } catch (caught) {
-      setError(formatCpApiError(caught, 'Không lưu được timeline'));
-    } finally {
-      setSaving(false);
-    }
+  function persist(nextScenes: CpScene[], nextMusic: CpTimelineMusic | null, immediate = false) {
+    const payload = { scenes: nextScenes, music: nextMusic };
+    if (immediate) saveRef.current?.flush(payload);
+    else saveRef.current?.schedule(payload);
   }
 
   function applySnapshot(snapshot: CpTimelineSnapshot | null) {
@@ -144,7 +170,7 @@ export function CpTimeline({
     setMusic(snapshot.music);
     setCanUndo(undo.current.canUndo());
     setCanRedo(undo.current.canRedo());
-    void persist(snapshot.scenes, snapshot.music);
+    persist(snapshot.scenes, snapshot.music, true);
   }
 
   function updateSceneTime(idx: number, field: 't_start' | 't_end', value: string) {
@@ -155,14 +181,14 @@ export function CpTimeline({
         : scene
     ));
     setScenes(next);
-    void persist(next, music);
+    persist(next, music);
   }
 
   function updateMusic(field: keyof CpTimelineMusic, value: string) {
     remember();
     const next = { ...(music ?? {}), [field]: value === '' ? null : field === 'source' ? value : Number(value) };
     setMusic(next);
-    void persist(scenes, next);
+    persist(scenes, next);
   }
 
   return (

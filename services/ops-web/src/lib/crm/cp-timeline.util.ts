@@ -1,5 +1,6 @@
 export const CP_OVERLAY_MAX = 42;
 export const CP_UNDO_LIMIT = 20;
+export const CP_TIMELINE_SAVE_DEBOUNCE_MS = 350;
 
 export const CP_TIMELINE_TRACKS = [
   { id: 'scene', label: 'Scene' },
@@ -90,6 +91,73 @@ export function createUndoStack<T>(limit = CP_UNDO_LIMIT) {
     },
     canRedo() {
       return future.length > 0;
+    },
+  };
+}
+
+export function createDebouncedSequencedSave<T, R>(options: {
+  write: (value: T) => Promise<R>;
+  apply?: (result: R, value: T) => void;
+  onError?: (error: unknown, value: T) => void;
+  delayMs?: number;
+  setTimeoutFn?: typeof setTimeout;
+  clearTimeoutFn?: typeof clearTimeout;
+}) {
+  const delayMs = options.delayMs ?? CP_TIMELINE_SAVE_DEBOUNCE_MS;
+  const setTimeoutFn = options.setTimeoutFn ?? setTimeout;
+  const clearTimeoutFn = options.clearTimeoutFn ?? clearTimeout;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let seq = 0;
+  let pending: T | undefined;
+
+  function clearTimer() {
+    if (timer == null) return;
+    clearTimeoutFn(timer);
+    timer = null;
+  }
+
+  function startWrite(value: T) {
+    const current = seq;
+    void options.write(value).then(
+      (result) => {
+        if (current !== seq) return;
+        options.apply?.(result, value);
+      },
+      (error: unknown) => {
+        if (current !== seq) return;
+        options.onError?.(error, value);
+      },
+    );
+  }
+
+  return {
+    schedule(value: T) {
+      pending = value;
+      seq += 1;
+      clearTimer();
+      const scheduled = seq;
+      timer = setTimeoutFn(() => {
+        timer = null;
+        if (scheduled !== seq) return;
+        const next = pending;
+        pending = undefined;
+        if (next !== undefined) startWrite(next);
+      }, delayMs);
+    },
+    flush(value?: T) {
+      const next = value !== undefined ? value : pending;
+      pending = undefined;
+      seq += 1;
+      clearTimer();
+      if (next !== undefined) startWrite(next);
+    },
+    cancel() {
+      pending = undefined;
+      seq += 1;
+      clearTimer();
+    },
+    seq() {
+      return seq;
     },
   };
 }
