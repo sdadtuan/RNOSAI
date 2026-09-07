@@ -334,9 +334,15 @@ export function mapKpiRow(row: Record<string, unknown>): CpKpis {
   };
 }
 
+function normalizedActionKind(value: unknown): CpAction['kind'] {
+  if (value === 'cp.publish.failed') return 'publish_failed';
+  if (value === 'cp.comment.mentioned') return 'mention';
+  return value as CpAction['kind'];
+}
+
 export function mapActionRows(rows: Array<Record<string, unknown>>): CpAction[] {
   return rows.map((row) => ({
-    kind: row.kind as CpAction['kind'],
+    kind: normalizedActionKind(row.kind ?? row.action),
     severity: String(row.severity),
     title: String(row.title),
     resource_type: String(row.resource_type),
@@ -381,9 +387,9 @@ export function buildActionSql(query: CpOverviewScope): OverviewSql {
          SELECT a.*
            FROM crm_cp_activity a
           WHERE a.tenant_id = '${TENANT_ID}'
-            AND a.action IN ('publish_failed', 'mention')
+            AND a.action IN ('publish_failed', 'cp.publish.failed', 'mention', 'cp.comment.mentioned')
             AND (
-              a.action <> 'mention'
+              a.action NOT IN ('mention', 'cp.comment.mentioned')
               OR (
                 $1::int > 0
                 AND (
@@ -435,8 +441,13 @@ export function buildActionSql(query: CpOverviewScope): OverviewSql {
          FROM credit_usage
         WHERE allocated > 0 AND used * 100 >= allocated * 50
        UNION ALL
-       SELECT e.action, CASE WHEN e.action = 'publish_failed' THEN 'critical' ELSE 'info' END,
-              CASE WHEN e.action = 'publish_failed' THEN 'Publish failed' ELSE 'You were mentioned' END,
+       SELECT
+              CASE WHEN e.action IN ('publish_failed', 'cp.publish.failed') THEN 'publish_failed'
+                   ELSE 'mention' END,
+              CASE WHEN e.action IN ('publish_failed', 'cp.publish.failed') THEN 'critical'
+                   ELSE 'info' END,
+              CASE WHEN e.action IN ('publish_failed', 'cp.publish.failed') THEN 'Publish failed'
+                   ELSE 'You were mentioned' END,
               e.resource_type, e.resource_id,
               CASE WHEN COALESCE(e.payload_json->>'owner_staff_id', '') ~ '^[0-9]+$'
                    THEN (e.payload_json->>'owner_staff_id')::int ELSE NULL END,
@@ -763,7 +774,7 @@ class FixtureOverview {
   async getActions(query: CpOverviewScope): Promise<CpAction[]> {
     const projectIds = this.projectIds(query);
     const rows = (this.fixtures.actions ?? []).filter((action) => {
-      const kind = action.kind ?? action.action;
+      const kind = normalizedActionKind(action.kind ?? action.action);
       if (kind === 'mention') {
         const payload =
           action.payload_json && typeof action.payload_json === 'object'

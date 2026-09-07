@@ -156,4 +156,13 @@ describe('CpOverviewService', () => {
     expect(built.sql).toContain("a.payload_json->>'recipient_staff_id'");
     expect(built.params[0]).toBe(7);
   });
+
+  it('maps cp.publish.failed into the publish_failed Action Center kind', () => {
+    const sql = buildActionSql({ scope: 'all', staffId: 7 }).sql;
+
+    expect(sql).toContain("'cp.publish.failed'");
+    expect(sql).toContain(
+      "WHEN e.action IN ('publish_failed', 'cp.publish.failed') THEN 'publish_failed'",
+    );
+  });
 });
