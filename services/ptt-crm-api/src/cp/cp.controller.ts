@@ -496,6 +496,21 @@ export class CpController {
     return this.projects.listMilestones(id, await this.scope(req));
   }
 
+  @Post('projects/:id/submit-creative')
+  @RequireCpAction('edit')
+  async submitCreative(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { version_id?: string },
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.projects.submitCreative(
+      id,
+      body?.version_id,
+      await this.scope(req, scope),
+    );
+  }
+
   @Post('projects/:id/close')
   @RequireCpAction('edit')
   async closeProject(

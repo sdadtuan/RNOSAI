@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '../config/config.module';
+import { CreativesModule } from '../creatives/creatives.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { CpAssetsRepository, CpAssetsService } from './cp-assets.service';
 import { CpAuditRepository } from './cp-audit.repository';
@@ -34,7 +35,7 @@ import { CpQcService } from './cp-qc.service';
 import { StaffCpGuard } from './guards/staff-cp.guard';
 
 @Module({
-  imports: [ConfigModule, StaffAuthModule],
+  imports: [ConfigModule, StaffAuthModule, CreativesModule],
   controllers: [CpController],
   providers: [
     StaffCpGuard,

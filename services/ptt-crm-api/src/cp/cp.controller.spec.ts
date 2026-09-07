@@ -126,3 +126,24 @@ describe('CpController review mutations', () => {
     );
   });
 });
+
+describe('CpController.submitCreative', () => {
+  const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
+
+  it('forwards version_id and returns creative_id', async () => {
+    const projects = {
+      submitCreative: jest.fn().mockResolvedValue({ creative_id: 'c-1' }),
+    };
+    const { controller, req } = makeController({});
+    Object.assign(controller, { projects });
+
+    await expect(
+      controller.submitCreative(req as never, PROJECT_ID, { version_id: VERSION_ID }, 'team'),
+    ).resolves.toEqual({ creative_id: 'c-1' });
+    expect(projects.submitCreative).toHaveBeenCalledWith(
+      PROJECT_ID,
+      VERSION_ID,
+      expect.objectContaining({ scope: 'team', staffId: 9 }),
+    );
+  });
+});

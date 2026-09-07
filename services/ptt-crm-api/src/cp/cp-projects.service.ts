@@ -1,8 +1,11 @@
-import { HttpException, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { HttpException, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { CreativesService } from '../creatives/creatives.service';
 import { CpAuditRepository, CP_TENANT_ID } from './cp-audit.repository';
+import { assertNotQcBlocked } from './cp-qc.service';
 import { cpScopeSql, CpScope } from './cp-scope.util';
+import { CpVideosService } from './cp-videos.service';
 
 const PROJECT_STATUSES = ['draft', 'active', 'at_risk', 'in_review', 'completed', 'archived'] as const;
 const DELIVERABLE_TYPES = ['ai_video', 'motion', 'social', 'landing_asset', 'human_video'] as const;
@@ -113,6 +116,8 @@ export class CpProjectsService {
   constructor(
     private readonly db: CpProjectsRepository,
     private readonly audit: CpAuditRepository,
+    @Optional() private readonly creatives?: CreativesService,
+    @Optional() private readonly videos?: CpVideosService,
   ) {}
 
   async create(input: CpCreateProjectInput, actorId: number | null = null) {
@@ -444,6 +449,56 @@ export class CpProjectsService {
       [project.id],
     );
     return { items: result.rows };
+  }
+
+  async submitCreative(
+    projectId: string,
+    versionId: string | undefined,
+    scope: CpProjectScope,
+  ) {
+    const id = requiredUuid(projectId, 'invalid_project_id', 'invalid_project_id');
+    const versionUuid = requiredUuid(versionId, 'version_id_required', 'invalid_version_id');
+    const project = await this.loadProject(id, scope);
+    const version = await this.loadSubmitVersion(versionUuid, scope, id);
+    assertNotQcBlocked(version.qc_status == null ? null : String(version.qc_status));
+    if (!this.creatives) cpThrow(500, { error: 'creatives_unavailable' });
+    const title =
+      nullableText(version.draft_name) ||
+      nullableText(project.name) ||
+      `Version ${version.version_n ?? version.id}`;
+    const outputUri = nullableText(version.output_uri);
+    const submitted = await this.creatives.submit({
+      client_id: String(project.agency_client_id),
+      title,
+      asset_url: outputUri ?? undefined,
+      asset_type: 'video',
+      version: Number(version.version_n) > 0 ? Number(version.version_n) : undefined,
+    });
+    return { creative_id: submitted.creative.id };
+  }
+
+  private async loadSubmitVersion(
+    versionId: string,
+    scope: CpProjectScope,
+    projectId: string,
+  ) {
+    if (!this.videos) cpThrow(500, { error: 'videos_unavailable' });
+    try {
+      const version = await this.videos.getVersion(versionId, {
+        scope: scope.scope,
+        staffId: scope.staffId,
+        teamIds: scope.teamIds,
+      });
+      if (String(version.project_id) !== projectId) {
+        cpThrow(400, { error: 'version_required' });
+      }
+      return version;
+    } catch (error) {
+      if (error instanceof HttpException && error.getStatus() === 404) {
+        cpThrow(400, { error: 'version_required' });
+      }
+      throw error;
+    }
   }
 
   private async requireClient(clientId: string): Promise<void> {

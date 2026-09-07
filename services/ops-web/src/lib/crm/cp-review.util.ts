@@ -73,3 +73,11 @@ export function approvalStepForStatus(status: string): string {
 export function isApprovalState(value: string): value is CpApprovalState {
   return (APPROVAL_STATES as readonly string[]).includes(value);
 }
+
+export function canSubmitCreativeToHub(
+  versionId: string | null | undefined,
+  qcStatus: string | null | undefined,
+): boolean {
+  if (!versionId) return false;
+  return qcStatus !== 'blocked';
+}

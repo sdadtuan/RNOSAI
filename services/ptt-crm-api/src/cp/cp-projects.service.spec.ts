@@ -223,3 +223,108 @@ describe('CpProjectsService', () => {
     ).toBe(false);
   });
 });
+
+describe('CpProjectsService.submitCreative', () => {
+  const VERSION_ID = '19d722af-0000-4000-8000-000000000003';
+  const CREATIVE_ID = '19d722af-0000-4000-8000-000000000004';
+  type QueryFn = (
+    sql: string,
+    params?: unknown[],
+  ) => Promise<{ rows: Record<string, unknown>[]; rowCount: number }>;
+  const repo: { query: jest.MockedFunction<QueryFn> } = {
+    query: jest.fn(async (_sql: string, _params?: unknown[]) => ({ rows: [], rowCount: 0 })),
+  };
+  const transaction = jest.fn(
+    async (work: (tx: { query: jest.MockedFunction<QueryFn> }) => Promise<unknown>) =>
+      work(repo),
+  );
+  const audit = { insert: jest.fn(async () => undefined) };
+  const creatives = { submit: jest.fn() };
+  const videos = { getVersion: jest.fn() };
+  let svc: CpProjectsService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    repo.query.mockResolvedValue({ rows: [], rowCount: 0 });
+    svc = new CpProjectsService(
+      { ...repo, transaction } as never,
+      audit as never,
+      creatives as never,
+      videos as never,
+    );
+  });
+
+  it('rejects a missing version with 400', async () => {
+    await expect(svc.submitCreative(id, '', scope)).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(creatives.submit).not.toHaveBeenCalled();
+  });
+
+  it('returns creative_id after Hub submit', async () => {
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/FROM crm_cp_projects p/i.test(sql)) {
+        return {
+          rows: [
+            {
+              id,
+              name: 'Spring launch',
+              agency_client_id: CLIENT_ID,
+              status: 'active',
+              owner_staff_id: 7,
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    videos.getVersion.mockResolvedValue({
+      id: VERSION_ID,
+      project_id: id,
+      draft_name: 'Cut v2',
+      version_n: 2,
+      output_uri: 's3://cp/final.mp4',
+      qc_status: 'passed',
+    });
+    creatives.submit.mockResolvedValue({
+      ok: true,
+      creative: { id: CREATIVE_ID, title: 'Cut v2' },
+    });
+
+    await expect(svc.submitCreative(id, VERSION_ID, scope)).resolves.toEqual({
+      creative_id: CREATIVE_ID,
+    });
+    expect(creatives.submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        client_id: CLIENT_ID,
+        title: 'Cut v2',
+        asset_url: 's3://cp/final.mp4',
+        asset_type: 'video',
+      }),
+    );
+  });
+
+  it('blocks Hub submit when the version QC is blocked', async () => {
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/FROM crm_cp_projects p/i.test(sql)) {
+        return {
+          rows: [{ id, name: 'X', agency_client_id: CLIENT_ID, status: 'active' }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    videos.getVersion.mockResolvedValue({
+      id: VERSION_ID,
+      project_id: id,
+      qc_status: 'blocked',
+    });
+
+    await expect(svc.submitCreative(id, VERSION_ID, scope)).rejects.toMatchObject({
+      status: 409,
+      response: { error: 'qc_blocked' },
+    });
+    expect(creatives.submit).not.toHaveBeenCalled();
+  });
+});

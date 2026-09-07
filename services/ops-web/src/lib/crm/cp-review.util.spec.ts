@@ -3,6 +3,7 @@ import {
   APPROVAL_STATES,
   QC_CHECK_KEYS,
   approvalStepForStatus,
+  canSubmitCreativeToHub,
   rollupQcResult,
 } from './cp-review.util';
 
@@ -46,5 +47,14 @@ describe('cp-review.util', () => {
     expect(approvalStepForStatus('final_approved')).toBe('final');
     expect(approvalStepForStatus('client_review')).toBe('client_review');
     expect(approvalStepForStatus('changes_requested')).toBe('internal_review');
+  });
+
+  it('enables Hub submit unless the selected version is QC blocked', () => {
+    expect(canSubmitCreativeToHub(undefined, undefined)).toBe(false);
+    expect(canSubmitCreativeToHub('', 'passed')).toBe(false);
+    expect(canSubmitCreativeToHub('ver-1', null)).toBe(true);
+    expect(canSubmitCreativeToHub('ver-1', 'passed')).toBe(true);
+    expect(canSubmitCreativeToHub('ver-1', 'warning')).toBe(true);
+    expect(canSubmitCreativeToHub('ver-1', 'blocked')).toBe(false);
   });
 });

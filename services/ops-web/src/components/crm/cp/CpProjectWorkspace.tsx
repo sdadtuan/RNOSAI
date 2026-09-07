@@ -10,12 +10,15 @@ import {
   createCpProjectBrief,
   createCpProjectDeliverable,
   createCpProjectTask,
+  formatCpApiError,
   getCpProject,
+  getCpVideoVersion,
   listActivity,
   listCpProjectBriefs,
   listCpProjectDeliverables,
   listCpProjectTasks,
   patchCpProject,
+  submitCpProjectCreative,
   type CpActivity,
   type CpBrief,
   type CpDeliverable,
@@ -27,6 +30,7 @@ import {
   CP_PROJECT_TABS,
   type CpProjectTabId,
 } from '@/lib/crm/cp-project-tabs.util';
+import { canSubmitCreativeToHub } from '@/lib/crm/cp-review.util';
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return dash(null);
@@ -54,6 +58,8 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [selectedVersionId, setSelectedVersionId] = useState('');
+  const [selectedQcStatus, setSelectedQcStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -86,6 +92,32 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const versionOptions = useMemo(
+    () => deliverables.filter((item) => item.video_version_id),
+    [deliverables],
+  );
+  const canSubmitHub = canSubmitCreativeToHub(selectedVersionId, selectedQcStatus);
+
+  useEffect(() => {
+    if (!selectedVersionId) {
+      setSelectedQcStatus(null);
+      return;
+    }
+    const token = getAccessToken();
+    if (!token) return;
+    let cancelled = false;
+    void getCpVideoVersion(token, selectedVersionId)
+      .then((version) => {
+        if (!cancelled) setSelectedQcStatus(version.qc_status ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedQcStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedVersionId]);
 
   const latestBrief = briefs[0] ?? null;
   const completeDeliverables = useMemo(
@@ -176,6 +208,21 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không tạo được deliverable');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitToHub() {
+    const token = getAccessToken();
+    if (!token || !canSubmitHub) return;
+    setSaving(true);
+    setError('');
+    try {
+      const result = await submitCpProjectCreative(token, projectId, selectedVersionId);
+      setNotice(`Đã gửi Creative Hub · ${result.creative_id}`);
+    } catch (err) {
+      setError(formatCpApiError(err, 'Không gửi được Creative Hub'));
     } finally {
       setSaving(false);
     }
@@ -296,7 +343,43 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
       ) : null}
 
       {activeTab === 'media' ? emptyBody('Media') : null}
-      {activeTab === 'approvals' ? emptyBody('Phê duyệt') : null}
+      {activeTab === 'approvals' ? (
+        <section className="cp-card">
+          <header className="cp-card__head"><h2>Phê duyệt</h2></header>
+          {versionOptions.length ? (
+            <form className="cp-filters" onSubmit={(event) => { event.preventDefault(); void submitToHub(); }}>
+              <label>
+                <span>Version</span>
+                <select
+                  value={selectedVersionId}
+                  onChange={(event) => setSelectedVersionId(event.target.value)}
+                >
+                  <option value="">Chọn version</option>
+                  {versionOptions.map((item) => (
+                    <option key={item.id} value={item.video_version_id ?? ''}>
+                      {item.type} · {dash(item.video_version_id)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="cp-muted">QC: {dash(selectedVersionId ? selectedQcStatus : null)}</p>
+              <button
+                className="cp-btn cp-btn--primary"
+                type="submit"
+                disabled={saving || !canSubmitHub}
+              >
+                Chia sẻ review
+              </button>
+            </form>
+          ) : (
+            <>
+              <p className="cp-muted">Chưa có version để gửi Hub</p>
+              <p className="cp-empty">{dash(null)}</p>
+              <button className="cp-btn" type="button" disabled>Chia sẻ review</button>
+            </>
+          )}
+        </section>
+      ) : null}
       {activeTab === 'budget' ? emptyBody('Ngân sách') : null}
       {activeTab === 'activity' ? (
         <section className="cp-card"><header className="cp-card__head"><h2>Hoạt động</h2></header>{activity.length ? <ul className="cp-timeline">{activity.map((item) => <li key={item.id}><time>{formatDate(item.created_at)}</time><b>{item.action}</b></li>)}</ul> : <><p className="cp-muted">Chưa có dữ liệu</p><p className="cp-empty">{dash(null)}</p></>}</section>

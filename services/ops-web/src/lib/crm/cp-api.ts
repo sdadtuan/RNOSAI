@@ -677,6 +677,22 @@ export function closeCpProject(token: string, projectId: string, archivePending 
   });
 }
 
+export function submitCpProjectCreative(
+  token: string,
+  projectId: string,
+  versionId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ creative_id: string }>(
+    token,
+    cpQueryPath(`/projects/${encodeURIComponent(projectId)}/submit-creative`, { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify({ version_id: versionId }),
+    },
+  );
+}
+
 function cpProjectCollectionPath(projectId: string, collection: string): string {
   return `/projects/${encodeURIComponent(projectId)}/${collection}`;
 }
