@@ -409,14 +409,14 @@ export function buildActionSql(query: CpOverviewScope): OverviewSql {
        UNION ALL
        SELECT 'budget_threshold',
               CASE
-                WHEN allocated <= 0 OR used >= allocated THEN 'critical'
+                WHEN used >= allocated THEN 'critical'
                 WHEN used * 100 >= allocated * 80 THEN 'danger'
                 ELSE 'warning'
               END,
               'Credit budget threshold', 'client', agency_client_id::text, owner_staff_id,
               NULL::text, '/cp/credits?client=' || agency_client_id::text
          FROM credit_usage
-        WHERE allocated <= 0 OR used * 100 >= allocated * 50
+        WHERE allocated > 0 AND used * 100 >= allocated * 50
        UNION ALL
        SELECT e.action, CASE WHEN e.action = 'publish_failed' THEN 'critical' ELSE 'info' END,
               CASE WHEN e.action = 'publish_failed' THEN 'Publish failed' ELSE 'You were mentioned' END,
@@ -664,6 +664,13 @@ class FixtureOverview {
     if (!projectIds.size) {
       return { last_updated: new Date().toISOString(), kpis: mapKpiRow({}) };
     }
+    const clientIds = new Set(
+      this.fixtures.projects
+        .filter((project) => projectIds.has(String(project.id)))
+        .map((project) => project.agency_client_id ?? project.agencyClientId)
+        .filter((clientId): clientId is string | number => clientId != null)
+        .map(String),
+    );
     const inScope = (row: Record<string, unknown>) =>
       projectIds.has(String(row.project_id ?? row.projectId ?? ''));
     const scopedDrafts = (this.fixtures.drafts ?? []).filter(inScope);
@@ -687,14 +694,18 @@ class FixtureOverview {
       .filter((n): n is number => n != null);
     const ledger = this.fixtures.ledger.filter(
       (row) =>
-        inScope(row) &&
+        (inScope(row) ||
+          ((row.project_id ?? row.projectId) == null &&
+            clientIds.has(String(row.agency_client_id ?? row.agencyClientId ?? '')))) &&
         (row.kind === 'charge' || row.kind === 'reserve') &&
         inIctRange(row.created_at ?? row.createdAt, query.from, query.to),
     );
     const creditsUsed = ledger
       .map((row) => finiteNumber(row.amount))
       .filter((n): n is number => n != null);
-    const allocations = this.fixtures.allocations ?? [];
+    const allocations = (this.fixtures.allocations ?? []).filter((row) =>
+      clientIds.has(String(row.agency_client_id ?? row.agencyClientId ?? '')),
+    );
     const allocated = allocations
       .map((row) => finiteNumber(row.allocated))
       .filter((n): n is number => n != null);

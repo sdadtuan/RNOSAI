@@ -96,4 +96,45 @@ describe('CpOverviewService', () => {
 
     expect(out.kpis.videos_created).toBe(1);
   });
+
+  it('does not emit a budget action for a zero allocation with zero usage', async () => {
+    const svc = makeOverview({
+      projects: [{ id: 'p1', owner_staff_id: 1, agency_client_id: 'client-1' }],
+      jobs: [],
+      ledger: [],
+      assets: [],
+      tasks: [],
+      allocations: [{ agency_client_id: 'client-1', allocated: 0 }],
+      actions: [],
+    });
+
+    expect(await svc.getActions({ scope: 'me', staffId: 1 })).toEqual([]);
+    expect(buildActionSql({ scope: 'me', staffId: 1 }).sql).toContain(
+      'WHERE allocated > 0 AND used * 100 >= allocated * 50',
+    );
+  });
+
+  it('scopes fixture allocations and client-only ledger rows to visible clients', async () => {
+    const svc = makeOverview({
+      projects: [
+        { id: 'p1', owner_staff_id: 1, agency_client_id: 'client-1' },
+        { id: 'p2', owner_staff_id: 2, agency_client_id: 'client-2' },
+      ],
+      jobs: [],
+      ledger: [
+        { project_id: null, agency_client_id: 'client-1', kind: 'charge', amount: 10 },
+      ],
+      assets: [],
+      tasks: [],
+      allocations: [
+        { agency_client_id: 'client-1', allocated: 100 },
+        { agency_client_id: 'client-2', allocated: 200 },
+      ],
+    });
+
+    const out = await svc.getKpis({ scope: 'me', staffId: 1 });
+
+    expect(out.kpis.credits_used).toBe(10);
+    expect(out.kpis.credits_remaining).toBe(90);
+  });
 });
