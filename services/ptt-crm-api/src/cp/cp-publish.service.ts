@@ -421,7 +421,9 @@ export class CpPublishService {
     scope: CpVideoScope,
   ): Promise<{ status: CpPublishStatus; post_ref: string | null; last_error: string | null }> {
     try {
-      await this.videos.getVersion(String(item.video_version_id), scope);
+      const version = await this.videos.getVersion(String(item.video_version_id), scope);
+      const ctx = await this.schedulableContext(version);
+      assertSchedulable(version, ctx);
       const stored = this.settings ? await this.settings.get() : null;
       const native = nativePublishEnabled(
         stored && typeof stored.publish_native === 'boolean' ? stored.publish_native : null,
@@ -432,6 +434,7 @@ export class CpPublishService {
       }
       return { status: 'published', post_ref: postRef, last_error: null };
     } catch (error) {
+      if (isPublishGateError(error)) throw error;
       return { status: 'failed', post_ref: null, last_error: handoffError(error) };
     }
   }
@@ -789,6 +792,22 @@ function errorBody(error: unknown): string {
     return String((error as { error: unknown }).error);
   }
   return 'locked';
+}
+
+function isPublishGateError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const status = Number(
+    (error as { status?: unknown; statusCode?: unknown }).status
+    ?? (error as { statusCode?: unknown }).statusCode
+    ?? (error instanceof HttpException ? error.getStatus() : 0),
+  );
+  const code = String((error as { error?: unknown }).error ?? '');
+  return status === 409 && [
+    'not_final_approved',
+    'qc_blocked',
+    'rights_blocked',
+    'disclaimer_required',
+  ].includes(code);
 }
 
 function handoffError(error: unknown): string {

@@ -5,8 +5,12 @@ const VERSION_ID = '55555555-5555-4555-8555-555555555555';
 
 function makeController(opts: {
   hasLegalCap?: boolean;
+  hasExportFinal?: boolean;
+  hasFinanceView?: boolean;
   comments?: { create: jest.Mock };
   approvals?: { submit: jest.Mock };
+  reports?: { export: jest.Mock };
+  collections?: { list: jest.Mock };
 }) {
   const comments = opts.comments ?? { create: jest.fn().mockResolvedValue({ id: 'c1' }) };
   const approvals = opts.approvals ?? { submit: jest.fn().mockResolvedValue({ id: 'a1' }) };
@@ -17,6 +21,12 @@ function makeController(opts: {
       if (section === 'crm_cp' && (action === 'edit' || action === 'view')) return true;
       if (section === 'crm_cp.approve_legal' && action === 'execute') {
         return opts.hasLegalCap === true;
+      }
+      if (section === 'crm_cp.export_final' && action === 'execute') {
+        return opts.hasExportFinal === true;
+      }
+      if (section === 'crm_cp.finance' && action === 'view') {
+        return opts.hasFinanceView === true;
       }
       return false;
     }),
@@ -182,5 +192,58 @@ describe('CpController.contentOsHandoff', () => {
       expect.objectContaining({ staffId: 9 }),
     );
     expect(renders.submit).not.toHaveBeenCalled();
+  });
+});
+
+describe('CpController report export cap', () => {
+  it('forbids POST /reports/export when view-only and no export_final or finance', async () => {
+    const reports = { export: jest.fn() };
+    const { controller, req } = makeController({ hasExportFinal: false, hasFinanceView: false });
+    Object.assign(controller, { reports });
+
+    await expect(
+      controller.exportReport(req as never, { slug: 'performance', format: 'csv' }, 'me'),
+    ).rejects.toMatchObject({
+      response: {
+        error: 'missing_cap',
+        section: 'crm_cp.export_final',
+      },
+    });
+    expect(reports.export).not.toHaveBeenCalled();
+  });
+
+  it('exports when crm_cp.export_final execute is present', async () => {
+    const reports = { export: jest.fn().mockResolvedValue({ ok: true, body: 'views,1200\n' }) };
+    const { controller, req } = makeController({ hasExportFinal: true });
+    Object.assign(controller, { reports });
+
+    await expect(
+      controller.exportReport(req as never, { slug: 'performance', format: 'csv' }, 'me'),
+    ).resolves.toEqual({ ok: true, body: 'views,1200\n' });
+    expect(reports.export).toHaveBeenCalled();
+  });
+
+  it('exports when crm_cp.finance view is present with crm_cp view', async () => {
+    const reports = { export: jest.fn().mockResolvedValue({ ok: true, body: 'used,\n' }) };
+    const { controller, req } = makeController({ hasFinanceView: true });
+    Object.assign(controller, { reports });
+
+    await expect(
+      controller.exportReport(req as never, { slug: 'credit', format: 'csv' }, 'me'),
+    ).resolves.toEqual({ ok: true, body: 'used,\n' });
+    expect(reports.export).toHaveBeenCalled();
+  });
+});
+
+describe('CpController collections list scope', () => {
+  it('forwards request scope to collections.list', async () => {
+    const collections = { list: jest.fn().mockResolvedValue({ items: [] }) };
+    const { controller, req } = makeController({});
+    Object.assign(controller, { collections });
+
+    await controller.listCollections(req as never, 'me');
+    expect(collections.list).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'me', staffId: 9 }),
+    );
   });
 });

@@ -378,6 +378,36 @@ describe('spreadBulkSlots', () => {
 });
 
 describe('CpPublishService deliver / retry / bulk', () => {
+  it('deliver re-runs the publish gate and 409s expired rights instead of publishing', async () => {
+    const videos = new VersionPort();
+    videos.version = finalVersion({
+      snapshot_json: {
+        config_json: { ratio: '9:16', duration: 30 },
+        disclaimer_present: true,
+        asset_versions: [{ id: ASSET_VERSION_ID }],
+      },
+    });
+    const db = new PublishQuery();
+    db.items = [{
+      id: ITEM_ID,
+      video_version_id: VERSION_ID,
+      channel: 'tiktok',
+      status: 'scheduled',
+      post_ref: null,
+      last_error: null,
+    }];
+    db.assetVersions = [{ id: ASSET_VERSION_ID, asset_id: PARENT_ASSET_ID }];
+    db.rights = [{ asset_id: PARENT_ASSET_ID, expiry_on: '2020-01-01' }];
+    const settings = new SettingsPort();
+    const svc = new CpPublishService(videos as never, db, undefined, settings as never);
+
+    await expect(svc.deliver(ITEM_ID, SCOPE)).rejects.toMatchObject({
+      status: 409,
+      error: 'rights_blocked',
+    });
+    expect(db.updated).toBeNull();
+  });
+
   it('deliver marks published + export post_ref on file-export success', async () => {
     const videos = new VersionPort();
     const db = new PublishQuery();

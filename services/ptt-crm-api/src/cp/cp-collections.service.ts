@@ -56,13 +56,14 @@ export class CpCollectionsRepository implements CpCollectionsQueryPort, OnModule
 export class CpCollectionsService {
   constructor(@Inject(CP_COLLECTIONS_QUERY) private readonly db: CpCollectionsQueryPort) {}
 
-  async list() {
+  async list(scope: CpAssetScope) {
+    const bound = collectionScope(scope, 2);
     const result = await this.db.query(
-      `SELECT *
-         FROM crm_cp_collections
-        WHERE tenant_id = $1
-        ORDER BY name, id`,
-      [CP_TENANT_ID],
+      `SELECT c.*
+         FROM crm_cp_collections c
+        WHERE c.tenant_id = $1 AND ${bound.sql}
+        ORDER BY c.name, c.id`,
+      [CP_TENANT_ID, ...bound.params],
     );
     return { items: result.rows };
   }
@@ -80,7 +81,7 @@ export class CpCollectionsService {
   }
 
   async get(id: string, scope: CpAssetScope) {
-    const collection = await this.loadCollection(id);
+    const collection = await this.loadCollection(id, scope);
     const filter = parseSmartFilter(collection.smart_filter_json);
     const items = filter
       ? await this.listSmartAssets(filter, scope)
@@ -89,7 +90,7 @@ export class CpCollectionsService {
   }
 
   async addItem(id: string, input: CpCollectionItemInput, scope: CpAssetScope) {
-    const collection = await this.loadCollection(id);
+    const collection = await this.loadCollection(id, scope);
     if (parseSmartFilter(collection.smart_filter_json)) {
       cpThrow(400, { error: 'smart_collection_readonly' });
     }
@@ -106,7 +107,7 @@ export class CpCollectionsService {
   }
 
   async removeItem(id: string, assetId: string, scope: CpAssetScope) {
-    const collection = await this.loadCollection(id);
+    const collection = await this.loadCollection(id, scope);
     if (parseSmartFilter(collection.smart_filter_json)) {
       cpThrow(400, { error: 'smart_collection_readonly' });
     }
@@ -149,14 +150,15 @@ export class CpCollectionsService {
     };
   }
 
-  private async loadCollection(id: string) {
+  private async loadCollection(id: string, scope: CpAssetScope) {
     const collectionId = requiredUuid(id, 'invalid_collection_id', 'invalid_collection_id');
+    const bound = collectionScope(scope, 3);
     const result = await this.db.query(
-      `SELECT *
-         FROM crm_cp_collections
-        WHERE tenant_id = $1 AND id = $2::uuid
+      `SELECT c.*
+         FROM crm_cp_collections c
+        WHERE c.tenant_id = $1 AND c.id = $2::uuid AND ${bound.sql}
         LIMIT 1`,
-      [CP_TENANT_ID, collectionId],
+      [CP_TENANT_ID, collectionId, ...bound.params],
     );
     return result.rows[0] ?? cpThrow(404, { error: 'not_found' });
   }
@@ -201,6 +203,26 @@ export class CpCollectionsService {
     );
     return result.rows;
   }
+}
+
+export function collectionScope(scope: CpAssetScope, startAt: number) {
+  if (scope.scope === 'all') return { sql: 'TRUE', params: [] as unknown[] };
+  if (scope.scope === 'team' && scope.teamIds?.length) {
+    return {
+      sql: `EXISTS (
+        SELECT 1
+          FROM crm_staff owner
+          JOIN staff_users su ON lower(trim(su.email)) = lower(trim(owner.email))
+          JOIN staff_user_teams sut ON sut.user_id = su.id
+         WHERE owner.id = c.created_by AND sut.team_id = ANY($${startAt})
+      )`,
+      params: [scope.teamIds] as unknown[],
+    };
+  }
+  return {
+    sql: `c.created_by = $${startAt}`,
+    params: [scope.staffId] as unknown[],
+  };
 }
 
 export function parseSmartFilter(value: unknown): CpSmartFilter | null {

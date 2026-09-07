@@ -92,8 +92,9 @@ export class CpRendersService {
     draftId: string,
     idempotencyKey: string,
     scope: CpRenderScope = DEFAULT_SCOPE,
+    opts?: { batchItemId?: string | null },
   ) {
-    return this.submitInternal(draftId, idempotencyKey, null, 1, scope);
+    return this.submitInternal(draftId, idempotencyKey, null, 1, scope, opts?.batchItemId ?? null);
   }
 
   async list(scope: CpRenderScope = DEFAULT_SCOPE) {
@@ -180,6 +181,7 @@ export class CpRendersService {
       String(parent.id),
       attempt,
       scope,
+      nullableText(parent.batch_item_id),
     );
   }
 
@@ -207,6 +209,7 @@ export class CpRendersService {
     parentJobId: string | null,
     attempt: number,
     scope: CpRenderScope,
+    batchItemId: string | null = null,
   ): Promise<Record<string, unknown>> {
     const key = requiredText(idempotencyKey, 'idempotency_key_required');
     const draft = await this.loadDraft(draftId, scope);
@@ -260,17 +263,18 @@ export class CpRendersService {
       const correlationId = `${key}:${Date.now()}`;
       const inserted = await tx.query(
         `INSERT INTO crm_cp_render_jobs (
-           draft_id, parent_job_id, state, stage, progress, provider,
+           draft_id, parent_job_id, batch_item_id, state, stage, progress, provider,
            idempotency_key, correlation_id, stage_log_json, attempt
          ) VALUES (
-           $1::uuid, $2::uuid, 'queued', 'queued', 0, 'stub',
-           $3, $4, $5::jsonb, $6
+           $1::uuid, $2::uuid, $3::uuid, 'queued', 'queued', 0, 'stub',
+           $4, $5, $6::jsonb, $7
          )
          ON CONFLICT (idempotency_key) DO NOTHING
          RETURNING *`,
         [
           draft.id,
           parentJobId,
+          batchItemId,
           key,
           correlationId,
           JSON.stringify([{ stage: 'queued', estimate, at: new Date().toISOString() }]),
@@ -298,7 +302,8 @@ export class CpRendersService {
         ...snapshot,
         render_job_id: job.id,
       }, tx);
-      return renderResponse(job, estimate);
+      const processed = await this.findByKey(String(draft.id), key, tx);
+      return renderResponse(processed ?? job, estimate);
     });
   }
 

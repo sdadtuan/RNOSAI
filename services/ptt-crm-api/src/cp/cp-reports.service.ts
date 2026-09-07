@@ -110,19 +110,27 @@ export class CpReportsService {
   }
 
   private async loadIngest(query: CpReportQuery): Promise<Record<string, unknown>[]> {
+    const { scopeSql, params } = bindReportFilters(query);
     const result = await this.db.query(
-      `SELECT payload_json, created_at
-         FROM crm_cp_activity
-        WHERE tenant_id = $4 AND action = 'performance_ingest'
-          AND ($1::date IS NULL OR (created_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
-          AND ($2::date IS NULL OR (created_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')
-          AND (
-            $3::text IS NULL
-            OR payload_json->>'agency_client_id' = $3
-            OR payload_json->>'client' = $3
+      `WITH scoped_projects AS (
+         SELECT p.* FROM crm_cp_projects p
+          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scopeSql}
+            AND ${clientSql('p')}
+       )
+       SELECT a.payload_json, a.created_at
+         FROM crm_cp_activity a
+        WHERE a.tenant_id = '${CP_TENANT_ID}' AND a.action = 'performance_ingest'
+          AND ${ictRangeSql('a')}
+          AND EXISTS (
+            SELECT 1 FROM scoped_projects p
+             WHERE p.id::text = a.payload_json->>'project_id'
+                OR p.agency_client_id::text = COALESCE(
+                     NULLIF(a.payload_json->>'agency_client_id', ''),
+                     NULLIF(a.payload_json->>'client', '')
+                   )
           )
-        ORDER BY created_at DESC`,
-      [query.from ?? null, query.to ?? null, query.client ?? null, CP_TENANT_ID],
+        ORDER BY a.created_at DESC`,
+      params,
     );
     return result.rows;
   }
@@ -754,9 +762,100 @@ function bindReportScope(
 function serializeExport(report: Record<string, unknown>, format: string): string {
   const slug = String(report.slug ?? '');
   if (format === 'csv') {
-    return `slug,format\n${slug},${format}\n`;
+    return serializeExportCsv(report);
   }
   return JSON.stringify({ slug, format, report });
+}
+
+function serializeExportCsv(report: Record<string, unknown>): string {
+  const header = ['section', 'key', 'value', 'source', 'freshness'];
+  const rows = flattenReportRows(report);
+  const lines = [header.join(',')];
+  for (const row of rows) {
+    lines.push([
+      csvCell(row.section),
+      csvCell(row.key),
+      csvCell(row.value),
+      csvCell(row.source),
+      csvCell(row.freshness),
+    ].join(','));
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function flattenReportRows(
+  report: Record<string, unknown>,
+): Array<{ section: string; key: string; value: unknown; source: unknown; freshness: unknown }> {
+  const rows: Array<{ section: string; key: string; value: unknown; source: unknown; freshness: unknown }> = [];
+  const pushMetric = (section: string, key: string, value: unknown) => {
+    if (isSourcedMetric(value)) {
+      rows.push({
+        section,
+        key,
+        value: value.value,
+        source: value.source,
+        freshness: value.freshness,
+      });
+      return;
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [nested, item] of Object.entries(value as Record<string, unknown>)) {
+        pushMetric(section, nested, item);
+      }
+      return;
+    }
+    rows.push({ section, key, value, source: null, freshness: null });
+  };
+
+  for (const [section, value] of Object.entries(report)) {
+    if (section === 'slug' || section === 'insights' || section === 'policy' || section === 'actions') {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          const obj = item as Record<string, unknown>;
+          const key = String(obj.key ?? obj.channel ?? obj.name ?? obj.id ?? obj.error_class ?? index);
+          const metric = obj.performance ?? obj;
+          if (isSourcedMetric(metric) || isSourcedMetric(obj)) {
+            pushMetric(section, key, isSourcedMetric(obj) ? obj : metric);
+            return;
+          }
+          const primary = obj.value ?? obj.count ?? obj.output ?? obj.success_pct ?? null;
+          rows.push({
+            section,
+            key,
+            value: primary,
+            source: obj.source ?? null,
+            freshness: obj.freshness ?? null,
+          });
+          return;
+        }
+        rows.push({ section, key: String(index), value: item, source: null, freshness: null });
+      });
+      continue;
+    }
+    pushMetric(section, section, value);
+  }
+  return rows;
+}
+
+function isSourcedMetric(value: unknown): value is CpSourcedMetric {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && 'value' in value
+    && 'source' in value
+    && 'freshness' in value,
+  );
+}
+
+function csvCell(value: unknown): string {
+  if (value == null || value === '') return '';
+  const text = String(value);
+  if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
 }
 
 function cpThrow(status: number, body: Record<string, unknown>): never {

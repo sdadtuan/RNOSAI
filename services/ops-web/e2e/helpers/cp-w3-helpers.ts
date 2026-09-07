@@ -1,4 +1,5 @@
 import type { APIRequestContext } from '@playwright/test';
+import { STAFF_EMAIL } from './ai-copilot-helpers';
 import {
   API_URL,
   createCpProjectApi,
@@ -37,9 +38,18 @@ export const CP_W3_TEMPLATE_VARS = [
   'hotline',
 ] as const;
 
-export const FOREIGN_COLLECTION_ID = '19d722af-0000-4000-8000-000000000088';
 export const FOREIGN_ASSET_ID = '19d722af-0000-4000-8000-000000000077';
 export const INVALID_VERSION_ID = '19d722af-0000-4000-8000-000000000066';
+
+const OTHER_STAFF_EMAILS = [
+  process.env.OPS_E2E_STAFF_B_EMAIL,
+  'leader@demo.local',
+  'gdkd@demo.local',
+].filter((value): value is string => Boolean(value && value !== STAFF_EMAIL));
+
+const OTHER_STAFF_PASSWORD = process.env.OPS_E2E_STAFF_B_PASSWORD
+  ?? process.env.OPS_E2E_STAFF_PASSWORD
+  ?? 'demo12345';
 
 const authHeaders = (token: string) => ({
   Authorization: `Bearer ${token}`,
@@ -209,6 +219,60 @@ export async function getCpReportApi(
     `${API_URL}/api/crm/cp/reports/${encodeURIComponent(slug)}?${query}`,
     { headers: { Authorization: `Bearer ${token}` } },
   ));
+}
+
+export async function listCpCollectionsApi(
+  request: APIRequestContext,
+  token: string,
+  query = 'scope=all',
+): Promise<CpApiResult<{ items?: Array<Record<string, unknown>> }>> {
+  return result(await request.get(`${API_URL}/api/crm/cp/collections?${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }));
+}
+
+async function tryStaffToken(
+  request: APIRequestContext,
+  email: string,
+  password: string,
+): Promise<string | null> {
+  const login = await request.post(`${API_URL}/api/v1/staff/auth/login`, {
+    data: { email, password },
+  });
+  if (!login.ok()) return null;
+  const body = (await login.json()) as { access_token?: string };
+  return body.access_token ?? null;
+}
+
+export async function requireForeignCollectionId(
+  request: APIRequestContext,
+  viewerToken: string,
+): Promise<string> {
+  for (const email of OTHER_STAFF_EMAILS) {
+    const otherToken = await tryStaffToken(request, email, OTHER_STAFF_PASSWORD);
+    if (!otherToken || otherToken === viewerToken) continue;
+    const created = await createCpCollectionApi(request, otherToken, {
+      name: `CP-W3-UAT-foreign-${Date.now()}`,
+    });
+    if (created.ok && created.json.id) return String(created.json.id);
+  }
+
+  const own = await createCpCollectionApi(request, viewerToken, {
+    name: `CP-W3-UAT-own-scope-${Date.now()}`,
+  });
+  const ownId = own.ok ? String(own.json.id ?? '') : '';
+  const ownCreatedBy = own.json.created_by;
+  const listed = await listCpCollectionsApi(request, viewerToken, 'scope=all');
+  const foreign = (listed.json.items ?? []).find((row) => {
+    if (ownId && String(row.id) === ownId) return false;
+    if (ownCreatedBy == null) return String(row.id) !== ownId;
+    return Number(row.created_by) !== Number(ownCreatedBy);
+  });
+  if (foreign?.id) return String(foreign.id);
+
+  throw new Error(
+    'Wave 3 prerequisite missing: cannot create or find a collection owned by another staff id',
+  );
 }
 
 export async function createCpCollectionApi(

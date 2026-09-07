@@ -64,12 +64,19 @@ class CollectionQuery {
       );
       return { rows: [], rowCount: 1 };
     }
-    if (/FROM crm_cp_collections/i.test(sql) && /WHERE[\s\S]*id/i.test(sql)) {
-      const id = String(params[1] ?? params[0] ?? '');
-      return { rows: this.collections.filter((row) => String(row.id) === id) };
-    }
     if (/FROM crm_cp_collections/i.test(sql)) {
-      return { rows: this.collections };
+      let rows = [...this.collections];
+      const idMatch = /c\.id\s*=\s*\$(\d+)/i.exec(sql);
+      if (idMatch) {
+        const id = String(params[Number(idMatch[1]) - 1] ?? '');
+        rows = rows.filter((row) => String(row.id) === id);
+      }
+      const createdBy = /c\.created_by\s*=\s*\$(\d+)/i.exec(sql);
+      if (createdBy) {
+        const staffId = params[Number(createdBy[1]) - 1];
+        rows = rows.filter((row) => Number(row.created_by) === Number(staffId));
+      }
+      return { rows };
     }
     if (/FROM crm_cp_assets/i.test(sql)) {
       const scoped = /a\.owner_staff_id\s*=\s*\$(\d+)/i.exec(sql);
@@ -182,6 +189,42 @@ describe('CpCollectionsService manual items', () => {
 
     await service.removeItem(COLLECTION_ID, ASSET_A, STAFF_A);
     expect(db.items).toEqual([]);
+  });
+});
+
+describe('CpCollectionsService owner scope', () => {
+  it('lists and loads only collections created by the requesting staff when scope=me', async () => {
+    const db = new CollectionQuery();
+    db.collections.push(
+      {
+        id: COLLECTION_ID,
+        tenant_id: 'PTT',
+        name: 'Mine',
+        smart_filter_json: null,
+        created_by: STAFF_A.staffId,
+      },
+      {
+        id: SMART_ID,
+        tenant_id: 'PTT',
+        name: 'Other book',
+        smart_filter_json: { mime: 'image/' },
+        created_by: STAFF_B.staffId,
+      },
+    );
+    db.assets.push(assetRow(ASSET_A, STAFF_A.staffId));
+    const service = new CpCollectionsService(db as never);
+
+    const listed = await service.list(STAFF_A);
+    expect(listed.items.map((row) => String(row.id))).toEqual([COLLECTION_ID]);
+    expect(listed.items.map((row) => String(row.name))).not.toContain('Other book');
+
+    await expect(service.get(SMART_ID, STAFF_A)).rejects.toMatchObject({ error: 'not_found' });
+    await expect(
+      service.addItem(SMART_ID, { asset_id: ASSET_A }, STAFF_A),
+    ).rejects.toMatchObject({ error: 'not_found' });
+    await expect(service.removeItem(SMART_ID, ASSET_A, STAFF_A)).rejects.toMatchObject({
+      error: 'not_found',
+    });
   });
 });
 

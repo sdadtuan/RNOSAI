@@ -176,7 +176,7 @@ export class CpBatchesService {
     let validCount = 0;
     let invalidCount = 0;
     for (const item of items) {
-      if (item.status === 'completed') {
+      if (item.status === 'completed' || item.status === 'submitted') {
         validCount += 1;
         continue;
       }
@@ -226,7 +226,7 @@ export class CpBatchesService {
     const items = Array.isArray(validated.items) ? validated.items : [];
     const results: Record<string, unknown>[] = [];
     for (const item of items) {
-      if (item.status === 'completed') {
+      if (item.status === 'completed' || item.status === 'submitted') {
         results.push(item);
         continue;
       }
@@ -290,6 +290,7 @@ export class CpBatchesService {
     const item = (batch.items as Record<string, unknown>[]).find((row) => Number(row.row_no) === n)
       ?? cpThrow(404, { error: 'not_found' });
     if (item.status === 'completed') return item;
+    if (item.status === 'submitted') return item;
     if (item.status === 'invalid') {
       const template = await this.loadTemplate(String(batch.template_id));
       const checked = validateBatchRow(
@@ -308,15 +309,13 @@ export class CpBatchesService {
     const jobId = nullableText(item.job_id);
     if (jobId) {
       const job = await this.renders.retryJob(jobId, scope);
-      item.status = 'completed';
-      item.error = null;
-      item.job_id = nullableText(job.job_id ?? job.id) ?? jobId;
+      applyJobState(item, job, jobId);
       await this.db.query(
         `UPDATE crm_cp_batch_items
             SET status = $1, error = $2, job_id = $3
           WHERE batch_id = $4::uuid AND row_no = $5
           RETURNING *`,
-        ['completed', null, item.job_id, batch.id, item.row_no],
+        [item.status, item.error, item.job_id, batch.id, item.row_no],
       );
       return item;
     }
@@ -364,22 +363,21 @@ export class CpBatchesService {
           variables: row,
         },
       }, scope);
-      const submitted = await this.renders.submit(String(draft.id), key, scope);
+      const submitted = await this.renders.submit(String(draft.id), key, scope, {
+        batchItemId: nullableText(item.id),
+      });
       const submittedId = nullableText(submitted.job_id ?? submitted.id);
       const job = submittedId && isUnsuccessfulRender(submitted)
         ? await this.renders.retryJob(submittedId, scope)
         : submitted;
-      const jobId = nullableText(job.job_id ?? job.id);
-      item.status = 'completed';
-      item.error = null;
-      item.job_id = jobId;
+      applyJobState(item, job);
       item.draft_id = draft.id;
       await this.db.query(
         `UPDATE crm_cp_batch_items
             SET status = $1, error = $2, job_id = $3
           WHERE batch_id = $4::uuid AND row_no = $5
           RETURNING *`,
-        ['completed', null, jobId, batch.id, item.row_no],
+        [item.status, item.error, item.job_id, batch.id, item.row_no],
       );
       return item;
     } catch (error) {
@@ -539,6 +537,28 @@ export function assertCrmColumn(ref: string): { table: 'clients' | 'crm_service_
 
 function isUnsuccessfulRender(job: Record<string, unknown>): boolean {
   return ['failed', 'cancelled', 'expired'].includes(String(job.state ?? job.status ?? ''));
+}
+
+function applyJobState(
+  item: Record<string, unknown>,
+  job: Record<string, unknown>,
+  fallbackJobId?: string | null,
+) {
+  const jobId = nullableText(job.job_id ?? job.id) ?? fallbackJobId ?? null;
+  const state = String(job.state ?? job.status ?? '');
+  item.job_id = jobId;
+  if (state === 'completed') {
+    item.status = 'completed';
+    item.error = null;
+    return;
+  }
+  if (isUnsuccessfulRender(job)) {
+    item.status = 'failed';
+    item.error = nullableText(job.error_class ?? job.error ?? job.last_error) ?? 'render_failed';
+    return;
+  }
+  item.status = 'submitted';
+  item.error = null;
 }
 
 function mergeCrmIntoRow(

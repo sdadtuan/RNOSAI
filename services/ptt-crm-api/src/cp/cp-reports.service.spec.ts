@@ -74,7 +74,64 @@ describe('CpReportsService performance', () => {
   });
 });
 
+describe('CpReportsService ingest scope', () => {
+  it('binds performance ingest to scoped_projects so scope=me cannot see tenant-wide views', async () => {
+    const db = {
+      query: jest.fn().mockImplementation(async (sql: string) => {
+        if (/performance_ingest/i.test(sql)) {
+          return {
+            rows: [
+              {
+                payload_json: { views: 9999, ctr: 0.4, roi: 12, source: 'ads_hub_csv' },
+                created_at: '2026-09-06T00:00:00.000Z',
+              },
+            ],
+          };
+        }
+        return { rows: [] };
+      }),
+    };
+    const { svc } = makeService(db);
+    await svc.get('performance', { scope: 'me', staffId: 11 });
+
+    const sql = sqlCalls(db);
+    expect(sql).toMatch(/performance_ingest/);
+    expect(sql).toMatch(/scoped_projects/);
+    expect(sql).toMatch(/owner_staff_id/);
+    expect(firstParams(db, /performance_ingest/)).toEqual(expect.arrayContaining([11]));
+  });
+});
+
 describe('CpReportsService export', () => {
+  it('serializes computed KPI/metric rows and leaves missing CTR empty', async () => {
+    const db = {
+      query: jest.fn().mockImplementation(async (sql: string) => {
+        if (/performance_ingest/i.test(sql)) {
+          return {
+            rows: [
+              {
+                payload_json: { views: 1200, channel: 'reels', source: 'ads_hub_csv' },
+                created_at: '2026-09-06T00:00:00.000Z',
+              },
+            ],
+          };
+        }
+        return { rows: [] };
+      }),
+    };
+    const { svc } = makeService(db);
+    const out = await svc.export(
+      { slug: 'performance', format: 'csv' },
+      { scope: 'me', staffId: 7 },
+    );
+
+    expect(out.body).toMatch(/views/i);
+    expect(out.body).toMatch(/1200/);
+    expect(out.body).toMatch(/ctr/i);
+    expect(out.body).not.toMatch(/^slug,format$/m);
+    expect(out.body).not.toMatch(/ctr,[0-9]/i);
+  });
+
   it('writes report_export activity', async () => {
     const { svc, audit } = makeService();
     const out = await svc.export(

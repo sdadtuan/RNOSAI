@@ -173,12 +173,12 @@ function makeService(
       };
     }
     charges.push(key);
-    return { id: `job-${key}`, job_id: `job-${key}`, idempotency_key: key, state: 'queued' };
+    return { id: `job-${key}`, job_id: `job-${key}`, idempotency_key: key, state: 'completed' };
   });
   const retryJob = opts.retryJob ?? jest.fn(async (id: string) => ({
     id,
     job_id: `${id}:retry`,
-    state: 'queued',
+    state: 'completed',
   }));
   const upsertDraft = opts.upsertDraft ?? jest.fn(async () => ({
     id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
@@ -254,14 +254,72 @@ describe('CpBatchesService', () => {
       expect.any(String),
       `${BATCH_ID}:1`,
       SCOPE,
+      expect.objectContaining({ batchItemId: expect.any(String) }),
     );
     expect(submit).toHaveBeenCalledWith(
       expect.any(String),
       `${BATCH_ID}:2`,
       SCOPE,
+      expect.objectContaining({ batchItemId: expect.any(String) }),
     );
     expect(charges).toEqual([`${BATCH_ID}:1`, `${BATCH_ID}:2`]);
     expect(charges).toHaveLength(2);
+  });
+
+  it('persists batch_item_id on submit and does not mark a queued job completed', async () => {
+    const db = new BatchQuery();
+    const submit = jest.fn(async () => ({
+      id: `job-${BATCH_ID}:1`,
+      job_id: `job-${BATCH_ID}:1`,
+      state: 'queued',
+    }));
+    const { service } = makeService(db, { submit });
+    await service.create({
+      template_id: TEMPLATE_ID,
+      project_id: PROJECT_ID,
+      rows: [sampleRow(1)],
+      mapping: Object.fromEntries(REQUIRED.map((key) => [key, key])),
+    }, 9, SCOPE);
+    await service.validate(BATCH_ID, SCOPE);
+    await service.run(BATCH_ID, SCOPE);
+
+    expect(submit).toHaveBeenCalledWith(
+      expect.any(String),
+      `${BATCH_ID}:1`,
+      SCOPE,
+      expect.objectContaining({ batchItemId: expect.stringMatching(/./) }),
+    );
+    expect(db.items[0].status).not.toBe('completed');
+    expect(db.items[0].job_id).toBe(`job-${BATCH_ID}:1`);
+  });
+
+  it('marks a failed job failed so errors.csv includes the row', async () => {
+    const db = new BatchQuery();
+    const submit = jest.fn(async () => ({
+      id: 'job-fail',
+      job_id: 'job-fail',
+      state: 'failed',
+      error_class: 'stub_fail',
+    }));
+    const retryJob = jest.fn(async () => ({
+      id: 'job-fail:retry',
+      job_id: 'job-fail:retry',
+      state: 'failed',
+      error_class: 'stub_fail',
+    }));
+    const { service } = makeService(db, { submit, retryJob });
+    await service.create({
+      template_id: TEMPLATE_ID,
+      project_id: PROJECT_ID,
+      rows: [sampleRow(1)],
+      mapping: Object.fromEntries(REQUIRED.map((key) => [key, key])),
+    }, 9, SCOPE);
+    await service.validate(BATCH_ID, SCOPE);
+    await service.run(BATCH_ID, SCOPE);
+
+    expect(db.items[0].status).toBe('failed');
+    const csv = await service.errorsCsv(BATCH_ID, SCOPE);
+    expect(csv).toMatch(/1,failed,/);
   });
 
   it('retries one failed row without re-charging completed rows', async () => {

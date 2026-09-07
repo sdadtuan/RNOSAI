@@ -4,7 +4,6 @@ import {
   API_URL,
   CP_W3_REPORT_TABS,
   FOREIGN_ASSET_ID,
-  FOREIGN_COLLECTION_ID,
   INVALID_VERSION_ID,
   UNKNOWN_CLIENT,
   addCpCollectionItemApi,
@@ -15,6 +14,7 @@ import {
   getCpBatchApi,
   getCpBatchErrorsCsv,
   getCpCollectionApi,
+  requireForeignCollectionId,
   getCpReportApi,
   requireCpVersion,
   requirePreparedBatch,
@@ -163,9 +163,19 @@ test.describe('Creative Production OS W3 UAT', () => {
       expect(String(item.agency_client_id ?? '')).toBe(UNKNOWN_CLIENT);
     }
 
-    const foreign = await getCpCollectionApi(request, token, FOREIGN_COLLECTION_ID, 'scope=me');
+    const foreignId = await requireForeignCollectionId(request, token);
+    const foreign = await getCpCollectionApi(request, token, foreignId, 'scope=me');
     expect(foreign.status).toBe(404);
     expect(cpError(foreign.json)).toBe('not_found');
+    const stolen = await addCpCollectionItemApi(
+      request,
+      token,
+      foreignId,
+      FOREIGN_ASSET_ID,
+      'scope=me',
+    );
+    expect(stolen.status).toBe(404);
+    expect(cpError(stolen.json)).toBe('not_found');
 
     const added = await addCpCollectionItemApi(
       request,

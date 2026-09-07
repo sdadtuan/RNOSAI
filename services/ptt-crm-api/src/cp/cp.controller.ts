@@ -116,6 +116,24 @@ export class CpController {
     private readonly reports: CpReportsService,
   ) {}
 
+  private async assertReportExportCap(req: AuthedReq) {
+    if (req.staffAuthVia === 'internal') return;
+    const me = req.staffUser ? await this.staffAuth.me(req.staffUser) : null;
+    const canExportFinal = Boolean(me && this.staffAuth.hasCap(me.caps, 'crm_cp.export_final', 'execute'));
+    const canFinanceView = Boolean(me && this.staffAuth.hasCap(me.caps, 'crm_cp.finance', 'view'));
+    const canView = Boolean(
+      me
+      && (this.staffAuth.hasCap(me.caps, 'crm_cp', 'view')
+        || this.staffAuth.hasCap(me.caps, 'crm_cp', 'view_all')),
+    );
+    if (canExportFinal || (canFinanceView && canView)) return;
+    throw new ForbiddenException({
+      error: 'missing_cap',
+      section: 'crm_cp.export_final',
+      action: 'execute',
+    });
+  }
+
   private async assertLegalApprovalCap(req: AuthedReq, input: CpApprovalInput) {
     if (!isLegalApprovalInput(input)) return;
     if (req.staffAuthVia === 'internal') return;
@@ -221,6 +239,7 @@ export class CpController {
     @Body() body: CpReportExportInput,
     @Query('scope') scope?: CpScope,
   ) {
+    await this.assertReportExportCap(req);
     return this.reports.export(body ?? {}, await this.scope(req, scope));
   }
 
@@ -953,8 +972,8 @@ export class CpController {
 
   @Get('collections')
   @RequireCpAction('view')
-  async listCollections() {
-    return this.collections.list();
+  async listCollections(@Req() req: AuthedReq, @Query('scope') scope?: CpScope) {
+    return this.collections.list(await this.scope(req, scope));
   }
 
   @Post('collections')
