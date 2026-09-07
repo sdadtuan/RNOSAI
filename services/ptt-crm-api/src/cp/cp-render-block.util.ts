@@ -9,5 +9,6 @@ export function renderBlockReasons(input: RenderGateInput): string[] {
   if (input.creditBlocked) reasons.push('credit_blocked');
   if (input.moderationBlocked) reasons.push('moderation_blocked');
   if (input.qcStatus === 'blocked' || input.qcStatus === 'failed') reasons.push('qc_blocked');
+  if (input.brandRuleEnforcement === 'block_render') reasons.push('brand_rule_block');
   return reasons;
 }

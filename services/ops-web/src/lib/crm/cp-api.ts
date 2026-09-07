@@ -870,6 +870,93 @@ export function saveVersion(
   );
 }
 
+export type CpBrandEnforcement = 'block_render' | 'block_publish' | 'warning';
+
+export type CpBrandRule = {
+  id: string;
+  kit_version_id: string;
+  condition_json: Record<string, unknown>;
+  action_json: Record<string, unknown>;
+  enforcement: CpBrandEnforcement;
+};
+
+export type CpBrandRuleInput = {
+  condition_json?: Record<string, unknown>;
+  action_json?: Record<string, unknown>;
+  enforcement: CpBrandEnforcement;
+  n?: number;
+};
+
+export type CpBrandPreviewItem = {
+  ratio: string;
+  warnings: string[];
+};
+
+export type CpBrandPreviewInput = {
+  overlay?: string | null;
+  foreground?: string | null;
+  background?: string | null;
+  n?: number;
+};
+
+export function listBrandRules(token: string, kitId: string, scope: CpScope = 'me', n?: number) {
+  return cpFetch<{ items: CpBrandRule[] }>(
+    token,
+    cpQueryPath(`/brand-kits/${encodeURIComponent(kitId)}/rules`, {
+      scope,
+      n: n == null ? undefined : String(n),
+    }),
+  );
+}
+
+export function createBrandRule(
+  token: string,
+  kitId: string,
+  input: CpBrandRuleInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpBrandRule>(
+    token,
+    cpQueryPath(`/brand-kits/${encodeURIComponent(kitId)}/rules`, { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function previewBrandKit(
+  token: string,
+  kitId: string,
+  input: CpBrandPreviewInput = {},
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ items: CpBrandPreviewItem[] }>(
+    token,
+    cpQueryPath(`/brand-kits/${encodeURIComponent(kitId)}/preview`, { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function restoreBrandVersion(
+  token: string,
+  kitId: string,
+  n: number,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpBrandVersion>(
+    token,
+    cpQueryPath(
+      `/brand-kits/${encodeURIComponent(kitId)}/versions/${encodeURIComponent(String(n))}/restore`,
+      { scope },
+    ),
+    { method: 'POST' },
+  );
+}
+
 export function listCpVideos(token: string, scope: CpScope = 'me') {
   return cpFetch<{ items: CpVideoDraft[] }>(
     token,

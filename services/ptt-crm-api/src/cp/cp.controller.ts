@@ -22,7 +22,12 @@ import {
   CpCreateAssetInput,
   CpFinalizeAssetInput,
 } from './cp-assets.service';
-import { CpBrandService, CpCreateKitInput } from './cp-brand.service';
+import {
+  CpBrandService,
+  CpCreateKitInput,
+  CpCreateRuleInput,
+  CpPreviewInput,
+} from './cp-brand.service';
 import { CpLedgerGrantInput, CpLedgerService } from './cp-ledger.service';
 import { CpOverviewService } from './cp-overview.service';
 import { CpRendersService } from './cp-renders.service';
@@ -325,6 +330,54 @@ export class CpController {
     @Body() body: unknown,
   ) {
     return this.brand.saveVersion(id, body ?? {}, await this.scope(req));
+  }
+
+  @Post('brand-kits/:id/versions/:n/restore')
+  @RequireCpAction('edit')
+  async restoreBrandKitVersion(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('n') n: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.brand.restoreVersion(id, Number(n), await this.scope(req, scope));
+  }
+
+  @Get('brand-kits/:id/rules')
+  @RequireCpAction('view')
+  async listBrandRules(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+    @Query('n') n?: string,
+  ) {
+    return this.brand.listRules(
+      id,
+      await this.scope(req, scope),
+      n == null || n === '' ? undefined : Number(n),
+    );
+  }
+
+  @Post('brand-kits/:id/rules')
+  @RequireCpSection('crm_cp.manage_brand_rule', 'manage')
+  async createBrandRule(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpCreateRuleInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.brand.createRule(id, body ?? {}, await this.scope(req, scope));
+  }
+
+  @Post('brand-kits/:id/preview')
+  @RequireCpAction('view')
+  async previewBrandKit(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpPreviewInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.brand.preview(id, body ?? {}, await this.scope(req, scope));
   }
 
   @Get('brand-kits/:id')

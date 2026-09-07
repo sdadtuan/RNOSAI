@@ -152,4 +152,93 @@ describe('CpBrandService', () => {
       false,
     );
   });
+
+  it('restore copies vN payload into a new n+1 and never updates vN', async () => {
+    const v1 = await svc.saveVersion(kitId, { palette: ['#0F2747'] });
+    await svc.saveVersion(kitId, { palette: ['#C9A227'] });
+
+    const restored = await svc.restoreVersion(kitId, v1.n, scope);
+
+    expect(restored.n).toBe(3);
+    expect(restored.payload_json).toEqual({ palette: ['#0F2747'] });
+    expect((await svc.getVersion(kitId, 1)).payload_json).toEqual({ palette: ['#0F2747'] });
+    expect((await svc.getVersion(kitId, 2)).payload_json).toEqual({ palette: ['#C9A227'] });
+    expect(repo.query.mock.calls.some(([sql]) => /UPDATE[\s\S]*crm_cp_brand_kit_versions/i.test(sql))).toBe(
+      false,
+    );
+  });
+
+  it('evaluateRules picks the highest matching enforcement and collects actions', async () => {
+    const versionId = '19d722af-0000-4000-8000-000000000021';
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/FROM crm_cp_brand_rules/i.test(sql)) {
+        return {
+          rows: [
+            {
+              enforcement: 'warning',
+              action_json: { palette_lock: true },
+              condition_json: { output_type: 'video' },
+            },
+            {
+              enforcement: 'block_publish',
+              action_json: { disclaimer: true },
+              condition_json: { channel: 'paid' },
+            },
+            {
+              enforcement: 'block_render',
+              action_json: { logo: 'safe-area' },
+              condition_json: { ratio: '9:16' },
+            },
+            {
+              enforcement: 'block_render',
+              action_json: { watermark: true },
+              condition_json: { channel: 'unused' },
+            },
+          ],
+          rowCount: 4,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(
+      svc.evaluateRules(versionId, { output_type: 'video', channel: 'paid', ratio: '9:16' }),
+    ).resolves.toEqual({
+      enforcement: 'block_render',
+      actions: [{ palette_lock: true }, { disclaimer: true }, { logo: 'safe-area' }],
+    });
+  });
+
+  it('preview returns four ratios and labels contrast and clipping', async () => {
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/SELECT k\.\* FROM crm_cp_brand_kits k/i.test(sql)) {
+        return {
+          rows: [{ id: kitId, tenant_id: 'PTT', scope_type: 'tenant' }],
+          rowCount: 1,
+        };
+      }
+      if (/FROM crm_cp_brand_kit_versions/i.test(sql)) {
+        return {
+          rows: [{
+            id: `${kitId}-1`,
+            kit_id: kitId,
+            n: 1,
+            payload_json: { palette: ['#ffffff', '#ffffff'] },
+          }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const preview = await svc.preview(kitId, {
+      overlay: 'x'.repeat(43),
+      foreground: '#ffffff',
+      background: '#ffffff',
+    }, scope);
+
+    expect(preview.items.map((item) => item.ratio)).toEqual(['9:16', '1:1', '4:5', '16:9']);
+    expect(preview.items.every((item) => item.warnings.includes('contrast'))).toBe(true);
+    expect(preview.items.every((item) => item.warnings.includes('clipping'))).toBe(true);
+  });
 });

@@ -19,6 +19,7 @@ export type RenderGateInput = {
   creditBlocked: boolean;
   moderationBlocked: boolean;
   qcStatus: string | null;
+  brandRuleEnforcement?: string | null;
 };
 
 export function emptyKpis(): CpKpis {

@@ -5,6 +5,7 @@ import { CP_TENANT_ID } from './cp-audit.repository';
 import { hardCapBlocks } from './cp-credit.util';
 import { CpLedgerService } from './cp-ledger.service';
 import { CpRenderWorker, CP_STUB_PRICING_VERSION } from './cp-render.worker';
+import { CpBrandService } from './cp-brand.service';
 import { renderBlockReasons } from './cp-render-block.util';
 import { cpScopeSql, CpScope } from './cp-scope.util';
 
@@ -77,6 +78,7 @@ export class CpRendersService {
     @Inject(CP_RENDERS_QUERY) private readonly db: CpRendersQueryPort,
     private readonly ledger: CpLedgerService,
     private readonly worker: CpRenderWorker,
+    private readonly brand?: CpBrandService,
   ) {}
 
   submit(
@@ -181,6 +183,17 @@ export class CpRendersService {
           reserve: estimate,
           hard: creditHard,
         });
+      const kitVersion = objectValue(draft.kit_version);
+      const kitVersionId = nullableText(draft.brand_kit_version_id)
+        ?? nullableText(kitVersion.id);
+      const brandRule = kitVersionId && this.brand
+        ? await this.brand.evaluateRules(kitVersionId, {
+          output_type: 'video',
+          channel: nullableText(config.channel),
+          ratio: nullableText(config.ratio),
+          has_claim: config.has_claim === true,
+        })
+        : { enforcement: null };
       const reasons = renderBlockReasons({
         aiEnabled: process.env.CP_AI_ENABLED === 'true',
         hasRenderCap: true,
@@ -189,6 +202,7 @@ export class CpRendersService {
         creditBlocked,
         moderationBlocked: draft.moderation_blocked === true,
         qcStatus: nullableText(draft.qc_status),
+        brandRuleEnforcement: brandRule.enforcement,
       }).filter((reason) => reason !== 'ai_disabled');
       if (reasons.length) cpThrow(409, { error: 'render_blocked', reasons });
 

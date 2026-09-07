@@ -13,6 +13,9 @@ import {
   type CpScope,
 } from '@/lib/crm/cp-api';
 import { dash } from '@/lib/crm/cp-format';
+import { CpBrandHistory } from './CpBrandHistory';
+import { CpBrandPreview } from './CpBrandPreview';
+import { CpBrandRules } from './CpBrandRules';
 
 export type CpBrandTab = 'editor' | 'rules' | 'preview' | 'history';
 
@@ -89,14 +92,6 @@ function parseScope(value: string | undefined): CpScope {
   return value === 'team' || value === 'all' ? value : 'me';
 }
 
-function UnavailableTab() {
-  return (
-    <section className="cp-card">
-      <h2>Chưa có dữ liệu</h2>
-      <p className="cp-empty">{dash(null)}</p>
-    </section>
-  );
-}
 
 export function CpBrandEditor({
   kitId,
@@ -243,7 +238,16 @@ export function CpBrandEditor({
       ) : null}
       {notice ? <section className="cp-alert">{notice}</section> : null}
 
-      {activeTab !== 'editor' ? <UnavailableTab /> : (
+      {activeTab === 'rules' ? (
+        <CpBrandRules kitId={kitId} scope={scope} version={version} />
+      ) : null}
+      {activeTab === 'preview' ? (
+        <CpBrandPreview kitId={kitId} scope={scope} payload={payload} />
+      ) : null}
+      {activeTab === 'history' ? (
+        <CpBrandHistory kitId={kitId} scope={scope} onRestored={() => void load()} />
+      ) : null}
+      {activeTab === 'editor' ? (
         <form key={version ?? 'empty'} className="cp-overview" onSubmit={submit}>
           <div className="cp-overview-grid">
             <section className="cp-card">
@@ -319,7 +323,7 @@ export function CpBrandEditor({
             {saving ? 'Đang tạo phiên bản…' : 'Lưu thành phiên bản mới'}
           </button>
         </form>
-      )}
+      ) : null}
     </div>
   );
 }

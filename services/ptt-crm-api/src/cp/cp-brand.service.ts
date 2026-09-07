@@ -21,8 +21,48 @@ export type CpCreateKitInput = {
 };
 
 export type CpBrandVersion = Record<string, unknown> & {
+  id?: string;
   n: number;
   payload_json: Record<string, unknown>;
+};
+
+export const CP_BRAND_ENFORCEMENTS = ['block_render', 'block_publish', 'warning'] as const;
+export const CP_PREVIEW_RATIOS = ['9:16', '1:1', '4:5', '16:9'] as const;
+export const CP_OVERLAY_CLIP_LENGTH = 42;
+
+export type CpBrandEnforcement = (typeof CP_BRAND_ENFORCEMENTS)[number];
+
+export type CpBrandRuleContext = {
+  output_type?: string | null;
+  channel?: string | null;
+  ratio?: string | null;
+  has_claim?: boolean | null;
+  scope?: string | null;
+};
+
+export type CpBrandRuleEval = {
+  enforcement: CpBrandEnforcement | null;
+  actions: unknown[];
+};
+
+export type CpCreateRuleInput = {
+  condition_json?: unknown;
+  action_json?: unknown;
+  enforcement?: string;
+  kit_version_id?: string | null;
+  n?: number;
+};
+
+export type CpPreviewInput = {
+  overlay?: string | null;
+  foreground?: string | null;
+  background?: string | null;
+  n?: number;
+};
+
+export type CpBrandPreviewItem = {
+  ratio: (typeof CP_PREVIEW_RATIOS)[number];
+  warnings: string[];
 };
 
 export interface CpBrandQueryPort {
@@ -169,6 +209,127 @@ export class CpBrandService {
     });
   }
 
+  async restoreVersion(
+    id: string,
+    n: number,
+    scope: CpBrandScope = DEFAULT_SCOPE,
+  ): Promise<CpBrandVersion> {
+    const version = await this.getVersion(id, n, scope);
+    return this.saveVersion(id, version.payload_json, scope);
+  }
+
+  async evaluateRules(
+    kitVersionId: string,
+    ctx: CpBrandRuleContext = {},
+  ): Promise<CpBrandRuleEval> {
+    const versionId = requiredUuid(
+      kitVersionId,
+      'invalid_kit_version_id',
+      'invalid_kit_version_id',
+    );
+    const result = await this.db.query(
+      `SELECT enforcement, action_json, condition_json
+         FROM crm_cp_brand_rules
+        WHERE kit_version_id = $1::uuid`,
+      [versionId],
+    );
+    return evaluateRuleSet(result.rows, ctx);
+  }
+
+  async listRules(id: string, scope: CpBrandScope = DEFAULT_SCOPE, n?: number) {
+    const version = n == null
+      ? await this.latestVersion(id, scope)
+      : await this.getVersion(id, n, scope);
+    if (!version?.id) return { items: [] };
+    const result = await this.db.query(
+      `SELECT * FROM crm_cp_brand_rules
+        WHERE kit_version_id = $1::uuid
+        ORDER BY id`,
+      [version.id],
+    );
+    return { items: result.rows };
+  }
+
+  async createRule(
+    id: string,
+    input: CpCreateRuleInput,
+    scope: CpBrandScope = DEFAULT_SCOPE,
+  ) {
+    const enforcement = requiredEnforcement(input.enforcement);
+    const version = input.kit_version_id
+      ? await this.requireKitVersion(id, input.kit_version_id, scope)
+      : input.n != null
+        ? await this.getVersion(id, input.n, scope)
+        : await this.latestVersion(id, scope);
+    if (!version?.id) cpThrow(400, { error: 'version_required' });
+    const result = await this.db.query(
+      `INSERT INTO crm_cp_brand_rules (
+         kit_version_id, condition_json, action_json, enforcement
+       ) VALUES ($1::uuid, $2::jsonb, $3::jsonb, $4)
+       RETURNING *`,
+      [
+        version.id,
+        JSON.stringify(input.condition_json ?? {}),
+        JSON.stringify(input.action_json ?? {}),
+        enforcement,
+      ],
+    );
+    return result.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+  }
+
+  async preview(
+    id: string,
+    input: CpPreviewInput = {},
+    scope: CpBrandScope = DEFAULT_SCOPE,
+  ): Promise<{ items: CpBrandPreviewItem[] }> {
+    const version = input.n == null
+      ? await this.latestVersion(id, scope)
+      : await this.getVersion(id, input.n, scope);
+    const payload = objectValue(version?.payload_json);
+    const palette = Array.isArray(payload.palette)
+      ? payload.palette.filter((color): color is string => typeof color === 'string')
+      : [];
+    const foreground = colorText(input.foreground) || colorText(palette[1]) || '#111827';
+    const background = colorText(input.background) || colorText(palette[0]) || '#ffffff';
+    const overlay = input.overlay != null
+      ? String(input.overlay)
+      : overlayFromPayload(payload);
+    const warnings: string[] = [];
+    if (contrastRatio(foreground, background) < 4.5) warnings.push('contrast');
+    if (overlay.length > CP_OVERLAY_CLIP_LENGTH) warnings.push('clipping');
+    return {
+      items: CP_PREVIEW_RATIOS.map((ratio) => ({ ratio, warnings: [...warnings] })),
+    };
+  }
+
+  private async latestVersion(id: string, scope: CpBrandScope): Promise<CpBrandVersion | undefined> {
+    const kit = await this.getKit(id, scope);
+    const result = await this.db.query(
+      `SELECT * FROM crm_cp_brand_kit_versions
+        WHERE kit_id = $1::uuid
+        ORDER BY n DESC
+        LIMIT 1`,
+      [kit.id],
+    );
+    return result.rows[0] as CpBrandVersion | undefined;
+  }
+
+  private async requireKitVersion(
+    kitId: string,
+    versionId: string,
+    scope: CpBrandScope,
+  ): Promise<CpBrandVersion> {
+    const kit = await this.getKit(kitId, scope);
+    const id = requiredUuid(versionId, 'invalid_kit_version_id', 'invalid_kit_version_id');
+    const result = await this.db.query(
+      `SELECT * FROM crm_cp_brand_kit_versions
+        WHERE kit_id = $1::uuid AND id = $2::uuid
+        LIMIT 1`,
+      [kit.id, id],
+    );
+    return (result.rows[0] as CpBrandVersion | undefined) ?? cpThrow(404, { error: 'not_found' });
+  }
+
   private async requireClient(clientId: string): Promise<void> {
     const result = await this.db.query(
       `SELECT id::text FROM clients WHERE id = $1::uuid LIMIT 1`,
@@ -283,4 +444,102 @@ function positiveVersion(value: unknown): number {
 
 function cpThrow(status: number, body: Record<string, unknown>): never {
   throw Object.assign(new HttpException(body, status), body);
+}
+
+const ENFORCEMENT_RANK: Record<CpBrandEnforcement, number> = {
+  warning: 1,
+  block_publish: 2,
+  block_render: 3,
+};
+
+export function evaluateRuleSet(
+  rules: Array<{
+    enforcement?: unknown;
+    action_json?: unknown;
+    condition_json?: unknown;
+  }>,
+  ctx: CpBrandRuleContext = {},
+): CpBrandRuleEval {
+  let enforcement: CpBrandEnforcement | null = null;
+  const actions: unknown[] = [];
+  for (const rule of rules) {
+    if (!conditionMatches(rule.condition_json, ctx)) continue;
+    const next = optionalEnforcement(rule.enforcement);
+    if (next && (enforcement == null || ENFORCEMENT_RANK[next] > ENFORCEMENT_RANK[enforcement])) {
+      enforcement = next;
+    }
+    if (rule.action_json !== undefined) actions.push(rule.action_json);
+  }
+  return { enforcement, actions };
+}
+
+function conditionMatches(condition: unknown, ctx: CpBrandRuleContext): boolean {
+  const cond = objectValue(condition);
+  if (!fieldMatches(cond.output_type, ctx.output_type)) return false;
+  if (!fieldMatches(cond.channel, ctx.channel)) return false;
+  if (!fieldMatches(cond.ratio, ctx.ratio)) return false;
+  if (!fieldMatches(cond.scope, ctx.scope)) return false;
+  if (cond.has_claim !== undefined && cond.has_claim !== null && cond.has_claim !== '') {
+    if (Boolean(cond.has_claim) !== Boolean(ctx.has_claim)) return false;
+  }
+  return true;
+}
+
+function fieldMatches(expected: unknown, actual: unknown): boolean {
+  if (expected === undefined || expected === null || expected === '' || expected === 'all') {
+    return true;
+  }
+  if (Array.isArray(expected)) {
+    return expected.map((item) => String(item)).includes(String(actual ?? ''));
+  }
+  return String(expected) === String(actual ?? '');
+}
+
+function requiredEnforcement(value: unknown): CpBrandEnforcement {
+  return optionalEnforcement(value) ?? cpThrow(400, { error: 'invalid_enforcement' });
+}
+
+function optionalEnforcement(value: unknown): CpBrandEnforcement | null {
+  const text = String(value ?? '').trim();
+  return (CP_BRAND_ENFORCEMENTS as readonly string[]).includes(text)
+    ? text as CpBrandEnforcement
+    : null;
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function colorText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function overlayFromPayload(payload: Record<string, unknown>): string {
+  const motion = objectValue(payload.motion);
+  const disclaimer = objectValue(payload.disclaimer);
+  const cta = objectValue(payload.cta);
+  return [motion.caption_style, disclaimer.text, cta.label]
+    .filter((item): item is string => typeof item === 'string')
+    .join('');
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const left = relativeLuminance(foreground);
+  const right = relativeLuminance(background);
+  if (left == null || right == null) return 21;
+  const lighter = Math.max(left, right);
+  const darker = Math.min(left, right);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function relativeLuminance(color: string): number | null {
+  const hex = color.trim().replace(/^#/, '');
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return null;
+  const channels = [0, 2, 4].map((offset) => {
+    const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
