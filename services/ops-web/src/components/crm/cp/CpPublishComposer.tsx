@@ -13,7 +13,8 @@ import {
 } from '@/lib/crm/cp-api';
 import {
   CP_DEFAULT_TZ,
-  isPublishLocked,
+  datetimeLocalInTz,
+  isComposerSchedulable,
 } from '@/lib/crm/cp-calendar.util';
 import { dash } from '@/lib/crm/cp-format';
 
@@ -48,7 +49,7 @@ export function CpPublishComposer({
 
   const selected = versions.find((item) => item.id === versionId) ?? null;
   const profile = profiles.find((item) => item.channel === channel) ?? null;
-  const locked = selected ? isPublishLocked(selected) : true;
+  const locked = selected ? !isComposerSchedulable(selected) : true;
 
   const profileHint = useMemo(() => {
     if (!profile) return dash(null);
@@ -107,7 +108,7 @@ export function CpPublishComposer({
       await createCpPublishItem(token, {
         video_version_id: versionId,
         channel,
-        scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        scheduled_at: scheduledAt ? datetimeLocalInTz(scheduledAt, tz) : null,
         tz,
         copy,
         hashtags,
@@ -146,7 +147,7 @@ export function CpPublishComposer({
             {versions.map((version) => (
               <option key={version.id} value={version.id}>
                 {version.draft_name || version.id} — {version.approval_status}
-                {version.eligible ? '' : ' (chưa eligible)'}
+                {version.schedulable ?? version.eligible ? '' : ' (chưa eligible)'}
               </option>
             ))}
           </select>

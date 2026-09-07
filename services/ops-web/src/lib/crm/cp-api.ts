@@ -1189,6 +1189,9 @@ export type CpPublishVersion = {
   project_id?: string | null;
   project_name?: string | null;
   eligible: boolean;
+  schedulable?: boolean;
+  rights_status?: 'ok' | 'warn' | 'block' | null;
+  disclaimer_present?: boolean | null;
   lock_reason?: string | null;
 };
 

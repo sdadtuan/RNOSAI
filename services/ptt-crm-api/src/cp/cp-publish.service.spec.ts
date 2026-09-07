@@ -38,13 +38,20 @@ class VersionPort {
   }
 }
 
+const ASSET_VERSION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const PARENT_ASSET_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
 class PublishQuery {
   lastSql = '';
   lastParams: unknown[] = [];
   profiles = [TIKTOK];
+  assetVersions: Array<{ id: string; asset_id: string }> = [];
   rights: Array<{ asset_id: string; expiry_on: string | null }> = [];
   rules: Array<{ enforcement: string; action_json: unknown }> = [];
   inserted: Record<string, unknown> | null = null;
+  queriedAssetIds: unknown[] = [];
+  queriedVersionIds: unknown[] = [];
+  versions: Record<string, unknown>[] = [];
 
   async query(sql: string, params: unknown[] = []) {
     this.lastSql = sql;
@@ -55,8 +62,15 @@ class PublishQuery {
       }
       return { rows: this.profiles };
     }
+    if (sql.includes('FROM crm_cp_asset_versions')) {
+      this.queriedVersionIds = Array.isArray(params[0]) ? params[0] : [params[0]];
+      const ids = new Set(this.queriedVersionIds.map((id) => String(id)));
+      return { rows: this.assetVersions.filter((row) => ids.has(row.id)) };
+    }
     if (sql.includes('FROM crm_cp_asset_rights')) {
-      return { rows: this.rights };
+      this.queriedAssetIds = Array.isArray(params[0]) ? params[0] : [params[0]];
+      const ids = new Set(this.queriedAssetIds.map((id) => String(id)));
+      return { rows: this.rights.filter((row) => ids.has(row.asset_id)) };
     }
     if (sql.includes('FROM crm_cp_brand_rules')) {
       return { rows: this.rules };
@@ -77,6 +91,9 @@ class PublishQuery {
     }
     if (sql.includes('FROM crm_cp_publish_items')) {
       return { rows: [] };
+    }
+    if (sql.includes('FROM crm_cp_video_versions')) {
+      return { rows: this.versions };
     }
     return { rows: [] };
   }
@@ -176,5 +193,70 @@ describe('CpPublishService', () => {
       status: 'scheduled',
     });
     expect(db.lastSql).toContain('INSERT INTO crm_cp_publish_items');
+  });
+
+  it('resolves snapshot version ids to parent asset rights and 409s when expired/block', async () => {
+    const videos = new VersionPort();
+    videos.version = finalVersion({
+      snapshot_json: {
+        config_json: { ratio: '9:16', duration: 30 },
+        disclaimer_present: true,
+        asset_versions: [{ id: ASSET_VERSION_ID }],
+      },
+    });
+    const db = new PublishQuery();
+    db.assetVersions = [{ id: ASSET_VERSION_ID, asset_id: PARENT_ASSET_ID }];
+    db.rights = [{ asset_id: PARENT_ASSET_ID, expiry_on: '2020-01-01' }];
+    const svc = new CpPublishService(videos as never, db);
+
+    await expect(svc.schedule({
+      video_version_id: VERSION_ID,
+      channel: 'tiktok',
+      scheduled_at: '2026-09-15T09:00:00+07:00',
+      copy: 'ok',
+    }, SCOPE)).rejects.toMatchObject({ status: 409, error: 'rights_blocked' });
+    expect(db.queriedVersionIds).toContain(ASSET_VERSION_ID);
+    expect(db.queriedAssetIds).toContain(PARENT_ASSET_ID);
+    expect(db.inserted).toBeNull();
+  });
+
+  it('interprets naive scheduled_at in the selected tz', async () => {
+    const videos = new VersionPort();
+    const db = new PublishQuery();
+    const svc = new CpPublishService(videos as never, db);
+
+    const row = await svc.schedule({
+      video_version_id: VERSION_ID,
+      channel: 'tiktok',
+      scheduled_at: '2026-09-15T09:00',
+      tz: 'Asia/Ho_Chi_Minh',
+      copy: 'ok',
+    }, SCOPE);
+
+    expect(row).toMatchObject({
+      scheduled_at: '2026-09-15T02:00:00.000Z',
+      tz: 'Asia/Ho_Chi_Minh',
+    });
+  });
+
+  it('listVersions sets schedulable false when version ids resolve to blocked rights', async () => {
+    const db = new PublishQuery();
+    db.versions = [finalVersion({
+      snapshot_json: {
+        config_json: { ratio: '9:16', duration: 30 },
+        disclaimer_present: true,
+        asset_versions: [{ id: ASSET_VERSION_ID }],
+      },
+    })];
+    db.assetVersions = [{ id: ASSET_VERSION_ID, asset_id: PARENT_ASSET_ID }];
+    db.rights = [{ asset_id: PARENT_ASSET_ID, expiry_on: '2020-01-01' }];
+    const svc = new CpPublishService(new VersionPort() as never, db);
+
+    const out = await svc.listVersions(SCOPE);
+    expect(out.items[0]).toMatchObject({
+      schedulable: false,
+      eligible: false,
+      lock_reason: 'rights_blocked',
+    });
   });
 });

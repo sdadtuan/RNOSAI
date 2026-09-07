@@ -115,8 +115,9 @@ export class CpPublishService {
   async listVersions(scope: CpVideoScope = DEFAULT_SCOPE) {
     const allowed = projectScope(scope, 2);
     const result = await this.db.query(
-      `SELECT v.id, v.approval_status, v.qc_status, v.version_n, d.name AS draft_name,
-              d.project_id, p.name AS project_name, p.agency_client_id
+      `SELECT v.id, v.approval_status, v.qc_status, v.version_n, v.snapshot_json, v.qc_json,
+              d.name AS draft_name, d.project_id, d.brand_kit_version_id,
+              p.name AS project_name, p.agency_client_id
          FROM crm_cp_video_versions v
          JOIN crm_cp_video_drafts d ON d.id = v.draft_id
          JOIN crm_cp_projects p ON p.id = d.project_id
@@ -125,13 +126,30 @@ export class CpPublishService {
         LIMIT 100`,
       [CP_TENANT_ID, ...allowed.params],
     );
-    return {
-      items: result.rows.map((row) => ({
-        ...row,
-        eligible: !isPublishLocked(row),
-        lock_reason: lockReason(row),
-      })),
-    };
+    const items = [];
+    for (const row of result.rows) {
+      const ctx = await this.schedulableContext(row);
+      let lock: string | null = null;
+      try {
+        assertSchedulable(row, ctx);
+      } catch (error) {
+        lock = errorBody(error);
+      }
+      items.push({
+        id: row.id,
+        approval_status: row.approval_status,
+        qc_status: row.qc_status,
+        version_n: row.version_n,
+        draft_name: row.draft_name,
+        project_id: row.project_id,
+        project_name: row.project_name,
+        agency_client_id: row.agency_client_id,
+        eligible: lock == null,
+        schedulable: lock == null,
+        lock_reason: lock,
+      });
+    }
+    return { items };
   }
 
   async getGate(versionId: string, scope: CpVideoScope = DEFAULT_SCOPE) {
@@ -172,7 +190,7 @@ export class CpPublishService {
       caption: [input.copy, input.hashtags].filter(Boolean).join(' '),
     });
 
-    const scheduledAt = optionalTimestamp(input.scheduled_at);
+    const scheduledAt = optionalTimestamp(input.scheduled_at, nullableText(input.tz) ?? CP_DEFAULT_TZ);
     const status: CpPublishStatus = scheduledAt ? 'scheduled' : 'draft';
     const result = await this.db.query(
       `INSERT INTO crm_cp_publish_items (
@@ -212,7 +230,7 @@ export class CpPublishService {
   }
 
   private async schedulableContext(version: Record<string, unknown>): Promise<SchedulableContext> {
-    const assetIds = extractAssetIds(version);
+    const assetIds = await this.resolveUsedAssetIds(version);
     const rights = assetIds.length
       ? await this.db.query(
         `SELECT asset_id, expiry_on FROM crm_cp_asset_rights WHERE asset_id = ANY($1::uuid[])`,
@@ -231,6 +249,22 @@ export class CpPublishService {
       kitRules: rules.rows,
       disclaimerPresent: disclaimerPresent(version),
     };
+  }
+
+  private async resolveUsedAssetIds(version: Record<string, unknown>): Promise<string[]> {
+    const refs = extractUsedAssetRefs(version);
+    const resolved = new Set(refs.assetIds);
+    if (refs.versionIds.length) {
+      const lookup = await this.db.query(
+        `SELECT id, asset_id FROM crm_cp_asset_versions WHERE id = ANY($1::uuid[])`,
+        [refs.versionIds],
+      );
+      for (const row of lookup.rows) {
+        const assetId = String(row.asset_id ?? '').trim();
+        if (isUuid(assetId)) resolved.add(assetId);
+      }
+    }
+    return [...resolved];
   }
 }
 
@@ -279,12 +313,6 @@ export function isPublishLocked(version: { approval_status?: unknown; qc_status?
     || version.qc_status === 'blocked';
 }
 
-function lockReason(version: { approval_status?: unknown; qc_status?: unknown }): string | null {
-  if (String(version.approval_status ?? '') !== 'final_approved') return 'not_final_approved';
-  if (version.qc_status === 'blocked') return 'qc_blocked';
-  return null;
-}
-
 function requiresDisclaimer(
   rules: Array<{ enforcement?: string; action_json?: unknown }> | undefined,
 ): boolean {
@@ -331,25 +359,45 @@ function factsFromVersion(version: Record<string, unknown>): ChannelFacts {
   };
 }
 
-function extractAssetIds(version: Record<string, unknown>): string[] {
+function extractUsedAssetRefs(version: Record<string, unknown>): {
+  assetIds: string[];
+  versionIds: string[];
+} {
   const snapshot = objectValue(version.snapshot_json);
-  const raw = Array.isArray(snapshot.asset_versions)
-    ? snapshot.asset_versions
-    : Array.isArray(snapshot.asset_ids)
-      ? snapshot.asset_ids
-      : [];
-  return raw
-    .map((item) => {
-      if (typeof item === 'string') return item;
-      if (item && typeof item === 'object' && 'id' in item) {
-        return String((item as { id: unknown }).id ?? '');
-      }
-      if (item && typeof item === 'object' && 'asset_id' in item) {
-        return String((item as { asset_id: unknown }).asset_id ?? '');
-      }
-      return '';
-    })
-    .filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  const assetIds = new Set<string>();
+  const versionIds = new Set<string>();
+  const add = (set: Set<string>, value: unknown) => {
+    const id = String(value ?? '').trim();
+    if (isUuid(id)) set.add(id);
+  };
+
+  const take = (item: unknown, treatIdAsVersion: boolean) => {
+    if (typeof item === 'string') {
+      add(treatIdAsVersion ? versionIds : assetIds, item);
+      return;
+    }
+    if (!item || typeof item !== 'object') return;
+    const obj = item as Record<string, unknown>;
+    if (obj.asset_id != null) add(assetIds, obj.asset_id);
+    if (obj.asset_version_id != null) add(versionIds, obj.asset_version_id);
+    if (obj.id != null && obj.asset_id == null) {
+      add(treatIdAsVersion ? versionIds : assetIds, obj.id);
+    }
+  };
+
+  if (Array.isArray(snapshot.asset_versions)) {
+    for (const item of snapshot.asset_versions) take(item, true);
+  }
+  if (Array.isArray(snapshot.asset_ids)) {
+    for (const item of snapshot.asset_ids) take(item, false);
+  }
+  if (snapshot.asset_version_id != null) add(versionIds, snapshot.asset_version_id);
+  if (snapshot.asset_id != null) add(assetIds, snapshot.asset_id);
+  return { assetIds: [...assetIds], versionIds: [...versionIds] };
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function extractKitId(version: Record<string, unknown>): string | null {
@@ -442,12 +490,56 @@ function errorBody(error: unknown): string {
   return 'locked';
 }
 
-function optionalTimestamp(value: unknown): string | null {
+function optionalTimestamp(value: unknown, tz = CP_DEFAULT_TZ): string | null {
   if (value == null || value === '') return null;
-  const text = String(value);
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(text)) {
+    return datetimeLocalInTz(text, tz);
+  }
   const timestamp = Date.parse(text);
   if (!Number.isFinite(timestamp)) cpThrow(400, { error: 'invalid_scheduled_at' });
   return new Date(timestamp).toISOString();
+}
+
+export function datetimeLocalInTz(local: string, tz = CP_DEFAULT_TZ): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(String(local).trim());
+  if (!match) cpThrow(400, { error: 'invalid_scheduled_at' });
+  const naiveUtc = Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6] ?? 0),
+  );
+  const offset = tzOffsetMs(new Date(naiveUtc), tz);
+  return new Date(naiveUtc - tzOffsetMs(new Date(naiveUtc - offset), tz)).toISOString();
+}
+
+function tzOffsetMs(instant: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(instant);
+  const read = (type: Intl.DateTimeFormatPartTypes) => (
+    Number(parts.find((part) => part.type === type)?.value ?? '0')
+  );
+  const hour = read('hour') === 24 ? 0 : read('hour');
+  const asLocal = Date.UTC(
+    read('year'),
+    read('month') - 1,
+    read('day'),
+    hour,
+    read('minute'),
+    read('second'),
+  );
+  return asLocal - instant.getTime();
 }
 
 function requiredText(value: unknown, error: string): string {

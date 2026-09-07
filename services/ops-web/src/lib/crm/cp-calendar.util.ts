@@ -42,6 +42,75 @@ export function isPublishLocked(version: {
   return version.approval_status !== 'final_approved' || version.qc_status === 'blocked';
 }
 
+export type ComposerSchedulableVersion = {
+  schedulable?: boolean | null;
+  eligible?: boolean | null;
+  approval_status?: string | null;
+  qc_status?: string | null;
+  rights_status?: 'ok' | 'warn' | 'block' | null;
+  disclaimer_present?: boolean | null;
+  lock_reason?: string | null;
+};
+
+export function isComposerSchedulable(version: ComposerSchedulableVersion): boolean {
+  if (typeof version.schedulable === 'boolean') return version.schedulable;
+  if (version.approval_status !== 'final_approved') return false;
+  if (version.qc_status === 'blocked') return false;
+  if (version.rights_status === 'block') return false;
+  if (version.disclaimer_present === false) return false;
+  if (version.rights_status === undefined || version.disclaimer_present === undefined) {
+    return false;
+  }
+  return true;
+}
+
+export function datetimeLocalInTz(local: string, tz = CP_DEFAULT_TZ): string {
+  const text = String(local ?? '').trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+  if (!match) {
+    const parsed = Date.parse(text);
+    if (!Number.isFinite(parsed)) throw new Error('invalid_scheduled_at');
+    return new Date(parsed).toISOString();
+  }
+  const naiveUtc = Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6] ?? 0),
+  );
+  const offset = tzOffsetMs(new Date(naiveUtc), tz);
+  const utc = naiveUtc - tzOffsetMs(new Date(naiveUtc - offset), tz);
+  return new Date(utc).toISOString();
+}
+
+function tzOffsetMs(instant: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(instant);
+  const read = (type: Intl.DateTimeFormatPartTypes) => (
+    Number(parts.find((part) => part.type === type)?.value ?? '0')
+  );
+  const hour = read('hour') === 24 ? 0 : read('hour');
+  const asLocal = Date.UTC(
+    read('year'),
+    read('month') - 1,
+    read('day'),
+    hour,
+    read('minute'),
+    read('second'),
+  );
+  return asLocal - instant.getTime();
+}
+
 export function toTzDate(value: string, tz = CP_DEFAULT_TZ): string | null {
   const parsed = new Date(value);
   if (!Number.isFinite(parsed.getTime())) return null;

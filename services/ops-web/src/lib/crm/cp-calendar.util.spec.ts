@@ -5,6 +5,8 @@ import {
   CP_PUBLISH_KIND,
   buildMonthCells,
   calendarItemKind,
+  datetimeLocalInTz,
+  isComposerSchedulable,
   isPublishLocked,
 } from './cp-calendar.util';
 
@@ -45,5 +47,50 @@ describe('CP calendar helpers', () => {
     expect(isPublishLocked({ approval_status: 'client_review', qc_status: 'passed' })).toBe(true);
     expect(isPublishLocked({ approval_status: 'final_approved', qc_status: 'blocked' })).toBe(true);
     expect(isPublishLocked({ approval_status: 'final_approved', qc_status: 'passed' })).toBe(false);
+  });
+
+  it('interprets datetime-local wall time in the selected tz, not the browser zone', () => {
+    expect(datetimeLocalInTz('2026-09-15T09:00', 'Asia/Ho_Chi_Minh')).toBe('2026-09-15T02:00:00.000Z');
+    expect(datetimeLocalInTz('2026-09-15T09:00', 'America/New_York')).toBe('2026-09-15T13:00:00.000Z');
+    expect(datetimeLocalInTz('2026-09-15T09:00')).toBe('2026-09-15T02:00:00.000Z');
+  });
+
+  it('gates composer schedule with assertSchedulable rules and disables when unknown', () => {
+    expect(isComposerSchedulable({ schedulable: true })).toBe(true);
+    expect(isComposerSchedulable({ schedulable: false })).toBe(false);
+    expect(isComposerSchedulable({
+      approval_status: 'final_approved',
+      qc_status: 'passed',
+      rights_status: 'ok',
+      disclaimer_present: true,
+    })).toBe(true);
+    expect(isComposerSchedulable({
+      approval_status: 'client_review',
+      qc_status: 'passed',
+      rights_status: 'ok',
+      disclaimer_present: true,
+    })).toBe(false);
+    expect(isComposerSchedulable({
+      approval_status: 'final_approved',
+      qc_status: 'blocked',
+      rights_status: 'ok',
+      disclaimer_present: true,
+    })).toBe(false);
+    expect(isComposerSchedulable({
+      approval_status: 'final_approved',
+      qc_status: 'passed',
+      rights_status: 'block',
+      disclaimer_present: true,
+    })).toBe(false);
+    expect(isComposerSchedulable({
+      approval_status: 'final_approved',
+      qc_status: 'passed',
+      rights_status: 'ok',
+      disclaimer_present: false,
+    })).toBe(false);
+    expect(isComposerSchedulable({
+      approval_status: 'final_approved',
+      qc_status: 'passed',
+    })).toBe(false);
   });
 });
