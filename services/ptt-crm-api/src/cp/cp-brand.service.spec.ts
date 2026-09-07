@@ -209,6 +209,28 @@ describe('CpBrandService', () => {
     });
   });
 
+  it('evaluateRules applies scoped block_render when ctx.scope is omitted', async () => {
+    const versionId = '19d722af-0000-4000-8000-000000000022';
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/FROM crm_cp_brand_rules/i.test(sql)) {
+        return {
+          rows: [{
+            enforcement: 'block_render',
+            action_json: { logo: 'safe-area' },
+            condition_json: { scope: 'client' },
+          }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(svc.evaluateRules(versionId, { output_type: 'video' })).resolves.toEqual({
+      enforcement: 'block_render',
+      actions: [{ logo: 'safe-area' }],
+    });
+  });
+
   it('preview returns four ratios and labels contrast and clipping', async () => {
     repo.query.mockImplementation(async (sql: string) => {
       if (/SELECT k\.\* FROM crm_cp_brand_kits k/i.test(sql)) {
@@ -239,6 +261,37 @@ describe('CpBrandService', () => {
 
     expect(preview.items.map((item) => item.ratio)).toEqual(['9:16', '1:1', '4:5', '16:9']);
     expect(preview.items.every((item) => item.warnings.includes('contrast'))).toBe(true);
+    expect(preview.items.every((item) => item.warnings.includes('clipping'))).toBe(true);
+  });
+
+  it('preview empty overlay falls back to payload and clip-warns over 42', async () => {
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/SELECT k\.\* FROM crm_cp_brand_kits k/i.test(sql)) {
+        return {
+          rows: [{ id: kitId, tenant_id: 'PTT', scope_type: 'tenant' }],
+          rowCount: 1,
+        };
+      }
+      if (/FROM crm_cp_brand_kit_versions/i.test(sql)) {
+        return {
+          rows: [{
+            id: `${kitId}-1`,
+            kit_id: kitId,
+            n: 1,
+            payload_json: {
+              palette: ['#0F2747', '#ffffff'],
+              motion: { caption_style: 'x'.repeat(43) },
+              cta: { label: 'Book now' },
+            },
+          }],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    const preview = await svc.preview(kitId, { overlay: '' }, scope);
+
     expect(preview.items.every((item) => item.warnings.includes('clipping'))).toBe(true);
   });
 });

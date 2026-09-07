@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import {
   formatCpApiError,
@@ -9,6 +9,10 @@ import {
   type CpBrandPreviewItem,
   type CpScope,
 } from '@/lib/crm/cp-api';
+import {
+  overlayFromBrandPayload,
+  previewOverlayInput,
+} from '@/lib/crm/cp-brand-preview.util';
 import { dash } from '@/lib/crm/cp-format';
 
 const RATIO_BOX: Record<string, { width: number; height: number }> = {
@@ -30,7 +34,11 @@ export function CpBrandPreview({
   const [items, setItems] = useState<CpBrandPreviewItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [overlay, setOverlay] = useState(payload.motion.caption_style || payload.cta.label);
+  const [overlay, setOverlay] = useState(overlayFromBrandPayload(payload));
+
+  useEffect(() => {
+    setOverlay(overlayFromBrandPayload(payload));
+  }, [payload]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,7 +52,7 @@ export function CpBrandPreview({
     setError('');
     try {
       const result = await previewBrandKit(token, kitId, {
-        overlay: String(form.get('overlay') ?? ''),
+        overlay: previewOverlayInput(String(form.get('overlay') ?? '')),
         foreground: payload.palette[1] || payload.palette[0] || undefined,
         background: payload.palette[0] || undefined,
       }, scope);

@@ -291,9 +291,7 @@ export class CpBrandService {
       : [];
     const foreground = colorText(input.foreground) || colorText(palette[1]) || '#111827';
     const background = colorText(input.background) || colorText(palette[0]) || '#ffffff';
-    const overlay = input.overlay != null
-      ? String(input.overlay)
-      : overlayFromPayload(payload);
+    const overlay = providedOverlay(input.overlay) ?? overlayFromPayload(payload);
     const warnings: string[] = [];
     if (contrastRatio(foreground, background) < 4.5) warnings.push('contrast');
     if (overlay.length > CP_OVERLAY_CLIP_LENGTH) warnings.push('clipping');
@@ -452,6 +450,7 @@ const ENFORCEMENT_RANK: Record<CpBrandEnforcement, number> = {
   block_render: 3,
 };
 
+/** Missing `ctx.scope` matches any rule `condition.scope` so render still applies UI-scoped rules. */
 export function evaluateRuleSet(
   rules: Array<{
     enforcement?: unknown;
@@ -478,11 +477,16 @@ function conditionMatches(condition: unknown, ctx: CpBrandRuleContext): boolean 
   if (!fieldMatches(cond.output_type, ctx.output_type)) return false;
   if (!fieldMatches(cond.channel, ctx.channel)) return false;
   if (!fieldMatches(cond.ratio, ctx.ratio)) return false;
-  if (!fieldMatches(cond.scope, ctx.scope)) return false;
+  if (!scopeMatches(cond.scope, ctx.scope)) return false;
   if (cond.has_claim !== undefined && cond.has_claim !== null && cond.has_claim !== '') {
     if (Boolean(cond.has_claim) !== Boolean(ctx.has_claim)) return false;
   }
   return true;
+}
+
+function scopeMatches(expected: unknown, actual: unknown): boolean {
+  if (actual === undefined || actual === null || actual === '') return true;
+  return fieldMatches(expected, actual);
 }
 
 function fieldMatches(expected: unknown, actual: unknown): boolean {
@@ -514,6 +518,12 @@ function objectValue(value: unknown): Record<string, unknown> {
 
 function colorText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function providedOverlay(value: unknown): string | null {
+  if (value == null) return null;
+  const text = String(value);
+  return text.trim() ? text : null;
 }
 
 function overlayFromPayload(payload: Record<string, unknown>): string {
