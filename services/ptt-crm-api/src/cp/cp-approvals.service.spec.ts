@@ -65,6 +65,10 @@ class ApprovalQuery {
   lastSql = '';
   lastParams: unknown[] = [];
 
+  transaction<T>(work: (tx: ApprovalQuery) => Promise<T>) {
+    return work(this);
+  }
+
   async query(sql: string, params: unknown[] = []) {
     this.lastSql = sql;
     this.lastParams = params;
@@ -144,6 +148,57 @@ describe('CpApprovalsService', () => {
     await approvals.submit(VERSION_A, { status }, 9, SCOPE);
 
     expect(db.approvals[0].step).toBe(step);
+  });
+
+  it('rolls back approval_status when the approvals insert fails', async () => {
+    const videos = new VersionPort();
+    type TxQuery = (
+      sql: string,
+      params?: unknown[],
+    ) => Promise<{ rows: Record<string, unknown>[] }>;
+    const db = {
+      versionStatus: 'internal_review' as string,
+      began: false,
+      committed: false,
+      rolledBack: false,
+      async query() {
+        return { rows: [] as Record<string, unknown>[] };
+      },
+      async transaction<T>(work: (tx: { query: TxQuery }) => Promise<T>) {
+        this.began = true;
+        const previous = this.versionStatus;
+        const tx = {
+          query: async (sql: string, params: unknown[] = []) => {
+            if (sql.includes('UPDATE crm_cp_video_versions')) {
+              this.versionStatus = String(params[1]);
+              return { rows: [{ id: params[0], approval_status: params[1] }] };
+            }
+            if (sql.includes('INSERT INTO crm_cp_approvals')) {
+              throw new Error('insert failed');
+            }
+            return { rows: [] };
+          },
+        };
+        try {
+          const result = await work(tx);
+          this.committed = true;
+          return result;
+        } catch (error) {
+          this.rolledBack = true;
+          this.versionStatus = previous;
+          throw error;
+        }
+      },
+    };
+    const approvals = new CpApprovalsService(videos as never, db);
+
+    await expect(
+      approvals.submit(VERSION_A, { status: 'brand_approved' }, 9, SCOPE),
+    ).rejects.toThrow('insert failed');
+    expect(db.began).toBe(true);
+    expect(db.committed).toBe(false);
+    expect(db.rolledBack).toBe(true);
+    expect(db.versionStatus).toBe('internal_review');
   });
 
   it('rejects an unknown approval status', async () => {

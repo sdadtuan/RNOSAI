@@ -19,6 +19,17 @@ export type CpApprovalInput = {
   reason?: string | null;
 };
 
+export function isLegalApprovalInput(input: CpApprovalInput = {}): boolean {
+  const status = String(input.status ?? '').trim();
+  const decision = String(input.decision ?? '').trim();
+  return (
+    status === 'legal_approved'
+    || decision === 'legal_approved'
+    || decision === 'legal'
+    || (status !== '' && approvalStepForStatus(status) === 'legal')
+  );
+}
+
 export type CpVersionDiffField<T> = {
   a: T;
   b: T;
@@ -43,31 +54,36 @@ export class CpApprovalsService {
     const version = await this.videos.getVersion(id, scope);
     const status = parseApprovalStatus(input.status);
     const step = approvalStepForStatus(status);
-    const updated = await this.db.query(
-      `UPDATE crm_cp_video_versions
-          SET approval_status = $2
-        WHERE id = $1::uuid
-        RETURNING *`,
-      [version.id, status],
-    );
-    const row = updated.rows[0] ?? cpThrow(404, { error: 'not_found' });
-    await this.db.query(
-      `INSERT INTO crm_cp_approvals (
-         object_type, object_id, step, actor_id, decision, reason, at
-       ) VALUES (
-         $1, $2::uuid, $3, $4, $5, $6, now()
-       )
-       RETURNING *`,
-      [
-        'video_version',
-        version.id,
-        step,
-        actorId,
-        nullableText(input.decision) ?? status,
-        nullableText(input.reason),
-      ],
-    );
-    return { ...row, approval_status: status };
+    if (!this.db.transaction) {
+      cpThrow(500, { error: 'transaction_unavailable' });
+    }
+    return this.db.transaction(async (tx) => {
+      const updated = await tx.query(
+        `UPDATE crm_cp_video_versions
+            SET approval_status = $2
+          WHERE id = $1::uuid
+          RETURNING *`,
+        [version.id, status],
+      );
+      const row = updated.rows[0] ?? cpThrow(404, { error: 'not_found' });
+      await tx.query(
+        `INSERT INTO crm_cp_approvals (
+           object_type, object_id, step, actor_id, decision, reason, at
+         ) VALUES (
+           $1, $2::uuid, $3, $4, $5, $6, now()
+         )
+         RETURNING *`,
+        [
+          'video_version',
+          version.id,
+          step,
+          actorId,
+          nullableText(input.decision) ?? status,
+          nullableText(input.reason),
+        ],
+      );
+      return { ...row, approval_status: status };
+    });
   }
 
   async compareVersions(

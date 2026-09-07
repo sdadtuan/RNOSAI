@@ -36,7 +36,7 @@ import {
 } from './cp-projects.service';
 import { CpScope, resolveCpScope } from './cp-scope.util';
 import { CpSettingsPatch, CpSettingsService } from './cp-settings.service';
-import { CpApprovalsService, CpApprovalInput } from './cp-approvals.service';
+import { CpApprovalsService, CpApprovalInput, isLegalApprovalInput } from './cp-approvals.service';
 import { CpCommentInput, CpCommentsService } from './cp-comments.service';
 import { CpQcService, QcFacts } from './cp-qc.service';
 import { CpVideoDraftInput, CpVideosService } from './cp-videos.service';
@@ -78,6 +78,19 @@ export class CpController {
     private readonly settings: CpSettingsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
+
+  private async assertLegalApprovalCap(req: AuthedReq, input: CpApprovalInput) {
+    if (!isLegalApprovalInput(input)) return;
+    if (req.staffAuthVia === 'internal') return;
+    const me = req.staffUser ? await this.staffAuth.me(req.staffUser) : null;
+    if (!me || !this.staffAuth.hasCap(me.caps, 'crm_cp.approve_legal', 'execute')) {
+      throw new ForbiddenException({
+        error: 'missing_cap',
+        section: 'crm_cp.approve_legal',
+        action: 'execute',
+      });
+    }
+  }
 
   private async scope(req: AuthedReq, requested?: CpScope) {
     if (req.staffAuthVia === 'internal' && !req.staffUser) {
@@ -318,8 +331,9 @@ export class CpController {
     @Req() req: AuthedReq,
     @Param('id') id: string,
     @Body() body: CpCommentInput,
+    @Query('scope') scope?: CpScope,
   ) {
-    const actor = await this.scope(req);
+    const actor = await this.scope(req, scope);
     return this.comments.create(id, body ?? {}, actor.staffId, actor);
   }
 
@@ -329,8 +343,11 @@ export class CpController {
     @Req() req: AuthedReq,
     @Param('id') id: string,
     @Body() body: CpApprovalInput,
+    @Query('scope') scope?: CpScope,
   ) {
-    const actor = await this.scope(req);
+    // Body-dependent equivalent of @RequireCpSection('crm_cp.approve_legal', 'execute')
+    await this.assertLegalApprovalCap(req, body ?? {});
+    const actor = await this.scope(req, scope);
     return this.approvals.submit(id, body ?? {}, actor.staffId, actor);
   }
 

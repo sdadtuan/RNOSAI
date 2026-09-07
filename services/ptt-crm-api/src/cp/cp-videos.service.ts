@@ -13,6 +13,7 @@ export interface CpVideosQueryPort {
     sql: string,
     params?: unknown[],
   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+  transaction?<T>(work: (tx: CpVideosQueryPort) => Promise<T>): Promise<T>;
 }
 
 export type CpVideoScope = {
@@ -52,6 +53,24 @@ export class CpVideosRepository implements CpVideosQueryPort, OnModuleDestroy {
 
   query(sql: string, params?: unknown[]) {
     return this.db.query(sql, params);
+  }
+
+  async transaction<T>(work: (tx: CpVideosQueryPort) => Promise<T>): Promise<T> {
+    const client = await this.db.connect();
+    const tx: CpVideosQueryPort = {
+      query: (sql, params) => client.query(sql, params),
+    };
+    try {
+      await client.query('BEGIN');
+      const result = await work(tx);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   onModuleDestroy(): void {

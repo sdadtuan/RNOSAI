@@ -93,7 +93,9 @@ export function evaluateQcChecks(facts: QcFacts = {}): QcReport {
     safe_area: presenceCheck(facts.safe_area_ok, 'safe_area_missing', 'safe_area_violated'),
     caption_overflow: facts.caption_overflow === true
       ? report('blocked', 'caption_overflow')
-      : report('passed'),
+      : facts.caption_overflow === false
+        ? report('passed')
+        : report('warning', 'caption_overflow_unknown'),
     logo: presenceCheck(facts.logo_present, 'logo_missing', 'logo_absent'),
     cta: presenceCheck(facts.cta_present, 'cta_missing', 'cta_absent'),
     disclaimer: presenceCheck(facts.disclaimer_present, 'disclaimer_missing', 'disclaimer_absent'),
@@ -105,7 +107,9 @@ export function evaluateQcChecks(facts: QcFacts = {}): QcReport {
     loudness: loudnessCheck(facts.loudness_lufs),
     black_frozen: facts.black_frozen === true
       ? report('blocked', 'black_frozen')
-      : report('passed'),
+      : facts.black_frozen === false
+        ? report('passed')
+        : report('warning', 'black_frozen_unknown'),
     moderation: moderationCheck(facts.moderation),
   };
   return {

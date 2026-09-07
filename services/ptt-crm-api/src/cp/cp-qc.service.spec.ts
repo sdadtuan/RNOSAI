@@ -90,6 +90,28 @@ describe('evaluateQcChecks', () => {
     expect(report.checks.loudness.result).toBe('warning');
     expect(report.overall).toBe('warning');
   });
+
+  it('does not treat unknown caption_overflow or black_frozen as passed', () => {
+    const { caption_overflow: _caption, black_frozen: _frozen, ...rest } = PASSING_FACTS;
+    const report = evaluateQcChecks(rest);
+    expect(report.checks.caption_overflow).toEqual({
+      result: 'warning',
+      reason: 'caption_overflow_unknown',
+    });
+    expect(report.checks.black_frozen).toEqual({
+      result: 'warning',
+      reason: 'black_frozen_unknown',
+    });
+    expect(report.overall).toBe('warning');
+  });
+
+  it('warns on empty facts instead of passing any check', () => {
+    const report = evaluateQcChecks({});
+    for (const key of QC_CHECK_KEYS) {
+      expect(report.checks[key].result).not.toBe('passed');
+    }
+    expect(report.overall).toBe('warning');
+  });
 });
 
 describe('CpQcService', () => {
