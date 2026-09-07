@@ -12,6 +12,17 @@ it('blocks when AI off, asset not ready, rights expired, or QC blocked', () => {
   })).toContain('asset_not_ready');
 });
 
+it('lets prompt/script drafts render when no asset is attached', () => {
+  expect(renderBlockReasons({
+    aiEnabled: true, hasRenderCap: true, assetState: null,
+    rightsExpired: false, creditBlocked: false, moderationBlocked: false, qcStatus: null,
+  })).not.toContain('asset_not_ready');
+  expect(renderBlockReasons({
+    aiEnabled: true, hasRenderCap: true, assetState: '',
+    rightsExpired: false, creditBlocked: false, moderationBlocked: false, qcStatus: null,
+  })).not.toContain('asset_not_ready');
+});
+
 it('adds brand_rule_block when evaluateRules says block_render', () => {
   expect(renderBlockReasons({
     aiEnabled: true, hasRenderCap: true, assetState: 'ready',

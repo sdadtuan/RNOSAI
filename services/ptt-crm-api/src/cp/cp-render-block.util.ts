@@ -4,7 +4,7 @@ export function renderBlockReasons(input: RenderGateInput): string[] {
   const reasons: string[] = [];
   if (!input.aiEnabled) reasons.push('ai_disabled');
   if (!input.hasRenderCap) reasons.push('missing_render_cap');
-  if (input.assetState !== 'ready') reasons.push('asset_not_ready');
+  if (input.assetState && input.assetState !== 'ready') reasons.push('asset_not_ready');
   if (input.rightsExpired) reasons.push('rights_expired');
   if (input.creditBlocked) reasons.push('credit_blocked');
   if (input.moderationBlocked) reasons.push('moderation_blocked');
