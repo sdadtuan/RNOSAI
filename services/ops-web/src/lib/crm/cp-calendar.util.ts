@@ -1,3 +1,5 @@
+import { dash } from './cp-format';
+
 export const CP_DEFAULT_TZ = 'Asia/Ho_Chi_Minh';
 export const CP_PUBLISH_KIND = 'video' as const;
 
@@ -5,6 +7,8 @@ export const CP_CALENDAR_TABS = [
   { id: 'calendar', label: 'Calendar' },
   { id: 'composer', label: 'Composer' },
   { id: 'gate', label: 'Gate' },
+  { id: 'distribution', label: 'Phân phối' },
+  { id: 'bulk', label: 'Lịch hàng loạt' },
 ] as const;
 
 export type CpCalendarTab = (typeof CP_CALENDAR_TABS)[number]['id'];
@@ -51,6 +55,21 @@ export type ComposerSchedulableVersion = {
   disclaimer_present?: boolean | null;
   lock_reason?: string | null;
 };
+
+export function isCpPublishNative(settings: { publish_native?: boolean | null } | null): boolean {
+  return settings?.publish_native === true;
+}
+
+export function distributionPostLabel(
+  item: { post_ref?: string | null; status?: string | null },
+  nativeEnabled: boolean,
+): string {
+  const ref = String(item.post_ref ?? '').trim();
+  if (!ref) return dash(null);
+  if (ref.startsWith('export:')) return `Xuất file · ${ref}`;
+  if (!nativeEnabled) return dash(null);
+  return ref;
+}
 
 export function isComposerSchedulable(version: ComposerSchedulableVersion): boolean {
   if (typeof version.schedulable === 'boolean') return version.schedulable;

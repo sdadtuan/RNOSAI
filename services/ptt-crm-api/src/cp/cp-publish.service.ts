@@ -1,8 +1,9 @@
-import { HttpException, Inject, Injectable } from '@nestjs/common';
+import { HttpException, Inject, Injectable, Optional } from '@nestjs/common';
 import { rightsStatus } from './cp-assets.service';
-import { CP_TENANT_ID } from './cp-audit.repository';
+import { CpAuditRepository, CP_TENANT_ID } from './cp-audit.repository';
 import { assertNotQcBlocked } from './cp-qc.service';
 import { cpScopeSql } from './cp-scope.util';
+import { CpSettingsService } from './cp-settings.service';
 import { CP_VIDEOS_QUERY, CpVideosQueryPort, CpVideosService, CpVideoScope } from './cp-videos.service';
 
 export const CP_DEFAULT_TZ = 'Asia/Ho_Chi_Minh';
@@ -66,13 +67,94 @@ export type ChannelFacts = {
   caption?: string | null;
 };
 
+export type CpBulkWindow = {
+  start?: string;
+  end?: string;
+};
+
+export type CpBulkRule = {
+  n_per_day?: number;
+  windows?: CpBulkWindow[];
+  weekdays?: number[];
+};
+
+export type CpBulkInput = {
+  video_version_ids?: string[];
+  batch_item_ids?: string[];
+  channel?: string;
+  tz?: string;
+  copy?: string | null;
+  hashtags?: string | null;
+  thumbnail_asset_id?: string | null;
+  cta?: string | null;
+  utm_json?: unknown;
+  audience?: string | null;
+  compliance_label?: string | null;
+  rule?: CpBulkRule;
+  from?: string;
+};
+
+export type CpBulkSkipped = {
+  video_version_id: string;
+  reason: string;
+};
+
 const DEFAULT_SCOPE: CpVideoScope = { scope: 'all', staffId: 0, teamIds: [] };
+
+export function nativePublishEnabled(
+  settingsNative?: boolean | null,
+  env = process.env.CP_PUBLISH_NATIVE,
+): boolean {
+  if (settingsNative === true) return true;
+  const flag = String(env ?? '').trim().toLowerCase();
+  return flag === '1' || flag === 'true';
+}
+
+export function fileExportPostRef(itemId: string): string {
+  return `export:${itemId}`;
+}
+
+export function looksNativeSocialRef(postRef: string | null | undefined): boolean {
+  return /tiktok|instagram|reels|facebook\.com\/reel/i.test(String(postRef ?? ''));
+}
+
+export function spreadBulkSlots(
+  count: number,
+  rule: CpBulkRule = {},
+  tz = CP_DEFAULT_TZ,
+  from: Date = new Date(),
+): string[] {
+  const nPerDay = Math.max(1, Number(rule.n_per_day) || 1);
+  const weekdays = (rule.weekdays?.length ? rule.weekdays : [1, 2, 3, 4, 5])
+    .map((day) => Number(day))
+    .filter((day) => day >= 1 && day <= 7);
+  const windows = (rule.windows?.length ? rule.windows : [{ start: '09:00', end: '10:00' }])
+    .map((window) => ({
+      start: String(window.start ?? '09:00'),
+      end: String(window.end ?? '10:00'),
+    }));
+  const slots: string[] = [];
+  let ymd = ymdInTz(from, tz);
+  let guard = 0;
+  while (slots.length < count && guard++ < 400) {
+    if (weekdays.includes(isoWeekdayFromYmd(ymd))) {
+      for (const stamp of slotsOnDay(ymd, nPerDay, windows, tz)) {
+        if (slots.length >= count) break;
+        slots.push(stamp);
+      }
+    }
+    ymd = addYmd(ymd, 1);
+  }
+  return slots;
+}
 
 @Injectable()
 export class CpPublishService {
   constructor(
     private readonly videos: CpVideosService,
     @Inject(CP_VIDEOS_QUERY) private readonly db: CpVideosQueryPort,
+    @Optional() private readonly audit?: CpAuditRepository,
+    @Optional() private readonly settings?: CpSettingsService,
   ) {}
 
   async listProfiles() {
@@ -215,6 +297,218 @@ export class CpPublishService {
         nullableText(input.audience),
         status,
         nullableText(input.compliance_label),
+      ],
+    );
+    return { ...(result.rows[0] ?? cpThrow(500, { error: 'insert_failed' })), kind: 'video' };
+  }
+
+  async deliver(id: string, scope: CpVideoScope = DEFAULT_SCOPE): Promise<Record<string, unknown> & { kind: 'video' }> {
+    const item = await this.loadItem(id, scope);
+    const outcome = await this.fileExportHandoff(item, scope);
+    return this.persistOutcome(item, outcome);
+  }
+
+  async retry(id: string, scope: CpVideoScope = DEFAULT_SCOPE): Promise<Record<string, unknown> & { kind: 'video' }> {
+    const item = await this.loadItem(id, scope);
+    if (this.audit) {
+      await this.audit.insert({
+        actor_id: scope.staffId > 0 ? scope.staffId : null,
+        action: 'publish.retry',
+        resource_type: 'publish_item',
+        resource_id: String(item.id),
+        payload_json: { previous_status: item.status, last_error: item.last_error ?? null },
+      });
+    }
+    const outcome = await this.fileExportHandoff(item, scope);
+    return this.persistOutcome(item, outcome);
+  }
+
+  async listHistory(id: string, scope: CpVideoScope = DEFAULT_SCOPE) {
+    await this.loadItem(id, scope);
+    const result = await this.db.query(
+      `SELECT id, actor_id, action, resource_type, resource_id, payload_json, created_at
+         FROM crm_cp_activity
+        WHERE tenant_id = $1 AND resource_type = 'publish_item' AND resource_id = $2
+        ORDER BY created_at DESC
+        LIMIT 50`,
+      [CP_TENANT_ID, id],
+    );
+    return { items: result.rows };
+  }
+
+  async bulkSchedule(input: CpBulkInput, scope: CpVideoScope = DEFAULT_SCOPE) {
+    const channel = requiredText(input.channel, 'channel_required');
+    const tz = nullableText(input.tz) ?? CP_DEFAULT_TZ;
+    const versionIds = await this.resolveBulkVersionIds(input);
+    const profile = await this.loadProfile(channel);
+    const accepted: Array<{ version: Record<string, unknown> }> = [];
+    const skipped: CpBulkSkipped[] = [];
+
+    for (const versionId of versionIds) {
+      try {
+        const version = await this.videos.getVersion(versionId, scope);
+        const ctx = await this.schedulableContext(version);
+        assertSchedulable(version, ctx);
+        assertChannelProfile(profile.rules_json, {
+          ...factsFromVersion(version),
+          caption: [input.copy, input.hashtags].filter(Boolean).join(' '),
+        });
+        accepted.push({ version });
+      } catch (error) {
+        skipped.push({ video_version_id: versionId, reason: handoffError(error) });
+      }
+    }
+
+    const from = input.from ? new Date(input.from) : new Date();
+    const slots = spreadBulkSlots(accepted.length, input.rule ?? {}, tz, from);
+    const items: Record<string, unknown>[] = [];
+
+    for (const [index, row] of accepted.entries()) {
+      const created = await this.insertPublishItem({
+        versionId: String(row.version.id),
+        channel,
+        profileId: profile.id,
+        scheduledAt: slots[index] ?? null,
+        tz,
+        copy: nullableText(input.copy),
+        hashtags: nullableText(input.hashtags),
+        thumbnailAssetId: optionalUuid(input.thumbnail_asset_id, 'invalid_thumbnail_asset_id'),
+        cta: nullableText(input.cta),
+        utmJson: input.utm_json ?? null,
+        audience: nullableText(input.audience),
+        compliance: nullableText(input.compliance_label),
+        status: slots[index] ? 'scheduled' : 'draft',
+      });
+      items.push(created);
+      if (this.audit) {
+        await this.audit.insert({
+          actor_id: scope.staffId > 0 ? scope.staffId : null,
+          action: 'publish.schedule',
+          resource_type: 'publish_item',
+          resource_id: String(created.id),
+          payload_json: {
+            video_version_id: String(row.version.id),
+            channel,
+            scheduled_at: created.scheduled_at ?? null,
+          },
+        });
+      }
+    }
+
+    return { items, skipped, kind: 'video' };
+  }
+
+  private async loadItem(id: string, scope: CpVideoScope) {
+    const itemId = requiredUuid(id, 'invalid_publish_item_id');
+    const allowed = projectScope(scope, 3);
+    const result = await this.db.query(
+      `SELECT i.*, v.approval_status, v.qc_status, d.name AS draft_name,
+              p.id AS project_id, p.name AS project_name, p.agency_client_id
+         FROM crm_cp_publish_items i
+         JOIN crm_cp_video_versions v ON v.id = i.video_version_id
+         JOIN crm_cp_video_drafts d ON d.id = v.draft_id
+         JOIN crm_cp_projects p ON p.id = d.project_id
+        WHERE i.id = $1::uuid AND p.tenant_id = $2 AND ${allowed.sql}
+        LIMIT 1`,
+      [itemId, CP_TENANT_ID, ...allowed.params],
+    );
+    return result.rows[0] ?? cpThrow(404, { error: 'not_found' });
+  }
+
+  private async fileExportHandoff(
+    item: Record<string, unknown>,
+    scope: CpVideoScope,
+  ): Promise<{ status: CpPublishStatus; post_ref: string | null; last_error: string | null }> {
+    try {
+      await this.videos.getVersion(String(item.video_version_id), scope);
+      const stored = this.settings ? await this.settings.get() : null;
+      const native = nativePublishEnabled(
+        stored && typeof stored.publish_native === 'boolean' ? stored.publish_native : null,
+      );
+      const postRef = fileExportPostRef(String(item.id));
+      if (!native && looksNativeSocialRef(postRef)) {
+        return { status: 'failed', post_ref: null, last_error: 'native_disabled' };
+      }
+      return { status: 'published', post_ref: postRef, last_error: null };
+    } catch (error) {
+      return { status: 'failed', post_ref: null, last_error: handoffError(error) };
+    }
+  }
+
+  private async persistOutcome(
+    item: Record<string, unknown>,
+    outcome: { status: CpPublishStatus; post_ref: string | null; last_error: string | null },
+  ): Promise<Record<string, unknown> & { kind: 'video' }> {
+    const result = await this.db.query(
+      `UPDATE crm_cp_publish_items
+          SET status = $1, post_ref = $2, last_error = $3
+        WHERE id = $4::uuid
+        RETURNING *`,
+      [outcome.status, outcome.post_ref, outcome.last_error, item.id],
+    );
+    return { ...(result.rows[0] ?? cpThrow(500, { error: 'update_failed' })), kind: 'video' };
+  }
+
+  private async resolveBulkVersionIds(input: CpBulkInput): Promise<string[]> {
+    const ids: string[] = [];
+    for (const value of input.video_version_ids ?? []) {
+      const id = String(value ?? '').trim();
+      if (isUuid(id) && !ids.includes(id)) ids.push(id);
+    }
+    const batchIds = (input.batch_item_ids ?? [])
+      .map((value) => String(value ?? '').trim())
+      .filter((id) => isUuid(id));
+    if (batchIds.length) {
+      const result = await this.db.query(
+        `SELECT id, row_json FROM crm_cp_batch_items WHERE id = ANY($1::uuid[])`,
+        [batchIds],
+      );
+      for (const row of result.rows) {
+        const versionId = versionIdFromBatch(row);
+        if (versionId && !ids.includes(versionId)) ids.push(versionId);
+      }
+    }
+    return ids;
+  }
+
+  private async insertPublishItem(input: {
+    versionId: string;
+    channel: string;
+    profileId: string;
+    scheduledAt: string | null;
+    tz: string;
+    copy: string | null;
+    hashtags: string | null;
+    thumbnailAssetId: string | null;
+    cta: string | null;
+    utmJson: unknown;
+    audience: string | null;
+    compliance: string | null;
+    status: CpPublishStatus;
+  }): Promise<Record<string, unknown> & { kind: 'video' }> {
+    const result = await this.db.query(
+      `INSERT INTO crm_cp_publish_items (
+         video_version_id, channel, profile_id, scheduled_at, tz, copy, hashtags,
+         thumbnail_asset_id, cta, utm_json, audience, status, compliance_label
+       ) VALUES (
+         $1::uuid, $2, $3::uuid, $4::timestamptz, $5, $6, $7,
+         $8::uuid, $9, $10::jsonb, $11, $12, $13
+       )
+       RETURNING *`,
+      [
+        input.versionId,
+        input.channel,
+        input.profileId,
+        input.scheduledAt,
+        input.tz,
+        input.copy,
+        input.hashtags,
+        input.thumbnailAssetId,
+        input.cta,
+        JSON.stringify(input.utmJson ?? null),
+        input.audience,
+        input.status,
+        input.compliance,
       ],
     );
     return { ...(result.rows[0] ?? cpThrow(500, { error: 'insert_failed' })), kind: 'video' };
@@ -488,6 +782,89 @@ function errorBody(error: unknown): string {
     return String((error as { error: unknown }).error);
   }
   return 'locked';
+}
+
+function handoffError(error: unknown): string {
+  if (error && typeof error === 'object' && 'error' in error) {
+    return String((error as { error: unknown }).error);
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return 'handoff_failed';
+}
+
+function versionIdFromBatch(row: Record<string, unknown>): string | null {
+  const direct = nullableText(row.video_version_id);
+  if (direct && isUuid(direct)) return direct;
+  const json = parseMaybeJson(row.row_json);
+  const nested = nullableText(json.video_version_id);
+  return nested && isUuid(nested) ? nested : null;
+}
+
+function parseMaybeJson(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string') {
+    try {
+      return objectValue(JSON.parse(value));
+    } catch {
+      return {};
+    }
+  }
+  return objectValue(value);
+}
+
+function ymdInTz(instant: Date, tz: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(instant);
+}
+
+function isoWeekdayFromYmd(ymd: string): number {
+  const [year, month, day] = ymd.split('-').map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  return utc.getUTCDay() === 0 ? 7 : utc.getUTCDay();
+}
+
+function addYmd(ymd: string, days: number): string {
+  const [year, month, day] = ymd.split('-').map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day + days));
+  return next.toISOString().slice(0, 10);
+}
+
+function parseHm(value: string): [number, number] {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(value).trim());
+  if (!match) return [9, 0];
+  return [Number(match[1]), Number(match[2])];
+}
+
+function slotsOnDay(
+  ymd: string,
+  count: number,
+  windows: Array<{ start: string; end: string }>,
+  tz: string,
+): string[] {
+  if (count <= 0) return [];
+  const out: string[] = [];
+  const perWindow = Math.ceil(count / windows.length);
+  let remaining = count;
+  for (const window of windows) {
+    const take = Math.min(perWindow, remaining);
+    const [startH, startM] = parseHm(window.start);
+    const [endH, endM] = parseHm(window.end);
+    const startMin = startH * 60 + startM;
+    const endMin = endH * 60 + endM;
+    const span = Math.max(endMin - startMin, 60);
+    const step = take > 1 ? span / take : 0;
+    for (let index = 0; index < take; index += 1) {
+      const mins = startMin + Math.round(step * index);
+      const hh = String(Math.floor(mins / 60)).padStart(2, '0');
+      const mm = String(mins % 60).padStart(2, '0');
+      out.push(datetimeLocalInTz(`${ymd}T${hh}:${mm}`, tz));
+    }
+    remaining -= take;
+  }
+  return out;
 }
 
 function optionalTimestamp(value: unknown, tz = CP_DEFAULT_TZ): string | null {

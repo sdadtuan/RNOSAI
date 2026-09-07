@@ -6,16 +6,20 @@ import {
   buildMonthCells,
   calendarItemKind,
   datetimeLocalInTz,
+  distributionPostLabel,
   isComposerSchedulable,
+  isCpPublishNative,
   isPublishLocked,
 } from './cp-calendar.util';
 
 describe('CP calendar helpers', () => {
-  it('keeps calendar tabs to month/week/list plus composer and gate', () => {
+  it('keeps calendar tabs to month/week/list plus composer, gate, distribution, and bulk', () => {
     expect(CP_CALENDAR_TABS.map((tab) => tab.id)).toEqual([
       'calendar',
       'composer',
       'gate',
+      'distribution',
+      'bulk',
     ]);
     expect(CP_DEFAULT_TZ).toBe('Asia/Ho_Chi_Minh');
     expect(CP_PUBLISH_KIND).toBe('video');
@@ -92,5 +96,19 @@ describe('CP calendar helpers', () => {
       approval_status: 'final_approved',
       qc_status: 'passed',
     })).toBe(false);
+  });
+
+  it('treats unset publish_native as file-export only and never labels TikTok success', () => {
+    expect(isCpPublishNative({ publish_native: false })).toBe(false);
+    expect(isCpPublishNative({ publish_native: null })).toBe(false);
+    expect(isCpPublishNative(null)).toBe(false);
+    expect(distributionPostLabel({
+      post_ref: 'export:77777777-7777-4777-8777-777777777777',
+      status: 'published',
+    }, false)).toBe('Xuất file · export:77777777-7777-4777-8777-777777777777');
+    expect(distributionPostLabel({
+      post_ref: 'https://www.tiktok.com/@x/video/1',
+      status: 'published',
+    }, false)).not.toMatch(/tiktok|thành công native/i);
   });
 });

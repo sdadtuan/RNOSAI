@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
+import { CpBulkSchedule } from './CpBulkSchedule';
+import { CpDistribution } from './CpDistribution';
 import { CpPublishComposer } from './CpPublishComposer';
 import { CpPublishGate } from './CpPublishGate';
 import {
@@ -156,6 +158,12 @@ function CpCalendarInner() {
       ) : null}
       {tab === 'gate' ? (
         <CpPublishGate scope={scope} versionId={searchParams.get('version')} />
+      ) : null}
+      {tab === 'distribution' ? (
+        <CpDistribution scope={scope} />
+      ) : null}
+      {tab === 'bulk' ? (
+        <CpBulkSchedule scope={scope} onScheduled={() => void load()} />
       ) : null}
       {tab === 'calendar' ? (
         <>

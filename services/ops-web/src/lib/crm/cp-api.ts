@@ -1295,7 +1295,40 @@ export type CpPublishItem = {
   agency_client_id?: string | null;
   approval_status?: string | null;
   qc_status?: string | null;
+  post_ref?: string | null;
+  last_error?: string | null;
   kind?: 'video';
+};
+
+export type CpBulkWindow = {
+  start: string;
+  end: string;
+};
+
+export type CpBulkRule = {
+  n_per_day: number;
+  windows: CpBulkWindow[];
+  weekdays: number[];
+};
+
+export type CpBulkInput = {
+  video_version_ids?: string[];
+  batch_item_ids?: string[];
+  channel: string;
+  tz?: string;
+  copy?: string | null;
+  hashtags?: string | null;
+  rule: CpBulkRule;
+};
+
+export type CpPublishHistoryRow = {
+  id: string;
+  actor_id: number | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  payload_json?: unknown;
+  created_at?: string | null;
 };
 
 export type CpPublishInput = {
@@ -1389,6 +1422,56 @@ export function createCpPublishItem(
       method: 'POST',
       body: JSON.stringify(input),
     },
+  );
+}
+
+export function deliverCpPublishItem(
+  token: string,
+  itemId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpPublishItem>(
+    token,
+    cpQueryPath(`/publish/${encodeURIComponent(itemId)}/deliver`, { scope }),
+    { method: 'POST' },
+  );
+}
+
+export function retryCpPublishItem(
+  token: string,
+  itemId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpPublishItem>(
+    token,
+    cpQueryPath(`/publish/${encodeURIComponent(itemId)}/retry`, { scope }),
+    { method: 'POST' },
+  );
+}
+
+export function bulkCpPublishItems(
+  token: string,
+  input: CpBulkInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ items: CpPublishItem[]; skipped: Array<{ video_version_id: string; reason: string }> }>(
+    token,
+    cpQueryPath('/publish/bulk', { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function listCpPublishHistory(
+  token: string,
+  itemId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ items: CpPublishHistoryRow[] }>(
+    token,
+    cpQueryPath(`/publish/${encodeURIComponent(itemId)}/history`, { scope }),
   );
 }
 

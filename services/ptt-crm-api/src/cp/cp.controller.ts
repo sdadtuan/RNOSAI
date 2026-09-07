@@ -48,7 +48,7 @@ import { CpScope, resolveCpScope } from './cp-scope.util';
 import { CpSettingsPatch, CpSettingsService } from './cp-settings.service';
 import { CpApprovalsService, CpApprovalInput, isLegalApprovalInput } from './cp-approvals.service';
 import { CpCommentInput, CpCommentsService } from './cp-comments.service';
-import { CpPublishInput, CpPublishService } from './cp-publish.service';
+import { CpBulkInput, CpPublishInput, CpPublishService } from './cp-publish.service';
 import { CpQcService, QcFacts } from './cp-qc.service';
 import {
   CpSceneInput,
@@ -256,6 +256,46 @@ export class CpController {
     @Query('scope') scope?: CpScope,
   ) {
     return this.publish.schedule(body ?? {}, await this.scope(req, scope));
+  }
+
+  @Post('publish/bulk')
+  @RequireCpSection('crm_cp.publish', 'execute')
+  async bulkPublish(
+    @Req() req: AuthedReq,
+    @Body() body: CpBulkInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.publish.bulkSchedule(body ?? {}, await this.scope(req, scope));
+  }
+
+  @Post('publish/:id/deliver')
+  @RequireCpSection('crm_cp.publish', 'execute')
+  async deliverPublish(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.publish.deliver(id, await this.scope(req, scope));
+  }
+
+  @Post('publish/:id/retry')
+  @RequireCpSection('crm_cp.publish', 'execute')
+  async retryPublish(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.publish.retry(id, await this.scope(req, scope));
+  }
+
+  @Get('publish/:id/history')
+  @RequireCpAction('view')
+  async publishHistory(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.publish.listHistory(id, await this.scope(req, scope));
   }
 
   @Post('credits/grant')
