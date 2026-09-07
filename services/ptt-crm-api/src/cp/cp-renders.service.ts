@@ -215,7 +215,10 @@ export class CpRendersService {
     const draft = await this.loadDraft(draftId, scope);
     return this.db.transaction(async (tx) => {
       const existing = await this.findByKey(String(draft.id), key, tx);
-      if (existing) return renderResponse(existing);
+      if (existing) {
+        const resolved = await this.resolveReplayJob(existing, tx);
+        return renderResponse(resolved);
+      }
 
       const config = objectValue(draft.config_json);
       const estimate = nullableNonNegativeInteger(
@@ -329,7 +332,7 @@ export class CpRendersService {
     const fallbackId = await this.resolveFallbackId(parent, snapshot, tx);
     if (!fallbackId) return null;
     const attempt = Number(parent.attempt ?? 1) + 1;
-    const key = `${String(parent.idempotency_key)}:r${attempt}`;
+    const key = `${String(parent.idempotency_key)}:f${attempt}`;
     const existing = await this.findByKey(String(parent.draft_id), key, tx);
     if (existing) return existing;
     const correlationId = `${key}:${Date.now()}`;
@@ -392,6 +395,44 @@ export class CpRendersService {
       : [];
     const model = models.find((item) => nullableText(item?.id) === currentModel);
     return nullableText(model?.fallback_id);
+  }
+
+  private async resolveReplayJob(
+    existing: Record<string, unknown>,
+    tx: CpRendersTransaction,
+  ) {
+    const state = String(existing.state ?? '');
+    const isRoot = existing.parent_job_id == null || existing.parent_job_id === '';
+    if (!isRoot || !['failed', 'cancelled', 'expired'].includes(state)) {
+      return existing;
+    }
+    const child = await this.findChildByParent(
+      String(existing.id),
+      String(existing.draft_id),
+      tx,
+    );
+    return child ?? existing;
+  }
+
+  private async findChildByParent(
+    parentId: string,
+    draftId: string,
+    db: CpRendersTransaction = this.db,
+  ) {
+    const result = await db.query(
+      `SELECT j.*,
+              (j.stage_log_json->0->>'estimate')::int AS estimate
+         FROM crm_cp_render_jobs j
+         JOIN crm_cp_video_drafts d ON d.id = j.draft_id
+         JOIN crm_cp_projects p ON p.id = d.project_id
+        WHERE j.parent_job_id = $1::uuid
+          AND j.draft_id = $2::uuid
+          AND p.tenant_id = $3
+        ORDER BY j.attempt DESC, j.id DESC
+        LIMIT 1`,
+      [parentId, draftId, CP_TENANT_ID],
+    );
+    return result.rows[0] ?? null;
   }
 
   private async findByKey(

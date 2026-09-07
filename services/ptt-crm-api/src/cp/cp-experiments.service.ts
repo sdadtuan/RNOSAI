@@ -1,7 +1,7 @@
-import { HttpException, Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { HttpException, Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
-import { CP_TENANT_ID } from './cp-audit.repository';
+import { CpAuditRepository, CP_TENANT_ID } from './cp-audit.repository';
 import { cpScopeSql, CpScope } from './cp-scope.util';
 
 export const CP_EXPERIMENTS_QUERY = 'CP_EXPERIMENTS_QUERY';
@@ -12,6 +12,7 @@ export interface CpExperimentsQueryPort {
     sql: string,
     params?: unknown[],
   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+  transaction<T>(work: (tx: CpExperimentsQueryPort) => Promise<T>): Promise<T>;
 }
 
 export type CpExperimentScope = {
@@ -48,6 +49,25 @@ export class CpExperimentsRepository implements CpExperimentsQueryPort, OnModule
     return this.db.query(sql, params);
   }
 
+  async transaction<T>(work: (tx: CpExperimentsQueryPort) => Promise<T>): Promise<T> {
+    const client = await this.db.connect();
+    const tx: CpExperimentsQueryPort = {
+      query: (sql, params) => client.query(sql, params),
+      transaction: (nested) => nested(tx),
+    };
+    try {
+      await client.query('BEGIN');
+      const result = await work(tx);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   onModuleDestroy(): void {
     void this.pool?.end();
     this.pool = null;
@@ -58,6 +78,7 @@ export class CpExperimentsRepository implements CpExperimentsQueryPort, OnModule
 export class CpExperimentsService {
   constructor(
     @Inject(CP_EXPERIMENTS_QUERY) private readonly db: CpExperimentsQueryPort,
+    @Optional() private readonly audit?: CpAuditRepository,
   ) {}
 
   async list(projectId: string, scope: CpExperimentScope = DEFAULT_SCOPE) {
@@ -99,7 +120,17 @@ export class CpExperimentsService {
        RETURNING *`,
       [project.id, name, JSON.stringify(variants)],
     );
-    return result.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+    const created = result.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+    if (this.audit) {
+      await this.audit.insert({
+        actor_id: scope.staffId > 0 ? scope.staffId : null,
+        action: 'experiment_created',
+        resource_type: 'experiment',
+        resource_id: String(created.id),
+        payload_json: { project_id: String(project.id), name },
+      });
+    }
+    return created;
   }
 
   async createVariant(
@@ -116,41 +147,61 @@ export class CpExperimentsService {
       ...(source ? asRecord(source.snapshot_json) : { draft }),
       experiment_id: experiment.id,
     };
-    const nextN = await this.nextVersionN(String(draft.id));
-    const inserted = await this.db.query(
-      `INSERT INTO crm_cp_video_versions (
-         draft_id, version_n, snapshot_json, qc_status, approval_status,
-         immutable, output_uri, pricing_version
-       ) VALUES (
-         $1::uuid, $2, $3::jsonb, NULL, 'internal_review', FALSE, NULL, NULL
-       )
-       RETURNING *`,
-      [draft.id, nextN, JSON.stringify(snapshot)],
-    );
-    const version = inserted.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
-    const variants = [
-      ...parseVariants(experiment.variants_json),
-      {
-        version_id: version.id,
-        draft_id: draft.id,
-        label: requiredText(input.label ?? input.name, 'label_required'),
-      },
-    ];
-    const updated = await this.db.query(
-      `UPDATE crm_cp_experiments
-          SET variants_json = $2::jsonb
-        WHERE id = $1::uuid
-        RETURNING *`,
-      [experiment.id, JSON.stringify(variants)],
-    );
-    return {
-      experiment: updated.rows[0] ?? { ...experiment, variants_json: variants },
-      version,
-    };
+    const label = requiredText(input.label ?? input.name, 'label_required');
+    return this.db.transaction(async (tx) => {
+      await tx.query(
+        `SELECT id FROM crm_cp_video_drafts WHERE id = $1::uuid FOR UPDATE`,
+        [draft.id],
+      );
+      const nextN = await this.nextVersionN(String(draft.id), tx);
+      const inserted = await tx.query(
+        `INSERT INTO crm_cp_video_versions (
+           draft_id, version_n, snapshot_json, qc_status, approval_status,
+           immutable, output_uri, pricing_version
+         ) VALUES (
+           $1::uuid, $2, $3::jsonb, NULL, 'internal_review', FALSE, NULL, NULL
+         )
+         RETURNING *`,
+        [draft.id, nextN, JSON.stringify(snapshot)],
+      );
+      const version = inserted.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+      const variants = [
+        ...parseVariants(experiment.variants_json),
+        {
+          version_id: version.id,
+          draft_id: draft.id,
+          label,
+        },
+      ];
+      const updated = await tx.query(
+        `UPDATE crm_cp_experiments
+            SET variants_json = $2::jsonb
+          WHERE id = $1::uuid
+          RETURNING *`,
+        [experiment.id, JSON.stringify(variants)],
+      );
+      if (this.audit) {
+        await this.audit.insert({
+          actor_id: scope.staffId > 0 ? scope.staffId : null,
+          action: 'experiment_variant_created',
+          resource_type: 'video_version',
+          resource_id: String(version.id),
+          payload_json: {
+            experiment_id: String(experiment.id),
+            draft_id: String(draft.id),
+            source_version_id: source ? String(source.id) : null,
+          },
+        }, tx);
+      }
+      return {
+        experiment: updated.rows[0] ?? { ...experiment, variants_json: variants },
+        version,
+      };
+    });
   }
 
-  private async nextVersionN(draftId: string) {
-    const result = await this.db.query(
+  private async nextVersionN(draftId: string, db: CpExperimentsQueryPort = this.db) {
+    const result = await db.query(
       `SELECT COALESCE(MAX(version_n), 0) + 1 AS next_n
          FROM crm_cp_video_versions
         WHERE draft_id = $1::uuid`,

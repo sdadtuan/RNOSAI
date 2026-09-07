@@ -286,8 +286,9 @@ class FallbackRenderQuery {
       };
     }
     if (sql.includes('INSERT INTO crm_cp_render_jobs')) {
+      const ids = [PARENT_JOB_ID, CHILD_JOB_ID, '26262626-2626-4262-8262-262626262626'];
       const job = {
-        id: this.jobs.length ? CHILD_JOB_ID : PARENT_JOB_ID,
+        id: ids[this.jobs.length] ?? `27272727-2727-4272-8272-${String(this.jobs.length).padStart(12, '0')}`,
         draft_id: params[0],
         parent_job_id: params[1],
         batch_item_id: params[2],
@@ -316,6 +317,11 @@ class FallbackRenderQuery {
       if (sql.includes('j.idempotency_key')) {
         const key = params[0];
         return { rows: this.jobs.filter((row) => row.idempotency_key === key) };
+      }
+      if (sql.includes('j.parent_job_id')) {
+        return {
+          rows: this.jobs.filter((row) => String(row.parent_job_id ?? '') === String(params[0])),
+        };
       }
       return { rows: this.jobs.filter((row) => String(row.id) === String(params[0])) };
     }
@@ -351,7 +357,7 @@ describe('model routing fallback child jobs', () => {
     expect(db.jobs).toHaveLength(2);
     expect(db.jobs[1]).toMatchObject({
       parent_job_id: PARENT_JOB_ID,
-      idempotency_key: 'fallback-key:r2',
+      idempotency_key: 'fallback-key:f2',
     });
     expect(result.parent_job_id).toBe(PARENT_JOB_ID);
     expect(db.lastChildSnapshot).toEqual(expect.objectContaining({
@@ -409,5 +415,66 @@ describe('model routing fallback child jobs', () => {
     expect(db.jobs).toHaveLength(1);
     expect(result.parent_job_id).toBeNull();
     expect(result.state).toBe('failed');
+  });
+
+  it('replays a failed parent key as the fallback child', async () => {
+    const db = new FallbackRenderQuery({
+      routing_json: { fallback_id: 'stub-lite' },
+      models_json: [],
+    });
+    const process = jest.fn(async (job: Record<string, unknown>, _snapshot: unknown, tx: FallbackRenderQuery) => {
+      if (job.parent_job_id) {
+        job.state = 'completed';
+        return;
+      }
+      await tx.query(
+        `UPDATE crm_cp_render_jobs SET state = 'failed' WHERE id = $1::uuid`,
+        [job.id],
+      );
+    });
+    const renders = new CpRendersService(
+      db,
+      { reserve: jest.fn().mockResolvedValue(undefined) } as never,
+      { process } as never,
+    );
+
+    const first = await renders.submit(FALLBACK_DRAFT_ID, 'replay-fallback-key');
+    const replay = await renders.submit(FALLBACK_DRAFT_ID, 'replay-fallback-key');
+
+    expect(first.job_id).toBe(CHILD_JOB_ID);
+    expect(replay.job_id).toBe(CHILD_JOB_ID);
+    expect(replay.parent_job_id).toBe(PARENT_JOB_ID);
+    expect(db.jobs).toHaveLength(2);
+  });
+
+  it('manual retry after fallback uses a :r key instead of colliding with :f', async () => {
+    const db = new FallbackRenderQuery({
+      routing_json: { fallback_id: 'stub-lite' },
+      models_json: [],
+    });
+    const process = jest.fn(async (job: Record<string, unknown>, _snapshot: unknown, tx: FallbackRenderQuery) => {
+      if (job.parent_job_id) {
+        job.state = 'completed';
+        return;
+      }
+      await tx.query(
+        `UPDATE crm_cp_render_jobs SET state = 'failed' WHERE id = $1::uuid`,
+        [job.id],
+      );
+    });
+    const renders = new CpRendersService(
+      db,
+      { reserve: jest.fn().mockResolvedValue(undefined) } as never,
+      { process } as never,
+    );
+
+    await renders.submit(FALLBACK_DRAFT_ID, 'retry-after-fallback');
+    const retried = await renders.retryJob(PARENT_JOB_ID);
+
+    expect(db.jobs).toHaveLength(3);
+    expect(db.jobs[1].idempotency_key).toBe('retry-after-fallback:f2');
+    expect(retried.idempotency_key).toBe('retry-after-fallback:r2');
+    expect(retried.parent_job_id).toBe(PARENT_JOB_ID);
+    expect(retried.job_id).not.toBe(CHILD_JOB_ID);
   });
 });

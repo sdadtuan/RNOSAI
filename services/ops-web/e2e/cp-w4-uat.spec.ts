@@ -145,7 +145,7 @@ test.describe('Creative Production OS W4 UAT', () => {
     expect(listed.ok, `list renders: ${listed.status} ${JSON.stringify(listed.json)}`).toBeTruthy();
     const submitIsChild = Boolean(
       submitted.json.parent_job_id
-      && String(submitted.json.idempotency_key ?? '').startsWith(`${submitKey}:r`),
+      && String(submitted.json.idempotency_key ?? '').startsWith(`${submitKey}:f`),
     );
     const parentId = String(
       submitIsChild
@@ -159,12 +159,12 @@ test.describe('Creative Production OS W4 UAT', () => {
 
     if (!child) {
       throw new Error(
-        'Wave 4 prerequisite missing: stub completed without a failed parent, so no fallback child (parent_job_id + :r) was created',
+        'Wave 4 prerequisite missing: stub completed without a failed parent, so no fallback child (parent_job_id + :f) was created',
       );
     }
 
     expect(child.parent_job_id).toBe(parentId);
-    expect(String(child.idempotency_key ?? '').startsWith(`${submitKey}:r`)).toBeTruthy();
+    expect(String(child.idempotency_key ?? '').startsWith(`${submitKey}:f`)).toBeTruthy();
     expect(isFallbackChildKey(child.idempotency_key)).toBeTruthy();
     if (child.id) {
       const fetched = await getCpRenderApi(request, token, String(child.id));

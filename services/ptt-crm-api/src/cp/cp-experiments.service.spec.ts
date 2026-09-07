@@ -11,6 +11,10 @@ class ExperimentQuery {
   versions: Record<string, unknown>[] = [];
   updates: Array<{ sql: string; params: unknown[] }> = [];
 
+  transaction<T>(work: (tx: ExperimentQuery) => Promise<T>) {
+    return work(this);
+  }
+
   constructor() {
     this.versions.push({
       id: COMPLETED_ID,
@@ -78,6 +82,9 @@ class ExperimentQuery {
     }
     if (sql.includes('FROM crm_cp_projects')) {
       return { rows: [{ id: PROJECT_ID, tenant_id: 'PTT', owner_staff_id: 9 }] };
+    }
+    if (sql.includes('INSERT INTO crm_cp_activity')) {
+      return { rows: [] };
     }
     return { rows: [] };
   }
@@ -147,5 +154,55 @@ describe('CpExperimentsService', () => {
       && call.sql.includes('snapshot_json')
     ))).toBe(false);
     expect(db.versions.filter((row) => row.draft_id === DRAFT_ID)).toHaveLength(2);
+  });
+
+  it('locks the draft before allocating a variant version number', async () => {
+    const db = new ExperimentQuery();
+    const experiments = new CpExperimentsService(db);
+    const experiment = await experiments.create({
+      project_id: PROJECT_ID,
+      name: 'Hook A/B',
+    }, SCOPE);
+
+    await experiments.createVariant(String(experiment.id), {
+      draft_id: DRAFT_ID,
+      label: 'B',
+    }, SCOPE);
+
+    const lock = db.updates.findIndex(
+      (call) => call.sql.includes('crm_cp_video_drafts') && call.sql.includes('FOR UPDATE'),
+    );
+    const allocate = db.updates.findIndex((call) =>
+      call.sql.includes('INSERT INTO crm_cp_video_versions'));
+    expect(lock).toBeGreaterThanOrEqual(0);
+    expect(lock).toBeLessThan(allocate);
+  });
+
+  it('writes an activity row when creating an experiment and a variant', async () => {
+    const db = new ExperimentQuery();
+    const audit = {
+      insert: jest.fn().mockResolvedValue(undefined),
+    };
+    const experiments = new CpExperimentsService(db, audit as never);
+    const experiment = await experiments.create({
+      project_id: PROJECT_ID,
+      name: 'Hook A/B',
+    }, SCOPE);
+
+    await experiments.createVariant(String(experiment.id), {
+      draft_id: DRAFT_ID,
+      label: 'B',
+    }, SCOPE);
+
+    expect(audit.insert).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'experiment_created',
+      resource_type: 'experiment',
+      actor_id: 9,
+    }));
+    expect(audit.insert).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'experiment_variant_created',
+      resource_type: 'video_version',
+      actor_id: 9,
+    }), db);
   });
 });

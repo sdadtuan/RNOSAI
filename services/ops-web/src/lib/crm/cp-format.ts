@@ -60,12 +60,13 @@ export function draftLanguageWritable(draft?: { has_completed_version?: boolean 
 
 export function mergeDraftAfterAutosave<T extends { has_completed_version?: boolean }>(
   current: T | null | undefined,
-  saved: T,
+  saved: Partial<T> & Record<string, unknown>,
 ): T {
   return {
+    ...(current ?? {} as T),
     ...saved,
     has_completed_version: saved.has_completed_version ?? current?.has_completed_version,
-  };
+  } as T;
 }
 
 export function creditForecastBanner(

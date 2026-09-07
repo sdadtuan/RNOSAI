@@ -65,7 +65,7 @@
     },
     "10_sensitive_mutation_writes_audit_log": {
       "status": "documented",
-      "coverage": "crm_cp_activity via CpAuditRepository (W2/W3 engines). Confirm GET /activity after a live settings/render mutation when API is up."
+      "coverage": "crm_cp_activity via CpAuditRepository (W2/W3 engines plus experiment_created / experiment_variant_created). Confirm GET /activity after a live settings/render mutation when API is up."
     },
     "11_ui_8_kpi_8_nav_1_main_emdash": {
       "status": "automated",
@@ -89,7 +89,7 @@
     "ptt-crm-api is not running on http://127.0.0.1:3000.",
     "Missing API/token fails the suite (no skips).",
     "No UAT case executed against a live API, so all four Wave 4 acceptance results remain false.",
-    "Stub render always completes, so the fallback child (parent_job_id + :r) cannot be observed until a parent job fails."
+    "Stub render always completes, so the fallback child (parent_job_id + :f) cannot be observed until a parent job fails."
   ],
   "notes": "Playwright discovers exactly four Wave 4 gate tests. This is intentionally not a green signoff. CP_AI_ENABLED was not set. No RBAC grants were made. Agent suggestions remain out of scope."
 }

@@ -77,7 +77,7 @@ export function snapshotLanguage(
 }
 
 export function isFallbackChildKey(key: unknown): boolean {
-  return /:r\d+$/.test(String(key ?? ''));
+  return /:f\d+$/.test(String(key ?? ''));
 }
 
 export function stableSnapshot(value: unknown): string {
@@ -347,7 +347,7 @@ export function findFallbackChild(
   submitKey: string,
 ): Record<string, unknown> | undefined {
   if (!parentId || !submitKey) return undefined;
-  const prefix = `${submitKey}:r`;
+  const prefix = `${submitKey}:f`;
   return (items ?? []).find((row) => {
     const parent = row.parent_job_id == null ? '' : String(row.parent_job_id);
     return parent === parentId && String(row.idempotency_key ?? '').startsWith(prefix);
