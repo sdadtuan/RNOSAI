@@ -355,16 +355,14 @@
   padding: 8px;
 }
 
-.cp-settings-json {
+.cp-settings-input {
   width: 100%;
-  min-height: 240px;
-  resize: vertical;
   border: 1px solid #e5e7eb;
-  border-radius: 9px;
-  padding: 10px;
+  border-radius: 7px;
+  padding: 6px 8px;
   background: #fff;
   color: #111827;
-  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: inherit;
 }
 
 .cp-link {

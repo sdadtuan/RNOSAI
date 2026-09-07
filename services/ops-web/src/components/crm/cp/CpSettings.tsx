@@ -5,10 +5,12 @@ import { useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import {
+  CP_MODEL_FIELDS,
   formatCpApiError,
   getCpSettings,
   grantCpCredits,
   patchCpSettings,
+  projectCpSettingsForUi,
   type CpModelSetting,
   type CpSettings as CpSettingsData,
   type CpSettingsPatch,
@@ -90,8 +92,8 @@ export function CpSettings() {
   const searchParams = useSearchParams();
   const tab = parseTab(searchParams.get('tab'));
   const [settings, setSettings] = useState<CpSettingsData | null>(null);
-  const [modelsText, setModelsText] = useState('[]');
-  const [policyText, setPolicyText] = useState('{}');
+  const [models, setModels] = useState<CpModelSetting[]>([]);
+  const [policy, setPolicy] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -112,10 +114,10 @@ export function CpSettings() {
     setLoading(true);
     setError('');
     try {
-      const result = await getCpSettings(token);
+      const result = projectCpSettingsForUi(await getCpSettings(token));
       setSettings(result);
-      setModelsText(JSON.stringify(result?.models_json ?? [], null, 2));
-      setPolicyText(JSON.stringify(result?.policy_json ?? {}, null, 2));
+      setModels(result?.models_json ?? []);
+      setPolicy(result?.policy_json ?? {});
     } catch (err) {
       setSettings(null);
       setError(formatCpApiError(err, 'Không tải được cấu hình'));
@@ -138,10 +140,10 @@ export function CpSettings() {
     setError('');
     setNotice('');
     try {
-      const result = await patchCpSettings(token, input);
+      const result = projectCpSettingsForUi(await patchCpSettings(token, input));
       setSettings(result);
-      setModelsText(JSON.stringify(result?.models_json ?? [], null, 2));
-      setPolicyText(JSON.stringify(result?.policy_json ?? {}, null, 2));
+      setModels(result?.models_json ?? []);
+      setPolicy(result?.policy_json ?? {});
       setNotice('Đã lưu cấu hình');
     } catch (err) {
       setError(formatCpApiError(err, 'Không lưu được cấu hình'));
@@ -150,21 +152,22 @@ export function CpSettings() {
     }
   }
 
-  async function saveJson(kind: 'models' | 'policy') {
-    try {
-      const parsed: unknown = JSON.parse(kind === 'models' ? modelsText : policyText);
-      if (kind === 'models') {
-        if (!Array.isArray(parsed)) throw new Error('Models phải là một mảng JSON');
-        await save({ models_json: parsed as CpModelSetting[] });
-      } else {
-        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          throw new Error('Policy phải là một object JSON');
-        }
-        await save({ policy_json: parsed as Record<string, unknown> });
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'JSON không hợp lệ');
-    }
+  function updateModel(index: number, field: (typeof CP_MODEL_FIELDS)[number], value: string) {
+    setModels((current) => current.map((model, modelIndex) => (
+      modelIndex === index ? { ...model, [field]: value || null } : model
+    )));
+  }
+
+  function updatePolicyValue(key: string, value: string) {
+    setPolicy((current) => {
+      const previous = current[key];
+      const next = typeof previous === 'number'
+        ? Number(value)
+        : typeof previous === 'boolean'
+          ? value === 'true'
+          : value;
+      return { ...current, [key]: next };
+    });
   }
 
   async function grant(event: FormEvent<HTMLFormElement>) {
@@ -278,9 +281,37 @@ export function CpSettings() {
               <h2>AI Providers & Models</h2>
               <p className="cp-muted">Chỉ lưu id, max_res, max_duration_sec, cap_per_job, region và fallback_id.</p>
             </div>
-            <button className="cp-btn cp-btn--primary" type="button" disabled={saving} onClick={() => void saveJson('models')}>Lưu models</button>
+            <div>
+              <button className="cp-btn" type="button" onClick={() => setModels((current) => [...current, {}])}>Thêm model</button>
+              <button className="cp-btn cp-btn--primary" type="button" disabled={saving} onClick={() => void save({ models_json: models })}>Lưu models</button>
+            </div>
           </div>
-          <textarea className="cp-settings-json" aria-label="Models JSON" rows={14} value={modelsText} onChange={(event) => setModelsText(event.target.value)} />
+          <div className="cp-table-wrap">
+            <table className="cp-table">
+              <thead>
+                <tr>{CP_MODEL_FIELDS.map((field) => <th key={field}>{field}</th>)}</tr>
+              </thead>
+              <tbody>
+                {models.length ? models.map((model, index) => (
+                  <tr key={`${String(model.id ?? 'model')}-${index}`}>
+                    {CP_MODEL_FIELDS.map((field) => (
+                      <td key={field}>
+                        <input
+                          className="cp-settings-input"
+                          aria-label={`${field} model ${index + 1}`}
+                          value={formText(model[field] as string | number | null)}
+                          placeholder="—"
+                          onChange={(event) => updateModel(index, field, event.target.value)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                )) : (
+                  <tr><td className="cp-empty" colSpan={CP_MODEL_FIELDS.length}>{dash(null)}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
 
@@ -321,11 +352,37 @@ export function CpSettings() {
           <div className="cp-card__head">
             <div>
               <h2>Content Policy</h2>
-              <p className="cp-muted">Cấu hình policy đã được API loại bỏ trường bí mật.</p>
+              <p className="cp-muted">Chỉ hiển thị trường policy an toàn.</p>
             </div>
-            <button className="cp-btn cp-btn--primary" type="button" disabled={saving} onClick={() => void saveJson('policy')}>Lưu policy</button>
+            <button className="cp-btn cp-btn--primary" type="button" disabled={saving} onClick={() => void save({ policy_json: policy })}>Lưu policy</button>
           </div>
-          <textarea className="cp-settings-json" aria-label="Policy JSON" rows={14} value={policyText} onChange={(event) => setPolicyText(event.target.value)} />
+          <div className="cp-table-wrap">
+            <table className="cp-table">
+              <thead><tr><th>Policy</th><th>Giá trị</th></tr></thead>
+              <tbody>
+                {Object.entries(policy).length ? Object.entries(policy).map(([key, value]) => {
+                  const nested = value !== null && typeof value === 'object';
+                  return (
+                    <tr key={key}>
+                      <td>{key}</td>
+                      <td>
+                        <input
+                          className="cp-settings-input"
+                          aria-label={`Policy ${key}`}
+                          value={nested ? (Array.isArray(value) ? 'Danh sách' : 'Cấu hình lồng') : String(value ?? '')}
+                          disabled={nested}
+                          placeholder="—"
+                          onChange={(event) => updatePolicyValue(key, event.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                }) : (
+                  <tr><td className="cp-empty" colSpan={2}>{dash(null)}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
     </div>

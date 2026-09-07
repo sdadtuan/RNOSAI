@@ -26,3 +26,10 @@ Implemented SET-01…08 settings chrome with exactly eight `?tab=` tabs:
 ## Concerns
 
 - Repository-wide `tsc --noEmit` remains blocked by unrelated pre-existing type errors in other tests and E2E files. The production Next.js build passed.
+
+## Secret-safe UI follow-up
+
+- Projects every `models_json` item to `id`, `max_res`, `max_duration_sec`, `cap_per_job`, `region`, and `fallback_id` before storing UI state or PATCHing.
+- Recursively strips policy keys matching `secret|token|password|credential|api_key` before storing UI state or PATCHing.
+- Replaced raw JSON textareas with allowlisted model fields and a sanitized policy table.
+- Verification: 11 focused/adjacent tests passed, production build passed, and Task 17 diagnostics are clean.

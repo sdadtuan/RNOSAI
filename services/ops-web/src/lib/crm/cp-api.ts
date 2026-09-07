@@ -417,19 +417,53 @@ export function buildBrandVersionPayload(
 }
 
 export function buildCpSettingsPatch(input: CpSettingsPatch): CpSettingsPatch {
-  if (!Object.prototype.hasOwnProperty.call(input, 'models_json')) {
-    return { ...input };
+  const output = { ...input };
+  if (Object.prototype.hasOwnProperty.call(input, 'models_json')) {
+    output.models_json = projectCpModels(input.models_json);
   }
+  if (Object.prototype.hasOwnProperty.call(input, 'policy_json')) {
+    output.policy_json = stripCpPolicySecrets(input.policy_json);
+  }
+  return output;
+}
+
+export function projectCpSettingsForUi(settings: CpSettings | null): CpSettings | null {
+  if (!settings) return null;
   return {
-    ...input,
-    models_json: Array.isArray(input.models_json)
-      ? input.models_json.map((model) => Object.fromEntries(
-        CP_MODEL_FIELDS
-          .filter((field) => Object.prototype.hasOwnProperty.call(model, field))
-          .map((field) => [field, model[field]]),
-      ))
-      : [],
+    ...settings,
+    models_json: projectCpModels(settings.models_json),
+    policy_json: stripCpPolicySecrets(settings.policy_json),
   };
+}
+
+function projectCpModels(value: unknown): CpModelSetting[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((model): model is Record<string, unknown> => (
+      model !== null && typeof model === 'object' && !Array.isArray(model)
+    ))
+    .map((model) => Object.fromEntries(
+      CP_MODEL_FIELDS
+        .filter((field) => Object.prototype.hasOwnProperty.call(model, field))
+        .map((field) => [field, model[field]]),
+    ));
+}
+
+const CP_POLICY_SECRET_KEY = /secret|token|password|credential|api_key/i;
+
+function stripCpPolicySecrets(value: unknown): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !CP_POLICY_SECRET_KEY.test(key))
+      .map(([key, item]) => [key, stripCpPolicyValue(item)]),
+  );
+}
+
+function stripCpPolicyValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripCpPolicyValue);
+  if (value !== null && typeof value === 'object') return stripCpPolicySecrets(value);
+  return value;
 }
 
 function cpQueryPath(path: string, query: Record<string, string | undefined>): string {

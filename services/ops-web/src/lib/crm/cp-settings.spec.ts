@@ -5,6 +5,7 @@ import {
   getCpSettings,
   grantCpCredits,
   patchCpSettings,
+  projectCpSettingsForUi,
 } from './cp-api';
 
 describe('CP settings UI contract', () => {
@@ -43,6 +44,37 @@ describe('CP settings UI contract', () => {
         fallback_id: 'stub-lite',
       }],
     });
+  });
+
+  it('projects API settings before they can reach the UI', () => {
+    expect(projectCpSettingsForUi({
+      locale: 'vi-VN',
+      timezone: 'Asia/Ho_Chi_Minh',
+      default_brand_kit_id: null,
+      retention_days: 365,
+      signed_url_ttl_min: 15,
+      restore_days: 30,
+      legal_hold: false,
+      soft_alert_pct: 80,
+      hard_cap_pct: 100,
+      high_cost_threshold: 200,
+      concurrent_slots: 5,
+      watermark_draft: true,
+      ai_enabled: false,
+      publish_native: false,
+      models_json: [{ id: 'safe', api_key: 'hidden', token: 'hidden' }],
+      policy_json: {
+        outcome: 'review',
+        credentials: { value: 'hidden' },
+        nested: { password: 'hidden', allowed: true },
+      },
+    })).toEqual(expect.objectContaining({
+      models_json: [{ id: 'safe' }],
+      policy_json: {
+        outcome: 'review',
+        nested: { allowed: true },
+      },
+    }));
   });
 
   it('binds GET, PATCH, and credit grant to CP API', async () => {
