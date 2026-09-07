@@ -49,12 +49,21 @@ describe('cp-review.util', () => {
     expect(approvalStepForStatus('changes_requested')).toBe('internal_review');
   });
 
-  it('enables Hub submit unless the selected version is QC blocked', () => {
-    expect(canSubmitCreativeToHub(undefined, undefined)).toBe(false);
-    expect(canSubmitCreativeToHub('', 'passed')).toBe(false);
-    expect(canSubmitCreativeToHub('ver-1', null)).toBe(true);
-    expect(canSubmitCreativeToHub('ver-1', 'passed')).toBe(true);
-    expect(canSubmitCreativeToHub('ver-1', 'warning')).toBe(true);
-    expect(canSubmitCreativeToHub('ver-1', 'blocked')).toBe(false);
+  it('requires a selected version with resolved QC', () => {
+    expect(canSubmitCreativeToHub(undefined, { phase: 'idle' })).toBe(false);
+    expect(canSubmitCreativeToHub('', { phase: 'resolved', qcStatus: 'passed' })).toBe(false);
+    expect(canSubmitCreativeToHub('ver-1', { phase: 'idle' })).toBe(false);
+  });
+
+  it('disables Hub submit while QC is loading or failed to load', () => {
+    expect(canSubmitCreativeToHub('ver-1', { phase: 'loading' })).toBe(false);
+    expect(canSubmitCreativeToHub('ver-1', { phase: 'error' })).toBe(false);
+  });
+
+  it('enables Hub submit when QC is resolved unless blocked', () => {
+    expect(canSubmitCreativeToHub('ver-1', { phase: 'resolved', qcStatus: null })).toBe(true);
+    expect(canSubmitCreativeToHub('ver-1', { phase: 'resolved', qcStatus: 'passed' })).toBe(true);
+    expect(canSubmitCreativeToHub('ver-1', { phase: 'resolved', qcStatus: 'warning' })).toBe(true);
+    expect(canSubmitCreativeToHub('ver-1', { phase: 'resolved', qcStatus: 'blocked' })).toBe(false);
   });
 });

@@ -30,7 +30,10 @@ import {
   CP_PROJECT_TABS,
   type CpProjectTabId,
 } from '@/lib/crm/cp-project-tabs.util';
-import { canSubmitCreativeToHub } from '@/lib/crm/cp-review.util';
+import {
+  canSubmitCreativeToHub,
+  type QcFetchState,
+} from '@/lib/crm/cp-review.util';
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return dash(null);
@@ -59,7 +62,7 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [selectedVersionId, setSelectedVersionId] = useState('');
-  const [selectedQcStatus, setSelectedQcStatus] = useState<string | null>(null);
+  const [qcFetch, setQcFetch] = useState<QcFetchState>({ phase: 'idle' });
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -97,22 +100,28 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
     () => deliverables.filter((item) => item.video_version_id),
     [deliverables],
   );
-  const canSubmitHub = canSubmitCreativeToHub(selectedVersionId, selectedQcStatus);
+  const canSubmitHub = canSubmitCreativeToHub(selectedVersionId, qcFetch);
 
   useEffect(() => {
     if (!selectedVersionId) {
-      setSelectedQcStatus(null);
+      setQcFetch({ phase: 'idle' });
       return;
     }
     const token = getAccessToken();
-    if (!token) return;
+    if (!token) {
+      setQcFetch({ phase: 'error' });
+      return;
+    }
+    setQcFetch({ phase: 'loading' });
     let cancelled = false;
     void getCpVideoVersion(token, selectedVersionId)
       .then((version) => {
-        if (!cancelled) setSelectedQcStatus(version.qc_status ?? null);
+        if (!cancelled) {
+          setQcFetch({ phase: 'resolved', qcStatus: version.qc_status ?? null });
+        }
       })
       .catch(() => {
-        if (!cancelled) setSelectedQcStatus(null);
+        if (!cancelled) setQcFetch({ phase: 'error' });
       });
     return () => {
       cancelled = true;
@@ -362,7 +371,14 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
                   ))}
                 </select>
               </label>
-              <p className="cp-muted">QC: {dash(selectedVersionId ? selectedQcStatus : null)}</p>
+              <p className="cp-muted">
+                QC:{' '}
+                {qcFetch.phase === 'loading'
+                  ? 'Đang tải…'
+                  : qcFetch.phase === 'error'
+                    ? 'Không tải được QC'
+                    : dash(qcFetch.phase === 'resolved' ? qcFetch.qcStatus : null)}
+              </p>
               <button
                 className="cp-btn cp-btn--primary"
                 type="submit"

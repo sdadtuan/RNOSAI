@@ -74,10 +74,17 @@ export function isApprovalState(value: string): value is CpApprovalState {
   return (APPROVAL_STATES as readonly string[]).includes(value);
 }
 
+export type QcFetchState =
+  | { phase: 'idle' }
+  | { phase: 'loading' }
+  | { phase: 'error' }
+  | { phase: 'resolved'; qcStatus: string | null };
+
 export function canSubmitCreativeToHub(
   versionId: string | null | undefined,
-  qcStatus: string | null | undefined,
+  qcFetch: QcFetchState,
 ): boolean {
   if (!versionId) return false;
-  return qcStatus !== 'blocked';
+  if (qcFetch.phase !== 'resolved') return false;
+  return qcFetch.qcStatus !== 'blocked';
 }
