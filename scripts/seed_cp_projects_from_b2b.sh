@@ -13,6 +13,7 @@ if [[ -z "$URL" ]]; then echo "Set DATABASE_URL in .env" >&2; exit 1; fi
 OWNER_EMAIL="${CP_IMPORT_OWNER_EMAIL:-admin@pttads.vn}"
 
 psql "$URL" -v ON_ERROR_STOP=1 -v owner_email="$OWNER_EMAIL" <<'SQL'
+BEGIN;
 SELECT set_config('cp.import_owner', :'owner_email', true);
 
 DO $$
@@ -80,5 +81,6 @@ BEGIN
     ON CONFLICT DO NOTHING;
   END LOOP;
 END $$;
+COMMIT;
 SQL
 echo "OK  CP projects imported from crm_b2b_projects (owner $OWNER_EMAIL)"
