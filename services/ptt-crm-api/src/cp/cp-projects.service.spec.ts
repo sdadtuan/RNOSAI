@@ -195,4 +195,31 @@ describe('CpProjectsService', () => {
     )?.[0];
     expect(updateSql).toContain("status NOT IN ('completed', 'archived')");
   });
+
+  it('rejects addDeliverable on a completed project with project_closed', async () => {
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/FROM crm_cp_projects p/i.test(sql)) {
+        return {
+          rows: [{ id, status: 'completed', owner_staff_id: 7 }],
+          rowCount: 1,
+        };
+      }
+      if (/INSERT INTO crm_cp_deliverables/i.test(sql)) {
+        return { rows: [{ id: UNKNOWN }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(
+      svc.addDeliverable(id, { type: 'social' }, scope),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: { error: 'project_closed' },
+    });
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(repo.query.mock.calls.some(([sql]) => /FOR UPDATE/i.test(sql))).toBe(true);
+    expect(
+      repo.query.mock.calls.some(([sql]) => /INSERT INTO crm_cp_deliverables/i.test(sql)),
+    ).toBe(false);
+  });
 });

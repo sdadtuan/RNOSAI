@@ -337,6 +337,7 @@ export class CpProjectsService {
     if (input.body_json === undefined) cpThrow(400, { error: 'body_json_required' });
     return this.db.transaction(async (tx) => {
       const project = await this.loadProject(projectId, scope, tx, true);
+      requireOpenProject(project);
       const createdBy = actorId > 0 ? actorId : Number(project.owner_staff_id);
       const result = await tx.query(
         `INSERT INTO crm_cp_briefs (project_id, version, body_json, approval_status, created_by)
@@ -364,33 +365,39 @@ export class CpProjectsService {
   }
 
   async addDeliverable(id: string, input: CpDeliverableInput, scope: CpProjectScope) {
-    const project = await this.get(id, scope);
+    const projectId = requiredUuid(id, 'invalid_project_id', 'invalid_project_id');
     const type = String(input.type ?? '').trim();
     if (!(DELIVERABLE_TYPES as readonly string[]).includes(type)) {
       cpThrow(400, { error: 'invalid_deliverable_type' });
     }
-    const result = await this.db.query(
-      `INSERT INTO crm_cp_deliverables (
-         project_id, type, status, owner_staff_id, due_at, priority,
-         video_draft_id, video_version_id, vd_project_id, content_item_id
-       ) VALUES ($1::uuid, $2, $3, $4, $5::date, $6, $7::uuid, $8::uuid, $9, $10)
-       RETURNING *`,
-      [
-        project.id,
-        type,
-        nullableText(input.status) ?? 'draft',
-        optionalPositiveInt(input.owner_staff_id, 'invalid_owner_staff_id'),
-        nullableText(input.due_at),
-        nullableText(input.priority) ?? 'normal',
-        type === 'human_video' ? null : optionalUuid(input.video_draft_id, 'invalid_video_draft_id'),
-        type === 'human_video'
-          ? null
-          : optionalUuid(input.video_version_id, 'invalid_video_version_id'),
-        type === 'human_video' ? nullableText(input.vd_project_id) : null,
-        type === 'human_video' ? null : nullableText(input.content_item_id),
-      ],
-    );
-    return result.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+    return this.db.transaction(async (tx) => {
+      const project = await this.loadProject(projectId, scope, tx, true);
+      requireOpenProject(project);
+      const result = await tx.query(
+        `INSERT INTO crm_cp_deliverables (
+           project_id, type, status, owner_staff_id, due_at, priority,
+           video_draft_id, video_version_id, vd_project_id, content_item_id
+         ) VALUES ($1::uuid, $2, $3, $4, $5::date, $6, $7::uuid, $8::uuid, $9, $10)
+         RETURNING *`,
+        [
+          project.id,
+          type,
+          nullableText(input.status) ?? 'draft',
+          optionalPositiveInt(input.owner_staff_id, 'invalid_owner_staff_id'),
+          nullableText(input.due_at),
+          nullableText(input.priority) ?? 'normal',
+          type === 'human_video'
+            ? null
+            : optionalUuid(input.video_draft_id, 'invalid_video_draft_id'),
+          type === 'human_video'
+            ? null
+            : optionalUuid(input.video_version_id, 'invalid_video_version_id'),
+          type === 'human_video' ? nullableText(input.vd_project_id) : null,
+          type === 'human_video' ? null : nullableText(input.content_item_id),
+        ],
+      );
+      return result.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+    });
   }
 
   async listTasks(id: string, scope: CpProjectScope) {
@@ -403,27 +410,31 @@ export class CpProjectsService {
   }
 
   async addTask(id: string, input: CpTaskInput, scope: CpProjectScope) {
-    const project = await this.get(id, scope);
+    const projectId = requiredUuid(id, 'invalid_project_id', 'invalid_project_id');
     const title = requiredText(input.title, 'title_required');
-    const result = await this.db.query(
-      `INSERT INTO crm_cp_tasks (
-         project_id, title, assignee_id, due_at, priority, status,
-         depends_on_id, am_task_id, csd_ticket_id
-       ) VALUES ($1::uuid, $2, $3, $4::timestamptz, $5, $6, $7::uuid, $8::uuid, $9)
-       RETURNING *`,
-      [
-        project.id,
-        title,
-        optionalPositiveInt(input.assignee_id, 'invalid_assignee_id'),
-        nullableText(input.due_at),
-        nullableText(input.priority) ?? 'normal',
-        nullableText(input.status) ?? 'open',
-        optionalUuid(input.depends_on_id, 'invalid_depends_on_id'),
-        optionalUuid(input.am_task_id, 'invalid_am_task_id'),
-        nullableText(input.csd_ticket_id),
-      ],
-    );
-    return result.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+    return this.db.transaction(async (tx) => {
+      const project = await this.loadProject(projectId, scope, tx, true);
+      requireOpenProject(project);
+      const result = await tx.query(
+        `INSERT INTO crm_cp_tasks (
+           project_id, title, assignee_id, due_at, priority, status,
+           depends_on_id, am_task_id, csd_ticket_id
+         ) VALUES ($1::uuid, $2, $3, $4::timestamptz, $5, $6, $7::uuid, $8::uuid, $9)
+         RETURNING *`,
+        [
+          project.id,
+          title,
+          optionalPositiveInt(input.assignee_id, 'invalid_assignee_id'),
+          nullableText(input.due_at),
+          nullableText(input.priority) ?? 'normal',
+          nullableText(input.status) ?? 'open',
+          optionalUuid(input.depends_on_id, 'invalid_depends_on_id'),
+          optionalUuid(input.am_task_id, 'invalid_am_task_id'),
+          nullableText(input.csd_ticket_id),
+        ],
+      );
+      return result.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+    });
   }
 
   async listMilestones(id: string, scope: CpProjectScope) {
@@ -527,6 +538,12 @@ export function decodeProjectCursor(cursor: string): CpProjectCursor {
     return { created_at: createdAt, id };
   } catch {
     cpThrow(400, { error: 'invalid_cursor' });
+  }
+}
+
+function requireOpenProject(project: Record<string, unknown>): void {
+  if (project.status === 'completed' || project.status === 'archived') {
+    cpThrow(409, { error: 'project_closed' });
   }
 }
 
