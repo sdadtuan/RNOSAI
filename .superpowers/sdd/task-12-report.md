@@ -52,3 +52,11 @@ npm --prefix services/ops-web run test:unit -- src/lib/crm/cp-format.spec.ts
 - The current backend KPI response has no trend-series field, so the trend correctly hides all series and renders `—` until the API supplies created/approved/published points.
 - The UI sends all overview filters to each overview endpoint, but the current backend applies the full filter set only to KPIs; actions/activity/health remain scope/global according to their existing controller contracts.
 - The standalone repository-wide `tsc --noEmit` command reports existing unrelated errors in E2E and utility spec files. The Next.js production build passes its compile, lint, and type-check stages.
+
+## Follow-up: Action href route mapping
+
+- Moved `normalizeCpHref` into the tested CP formatting utilities.
+- Mapped `/cp/videos/:id/review` to the existing `/crm/creative-os/video/:id` page and removed unsupported review suffixes.
+- Added mappings for version review, render job, asset, activity, and credit action hrefs using only existing Creative OS routes.
+- Added a focused regression test for `/cp/videos/video-123/review`.
+- Re-ran the Task 12 unit suite: 6 tests passed.

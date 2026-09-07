@@ -58,3 +58,35 @@ export function hasTrendData(points: CpTrendPoint[]): boolean {
     [point.created, point.approved, point.published].some((value) => value != null),
   );
 }
+
+export function normalizeCpHref(href: string): string {
+  const [path, query] = href.split('?');
+  const suffix = query ? `?${query}` : '';
+  const existingVideoReview = path.match(
+    /^\/crm\/creative-os\/video\/([^/]+)\/review$/,
+  );
+  if (existingVideoReview) {
+    return `/crm/creative-os/video/${existingVideoReview[1]}${suffix}`;
+  }
+  if (path.startsWith('/crm/creative-os')) return href;
+
+  const version = path.match(/^\/cp\/(?:video-versions|videos\/versions)\/([^/]+)(?:\/review)?$/);
+  if (version) {
+    return `/crm/creative-os/video/versions/${version[1]}${suffix}`;
+  }
+  const video = path.match(/^\/cp\/videos\/([^/]+)(?:\/review)?$/);
+  if (video) {
+    return `/crm/creative-os/video/${video[1]}${suffix}`;
+  }
+  const render = path.match(/^\/cp\/renders\/([^/]+)$/);
+  if (render) {
+    return `/crm/creative-os/video/ops?job=${encodeURIComponent(render[1])}`;
+  }
+  const asset = path.match(/^\/cp\/assets\/([^/]+)$/);
+  if (asset) {
+    return `/crm/creative-os/media/${asset[1]}${suffix}`;
+  }
+  if (path === '/cp/activity') return `/crm/creative-os/activity${suffix}`;
+  if (path === '/cp/credits') return `/crm/creative-os/reports${suffix}`;
+  return '/crm/creative-os';
+}

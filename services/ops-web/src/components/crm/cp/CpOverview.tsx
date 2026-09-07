@@ -24,6 +24,7 @@ import {
   dash,
   hasTrendData,
   KPI_TILES,
+  normalizeCpHref,
   type CpKpiKey,
   type CpTrendPoint,
 } from '@/lib/crm/cp-format';
@@ -128,22 +129,6 @@ function formatDateTime(value: string | null | undefined): string {
         minute: '2-digit',
       }).format(date)
     : value;
-}
-
-function normalizeCpHref(href: string): string {
-  if (href.startsWith('/crm/')) return href;
-  if (href.startsWith('/cp/videos/')) {
-    return href.replace('/cp/videos/', '/crm/creative-os/video/');
-  }
-  if (href.startsWith('/cp/renders/')) {
-    return href.replace('/cp/renders/', '/crm/creative-os/video/ops?job=');
-  }
-  if (href.startsWith('/cp/assets/')) {
-    return href.replace('/cp/assets/', '/crm/creative-os/media/');
-  }
-  if (href === '/cp/activity') return '/crm/creative-os/activity';
-  if (href.startsWith('/cp/credits')) return href.replace('/cp/credits', '/crm/creative-os/reports');
-  return '/crm/creative-os';
 }
 
 function severityClass(severity: string): string {

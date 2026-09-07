@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dash, hasTrendData, KPI_TILES } from './cp-format';
+import { dash, hasTrendData, KPI_TILES, normalizeCpHref } from './cp-format';
 
 describe('KPI_TILES', () => {
   it('defines the eight overview KPI tiles in contract order', () => {
@@ -25,6 +25,14 @@ describe('hasTrendData', () => {
 
   it('shows a trend when any series has a value', () => {
     expect(hasTrendData([{ created: null, approved: 0, published: null }])).toBe(true);
+  });
+});
+
+describe('normalizeCpHref', () => {
+  it('drops an unsupported review suffix from video action hrefs', () => {
+    expect(normalizeCpHref('/cp/videos/video-123/review')).toBe(
+      '/crm/creative-os/video/video-123',
+    );
   });
 });
 
