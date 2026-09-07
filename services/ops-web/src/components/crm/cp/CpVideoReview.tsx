@@ -40,7 +40,7 @@ function qcReport(value: unknown): CpQcReport | null {
 
 function displayJson(value: unknown): string {
   if (value == null) return dash(null);
-  if (typeof value === 'string') return value;
+  if (typeof value === 'string') return value.trim() ? value : dash(null);
   try {
     return JSON.stringify(value);
   } catch {

@@ -256,22 +256,32 @@ export class CpVideosService {
     const previous = String(version.approval_status ?? '');
     if (!previous || previous === 'internal_review' || previous === 'rejected') return;
 
-    await this.db.query(
-      `UPDATE crm_cp_video_versions
-          SET approval_status = $2
-        WHERE id = $1::uuid`,
-      [version.id, 'internal_review'],
-    );
-    await this.audit?.insert({
-      actor_id: scope.staffId > 0 ? scope.staffId : null,
-      action: 'approval_invalidated',
-      resource_type: 'video_version',
-      resource_id: String(version.id),
-      payload_json: {
-        previous,
-        draft_id: String(draft.id),
-      },
-    });
+    const invalidate = async (tx: CpVideosQueryPort) => {
+      await tx.query(
+        `UPDATE crm_cp_video_versions
+            SET approval_status = $2
+          WHERE id = $1::uuid`,
+        [version.id, 'internal_review'],
+      );
+      if (this.audit) {
+        await this.audit.insert({
+          actor_id: scope.staffId > 0 ? scope.staffId : null,
+          action: 'approval_invalidated',
+          resource_type: 'video_version',
+          resource_id: String(version.id),
+          payload_json: {
+            previous,
+            draft_id: String(draft.id),
+          },
+        }, tx);
+      }
+    };
+
+    if (this.db.transaction) {
+      await this.db.transaction(invalidate);
+    } else {
+      await invalidate(this.db);
+    }
   }
 
   private async loadProject(projectId: string, scope: CpVideoScope) {

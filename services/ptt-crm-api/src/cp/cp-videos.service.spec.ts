@@ -118,12 +118,15 @@ describe('CpVideosService', () => {
       call.sql.includes('UPDATE crm_cp_video_versions')
       && call.sql.includes('approval_status')
     ))).toBe(true);
-    expect(audit.insert).toHaveBeenCalledWith(expect.objectContaining({
-      actor_id: 9,
-      action: 'approval_invalidated',
-      resource_type: 'video_version',
-      resource_id: versionId,
-    }));
+    expect(audit.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor_id: 9,
+        action: 'approval_invalidated',
+        resource_type: 'video_version',
+        resource_id: versionId,
+      }),
+      expect.objectContaining({ query: expect.any(Function) }),
+    );
   });
 
   it('does not invalidate when the latest version is still internal_review', async () => {
