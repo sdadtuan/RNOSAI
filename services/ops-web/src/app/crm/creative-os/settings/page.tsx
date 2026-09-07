@@ -1,5 +1,5 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpSettings } from '@/components/crm/cp/CpSettings';
 
 export default function CreativeOsSettingsPage() {
-  return <CpPlaceholder title="Cấu hình" />;
+  return <CpSettings />;
 }

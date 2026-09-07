@@ -348,6 +348,25 @@
   margin-bottom: 10px;
 }
 
+.cp-settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+}
+
+.cp-settings-json {
+  width: 100%;
+  min-height: 240px;
+  resize: vertical;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  padding: 10px;
+  background: #fff;
+  color: #111827;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 .cp-link {
   color: var(--cp-accent);
   font-size: 12px;

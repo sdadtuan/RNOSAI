@@ -330,6 +330,51 @@ export type CpRenderJob = {
   updated_at?: string | null;
 };
 
+export const CP_MODEL_FIELDS = [
+  'id',
+  'max_res',
+  'max_duration_sec',
+  'cap_per_job',
+  'region',
+  'fallback_id',
+] as const;
+
+export type CpModelSetting = Partial<
+  Record<(typeof CP_MODEL_FIELDS)[number], string | number | null>
+> & Record<string, unknown>;
+
+export type CpSettings = {
+  locale: string | null;
+  timezone: string | null;
+  default_brand_kit_id: string | null;
+  retention_days: number | null;
+  signed_url_ttl_min: number | null;
+  restore_days: number | null;
+  legal_hold: boolean | null;
+  soft_alert_pct: number | null;
+  hard_cap_pct: number | null;
+  high_cost_threshold: number | null;
+  concurrent_slots: number | null;
+  watermark_draft: boolean | null;
+  ai_enabled: boolean | null;
+  publish_native: boolean | null;
+  models_json: CpModelSetting[];
+  policy_json: Record<string, unknown>;
+  updated_at?: string | null;
+  updated_by_staff_id?: number | null;
+};
+
+export type CpSettingsPatch = Partial<Omit<
+  CpSettings,
+  'updated_at' | 'updated_by_staff_id'
+>>;
+
+export type CpCreditGrantInput = {
+  agency_client_id: string;
+  amount: number;
+  cost_center?: string | null;
+};
+
 export class CpApiError extends ApiError {
   constructor(
     message: string,
@@ -368,6 +413,22 @@ export function buildBrandVersionPayload(
     disclaimer: { ...draft.disclaimer },
     motion: { ...draft.motion },
     audio: { ...draft.audio },
+  };
+}
+
+export function buildCpSettingsPatch(input: CpSettingsPatch): CpSettingsPatch {
+  if (!Object.prototype.hasOwnProperty.call(input, 'models_json')) {
+    return { ...input };
+  }
+  return {
+    ...input,
+    models_json: Array.isArray(input.models_json)
+      ? input.models_json.map((model) => Object.fromEntries(
+        CP_MODEL_FIELDS
+          .filter((field) => Object.prototype.hasOwnProperty.call(model, field))
+          .map((field) => [field, model[field]]),
+      ))
+      : [],
   };
 }
 
@@ -421,6 +482,29 @@ export function getOverviewKpis(token: string, query: CpOverviewQuery = {}) {
     token,
     cpQueryPath('/overview/kpis', query),
   );
+}
+
+export function getCpSettings(token: string) {
+  return cpFetch<CpSettings | null>(token, '/settings');
+}
+
+export function patchCpSettings(token: string, input: CpSettingsPatch) {
+  return cpFetch<CpSettings | null>(token, '/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(buildCpSettingsPatch(input)),
+  });
+}
+
+export function grantCpCredits(
+  token: string,
+  input: CpCreditGrantInput,
+  idempotencyKey: string,
+) {
+  return cpFetch<Record<string, unknown>>(token, '/credits/grant', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(input),
+  });
 }
 
 export function getOverviewActions(token: string, query: CpOverviewQuery = {}) {
