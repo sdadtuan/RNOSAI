@@ -94,6 +94,21 @@ export class CpVideosService {
     return result.rows[0] ?? cpThrow(404, { error: 'not_found' });
   }
 
+  async getVersion(id: string, scope: CpVideoScope = DEFAULT_SCOPE) {
+    const versionId = requiredUuid(id, 'invalid_version_id');
+    const allowed = projectScope(scope, 3);
+    const result = await this.db.query(
+      `SELECT v.*, d.name AS draft_name, d.project_id, d.brand_kit_version_id
+         FROM crm_cp_video_versions v
+         JOIN crm_cp_video_drafts d ON d.id = v.draft_id
+         JOIN crm_cp_projects p ON p.id = d.project_id
+        WHERE p.tenant_id = $1 AND v.id = $2::uuid AND ${allowed.sql}
+        LIMIT 1`,
+      [CP_TENANT_ID, versionId, ...allowed.params],
+    );
+    return result.rows[0] ?? cpThrow(404, { error: 'not_found' });
+  }
+
   async upsertDraft(
     input: CpVideoDraftInput,
     scope: CpVideoScope = DEFAULT_SCOPE,

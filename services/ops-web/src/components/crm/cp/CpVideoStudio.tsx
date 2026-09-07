@@ -8,6 +8,7 @@ import {
   formatCpApiError,
   getCpVideo,
   listKits,
+  parseCpScriptEditor,
   patchCpVideo,
   type CpBrandKit,
   type CpScope,
@@ -71,6 +72,7 @@ export function CpVideoStudio({
   const [name, setName] = useState('');
   const [mode, setMode] = useState<CpVideoInputMode>('prompt');
   const [content, setContent] = useState('');
+  const [scriptValue, setScriptValue] = useState<unknown>(null);
   const [kitId, setKitId] = useState('');
   const [config, setConfig] = useState<StudioConfig>(EMPTY_CONFIG);
   const [loading, setLoading] = useState(true);
@@ -96,9 +98,14 @@ export function CpVideoStudio({
       setKits(kitResult.items);
       setName(video.name ?? '');
       setMode(video.input_mode ?? 'prompt');
+      setScriptValue(video.script_json ?? null);
       setContent(
         video.input_mode === 'script'
-          ? JSON.stringify(video.script_json ?? '', null, 2)
+          ? typeof video.script_json === 'string'
+            ? video.script_json
+            : video.script_json == null
+              ? ''
+              : JSON.stringify(video.script_json, null, 2)
           : video.prompt ?? '',
       );
       setKitId(video.brand_kit_version_id ?? '');
@@ -118,7 +125,7 @@ export function CpVideoStudio({
     name: name.trim() || draft?.name || 'Video draft',
     input_mode: mode,
     prompt: mode === 'script' ? null : content,
-    script_json: mode === 'script' ? { text: content } : null,
+    script_json: mode === 'script' ? scriptValue : null,
     config_json: {
       ratio: config.ratio,
       duration: config.duration,
@@ -131,7 +138,7 @@ export function CpVideoStudio({
         : Number(config.estimated_credits),
     },
     brand_kit_version_id: kitId || null,
-  }), [config, content, draft?.name, kitId, mode, name]);
+  }), [config, content, draft?.name, kitId, mode, name, scriptValue]);
 
   useEffect(() => {
     if (!draft || loading) return;
@@ -211,7 +218,15 @@ export function CpVideoStudio({
           <label><span>Tên draft</span><input value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label>
             <span>{mode === 'script' ? 'Kịch bản' : mode === 'url' ? 'URL nguồn' : 'Prompt'}</span>
-            <textarea rows={10} value={content} onChange={(event) => setContent(event.target.value)} />
+            <textarea
+              rows={10}
+              value={content}
+              onChange={(event) => {
+                const value = event.target.value;
+                setContent(value);
+                if (mode === 'script') setScriptValue(parseCpScriptEditor(value));
+              }}
+            />
           </label>
         </section>
 

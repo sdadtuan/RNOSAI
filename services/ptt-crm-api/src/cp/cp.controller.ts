@@ -265,6 +265,16 @@ export class CpController {
     return this.videos.upsertDraft(body ?? {}, await this.scope(req));
   }
 
+  @Get('videos/versions/:id')
+  @RequireCpAction('view')
+  async getVideoVersion(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.videos.getVersion(id, await this.scope(req, scope));
+  }
+
   @Get('videos/:id')
   @RequireCpAction('view')
   async getVideo(

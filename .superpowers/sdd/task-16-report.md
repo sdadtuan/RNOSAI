@@ -28,3 +28,11 @@ Implemented VID-01/04/08 UI and CP API client support on `feat/cp-os`.
 - The backend exposes no version-specific GET endpoint; `/video/versions/[id]` uses the available `GET /videos/:id`, so immutable output/version-only fields remain `—`.
 - Full repository TypeScript checking remains blocked by pre-existing errors in unrelated E2E and unit test files.
 - No authenticated browser/API integration environment was exercised in this task.
+
+## Important fixes
+
+- Added scoped `GET /api/crm/cp/videos/versions/:id`, joining video versions through drafts and tenant-scoped projects; missing or out-of-scope versions return 404.
+- Bound `CpVersionDetail` to the version endpoint and version fields. This supersedes the earlier version-detail limitation noted above.
+- Script autosave now retains the loaded `script_json` value and shape; object scripts remain objects, while edited plain text remains a JSON string rather than being wrapped.
+- Empty render and video draft tables now display `—`.
+- RED/GREEN regression coverage added for scoped version lookup, 404 behavior, version API routing, and script JSON round trips.

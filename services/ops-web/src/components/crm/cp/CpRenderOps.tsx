@@ -135,7 +135,7 @@ export function CpRenderOps({ scope: scopeValue }: { scope?: string }) {
                     </div>
                   </td>
                 </tr>
-              )) : <tr><td colSpan={8}>{loading ? 'Đang tải…' : 'Chưa có dữ liệu'}</td></tr>}
+              )) : <tr><td className="cp-empty" colSpan={8}>{loading ? 'Đang tải…' : dash(null)}</td></tr>}
             </tbody>
           </table>
         </div>

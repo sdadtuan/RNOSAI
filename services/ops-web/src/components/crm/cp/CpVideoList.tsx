@@ -102,7 +102,7 @@ export function CpVideoList() {
                   <td>{dash(video.autosaved_at)}</td>
                   <td><Link className="cp-link" href={`/crm/creative-os/video/${video.id}?scope=${scope}`}>Studio</Link></td>
                 </tr>
-              )) : <tr><td colSpan={5}>{loading ? 'Đang tải…' : 'Chưa có dữ liệu'}</td></tr>}
+              )) : <tr><td className="cp-empty" colSpan={5}>{loading ? 'Đang tải…' : dash(null)}</td></tr>}
             </tbody>
           </table>
         </div>

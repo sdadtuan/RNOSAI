@@ -293,6 +293,22 @@ export type CpVideoDraft = CpVideoDraftInput & {
   updated_at?: string | null;
 };
 
+export type CpVideoVersion = {
+  id: string;
+  draft_id: string;
+  draft_name?: string | null;
+  project_id?: string | null;
+  version_n: number | string;
+  snapshot_json: unknown;
+  qc_status?: string | null;
+  qc_json?: unknown;
+  approval_status: string;
+  immutable: boolean;
+  output_uri?: string | null;
+  pricing_version?: string | null;
+  brand_kit_version_id?: string | null;
+};
+
 export type CpRenderJob = {
   id: string;
   job_id?: string;
@@ -330,6 +346,14 @@ export function formatCpApiError(error: unknown, fallback = 'CP request failed')
     return `${error.message}: ${error.reasons.join(', ')}`;
   }
   return error instanceof Error ? error.message : fallback;
+}
+
+export function parseCpScriptEditor(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
 }
 
 export function buildBrandVersionPayload(
@@ -633,6 +657,17 @@ export function getCpVideo(token: string, videoId: string, scope: CpScope = 'me'
   return cpFetch<CpVideoDraft>(
     token,
     cpQueryPath(`/videos/${encodeURIComponent(videoId)}`, { scope }),
+  );
+}
+
+export function getCpVideoVersion(
+  token: string,
+  versionId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpVideoVersion>(
+    token,
+    cpQueryPath(`/videos/versions/${encodeURIComponent(versionId)}`, { scope }),
   );
 }
 
