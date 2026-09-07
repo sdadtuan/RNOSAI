@@ -14,6 +14,12 @@ import { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import {
+  CpAssetRightsInput,
+  CpAssetsService,
+  CpCreateAssetInput,
+  CpFinalizeAssetInput,
+} from './cp-assets.service';
 import { CpOverviewService } from './cp-overview.service';
 import {
   CpBriefInput,
@@ -48,6 +54,7 @@ export class CpController {
   constructor(
     private readonly overview: CpOverviewService,
     private readonly projects: CpProjectsService,
+    private readonly assets: CpAssetsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -107,6 +114,58 @@ export class CpController {
       ...(await this.scope(req, query.scope)),
       cursor: query.cursor,
     });
+  }
+
+  @Get('assets')
+  @RequireCpAction('view')
+  async listAssets(@Req() req: AuthedReq, @Query('scope') scope?: CpScope) {
+    return this.assets.listAssets(await this.scope(req, scope));
+  }
+
+  @Post('assets')
+  @RequireCpAction('edit')
+  async createAsset(@Req() req: AuthedReq, @Body() body: CpCreateAssetInput) {
+    return this.assets.createAsset(body ?? {}, await this.scope(req));
+  }
+
+  @Get('assets/:id/usage')
+  @RequireCpAction('view')
+  async assetUsage(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.assets.usageGraph(id, await this.scope(req, scope));
+  }
+
+  @Post('assets/:id/rights')
+  @RequireCpAction('edit')
+  async setAssetRights(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpAssetRightsInput,
+  ) {
+    return this.assets.setRights(id, body ?? {}, await this.scope(req));
+  }
+
+  @Post('assets/:id/finalize')
+  @RequireCpAction('edit')
+  async finalizeAsset(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpFinalizeAssetInput,
+  ) {
+    return this.assets.finalizeIngest(id, body ?? {}, await this.scope(req));
+  }
+
+  @Get('assets/:id')
+  @RequireCpAction('view')
+  async getAsset(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.assets.getAsset(id, await this.scope(req, scope));
   }
 
   @Get('projects')
