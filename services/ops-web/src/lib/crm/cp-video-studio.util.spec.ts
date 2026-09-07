@@ -142,6 +142,7 @@ describe('VID-01 studio helpers', () => {
     expect(modelOptions([{ id: 'stub-pro', max_res: '1080' }])).toEqual([
       { id: 'stub-pro', label: 'stub-pro' },
     ]);
+    expect(modelOptions([{ id: 12 }])).toEqual([{ id: '12', label: '12' }]);
   });
 
   it('lists live render blocks without inventing credit or moderation hits', () => {

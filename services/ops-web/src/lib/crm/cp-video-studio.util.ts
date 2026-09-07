@@ -182,7 +182,9 @@ export function formatKitOption(kit: { name?: string | null; latest_version?: nu
   return `${name}${version}`;
 }
 
-export function modelOptions(models: Array<{ id?: string | null } | null | undefined> | null | undefined): Array<{
+export function modelOptions(
+  models: Array<{ id?: string | number | null } | null | undefined> | null | undefined,
+): Array<{
   id: string;
   label: string;
 }> {
