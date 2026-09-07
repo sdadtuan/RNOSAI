@@ -66,7 +66,8 @@
     "test:e2e:revops-w3": "NEXT_PUBLIC_REVOPS_SHELL=1 NEXT_PUBLIC_LEAD_PIPELINE_TAB=1 playwright test e2e/revops-shell-w1.spec.ts e2e/revops-w2-uat.spec.ts e2e/revops-w3-uat.spec.ts e2e/lead-pipeline-tab.spec.ts",
     "test:e2e:revops-full": "NEXT_PUBLIC_REVOPS_SHELL=1 NEXT_PUBLIC_LEAD_PIPELINE_TAB=1 playwright test e2e/revops-full.spec.ts e2e/revops-shell-w1.spec.ts",
     "test:e2e:cp-w1": "playwright test e2e/cp-w1-uat.spec.ts",
-    "test:e2e:cp-w2": "playwright test e2e/cp-w2-uat.spec.ts"
+    "test:e2e:cp-w2": "playwright test e2e/cp-w2-uat.spec.ts",
+    "test:e2e:cp-w3": "playwright test e2e/cp-w3-uat.spec.ts"
   },
   "engines": {
     "node": ">=22.0.0"
