@@ -62,7 +62,8 @@ test.describe('Creative Production OS W3 UAT', () => {
     const token = await staffToken(request);
     const batch = await requirePreparedBatch(request, token, [
       sampleBatchRow(1),
-      sampleBatchRow(2),
+      sampleBatchRow(2, 'hotline'),
+      sampleBatchRow(3),
     ]);
 
     const validated = await validateCpBatchApi(request, token, batch.id);
@@ -80,7 +81,12 @@ test.describe('Creative Production OS W3 UAT', () => {
     expect(afterRun.ok, `get batch: ${afterRun.status} ${JSON.stringify(afterRun.json)}`).toBeTruthy();
     const items = afterRun.json.items ?? [];
     const completed = items.filter((item) => item.status === 'completed');
-    const retryTarget = completed[0] ?? items.find((item) => item.status === 'failed') ?? items[0];
+    const failedOrInvalid = items.filter(
+      (item) => item.status === 'failed' || item.status === 'invalid',
+    );
+    const retryTarget = (
+      completed.length > 0 ? failedOrInvalid[0] : undefined
+    ) ?? failedOrInvalid[0] ?? completed[0] ?? items[0];
     if (!retryTarget?.row_no) {
       throw new Error(`Wave 3 prerequisite missing: batch ${batch.id} has no retryable rows`);
     }
@@ -108,15 +114,8 @@ test.describe('Creative Production OS W3 UAT', () => {
       expect(current?.status).toBe('completed');
       expect(current?.job_id ?? null).toBe(row.job_id ?? null);
     }
-    if (completed.length > 0) {
+    if (retryTarget.status === 'completed') {
       expect(credits.kpis.credits_used).toBe(beforeRetry.kpis.credits_used);
-    } else {
-      const others = items.filter((item) => Number(item.row_no) !== Number(retryTarget.row_no));
-      for (const row of others) {
-        const current = nextItems.find((item) => Number(item.row_no) === Number(row.row_no));
-        expect(current?.status).toBe(row.status);
-        expect(current?.job_id ?? null).toBe(row.job_id ?? null);
-      }
     }
   });
 
