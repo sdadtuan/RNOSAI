@@ -14,6 +14,7 @@ const MODEL_FIELDS = new Set([
   'fallback_id',
 ]);
 const POLICY_SECRET_FIELD = /secret|token|password|credential|api_key/i;
+const ROUTING_FIELDS = new Set(['fallback_id']);
 const PATCH_FIELDS = [
   'locale',
   'timezone',
@@ -31,6 +32,7 @@ const PATCH_FIELDS = [
   'publish_native',
   'models_json',
   'policy_json',
+  'routing_json',
 ] as const;
 const RESPONSE_FIELDS = [
   ...PATCH_FIELDS,
@@ -86,7 +88,7 @@ export class CpSettingsService {
               signed_url_ttl_min, restore_days, legal_hold, soft_alert_pct,
               hard_cap_pct, high_cost_threshold, concurrent_slots,
               watermark_draft, ai_enabled, publish_native, models_json,
-              policy_json, updated_at, updated_by_staff_id
+              policy_json, routing_json, updated_at, updated_by_staff_id
          FROM crm_cp_settings
         WHERE tenant_id = $1
         LIMIT 1`,
@@ -107,10 +109,11 @@ export class CpSettingsService {
       let value = input[field];
       if (field === 'models_json') value = sanitizeModels(value);
       if (field === 'policy_json') value = sanitizePolicy(value);
+      if (field === 'routing_json') value = sanitizeRouting(value);
       params.push(value);
       const cast = field === 'default_brand_kit_id'
         ? '::uuid'
-        : field === 'models_json' || field === 'policy_json'
+        : field === 'models_json' || field === 'policy_json' || field === 'routing_json'
           ? '::jsonb'
           : '';
       sets.push(`${field} = $${params.length}${cast}`);
@@ -143,7 +146,17 @@ function sanitizeSettings(
   );
   settings.models_json = sanitizeModels(row.models_json);
   settings.policy_json = sanitizePolicy(row.policy_json);
+  if (Object.prototype.hasOwnProperty.call(row, 'routing_json')) {
+    settings.routing_json = sanitizeRouting(row.routing_json);
+  }
   return settings;
+}
+
+function sanitizeRouting(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(([key]) => ROUTING_FIELDS.has(key)),
+  );
 }
 
 function sanitizeModels(value: unknown): Record<string, unknown>[] {

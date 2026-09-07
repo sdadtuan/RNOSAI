@@ -17,13 +17,14 @@ import {
   type CpVideoDraft,
   type CpVideoInputMode,
 } from '@/lib/crm/cp-api';
-import { dash } from '@/lib/crm/cp-format';
+import { dash, draftLanguageWritable } from '@/lib/crm/cp-format';
 
 type StudioConfig = {
   ratio: string;
   duration: number;
   style: string;
   locale: string;
+  language: string;
   voice: string;
   model: string;
   estimated_credits: string;
@@ -34,6 +35,7 @@ const EMPTY_CONFIG: StudioConfig = {
   duration: 30,
   style: '',
   locale: 'vi-VN',
+  language: 'vi-VN',
   voice: '',
   model: 'stub',
   estimated_credits: '',
@@ -53,6 +55,11 @@ function configFrom(value: unknown): StudioConfig {
     duration: [15, 30, 60].includes(duration) ? duration : EMPTY_CONFIG.duration,
     style: typeof config.style === 'string' ? config.style : '',
     locale: typeof config.locale === 'string' ? config.locale : EMPTY_CONFIG.locale,
+    language: typeof config.language === 'string'
+      ? config.language
+      : typeof config.locale === 'string'
+        ? config.locale
+        : EMPTY_CONFIG.language,
     voice: typeof config.voice === 'string' ? config.voice : '',
     model: typeof config.model === 'string' ? config.model : EMPTY_CONFIG.model,
     estimated_credits: config.estimated_credits == null
@@ -136,6 +143,7 @@ export function CpVideoStudio({
       duration: config.duration,
       style: config.style || null,
       locale: config.locale || null,
+      language: config.language || config.locale || null,
       voice: config.voice || null,
       model: config.model || null,
       estimated_credits: config.estimated_credits === ''
@@ -259,7 +267,17 @@ export function CpVideoStudio({
             <label><span>Tỉ lệ</span><select value={config.ratio} onChange={(event) => setConfigField('ratio', event.target.value)}><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label>
             <label><span>Duration</span><select value={config.duration} onChange={(event) => setConfigField('duration', Number(event.target.value))}><option value={15}>15s</option><option value={30}>30s</option><option value={60}>60s</option></select></label>
             <label><span>Style</span><input value={config.style} onChange={(event) => setConfigField('style', event.target.value)} /></label>
-            <label><span>Locale</span><input value={config.locale} onChange={(event) => setConfigField('locale', event.target.value)} /></label>
+            <label>
+              <span>Ngôn ngữ</span>
+              <input
+                value={config.language}
+                disabled={!draftLanguageWritable(draft)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setConfig((cur) => ({ ...cur, language: value, locale: value }));
+                }}
+              />
+            </label>
             <label><span>Voice</span><input value={config.voice} onChange={(event) => setConfigField('voice', event.target.value)} /></label>
             <label><span>Model</span><select value={config.model} onChange={(event) => setConfigField('model', event.target.value)}><option value="stub">stub</option></select></label>
             <label><span>Brand Kit</span><select value={kitId} onChange={(event) => setKitId(event.target.value)}><option value="">—</option>{kits.map((kit) => <option key={kit.id} value={kit.id}>{kit.name}</option>)}</select></label>

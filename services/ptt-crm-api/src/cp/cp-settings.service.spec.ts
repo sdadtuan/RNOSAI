@@ -30,11 +30,9 @@ class SettingsMemory {
 
   async query(sql: string, params: unknown[] = []) {
     if (sql.includes('UPDATE crm_cp_settings')) {
-      this.row = {
-        ...this.row,
-        models_json: params[0],
-        updated_by_staff_id: params.at(-2),
-      };
+      this.row.updated_by_staff_id = params.at(-2);
+      if (sql.includes('models_json')) this.row.models_json = params[0];
+      if (sql.includes('routing_json')) this.row.routing_json = params[0];
     }
     return { rows: [this.row] };
   }
@@ -84,5 +82,19 @@ describe('CpSettingsService', () => {
       region: 'ap-southeast-1',
       fallback_id: 'video-v1',
     }]);
+  });
+
+  it('returns and patches routing_json fallback_id', async () => {
+    const db = new SettingsMemory();
+    db.row.routing_json = {};
+    const settings = loadService(db);
+
+    const patched = await settings.patch({
+      routing_json: { fallback_id: 'stub-lite', secret: 'drop' },
+    }, 7);
+
+    expect(patched?.routing_json).toEqual({ fallback_id: 'stub-lite' });
+    const stored = await settings.get();
+    expect(stored?.routing_json).toEqual({ fallback_id: 'stub-lite' });
   });
 });

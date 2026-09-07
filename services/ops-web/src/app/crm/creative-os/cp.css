@@ -275,6 +275,25 @@
   color: #92400e;
 }
 
+.cp-banner {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.cp-banner strong {
+  font-size: 12px;
+}
+
+.cp-banner p {
+  margin: 0;
+  font-size: 13px;
+}
+
 .cp-kpi-grid {
   display: grid;
   grid-template-columns: repeat(8, minmax(110px, 1fr));

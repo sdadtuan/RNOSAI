@@ -264,10 +264,10 @@ export class CpRendersService {
       const inserted = await tx.query(
         `INSERT INTO crm_cp_render_jobs (
            draft_id, parent_job_id, batch_item_id, state, stage, progress, provider,
-           idempotency_key, correlation_id, stage_log_json, attempt
+           idempotency_key, correlation_id, stage_log_json, attempt, model
          ) VALUES (
            $1::uuid, $2::uuid, $3::uuid, 'queued', 'queued', 0, 'stub',
-           $4, $5, $6::jsonb, $7
+           $4, $5, $6::jsonb, $7, $8
          )
          ON CONFLICT (idempotency_key) DO NOTHING
          RETURNING *`,
@@ -279,6 +279,7 @@ export class CpRendersService {
           correlationId,
           JSON.stringify([{ stage: 'queued', estimate, at: new Date().toISOString() }]),
           attempt,
+          nullableText(config.model),
         ],
       );
       const job = inserted.rows[0];
@@ -303,8 +304,94 @@ export class CpRendersService {
         render_job_id: job.id,
       }, tx);
       const processed = await this.findByKey(String(draft.id), key, tx);
+      if (
+        String(processed?.state ?? job.state) === 'failed'
+        && !parentJobId
+      ) {
+        const child = await this.createFallbackChild(
+          processed ?? job,
+          { ...snapshot, render_job_id: job.id },
+          estimate,
+          tx,
+        );
+        if (child) return renderResponse(child, estimate);
+      }
       return renderResponse(processed ?? job, estimate);
     });
+  }
+
+  private async createFallbackChild(
+    parent: Record<string, unknown>,
+    snapshot: Record<string, unknown>,
+    estimate: number | null,
+    tx: CpRendersTransaction,
+  ) {
+    const fallbackId = await this.resolveFallbackId(parent, snapshot, tx);
+    if (!fallbackId) return null;
+    const attempt = Number(parent.attempt ?? 1) + 1;
+    const key = `${String(parent.idempotency_key)}:r${attempt}`;
+    const existing = await this.findByKey(String(parent.draft_id), key, tx);
+    if (existing) return existing;
+    const correlationId = `${key}:${Date.now()}`;
+    const inserted = await tx.query(
+      `INSERT INTO crm_cp_render_jobs (
+         draft_id, parent_job_id, batch_item_id, state, stage, progress, provider,
+         idempotency_key, correlation_id, stage_log_json, attempt, model
+       ) VALUES (
+         $1::uuid, $2::uuid, $3::uuid, 'queued', 'queued', 0, 'stub',
+         $4, $5, $6::jsonb, $7, $8
+       )
+       ON CONFLICT (idempotency_key) DO NOTHING
+       RETURNING *`,
+      [
+        parent.draft_id,
+        parent.id,
+        nullableText(parent.batch_item_id),
+        key,
+        correlationId,
+        JSON.stringify([{
+          stage: 'queued',
+          estimate,
+          fallback_id: fallbackId,
+          at: new Date().toISOString(),
+        }]),
+        attempt,
+        fallbackId,
+      ],
+    );
+    const child = inserted.rows[0];
+    if (!child) return this.findByKey(String(parent.draft_id), key, tx);
+    await this.worker.process(child, {
+      ...snapshot,
+      render_job_id: child.id,
+      pricing_version: snapshot.pricing_version ?? CP_STUB_PRICING_VERSION,
+    }, tx);
+    return this.findByKey(String(parent.draft_id), key, tx) ?? child;
+  }
+
+  private async resolveFallbackId(
+    job: Record<string, unknown>,
+    snapshot: Record<string, unknown>,
+    tx: CpRendersTransaction,
+  ) {
+    const settings = await tx.query(
+      `SELECT routing_json, models_json
+         FROM crm_cp_settings
+        WHERE tenant_id = $1
+        LIMIT 1`,
+      [CP_TENANT_ID],
+    );
+    const routing = objectValue(settings.rows[0]?.routing_json);
+    const routed = nullableText(routing.fallback_id);
+    if (routed) return routed;
+    const draft = objectValue(snapshot.draft);
+    const config = objectValue(draft.config_json);
+    const currentModel = nullableText(job.model) ?? nullableText(config.model);
+    const models = Array.isArray(settings.rows[0]?.models_json)
+      ? settings.rows[0]?.models_json as Record<string, unknown>[]
+      : [];
+    const model = models.find((item) => nullableText(item?.id) === currentModel);
+    return nullableText(model?.fallback_id);
   }
 
   private async findByKey(

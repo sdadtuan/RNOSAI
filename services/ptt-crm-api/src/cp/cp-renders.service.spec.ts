@@ -245,3 +245,169 @@ describe('render SSE events', () => {
     expect(db.query).toHaveBeenCalled();
   });
 });
+
+const FALLBACK_DRAFT_ID = '21212121-2121-4212-8212-212121212121';
+const FALLBACK_PROJECT_ID = '22222222-2222-4222-8222-222222222222';
+const FALLBACK_CLIENT_ID = '23232323-2323-4232-8232-232323232323';
+const PARENT_JOB_ID = '24242424-2424-4242-8242-242424242424';
+const CHILD_JOB_ID = '25252525-2525-4252-8252-252525252525';
+
+class FallbackRenderQuery {
+  jobs: Record<string, unknown>[] = [];
+  settings: Record<string, unknown>;
+  lastChildSnapshot: Record<string, unknown> | null = null;
+
+  constructor(settings: Record<string, unknown>) {
+    this.settings = settings;
+  }
+
+  transaction<T>(work: (tx: FallbackRenderQuery) => Promise<T>) {
+    return work(this);
+  }
+
+  async query(sql: string, params: unknown[] = []) {
+    if (sql.includes('FROM crm_cp_settings')) {
+      return { rows: [this.settings] };
+    }
+    if (sql.includes('FROM crm_cp_video_drafts')) {
+      return {
+        rows: [{
+          id: FALLBACK_DRAFT_ID,
+          project_id: FALLBACK_PROJECT_ID,
+          agency_client_id: FALLBACK_CLIENT_ID,
+          config_json: { estimated_credits: 4, model: 'stub-pro' },
+          asset_state: 'ready',
+          rights_expired: false,
+          moderation_blocked: false,
+          qc_status: null,
+          asset_versions: [],
+          kit_version: null,
+        }],
+      };
+    }
+    if (sql.includes('INSERT INTO crm_cp_render_jobs')) {
+      const job = {
+        id: this.jobs.length ? CHILD_JOB_ID : PARENT_JOB_ID,
+        draft_id: params[0],
+        parent_job_id: params[1],
+        batch_item_id: params[2],
+        state: 'queued',
+        stage: 'queued',
+        progress: 0,
+        provider: 'stub',
+        model: params[7] ?? null,
+        idempotency_key: params[3],
+        correlation_id: params[4],
+        attempt: params[6],
+        estimate: 4,
+      };
+      this.jobs.push(job);
+      return { rows: [job] };
+    }
+    if (sql.includes('UPDATE crm_cp_render_jobs') && sql.includes("state = 'failed'")) {
+      const job = this.jobs.find((row) => String(row.id) === String(params[0])) ?? this.jobs[0];
+      if (job) {
+        job.state = 'failed';
+        job.stage = 'failed';
+      }
+      return { rows: job ? [job] : [] };
+    }
+    if (sql.includes('FROM crm_cp_render_jobs')) {
+      if (sql.includes('j.idempotency_key')) {
+        const key = params[0];
+        return { rows: this.jobs.filter((row) => row.idempotency_key === key) };
+      }
+      return { rows: this.jobs.filter((row) => String(row.id) === String(params[0])) };
+    }
+    return { rows: [] };
+  }
+}
+
+describe('model routing fallback child jobs', () => {
+  it('creates a child job when a failed job has routing_json.fallback_id', async () => {
+    const db = new FallbackRenderQuery({
+      routing_json: { fallback_id: 'stub-lite' },
+      models_json: [{ id: 'stub-pro', fallback_id: 'stub-lite' }],
+    });
+    const process = jest.fn(async (job: Record<string, unknown>, snapshot: Record<string, unknown>, tx: FallbackRenderQuery) => {
+      if (job.parent_job_id) {
+        db.lastChildSnapshot = snapshot;
+        job.state = 'completed';
+        return;
+      }
+      await tx.query(
+        `UPDATE crm_cp_render_jobs SET state = 'failed' WHERE id = $1::uuid`,
+        [job.id],
+      );
+    });
+    const renders = new CpRendersService(
+      db,
+      { reserve: jest.fn().mockResolvedValue(undefined) } as never,
+      { process } as never,
+    );
+
+    const result = await renders.submit(FALLBACK_DRAFT_ID, 'fallback-key');
+
+    expect(db.jobs).toHaveLength(2);
+    expect(db.jobs[1]).toMatchObject({
+      parent_job_id: PARENT_JOB_ID,
+      idempotency_key: 'fallback-key:r2',
+    });
+    expect(result.parent_job_id).toBe(PARENT_JOB_ID);
+    expect(db.lastChildSnapshot).toEqual(expect.objectContaining({
+      pricing_version: expect.any(String),
+    }));
+    expect(db.lastChildSnapshot?.pricing_version).toBe(
+      (process.mock.calls[0]?.[1] as Record<string, unknown>).pricing_version,
+    );
+  });
+
+  it('uses the model fallback_id when routing_json has none', async () => {
+    const db = new FallbackRenderQuery({
+      routing_json: {},
+      models_json: [{ id: 'stub-pro', fallback_id: 'stub-lite' }],
+    });
+    const process = jest.fn(async (job: Record<string, unknown>, _snapshot: unknown, tx: FallbackRenderQuery) => {
+      if (!job.parent_job_id) {
+        await tx.query(
+          `UPDATE crm_cp_render_jobs SET state = 'failed' WHERE id = $1::uuid`,
+          [job.id],
+        );
+      }
+    });
+    const renders = new CpRendersService(
+      db,
+      { reserve: jest.fn().mockResolvedValue(undefined) } as never,
+      { process } as never,
+    );
+
+    await renders.submit(FALLBACK_DRAFT_ID, 'model-fallback-key');
+
+    expect(db.jobs).toHaveLength(2);
+    expect(db.jobs[1].parent_job_id).toBe(PARENT_JOB_ID);
+  });
+
+  it('does not create a child job when no fallback is configured', async () => {
+    const db = new FallbackRenderQuery({
+      routing_json: {},
+      models_json: [{ id: 'stub-pro' }],
+    });
+    const process = jest.fn(async (job: Record<string, unknown>, _snapshot: unknown, tx: FallbackRenderQuery) => {
+      await tx.query(
+        `UPDATE crm_cp_render_jobs SET state = 'failed' WHERE id = $1::uuid`,
+        [job.id],
+      );
+    });
+    const renders = new CpRendersService(
+      db,
+      { reserve: jest.fn().mockResolvedValue(undefined) } as never,
+      { process } as never,
+    );
+
+    const result = await renders.submit(FALLBACK_DRAFT_ID, 'no-fallback-key');
+
+    expect(db.jobs).toHaveLength(1);
+    expect(result.parent_job_id).toBeNull();
+    expect(result.state).toBe('failed');
+  });
+});

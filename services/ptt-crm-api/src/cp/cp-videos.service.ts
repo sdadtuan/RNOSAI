@@ -130,7 +130,7 @@ export class CpVideosService {
     return { items: result.rows };
   }
 
-  async get(id: string, scope: CpVideoScope = DEFAULT_SCOPE) {
+  async get(id: string, scope: CpVideoScope = DEFAULT_SCOPE): Promise<Record<string, unknown>> {
     const draftId = requiredUuid(id, 'invalid_video_id');
     const allowed = projectScope(scope, 3);
     const result = await this.db.query(
@@ -141,7 +141,11 @@ export class CpVideosService {
         LIMIT 1`,
       [CP_TENANT_ID, draftId, ...allowed.params],
     );
-    return result.rows[0] ?? cpThrow(404, { error: 'not_found' });
+    const draft = result.rows[0] ?? cpThrow(404, { error: 'not_found' });
+    return {
+      ...draft,
+      has_completed_version: await this.hasCompletedVersion(String(draft.id)),
+    };
   }
 
   async getVersion(id: string, scope: CpVideoScope = DEFAULT_SCOPE) {
@@ -199,6 +203,11 @@ export class CpVideosService {
     scope: CpVideoScope = DEFAULT_SCOPE,
   ): Promise<Record<string, unknown>> {
     const current = await this.get(id, scope);
+    const nextConfig = lockCompletedLanguage(
+      current.config_json,
+      input.config_json === undefined ? current.config_json : input.config_json,
+      Boolean(current.has_completed_version),
+    );
     const result = await this.db.query(
       `UPDATE crm_cp_video_drafts
           SET name = $2,
@@ -219,7 +228,7 @@ export class CpVideosService {
           : parseInputMode(input.input_mode),
         input.prompt === undefined ? current.prompt : nullableText(input.prompt),
         json(input.script_json, current.script_json ?? null),
-        json(input.config_json, current.config_json ?? {}),
+        JSON.stringify(nextConfig),
         input.brand_kit_version_id === undefined
           ? current.brand_kit_version_id ?? null
           : optionalUuid(input.brand_kit_version_id, 'invalid_brand_kit_version_id'),
@@ -448,6 +457,17 @@ export class CpVideosService {
     }
   }
 
+  private async hasCompletedVersion(draftId: string) {
+    const result = await this.db.query(
+      `SELECT v.id, v.immutable
+         FROM crm_cp_video_versions v
+        WHERE v.draft_id = $1::uuid AND v.immutable = true
+        LIMIT 1`,
+      [draftId],
+    );
+    return result.rows.some((row) => row.immutable === true);
+  }
+
   private async loadProject(projectId: string, scope: CpVideoScope) {
     const allowed = projectScope(scope, 3);
     const result = await this.db.query(
@@ -533,6 +553,19 @@ function asRecord(value: unknown): Record<string, unknown> {
     return { ...(value as Record<string, unknown>) };
   }
   return {};
+}
+
+function lockCompletedLanguage(
+  current: unknown,
+  next: unknown,
+  completed: boolean,
+): Record<string, unknown> {
+  const merged = asRecord(next === undefined ? current : next);
+  if (!completed) return merged;
+  merged.language = Object.prototype.hasOwnProperty.call(asRecord(current), 'language')
+    ? asRecord(current).language
+    : null;
+  return merged;
 }
 
 function parseInputMode(value: unknown): (typeof INPUT_MODES)[number] {

@@ -309,6 +309,7 @@ export type CpVideoDraft = CpVideoDraftInput & {
   autosaved_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  has_completed_version?: boolean;
 };
 
 export type CpScene = {
@@ -479,6 +480,7 @@ export type CpSettings = {
   publish_native: boolean | null;
   models_json: CpModelSetting[];
   policy_json: Record<string, unknown>;
+  routing_json?: { fallback_id?: string | null } & Record<string, unknown>;
   updated_at?: string | null;
   updated_by_staff_id?: number | null;
 };
@@ -543,6 +545,9 @@ export function buildCpSettingsPatch(input: CpSettingsPatch): CpSettingsPatch {
   if (Object.prototype.hasOwnProperty.call(input, 'policy_json')) {
     output.policy_json = stripCpPolicySecrets(input.policy_json);
   }
+  if (Object.prototype.hasOwnProperty.call(input, 'routing_json')) {
+    output.routing_json = sanitizeCpRouting(input.routing_json);
+  }
   return output;
 }
 
@@ -552,7 +557,16 @@ export function projectCpSettingsForUi(settings: CpSettings | null): CpSettings 
     ...settings,
     models_json: projectCpModels(settings.models_json),
     policy_json: stripCpPolicySecrets(settings.policy_json),
+    routing_json: sanitizeCpRouting(settings.routing_json),
   };
+}
+
+function sanitizeCpRouting(value: unknown): { fallback_id?: string | null } {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return {};
+  const fallback = (value as { fallback_id?: unknown }).fallback_id;
+  return typeof fallback === 'string' || fallback == null
+    ? { fallback_id: fallback ?? null }
+    : {};
 }
 
 function projectCpModels(value: unknown): CpModelSetting[] {
@@ -721,6 +735,62 @@ export function patchCpProject(
     method: 'PATCH',
     body: JSON.stringify(input),
   });
+}
+
+export type CpExperiment = {
+  id: string;
+  project_id: string;
+  name: string;
+  variants_json: Array<Record<string, unknown>>;
+};
+
+export type CpExperimentInput = {
+  name?: string;
+  variants_json?: unknown;
+};
+
+export type CpExperimentVariantInput = {
+  draft_id?: string;
+  source_version_id?: string;
+  label?: string;
+  name?: string;
+};
+
+export function listCpExperiments(
+  token: string,
+  projectId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ items: CpExperiment[] }>(
+    token,
+    cpQueryPath(`/projects/${encodeURIComponent(projectId)}/experiments`, { scope }),
+  );
+}
+
+export function createCpExperiment(
+  token: string,
+  projectId: string,
+  input: CpExperimentInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpExperiment>(
+    token,
+    cpQueryPath(`/projects/${encodeURIComponent(projectId)}/experiments`, { scope }),
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+}
+
+export function createCpExperimentVariant(
+  token: string,
+  experimentId: string,
+  input: CpExperimentVariantInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ experiment: CpExperiment; version: Record<string, unknown> }>(
+    token,
+    cpQueryPath(`/experiments/${encodeURIComponent(experimentId)}/variants`, { scope }),
+    { method: 'POST', body: JSON.stringify(input) },
+  );
 }
 
 export function closeCpProject(token: string, projectId: string, archivePending = false) {

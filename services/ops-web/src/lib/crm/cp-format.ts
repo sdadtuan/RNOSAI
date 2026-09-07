@@ -51,6 +51,23 @@ export type CpTrendPoint = {
 
 export const MISSING_INGEST_COPY = 'Thiếu nguồn';
 
+export const FORECAST_ASSUMPTION =
+  'Forecast = scheduled_batch_credits + historical_avg + reserved. Không gồm ads spend.';
+
+export function draftLanguageWritable(draft?: { has_completed_version?: boolean } | null): boolean {
+  return draft == null || draft.has_completed_version !== true;
+}
+
+export function creditForecastBanner(
+  forecast?: { value?: number | null; assumption?: string } | null,
+): { visible: true; value: number | null; text: string } {
+  return {
+    visible: true,
+    value: forecast?.value ?? null,
+    text: forecast?.assumption || FORECAST_ASSUMPTION,
+  };
+}
+
 export const CP_REPORT_TABS = [
   { slug: 'executive', label: 'Điều hành' },
   { slug: 'production', label: 'Sản xuất' },

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { dash, formatOpsP95, formatOpsSlots, hasTrendData, KPI_TILES, normalizeCpHref } from './cp-format';
+import {
+  dash,
+  draftLanguageWritable,
+  formatOpsP95,
+  formatOpsSlots,
+  hasTrendData,
+  KPI_TILES,
+  normalizeCpHref,
+} from './cp-format';
 
 describe('KPI_TILES', () => {
   it('defines the eight overview KPI tiles in contract order', () => {
@@ -33,6 +41,14 @@ describe('normalizeCpHref', () => {
     expect(normalizeCpHref('/cp/videos/video-123/review')).toBe(
       '/crm/creative-os/video/video-123',
     );
+  });
+});
+
+describe('draftLanguageWritable', () => {
+  it('locks language after a completed version exists', () => {
+    expect(draftLanguageWritable({ has_completed_version: true })).toBe(false);
+    expect(draftLanguageWritable({ has_completed_version: false })).toBe(true);
+    expect(draftLanguageWritable(null)).toBe(true);
   });
 });
 

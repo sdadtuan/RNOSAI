@@ -72,6 +72,11 @@ import {
 } from './cp-collections.service';
 import { CpReportExportInput, CpReportsService } from './cp-reports.service';
 import {
+  CpExperimentInput,
+  CpExperimentVariantInput,
+  CpExperimentsService,
+} from './cp-experiments.service';
+import {
   RequireCpAction,
   RequireCpSection,
   StaffCpGuard,
@@ -114,6 +119,7 @@ export class CpController {
     private readonly batches: CpBatchesService,
     private readonly collections: CpCollectionsService,
     private readonly reports: CpReportsService,
+    private readonly experiments: CpExperimentsService,
   ) {}
 
   private async assertReportExportCap(req: AuthedReq) {
@@ -1019,6 +1025,51 @@ export class CpController {
   @RequireCpAction('view')
   async getQuality(@Req() req: AuthedReq, @Query('scope') scope?: CpScope) {
     return this.collections.quality(await this.scope(req, scope));
+  }
+
+  @Get('projects/:id/experiments')
+  @RequireCpAction('view')
+  async listProjectExperiments(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.experiments.list(id, await this.scope(req, scope));
+  }
+
+  @Post('projects/:id/experiments')
+  @RequireCpAction('edit')
+  async createProjectExperiment(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpExperimentInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.experiments.create(
+      { ...(body ?? {}), project_id: id },
+      await this.scope(req, scope),
+    );
+  }
+
+  @Get('experiments/:id')
+  @RequireCpAction('view')
+  async getExperiment(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.experiments.get(id, await this.scope(req, scope));
+  }
+
+  @Post('experiments/:id/variants')
+  @RequireCpAction('edit')
+  async createExperimentVariant(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpExperimentVariantInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.experiments.createVariant(id, body ?? {}, await this.scope(req, scope));
   }
 }
 

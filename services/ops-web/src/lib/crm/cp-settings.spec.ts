@@ -25,6 +25,11 @@ describe('CP settings UI contract', () => {
 
   it('allowlists model fields before PATCH', () => {
     expect(buildCpSettingsPatch({
+      routing_json: { fallback_id: 'stub-lite', secret: 'drop' },
+    })).toEqual({
+      routing_json: { fallback_id: 'stub-lite' },
+    });
+    expect(buildCpSettingsPatch({
       models_json: [{
         id: 'stub-pro',
         max_res: '1080',

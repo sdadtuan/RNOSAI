@@ -54,6 +54,11 @@ import {
   CpReportsRepository,
   CpReportsService,
 } from './cp-reports.service';
+import {
+  CP_EXPERIMENTS_QUERY,
+  CpExperimentsRepository,
+  CpExperimentsService,
+} from './cp-experiments.service';
 import { StaffCpGuard } from './guards/staff-cp.guard';
 
 @Module({
@@ -99,6 +104,9 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     CpReportsRepository,
     { provide: CP_REPORTS_QUERY, useExisting: CpReportsRepository },
     CpReportsService,
+    CpExperimentsRepository,
+    { provide: CP_EXPERIMENTS_QUERY, useExisting: CpExperimentsRepository },
+    CpExperimentsService,
   ],
 })
 export class CpModule {}

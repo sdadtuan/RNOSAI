@@ -4,7 +4,9 @@ import {
   CP_REPORT_FILTERS,
   CP_REPORT_SECTIONS,
   CP_REPORT_TABS,
+  FORECAST_ASSUMPTION,
   MISSING_INGEST_COPY,
+  creditForecastBanner,
   dash,
   sourcedDisplay,
 } from './cp-format';
@@ -105,5 +107,13 @@ describe('report filters and empty sections', () => {
     expect(CP_REPORT_SECTIONS.production).toEqual(['heatmap', 'provider_health']);
     expect(CP_REPORT_SECTIONS.credit).toEqual(['by_pipeline']);
     expect(CP_REPORT_FILTERS).toEqual(['from', 'to', 'client']);
+  });
+
+  it('always shows the RPT-03 assumption banner when forecast is null', () => {
+    const banner = creditForecastBanner(null);
+    expect(banner.visible).toBe(true);
+    expect(banner.value).toBeNull();
+    expect(banner.text).toBe(FORECAST_ASSUMPTION);
+    expect(banner.text.length).toBeGreaterThan(0);
   });
 });

@@ -19,6 +19,7 @@ import {
   CP_REPORT_SECTIONS,
   CP_REPORT_TABS,
   MISSING_INGEST_COPY,
+  creditForecastBanner,
   dash,
   sourcedDisplay,
 } from '@/lib/crm/cp-format';
@@ -109,6 +110,20 @@ function MetricLine({
       freshness: {dash(metric.freshness)}
       {shown.missing ? <em className="cp-report-missing"> {MISSING_INGEST_COPY}</em> : null}
     </p>
+  );
+}
+
+function AssumptionBanner({
+  forecast,
+}: {
+  forecast?: { value?: number | null; assumption?: string } | null;
+}) {
+  const banner = creditForecastBanner(forecast);
+  return (
+    <aside className="cp-banner" data-rpt="assumption" role="status">
+      <strong>Giả định forecast</strong>
+      <p>{banner.text}</p>
+    </aside>
   );
 }
 
@@ -356,6 +371,7 @@ function CpReportsInner() {
 
       {slug === 'credit' ? (
         <>
+          <AssumptionBanner forecast={report?.forecast ?? null} />
           <div className="cp-kpi-grid cp-kpi-grid--4">
             <Tile label="Used" value={formatNumber(asNumber(report?.used))} />
             <Tile label="Charged" value={formatNumber(asNumber(report?.charged))} />
@@ -378,7 +394,6 @@ function CpReportsInner() {
             <p>
               <strong>{formatNumber(report?.forecast?.value ?? null)}</strong>
             </p>
-            <p className="cp-muted">{report?.forecast?.assumption ?? 'Forecast = scheduled_batch_credits + historical_avg + reserved.'}</p>
           </section>
         </>
       ) : null}
