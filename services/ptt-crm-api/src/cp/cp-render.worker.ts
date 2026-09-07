@@ -34,6 +34,12 @@ export class CpRenderWorker {
       ],
     );
     await db.query(
+      `SELECT id FROM crm_cp_video_drafts
+        WHERE id = $1::uuid
+        FOR UPDATE`,
+      [job.draft_id],
+    );
+    await db.query(
       `INSERT INTO crm_cp_video_versions (
          draft_id, version_n, snapshot_json, qc_status, approval_status,
          immutable, output_uri, pricing_version

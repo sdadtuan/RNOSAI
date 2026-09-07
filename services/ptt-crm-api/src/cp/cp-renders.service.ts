@@ -163,42 +163,42 @@ export class CpRendersService {
   ): Promise<Record<string, unknown>> {
     const key = requiredText(idempotencyKey, 'idempotency_key_required');
     const draft = await this.loadDraft(draftId, scope);
-    const config = objectValue(draft.config_json);
-    const estimate = nullableNonNegativeInteger(
-      config.estimated_credits,
-      'invalid_estimate',
-    );
-    const creditHard = config.credit_hard_cap === true;
-    const creditBlocked = estimate === null
-      ? false
-      : hardCapBlocks({
-        allocated: Number(draft.credit_allocated ?? 0),
-        used: Number(draft.credit_used ?? 0),
-        reserve: estimate,
-        hard: creditHard,
-      });
-    const reasons = renderBlockReasons({
-      aiEnabled: process.env.CP_AI_ENABLED === 'true',
-      hasRenderCap: true,
-      assetState: nullableText(draft.asset_state),
-      rightsExpired: draft.rights_expired === true,
-      creditBlocked,
-      moderationBlocked: draft.moderation_blocked === true,
-      qcStatus: nullableText(draft.qc_status),
-    }).filter((reason) => reason !== 'ai_disabled');
-    if (reasons.length) cpThrow(409, { error: 'render_blocked', reasons });
-
-    const snapshot = {
-      draft: snapshotDraft(draft),
-      kit_version: draft.kit_version ?? null,
-      asset_versions: arrayValue(draft.asset_versions),
-      pricing_version: CP_STUB_PRICING_VERSION,
-    };
-    const correlationId = `${key}:${Date.now()}`;
     return this.db.transaction(async (tx) => {
       const existing = await this.findByKey(String(draft.id), key, tx);
       if (existing) return renderResponse(existing);
 
+      const config = objectValue(draft.config_json);
+      const estimate = nullableNonNegativeInteger(
+        config.estimated_credits,
+        'invalid_estimate',
+      );
+      const creditHard = config.credit_hard_cap === true;
+      const creditBlocked = estimate === null
+        ? false
+        : hardCapBlocks({
+          allocated: Number(draft.credit_allocated ?? 0),
+          used: Number(draft.credit_used ?? 0),
+          reserve: estimate,
+          hard: creditHard,
+        });
+      const reasons = renderBlockReasons({
+        aiEnabled: process.env.CP_AI_ENABLED === 'true',
+        hasRenderCap: true,
+        assetState: nullableText(draft.asset_state),
+        rightsExpired: draft.rights_expired === true,
+        creditBlocked,
+        moderationBlocked: draft.moderation_blocked === true,
+        qcStatus: nullableText(draft.qc_status),
+      }).filter((reason) => reason !== 'ai_disabled');
+      if (reasons.length) cpThrow(409, { error: 'render_blocked', reasons });
+
+      const snapshot = {
+        draft: snapshotDraft(draft),
+        kit_version: draft.kit_version ?? null,
+        asset_versions: arrayValue(draft.asset_versions),
+        pricing_version: CP_STUB_PRICING_VERSION,
+      };
+      const correlationId = `${key}:${Date.now()}`;
       const inserted = await tx.query(
         `INSERT INTO crm_cp_render_jobs (
            draft_id, parent_job_id, state, stage, progress, provider,
