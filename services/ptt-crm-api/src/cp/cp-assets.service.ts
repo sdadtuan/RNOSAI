@@ -412,7 +412,7 @@ function withRightsStatus(row: Record<string, unknown>): Record<string, unknown>
   return { ...row, rights_status: rightsStatus(row.expiry_on as string | Date | null) };
 }
 
-function assetScope(scope: CpAssetScope, startAt: number) {
+export function assetScope(scope: CpAssetScope, startAt: number) {
   if (scope.scope === 'all') return { sql: 'TRUE', params: [] as unknown[] };
   if (scope.scope === 'team' && scope.teamIds?.length) {
     return {

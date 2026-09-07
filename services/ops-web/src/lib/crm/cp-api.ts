@@ -1557,6 +1557,107 @@ export function retryCpBatchItem(
   );
 }
 
+export type CpSmartFilter = {
+  mime?: string;
+  state?: string;
+  project_id?: string;
+  agency_client_id?: string;
+  tag?: string;
+};
+
+export type CpCollection = {
+  id: string;
+  name: string;
+  smart_filter_json?: CpSmartFilter | null;
+  created_by?: number;
+  items?: CpAsset[];
+};
+
+export type CpCollectionInput = {
+  name: string;
+  smart_filter_json?: CpSmartFilter | null;
+};
+
+export type CpQualityDuplicate = {
+  hash: string;
+  count: number;
+  items?: CpAsset[];
+};
+
+export type CpQualityReport = {
+  missing_metadata_count: number | null;
+  missing_metadata?: CpAsset[];
+  duplicates: CpQualityDuplicate[];
+};
+
+export function listCpCollections(token: string, scope: CpScope = 'me') {
+  return cpFetch<{ items: CpCollection[] }>(
+    token,
+    cpQueryPath('/collections', { scope }),
+  );
+}
+
+export function createCpCollection(
+  token: string,
+  input: CpCollectionInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpCollection>(
+    token,
+    cpQueryPath('/collections', { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function getCpCollection(token: string, collectionId: string, scope: CpScope = 'me') {
+  return cpFetch<CpCollection>(
+    token,
+    cpQueryPath(`/collections/${encodeURIComponent(collectionId)}`, { scope }),
+  );
+}
+
+export function addCpCollectionItem(
+  token: string,
+  collectionId: string,
+  input: { asset_id: string },
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ collection_id?: string; asset_id: string }>(
+    token,
+    cpQueryPath(`/collections/${encodeURIComponent(collectionId)}/items`, { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function removeCpCollectionItem(
+  token: string,
+  collectionId: string,
+  assetId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ ok: boolean }>(
+    token,
+    cpQueryPath(
+      `/collections/${encodeURIComponent(collectionId)}/items/${encodeURIComponent(assetId)}`,
+      { scope },
+    ),
+    { method: 'DELETE' },
+  );
+}
+
+export function getCpQuality(token: string, scope: CpScope = 'me') {
+  return cpFetch<CpQualityReport>(
+    token,
+    cpQueryPath('/quality', { scope }),
+  );
+}
+
 export async function getCpBatchErrorsCsv(
   token: string,
   batchId: string,

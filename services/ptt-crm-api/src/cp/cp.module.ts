@@ -44,6 +44,11 @@ import {
   CpBatchesRepository,
   CpBatchesService,
 } from './cp-batches.service';
+import {
+  CP_COLLECTIONS_QUERY,
+  CpCollectionsRepository,
+  CpCollectionsService,
+} from './cp-collections.service';
 import { StaffCpGuard } from './guards/staff-cp.guard';
 
 @Module({
@@ -83,6 +88,9 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     CpBatchesRepository,
     { provide: CP_BATCHES_QUERY, useExisting: CpBatchesRepository },
     CpBatchesService,
+    CpCollectionsRepository,
+    { provide: CP_COLLECTIONS_QUERY, useExisting: CpCollectionsRepository },
+    CpCollectionsService,
   ],
 })
 export class CpModule {}

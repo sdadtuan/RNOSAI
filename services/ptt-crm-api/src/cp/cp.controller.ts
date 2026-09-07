@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Header,
@@ -62,6 +63,11 @@ import {
 import { CpTemplateInput, CpTemplateUseInput, CpTemplatesService } from './cp-templates.service';
 import { CpBatchInput, CpBatchItemPatch, CpBatchesService } from './cp-batches.service';
 import {
+  CpCollectionInput,
+  CpCollectionItemInput,
+  CpCollectionsService,
+} from './cp-collections.service';
+import {
   RequireCpAction,
   RequireCpSection,
   StaffCpGuard,
@@ -102,6 +108,7 @@ export class CpController {
     private readonly contentOs: CpContentOsHandoffService,
     private readonly templates: CpTemplatesService,
     private readonly batches: CpBatchesService,
+    private readonly collections: CpCollectionsService,
   ) {}
 
   private async assertLegalApprovalCap(req: AuthedReq, input: CpApprovalInput) {
@@ -849,6 +856,57 @@ export class CpController {
     @Query('scope') scope?: CpScope,
   ) {
     return this.batches.get(id, await this.scope(req, scope));
+  }
+
+  @Get('collections')
+  @RequireCpAction('view')
+  async listCollections() {
+    return this.collections.list();
+  }
+
+  @Post('collections')
+  @RequireCpAction('edit')
+  async createCollection(@Req() req: AuthedReq, @Body() body: CpCollectionInput) {
+    const actor = await this.scope(req);
+    return this.collections.create(body ?? {}, actor.staffId);
+  }
+
+  @Get('collections/:id')
+  @RequireCpAction('view')
+  async getCollection(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.collections.get(id, await this.scope(req, scope));
+  }
+
+  @Post('collections/:id/items')
+  @RequireCpAction('edit')
+  async addCollectionItem(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpCollectionItemInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.collections.addItem(id, body ?? {}, await this.scope(req, scope));
+  }
+
+  @Delete('collections/:id/items/:assetId')
+  @RequireCpAction('edit')
+  async removeCollectionItem(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('assetId') assetId: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.collections.removeItem(id, assetId, await this.scope(req, scope));
+  }
+
+  @Get('quality')
+  @RequireCpAction('view')
+  async getQuality(@Req() req: AuthedReq, @Query('scope') scope?: CpScope) {
+    return this.collections.quality(await this.scope(req, scope));
   }
 }
 
