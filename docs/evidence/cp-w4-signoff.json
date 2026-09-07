@@ -1,0 +1,95 @@
+{
+  "wave": "W4",
+  "component": "creative_production_os_wave4",
+  "srs": "2026-09-07-creative-production-os-srs.md + plan Task 36",
+  "branch": "feat/cp-os-w4",
+  "head_commit": "c32927cd",
+  "environment": "local",
+  "evaluated_at": "2026-09-07T19:10:00+07:00",
+  "signed_at": null,
+  "ok": false,
+  "entry_required": {
+    "wave_4_implementation_present": true,
+    "note": "Wave 4 UAT specification was added, but no live API was reachable at http://127.0.0.1:3000."
+  },
+  "gates": {
+    "playwright_cp_w4_discovery": true,
+    "playwright_cp_w4_uat": false
+  },
+  "gate_notes": {
+    "playwright_cp_w4_discovery": "OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/cp-w4-uat.spec.ts --list — 4 tests discovered",
+    "playwright_cp_w4_uat": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 npm run test:e2e:cp-w4 — exit 1; all 4 cases failed in beforeEach: Wave 4 prerequisite missing: API is unreachable at http://127.0.0.1:3000"
+  },
+  "w4_acceptance": {
+    "forecast_assumption_visible": false,
+    "ab_variant_does_not_mutate_completed": false,
+    "model_fallback_child_job": false,
+    "locale_pack_does_not_rewrite_completed_language": false
+  },
+  "srs_17": {
+    "1_lineage_project_to_publish_with_snapshot": {
+      "status": "documented",
+      "coverage": "Partial via W2 Hub submit + W4 snapshot asserts. Full project→brief→draft→render→QC→review→Hub→PublishItem chain is a live-book walk after API is up."
+    },
+    "2_rights_or_qc_blocked_cannot_export_publish": {
+      "status": "automated",
+      "coverage": "W2 UAT: qc_blocked export 409; rights_blocked publish 409."
+    },
+    "3_draft_edit_after_approve_invalidates": {
+      "status": "documented",
+      "coverage": "Service invalidates approval on draft patch (Task 20/35). Not re-run here; confirm on live API with an approved version."
+    },
+    "4_completed_version_unchanged_when_kit_or_asset_edited": {
+      "status": "automated",
+      "coverage": "W4 A/B + locale compare snapshot_json before/after. Kit/asset edit uses the same immutable snapshot rule (409 immutable)."
+    },
+    "5_batch_validate_partial_retry_error_csv_no_double_charge": {
+      "status": "automated",
+      "coverage": "W3 UAT: validate + errors.csv + retry does not re-charge completed rows."
+    },
+    "6_queue_idempotency_no_double_charge": {
+      "status": "automated",
+      "coverage": "W1 UAT: replayed Idempotency-Key creates only one ledger reserve."
+    },
+    "7_report_dashboard_respects_scope": {
+      "status": "automated",
+      "coverage": "W3 UAT: smart collection + report scope=me/all; unknown client stays null/—."
+    },
+    "8_url_id_does_not_leak_other_book": {
+      "status": "automated",
+      "coverage": "W3 UAT: foreign collection/asset 404 not_found."
+    },
+    "9_private_download_needs_auth": {
+      "status": "documented",
+      "coverage": "Export is POST /videos/versions/:id/export behind StaffOrInternalKeyGuard + crm_cp.export_final. Returns output_uri (stub://) only to an authenticated staff caller. No unsigned public download route and no CP customer portal."
+    },
+    "10_sensitive_mutation_writes_audit_log": {
+      "status": "documented",
+      "coverage": "crm_cp_activity via CpAuditRepository (W2/W3 engines). Confirm GET /activity after a live settings/render mutation when API is up."
+    },
+    "11_ui_8_kpi_8_nav_1_main_emdash": {
+      "status": "automated",
+      "coverage": "W1 overview 8 KPI / 8 nav / 1 main / no 3.840. W2 every CP page has one main. W4 credit tab asserts one main + Forecast = banner + no mock numbers."
+    },
+    "12_no_new_cp_portal": {
+      "status": "documented",
+      "coverage": "Staff Creative OS stays under /crm/creative-os. Task 35/36 added no /portal/cp (or other) customer surface."
+    }
+  },
+  "commands": {
+    "uat": "cd services/ops-web && npm run test:e2e:cp-w4",
+    "discovery": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 npx playwright test e2e/cp-w4-uat.spec.ts --list"
+  },
+  "signoffs": {
+    "product_owner": null,
+    "qa": null,
+    "engineering": null
+  },
+  "blockers": [
+    "ptt-crm-api is not running on http://127.0.0.1:3000.",
+    "Missing API/token fails the suite (no skips).",
+    "No UAT case executed against a live API, so all four Wave 4 acceptance results remain false.",
+    "Stub render always completes, so the fallback child (parent_job_id + :r) cannot be observed until a parent job fails."
+  ],
+  "notes": "Playwright discovers exactly four Wave 4 gate tests. This is intentionally not a green signoff. CP_AI_ENABLED was not set. No RBAC grants were made. Agent suggestions remain out of scope."
+}
