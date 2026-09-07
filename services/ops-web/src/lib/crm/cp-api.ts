@@ -138,6 +138,66 @@ export type CpMilestone = {
   status?: string | null;
 };
 
+export const CP_MIME_ALLOWLIST = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/mp4',
+  'application/pdf',
+] as const;
+
+export type CpAssetMime = (typeof CP_MIME_ALLOWLIST)[number];
+
+export type CpAsset = {
+  id: string;
+  agency_client_id: string;
+  project_id: string | null;
+  owner_staff_id: number;
+  filename: string;
+  mime: string;
+  state: string;
+  bytes: number | string | null;
+  hash: string | null;
+  expiry_on?: string | null;
+  rights_status?: 'ok' | 'warn' | 'block' | null;
+  created_at: string;
+};
+
+export type CpCreateAssetInput = {
+  agency_client_id: string;
+  mime: string;
+  filename: string;
+  project_id?: string | null;
+};
+
+export type CpAssetRightsInput = {
+  license_type?: string | null;
+  owner_name?: string | null;
+  effective_on?: string | null;
+  expiry_on?: string | null;
+  territory?: string[] | null;
+  channels?: string[] | null;
+  restriction?: string | null;
+  model_release?: boolean | null;
+  talent_release?: boolean | null;
+  proof_asset_id?: string | null;
+};
+
+export type CpAssetUsage = {
+  asset_version_id: string;
+  n: number;
+  storage_key: string;
+  mime: string;
+  bytes: number | string | null;
+  object_type: string | null;
+  object_id: string | null;
+};
+
 function cpQueryPath(path: string, query: Record<string, string | undefined>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
@@ -296,6 +356,59 @@ export function createCpProjectTask(
   input: Partial<Omit<CpTask, 'id' | 'project_id'>> & { title: string },
 ) {
   return cpFetch<CpTask>(token, cpProjectCollectionPath(projectId, 'tasks'), {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function listCpAssets(token: string, scope: CpScope = 'me') {
+  return cpFetch<{ items: CpAsset[] }>(
+    token,
+    cpQueryPath('/assets', { scope }),
+  );
+}
+
+export function createCpAsset(token: string, input: CpCreateAssetInput) {
+  return cpFetch<CpAsset>(token, '/assets', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getCpAsset(token: string, assetId: string, scope: CpScope = 'me') {
+  return cpFetch<CpAsset>(
+    token,
+    cpQueryPath(`/assets/${encodeURIComponent(assetId)}`, { scope }),
+  );
+}
+
+export function getCpAssetUsage(token: string, assetId: string, scope: CpScope = 'me') {
+  return cpFetch<{ asset_id: string; usages: CpAssetUsage[] }>(
+    token,
+    cpQueryPath(`/assets/${encodeURIComponent(assetId)}/usage`, { scope }),
+  );
+}
+
+export function setCpAssetRights(
+  token: string,
+  assetId: string,
+  input: CpAssetRightsInput,
+) {
+  return cpFetch<CpAssetRightsInput & {
+    asset_id: string;
+    rights_status: 'ok' | 'warn' | 'block' | null;
+  }>(token, `/assets/${encodeURIComponent(assetId)}/rights`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function finalizeCpAsset(
+  token: string,
+  assetId: string,
+  input: { bytes: number; hash: string },
+) {
+  return cpFetch<CpAsset>(token, `/assets/${encodeURIComponent(assetId)}/finalize`, {
     method: 'POST',
     body: JSON.stringify(input),
   });

@@ -1,5 +1,5 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpAssetDetail } from '@/components/crm/cp/CpAssetDetail';
 
 export default function CreativeOsMediaDetailPage() {
-  return <CpPlaceholder title="Chi tiết tài nguyên" />;
+  return <CpAssetDetail />;
 }

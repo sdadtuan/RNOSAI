@@ -59,6 +59,50 @@ export function hasTrendData(points: CpTrendPoint[]): boolean {
   );
 }
 
+export function rightsStatus(
+  expiry: string | Date | null | undefined,
+  today: string | Date = vietnamToday(),
+): 'ok' | 'warn' | 'block' | null {
+  const expiryDate = calendarDate(expiry);
+  if (!expiryDate) return null;
+  const todayDate = calendarDate(today);
+  if (!todayDate) throw new Error('invalid_today');
+  if (expiryDate < todayDate) return 'block';
+  return expiryDate <= addCalendarDays(todayDate, 14) ? 'warn' : 'ok';
+}
+
+function vietnamToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function calendarDate(value: string | Date | null | undefined): string | null {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(value);
+  }
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const parsed = new Date(text);
+  if (!Number.isFinite(parsed.getTime())) throw new Error('invalid_date');
+  return calendarDate(parsed);
+}
+
+function addCalendarDays(date: string, days: number): string {
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
 export function normalizeCpHref(href: string): string {
   const [path, query] = href.split('?');
   const suffix = query ? `?${query}` : '';

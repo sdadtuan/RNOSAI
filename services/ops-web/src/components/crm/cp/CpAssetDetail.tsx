@@ -1,0 +1,142 @@
+'use client';
+
+import Link from 'next/link';
+import { useParams, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { getAccessToken } from '@/lib/auth';
+import {
+  getCpAsset,
+  getCpAssetUsage,
+  type CpAsset,
+  type CpAssetUsage,
+  type CpScope,
+} from '@/lib/crm/cp-api';
+import { dash, rightsStatus } from '@/lib/crm/cp-format';
+
+function scopeFrom(value: string | null): CpScope {
+  return value === 'team' || value === 'all' ? value : 'me';
+}
+
+function rightsClass(status: ReturnType<typeof rightsStatus>): string {
+  if (status === 'block') return 'cp-pill cp-pill--danger';
+  if (status === 'warn') return 'cp-pill cp-pill--warning';
+  return 'cp-pill';
+}
+
+export function CpAssetDetail() {
+  const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const assetId = params.id;
+  const scope = scopeFrom(searchParams.get('scope'));
+  const [asset, setAsset] = useState<CpAsset | null>(null);
+  const [usages, setUsages] = useState<CpAssetUsage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const [assetOut, usageOut] = await Promise.all([
+        getCpAsset(token, assetId, scope),
+        getCpAssetUsage(token, assetId, scope),
+      ]);
+      setAsset(assetOut);
+      setUsages(usageOut.usages);
+    } catch (err) {
+      setAsset(null);
+      setUsages([]);
+      setError(err instanceof Error ? err.message : 'Không tải được chi tiết asset');
+    } finally {
+      setLoading(false);
+    }
+  }, [assetId, scope]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const status = rightsStatus(asset?.expiry_on);
+
+  return (
+    <div className="cp-overview" aria-busy={loading}>
+      <header className="cp-overview__head">
+        <div>
+          <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Asset</p>
+          <h1>Asset — {asset?.filename ?? (loading ? 'Đang tải…' : dash(null))}</h1>
+          <p className="cp-muted">Metadata, usage và trạng thái quyền W1.</p>
+        </div>
+        <Link className="cp-btn" href="/crm/creative-os/media">Về thư viện</Link>
+      </header>
+
+      {error ? (
+        <section className="cp-card cp-card--error">
+          <p>{error}</p>
+          <button className="cp-btn" type="button" onClick={() => void load()}>Thử lại</button>
+        </section>
+      ) : null}
+
+      <div className="cp-overview-grid">
+        <section className="cp-card">
+          <header className="cp-card__head"><h2>Metadata</h2><span className="cp-pill">{dash(asset?.state)}</span></header>
+          <dl className="cp-health">
+            <div><dt>Filename</dt><dd>{dash(asset?.filename)}</dd></div>
+            <div><dt>MIME</dt><dd>{dash(asset?.mime)}</dd></div>
+            <div><dt>Bytes</dt><dd>{dash(asset?.bytes)}</dd></div>
+            <div><dt>Hash</dt><dd>{dash(asset?.hash)}</dd></div>
+            <div><dt>Owner staff</dt><dd>{dash(asset?.owner_staff_id)}</dd></div>
+            <div><dt>Agency client</dt><dd>{dash(asset?.agency_client_id)}</dd></div>
+            <div><dt>Project</dt><dd>{dash(asset?.project_id)}</dd></div>
+            <div><dt>Created</dt><dd>{dash(asset?.created_at)}</dd></div>
+          </dl>
+        </section>
+
+        <section className="cp-card">
+          <header className="cp-card__head"><h2>Rights</h2></header>
+          <dl className="cp-health">
+            <div><dt>Expiry</dt><dd>{dash(asset?.expiry_on)}</dd></div>
+            <div>
+              <dt>Policy</dt>
+              <dd>{status ? <span className={rightsClass(status)}>{status}</span> : dash(null)}</dd>
+            </div>
+            <div><dt>License</dt><dd>{dash(null)}</dd></div>
+            <div><dt>Territory</dt><dd>{dash(null)}</dd></div>
+            <div><dt>Channels</dt><dd>{dash(null)}</dd></div>
+            <div><dt>Release</dt><dd>{dash(null)}</dd></div>
+          </dl>
+          <Link className="cp-btn" href="/crm/creative-os/media?tab=rights">Mở Rights Center</Link>
+        </section>
+      </div>
+
+      <section className="cp-card">
+        <header className="cp-card__head"><h2>Usage graph</h2></header>
+        <div className="cp-table-wrap">
+          <table className="cp-table">
+            <thead>
+              <tr><th>Version</th><th>Storage key</th><th>MIME</th><th>Bytes</th><th>Object type</th><th>Object ID</th></tr>
+            </thead>
+            <tbody>
+              {usages.length ? usages.map((usage, index) => (
+                <tr key={`${usage.asset_version_id}-${usage.object_type ?? 'none'}-${usage.object_id ?? index}`}>
+                  <td>v{dash(usage.n)}</td>
+                  <td>{dash(usage.storage_key)}</td>
+                  <td>{dash(usage.mime)}</td>
+                  <td>{dash(usage.bytes)}</td>
+                  <td>{dash(usage.object_type)}</td>
+                  <td>{dash(usage.object_id)}</td>
+                </tr>
+              )) : (
+                <tr><td className="cp-empty" colSpan={6}>{loading ? 'Đang tải…' : dash(null)}</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
