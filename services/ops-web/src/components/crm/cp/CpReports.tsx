@@ -15,6 +15,8 @@ import {
   type CpSourcedMetric,
 } from '@/lib/crm/cp-api';
 import {
+  CP_REPORT_FILTERS,
+  CP_REPORT_SECTIONS,
   CP_REPORT_TABS,
   MISSING_INGEST_COPY,
   dash,
@@ -142,19 +144,13 @@ function CpReportsInner() {
     from: searchParams.get('from') ?? '',
     to: searchParams.get('to') ?? '',
     client: searchParams.get('client') ?? '',
-    lifecycle: searchParams.get('lifecycle') ?? '',
-    project: searchParams.get('project') ?? '',
-    channel: searchParams.get('channel') ?? '',
   });
 
   const query = useMemo<CpReportQuery>(() => ({
     scope,
-    from: searchParams.get('from') || undefined,
-    to: searchParams.get('to') || undefined,
-    client: searchParams.get('client') || undefined,
-    lifecycle: searchParams.get('lifecycle') || undefined,
-    project: searchParams.get('project') || undefined,
-    channel: searchParams.get('channel') || undefined,
+    from: searchParams.get(CP_REPORT_FILTERS[0]) || undefined,
+    to: searchParams.get(CP_REPORT_FILTERS[1]) || undefined,
+    client: searchParams.get(CP_REPORT_FILTERS[2]) || undefined,
   }), [scope, searchParams]);
 
   const load = useCallback(async () => {
@@ -185,9 +181,9 @@ function CpReportsInner() {
       from: draft.from || null,
       to: draft.to || null,
       client: draft.client || null,
-      lifecycle: draft.lifecycle || null,
-      project: draft.project || null,
-      channel: draft.channel || null,
+      lifecycle: null,
+      project: null,
+      channel: null,
       scope,
     }));
   }
@@ -258,18 +254,6 @@ function CpReportsInner() {
           <span>Khách</span>
           <input value={draft.client} placeholder="Tất cả" onChange={(event) => setDraft((cur) => ({ ...cur, client: event.target.value }))} />
         </label>
-        <label>
-          <span>Lifecycle</span>
-          <input value={draft.lifecycle} placeholder="Tất cả" onChange={(event) => setDraft((cur) => ({ ...cur, lifecycle: event.target.value }))} />
-        </label>
-        <label>
-          <span>Dự án</span>
-          <input value={draft.project} placeholder="Tất cả" onChange={(event) => setDraft((cur) => ({ ...cur, project: event.target.value }))} />
-        </label>
-        <label>
-          <span>Kênh</span>
-          <input value={draft.channel} placeholder="Tất cả" onChange={(event) => setDraft((cur) => ({ ...cur, channel: event.target.value }))} />
-        </label>
         <button type="submit" className="cp-btn cp-btn--primary">Áp dụng</button>
       </form>
 
@@ -311,6 +295,32 @@ function CpReportsInner() {
                 ?? 'Insight không nhân quả. Không suy diễn hiệu quả ads khi thiếu ingest.'}
             </p>
           </section>
+          <SectionTable
+            title="Xu hướng"
+            section={CP_REPORT_SECTIONS.executive[0]}
+            columns={['Ngày', 'Tạo', 'Duyệt', 'Xuất bản']}
+            rows={asRows(report?.trend)}
+            cells={(row) => [
+              dash(row.day),
+              formatNumber(asNumber(row.created)),
+              formatNumber(asNumber(row.approved)),
+              formatNumber(asNumber(row.published)),
+            ]}
+          />
+          <SectionTable
+            title="Top creative"
+            section={CP_REPORT_SECTIONS.executive[1]}
+            columns={['Creative', 'Version', 'Trạng thái']}
+            rows={asRows(report?.top_creative)}
+            cells={(row) => [dash(row.name), dash(row.version_id), dash(row.approval_status)]}
+          />
+          <SectionTable
+            title="Sức khỏe dự án"
+            section={CP_REPORT_SECTIONS.executive[2]}
+            columns={['Dự án', 'Trạng thái', 'Budget']}
+            rows={asRows(report?.project_health)}
+            cells={(row) => [dash(row.name), dash(row.status), formatNumber(asNumber(row.credit_budget))]}
+          />
         </>
       ) : null}
 
@@ -323,6 +333,24 @@ function CpReportsInner() {
             <Tile label="Approval cycle TB" value={formatSeconds(report?.approval_cycle)} />
           </div>
           <FailureTable rows={asRows(report?.failure_class)} />
+          <SectionTable
+            title="Heatmap"
+            section={CP_REPORT_SECTIONS.production[0]}
+            columns={['Model', 'Ngày', 'Jobs']}
+            rows={asRows(report?.heatmap)}
+            cells={(row) => [dash(row.model), dash(row.day), formatNumber(asNumber(row.count))]}
+          />
+          <SectionTable
+            title="Provider health"
+            section={CP_REPORT_SECTIONS.production[1]}
+            columns={['Provider / model', 'Success', 'p95']}
+            rows={asRows(report?.provider_health)}
+            cells={(row) => [
+              dash(row.id),
+              formatPercent(row.success_pct),
+              formatSeconds(row.p95_sec),
+            ]}
+          />
         </>
       ) : null}
 
@@ -334,6 +362,17 @@ function CpReportsInner() {
             <Tile label="Reserved" value={formatNumber(asNumber(report?.reserved))} />
             <Tile label="Released" value={formatNumber(asNumber(report?.released))} />
           </div>
+          <SectionTable
+            title="Theo pipeline"
+            section={CP_REPORT_SECTIONS.credit[0]}
+            columns={['Pipeline', 'Kind', 'Amount']}
+            rows={asRows(report?.by_pipeline)}
+            cells={(row) => [
+              dash(row.pipeline),
+              dash(row.kind),
+              formatNumber(asNumber(row.amount)),
+            ]}
+          />
           <section className="cp-card">
             <header className="cp-card__head"><h2>Forecast</h2></header>
             <p>
@@ -403,6 +442,48 @@ function asRows(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value)
     ? value.filter((row): row is Record<string, unknown> => row != null && typeof row === 'object')
     : [];
+}
+
+function SectionTable({
+  title,
+  section,
+  columns,
+  rows,
+  cells,
+}: {
+  title: string;
+  section: string;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  cells: (row: Record<string, unknown>) => string[];
+}) {
+  return (
+    <section className="cp-card" data-section={section}>
+      <header className="cp-card__head"><h2>{title}</h2></header>
+      <div className="cp-table-wrap">
+        <table className="cp-table">
+          <thead>
+            <tr>
+              {columns.map((column) => <th key={column}>{column}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length ? rows.map((row, index) => (
+              <tr key={`${section}-${index}`}>
+                {cells(row).map((cell, cellIndex) => (
+                  <td key={`${section}-${index}-${cellIndex}`}>{cell}</td>
+                ))}
+              </tr>
+            )) : (
+              <tr>
+                <td className="cp-empty" colSpan={columns.length}>{dash(null)}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 function FailureTable({ rows }: { rows: Record<string, unknown>[] }) {

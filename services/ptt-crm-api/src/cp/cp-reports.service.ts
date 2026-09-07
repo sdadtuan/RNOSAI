@@ -82,7 +82,7 @@ export class CpReportsService {
 
   async get(slug: string, query: CpReportQuery): Promise<Record<string, unknown>> {
     const reportSlug = parseSlug(slug);
-    const ingest = await this.loadIngest();
+    const ingest = await this.loadIngest(query);
     if (reportSlug === 'performance') return this.performance(ingest);
     if (reportSlug === 'executive') return this.executive(query, ingest);
     if (reportSlug === 'production') return this.production(query);
@@ -109,13 +109,20 @@ export class CpReportsService {
     return { ok: true, slug, format, body };
   }
 
-  private async loadIngest(): Promise<Record<string, unknown>[]> {
+  private async loadIngest(query: CpReportQuery): Promise<Record<string, unknown>[]> {
     const result = await this.db.query(
       `SELECT payload_json, created_at
          FROM crm_cp_activity
-        WHERE tenant_id = $1 AND action = 'performance_ingest'
+        WHERE tenant_id = $4 AND action = 'performance_ingest'
+          AND ($1::date IS NULL OR (created_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
+          AND ($2::date IS NULL OR (created_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')
+          AND (
+            $3::text IS NULL
+            OR payload_json->>'agency_client_id' = $3
+            OR payload_json->>'client' = $3
+          )
         ORDER BY created_at DESC`,
-      [CP_TENANT_ID],
+      [query.from ?? null, query.to ?? null, query.client ?? null, CP_TENANT_ID],
     );
     return result.rows;
   }
@@ -133,12 +140,12 @@ export class CpReportsService {
 
   private async executive(query: CpReportQuery, ingest: Record<string, unknown>[]) {
     const mapped = mapIngest(ingest);
-    const scoped = bindReportScope(query, 4);
+    const { scopeSql, params } = bindReportFilters(query);
     const kpis = await this.db.query(
       `WITH scoped_projects AS (
          SELECT p.* FROM crm_cp_projects p
-          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scoped.sql}
-            AND ($3::text IS NULL OR p.agency_client_id::text = $3)
+          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scopeSql}
+            AND ${clientSql('p')}
        )
        SELECT
          (SELECT NULLIF(COUNT(*), 0)::int
@@ -146,17 +153,86 @@ export class CpReportsService {
             JOIN crm_cp_video_drafts d ON d.id = v.draft_id
             JOIN scoped_projects p ON p.id = d.project_id
            WHERE v.approval_status = 'final_approved'
+             AND ${ictRangeSql('d')}
          ) AS output_final,
          (SELECT SUM(l.amount)
             FROM crm_cp_credit_ledger l
            WHERE l.tenant_id = '${CP_TENANT_ID}' AND l.kind = 'charge'
-             AND ($1::date IS NULL OR (l.created_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
-             AND ($2::date IS NULL OR (l.created_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')
+             AND ${ictRangeSql('l')}
              AND EXISTS (SELECT 1 FROM scoped_projects p WHERE p.id = l.project_id
                OR (l.project_id IS NULL AND p.agency_client_id = l.agency_client_id))
          ) AS credits_charged,
-         (SELECT NULLIF(COUNT(*), 0)::int FROM scoped_projects WHERE status = 'at_risk') AS at_risk`,
-      [query.from ?? null, query.to ?? null, query.client ?? null, ...scoped.params],
+         (SELECT NULLIF(COUNT(*), 0)::int
+            FROM scoped_projects p
+           WHERE p.status = 'at_risk'
+             AND ${ictRangeSql('p')}
+         ) AS at_risk`,
+      params,
+    );
+    const trend = await this.db.query(
+      `WITH scoped_projects AS (
+         SELECT p.* FROM crm_cp_projects p
+          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scopeSql}
+            AND ${clientSql('p')}
+       )
+       SELECT day,
+              NULLIF(SUM(created), 0)::int AS created,
+              NULLIF(SUM(approved), 0)::int AS approved,
+              NULLIF(SUM(published), 0)::int AS published
+         FROM (
+           SELECT (d.created_at AT TIME ZONE '${ICT_TIMEZONE}')::date::text AS day,
+                  1 AS created, 0 AS approved, 0 AS published
+             FROM crm_cp_video_drafts d
+             JOIN scoped_projects p ON p.id = d.project_id
+            WHERE ${ictRangeSql('d')}
+           UNION ALL
+           SELECT (d.created_at AT TIME ZONE '${ICT_TIMEZONE}')::date::text AS day,
+                  0, 1, 0
+             FROM crm_cp_video_versions v
+             JOIN crm_cp_video_drafts d ON d.id = v.draft_id
+             JOIN scoped_projects p ON p.id = d.project_id
+            WHERE v.approval_status = 'final_approved'
+              AND ${ictRangeSql('d')}
+           UNION ALL
+           SELECT (i.scheduled_at AT TIME ZONE '${ICT_TIMEZONE}')::date::text AS day,
+                  0, 0, 1
+             FROM crm_cp_publish_items i
+             JOIN crm_cp_video_versions v ON v.id = i.video_version_id
+             JOIN crm_cp_video_drafts d ON d.id = v.draft_id
+             JOIN scoped_projects p ON p.id = d.project_id
+            WHERE i.status = 'published'
+              AND i.scheduled_at IS NOT NULL
+              AND ($1::date IS NULL OR (i.scheduled_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
+              AND ($2::date IS NULL OR (i.scheduled_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')
+         ) series
+        GROUP BY day
+        ORDER BY day`,
+      params,
+    );
+    const top = await this.db.query(
+      `WITH scoped_projects AS (
+         SELECT p.* FROM crm_cp_projects p
+          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scopeSql}
+            AND ${clientSql('p')}
+       )
+       SELECT d.name, v.id::text AS version_id, v.approval_status
+         FROM crm_cp_video_versions v
+         JOIN crm_cp_video_drafts d ON d.id = v.draft_id
+         JOIN scoped_projects p ON p.id = d.project_id
+        WHERE v.approval_status = 'final_approved'
+          AND ${ictRangeSql('d')}
+        ORDER BY d.name, v.version_n DESC
+        LIMIT 5`,
+      params,
+    );
+    const health = await this.db.query(
+      `SELECT p.id::text, p.name, p.status, p.credit_budget
+         FROM crm_cp_projects p
+        WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scopeSql}
+          AND ${clientSql('p')}
+          AND ${ictRangeSql('p')}
+        ORDER BY CASE p.status WHEN 'at_risk' THEN 0 ELSE 1 END, p.name`,
+      params,
     );
     const row = kpis.rows[0] ?? {};
     return {
@@ -167,10 +243,24 @@ export class CpReportsService {
         roi: mapped.metrics.roi ?? missingMetric(),
         campaign_health: kpiOrNull(finiteNumber(row.at_risk)),
       },
-      trend: [],
+      trend: trend.rows.map((item) => ({
+        day: item.day == null ? null : String(item.day),
+        created: kpiOrNull(finiteNumber(item.created)),
+        approved: kpiOrNull(finiteNumber(item.approved)),
+        published: kpiOrNull(finiteNumber(item.published)),
+      })),
       funnel: mapped.funnel,
-      top_creative: [],
-      project_health: [],
+      top_creative: top.rows.map((item) => ({
+        name: item.name == null ? null : String(item.name),
+        version_id: item.version_id == null ? null : String(item.version_id),
+        approval_status: item.approval_status == null ? null : String(item.approval_status),
+      })),
+      project_health: health.rows.map((item) => ({
+        id: item.id == null ? null : String(item.id),
+        name: item.name == null ? null : String(item.name),
+        status: item.status == null ? null : String(item.status),
+        credit_budget: kpiOrNull(finiteNumber(item.credit_budget)),
+      })),
       insights: {
         disclaimer: 'Insight không nhân quả. Không suy diễn hiệu quả ads khi thiếu ingest.',
       },
@@ -178,67 +268,65 @@ export class CpReportsService {
   }
 
   private async production(query: CpReportQuery) {
-    const scoped = bindReportScope(query, 1);
-    const duration = `(
-      SELECT SUM((entry->>'duration_sec')::numeric)
-        FROM jsonb_array_elements(
-          CASE jsonb_typeof(j.stage_log_json)
-            WHEN 'array' THEN j.stage_log_json
-            WHEN 'object' THEN jsonb_build_array(j.stage_log_json)
-            ELSE '[]'::jsonb
-          END
-        ) entry
-       WHERE COALESCE(entry->>'duration_sec', '') ~ '^[0-9]+([.][0-9]+)?$'
-    )`;
-    const jobs = await this.db.query(
-      `WITH scoped_projects AS (
+    const { scopeSql, params } = bindReportFilters(query);
+    const duration = durationSql('j');
+    const queueWait = queueWaitSql('j');
+    const scopedJobsCte = `WITH scoped_projects AS (
          SELECT p.* FROM crm_cp_projects p
-          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scoped.sql}
+          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scopeSql}
+            AND ${clientSql('p')}
        ),
        scoped_jobs AS (
-         SELECT j.*, ${duration} AS duration_sec
+         SELECT j.*, ${duration} AS duration_sec, ${queueWait} AS queue_wait_sec
            FROM crm_cp_render_jobs j
            JOIN crm_cp_video_drafts d ON d.id = j.draft_id
            JOIN scoped_projects p ON p.id = d.project_id
-       )
+          WHERE ${ictRangeSql('j')}
+       )`;
+    const jobs = await this.db.query(
+      `${scopedJobsCte}
        SELECT
          (SELECT COUNT(*) FILTER (WHERE state = 'completed')::int FROM scoped_jobs) AS completed,
          (SELECT COUNT(*) FILTER (WHERE state = 'failed')::int FROM scoped_jobs) AS failed,
          (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_sec)
-            FROM scoped_jobs WHERE duration_sec IS NOT NULL) AS render_p95,
-         (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_sec)
-            FROM scoped_jobs WHERE state IN ('queued','preparing') AND duration_sec IS NOT NULL) AS queue_p95`,
-      scoped.params,
+            FROM scoped_jobs WHERE state = 'completed' AND duration_sec IS NOT NULL) AS render_p95,
+         (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY queue_wait_sec)
+            FROM scoped_jobs WHERE state = 'completed' AND queue_wait_sec IS NOT NULL) AS queue_p95`,
+      params,
     );
     const failures = await this.db.query(
-      `WITH scoped_projects AS (
-         SELECT p.* FROM crm_cp_projects p
-          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scoped.sql}
-       )
+      `${scopedJobsCte}
        SELECT j.error_class, COUNT(*)::int AS count,
               COUNT(*) FILTER (WHERE j.attempt > 1 AND j.state = 'completed')::int AS retry_ok
-         FROM crm_cp_render_jobs j
-         JOIN crm_cp_video_drafts d ON d.id = j.draft_id
-         JOIN scoped_projects p ON p.id = d.project_id
+         FROM scoped_jobs j
         WHERE j.error_class IS NOT NULL
         GROUP BY j.error_class
         ORDER BY count DESC`,
-      scoped.params,
+      params,
     );
     const heatmap = await this.db.query(
-      `WITH scoped_projects AS (
-         SELECT p.* FROM crm_cp_projects p
-          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scoped.sql}
-       )
-       SELECT COALESCE(j.model, 'stub') AS model,
+      `${scopedJobsCte}
+       SELECT COALESCE(NULLIF(j.model, ''), NULLIF(j.provider, ''), 'stub') AS model,
               (j.created_at AT TIME ZONE '${ICT_TIMEZONE}')::date::text AS day,
               COUNT(*)::int AS count
-         FROM crm_cp_render_jobs j
-         JOIN crm_cp_video_drafts d ON d.id = j.draft_id
-         JOIN scoped_projects p ON p.id = d.project_id
+         FROM scoped_jobs j
         GROUP BY 1, 2
         ORDER BY 2, 1`,
-      scoped.params,
+      params,
+    );
+    const providers = await this.db.query(
+      `${scopedJobsCte}
+       SELECT COALESCE(NULLIF(j.provider, ''), NULLIF(j.model, ''), 'stub') AS id,
+              CASE WHEN COUNT(*) FILTER (WHERE j.state IN ('completed','failed')) = 0 THEN NULL
+                   ELSE (COUNT(*) FILTER (WHERE j.state = 'completed')::numeric
+                         / NULLIF(COUNT(*) FILTER (WHERE j.state IN ('completed','failed')), 0)) * 100
+              END AS success_pct,
+              percentile_cont(0.95) WITHIN GROUP (ORDER BY j.duration_sec)
+                FILTER (WHERE j.state = 'completed' AND j.duration_sec IS NOT NULL) AS p95_sec
+         FROM scoped_jobs j
+        GROUP BY 1
+        ORDER BY 1`,
+      params,
     );
     const row = jobs.rows[0] ?? {};
     const completed = Number(row.completed ?? 0);
@@ -250,61 +338,62 @@ export class CpReportsService {
       queue_p95: kpiOrNull(finiteNumber(row.queue_p95)),
       render_p95: kpiOrNull(finiteNumber(row.render_p95)),
       approval_cycle: null,
-      heatmap: heatmap.rows,
+      heatmap: heatmap.rows.map((item) => ({
+        model: item.model == null ? null : String(item.model),
+        day: item.day == null ? null : String(item.day),
+        count: kpiOrNull(finiteNumber(item.count)),
+      })),
       failure_class: failures.rows.map((item) => ({
         error_class: item.error_class == null ? null : String(item.error_class),
         count: finiteNumber(item.count),
         retry_ok: kpiOrNull(finiteNumber(item.retry_ok)),
         recommendation: item.error_class == null ? null : String(item.error_class),
       })),
-      provider_health: attempted > 0
-        ? [{ id: 'stub', success_pct: (completed / attempted) * 100, p95_sec: finiteNumber(row.render_p95) }]
-        : [],
+      provider_health: providers.rows.map((item) => ({
+        id: item.id == null ? null : String(item.id),
+        success_pct: kpiOrNull(finiteNumber(item.success_pct)),
+        p95_sec: kpiOrNull(finiteNumber(item.p95_sec)),
+      })),
     };
   }
 
   private async credit(query: CpReportQuery) {
-    const scoped = bindReportScope(query, 1);
-    const ledger = await this.db.query(
-      `WITH scoped_projects AS (
+    const { scopeSql, params } = bindReportFilters(query);
+    const ledgerScope = `
+       WITH scoped_projects AS (
          SELECT p.* FROM crm_cp_projects p
-          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scoped.sql}
-       )
+          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scopeSql}
+            AND ${clientSql('p')}
+       )`;
+    const ledgerMatch = `
+          AND ${ictRangeSql('l')}
+          AND (
+            EXISTS (SELECT 1 FROM scoped_projects p WHERE p.id = l.project_id)
+            OR (l.project_id IS NULL AND EXISTS (
+              SELECT 1 FROM scoped_projects p WHERE p.agency_client_id = l.agency_client_id
+            ))
+          )`;
+    const ledger = await this.db.query(
+      `${ledgerScope}
        SELECT l.kind, SUM(l.amount) AS amount
          FROM crm_cp_credit_ledger l
         WHERE l.tenant_id = '${CP_TENANT_ID}'
-          AND (
-            EXISTS (SELECT 1 FROM scoped_projects p WHERE p.id = l.project_id)
-            OR (l.project_id IS NULL AND EXISTS (
-              SELECT 1 FROM scoped_projects p WHERE p.agency_client_id = l.agency_client_id
-            ))
-          )
+          ${ledgerMatch}
         GROUP BY l.kind`,
-      scoped.params,
+      params,
     );
     const pipeline = await this.db.query(
-      `WITH scoped_projects AS (
-         SELECT p.* FROM crm_cp_projects p
-          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scoped.sql}
-       )
+      `${ledgerScope}
        SELECT COALESCE(NULLIF(l.cost_center, ''), 'gen') AS pipeline, l.kind, SUM(l.amount) AS amount
          FROM crm_cp_credit_ledger l
         WHERE l.tenant_id = '${CP_TENANT_ID}'
-          AND (
-            EXISTS (SELECT 1 FROM scoped_projects p WHERE p.id = l.project_id)
-            OR (l.project_id IS NULL AND EXISTS (
-              SELECT 1 FROM scoped_projects p WHERE p.agency_client_id = l.agency_client_id
-            ))
-          )
+          ${ledgerMatch}
         GROUP BY 1, 2
         ORDER BY 1`,
-      scoped.params,
+      params,
     );
     const forecastRow = await this.db.query(
-      `WITH scoped_projects AS (
-         SELECT p.* FROM crm_cp_projects p
-          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scoped.sql}
-       )
+      `${ledgerScope}
        SELECT
          (SELECT SUM(b.estimate_credits)
             FROM crm_cp_batch_jobs b
@@ -314,24 +403,14 @@ export class CpReportsService {
          (SELECT AVG(l.amount)
             FROM crm_cp_credit_ledger l
            WHERE l.tenant_id = '${CP_TENANT_ID}' AND l.kind = 'charge'
-             AND (
-               EXISTS (SELECT 1 FROM scoped_projects p WHERE p.id = l.project_id)
-               OR (l.project_id IS NULL AND EXISTS (
-                 SELECT 1 FROM scoped_projects p WHERE p.agency_client_id = l.agency_client_id
-               ))
-             )
+             ${ledgerMatch}
          ) AS historical_avg,
          (SELECT SUM(l.amount)
             FROM crm_cp_credit_ledger l
            WHERE l.tenant_id = '${CP_TENANT_ID}' AND l.kind = 'reserve'
-             AND (
-               EXISTS (SELECT 1 FROM scoped_projects p WHERE p.id = l.project_id)
-               OR (l.project_id IS NULL AND EXISTS (
-                 SELECT 1 FROM scoped_projects p WHERE p.agency_client_id = l.agency_client_id
-               ))
-             )
+             ${ledgerMatch}
          ) AS reserved`,
-      scoped.params,
+      params,
     );
     const sums = sumsByKind(ledger.rows);
     const forecastIn = {
@@ -357,32 +436,37 @@ export class CpReportsService {
   }
 
   private async governance(query: CpReportQuery) {
-    const scoped = bindReportScope(query, 1);
+    const { scopeSql, params } = bindReportFilters(query);
     const stats = await this.db.query(
       `WITH scoped_projects AS (
          SELECT p.* FROM crm_cp_projects p
-          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scoped.sql}
+          WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scopeSql}
+            AND ${clientSql('p')}
        )
        SELECT
          (SELECT NULLIF(COUNT(*), 0)::int
             FROM crm_cp_video_versions v
             JOIN crm_cp_video_drafts d ON d.id = v.draft_id
             JOIN scoped_projects p ON p.id = d.project_id
-           WHERE v.approval_status = 'brand_approved') AS brand_pass,
+           WHERE v.approval_status = 'brand_approved'
+             AND ${ictRangeSql('d')}) AS brand_pass,
          (SELECT NULLIF(COUNT(*), 0)::int
             FROM crm_cp_video_versions v
             JOIN crm_cp_video_drafts d ON d.id = v.draft_id
             JOIN scoped_projects p ON p.id = d.project_id
-           WHERE v.qc_status = 'warning') AS qc_warning,
+           WHERE v.qc_status = 'warning'
+             AND ${ictRangeSql('d')}) AS qc_warning,
          (SELECT NULLIF(COUNT(*), 0)::int
             FROM crm_cp_assets a
             JOIN scoped_projects p ON p.id = a.project_id
             JOIN crm_cp_asset_rights r ON r.asset_id = a.id
            WHERE r.expiry_on <= (now() AT TIME ZONE '${ICT_TIMEZONE}')::date + 14
-             AND a.state <> 'archived') AS rights_14d,
+             AND a.state <> 'archived'
+             AND ${ictRangeSql('a')}) AS rights_14d,
          (SELECT NULLIF(COUNT(*), 0)::int
             FROM crm_cp_activity a
            WHERE a.tenant_id = '${CP_TENANT_ID}'
+             AND ${ictRangeSql('a')}
              AND (
                EXISTS (SELECT 1 FROM scoped_projects p
                         WHERE p.id::text = a.payload_json->>'project_id')
@@ -390,7 +474,7 @@ export class CpReportsService {
                  SELECT 1 FROM scoped_projects p WHERE p.id::text = a.resource_id
                ))
              )) AS audit_rows`,
-      scoped.params,
+      params,
     );
     const policy = await this.db.query(
       `SELECT policy_json FROM crm_cp_settings WHERE tenant_id = $1 LIMIT 1`,
@@ -596,6 +680,52 @@ function policyOutcome(value: unknown): { allow: number | null; review: number |
     review: raw === 'review' ? 1 : 0,
     block: raw === 'block' ? 1 : 0,
   };
+}
+
+function ictRangeSql(alias: string): string {
+  return `($1::date IS NULL OR (${alias}.created_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
+      AND ($2::date IS NULL OR (${alias}.created_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')`;
+}
+
+function clientSql(alias: string): string {
+  return `($3::text IS NULL OR ${alias}.agency_client_id::text = $3)`;
+}
+
+function bindReportFilters(query: CpReportQuery): { scopeSql: string; params: unknown[] } {
+  const scoped = bindReportScope(query, 4);
+  return {
+    scopeSql: scoped.sql,
+    params: [query.from ?? null, query.to ?? null, query.client ?? null, ...scoped.params],
+  };
+}
+
+function stageLogElements(alias: string): string {
+  return `jsonb_array_elements(
+          CASE jsonb_typeof(${alias}.stage_log_json)
+            WHEN 'array' THEN ${alias}.stage_log_json
+            WHEN 'object' THEN jsonb_build_array(${alias}.stage_log_json)
+            ELSE '[]'::jsonb
+          END
+        )`;
+}
+
+function durationSql(alias: string): string {
+  return `(
+      SELECT SUM((entry->>'duration_sec')::numeric)
+        FROM ${stageLogElements(alias)} entry
+       WHERE COALESCE(entry->>'duration_sec', '') ~ '^[0-9]+([.][0-9]+)?$'
+    )`;
+}
+
+function queueWaitSql(alias: string): string {
+  return `(
+      SELECT EXTRACT(EPOCH FROM (
+        MIN((entry->>'at')::timestamptz) - ${alias}.created_at
+      ))
+        FROM ${stageLogElements(alias)} entry
+       WHERE COALESCE(entry->>'stage', '') NOT IN ('queued', '')
+         AND COALESCE(entry->>'at', '') <> ''
+    )`;
 }
 
 function bindReportScope(

@@ -59,6 +59,14 @@ export const CP_REPORT_TABS = [
   { slug: 'governance', label: 'Quản trị' },
 ] as const;
 
+export const CP_REPORT_FILTERS = ['from', 'to', 'client'] as const;
+
+export const CP_REPORT_SECTIONS = {
+  executive: ['trend', 'top_creative', 'project_health'],
+  production: ['heatmap', 'provider_health'],
+  credit: ['by_pipeline'],
+} as const;
+
 export type CpReportSlug = (typeof CP_REPORT_TABS)[number]['slug'];
 
 export type CpSourcedMetric = {

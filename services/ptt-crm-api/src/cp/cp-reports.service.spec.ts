@@ -119,3 +119,133 @@ describe('CpReportsService slugs', () => {
     );
   });
 });
+
+function sqlCalls(db: { query: jest.Mock }): string {
+  return db.query.mock.calls.map((call) => String(call[0])).join('\n');
+}
+
+function firstParams(db: { query: jest.Mock }, needle: RegExp): unknown[] {
+  const hit = db.query.mock.calls.find((call) => needle.test(String(call[0])));
+  return (hit?.[1] as unknown[]) ?? [];
+}
+
+describe('CpReportsService period filters', () => {
+  it('applies from/to to executive version and project queries', async () => {
+    const db = emptyDb();
+    const { svc } = makeService(db);
+    await svc.get('executive', {
+      scope: 'me',
+      staffId: 1,
+      from: '2026-09-01',
+      to: '2026-09-07',
+      client: 'client-1',
+    });
+
+    const sql = sqlCalls(db);
+    expect(sql).toMatch(/d\.created_at[\s\S]*\$1::date|\$1::date[\s\S]*d\.created_at/);
+    expect(sql).toMatch(/p\.created_at[\s\S]*\$1::date|\$1::date[\s\S]*p\.created_at/);
+    expect(sql).toMatch(/crm_cp_video_versions/);
+    expect(sql).toMatch(/status = 'at_risk'/);
+    expect(firstParams(db, /output_final|at_risk/)).toEqual(
+      expect.arrayContaining(['2026-09-01', '2026-09-07', 'client-1']),
+    );
+  });
+
+  it('queries executive trend, top creative, and project health', async () => {
+    const db = emptyDb();
+    const { svc } = makeService(db);
+    const out = await svc.get('executive', { scope: 'me', staffId: 1 }) as {
+      trend: unknown;
+      top_creative: unknown;
+      project_health: unknown;
+    };
+
+    const sql = sqlCalls(db);
+    expect(out.trend).toEqual(expect.any(Array));
+    expect(out.top_creative).toEqual(expect.any(Array));
+    expect(out.project_health).toEqual(expect.any(Array));
+    expect(sql).toMatch(/GROUP BY[\s\S]*day|::date::text AS day/i);
+    expect(sql).toMatch(/ORDER BY[\s\S]*LIMIT/i);
+    expect(sql).toMatch(/p\.status|project_health|credit_budget/i);
+  });
+
+  it('applies from/to/client on production, credit, governance, and ingest', async () => {
+    const slugs = ['production', 'credit', 'governance', 'performance'] as const;
+    for (const slug of slugs) {
+      const db = emptyDb();
+      const { svc } = makeService(db);
+      await svc.get(slug, {
+        scope: 'me',
+        staffId: 1,
+        from: '2026-09-01',
+        to: '2026-09-07',
+        client: 'client-9',
+      });
+      const sql = sqlCalls(db);
+      expect(sql).toMatch(/\$1::date/);
+      expect(sql).toMatch(/\$2::date/);
+      if (slug === 'performance') {
+        expect(sql).toMatch(/performance_ingest/);
+        expect(sql).toMatch(/agency_client_id|payload_json->>'client'/);
+      } else {
+        expect(sql).toMatch(/agency_client_id/);
+      }
+      expect(firstParams(db, /\$1::date/)).toEqual(
+        expect.arrayContaining(['2026-09-01', '2026-09-07', 'client-9']),
+      );
+    }
+  });
+});
+
+describe('CpReportsService production queue and providers', () => {
+  it('measures queue p95 as created-to-start over completed jobs', async () => {
+    const db = emptyDb();
+    const { svc } = makeService(db);
+    await svc.get('production', { scope: 'me', staffId: 1, from: '2026-08-01', to: '2026-08-31' });
+
+    const sql = sqlCalls(db);
+    expect(sql).toMatch(/queue_p95|queue_wait/);
+    expect(sql).toMatch(/state = 'completed'/);
+    expect(sql).not.toMatch(/state IN \('queued','preparing'\)[\s\S]*queue_p95/);
+    expect(sql).not.toMatch(/queue_p95[\s\S]*state IN \('queued','preparing'\)/);
+    expect(sql).toMatch(/created_at/);
+    expect(sql).toMatch(/->>'at'|queue_wait_sec/);
+  });
+
+  it('queries heatmap and provider health from job model/provider', async () => {
+    const db = emptyDb();
+    const { svc } = makeService(db);
+    const out = await svc.get('production', { scope: 'me', staffId: 1 }) as {
+      heatmap: unknown;
+      provider_health: unknown;
+    };
+
+    const sql = sqlCalls(db);
+    expect(out.heatmap).toEqual(expect.any(Array));
+    expect(out.provider_health).toEqual(expect.any(Array));
+    expect(sql).toMatch(/heatmap|::date::text AS day/i);
+    expect(sql).toMatch(/j\.provider|j\.model/);
+    expect(sql).toMatch(/success_pct|GROUP BY/);
+  });
+});
+
+describe('CpReportsService credit pipeline', () => {
+  it('returns by_pipeline from the ledger query', async () => {
+    const db = {
+      query: jest.fn().mockImplementation(async (sql: string) => {
+        if (/cost_center|pipeline/i.test(sql) && /GROUP BY/i.test(sql)) {
+          return { rows: [{ pipeline: 'gen', kind: 'charge', amount: 12 }] };
+        }
+        return { rows: [] };
+      }),
+    };
+    const { svc } = makeService(db);
+    const out = await svc.get('credit', { scope: 'me', staffId: 1 }) as {
+      by_pipeline: Array<{ pipeline: string }>;
+    };
+
+    expect(out.by_pipeline).toEqual([
+      expect.objectContaining({ pipeline: 'gen' }),
+    ]);
+  });
+});

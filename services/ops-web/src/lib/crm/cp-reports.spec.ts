@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { exportCpReport, getCpReport } from './cp-api';
-import { CP_REPORT_TABS, MISSING_INGEST_COPY, sourcedDisplay } from './cp-format';
+import {
+  CP_REPORT_FILTERS,
+  CP_REPORT_SECTIONS,
+  CP_REPORT_TABS,
+  MISSING_INGEST_COPY,
+  dash,
+  sourcedDisplay,
+} from './cp-format';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -63,5 +70,40 @@ describe('CP_REPORT_TABS', () => {
       'performance',
       'governance',
     ]);
+  });
+});
+
+describe('report filters and empty sections', () => {
+  it('sends from/to/client on every slug including performance ingest', async () => {
+    const slugs = ['executive', 'production', 'credit', 'performance', 'governance'] as const;
+    for (const slug of slugs) {
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ slug }), { status: 200 }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await getCpReport('token', slug, {
+        scope: 'me',
+        from: '2026-09-01',
+        to: '2026-09-07',
+        client: 'client-1',
+      });
+
+      const url = String(fetchMock.mock.calls[0]?.[0] ?? '');
+      expect(url).toContain(`/reports/${slug}?`);
+      expect(url).toContain('from=2026-09-01');
+      expect(url).toContain('to=2026-09-07');
+      expect(url).toContain('client=client-1');
+      expect(url).not.toContain('lifecycle=');
+      expect(url).not.toContain('channel=');
+    }
+  });
+
+  it('keeps required sections visible as an em dash when empty', () => {
+    expect(dash(null)).toBe('—');
+    expect(CP_REPORT_SECTIONS.executive).toEqual(['trend', 'top_creative', 'project_health']);
+    expect(CP_REPORT_SECTIONS.production).toEqual(['heatmap', 'provider_health']);
+    expect(CP_REPORT_SECTIONS.credit).toEqual(['by_pipeline']);
+    expect(CP_REPORT_FILTERS).toEqual(['from', 'to', 'client']);
   });
 });
