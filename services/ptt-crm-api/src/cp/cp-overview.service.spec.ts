@@ -137,4 +137,23 @@ describe('CpOverviewService', () => {
     expect(out.kpis.credits_used).toBe(10);
     expect(out.kpis.credits_remaining).toBe(90);
   });
+
+  it('scopes Action Center budget ledger rows by project or unbound visible client', () => {
+    const sql = buildActionSql({ scope: 'me', staffId: 7 }).sql;
+
+    expect(sql).toContain(
+      'WHERE p.id = l.project_id AND p.agency_client_id = c.agency_client_id',
+    );
+    expect(sql).toContain(
+      'l.project_id IS NULL AND l.agency_client_id = c.agency_client_id',
+    );
+  });
+
+  it('filters Action Center mentions to the requesting staff', () => {
+    const built = buildActionSql({ scope: 'all', staffId: 7 });
+
+    expect(built.sql).toContain("a.payload_json->>'mentioned_staff_id'");
+    expect(built.sql).toContain("a.payload_json->>'recipient_staff_id'");
+    expect(built.params[0]).toBe(7);
+  });
 });

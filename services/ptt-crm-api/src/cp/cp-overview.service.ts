@@ -350,7 +350,7 @@ export function mapActionRows(rows: Array<Record<string, unknown>>): CpAction[] 
 export function buildActionSql(query: CpOverviewScope): OverviewSql {
   const scope = bindScope(
     cpScopeSql({ scope: query.scope, staffId: query.staffId, teamIds: query.teamIds ?? [] }),
-    1,
+    2,
   );
   return {
     sql: `WITH scoped_projects AS (
@@ -367,7 +367,14 @@ export function buildActionSql(query: CpOverviewScope): OverviewSql {
            FROM scoped_clients c
            JOIN crm_cp_credit_allocations a ON a.agency_client_id = c.agency_client_id
            LEFT JOIN crm_cp_credit_ledger l
-             ON l.agency_client_id = c.agency_client_id AND l.tenant_id = '${TENANT_ID}'
+             ON l.tenant_id = '${TENANT_ID}'
+            AND (
+              EXISTS (
+                SELECT 1 FROM scoped_projects p
+                 WHERE p.id = l.project_id AND p.agency_client_id = c.agency_client_id
+              )
+              OR (l.project_id IS NULL AND l.agency_client_id = c.agency_client_id)
+            )
           GROUP BY c.agency_client_id, c.owner_staff_id, a.allocated
        ),
        action_events AS (
@@ -375,6 +382,16 @@ export function buildActionSql(query: CpOverviewScope): OverviewSql {
            FROM crm_cp_activity a
           WHERE a.tenant_id = '${TENANT_ID}'
             AND a.action IN ('publish_failed', 'mention')
+            AND (
+              a.action <> 'mention'
+              OR (
+                $1::int > 0
+                AND (
+                  a.payload_json->>'mentioned_staff_id' = ($1::int)::text
+                  OR a.payload_json->>'recipient_staff_id' = ($1::int)::text
+                )
+              )
+            )
             AND EXISTS (
               SELECT 1 FROM scoped_projects p
                WHERE p.id::text = CASE
@@ -427,7 +444,7 @@ export function buildActionSql(query: CpOverviewScope): OverviewSql {
               COALESCE(e.payload_json->>'href', '/cp/activity')
          FROM action_events e
        ORDER BY severity, sla_at NULLS LAST`,
-    params: scope.params,
+    params: [query.staffId, ...scope.params],
   };
 }
 
@@ -745,9 +762,22 @@ class FixtureOverview {
 
   async getActions(query: CpOverviewScope): Promise<CpAction[]> {
     const projectIds = this.projectIds(query);
-    const rows = (this.fixtures.actions ?? []).filter((action) =>
-      this.resourceInProjects(action, projectIds),
-    );
+    const rows = (this.fixtures.actions ?? []).filter((action) => {
+      const kind = action.kind ?? action.action;
+      if (kind === 'mention') {
+        const payload =
+          action.payload_json && typeof action.payload_json === 'object'
+            ? (action.payload_json as Record<string, unknown>)
+            : null;
+        const recipient =
+          action.mentioned_staff_id ??
+          action.recipient_staff_id ??
+          payload?.mentioned_staff_id ??
+          payload?.recipient_staff_id;
+        if (query.staffId <= 0 || Number(recipient) !== query.staffId) return false;
+      }
+      return this.resourceInProjects(action, projectIds);
+    });
     return mapActionRows(rows);
   }
 
