@@ -24,21 +24,23 @@ export function CpOpsMonitor({
   const [health, setHealth] = useState<CpOverviewHealth | null>(null);
   const [error, setError] = useState('');
 
-  const loadHealth = useCallback(async () => {
+  const loadHealth = useCallback(async (quiet = false) => {
     const token = getAccessToken();
     if (!token) return;
     try {
       setHealth(await getOverviewHealth(token, { scope: currentScope }));
       setError('');
     } catch (caught) {
-      setHealth(null);
-      setError(formatCpApiError(caught, 'Không tải được sức khỏe sản xuất'));
+      if (!quiet) {
+        setHealth(null);
+        setError(formatCpApiError(caught, 'Không tải được sức khỏe sản xuất'));
+      }
     }
   }, [currentScope]);
 
   useEffect(() => {
     void loadHealth();
-    const pollTimer = window.setInterval(() => void loadHealth(), CP_RENDER_POLL_MS);
+    const pollTimer = window.setInterval(() => void loadHealth(true), CP_RENDER_POLL_MS);
     return () => window.clearInterval(pollTimer);
   }, [loadHealth]);
 
