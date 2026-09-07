@@ -140,6 +140,7 @@ export function spreadBulkSlots(
     if (weekdays.includes(isoWeekdayFromYmd(ymd))) {
       for (const stamp of slotsOnDay(ymd, nPerDay, windows, tz)) {
         if (slots.length >= count) break;
+        if (new Date(stamp).getTime() <= from.getTime()) continue;
         slots.push(stamp);
       }
     }
@@ -339,7 +340,7 @@ export class CpPublishService {
   async bulkSchedule(input: CpBulkInput, scope: CpVideoScope = DEFAULT_SCOPE) {
     const channel = requiredText(input.channel, 'channel_required');
     const tz = nullableText(input.tz) ?? CP_DEFAULT_TZ;
-    const versionIds = await this.resolveBulkVersionIds(input);
+    const versionIds = await this.resolveBulkVersionIds(input, scope);
     const profile = await this.loadProfile(channel);
     const accepted: Array<{ version: Record<string, unknown> }> = [];
     const skipped: CpBulkSkipped[] = [];
@@ -449,7 +450,7 @@ export class CpPublishService {
     return { ...(result.rows[0] ?? cpThrow(500, { error: 'update_failed' })), kind: 'video' };
   }
 
-  private async resolveBulkVersionIds(input: CpBulkInput): Promise<string[]> {
+  private async resolveBulkVersionIds(input: CpBulkInput, scope: CpVideoScope): Promise<string[]> {
     const ids: string[] = [];
     for (const value of input.video_version_ids ?? []) {
       const id = String(value ?? '').trim();
@@ -459,9 +460,15 @@ export class CpPublishService {
       .map((value) => String(value ?? '').trim())
       .filter((id) => isUuid(id));
     if (batchIds.length) {
+      const allowed = projectScope(scope, 3);
       const result = await this.db.query(
-        `SELECT id, row_json FROM crm_cp_batch_items WHERE id = ANY($1::uuid[])`,
-        [batchIds],
+        `SELECT i.id, i.row_json
+           FROM crm_cp_batch_items i
+           JOIN crm_cp_batch_jobs b ON b.id = i.batch_id
+           LEFT JOIN crm_cp_projects p ON p.id = b.project_id
+          WHERE i.id = ANY($1::uuid[])
+            AND (b.project_id IS NULL OR (p.tenant_id = $2 AND ${allowed.sql}))`,
+        [batchIds, CP_TENANT_ID, ...allowed.params],
       );
       for (const row of result.rows) {
         const versionId = versionIdFromBatch(row);

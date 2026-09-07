@@ -61,8 +61,15 @@ class PublishQuery {
   queriedVersionIds: unknown[] = [];
   versions: Record<string, unknown>[] = [];
   items: Record<string, unknown>[] = [];
-  batchItems: Array<{ id: string; video_version_id?: string; row_json?: Record<string, unknown> }> = [];
+  batchItems: Array<{
+    id: string;
+    video_version_id?: string;
+    row_json?: Record<string, unknown>;
+    outOfScope?: boolean;
+  }> = [];
   activity: Record<string, unknown>[] = [];
+  batchResolveSql = '';
+  batchResolveParams: unknown[] = [];
 
   async query(sql: string, params: unknown[] = []) {
     this.lastSql = sql;
@@ -121,8 +128,17 @@ class PublishQuery {
       return { rows: this.items };
     }
     if (sql.includes('FROM crm_cp_batch_items')) {
+      this.batchResolveSql = sql;
+      this.batchResolveParams = params;
+      const scoped = /crm_cp_batch_jobs/.test(sql) && /tenant_id/.test(sql);
       const ids = new Set((Array.isArray(params[0]) ? params[0] : [params[0]]).map(String));
-      return { rows: this.batchItems.filter((row) => ids.has(row.id)) };
+      return {
+        rows: this.batchItems.filter((row) => {
+          if (!ids.has(row.id)) return false;
+          if (row.outOfScope && scoped) return false;
+          return true;
+        }),
+      };
     }
     if (sql.includes('FROM crm_cp_activity')) {
       return { rows: this.activity };
@@ -344,6 +360,21 @@ describe('spreadBulkSlots', () => {
     expect(slots[1]).toBe('2026-09-07T03:00:00.000Z');
     expect(slots[2]).toBe('2026-09-14T02:00:00.000Z');
   });
+
+  it('skips elapsed same-day windows when from is after 11:00 ICT', () => {
+    const slots = spreadBulkSlots(2, {
+      n_per_day: 1,
+      windows: [{ start: '09:00', end: '11:00' }],
+      weekdays: [1, 2, 3, 4, 5],
+    }, 'Asia/Ho_Chi_Minh', new Date('2026-09-07T11:01:00+07:00'));
+
+    expect(slots).toHaveLength(2);
+    expect(slots[0]).toBe('2026-09-08T02:00:00.000Z');
+    expect(slots[1]).toBe('2026-09-09T02:00:00.000Z');
+    expect(new Date(slots[0]).getTime()).toBeGreaterThan(
+      new Date('2026-09-07T11:01:00+07:00').getTime(),
+    );
+  });
 });
 
 describe('CpPublishService deliver / retry / bulk', () => {
@@ -470,5 +501,60 @@ describe('CpPublishService deliver / retry / bulk', () => {
 
     expect(out.items).toHaveLength(1);
     expect(out.items[0]).toMatchObject({ video_version_id: VERSION_ID, status: 'scheduled' });
+    expect(db.batchResolveSql).toMatch(/crm_cp_batch_jobs/);
+    expect(db.batchResolveSql).toMatch(/tenant_id/);
+  });
+
+  it('bulk from after 11:00 ICT schedules the first item on the next weekday window', async () => {
+    const db = new PublishQuery();
+    const audit = new AuditPort();
+    const svc = new CpPublishService(new VersionPort() as never, db, audit as never);
+
+    const out = await svc.bulkSchedule({
+      video_version_ids: [VERSION_ID],
+      channel: 'tiktok',
+      tz: 'Asia/Ho_Chi_Minh',
+      from: '2026-09-07T11:01:00+07:00',
+      rule: {
+        n_per_day: 1,
+        windows: [{ start: '09:00', end: '11:00' }],
+        weekdays: [1, 2, 3, 4, 5],
+      },
+    }, SCOPE);
+
+    expect(out.items).toHaveLength(1);
+    expect(out.items[0]).toMatchObject({
+      status: 'scheduled',
+      scheduled_at: '2026-09-08T02:00:00.000Z',
+    });
+  });
+
+  it('does not resolve an out-of-scope batch_item_id to a video_version_id', async () => {
+    const db = new PublishQuery();
+    db.batchItems = [{
+      id: '88888888-8888-4888-8888-888888888888',
+      outOfScope: true,
+      row_json: { video_version_id: VERSION_ID },
+    }];
+    const audit = new AuditPort();
+    const svc = new CpPublishService(new VersionPort() as never, db, audit as never);
+    const meScope = { scope: 'me' as const, staffId: 9, teamIds: [] };
+
+    const out = await svc.bulkSchedule({
+      batch_item_ids: ['88888888-8888-4888-8888-888888888888'],
+      channel: 'tiktok',
+      from: '2026-09-08T08:00:00+07:00',
+      rule: { n_per_day: 1, windows: [{ start: '09:00', end: '10:00' }], weekdays: [1, 2] },
+    }, meScope);
+
+    expect(out.items).toHaveLength(0);
+    expect(db.insertedItems).toHaveLength(0);
+    expect(db.batchResolveSql).toMatch(/crm_cp_batch_jobs/);
+    expect(db.batchResolveSql).toMatch(/tenant_id/);
+    expect(db.batchResolveParams).toEqual(expect.arrayContaining([
+      ['88888888-8888-4888-8888-888888888888'],
+      'PTT',
+      9,
+    ]));
   });
 });
