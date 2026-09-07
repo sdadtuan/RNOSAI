@@ -5,7 +5,7 @@ export default function CreativeOsVideoDetailPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { scope?: string };
+  searchParams: { scope?: string; tab?: string };
 }) {
-  return <CpVideoStudio videoId={params.id} scope={searchParams.scope} />;
+  return <CpVideoStudio videoId={params.id} scope={searchParams.scope} tab={searchParams.tab} />;
 }

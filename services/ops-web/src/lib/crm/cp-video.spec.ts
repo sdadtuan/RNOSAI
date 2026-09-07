@@ -4,8 +4,12 @@ import {
   formatCpApiError,
   getCpVideoVersion,
   listCpRenders,
+  listCpScenes,
   parseCpScriptEditor,
+  patchCpTimeline,
   patchCpVideo,
+  putCpScenes,
+  regenerateCpScene,
   type CpVideoDraftInput,
 } from './cp-api';
 
@@ -79,6 +83,58 @@ describe('CP video API', () => {
       expect.any(Object),
     );
     expect(fetchMock.mock.calls[0]?.[0]).not.toContain('/api/crm/cp/videos/version-1?');
+  });
+
+  it('lists and replaces scenes on the draft scenes endpoint', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ idx: 0, title: 'Hook' }] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await listCpScenes('token', 'draft-1', 'team');
+    await putCpScenes('token', 'draft-1', {
+      scenes: [{ idx: 0, title: 'Hook', t_start: 0, t_end: 3, locked: false }],
+    }, 'team');
+
+    expect(fetchMock.mock.calls[0]?.[0]).toEqual(
+      expect.stringContaining('/api/crm/cp/videos/draft-1/scenes?scope=team'),
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toEqual(
+      expect.stringContaining('/api/crm/cp/videos/draft-1/scenes?scope=team'),
+    );
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({ method: 'PUT' }),
+    );
+  });
+
+  it('patches timeline through the revision endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ revision: 2, scenes: [] }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await patchCpTimeline('token', 'draft-1', {
+      scenes: [{ idx: 0, t_start: 1, t_end: 4 }],
+    }, 'all');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/crm/cp/videos/draft-1/timeline?scope=all'),
+      expect.objectContaining({ method: 'PATCH' }),
+    );
+  });
+
+  it('regenerates a scene through the scene regenerate endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ idx: 0, overlay: 'LOCKED OVERLAY', locked: true }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await regenerateCpScene('token', 'draft-1', 0, 'me');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/crm/cp/videos/draft-1/scenes/0/regenerate?scope=me'),
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 
   it('surfaces render_blocked reasons returned by the API', async () => {

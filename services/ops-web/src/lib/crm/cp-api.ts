@@ -293,6 +293,41 @@ export type CpVideoDraft = CpVideoDraftInput & {
   updated_at?: string | null;
 };
 
+export type CpScene = {
+  draft_id?: string;
+  idx: number;
+  title?: string | null;
+  t_start?: number | null;
+  t_end?: number | null;
+  visual?: string | null;
+  vo?: string | null;
+  overlay?: string | null;
+  locked?: boolean;
+  qc?: string | null;
+};
+
+export type CpSceneWrite = {
+  scenes: Array<Partial<CpScene> & { idx: number }>;
+};
+
+export type CpTimelineMusic = {
+  source?: string | null;
+  t_start?: number | null;
+  t_end?: number | null;
+  volume?: number | null;
+};
+
+export type CpTimelinePatch = {
+  scenes?: Array<Partial<CpScene> & { idx: number }>;
+  music?: CpTimelineMusic | null;
+};
+
+export type CpTimelineResult = {
+  revision: number | string;
+  scenes: CpScene[];
+  music?: CpTimelineMusic | null;
+};
+
 export type CpQcResult = 'passed' | 'warning' | 'blocked';
 
 export type CpQcCheckReport = {
@@ -954,6 +989,65 @@ export function compareCpVideoVersions(
       `/videos/versions/${encodeURIComponent(versionId)}/compare/${encodeURIComponent(otherId)}`,
       { scope },
     ),
+  );
+}
+
+export function listCpScenes(
+  token: string,
+  videoId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ items: CpScene[] }>(
+    token,
+    cpQueryPath(`/videos/${encodeURIComponent(videoId)}/scenes`, { scope }),
+  );
+}
+
+export function putCpScenes(
+  token: string,
+  videoId: string,
+  input: CpSceneWrite,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ items: CpScene[] }>(
+    token,
+    cpQueryPath(`/videos/${encodeURIComponent(videoId)}/scenes`, { scope }),
+    {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function patchCpTimeline(
+  token: string,
+  videoId: string,
+  input: CpTimelinePatch,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpTimelineResult>(
+    token,
+    cpQueryPath(`/videos/${encodeURIComponent(videoId)}/timeline`, { scope }),
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function regenerateCpScene(
+  token: string,
+  videoId: string,
+  idx: number,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpScene>(
+    token,
+    cpQueryPath(
+      `/videos/${encodeURIComponent(videoId)}/scenes/${encodeURIComponent(String(idx))}/regenerate`,
+      { scope },
+    ),
+    { method: 'POST' },
   );
 }
 

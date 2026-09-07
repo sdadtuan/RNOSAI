@@ -40,6 +40,28 @@ export type CpVideoVersionPatch = {
   approval_status?: string | null;
 };
 
+export type CpSceneInput = {
+  idx?: number;
+  title?: string | null;
+  t_start?: number | null;
+  t_end?: number | null;
+  visual?: string | null;
+  vo?: string | null;
+  overlay?: string | null;
+  locked?: boolean;
+  qc?: string | null;
+};
+
+export type CpTimelinePatch = {
+  scenes?: Array<CpSceneInput & { idx: number }>;
+  music?: {
+    source?: string | null;
+    t_start?: number | null;
+    t_end?: number | null;
+    volume?: number | null;
+  } | null;
+};
+
 @Injectable()
 export class CpVideosRepository implements CpVideosQueryPort, OnModuleDestroy {
   private pool: Pool | null = null;
@@ -208,6 +230,148 @@ export class CpVideosService {
     return updated;
   }
 
+  async listScenes(id: string, scope: CpVideoScope = DEFAULT_SCOPE) {
+    const draft = await this.get(id, scope);
+    const result = await this.db.query(
+      `SELECT *
+         FROM crm_cp_scenes
+        WHERE draft_id = $1::uuid
+        ORDER BY idx ASC`,
+      [draft.id],
+    );
+    return { items: result.rows };
+  }
+
+  async putScenes(
+    id: string,
+    input: { scenes?: CpSceneInput[] },
+    scope: CpVideoScope = DEFAULT_SCOPE,
+  ) {
+    const draft = await this.get(id, scope);
+    const scenes = parseScenes(input?.scenes);
+    const write = async (tx: CpVideosQueryPort) => {
+      await tx.query(
+        `DELETE FROM crm_cp_scenes WHERE draft_id = $1::uuid`,
+        [draft.id],
+      );
+      const items: Record<string, unknown>[] = [];
+      for (const scene of scenes) {
+        const inserted = await tx.query(
+          `INSERT INTO crm_cp_scenes (
+             draft_id, idx, title, t_start, t_end, visual, vo, overlay, locked, qc
+           ) VALUES (
+             $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10
+           )
+           RETURNING *`,
+          [
+            draft.id,
+            scene.idx,
+            scene.title,
+            scene.t_start,
+            scene.t_end,
+            scene.visual,
+            scene.vo,
+            scene.overlay,
+            scene.locked,
+            scene.qc,
+          ],
+        );
+        items.push(inserted.rows[0] ?? scene);
+      }
+      return { items };
+    };
+    if (this.db.transaction) return this.db.transaction(write);
+    return write(this.db);
+  }
+
+  async patchTimeline(
+    id: string,
+    input: CpTimelinePatch,
+    scope: CpVideoScope = DEFAULT_SCOPE,
+  ) {
+    const draft = await this.get(id, scope);
+    const write = async (tx: CpVideosQueryPort) => {
+      const scenes: Record<string, unknown>[] = [];
+      for (const patch of input.scenes ?? []) {
+        const idx = requiredIdx(patch.idx);
+        const found = await tx.query(
+          `SELECT *
+             FROM crm_cp_scenes
+            WHERE draft_id = $1::uuid AND idx = $2
+            LIMIT 1`,
+          [draft.id, idx],
+        );
+        const current = found.rows[0] ?? cpThrow(404, { error: 'not_found' });
+        const updated = await tx.query(
+          `UPDATE crm_cp_scenes
+              SET t_start = $3, t_end = $4
+            WHERE draft_id = $1::uuid AND idx = $2
+            RETURNING *`,
+          [
+            draft.id,
+            idx,
+            patch.t_start === undefined ? current.t_start ?? null : optionalNumber(patch.t_start, 'invalid_t_start'),
+            patch.t_end === undefined ? current.t_end ?? null : optionalNumber(patch.t_end, 'invalid_t_end'),
+          ],
+        );
+        scenes.push(updated.rows[0] ?? current);
+      }
+      const listed = scenes.length
+        ? scenes
+        : (await tx.query(
+          `SELECT * FROM crm_cp_scenes WHERE draft_id = $1::uuid ORDER BY idx ASC`,
+          [draft.id],
+        )).rows;
+      const config = asRecord(draft.config_json);
+      if (input.music !== undefined) config.music = input.music;
+      const bumped = await tx.query(
+        `UPDATE crm_cp_video_drafts
+            SET revision = revision + 1,
+                config_json = $2::jsonb,
+                autosaved_at = now()
+          WHERE id = $1::uuid
+          RETURNING *`,
+        [draft.id, JSON.stringify(config)],
+      );
+      const draftRow = bumped.rows[0] ?? draft;
+      return {
+        revision: draftRow.revision,
+        scenes: listed,
+        music: config.music ?? null,
+      };
+    };
+    if (this.db.transaction) return this.db.transaction(write);
+    return write(this.db);
+  }
+
+  async regenerateScene(
+    id: string,
+    idx: string | number,
+    scope: CpVideoScope = DEFAULT_SCOPE,
+  ) {
+    const draft = await this.get(id, scope);
+    const sceneIdx = requiredIdx(idx);
+    const found = await this.db.query(
+      `SELECT *
+         FROM crm_cp_scenes
+        WHERE draft_id = $1::uuid AND idx = $2
+        LIMIT 1`,
+      [draft.id, sceneIdx],
+    );
+    const scene = found.rows[0] ?? cpThrow(404, { error: 'not_found' });
+    if (isLocked(scene.locked)) return scene;
+
+    const generated = stubRegeneratedCopy(sceneIdx);
+    const updated = await this.db.query(
+      `UPDATE crm_cp_scenes
+          SET visual = $3, vo = $4, overlay = $5
+        WHERE draft_id = $1::uuid AND idx = $2
+        RETURNING *`,
+      [draft.id, sceneIdx, generated.visual, generated.vo, generated.overlay],
+    );
+    return updated.rows[0] ?? { ...scene, ...generated };
+  }
+
   async patchVersion(
     id: string,
     patch: CpVideoVersionPatch,
@@ -307,6 +471,68 @@ function projectScope(scope: CpVideoScope, startAt: number) {
     sql: raw.sql.replaceAll(token, `$${startAt}`),
     params: raw.params,
   };
+}
+
+function parseScenes(value: unknown): Array<Required<Pick<CpSceneInput, 'idx'>> & CpSceneInput> {
+  if (value == null) return [];
+  if (!Array.isArray(value)) cpThrow(400, { error: 'invalid_scenes' });
+  const seen = new Set<number>();
+  return value.map((item, index) => {
+    const scene = item && typeof item === 'object' && !Array.isArray(item)
+      ? item as CpSceneInput
+      : cpThrow(400, { error: 'invalid_scenes' });
+    const idx = scene.idx === undefined ? index : requiredIdx(scene.idx);
+    if (seen.has(idx)) cpThrow(400, { error: 'duplicate_scene_idx' });
+    seen.add(idx);
+    return {
+      idx,
+      title: nullableText(scene.title),
+      t_start: optionalNumber(scene.t_start, 'invalid_t_start'),
+      t_end: optionalNumber(scene.t_end, 'invalid_t_end'),
+      visual: nullableText(scene.visual),
+      vo: nullableText(scene.vo),
+      overlay: clipOverlay(nullableText(scene.overlay)),
+      locked: Boolean(scene.locked),
+      qc: nullableText(scene.qc),
+    };
+  });
+}
+
+function requiredIdx(value: unknown): number {
+  const idx = Number(value);
+  if (!Number.isInteger(idx) || idx < 0) cpThrow(400, { error: 'invalid_scene_idx' });
+  return idx;
+}
+
+function optionalNumber(value: unknown, error: string): number | null {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) cpThrow(400, { error });
+  return number;
+}
+
+function clipOverlay(value: string | null, max = 42): string | null {
+  if (value == null) return null;
+  return value.slice(0, max);
+}
+
+function stubRegeneratedCopy(idx: number) {
+  return {
+    visual: `Regenerated visual ${idx}`,
+    vo: `Regenerated VO ${idx}`,
+    overlay: `Scene ${idx}`,
+  };
+}
+
+function isLocked(value: unknown): boolean {
+  return value === true || value === 't' || value === 'true';
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return { ...(value as Record<string, unknown>) };
+  }
+  return {};
 }
 
 function parseInputMode(value: unknown): (typeof INPUT_MODES)[number] {

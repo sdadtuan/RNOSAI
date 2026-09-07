@@ -645,3 +645,78 @@ html.ops-shell-bitrix body:has(.cp-root) .bitrix-crm-page__inner {
     grid-template-columns: repeat(4, minmax(120px, 1fr));
   }
 }
+
+.cp-storyboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.cp-storyboard .cp-card {
+  display: grid;
+  gap: 8px;
+}
+
+.cp-storyboard label,
+.cp-tracks + .cp-table-wrap + label {
+  display: grid;
+  gap: 4px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cp-storyboard input,
+.cp-storyboard textarea,
+.cp-tracks + .cp-table-wrap input,
+.cp-tracks + .cp-table-wrap + label input {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  padding: 6px 8px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+}
+
+.cp-tracks {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.cp-track {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.cp-track b {
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.cp-track__bar {
+  position: relative;
+  min-height: 28px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #e5e7eb;
+}
+
+.cp-clip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  overflow: hidden;
+  border-radius: 6px;
+  padding: 0 6px;
+  background: var(--cp-accent);
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

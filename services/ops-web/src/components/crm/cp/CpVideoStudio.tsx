@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
+import { CpStoryboard } from './CpStoryboard';
+import { CpTimeline } from './CpTimeline';
 import {
   createCpRender,
   formatCpApiError,
@@ -62,11 +64,14 @@ function configFrom(value: unknown): StudioConfig {
 export function CpVideoStudio({
   videoId,
   scope: scopeValue,
+  tab: tabValue,
 }: {
   videoId: string;
   scope?: string;
+  tab?: string;
 }) {
   const scope = scopeFrom(scopeValue);
+  const tab = tabValue === 'storyboard' || tabValue === 'timeline' ? tabValue : 'studio';
   const [draft, setDraft] = useState<CpVideoDraft | null>(null);
   const [kits, setKits] = useState<CpBrandKit[]>([]);
   const [name, setName] = useState('');
@@ -206,7 +211,16 @@ export function CpVideoStudio({
       {error ? <section className="cp-card cp-card--error"><p>{error}</p></section> : null}
       {notice ? <section className="cp-alert">{notice}</section> : null}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(0, 1.6fr) minmax(240px, 1fr)', gap: 12 }}>
+      <nav className="cp-settings-tabs" aria-label="Video studio">
+        <Link className={tab === 'studio' ? 'cp-btn cp-btn--primary' : 'cp-btn'} href={`/crm/creative-os/video/${videoId}?scope=${scope}`}>Studio</Link>
+        <Link className={tab === 'storyboard' ? 'cp-btn cp-btn--primary' : 'cp-btn'} href={`/crm/creative-os/video/${videoId}?scope=${scope}&tab=storyboard`}>Storyboard</Link>
+        <Link className={tab === 'timeline' ? 'cp-btn cp-btn--primary' : 'cp-btn'} href={`/crm/creative-os/video/${videoId}?scope=${scope}&tab=timeline`}>Timeline</Link>
+      </nav>
+
+      {tab === 'storyboard' ? <CpStoryboard videoId={videoId} scope={scope} /> : null}
+      {tab === 'timeline' ? <CpTimeline videoId={videoId} scope={scope} /> : null}
+
+      {tab === 'studio' ? <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(0, 1.6fr) minmax(240px, 1fr)', gap: 12 }}>
         <section className="cp-card">
           <div className="cp-filters">
             {(['prompt', 'script', 'url'] as CpVideoInputMode[]).map((item) => (
@@ -250,7 +264,7 @@ export function CpVideoStudio({
             <label><span>Ước tính credit</span><input min="0" step="1" type="number" value={config.estimated_credits} onChange={(event) => setConfigField('estimated_credits', event.target.value)} placeholder="—" /></label>
           </div>
         </section>
-      </div>
+      </div> : null}
     </div>
   );
 }

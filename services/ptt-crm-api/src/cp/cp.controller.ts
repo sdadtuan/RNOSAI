@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -39,7 +40,12 @@ import { CpSettingsPatch, CpSettingsService } from './cp-settings.service';
 import { CpApprovalsService, CpApprovalInput, isLegalApprovalInput } from './cp-approvals.service';
 import { CpCommentInput, CpCommentsService } from './cp-comments.service';
 import { CpQcService, QcFacts } from './cp-qc.service';
-import { CpVideoDraftInput, CpVideosService } from './cp-videos.service';
+import {
+  CpSceneInput,
+  CpTimelinePatch,
+  CpVideoDraftInput,
+  CpVideosService,
+} from './cp-videos.service';
 import {
   RequireCpAction,
   RequireCpSection,
@@ -360,6 +366,49 @@ export class CpController {
     @Query('scope') scope?: CpScope,
   ) {
     return this.approvals.compareVersions(id, otherId, await this.scope(req, scope));
+  }
+
+  @Get('videos/:id/scenes')
+  @RequireCpAction('view')
+  async listVideoScenes(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.videos.listScenes(id, await this.scope(req, scope));
+  }
+
+  @Put('videos/:id/scenes')
+  @RequireCpAction('edit')
+  async putVideoScenes(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { scenes?: CpSceneInput[] },
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.videos.putScenes(id, body ?? {}, await this.scope(req, scope));
+  }
+
+  @Patch('videos/:id/timeline')
+  @RequireCpAction('edit')
+  async patchVideoTimeline(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpTimelinePatch,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.videos.patchTimeline(id, body ?? {}, await this.scope(req, scope));
+  }
+
+  @Post('videos/:id/scenes/:n/regenerate')
+  @RequireCpAction('edit')
+  async regenerateVideoScene(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('n') n: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.videos.regenerateScene(id, n, await this.scope(req, scope));
   }
 
   @Get('videos/:id')
