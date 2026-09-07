@@ -67,6 +67,8 @@ export interface CpProjectsDb {
   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
 }
 
+export type CpProjectCursor = { created_at: string; id: string };
+
 @Injectable()
 export class CpProjectsRepository implements CpProjectsDb, OnModuleDestroy {
   private pool: Pool | null = null;
@@ -80,6 +82,24 @@ export class CpProjectsRepository implements CpProjectsDb, OnModuleDestroy {
 
   query(sql: string, params?: unknown[]) {
     return this.db.query(sql, params);
+  }
+
+  async transaction<T>(work: (tx: CpProjectsDb) => Promise<T>): Promise<T> {
+    const client = await this.db.connect();
+    const tx: CpProjectsDb = {
+      query: (sql, params) => client.query(sql, params),
+    };
+    try {
+      await client.query('BEGIN');
+      const result = await work(tx);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   onModuleDestroy(): void {
@@ -104,7 +124,9 @@ export class CpProjectsService {
     );
     const ownerStaffId = requiredPositiveInt(input.owner_staff_id, 'owner_staff_id_required');
     const status = projectStatus(input.status ?? 'draft');
+    const lifecycleId = nullableText(input.lifecycle_id);
     await this.requireClient(clientId);
+    if (lifecycleId) await this.requireLifecycle(lifecycleId);
 
     const result = await this.db.query(
       `INSERT INTO crm_cp_projects (
@@ -117,7 +139,7 @@ export class CpProjectsService {
       [
         CP_TENANT_ID,
         clientId,
-        nullableText(input.lifecycle_id),
+        lifecycleId,
         ownerStaffId,
         name,
         nullableText(input.industry),
@@ -164,8 +186,9 @@ export class CpProjectsService {
       where += ` AND (p.name ILIKE $${params.length} OR COALESCE(p.objective, '') ILIKE $${params.length})`;
     }
     if (query.cursor) {
-      params.push(query.cursor);
-      where += ` AND p.id::text < $${params.length}`;
+      const cursor = decodeProjectCursor(query.cursor);
+      params.push(cursor.created_at, cursor.id);
+      where += ` AND (p.created_at, p.id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`;
     }
     params.push(PAGE_SIZE + 1);
     const result = await this.db.query(
@@ -180,7 +203,12 @@ export class CpProjectsService {
     const items = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
     return {
       items,
-      next_cursor: hasMore ? String(items[items.length - 1]?.id ?? '') : null,
+      next_cursor: hasMore
+        ? encodeProjectCursor({
+            created_at: iso(items[items.length - 1]?.created_at),
+            id: String(items[items.length - 1]?.id ?? ''),
+          })
+        : null,
     };
   }
 
@@ -204,10 +232,15 @@ export class CpProjectsService {
   }
 
   async patch(id: string, input: CpPatchProjectInput, scope: CpProjectScope) {
-    const current = await this.get(id, scope);
-    const projectId = String(current.id);
+    const projectId = requiredUuid(id, 'invalid_project_id', 'invalid_project_id');
+    const current = await this.loadProject(projectId, scope);
     const status =
       input.status === undefined ? String(current.status) : projectStatus(input.status);
+    const lifecycleId =
+      input.lifecycle_id === undefined ? current.lifecycle_id : nullableText(input.lifecycle_id);
+    if (input.lifecycle_id !== undefined && lifecycleId) {
+      await this.requireLifecycle(String(lifecycleId));
+    }
     const result = await this.db.query(
       `UPDATE crm_cp_projects SET
          lifecycle_id = $3, owner_staff_id = $4, name = $5, industry = $6,
@@ -218,7 +251,7 @@ export class CpProjectsService {
       [
         CP_TENANT_ID,
         projectId,
-        input.lifecycle_id === undefined ? current.lifecycle_id : nullableText(input.lifecycle_id),
+        lifecycleId,
         input.owner_staff_id === undefined
           ? current.owner_staff_id
           : requiredPositiveInt(input.owner_staff_id, 'owner_staff_id_required'),
@@ -244,40 +277,45 @@ export class CpProjectsService {
     scope: CpProjectScope,
     actorId: number | null = null,
   ) {
-    const current = await this.get(id, scope);
-    const projectId = String(current.id);
-    const pending = await this.db.query(
-      `SELECT id::text FROM crm_cp_deliverables
-        WHERE project_id = $1::uuid AND status = ANY($2::text[])
-        LIMIT 1`,
-      [projectId, [...PENDING_DELIVERABLE_STATUSES]],
-    );
-    if (pending.rows[0] && input.archive_pending !== true) {
-      cpThrow(409, { error: 'pending_deliverables' });
-    }
-    if (pending.rows[0]) {
-      await this.db.query(
-        `UPDATE crm_cp_deliverables SET status = 'archived'
-          WHERE project_id = $1::uuid AND status = ANY($2::text[])`,
+    const projectId = requiredUuid(id, 'invalid_project_id', 'invalid_project_id');
+    return this.db.transaction(async (tx) => {
+      await this.loadProject(projectId, scope, tx, true);
+      const pending = await tx.query(
+        `SELECT id::text FROM crm_cp_deliverables
+          WHERE project_id = $1::uuid AND status = ANY($2::text[])
+          LIMIT 1`,
         [projectId, [...PENDING_DELIVERABLE_STATUSES]],
       );
-    }
-    const updated = await this.db.query(
-      `UPDATE crm_cp_projects
-          SET status = 'completed', updated_at = now()
-        WHERE tenant_id = $1 AND id = $2::uuid
-        RETURNING *`,
-      [CP_TENANT_ID, projectId],
-    );
-    const project = updated.rows[0] ?? cpThrow(404, { error: 'not_found' });
-    await this.audit.insert({
-      actor_id: actorId,
-      action: 'project.close',
-      resource_type: 'project',
-      resource_id: projectId,
-      payload_json: { archive_pending: input.archive_pending === true },
+      if (pending.rows[0] && input.archive_pending !== true) {
+        cpThrow(409, { error: 'pending_deliverables' });
+      }
+      if (pending.rows[0]) {
+        await tx.query(
+          `UPDATE crm_cp_deliverables SET status = 'archived'
+            WHERE project_id = $1::uuid AND status = ANY($2::text[])`,
+          [projectId, [...PENDING_DELIVERABLE_STATUSES]],
+        );
+      }
+      const updated = await tx.query(
+        `UPDATE crm_cp_projects
+            SET status = 'completed', updated_at = now()
+          WHERE tenant_id = $1 AND id = $2::uuid
+          RETURNING *`,
+        [CP_TENANT_ID, projectId],
+      );
+      const project = updated.rows[0] ?? cpThrow(404, { error: 'not_found' });
+      await this.audit.insert(
+        {
+          actor_id: actorId,
+          action: 'project.close',
+          resource_type: 'project',
+          resource_id: projectId,
+          payload_json: { archive_pending: input.archive_pending === true },
+        },
+        tx,
+      );
+      return project;
     });
-    return project;
   }
 
   async listBriefs(id: string, scope: CpProjectScope) {
@@ -290,22 +328,25 @@ export class CpProjectsService {
   }
 
   async addBrief(id: string, input: CpBriefInput, scope: CpProjectScope, actorId: number) {
-    const project = await this.get(id, scope);
+    const projectId = requiredUuid(id, 'invalid_project_id', 'invalid_project_id');
     if (input.body_json === undefined) cpThrow(400, { error: 'body_json_required' });
-    const createdBy = actorId > 0 ? actorId : Number(project.owner_staff_id);
-    const result = await this.db.query(
-      `INSERT INTO crm_cp_briefs (project_id, version, body_json, approval_status, created_by)
-       SELECT $1::uuid, COALESCE(MAX(version), 0) + 1, $2::jsonb, $3, $4
-         FROM crm_cp_briefs WHERE project_id = $1::uuid
-       RETURNING *`,
-      [
-        project.id,
-        JSON.stringify(input.body_json),
-        nullableText(input.approval_status) ?? 'draft',
-        requiredPositiveInt(createdBy, 'created_by_required'),
-      ],
-    );
-    return result.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+    return this.db.transaction(async (tx) => {
+      const project = await this.loadProject(projectId, scope, tx, true);
+      const createdBy = actorId > 0 ? actorId : Number(project.owner_staff_id);
+      const result = await tx.query(
+        `INSERT INTO crm_cp_briefs (project_id, version, body_json, approval_status, created_by)
+         SELECT $1::uuid, COALESCE(MAX(version), 0) + 1, $2::jsonb, $3, $4
+           FROM crm_cp_briefs WHERE project_id = $1::uuid
+         RETURNING *`,
+        [
+          project.id,
+          JSON.stringify(input.body_json),
+          nullableText(input.approval_status) ?? 'draft',
+          requiredPositiveInt(createdBy, 'created_by_required'),
+        ],
+      );
+      return result.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+    });
   }
 
   async listDeliverables(id: string, scope: CpProjectScope) {
@@ -396,7 +437,23 @@ export class CpProjectsService {
     if (!found.rows[0]) cpThrow(400, { error: 'client_not_found' });
   }
 
-  private async loadProject(projectId: string, scope: CpProjectScope) {
+  private async requireLifecycle(lifecycleId: string): Promise<void> {
+    if (!/^[1-9]\d*$/.test(lifecycleId)) {
+      cpThrow(400, { error: 'lifecycle_not_found' });
+    }
+    const found = await this.db.query(
+      `SELECT id FROM crm_service_lifecycle WHERE id = $1 LIMIT 1`,
+      [Number(lifecycleId)],
+    );
+    if (!found.rows[0]) cpThrow(400, { error: 'lifecycle_not_found' });
+  }
+
+  private async loadProject(
+    projectId: string,
+    scope: CpProjectScope,
+    db: CpProjectsDb = this.db,
+    forUpdate = false,
+  ) {
     const bound = bindScope(
       cpScopeSql({
         scope: scope.scope,
@@ -405,10 +462,10 @@ export class CpProjectsService {
       }),
       3,
     );
-    const result = await this.db.query(
+    const result = await db.query(
       `SELECT p.* FROM crm_cp_projects p
         WHERE p.tenant_id = $1 AND p.id = $2::uuid AND ${bound.sql}
-        LIMIT 1`,
+        LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
       [CP_TENANT_ID, projectId, ...bound.params],
     );
     return result.rows[0] ?? cpThrow(404, { error: 'not_found' });
@@ -432,12 +489,39 @@ export class CpProjectsService {
     );
     const risk = result.rows[0] ?? {};
     const creditBudget = Number(budget);
-    return (
-      risk.overdue === true ||
-      (Number.isFinite(creditBudget) &&
-        creditBudget > 0 &&
-        Number(risk.credit_used ?? 0) * 100 >= creditBudget * 80)
-    );
+    return projectIsAtRisk(risk, creditBudget);
+  }
+}
+
+export function projectIsAtRisk(
+  risk: { overdue?: unknown; credit_used?: unknown },
+  budget: unknown,
+): boolean {
+  const creditBudget = Number(budget);
+  return (
+    risk.overdue === true ||
+    (Number.isFinite(creditBudget) &&
+      creditBudget > 0 &&
+      Number(risk.credit_used ?? 0) * 100 >= creditBudget * 80)
+  );
+}
+
+export function encodeProjectCursor(cursor: CpProjectCursor): string {
+  return Buffer.from(JSON.stringify(cursor)).toString('base64url');
+}
+
+export function decodeProjectCursor(cursor: string): CpProjectCursor {
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+      created_at?: unknown;
+      id?: unknown;
+    };
+    const createdAt = String(parsed.created_at ?? '');
+    const id = String(parsed.id ?? '');
+    if (!Number.isFinite(Date.parse(createdAt)) || !isUuid(id)) throw new Error('invalid');
+    return { created_at: createdAt, id };
+  } catch {
+    cpThrow(400, { error: 'invalid_cursor' });
   }
 }
 
@@ -455,6 +539,14 @@ function nullableText(value: unknown): string | null {
   if (value == null) return null;
   const text = String(value).trim();
   return text || null;
+}
+
+function iso(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  const text = String(value ?? '');
+  const timestamp = Date.parse(text);
+  if (!Number.isFinite(timestamp)) cpThrow(500, { error: 'invalid_project_timestamp' });
+  return new Date(timestamp).toISOString();
 }
 
 function requiredPositiveInt(value: unknown, error: string): number {

@@ -13,6 +13,10 @@ export type CpAuditInsert = {
   ip?: string | null;
 };
 
+export type CpAuditQueryPort = {
+  query(sql: string, params?: unknown[]): Promise<unknown>;
+};
+
 @Injectable()
 export class CpAuditRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
@@ -31,8 +35,8 @@ export class CpAuditRepository implements OnModuleDestroy {
     this.pool = null;
   }
 
-  async insert(input: CpAuditInsert): Promise<void> {
-    await this.db.query(
+  async insert(input: CpAuditInsert, query: CpAuditQueryPort = this.db): Promise<void> {
+    await query.query(
       `INSERT INTO crm_cp_activity (
          tenant_id, actor_id, action, resource_type, resource_id, payload_json, ip
        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
