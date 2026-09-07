@@ -145,6 +145,7 @@ export class CpVideosService {
     return {
       ...draft,
       has_completed_version: await this.hasCompletedVersion(String(draft.id)),
+      latest_version_id: await this.latestVersionId(String(draft.id)),
     };
   }
 
@@ -458,6 +459,19 @@ export class CpVideosService {
     } else {
       await invalidate(this.db);
     }
+  }
+
+  private async latestVersionId(draftId: string): Promise<string | null> {
+    const result = await this.db.query(
+      `SELECT v.id AS latest_version_id
+         FROM crm_cp_video_versions v
+        WHERE v.draft_id = $1::uuid
+        ORDER BY v.version_n DESC, v.id DESC
+        LIMIT 1`,
+      [draftId],
+    );
+    const id = result.rows[0]?.latest_version_id ?? result.rows[0]?.id;
+    return id == null ? null : String(id);
   }
 
   private async hasCompletedVersion(draftId: string) {

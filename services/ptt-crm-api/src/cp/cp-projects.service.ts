@@ -11,6 +11,33 @@ const PROJECT_STATUSES = ['draft', 'active', 'at_risk', 'in_review', 'completed'
 const DELIVERABLE_TYPES = ['ai_video', 'motion', 'social', 'landing_asset', 'human_video'] as const;
 const PENDING_DELIVERABLE_STATUSES = ['draft', 'queued', 'rendering', 'in_review'] as const;
 const PAGE_SIZE = 50;
+const PORTFOLIO_SELECT = `
+  SELECT p.*,
+         c.name AS client_name,
+         s.name AS owner_name,
+         sl.service_slug AS lifecycle_name,
+         COALESCE(d.deliverable_done, 0)::int AS deliverable_done,
+         COALESCE(d.deliverable_total, 0)::int AS deliverable_total,
+         COALESCE(led.credit_used, 0) AS credit_used
+    FROM crm_cp_projects p
+    LEFT JOIN clients c ON c.id = p.agency_client_id
+    LEFT JOIN crm_staff s ON s.id = p.owner_staff_id
+    LEFT JOIN crm_service_lifecycle sl
+      ON p.lifecycle_id IS NOT NULL AND sl.id::text = p.lifecycle_id
+    LEFT JOIN (
+      SELECT project_id,
+             COUNT(*) FILTER (WHERE status IS DISTINCT FROM 'archived')::int AS deliverable_total,
+             COUNT(*) FILTER (WHERE status IN ('completed', 'final'))::int AS deliverable_done
+        FROM crm_cp_deliverables
+       GROUP BY project_id
+    ) d ON d.project_id = p.id
+    LEFT JOIN (
+      SELECT project_id, COALESCE(SUM(amount), 0) AS credit_used
+        FROM crm_cp_credit_ledger
+       WHERE tenant_id = 'PTT' AND kind IN ('charge', 'reserve')
+       GROUP BY project_id
+    ) led ON led.project_id = p.id
+`;
 
 export type CpProjectScope = {
   scope: CpScope;
@@ -31,6 +58,7 @@ export type CpCreateProjectInput = {
   credit_budget?: number | null;
   cost_center?: string | null;
   tags?: string[];
+  member_staff_ids?: number[];
 };
 
 export type CpPatchProjectInput = Partial<Omit<CpCreateProjectInput, 'agency_client_id'>>;
@@ -38,6 +66,9 @@ export type CpProjectsListQuery = CpProjectScope & {
   status?: string;
   q?: string;
   cursor?: string;
+  client?: string;
+  owner?: string;
+  lifecycle?: string;
 };
 export type CpCloseProjectInput = { archive_pending?: boolean };
 export type CpBriefInput = { body_json?: unknown; approval_status?: string };
@@ -166,7 +197,46 @@ export class CpProjectsService {
       resource_id: String(project.id),
       payload_json: { agency_client_id: clientId, name },
     });
+    await this.replaceMembers(String(project.id), ownerStaffId, input.member_staff_ids);
     return project;
+  }
+
+  async lookups() {
+    const [clients, staff, lifecycles] = await Promise.all([
+      this.db.query(
+        `SELECT id::text, name, industry_slug AS industry
+           FROM clients
+          WHERE status NOT IN ('archived', 'offboarding')
+          ORDER BY name ASC`,
+      ),
+      this.db.query(
+        `SELECT id, name, job_title
+           FROM crm_staff
+          WHERE active IS TRUE
+          ORDER BY name ASC`,
+      ),
+      this.db.query(
+        `SELECT id::text, service_slug
+           FROM crm_service_lifecycle
+          ORDER BY id DESC`,
+      ),
+    ]);
+    return {
+      clients: clients.rows.map((row) => ({
+        id: String(row.id),
+        name: String(row.name ?? ''),
+        industry: row.industry == null ? null : String(row.industry),
+      })),
+      staff: staff.rows.map((row) => ({
+        id: Number(row.id),
+        name: String(row.name ?? ''),
+        job_title: row.job_title == null ? null : String(row.job_title),
+      })),
+      lifecycles: lifecycles.rows.map((row) => ({
+        id: String(row.id),
+        service_slug: row.service_slug == null ? null : String(row.service_slug),
+      })),
+    };
   }
 
   async importFromB2b(actorId: number) {
@@ -246,42 +316,19 @@ export class CpProjectsService {
   }
 
   async list(query: CpProjectsListQuery) {
-    const params: unknown[] = [CP_TENANT_ID];
-    const scope = bindScope(
-      cpScopeSql({
-        scope: query.scope,
-        staffId: query.staffId,
-        teamIds: query.teamIds ?? [],
-      }),
-      params.length + 1,
-    );
-    params.push(...scope.params);
-    let where = `p.tenant_id = $1 AND ${scope.sql}`;
-    if (query.status) {
-      params.push(projectStatus(query.status));
-      where += ` AND p.status = $${params.length}`;
-    }
-    const search = nullableText(query.q);
-    if (search) {
-      params.push(`%${search}%`);
-      where += ` AND (p.name ILIKE $${params.length} OR COALESCE(p.objective, '') ILIKE $${params.length})`;
-    }
-    if (query.cursor) {
-      const cursor = decodeProjectCursor(query.cursor);
-      params.push(cursor.created_at, cursor.id);
-      where += ` AND (p.created_at, p.id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`;
-    }
-    params.push(PAGE_SIZE + 1);
+    const itemsQuery = this.portfolioFrom(query, { applyStatus: true, applyCursor: true });
+    itemsQuery.params.push(PAGE_SIZE + 1);
     const result = await this.db.query(
-      `SELECT p.* FROM crm_cp_projects p
-        WHERE ${where}
+      `${PORTFOLIO_SELECT}
+        WHERE ${itemsQuery.where}
         ORDER BY p.created_at DESC, p.id DESC
-        LIMIT $${params.length}`,
-      params,
+        LIMIT $${itemsQuery.params.length}`,
+      itemsQuery.params,
     );
     const rows = result.rows;
     const hasMore = rows.length > PAGE_SIZE;
     const items = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+    const summary = await this.portfolioSummary(query);
     return {
       items,
       next_cursor: hasMore
@@ -290,6 +337,7 @@ export class CpProjectsService {
             id: String(items[items.length - 1]?.id ?? ''),
           })
         : null,
+      summary,
     };
   }
 
@@ -310,7 +358,7 @@ export class CpProjectsService {
       );
       project = result.rows[0] ?? (await this.loadProject(projectId, scope));
     }
-    return project;
+    return this.decorateWorkspace(project);
   }
 
   async patch(id: string, input: CpPatchProjectInput, scope: CpProjectScope) {
@@ -439,7 +487,11 @@ export class CpProjectsService {
   async listDeliverables(id: string, scope: CpProjectScope) {
     const project = await this.get(id, scope);
     const result = await this.db.query(
-      `SELECT * FROM crm_cp_deliverables WHERE project_id = $1::uuid ORDER BY due_at, id`,
+      `SELECT d.*, s.name AS owner_name
+         FROM crm_cp_deliverables d
+         LEFT JOIN crm_staff s ON s.id = d.owner_staff_id
+        WHERE d.project_id = $1::uuid
+        ORDER BY d.due_at, d.id`,
       [project.id],
     );
     return { items: result.rows };
@@ -484,7 +536,11 @@ export class CpProjectsService {
   async listTasks(id: string, scope: CpProjectScope) {
     const project = await this.get(id, scope);
     const result = await this.db.query(
-      `SELECT * FROM crm_cp_tasks WHERE project_id = $1::uuid ORDER BY created_at DESC`,
+      `SELECT t.*, s.name AS assignee_name
+         FROM crm_cp_tasks t
+         LEFT JOIN crm_staff s ON s.id = t.assignee_id
+        WHERE t.project_id = $1::uuid
+        ORDER BY t.created_at DESC`,
       [project.id],
     );
     return { items: result.rows };
@@ -577,6 +633,35 @@ export class CpProjectsService {
     }
   }
 
+  private async replaceMembers(
+    projectId: string,
+    ownerStaffId: number,
+    memberStaffIds: unknown,
+  ) {
+    const ids = new Set<number>([ownerStaffId]);
+    const extras = Array.isArray(memberStaffIds) ? memberStaffIds : [];
+    for (const value of extras) {
+      ids.add(requiredPositiveInt(value, 'invalid_member_staff_id'));
+    }
+    for (const staffId of ids) {
+      await this.requireStaff(staffId);
+      await this.db.query(
+        `INSERT INTO crm_cp_project_members (project_id, staff_id, role)
+         VALUES ($1::uuid, $2, 'editor')
+         ON CONFLICT DO NOTHING`,
+        [projectId, staffId],
+      );
+    }
+  }
+
+  private async requireStaff(staffId: number): Promise<void> {
+    const found = await this.db.query(
+      `SELECT id FROM crm_staff WHERE id = $1 AND active IS TRUE LIMIT 1`,
+      [staffId],
+    );
+    if (!found.rows[0]) cpThrow(400, { error: 'staff_not_found' });
+  }
+
   private async requireClient(clientId: string): Promise<void> {
     const found = await this.db.query(`SELECT id::text FROM clients WHERE id = $1::uuid LIMIT 1`, [
       clientId,
@@ -593,6 +678,189 @@ export class CpProjectsService {
       [Number(lifecycleId)],
     );
     if (!found.rows[0]) cpThrow(400, { error: 'lifecycle_not_found' });
+  }
+
+  private portfolioFrom(
+    query: CpProjectsListQuery,
+    opts: { applyStatus: boolean; applyCursor: boolean },
+  ) {
+    const params: unknown[] = [CP_TENANT_ID];
+    const scope = bindScope(
+      cpScopeSql({
+        scope: query.scope,
+        staffId: query.staffId,
+        teamIds: query.teamIds ?? [],
+      }),
+      params.length + 1,
+    );
+    params.push(...scope.params);
+    let where = `p.tenant_id = $1 AND ${scope.sql}`;
+    if (opts.applyStatus && query.status) {
+      params.push(projectStatus(query.status));
+      where += ` AND p.status = $${params.length}`;
+    }
+    const search = nullableText(query.q);
+    if (search) {
+      params.push(`%${search}%`);
+      where += ` AND (p.name ILIKE $${params.length} OR COALESCE(p.objective, '') ILIKE $${params.length})`;
+    }
+    const client = nullableText(query.client);
+    if (client) {
+      params.push(isUuid(client) ? client : `%${client}%`);
+      where += isUuid(client)
+        ? ` AND p.agency_client_id = $${params.length}::uuid`
+        : ` AND c.name ILIKE $${params.length}`;
+    }
+    const owner = nullableText(query.owner);
+    if (owner) {
+      if (/^[1-9]\d*$/.test(owner)) {
+        params.push(Number(owner));
+        where += ` AND p.owner_staff_id = $${params.length}`;
+      } else {
+        params.push(`%${owner}%`);
+        where += ` AND s.name ILIKE $${params.length}`;
+      }
+    }
+    const lifecycle = nullableText(query.lifecycle);
+    if (lifecycle) {
+      params.push(lifecycle);
+      where += /^[1-9]\d*$/.test(lifecycle)
+        ? ` AND p.lifecycle_id = $${params.length}`
+        : ` AND (p.lifecycle_id = $${params.length} OR sl.service_slug ILIKE '%' || $${params.length} || '%')`;
+    }
+    if (opts.applyCursor && query.cursor) {
+      const cursor = decodeProjectCursor(query.cursor);
+      params.push(cursor.created_at, cursor.id);
+      where += ` AND (p.created_at, p.id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`;
+    }
+    return { where, params };
+  }
+
+  private async portfolioSummary(query: CpProjectsListQuery) {
+    const built = this.portfolioFrom(query, { applyStatus: false, applyCursor: false });
+    const result = await this.db.query(
+      `SELECT
+          COUNT(*)::int AS project_count,
+          COALESCE(SUM(COALESCE(d.deliverable_done, 0)), 0)::int AS deliverable_done,
+          COUNT(*) FILTER (
+            WHERE p.credit_budget > 0
+              AND COALESCE(led.credit_used, 0) * 100 >= p.credit_budget * 80
+          )::int AS credit_at_risk,
+          COUNT(*) FILTER (WHERE p.status = 'draft')::int AS draft,
+          COUNT(*) FILTER (WHERE p.status = 'active')::int AS active,
+          COUNT(*) FILTER (WHERE p.status = 'at_risk')::int AS at_risk,
+          COUNT(*) FILTER (WHERE p.status = 'in_review')::int AS in_review,
+          COUNT(*) FILTER (WHERE p.status = 'completed')::int AS completed,
+          COUNT(*) FILTER (WHERE p.status = 'archived')::int AS archived
+        FROM crm_cp_projects p
+        LEFT JOIN clients c ON c.id = p.agency_client_id
+        LEFT JOIN crm_staff s ON s.id = p.owner_staff_id
+        LEFT JOIN crm_service_lifecycle sl
+          ON p.lifecycle_id IS NOT NULL AND sl.id::text = p.lifecycle_id
+        LEFT JOIN (
+          SELECT project_id,
+                 COUNT(*) FILTER (WHERE status IN ('completed', 'final'))::int AS deliverable_done
+            FROM crm_cp_deliverables
+           GROUP BY project_id
+        ) d ON d.project_id = p.id
+        LEFT JOIN (
+          SELECT project_id, COALESCE(SUM(amount), 0) AS credit_used
+            FROM crm_cp_credit_ledger
+           WHERE tenant_id = 'PTT' AND kind IN ('charge', 'reserve')
+           GROUP BY project_id
+        ) led ON led.project_id = p.id
+       WHERE ${built.where}`,
+      built.params,
+    );
+    const row = result.rows[0] ?? {};
+    const all = Number(row.project_count ?? 0);
+    return {
+      project_count: all,
+      deliverable_done: Number(row.deliverable_done ?? 0),
+      credit_at_risk: Number(row.credit_at_risk ?? 0),
+      status_counts: {
+        all,
+        draft: Number(row.draft ?? 0),
+        active: Number(row.active ?? 0),
+        at_risk: Number(row.at_risk ?? 0),
+        in_review: Number(row.in_review ?? 0),
+        completed: Number(row.completed ?? 0),
+        archived: Number(row.archived ?? 0),
+      },
+    };
+  }
+
+  private async decorateWorkspace(project: Record<string, unknown>) {
+    const projectId = String(project.id);
+    const [named, members, extra, ledger] = await Promise.all([
+      this.db.query(
+        `${PORTFOLIO_SELECT}
+          WHERE p.tenant_id = $1 AND p.id = $2::uuid
+          LIMIT 1`,
+        [CP_TENANT_ID, projectId],
+      ),
+      this.db.query(
+        `SELECT m.staff_id, m.role, s.name
+           FROM crm_cp_project_members m
+           LEFT JOIN crm_staff s ON s.id = m.staff_id
+          WHERE m.project_id = $1::uuid
+          ORDER BY m.staff_id`,
+        [projectId],
+      ),
+      this.db.query(
+        `SELECT
+           COUNT(*) FILTER (
+             WHERE type IN ('ai_video', 'human_video')
+               AND status IN ('completed', 'final', 'published', 'approved')
+           )::int AS video_final,
+           COUNT(*) FILTER (
+             WHERE due_at < CURRENT_DATE
+               AND status NOT IN ('completed', 'archived', 'final')
+           )::int AS overdue_deliverables
+           FROM crm_cp_deliverables
+          WHERE project_id = $1::uuid`,
+        [projectId],
+      ),
+      this.db.query(
+        `SELECT kind, cost_center, COALESCE(SUM(amount), 0)::int AS amount
+           FROM crm_cp_credit_ledger
+          WHERE tenant_id = $1 AND project_id = $2::uuid
+            AND kind IN ('charge', 'reserve')
+          GROUP BY kind, cost_center`,
+        [CP_TENANT_ID, projectId],
+      ),
+    ]);
+    let creditCharged = 0;
+    let creditReserved = 0;
+    const budgetByCostCenter: Record<string, { charged: number; reserved: number }> = {};
+    for (const row of ledger.rows) {
+      const amount = Number(row.amount ?? 0);
+      const kind = String(row.kind ?? '');
+      if (kind === 'charge') creditCharged += amount;
+      if (kind === 'reserve') creditReserved += amount;
+      const bucket = costCenterBucket(row.cost_center);
+      if (!bucket) continue;
+      const current = budgetByCostCenter[bucket] ?? { charged: 0, reserved: 0 };
+      if (kind === 'charge') current.charged += amount;
+      if (kind === 'reserve') current.reserved += amount;
+      budgetByCostCenter[bucket] = current;
+    }
+    const extraRow = extra.rows[0] ?? {};
+    return {
+      ...project,
+      ...(named.rows[0] ?? {}),
+      members: members.rows.map((row) => ({
+        staff_id: Number(row.staff_id),
+        role: row.role == null ? null : String(row.role),
+        name: row.name == null ? null : String(row.name),
+      })),
+      member_staff_ids: members.rows.map((row) => Number(row.staff_id)),
+      video_final: Number(extraRow.video_final ?? 0),
+      overdue_deliverables: Number(extraRow.overdue_deliverables ?? 0),
+      credit_charged: creditCharged,
+      credit_reserved: creditReserved,
+      budget_by_cost_center: budgetByCostCenter,
+    };
   }
 
   private async loadProject(
@@ -711,6 +979,14 @@ function requiredPositiveInt(value: unknown, error: string): number {
 function optionalPositiveInt(value: unknown, error: string): number | null {
   if (value == null || value === '') return null;
   return requiredPositiveInt(value, error);
+}
+
+function costCenterBucket(value: unknown): 'video' | 'batch' | 'voice' | null {
+  const key = String(value ?? '').trim().toLowerCase();
+  if (['video', 'video_production', 'production'].includes(key)) return 'video';
+  if (['batch', 'factory', 'batch_factory'].includes(key)) return 'batch';
+  if (['voice', 'tts', 'tts_voice'].includes(key)) return 'voice';
+  return null;
 }
 
 function optionalNonNegativeInt(value: unknown, error: string): number | null {

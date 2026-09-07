@@ -59,11 +59,38 @@ export type CpProjectSummary = {
   id: string;
   name: string;
   agency_client_id: string;
+  client_name?: string | null;
   lifecycle_id: string | null;
+  lifecycle_name?: string | null;
   owner_staff_id: number;
+  owner_name?: string | null;
   status: string;
   due_at: string | null;
   credit_budget: number | null;
+  credit_used?: number | null;
+  deliverable_done?: number | null;
+  deliverable_total?: number | null;
+  video_final?: number | null;
+  overdue_deliverables?: number | null;
+  credit_charged?: number | null;
+  credit_reserved?: number | null;
+  budget_by_cost_center?: Record<string, { charged: number; reserved: number }>;
+  members?: Array<{ staff_id: number; role: string | null; name: string | null }>;
+};
+
+export type CpProjectListSummary = {
+  project_count: number;
+  deliverable_done: number;
+  credit_at_risk: number;
+  status_counts: {
+    all: number;
+    draft: number;
+    active: number;
+    at_risk: number;
+    in_review: number;
+    completed: number;
+    archived: number;
+  };
 };
 
 export type CpProject = CpProjectSummary & {
@@ -109,6 +136,7 @@ export type CpDeliverable = {
   type: string;
   status: string;
   owner_staff_id: number | null;
+  owner_name?: string | null;
   due_at: string | null;
   priority: string;
   video_draft_id: string | null;
@@ -122,12 +150,14 @@ export type CpTask = {
   project_id: string;
   title: string;
   assignee_id: number | null;
+  assignee_name?: string | null;
   due_at: string | null;
   priority: string;
   status: string;
   depends_on_id: string | null;
   am_task_id: string | null;
   csd_ticket_id: string | null;
+  video_version_id?: string | null;
 };
 
 export type CpMilestone = {
@@ -310,6 +340,7 @@ export type CpVideoDraft = CpVideoDraftInput & {
   created_at?: string | null;
   updated_at?: string | null;
   has_completed_version?: boolean;
+  latest_version_id?: string | null;
 };
 
 export type CpScene = {
@@ -702,7 +733,11 @@ export function listCpProjects(
   token: string,
   query: CpOverviewQuery & { status?: string; q?: string; cursor?: string } = {},
 ) {
-  return cpFetch<{ items: CpProjectSummary[]; next_cursor: string | null }>(
+  return cpFetch<{
+    items: CpProjectSummary[];
+    next_cursor: string | null;
+    summary?: CpProjectListSummary | null;
+  }>(
     token,
     cpQueryPath('/projects', query),
   );
@@ -713,6 +748,16 @@ export function listCpProjectMilestones(token: string, projectId: string) {
     token,
     `/projects/${encodeURIComponent(projectId)}/milestones`,
   );
+}
+
+export type CpProjectLookups = {
+  clients: Array<{ id: string; name: string; industry?: string | null }>;
+  staff: Array<{ id: number; name: string; job_title?: string | null }>;
+  lifecycles: Array<{ id: string; service_slug: string | null }>;
+};
+
+export function getCpProjectLookups(token: string) {
+  return cpFetch<CpProjectLookups>(token, '/projects/lookups');
 }
 
 export function createCpProject(token: string, input: CpProjectInput) {

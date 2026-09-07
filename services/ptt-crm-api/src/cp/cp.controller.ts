@@ -734,17 +734,34 @@ export class CpController {
     return this.renders.cancelJob(id, await this.scope(req));
   }
 
+  @Get('projects/lookups')
+  @RequireCpAction('view')
+  async projectLookups() {
+    return this.projects.lookups();
+  }
+
   @Get('projects')
   @RequireCpAction('view')
   async listProjects(
     @Req() req: AuthedReq,
-    @Query() query: { scope?: CpScope; status?: string; q?: string; cursor?: string },
+    @Query() query: {
+      scope?: CpScope;
+      status?: string;
+      q?: string;
+      cursor?: string;
+      client?: string;
+      owner?: string;
+      lifecycle?: string;
+    },
   ) {
     return this.projects.list({
       ...(await this.scope(req, query.scope)),
       status: query.status,
       q: query.q,
       cursor: query.cursor,
+      client: query.client,
+      owner: query.owner,
+      lifecycle: query.lifecycle,
     });
   }
 

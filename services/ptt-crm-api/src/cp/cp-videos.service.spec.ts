@@ -365,3 +365,32 @@ describe('CpVideosService scenes and timeline', () => {
     ))).toBe(true);
   });
 });
+
+describe('CpVideosService.get VID-01', () => {
+  it('returns latest_version_id from the draft versions, or null', async () => {
+    const draftId = '44444444-4444-4444-8444-444444444444';
+    const versionId = '55555555-5555-4555-8555-555555555555';
+    const db = {
+      async query(sql: string) {
+        if (sql.includes('FROM crm_cp_video_drafts')) {
+          return { rows: [{ id: draftId, name: 'Peak Reels 9:16' }] };
+        }
+        if (sql.includes('immutable = true')) {
+          return { rows: [] };
+        }
+        if (sql.includes('AS latest_version_id') || sql.includes('ORDER BY v.version_n DESC')) {
+          return { rows: [{ id: versionId }] };
+        }
+        return { rows: [] };
+      },
+    };
+
+    await expect(
+      new CpVideosService(db as never).get(draftId, { scope: 'all', staffId: 1 }),
+    ).resolves.toMatchObject({
+      id: draftId,
+      latest_version_id: versionId,
+      has_completed_version: false,
+    });
+  });
+});

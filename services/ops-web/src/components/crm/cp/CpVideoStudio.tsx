@@ -8,64 +8,53 @@ import { CpTimeline } from './CpTimeline';
 import {
   createCpRender,
   formatCpApiError,
+  getCpSettings,
   getCpVideo,
+  listCpAssets,
+  listCpRenders,
+  listCpScenes,
   listKits,
   parseCpScriptEditor,
   patchCpVideo,
+  type CpAsset,
   type CpBrandKit,
+  type CpRenderJob,
+  type CpScene,
   type CpScope,
+  type CpSettings,
   type CpVideoDraft,
   type CpVideoInputMode,
 } from '@/lib/crm/cp-api';
 import { dash, draftLanguageWritable, mergeDraftAfterAutosave } from '@/lib/crm/cp-format';
-
-type StudioConfig = {
-  ratio: string;
-  duration: number;
-  style: string;
-  locale: string;
-  language: string;
-  voice: string;
-  model: string;
-  estimated_credits: string;
-};
-
-const EMPTY_CONFIG: StudioConfig = {
-  ratio: '9:16',
-  duration: 30,
-  style: '',
-  locale: 'vi-VN',
-  language: 'vi-VN',
-  voice: '',
-  model: 'stub',
-  estimated_credits: '',
-};
+import {
+  VIDEO_STUDIO_TABS,
+  draftAssets,
+  formatCharCount,
+  formatEstimate,
+  formatJobStatus,
+  formatKitOption,
+  formatPlayhead,
+  liveRenderBlocks,
+  modelOptions,
+  promptMaxChars,
+  sceneStripLabel,
+  studioConfigFrom,
+  studioConfigPayload,
+  studioJobs,
+  studioTabHref,
+  urlFieldState,
+  type StudioConfig,
+  type VideoStudioTabId,
+} from '@/lib/crm/cp-video-studio.util';
 
 function scopeFrom(value?: string): CpScope {
   return value === 'team' || value === 'all' ? value : 'me';
 }
 
-function configFrom(value: unknown): StudioConfig {
-  const config = value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-  const duration = Number(config.duration);
-  return {
-    ratio: typeof config.ratio === 'string' ? config.ratio : EMPTY_CONFIG.ratio,
-    duration: [15, 30, 60].includes(duration) ? duration : EMPTY_CONFIG.duration,
-    style: typeof config.style === 'string' ? config.style : '',
-    locale: typeof config.locale === 'string' ? config.locale : EMPTY_CONFIG.locale,
-    language: typeof config.language === 'string'
-      ? config.language
-      : typeof config.locale === 'string'
-        ? config.locale
-        : EMPTY_CONFIG.language,
-    voice: typeof config.voice === 'string' ? config.voice : '',
-    model: typeof config.model === 'string' ? config.model : EMPTY_CONFIG.model,
-    estimated_credits: config.estimated_credits == null
-      ? ''
-      : String(config.estimated_credits),
-  };
+function modeLabel(mode: CpVideoInputMode): string {
+  if (mode === 'script') return 'Kịch bản';
+  if (mode === 'url') return 'URL';
+  return 'Prompt';
 }
 
 export function CpVideoStudio({
@@ -78,15 +67,24 @@ export function CpVideoStudio({
   tab?: string;
 }) {
   const scope = scopeFrom(scopeValue);
-  const tab = tabValue === 'storyboard' || tabValue === 'timeline' ? tabValue : 'studio';
+  const tab: VideoStudioTabId = tabValue === 'storyboard'
+    || tabValue === 'timeline'
+    || tabValue === 'review'
+    || tabValue === 'version'
+    ? tabValue
+    : 'studio';
   const [draft, setDraft] = useState<CpVideoDraft | null>(null);
   const [kits, setKits] = useState<CpBrandKit[]>([]);
+  const [settings, setSettings] = useState<CpSettings | null>(null);
+  const [scenes, setScenes] = useState<CpScene[]>([]);
+  const [assets, setAssets] = useState<CpAsset[]>([]);
+  const [jobs, setJobs] = useState<CpRenderJob[]>([]);
   const [name, setName] = useState('');
   const [mode, setMode] = useState<CpVideoInputMode>('prompt');
   const [content, setContent] = useState('');
   const [scriptValue, setScriptValue] = useState<unknown>(null);
   const [kitId, setKitId] = useState('');
-  const [config, setConfig] = useState<StudioConfig>(EMPTY_CONFIG);
+  const [config, setConfig] = useState<StudioConfig>(studioConfigFrom({}));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rendering, setRendering] = useState(false);
@@ -102,15 +100,25 @@ export function CpVideoStudio({
     setLoading(true);
     setError('');
     try {
-      const [video, kitResult] = await Promise.all([
+      const [video, kitResult, settingResult, sceneResult, assetResult, jobResult] = await Promise.all([
         getCpVideo(token, videoId, scope),
         listKits(token, scope),
+        getCpSettings(token).catch(() => null),
+        listCpScenes(token, videoId, scope).catch(() => ({ items: [] as CpScene[] })),
+        listCpAssets(token, scope).catch(() => ({ items: [] as CpAsset[] })),
+        listCpRenders(token, scope).catch(() => ({ items: [] as CpRenderJob[] })),
       ]);
       setDraft(video);
       setKits(kitResult.items);
+      setSettings(settingResult);
+      setScenes(sceneResult.items);
+      setAssets(draftAssets(assetResult.items, video.project_id));
+      setJobs(studioJobs(jobResult.items, video.id));
       setName(video.name ?? '');
       setMode(video.input_mode ?? 'prompt');
       setScriptValue(video.script_json ?? null);
+      const nextConfig = studioConfigFrom(video.config_json);
+      setConfig(nextConfig);
       setContent(
         video.input_mode === 'script'
           ? typeof video.script_json === 'string'
@@ -118,10 +126,11 @@ export function CpVideoStudio({
             : video.script_json == null
               ? ''
               : JSON.stringify(video.script_json, null, 2)
-          : video.prompt ?? '',
+          : video.input_mode === 'url'
+            ? nextConfig.source_url || video.prompt || ''
+            : video.prompt ?? '',
       );
       setKitId(video.brand_kit_version_id ?? '');
-      setConfig(configFrom(video.config_json));
     } catch (caught) {
       setError(formatCpApiError(caught, 'Không tải được video draft'));
     } finally {
@@ -136,19 +145,13 @@ export function CpVideoStudio({
   const payload = useMemo(() => ({
     name: name.trim() || draft?.name || 'Video draft',
     input_mode: mode,
-    prompt: mode === 'script' ? null : content,
+    prompt: mode === 'script' || mode === 'url' ? null : content,
     script_json: mode === 'script' ? scriptValue : null,
     config_json: {
-      ratio: config.ratio,
-      duration: config.duration,
-      style: config.style || null,
-      locale: config.locale || null,
-      language: config.language || config.locale || null,
-      voice: config.voice || null,
-      model: config.model || null,
-      estimated_credits: config.estimated_credits === ''
-        ? null
-        : Number(config.estimated_credits),
+      ...studioConfigPayload({
+        ...config,
+        source_url: mode === 'url' ? content : config.source_url,
+      }),
     },
     brand_kit_version_id: kitId || null,
   }), [config, content, draft?.name, kitId, mode, name, scriptValue]);
@@ -184,6 +187,8 @@ export function CpVideoStudio({
       await patchCpVideo(token, draft.id, payload, scope);
       const job = await createCpRender(token, draft.id, crypto.randomUUID(), scope);
       setNotice(`Đã gửi render job ${job.job_id ?? job.id}`);
+      const refreshed = await listCpRenders(token, scope);
+      setJobs(studioJobs(refreshed.items, draft.id));
     } catch (caught) {
       setError(formatCpApiError(caught, 'Không gửi được render'));
     } finally {
@@ -195,25 +200,46 @@ export function CpVideoStudio({
     setConfig((current) => ({ ...current, [key]: value }));
   }
 
+  const urlState = urlFieldState(settings);
+  const maxChars = promptMaxChars(settings?.policy_json);
+  const models = modelOptions(settings?.models_json);
+  const blocks = liveRenderBlocks({
+    aiEnabled: settings?.ai_enabled === true,
+    assets,
+  });
+  const estimate = formatEstimate(
+    config.estimated_credits === '' ? null : Number(config.estimated_credits),
+    settings?.watermark_draft,
+  );
+  const playhead = formatPlayhead(null, config.duration_sec);
+  const href = (id: VideoStudioTabId) => studioTabHref(id, {
+    videoId,
+    scope,
+    versionId: draft?.latest_version_id,
+  });
+
   return (
     <div className="cp-overview" aria-busy={loading}>
       <header className="cp-overview__head">
         <div>
-          <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Video Studio</p>
+          <p className="cp-crumb">
+            Vận hành / Sản xuất sáng tạo / Video Studio — {name || dash(null)}
+          </p>
           <h1>{name ? `Video Studio — ${name}` : 'Video Studio'}</h1>
-          <p className="cp-muted">{saving ? 'Đang autosave…' : dash(draft?.autosaved_at)}</p>
+          <p className="cp-muted">
+            VID-01 · FR-VID-001…010 · autosave 2s · estimate + pricing
+            {saving ? ' · Đang autosave…' : draft?.autosaved_at ? ` · ${draft.autosaved_at}` : ''}
+          </p>
         </div>
-        <div className="cp-filters">
-          <Link className="cp-btn" href={`/crm/creative-os/video/templates?scope=${scope}`}>Mẫu</Link>
-          <Link className="cp-btn" href={`/crm/creative-os/video/batch?scope=${scope}`}>Hàng loạt</Link>
-          <Link className="cp-btn" href={`/crm/creative-os/video/ops?scope=${scope}`}>Ops</Link>
+        <div className="cp-overview__actions">
+          <Link className="cp-btn" href={href('storyboard')}>Storyboard</Link>
           <button
             className="cp-btn cp-btn--primary"
             type="button"
             disabled={loading || rendering || !draft}
             onClick={() => void submitRender()}
           >
-            {rendering ? 'Đang gửi…' : 'Tạo video'}
+            {rendering ? 'Đang gửi…' : 'Tạo video (reserve)'}
           </button>
         </div>
       </header>
@@ -221,70 +247,226 @@ export function CpVideoStudio({
       {error ? <section className="cp-card cp-card--error"><p>{error}</p></section> : null}
       {notice ? <section className="cp-alert">{notice}</section> : null}
 
-      <nav className="cp-settings-tabs" aria-label="Video studio">
-        <Link className={tab === 'studio' ? 'cp-btn cp-btn--primary' : 'cp-btn'} href={`/crm/creative-os/video/${videoId}?scope=${scope}`}>Studio</Link>
-        <Link className={tab === 'storyboard' ? 'cp-btn cp-btn--primary' : 'cp-btn'} href={`/crm/creative-os/video/${videoId}?scope=${scope}&tab=storyboard`}>Storyboard</Link>
-        <Link className={tab === 'timeline' ? 'cp-btn cp-btn--primary' : 'cp-btn'} href={`/crm/creative-os/video/${videoId}?scope=${scope}&tab=timeline`}>Timeline</Link>
+      <nav className="cp-chips" aria-label="Video studio">
+        {VIDEO_STUDIO_TABS.map((item) => (
+          <Link
+            key={item.id}
+            className={tab === item.id ? 'cp-chip is-on' : 'cp-chip'}
+            href={href(item.id)}
+          >
+            {item.label}
+          </Link>
+        ))}
       </nav>
 
       {tab === 'storyboard' ? <CpStoryboard videoId={videoId} scope={scope} /> : null}
       {tab === 'timeline' ? <CpTimeline videoId={videoId} scope={scope} /> : null}
 
-      {tab === 'studio' ? <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1fr) minmax(0, 1.6fr) minmax(240px, 1fr)', gap: 12 }}>
+      {tab === 'review' || tab === 'version' ? (
         <section className="cp-card">
-          <div className="cp-filters">
-            {(['prompt', 'script', 'url'] as CpVideoInputMode[]).map((item) => (
-              <button key={item} type="button" className={mode === item ? 'cp-btn cp-btn--primary' : 'cp-btn'} onClick={() => setMode(item)}>
-                {item === 'prompt' ? 'Prompt' : item === 'script' ? 'Kịch bản' : 'URL'}
-              </button>
-            ))}
-          </div>
-          <label><span>Tên draft</span><input value={name} onChange={(event) => setName(event.target.value)} /></label>
-          <label>
-            <span>{mode === 'script' ? 'Kịch bản' : mode === 'url' ? 'URL nguồn' : 'Prompt'}</span>
-            <textarea
-              rows={10}
-              value={content}
-              onChange={(event) => {
-                const value = event.target.value;
-                setContent(value);
-                if (mode === 'script') setScriptValue(parseCpScriptEditor(value));
-              }}
-            />
-          </label>
+          <header className="cp-card__head"><h2>{tab === 'review' ? 'Review' : 'Version'}</h2></header>
+          <p className="cp-muted">Chưa có version để mở VID-05 / VID-08.</p>
+          <p className="cp-empty">{dash(null)}</p>
         </section>
+      ) : null}
 
-        <section className="cp-card">
-          <div className="cp-card__head"><h2>Preview</h2></div>
-          <div style={{ minHeight: 320, display: 'grid', placeItems: 'center', borderRadius: 10, background: '#e5e7eb' }}>
-            <span className="cp-empty">{dash(null)}</span>
-          </div>
-        </section>
+      {tab === 'studio' ? (
+        <>
+          <div className="cp-studio">
+            <section className="cp-card">
+              <div className="cp-chips">
+                {(['prompt', 'script', 'url'] as CpVideoInputMode[]).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={mode === item ? 'cp-chip is-on' : 'cp-chip'}
+                    onClick={() => setMode(item)}
+                  >
+                    {modeLabel(item)}
+                  </button>
+                ))}
+              </div>
+              <label>
+                <span>Tên draft</span>
+                <input value={name} onChange={(event) => setName(event.target.value)} />
+              </label>
+              <label>
+                <span>{mode === 'script' ? 'Kịch bản' : mode === 'url' ? 'URL nguồn' : 'Prompt'}</span>
+                <textarea
+                  rows={8}
+                  value={content}
+                  disabled={mode === 'url' && urlState.disabled}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setContent(value);
+                    if (mode === 'script') setScriptValue(parseCpScriptEditor(value));
+                  }}
+                />
+              </label>
+              <p className="cp-muted">
+                {formatCharCount(content.length, maxChars)} · moderation trước dispatch
+              </p>
+              {mode === 'url' && urlState.reason ? <p className="cp-muted">{urlState.reason}</p> : null}
+              <label className="cp-check">
+                <input
+                  type="checkbox"
+                  checked={config.auto_script}
+                  onChange={(event) => setConfigField('auto_script', event.target.checked)}
+                />
+                Tự tạo kịch bản (hook, scene, VO, overlay, CTA)
+              </label>
+              <Link className="cp-btn" href={`/crm/creative-os/media?project=${draft?.project_id ?? ''}`}>
+                DAM picker (asset_version_id)
+              </Link>
+              {assets.length ? (
+                <div className="cp-media-grid cp-media-grid--2">
+                  {assets.map((asset) => (
+                    <Link key={asset.id} className="cp-media-card" href={`/crm/creative-os/media/${asset.id}`}>
+                      <div className="cp-thumb" />
+                      <b>{asset.filename}</b>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="cp-empty">{dash(null)}</p>
+              )}
+            </section>
 
-        <section className="cp-card">
-          <div className="cp-card__head"><h2>Cấu hình</h2></div>
-          <div className="cp-filters" style={{ display: 'grid' }}>
-            <label><span>Tỉ lệ</span><select value={config.ratio} onChange={(event) => setConfigField('ratio', event.target.value)}><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></label>
-            <label><span>Duration</span><select value={config.duration} onChange={(event) => setConfigField('duration', Number(event.target.value))}><option value={15}>15s</option><option value={30}>30s</option><option value={60}>60s</option></select></label>
-            <label><span>Style</span><input value={config.style} onChange={(event) => setConfigField('style', event.target.value)} /></label>
-            <label>
-              <span>Ngôn ngữ</span>
-              <input
-                value={config.language}
-                disabled={!draftLanguageWritable(draft)}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setConfig((cur) => ({ ...cur, language: value, locale: value }));
-                }}
-              />
-            </label>
-            <label><span>Voice</span><input value={config.voice} onChange={(event) => setConfigField('voice', event.target.value)} /></label>
-            <label><span>Model</span><select value={config.model} onChange={(event) => setConfigField('model', event.target.value)}><option value="stub">stub</option></select></label>
-            <label><span>Brand Kit</span><select value={kitId} onChange={(event) => setKitId(event.target.value)}><option value="">—</option>{kits.map((kit) => <option key={kit.id} value={kit.id}>{kit.name}</option>)}</select></label>
-            <label><span>Ước tính credit</span><input min="0" step="1" type="number" value={config.estimated_credits} onChange={(event) => setConfigField('estimated_credits', event.target.value)} placeholder="—" /></label>
+            <section className="cp-card">
+              <div className="cp-preview">
+                Preview {config.aspect_ratio} · {playhead}
+              </div>
+              {scenes.length ? (
+                <div className="cp-scene-strip">
+                  {scenes.map((scene) => (
+                    <article key={scene.idx} className="cp-media-card">
+                      <div className="cp-thumb" />
+                      <b>{sceneStripLabel(scene)}</b>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="cp-empty">{dash(null)}</p>
+              )}
+              <Link className="cp-link" href={href('timeline')}>Mở timeline 4 track</Link>
+            </section>
+
+            <section className="cp-card cp-studio-config">
+              <label>
+                <span>Tỉ lệ</span>
+                <select value={config.aspect_ratio} onChange={(event) => setConfigField('aspect_ratio', event.target.value)}>
+                  <option>9:16</option>
+                  <option>16:9</option>
+                  <option>1:1</option>
+                  <option>4:5</option>
+                </select>
+              </label>
+              <label>
+                <span>Duration</span>
+                <select
+                  value={config.duration_sec}
+                  onChange={(event) => setConfigField('duration_sec', Number(event.target.value))}
+                >
+                  <option value={15}>15s</option>
+                  <option value={30}>30s</option>
+                  <option value={60}>60s</option>
+                </select>
+              </label>
+              <label>
+                <span>Style</span>
+                <input value={config.style} onChange={(event) => setConfigField('style', event.target.value)} />
+              </label>
+              <label>
+                <span>Locale / Voice</span>
+                <input
+                  value={config.language}
+                  disabled={!draftLanguageWritable(draft)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setConfig((cur) => ({ ...cur, language: value }));
+                  }}
+                />
+                <input
+                  value={config.voice_id}
+                  placeholder="Voice"
+                  onChange={(event) => setConfigField('voice_id', event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Music</span>
+                <input value={config.music} onChange={(event) => setConfigField('music', event.target.value)} />
+              </label>
+              <label>
+                <span>Model</span>
+                <select value={config.model_id} onChange={(event) => setConfigField('model_id', event.target.value)}>
+                  {models.map((model) => (
+                    <option key={model.id} value={model.id}>{model.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Brand Kit</span>
+                <select value={kitId} onChange={(event) => setKitId(event.target.value)}>
+                  <option value="">{dash(null)}</option>
+                  {kits.map((kit) => (
+                    <option key={kit.id} value={kit.id}>{formatKitOption(kit)}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Ước tính credit</span>
+                <input
+                  min="0"
+                  step="1"
+                  type="number"
+                  value={config.estimated_credits}
+                  onChange={(event) => setConfigField('estimated_credits', event.target.value)}
+                  placeholder="—"
+                />
+              </label>
+              <p><b>{estimate}</b></p>
+              <p className="cp-muted">
+                Block nếu: AI tắt · asset ≠ Ready · rights · credit · moderation
+                {blocks.length ? ` · đang chặn: ${blocks.join(' · ')}` : ''}
+              </p>
+            </section>
           </div>
-        </section>
-      </div> : null}
+
+          <section className="cp-card">
+            <header className="cp-card__head"><h2>Queue</h2></header>
+            <div className="cp-table-wrap">
+              <table className="cp-table">
+                <thead>
+                  <tr>
+                    <th>Job</th>
+                    <th>Trạng thái</th>
+                    <th>Stage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobs.length ? jobs.map((job) => (
+                    <tr key={job.id}>
+                      <td>
+                        <Link className="cp-link" href={`/crm/creative-os/video/ops?job=${job.id}&scope=${scope}`}>
+                          {job.job_id ?? job.id}
+                        </Link>
+                      </td>
+                      <td>
+                        <span className={job.state === 'failed' ? 'cp-pill cp-pill--danger' : 'cp-pill cp-pill--info'}>
+                          {formatJobStatus(job)}
+                        </span>
+                      </td>
+                      <td>{dash(job.stage)}</td>
+                    </tr>
+                  )) : (
+                    <tr><td className="cp-empty" colSpan={3}>{dash(null)}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }
