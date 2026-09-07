@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { apiReachable, loginAsStaff } from './helpers/ai-copilot-helpers';
 import {
+  API_URL,
   CP_KPI_KEYS,
   createCpAssetApi,
   createCpProjectApi,
@@ -13,7 +14,9 @@ import {
 
 test.describe('Creative Production OS W1 UAT', () => {
   test.beforeEach(async ({ request }) => {
-    test.skip(!(await apiReachable(request)), 'API down');
+    if (!(await apiReachable(request))) {
+      throw new Error(`Wave 1 prerequisite missing: API is unreachable at ${API_URL}`);
+    }
   });
 
   test('staff without crm_cp.view gets 403 or redirected from Creative OS', async ({ page }) => {
@@ -90,19 +93,25 @@ test.describe('Creative Production OS W1 UAT', () => {
       const estimate = video.config_json?.estimated_credits;
       return typeof estimate === 'number' && estimate > 0;
     });
-    test.skip(!draft, 'No draft with a positive credit estimate in this environment');
+    if (!draft) {
+      throw new Error(
+        'Wave 1 prerequisite missing: no video draft with a positive credit estimate is available',
+      );
+    }
 
     const before = await fetchCpKpisApi(request, token, 'scope=all');
     const key = `cp-w1-uat-${crypto.randomUUID()}`;
-    const first = await renderCpVideoApi(request, token, draft!.id, key);
+    const first = await renderCpVideoApi(request, token, draft.id, key);
     if (first.status === 403 || first.status === 404 || first.status === 409) {
-      test.skip(true, `No render-ready draft/capability in this environment (${first.status})`);
+      throw new Error(
+        `Wave 1 prerequisite missing: draft ${draft.id} cannot render (${first.status} ${JSON.stringify(first.json)})`,
+      );
     }
     expect(first.ok, `first render: ${first.status} ${JSON.stringify(first.json)}`).toBeTruthy();
     expect(first.json.estimate).toEqual(expect.any(Number));
 
     const afterFirst = await fetchCpKpisApi(request, token, 'scope=all');
-    const second = await renderCpVideoApi(request, token, draft!.id, key);
+    const second = await renderCpVideoApi(request, token, draft.id, key);
     expect(second.ok, `replayed render: ${second.status} ${JSON.stringify(second.json)}`).toBeTruthy();
     const afterSecond = await fetchCpKpisApi(request, token, 'scope=all');
 
