@@ -207,6 +207,84 @@ export type CpAssetUsage = {
   object_id: string | null;
 };
 
+export type CpBrandScopeType = 'tenant' | 'client' | 'project';
+
+export type CpBrandKit = {
+  id: string;
+  tenant_id: string;
+  scope_type: CpBrandScopeType;
+  agency_client_id: string | null;
+  project_id: string | null;
+  name: string;
+  status: string | null;
+  latest_version?: number | string | null;
+};
+
+export type CpBrandKitInput = {
+  name: string;
+  scope_type: CpBrandScopeType;
+  agency_client_id?: string | null;
+  project_id?: string | null;
+};
+
+export type CpBrandPayload = {
+  logos: {
+    primary: string;
+    light: string;
+    mark: string;
+    icon: string;
+  };
+  palette: string[];
+  typography: {
+    font_family: string;
+    heading_weight: string;
+    body_weight: string;
+  };
+  cta: {
+    label: string;
+    url: string;
+  };
+  disclaimer: {
+    text: string;
+    channels: string;
+  };
+  motion: {
+    intro: string;
+    outro: string;
+    caption_style: string;
+    watermark: string;
+  };
+  audio: {
+    sound_logo: string;
+    voice_style: string;
+    music_style: string;
+  };
+};
+
+export type CpBrandVersion = {
+  id: string;
+  kit_id: string;
+  n: number;
+  payload_json: Record<string, unknown>;
+  approved_by: number | null;
+  approved_at: string | null;
+};
+
+export function buildBrandVersionPayload(
+  _previous: CpBrandPayload | null,
+  draft: CpBrandPayload,
+): CpBrandPayload {
+  return {
+    logos: { ...draft.logos },
+    palette: [...draft.palette],
+    typography: { ...draft.typography },
+    cta: { ...draft.cta },
+    disclaimer: { ...draft.disclaimer },
+    motion: { ...draft.motion },
+    audio: { ...draft.audio },
+  };
+}
+
 function cpQueryPath(path: string, query: Record<string, string | undefined>): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
@@ -410,6 +488,49 @@ export function setCpAssetRights(
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export function listKits(token: string, scope: CpScope = 'me') {
+  return cpFetch<{ items: CpBrandKit[] }>(
+    token,
+    cpQueryPath('/brand-kits', { scope }),
+  );
+}
+
+export function createKit(token: string, input: CpBrandKitInput) {
+  return cpFetch<CpBrandKit>(token, '/brand-kits', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getKit(token: string, kitId: string, scope: CpScope = 'me') {
+  return cpFetch<CpBrandKit>(
+    token,
+    cpQueryPath(`/brand-kits/${encodeURIComponent(kitId)}`, { scope }),
+  );
+}
+
+export function listVersions(token: string, kitId: string, scope: CpScope = 'me') {
+  return cpFetch<{ items: CpBrandVersion[] }>(
+    token,
+    cpQueryPath(`/brand-kits/${encodeURIComponent(kitId)}/versions`, { scope }),
+  );
+}
+
+export function saveVersion(
+  token: string,
+  kitId: string,
+  payload: CpBrandPayload,
+) {
+  return cpFetch<CpBrandVersion>(
+    token,
+    `/brand-kits/${encodeURIComponent(kitId)}/versions`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export function finalizeCpAsset(

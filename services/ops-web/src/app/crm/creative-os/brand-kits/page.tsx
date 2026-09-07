@@ -1,5 +1,5 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpBrandPortfolio } from '@/components/crm/cp/CpBrandPortfolio';
 
 export default function CreativeOsBrandKitsPage() {
-  return <CpPlaceholder title="Brand Kit" />;
+  return <CpBrandPortfolio />;
 }
