@@ -270,6 +270,68 @@ export type CpBrandVersion = {
   approved_at: string | null;
 };
 
+export type CpVideoInputMode = 'prompt' | 'script' | 'url' | 'template';
+
+export type CpVideoDraftInput = {
+  project_id?: string;
+  deliverable_id?: string | null;
+  name?: string;
+  input_mode?: CpVideoInputMode;
+  prompt?: string | null;
+  script_json?: unknown;
+  config_json?: Record<string, unknown>;
+  brand_kit_version_id?: string | null;
+};
+
+export type CpVideoDraft = CpVideoDraftInput & {
+  id: string;
+  project_id: string;
+  agency_client_id?: string | null;
+  revision?: number | string | null;
+  autosaved_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type CpRenderJob = {
+  id: string;
+  job_id?: string;
+  draft_id: string;
+  parent_job_id?: string | null;
+  state: string;
+  stage?: string | null;
+  progress?: number | string | null;
+  provider?: string | null;
+  estimate?: number | string | null;
+  idempotency_key?: string | null;
+  correlation_id?: string | null;
+  stage_log_json?: unknown;
+  attempt?: number | string | null;
+  output_uri?: string | null;
+  error?: string | null;
+  error_json?: unknown;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export class CpApiError extends ApiError {
+  constructor(
+    message: string,
+    status: number,
+    readonly reasons: string[] = [],
+  ) {
+    super(message, status);
+    this.name = 'CpApiError';
+  }
+}
+
+export function formatCpApiError(error: unknown, fallback = 'CP request failed'): string {
+  if (error instanceof CpApiError && error.reasons.length) {
+    return `${error.message}: ${error.reasons.join(', ')}`;
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function buildBrandVersionPayload(
   _previous: CpBrandPayload | null,
   draft: CpBrandPayload,
@@ -312,9 +374,20 @@ export async function cpFetch<T>(
     headers,
     cache: 'no-store',
   });
-  const body = await parseJson<T & { error?: string; message?: string }>(res);
+  const body = await parseJson<T & {
+    error?: string;
+    message?: string;
+    reasons?: unknown;
+  }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'CP request failed', res.status);
+    const reasons = Array.isArray(body.reasons)
+      ? body.reasons.filter((reason): reason is string => typeof reason === 'string')
+      : [];
+    throw new CpApiError(
+      body.error ?? body.message ?? 'CP request failed',
+      res.status,
+      reasons,
+    );
   }
   return body;
 }
@@ -535,6 +608,101 @@ export function saveVersion(
       method: 'POST',
       body: JSON.stringify(payload),
     },
+  );
+}
+
+export function listCpVideos(token: string, scope: CpScope = 'me') {
+  return cpFetch<{ items: CpVideoDraft[] }>(
+    token,
+    cpQueryPath('/videos', { scope }),
+  );
+}
+
+export function createCpVideo(
+  token: string,
+  input: CpVideoDraftInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpVideoDraft>(token, cpQueryPath('/videos', { scope }), {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getCpVideo(token: string, videoId: string, scope: CpScope = 'me') {
+  return cpFetch<CpVideoDraft>(
+    token,
+    cpQueryPath(`/videos/${encodeURIComponent(videoId)}`, { scope }),
+  );
+}
+
+export function patchCpVideo(
+  token: string,
+  videoId: string,
+  input: CpVideoDraftInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpVideoDraft>(
+    token,
+    cpQueryPath(`/videos/${encodeURIComponent(videoId)}`, { scope }),
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function createCpRender(
+  token: string,
+  videoId: string,
+  idempotencyKey: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpRenderJob>(
+    token,
+    cpQueryPath(`/videos/${encodeURIComponent(videoId)}/render`, { scope }),
+    {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    },
+  );
+}
+
+export function listCpRenders(token: string, scope: CpScope = 'me') {
+  return cpFetch<{ items: CpRenderJob[] }>(
+    token,
+    cpQueryPath('/renders', { scope }),
+  );
+}
+
+export function getCpRender(token: string, renderId: string, scope: CpScope = 'me') {
+  return cpFetch<CpRenderJob>(
+    token,
+    cpQueryPath(`/renders/${encodeURIComponent(renderId)}`, { scope }),
+  );
+}
+
+export function retryCpRender(
+  token: string,
+  renderId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpRenderJob>(
+    token,
+    cpQueryPath(`/renders/${encodeURIComponent(renderId)}/retry`, { scope }),
+    { method: 'POST' },
+  );
+}
+
+export function cancelCpRender(
+  token: string,
+  renderId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpRenderJob>(
+    token,
+    cpQueryPath(`/renders/${encodeURIComponent(renderId)}/cancel`, { scope }),
+    { method: 'POST' },
   );
 }
 

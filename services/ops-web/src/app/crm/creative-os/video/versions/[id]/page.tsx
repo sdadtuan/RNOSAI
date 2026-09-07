@@ -1,5 +1,11 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpVersionDetail } from '@/components/crm/cp/CpVersionDetail';
 
-export default function CreativeOsVideoVersionPage() {
-  return <CpPlaceholder title="Phiên bản video" />;
+export default function CreativeOsVideoVersionPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { scope?: string };
+}) {
+  return <CpVersionDetail versionId={params.id} scope={searchParams.scope} />;
 }

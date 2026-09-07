@@ -1,5 +1,11 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpVideoStudio } from '@/components/crm/cp/CpVideoStudio';
 
-export default function CreativeOsVideoDetailPage() {
-  return <CpPlaceholder title="Chi tiết video" />;
+export default function CreativeOsVideoDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: { scope?: string };
+}) {
+  return <CpVideoStudio videoId={params.id} scope={searchParams.scope} />;
 }
