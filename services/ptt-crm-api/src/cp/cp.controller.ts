@@ -1,9 +1,29 @@
-import { Controller, ForbiddenException, Get, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { CpOverviewService } from './cp-overview.service';
+import {
+  CpBriefInput,
+  CpCloseProjectInput,
+  CpCreateProjectInput,
+  CpDeliverableInput,
+  CpPatchProjectInput,
+  CpProjectsService,
+  CpTaskInput,
+} from './cp-projects.service';
 import { CpScope, resolveCpScope } from './cp-scope.util';
 import { RequireCpAction, StaffCpGuard } from './guards/staff-cp.guard';
 
@@ -27,6 +47,7 @@ type OverviewQuery = {
 export class CpController {
   constructor(
     private readonly overview: CpOverviewService,
+    private readonly projects: CpProjectsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -86,5 +107,113 @@ export class CpController {
       ...(await this.scope(req, query.scope)),
       cursor: query.cursor,
     });
+  }
+
+  @Get('projects')
+  @RequireCpAction('view')
+  async listProjects(
+    @Req() req: AuthedReq,
+    @Query() query: { scope?: CpScope; status?: string; q?: string; cursor?: string },
+  ) {
+    return this.projects.list({
+      ...(await this.scope(req, query.scope)),
+      status: query.status,
+      q: query.q,
+      cursor: query.cursor,
+    });
+  }
+
+  @Post('projects')
+  @RequireCpAction('edit')
+  async createProject(@Req() req: AuthedReq, @Body() body: CpCreateProjectInput) {
+    const actor = await this.scope(req);
+    return this.projects.create(body ?? {}, actor.staffId > 0 ? actor.staffId : null);
+  }
+
+  @Get('projects/:id/briefs')
+  @RequireCpAction('view')
+  async listBriefs(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.projects.listBriefs(id, await this.scope(req));
+  }
+
+  @Post('projects/:id/briefs')
+  @RequireCpAction('edit')
+  async addBrief(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpBriefInput,
+  ) {
+    const actor = await this.scope(req);
+    return this.projects.addBrief(id, body ?? {}, actor, actor.staffId);
+  }
+
+  @Get('projects/:id/deliverables')
+  @RequireCpAction('view')
+  async listDeliverables(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.projects.listDeliverables(id, await this.scope(req));
+  }
+
+  @Post('projects/:id/deliverables')
+  @RequireCpAction('edit')
+  async addDeliverable(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpDeliverableInput,
+  ) {
+    return this.projects.addDeliverable(id, body ?? {}, await this.scope(req));
+  }
+
+  @Get('projects/:id/tasks')
+  @RequireCpAction('view')
+  async listTasks(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.projects.listTasks(id, await this.scope(req));
+  }
+
+  @Post('projects/:id/tasks')
+  @RequireCpAction('edit')
+  async addTask(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpTaskInput,
+  ) {
+    return this.projects.addTask(id, body ?? {}, await this.scope(req));
+  }
+
+  @Get('projects/:id/milestones')
+  @RequireCpAction('view')
+  async listMilestones(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.projects.listMilestones(id, await this.scope(req));
+  }
+
+  @Post('projects/:id/close')
+  @RequireCpAction('edit')
+  async closeProject(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpCloseProjectInput,
+  ) {
+    const actor = await this.scope(req);
+    return this.projects.close(
+      id,
+      body ?? {},
+      actor,
+      actor.staffId > 0 ? actor.staffId : null,
+    );
+  }
+
+  @Get('projects/:id')
+  @RequireCpAction('view')
+  async getProject(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.projects.get(id, await this.scope(req));
+  }
+
+  @Patch('projects/:id')
+  @RequireCpAction('edit')
+  async patchProject(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpPatchProjectInput,
+  ) {
+    return this.projects.patch(id, body ?? {}, await this.scope(req));
   }
 }
