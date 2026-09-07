@@ -327,4 +327,67 @@ describe('CpProjectsService.submitCreative', () => {
     });
     expect(creatives.submit).not.toHaveBeenCalled();
   });
+
+  it('imports each Dự án PTT row once and owns it as the actor', async () => {
+    const b2bId = 'da5de896-1721-47e9-b645-e6b499b5dc04';
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/FROM crm_b2b_projects/i.test(sql) && !/crm_b2b_project_staff/i.test(sql)) {
+        return {
+          rows: [{ id: b2bId, code: 'ptt-hcm', name: 'PTT', status: 'active' }],
+          rowCount: 1,
+        };
+      }
+      if (/tags @>/i.test(sql)) return { rows: [], rowCount: 0 };
+      if (/INSERT INTO clients/i.test(sql)) {
+        return { rows: [{ id: CLIENT_ID }], rowCount: 1 };
+      }
+      if (/FROM clients/i.test(sql)) return { rows: [{ id: CLIENT_ID }], rowCount: 1 };
+      if (/INSERT INTO crm_cp_projects/i.test(sql)) {
+        return {
+          rows: [{ id, name: 'PTT', agency_client_id: CLIENT_ID, owner_staff_id: 5, status: 'active' }],
+          rowCount: 1,
+        };
+      }
+      if (/FROM crm_b2b_project_staff/i.test(sql)) {
+        return { rows: [{ staff_id: 4 }], rowCount: 1 };
+      }
+      if (/INSERT INTO crm_cp_project_members/i.test(sql)) {
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(svc.importFromB2b(5)).resolves.toMatchObject({
+      created: [expect.objectContaining({ id, name: 'PTT' })],
+      skipped: 0,
+    });
+    const projectInsert = repo.query.mock.calls.find(([sql]) =>
+      /INSERT INTO crm_cp_projects/i.test(String(sql)),
+    );
+    expect(projectInsert?.[1]).toEqual(
+      expect.arrayContaining([CLIENT_ID, 5, 'PTT', 'active']),
+    );
+    const memberStaffIds = repo.query.mock.calls
+      .filter(([sql]) => /INSERT INTO crm_cp_project_members/i.test(String(sql)))
+      .map(([, params]) => params?.[1]);
+    expect(memberStaffIds).toEqual(expect.arrayContaining([5, 4]));
+  });
+
+  it('skips a Dự án PTT row already tagged on a CP project', async () => {
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/FROM crm_b2b_projects/i.test(sql) && !/crm_b2b_project_staff/i.test(sql)) {
+        return {
+          rows: [{ id: 'da5de896-1721-47e9-b645-e6b499b5dc04', code: 'ptt-hcm', name: 'PTT' }],
+          rowCount: 1,
+        };
+      }
+      if (/tags @>/i.test(sql)) return { rows: [{ id }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(svc.importFromB2b(5)).resolves.toEqual({ created: [], skipped: 1 });
+    expect(repo.query.mock.calls.some(([sql]) => /INSERT INTO crm_cp_projects/i.test(String(sql)))).toBe(
+      false,
+    );
+  });
 });

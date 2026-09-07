@@ -169,6 +169,82 @@ export class CpProjectsService {
     return project;
   }
 
+  async importFromB2b(actorId: number) {
+    const ownerStaffId = requiredPositiveInt(actorId, 'owner_staff_id_required');
+    const listed = await this.db.query(
+      `SELECT id::text, code, name, status FROM crm_b2b_projects ORDER BY code ASC`,
+    );
+    const created: Record<string, unknown>[] = [];
+    let skipped = 0;
+    for (const row of listed.rows) {
+      const b2bId = String(row.id ?? '').trim();
+      if (!isUuid(b2bId)) continue;
+      const tag = `b2b:${b2bId}`;
+      const existing = await this.db.query(
+        `SELECT id FROM crm_cp_projects
+          WHERE tenant_id = $1 AND tags @> ARRAY[$2]::text[]
+          LIMIT 1`,
+        [CP_TENANT_ID, tag],
+      );
+      if (existing.rows[0]) {
+        skipped += 1;
+        continue;
+      }
+      const name = requiredText(row.name, 'name_required');
+      const code = String(row.code ?? '')
+        .trim()
+        .toUpperCase()
+        .slice(0, 32) || 'PTT';
+      const client = await this.db.query(
+        `INSERT INTO clients (code, name, status)
+         VALUES ($1, $2, 'active')
+         ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, updated_at = now()
+         RETURNING id::text`,
+        [code, name],
+      );
+      const clientId = String(client.rows[0]?.id ?? '').trim();
+      if (!clientId) cpThrow(500, { error: 'insert_failed' });
+      const status = String(row.status ?? '').trim() === 'active' ? 'active' : 'draft';
+      const project = await this.create(
+        {
+          name,
+          agency_client_id: clientId,
+          owner_staff_id: ownerStaffId,
+          status,
+          objective: `Lấy từ Dự án PTT (${String(row.code ?? code)})`,
+          tags: [tag, `b2b-code:${String(row.code ?? code)}`],
+        },
+        ownerStaffId,
+      );
+      const staff = await this.db.query(
+        `SELECT staff_id FROM crm_b2b_project_staff WHERE project_id = $1::uuid`,
+        [b2bId],
+      );
+      const memberIds = new Set<number>([ownerStaffId]);
+      for (const member of staff.rows) {
+        const staffId = Number(member.staff_id);
+        if (Number.isInteger(staffId) && staffId > 0) memberIds.add(staffId);
+      }
+      for (const staffId of memberIds) {
+        await this.db.query(
+          `INSERT INTO crm_cp_project_members (project_id, staff_id, role)
+           VALUES ($1::uuid, $2, 'editor')
+           ON CONFLICT DO NOTHING`,
+          [project.id, staffId],
+        );
+      }
+      await this.audit.insert({
+        actor_id: ownerStaffId,
+        action: 'project.import_b2b',
+        resource_type: 'project',
+        resource_id: String(project.id),
+        payload_json: { b2b_project_id: b2bId, agency_client_id: clientId, name },
+      });
+      created.push(project);
+    }
+    return { created, skipped };
+  }
+
   async list(query: CpProjectsListQuery) {
     const params: unknown[] = [CP_TENANT_ID];
     const scope = bindScope(

@@ -36,6 +36,9 @@ run_local() {
   echo "== 1/5 CP RBAC catalog (no user grants) =="
   bash "$ROOT/scripts/seed_cp_rbac.sh"
 
+  echo "== 1b/5 import CP projects from Dự án PTT =="
+  bash "$ROOT/scripts/seed_cp_projects_from_b2b.sh"
+
   echo "== 2/5 ptt-crm-api build + CP unit tests =="
   cd "$ROOT/services/ptt-crm-api"
   npm ci

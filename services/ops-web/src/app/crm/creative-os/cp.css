@@ -185,6 +185,12 @@
   align-items: flex-start;
 }
 
+.cp-overview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .cp-overview h1,
 .cp-overview h2,
 .cp-overview p {

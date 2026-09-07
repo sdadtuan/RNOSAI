@@ -722,6 +722,12 @@ export function createCpProject(token: string, input: CpProjectInput) {
   });
 }
 
+export function importCpProjectsFromB2b(token: string) {
+  return cpFetch<{ created: CpProject[]; skipped: number }>(token, '/projects/import-b2b', {
+    method: 'POST',
+  });
+}
+
 export function getCpProject(token: string, projectId: string) {
   return cpFetch<CpProject>(token, `/projects/${encodeURIComponent(projectId)}`);
 }

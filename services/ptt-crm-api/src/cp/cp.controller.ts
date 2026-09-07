@@ -755,6 +755,13 @@ export class CpController {
     return this.projects.create(body ?? {}, actor.staffId > 0 ? actor.staffId : null);
   }
 
+  @Post('projects/import-b2b')
+  @RequireCpAction('edit')
+  async importProjectsFromB2b(@Req() req: AuthedReq) {
+    const actor = await this.scope(req);
+    return this.projects.importFromB2b(actor.staffId);
+  }
+
   @Get('projects/:id/briefs')
   @RequireCpAction('view')
   async listBriefs(@Req() req: AuthedReq, @Param('id') id: string) {

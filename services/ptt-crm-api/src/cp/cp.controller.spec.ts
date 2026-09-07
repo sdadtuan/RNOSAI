@@ -196,6 +196,21 @@ describe('CpController.contentOsHandoff', () => {
   });
 });
 
+describe('CpController.importProjectsFromB2b', () => {
+  it('imports with the resolved CRM staff id', async () => {
+    const projects = { importFromB2b: jest.fn().mockResolvedValue({ created: [{ id: 'p1' }], skipped: 0 }) };
+    const { controller, req, staffAuth } = makeController({});
+    Object.assign(controller, { projects });
+
+    await expect(controller.importProjectsFromB2b(req as never)).resolves.toEqual({
+      created: [{ id: 'p1' }],
+      skipped: 0,
+    });
+    expect(staffAuth.resolveCrmStaffUserId).toHaveBeenCalled();
+    expect(projects.importFromB2b).toHaveBeenCalledWith(9);
+  });
+});
+
 describe('CpController report export cap', () => {
   it('forbids POST /reports/export when view-only and no export_final or finance', async () => {
     const reports = { export: jest.fn() };

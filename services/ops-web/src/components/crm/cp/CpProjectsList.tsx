@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
-import { listCpProjects, type CpProjectSummary, type CpScope } from '@/lib/crm/cp-api';
+import { importCpProjectsFromB2b, listCpProjects, type CpProjectSummary, type CpScope } from '@/lib/crm/cp-api';
 import { dash } from '@/lib/crm/cp-format';
 
 function formatDate(value: string | null): string {
@@ -24,6 +24,7 @@ export function CpProjectsList() {
   const [projects, setProjects] = useState<CpProjectSummary[]>([]);
   const [q, setQ] = useState(currentSearch.get('q') ?? '');
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -63,6 +64,24 @@ export function CpProjectsList() {
     void load();
   }, [currentSearch, load]);
 
+  async function importFromB2b() {
+    const token = getAccessToken();
+    if (!token) {
+      setError('Phiên đăng nhập không hợp lệ');
+      return;
+    }
+    setImporting(true);
+    setError('');
+    try {
+      await importCpProjectsFromB2b(token);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không lấy được dự án PTT');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -83,9 +102,19 @@ export function CpProjectsList() {
           <h1>Danh mục dự án</h1>
           <p className="cp-muted">Theo dõi project theo trạng thái, khách hàng và owner.</p>
         </div>
-        <Link className="cp-btn cp-btn--primary" href="/crm/creative-os/projects/new">
-          Tạo project
-        </Link>
+        <div className="cp-overview__actions">
+          <button
+            className="cp-btn"
+            type="button"
+            disabled={loading || importing}
+            onClick={() => void importFromB2b()}
+          >
+            {importing ? 'Đang lấy…' : 'Lấy từ Dự án PTT'}
+          </button>
+          <Link className="cp-btn cp-btn--primary" href="/crm/creative-os/projects/new">
+            Tạo project
+          </Link>
+        </div>
       </header>
 
       <form className="cp-filters" onSubmit={applyFilters}>
@@ -147,7 +176,7 @@ export function CpProjectsList() {
                   <td>{dash(project.credit_budget)}</td>
                 </tr>
               )) : (
-                <tr><td className="cp-empty" colSpan={6}>{loading ? 'Đang tải…' : dash(null)}</td></tr>
+                <tr><td className="cp-empty" colSpan={6}>{loading ? 'Đang tải…' : 'Chưa có project. Lấy từ Dự án PTT hoặc tạo mới.'}</td></tr>
               )}
             </tbody>
           </table>
