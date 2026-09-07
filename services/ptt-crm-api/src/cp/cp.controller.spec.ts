@@ -36,6 +36,7 @@ function makeController(opts: {
     unused,
     staffAuth as never,
     unused,
+    unused,
   );
   const req = {
     staffUser: { sub: 'staff-1' },
@@ -146,5 +147,36 @@ describe('CpController.submitCreative', () => {
       VERSION_ID,
       expect.objectContaining({ scope: 'team', staffId: 9 }),
     );
+  });
+});
+
+describe('CpController.contentOsHandoff', () => {
+  it('resolves staff and returns draft_id + href without rendering', async () => {
+    const handoff = {
+      handoff: jest.fn().mockResolvedValue({
+        draft_id: '22222222-2222-4222-8222-222222222222',
+        href: '/crm/creative-os/video/22222222-2222-4222-8222-222222222222',
+      }),
+    };
+    const renders = { submit: jest.fn() };
+    const { controller, req, staffAuth } = makeController({});
+    Object.assign(controller, { contentOs: handoff, renders });
+
+    await expect(
+      controller.contentOsHandoff(req as never, {
+        lifecycle_id: 7,
+        item_id: 42,
+        name: 'Reel Peak',
+      }),
+    ).resolves.toEqual({
+      draft_id: '22222222-2222-4222-8222-222222222222',
+      href: '/crm/creative-os/video/22222222-2222-4222-8222-222222222222',
+    });
+    expect(staffAuth.resolveCrmStaffUserId).toHaveBeenCalled();
+    expect(handoff.handoff).toHaveBeenCalledWith(
+      { lifecycle_id: 7, item_id: 42, name: 'Reel Peak' },
+      expect.objectContaining({ staffId: 9 }),
+    );
+    expect(renders.submit).not.toHaveBeenCalled();
   });
 });

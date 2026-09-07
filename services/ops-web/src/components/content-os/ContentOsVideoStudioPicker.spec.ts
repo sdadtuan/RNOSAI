@@ -3,9 +3,11 @@ import { CONTENT_OS_VIDEO_API_PATHS } from '@/lib/content-os-api';
 import * as contentOsApi from '@/lib/content-os-api';
 import {
   VIDEO_STUDIO_CINEMATIC_LABEL,
+  VIDEO_STUDIO_CREATIVE_OS_LABEL,
   VIDEO_STUDIO_SOCIAL_LABEL,
   isCinematicVideoStudioEnabled,
   pickCinematicStudio,
+  pickCreativeOsStudio,
 } from './ContentOsVideoStudioPicker';
 
 const CINEMATIC_FLAG = 'NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC';
@@ -22,6 +24,7 @@ describe('ContentOsVideoStudioPicker labels', () => {
   it('exposes locked Social and SOP card labels', () => {
     expect(VIDEO_STUDIO_SOCIAL_LABEL).toBe('Video tuần (FFmpeg)');
     expect(VIDEO_STUDIO_CINEMATIC_LABEL).toBe('Video chiến dịch (SOP)');
+    expect(VIDEO_STUDIO_CREATIVE_OS_LABEL).toBe('Mở Video AI (Creative OS)');
   });
 
   it('disables SOP studio unless NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC is 1', () => {
@@ -113,5 +116,44 @@ describe('pickCinematicStudio', () => {
     expect(lockSpy).not.toHaveBeenCalled();
     expect(onSelect).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('pickCreativeOsStudio', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('handoffs to Creative OS draft and never locks social or creates vd_project', async () => {
+    const lockSpy = vi.spyOn(contentOsApi, 'lockVideoStudio');
+    const handoff = vi.fn().mockResolvedValue({
+      draft_id: '22222222-2222-4222-8222-222222222222',
+      href: '/crm/creative-os/video/22222222-2222-4222-8222-222222222222',
+    });
+    const createProject = vi.fn();
+    const navigate = vi.fn();
+
+    await pickCreativeOsStudio({
+      token: 'staff-token',
+      lifecycleId: 7,
+      itemId: 42,
+      name: 'Reel Peak',
+      prompt: 'hook',
+      handoff,
+      createProject,
+      navigate,
+    });
+
+    expect(handoff).toHaveBeenCalledWith('staff-token', {
+      lifecycle_id: 7,
+      item_id: 42,
+      name: 'Reel Peak',
+      prompt: 'hook',
+    });
+    expect(lockSpy).not.toHaveBeenCalled();
+    expect(createProject).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(
+      '/crm/creative-os/video/22222222-2222-4222-8222-222222222222',
+    );
   });
 });

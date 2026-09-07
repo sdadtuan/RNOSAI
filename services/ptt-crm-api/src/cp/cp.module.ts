@@ -33,6 +33,7 @@ import { CpApprovalsService } from './cp-approvals.service';
 import { CpCommentsService } from './cp-comments.service';
 import { CpPublishService } from './cp-publish.service';
 import { CpQcService } from './cp-qc.service';
+import { CpContentOsHandoffService } from './cp-content-os-handoff.service';
 import { StaffCpGuard } from './guards/staff-cp.guard';
 
 @Module({
@@ -65,6 +66,7 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     CpCommentsService,
     CpApprovalsService,
     CpPublishService,
+    CpContentOsHandoffService,
   ],
 })
 export class CpModule {}

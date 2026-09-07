@@ -980,6 +980,28 @@ export function restoreBrandVersion(
   );
 }
 
+export type CpContentOsHandoffInput = {
+  lifecycle_id: number;
+  item_id?: number;
+  name?: string;
+  prompt?: string;
+};
+
+export type CpContentOsHandoffResult = {
+  draft_id: string;
+  href: string;
+};
+
+export function handoffContentOsToCreativeOs(
+  token: string,
+  input: CpContentOsHandoffInput,
+) {
+  return cpFetch<CpContentOsHandoffResult>(token, '/content-os/handoff', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export function listCpVideos(token: string, scope: CpScope = 'me') {
   return cpFetch<{ items: CpVideoDraft[] }>(
     token,

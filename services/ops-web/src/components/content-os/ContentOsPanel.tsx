@@ -771,6 +771,7 @@ export function ContentOsPanel({ token, user, lifecycleId }: Props) {
                 canWrite={canWrite}
                 canApprove={canApprove}
                 canProduction={canProduction}
+                showCreativeOsHandoff={view === 'board'}
                 onChanged={refreshDrawerItem}
                 onMessage={setMessage}
                 onError={setError}

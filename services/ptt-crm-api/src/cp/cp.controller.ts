@@ -54,6 +54,10 @@ import {
   CpVideosService,
 } from './cp-videos.service';
 import {
+  CpContentOsHandoffInput,
+  CpContentOsHandoffService,
+} from './cp-content-os-handoff.service';
+import {
   RequireCpAction,
   RequireCpSection,
   StaffCpGuard,
@@ -91,6 +95,7 @@ export class CpController {
     private readonly settings: CpSettingsService,
     private readonly staffAuth: StaffAuthService,
     private readonly publish: CpPublishService,
+    private readonly contentOs: CpContentOsHandoffService,
   ) {}
 
   private async assertLegalApprovalCap(req: AuthedReq, input: CpApprovalInput) {
@@ -411,6 +416,12 @@ export class CpController {
   @RequireCpAction('edit')
   async createVideo(@Req() req: AuthedReq, @Body() body: CpVideoDraftInput) {
     return this.videos.upsertDraft(body ?? {}, await this.scope(req));
+  }
+
+  @Post('content-os/handoff')
+  @RequireCpAction('edit')
+  async contentOsHandoff(@Req() req: AuthedReq, @Body() body: CpContentOsHandoffInput) {
+    return this.contentOs.handoff(body ?? {}, await this.scope(req));
   }
 
   @Get('videos/versions/:id')

@@ -3,10 +3,16 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { lockVideoStudio, parseCmktGateError } from '@/lib/content-os-api';
+import {
+  handoffContentOsToCreativeOs,
+  type CpContentOsHandoffInput,
+  type CpContentOsHandoffResult,
+} from '@/lib/crm/cp-api';
 import { VIDEO_SOP_API, type CreateVdProjectBody, type VdProjectRow } from '@/lib/video-sop-api';
 
 export const VIDEO_STUDIO_SOCIAL_LABEL = 'Video tuần (FFmpeg)';
 export const VIDEO_STUDIO_CINEMATIC_LABEL = 'Video chiến dịch (SOP)';
+export const VIDEO_STUDIO_CREATIVE_OS_LABEL = 'Mở Video AI (Creative OS)';
 export const VIDEO_STUDIO_SOP_HELPER = 'Module 7 chưa ship';
 export const VIDEO_STUDIO_SOP_HUB = '/crm/video';
 
@@ -37,11 +43,35 @@ export async function pickCinematicStudio(args: PickCinematicStudioArgs): Promis
   args.navigate(`/crm/video/${project.id}`);
 }
 
+export type PickCreativeOsStudioArgs = {
+  token: string;
+  lifecycleId: number;
+  itemId: number;
+  name?: string;
+  prompt?: string;
+  handoff: (token: string, body: CpContentOsHandoffInput) => Promise<CpContentOsHandoffResult>;
+  createProject?: (token: string, body: CreateVdProjectBody) => Promise<Pick<VdProjectRow, 'id'>>;
+  navigate: (href: string) => void;
+};
+
+export async function pickCreativeOsStudio(args: PickCreativeOsStudioArgs): Promise<void> {
+  const result = await args.handoff(args.token, {
+    lifecycle_id: args.lifecycleId,
+    item_id: args.itemId,
+    name: args.name,
+    prompt: args.prompt,
+  });
+  args.navigate(result.href);
+}
+
 interface Props {
   token: string;
   lifecycleId: number;
   itemId: number;
+  itemName?: string;
+  itemPrompt?: string;
   disabled?: boolean;
+  showCreativeOsHandoff?: boolean;
   onSelect: (studio: StudioChoice) => void | Promise<void>;
   onError: (msg: string) => void;
   onMessage?: (msg: string) => void;
@@ -51,7 +81,10 @@ export function ContentOsVideoStudioPicker({
   token,
   lifecycleId,
   itemId,
+  itemName,
+  itemPrompt,
   disabled = false,
+  showCreativeOsHandoff = false,
   onSelect,
   onError,
   onMessage,
@@ -86,6 +119,29 @@ export function ContentOsVideoStudioPicker({
         itemId,
         createProject: VIDEO_SOP_API.createProject,
         onSelect,
+        navigate: (href) => {
+          router.push(href);
+        },
+      });
+    } catch (err) {
+      onError(parseCmktGateError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pickCreativeOs() {
+    if (!showCreativeOsHandoff || disabled || busy) return;
+    setBusy(true);
+    onError('');
+    try {
+      await pickCreativeOsStudio({
+        token,
+        lifecycleId,
+        itemId,
+        name: itemName,
+        prompt: itemPrompt,
+        handoff: handoffContentOsToCreativeOs,
         navigate: (href) => {
           router.push(href);
         },
@@ -150,6 +206,23 @@ export function ContentOsVideoStudioPicker({
             </div>
           )}
         </button>
+
+        {showCreativeOsHandoff ? (
+          <button
+            type="button"
+            disabled={disabled || busy}
+            onClick={() => void pickCreativeOs()}
+            style={cardStyle(disabled || busy)}
+          >
+            <div style={{ fontWeight: 650 }}>{VIDEO_STUDIO_CREATIVE_OS_LABEL}</div>
+            <div className="muted" style={{ fontSize: '0.78rem', marginTop: 6 }}>
+              Tạo draft Video AI trên Creative Production OS — không render từ Content Board.
+            </div>
+            <div className="muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>
+              Deep-link /crm/creative-os/video
+            </div>
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -40,6 +40,7 @@ interface Props {
   canWrite: boolean;
   canApprove: boolean;
   canProduction: boolean;
+  showCreativeOsHandoff?: boolean;
   onChanged: () => Promise<void> | void;
   onMessage: (msg: string) => void;
   onError: (msg: string) => void;
@@ -56,6 +57,7 @@ export function ContentOsMediaStudio({
   canWrite,
   canApprove,
   canProduction,
+  showCreativeOsHandoff = false,
   onChanged,
   onMessage,
   onError,
@@ -149,7 +151,9 @@ export function ContentOsMediaStudio({
             token={token}
             lifecycleId={lifecycleId}
             itemId={item.id}
+            itemName={item.title}
             disabled={!canGenerate}
+            showCreativeOsHandoff={showCreativeOsHandoff}
             onSelect={async (studio) => {
               if (studio === 'cinematic') {
                 setStudioOverride('cinematic');
