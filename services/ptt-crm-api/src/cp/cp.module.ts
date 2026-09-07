@@ -28,6 +28,9 @@ import {
   CpVideosRepository,
   CpVideosService,
 } from './cp-videos.service';
+import { CpApprovalsService } from './cp-approvals.service';
+import { CpCommentsService } from './cp-comments.service';
+import { CpQcService } from './cp-qc.service';
 import { StaffCpGuard } from './guards/staff-cp.guard';
 
 @Module({
@@ -56,6 +59,9 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     CpVideosRepository,
     { provide: CP_VIDEOS_QUERY, useExisting: CpVideosRepository },
     CpVideosService,
+    CpQcService,
+    CpCommentsService,
+    CpApprovalsService,
   ],
 })
 export class CpModule {}

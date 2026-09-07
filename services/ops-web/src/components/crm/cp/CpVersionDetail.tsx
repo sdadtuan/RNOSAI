@@ -10,6 +10,7 @@ import {
   type CpVideoVersion,
 } from '@/lib/crm/cp-api';
 import { dash } from '@/lib/crm/cp-format';
+import { CpVideoReview } from './CpVideoReview';
 
 function scopeFrom(value?: string): CpScope {
   return value === 'team' || value === 'all' ? value : 'me';
@@ -85,6 +86,7 @@ export function CpVersionDetail({
         <div className="cp-card__head"><h2>Configuration</h2></div>
         <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{displayJson(version?.snapshot_json)}</pre>
       </section>
+      <CpVideoReview versionId={versionId} scope={scopeValue} />
     </div>
   );
 }

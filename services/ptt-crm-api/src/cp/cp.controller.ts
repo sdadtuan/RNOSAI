@@ -36,6 +36,9 @@ import {
 } from './cp-projects.service';
 import { CpScope, resolveCpScope } from './cp-scope.util';
 import { CpSettingsPatch, CpSettingsService } from './cp-settings.service';
+import { CpApprovalsService, CpApprovalInput } from './cp-approvals.service';
+import { CpCommentInput, CpCommentsService } from './cp-comments.service';
+import { CpQcService, QcFacts } from './cp-qc.service';
 import { CpVideoDraftInput, CpVideosService } from './cp-videos.service';
 import {
   RequireCpAction,
@@ -67,6 +70,9 @@ export class CpController {
     private readonly assets: CpAssetsService,
     private readonly brand: CpBrandService,
     private readonly videos: CpVideosService,
+    private readonly qc: CpQcService,
+    private readonly comments: CpCommentsService,
+    private readonly approvals: CpApprovalsService,
     private readonly renders: CpRendersService,
     private readonly ledger: CpLedgerService,
     private readonly settings: CpSettingsService,
@@ -275,6 +281,70 @@ export class CpController {
     return this.videos.getVersion(id, await this.scope(req, scope));
   }
 
+  @Post('videos/versions/:id/qc')
+  @RequireCpAction('edit')
+  async runVideoQc(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: QcFacts & { facts?: QcFacts },
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.qc.run(id, qcFactsFrom(body), await this.scope(req, scope));
+  }
+
+  @Post('videos/versions/:id/export')
+  @RequireCpSection('crm_cp.export_final', 'execute')
+  async exportVideoVersion(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.qc.exportFinal(id, await this.scope(req, scope));
+  }
+
+  @Get('videos/versions/:id/comments')
+  @RequireCpAction('view')
+  async listVideoComments(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.comments.list(id, await this.scope(req, scope));
+  }
+
+  @Post('videos/versions/:id/comments')
+  @RequireCpAction('edit')
+  async createVideoComment(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpCommentInput,
+  ) {
+    const actor = await this.scope(req);
+    return this.comments.create(id, body ?? {}, actor.staffId, actor);
+  }
+
+  @Post('videos/versions/:id/approvals')
+  @RequireCpAction('edit')
+  async submitVideoApproval(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpApprovalInput,
+  ) {
+    const actor = await this.scope(req);
+    return this.approvals.submit(id, body ?? {}, actor.staffId, actor);
+  }
+
+  @Get('videos/versions/:id/compare/:otherId')
+  @RequireCpAction('view')
+  async compareVideoVersions(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('otherId') otherId: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.approvals.compareVersions(id, otherId, await this.scope(req, scope));
+  }
+
   @Get('videos/:id')
   @RequireCpAction('view')
   async getVideo(
@@ -440,4 +510,13 @@ export class CpController {
   ) {
     return this.projects.patch(id, body ?? {}, await this.scope(req));
   }
+}
+
+function qcFactsFrom(body: (QcFacts & { facts?: QcFacts }) | undefined): QcFacts {
+  const payload = body ?? {};
+  if (payload.facts && typeof payload.facts === 'object' && !Array.isArray(payload.facts)) {
+    return payload.facts;
+  }
+  const { facts: _facts, ...facts } = payload;
+  return facts;
 }

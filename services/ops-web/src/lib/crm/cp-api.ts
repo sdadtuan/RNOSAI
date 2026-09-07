@@ -293,6 +293,33 @@ export type CpVideoDraft = CpVideoDraftInput & {
   updated_at?: string | null;
 };
 
+export type CpQcResult = 'passed' | 'warning' | 'blocked';
+
+export type CpQcCheckReport = {
+  result: CpQcResult;
+  reason?: string | null;
+};
+
+export type CpQcReport = {
+  overall: CpQcResult;
+  checks: Record<string, CpQcCheckReport>;
+};
+
+export type CpQcFacts = {
+  width?: number | null;
+  height?: number | null;
+  duration_sec?: number | null;
+  has_audio?: boolean | null;
+  safe_area_ok?: boolean | null;
+  caption_overflow?: boolean | null;
+  logo_present?: boolean | null;
+  cta_present?: boolean | null;
+  disclaimer_present?: boolean | null;
+  loudness_lufs?: number | null;
+  black_frozen?: boolean | null;
+  moderation?: string | boolean | null;
+};
+
 export type CpVideoVersion = {
   id: string;
   draft_id: string;
@@ -301,12 +328,51 @@ export type CpVideoVersion = {
   version_n: number | string;
   snapshot_json: unknown;
   qc_status?: string | null;
-  qc_json?: unknown;
+  qc_json?: CpQcReport | unknown;
   approval_status: string;
   immutable: boolean;
   output_uri?: string | null;
   pricing_version?: string | null;
   brand_kit_version_id?: string | null;
+};
+
+export type CpVideoComment = {
+  id: string;
+  object_type: string;
+  object_id: string;
+  timecode_ms: number | null;
+  body: string;
+  status: string;
+  mention_ids: number[];
+  created_by: number;
+  created_at?: string | null;
+};
+
+export type CpVideoCommentInput = {
+  body: string;
+  timecode_ms?: number | null;
+  mention_ids?: number[];
+  status?: string;
+};
+
+export type CpVideoApprovalInput = {
+  status: string;
+  decision?: string | null;
+  reason?: string | null;
+};
+
+export type CpVersionDiffField<T = unknown> = {
+  a: T;
+  b: T;
+  changed: boolean;
+};
+
+export type CpVersionCompare = {
+  metadata: CpVersionDiffField;
+  script: CpVersionDiffField;
+  kit_id: CpVersionDiffField<string | null>;
+  asset_ids: CpVersionDiffField<string[]>;
+  cost: CpVersionDiffField;
 };
 
 export type CpRenderJob = {
@@ -786,6 +852,92 @@ export function getCpVideoVersion(
   return cpFetch<CpVideoVersion>(
     token,
     cpQueryPath(`/videos/versions/${encodeURIComponent(versionId)}`, { scope }),
+  );
+}
+
+export function runCpVideoQc(
+  token: string,
+  versionId: string,
+  facts: CpQcFacts = {},
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpVideoVersion>(
+    token,
+    cpQueryPath(`/videos/versions/${encodeURIComponent(versionId)}/qc`, { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(facts),
+    },
+  );
+}
+
+export function exportCpVideoVersion(
+  token: string,
+  versionId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ id: string; output_uri: string | null; qc_status: string | null }>(
+    token,
+    cpQueryPath(`/videos/versions/${encodeURIComponent(versionId)}/export`, { scope }),
+    { method: 'POST' },
+  );
+}
+
+export function listCpVideoComments(
+  token: string,
+  versionId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<{ items: CpVideoComment[] }>(
+    token,
+    cpQueryPath(`/videos/versions/${encodeURIComponent(versionId)}/comments`, { scope }),
+  );
+}
+
+export function createCpVideoComment(
+  token: string,
+  versionId: string,
+  input: CpVideoCommentInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpVideoComment>(
+    token,
+    cpQueryPath(`/videos/versions/${encodeURIComponent(versionId)}/comments`, { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function submitCpVideoApproval(
+  token: string,
+  versionId: string,
+  input: CpVideoApprovalInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpVideoVersion>(
+    token,
+    cpQueryPath(`/videos/versions/${encodeURIComponent(versionId)}/approvals`, { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function compareCpVideoVersions(
+  token: string,
+  versionId: string,
+  otherId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpVersionCompare>(
+    token,
+    cpQueryPath(
+      `/videos/versions/${encodeURIComponent(versionId)}/compare/${encodeURIComponent(otherId)}`,
+      { scope },
+    ),
   );
 }
 

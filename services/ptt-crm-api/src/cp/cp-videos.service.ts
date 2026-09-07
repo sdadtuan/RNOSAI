@@ -1,7 +1,7 @@
-import { HttpException, Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { HttpException, Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
-import { CP_TENANT_ID } from './cp-audit.repository';
+import { CpAuditRepository, CP_TENANT_ID } from './cp-audit.repository';
 import { cpScopeSql, CpScope } from './cp-scope.util';
 
 export const CP_VIDEOS_QUERY = 'CP_VIDEOS_QUERY';
@@ -64,7 +64,16 @@ export class CpVideosRepository implements CpVideosQueryPort, OnModuleDestroy {
 export class CpVideosService {
   constructor(
     @Inject(CP_VIDEOS_QUERY) private readonly db: CpVideosQueryPort,
+    @Optional() private readonly audit?: CpAuditRepository,
   ) {}
+
+  patch(
+    id: string,
+    input: CpVideoDraftInput,
+    scope: CpVideoScope = DEFAULT_SCOPE,
+  ) {
+    return this.patchDraft(id, input, scope);
+  }
 
   async list(scope: CpVideoScope = DEFAULT_SCOPE) {
     const allowed = projectScope(scope, 2);
@@ -175,7 +184,9 @@ export class CpVideosService {
           : optionalUuid(input.brand_kit_version_id, 'invalid_brand_kit_version_id'),
       ],
     );
-    return result.rows[0] ?? cpThrow(404, { error: 'not_found' });
+    const updated = result.rows[0] ?? cpThrow(404, { error: 'not_found' });
+    await this.invalidateApprovalIfNeeded(updated, scope);
+    return updated;
   }
 
   async patchVersion(
@@ -207,6 +218,41 @@ export class CpVideosService {
       ],
     );
     return updated.rows[0] ?? cpThrow(404, { error: 'not_found' });
+  }
+
+  private async invalidateApprovalIfNeeded(
+    draft: Record<string, unknown>,
+    scope: CpVideoScope,
+  ) {
+    const found = await this.db.query(
+      `SELECT v.*
+         FROM crm_cp_video_versions v
+        WHERE v.draft_id = $1::uuid
+        ORDER BY v.version_n DESC, v.id DESC
+        LIMIT 1`,
+      [draft.id],
+    );
+    const version = found.rows[0];
+    if (!version) return;
+    const previous = String(version.approval_status ?? '');
+    if (!previous || previous === 'internal_review' || previous === 'rejected') return;
+
+    await this.db.query(
+      `UPDATE crm_cp_video_versions
+          SET approval_status = $2
+        WHERE id = $1::uuid`,
+      [version.id, 'internal_review'],
+    );
+    await this.audit?.insert({
+      actor_id: scope.staffId > 0 ? scope.staffId : null,
+      action: 'approval_invalidated',
+      resource_type: 'video_version',
+      resource_id: String(version.id),
+      payload_json: {
+        previous,
+        draft_id: String(draft.id),
+      },
+    });
   }
 
   private async loadProject(projectId: string, scope: CpVideoScope) {
