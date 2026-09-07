@@ -3,6 +3,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Header,
   Headers,
   Param,
   Patch,
@@ -10,9 +11,10 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
@@ -57,6 +59,8 @@ import {
   CpContentOsHandoffInput,
   CpContentOsHandoffService,
 } from './cp-content-os-handoff.service';
+import { CpTemplateInput, CpTemplateUseInput, CpTemplatesService } from './cp-templates.service';
+import { CpBatchInput, CpBatchesService } from './cp-batches.service';
 import {
   RequireCpAction,
   RequireCpSection,
@@ -96,6 +100,8 @@ export class CpController {
     private readonly staffAuth: StaffAuthService,
     private readonly publish: CpPublishService,
     private readonly contentOs: CpContentOsHandoffService,
+    private readonly templates: CpTemplatesService,
+    private readonly batches: CpBatchesService,
   ) {}
 
   private async assertLegalApprovalCap(req: AuthedReq, input: CpApprovalInput) {
@@ -724,6 +730,113 @@ export class CpController {
     @Body() body: CpPatchProjectInput,
   ) {
     return this.projects.patch(id, body ?? {}, await this.scope(req));
+  }
+
+  @Get('templates')
+  @RequireCpAction('view')
+  listTemplates() {
+    return this.templates.list();
+  }
+
+  @Post('templates')
+  @RequireCpAction('edit')
+  createTemplate(@Body() body: CpTemplateInput) {
+    return this.templates.create(body ?? {});
+  }
+
+  @Get('templates/:id')
+  @RequireCpAction('view')
+  getTemplate(@Param('id') id: string) {
+    return this.templates.get(id);
+  }
+
+  @Post('templates/:id/publish')
+  @RequireCpAction('edit')
+  publishTemplate(@Param('id') id: string) {
+    return this.templates.publish(id);
+  }
+
+  @Post('templates/:id/use')
+  @RequireCpAction('edit')
+  async useTemplate(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpTemplateUseInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.templates.use(id, body ?? {}, await this.scope(req, scope));
+  }
+
+  @Get('batches')
+  @RequireCpAction('view')
+  async listBatches(@Req() req: AuthedReq, @Query('scope') scope?: CpScope) {
+    return this.batches.list(await this.scope(req, scope));
+  }
+
+  @Post('batches')
+  @RequireCpAction('edit')
+  async createBatch(
+    @Req() req: AuthedReq,
+    @Body() body: CpBatchInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    const actor = await this.scope(req, scope);
+    return this.batches.create(body ?? {}, actor.staffId, actor);
+  }
+
+  @Get('batches/:id/errors.csv')
+  @RequireCpAction('view')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  async batchErrorsCsv(
+    @Req() req: AuthedReq,
+    @Res() res: Response,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    const csv = await this.batches.errorsCsv(id, await this.scope(req, scope));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.send(csv);
+  }
+
+  @Post('batches/:id/validate')
+  @RequireCpAction('edit')
+  async validateBatch(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.batches.validate(id, await this.scope(req, scope));
+  }
+
+  @Post('batches/:id/run')
+  @RequireCpSection('crm_cp.render', 'execute')
+  async runBatch(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.batches.run(id, await this.scope(req, scope));
+  }
+
+  @Post('batches/:id/items/:rowNo/retry')
+  @RequireCpSection('crm_cp.render', 'execute')
+  async retryBatchItem(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('rowNo') rowNo: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.batches.retryItem(id, rowNo, await this.scope(req, scope));
+  }
+
+  @Get('batches/:id')
+  @RequireCpAction('view')
+  async getBatch(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.batches.get(id, await this.scope(req, scope));
   }
 }
 

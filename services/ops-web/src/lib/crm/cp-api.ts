@@ -1391,3 +1391,165 @@ export function createCpPublishItem(
     },
   );
 }
+
+export const CP_TEMPLATE_REQUIRED_VARS = [
+  'project_name',
+  'price_from',
+  'location',
+  'cta',
+  'hotline',
+] as const;
+
+export type CpTemplate = {
+  id: string;
+  name: string;
+  version: number | string;
+  variables_json: string[];
+  rules_json?: Record<string, unknown>;
+  brand_kit_id?: string | null;
+  status: string;
+};
+
+export type CpTemplateInput = {
+  name: string;
+  variables?: string[];
+  rules_json?: Record<string, unknown>;
+  brand_kit_id?: string | null;
+};
+
+export type CpBatchItem = {
+  id?: string;
+  batch_id?: string;
+  row_no: number | string;
+  row_json?: Record<string, unknown>;
+  mapping_json?: Record<string, string>;
+  status: string;
+  error?: string | null;
+  job_id?: string | null;
+};
+
+export type CpBatchJob = {
+  id: string;
+  template_id: string;
+  project_id?: string | null;
+  estimate_credits?: number | null;
+  status: string;
+  created_by?: number;
+  items?: CpBatchItem[];
+  valid_count?: number | null;
+  invalid_count?: number | null;
+  unit_credits?: number | null;
+};
+
+export type CpBatchInput = {
+  template_id: string;
+  project_id?: string | null;
+  rows?: Record<string, unknown>[];
+  mapping?: Record<string, string>;
+  source?: {
+    type?: string;
+    client_id?: string;
+    lifecycle_id?: number | string;
+    columns?: string[];
+  };
+};
+
+export function listCpTemplates(token: string) {
+  return cpFetch<{ items: CpTemplate[] }>(token, '/templates');
+}
+
+export function createCpTemplate(token: string, input: CpTemplateInput) {
+  return cpFetch<CpTemplate>(token, '/templates', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function publishCpTemplate(token: string, templateId: string) {
+  return cpFetch<CpTemplate>(token, `/templates/${encodeURIComponent(templateId)}/publish`, {
+    method: 'POST',
+  });
+}
+
+export function useCpTemplate(
+  token: string,
+  templateId: string,
+  input: { project_id: string; name?: string },
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpVideoDraft>(
+    token,
+    cpQueryPath(`/templates/${encodeURIComponent(templateId)}/use`, { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function createCpBatch(token: string, input: CpBatchInput, scope: CpScope = 'me') {
+  return cpFetch<CpBatchJob>(
+    token,
+    cpQueryPath('/batches', { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function getCpBatch(token: string, batchId: string, scope: CpScope = 'me') {
+  return cpFetch<CpBatchJob>(
+    token,
+    cpQueryPath(`/batches/${encodeURIComponent(batchId)}`, { scope }),
+  );
+}
+
+export function validateCpBatch(token: string, batchId: string, scope: CpScope = 'me') {
+  return cpFetch<CpBatchJob>(
+    token,
+    cpQueryPath(`/batches/${encodeURIComponent(batchId)}/validate`, { scope }),
+    { method: 'POST' },
+  );
+}
+
+export function runCpBatch(token: string, batchId: string, scope: CpScope = 'me') {
+  return cpFetch<CpBatchJob>(
+    token,
+    cpQueryPath(`/batches/${encodeURIComponent(batchId)}/run`, { scope }),
+    { method: 'POST' },
+  );
+}
+
+export function retryCpBatchItem(
+  token: string,
+  batchId: string,
+  rowNo: number | string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpBatchItem>(
+    token,
+    cpQueryPath(
+      `/batches/${encodeURIComponent(batchId)}/items/${encodeURIComponent(String(rowNo))}/retry`,
+      { scope },
+    ),
+    { method: 'POST' },
+  );
+}
+
+export async function getCpBatchErrorsCsv(
+  token: string,
+  batchId: string,
+  scope: CpScope = 'me',
+): Promise<string> {
+  const path = cpQueryPath(`/batches/${encodeURIComponent(batchId)}/errors.csv`, { scope });
+  const res = await fetch(`${API_BASE}/api/crm/cp${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new CpApiError(text || 'CP request failed', res.status);
+  }
+  return text;
+}

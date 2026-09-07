@@ -78,7 +78,11 @@ export function CpVideoList() {
           <h1>Video drafts</h1>
           <p className="cp-muted">Mở draft trong Video Studio hoặc tạo draft mới.</p>
         </div>
-        <Link className="cp-btn" href={`/crm/creative-os/video/ops?scope=${scope}`}>Render Ops</Link>
+        <div className="cp-actions">
+          <Link className="cp-btn" href={`/crm/creative-os/video/templates?scope=${scope}`}>Mẫu video</Link>
+          <Link className="cp-btn" href={`/crm/creative-os/video/batch?scope=${scope}`}>Tạo hàng loạt</Link>
+          <Link className="cp-btn" href={`/crm/creative-os/video/ops?scope=${scope}`}>Render Ops</Link>
+        </div>
       </header>
       {error ? <section className="cp-card cp-card--error"><p>{error}</p></section> : null}
       <section className="cp-card">

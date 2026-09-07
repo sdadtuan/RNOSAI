@@ -196,6 +196,8 @@ export function CpVideoStudio({
           <p className="cp-muted">{saving ? 'Đang autosave…' : dash(draft?.autosaved_at)}</p>
         </div>
         <div className="cp-filters">
+          <Link className="cp-btn" href={`/crm/creative-os/video/templates?scope=${scope}`}>Mẫu</Link>
+          <Link className="cp-btn" href={`/crm/creative-os/video/batch?scope=${scope}`}>Hàng loạt</Link>
           <Link className="cp-btn" href={`/crm/creative-os/video/ops?scope=${scope}`}>Ops</Link>
           <button
             className="cp-btn cp-btn--primary"

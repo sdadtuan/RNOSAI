@@ -805,3 +805,48 @@ html.ops-shell-bitrix body:has(.cp-root) .bitrix-crm-page__inner {
     grid-template-columns: 1fr;
   }
 }
+
+.cp-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cp-stepper__item {
+  border: 1px solid #e5e7eb;
+  border-radius: 99px;
+  padding: 4px 10px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 12px;
+}
+
+.cp-stepper__item.is-on {
+  border-color: var(--cp-navy);
+  background: var(--cp-navy);
+  color: #fff;
+}
+
+.cp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cp-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.cp-inline-form input {
+  min-width: 120px;
+  min-height: 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 4px 8px;
+  font: inherit;
+}

@@ -34,6 +34,16 @@ import { CpCommentsService } from './cp-comments.service';
 import { CpPublishService } from './cp-publish.service';
 import { CpQcService } from './cp-qc.service';
 import { CpContentOsHandoffService } from './cp-content-os-handoff.service';
+import {
+  CP_TEMPLATES_QUERY,
+  CpTemplatesRepository,
+  CpTemplatesService,
+} from './cp-templates.service';
+import {
+  CP_BATCHES_QUERY,
+  CpBatchesRepository,
+  CpBatchesService,
+} from './cp-batches.service';
 import { StaffCpGuard } from './guards/staff-cp.guard';
 
 @Module({
@@ -67,6 +77,12 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     CpApprovalsService,
     CpPublishService,
     CpContentOsHandoffService,
+    CpTemplatesRepository,
+    { provide: CP_TEMPLATES_QUERY, useExisting: CpTemplatesRepository },
+    CpTemplatesService,
+    CpBatchesRepository,
+    { provide: CP_BATCHES_QUERY, useExisting: CpBatchesRepository },
+    CpBatchesService,
   ],
 })
 export class CpModule {}

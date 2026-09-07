@@ -1,5 +1,10 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { Suspense } from 'react';
+import { CpTemplates } from '@/components/crm/cp/CpTemplates';
 
 export default function CreativeOsVideoTemplatesPage() {
-  return <CpPlaceholder title="Mẫu video" />;
+  return (
+    <Suspense fallback={<p className="cp-muted">Đang tải…</p>}>
+      <CpTemplates />
+    </Suspense>
+  );
 }

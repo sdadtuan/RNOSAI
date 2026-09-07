@@ -1,5 +1,10 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { Suspense } from 'react';
+import { CpBatchFactory } from '@/components/crm/cp/CpBatchFactory';
 
 export default function CreativeOsVideoBatchPage() {
-  return <CpPlaceholder title="Tạo video hàng loạt" />;
+  return (
+    <Suspense fallback={<p className="cp-muted">Đang tải…</p>}>
+      <CpBatchFactory />
+    </Suspense>
+  );
 }
