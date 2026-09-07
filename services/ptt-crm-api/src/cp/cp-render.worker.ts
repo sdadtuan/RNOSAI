@@ -20,6 +20,7 @@ export class CpRenderWorker {
     snapshot: Record<string, unknown>,
     db: CpRenderWorkerQueryPort = this.db,
   ): Promise<void> {
+    const startedAt = Date.now();
     await db.query(
       `UPDATE crm_cp_render_jobs
           SET state = 'processing', stage = 'stub_render', progress = 50,
@@ -56,6 +57,7 @@ export class CpRenderWorker {
         CP_STUB_PRICING_VERSION,
       ],
     );
+    const durationSec = Math.max(0, (Date.now() - startedAt) / 1000);
     await db.query(
       `UPDATE crm_cp_render_jobs
           SET state = 'completed', stage = 'completed', progress = 100,
@@ -66,6 +68,7 @@ export class CpRenderWorker {
         JSON.stringify([{
           stage: 'completed',
           at: new Date().toISOString(),
+          duration_sec: durationSec,
         }]),
       ],
     );

@@ -1,4 +1,6 @@
+import { firstValueFrom } from 'rxjs';
 import { CpLedgerService } from './cp-ledger.service';
+import { mapRenderJobEvent, renderEventType } from './cp-render-events.util';
 import { CpRendersService } from './cp-renders.service';
 import { CpRenderWorker } from './cp-render.worker';
 
@@ -175,5 +177,71 @@ describe('CpRendersService', () => {
       sql.includes('INSERT INTO crm_cp_video_versions'));
     expect(lock).toBeGreaterThanOrEqual(0);
     expect(lock).toBeLessThan(allocate);
+  });
+
+  it('records elapsed duration_sec on the stub completion log', async () => {
+    const payloads: unknown[] = [];
+    const db = {
+      async query(_sql: string, params?: unknown[]) {
+        if (params?.[1]) payloads.push(params[1]);
+        return { rows: [] };
+      },
+    };
+    const worker = new CpRenderWorker(db);
+
+    await worker.process(
+      {
+        id: '18181818-1818-4818-8818-181818181818',
+        draft_id: '19191919-1919-4919-8919-191919191919',
+      },
+      {},
+    );
+
+    const completed = payloads
+      .map((payload) => JSON.parse(String(payload)) as Array<Record<string, unknown>>)
+      .flat()
+      .find((entry) => entry.stage === 'completed');
+    expect(typeof completed?.duration_sec).toBe('number');
+    expect(Number(completed?.duration_sec)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('render SSE events', () => {
+  const jobId = '1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a';
+
+  it('maps job states onto the published render event names', () => {
+    expect(renderEventType('queued')).toBe('cp.video.render.queued');
+    expect(renderEventType('rendering')).toBe('cp.video.render.progressed');
+    expect(renderEventType('completed')).toBe('cp.video.render.completed');
+    expect(renderEventType('failed')).toBe('cp.video.render.failed');
+  });
+
+  it('emits the current job snapshot and completes when the job is terminal', async () => {
+    const db = {
+      query: jest.fn().mockResolvedValue({
+        rows: [{
+          id: jobId,
+          state: 'completed',
+          stage: 'completed',
+          progress: 100,
+        }],
+      }),
+      transaction: jest.fn(),
+    };
+    const renders = new CpRendersService(
+      db as never,
+      { reserve: jest.fn(), charge: jest.fn() } as never,
+      { process: jest.fn() } as never,
+    );
+
+    const event = await firstValueFrom(renders.streamEvents(jobId, { scope: 'all', staffId: 0 }));
+
+    expect(event.data).toEqual(mapRenderJobEvent({
+      id: jobId,
+      state: 'completed',
+      stage: 'completed',
+      progress: 100,
+    }));
+    expect(db.query).toHaveBeenCalled();
   });
 });

@@ -1,9 +1,16 @@
 import { HttpException, Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { MessageEvent } from '@nestjs/common/interfaces';
+import { Observable } from 'rxjs';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { CP_TENANT_ID } from './cp-audit.repository';
 import { hardCapBlocks } from './cp-credit.util';
 import { CpLedgerService } from './cp-ledger.service';
+import {
+  CP_RENDER_EVENT_POLL_MS,
+  isTerminalRenderState,
+  mapRenderJobEvent,
+} from './cp-render-events.util';
 import { CpRenderWorker, CP_STUB_PRICING_VERSION } from './cp-render.worker';
 import { CpBrandService } from './cp-brand.service';
 import { renderBlockReasons } from './cp-render-block.util';
@@ -117,6 +124,44 @@ export class CpRendersService {
       [CP_TENANT_ID, jobId, ...allowed.params],
     );
     return result.rows[0] ?? cpThrow(404, { error: 'not_found' });
+  }
+
+  streamEvents(
+    id: string,
+    scope: CpRenderScope = DEFAULT_SCOPE,
+    intervalMs = CP_RENDER_EVENT_POLL_MS,
+  ): Observable<MessageEvent> {
+    return new Observable((subscriber) => {
+      let lastFingerprint: string | null = null;
+      let closed = false;
+      let handle: ReturnType<typeof setInterval> | undefined;
+      const stop = () => {
+        closed = true;
+        if (handle) clearInterval(handle);
+      };
+      const tick = async () => {
+        if (closed) return;
+        try {
+          const job = await this.get(id, scope);
+          const fingerprint = `${job.state}:${job.stage}:${job.progress}`;
+          if (fingerprint !== lastFingerprint) {
+            lastFingerprint = fingerprint;
+            subscriber.next({ data: mapRenderJobEvent(job) });
+          }
+          if (isTerminalRenderState(String(job.state ?? ''))) {
+            stop();
+            subscriber.complete();
+          }
+        } catch (error) {
+          stop();
+          subscriber.error(error);
+        }
+      };
+      void tick();
+      handle = setInterval(() => void tick(), intervalMs);
+      handle.unref?.();
+      return stop;
+    });
   }
 
   async retryJob(

@@ -79,6 +79,14 @@ export function dash(value: unknown): string {
   return value == null ? '—' : String(value);
 }
 
+export function formatOpsSlots(used: number | null, max: number | null): string {
+  return `${dash(used)} / ${dash(max)}`;
+}
+
+export function formatOpsP95(p95Sec: number | null): string {
+  return p95Sec == null ? dash(null) : `${Math.round(p95Sec)}s`;
+}
+
 export function sourcedDisplay(metric: CpSourcedMetric | null | undefined): {
   value: string;
   missing: boolean;

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import {
+  CP_RENDER_POLL_MS,
   cancelCpRender,
+  cpRenderEventsUrl,
   formatCpApiError,
   getCpRender,
   listCpRenders,
@@ -56,14 +58,16 @@ export function CpRenderOps({ scope: scopeValue }: { scope?: string }) {
   const [actingId, setActingId] = useState('');
   const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     const token = getAccessToken();
     if (!token) {
       setLoading(false);
       return;
     }
-    setLoading(true);
-    setError('');
+    if (!quiet) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const result = await listCpRenders(token, scope);
       setJobs(result.items);
@@ -71,9 +75,11 @@ export function CpRenderOps({ scope: scopeValue }: { scope?: string }) {
         result.items.find((job) => job.id === current?.id) ?? result.items[0] ?? null
       ));
     } catch (caught) {
-      setJobs([]);
-      setSelected(null);
-      setError(formatCpApiError(caught, 'Không tải được render jobs'));
+      if (!quiet) {
+        setJobs([]);
+        setSelected(null);
+        setError(formatCpApiError(caught, 'Không tải được render jobs'));
+      }
     } finally {
       setLoading(false);
     }
@@ -81,7 +87,59 @@ export function CpRenderOps({ scope: scopeValue }: { scope?: string }) {
 
   useEffect(() => {
     void load();
+    const pollTimer = window.setInterval(() => void load(true), CP_RENDER_POLL_MS);
+    return () => window.clearInterval(pollTimer);
   }, [load]);
+
+  useEffect(() => {
+    if (!selected?.id) return;
+    const token = getAccessToken();
+    if (!token || typeof EventSource === 'undefined') return;
+    let source: EventSource | null = null;
+    try {
+      source = new EventSource(cpRenderEventsUrl(token, selected.id, scope));
+      source.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data) as {
+            id?: string;
+            state?: string;
+            stage?: string | null;
+            progress?: number | null;
+          };
+          if (!payload.id) return;
+          setSelected((current) => (
+            current?.id === payload.id
+              ? {
+                  ...current,
+                  state: payload.state ?? current.state,
+                  stage: payload.stage ?? current.stage,
+                  progress: payload.progress ?? current.progress,
+                }
+              : current
+          ));
+          setJobs((current) => current.map((job) => (
+            job.id === payload.id
+              ? {
+                  ...job,
+                  state: payload.state ?? job.state,
+                  stage: payload.stage ?? job.stage,
+                  progress: payload.progress ?? job.progress,
+                }
+              : job
+          )));
+        } catch {
+          // keep poll fallback
+        }
+      };
+      source.onerror = () => {
+        source?.close();
+        source = null;
+      };
+    } catch {
+      source = null;
+    }
+    return () => source?.close();
+  }, [scope, selected?.id]);
 
   async function selectJob(job: CpRenderJob) {
     const token = getAccessToken();

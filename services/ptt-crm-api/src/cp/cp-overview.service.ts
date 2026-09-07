@@ -11,6 +11,7 @@ const PAGE_SIZE = 50;
 const QUEUE_STATES = new Set(['queued', 'preparing', 'rendering']);
 const SLOT_STATES = new Set(['preparing', 'rendering']);
 const TERMINAL_STATES = new Set(['completed', 'failed']);
+const HEALTH_WINDOW_MS = 60 * 60 * 1000;
 
 export type CpOverviewScope = {
   scope: CpScope;
@@ -197,6 +198,11 @@ function percentile95(values: number[]): number | null {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.ceil(sorted.length * 0.95) - 1];
+}
+
+function inHealthWindow(value: unknown, nowMs = Date.now()): boolean {
+  const created = Date.parse(String(value ?? ''));
+  return Number.isFinite(created) && created >= nowMs - HEALTH_WINDOW_MS;
 }
 
 function bindScope(
@@ -467,6 +473,7 @@ export function buildHealthSql(): string {
            JOIN crm_cp_video_drafts d ON d.id = j.draft_id
            JOIN crm_cp_projects p ON p.id = d.project_id
           WHERE p.tenant_id = '${TENANT_ID}'
+            AND j.created_at >= now() - INTERVAL '60 minutes'
        ),
        stub_terminal AS (
          SELECT * FROM jobs WHERE provider = 'stub' AND state IN ('completed', 'failed')
@@ -793,7 +800,9 @@ class FixtureOverview {
   }
 
   async getHealth(): Promise<CpHealth> {
-    const jobs = this.fixtures.jobs;
+    const jobs = this.fixtures.jobs.filter((job) =>
+      inHealthWindow(job.created_at ?? job.createdAt),
+    );
     const queueDepth = jobs.length
       ? jobs.filter((job) => QUEUE_STATES.has(String(job.state))).length
       : null;

@@ -2,6 +2,8 @@ import { API_BASE, ApiError, parseJson } from '@/lib/api';
 
 export type CpScope = 'me' | 'team' | 'all';
 
+export const CP_RENDER_POLL_MS = 8_000;
+
 export type CpOverviewQuery = {
   from?: string;
   to?: string;
@@ -1227,6 +1229,15 @@ export function getCpRender(token: string, renderId: string, scope: CpScope = 'm
     token,
     cpQueryPath(`/renders/${encodeURIComponent(renderId)}`, { scope }),
   );
+}
+
+export function cpRenderEventsUrl(
+  token: string,
+  renderId: string,
+  scope: CpScope = 'me',
+): string {
+  const qs = new URLSearchParams({ access_token: token, scope });
+  return `${API_BASE}/api/crm/cp/renders/${encodeURIComponent(renderId)}/events?${qs}`;
 }
 
 export function retryCpRender(

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  CP_RENDER_POLL_MS,
+  cpRenderEventsUrl,
   createCpRender,
   formatCpApiError,
   getCpVideoVersion,
@@ -68,6 +70,16 @@ describe('CP video API', () => {
       expect.stringContaining('/api/crm/cp/renders?scope=me'),
       expect.any(Object),
     );
+  });
+
+  it('builds the render SSE URL and keeps poll fallback inside 5–10s', () => {
+    const url = cpRenderEventsUrl('staff-token', 'job-9', 'team');
+
+    expect(url).toContain('/api/crm/cp/renders/job-9/events');
+    expect(url).toContain('access_token=staff-token');
+    expect(url).toContain('scope=team');
+    expect(CP_RENDER_POLL_MS).toBeGreaterThanOrEqual(5_000);
+    expect(CP_RENDER_POLL_MS).toBeLessThanOrEqual(10_000);
   });
 
   it('loads a video version from the version endpoint', async () => {

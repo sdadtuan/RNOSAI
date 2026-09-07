@@ -13,8 +13,11 @@ import {
   Query,
   Req,
   Res,
+  Sse,
   UseGuards,
 } from '@nestjs/common';
+import { MessageEvent } from '@nestjs/common/interfaces';
+import { Observable } from 'rxjs';
 import { Request, Response } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
@@ -681,6 +684,17 @@ export class CpController {
     @Query('scope') scope?: CpScope,
   ) {
     return this.renders.get(id, await this.scope(req, scope));
+  }
+
+  @Get('renders/:id/events')
+  @RequireCpAction('view')
+  @Sse()
+  async renderEvents(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ): Promise<Observable<MessageEvent>> {
+    return this.renders.streamEvents(id, await this.scope(req, scope));
   }
 
   @Post('renders/:id/retry')

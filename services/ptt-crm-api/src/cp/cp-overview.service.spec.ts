@@ -76,6 +76,96 @@ describe('CpOverviewService', () => {
     expect(sql).toContain("state IN ('preparing','rendering')");
   });
 
+  it('scopes health queue and p95 to the last 60 minutes of render jobs', () => {
+    const sql = buildHealthSql();
+    expect(sql).toContain('j.created_at');
+    expect(sql).toMatch(/INTERVAL\s+'60 minutes'/);
+    expect(sql).not.toMatch(/\b(5|15|30)\s+minutes\b/);
+  });
+
+  it('returns null health metrics when the 60-minute window is empty', async () => {
+    const stale = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const svc = makeOverview({
+      projects: [{ id: 'p1', owner_staff_id: 1 }],
+      jobs: [
+        {
+          id: 'old-queued',
+          state: 'queued',
+          provider: 'stub',
+          created_at: stale,
+          stage_log_json: [{ duration_sec: 12 }],
+        },
+        {
+          id: 'old-done',
+          state: 'completed',
+          provider: 'stub',
+          created_at: stale,
+          stage_log_json: [{ duration_sec: 90 }],
+        },
+      ],
+      ledger: [],
+      assets: [],
+      tasks: [],
+      settings: { concurrent_slots: 4 },
+    });
+
+    const health = await svc.getHealth();
+
+    expect(health.queue_depth).toBeNull();
+    expect(health.slots.used).toBeNull();
+    expect(health.slots.max).toBe(4);
+    expect(health.providers[0]).toEqual({
+      id: 'stub',
+      success_pct: null,
+      p95_sec: null,
+    });
+  });
+
+  it('computes queue depth and stub p95 only from jobs created in the last 60 minutes', async () => {
+    const recent = new Date().toISOString();
+    const stale = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const svc = makeOverview({
+      projects: [{ id: 'p1', owner_staff_id: 1 }],
+      jobs: [
+        { id: 'q1', state: 'queued', provider: 'stub', created_at: recent },
+        { id: 'r1', state: 'rendering', provider: 'stub', created_at: recent },
+        {
+          id: 'done-old',
+          state: 'completed',
+          provider: 'stub',
+          created_at: stale,
+          stage_log_json: [{ duration_sec: 400 }],
+        },
+        {
+          id: 'done-new',
+          state: 'completed',
+          provider: 'stub',
+          created_at: recent,
+          stage_log_json: [{ duration_sec: 20 }],
+        },
+        {
+          id: 'fail-new',
+          state: 'failed',
+          provider: 'stub',
+          created_at: recent,
+          stage_log_json: [{ duration_sec: 8 }],
+        },
+      ],
+      ledger: [],
+      assets: [],
+      tasks: [],
+      settings: { concurrent_slots: 5 },
+    });
+
+    const health = await svc.getHealth();
+
+    expect(health.queue_depth).toBe(2);
+    expect(health.slots.used).toBe(1);
+    expect(health.slots.max).toBe(5);
+    expect(health.providers[0].success_pct).toBe(50);
+    expect(health.providers[0].p95_sec).toBe(20);
+  });
+
   it('applies the client filter to fixture projects', async () => {
     const svc = makeOverview({
       projects: [

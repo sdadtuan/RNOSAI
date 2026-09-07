@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dash, hasTrendData, KPI_TILES, normalizeCpHref } from './cp-format';
+import { dash, formatOpsP95, formatOpsSlots, hasTrendData, KPI_TILES, normalizeCpHref } from './cp-format';
 
 describe('KPI_TILES', () => {
   it('defines the eight overview KPI tiles in contract order', () => {
@@ -43,5 +43,12 @@ describe('dash', () => {
 
   it('preserves zero', () => {
     expect(dash(0)).toBe('0');
+  });
+});
+
+describe('ops health display', () => {
+  it('renders missing queue, slots, and p95 as em dashes', () => {
+    expect(formatOpsSlots(null, null)).toBe('— / —');
+    expect(formatOpsP95(null)).toBe('—');
   });
 });
