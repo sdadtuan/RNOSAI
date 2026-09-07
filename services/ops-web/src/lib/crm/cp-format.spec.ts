@@ -6,6 +6,7 @@ import {
   formatOpsSlots,
   hasTrendData,
   KPI_TILES,
+  mergeDraftAfterAutosave,
   normalizeCpHref,
 } from './cp-format';
 
@@ -49,6 +50,14 @@ describe('draftLanguageWritable', () => {
     expect(draftLanguageWritable({ has_completed_version: true })).toBe(false);
     expect(draftLanguageWritable({ has_completed_version: false })).toBe(true);
     expect(draftLanguageWritable(null)).toBe(true);
+  });
+
+  it('locks the language control after a PATCH autosave when a completed version exists', () => {
+    const current = { id: 'draft-1', has_completed_version: true };
+    const patched = mergeDraftAfterAutosave(current, { id: 'draft-1', name: 'Autosaved' });
+
+    expect(draftLanguageWritable(patched)).toBe(false);
+    expect(patched.has_completed_version).toBe(true);
   });
 });
 

@@ -106,4 +106,15 @@ describe('draft locale / language', () => {
       && call.sql.includes('snapshot_json')
     ))).toBe(false);
   });
+
+  it('includes has_completed_version on PATCH when a completed version exists', async () => {
+    const db = new LocaleQuery({ completed: true });
+    const videos = new CpVideosService(db);
+
+    const patched = await videos.patchDraft(DRAFT_ID, {
+      name: 'Autosave',
+    }, SCOPE);
+
+    expect(patched.has_completed_version).toBe(true);
+  });
 });

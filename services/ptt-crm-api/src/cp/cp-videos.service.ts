@@ -236,7 +236,10 @@ export class CpVideosService {
     );
     const updated = result.rows[0] ?? cpThrow(404, { error: 'not_found' });
     await this.invalidateApprovalIfNeeded(updated, scope);
-    return updated;
+    return {
+      ...updated,
+      has_completed_version: Boolean(current.has_completed_version),
+    };
   }
 
   async listScenes(id: string, scope: CpVideoScope = DEFAULT_SCOPE) {

@@ -58,6 +58,16 @@ export function draftLanguageWritable(draft?: { has_completed_version?: boolean 
   return draft == null || draft.has_completed_version !== true;
 }
 
+export function mergeDraftAfterAutosave<T extends { has_completed_version?: boolean }>(
+  current: T | null | undefined,
+  saved: T,
+): T {
+  return {
+    ...saved,
+    has_completed_version: saved.has_completed_version ?? current?.has_completed_version,
+  };
+}
+
 export function creditForecastBanner(
   forecast?: { value?: number | null; assumption?: string } | null,
 ): { visible: true; value: number | null; text: string } {

@@ -17,7 +17,7 @@ import {
   type CpVideoDraft,
   type CpVideoInputMode,
 } from '@/lib/crm/cp-api';
-import { dash, draftLanguageWritable } from '@/lib/crm/cp-format';
+import { dash, draftLanguageWritable, mergeDraftAfterAutosave } from '@/lib/crm/cp-format';
 
 type StudioConfig = {
   ratio: string;
@@ -161,7 +161,7 @@ export function CpVideoStudio({
       setSaving(true);
       try {
         const saved = await patchCpVideo(token, draft.id, payload, scope);
-        setDraft(saved);
+        setDraft((current) => mergeDraftAfterAutosave(current, saved));
       } catch (caught) {
         setError(formatCpApiError(caught, 'Không autosave được draft'));
       } finally {
