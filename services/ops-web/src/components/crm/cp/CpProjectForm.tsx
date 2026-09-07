@@ -95,7 +95,7 @@ export function CpProjectForm() {
             <label><span>Bắt đầu</span><input name="start_at" type="date" /></label>
             <label><span>Hạn</span><input name="due_at" type="date" /></label>
             <label><span>Owner *</span><input name="owner_staff_id" type="number" min="1" required /></label>
-            <label><span>Members</span><input name="members" placeholder="12, 24, 36" /></label>
+            <label><span>Members</span><input name="members" placeholder="Staff IDs, phân tách bằng dấu phẩy" /></label>
             <label><span>Credit budget</span><input name="credit_budget" type="number" min="0" /></label>
             <label><span>Cost center</span><input name="cost_center" /></label>
             <label><span>Tags</span><input name="tags" placeholder="q3, always-on, ai-video" /></label>

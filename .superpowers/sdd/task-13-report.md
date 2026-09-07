@@ -70,3 +70,4 @@ Duration    345ms
 - Added `member_staff_ids?: number[]` while keeping `owner_staff_id` required.
 - Members now accepts comma-separated positive staff IDs and posts the parsed array on create.
 - Missing lifecycle now keeps its summary slot visible as `—`.
+- Removed numeric examples from the Members input placeholder.
