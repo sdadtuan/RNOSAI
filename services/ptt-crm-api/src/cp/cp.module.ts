@@ -31,6 +31,7 @@ import {
 } from './cp-videos.service';
 import { CpApprovalsService } from './cp-approvals.service';
 import { CpCommentsService } from './cp-comments.service';
+import { CpPublishService } from './cp-publish.service';
 import { CpQcService } from './cp-qc.service';
 import { StaffCpGuard } from './guards/staff-cp.guard';
 
@@ -63,6 +64,7 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     CpQcService,
     CpCommentsService,
     CpApprovalsService,
+    CpPublishService,
   ],
 })
 export class CpModule {}

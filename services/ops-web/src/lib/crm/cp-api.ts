@@ -1131,3 +1131,128 @@ export function finalizeCpAsset(
     body: JSON.stringify(input),
   });
 }
+
+export type CpChannelProfile = {
+  id: string;
+  channel: string;
+  rules_json: {
+    ratio?: string[];
+    duration_sec?: number[];
+    caption_max?: number;
+  };
+};
+
+export type CpPublishItem = {
+  id: string;
+  video_version_id: string;
+  channel: string;
+  profile_id?: string | null;
+  scheduled_at?: string | null;
+  tz?: string | null;
+  copy?: string | null;
+  hashtags?: string | null;
+  thumbnail_asset_id?: string | null;
+  cta?: string | null;
+  utm_json?: unknown;
+  audience?: string | null;
+  compliance_label?: string | null;
+  status: string;
+  draft_name?: string | null;
+  project_id?: string | null;
+  project_name?: string | null;
+  agency_client_id?: string | null;
+  approval_status?: string | null;
+  qc_status?: string | null;
+  kind?: 'video';
+};
+
+export type CpPublishInput = {
+  video_version_id: string;
+  channel: string;
+  scheduled_at?: string | null;
+  tz?: string;
+  copy?: string | null;
+  hashtags?: string | null;
+  thumbnail_asset_id?: string | null;
+  cta?: string | null;
+  utm_json?: unknown;
+  audience?: string | null;
+  compliance_label?: string | null;
+};
+
+export type CpPublishVersion = {
+  id: string;
+  approval_status: string;
+  qc_status?: string | null;
+  version_n?: number | string;
+  draft_name?: string | null;
+  project_id?: string | null;
+  project_name?: string | null;
+  eligible: boolean;
+  lock_reason?: string | null;
+};
+
+export type CpPublishGateRow = {
+  key: string;
+  label: string;
+  result: string | null;
+  lock: string | null;
+};
+
+export type CpPublishGate = {
+  version_id: string;
+  schedulable: boolean;
+  lock_reason: string | null;
+  items: CpPublishGateRow[];
+};
+
+export function listCpPublishItems(
+  token: string,
+  query: CpOverviewQuery & {
+    channel?: string;
+    project?: string;
+    approval?: string;
+  } = {},
+) {
+  return cpFetch<{ items: CpPublishItem[] }>(
+    token,
+    cpQueryPath('/publish', query),
+  );
+}
+
+export function listCpChannelProfiles(token: string) {
+  return cpFetch<{ items: CpChannelProfile[] }>(token, '/publish/profiles');
+}
+
+export function listCpPublishVersions(token: string, scope: CpScope = 'me') {
+  return cpFetch<{ items: CpPublishVersion[] }>(
+    token,
+    cpQueryPath('/publish/versions', { scope }),
+  );
+}
+
+export function getCpPublishGate(
+  token: string,
+  versionId: string,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpPublishGate>(
+    token,
+    cpQueryPath(`/publish/gate/${encodeURIComponent(versionId)}`, { scope }),
+  );
+}
+
+export function createCpPublishItem(
+  token: string,
+  input: CpPublishInput,
+  scope: CpScope = 'me',
+) {
+  return cpFetch<CpPublishItem>(
+    token,
+    cpQueryPath('/publish', { scope }),
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}

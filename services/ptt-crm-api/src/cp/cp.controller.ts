@@ -39,6 +39,7 @@ import { CpScope, resolveCpScope } from './cp-scope.util';
 import { CpSettingsPatch, CpSettingsService } from './cp-settings.service';
 import { CpApprovalsService, CpApprovalInput, isLegalApprovalInput } from './cp-approvals.service';
 import { CpCommentInput, CpCommentsService } from './cp-comments.service';
+import { CpPublishInput, CpPublishService } from './cp-publish.service';
 import { CpQcService, QcFacts } from './cp-qc.service';
 import {
   CpSceneInput,
@@ -83,6 +84,7 @@ export class CpController {
     private readonly ledger: CpLedgerService,
     private readonly settings: CpSettingsService,
     private readonly staffAuth: StaffAuthService,
+    private readonly publish: CpPublishService,
   ) {}
 
   private async assertLegalApprovalCap(req: AuthedReq, input: CpApprovalInput) {
@@ -173,6 +175,63 @@ export class CpController {
       body ?? {},
       actor.staffId > 0 ? actor.staffId : null,
     );
+  }
+
+  @Get('publish/profiles')
+  @RequireCpAction('view')
+  listPublishProfiles() {
+    return this.publish.listProfiles();
+  }
+
+  @Get('publish/versions')
+  @RequireCpAction('view')
+  async listPublishVersions(@Req() req: AuthedReq, @Query('scope') scope?: CpScope) {
+    return this.publish.listVersions(await this.scope(req, scope));
+  }
+
+  @Get('publish/gate/:versionId')
+  @RequireCpAction('view')
+  async getPublishGate(
+    @Req() req: AuthedReq,
+    @Param('versionId') versionId: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.publish.getGate(versionId, await this.scope(req, scope));
+  }
+
+  @Get('publish')
+  @RequireCpAction('view')
+  async listPublishItems(
+    @Req() req: AuthedReq,
+    @Query() query: {
+      scope?: CpScope;
+      channel?: string;
+      client?: string;
+      project?: string;
+      approval?: string;
+      from?: string;
+      to?: string;
+    },
+  ) {
+    return this.publish.list({
+      ...(await this.scope(req, query.scope)),
+      channel: query.channel,
+      client: query.client,
+      project: query.project,
+      approval: query.approval,
+      from: query.from,
+      to: query.to,
+    });
+  }
+
+  @Post('publish')
+  @RequireCpAction('edit')
+  async schedulePublish(
+    @Req() req: AuthedReq,
+    @Body() body: CpPublishInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.publish.schedule(body ?? {}, await this.scope(req, scope));
   }
 
   @Post('credits/grant')

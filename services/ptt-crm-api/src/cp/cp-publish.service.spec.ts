@@ -1,0 +1,180 @@
+import {
+  assertChannelProfile,
+  assertSchedulable,
+  CpPublishService,
+} from './cp-publish.service';
+
+const VERSION_ID = '55555555-5555-4555-8555-555555555555';
+const PROFILE_ID = '66666666-6666-4666-8666-666666666666';
+const SCOPE = { scope: 'all' as const, staffId: 9, teamIds: [] };
+
+const TIKTOK = {
+  id: PROFILE_ID,
+  channel: 'tiktok',
+  rules_json: { ratio: ['9:16'], duration_sec: [15, 60], caption_max: 2200 },
+};
+
+function finalVersion(overrides: Record<string, unknown> = {}) {
+  return {
+    id: VERSION_ID,
+    draft_id: '44444444-4444-4444-8444-444444444444',
+    approval_status: 'final_approved',
+    qc_status: 'passed',
+    brand_kit_version_id: null,
+    snapshot_json: {
+      config_json: { ratio: '9:16', duration: 30 },
+      disclaimer_present: true,
+    },
+    ...overrides,
+  };
+}
+
+class VersionPort {
+  version: Record<string, unknown> = finalVersion();
+
+  async getVersion(id: string) {
+    if (id !== VERSION_ID) throw Object.assign(new Error('not_found'), { status: 404 });
+    return this.version;
+  }
+}
+
+class PublishQuery {
+  lastSql = '';
+  lastParams: unknown[] = [];
+  profiles = [TIKTOK];
+  rights: Array<{ asset_id: string; expiry_on: string | null }> = [];
+  rules: Array<{ enforcement: string; action_json: unknown }> = [];
+  inserted: Record<string, unknown> | null = null;
+
+  async query(sql: string, params: unknown[] = []) {
+    this.lastSql = sql;
+    this.lastParams = params;
+    if (sql.includes('FROM crm_cp_channel_profiles')) {
+      if (sql.includes('WHERE channel')) {
+        return { rows: this.profiles.filter((row) => row.channel === params[0]) };
+      }
+      return { rows: this.profiles };
+    }
+    if (sql.includes('FROM crm_cp_asset_rights')) {
+      return { rows: this.rights };
+    }
+    if (sql.includes('FROM crm_cp_brand_rules')) {
+      return { rows: this.rules };
+    }
+    if (sql.includes('INSERT INTO crm_cp_publish_items')) {
+      this.inserted = {
+        id: '77777777-7777-4777-8777-777777777777',
+        video_version_id: params[0],
+        channel: params[1],
+        profile_id: params[2],
+        scheduled_at: params[3],
+        tz: params[4],
+        copy: params[5],
+        hashtags: params[6],
+        status: params[11],
+      };
+      return { rows: [this.inserted] };
+    }
+    if (sql.includes('FROM crm_cp_publish_items')) {
+      return { rows: [] };
+    }
+    return { rows: [] };
+  }
+}
+
+describe('assertSchedulable', () => {
+  it('rejects a client_review version with 409 not_final_approved', () => {
+    expect(() => assertSchedulable(finalVersion({ approval_status: 'client_review' }))).toThrow(
+      expect.objectContaining({ status: 409, error: 'not_final_approved' }),
+    );
+  });
+
+  it('accepts a final_approved version with QC passed', () => {
+    expect(() => assertSchedulable(finalVersion({
+      approval_status: 'final_approved',
+      qc_status: 'passed',
+    }))).not.toThrow();
+  });
+
+  it('rejects qc_status blocked with 409 qc_blocked', () => {
+    expect(() => assertSchedulable(finalVersion({ qc_status: 'blocked' }))).toThrow(
+      expect.objectContaining({ status: 409, error: 'qc_blocked' }),
+    );
+  });
+
+  it('rejects when any used asset rights status is block', () => {
+    expect(() => assertSchedulable(finalVersion(), { rightsStatuses: ['ok', 'block'] })).toThrow(
+      expect.objectContaining({ status: 409, error: 'rights_blocked' }),
+    );
+  });
+
+  it('rejects missing mandatory disclaimer from a block_publish kit rule', () => {
+    expect(() => assertSchedulable(finalVersion({ snapshot_json: {} }), {
+      kitRules: [{ enforcement: 'block_publish', action_json: { disclaimer: true } }],
+      disclaimerPresent: false,
+    })).toThrow(expect.objectContaining({ status: 409, error: 'disclaimer_required' }));
+  });
+});
+
+describe('assertChannelProfile', () => {
+  const rules = TIKTOK.rules_json;
+
+  it('rejects ratio, duration, and caption that miss the seeded tiktok profile', () => {
+    expect(() => assertChannelProfile(rules, { ratio: '1:1', duration_sec: 30, caption: 'ok' })).toThrow(
+      expect.objectContaining({ status: 409, error: 'channel_profile' }),
+    );
+    expect(() => assertChannelProfile(rules, { ratio: '9:16', duration_sec: 10, caption: 'ok' })).toThrow(
+      expect.objectContaining({ status: 409, error: 'channel_profile' }),
+    );
+    expect(() => assertChannelProfile(rules, {
+      ratio: '9:16',
+      duration_sec: 30,
+      caption: 'x'.repeat(2201),
+    })).toThrow(expect.objectContaining({ status: 409, error: 'channel_profile' }));
+  });
+
+  it('accepts tiktok 9:16 within 15-60s and caption under 2200', () => {
+    expect(() => assertChannelProfile(rules, {
+      ratio: '9:16',
+      duration_sec: 30,
+      caption: 'Sống trên mây',
+    })).not.toThrow();
+  });
+});
+
+describe('CpPublishService', () => {
+  it('schedule rejects client_review before insert', async () => {
+    const videos = new VersionPort();
+    videos.version = finalVersion({ approval_status: 'client_review' });
+    const db = new PublishQuery();
+    const svc = new CpPublishService(videos as never, db);
+
+    await expect(svc.schedule({
+      video_version_id: VERSION_ID,
+      channel: 'tiktok',
+      scheduled_at: '2026-09-15T09:00:00+07:00',
+      copy: 'ok',
+    }, SCOPE)).rejects.toMatchObject({ status: 409, error: 'not_final_approved' });
+    expect(db.inserted).toBeNull();
+  });
+
+  it('schedule accepts final_approved + qc passed and inserts a video PublishItem', async () => {
+    const videos = new VersionPort();
+    const db = new PublishQuery();
+    const svc = new CpPublishService(videos as never, db);
+
+    const row = await svc.schedule({
+      video_version_id: VERSION_ID,
+      channel: 'tiktok',
+      scheduled_at: '2026-09-15T09:00:00+07:00',
+      copy: 'Sống trên mây',
+    }, SCOPE);
+
+    expect(row).toMatchObject({
+      video_version_id: VERSION_ID,
+      channel: 'tiktok',
+      status: 'scheduled',
+    });
+    expect(db.lastSql).toContain('INSERT INTO crm_cp_publish_items');
+  });
+});

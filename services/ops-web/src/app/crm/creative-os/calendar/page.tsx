@@ -1,5 +1,5 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpCalendar } from '@/components/crm/cp/CpCalendar';
 
 export default function CreativeOsCalendarPage() {
-  return <CpPlaceholder title="Lịch xuất bản" />;
+  return <CpCalendar />;
 }

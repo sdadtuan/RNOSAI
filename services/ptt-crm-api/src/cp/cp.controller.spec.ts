@@ -35,6 +35,7 @@ function makeController(opts: {
     unused,
     unused,
     staffAuth as never,
+    unused,
   );
   const req = {
     staffUser: { sub: 'staff-1' },
