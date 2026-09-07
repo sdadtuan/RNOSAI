@@ -3,9 +3,9 @@
   "component": "creative_production_os_wave3",
   "srs": "2026-09-07-creative-production-os-srs.md + plan Task 34",
   "branch": "feat/cp-os-w3",
-  "head_commit": "65193ea6",
+  "head_commit": "7cfdb8b8",
   "environment": "local",
-  "evaluated_at": "2026-09-07T17:31:10+07:00",
+  "evaluated_at": "2026-09-07T17:40:00+07:00",
   "signed_at": null,
   "ok": false,
   "entry_required": {
@@ -17,7 +17,7 @@
     "playwright_cp_w3_uat": false
   },
   "gate_notes": {
-    "playwright_cp_w3_discovery": "OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/cp-w3-uat.spec.ts --list — 6 tests discovered",
+    "playwright_cp_w3_discovery": "OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/cp-w3-uat.spec.ts --list — 6 tests discovered after retry-target review fix",
     "playwright_cp_w3_uat": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 npm run test:e2e:cp-w3 — exit 1; all 6 cases failed in beforeEach: Wave 3 prerequisite missing: API is unreachable at http://127.0.0.1:3000"
   },
   "w3_acceptance": {
@@ -42,5 +42,5 @@
     "Missing API/token fails the suite (no skips).",
     "No UAT case executed against a live API, so all six acceptance results remain false."
   ],
-  "notes": "The spec and helper compile and Playwright discovers exactly six tests. This is intentionally not a green signoff. Wave 4 was not started. CP_AI_ENABLED was not set. No RBAC grants were made."
+  "notes": "Retry UAT now prefers a failed/invalid row when a completed sibling exists and freezes credits only if the retried row was already completed. Playwright still discovers exactly six tests. This is intentionally not a green signoff. Wave 4 was not started. CP_AI_ENABLED was not set. No RBAC grants were made."
 }
