@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Deploy Creative Production OS Wave 1 — DDL + catalog + ptt-crm-api + ops-web.
-# Do NOT export CP_AI_ENABLED=1 — W1 render stays stub until UAT signoff is green.
+# Deploy Creative Production OS Wave 1+2 — DDL + catalog + ptt-crm-api + ops-web.
+# Do NOT export CP_AI_ENABLED=1 — render stays stub until UAT signoff is green.
 # Do NOT grant crm_cp caps here — seed_cp_rbac.sh is catalog-only.
 #
 # From laptop:
@@ -27,8 +27,9 @@ run_local() {
     set +a
   fi
 
-  echo "== 0/5 apply CP Wave 1 DDL =="
+  echo "== 0/5 apply CP Wave 1 + Wave 2 DDL =="
   bash "$ROOT/scripts/apply_pg_ddl_cp.sh"
+  bash "$ROOT/scripts/apply_pg_ddl_cp_w2.sh"
 
   echo "== 1/5 CP RBAC catalog (no user grants) =="
   bash "$ROOT/scripts/seed_cp_rbac.sh"
