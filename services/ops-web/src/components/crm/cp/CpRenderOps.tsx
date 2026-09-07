@@ -107,16 +107,16 @@ export function CpRenderOps({ scope: scopeValue }: { scope?: string }) {
             progress?: number | null;
           };
           if (!payload.id) return;
-          setSelected((current) => (
-            current?.id === payload.id
-              ? {
-                  ...current,
-                  state: payload.state ?? current.state,
-                  stage: payload.stage ?? current.stage,
-                  progress: payload.progress ?? current.progress,
-                }
-              : current
-          ));
+          const jobId = payload.id;
+          setSelected((current) => {
+            if (!current || current.id !== jobId) return current;
+            return {
+              ...current,
+              state: payload.state ?? current.state,
+              stage: payload.stage ?? current.stage,
+              progress: payload.progress ?? current.progress,
+            };
+          });
           setJobs((current) => current.map((job) => (
             job.id === payload.id
               ? {
