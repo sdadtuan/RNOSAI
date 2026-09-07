@@ -1,5 +1,5 @@
-import { CpPlaceholder } from '@/components/crm/cp/CpPlaceholder';
+import { CpOverview } from '@/components/crm/cp/CpOverview';
 
 export default function CreativeOsOverviewPage() {
-  return <CpPlaceholder title="Tổng quan" />;
+  return <CpOverview />;
 }
