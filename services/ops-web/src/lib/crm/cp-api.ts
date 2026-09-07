@@ -207,6 +207,22 @@ export type CpAssetUsage = {
   object_id: string | null;
 };
 
+export type CpAssetFileVersion = {
+  id: string;
+  n: number;
+  storage_key: string;
+  mime: string;
+  bytes: number | string | null;
+};
+
+export type CpReplaceAssetInput = {
+  mime: string;
+  storage_key: string;
+  bytes: number;
+  filename?: string | null;
+  hash?: string | null;
+};
+
 export type CpBrandScopeType = 'tenant' | 'client' | 'project';
 
 export type CpBrandKit = {
@@ -802,10 +818,17 @@ export function getCpAsset(token: string, assetId: string, scope: CpScope = 'me'
 }
 
 export function getCpAssetUsage(token: string, assetId: string, scope: CpScope = 'me') {
-  return cpFetch<{ asset_id: string; usages: CpAssetUsage[] }>(
+  return cpFetch<{ asset_id: string; versions?: CpAssetFileVersion[]; usages: CpAssetUsage[] }>(
     token,
     cpQueryPath(`/assets/${encodeURIComponent(assetId)}/usage`, { scope }),
   );
+}
+
+export function replaceCpAsset(token: string, assetId: string, input: CpReplaceAssetInput) {
+  return cpFetch<CpAssetFileVersion>(token, `/assets/${encodeURIComponent(assetId)}/replace`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export function setCpAssetRights(

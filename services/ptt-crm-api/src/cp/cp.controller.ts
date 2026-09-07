@@ -21,6 +21,7 @@ import {
   CpAssetsService,
   CpCreateAssetInput,
   CpFinalizeAssetInput,
+  CpReplaceAssetInput,
 } from './cp-assets.service';
 import {
   CpBrandService,
@@ -288,6 +289,16 @@ export class CpController {
     @Body() body: CpFinalizeAssetInput,
   ) {
     return this.assets.finalizeIngest(id, body ?? {}, await this.scope(req));
+  }
+
+  @Post('assets/:id/replace')
+  @RequireCpAction('edit')
+  async replaceAsset(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpReplaceAssetInput,
+  ) {
+    return this.assets.replaceFile(id, body ?? {}, await this.scope(req));
   }
 
   @Get('assets/:id')

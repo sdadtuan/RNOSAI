@@ -44,6 +44,15 @@ export type CpFinalizeAssetInput = {
   hash?: string | null;
 };
 
+export type CpReplaceAssetInput = {
+  mime?: string;
+  filename?: string | null;
+  storage_key?: string;
+  bytes?: number | string | null;
+  hash?: string | null;
+  meta_json?: unknown;
+};
+
 export type CpAssetRightsInput = {
   license_type?: string | null;
   owner_name?: string | null;
@@ -62,6 +71,7 @@ export interface CpAssetsQueryPort {
     sql: string,
     params?: unknown[],
   ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+  transaction?<T>(work: (tx: CpAssetsQueryPort) => Promise<T>): Promise<T>;
 }
 
 export interface CpAssetScanner {
@@ -81,6 +91,24 @@ export class CpAssetsRepository implements CpAssetsQueryPort, OnModuleDestroy {
 
   query(sql: string, params?: unknown[]) {
     return this.db.query(sql, params);
+  }
+
+  async transaction<T>(work: (tx: CpAssetsQueryPort) => Promise<T>): Promise<T> {
+    const client = await this.db.connect();
+    const tx: CpAssetsQueryPort = {
+      query: (sql, params) => client.query(sql, params),
+    };
+    try {
+      await client.query('BEGIN');
+      const result = await work(tx);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   onModuleDestroy(): void {
@@ -154,7 +182,98 @@ export class CpAssetsService {
         ORDER BY v.n, u.object_type, u.object_id`,
       [asset.id],
     );
-    return { asset_id: asset.id, usages: result.rows };
+    const usages = [...result.rows];
+    const projectId = asset.project_id == null ? '' : String(asset.project_id);
+    if (
+      projectId &&
+      !usages.some((row) => row.object_type === 'project' && String(row.object_id) === projectId)
+    ) {
+      const latest = usages.find((row) => row.asset_version_id != null) ?? {};
+      usages.push({
+        asset_version_id: latest.asset_version_id ?? null,
+        n: latest.n ?? null,
+        storage_key: latest.storage_key ?? null,
+        mime: latest.mime ?? null,
+        bytes: latest.bytes ?? null,
+        object_type: 'project',
+        object_id: projectId,
+      });
+    }
+    const versions: Record<string, unknown>[] = [];
+    const seen = new Set<string>();
+    for (const row of usages) {
+      const versionId = row.asset_version_id == null ? '' : String(row.asset_version_id);
+      if (!versionId || seen.has(versionId)) continue;
+      seen.add(versionId);
+      versions.push({
+        id: versionId,
+        n: row.n,
+        storage_key: row.storage_key,
+        mime: row.mime,
+        bytes: row.bytes,
+      });
+    }
+    return { asset_id: asset.id, versions, usages };
+  }
+
+  async replaceFile(id: string, input: CpReplaceAssetInput, scope: CpAssetScope) {
+    const mime = assertMime(input.mime);
+    const storageKey = requiredText(input.storage_key, 'storage_key_required');
+    const bytes = requiredNonNegativeInt(input.bytes, 'bytes_required', 'invalid_bytes');
+    const filename =
+      input.filename == null || input.filename === ''
+        ? null
+        : requiredText(input.filename, 'filename_required');
+    const hash =
+      input.hash == null || input.hash === '' ? null : requiredText(input.hash, 'hash_required');
+    const metaJson = input.meta_json == null ? {} : input.meta_json;
+
+    const run = async (db: CpAssetsQueryPort) => {
+      const asset = await this.loadAsset(id, scope, db, true);
+      const inserted = await db.query(
+        `INSERT INTO crm_cp_asset_versions (
+           asset_id, n, storage_key, mime, bytes, meta_json
+         )
+         SELECT $1::uuid, COALESCE(MAX(n), 0) + 1, $2, $3, $4, $5::jsonb
+           FROM crm_cp_asset_versions
+          WHERE asset_id = $1::uuid
+         RETURNING *`,
+        [asset.id, storageKey, mime, bytes, JSON.stringify(metaJson)],
+      );
+      const version = inserted.rows[0] ?? cpThrow(500, { error: 'insert_failed' });
+
+      await db.query(
+        `UPDATE crm_cp_assets
+            SET mime = $3, bytes = $4, hash = COALESCE($5, hash),
+                filename = COALESCE($6, filename), state = 'ready'
+          WHERE tenant_id = $1 AND id = $2::uuid`,
+        [CP_TENANT_ID, asset.id, mime, bytes, hash, filename],
+      );
+
+      await db.query(
+        `INSERT INTO crm_cp_asset_usages (asset_version_id, object_type, object_id)
+         SELECT $1::uuid, u.object_type, u.object_id
+           FROM crm_cp_asset_usages u
+           JOIN crm_cp_asset_versions v ON v.id = u.asset_version_id
+          WHERE v.asset_id = $2::uuid
+            AND u.object_type IN ('video_draft', 'project')
+            AND u.asset_version_id <> $1::uuid
+         ON CONFLICT DO NOTHING`,
+        [version.id, asset.id],
+      );
+      await db.query(
+        `DELETE FROM crm_cp_asset_usages u
+           USING crm_cp_asset_versions v
+          WHERE u.asset_version_id = v.id
+            AND v.asset_id = $2::uuid
+            AND u.object_type IN ('video_draft', 'project')
+            AND u.asset_version_id <> $1::uuid`,
+        [version.id, asset.id],
+      );
+      return version;
+    };
+
+    return this.db.transaction ? this.db.transaction(run) : run(this.db);
   }
 
   async setRights(id: string, rights: CpAssetRightsInput, scope: CpAssetScope) {
@@ -246,10 +365,15 @@ export class CpAssetsService {
     if (!found.rows[0]) cpThrow(404, { error: 'not_found' });
   }
 
-  private async loadAsset(id: string, scope: CpAssetScope) {
+  private async loadAsset(
+    id: string,
+    scope: CpAssetScope,
+    db: CpAssetsQueryPort = this.db,
+    forUpdate = false,
+  ) {
     const assetId = requiredUuid(id, 'invalid_asset_id', 'invalid_asset_id');
     const bound = assetScope(scope, 3);
-    const result = await this.db.query(
+    const result = await db.query(
       `SELECT a.*, r.license_type, r.owner_name, r.effective_on, r.expiry_on,
               r.territory, r.channels, r.restriction, r.model_release,
               r.talent_release, r.proof_asset_id
@@ -257,7 +381,7 @@ export class CpAssetsService {
          LEFT JOIN crm_cp_projects p ON p.id = a.project_id
          LEFT JOIN crm_cp_asset_rights r ON r.asset_id = a.id
         WHERE a.tenant_id = $1 AND a.id = $2::uuid AND ${bound.sql}
-        LIMIT 1`,
+        LIMIT 1${forUpdate ? ' FOR UPDATE OF a' : ''}`,
       [CP_TENANT_ID, assetId, ...bound.params],
     );
     return result.rows[0] ?? cpThrow(404, { error: 'not_found' });
