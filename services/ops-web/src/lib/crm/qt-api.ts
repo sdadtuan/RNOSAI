@@ -342,6 +342,35 @@ export function getQtQuoteCatalog(token: string) {
   return qtFetch<unknown>(token, '/quote-catalog').then(asQtCatalogItems);
 }
 
+export type QtConvertLifecycle = {
+  line_id: number;
+  lifecycle_id: number;
+  dv_code: string;
+};
+
+export type QtConvertResult = {
+  conversion_id: string;
+  lifecycles: QtConvertLifecycle[];
+  invoice_draft_ids: number[];
+  optional_handoff: [];
+};
+
+export function convertQtVersion(
+  token: string,
+  id: number,
+  vid: string,
+  idempotencyKey: string,
+) {
+  return qtFetch<QtConvertResult>(
+    token,
+    `/${id}/versions/${encodeURIComponent(vid)}/convert`,
+    {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    },
+  );
+}
+
 export const QT_SETTINGS_PATCH_FIELDS = [
   'validity_days',
   'vat_bps',

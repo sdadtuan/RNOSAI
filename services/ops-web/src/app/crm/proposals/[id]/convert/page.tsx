@@ -1,5 +1,5 @@
-import { QtPlaceholder } from '@/components/crm/qt/QtShell';
+import { QtConvert } from '@/components/crm/qt/QtConvert';
 
 export default function QtConvertPage() {
-  return <QtPlaceholder title="Convert" />;
+  return <QtConvert />;
 }
