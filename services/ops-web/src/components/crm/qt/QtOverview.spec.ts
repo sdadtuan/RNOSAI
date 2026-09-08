@@ -1,7 +1,14 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { QtAlertBar, QtKpiTiles, type QtOverviewKpis } from './QtOverview';
+import {
+  QtAlertBar,
+  QtKpiTiles,
+  detectPeriod,
+  periodRange,
+  withDefaultOverviewPeriod,
+  type QtOverviewKpis,
+} from './QtOverview';
 
 const NULL_KPIS: QtOverviewKpis = {
   open_quote_value: null,
@@ -38,5 +45,39 @@ describe('QtAlertBar', () => {
   it('renders nothing when there are no actions', () => {
     const html = renderToStaticMarkup(createElement(QtAlertBar, { actions: [] }));
     expect(html).toBe('');
+  });
+});
+
+describe('detectPeriod / default range', () => {
+  const now = new Date('2026-09-07T20:00:00.000Z');
+
+  it('uses Asia/Ho_Chi_Minh for the current-month range', () => {
+    expect(periodRange('month', now)).toEqual({ from: '2026-09-01', to: '2026-09-08' });
+    expect(periodRange('7d', now)).toEqual({ from: '2026-09-02', to: '2026-09-08' });
+    expect(periodRange('30d', now)).toEqual({ from: '2026-08-10', to: '2026-09-08' });
+    expect(periodRange('quarter', now)).toEqual({ from: '2026-07-01', to: '2026-09-08' });
+  });
+
+  it('labels Tháng này only when from/to are that month', () => {
+    expect(detectPeriod('', '', now)).not.toBe('month');
+    expect(detectPeriod('2026-09-01', '2026-09-08', now)).toBe('month');
+    expect(detectPeriod('2026-09-02', '2026-09-08', now)).toBe('7d');
+    expect(detectPeriod('2026-08-10', '2026-09-08', now)).toBe('30d');
+    expect(detectPeriod('2026-07-01', '2026-09-08', now)).toBe('quarter');
+    expect(detectPeriod('2026-01-01', '2026-12-31', now)).toBe('');
+  });
+
+  it('writes the current-month range when from/to are absent', () => {
+    const next = withDefaultOverviewPeriod(new URLSearchParams('scope=team'), now);
+    expect(next.get('from')).toBe('2026-09-01');
+    expect(next.get('to')).toBe('2026-09-08');
+    expect(next.get('scope')).toBe('team');
+
+    const kept = withDefaultOverviewPeriod(
+      new URLSearchParams('from=2026-01-01&to=2026-01-31'),
+      now,
+    );
+    expect(kept.get('from')).toBe('2026-01-01');
+    expect(kept.get('to')).toBe('2026-01-31');
   });
 });

@@ -81,35 +81,66 @@ function asScope(value: string | null): 'me' | 'team' | 'all' {
   return 'me';
 }
 
-function isoDate(value: Date): string {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, '0');
-  const day = String(value.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+export const QT_TZ = 'Asia/Ho_Chi_Minh';
+
+function pad2(value: number): string {
+  return String(value).padStart(2, '0');
 }
 
-function periodRange(preset: string, now = new Date()): { from: string; to: string } {
-  const to = isoDate(now);
-  if (preset === '7d') {
-    const from = new Date(now);
-    from.setDate(from.getDate() - 6);
-    return { from: isoDate(from), to };
-  }
+function ymd(year: number, month: number, day: number): string {
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+function ictParts(now = new Date()): { year: number; month: number; day: number } {
+  const map = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: QT_TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+      .formatToParts(now)
+      .map((part) => [part.type, part.value]),
+  );
+  return { year: Number(map.year), month: Number(map.month), day: Number(map.day) };
+}
+
+function shiftYmd(year: number, month: number, day: number, days: number): string {
+  const utc = new Date(Date.UTC(year, month - 1, day + days));
+  return ymd(utc.getUTCFullYear(), utc.getUTCMonth() + 1, utc.getUTCDate());
+}
+
+export function periodRange(preset: string, now = new Date()): { from: string; to: string } {
+  const { year, month, day } = ictParts(now);
+  const to = ymd(year, month, day);
+  if (preset === '7d') return { from: shiftYmd(year, month, day, -6), to };
+  if (preset === '30d') return { from: shiftYmd(year, month, day, -29), to };
   if (preset === 'quarter') {
-    const month = Math.floor(now.getMonth() / 3) * 3;
-    return { from: `${now.getFullYear()}-${String(month + 1).padStart(2, '0')}-01`, to };
+    const startMonth = Math.floor((month - 1) / 3) * 3 + 1;
+    return { from: ymd(year, startMonth, 1), to };
   }
-  return { from: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`, to };
+  return { from: ymd(year, month, 1), to };
 }
 
-function detectPeriod(from: string, to: string): string {
-  const today = isoDate(new Date());
-  if (!from || !to) return 'month';
-  const seven = periodRange('7d');
-  if (from === seven.from && to === seven.to) return '7d';
-  const quarter = periodRange('quarter');
-  if (from === quarter.from && (to === quarter.to || to === today)) return 'quarter';
-  return 'month';
+export function detectPeriod(from: string, to: string, now = new Date()): string {
+  if (!from || !to) return '';
+  for (const preset of ['7d', '30d', 'month', 'quarter'] as const) {
+    const range = periodRange(preset, now);
+    if (from === range.from && to === range.to) return preset;
+  }
+  return '';
+}
+
+export function withDefaultOverviewPeriod(
+  search: URLSearchParams,
+  now = new Date(),
+): URLSearchParams {
+  const next = new URLSearchParams(search);
+  if (next.get('from') && next.get('to')) return next;
+  const range = periodRange('month', now);
+  next.set('from', range.from);
+  next.set('to', range.to);
+  return next;
 }
 
 export function formatQtKpi(key: keyof QtOverviewKpis, value: number | null): string {
@@ -308,9 +339,15 @@ export function QtOverview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (query.from && query.to) return;
+    const next = withDefaultOverviewPeriod(current);
+    router.replace(`${pathname}?${next.toString()}`);
+  }, [current, pathname, query.from, query.to, router]);
+
   const load = useCallback(async () => {
     const token = getAccessToken();
-    if (!token) return;
+    if (!token || !query.from || !query.to) return;
     setLoading(true);
     setError('');
     try {
@@ -367,6 +404,7 @@ export function QtOverview() {
     const next = params.toString();
     return next ? `${pathname}?${next}` : `${pathname}?panel=actions`;
   })();
+  const period = detectPeriod(query.from ?? '', query.to ?? '');
 
   if (panel === 'actions') {
     return (
@@ -418,10 +456,12 @@ export function QtOverview() {
             <span>Kỳ</span>
             <select
               aria-label="Kỳ"
-              value={detectPeriod(query.from ?? '', query.to ?? '')}
+              value={period}
               onChange={(event) => changePeriod(event.target.value)}
             >
+              {period === '' ? <option value="">Chọn kỳ</option> : null}
               <option value="7d">7 ngày</option>
+              <option value="30d">30 ngày</option>
               <option value="month">Tháng này</option>
               <option value="quarter">Quý này</option>
             </select>

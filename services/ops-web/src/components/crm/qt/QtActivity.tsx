@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import { getQtActivity, getQtActivityCsv, type QtActivityRow } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
@@ -9,11 +9,47 @@ import { dash } from '@/lib/crm/qt-format';
 export const QT_ACTIVITY_FILTERS = [
   { id: 'all', label: 'Tất cả', action: '' },
   { id: 'status', label: 'Status', action: 'status' },
-  { id: 'approval', label: 'Approval', action: 'approval' },
+  { id: 'approval', label: 'Approval', action: 'submit_approval' },
   { id: 'share', label: 'Share', action: 'publication.viewed' },
   { id: 'accept', label: 'Accept', action: 'accept' },
   { id: 'convert', label: 'Convert', action: 'convert' },
 ] as const;
+
+const EXACT_ACTIVITY_ACTIONS = new Set([
+  'submit_approval',
+  'accept',
+  'convert',
+  'publication.viewed',
+  'quote.created',
+]);
+
+export function activityApiActions(filter: string): string[] {
+  if (!filter) return [];
+  if (filter === 'status') return [];
+  if (filter === 'approval') return ['submit_approval'];
+  if (EXACT_ACTIVITY_ACTIONS.has(filter) || filter.includes('.')) return [filter];
+  return [filter];
+}
+
+export function activityChipNotice(filter: string): string | null {
+  if (filter === 'status') {
+    return 'Chip Status chưa map 1:1 với action= của API — không lọc client-side từ 100 bản ghi lẫn.';
+  }
+  return null;
+}
+
+export function mergeActivityPages<T extends { id: string }>(pages: T[][]): T[] {
+  const seen = new Set<string>();
+  const items: T[] = [];
+  for (const page of pages) {
+    for (const row of page) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      items.push(row);
+    }
+  }
+  return items;
+}
 
 function formatWhen(value: string | null | undefined): string {
   if (!value) return dash(null);
@@ -42,13 +78,14 @@ function formatSnapshot(snapshot: Record<string, unknown> | null | undefined): s
   return parts.length ? parts.join(' · ') : dash(null);
 }
 
-const GROUPED_ACTIONS = new Set(['approval', 'status']);
-
-function matchesAction(row: QtActivityRow, filter: string): boolean {
-  if (!filter) return true;
-  if (filter === 'approval') return /approval|submit_approval/i.test(row.action);
-  if (filter === 'status') return /status/i.test(row.action);
-  return row.action === filter || row.action.includes(filter);
+export function QtActivityChipNotice({ action }: { action: string }) {
+  const note = activityChipNotice(action);
+  if (!note) return null;
+  return (
+    <p className="qt-muted" role="status">
+      {note}
+    </p>
+  );
 }
 
 function matchesQuery(row: QtActivityRow, q: string): boolean {
@@ -145,16 +182,25 @@ export function QtActivity() {
     setLoading(true);
     setError('');
     try {
-      const out = await getQtActivity(token, {
+      const actions = activityApiActions(action);
+      if (action && actions.length === 0) {
+        setItems([]);
+        return;
+      }
+      const base = {
         from: current.get('from') || undefined,
         to: current.get('to') || undefined,
         owner: current.get('owner') || undefined,
-        action: action && !GROUPED_ACTIONS.has(action) ? action : undefined,
         scope: current.get('scope') === 'team' || current.get('scope') === 'all'
           ? current.get('scope')
           : 'me',
-      });
-      setItems(out.items ?? []);
+      } as const;
+      const pages = await Promise.all(
+        (actions.length ? actions : [undefined]).map((exact) =>
+          getQtActivity(token, { ...base, action: exact }),
+        ),
+      );
+      setItems(mergeActivityPages(pages.map((page) => page.items ?? [])));
     } catch (caught) {
       setItems([]);
       setError(caught instanceof Error ? caught.message : 'Không tải được nhật ký');
@@ -192,11 +238,16 @@ export function QtActivity() {
     if (!token) return;
     setExportError('');
     try {
+      const actions = activityApiActions(action);
+      if (action && actions.length === 0) {
+        setExportError(activityChipNotice(action) || 'Chip này chưa map 1:1 với action= API.');
+        return;
+      }
       const out = await getQtActivityCsv(token, {
         from: current.get('from') || undefined,
         to: current.get('to') || undefined,
         owner: current.get('owner') || undefined,
-        action: action && !GROUPED_ACTIONS.has(action) ? action : undefined,
+        action: actions[0],
       });
       const blob = new Blob([out.csv], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -210,7 +261,7 @@ export function QtActivity() {
     }
   }
 
-  const visible = items.filter((row) => matchesAction(row, action) && matchesQuery(row, q));
+  const visible = items.filter((row) => matchesQuery(row, q));
 
   return (
     <div className="qt-activity">
@@ -246,6 +297,7 @@ export function QtActivity() {
           })
         }
       />
+      <QtActivityChipNotice action={action} />
 
       {error || exportError ? (
         <section className="qt-card qt-card--error">
