@@ -13,6 +13,11 @@ import { ProposalsController } from './proposals.controller';
 import { ProposalsPgRepository } from './proposals-pg.repository';
 import { ProposalsService } from './proposals.service';
 import {
+  QT_QUOTE_QUERY,
+  QuoteAuditRepository,
+} from './quote-audit.repository';
+import { QuoteOverviewService } from './quote-overview.service';
+import {
   QT_SETTINGS_QUERY,
   QuoteSettingsRepository,
 } from './quote-settings.repository';
@@ -35,8 +40,17 @@ import { QuoteSettingsService } from './quote-settings.service';
     StaffQuoteGuard,
     QuoteSettingsRepository,
     { provide: QT_SETTINGS_QUERY, useExisting: QuoteSettingsRepository },
+    { provide: QT_QUOTE_QUERY, useExisting: QuoteSettingsRepository },
     QuoteSettingsService,
+    QuoteAuditRepository,
+    QuoteOverviewService,
   ],
-  exports: [ProposalsService, ProposalsPgRepository, QuoteSettingsService],
+  exports: [
+    ProposalsService,
+    ProposalsPgRepository,
+    QuoteSettingsService,
+    QuoteAuditRepository,
+    QuoteOverviewService,
+  ],
 })
 export class ProposalsModule {}

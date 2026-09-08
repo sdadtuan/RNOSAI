@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Header,
   HttpCode,
@@ -30,6 +31,8 @@ import {
 } from './guards/staff-quote.guard';
 import { ProposalsService } from './proposals.service';
 import { CreateProposalBody, PatchProposalStatusBody, PutQuoteLinesBody } from './proposals.types';
+import { QuoteOverviewService, toActivityCsv } from './quote-overview.service';
+import { resolveQuoteScope, type QuoteScope } from './quote-scope.util';
 import { QuoteSettingsPatch, QuoteSettingsService } from './quote-settings.service';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
@@ -40,8 +43,53 @@ export class ProposalsController {
   constructor(
     private readonly proposals: ProposalsService,
     private readonly quoteSettings: QuoteSettingsService,
+    private readonly quoteOverview: QuoteOverviewService,
     private readonly staffAuth: StaffAuthService,
   ) {}
+
+  private async quoteCaller(req: StaffReq, requested?: QuoteScope) {
+    if (req.staffAuthVia === 'internal' && !req.staffUser) {
+      return {
+        scope: requested ?? ('all' as const),
+        staffId: 0,
+        teamIds: [] as number[],
+        hasFinance: true,
+      };
+    }
+    const staffId = req.staffUser
+      ? await this.staffAuth.resolveCrmStaffUserId(req.staffUser)
+      : null;
+    if (staffId == null || staffId <= 0) {
+      throw new ForbiddenException({ error: 'qt_unresolved_staff' });
+    }
+    const me = req.staffUser ? await this.staffAuth.me(req.staffUser) : null;
+    const has = (section: string, action: string) =>
+      Boolean(me && this.staffAuth.hasCap(me.caps, section, action));
+    return {
+      scope: resolveQuoteScope({
+        requested,
+        hasViewAll: has('crm_quote', 'view_all') || has('crm_quote', 'manage'),
+        canTeam: has('crm_quote', 'edit') || has('crm_quote', 'manage'),
+      }),
+      staffId,
+      teamIds: me?.teams?.map((team) => team.id) ?? [],
+      hasFinance: has('crm_quote.finance', 'view'),
+    };
+  }
+
+  private async assertQuoteAuditCap(req: StaffReq) {
+    if (req.staffAuthVia === 'internal') return;
+    const me = req.staffUser ? await this.staffAuth.me(req.staffUser) : null;
+    const allowed = Boolean(
+      me &&
+        (this.staffAuth.hasCap(me.caps, 'crm_quote.audit', 'view') ||
+          this.staffAuth.hasCap(me.caps, 'crm_quote.audit', 'view_all') ||
+          this.staffAuth.hasCap(me.caps, 'crm_quote.audit', 'execute')),
+    );
+    if (!allowed) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_quote.audit', action: 'view' });
+    }
+  }
 
   @Get('quote-catalog')
   getQuoteCatalog(@Query('service_slug') serviceSlug?: string) {
@@ -61,6 +109,55 @@ export class ProposalsController {
   async patchSettings(@Req() req: StaffReq, @Body() body: QuoteSettingsPatch) {
     const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
     return this.quoteSettings.patch(body ?? {}, staffId);
+  }
+
+  @Get('overview')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteAction('view')
+  async getOverview(
+    @Req() req: StaffReq,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('scope') scope?: QuoteScope,
+    @Query('owner') owner?: string,
+  ) {
+    return this.quoteOverview.getOverview({
+      ...(await this.quoteCaller(req, scope)),
+      from,
+      to,
+      owner,
+    });
+  }
+
+  @Get('actions')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteAction('view')
+  async getActions(@Req() req: StaffReq, @Query('scope') scope?: QuoteScope) {
+    return this.quoteOverview.getActions(await this.quoteCaller(req, scope));
+  }
+
+  @Get('activity')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteAction('view')
+  async getActivity(
+    @Req() req: StaffReq,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('action') action?: string,
+    @Query('owner') owner?: string,
+    @Query('export') exportFmt?: string,
+  ) {
+    const listed = await this.quoteOverview.listActivity({
+      from,
+      to,
+      action,
+      actor_staff_id: owner && /^\d+$/.test(owner) ? Number(owner) : undefined,
+    });
+    if (exportFmt === 'csv') {
+      await this.assertQuoteAuditCap(req);
+      return { csv: toActivityCsv(listed.items), filename: 'quote-activity.csv' };
+    }
+    return listed;
   }
 
   @Get()
