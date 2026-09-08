@@ -24,6 +24,45 @@ CREATE TABLE IF NOT EXISTS crm_quote_settings (
 );
 INSERT INTO crm_quote_settings (tenant_id) VALUES ('PTT') ON CONFLICT DO NOTHING;
 
+-- Base Deal Room tables are created lazily by ptt-crm-api. VPS Postgres never
+-- had them (proposals lived in SQLite). Create first, then extend for Quote OS.
+CREATE TABLE IF NOT EXISTS crm_proposals (
+  id SERIAL PRIMARY KEY,
+  customer_id INTEGER REFERENCES crm_customers(id) ON DELETE CASCADE,
+  lead_id INTEGER NULL,
+  presales_id INTEGER NULL,
+  lifecycle_id INTEGER REFERENCES crm_service_lifecycle(id) ON DELETE SET NULL,
+  service_slugs TEXT NOT NULL DEFAULT '[]',
+  total_vnd BIGINT NOT NULL DEFAULT 0,
+  timeline_months INTEGER NOT NULL DEFAULT 1,
+  notes TEXT NOT NULL DEFAULT '',
+  ai_output TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'draft',
+  valid_until TEXT NULL,
+  price_adjustment_reason TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_crm_proposals_customer ON crm_proposals (customer_id);
+CREATE INDEX IF NOT EXISTS idx_crm_proposals_lead ON crm_proposals (lead_id);
+
+CREATE TABLE IF NOT EXISTS crm_quote_line_item (
+  id SERIAL PRIMARY KEY,
+  proposal_id INTEGER NOT NULL REFERENCES crm_proposals(id) ON DELETE CASCADE,
+  dv_code TEXT NOT NULL,
+  sku_code TEXT NULL,
+  package_tier TEXT NOT NULL,
+  service_slug TEXT NOT NULL DEFAULT '',
+  reference_price_min BIGINT NOT NULL DEFAULT 0,
+  reference_price_max BIGINT NOT NULL DEFAULT 0,
+  final_price_vnd BIGINT NOT NULL DEFAULT 0,
+  scope_notes TEXT NOT NULL DEFAULT '',
+  lifecycle_id INTEGER REFERENCES crm_service_lifecycle(id) ON DELETE SET NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_crm_quote_line_proposal
+  ON crm_quote_line_item (proposal_id);
+
 ALTER TABLE crm_proposals
   ADD COLUMN IF NOT EXISTS quote_code TEXT,
   ADD COLUMN IF NOT EXISTS agency_client_id UUID,
