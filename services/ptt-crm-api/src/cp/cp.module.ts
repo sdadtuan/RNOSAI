@@ -108,5 +108,6 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     { provide: CP_EXPERIMENTS_QUERY, useExisting: CpExperimentsRepository },
     CpExperimentsService,
   ],
+  exports: [CpProjectsService],
 })
 export class CpModule {}

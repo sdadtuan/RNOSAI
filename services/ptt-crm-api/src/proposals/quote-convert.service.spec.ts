@@ -65,6 +65,7 @@ class ConvertMemory {
   nextConversion = 1;
   nextInvoice = 100;
   throwOnSecondInsert = false;
+  handoff_video = false;
 
   async withTransaction<T>(
     fn: (query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>) => Promise<T>,
@@ -144,7 +145,42 @@ class ConvertMemory {
       this.invoices.push(row);
       return { rows: [row] };
     }
+    if (/FROM crm_quote_settings/i.test(sql)) {
+      return { rows: [{ handoff_video: this.handoff_video }] };
+    }
     return { rows: [] };
+  }
+}
+
+class VdMemory {
+  projects: Array<{ id: number; lifecycle_id: number; title: string }> = [];
+  briefs: Array<{ project_id: number; body_json: Record<string, unknown> }> = [];
+  nextId = 1;
+
+  repo = {
+    insertProject: jest.fn(
+      async (input: { lifecycle_id: number; title?: string; cmkt_item_id?: number | null }) => {
+        const row = {
+          id: this.nextId++,
+          lifecycle_id: input.lifecycle_id,
+          title: String(input.title ?? ''),
+          cmkt_item_id: input.cmkt_item_id ?? null,
+        };
+        this.projects.push(row);
+        return row;
+      },
+    ),
+    insertBrief: jest.fn(async (projectId: number, bodyJson: Record<string, unknown>) => {
+      this.briefs.push({ project_id: projectId, body_json: bodyJson });
+    }),
+    listByLifecycle: jest.fn(async (lifecycleId: number) =>
+      this.projects.filter((row) => row.lifecycle_id === lifecycleId),
+    ),
+    insertAudit: jest.fn(),
+  };
+
+  listByLifecycle(lifecycleId: number) {
+    return this.repo.listByLifecycle(lifecycleId);
   }
 }
 
@@ -152,8 +188,10 @@ function load(overrides?: {
   status?: string;
   quoteCode?: string | null;
   versionId?: string | null;
-  lines?: typeof LINE[];
+  lines?: Array<typeof LINE & { catalog_snapshot_json?: Record<string, unknown> }>;
   db?: ConvertMemory;
+  vd?: VdMemory;
+  cp?: { create: jest.Mock };
 }) {
   const db = overrides?.db ?? new ConvertMemory();
   const lines = overrides?.lines ?? [{ ...LINE }];
@@ -198,8 +236,15 @@ function load(overrides?: {
       return { invoice: row };
     }),
   };
-  const svc = new QuoteConvertService(db, repo as never, lifecycle as never, invoices as never);
-  return { db, repo, lifecycle, invoices, svc, lines, proposal };
+  const svc = new QuoteConvertService(
+    db,
+    repo as never,
+    lifecycle as never,
+    invoices as never,
+    overrides?.vd as never,
+    overrides?.cp as never,
+  );
+  return { db, repo, lifecycle, invoices, svc, lines, proposal, vd: overrides?.vd };
 }
 
 const ACTOR = { staffId: 7, staffAuthVia: 'jwt' as const, idempotencyKey: 'cvt-01' };
@@ -321,6 +366,86 @@ describe('QuoteConvertService', () => {
     await expect(
       svc.convert(9, VID, { staffId: 0, staffAuthVia: 'jwt', idempotencyKey: 'k' }),
     ).rejects.toMatchObject({ response: { error: 'qt_unresolved_staff' } });
+  });
+
+  it('AC-10 Brand Film convert creates vd_project with VID-TPL-01', async () => {
+    const db = new ConvertMemory();
+    db.handoff_video = true;
+    const vd = new VdMemory();
+    const { svc } = load({
+      db,
+      vd,
+      lines: [
+        {
+          ...LINE,
+          dv_code: 'DV12',
+          catalog_snapshot_json: { kind: 'brand_film' },
+        },
+      ],
+    });
+
+    const out = await svc.convert(9, VID, ACTOR);
+
+    expect(vd.repo.insertProject).toHaveBeenCalledTimes(1);
+    expect(vd.repo.insertProject).toHaveBeenCalledWith(
+      expect.objectContaining({ lifecycle_id: 50, cmkt_item_id: null }),
+    );
+    expect(vd.repo.insertBrief).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ template_key: 'VID-TPL-01' }),
+    );
+    expect(out.optional_handoff).toEqual([
+      { vd_project_id: 1, template_key: 'VID-TPL-01' },
+    ]);
+    expect(db.sqls.some((sql) => /INSERT INTO crm_cp_projects/i.test(sql))).toBe(false);
+  });
+
+  it('handoff_video defaults false so DV12 convert stays no-handoff', async () => {
+    const vd = new VdMemory();
+    const { svc } = load({
+      vd,
+      lines: [{ ...LINE, dv_code: 'DV12', catalog_snapshot_json: { kind: 'brand_film' } }],
+    });
+
+    const out = await svc.convert(9, VID, ACTOR);
+
+    expect(vd.repo.insertProject).not.toHaveBeenCalled();
+    expect(out.optional_handoff).toEqual([]);
+  });
+
+  it('non-production line does not create vd_project', async () => {
+    const db = new ConvertMemory();
+    db.handoff_video = true;
+    const vd = new VdMemory();
+    const { svc } = load({ db, vd });
+
+    const out = await svc.convert(9, VID, ACTOR);
+
+    expect(vd.repo.insertProject).not.toHaveBeenCalled();
+    expect(out.optional_handoff).toEqual([]);
+  });
+
+  it('Brand Film convert stays idempotent and does not create a second vd_project', async () => {
+    const db = new ConvertMemory();
+    db.handoff_video = true;
+    const vd = new VdMemory();
+    const { svc } = load({
+      db,
+      vd,
+      lines: [{ ...LINE, dv_code: 'DV12', catalog_snapshot_json: { kind: 'brand_film' } }],
+    });
+
+    const first = await svc.convert(9, VID, ACTOR);
+    const second = await svc.convert(9, VID, { ...ACTOR, idempotencyKey: 'cvt-01-replay' });
+
+    expect(vd.repo.insertProject).toHaveBeenCalledTimes(1);
+    expect(second.conversion_id).toBe(first.conversion_id);
+    expect(second.optional_handoff).toEqual(first.optional_handoff);
+    expect(second.optional_handoff).toEqual([
+      { vd_project_id: 1, template_key: 'VID-TPL-01' },
+    ]);
+    expect(db.conversions.filter((row) => row.target_type === 'lifecycle_bundle')).toHaveLength(1);
+    expect(db.conversions.filter((row) => row.target_type === 'invoice_schedule')).toHaveLength(1);
   });
 });
 

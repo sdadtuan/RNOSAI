@@ -631,11 +631,17 @@ export type QtConvertLifecycle = {
   dv_code: string;
 };
 
+export type QtConvertHandoff = {
+  vd_project_id?: number;
+  template_key?: string;
+  cp_project_id?: string;
+};
+
 export type QtConvertResult = {
   conversion_id: string;
   lifecycles: QtConvertLifecycle[];
   invoice_draft_ids: number[];
-  optional_handoff: [];
+  optional_handoff: QtConvertHandoff[];
 };
 
 export function convertQtVersion(
@@ -667,6 +673,7 @@ export const QT_SETTINGS_PATCH_FIELDS = [
   'otp_required',
   'view_tracking',
   'ai_enabled',
+  'handoff_video',
 ] as const;
 
 export type QtSettingsPatchField = (typeof QT_SETTINGS_PATCH_FIELDS)[number];
@@ -689,6 +696,7 @@ export type QtSettings = {
   otp_required: boolean;
   view_tracking: boolean;
   ai_enabled: boolean;
+  handoff_video: boolean;
   updated_at?: string | null;
   updated_by_staff_id?: number | null;
 };

@@ -18,6 +18,7 @@ const PATCH_FIELDS = [
   'otp_required',
   'view_tracking',
   'ai_enabled',
+  'handoff_video',
 ] as const;
 
 const RESPONSE_FIELDS = [
@@ -38,6 +39,7 @@ const RESPONSE_FIELDS = [
   'otp_required',
   'view_tracking',
   'ai_enabled',
+  'handoff_video',
   'updated_at',
   'updated_by_staff_id',
 ] as const;
@@ -58,6 +60,7 @@ const BOOL_FIELDS = new Set([
   'otp_required',
   'view_tracking',
   'ai_enabled',
+  'handoff_video',
 ]);
 
 export const DEFAULT_PTT_SETTINGS: Record<string, unknown> = {
@@ -78,6 +81,7 @@ export const DEFAULT_PTT_SETTINGS: Record<string, unknown> = {
   otp_required: true,
   view_tracking: true,
   ai_enabled: false,
+  handoff_video: false,
 };
 
 export type QuoteSettingsPatch = Partial<
@@ -101,7 +105,7 @@ export class QuoteSettingsService {
               currency_code, timezone, issuing_entity, payment_template,
               gm_floor_bps, discount_auto_bps, director_value_vnd,
               payment_term_max_days, share_expiry_days, pdf_download,
-              otp_required, view_tracking, ai_enabled, updated_at,
+              otp_required, view_tracking, ai_enabled, handoff_video, updated_at,
               updated_by_staff_id
          FROM crm_quote_settings
         WHERE tenant_id = $1
@@ -139,7 +143,7 @@ export class QuoteSettingsService {
                   currency_code, timezone, issuing_entity, payment_template,
                   gm_floor_bps, discount_auto_bps, director_value_vnd,
                   payment_term_max_days, share_expiry_days, pdf_download,
-                  otp_required, view_tracking, ai_enabled, updated_at,
+                  otp_required, view_tracking, ai_enabled, handoff_video, updated_at,
                   updated_by_staff_id`,
       params,
     );
@@ -147,6 +151,10 @@ export class QuoteSettingsService {
   }
 
   private async ensureRow(): Promise<void> {
+    await this.db.query(
+      `ALTER TABLE crm_quote_settings
+         ADD COLUMN IF NOT EXISTS handoff_video BOOLEAN NOT NULL DEFAULT FALSE`,
+    );
     await this.db.query(
       `INSERT INTO crm_quote_settings (tenant_id) VALUES ($1) ON CONFLICT DO NOTHING`,
       [QT_TENANT_ID],

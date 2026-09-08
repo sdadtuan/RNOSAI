@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS crm_quote_settings (
   updated_by_staff_id INTEGER
 );
 INSERT INTO crm_quote_settings (tenant_id) VALUES ('PTT') ON CONFLICT DO NOTHING;
+ALTER TABLE crm_quote_settings
+  ADD COLUMN IF NOT EXISTS handoff_video BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Base Deal Room tables are created lazily by ptt-crm-api. VPS Postgres never
 -- had them (proposals lived in SQLite). Create first, then extend for Quote OS.

@@ -21,6 +21,7 @@ const SAMPLE = {
   otp_required: true,
   view_tracking: true,
   ai_enabled: false,
+  handoff_video: false,
 };
 
 const FORBIDDEN = ['sẽ có ở W2', 'mở ở Wave', 'NOVA', 'Nhảy màn'];

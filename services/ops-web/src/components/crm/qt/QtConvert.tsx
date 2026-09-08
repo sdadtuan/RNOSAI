@@ -161,9 +161,34 @@ export function QtConvertPanel({
           </div>
           <div className="qt-side-row">
             <span>optional_handoff</span>
-            <b>{dash(null)}</b>
+            <b>{dash(result?.optional_handoff?.length ? result.optional_handoff.length : null)}</b>
           </div>
-          <p className="qt-muted">optional_handoff trống — không tạo CP / CSD.</p>
+          {result?.optional_handoff?.length ? (
+            <ul className="qt-list">
+              {result.optional_handoff.map((item, index) => (
+                <li key={`${item.vd_project_id ?? item.cp_project_id ?? index}`}>
+                  {item.vd_project_id ? (
+                    <Link className="qt-link" href={`/crm/video/${item.vd_project_id}`}>
+                      Video SOP #{item.vd_project_id}
+                    </Link>
+                  ) : null}
+                  {item.template_key ? (
+                    <span className="qt-muted"> · {item.template_key}</span>
+                  ) : null}
+                  {item.cp_project_id ? (
+                    <>
+                      {' · '}
+                      <Link className="qt-link" href={`/crm/creative-os/projects/${item.cp_project_id}`}>
+                        CP {item.cp_project_id}
+                      </Link>
+                    </>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="qt-muted">optional_handoff trống — không tạo CP / CSD.</p>
+          )}
         </section>
       </div>
     </div>

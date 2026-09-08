@@ -1,9 +1,11 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { CpModule } from '../cp/cp.module';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { OpsModule } from '../ops/ops.module';
 import { SpcModule } from '../spc/spc.module';
 import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.module';
+import { VideoSopModule } from '../video-sop/video-sop.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import {
   StaffProposalsViewGuard,
@@ -51,6 +53,8 @@ import { QuoteStudioService } from './quote-studio.service';
     forwardRef(() => LeadsFunnelModule),
     InvoicesModule,
     PortalModule,
+    forwardRef(() => VideoSopModule),
+    forwardRef(() => CpModule),
   ],
   controllers: [
     ProposalsController,

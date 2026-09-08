@@ -133,5 +133,6 @@ import { VdShotRepository } from './script/vd-shot.repository';
     StaffVdAdminViewGuard,
     StaffVdAdminCreateGuard,
   ],
+  exports: [VdProjectService, VdProjectRepository],
 })
 export class VideoSopModule {}

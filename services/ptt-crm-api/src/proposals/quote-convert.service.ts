@@ -4,12 +4,16 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { CpProjectsService } from '../cp/cp-projects.service';
 import { InvoicesService } from '../invoices/invoices.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { skuFromDvTier } from '../spc/spc-sku.util';
+import { VdProjectService } from '../video-sop/project/vd-project.service';
 import { ProposalsPgRepository } from './proposals-pg.repository';
 import { QT_QUOTE_QUERY, QuoteQueryFn, QuoteQueryPort } from './quote-audit.repository';
+import { VID_TPL_01 } from './quote-catalog.service';
 import { normalizeQuoteTier } from './quote-pricing.util';
 
 export type QuoteConvertActor = {
@@ -24,12 +28,20 @@ export type QuoteConvertLifecycle = {
   dv_code: string;
 };
 
+export type QuoteConvertHandoff = {
+  vd_project_id?: number;
+  template_key?: string;
+  cp_project_id?: string;
+};
+
 export type QuoteConvertResult = {
   conversion_id: string;
   lifecycles: QuoteConvertLifecycle[];
   invoice_draft_ids: number[];
-  optional_handoff: [];
+  optional_handoff: QuoteConvertHandoff[];
 };
+
+const VIDEO_KINDS = new Set(['human_video', 'brand_film']);
 
 const TARGET_LIFECYCLE = 'lifecycle_bundle';
 const TARGET_INVOICE = 'invoice_schedule';
@@ -67,6 +79,8 @@ export class QuoteConvertService {
     private readonly repo: ProposalsPgRepository,
     private readonly lifecycle: ServiceLifecycleService,
     private readonly invoices: InvoicesService,
+    @Optional() private readonly vdProjects?: VdProjectService,
+    @Optional() private readonly cpProjects?: CpProjectsService,
   ) {}
 
   async convert(
@@ -102,7 +116,7 @@ export class QuoteConvertService {
         throw new NotFoundException({ error: 'version_not_found' });
       }
 
-      const lines = await this.repo.listLines(proposalId);
+      const lines = await this.repo.listLines(proposalId, { quoteOs: true });
       if (!lines.length) bad('quote_lines_required_for_accept');
 
       const lifecycles: QuoteConvertLifecycle[] = [];
@@ -148,11 +162,23 @@ export class QuoteConvertService {
         query,
       );
 
+      const optionalHandoff = (await this.isHandoffVideo(query))
+        ? await this.buildVideoHandoff({
+            proposalId,
+            proposal,
+            vid,
+            actor,
+            lines,
+            lifecycles,
+            snapshot: version.snapshot_json,
+          })
+        : [];
+
       const result: QuoteConvertResult = {
         conversion_id: '',
         lifecycles,
         invoice_draft_ids: invoiceDraftIds,
-        optional_handoff: [],
+        optional_handoff: optionalHandoff,
       };
 
       try {
@@ -192,9 +218,14 @@ export class QuoteConvertService {
   private async loadVersion(
     vid: string,
     query: QuoteQueryFn,
-  ): Promise<{ id: string; proposal_id: number; payable_vnd: number } | null> {
+  ): Promise<{
+    id: string;
+    proposal_id: number;
+    payable_vnd: number;
+    snapshot_json: Record<string, unknown>;
+  } | null> {
     const result = await query(
-      `SELECT id, proposal_id, payable_vnd
+      `SELECT id, proposal_id, payable_vnd, snapshot_json
          FROM crm_quote_versions
         WHERE id::text = $1
         LIMIT 1`,
@@ -206,6 +237,7 @@ export class QuoteConvertService {
       id: String(row.id),
       proposal_id: Number(row.proposal_id),
       payable_vnd: Number(row.payable_vnd ?? 0),
+      snapshot_json: asPayload(row.snapshot_json),
     };
   }
 
@@ -240,8 +272,178 @@ export class QuoteConvertService {
       conversion_id: String(payload.conversion_id || row.id || ''),
       lifecycles,
       invoice_draft_ids: invoiceDraftIds,
-      optional_handoff: [],
+      optional_handoff: this.handoffsFrom(payload.optional_handoff),
     };
+  }
+
+  private handoffsFrom(value: unknown): QuoteConvertHandoff[] {
+    if (!Array.isArray(value)) return [];
+    const out: QuoteConvertHandoff[] = [];
+    for (const item of value) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const rec = item as Record<string, unknown>;
+      const handoff: QuoteConvertHandoff = {};
+      const vdId = Number(rec.vd_project_id);
+      if (Number.isFinite(vdId) && vdId > 0) handoff.vd_project_id = vdId;
+      const template = String(rec.template_key ?? '').trim();
+      if (template) handoff.template_key = template;
+      const cpId = rec.cp_project_id == null ? '' : String(rec.cp_project_id).trim();
+      if (cpId) handoff.cp_project_id = cpId;
+      if (handoff.vd_project_id || handoff.cp_project_id || handoff.template_key) {
+        out.push(handoff);
+      }
+    }
+    return out;
+  }
+
+  private async isHandoffVideo(query: QuoteQueryFn): Promise<boolean> {
+    try {
+      await query(
+        `ALTER TABLE crm_quote_settings
+           ADD COLUMN IF NOT EXISTS handoff_video BOOLEAN NOT NULL DEFAULT FALSE`,
+      );
+    } catch {
+      /* missing table or insufficient DDL — fall through to read */
+    }
+    try {
+      const result = await query(
+        `SELECT handoff_video, policy_json FROM crm_quote_settings LIMIT 1`,
+      );
+      const row = result.rows[0];
+      if (!row) return false;
+      if (row.handoff_video === true || row.handoff_video === 't' || row.handoff_video === 'true') {
+        return true;
+      }
+      const policy = asPayload(row.policy_json);
+      return policy.handoff_video === true || policy.handoff_video === 't';
+    } catch {
+      return false;
+    }
+  }
+
+  private lineKind(
+    line: { id: number; catalog_snapshot_json?: Record<string, unknown> },
+    snapshot: Record<string, unknown>,
+  ): string {
+    const fromLine = asPayload(line.catalog_snapshot_json).kind;
+    if (typeof fromLine === 'string' && fromLine.trim()) return fromLine.trim();
+    const rows = Array.isArray(snapshot.lines) ? snapshot.lines : [];
+    const match = rows.find((row) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return false;
+      const rec = row as Record<string, unknown>;
+      return Number(rec.id ?? rec.line_id) === Number(line.id);
+    }) as Record<string, unknown> | undefined;
+    const nested = asPayload(match?.catalog_snapshot_json);
+    const kind = match?.kind ?? nested.kind;
+    return typeof kind === 'string' ? kind.trim() : '';
+  }
+
+  private async buildVideoHandoff(input: {
+    proposalId: number;
+    proposal: { agency_client_id?: string | null };
+    vid: string;
+    actor: QuoteConvertActor;
+    lines: Array<{
+      id: number;
+      dv_code: string;
+      catalog_snapshot_json?: Record<string, unknown>;
+    }>;
+    lifecycles: QuoteConvertLifecycle[];
+    snapshot: Record<string, unknown>;
+  }): Promise<QuoteConvertHandoff[]> {
+    const out: QuoteConvertHandoff[] = [];
+    for (const created of input.lifecycles) {
+      const line = input.lines.find((row) => row.id === created.line_id);
+      const kind = line ? this.lineKind(line, input.snapshot) : '';
+      const production =
+        created.dv_code === 'DV12' || VIDEO_KINDS.has(kind);
+      const aiVideo = kind === 'ai_video';
+      if (!production && !aiVideo) continue;
+
+      const handoff: QuoteConvertHandoff = {};
+      if (production && this.vdProjects) {
+        const project = await this.linkOrCreateVdProject({
+          proposalId: input.proposalId,
+          clientId: input.proposal.agency_client_id,
+          vid: input.vid,
+          lineId: created.line_id,
+          lifecycleId: created.lifecycle_id,
+          dvCode: created.dv_code,
+        });
+        if (project) {
+          handoff.vd_project_id = project.id;
+          handoff.template_key = VID_TPL_01;
+        }
+      }
+      if (aiVideo) {
+        const cpId = await this.optionalCpProject({
+          proposalId: input.proposalId,
+          clientId: input.proposal.agency_client_id,
+          actor: input.actor,
+          lifecycleId: created.lifecycle_id,
+          dvCode: created.dv_code,
+        });
+        if (cpId) handoff.cp_project_id = cpId;
+      }
+      if (handoff.vd_project_id || handoff.cp_project_id) out.push(handoff);
+    }
+    return out;
+  }
+
+  private async linkOrCreateVdProject(input: {
+    proposalId: number;
+    clientId?: string | null;
+    vid: string;
+    lineId: number;
+    lifecycleId: number;
+    dvCode: string;
+  }): Promise<{ id: number } | null> {
+    if (!this.vdProjects) return null;
+    const existing = await this.vdProjects.listByLifecycle(input.lifecycleId);
+    if (existing[0]) return { id: existing[0].id };
+    const row = await this.vdProjects.repo.insertProject({
+      lifecycle_id: input.lifecycleId,
+      client_id: input.clientId != null ? String(input.clientId) : null,
+      cmkt_item_id: null,
+      title: `Quote #${input.proposalId} · ${input.dvCode} · ${VID_TPL_01}`,
+      stage: 'brief_draft',
+      status: 'active',
+      created_by: `quote-convert:${input.vid}`,
+    });
+    await this.vdProjects.repo.insertBrief(row.id, {
+      template_key: VID_TPL_01,
+      quote_version_id: input.vid,
+      line_id: input.lineId,
+    });
+    return { id: row.id };
+  }
+
+  private async optionalCpProject(input: {
+    proposalId: number;
+    clientId?: string | null;
+    actor: QuoteConvertActor;
+    lifecycleId: number;
+    dvCode: string;
+  }): Promise<string | undefined> {
+    if (!this.cpProjects) return undefined;
+    const clientId = String(input.clientId ?? '').trim();
+    const owner = Number(input.actor.staffId);
+    if (!clientId || !(owner > 0)) return undefined;
+    try {
+      const created = await this.cpProjects.create(
+        {
+          name: `Quote #${input.proposalId} · ${input.dvCode}`,
+          agency_client_id: clientId,
+          owner_staff_id: owner,
+          lifecycle_id: String(input.lifecycleId),
+        },
+        owner,
+      );
+      const id = created?.id;
+      return id != null && String(id).trim() ? String(id) : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private idsFrom(value: unknown): number[] {

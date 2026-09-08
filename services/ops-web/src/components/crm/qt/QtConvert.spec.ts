@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { convertQtVersion } from '@/lib/crm/qt-api';
+import { convertQtVersion, type QtConvertResult } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
 import {
   QtConvertPanel,
@@ -18,7 +18,7 @@ const SAMPLE_RESULT = {
     { line_id: 12, lifecycle_id: 702, dv_code: 'DV05' },
   ],
   invoice_draft_ids: [501],
-  optional_handoff: [] as [],
+  optional_handoff: [] as QtConvertResult['optional_handoff'],
 };
 
 afterEach(() => {
@@ -75,10 +75,32 @@ describe('QtConvertPanel', () => {
     expect(html).not.toContain('CSD ticket');
     expect(html).not.toContain('đã tạo CP');
     expect(html).not.toContain('đã tạo CSD');
+    expect(html).not.toContain('/crm/video/');
     expect(html).not.toContain('<main');
     for (const banned of FORBIDDEN) {
       expect(html).not.toContain(banned);
     }
+  });
+
+  it('AC-10 Brand Film handoff deep-links Video SOP + VID-TPL-01 without an editor', () => {
+    const html = renderToStaticMarkup(
+      createElement(QtConvertPanel, {
+        quoteCode: 'QT-PTT-2026-000089',
+        versionId: 'vid-accepted',
+        status: 'accepted',
+        result: {
+          ...SAMPLE_RESULT,
+          optional_handoff: [{ vd_project_id: 88, template_key: 'VID-TPL-01' }],
+        },
+      }),
+    );
+
+    expect(html).toContain('/crm/video/88');
+    expect(html).toContain('VID-TPL-01');
+    expect(html).not.toContain('timeline');
+    expect(html).not.toContain('6 scene');
+    expect(html).not.toContain('optional_handoff trống');
+    expect(html).not.toContain('<main');
   });
 
   it('shows quote_not_accepted from the API', () => {

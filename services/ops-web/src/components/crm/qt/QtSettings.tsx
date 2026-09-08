@@ -71,6 +71,7 @@ export function qtSettingsFromForm(form: FormData): Record<string, unknown> {
     otp_required: form.get('otp_required') === '1',
     view_tracking: form.get('view_tracking') === '1',
     ai_enabled: form.get('ai_enabled') === '1',
+    handoff_video: form.get('handoff_video') === '1',
   });
 }
 
@@ -160,6 +161,14 @@ export function QtSettingsForm({
             AI hỗ trợ soạn
           </span>
           <span className="qt-muted">Hiển thị trạng thái. Máy chủ bỏ qua nếu AI chưa mở.</span>
+        </label>
+        <label className="qt-form-label">
+          <span>
+            <input type="checkbox" name="handoff_video" value="1" defaultChecked={settings.handoff_video === true} />
+            {' '}
+            Handoff Video SOP / CP
+          </span>
+          <span className="qt-muted">Mặc định tắt. Bật mới tạo deep-link sau convert.</span>
         </label>
       </div>
 
