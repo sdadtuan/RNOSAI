@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { GoneException, UnauthorizedException } from '@nestjs/common';
+import { GoneException, Logger, UnauthorizedException } from '@nestjs/common';
+import { PortalNotifyWebhookService } from '../portal/portal-notify-webhook.service';
 import { QuoteAuditRepository } from './quote-audit.repository';
 import { QuoteShareService } from './quote-share.service';
 import { hashQuoteShareToken } from './quote-share.util';
@@ -9,17 +10,23 @@ const VID = '19d722af-0000-4000-8000-000000000010';
 
 class FakeMailer {
   payloads: Record<string, unknown>[] = [];
+  deliveredOtp: string | null = null;
   async send(payload: Record<string, unknown>) {
     this.payloads.push(payload);
     return { ok: true };
   }
-  lastBody(): string {
-    return String(this.payloads.at(-1)?.body ?? '');
+  async sendQuoteOtp(params: { to: string; subject: string; otp: string }) {
+    this.deliveredOtp = params.otp;
+    this.payloads.push({
+      source: 'quote_share_otp',
+      to: params.to,
+      subject: params.subject,
+    });
+    return { ok: true };
   }
   lastOtp(): string {
-    const match = this.lastBody().match(/\b(\d{6})\b/);
-    if (!match) throw new Error('mailer body has no 6-digit OTP');
-    return match[1];
+    if (this.deliveredOtp && /^\d{6}$/.test(this.deliveredOtp)) return this.deliveredOtp;
+    throw new Error('mailer did not deliver a 6-digit OTP');
   }
 }
 
@@ -84,12 +91,16 @@ class ShareMemory {
       return { rows: [row] };
     }
     if (/UPDATE crm_quote_shares/i.test(sql) && /revoked_at/i.test(sql)) {
+      const proposalId = Number(params[1] ?? params[params.length - 1]);
+      const revoked: Record<string, unknown>[] = [];
       for (const share of this.shares) {
-        if (String(share.version_id) === String(params[params.length - 1] ?? share.version_id)) {
+        const version = this.versions.get(String(share.version_id));
+        if (version && Number(version.proposal_id) === proposalId && !share.revoked_at) {
           share.revoked_at = params[0] ?? new Date().toISOString();
+          revoked.push(share);
         }
       }
-      return { rows: this.shares };
+      return { rows: revoked };
     }
     if (/UPDATE crm_quote_shares/i.test(sql) && /otp_/i.test(sql)) {
       const share = this.shares.find((row) => String(row.id) === String(params[params.length - 1]));
@@ -325,6 +336,70 @@ describe('QuoteShareService', () => {
       ip: '203.0.113.9',
       user_agent: 'Mozilla/5.0 QT',
     });
+  });
+
+  it('mailer/logger payload has no raw OTP digits matching the generated code', async () => {
+    const { svc, mailer } = load();
+    const minted = await svc.mintShare(9);
+    await svc.requestOtp(minted.token, { email: 'minhanh@anphat.vn' });
+    const otp = mailer.lastOtp();
+    expect(otp).toMatch(/^\d{6}$/);
+    expect(JSON.stringify(mailer.payloads)).not.toContain(otp);
+
+    const warns: unknown[] = [];
+    const spy = jest.spyOn(Logger.prototype, 'warn').mockImplementation((...args: unknown[]) => {
+      warns.push(args);
+    });
+    const webhook = new PortalNotifyWebhookService({
+      portalEmailNotifyEnabled: true,
+      portalNotifyWebhookUrl: null,
+      portalEmailWebhookUrl: null,
+    } as never);
+    await webhook.send({
+      source: 'quote_share_otp',
+      to: 'minhanh@anphat.vn',
+      subject: 'PTT — Mã xác nhận đề xuất',
+      otp,
+      token: minted.token,
+      body: `placeholder without the code`,
+    });
+    spy.mockRestore();
+    expect(JSON.stringify(warns)).not.toContain(otp);
+    expect(JSON.stringify(warns)).not.toContain(minted.token);
+  });
+
+  it('revoke of a quote 410s a token minted on a prior version', async () => {
+    const { db, svc } = load();
+    const priorVid = '19d722af-0000-4000-8000-000000000001';
+    const future = new Date(Date.now() + 7 * 86400000).toISOString();
+    db.versions.set(priorVid, {
+      id: priorVid,
+      proposal_id: 9,
+      n: 1,
+      state: 'superseded',
+      snapshot_json: {},
+      valid_until: future,
+    });
+    db.proposals.get(9)!.current_version_id = priorVid;
+    const prior = await svc.mintShare(9);
+    db.proposals.get(9)!.current_version_id = VID;
+    const current = await svc.mintShare(9);
+
+    const out = await svc.revokeShare(9);
+    expect(out.revoked).toBeGreaterThanOrEqual(2);
+
+    for (const token of [prior.token, current.token]) {
+      try {
+        await svc.getByToken(token);
+        throw new Error('expected 410');
+      } catch (err) {
+        const gone = err as GoneException;
+        expect(gone).toBeInstanceOf(GoneException);
+        expect(gone.getStatus()).toBe(410);
+        expect((gone.getResponse() as Record<string, unknown>).error).toBe('quote_revoked');
+        expect(gone.getResponse()).not.toHaveProperty('investment');
+      }
+    }
   });
 });
 

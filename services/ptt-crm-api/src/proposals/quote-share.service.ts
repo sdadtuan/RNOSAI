@@ -28,7 +28,7 @@ import {
 import { canTransition } from './quote-status.util';
 import type { QuoteOptionKey, QuoteStatus } from './quote.types';
 
-export type QuoteShareMailer = Pick<PortalNotifyWebhookService, 'send'>;
+export type QuoteShareMailer = Pick<PortalNotifyWebhookService, 'sendQuoteOtp'>;
 
 export type PublicAcceptBody = {
   accepted?: unknown;
@@ -121,21 +121,22 @@ export class QuoteShareService {
 
   async revokeShare(proposalId: number): Promise<{ revoked: number }> {
     const proposal = await this.db.query(
-      `SELECT id, current_version_id FROM crm_proposals WHERE id = $1 LIMIT 1`,
+      `SELECT id FROM crm_proposals WHERE id = $1 LIMIT 1`,
       [proposalId],
     );
-    const versionId = String(proposal.rows[0]?.current_version_id ?? '').trim();
-    if (!proposal.rows[0] || !versionId) {
-      throw new NotFoundException({ error: 'version_not_found' });
+    if (!proposal.rows[0]) {
+      throw new NotFoundException({ error: 'quote_not_found' });
     }
     const now = new Date().toISOString();
     const updated = await this.db.query(
-      `UPDATE crm_quote_shares
+      `UPDATE crm_quote_shares s
           SET revoked_at = $1
-        WHERE version_id::text = $2
-          AND revoked_at IS NULL
-        RETURNING id`,
-      [now, versionId],
+         FROM crm_quote_versions v
+        WHERE s.version_id = v.id
+          AND v.proposal_id = $2
+          AND s.revoked_at IS NULL
+        RETURNING s.id`,
+      [now, proposalId],
     );
     return { revoked: updated.rows.length };
   }
@@ -166,15 +167,12 @@ export class QuoteShareService {
       [hashQuoteOtp(otp), expires.toISOString(), 0, String(loaded.id)],
     );
     const quoteCode = loaded.quote_code == null ? '' : String(loaded.quote_code);
-    await this.mailer.send({
-      source: 'quote_share_otp',
+    await this.mailer.sendQuoteOtp({
       to: email,
       subject: quoteCode
         ? `PTT — Mã xác nhận đề xuất ${quoteCode}`
         : 'PTT — Mã xác nhận đề xuất',
-      body:
-        `Mã xác nhận đề xuất của bạn là ${otp}.\n` +
-        `Mã hết hạn sau 5 phút. Không chia sẻ mã này.`,
+      otp,
     });
     return { sent: true, expires_in_sec: 300 };
   }
