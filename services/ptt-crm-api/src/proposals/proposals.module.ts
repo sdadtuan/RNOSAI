@@ -12,6 +12,11 @@ import { StaffQuoteGuard } from './guards/staff-quote.guard';
 import { ProposalsController } from './proposals.controller';
 import { ProposalsPgRepository } from './proposals-pg.repository';
 import { ProposalsService } from './proposals.service';
+import {
+  QT_SETTINGS_QUERY,
+  QuoteSettingsRepository,
+} from './quote-settings.repository';
+import { QuoteSettingsService } from './quote-settings.service';
 
 @Module({
   imports: [
@@ -28,7 +33,10 @@ import { ProposalsService } from './proposals.service';
     StaffProposalsViewGuard,
     StaffProposalsWriteGuard,
     StaffQuoteGuard,
+    QuoteSettingsRepository,
+    { provide: QT_SETTINGS_QUERY, useExisting: QuoteSettingsRepository },
+    QuoteSettingsService,
   ],
-  exports: [ProposalsService, ProposalsPgRepository],
+  exports: [ProposalsService, ProposalsPgRepository, QuoteSettingsService],
 })
 export class ProposalsModule {}

@@ -16,25 +16,51 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import {
   StaffProposalsViewGuard,
   StaffProposalsWriteGuard,
 } from './guards/staff-proposals.guard';
+import {
+  RequireQuoteAction,
+  RequireQuoteSection,
+  StaffQuoteGuard,
+} from './guards/staff-quote.guard';
 import { ProposalsService } from './proposals.service';
 import { CreateProposalBody, PatchProposalStatusBody, PutQuoteLinesBody } from './proposals.types';
+import { QuoteSettingsPatch, QuoteSettingsService } from './quote-settings.service';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
 @Controller('api/crm/proposals')
 @UseGuards(StaffOrInternalKeyGuard, StaffProposalsViewGuard)
 export class ProposalsController {
-  constructor(private readonly proposals: ProposalsService) {}
+  constructor(
+    private readonly proposals: ProposalsService,
+    private readonly quoteSettings: QuoteSettingsService,
+    private readonly staffAuth: StaffAuthService,
+  ) {}
 
   @Get('quote-catalog')
   getQuoteCatalog(@Query('service_slug') serviceSlug?: string) {
     return this.proposals.getCatalogForQuote(serviceSlug);
+  }
+
+  @Get('settings')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteAction('view')
+  getSettings() {
+    return this.quoteSettings.get();
+  }
+
+  @Patch('settings')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote', 'manage')
+  async patchSettings(@Req() req: StaffReq, @Body() body: QuoteSettingsPatch) {
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    return this.quoteSettings.patch(body ?? {}, staffId);
   }
 
   @Get()
