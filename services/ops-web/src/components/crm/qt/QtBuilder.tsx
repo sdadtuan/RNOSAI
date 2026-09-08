@@ -110,6 +110,14 @@ export function isQtWritable(
   return state === 'working';
 }
 
+export async function saveDraft(
+  proposal: Pick<QtBuilderProposal, 'status' | 'current_version_state'> | null | undefined,
+  write: () => Promise<unknown> | unknown,
+): Promise<void> {
+  if (!isQtWritable(proposal?.status, proposal?.current_version_state)) return;
+  await write();
+}
+
 export function lineWritePayload(line: QtBuilderLine, hasFinance: boolean): QtBuilderLine {
   const payload: QtBuilderLine = {
     dv_code: line.dv_code,
@@ -359,6 +367,97 @@ function snapshotForAdd(item: QtCatalogItem, tier: QtPackageTier): Record<string
   };
 }
 
+export function newFeeCatalogLine(item: QtCatalogItem): QtBuilderLine {
+  const tier: QtPackageTier = 'standard';
+  const priced = item.package_tiers?.find((row) => row.tier === tier);
+  return {
+    dv_code: item.dv_code,
+    package_tier: tier,
+    item_type: 'fee',
+    qty: 1,
+    client_visible: true,
+    final_price_vnd: priced?.suggested_vnd ?? null,
+    catalog_snapshot_json: snapshotForAdd(item, tier),
+  };
+}
+
+export function QtContextFields({
+  title,
+  objective,
+  audience,
+  period,
+  validUntil,
+  writable,
+  onTitleChange,
+  onObjectiveChange,
+  onAudienceChange,
+  onPeriodChange,
+  onValidUntilChange,
+}: {
+  title: string;
+  objective: string;
+  audience: string;
+  period: string;
+  validUntil: string;
+  writable: boolean;
+  onTitleChange: (value: string) => void;
+  onObjectiveChange: (value: string) => void;
+  onAudienceChange: (value: string) => void;
+  onPeriodChange: (value: string) => void;
+  onValidUntilChange: (value: string) => void;
+}) {
+  return (
+    <>
+      <label className="qt-form-label">
+        Tiêu đề
+        <input
+          className="qt-inp"
+          value={title}
+          disabled={!writable}
+          onChange={(e) => onTitleChange(e.target.value)}
+        />
+      </label>
+      <label className="qt-form-label">
+        Mục tiêu
+        <input
+          className="qt-inp"
+          value={objective}
+          disabled={!writable}
+          onChange={(e) => onObjectiveChange(e.target.value)}
+        />
+      </label>
+      <label className="qt-form-label">
+        Đối tượng
+        <input
+          className="qt-inp"
+          value={audience}
+          disabled={!writable}
+          onChange={(e) => onAudienceChange(e.target.value)}
+        />
+      </label>
+      <label className="qt-form-label">
+        Thời gian
+        <input
+          className="qt-inp"
+          value={period}
+          disabled={!writable}
+          onChange={(e) => onPeriodChange(e.target.value)}
+        />
+      </label>
+      <label className="qt-form-label">
+        Hiệu lực đến
+        <input
+          className="qt-inp"
+          type="date"
+          value={validUntil}
+          disabled={!writable}
+          onChange={(e) => onValidUntilChange(e.target.value)}
+        />
+      </label>
+    </>
+  );
+}
+
 export function QtBuilder() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -463,7 +562,8 @@ export function QtBuilder() {
     void load();
   }, [load]);
 
-  async function saveDraft() {
+  async function persistDraft() {
+    if (!isQtWritable(proposal?.status, proposal?.current_version_state)) return;
     const token = getAccessToken();
     if (!token || !proposal) return;
     setSaving(true);
@@ -569,19 +669,7 @@ export function QtBuilder() {
 
   function addCatalog(item: QtCatalogItem) {
     if (!canAddCatalogItem(item)) return;
-    const tier: QtPackageTier = 'standard';
-    const priced = item.package_tiers?.find((row) => row.tier === tier);
-    const next: QtBuilderLine = {
-      dv_code: item.dv_code,
-      package_tier: tier,
-      item_type: 'fee',
-      qty: 1,
-      client_visible: true,
-      media_vnd: 0,
-      final_price_vnd: priced?.suggested_vnd ?? null,
-      catalog_snapshot_json: snapshotForAdd(item, tier),
-    };
-    void persistLines([...lines, next]);
+    void persistLines([...lines, newFeeCatalogLine(item)]);
   }
 
   const writable = isQtWritable(proposal?.status, proposal?.current_version_state);
@@ -595,7 +683,7 @@ export function QtBuilder() {
         tab={tab}
         onTab={setTab}
         studioHref={Number.isFinite(proposalId) ? `/crm/proposals/${proposalId}/studio` : undefined}
-        onSave={writable ? () => void saveDraft() : undefined}
+        onSave={writable ? () => void saveDraft(proposal, persistDraft) : undefined}
         saving={saving}
       />
 
@@ -632,44 +720,24 @@ export function QtBuilder() {
                   )}
                 </b>
               </div>
-              <label className="qt-form-label">
-                Tiêu đề
-                <input className="qt-inp" value={title} onChange={(e) => setTitle(e.target.value)} />
-              </label>
-              <label className="qt-form-label">
-                Mục tiêu
-                <input
-                  className="qt-inp"
-                  value={objective}
-                  onChange={(e) => setObjective(e.target.value)}
-                />
-              </label>
-              <label className="qt-form-label">
-                Đối tượng
-                <input
-                  className="qt-inp"
-                  value={audience}
-                  onChange={(e) => setAudience(e.target.value)}
-                />
-              </label>
-              <label className="qt-form-label">
-                Thời gian
-                <input className="qt-inp" value={period} onChange={(e) => setPeriod(e.target.value)} />
-              </label>
-              <label className="qt-form-label">
-                Hiệu lực đến
-                <input
-                  className="qt-inp"
-                  type="date"
-                  value={validUntil}
-                  onChange={(e) => setValidUntil(e.target.value)}
-                />
-              </label>
+              <QtContextFields
+                title={title}
+                objective={objective}
+                audience={audience}
+                period={period}
+                validUntil={validUntil}
+                writable={writable}
+                onTitleChange={setTitle}
+                onObjectiveChange={setObjective}
+                onAudienceChange={setAudience}
+                onPeriodChange={setPeriod}
+                onValidUntilChange={setValidUntil}
+              />
               <button
                 type="button"
                 className="qt-btn qt-btn--primary"
                 disabled={!writable || saving}
-                onClick={() => void saveDraft()}
+                onClick={() => void saveDraft(proposal, persistDraft)}
               >
                 Lưu nháp
               </button>
@@ -838,7 +906,7 @@ export function QtBuilder() {
                 type="button"
                 className="qt-btn qt-btn--primary"
                 disabled={!writable || saving}
-                onClick={() => void saveDraft()}
+                onClick={() => void saveDraft(proposal, persistDraft)}
               >
                 Lưu nháp
               </button>

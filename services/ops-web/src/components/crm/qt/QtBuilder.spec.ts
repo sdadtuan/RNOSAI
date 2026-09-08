@@ -1,19 +1,22 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { dash } from '@/lib/crm/qt-format';
 import {
   QT_BUILDER_TABS,
   QT_SKU_TIERS,
   QtBuilderChrome,
   QtCatalogAddCta,
+  QtContextFields,
   QtHistoryChrome,
   QtKpiChrome,
   QtOptionsChrome,
   QtSkuPicker,
   isQtWritable,
   lineWritePayload,
+  newFeeCatalogLine,
   qtStatusLabel,
+  saveDraft,
 } from './QtBuilder';
 
 describe('QtBuilder tabs + chrome', () => {
@@ -175,5 +178,49 @@ describe('lineWritePayload', () => {
     expect(payload).not.toHaveProperty('cost_outsource_vnd');
     expect(payload).not.toHaveProperty('cost_other_vnd');
     expect(JSON.stringify(payload)).not.toMatch(/"cost_\w+_vnd":0/);
+  });
+
+  it('omits media_vnd when adding a new fee catalog line', () => {
+    const line = newFeeCatalogLine({
+      dv_code: 'DV02',
+      name: 'Meta Ads',
+      status: 'active',
+      can_add_to_client_quote: true,
+      package_tiers: [{ tier: 'standard', suggested_vnd: 10_000_000 }],
+    });
+    expect(line.item_type).toBe('fee');
+    expect(line).not.toHaveProperty('media_vnd');
+    expect(lineWritePayload(line, false)).not.toHaveProperty('media_vnd');
+  });
+});
+
+describe('BLD-01 lock when not writable', () => {
+  it('disables context fields for pending_approval and saveDraft is a no-op', async () => {
+    const writable = isQtWritable('pending_approval');
+    const html = renderToStaticMarkup(
+      createElement(QtContextFields, {
+        title: 'Growth Q4',
+        objective: 'Awareness',
+        audience: 'C-level',
+        period: 'Q4 2026',
+        validUntil: '2026-12-31',
+        writable,
+        onTitleChange: () => {},
+        onObjectiveChange: () => {},
+        onAudienceChange: () => {},
+        onPeriodChange: () => {},
+        onValidUntilChange: () => {},
+      }),
+    );
+
+    expect(html).toMatch(/Tiêu đề[\s\S]*?<input[^>]*disabled/);
+    expect(html).toMatch(/Mục tiêu[\s\S]*?<input[^>]*disabled/);
+    expect(html).toMatch(/Đối tượng[\s\S]*?<input[^>]*disabled/);
+    expect(html).toMatch(/Thời gian[\s\S]*?<input[^>]*disabled/);
+    expect(html).toMatch(/Hiệu lực đến[\s\S]*?<input[^>]*disabled/);
+
+    const write = vi.fn();
+    await saveDraft({ id: 9, status: 'pending_approval' }, write);
+    expect(write).not.toHaveBeenCalled();
   });
 });

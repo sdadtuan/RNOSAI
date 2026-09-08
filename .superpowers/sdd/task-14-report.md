@@ -159,3 +159,56 @@ Tests:       49 passed
 - Recalc on load still 400s when header incomplete or no client-visible line — swallowed except `missing_cap`.
 - Browser click-through not run.
 - GET does not yet return `current_version_state`; writable treats missing state as `working`.
+
+---
+
+## Review fix — Important (BLD-01 lock + saveDraft guard)
+
+**Status:** FIXED  
+**Commit:** `fix(qt): lock builder context fields when not draft`
+
+### What changed
+
+- `QtContextFields` title / objective / audience / period / valid-until use `disabled={!writable}`.
+- `saveDraft` returns immediately when `!isQtWritable(...)` (no PATCH / PUT / recalc).
+- New fee catalog line omits `media_vnd` (send omit, not `0`).
+
+### TDD
+
+#### RED
+
+```
+cd services/ops-web && npm run test:unit -- \
+  src/components/crm/qt/QtBuilder.spec.ts \
+  src/components/crm/qt/QtStickyCommercial.spec.ts
+```
+
+```
+FAIL  QtBuilder.spec.ts
+  (0 , newFeeCatalogLine) is not a function
+  Element type is invalid ... QtContextFields ... undefined
+```
+
+Expected: lock helpers missing.
+
+#### GREEN
+
+Same command after implementation:
+
+```
+Test Files  2 passed (2)
+     Tests  16 passed (16)
+```
+
+| Spec | Result |
+|---|---|
+| pending_approval → 5 context inputs disabled | pass |
+| pending_approval → saveDraft is a no-op | pass |
+| new fee catalog line omits `media_vnd` | pass |
+| Sticky + prior builder chrome | pass |
+
+### Remaining concerns
+
+- Recalc on load still 400s when header incomplete or no client-visible line — swallowed except `missing_cap`.
+- Browser click-through not run.
+- GET does not yet return `current_version_state`; writable treats missing state as `working`.
