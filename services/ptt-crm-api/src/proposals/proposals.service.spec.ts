@@ -218,6 +218,7 @@ describe('ProposalsService quote-os wiring', () => {
       {} as never,
       {} as never,
       staffAuth as never,
+      {} as never,
     );
 
     await expect(
@@ -238,6 +239,7 @@ describe('ProposalsService quote-os wiring', () => {
       {} as never,
       {} as never,
       staffAuth as never,
+      {} as never,
     );
 
     await ctrl.create({ staffAuthVia: 'internal' } as never, { title: 'Internal' }, 'k-int');

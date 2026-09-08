@@ -34,7 +34,17 @@ const GUARDRAIL_ROWS = [
   { when: 'Custom / zero-price / thiếu cost', who: 'Finance' },
 ] as const;
 
+const SET_05_MATRIX = [
+  { step: 'Sales Manager', cap: 'crm_quote.approve', who: 'Auto / Sales Manager' },
+  { step: 'AM Lead', cap: 'crm_quote.approve', who: 'AM Lead' },
+  { step: 'AD', cap: 'crm_quote.approve', who: 'AD' },
+  { step: 'Finance', cap: 'crm_quote.finance', who: 'Finance Controller' },
+  { step: 'GDKD', cap: 'crm_quote.approve', who: 'GDKD / Commercial' },
+  { step: 'Legal', cap: 'crm_quote.legal', who: 'Legal' },
+] as const;
+
 export function asSettingsTab(value: string | null | undefined): QtSettingsTabId {
+  if (value === 'approvers') return 'set-05';
   return QT_SETTINGS_TABS.some((tab) => tab.id === value)
     ? (value as QtSettingsTabId)
     : 'set-01';
@@ -254,7 +264,7 @@ export function QtSettingsForm({
 
       <div hidden={active !== 'set-05'}>
         <h2>Ma trận approver</h2>
-        <p className="qt-muted">SET-05 · map job function PTT</p>
+        <p className="qt-muted">SET-05 · map job function PTT · delegate giữ actor gốc + hạn + lý do</p>
         <div className="qt-table-wrap">
           <table className="qt-table">
             <thead>
@@ -265,11 +275,13 @@ export function QtSettingsForm({
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td className="qt-empty" colSpan={3}>
-                  {dash(null)}
-                </td>
-              </tr>
+              {SET_05_MATRIX.map((row) => (
+                <tr key={row.step}>
+                  <td>{row.step}</td>
+                  <td>{row.cap}</td>
+                  <td>{row.who}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

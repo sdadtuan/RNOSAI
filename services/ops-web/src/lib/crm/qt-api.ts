@@ -630,6 +630,83 @@ export function buildQtSettingsPatch(input: Record<string, unknown>): QtSettings
   return patch;
 }
 
+export type QtApprovalChipId = 'mine' | 'done' | 'sla';
+
+export type QtApprovalStep = {
+  id: string;
+  approval_id: string;
+  seq: number;
+  section: string;
+  state: string;
+  assignee_staff_id?: number | null;
+  sla_hours?: number | null;
+  acted_at?: string | null;
+  comment?: string | null;
+  delegate_from?: number | null;
+  until?: string | null;
+};
+
+export type QtApprovalInboxItem = {
+  step_id: string;
+  approval_id: string;
+  version_id: string;
+  proposal_id: number;
+  quote_code: string | null;
+  version_n: number | null;
+  client_name: string | null;
+  trigger: string | null;
+  step: string | null;
+  sla: string | null;
+  sla_breached: boolean;
+  owner: { staff_id: number | null; name: string | null };
+  state: string;
+  assignee_staff_id: number | null;
+  acted_at: string | null;
+  comment: string | null;
+  delegate_from: number | null;
+  until: string | null;
+  policy_badges: Array<{ code: string; tone: 'ok' | 'warn' }>;
+  snapshot: {
+    nsr_vnd: number | null;
+    direct_cost_vnd: number | null;
+    gp_vnd: number | null;
+    gm_bps: number | null;
+  };
+  steps: QtApprovalStep[];
+};
+
+export type QtApprovalInboxResult = {
+  items: QtApprovalInboxItem[];
+  has_finance: boolean;
+  can_approve: boolean;
+};
+
+export type QtApprovalActionInput = {
+  action: 'approve' | 'return' | 'reject' | 'delegate' | string;
+  comment?: string | null;
+  delegate_staff_id?: number | null;
+  until?: string | null;
+};
+
+export function getQtApprovals(
+  token: string,
+  query: { scope?: 'me' | 'team' | 'all'; chip?: QtApprovalChipId | string } = {},
+) {
+  const params = new URLSearchParams();
+  if (query.scope && query.scope !== 'me') params.set('scope', query.scope);
+  if (query.chip) params.set('chip', query.chip);
+  const qs = params.toString();
+  return qtFetch<QtApprovalInboxResult>(token, qs ? `/approvals?${qs}` : '/approvals');
+}
+
+export function postQtApprovalAction(token: string, sid: string, body: QtApprovalActionInput) {
+  return qtFetch<{ step: QtApprovalStep; steps?: QtApprovalStep[] }>(
+    token,
+    `/quote-approval-steps/${encodeURIComponent(sid)}/actions`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
 export function getQtSettings(token: string) {
   return qtFetch<QtSettings>(token, '/settings');
 }
@@ -654,8 +731,11 @@ export async function qtFetch<T>(
     headers['Content-Type'] = 'application/json';
   }
   const trimmed = path.startsWith('/') ? path.slice(1) : path;
-  const isVersion = trimmed.startsWith('quote-versions/') || path.startsWith('/quote-versions/');
-  const url = isVersion
+  const isCrmRoot =
+    /^(quote-versions|quote-approval-steps)\//.test(trimmed) ||
+    path.startsWith('/quote-versions/') ||
+    path.startsWith('/quote-approval-steps/');
+  const url = isCrmRoot
     ? `${API_BASE}/api/crm/${trimmed}`
     : `${API_BASE}/api/crm/proposals${
         !path || path.startsWith('?') ? path : path.startsWith('/') ? path : `/${path}`

@@ -14,6 +14,7 @@ import {
   type QuotePolicyFlags,
   type QuotePolicySettings,
 } from './quote-policy.util';
+import { qtScopeSql, type QuoteScope } from './quote-scope.util';
 import { canTransition, type QuoteStatus } from './quote-status.util';
 
 const SLA_HOURS = 24;
@@ -52,6 +53,146 @@ export type QuoteApprovalRow = {
   policy_snapshot: Record<string, unknown>;
   created_at?: string;
 };
+
+export type QuoteApprovalInboxChip = 'mine' | 'done' | 'sla';
+
+export type QuoteApprovalInboxQuery = {
+  scope: QuoteScope;
+  staffId: number;
+  teamIds: number[];
+  hasFinance: boolean;
+  canApprove?: boolean;
+  chip?: QuoteApprovalInboxChip | string;
+};
+
+export type QuoteApprovalPolicyBadge = {
+  code: string;
+  tone: 'ok' | 'warn';
+};
+
+export type QuoteApprovalInboxItem = {
+  step_id: string;
+  approval_id: string;
+  version_id: string;
+  proposal_id: number;
+  quote_code: string | null;
+  version_n: number | null;
+  client_name: string | null;
+  trigger: string | null;
+  step: string | null;
+  sla: string | null;
+  sla_breached: boolean;
+  owner: { staff_id: number | null; name: string | null };
+  state: string;
+  assignee_staff_id: number | null;
+  acted_at: string | null;
+  comment: string | null;
+  delegate_from: number | null;
+  until: string | null;
+  policy_badges: QuoteApprovalPolicyBadge[];
+  snapshot: {
+    nsr_vnd: number | null;
+    direct_cost_vnd: number | null;
+    gp_vnd: number | null;
+    gm_bps: number | null;
+  };
+  steps: QuoteApprovalStepRow[];
+};
+
+const TRIGGER_BADGE: Record<string, string> = {
+  gm_floor: 'MARGIN_FLOOR',
+  discount_auto: 'DISCOUNT_AUTO',
+  discount_mid: 'DISCOUNT_MID',
+  discount_high: 'DISCOUNT_HIGH',
+  director_value: 'VALUE_OVER',
+  payment_term: 'PAYMENT_TERM',
+  clause_diverged: 'CLAUSE_DIVERGED',
+  custom_or_cost: 'COST_MISSING',
+};
+
+function bindScope(
+  scope: ReturnType<typeof qtScopeSql>,
+  startAt: number,
+): { sql: string; params: unknown[] } {
+  let sql = scope.sql;
+  const params: unknown[] = [];
+  let index = startAt;
+  if (sql.includes('$teams')) {
+    sql = sql.replaceAll('$teams', `$${index++}`);
+    params.push(scope.params[scope.params.length > 1 ? 1 : 0]);
+  }
+  if (sql.includes('$staff')) {
+    sql = sql.replaceAll('$staff', `$${index}`);
+    params.push(scope.params[0]);
+  }
+  return { sql, params };
+}
+
+function asChip(value: unknown): QuoteApprovalInboxChip | '' {
+  const chip = String(value ?? '').trim().toLowerCase();
+  if (chip === 'mine' || chip === 'done' || chip === 'sla') return chip;
+  return '';
+}
+
+function slaHoursOf(value: unknown): number {
+  const hours = nullableNum(value);
+  return hours != null && hours > 0 ? hours : SLA_HOURS;
+}
+
+function slaDeadlineMs(createdAt: string | null, slaHours: number): number | null {
+  if (!createdAt) return null;
+  const start = new Date(createdAt).getTime();
+  if (!Number.isFinite(start)) return null;
+  return start + slaHours * 3600_000;
+}
+
+function formatSla(createdAt: string | null, slaHours: number, now: Date): string | null {
+  const deadline = slaDeadlineMs(createdAt, slaHours);
+  if (deadline == null) return null;
+  const diffH = Math.round((deadline - now.getTime()) / 3600_000);
+  return diffH >= 0 ? `còn ${diffH}h` : `+${Math.abs(diffH)}h`;
+}
+
+function isSlaBreached(createdAt: string | null, slaHours: number, now: Date): boolean {
+  const deadline = slaDeadlineMs(createdAt, slaHours);
+  return deadline != null && now.getTime() > deadline;
+}
+
+function policyBadgesFrom(snapshot: Record<string, unknown>): QuoteApprovalPolicyBadge[] {
+  const planned = Array.isArray(snapshot.steps) ? snapshot.steps : [];
+  const triggers = new Set<string>();
+  for (const raw of planned) {
+    const row = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const listed = Array.isArray(row.triggers) ? row.triggers : [row.trigger];
+    for (const trigger of listed) {
+      if (trigger) triggers.add(String(trigger));
+    }
+  }
+  const badges: QuoteApprovalPolicyBadge[] = [];
+  for (const [trigger, code] of Object.entries(TRIGGER_BADGE)) {
+    if (triggers.has(trigger)) badges.push({ code, tone: 'warn' });
+  }
+  if (!triggers.has('payment_term')) badges.push({ code: 'PAYMENT_OK', tone: 'ok' });
+  if (!triggers.has('director_value')) badges.push({ code: 'VALUE_OK', tone: 'ok' });
+  return badges;
+}
+
+function triggerLabel(snapshot: Record<string, unknown>, section: string): string | null {
+  const planned = Array.isArray(snapshot.steps) ? snapshot.steps : [];
+  const match = planned.find((raw) => {
+    const row = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    return String(row.section ?? '') === section;
+  }) as Record<string, unknown> | undefined;
+  const trigger = match ? String(match.trigger ?? '') : '';
+  if (trigger && TRIGGER_BADGE[trigger]) return TRIGGER_BADGE[trigger];
+  const badges = policyBadgesFrom(snapshot);
+  return badges.find((badge) => badge.tone === 'warn')?.code ?? badges[0]?.code ?? null;
+}
+
+function routedToStaff(assigneeStaffId: number | null, staffId: number): boolean {
+  if (!(staffId > 0)) return true;
+  return assigneeStaffId == null || assigneeStaffId === staffId;
+}
 
 function bad(error: string): never {
   throw new BadRequestException({ error });
@@ -302,6 +443,117 @@ export class QuoteApprovalService {
         steps,
       };
     });
+  }
+
+  async listInbox(
+    query: QuoteApprovalInboxQuery,
+    now = new Date(),
+  ): Promise<{
+    items: QuoteApprovalInboxItem[];
+    has_finance: boolean;
+    can_approve: boolean;
+  }> {
+    const bound = bindScope(
+      qtScopeSql({
+        scope: query.scope,
+        staffId: query.staffId,
+        teamIds: query.teamIds,
+      }),
+      1,
+    );
+    const result = await this.db.query(
+      `SELECT s.id, s.approval_id, s.seq, s.section, s.state, s.assignee_staff_id,
+              s.sla_hours, s.acted_at, s.comment, s.delegate_from,
+              a.version_id, a.policy_snapshot, a.created_at AS approval_created_at,
+              v.n AS version_n, v.nsr_vnd, v.direct_cost_vnd, v.gm_bps, v.proposal_id,
+              p.quote_code, p.owner_staff_id, p.status,
+              c.name AS client_name,
+              cs.name AS owner_name
+         FROM crm_quote_approval_steps s
+         JOIN crm_quote_approvals a ON a.id = s.approval_id
+         JOIN crm_quote_versions v ON v.id = a.version_id
+         JOIN crm_proposals p ON p.id = v.proposal_id
+         LEFT JOIN clients c ON c.id = p.agency_client_id
+         LEFT JOIN crm_staff cs ON cs.id = p.owner_staff_id
+        WHERE ${bound.sql}
+        ORDER BY a.created_at DESC, s.seq ASC`,
+      bound.params,
+    );
+
+    const chip = asChip(query.chip);
+    const siblings = new Map<string, QuoteApprovalStepRow[]>();
+    const mapped: QuoteApprovalInboxItem[] = [];
+
+    for (const row of result.rows) {
+      const step = mapStep(row);
+      const approvalId = step.approval_id;
+      const listed = siblings.get(approvalId) ?? [];
+      listed.push(step);
+      siblings.set(approvalId, listed);
+
+      const snapshot = asObject(row.policy_snapshot);
+      const badges = policyBadgesFrom(snapshot);
+      const slaHours = slaHoursOf(step.sla_hours);
+      const createdAt =
+        row.approval_created_at == null || row.approval_created_at === ''
+          ? null
+          : String(row.approval_created_at);
+      const nsr = query.hasFinance ? nullableNum(row.nsr_vnd) : null;
+      const cost = query.hasFinance ? nullableNum(row.direct_cost_vnd) : null;
+      const gm = query.hasFinance ? nullableNum(row.gm_bps) : null;
+      mapped.push({
+        step_id: step.id,
+        approval_id: approvalId,
+        version_id: String(row.version_id ?? ''),
+        proposal_id: num(row.proposal_id),
+        quote_code: row.quote_code == null ? null : String(row.quote_code),
+        version_n: nullableNum(row.version_n),
+        client_name: row.client_name == null ? null : String(row.client_name),
+        trigger: triggerLabel(snapshot, step.section),
+        step: step.section || null,
+        sla: formatSla(createdAt, slaHours, now),
+        sla_breached: isSlaBreached(createdAt, slaHours, now),
+        owner: {
+          staff_id: nullableNum(row.owner_staff_id),
+          name: row.owner_name == null ? null : String(row.owner_name),
+        },
+        state: step.state,
+        assignee_staff_id: step.assignee_staff_id,
+        acted_at: step.acted_at,
+        comment: step.comment,
+        delegate_from: step.delegate_from,
+        until: step.until ?? null,
+        policy_badges: badges,
+        snapshot: {
+          nsr_vnd: nsr,
+          direct_cost_vnd: cost,
+          gp_vnd: nsr != null && cost != null ? nsr - cost : null,
+          gm_bps: gm,
+        },
+        steps: [],
+      });
+    }
+
+    const items = mapped
+      .filter((row) => {
+        const mine = routedToStaff(row.assignee_staff_id, query.staffId);
+        if (chip === 'done') return row.state === 'done' || row.state === 'skipped';
+        if (chip === 'sla') {
+          return row.sla_breached && (row.state === 'waiting' || row.state === 'locked') && mine;
+        }
+        if (chip === 'mine') return row.state === 'waiting' && mine;
+        return (row.state === 'waiting' || row.state === 'locked') && mine;
+      })
+      .map((row) => ({
+        ...row,
+        steps: (siblings.get(row.approval_id) ?? []).slice().sort((a, b) => a.seq - b.seq),
+      }));
+
+    return {
+      items,
+      has_finance: Boolean(query.hasFinance),
+      can_approve: Boolean(query.canApprove),
+    };
   }
 
   async assertPublishable(versionId: string): Promise<void> {

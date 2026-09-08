@@ -527,6 +527,7 @@ describe('convert route and cap', () => {
       {} as never,
       {} as never,
       staffAuth as never,
+      {} as never,
     );
 
     await expect(

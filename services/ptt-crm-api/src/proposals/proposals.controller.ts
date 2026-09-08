@@ -33,6 +33,7 @@ import {
 } from './guards/staff-quote.guard';
 import { ProposalsService } from './proposals.service';
 import { CreateProposalBody, PatchProposalStatusBody, PutQuoteLinesBody } from './proposals.types';
+import { QuoteApprovalService } from './quote-approval.service';
 import { QuoteOverviewService, toActivityCsv } from './quote-overview.service';
 import { resolveQuoteScope, type QuoteScope } from './quote-scope.util';
 import { QuoteSettingsPatch, QuoteSettingsService } from './quote-settings.service';
@@ -49,6 +50,7 @@ export class ProposalsController {
     private readonly quoteSettings: QuoteSettingsService,
     private readonly quoteOverview: QuoteOverviewService,
     private readonly staffAuth: StaffAuthService,
+    private readonly approvals: QuoteApprovalService,
   ) {}
 
   private async quoteCaller(req: StaffReq, requested?: QuoteScope) {
@@ -93,6 +95,13 @@ export class ProposalsController {
     if (!allowed) {
       throw new ForbiddenException({ error: 'missing_cap', section: 'crm_quote.audit', action: 'view' });
     }
+  }
+
+  private async quoteApproveCap(req: StaffReq): Promise<boolean> {
+    if (req.staffAuthVia === 'internal' && !req.staffUser) return true;
+    if (!req.staffUser) return false;
+    const me = await this.staffAuth.me(req.staffUser);
+    return Boolean(me && this.staffAuth.hasCap(me.caps, 'crm_quote.approve', 'execute'));
   }
 
   private async quoteCatalogHasFinance(req: StaffReq): Promise<boolean> {
@@ -213,6 +222,21 @@ export class ProposalsController {
       return { csv: toActivityCsv(listed.items), filename: 'quote-activity.csv' };
     }
     return listed;
+  }
+
+  @Get('approvals')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteAction('view')
+  async listApprovals(
+    @Req() req: StaffReq,
+    @Query('scope') scope?: QuoteScope,
+    @Query('chip') chip?: string,
+  ) {
+    return this.approvals.listInbox({
+      ...(await this.quoteCaller(req, scope)),
+      chip,
+      canApprove: await this.quoteApproveCap(req),
+    });
   }
 
   @Post(':id/versions')

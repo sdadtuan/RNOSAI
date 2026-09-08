@@ -496,6 +496,7 @@ describe('QuoteCatalogService CAT-03 packages + CAT-04 rates', () => {
       {} as never,
       {} as never,
       staffAuth as never,
+      {} as never,
     );
 
     await expect(

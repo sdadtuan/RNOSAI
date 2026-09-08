@@ -134,6 +134,38 @@ class ApprovalMemory {
       this.steps.push(row);
       return { rows: [row] };
     }
+    if (/JOIN crm_quote_approvals/i.test(sql) && /crm_quote_approval_steps/i.test(sql)) {
+      const staff = /p\.owner_staff_id = \$/i.test(sql)
+        ? params.find((p) => typeof p === 'number' && p > 0)
+        : undefined;
+      const rows: Record<string, unknown>[] = [];
+      for (const step of this.steps) {
+        const approval = this.approvals.find((a) => String(a.id) === String(step.approval_id));
+        if (!approval) continue;
+        const version = this.versions.get(String(approval.version_id));
+        if (!version) continue;
+        const proposal = this.proposals.get(Number(version.proposal_id));
+        if (!proposal) continue;
+        if (staff != null && Number(proposal.owner_staff_id) !== Number(staff)) continue;
+        rows.push({
+          ...step,
+          version_id: approval.version_id,
+          policy_snapshot: approval.policy_snapshot,
+          approval_created_at: approval.created_at,
+          version_n: version.n,
+          nsr_vnd: version.nsr_vnd,
+          direct_cost_vnd: version.direct_cost_vnd,
+          gm_bps: version.gm_bps,
+          proposal_id: version.proposal_id,
+          quote_code: proposal.quote_code,
+          owner_staff_id: proposal.owner_staff_id,
+          status: proposal.status,
+          client_name: proposal.client_name,
+          owner_name: proposal.owner_name,
+        });
+      }
+      return { rows };
+    }
     if (/FROM crm_quote_approval_steps/i.test(sql) && /WHERE\s+id::text/i.test(sql)) {
       const sid = String(params[0] ?? '');
       const row = this.steps.find((s) => String(s.id) === sid);
@@ -377,5 +409,100 @@ describe('approval HTTP wiring', () => {
     expect(steps).not.toMatch(/\/api\/quotes/);
     expect(mod).toMatch(/QuoteApprovalService/);
     expect(mod).toMatch(/QuoteApprovalStepsController/);
+  });
+
+  it('GET /api/crm/proposals/approvals is static before :id and uses view', () => {
+    const src = readFileSync(join(__dirname, 'proposals.controller.ts'), 'utf8');
+    const approvalsAt = src.search(/@Get\('approvals'\)/);
+    const idAt = src.search(/@Get\(':id'\)/);
+    expect(approvalsAt).toBeGreaterThan(-1);
+    expect(idAt).toBeGreaterThan(-1);
+    expect(approvalsAt).toBeLessThan(idAt);
+    expect(src).toMatch(/@Get\('approvals'\)[\s\S]{0,400}RequireQuoteAction\('view'\)/);
+    expect(src).toMatch(/listInbox|listApprovals/);
+    expect(src).not.toMatch(/\/api\/quotes/);
+  });
+});
+
+describe('QuoteApprovalService inbox', () => {
+  const INBOX = {
+    scope: 'me' as const,
+    staffId: 7,
+    teamIds: [] as number[],
+    hasFinance: true,
+    canApprove: true,
+  };
+
+  it('lists waiting/locked steps for current staff and hides other owners on scope=me', async () => {
+    const { db, svc } = load();
+    db.proposals.get(9)!.owner_staff_id = 7;
+    db.proposals.get(9)!.client_name = 'An Phát';
+    db.proposals.get(9)!.owner_name = 'Minh';
+    await svc.submitApproval(VID, ACTOR);
+
+    const otherVid = '19d722af-0000-4000-8000-000000000099';
+    db.versions.set(otherVid, {
+      ...db.versions.get(VID)!,
+      id: otherVid,
+      proposal_id: 88,
+      gm_bps: 2240,
+      state: 'working',
+    });
+    db.proposals.set(88, {
+      id: 88,
+      status: 'draft',
+      current_version_id: otherVid,
+      quote_code: 'QT-PTT-2026-000099',
+      owner_staff_id: 99,
+      client_name: 'Other Co',
+      owner_name: 'Other',
+    });
+    await svc.submitApproval(otherVid, { staffId: 99, staffAuthVia: 'jwt' });
+
+    const out = await svc.listInbox(INBOX);
+    expect(out.items.every((row) => row.owner.staff_id === 7)).toBe(true);
+    expect(out.items.some((row) => row.quote_code === 'QT-PTT-2026-000099')).toBe(false);
+    expect(out.items.some((row) => row.state === 'waiting')).toBe(true);
+    expect(out.items.some((row) => row.state === 'locked')).toBe(true);
+    expect(out.items[0]?.steps?.length).toBeGreaterThan(1);
+    expect(out.has_finance).toBe(true);
+    expect(out.can_approve).toBe(true);
+  });
+
+  it('chip=done returns acted steps; chip=sla returns breached waiting/locked', async () => {
+    const { db, svc } = load();
+    db.proposals.get(9)!.owner_staff_id = 7;
+    const submitted = await svc.submitApproval(VID, ACTOR);
+    await svc.actOnStep(submitted.steps[0].id, { action: 'approve' }, ACTOR);
+    db.approvals[0].created_at = '2026-09-01T00:00:00.000Z';
+
+    const done = await svc.listInbox({ ...INBOX, chip: 'done' });
+    expect(done.items.some((row) => row.state === 'done')).toBe(true);
+    expect(done.items.every((row) => row.state === 'done' || row.state === 'skipped')).toBe(true);
+
+    const sla = await svc.listInbox(
+      { ...INBOX, chip: 'sla' },
+      new Date('2026-09-08T12:00:00.000Z'),
+    );
+    expect(sla.items.length).toBeGreaterThan(0);
+    expect(sla.items.every((row) => row.sla_breached)).toBe(true);
+    expect(sla.items.every((row) => row.state === 'waiting' || row.state === 'locked')).toBe(true);
+  });
+
+  it('strips NSR / cost / GM without crm_quote.finance', async () => {
+    const { db, svc } = load();
+    db.proposals.get(9)!.owner_staff_id = 7;
+    await svc.submitApproval(VID, ACTOR);
+
+    const out = await svc.listInbox({ ...INBOX, hasFinance: false });
+    expect(out.has_finance).toBe(false);
+    expect(out.items.length).toBeGreaterThan(0);
+    for (const row of out.items) {
+      expect(row.snapshot.nsr_vnd).toBeNull();
+      expect(row.snapshot.direct_cost_vnd).toBeNull();
+      expect(row.snapshot.gp_vnd).toBeNull();
+      expect(row.snapshot.gm_bps).toBeNull();
+    }
+    expect(JSON.stringify(out)).not.toMatch(/100000000|77600000/);
   });
 });
