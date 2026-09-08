@@ -72,6 +72,11 @@ class ApprovalMemory {
     if (/FROM crm_quote_settings/i.test(sql)) {
       return { rows: [this.settings] };
     }
+    if (/FROM crm_proposals/i.test(sql)) {
+      const id = Number(params[0] ?? 0);
+      const row = this.proposals.get(id);
+      return { rows: row ? [row] : [] };
+    }
     if (/FROM crm_quote_versions/i.test(sql)) {
       const id = String(params[0] ?? '');
       const row = this.versions.get(id);
@@ -262,6 +267,77 @@ describe('QuoteApprovalService AC-03 / comments / BR-QT-006', () => {
     const { svc } = load();
     const out = await svc.submitApproval(VID, { staffId: 0, staffAuthVia: 'internal' });
     expect(out.steps.length).toBeGreaterThan(0);
+  });
+
+  it('reject and return keep assertPublishable failing', async () => {
+    const rejectCase = load();
+    rejectCase.db.versions.get(VID)!.gm_bps = 2500;
+    const rejected = await rejectCase.svc.submitApproval(VID, ACTOR);
+    expect(rejected.steps).toHaveLength(1);
+    await rejectCase.svc.actOnStep(
+      rejected.steps[0].id,
+      { action: 'reject', comment: 'margin story does not hold' },
+      ACTOR,
+    );
+    expect(rejectCase.db.proposals.get(9)?.status).toBe('rejected');
+    await expect(rejectCase.svc.assertPublishable(VID)).rejects.toMatchObject({
+      response: { error: 'approval_incomplete' },
+    });
+
+    const returnCase = load();
+    returnCase.db.versions.get(VID)!.gm_bps = 2500;
+    const returned = await returnCase.svc.submitApproval(VID, ACTOR);
+    await returnCase.svc.actOnStep(
+      returned.steps[0].id,
+      { action: 'return', comment: 'please add cost card' },
+      ACTOR,
+    );
+    expect(returnCase.db.proposals.get(9)?.status).toBe('returned');
+    await expect(returnCase.svc.assertPublishable(VID)).rejects.toMatchObject({
+      response: { error: 'approval_incomplete' },
+    });
+  });
+
+  it('refuses submit when gm_bps is null or the plan is empty', async () => {
+    const { db, svc } = load();
+    db.versions.get(VID)!.gm_bps = null;
+
+    await expect(svc.submitApproval(VID, ACTOR)).rejects.toMatchObject({
+      response: { error: 'gm_required' },
+    });
+    expect(db.approvals).toHaveLength(0);
+  });
+
+  it('acting on a locked step is 400', async () => {
+    const { svc } = load();
+    const out = await svc.submitApproval(VID, ACTOR);
+    const locked = out.steps.find((s) => s.state === 'locked')!;
+    expect(locked.section).toBe('GDKD');
+
+    await expect(svc.actOnStep(locked.id, { action: 'approve' }, ACTOR)).rejects.toMatchObject({
+      response: { error: 'step_locked' },
+    });
+    await expect(
+      svc.actOnStep(locked.id, { action: 'return', comment: 'too early' }, ACTOR),
+    ).rejects.toMatchObject({ response: { error: 'step_locked' } });
+    await expect(
+      svc.actOnStep(locked.id, { action: 'reject', comment: 'too early' }, ACTOR),
+    ).rejects.toMatchObject({ response: { error: 'step_locked' } });
+  });
+
+  it('second approve of a done step does not re-approve', async () => {
+    const { db, svc } = load();
+    db.versions.get(VID)!.gm_bps = 2500;
+    const out = await svc.submitApproval(VID, ACTOR);
+    await svc.actOnStep(out.steps[0].id, { action: 'approve' }, ACTOR);
+    expect(db.proposals.get(9)?.status).toBe('approved');
+    db.proposals.get(9)!.status = 'pending_approval';
+    db.versions.get(VID)!.state = 'submitted';
+    await expect(svc.actOnStep(out.steps[0].id, { action: 'approve' }, ACTOR)).rejects.toMatchObject({
+      response: { error: 'step_not_waiting' },
+    });
+    expect(db.proposals.get(9)?.status).toBe('pending_approval');
+    expect(db.versions.get(VID)?.state).toBe('submitted');
   });
 
   it('delegate stores actor + delegate_staff_id + until + reason', async () => {

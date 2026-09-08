@@ -14,6 +14,7 @@ import {
   type QuotePolicyFlags,
   type QuotePolicySettings,
 } from './quote-policy.util';
+import { canTransition, type QuoteStatus } from './quote-status.util';
 
 const SLA_HOURS = 24;
 
@@ -136,6 +137,8 @@ export class QuoteApprovalService {
         gm_bps: nullableNum(version.gm_bps),
       };
       const planned = evaluateQuotePolicy(settings, totals, flags);
+      if (totals.gm_bps == null) bad('gm_required');
+      if (!planned.length) bad('approval_plan_empty');
       const discountBps = discountBpsFromTotals(totals.fee_vnd, totals.discount_vnd);
       const snapshot = {
         fee_vnd: totals.fee_vnd,
@@ -171,10 +174,7 @@ export class QuoteApprovalService {
         'submitted',
         vid,
       ]);
-      await query(`UPDATE crm_proposals SET status = $1 WHERE id = $2`, [
-        'pending_approval',
-        num(version.proposal_id),
-      ]);
+      await this.setProposalStatus(query, num(version.proposal_id), 'pending_approval');
       await this.audit(
         query,
         num(version.proposal_id),
@@ -202,6 +202,7 @@ export class QuoteApprovalService {
       const approval = await this.requireApprovalById(step.approval_id, query);
       const version = await this.requireVersion(approval.version_id, query);
       const siblings = await this.listSteps(step.approval_id, query);
+      this.assertStepWaiting(step);
 
       if (action === 'delegate') {
         const delegateId = nullableNum(input.delegate_staff_id);
@@ -239,17 +240,18 @@ export class QuoteApprovalService {
           `UPDATE crm_quote_approval_steps
               SET state = $1, comment = $2, acted_at = $3
             WHERE id::text = $4`,
-          [action === 'return' ? 'skipped' : 'done', comment, now, sid],
+          ['skipped', comment, now, sid],
         );
         await query(`UPDATE crm_quote_versions SET state = $1 WHERE id::text = $2`, [
           action === 'return' ? 'working' : 'submitted',
           approval.version_id,
         ]);
-        await query(`UPDATE crm_proposals SET status = $1 WHERE id = $2`, [
-          action === 'return' ? 'returned' : 'rejected',
+        await this.setProposalStatus(
+          query,
           num(version.proposal_id),
-        ]);
-        const mapped = { ...step, state: action === 'return' ? 'skipped' : 'done', comment, acted_at: now };
+          action === 'return' ? 'returned' : 'rejected',
+        );
+        const mapped = { ...step, state: 'skipped', comment, acted_at: now };
         await this.audit(
           query,
           num(version.proposal_id),
@@ -261,7 +263,6 @@ export class QuoteApprovalService {
         return { step: mapped, steps: await this.listSteps(step.approval_id, query) };
       }
 
-      if (step.state === 'locked') bad('step_locked');
       const now = new Date().toISOString();
       await query(
         `UPDATE crm_quote_approval_steps
@@ -280,16 +281,13 @@ export class QuoteApprovalService {
         ]);
       }
       const steps = await this.listSteps(step.approval_id, query);
-      const requiredDone = steps.every((row) => row.state === 'done' || row.state === 'skipped');
+      const requiredDone = steps.length > 0 && steps.every((row) => row.state === 'done');
       if (requiredDone) {
         await query(`UPDATE crm_quote_versions SET state = $1 WHERE id::text = $2`, [
           'approved',
           approval.version_id,
         ]);
-        await query(`UPDATE crm_proposals SET status = $1 WHERE id = $2`, [
-          'approved',
-          num(version.proposal_id),
-        ]);
+        await this.setProposalStatus(query, num(version.proposal_id), 'approved');
       }
       await this.audit(
         query,
@@ -307,11 +305,17 @@ export class QuoteApprovalService {
   }
 
   async assertPublishable(versionId: string): Promise<void> {
+    const version = await this.requireVersion(versionId, (sql, params) => this.db.query(sql, params));
+    const proposal = await this.requireProposal(num(version.proposal_id), (sql, params) =>
+      this.db.query(sql, params),
+    );
+    if (String(version.state ?? '') !== 'approved' || String(proposal.status ?? '') !== 'approved') {
+      bad('approval_incomplete');
+    }
     const approval = await this.getApprovalByVersion(versionId);
     if (!approval) bad('approval_incomplete');
     const steps = await this.listSteps(approval.id);
-    const pending = steps.filter((row) => row.state !== 'done' && row.state !== 'skipped');
-    if (pending.length) bad('approval_incomplete');
+    if (!steps.length || steps.some((row) => row.state !== 'done')) bad('approval_incomplete');
   }
 
   private assertStaff(actor: QuoteApprovalActor): void {
@@ -319,6 +323,35 @@ export class QuoteApprovalService {
     if (!(Number(actor.staffId ?? 0) > 0)) {
       throw new ForbiddenException({ error: 'qt_unresolved_staff' });
     }
+  }
+
+  private assertStepWaiting(step: QuoteApprovalStepRow): void {
+    if (step.state === 'waiting') return;
+    if (step.state === 'locked') bad('step_locked');
+    bad('step_not_waiting');
+  }
+
+  private async requireProposal(
+    proposalId: number,
+    query: QuoteQueryFn,
+  ): Promise<{ id: number; status: string }> {
+    const result = await query(
+      `SELECT id, status FROM crm_proposals WHERE id = $1 LIMIT 1`,
+      [proposalId],
+    );
+    if (!result.rows[0]) throw new NotFoundException({ error: 'quote_not_found' });
+    return { id: num(result.rows[0].id), status: String(result.rows[0].status ?? '') };
+  }
+
+  private async setProposalStatus(
+    query: QuoteQueryFn,
+    proposalId: number,
+    to: QuoteStatus,
+  ): Promise<void> {
+    const current = await this.requireProposal(proposalId, query);
+    const from = current.status as QuoteStatus;
+    if (!canTransition(from, to)) bad('illegal_status');
+    await query(`UPDATE crm_proposals SET status = $1 WHERE id = $2`, [to, proposalId]);
   }
 
   private inTx<T>(fn: (query: QuoteQueryFn) => Promise<T>): Promise<T> {

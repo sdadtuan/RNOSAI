@@ -14,6 +14,7 @@ describe('quote-status.util', () => {
   it('allows required SRS transitions', () => {
     expect(canTransition('draft', 'pending_approval')).toBe(true);
     expect(canTransition('pending_approval', 'approved')).toBe(true);
+    expect(canTransition('pending_approval', 'rejected')).toBe(true);
     expect(canTransition('approved', 'sent')).toBe(true);
     expect(canTransition('sent', 'accepted')).toBe(true);
     expect(canTransition('viewed', 'accepted')).toBe(true);
