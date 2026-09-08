@@ -13,7 +13,7 @@ export type QtStickyMoney = {
 
 export type QtStickyPayment = {
   pct_bps: number;
-  amount_vnd: number | null;
+  amount_vnd?: number | null;
   milestone?: string;
 };
 

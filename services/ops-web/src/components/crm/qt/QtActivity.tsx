@@ -187,13 +187,13 @@ export function QtActivity() {
         setItems([]);
         return;
       }
+      const rawScope = current.get('scope');
+      const scope = rawScope === 'team' || rawScope === 'all' ? rawScope : 'me';
       const base = {
         from: current.get('from') || undefined,
         to: current.get('to') || undefined,
         owner: current.get('owner') || undefined,
-        scope: current.get('scope') === 'team' || current.get('scope') === 'all'
-          ? current.get('scope')
-          : 'me',
+        scope,
       } as const;
       const pages = await Promise.all(
         (actions.length ? actions : [undefined]).map((exact) =>
