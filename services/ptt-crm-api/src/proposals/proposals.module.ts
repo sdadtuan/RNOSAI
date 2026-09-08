@@ -16,6 +16,8 @@ import {
   QT_QUOTE_QUERY,
   QuoteAuditRepository,
 } from './quote-audit.repository';
+import { QuoteCreateService } from './quote-create.service';
+import { QuoteListService } from './quote-list.service';
 import { QuoteOverviewService } from './quote-overview.service';
 import {
   QT_SETTINGS_QUERY,
@@ -44,6 +46,8 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteSettingsService,
     QuoteAuditRepository,
     QuoteOverviewService,
+    QuoteCreateService,
+    QuoteListService,
   ],
   exports: [
     ProposalsService,
@@ -51,6 +55,8 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteSettingsService,
     QuoteAuditRepository,
     QuoteOverviewService,
+    QuoteCreateService,
+    QuoteListService,
   ],
 })
 export class ProposalsModule {}

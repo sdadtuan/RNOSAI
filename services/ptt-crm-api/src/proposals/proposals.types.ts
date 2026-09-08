@@ -63,6 +63,10 @@ export interface CreateProposalBody {
   notes?: string;
   lifecycle_id?: number | null;
   valid_until?: string | null;
+  title?: string;
+  source?: 'lead' | 'am360' | 'blank';
+  agency_client_id?: string;
+  quote_type?: string;
 }
 
 export interface PatchProposalStatusBody {

@@ -34,6 +34,8 @@ import {
   PutQuoteLinesBody,
   QuoteLineInput,
 } from './proposals.types';
+import { isQuoteOsCreate, QuoteCreateService } from './quote-create.service';
+import { QuoteListQuery, QuoteListService } from './quote-list.service';
 
 @Injectable()
 export class ProposalsService {
@@ -46,6 +48,8 @@ export class ProposalsService {
     private readonly config: AppConfigService,
     private readonly funnel: LeadsFunnelService,
     private readonly spc: SpcService,
+    private readonly quoteCreate: QuoteCreateService,
+    private readonly quoteList: QuoteListService,
   ) {}
 
   private async assertG4ForLeadContext(leadId: number): Promise<void> {
@@ -61,7 +65,7 @@ export class ProposalsService {
     }
   }
 
-  async list(customerIdRaw?: string, leadIdRaw?: string) {
+  async list(customerIdRaw?: string, leadIdRaw?: string, scoped?: QuoteListQuery) {
     const leadId = Number(leadIdRaw ?? 0);
     if (Number.isFinite(leadId) && leadId > 0) {
       const rows = await this.repo.listByLeadId(leadId);
@@ -74,17 +78,20 @@ export class ProposalsService {
       return { proposals };
     }
     const customerId = Number(customerIdRaw ?? 0);
-    if (!Number.isFinite(customerId) || customerId <= 0) {
-      throw new BadRequestException({ error: 'Cần customer_id hoặc lead_id' });
+    if (Number.isFinite(customerId) && customerId > 0) {
+      const rows = await this.repo.listByCustomer(customerId);
+      const proposals = await Promise.all(
+        rows.map(async (proposal) => ({
+          ...proposal,
+          line_count: (await this.repo.listLines(proposal.id)).length,
+        })),
+      );
+      return { proposals };
     }
-    const rows = await this.repo.listByCustomer(customerId);
-    const proposals = await Promise.all(
-      rows.map(async (proposal) => ({
-        ...proposal,
-        line_count: (await this.repo.listLines(proposal.id)).length,
-      })),
-    );
-    return { proposals };
+    if (scoped) {
+      return this.quoteList.list(scoped);
+    }
+    throw new BadRequestException({ error: 'Cần customer_id hoặc lead_id' });
   }
 
   async detail(proposalId: number) {
@@ -169,7 +176,16 @@ export class ProposalsService {
     };
   }
 
-  async create(body: CreateProposalBody) {
+  async create(
+    body: CreateProposalBody,
+    actor?: { staffId?: number; idempotencyKey?: string },
+  ) {
+    if (isQuoteOsCreate(body)) {
+      return this.quoteCreate.create(body, {
+        staffId: Number(actor?.staffId ?? 0),
+        idempotencyKey: actor?.idempotencyKey,
+      });
+    }
     let customerId = Number(body.customer_id ?? 0);
     const leadId = Number(body.lead_id ?? 0);
     let presalesId = Number(body.presales_id ?? 0);

@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   Header,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -161,8 +162,31 @@ export class ProposalsController {
   }
 
   @Get()
-  list(@Query('customer_id') customerId?: string, @Query('lead_id') leadId?: string) {
-    return this.proposals.list(customerId, leadId);
+  async list(
+    @Req() req: StaffReq,
+    @Query('customer_id') customerId?: string,
+    @Query('lead_id') leadId?: string,
+    @Query('scope') scope?: QuoteScope,
+    @Query('status') status?: string,
+    @Query('q') q?: string,
+    @Query('expiring') expiring?: string,
+    @Query('pending_my_approval') pendingMyApproval?: string,
+    @Query('page') page?: string,
+    @Query('page_size') pageSize?: string,
+  ) {
+    const hasDealRoom = Boolean(customerId || leadId);
+    if (hasDealRoom) {
+      return this.proposals.list(customerId, leadId);
+    }
+    return this.proposals.list(customerId, leadId, {
+      ...(await this.quoteCaller(req, scope)),
+      status,
+      q,
+      expiring,
+      pending_my_approval: pendingMyApproval,
+      page,
+      page_size: pageSize,
+    });
   }
 
   @Get(':id')
@@ -178,8 +202,19 @@ export class ProposalsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(StaffProposalsWriteGuard)
-  create(@Body() body: CreateProposalBody) {
-    return this.proposals.create(body);
+  async create(
+    @Req() req: StaffReq,
+    @Body() body: CreateProposalBody,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    const staffId =
+      req.staffAuthVia === 'internal' && !req.staffUser
+        ? 0
+        : await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    return this.proposals.create(body, {
+      staffId: staffId ?? 0,
+      idempotencyKey,
+    });
   }
 
   @Put(':id/lines')
