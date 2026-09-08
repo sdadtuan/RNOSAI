@@ -1,4 +1,9 @@
-import { normalizeQuoteTier, resolveTierPricing } from './quote-pricing.util';
+import {
+  DEFAULT_QUOTE_TIER_PRICING,
+  normalizeQuoteTier,
+  resolveProductTierPricing,
+  resolveTierPricing,
+} from './quote-pricing.util';
 
 describe('quote-pricing.util', () => {
   it('normalizeQuoteTier maps legacy keys', () => {
@@ -15,5 +20,16 @@ describe('quote-pricing.util', () => {
     );
     expect(ref.suggested_vnd).toBe(25000000);
     expect(ref.min_vnd).toBe(20000000);
+  });
+
+  it('product path returns rate_missing without default fallback', () => {
+    const ref = resolveProductTierPricing({}, 'basic');
+    expect(ref).toEqual({
+      min_vnd: null,
+      max_vnd: null,
+      suggested_vnd: null,
+      rate_missing: true,
+    });
+    expect(ref.suggested_vnd).not.toBe(DEFAULT_QUOTE_TIER_PRICING.basic.price_vnd);
   });
 });
