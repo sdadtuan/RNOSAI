@@ -140,4 +140,13 @@ describe('QuoteListService', () => {
     expect(db.lastSql.toLowerCase()).toMatch(/limit/);
     expect(db.lastParams).toEqual(expect.arrayContaining(['An Phát', 25, 25]));
   });
+
+  it('q=LD-12 matches displayed lead code LD-{lead_id}', async () => {
+    const { db, svc } = load();
+
+    await svc.list({ ...ME, q: 'LD-12' });
+
+    expect(db.lastSql).toMatch(/'LD-'\s*\|\|\s*p\.lead_id/);
+    expect(db.lastParams).toEqual(expect.arrayContaining(['LD-12']));
+  });
 });

@@ -3,11 +3,14 @@ import { QT_TENANT_ID } from './quote-settings.repository';
 
 export const QT_QUOTE_QUERY = 'QT_QUOTE_QUERY';
 
+export type QuoteQueryFn = (
+  sql: string,
+  params?: unknown[],
+) => Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+
 export interface QuoteQueryPort {
-  query(
-    sql: string,
-    params?: unknown[],
-  ): Promise<{ rows: Record<string, unknown>[]; rowCount?: number | null }>;
+  query: QuoteQueryFn;
+  withTransaction?<T>(fn: (query: QuoteQueryFn) => Promise<T>): Promise<T>;
 }
 
 export type QuoteActivityInsert = {
@@ -84,9 +87,10 @@ function mapActivity(row: Record<string, unknown>): QuoteActivityRow {
 export class QuoteAuditRepository {
   constructor(@Inject(QT_QUOTE_QUERY) private readonly db: QuoteQueryPort) {}
 
-  async insert(input: QuoteActivityInsert): Promise<QuoteActivityRow> {
+  async insert(input: QuoteActivityInsert, query?: QuoteQueryFn): Promise<QuoteActivityRow> {
     const snapshot = sanitizeActivitySnapshot(input.snapshot_json ?? {});
-    const result = await this.db.query(
+    const run = query ?? ((sql, params) => this.db.query(sql, params));
+    const result = await run(
       `INSERT INTO crm_quote_activity (
          tenant_id, proposal_id, version_id, actor_staff_id, actor_kind, action, resource, snapshot_json
        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

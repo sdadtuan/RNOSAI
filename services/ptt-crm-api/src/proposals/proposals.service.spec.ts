@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ProposalsController } from './proposals.controller';
 import { ProposalsService } from './proposals.service';
 import { isQuoteOsCreate } from './quote-create.service';
 
@@ -136,5 +137,77 @@ describe('ProposalsService quote-os wiring', () => {
     expect(src).toMatch(/pending_my_approval/);
     expect(src).toMatch(/page_size/);
     expect(src).toMatch(/expiring/);
+  });
+
+  it('Quote OS create rejects unresolved JWT staff with 403 qt_unresolved_staff', async () => {
+    const { svc, quoteCreate } = loadService({});
+
+    await expect(
+      svc.create(
+        { title: 'An Phát Q3', source: 'lead', lead_id: 12, quote_type: 'new_business' },
+        { staffId: 0, staffAuthVia: 'jwt', idempotencyKey: 'k-unresolved' },
+      ),
+    ).rejects.toMatchObject({ response: { error: 'qt_unresolved_staff' } });
+    expect(quoteCreate.create).not.toHaveBeenCalled();
+  });
+
+  it('internal key still creates Quote OS with staffId 0', async () => {
+    const { svc, quoteCreate } = loadService({});
+
+    await svc.create(
+      { title: 'Internal', source: 'blank', agency_client_id: '19d722af-0000-4000-8000-000000000002' },
+      { staffId: 0, staffAuthVia: 'internal', idempotencyKey: 'k-internal' },
+    );
+
+    expect(quoteCreate.create).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ staffId: 0, staffAuthVia: 'internal' }),
+    );
+  });
+
+  it('POST create throws qt_unresolved_staff when JWT staff cannot be resolved', async () => {
+    const proposals = { create: jest.fn() };
+    const staffAuth = { resolveCrmStaffUserId: jest.fn().mockResolvedValue(null) };
+    const ctrl = new ProposalsController(
+      proposals as never,
+      {} as never,
+      {} as never,
+      staffAuth as never,
+    );
+
+    await expect(
+      ctrl.create(
+        { staffAuthVia: 'jwt', staffUser: { sub: 'uuid-1', email: 'a@b.c' } } as never,
+        { title: 'An Phát Q3', source: 'lead' },
+        'k-jwt',
+      ),
+    ).rejects.toMatchObject({ response: { error: 'qt_unresolved_staff' } });
+    expect(proposals.create).not.toHaveBeenCalled();
+  });
+
+  it('POST create with internal key passes staffId 0', async () => {
+    const proposals = { create: jest.fn().mockResolvedValue({ proposal: { id: 1 } }) };
+    const staffAuth = { resolveCrmStaffUserId: jest.fn() };
+    const ctrl = new ProposalsController(
+      proposals as never,
+      {} as never,
+      {} as never,
+      staffAuth as never,
+    );
+
+    await ctrl.create({ staffAuthVia: 'internal' } as never, { title: 'Internal' }, 'k-int');
+
+    expect(staffAuth.resolveCrmStaffUserId).not.toHaveBeenCalled();
+    expect(proposals.create).toHaveBeenCalledWith(
+      { title: 'Internal' },
+      expect.objectContaining({ staffId: 0, staffAuthVia: 'internal' }),
+    );
+  });
+
+  it('POST create keeps StaffProposalsWriteGuard for Deal Room crm_board.edit', () => {
+    const src = readFileSync(join(__dirname, 'proposals.controller.ts'), 'utf8');
+    const createBlock = src.slice(src.indexOf('@Post()'), src.indexOf('@Put(\':id/lines\')'));
+    expect(createBlock).toMatch(/StaffProposalsWriteGuard/);
+    expect(createBlock).not.toMatch(/RequireQuoteAction\('edit'\)/);
   });
 });

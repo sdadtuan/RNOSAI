@@ -22,13 +22,26 @@ class CreateMemory {
   proposals: Record<string, unknown>[] = [];
   versions: Record<string, unknown>[] = [];
   activity: Record<string, unknown>[] = [];
+  proposalInsertParams: unknown[] = [];
+  versionInsertParams: unknown[] = [];
   seq = 89;
   nextId = 1;
+  txCalls = 0;
+
+  async withTransaction<T>(
+    fn: (query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>) => Promise<T>,
+  ): Promise<T> {
+    this.txCalls += 1;
+    return fn(this.query.bind(this));
+  }
 
   async query(sql: string, params: unknown[] = []) {
     this.sqls.push(sql);
     if (/INSERT INTO clients/i.test(sql)) {
       throw new Error('must_not_insert_clients');
+    }
+    if (/pg_advisory_xact_lock/i.test(sql)) {
+      return { rows: [{}] };
     }
     if (/INSERT INTO crm_quote_activity/i.test(sql)) {
       const row = {
@@ -44,6 +57,25 @@ class CreateMemory {
       };
       this.activity.push(row);
       return { rows: [row] };
+    }
+    if (/FROM crm_quote_activity/i.test(sql) && /idempotency_key/i.test(sql)) {
+      const key = String(params[0] ?? '');
+      const act = this.activity.find((row) => {
+        const snap = (row.snapshot_json ?? {}) as Record<string, unknown>;
+        return snap.idempotency_key === key;
+      });
+      if (!act) return { rows: [] };
+      const proposal = this.proposals.find((row) => Number(row.id) === Number(act.proposal_id));
+      return {
+        rows: [
+          {
+            ...act,
+            quote_code: proposal?.quote_code,
+            status: proposal?.status ?? 'draft',
+            current_version_id: proposal?.current_version_id ?? act.version_id,
+          },
+        ],
+      };
     }
     if (/FROM crm_quote_activity/i.test(sql)) {
       return { rows: this.activity };
@@ -61,17 +93,20 @@ class CreateMemory {
       return { rows: lead ? [lead] : [] };
     }
     if (/INSERT INTO crm_proposals/i.test(sql)) {
+      this.proposalInsertParams = params;
       const row = {
         id: this.nextId++,
         quote_code: params.find((p) => typeof p === 'string' && String(p).startsWith('QT-PTT-')),
         status: 'draft',
         current_version_id: null,
+        owner_staff_id: params[6],
       };
       this.proposals.push(row);
       return { rows: [row] };
     }
     if (/INSERT INTO crm_quote_versions/i.test(sql)) {
-      const row = { id: `ver-${this.versions.length + 1}`, n: 1, state: 'working' };
+      this.versionInsertParams = params;
+      const row = { id: `ver-${this.versions.length + 1}`, n: 1, state: 'working', created_by: params[1] };
       this.versions.push(row);
       return { rows: [row] };
     }
@@ -169,5 +204,66 @@ describe('QuoteCreateService', () => {
         { staffId: 7, idempotencyKey: '' },
       ),
     ).rejects.toMatchObject({ response: { error: 'idempotency_key_required' } });
+  });
+
+  it('JWT unresolved staff (staffId 0) throws 403 qt_unresolved_staff', async () => {
+    const { svc } = load();
+
+    await expect(
+      svc.create(
+        {
+          source: 'lead',
+          lead_id: 12,
+          title: 'No staff',
+          quote_type: 'new_business',
+        },
+        { staffId: 0, staffAuthVia: 'jwt', idempotencyKey: 'jwt-unresolved' },
+      ),
+    ).rejects.toMatchObject({ response: { error: 'qt_unresolved_staff' } });
+  });
+
+  it('internal key still creates with staffId 0', async () => {
+    const { db, svc } = load();
+
+    const out = await svc.create(
+      {
+        source: 'blank',
+        agency_client_id: CLIENT_ID,
+        title: 'Internal blank',
+        quote_type: 'campaign',
+      },
+      { staffId: 0, staffAuthVia: 'internal', idempotencyKey: 'internal-0' },
+    );
+
+    expect(out.proposal.status).toBe('draft');
+    expect(out.proposal.id).toBeGreaterThan(0);
+    expect(db.proposalInsertParams[6] == null || db.proposalInsertParams[6] === 0).toBe(true);
+    expect(db.versionInsertParams[1]).toBe(0);
+  });
+
+  it('same Idempotency-Key replay returns same proposal and does not allocate a second code', async () => {
+    const { db, svc } = load();
+    const input = {
+      source: 'lead' as const,
+      lead_id: 12,
+      title: 'An Phát Q3',
+      quote_type: 'new_business',
+    };
+
+    const first = await svc.create(input, ACTOR);
+    const seqAfterFirst = db.seq;
+    const nextvalCount = db.sqls.filter((sql) => /nextval\('crm_quote_code_seq'\)/i.test(sql)).length;
+
+    const second = await svc.create(input, ACTOR);
+
+    expect(second.proposal.id).toBe(first.proposal.id);
+    expect(second.proposal.quote_code).toBe(first.proposal.quote_code);
+    expect(db.seq).toBe(seqAfterFirst);
+    expect(db.sqls.filter((sql) => /nextval\('crm_quote_code_seq'\)/i.test(sql)).length).toBe(
+      nextvalCount,
+    );
+    expect(db.proposals).toHaveLength(1);
+    expect(db.sqls.some((sql) => /pg_advisory_xact_lock\(hashtext/i.test(sql))).toBe(true);
+    expect(db.txCalls).toBeGreaterThan(0);
   });
 });

@@ -172,7 +172,8 @@ export class QuoteListService {
         `(p.quote_code ILIKE '%' || $${idx} || '%'
           OR COALESCE(p.title, '') ILIKE '%' || $${idx} || '%'
           OR COALESCE(c.name, '') ILIKE '%' || $${idx} || '%'
-          OR COALESCE(p.lead_id::text, '') ILIKE '%' || $${idx} || '%')`,
+          OR COALESCE(p.lead_id::text, '') ILIKE '%' || $${idx} || '%'
+          OR ('LD-' || p.lead_id) ILIKE '%' || $${idx} || '%')`,
       );
     }
     if (truthy(query.pending_my_approval)) {

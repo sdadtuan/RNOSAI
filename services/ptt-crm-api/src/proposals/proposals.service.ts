@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   StreamableFile,
@@ -178,11 +179,16 @@ export class ProposalsService {
 
   async create(
     body: CreateProposalBody,
-    actor?: { staffId?: number; idempotencyKey?: string },
+    actor?: { staffId?: number; staffAuthVia?: 'internal' | 'jwt'; idempotencyKey?: string },
   ) {
     if (isQuoteOsCreate(body)) {
+      const staffId = Number(actor?.staffId ?? 0);
+      if (actor?.staffAuthVia !== 'internal' && !(staffId > 0)) {
+        throw new ForbiddenException({ error: 'qt_unresolved_staff' });
+      }
       return this.quoteCreate.create(body, {
-        staffId: Number(actor?.staffId ?? 0),
+        staffId,
+        staffAuthVia: actor?.staffAuthVia,
         idempotencyKey: actor?.idempotencyKey,
       });
     }

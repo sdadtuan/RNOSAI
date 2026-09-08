@@ -207,12 +207,22 @@ export class ProposalsController {
     @Body() body: CreateProposalBody,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    const staffId =
-      req.staffAuthVia === 'internal' && !req.staffUser
-        ? 0
-        : await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (req.staffAuthVia === 'internal' && !req.staffUser) {
+      return this.proposals.create(body, {
+        staffId: 0,
+        staffAuthVia: 'internal',
+        idempotencyKey,
+      });
+    }
+    const staffId = req.staffUser
+      ? await this.staffAuth.resolveCrmStaffUserId(req.staffUser)
+      : null;
+    if (staffId == null || staffId <= 0) {
+      throw new ForbiddenException({ error: 'qt_unresolved_staff' });
+    }
     return this.proposals.create(body, {
-      staffId: staffId ?? 0,
+      staffId,
+      staffAuthVia: 'jwt',
       idempotencyKey,
     });
   }

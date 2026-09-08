@@ -1,6 +1,11 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { QT_QUOTE_QUERY, QuoteAuditRepository, QuoteQueryPort } from './quote-audit.repository';
-import { formatQuoteCode } from './quote-code.util';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import {
+  QT_QUOTE_QUERY,
+  QuoteAuditRepository,
+  QuoteQueryFn,
+  QuoteQueryPort,
+} from './quote-audit.repository';
+import { formatQuoteCode, quoteCodeYear } from './quote-code.util';
 import type { QuoteStatus } from './quote.types';
 
 export const QUOTE_TYPES = [
@@ -27,6 +32,7 @@ export type QuoteCreateInput = {
 
 export type QuoteCreateActor = {
   staffId: number;
+  staffAuthVia?: 'internal' | 'jwt';
   idempotencyKey?: string;
 };
 
@@ -76,6 +82,7 @@ export class QuoteCreateService {
   async create(input: QuoteCreateInput, actor: QuoteCreateActor): Promise<QuoteCreateResult> {
     const key = String(actor.idempotencyKey ?? '').trim();
     if (!key) bad('idempotency_key_required');
+    this.assertCreateStaff(actor);
 
     const replayed = await this.findByIdempotencyKey(key);
     if (replayed) return replayed;
@@ -89,80 +96,107 @@ export class QuoteCreateService {
     const source = this.resolveSource(input);
     const resolved = await this.resolveClient(source, input);
     const ownerStaffId = resolved.ownerStaffId || actor.staffId || 0;
+    if (actor.staffAuthVia !== 'internal' && ownerStaffId <= 0) {
+      throw new ForbiddenException({ error: 'qt_unresolved_staff' });
+    }
 
-    const seqRow = await this.db.query(`SELECT nextval('crm_quote_code_seq') AS seq`);
-    const seq = Number(seqRow.rows[0]?.seq ?? seqRow.rows[0]?.nextval ?? 0);
-    if (!Number.isFinite(seq) || seq <= 0) bad('quote_code_alloc_failed');
-    const quoteCode = formatQuoteCode(new Date().getFullYear(), seq);
-    const now = new Date().toISOString();
+    return this.inTx(async (query) => {
+      await query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [key]);
+      const lockedReplay = await this.findByIdempotencyKey(key, query);
+      if (lockedReplay) return lockedReplay;
 
-    const inserted = await this.db.query(
-      `INSERT INTO crm_proposals (
-         customer_id, lead_id, service_slugs, total_vnd, timeline_months, notes, ai_output,
-         status, title, quote_type, quote_code, agency_client_id, owner_staff_id,
-         issuing_entity, currency_code, timezone, price_adjustment_reason, created_at, updated_at
-       ) VALUES (
-         $1, $2, '[]', 0, 1, '', '{}',
-         'draft', $3, $4, $5, $6, $7,
-         'PTT-HCM', 'VND', 'Asia/Ho_Chi_Minh', '', $8, $8
-       )
-       RETURNING id, quote_code, status, current_version_id`,
-      [
-        resolved.customerId || null,
-        resolved.leadId || null,
-        title,
-        quoteType,
-        quoteCode,
-        resolved.agencyClientId,
-        ownerStaffId || null,
-        now,
-      ],
-    );
-    const proposalId = Number(inserted.rows[0]?.id ?? 0);
-    if (!proposalId) bad('insert_failed');
+      const seqRow = await query(`SELECT nextval('crm_quote_code_seq') AS seq`);
+      const seq = Number(seqRow.rows[0]?.seq ?? seqRow.rows[0]?.nextval ?? 0);
+      if (!Number.isFinite(seq) || seq <= 0) bad('quote_code_alloc_failed');
+      const quoteCode = formatQuoteCode(quoteCodeYear(), seq);
+      const now = new Date().toISOString();
+      const persistOwner = ownerStaffId > 0 ? ownerStaffId : actor.staffAuthVia === 'internal' ? null : ownerStaffId;
+      const createdBy = ownerStaffId > 0 ? ownerStaffId : actor.staffAuthVia === 'internal' ? 0 : ownerStaffId;
 
-    const version = await this.db.query(
-      `INSERT INTO crm_quote_versions (proposal_id, n, state, snapshot_json, created_by)
-       VALUES ($1, 1, 'working', '{}', $2)
-       RETURNING id, n, state`,
-      [proposalId, ownerStaffId || 0],
-    );
-    const versionId = String(version.rows[0]?.id ?? '');
-    if (!versionId) bad('version_insert_failed');
+      const inserted = await query(
+        `INSERT INTO crm_proposals (
+           customer_id, lead_id, service_slugs, total_vnd, timeline_months, notes, ai_output,
+           status, title, quote_type, quote_code, agency_client_id, owner_staff_id,
+           issuing_entity, currency_code, timezone, price_adjustment_reason, created_at, updated_at
+         ) VALUES (
+           $1, $2, '[]', 0, 1, '', '{}',
+           'draft', $3, $4, $5, $6, $7,
+           'PTT-HCM', 'VND', 'Asia/Ho_Chi_Minh', '', $8, $8
+         )
+         RETURNING id, quote_code, status, current_version_id`,
+        [
+          resolved.customerId || null,
+          resolved.leadId || null,
+          title,
+          quoteType,
+          quoteCode,
+          resolved.agencyClientId,
+          persistOwner,
+          now,
+        ],
+      );
+      const proposalId = Number(inserted.rows[0]?.id ?? 0);
+      if (!proposalId) bad('insert_failed');
 
-    const updated = await this.db.query(
-      `UPDATE crm_proposals
-          SET current_version_id = $1, updated_at = $2
-        WHERE id = $3
-        RETURNING id, quote_code, status, current_version_id`,
-      [versionId, now, proposalId],
-    );
-    const row = updated.rows[0] ?? inserted.rows[0];
-    const result: QuoteCreateResult = {
-      proposal: {
-        id: proposalId,
-        quote_code: String(row?.quote_code ?? quoteCode),
-        status: 'draft',
-        current_version_id: String(row?.current_version_id ?? versionId),
-      },
-    };
+      const version = await query(
+        `INSERT INTO crm_quote_versions (proposal_id, n, state, snapshot_json, created_by)
+         VALUES ($1, 1, 'working', '{}', $2)
+         RETURNING id, n, state`,
+        [proposalId, createdBy],
+      );
+      const versionId = String(version.rows[0]?.id ?? '');
+      if (!versionId) bad('version_insert_failed');
 
-    await this.audit.insert({
-      proposal_id: proposalId,
-      version_id: versionId,
-      actor_staff_id: actor.staffId || null,
-      action: 'quote.created',
-      resource: 'quote',
-      snapshot_json: {
-        idempotency_key: key,
-        source,
-        quote_code: result.proposal.quote_code,
-        agency_client_id: resolved.agencyClientId,
-        lead_id: resolved.leadId || null,
-        title,
-      },
+      const updated = await query(
+        `UPDATE crm_proposals
+            SET current_version_id = $1, updated_at = $2
+          WHERE id = $3
+          RETURNING id, quote_code, status, current_version_id`,
+        [versionId, now, proposalId],
+      );
+      const row = updated.rows[0] ?? inserted.rows[0];
+      const result: QuoteCreateResult = {
+        proposal: {
+          id: proposalId,
+          quote_code: String(row?.quote_code ?? quoteCode),
+          status: 'draft',
+          current_version_id: String(row?.current_version_id ?? versionId),
+        },
+      };
+
+      await this.audit.insert(
+        {
+          proposal_id: proposalId,
+          version_id: versionId,
+          actor_staff_id: actor.staffId || null,
+          action: 'quote.created',
+          resource: 'quote',
+          snapshot_json: {
+            idempotency_key: key,
+            source,
+            quote_code: result.proposal.quote_code,
+            agency_client_id: resolved.agencyClientId,
+            lead_id: resolved.leadId || null,
+            title,
+          },
+        },
+        query,
+      );
+      return result;
     });
-    return result;
+  }
+
+  private assertCreateStaff(actor: QuoteCreateActor): void {
+    const staffId = Number(actor.staffId ?? 0);
+    if (actor.staffAuthVia === 'internal') return;
+    if (!(staffId > 0)) {
+      throw new ForbiddenException({ error: 'qt_unresolved_staff' });
+    }
+  }
+
+  private inTx<T>(fn: (query: QuoteQueryFn) => Promise<T>): Promise<T> {
+    if (this.db.withTransaction) return this.db.withTransaction(fn);
+    return fn((sql, params) => this.db.query(sql, params));
   }
 
   private resolveSource(input: QuoteCreateInput): QuoteCreateSource {
@@ -235,8 +269,12 @@ export class QuoteCreateService {
     if (!found.rows[0]) bad('client_not_found');
   }
 
-  private async findByIdempotencyKey(key: string): Promise<QuoteCreateResult | null> {
-    const result = await this.db.query(
+  private async findByIdempotencyKey(
+    key: string,
+    query?: QuoteQueryFn,
+  ): Promise<QuoteCreateResult | null> {
+    const run = query ?? ((sql, params) => this.db.query(sql, params));
+    const result = await run(
       `SELECT a.proposal_id, a.version_id, p.quote_code, p.status, p.current_version_id
          FROM crm_quote_activity a
          JOIN crm_proposals p ON p.id = a.proposal_id
