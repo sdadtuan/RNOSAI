@@ -67,10 +67,20 @@ describe('detectPeriod / default range', () => {
     expect(detectPeriod('2026-01-01', '2026-12-31', now)).toBe('');
   });
 
+  it('labels Tháng này when period=month even if the month range equals 7d', () => {
+    const day7 = new Date('2026-09-06T20:00:00.000Z');
+    const range = periodRange('month', day7);
+    expect(range).toEqual({ from: '2026-09-01', to: '2026-09-07' });
+    expect(range).toEqual(periodRange('7d', day7));
+    expect(detectPeriod(range.from, range.to, day7)).toBe('7d');
+    expect(detectPeriod(range.from, range.to, day7, 'month')).toBe('month');
+  });
+
   it('writes the current-month range when from/to are absent', () => {
     const next = withDefaultOverviewPeriod(new URLSearchParams('scope=team'), now);
     expect(next.get('from')).toBe('2026-09-01');
     expect(next.get('to')).toBe('2026-09-08');
+    expect(next.get('period')).toBe('month');
     expect(next.get('scope')).toBe('team');
 
     const kept = withDefaultOverviewPeriod(
@@ -79,5 +89,6 @@ describe('detectPeriod / default range', () => {
     );
     expect(kept.get('from')).toBe('2026-01-01');
     expect(kept.get('to')).toBe('2026-01-31');
+    expect(kept.get('period')).toBeNull();
   });
 });

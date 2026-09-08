@@ -93,3 +93,35 @@ Tests  9 passed (9)
 - Status chip remains incomplete by design (no `status` action on Task 6).
 - Approval is `submit_approval` only; `approval.*` is not grouped (API is exact-match).
 - Default month is written client-side via `router.replace`.
+
+---
+
+## Review fix (Important): persist `period=` in URL
+
+`detectPeriod` inferred 7d/30d/month/quarter from `from`/`to` only. On ICT day 7, month MTD equals 7d, so the default month write was labeled **7 ngày** (same collision on day 30 vs 30d, and quarter-start vs month).
+
+### Fix
+
+- Kỳ select writes `period=` (`7d` | `30d` | `month` | `quarter`) plus matching `from`/`to`.
+- `detectPeriod` uses `period` as source of truth when present; date matching is fallback only for shared URLs that have dates but no `period`.
+- Default first load: `period=month` + current-month ICT range.
+
+Kept: 4 tiles, win-rate formula, four `—` when null, tile hrefs, Task 11 redirects, no second `<main>`, no 8,46.
+
+### Tests
+
+`vitest run src/components/crm/qt/QtOverview.spec.ts src/components/crm/qt/QtActivity.spec.ts` from `services/ops-web`:
+
+```
+✓ src/components/crm/qt/QtActivity.spec.ts (4 tests)
+✓ src/components/crm/qt/QtOverview.spec.ts (6 tests)
+Test Files  2 passed (2)
+Tests  10 passed (10)
+```
+
+New assertion: month range on ICT day 7 still returns `month` when `period=month` (date-only fallback still matches `7d`).
+
+### Concerns
+
+- Shared URLs with dates but no `period` still use date-order fallback (`7d` before `month`), so day-7 bookmarks without `period` stay labeled **7 ngày**.
+- Default `period=month` is still written client-side via `router.replace`.

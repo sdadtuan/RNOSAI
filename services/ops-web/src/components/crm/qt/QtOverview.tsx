@@ -122,9 +122,24 @@ export function periodRange(preset: string, now = new Date()): { from: string; t
   return { from: ymd(year, month, 1), to };
 }
 
-export function detectPeriod(from: string, to: string, now = new Date()): string {
+const OVERVIEW_PERIODS = ['7d', '30d', 'month', 'quarter'] as const;
+
+function asOverviewPeriod(value: string | null | undefined): (typeof OVERVIEW_PERIODS)[number] | '' {
+  return OVERVIEW_PERIODS.includes(value as (typeof OVERVIEW_PERIODS)[number])
+    ? (value as (typeof OVERVIEW_PERIODS)[number])
+    : '';
+}
+
+export function detectPeriod(
+  from: string,
+  to: string,
+  now = new Date(),
+  period?: string | null,
+): string {
+  const explicit = asOverviewPeriod(period);
+  if (explicit) return explicit;
   if (!from || !to) return '';
-  for (const preset of ['7d', '30d', 'month', 'quarter'] as const) {
+  for (const preset of OVERVIEW_PERIODS) {
     const range = periodRange(preset, now);
     if (from === range.from && to === range.to) return preset;
   }
@@ -137,7 +152,9 @@ export function withDefaultOverviewPeriod(
 ): URLSearchParams {
   const next = new URLSearchParams(search);
   if (next.get('from') && next.get('to')) return next;
-  const range = periodRange('month', now);
+  const preset = asOverviewPeriod(next.get('period')) || 'month';
+  const range = periodRange(preset, now);
+  next.set('period', preset);
   next.set('from', range.from);
   next.set('to', range.to);
   return next;
@@ -386,6 +403,7 @@ export function QtOverview() {
   function changePeriod(preset: string) {
     const range = periodRange(preset);
     replaceParams((params) => {
+      params.set('period', preset);
       params.set('from', range.from);
       params.set('to', range.to);
     });
@@ -404,7 +422,7 @@ export function QtOverview() {
     const next = params.toString();
     return next ? `${pathname}?${next}` : `${pathname}?panel=actions`;
   })();
-  const period = detectPeriod(query.from ?? '', query.to ?? '');
+  const period = detectPeriod(query.from ?? '', query.to ?? '', undefined, current.get('period'));
 
   if (panel === 'actions') {
     return (
