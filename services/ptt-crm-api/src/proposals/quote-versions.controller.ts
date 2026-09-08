@@ -14,7 +14,10 @@ import { Request } from 'express';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
-import { StaffProposalsWriteGuard } from './guards/staff-proposals.guard';
+import {
+  StaffProposalsViewGuard,
+  StaffProposalsWriteGuard,
+} from './guards/staff-proposals.guard';
 import { RequireQuoteSection, StaffQuoteGuard } from './guards/staff-quote.guard';
 import { QuoteApprovalService } from './quote-approval.service';
 import { QuoteBuilderService, type QuotePaymentItemInput } from './quote-builder.service';
@@ -28,7 +31,7 @@ import { QuoteStudioService } from './quote-studio.service';
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
 @Controller('api/crm/quote-versions')
-@UseGuards(StaffOrInternalKeyGuard, StaffProposalsWriteGuard)
+@UseGuards(StaffOrInternalKeyGuard, StaffProposalsViewGuard)
 export class QuoteVersionsController {
   constructor(
     private readonly builder: QuoteBuilderService,
@@ -39,6 +42,7 @@ export class QuoteVersionsController {
   ) {}
 
   @Put(':vid/payments')
+  @UseGuards(StaffProposalsWriteGuard)
   async putPayments(
     @Req() req: StaffReq,
     @Param('vid') vid: string,
@@ -58,6 +62,7 @@ export class QuoteVersionsController {
   }
 
   @Post(':vid/options')
+  @UseGuards(StaffProposalsWriteGuard)
   async createOption(
     @Req() req: StaffReq,
     @Param('vid') vid: string,
@@ -67,6 +72,7 @@ export class QuoteVersionsController {
   }
 
   @Post(':vid/options/:key/duplicate')
+  @UseGuards(StaffProposalsWriteGuard)
   async duplicateOption(
     @Req() req: StaffReq,
     @Param('vid') vid: string,
@@ -76,6 +82,7 @@ export class QuoteVersionsController {
   }
 
   @Patch(':vid/options/:key')
+  @UseGuards(StaffProposalsWriteGuard)
   async patchOption(
     @Req() req: StaffReq,
     @Param('vid') vid: string,
@@ -86,6 +93,7 @@ export class QuoteVersionsController {
   }
 
   @Post(':vid/submit-approval')
+  @UseGuards(StaffProposalsWriteGuard)
   async submitApproval(@Req() req: StaffReq, @Param('vid') vid: string) {
     return this.approvals.submitApproval(vid, await this.actor(req));
   }

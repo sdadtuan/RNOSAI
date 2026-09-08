@@ -210,4 +210,25 @@ describe('quote option HTTP wiring', () => {
     expect(versions).not.toMatch(/\/api\/quotes/);
     expect(mod).toMatch(/QuoteOptionsService/);
   });
+
+  it('GET options/kpis use view guard, not the write-only class guard', () => {
+    const versions = readFileSync(join(__dirname, 'quote-versions.controller.ts'), 'utf8');
+    const classGuard = versions.match(
+      /@Controller\('api\/crm\/quote-versions'\)\s*@UseGuards\(([^)]+)\)/,
+    );
+    expect(classGuard?.[1]).toMatch(/StaffProposalsViewGuard|StaffQuoteGuard/);
+    expect(classGuard?.[1]).not.toMatch(/StaffProposalsWriteGuard/);
+
+    const methodBlock = (decorator: string) => {
+      const start = versions.indexOf(decorator);
+      expect(start).toBeGreaterThan(-1);
+      const rest = versions.slice(start + decorator.length);
+      const next = rest.search(/\n\s*@(Get|Post|Put|Patch|Delete)\(/);
+      return next === -1 ? versions.slice(start) : versions.slice(start, start + decorator.length + next);
+    };
+    expect(methodBlock("@Get(':vid/options')")).not.toMatch(/StaffProposalsWriteGuard/);
+    expect(methodBlock("@Get(':vid/kpis')")).not.toMatch(/StaffProposalsWriteGuard/);
+    expect(methodBlock("@Post(':vid/options')")).toMatch(/StaffProposalsWriteGuard/);
+    expect(methodBlock("@Patch(':vid/options/:key')")).toMatch(/StaffProposalsWriteGuard/);
+  });
 });
