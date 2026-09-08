@@ -33,6 +33,7 @@ import {
   QuoteSettingsRepository,
 } from './quote-settings.repository';
 import { QuoteSettingsService } from './quote-settings.service';
+import { QuoteExpiryWorkerService } from './quote-expiry-worker.service';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteCatalogService,
     QuoteConvertService,
     QuotePublicService,
+    QuoteExpiryWorkerService,
   ],
   exports: [
     ProposalsService,
