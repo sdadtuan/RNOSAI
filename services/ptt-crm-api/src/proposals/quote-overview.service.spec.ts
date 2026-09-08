@@ -7,9 +7,14 @@ import { QT_KPI_KEYS } from './quote.types';
 class OverviewMemory {
   rows: Record<string, unknown>[] = [];
   activity: Record<string, unknown>[] = [];
+  teamRows: Record<string, unknown>[] = [];
+  lastSql = '';
+  lastProposalSql = '';
   settings = { gm_floor_bps: 2500, discount_auto_bps: 500 };
 
   async query(sql: string, params: unknown[] = []) {
+    this.lastSql = sql;
+    if (/FROM crm_proposals/i.test(sql)) this.lastProposalSql = sql;
     if (/INSERT INTO crm_quote_activity/i.test(sql)) {
       const row = {
         id: `act-${this.activity.length + 1}`,
@@ -24,6 +29,7 @@ class OverviewMemory {
     if (/FROM crm_quote_activity/i.test(sql)) return { rows: this.activity };
     if (/FROM crm_quote_settings/i.test(sql)) return { rows: [this.settings] };
     if (/FROM crm_proposals/i.test(sql)) return { rows: this.rows };
+    if (/staff_user_teams/i.test(sql)) return { rows: this.teamRows };
     return { rows: [] };
   }
 }
@@ -78,6 +84,48 @@ describe('QuoteOverviewService', () => {
     expect(out.kpis.open_quote_value).toBe(150000000);
     expect(out.kpis.forecast_gross_margin).toBeNull();
     expect(JSON.stringify(out)).not.toMatch(/nsr/i);
+  });
+
+  it('hasFinance computes forecast_gross_margin from NSR and direct cost', async () => {
+    const { db, svc } = load();
+    db.rows = [
+      {
+        id: 11,
+        status: 'negotiation',
+        payable_vnd: 150000000,
+        nsr_vnd: 120000000,
+        direct_cost_vnd: 80000000,
+        gm_bps: 3333,
+        discount_vnd: 0,
+        fee_vnd: 120000000,
+        media_vnd: 0,
+        owner_staff_id: 1,
+      },
+    ];
+
+    const out = await svc.getOverview({ ...SCOPE, hasFinance: true });
+
+    expect(out.kpis.forecast_gross_margin).toBe((120000000 - 80000000) / 120000000);
+    expect(out.kpis.forecast_gross_margin).toBeCloseTo(1 / 3);
+  });
+
+  it('scope=team with teamIds applies staff_user_teams predicate, not me-only', async () => {
+    const { db, svc } = load();
+
+    await svc.getOverview({ ...SCOPE, scope: 'team', teamIds: [9, 8] });
+
+    expect(db.lastProposalSql).toMatch(/staff_user_teams/i);
+    expect(db.lastProposalSql).toMatch(/team_id = ANY/i);
+    expect(db.lastProposalSql).toMatch(/OR EXISTS/i);
+  });
+
+  it('loadActorTeamIds reads staff_user_teams for the crm_staff actor', async () => {
+    const { db, svc } = load();
+    db.teamRows = [{ id: 9 }, { id: 8 }];
+
+    await expect(svc.loadActorTeamIds(3)).resolves.toEqual([9, 8]);
+    expect(db.lastSql).toMatch(/staff_user_teams/i);
+    expect(db.lastSql).toMatch(/crm_staff/i);
   });
 
   it('open value sums payable for draft…negotiation and excludes accepted', async () => {

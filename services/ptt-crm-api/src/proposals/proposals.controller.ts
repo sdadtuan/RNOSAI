@@ -72,7 +72,7 @@ export class ProposalsController {
         canTeam: has('crm_quote', 'edit') || has('crm_quote', 'manage'),
       }),
       staffId,
-      teamIds: me?.teams?.map((team) => team.id) ?? [],
+      teamIds: await this.quoteOverview.loadActorTeamIds(staffId),
       hasFinance: has('crm_quote.finance', 'view'),
     };
   }

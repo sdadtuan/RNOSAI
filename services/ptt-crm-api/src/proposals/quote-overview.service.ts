@@ -380,6 +380,32 @@ export class QuoteOverviewService {
     return { items: await this.audit.list(query) };
   }
 
+  /** Actor team ids from `staff_user_teams` (via crm_staff email → staff_users). */
+  async loadActorTeamIds(staffId: number): Promise<number[]> {
+    if (!Number.isFinite(staffId) || staffId <= 0) return [];
+    try {
+      const result = await this.db.query(
+        `SELECT sut.team_id AS id
+           FROM crm_staff cs
+           JOIN staff_users u ON lower(trim(u.email)) = lower(trim(cs.email))
+           JOIN staff_user_teams sut ON sut.user_id = u.id
+          WHERE cs.id = $1`,
+        [staffId],
+      );
+      const seen = new Set<number>();
+      const ids: number[] = [];
+      for (const row of result.rows) {
+        const id = Number(row.id ?? row.team_id);
+        if (!Number.isFinite(id) || id <= 0 || seen.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+      }
+      return ids;
+    } catch {
+      return [];
+    }
+  }
+
   private async loadSettings(): Promise<CommercialSettings> {
     const result = await this.db.query(
       `SELECT gm_floor_bps, discount_auto_bps
