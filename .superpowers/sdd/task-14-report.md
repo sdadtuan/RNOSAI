@@ -1,75 +1,161 @@
-# Task 14 Report: Media UI (MED-01/03/05)
+# Task 14 report — Builder UI W1 (BLD-01…07 chrome)
 
-## Status
+**Status:** DONE_WITH_CONCERNS  
+**Branch:** `feat/quotation-os`  
+**Commit:** `43bb62c9` `feat(qt): builder workspace with SKU and sticky commercial`  
+**Fix commit:** `fix(qt): omit unknown line money and return QT GET fields`
 
-Implemented the Creative Production OS media library, ingest, rights center, and asset detail UI on `feat/cp-os`.
+## What shipped
 
-- Bound asset list/create/get, usage, rights, and finalize routes through `cp-api`.
-- Added the exact ten-entry frontend MIME allowlist and pre-POST `mime_not_allowed` validation.
-- Added library type filters, grid selection, and a data-backed inspector.
-- Added ingest creation with optional finalize, plus a rights editor and expiry policy table.
-- Added asset metadata, usage, and rights status detail.
-- Routed `?tab=ingest` and `?tab=rights`; collections and quality retain media chrome and render `Chưa có dữ liệu` with `—`.
-- Kept pages inside the existing `CpShell` main and removed fabricated metrics and later-wave copy.
+- `QtBuilder` on `/crm/proposals/[id]` — seven tabs always render. W1 live: Bối cảnh, Dịch vụ (SKU `basic|standard|premium` → Cơ bản / Tiêu chuẩn / Chuyên sâu), Chi phí (finance-gated), Điều khoản (payment 50/30/20, remainder on last, `pct_bps` sum 10000).
+- W2 chrome still renders empty/`—`: Phương án one implicit A; KPI table empty; History v1 only. Never “mở ở Wave”.
+- `QtStickyCommercial` — fee, media, discount, VAT, payable, payment flow. NSR/GM only if `crm_quote.finance`.
+- Writes via `qtFetch`: `PATCH /:id` If-Match `row_version`; `PUT /:id/lines` (QT fields, no `cost_*` unless finance); `PUT /quote-versions/:vid/payments`; `POST /:id/versions/:vid/recalculate` (`?section=finance` only with cap).
+- Draft catalog CTA disabled (`can_add_to_client_quote=false` / `catalog_not_active`).
+- Vietnamese status pills. `dash(null)==='—'`. `qt-*`. No second `<main>`. No NOVA. No hard-coded `265.647.600` / `8,46`.
 
-## TDD evidence
+## TDD
 
-Red:
+### RED
 
-```text
-FAIL src/lib/crm/cp-format.rights.spec.ts
-TypeError: rightsStatus is not a function
-Tests 4 failed (4)
+```
+cd services/ops-web && npm run test:unit -- \
+  src/components/crm/qt/QtStickyCommercial.spec.ts \
+  src/components/crm/qt/QtBuilder.spec.ts
 ```
 
-Green:
+Specs written first. First run (no production modules):
 
-```text
-✓ src/lib/crm/cp-format.rights.spec.ts (4 tests)
-Test Files 1 passed (1)
-Tests 4 passed (4)
+```
+FAIL  QtBuilder.spec.ts
+Error: Cannot find module './QtBuilder'
+FAIL  QtStickyCommercial.spec.ts
+Error: Cannot find module './QtStickyCommercial'
 ```
 
-The focused contract covers missing expiry, the required block and warn examples, and the post-window `ok` result.
+Expected: feature files missing.
 
-## Verification
+### GREEN
 
-- Focused CP format tests: 10/10 passed across 2 files.
-- Production `next build`: passed.
-- Cursor diagnostics on Task 14 files: no errors.
-- `git diff --check`: passed.
-- Forbidden sample values and `Wave` copy audit: no matches in Task 14 media components.
+Same command after implementation:
+
+```
+Test Files  2 passed (2)
+     Tests  9 passed (9)
+```
+
+Full QT frontend suite:
+
+```
+cd services/ops-web && npm run test:unit -- \
+  src/components/crm/qt src/lib/crm/qt-format.spec.ts \
+  src/lib/crm/qt-nav.util.spec.ts src/lib/crm/qt-redirect.spec.ts
+```
+
+**43 passed / 9 files** (9 new in builder + sticky specs).
+
+| Spec | Result |
+|---|---|
+| Sticky hides NSR/GM without finance | pass |
+| Sticky shows NSR/GM with finance | pass |
+| Null money → `—`; no mockup `265.647.600` | pass |
+| Seven tabs Vietnamese; no “mở ở Wave”; no `<main>` / NOVA | pass |
+| SKU keys basic\|standard\|premium; labels Cơ bản / Tiêu chuẩn / Chuyên sâu | pass |
+| Draft catalog CTA disabled + `catalog_not_active` | pass |
+| W2: one A + empty KPI + history v1 | pass |
+| Status pills Vietnamese | pass |
 
 ## Concerns
 
-- The Task 7 list/get payload exposes `expiry_on` and computed status but not the remaining rights row fields, so unavailable license, territory, channel, and release cells correctly render `—`.
-- Repository-wide `tsc --noEmit` remains non-zero because of existing unrelated E2E and utility-spec errors; no Task 14 path appeared in that output.
+- `GET /api/crm/proposals/:id` (legacy `mapProposalRow`) omits QT header fields (`title`, `objective`, `audience`, `campaign_period`, `agency_client_id`). BLD-01 starts empty until PATCH; list/create already have title on the row.
+- `GET /:id/lines` legacy mapper drops `item_type` / `media_*` / `catalog_snapshot_json` / cost. After `PUT` the builder holds the full payload; first paint may only have `dv_code` + `package_tier`.
+- Recalc on load 400s when header incomplete or no client-visible line — swallowed except `missing_cap`.
+- Browser click-through not run (no live ops-web staff session in this subagent).
+- `QtBuilder.tsx` is large (~850 lines) as the plan’s single file.
 
-## Important fixes follow-up
+## Files
 
-- Moved bytes/hash finalize validation ahead of `createCpAsset`, preventing orphan `uploading` rows on client-side validation failure.
-- Expanded scoped asset reads with existing rights fields so selecting an asset hydrates every editor control.
-- Added controlled, prefilled rights inputs and a merge helper that preserves existing values, omits untouched blanks, and only changes nullable booleans when they already have values or the user toggles them.
-- Updated the rights table to render the returned license, territory, channels, and release data; the earlier payload limitation concern is resolved.
+- `services/ops-web/src/components/crm/qt/QtBuilder.tsx` + `.spec.ts`
+- `services/ops-web/src/components/crm/qt/QtStickyCommercial.tsx` + `.spec.ts`
+- `services/ops-web/src/app/crm/proposals/[id]/page.tsx`
+- `services/ops-web/src/lib/crm/qt-api.ts`
+- `services/ops-web/src/app/crm/proposals/qt.css`
 
-TDD red:
+---
 
-```text
-FAIL cp-media-form.util.spec.ts — Cannot find module './cp-media-form.util'
-FAIL cp-assets.service.spec.ts — expected SQL to contain r.license_type
+## Review fix — Important (GET fields + write payload)
+
+**Status:** FIXED  
+**Commit:** `fix(qt): omit unknown line money and return QT GET fields`
+
+### What changed
+
+- `lineWritePayload` omits `item_type` / `media_vnd` when unknown (same as cost_*). Never sends missing `cost_*` as `0`.
+- `mapProposalRow`: Quote OS rows (`quote_code` or `current_version_id`) return title, objective, audience, `campaign_period`, `agency_client_id`, `row_version`, **raw** 14-status, `current_version_id`. Unknown status is not mapped to `draft`.
+- `mapLineRow({ quoteOs: true })`: `item_type`, `media_vnd`, `client_visible`, `catalog_snapshot_json`, `qty`, `package_tier`; `cost_*` only if present (null not 0).
+- Deal Room GET shape unchanged (no QT keys; unknown status still → `draft`).
+- `GET detail/lines` requests `listLines(id, { quoteOs: true })` only for quote rows.
+- Builder `isQtWritable` = raw status `=== 'draft'` and version state working (default working). `pending_approval` is not writable.
+
+### TDD
+
+#### RED
+
+```
+cd services/ops-web && npm run test:unit -- \
+  src/components/crm/qt/QtBuilder.spec.ts \
+  src/components/crm/qt/QtStickyCommercial.spec.ts
 ```
 
-TDD green and verification:
-
-```text
-Frontend focused tests: 9/9 passed
-Asset service focused tests: 3/3 passed
-Ops web production build: passed
-PTT CRM API build: passed
+```
+FAIL  QtBuilder.spec.ts
+  isQtWritable is not a function
+  expected payload not to have property "item_type"  (received "fee")
 ```
 
-## Asset detail rights follow-up
+```
+cd services/ptt-crm-api && ./node_modules/.bin/jest \
+  src/proposals/proposals-pg.repository.spec.ts \
+  src/proposals/proposals.service.spec.ts --no-coverage
+```
 
-- Asset detail now renders returned `license_type`, `territory`, `channels`, `model_release`, `talent_release`, `expiry_on`, and `rights_status`.
-- Boolean releases render `Có` or `Không`; only nullish values render `—`.
-- Per instruction, this follow-up used targeted diagnostics and diff checks without running a package suite.
+```
+FAIL  proposals-pg.repository.spec.ts
+  Module has no exported member 'mapLineRow' / 'mapProposalRow'
+FAIL  proposals.service.spec.ts
+  Property 'title' does not exist on detail type
+```
+
+#### GREEN
+
+ops-web:
+
+```
+Test Files  2 passed (2)
+     Tests  14 passed (14)
+```
+
+| Spec | Result |
+|---|---|
+| Sticky hides NSR/GM without finance | pass |
+| Draft catalog CTA disabled | pass |
+| no finance + missing cost → no cost keys | pass |
+| missing media/item_type → omitted | pass |
+| finance + real cost → included | pass |
+| missing cost_* never sent as 0 | pass |
+| pending_approval not writable / not painted Nháp | pass |
+
+ptt-crm-api focused:
+
+```
+Test Suites: 3 passed
+Tests:       49 passed
+```
+
+(`proposals-pg.repository.spec` + `proposals.service.spec` + `quote-builder.service.spec`)
+
+### Remaining concerns
+
+- Recalc on load still 400s when header incomplete or no client-visible line — swallowed except `missing_cap`.
+- Browser click-through not run.
+- GET does not yet return `current_version_state`; writable treats missing state as `working`.

@@ -112,14 +112,24 @@ export class ProposalsService {
     }
     return {
       ...proposal,
-      lines: await this.repo.listLines(proposalId),
+      lines: await this.listMappedLines(proposalId, proposal),
     };
   }
 
   async getLines(proposalId: number) {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
-    return { proposal_id: proposalId, lines: await this.repo.listLines(proposalId) };
+    return { proposal_id: proposalId, lines: await this.listMappedLines(proposalId, proposal) };
+  }
+
+  private listMappedLines(
+    proposalId: number,
+    proposal: { quote_code?: string | null; current_version_id?: string | null },
+  ) {
+    if (proposal.quote_code || proposal.current_version_id) {
+      return this.repo.listLines(proposalId, { quoteOs: true });
+    }
+    return this.repo.listLines(proposalId);
   }
 
   private resolveDvEntry(dvCode: string) {
@@ -328,7 +338,7 @@ export class ProposalsService {
         body.price_adjustment_reason,
       );
     }
-    const allowed = PROPOSAL_STATUS_FLOW[proposal.status] ?? [];
+    const allowed = PROPOSAL_STATUS_FLOW[proposal.status as ProposalStatus] ?? [];
     if (!allowed.includes(next)) {
       throw new BadRequestException({
         error: 'invalid_status_transition',
@@ -353,7 +363,7 @@ export class ProposalsService {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     if (proposal.status !== 'accepted') {
-      const allowed = PROPOSAL_STATUS_FLOW[proposal.status] ?? [];
+      const allowed = PROPOSAL_STATUS_FLOW[proposal.status as ProposalStatus] ?? [];
       if (!allowed.includes('accepted')) {
         throw new BadRequestException({
           error: 'invalid_status_transition',
@@ -390,7 +400,7 @@ export class ProposalsService {
       };
     } catch (err) {
       if (previousStatus !== 'accepted') {
-        await this.repo.patchStatus(proposalId, previousStatus);
+        await this.repo.patchStatus(proposalId, previousStatus as ProposalStatus);
       }
       throw err;
     }

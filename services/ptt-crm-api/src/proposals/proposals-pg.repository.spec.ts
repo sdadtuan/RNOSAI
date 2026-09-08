@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Pool } from 'pg';
-import { ProposalsPgRepository } from './proposals-pg.repository';
+import { mapLineRow, mapProposalRow, ProposalsPgRepository } from './proposals-pg.repository';
 
 jest.mock('pg', () => ({ Pool: jest.fn() }));
 
@@ -135,5 +135,188 @@ describe('ProposalsPgRepository', () => {
     ]);
     expect(query.mock.calls[1][1][8]).toBe('2026-09-30');
     expect(created).toEqual({ id: 12 });
+  });
+});
+
+describe('mapProposalRow / mapLineRow Quote OS GET', () => {
+  const dealRoomRow = {
+    id: 7,
+    customer_id: 3,
+    lead_id: 4,
+    presales_id: null,
+    lifecycle_id: null,
+    service_slugs: '["video-sop"]',
+    total_vnd: '12000000',
+    timeline_months: 2,
+    notes: '',
+    ai_output: '{}',
+    status: 'mystery',
+    valid_until: null,
+    price_adjustment_reason: '',
+    created_at: '2026-08-27T00:00:00.000Z',
+    updated_at: '2026-08-27T00:00:00.000Z',
+  };
+
+  it('returns raw 14-status and QT header fields for quote_code rows', () => {
+    const mapped = mapProposalRow({
+      ...dealRoomRow,
+      quote_code: 'QT-PTT-2026-000001',
+      current_version_id: 'ver-1',
+      row_version: 4,
+      status: 'pending_approval',
+      title: 'An Phát Q3',
+      objective: 'Win retainer',
+      audience: 'CFO',
+      campaign_period: '2026-Q3',
+      agency_client_id: '19d722af-0000-4000-8000-000000000002',
+    });
+
+    expect(mapped.status).toBe('pending_approval');
+    expect(mapped.status).not.toBe('draft');
+    expect(mapped).toMatchObject({
+      title: 'An Phát Q3',
+      objective: 'Win retainer',
+      audience: 'CFO',
+      campaign_period: '2026-Q3',
+      agency_client_id: '19d722af-0000-4000-8000-000000000002',
+      row_version: 4,
+      current_version_id: 'ver-1',
+      quote_code: 'QT-PTT-2026-000001',
+    });
+  });
+
+  it('keeps Deal Room GET shape and maps unknown status to draft', () => {
+    const mapped = mapProposalRow(dealRoomRow);
+    expect(mapped.status).toBe('draft');
+    expect(mapped).not.toHaveProperty('title');
+    expect(mapped).not.toHaveProperty('objective');
+    expect(mapped).not.toHaveProperty('audience');
+    expect(mapped).not.toHaveProperty('campaign_period');
+    expect(mapped).not.toHaveProperty('agency_client_id');
+  });
+
+  it('includes QT line fields and omits null cost_* instead of sending 0', () => {
+    const mapped = mapLineRow(
+      {
+        id: 11,
+        proposal_id: 9,
+        dv_code: 'DV02',
+        sku_code: 'DV02-TC',
+        package_tier: 'standard',
+        service_slug: 'content',
+        reference_price_min: 20000000,
+        reference_price_max: 30000000,
+        final_price_vnd: 25000000,
+        scope_notes: '',
+        lifecycle_id: null,
+        sort_order: 0,
+        item_type: 'fee',
+        qty: 2,
+        media_amount_vnd: 0,
+        client_visible: true,
+        catalog_snapshot_json: { rate: { suggested_vnd: 25000000 } },
+        cost_labor_vnd: null,
+        cost_outsource_vnd: null,
+        cost_other_vnd: null,
+      },
+      { quoteOs: true },
+    );
+
+    expect(mapped).toMatchObject({
+      item_type: 'fee',
+      media_vnd: 0,
+      client_visible: true,
+      qty: 2,
+      package_tier: 'standard',
+      catalog_snapshot_json: { rate: { suggested_vnd: 25000000 } },
+    });
+    expect(mapped).not.toHaveProperty('cost_labor_vnd');
+    expect(mapped).not.toHaveProperty('cost_outsource_vnd');
+    expect(mapped).not.toHaveProperty('cost_other_vnd');
+    expect(JSON.stringify(mapped)).not.toMatch(/"cost_\w+_vnd":0/);
+  });
+
+  it('omits unknown item_type and media on Quote OS lines', () => {
+    const mapped = mapLineRow(
+      {
+        id: 11,
+        proposal_id: 9,
+        dv_code: 'DV02',
+        sku_code: null,
+        package_tier: 'standard',
+        service_slug: 'content',
+        reference_price_min: 0,
+        reference_price_max: 0,
+        final_price_vnd: 0,
+        scope_notes: '',
+        lifecycle_id: null,
+        sort_order: 0,
+      },
+      { quoteOs: true },
+    );
+    expect(mapped).not.toHaveProperty('item_type');
+    expect(mapped).not.toHaveProperty('media_vnd');
+    expect(mapped).not.toHaveProperty('cost_labor_vnd');
+  });
+
+  it('includes real cost_* on Quote OS lines', () => {
+    const mapped = mapLineRow(
+      {
+        id: 11,
+        proposal_id: 9,
+        dv_code: 'DV02',
+        sku_code: 'DV02-TC',
+        package_tier: 'premium',
+        service_slug: 'content',
+        reference_price_min: 0,
+        reference_price_max: 0,
+        final_price_vnd: 25000000,
+        scope_notes: '',
+        lifecycle_id: null,
+        sort_order: 0,
+        item_type: 'fee',
+        qty: 1,
+        media_vnd: 40000000,
+        client_visible: false,
+        catalog_snapshot_json: '{}',
+        cost_labor_vnd: 8000000,
+      },
+      { quoteOs: true },
+    );
+    expect(mapped.cost_labor_vnd).toBe(8000000);
+    expect(mapped.media_vnd).toBe(40000000);
+    expect(mapped.client_visible).toBe(false);
+    expect(mapped).not.toHaveProperty('cost_outsource_vnd');
+  });
+
+  it('keeps Deal Room line GET shape without QT keys', () => {
+    const mapped = mapLineRow({
+      id: 11,
+      proposal_id: 9,
+      dv_code: 'DV02',
+      sku_code: 'DV02-TC',
+      package_tier: 'standard',
+      service_slug: 'content',
+      reference_price_min: 20000000,
+      reference_price_max: 30000000,
+      final_price_vnd: 25000000,
+      scope_notes: '',
+      lifecycle_id: null,
+      sort_order: 0,
+      item_type: 'fee',
+      qty: 1,
+      media_amount_vnd: 0,
+      client_visible: true,
+      catalog_snapshot_json: {},
+      cost_labor_vnd: null,
+    });
+    expect(mapped).not.toHaveProperty('item_type');
+    expect(mapped).not.toHaveProperty('media_vnd');
+    expect(mapped).not.toHaveProperty('client_visible');
+    expect(mapped).not.toHaveProperty('catalog_snapshot_json');
+    expect(mapped).not.toHaveProperty('qty');
+    expect(mapped).not.toHaveProperty('cost_labor_vnd');
+    expect(mapped.package_tier).toBe('standard');
+    expect(mapped.dv_code).toBe('DV02');
   });
 });

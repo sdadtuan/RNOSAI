@@ -16,6 +16,124 @@ function text(value: unknown): string {
   return String(value);
 }
 
+function isQuoteOsRow(row: Record<string, unknown>): boolean {
+  return Boolean(row.quote_code || row.current_version_id);
+}
+
+function asJsonObject(value: unknown): Record<string, unknown> | undefined {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function presentMoney(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined;
+  if (typeof value === 'bigint') return Number(value);
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+export function mapProposalRow(row: Record<string, unknown>): ProposalRow {
+  let serviceSlugs: string[] = [];
+  try {
+    serviceSlugs = JSON.parse(String(row.service_slugs ?? '[]')) as string[];
+  } catch {
+    serviceSlugs = [];
+  }
+  let aiOutput: Record<string, unknown> = {};
+  try {
+    aiOutput = JSON.parse(String(row.ai_output ?? '{}')) as Record<string, unknown>;
+  } catch {
+    aiOutput = {};
+  }
+  const rawStatus = String(row.status ?? 'draft');
+  const quoteOs = isQuoteOsRow(row);
+  const status = quoteOs
+    ? rawStatus
+    : (['draft', 'sent', 'accepted', 'rejected'].includes(rawStatus)
+        ? (rawStatus as ProposalStatus)
+        : 'draft');
+  const mapped: ProposalRow = {
+    id: Number(row.id),
+    customer_id: Number(row.customer_id),
+    lead_id: row.lead_id != null ? Number(row.lead_id) : null,
+    presales_id: row.presales_id != null ? Number(row.presales_id) : null,
+    lifecycle_id: row.lifecycle_id != null ? Number(row.lifecycle_id) : null,
+    service_slugs: serviceSlugs,
+    total_vnd: Number(row.total_vnd ?? 0),
+    timeline_months: Number(row.timeline_months ?? 1),
+    notes: String(row.notes ?? ''),
+    ai_output: aiOutput,
+    generated: Object.values(aiOutput).some((value) => Boolean(value)),
+    status,
+    valid_until: row.valid_until != null ? text(row.valid_until) : null,
+    price_adjustment_reason: String(row.price_adjustment_reason ?? ''),
+    created_at: text(row.created_at),
+    updated_at: text(row.updated_at),
+    quote_code: row.quote_code == null ? null : String(row.quote_code),
+    current_version_id: row.current_version_id == null ? null : String(row.current_version_id),
+    row_version: Number(row.row_version ?? 1),
+  };
+  if (!quoteOs) return mapped;
+  mapped.title = row.title == null ? null : String(row.title);
+  mapped.objective = row.objective == null ? null : String(row.objective);
+  mapped.audience = row.audience == null ? null : String(row.audience);
+  mapped.campaign_period = row.campaign_period == null ? null : String(row.campaign_period);
+  mapped.agency_client_id = row.agency_client_id == null ? null : String(row.agency_client_id);
+  return mapped;
+}
+
+export function mapLineRow(
+  row: Record<string, unknown>,
+  opts?: { quoteOs?: boolean },
+): QuoteLineItemRow {
+  const mapped: QuoteLineItemRow = {
+    id: Number(row.id),
+    proposal_id: Number(row.proposal_id),
+    dv_code: String(row.dv_code ?? ''),
+    sku_code: row.sku_code != null ? String(row.sku_code) : null,
+    package_tier: String(row.package_tier ?? ''),
+    service_slug: String(row.service_slug ?? ''),
+    reference_price_min: Number(row.reference_price_min ?? 0),
+    reference_price_max: Number(row.reference_price_max ?? 0),
+    final_price_vnd: Number(row.final_price_vnd ?? 0),
+    scope_notes: String(row.scope_notes ?? ''),
+    lifecycle_id: row.lifecycle_id != null ? Number(row.lifecycle_id) : null,
+    sort_order: Number(row.sort_order ?? 0),
+  };
+  if (!opts?.quoteOs) return mapped;
+  if (row.item_type != null && String(row.item_type) !== '') {
+    mapped.item_type = String(row.item_type);
+  }
+  const media = presentMoney(row.media_vnd ?? row.media_amount_vnd);
+  if (media != null) mapped.media_vnd = media;
+  if (row.client_visible != null) {
+    mapped.client_visible = row.client_visible !== false && row.client_visible !== 'f';
+  }
+  const snap = asJsonObject(row.catalog_snapshot_json);
+  if (snap) mapped.catalog_snapshot_json = snap;
+  const qty = presentMoney(row.qty);
+  if (qty != null) mapped.qty = qty;
+  const labor = presentMoney(row.cost_labor_vnd);
+  const outsource = presentMoney(row.cost_outsource_vnd);
+  const other = presentMoney(row.cost_other_vnd);
+  if (labor != null) mapped.cost_labor_vnd = labor;
+  if (outsource != null) mapped.cost_outsource_vnd = outsource;
+  if (other != null) mapped.cost_other_vnd = other;
+  return mapped;
+}
+
 @Injectable()
 export class ProposalsPgRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
@@ -98,7 +216,7 @@ export class ProposalsPgRepository implements OnModuleDestroy {
       'SELECT * FROM crm_proposals WHERE customer_id = $1 ORDER BY id DESC',
       [customerId],
     );
-    return result.rows.map((row) => this.mapProposalRow(row));
+    return result.rows.map((row) => mapProposalRow(row));
   }
 
   async listByLeadId(leadId: number): Promise<ProposalRow[]> {
@@ -107,13 +225,13 @@ export class ProposalsPgRepository implements OnModuleDestroy {
       'SELECT * FROM crm_proposals WHERE lead_id = $1 ORDER BY id DESC',
       [leadId],
     );
-    return result.rows.map((row) => this.mapProposalRow(row));
+    return result.rows.map((row) => mapProposalRow(row));
   }
 
   async getById(proposalId: number): Promise<ProposalRow | null> {
     await this.ensureSchema();
     const result = await this.db.query('SELECT * FROM crm_proposals WHERE id = $1', [proposalId]);
-    return result.rows[0] ? this.mapProposalRow(result.rows[0]) : null;
+    return result.rows[0] ? mapProposalRow(result.rows[0]) : null;
   }
 
   async getCustomerName(customerId: number): Promise<string> {
@@ -126,13 +244,16 @@ export class ProposalsPgRepository implements OnModuleDestroy {
     return row ? String(row.company || row.name || '').trim() : '';
   }
 
-  async listLines(proposalId: number): Promise<QuoteLineItemRow[]> {
+  async listLines(
+    proposalId: number,
+    opts?: { quoteOs?: boolean },
+  ): Promise<QuoteLineItemRow[]> {
     await this.ensureSchema();
     const result = await this.db.query(
       'SELECT * FROM crm_quote_line_item WHERE proposal_id = $1 ORDER BY sort_order ASC, id ASC',
       [proposalId],
     );
-    return result.rows.map((row) => this.mapLineRow(row));
+    return result.rows.map((row) => mapLineRow(row, opts));
   }
 
   async create(body: CreateProposalBody): Promise<{ id: number }> {
@@ -297,57 +418,4 @@ export class ProposalsPgRepository implements OnModuleDestroy {
     return result.rows.length > 0;
   }
 
-  private mapLineRow(row: Record<string, unknown>): QuoteLineItemRow {
-    return {
-      id: Number(row.id),
-      proposal_id: Number(row.proposal_id),
-      dv_code: String(row.dv_code ?? ''),
-      sku_code: row.sku_code != null ? String(row.sku_code) : null,
-      package_tier: String(row.package_tier ?? ''),
-      service_slug: String(row.service_slug ?? ''),
-      reference_price_min: Number(row.reference_price_min ?? 0),
-      reference_price_max: Number(row.reference_price_max ?? 0),
-      final_price_vnd: Number(row.final_price_vnd ?? 0),
-      scope_notes: String(row.scope_notes ?? ''),
-      lifecycle_id: row.lifecycle_id != null ? Number(row.lifecycle_id) : null,
-      sort_order: Number(row.sort_order ?? 0),
-    };
-  }
-
-  private mapProposalRow(row: Record<string, unknown>): ProposalRow {
-    let serviceSlugs: string[] = [];
-    try {
-      serviceSlugs = JSON.parse(String(row.service_slugs ?? '[]')) as string[];
-    } catch {
-      serviceSlugs = [];
-    }
-    let aiOutput: Record<string, unknown> = {};
-    try {
-      aiOutput = JSON.parse(String(row.ai_output ?? '{}')) as Record<string, unknown>;
-    } catch {
-      aiOutput = {};
-    }
-    const status = String(row.status ?? 'draft') as ProposalStatus;
-    return {
-      id: Number(row.id),
-      customer_id: Number(row.customer_id),
-      lead_id: row.lead_id != null ? Number(row.lead_id) : null,
-      presales_id: row.presales_id != null ? Number(row.presales_id) : null,
-      lifecycle_id: row.lifecycle_id != null ? Number(row.lifecycle_id) : null,
-      service_slugs: serviceSlugs,
-      total_vnd: Number(row.total_vnd ?? 0),
-      timeline_months: Number(row.timeline_months ?? 1),
-      notes: String(row.notes ?? ''),
-      ai_output: aiOutput,
-      generated: Object.values(aiOutput).some((value) => Boolean(value)),
-      status: ['draft', 'sent', 'accepted', 'rejected'].includes(status) ? status : 'draft',
-      valid_until: row.valid_until != null ? text(row.valid_until) : null,
-      price_adjustment_reason: String(row.price_adjustment_reason ?? ''),
-      created_at: text(row.created_at),
-      updated_at: text(row.updated_at),
-      quote_code: row.quote_code == null ? null : String(row.quote_code),
-      current_version_id: row.current_version_id == null ? null : String(row.current_version_id),
-      row_version: Number(row.row_version ?? 1),
-    };
-  }
 }

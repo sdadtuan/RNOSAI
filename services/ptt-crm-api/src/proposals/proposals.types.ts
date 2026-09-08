@@ -19,7 +19,7 @@ export interface ProposalRow {
   notes: string;
   ai_output: Record<string, unknown>;
   generated?: boolean;
-  status: ProposalStatus;
+  status: ProposalStatus | string;
   valid_until: string | null;
   price_adjustment_reason: string;
   created_at: string;
@@ -27,6 +27,11 @@ export interface ProposalRow {
   quote_code?: string | null;
   current_version_id?: string | null;
   row_version?: number;
+  title?: string | null;
+  objective?: string | null;
+  audience?: string | null;
+  campaign_period?: string | null;
+  agency_client_id?: string | null;
 }
 
 export interface QuoteLineItemRow {
@@ -42,6 +47,14 @@ export interface QuoteLineItemRow {
   scope_notes: string;
   lifecycle_id: number | null;
   sort_order: number;
+  item_type?: string;
+  media_vnd?: number;
+  client_visible?: boolean;
+  catalog_snapshot_json?: Record<string, unknown>;
+  qty?: number;
+  cost_labor_vnd?: number;
+  cost_outsource_vnd?: number;
+  cost_other_vnd?: number;
 }
 
 export interface QuoteLineInput {

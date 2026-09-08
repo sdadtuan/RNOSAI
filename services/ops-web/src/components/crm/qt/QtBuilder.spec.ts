@@ -11,6 +11,8 @@ import {
   QtKpiChrome,
   QtOptionsChrome,
   QtSkuPicker,
+  isQtWritable,
+  lineWritePayload,
   qtStatusLabel,
 } from './QtBuilder';
 
@@ -111,5 +113,67 @@ describe('QtBuilder tabs + chrome', () => {
     expect(qtStatusLabel('pending_approval')).toBe('Chờ phê duyệt');
     expect(qtStatusLabel('accepted')).toBe('Đã xác nhận');
     expect(qtStatusLabel('sent')).toBe('Đã gửi');
+  });
+
+  it('does not enable writes for pending_approval painted as Nháp', () => {
+    expect(isQtWritable('draft')).toBe(true);
+    expect(isQtWritable('draft', 'working')).toBe(true);
+    expect(isQtWritable('pending_approval')).toBe(false);
+    expect(isQtWritable('pending_approval', 'working')).toBe(false);
+    expect(isQtWritable('draft', 'published')).toBe(false);
+    expect(qtStatusLabel('pending_approval')).not.toBe('Nháp');
+  });
+});
+
+describe('lineWritePayload', () => {
+  it('omits cost keys when finance is off and cost is missing', () => {
+    const payload = lineWritePayload(
+      { dv_code: 'DV02', package_tier: 'standard' },
+      false,
+    );
+    expect(payload).not.toHaveProperty('cost_labor_vnd');
+    expect(payload).not.toHaveProperty('cost_outsource_vnd');
+    expect(payload).not.toHaveProperty('cost_other_vnd');
+    expect(JSON.stringify(payload)).not.toMatch(/"cost_/);
+  });
+
+  it('omits media_vnd and item_type when unknown', () => {
+    const payload = lineWritePayload(
+      { dv_code: 'DV02', package_tier: 'standard' },
+      false,
+    );
+    expect(payload).not.toHaveProperty('item_type');
+    expect(payload).not.toHaveProperty('media_vnd');
+    expect(payload).not.toHaveProperty('media_amount_vnd');
+  });
+
+  it('includes finance cost when a real cost is present', () => {
+    const payload = lineWritePayload(
+      {
+        dv_code: 'DV02',
+        package_tier: 'standard',
+        item_type: 'fee',
+        media_vnd: 12_000_000,
+        cost_labor_vnd: 10_000_000,
+        cost_outsource_vnd: 2_000_000,
+      },
+      true,
+    );
+    expect(payload.item_type).toBe('fee');
+    expect(payload.media_vnd).toBe(12_000_000);
+    expect(payload.cost_labor_vnd).toBe(10_000_000);
+    expect(payload.cost_outsource_vnd).toBe(2_000_000);
+    expect(payload).not.toHaveProperty('cost_other_vnd');
+  });
+
+  it('never sends missing cost_* as 0 even with finance', () => {
+    const payload = lineWritePayload(
+      { dv_code: 'DV02', package_tier: 'standard', item_type: 'media' },
+      true,
+    );
+    expect(payload).not.toHaveProperty('cost_labor_vnd');
+    expect(payload).not.toHaveProperty('cost_outsource_vnd');
+    expect(payload).not.toHaveProperty('cost_other_vnd');
+    expect(JSON.stringify(payload)).not.toMatch(/"cost_\w+_vnd":0/);
   });
 });

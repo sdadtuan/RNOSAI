@@ -358,4 +358,55 @@ describe('ProposalsService quote-os wiring', () => {
     expect(quoteBuilder.putLines).toHaveBeenCalled();
     expect(repo.replaceLines).not.toHaveBeenCalled();
   });
+
+  it('GET detail/lines request Quote OS line fields and keep raw status', async () => {
+    const { svc, repo } = loadService({
+      repo: {
+        getById: jest.fn().mockResolvedValue({
+          id: 9,
+          status: 'pending_approval',
+          quote_code: 'QT-PTT-2026-000001',
+          current_version_id: 'ver-1',
+          title: 'An Phát Q3',
+          objective: 'Win',
+          audience: 'CFO',
+          campaign_period: '2026-Q3',
+          agency_client_id: '19d722af-0000-4000-8000-000000000002',
+          row_version: 3,
+        }),
+        listLines: jest.fn().mockResolvedValue([
+          { dv_code: 'DV02', item_type: 'fee', qty: 1, package_tier: 'standard' },
+        ]),
+      },
+    });
+
+    const detail = await svc.detail(9);
+    const lines = await svc.getLines(9);
+
+    expect(detail.status).toBe('pending_approval');
+    expect(detail.title).toBe('An Phát Q3');
+    expect(detail.current_version_id).toBe('ver-1');
+    expect(repo.listLines).toHaveBeenCalledWith(9, { quoteOs: true });
+    expect(lines.lines[0]).toMatchObject({ item_type: 'fee', package_tier: 'standard' });
+  });
+
+  it('GET Deal Room detail does not request Quote OS line fields', async () => {
+    const { svc, repo } = loadService({
+      repo: {
+        getById: jest.fn().mockResolvedValue({
+          id: 9,
+          status: 'draft',
+          quote_code: null,
+          current_version_id: null,
+        }),
+        listLines: jest.fn().mockResolvedValue([{ dv_code: 'DV02', package_tier: 'standard' }]),
+      },
+    });
+
+    await svc.detail(9);
+    await svc.getLines(9);
+
+    expect(repo.listLines).toHaveBeenCalledWith(9);
+    expect(repo.listLines).not.toHaveBeenCalledWith(9, { quoteOs: true });
+  });
 });

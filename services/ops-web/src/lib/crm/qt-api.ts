@@ -208,6 +208,7 @@ export type QtBuilderProposal = {
   id: number;
   quote_code?: string | null;
   current_version_id?: string | null;
+  current_version_state?: string | null;
   row_version?: number;
   status: string;
   title?: string | null;

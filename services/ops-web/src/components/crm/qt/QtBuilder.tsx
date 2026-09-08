@@ -101,20 +101,30 @@ export function remainderOnLast(items: QtPaymentItem[]): QtPaymentItem[] {
   return next;
 }
 
+export function isQtWritable(
+  status: string | null | undefined,
+  versionState?: string | null,
+): boolean {
+  if (String(status ?? '').trim().toLowerCase() !== 'draft') return false;
+  const state = String(versionState ?? 'working').trim().toLowerCase();
+  return state === 'working';
+}
+
 export function lineWritePayload(line: QtBuilderLine, hasFinance: boolean): QtBuilderLine {
   const payload: QtBuilderLine = {
     dv_code: line.dv_code,
     sku_code: line.sku_code ?? null,
     package_tier: normalizeSkuTier(line.package_tier),
     service_slug: line.service_slug,
-    item_type: line.item_type || 'fee',
     qty: line.qty && line.qty > 0 ? line.qty : 1,
     client_visible: line.client_visible !== false,
-    media_vnd: line.media_vnd ?? line.media_amount_vnd ?? 0,
     catalog_snapshot_json: line.catalog_snapshot_json ?? undefined,
     final_price_vnd: line.final_price_vnd ?? undefined,
     unit_price_vnd: line.unit_price_vnd ?? undefined,
   };
+  if (line.item_type) payload.item_type = line.item_type;
+  const media = line.media_vnd ?? line.media_amount_vnd;
+  if (media != null) payload.media_vnd = media;
   if (hasFinance) {
     if (line.cost_labor_vnd != null) payload.cost_labor_vnd = line.cost_labor_vnd;
     if (line.cost_outsource_vnd != null) payload.cost_outsource_vnd = line.cost_outsource_vnd;
@@ -524,7 +534,7 @@ export function QtBuilder() {
   async function persistLines(nextLines: QtBuilderLine[]) {
     setLines(nextLines);
     const token = getAccessToken();
-    if (!token || !proposal || proposal.status !== 'draft') return;
+    if (!token || !proposal || !isQtWritable(proposal.status, proposal.current_version_state)) return;
     try {
       const saved = await putQtLines(
         token,
@@ -574,7 +584,7 @@ export function QtBuilder() {
     void persistLines([...lines, next]);
   }
 
-  const writable = proposal?.status === 'draft';
+  const writable = isQtWritable(proposal?.status, proposal?.current_version_state);
 
   return (
     <div className="qt-builder">
