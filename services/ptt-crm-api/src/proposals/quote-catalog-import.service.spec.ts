@@ -12,6 +12,8 @@ const FROZEN_SNAP = {
 
 class ImportMemory {
   sqls: string[] = [];
+  txCalls = 0;
+  failOnRateDv: string | null = null;
   jobs: Record<string, unknown>[] = [];
   rateCards: Record<string, unknown>[] = [];
   revisions: Record<string, unknown>[] = [];
@@ -70,6 +72,9 @@ class ImportMemory {
       return { rows: job ? [job] : [] };
     }
     if (/INSERT INTO crm_quote_rate_cards/i.test(sql)) {
+      if (this.failOnRateDv && String(params[1]) === this.failOnRateDv) {
+        throw new Error('mid_batch_rate_fail');
+      }
       const row = {
         id: `rc-${this.rateCards.length + 1}`,
         tenant_id: params[0],
@@ -106,6 +111,33 @@ class ImportMemory {
       return { rows: [] };
     }
     return { rows: [] };
+  }
+
+  private snapshot() {
+    return {
+      jobs: this.jobs.map((row) => ({ ...row })),
+      rateCards: this.rateCards.map((row) => ({ ...row })),
+      revisions: this.revisions.map((row) => ({ ...row })),
+    };
+  }
+
+  private restore(snap: ReturnType<ImportMemory['snapshot']>) {
+    this.jobs = snap.jobs;
+    this.rateCards = snap.rateCards;
+    this.revisions = snap.revisions;
+  }
+
+  async withTransaction<T>(
+    fn: (query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>) => Promise<T>,
+  ): Promise<T> {
+    this.txCalls += 1;
+    const snap = this.snapshot();
+    try {
+      return await fn(this.query.bind(this));
+    } catch (err) {
+      this.restore(snap);
+      throw err;
+    }
   }
 }
 
@@ -149,6 +181,48 @@ describe('QuoteCatalogService import AC-02', () => {
     expect(db.sqls.join('\n')).not.toMatch(/UPDATE[\s\S]*catalog_snapshot_json/i);
     expect(db.sqls.join('\n')).not.toMatch(/GRANT\s/i);
     expect(db.sqls.join('\n')).not.toMatch(/DELETE FROM crm_proposals/i);
+    expect(db.txCalls).toBe(1);
+  });
+
+  it('mid-batch failure rolls back committed cards and returns failed DTO', async () => {
+    const db = new ImportMemory();
+    db.failOnRateDv = 'DV12';
+    const svc = new QuoteCatalogService(db, { getQuoteCatalog: jest.fn() } as never);
+
+    const out = await svc.importCatalog({
+      filename: 'rates.json',
+      json: {
+        rate_cards: [
+          {
+            dv_code: 'DV08',
+            package_tier: 'standard',
+            fee_vnd: 18_000_000,
+            effective_from: '2026-09-09',
+            state: 'active',
+          },
+          {
+            dv_code: 'DV12',
+            package_tier: 'standard',
+            fee_vnd: 22_000_000,
+            effective_from: '2026-09-09',
+            state: 'active',
+          },
+        ],
+      },
+      created_by: 7,
+    });
+
+    expect(out.state).toBe('failed');
+    expect(out.result.rate_cards).toBe(0);
+    expect(out.result.revisions).toBe(0);
+    expect(out.result.errors).toEqual(expect.arrayContaining(['mid_batch_rate_fail']));
+    expect(db.rateCards).toHaveLength(0);
+    expect(db.revisions).toHaveLength(0);
+    expect(db.jobs[0].state).toBe('failed');
+    expect(db.txCalls).toBe(1);
+    expect((db.lines[0].catalog_snapshot_json as { rate: { suggested_vnd: number } }).rate.suggested_vnd).toBe(
+      25_000_000,
+    );
   });
 
   it('POST quote-catalog/import is static before :id and requires catalog manage', () => {

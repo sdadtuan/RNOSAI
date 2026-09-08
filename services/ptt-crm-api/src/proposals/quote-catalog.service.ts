@@ -644,7 +644,7 @@ export class QuoteCatalogService {
     );
     const jobId = String(queued.rows[0]?.id ?? '');
     if (!jobId) catalogBad('import_job_failed');
-    return applyQuoteCatalogImport(this.db.query.bind(this.db), { jobId, parsed });
+    return applyQuoteCatalogImport(this.db, { jobId, parsed });
   }
 
   async listRateCards(quoteDate?: string, hasFinance = false): Promise<QuoteRateCardList> {
