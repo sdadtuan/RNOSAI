@@ -1,0 +1,198 @@
+{
+  "wave": "W3",
+  "component": "quotation_os_wave3",
+  "srs": "2026-09-08-quotation-os-srs.md §21 AC-01…12 + plan Task 36",
+  "branch": "feat/quotation-os",
+  "head_commit": "1620ef92",
+  "environment": "local",
+  "evaluated_at": "2026-09-09T01:12:23+07:00",
+  "signed_at": null,
+  "status": "pending",
+  "ok": false,
+  "qt_ai_enabled": false,
+  "entry_required": {
+    "wave_3_implementation_present": true,
+    "api_reachable": false,
+    "note": "Playwright discovers 8 W3 UAT tests (6 named live gates + 2 skip-server source checks). Local API at 127.0.0.1:3000 and ops-web at 127.0.0.1:3200 were unreachable (curl exit 7). Production https://rs.pttads.vn was not used. QT_AI_ENABLED was not set. Scripts do not GRANT staff_section_permissions."
+  },
+  "gates": {
+    "jest_w3_cited_unit": true,
+    "playwright_qt_w3_discovery": true,
+    "playwright_qt_w3_source_check": true,
+    "playwright_qt_w3_uat": false
+  },
+  "gate_notes": {
+    "jest_w3_cited_unit": "cd services/ptt-crm-api && ./node_modules/.bin/jest --verbose src/proposals/quote-convert.service.spec.ts src/proposals/proposals.service.spec.ts src/proposals/quote-catalog-import.service.spec.ts src/proposals/quote-reports.service.spec.ts src/proposals/quote-approval.service.spec.ts src/proposals/quote-list.service.spec.ts — 6 suites, 79 passed (AC-08/10 convert, reject lost_reason, generate 404, import snapshot, reports tabs, AC-12 list)",
+    "playwright_qt_w3_discovery": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/qt-w3-uat.spec.ts --list — 8 tests discovered",
+    "playwright_qt_w3_source_check": "OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/qt-w3-uat.spec.ts -g 'always-run markup|mock money' — 2 passed (five report tabs + no QT editor + CTA Xác nhận đề xuất + product UI mock-money). This is not a live UAT run.",
+    "playwright_qt_w3_uat": "API unreachable; 6 live cases were not executed. This is not a green signoff."
+  },
+  "w3_acceptance": {
+    "ac_08_convert_twice_same_lifecycle_ids": false,
+    "ac_10_brand_film_vd_project_vid_tpl_01_no_qt_editor": false,
+    "five_report_tabs_executive_funnel_margin_loss_engagement": false,
+    "reject_without_lost_reason_400": false,
+    "import_published_snapshot_unchanged": false,
+    "generate_404_qt_ai_disabled": false
+  },
+  "srs_ac": {
+    "AC-01": {
+      "title": "Tạo từ Deal",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-create.service.spec.ts — AC-01 create from lead yields draft quote_code, working v1, and quote.created",
+        "services/ops-web/e2e/qt-w1-uat.spec.ts — create from lead uses QT-PTT-20 quote_code prefix"
+      ],
+      "live_w3": false,
+      "note": "W1 live not re-run; unit + W1 spec remain the automated proof."
+    },
+    "AC-02": {
+      "title": "Catalog snapshot",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-builder.service.spec.ts — AC-02 snapshot stays put after catalog price change",
+        "services/ptt-crm-api/src/proposals/quote-catalog-import.service.spec.ts — import then old version snapshot unchanged",
+        "services/ops-web/e2e/qt-w3-uat.spec.ts — import then published snapshot unchanged"
+      ],
+      "live_w3": false,
+      "note": "Live import→published snapshot is a W3 named case; API down so pending."
+    },
+    "AC-03": {
+      "title": "Margin thấp",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-policy.util.spec.ts — AC-03 GM 2240 bps below floor 2500 routes Finance + GDKD",
+        "services/ptt-crm-api/src/proposals/quote-approval.service.spec.ts — AC-03 submit-approval creates Finance + GDKD; cannot publish before done",
+        "services/ops-web/e2e/qt-w2-uat.spec.ts — AC-03 live"
+      ],
+      "live_w3": false,
+      "note": "W2 live pending (API down). 22.4% is a test input (2240 bps), not product UI copy."
+    },
+    "AC-04": {
+      "title": "Revision",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-builder.service.spec.ts — AC-04 published/sent v1 qty change requires v2 and leaves v1 snapshot immutable",
+        "services/ops-web/e2e/qt-w2-uat.spec.ts — AC-04 live"
+      ],
+      "live_w3": false
+    },
+    "AC-05": {
+      "title": "Accept",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-share.service.spec.ts — AC-05 locks option B, writes acceptance, and allows convert",
+        "services/ops-web/e2e/qt-w2-uat.spec.ts — AC-05 live (OTP via OPS_E2E_QT_OTP)"
+      ],
+      "live_w3": false
+    },
+    "AC-06": {
+      "title": "Leak",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-studio.service.spec.ts — AC-06 publish payload has no cost/margin/approval/hidden option keys",
+        "services/ptt-crm-api/src/proposals/quote-public.service.spec.ts + portal publicHtmlLeaks",
+        "services/ops-web/e2e/qt-w2-uat.spec.ts — AC-06 live + source HTML/JSON leak"
+      ],
+      "live_w3": false
+    },
+    "AC-07": {
+      "title": "Payment",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-builder.service.spec.ts — AC-07 payable 265647600 with 50/30/20 remainder on last",
+        "services/ptt-crm-api/src/proposals/quote-money.util.spec.ts — allocatePayment remainder",
+        "services/ops-web/e2e/qt-w1-uat.spec.ts — payment schedule requires 100% (pct_bps sum 10000)"
+      ],
+      "live_w3": false,
+      "note": "265.647.600 is a unit fixture, never product UI. Empty money stays —."
+    },
+    "AC-08": {
+      "title": "Convert idempotent",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-convert.service.spec.ts — two converts return one lifecycle set and the same conversion ids (AC-08)",
+        "services/ops-web/e2e/qt-w1-uat.spec.ts — convert twice returns the same lifecycle ids",
+        "services/ops-web/e2e/qt-w3-uat.spec.ts — AC-08 convert twice same lifecycle ids"
+      ],
+      "live_w3": false,
+      "note": "Unit green. Named W3 live case pending API."
+    },
+    "AC-09": {
+      "title": "Draft catalog",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-builder.service.spec.ts — AC-09 Draft catalog add returns 400 catalog_not_active",
+        "services/ops-web/e2e/qt-w1-uat.spec.ts — draft catalog add is rejected"
+      ],
+      "live_w3": false
+    },
+    "AC-10": {
+      "title": "Brand video",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-convert.service.spec.ts — AC-10 Brand Film convert creates vd_project with VID-TPL-01; non-production line no vd_project; convert stays idempotent",
+        "services/ops-web/src/components/crm/qt/QtConvert.spec.ts — AC-10 Brand Film handoff deep-links Video SOP + VID-TPL-01 without an editor",
+        "services/ops-web/e2e/qt-w3-uat.spec.ts — AC-10 live + source no QT editor"
+      ],
+      "live_w3": false,
+      "note": "Unit + source green. Live Brand Film convert pending API. QT does not host a timeline editor."
+    },
+    "AC-11": {
+      "title": "Dual packaging",
+      "coverage": "automated",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-catalog.service.spec.ts — catalog packages + package_tier",
+        "services/ptt-crm-api/src/proposals/quote-options.service.spec.ts — options A/B/C",
+        "services/ops-web/e2e/qt-w2-uat.spec.ts — AC-11 live"
+      ],
+      "live_w3": false
+    },
+    "AC-12": {
+      "title": "Scope",
+      "coverage": "automated + documented_manual",
+      "cite": [
+        "services/ptt-crm-api/src/proposals/quote-list.service.spec.ts — AC-12 scope me hides other owner",
+        "services/ptt-crm-api/src/proposals/quote-scope.util.spec.ts — downgrades all to me without view_all; allows all when view_all is present"
+      ],
+      "live_w3": false,
+      "manual": "With two staff accounts: AM Của tôi (scope=me) must not see another owner's quote; staff with crm_quote view_all sees Toàn PTT (scope=all). Not executed — no live API / two-staff session this signoff."
+    }
+  },
+  "unit_covered": [
+    "AC-08: two converts same conversion_id / lifecycles (quote-convert.service.spec.ts)",
+    "AC-10: Brand Film → vd_project + VID-TPL-01; non-production no vd_project; idempotent handoff (quote-convert.service.spec.ts + QtConvert.spec.ts)",
+    "RPT-01…05: SRS slugs + rpt-0N aliases; funnel denominator; RPT-03 403 without finance; NSR fee-only excludes media (quote-reports.service.spec.ts + QtReports.spec.ts)",
+    "reject without lost_reason → 400 lost_reason_required (proposals.service.spec.ts + quote-approval.service.spec.ts)",
+    "import then old published snapshot unchanged; no GRANT; no rewrite catalog_snapshot_json (quote-catalog-import.service.spec.ts)",
+    "POST generate 404 qt_ai_disabled when QT_AI_ENABLED unset/empty (proposals.service.spec.ts)",
+    "AC-12 scope=me hides other owner (quote-list.service.spec.ts)"
+  ],
+  "needs_live_run": [
+    "POST convert twice same conversion_id / lifecycles (AC-08)",
+    "Brand Film / DV12 line + handoff_video → convert returns vd_project_id + VID-TPL-01; QT UI has no timeline editor (AC-10)",
+    "GET /api/crm/proposals/reports?tab=executive|funnel|margin|loss|engagement and rpt-01…05; /crm/proposals/reports shows five tabs",
+    "PATCH /:id/status rejected without lost_reason → 400 lost_reason_required",
+    "Publish quote, POST quote-catalog/import, GET lines catalog_snapshot_json unchanged",
+    "POST /:id/generate → 404 qt_ai_disabled with QT_AI_ENABLED unset",
+    "AC-12 two-staff scope=me vs view_all (documented manual)"
+  ],
+  "commands": {
+    "uat": "cd services/ops-web && ./node_modules/.bin/playwright test e2e/qt-w3-uat.spec.ts",
+    "discovery": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/qt-w3-uat.spec.ts --list",
+    "source": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/qt-w3-uat.spec.ts -g 'always-run markup|mock money'",
+    "unit": "cd services/ptt-crm-api && ./node_modules/.bin/jest --verbose src/proposals/quote-convert.service.spec.ts src/proposals/proposals.service.spec.ts src/proposals/quote-catalog-import.service.spec.ts src/proposals/quote-reports.service.spec.ts src/proposals/quote-approval.service.spec.ts src/proposals/quote-list.service.spec.ts"
+  },
+  "signoffs": {
+    "product_owner": null,
+    "qa": null,
+    "engineering": null
+  },
+  "blockers": [
+    "Local Nest API at 127.0.0.1:3000 did not accept connections.",
+    "Local ops-web at 127.0.0.1:3200 did not accept connections.",
+    "Six of eight Playwright cases require a live API and were not run.",
+    "Wave 4 was not started."
+  ],
+  "notes": "Intentionally not a green signoff. Do not invent a live pass. Public CTA remains Xác nhận đề xuất. Empty values stay —. Product UI has no 265.647.600 / 22,4 / 8,46. QT_AI_ENABLED was not set. Staff APIs stay under /api/crm. Scripts do not GRANT. AC-12 live two-staff check is documented manual. Wave 4 was not started."
+}

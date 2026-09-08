@@ -242,7 +242,7 @@ export async function actQtApprovalStepApi(
   request: APIRequestContext,
   token: string,
   stepId: string,
-  body: { action: string; comment?: string },
+  body: { action: string; comment?: string; lost_reason?: string },
 ): Promise<QtApiResult<{ step?: QtApprovalStep; steps?: QtApprovalStep[] }>> {
   return qtApi(request, token, `/api/crm/quote-approval-steps/${encodeURIComponent(stepId)}/actions`, {
     method: 'POST',

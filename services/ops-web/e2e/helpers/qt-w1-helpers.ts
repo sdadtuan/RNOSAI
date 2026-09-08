@@ -157,10 +157,17 @@ export async function putQtPaymentsApi(
   });
 }
 
+export type QtConvertHandoff = {
+  vd_project_id?: number;
+  template_key?: string;
+  cp_project_id?: string;
+};
+
 export type QtConvertDto = {
   conversion_id?: string;
   lifecycles?: Array<{ line_id: number; lifecycle_id: number; dv_code: string }>;
   invoice_draft_ids?: number[];
+  optional_handoff?: QtConvertHandoff[];
 };
 
 export async function convertQtVersionApi(
@@ -287,10 +294,11 @@ export async function patchQtStatusApi(
   token: string,
   id: number,
   status: string,
+  extra?: { lost_reason?: string },
 ): Promise<QtApiResult> {
   return qtApi(request, token, `/api/crm/proposals/${id}/status`, {
     method: 'PATCH',
-    data: { status },
+    data: { status, ...extra },
   });
 }
 
