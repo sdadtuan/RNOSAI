@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { createHash } from 'crypto';
-import { GoneException } from '@nestjs/common';
+import { ConflictException, GoneException } from '@nestjs/common';
 import { QuoteAuditRepository } from './quote-audit.repository';
 import { QuotePublicService } from './quote-public.service';
 import { hashQuoteShareToken } from './quote-share.util';
@@ -23,6 +23,8 @@ class PublicMemory {
   activity: Record<string, unknown>[] = [];
   settings: Record<string, unknown> = { share_expiry_days: 14 };
   convertCalls = 0;
+  txCalls = 0;
+  failOnVersionUpdate = false;
 
   seed(overrides: { proposal?: Record<string, unknown>; version?: Record<string, unknown> } = {}) {
     const future = new Date(Date.now() + 7 * 86400000).toISOString();
@@ -88,10 +90,46 @@ class PublicMemory {
     return { future };
   }
 
+  private snapshot() {
+    return {
+      proposals: new Map(
+        [...this.proposals.entries()].map(([id, row]) => [id, { ...row }]),
+      ),
+      versions: new Map(
+        [...this.versions.entries()].map(([id, row]) => [
+          id,
+          {
+            ...row,
+            snapshot_json:
+              row.snapshot_json && typeof row.snapshot_json === 'object'
+                ? { ...(row.snapshot_json as Record<string, unknown>) }
+                : row.snapshot_json,
+          },
+        ]),
+      ),
+      lines: this.lines.map((row) => ({ ...row })),
+      activity: this.activity.map((row) => ({ ...row })),
+    };
+  }
+
+  private restore(snap: ReturnType<PublicMemory['snapshot']>) {
+    this.proposals = snap.proposals;
+    this.versions = snap.versions;
+    this.lines = snap.lines;
+    this.activity = snap.activity;
+  }
+
   async withTransaction<T>(
     fn: (query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>) => Promise<T>,
   ): Promise<T> {
-    return fn(this.query.bind(this));
+    this.txCalls += 1;
+    const snap = this.snapshot();
+    try {
+      return await fn(this.query.bind(this));
+    } catch (err) {
+      this.restore(snap);
+      throw err;
+    }
   }
 
   async query(sql: string, params: unknown[] = []) {
@@ -175,6 +213,7 @@ class PublicMemory {
       return { rows: [next] };
     }
     if (/UPDATE crm_quote_versions/i.test(sql)) {
+      if (this.failOnVersionUpdate) throw new Error('mid_flight_version_fail');
       const vid = String(params[params.length - 1] ?? VID);
       const current = this.versions.get(vid);
       if (!current) return { rows: [] };
@@ -293,9 +332,82 @@ describe('QuotePublicService', () => {
     expect(out.status).toBe('accepted');
     expect(out.option_key).toBe('A');
     expect(db.proposals.get(9)?.status).toBe('accepted');
+    expect(db.txCalls).toBe(1);
     expect(db.convertCalls).toBe(0);
     expect(db.sqls.join('\n')).not.toMatch(/service_lifecycle|crm_quote_conversions/i);
     expect(JSON.stringify(out)).not.toMatch(/ký hợp đồng/i);
+  });
+
+  it('already-accepted accept is idempotent 200 and does not rewrite', async () => {
+    const db = new PublicMemory();
+    db.seed({
+      proposal: { status: 'accepted' },
+      version: { state: 'accepted', snapshot_json: { accepted_option_key: 'A', locked: true } },
+    });
+    db.lines[0].option_key = 'A';
+    const svc = loadSvc(db);
+    const minted = await svc.mintShare(9);
+    const sqlBefore = db.sqls.length;
+    const activityBefore = db.activity.length;
+
+    const out = await svc.accept(minted.token, {
+      accepted: true,
+      name: 'Nguyễn Minh Anh',
+      email: 'minhanh@anphat.vn',
+    });
+
+    expect(out.status).toBe('accepted');
+    expect(out.option_key).toBe('A');
+    expect(db.proposals.get(9)?.status).toBe('accepted');
+    expect(db.txCalls).toBe(0);
+    expect(db.activity.length).toBe(activityBefore);
+    expect(db.sqls.slice(sqlBefore).join('\n')).not.toMatch(/UPDATE crm_proposals|UPDATE crm_quote_versions|UPDATE crm_quote_line_item/i);
+    expect((db.versions.get(VID)?.snapshot_json as { locked?: boolean }).locked).toBe(true);
+  });
+
+  it('accept from draft returns 409 and does not lock', async () => {
+    const db = new PublicMemory();
+    db.seed({ proposal: { status: 'draft' } });
+    const svc = loadSvc(db);
+    const minted = await svc.mintShare(9);
+
+    try {
+      await svc.accept(minted.token, {
+        accepted: true,
+        name: 'A',
+        email: 'a@b.c',
+      });
+      throw new Error('expected 409');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictException);
+      const conflict = err as ConflictException;
+      expect(conflict.getStatus()).toBe(409);
+      expect(db.proposals.get(9)?.status).toBe('draft');
+      expect(db.txCalls).toBe(0);
+      expect(db.activity).toHaveLength(0);
+    }
+  });
+
+  it('accept lock writes roll back when version snapshot fails mid-flight', async () => {
+    const db = new PublicMemory();
+    db.seed();
+    db.failOnVersionUpdate = true;
+    const svc = loadSvc(db);
+    const minted = await svc.mintShare(9);
+
+    await expect(
+      svc.accept(minted.token, {
+        accepted: true,
+        name: 'A',
+        email: 'a@b.c',
+      }),
+    ).rejects.toThrow('mid_flight_version_fail');
+
+    expect(db.txCalls).toBe(1);
+    expect(db.proposals.get(9)?.status).toBe('sent');
+    expect(db.versions.get(VID)?.state).toBe('published');
+    expect(db.lines[0].option_key).toBeUndefined();
+    expect(db.activity).toHaveLength(0);
   });
 
   it('accept on expired token is 410 without investment', async () => {

@@ -2,7 +2,7 @@
 
 **Status:** GREEN  
 **Branch:** `feat/quotation-os`  
-**Commit:** `feat(qt): public proposal page and checkbox accept`
+**Commit:** `9bb808e7` `feat(qt): public proposal page and checkbox accept`
 
 ## Requirements
 
@@ -80,3 +80,46 @@ Public accept writes `crm_proposals.status = accepted`, version snapshot `accept
 - Staff `PATCH` accepted still auto-converts (Task 10). Only the public POST is lock-only.
 - 410 body may include `quote_code` for AM contact; never `investment`.
 - Portal page not browser-verified (no live public token in this session).
+
+---
+
+## Review fix (Important)
+
+**Status:** GREEN  
+**Commit:** `fix(qt): gate public accept status and transactional lock`
+
+### Findings
+
+1. Accept ignored the 14-status machine (any live share could lock `accepted`).
+2. Status / version snapshot / line `option_key` / audit were four separate `this.db.query` writes — mid-flight failure could leave `accepted` without a locked version.
+
+### Fix
+
+- `canTransition(status, 'accepted')` — only `sent` | `viewed` | `negotiation`.
+- Already `accepted` → idempotent 200, no rewrite, no audit.
+- Other live statuses (`draft`, `rejected`, `cancelled`, `expired`, …) → **409**. Expired/revoked share still **410** without `investment`.
+- Lock writes run in `this.db.withTransaction` (same client): proposal + version snapshot + line `option_key` + `audit.insert(..., query)`.
+- Unchanged: `stripPublicQuote`, CTA **Xác nhận đề xuất**, no OTP, no convert from public POST.
+
+### Tests
+
+```
+cd services/ptt-crm-api && ./node_modules/.bin/jest --verbose src/proposals/quote-public.service.spec.ts src/proposals
+```
+
+**22 suites, 151 tests passed** (3 new).
+
+| Spec | Result |
+|---|---|
+| sent → accepted + one `withTransaction` | pass |
+| already-accepted replay 200, no UPDATE / no audit | pass |
+| draft → 409, status stays draft | pass |
+| mid-flight version fail rolls back (not accepted without lock) | pass |
+| expired/revoked → 410 without `investment` | pass |
+| no convert / no OTP / CTA `Xác nhận đề xuất` | pass |
+
+### Concerns
+
+- `viewed` / `negotiation` → accepted rely on `canTransition` (no dedicated public-accept specs).
+- `inTx` throws `tx_unavailable` if `withTransaction` is missing; prod `QuoteSettingsRepository` implements it.
+- Jest still reports a leaked worker (pre-existing teardown).

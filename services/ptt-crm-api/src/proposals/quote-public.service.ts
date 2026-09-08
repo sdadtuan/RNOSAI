@@ -1,12 +1,20 @@
 import {
   BadRequestException,
+  ConflictException,
   GoneException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { QuoteAuditRepository, QT_QUOTE_QUERY, QuoteQueryPort } from './quote-audit.repository';
+import {
+  QuoteAuditRepository,
+  QT_QUOTE_QUERY,
+  QuoteQueryFn,
+  QuoteQueryPort,
+} from './quote-audit.repository';
 import { stripPublicQuote } from './quote-public-strip.util';
+import { canTransition } from './quote-status.util';
+import type { QuoteStatus } from './quote.types';
 import {
   generateQuoteShareToken,
   hashQuoteShareToken,
@@ -106,36 +114,57 @@ export class QuotePublicService {
     if (!email || !email.includes('@')) throw new BadRequestException({ error: 'email_required' });
 
     const proposalId = Number(loaded.proposal_id);
-    await this.db.query(
-      `UPDATE crm_proposals SET status = $1, updated_at = $2 WHERE id = $3`,
-      ['accepted', new Date().toISOString(), proposalId],
-    );
-    const snap = {
-      ...asObject(loaded.snapshot_json),
-      accepted_option_key: 'A',
-    };
-    await this.db.query(
-      `UPDATE crm_quote_versions SET state = $1, snapshot_json = $2 WHERE id::text = $3`,
-      ['accepted', snap, String(loaded.version_id)],
-    );
-    await this.db.query(
-      `UPDATE crm_quote_line_item SET option_key = $1 WHERE proposal_id = $2`,
-      ['A', proposalId],
-    );
-    await this.audit.insert({
-      proposal_id: proposalId,
-      version_id: String(loaded.version_id),
-      actor_kind: 'client',
-      action: 'public.accept',
-      resource: 'quote_share',
-      snapshot_json: { option_key: 'A', name, email },
-    });
-
-    return {
+    const accepted = {
       status: 'accepted',
       option_key: 'A',
       cta: { accept: PUBLIC_ACCEPT_CTA },
     };
+    const currentStatus = String(loaded.status ?? '') as QuoteStatus;
+    if (currentStatus === 'accepted') {
+      return accepted;
+    }
+    if (!canTransition(currentStatus, 'accepted')) {
+      throw new ConflictException({ error: 'invalid_status_transition', status: currentStatus });
+    }
+
+    const snap = {
+      ...asObject(loaded.snapshot_json),
+      accepted_option_key: 'A',
+    };
+    await this.inTx(async (query) => {
+      await query(
+        `UPDATE crm_proposals SET status = $1, updated_at = $2 WHERE id = $3`,
+        ['accepted', new Date().toISOString(), proposalId],
+      );
+      await query(
+        `UPDATE crm_quote_versions SET state = $1, snapshot_json = $2 WHERE id::text = $3`,
+        ['accepted', snap, String(loaded.version_id)],
+      );
+      await query(
+        `UPDATE crm_quote_line_item SET option_key = $1 WHERE proposal_id = $2`,
+        ['A', proposalId],
+      );
+      await this.audit.insert(
+        {
+          proposal_id: proposalId,
+          version_id: String(loaded.version_id),
+          actor_kind: 'client',
+          action: 'public.accept',
+          resource: 'quote_share',
+          snapshot_json: { option_key: 'A', name, email },
+        },
+        query,
+      );
+    });
+
+    return accepted;
+  }
+
+  private inTx<T>(fn: (query: QuoteQueryFn) => Promise<T>): Promise<T> {
+    if (!this.db.withTransaction) {
+      throw new BadRequestException({ error: 'tx_unavailable' });
+    }
+    return this.db.withTransaction(fn);
   }
 
   private async loadShare(rawToken: string): Promise<Record<string, unknown>> {
