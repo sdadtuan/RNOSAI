@@ -1,5 +1,5 @@
-import { QtPlaceholder } from '@/components/crm/qt/QtShell';
+import { QtCatalog } from '@/components/crm/qt/QtCatalog';
 
 export default function QtCatalogPage() {
-  return <QtPlaceholder title="Service Catalog" />;
+  return <QtCatalog />;
 }

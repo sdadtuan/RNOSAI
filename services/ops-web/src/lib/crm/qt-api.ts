@@ -262,6 +262,8 @@ export type QtCatalogItem = {
   name_vi?: string | null;
   status?: string;
   can_add_to_client_quote?: boolean;
+  group?: string;
+  template_key?: string;
   package_tiers?: Array<{
     tier: string;
     suggested_vnd?: number | null;
