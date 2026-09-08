@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { InvoicesModule } from '../invoices/invoices.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
 import { OpsModule } from '../ops/ops.module';
 import { SpcModule } from '../spc/spc.module';
@@ -14,6 +15,7 @@ import { ProposalsPgRepository } from './proposals-pg.repository';
 import { ProposalsService } from './proposals.service';
 import { QuoteBuilderService } from './quote-builder.service';
 import { QuoteCatalogService } from './quote-catalog.service';
+import { QuoteConvertService } from './quote-convert.service';
 import { QuoteVersionsController } from './quote-versions.controller';
 import { QuoteVersionsRepository } from './quote-versions.repository';
 import {
@@ -36,6 +38,7 @@ import { QuoteSettingsService } from './quote-settings.service';
     forwardRef(() => OpsModule),
     forwardRef(() => ServiceLifecycleModule),
     forwardRef(() => LeadsFunnelModule),
+    InvoicesModule,
   ],
   controllers: [ProposalsController, QuoteVersionsController],
   providers: [
@@ -55,6 +58,7 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteVersionsRepository,
     QuoteBuilderService,
     QuoteCatalogService,
+    QuoteConvertService,
   ],
   exports: [
     ProposalsService,
@@ -67,6 +71,7 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteVersionsRepository,
     QuoteBuilderService,
     QuoteCatalogService,
+    QuoteConvertService,
   ],
 })
 export class ProposalsModule {}

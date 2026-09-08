@@ -72,6 +72,7 @@ function loadService(overrides: {
     quoteList as never,
     quoteBuilder as never,
     unused,
+    { convert: jest.fn() } as never,
   );
   return { svc, repo, quoteCreate, quoteList, quoteBuilder };
 }

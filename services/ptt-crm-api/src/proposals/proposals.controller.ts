@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -248,6 +249,38 @@ export class ProposalsController {
     @Headers('if-match') ifMatch?: string,
   ) {
     return this.proposals.patchQuoteHeader(id, body ?? {}, ifMatch, await this.quoteWriteActor(req, true));
+  }
+
+  @Post(':id/versions/:vid/convert')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.convert', 'execute')
+  async convert(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('vid') vid: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    if (!String(idempotencyKey ?? '').trim()) {
+      throw new BadRequestException({ error: 'idempotency_key_required' });
+    }
+    if (req.staffAuthVia === 'internal' && !req.staffUser) {
+      return this.proposals.convert(id, vid, {
+        staffId: 0,
+        staffAuthVia: 'internal',
+        idempotencyKey,
+      });
+    }
+    const staffId = req.staffUser
+      ? await this.staffAuth.resolveCrmStaffUserId(req.staffUser)
+      : null;
+    if (staffId == null || staffId <= 0) {
+      throw new ForbiddenException({ error: 'qt_unresolved_staff' });
+    }
+    return this.proposals.convert(id, vid, {
+      staffId,
+      staffAuthVia: 'jwt',
+      idempotencyKey,
+    });
   }
 
   @Post(':id/versions/:vid/recalculate')

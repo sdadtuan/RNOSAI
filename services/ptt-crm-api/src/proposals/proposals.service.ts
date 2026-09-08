@@ -41,6 +41,7 @@ import {
   QuoteBuilderService,
 } from './quote-builder.service';
 import { QuoteCatalogService } from './quote-catalog.service';
+import { QuoteConvertActor, QuoteConvertService } from './quote-convert.service';
 import { QuoteListQuery, QuoteListService } from './quote-list.service';
 import type { QuoteHeaderPatch } from './quote-versions.repository';
 
@@ -59,6 +60,7 @@ export class ProposalsService {
     private readonly quoteList: QuoteListService,
     private readonly quoteBuilder: QuoteBuilderService,
     private readonly quoteCatalog: QuoteCatalogService,
+    private readonly quoteConvert: QuoteConvertService,
   ) {}
 
   private async assertG4ForLeadContext(leadId: number): Promise<void> {
@@ -318,6 +320,9 @@ export class ProposalsService {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     const next = body.status;
+    if (next === 'accepted') {
+      return this.acceptProposal(proposalId, body.price_adjustment_reason);
+    }
     const allowed = PROPOSAL_STATUS_FLOW[proposal.status] ?? [];
     if (!allowed.includes(next)) {
       throw new BadRequestException({
@@ -326,68 +331,46 @@ export class ProposalsService {
         to: next,
       });
     }
-    if (next === 'accepted') {
-      return this.acceptProposal(proposalId, Boolean(body.spawn_week), actorEmail, body.price_adjustment_reason);
-    }
     const updated = await this.repo.patchStatus(proposalId, next, body.price_adjustment_reason);
-    return { proposal: updated, lines: await this.repo.listLines(proposalId) };
+    return { proposal: updated, lines: await this.repo.listLines(proposalId), lifecycles: [] };
   }
 
-  private async acceptProposal(
-    proposalId: number,
-    spawnWeek: boolean,
-    actorEmail: string,
-    priceAdjustmentReason?: string,
-  ) {
+  async convert(proposalId: number, vid: string, actor: QuoteConvertActor) {
+    return this.quoteConvert.convert(proposalId, vid, actor);
+  }
+
+  private async acceptProposal(proposalId: number, priceAdjustmentReason?: string) {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
+    if (proposal.status !== 'accepted') {
+      const allowed = PROPOSAL_STATUS_FLOW[proposal.status] ?? [];
+      if (!allowed.includes('accepted')) {
+        throw new BadRequestException({
+          error: 'invalid_status_transition',
+          from: proposal.status,
+          to: 'accepted',
+        });
+      }
+    }
+
+    const updated =
+      proposal.status === 'accepted'
+        ? proposal
+        : await this.repo.patchStatus(proposalId, 'accepted', priceAdjustmentReason);
     const lines = await this.repo.listLines(proposalId);
-    if (!lines.length) {
-      throw new BadRequestException({ error: 'quote_lines_required_for_accept' });
-    }
+    const versionId = String(proposal.current_version_id ?? '').trim();
+    const isQuoteOs = Boolean(proposal.quote_code);
 
-    const lifecycles: Array<{ line_id: number; lifecycle_id: number; dv_code: string }> = [];
-    for (const line of lines) {
-      if (line.lifecycle_id) {
-        lifecycles.push({ line_id: line.id, lifecycle_id: line.lifecycle_id, dv_code: line.dv_code });
-        continue;
-      }
-      const note = `Quote #${proposalId} · ${line.dv_code} ${line.package_tier} · ${line.final_price_vnd.toLocaleString('vi-VN')} VND`;
-      const created = await this.lifecycle.create({
-        customer_id: proposal.customer_id,
-        service_slug: line.service_slug,
+    if (!isQuoteOs && versionId) {
+      const conversion = await this.quoteConvert.convert(proposalId, versionId, {
+        staffId: 0,
+        staffAuthVia: 'internal',
+        idempotencyKey: `legacy-accept:${proposalId}`,
       });
-      await this.repo.activateLifecycle(created.id, 'onboard', note);
-      await this.repo.setLineLifecycle(line.id, created.id);
-      const skuCode =
-        line.sku_code?.trim() ||
-        skuFromDvTier(line.dv_code, normalizeQuoteTier(line.package_tier) ?? 'standard');
-      try {
-        await this.lifecycle.setCommercialSku(created.id, skuCode);
-      } catch {
-        await this.repo.setLifecycleSkuCode(created.id, skuCode);
-      }
-      lifecycles.push({ line_id: line.id, lifecycle_id: created.id, dv_code: line.dv_code });
-
-      if (spawnWeek && this.config.opsWeeklySpawnEnabled && this.config.opsDvEnabled) {
-        try {
-          await this.ops.spawnWeek(created.id, actorEmail);
-        } catch {
-          // spawn optional — lifecycle still created
-        }
-      }
+      return { proposal: updated, lines, lifecycles: conversion.lifecycles };
     }
 
-    if (lifecycles.length === 1) {
-      await this.repo.setProposalLifecycle(proposalId, lifecycles[0].lifecycle_id);
-    }
-
-    const updated = await this.repo.patchStatus(proposalId, 'accepted', priceAdjustmentReason);
-    return {
-      proposal: updated,
-      lines: await this.repo.listLines(proposalId),
-      lifecycles,
-    };
+    return { proposal: updated, lines, lifecycles: [] };
   }
 
   async exportQuote(proposalId: number, format: 'pdf' | 'docx' = 'pdf') {
