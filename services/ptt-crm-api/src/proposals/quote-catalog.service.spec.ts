@@ -1,5 +1,7 @@
+import 'reflect-metadata';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { SpcService } from '../spc/spc.service';
 import { DEFAULT_QUOTE_TIER_PRICING } from './quote-pricing.util';
 import { QT_CATALOG_NAV_GROUPS, QuoteCatalogService } from './quote-catalog.service';
 
@@ -87,6 +89,11 @@ function itemOf(out: { families?: Array<Record<string, unknown>>; services?: Arr
 }
 
 describe('QuoteCatalogService CAT-01 add rules', () => {
+  it('keeps SpcService as the Nest design:type so ProposalsModule can boot', () => {
+    const types = Reflect.getMetadata('design:paramtypes', QuoteCatalogService) as unknown[];
+    expect(types[1]).toBe(SpcService);
+  });
+
   it('Draft cannot add to client-facing quote', async () => {
     const { svc } = load([
       row({

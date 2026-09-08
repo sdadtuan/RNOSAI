@@ -127,7 +127,7 @@ function mapSor(row: Record<string, unknown>): SorRow {
 export class QuoteCatalogService {
   constructor(
     @Inject(QT_QUOTE_QUERY) private readonly db: QuoteQueryPort,
-    private readonly spc: Pick<SpcService, 'getQuoteCatalog'>,
+    private readonly spc: SpcService,
   ) {}
 
   async get(serviceSlugRaw?: string) {
