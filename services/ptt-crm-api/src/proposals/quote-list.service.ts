@@ -34,6 +34,7 @@ export type QuoteListQuery = {
   pending_my_approval?: boolean | string;
   page?: number | string;
   page_size?: number | string;
+  open?: boolean | string;
 };
 
 export type QuoteListItem = {
@@ -67,6 +68,13 @@ function finiteNumber(value: unknown): number | null {
 function asStatus(value: unknown): QuoteStatus {
   const status = String(value ?? 'draft');
   return (ALL_STATUSES as string[]).includes(status) ? (status as QuoteStatus) : 'draft';
+}
+
+function statusesOf(value: unknown): QuoteStatus[] {
+  return String(value ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part): part is QuoteStatus => (ALL_STATUSES as string[]).includes(part));
 }
 
 function truthy(value: unknown): boolean {
@@ -159,10 +167,21 @@ export class QuoteListService {
     const clauses: string[] = [];
     const params: unknown[] = [];
 
-    const status = String(query.status ?? '').trim();
-    if (status && (ALL_STATUSES as string[]).includes(status)) {
-      params.push(status);
-      clauses.push(`p.status = $${params.length}`);
+    if (truthy(query.open)) {
+      const open = QT_OPEN_STATUSES.map((status) => `'${status}'`).join(', ');
+      clauses.push(`p.status IN (${open})`);
+    } else {
+      const statuses = statusesOf(query.status);
+      if (statuses.length === 1) {
+        params.push(statuses[0]);
+        clauses.push(`p.status = $${params.length}`);
+      } else if (statuses.length > 1) {
+        const placeholders = statuses.map((status) => {
+          params.push(status);
+          return `$${params.length}`;
+        });
+        clauses.push(`p.status IN (${placeholders.join(', ')})`);
+      }
     }
     const q = String(query.q ?? '').trim();
     if (q) {

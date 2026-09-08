@@ -166,7 +166,7 @@ function truthyFlag(value: unknown): boolean {
   return raw === '1' || raw === 'true' || raw === 'yes';
 }
 
-export function getQtQuotes(token: string, query: QtListQuery = {}) {
+export function buildQtListSearchParams(query: QtListQuery = {}): URLSearchParams {
   const params = new URLSearchParams();
   if (query.scope) params.set('scope', query.scope);
   if (query.status) params.set('status', query.status);
@@ -175,7 +175,12 @@ export function getQtQuotes(token: string, query: QtListQuery = {}) {
   if (truthyFlag(query.pending_my_approval)) params.set('pending_my_approval', '1');
   if (query.page) params.set('page', String(query.page));
   if (query.page_size) params.set('page_size', String(query.page_size));
-  const qs = params.toString();
+  if (truthyFlag(query.open)) params.set('open', '1');
+  return params;
+}
+
+export function getQtQuotes(token: string, query: QtListQuery = {}) {
+  const qs = buildQtListSearchParams(query).toString();
   return qtFetch<QtListResult>(token, qs ? `?${qs}` : '');
 }
 

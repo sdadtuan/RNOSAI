@@ -7,6 +7,7 @@ import {
   QtSourceCards,
   buildQuoteCreateRequest,
   prefillFromSearch,
+  resolveAgencyClientFromLead,
 } from './QtCreateForm';
 
 describe('QtCreateForm markup', () => {
@@ -87,5 +88,53 @@ describe('create from lead', () => {
       customerId: '3',
       agencyClientId: '11111111-1111-4111-8111-111111111111',
     });
+  });
+
+  it('prefills named client select from lead.client_id when URL has only lead_id', () => {
+    const clientId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const prefill = prefillFromSearch(new URLSearchParams('lead_id=12'));
+    const leads = [{ id: 12, full_name: 'An Phát', client_id: clientId }];
+    const agencyClientId = resolveAgencyClientFromLead({
+      leadId: prefill.leadId,
+      leads,
+      urlAgencyClientId: prefill.agencyClientId,
+    });
+
+    expect(prefill.agencyClientId).toBe('');
+    expect(agencyClientId).toBe(clientId);
+
+    const html = renderToStaticMarkup(
+      createElement(QtCreateFields, {
+        source: 'lead',
+        leadId: prefill.leadId,
+        agencyClientId,
+        customerId: prefill.customerId,
+        title: '',
+        quoteType: 'new_business',
+        leads,
+        clients: [{ agency_client_id: clientId, name: 'Công ty An Phát' }],
+        onLeadChange: () => {},
+        onClientChange: () => {},
+        onTitleChange: () => {},
+        onQuoteTypeChange: () => {},
+      }),
+    );
+
+    expect(html).toMatch(/<select[^>]*name="agency_client_id"/);
+    expect(html).toMatch(
+      new RegExp(`<option[^>]*value="${clientId}"[^>]*selected|<option[^>]*selected[^>]*value="${clientId}"`),
+    );
+    expect(html).not.toMatch(/<input[^>]*name="agency_client_id"/);
+  });
+
+  it('keeps URL agency_client_id when Deal Room already supplied it', () => {
+    const urlClient = '11111111-1111-4111-8111-111111111111';
+    expect(
+      resolveAgencyClientFromLead({
+        leadId: '12',
+        leads: [{ id: 12, full_name: 'An Phát', client_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }],
+        urlAgencyClientId: urlClient,
+      }),
+    ).toBe(urlClient);
   });
 });

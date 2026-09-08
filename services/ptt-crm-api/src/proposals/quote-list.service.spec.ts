@@ -149,4 +149,26 @@ describe('QuoteListService', () => {
     expect(db.lastSql).toMatch(/'LD-'\s*\|\|\s*p\.lead_id/);
     expect(db.lastParams).toEqual(expect.arrayContaining(['LD-12']));
   });
+
+  it('accepts comma-separated statuses as IN list', async () => {
+    const { db, svc } = load();
+
+    await svc.list({ ...ME, status: 'sent,viewed' });
+
+    expect(db.lastSql).toMatch(/p\.status\s+IN\s*\(/i);
+    expect(db.lastParams).toEqual(expect.arrayContaining(['sent', 'viewed']));
+    expect(db.lastSql).not.toMatch(/p\.status = \$/);
+  });
+
+  it('open=1 filters draft…negotiation and excludes accepted/expired', async () => {
+    const { db, svc } = load();
+
+    await svc.list({ ...ME, open: true });
+
+    expect(db.lastSql).toMatch(/p\.status\s+IN\s*\(/i);
+    expect(db.lastSql).toMatch(/'draft'/);
+    expect(db.lastSql).toMatch(/'negotiation'/);
+    expect(db.lastSql).not.toMatch(/'accepted'/);
+    expect(db.lastSql).not.toMatch(/'expired'/);
+  });
 });

@@ -457,6 +457,18 @@
   font: inherit;
 }
 
+.qt-pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.qt-pager .qt-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 860px) {
   .qt-grid2,
   .qt-grid3 {

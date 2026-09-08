@@ -60,6 +60,17 @@ export function prefillFromSearch(search: URLSearchParams): {
   return { source, leadId, customerId, agencyClientId };
 }
 
+export function resolveAgencyClientFromLead(input: {
+  leadId: string;
+  leads: QtLeadOption[];
+  urlAgencyClientId: string;
+}): string {
+  const fromUrl = input.urlAgencyClientId.trim();
+  if (fromUrl) return fromUrl;
+  const lead = input.leads.find((row) => String(row.id) === input.leadId);
+  return lead?.client_id?.trim() ?? '';
+}
+
 export function buildQuoteCreateRequest(input: {
   source: QtCreateSource;
   leadId: string;
@@ -301,6 +312,15 @@ export function QtCreateForm() {
   useEffect(() => {
     void loadOptions();
   }, [loadOptions]);
+
+  useEffect(() => {
+    const next = resolveAgencyClientFromLead({
+      leadId,
+      leads,
+      urlAgencyClientId: prefill.agencyClientId,
+    });
+    if (next) setAgencyClientId(next);
+  }, [leadId, leads, prefill.agencyClientId]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();

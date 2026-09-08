@@ -176,6 +176,7 @@ export class ProposalsController {
     @Query('pending_my_approval') pendingMyApproval?: string,
     @Query('page') page?: string,
     @Query('page_size') pageSize?: string,
+    @Query('open') open?: string,
   ) {
     const hasDealRoom = Boolean(customerId || leadId);
     if (hasDealRoom) {
@@ -189,6 +190,7 @@ export class ProposalsController {
       pending_my_approval: pendingMyApproval,
       page,
       page_size: pageSize,
+      open,
     });
   }
 

@@ -1,10 +1,13 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { buildQtListSearchParams } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
 import {
   QT_LIST_CHIPS,
+  QT_OPEN_LIST_STATUSES,
   QtListChips,
+  QtListPager,
   QtQuoteTable,
   activeListChip,
   listQueryFromSearch,
@@ -104,6 +107,24 @@ describe('list chips + open=1', () => {
     );
   });
 
+  it('open=1 sends draft…negotiation so accepted/expired stay out', () => {
+    expect(QT_OPEN_LIST_STATUSES).toEqual([
+      'draft',
+      'in_review',
+      'pending_approval',
+      'returned',
+      'approved',
+      'sent',
+      'viewed',
+      'negotiation',
+    ]);
+    const mineOpen = listQueryFromSearch(new URLSearchParams('open=1'));
+    const sent = buildQtListSearchParams(mineOpen);
+    expect(sent.get('open')).toBe('1');
+    expect(sent.get('status')?.split(',')).toEqual([...QT_OPEN_LIST_STATUSES]);
+    expect(sent.get('status')).not.toMatch(/accepted|expired/);
+  });
+
   it('maps chips to list API query keys', () => {
     expect(listQueryFromSearch(new URLSearchParams('chip=pending'))).toEqual(
       expect.objectContaining({ pending_my_approval: true }),
@@ -112,10 +133,30 @@ describe('list chips + open=1', () => {
       expect.objectContaining({ expiring: true }),
     );
     expect(listQueryFromSearch(new URLSearchParams('chip=sent'))).toEqual(
-      expect.objectContaining({ status: 'sent' }),
+      expect.objectContaining({ status: 'sent,viewed' }),
     );
+    expect(activeListChip(new URLSearchParams('status=sent,viewed'))).toBe('sent');
     expect(listQueryFromSearch(new URLSearchParams('chip=mine'))).toEqual(
       expect.objectContaining({ scope: 'me' }),
     );
+    expect(buildQtListSearchParams(listQueryFromSearch(new URLSearchParams('chip=sent'))).get('status')).toBe(
+      'sent,viewed',
+    );
+  });
+});
+
+describe('list pagination', () => {
+  it('disables prev on first page and next on last page', () => {
+    const first = renderToStaticMarkup(
+      createElement(QtListPager, { page: 1, pageSize: 25, total: 50, onPrev: () => {}, onNext: () => {} }),
+    );
+    expect(first).toMatch(/<button[^>]*disabled[^>]*>\s*Trước/);
+    expect(first).not.toMatch(/<button[^>]*disabled[^>]*>\s*Sau/);
+
+    const last = renderToStaticMarkup(
+      createElement(QtListPager, { page: 2, pageSize: 25, total: 50, onPrev: () => {}, onNext: () => {} }),
+    );
+    expect(last).toMatch(/<button[^>]*disabled[^>]*>\s*Sau/);
+    expect(last).not.toMatch(/<button[^>]*disabled[^>]*>\s*Trước/);
   });
 });

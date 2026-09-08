@@ -21,6 +21,19 @@ export const QT_LIST_CHIPS = [
   { id: 'sent', label: 'Đã gửi chưa phản hồi' },
 ] as const;
 
+export const QT_OPEN_LIST_STATUSES = [
+  'draft',
+  'in_review',
+  'pending_approval',
+  'returned',
+  'approved',
+  'sent',
+  'viewed',
+  'negotiation',
+] as const;
+
+export const QT_SENT_NO_REPLY_STATUS = 'sent,viewed';
+
 export type QtListChipId = (typeof QT_LIST_CHIPS)[number]['id'];
 
 const STATUS_LABEL: Record<string, string> = {
@@ -49,7 +62,9 @@ export function activeListChip(search: URLSearchParams): QtListChipId {
   const chip = search.get('chip');
   if (chip === 'pending' || search.get('pending_my_approval') === '1') return 'pending';
   if (chip === 'expiring' || search.get('expiring') === '1') return 'expiring';
-  if (chip === 'sent' || search.get('status') === 'sent') return 'sent';
+  if (chip === 'sent' || search.get('status') === 'sent' || search.get('status') === QT_SENT_NO_REPLY_STATUS) {
+    return 'sent';
+  }
   if (chip === 'mine') return 'mine';
   if (chip === 'all') return 'all';
   if (search.get('open') === '1') {
@@ -69,10 +84,13 @@ export function listQueryFromSearch(search: URLSearchParams): QtListQuery {
   if (page) query.page = page;
   const pageSize = search.get('page_size');
   if (pageSize) query.page_size = pageSize;
-  if (search.get('open') === '1') query.open = true;
+  if (search.get('open') === '1' && chip !== 'pending' && chip !== 'expiring' && chip !== 'sent') {
+    query.open = true;
+    query.status = QT_OPEN_LIST_STATUSES.join(',');
+  }
   if (chip === 'pending') query.pending_my_approval = true;
   if (chip === 'expiring') query.expiring = true;
-  if (chip === 'sent') query.status = 'sent';
+  if (chip === 'sent') query.status = QT_SENT_NO_REPLY_STATUS;
   return query;
 }
 
@@ -172,6 +190,35 @@ export function QtQuoteTable({ items }: { items: QtListItem[] }) {
   );
 }
 
+export function QtListPager({
+  page,
+  pageSize,
+  total,
+  onPrev,
+  onNext,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  const lastPage = Math.max(1, Math.ceil((total || 0) / (pageSize || 25)));
+  return (
+    <nav className="qt-pager" aria-label="Phân trang">
+      <button type="button" className="qt-btn" disabled={page <= 1} onClick={onPrev}>
+        Trước
+      </button>
+      <span className="qt-muted">
+        {total} báo giá · trang {page}/{lastPage}
+      </span>
+      <button type="button" className="qt-btn" disabled={page >= lastPage} onClick={onNext}>
+        Sau
+      </button>
+    </nav>
+  );
+}
+
 export function QtQuoteList() {
   const router = useRouter();
   const pathname = usePathname() ?? '/crm/proposals/list';
@@ -257,6 +304,13 @@ export function QtQuoteList() {
     });
   }
 
+  function changePage(next: number) {
+    replaceParams((params) => {
+      if (next > 1) params.set('page', String(next));
+      else params.delete('page');
+    });
+  }
+
   return (
     <div className="qt-list">
       <header className="qt-head">
@@ -309,9 +363,13 @@ export function QtQuoteList() {
       <div aria-busy={loading}>
         <QtQuoteTable items={items} />
       </div>
-      <p className="qt-muted">
-        {total} báo giá · trang {page}
-      </p>
+      <QtListPager
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPrev={() => changePage(page - 1)}
+        onNext={() => changePage(page + 1)}
+      />
     </div>
   );
 }
