@@ -34,6 +34,7 @@ import {
   PutQuoteLinesBody,
   QuoteLineInput,
 } from './proposals.types';
+import { requireLostReason } from './quote-lost-reason.util';
 import { isQuoteOsCreate, QuoteCreateService } from './quote-create.service';
 import {
   isQuoteBuilderTarget,
@@ -342,6 +343,7 @@ export class ProposalsService {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     const next = body.status;
+    const lostReason = next === 'rejected' ? requireLostReason(body.lost_reason) : null;
     if (next === 'accepted') {
       return this.acceptProposal(
         proposalId,
@@ -358,7 +360,12 @@ export class ProposalsService {
         to: next,
       });
     }
-    const updated = await this.repo.patchStatus(proposalId, next, body.price_adjustment_reason);
+    const updated = await this.repo.patchStatus(
+      proposalId,
+      next,
+      body.price_adjustment_reason,
+      lostReason,
+    );
     return { proposal: updated, lines: await this.repo.listLines(proposalId), lifecycles: [] };
   }
 

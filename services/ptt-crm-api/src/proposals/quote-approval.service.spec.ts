@@ -265,6 +265,18 @@ describe('QuoteApprovalService AC-03 / comments / BR-QT-006', () => {
     });
   });
 
+  it('reject without lost_reason → 400', async () => {
+    const { svc } = load();
+    const out = await svc.submitApproval(VID, ACTOR);
+    const sid = out.steps[0].id;
+
+    await expect(
+      svc.actOnStep(sid, { action: 'reject', comment: 'lost the deal' }, ACTOR),
+    ).rejects.toMatchObject({
+      response: { error: 'lost_reason_required' },
+    });
+  });
+
   it('BR-QT-006: extra zero-price line does not bypass discount/GM policy', async () => {
     const { db, svc } = load();
     const version = db.versions.get(VID)!;
@@ -308,7 +320,7 @@ describe('QuoteApprovalService AC-03 / comments / BR-QT-006', () => {
     expect(rejected.steps).toHaveLength(1);
     await rejectCase.svc.actOnStep(
       rejected.steps[0].id,
-      { action: 'reject', comment: 'margin story does not hold' },
+      { action: 'reject', comment: 'margin story does not hold', lost_reason: 'budget' },
       ACTOR,
     );
     expect(rejectCase.db.proposals.get(9)?.status).toBe('rejected');
@@ -353,7 +365,7 @@ describe('QuoteApprovalService AC-03 / comments / BR-QT-006', () => {
       svc.actOnStep(locked.id, { action: 'return', comment: 'too early' }, ACTOR),
     ).rejects.toMatchObject({ response: { error: 'step_locked' } });
     await expect(
-      svc.actOnStep(locked.id, { action: 'reject', comment: 'too early' }, ACTOR),
+      svc.actOnStep(locked.id, { action: 'reject', comment: 'too early', lost_reason: 'budget' }, ACTOR),
     ).rejects.toMatchObject({ response: { error: 'step_locked' } });
   });
 

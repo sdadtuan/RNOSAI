@@ -526,6 +526,7 @@ describe('convert route and cap', () => {
       proposals as never,
       {} as never,
       {} as never,
+      {} as never,
       staffAuth as never,
       {} as never,
     );

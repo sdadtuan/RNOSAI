@@ -206,6 +206,7 @@ export class ProposalsPgRepository implements OnModuleDestroy {
       ALTER TABLE crm_proposals ADD COLUMN IF NOT EXISTS valid_until TEXT NULL;
       ALTER TABLE crm_proposals
         ADD COLUMN IF NOT EXISTS price_adjustment_reason TEXT NOT NULL DEFAULT '';
+      ALTER TABLE crm_proposals ADD COLUMN IF NOT EXISTS lost_reason TEXT;
       ALTER TABLE crm_quote_line_item ADD COLUMN IF NOT EXISTS sku_code TEXT NULL;
     `);
   }
@@ -355,16 +356,32 @@ export class ProposalsPgRepository implements OnModuleDestroy {
     proposalId: number,
     status: ProposalStatus,
     priceAdjustmentReason?: string,
+    lostReason?: string | null,
   ): Promise<ProposalRow | null> {
     await this.ensureSchema();
     const reason =
       priceAdjustmentReason != null ? String(priceAdjustmentReason).slice(0, 2000) : undefined;
-    if (reason != null) {
+    const lost = lostReason != null ? String(lostReason).slice(0, 32) : undefined;
+    if (reason != null && lost != null) {
+      await this.db.query(
+        `UPDATE crm_proposals
+         SET status = $2, price_adjustment_reason = $3, lost_reason = $4, updated_at = $5
+         WHERE id = $1`,
+        [proposalId, status, reason, lost, catalogTs()],
+      );
+    } else if (reason != null) {
       await this.db.query(
         `UPDATE crm_proposals
          SET status = $2, price_adjustment_reason = $3, updated_at = $4
          WHERE id = $1`,
         [proposalId, status, reason, catalogTs()],
+      );
+    } else if (lost != null) {
+      await this.db.query(
+        `UPDATE crm_proposals
+         SET status = $2, lost_reason = $3, updated_at = $4
+         WHERE id = $1`,
+        [proposalId, status, lost, catalogTs()],
       );
     } else {
       await this.db.query(

@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   duplicateQtOption,
+  exportQtReports,
   getQtKpis,
   getQtOptions,
+  getQtReports,
   getQtStudioPreview,
   getQtVersionDiff,
   getQtVersions,
@@ -76,5 +78,23 @@ describe('QT studio publish + preview clients', () => {
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/api/crm/quote-versions/vid-1/studio');
     expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'POST' });
     expect(String(fetchMock.mock.calls[2]?.[0])).toContain('/api/crm/quote-versions/vid-1/publish');
+  });
+});
+
+describe('QT reports clients', () => {
+  it('GET reports and export hit static proposal report routes', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ok({ tab: 'executive', sent_count: 0, sent_value_vnd: null }))
+      .mockResolvedValueOnce(ok({ csv: 'key,value\n', filename: 'quote-report-funnel.csv' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getQtReports('tok', { tab: 'executive', from: '2026-09-01', to: '2026-09-08', scope: 'all' });
+    await exportQtReports('tok', { tab: 'funnel', from: '2026-09-01', to: '2026-09-08' });
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/crm/proposals/reports?');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('tab=executive');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/api/crm/proposals/reports/export?');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('tab=funnel');
   });
 });

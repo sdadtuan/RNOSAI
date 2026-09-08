@@ -32,6 +32,7 @@ import {
 import { QuoteCreateService } from './quote-create.service';
 import { QuoteListService } from './quote-list.service';
 import { QuoteOverviewService } from './quote-overview.service';
+import { QuoteReportsService } from './quote-reports.service';
 import {
   QT_SETTINGS_QUERY,
   QuoteSettingsRepository,
@@ -70,6 +71,7 @@ import { QuoteStudioService } from './quote-studio.service';
     QuoteSettingsService,
     QuoteAuditRepository,
     QuoteOverviewService,
+    QuoteReportsService,
     QuoteCreateService,
     QuoteListService,
     QuoteVersionsRepository,

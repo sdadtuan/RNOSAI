@@ -495,6 +495,7 @@ describe('QuoteCatalogService CAT-03 packages + CAT-04 rates', () => {
       proposals as never,
       {} as never,
       {} as never,
+      {} as never,
       staffAuth as never,
       {} as never,
     );

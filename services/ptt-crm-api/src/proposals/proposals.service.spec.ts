@@ -217,6 +217,7 @@ describe('ProposalsService quote-os wiring', () => {
       proposals as never,
       {} as never,
       {} as never,
+      {} as never,
       staffAuth as never,
       {} as never,
     );
@@ -236,6 +237,7 @@ describe('ProposalsService quote-os wiring', () => {
     const staffAuth = { resolveCrmStaffUserId: jest.fn() };
     const ctrl = new ProposalsController(
       proposals as never,
+      {} as never,
       {} as never,
       {} as never,
       staffAuth as never,
@@ -410,5 +412,22 @@ describe('ProposalsService quote-os wiring', () => {
 
     expect(repo.listLines).toHaveBeenCalledWith(9);
     expect(repo.listLines).not.toHaveBeenCalledWith(9, { quoteOs: true });
+  });
+
+  it('reject without lost_reason → 400', async () => {
+    const { svc, repo } = loadService({
+      repo: {
+        getById: jest.fn().mockResolvedValue({
+          id: 9,
+          status: 'sent',
+          quote_code: 'QT-PTT-2026-000001',
+        }),
+      },
+    });
+
+    await expect(svc.patchStatus(9, { status: 'rejected' })).rejects.toMatchObject({
+      response: { error: 'lost_reason_required' },
+    });
+    expect(repo.patchStatus).not.toHaveBeenCalled();
   });
 });

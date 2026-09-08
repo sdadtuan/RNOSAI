@@ -192,6 +192,81 @@ export function createQtQuote(token: string, body: QtCreateBody, idempotencyKey:
   });
 }
 
+export type QtReportTabSlug = 'executive' | 'funnel' | 'margin' | 'loss' | 'engagement';
+
+export type QtReportQuery = QtOverviewQuery & { tab?: QtReportTabSlug | string };
+
+export type QtReportExecutive = {
+  tab: 'executive';
+  sent_count: number;
+  sent_value_vnd: number | null;
+  sent_to_viewed: number | null;
+  sent_to_accepted: number | null;
+  avg_approval_hours: number | null;
+  last_updated?: string | null;
+};
+
+export type QtReportFunnelStep = {
+  step: string;
+  count: number;
+  denominator: number;
+  rate: number | null;
+};
+
+export type QtReportMarginGroup = {
+  group: string;
+  nsr_vnd: number | null;
+  direct_cost_vnd: number | null;
+  gm: number | null;
+};
+
+export type QtReportLossReason = {
+  reason: string;
+  count: number;
+  share: number | null;
+};
+
+export type QtReportEngagementItem = {
+  proposal_id: number;
+  quote_code: string | null;
+  first_view: string | null;
+  last_view: string | null;
+  section: string | null;
+  comment_count: number | null;
+};
+
+export type QtReportResponse = {
+  tab?: string;
+  sent_count?: number;
+  sent_value_vnd?: number | null;
+  sent_to_viewed?: number | null;
+  sent_to_accepted?: number | null;
+  avg_approval_hours?: number | null;
+  last_updated?: string | null;
+  steps?: QtReportFunnelStep[];
+  groups?: QtReportMarginGroup[];
+  reasons?: QtReportLossReason[];
+  items?: QtReportEngagementItem[];
+};
+
+function reportQuerySuffix(path: string, query: QtReportQuery = {}): string {
+  const params = new URLSearchParams();
+  if (query.tab) params.set('tab', query.tab);
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  if (query.scope && query.scope !== 'me') params.set('scope', query.scope);
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
+export function getQtReports(token: string, query: QtReportQuery = {}) {
+  return qtFetch<QtReportResponse>(token, reportQuerySuffix('/reports', query));
+}
+
+export function exportQtReports(token: string, query: QtReportQuery = {}) {
+  return qtFetch<{ csv: string; filename: string }>(token, reportQuerySuffix('/reports/export', query));
+}
+
 export function getQtActivityCsv(token: string, query: QtOverviewQuery = {}) {
   const params = new URLSearchParams();
   if (query.from) params.set('from', query.from);
@@ -684,6 +759,7 @@ export type QtApprovalInboxResult = {
 export type QtApprovalActionInput = {
   action: 'approve' | 'return' | 'reject' | 'delegate' | string;
   comment?: string | null;
+  lost_reason?: string | null;
   delegate_staff_id?: number | null;
   until?: string | null;
 };

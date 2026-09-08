@@ -35,6 +35,7 @@ import { ProposalsService } from './proposals.service';
 import { CreateProposalBody, PatchProposalStatusBody, PutQuoteLinesBody } from './proposals.types';
 import { QuoteApprovalService } from './quote-approval.service';
 import { QuoteOverviewService, toActivityCsv } from './quote-overview.service';
+import { QuoteReportsService } from './quote-reports.service';
 import { resolveQuoteScope, type QuoteScope } from './quote-scope.util';
 import { QuoteSettingsPatch, QuoteSettingsService } from './quote-settings.service';
 import type { QuoteBuilderActor } from './quote-builder.service';
@@ -49,6 +50,7 @@ export class ProposalsController {
     private readonly proposals: ProposalsService,
     private readonly quoteSettings: QuoteSettingsService,
     private readonly quoteOverview: QuoteOverviewService,
+    private readonly quoteReports: QuoteReportsService,
     private readonly staffAuth: StaffAuthService,
     private readonly approvals: QuoteApprovalService,
   ) {}
@@ -222,6 +224,43 @@ export class ProposalsController {
       return { csv: toActivityCsv(listed.items), filename: 'quote-activity.csv' };
     }
     return listed;
+  }
+
+  @Get('reports')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteAction('view')
+  async getReports(
+    @Req() req: StaffReq,
+    @Query('tab') tab?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('scope') scope?: QuoteScope,
+  ) {
+    return this.quoteReports.get({
+      ...(await this.quoteCaller(req, scope)),
+      tab,
+      from,
+      to,
+    });
+  }
+
+  @Get('reports/export')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteAction('view')
+  async exportReports(
+    @Req() req: StaffReq,
+    @Query('tab') tab?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('scope') scope?: QuoteScope,
+  ) {
+    await this.assertQuoteAuditCap(req);
+    return this.quoteReports.export({
+      ...(await this.quoteCaller(req, scope)),
+      tab,
+      from,
+      to,
+    });
   }
 
   @Get('approvals')

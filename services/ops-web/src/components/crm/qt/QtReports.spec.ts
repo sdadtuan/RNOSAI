@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { dash } from '@/lib/crm/qt-format';
-import { QT_REPORT_TABS, QtReportsChrome } from './QtReports';
+import { asReportTab, QT_REPORT_TABS, QtReportsChrome } from './QtReports';
 
 const FORBIDDEN = ['sẽ có ở W2', 'mở ở Wave', 'NOVA', 'Nhảy màn', '265.647.600', '22,4', '8,46'];
 
@@ -30,5 +30,14 @@ describe('QtReportsChrome', () => {
     for (const banned of FORBIDDEN) {
       expect(html).not.toContain(banned);
     }
+  });
+
+  it('accepts SRS slugs and rpt-0N query values', () => {
+    expect(asReportTab('executive')).toBe('rpt-01');
+    expect(asReportTab('funnel')).toBe('rpt-02');
+    expect(asReportTab('margin')).toBe('rpt-03');
+    expect(asReportTab('loss')).toBe('rpt-04');
+    expect(asReportTab('engagement')).toBe('rpt-05');
+    expect(asReportTab('rpt-03')).toBe('rpt-03');
   });
 });

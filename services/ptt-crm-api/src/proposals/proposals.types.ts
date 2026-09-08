@@ -99,6 +99,7 @@ export interface PatchProposalStatusBody {
   status: ProposalStatus;
   price_adjustment_reason?: string;
   spawn_week?: boolean;
+  lost_reason?: string;
 }
 
 export interface PutQuoteLinesBody {

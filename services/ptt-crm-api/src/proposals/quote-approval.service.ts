@@ -15,6 +15,7 @@ import {
   type QuotePolicySettings,
 } from './quote-policy.util';
 import { qtScopeSql, type QuoteScope } from './quote-scope.util';
+import { requireLostReason } from './quote-lost-reason.util';
 import { canTransition, type QuoteStatus } from './quote-status.util';
 
 const SLA_HOURS = 24;
@@ -29,6 +30,7 @@ export type QuoteApprovalStepAction = 'approve' | 'return' | 'reject' | 'delegat
 export type QuoteApprovalActionInput = {
   action?: QuoteApprovalStepAction | string;
   comment?: string | null;
+  lost_reason?: string | null;
   delegate_staff_id?: number | null;
   until?: string | null;
 };
@@ -338,6 +340,7 @@ export class QuoteApprovalService {
     if ((action === 'return' || action === 'reject') && !comment) {
       bad('comment_required');
     }
+    const lostReason = action === 'reject' ? requireLostReason(input.lost_reason) : null;
     return this.inTx(async (query) => {
       const step = await this.requireStep(sid, query);
       const approval = await this.requireApprovalById(step.approval_id, query);
@@ -392,6 +395,12 @@ export class QuoteApprovalService {
           num(version.proposal_id),
           action === 'return' ? 'returned' : 'rejected',
         );
+        if (action === 'reject' && lostReason) {
+          await query(`UPDATE crm_proposals SET lost_reason = $1 WHERE id = $2`, [
+            lostReason,
+            num(version.proposal_id),
+          ]);
+        }
         const mapped = { ...step, state: 'skipped', comment, acted_at: now };
         await this.audit(
           query,
@@ -399,7 +408,7 @@ export class QuoteApprovalService {
           approval.version_id,
           actor.staffId,
           action === 'return' ? 'quote.approval_returned' : 'quote.approval_rejected',
-          { step_id: sid, comment },
+          { step_id: sid, comment, lost_reason: lostReason },
         );
         return { step: mapped, steps: await this.listSteps(step.approval_id, query) };
       }
