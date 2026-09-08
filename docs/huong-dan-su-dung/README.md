@@ -1,6 +1,6 @@
 # RNOSAI — Hướng dẫn sử dụng theo domain
 
-> **Phiên bản:** 1.1 · **Cập nhật:** 2026-08-31  
+> **Phiên bản:** 1.3 · **Cập nhật:** 2026-09-08  
 > **Đối tượng:** Nhân viên PTT (ops-web) và khách hàng (portal-web)  
 > **URL staff:** https://rs.pttads.vn · **URL portal:** https://portal.pttads.vn
 
@@ -17,6 +17,7 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 4 | Ops DV OS | [04-ops-dv.md](./04-ops-dv.md) | AM, Team Lead, SP, Exec |
 | 5 | Meta / Facebook Ads | [05-meta-ads.md](./05-meta-ads.md) | Buyer, Tracking, AM |
 | 5b | **Meta setup (tài khoản, App, Form, Token)** | [../huong-dan-meta-setup-tai-khoan-app-form-token.md](../huong-dan-meta-setup-tai-khoan-app-form-token.md) | IT, Tracking, AM |
+| 5c | **Meta setup bằng câu lệnh (Graph API)** | [35-meta-setup-bang-cau-lenh.md](./35-meta-setup-bang-cau-lenh.md) | IT, Tracking, Buyer |
 | 6 | Zalo Ads | [06-zalo-ads.md](./06-zalo-ads.md) | Buyer, CSKH |
 | 7 | Google Ads | [07-google-ads.md](./07-google-ads.md) | Buyer, AM |
 | 8 | SEO / AEO | [08-seo-aeo.md](./08-seo-aeo.md) | SEO Strategist, Writer |
@@ -25,6 +26,7 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 18 | **Content Marketing OS (đầy đủ — kênh, ảnh, video)** | [18-content-marketing-os.md](./18-content-marketing-os.md) | SP Content, QA, IT |
 | 19 | **Video SOP Studio (Module 7 — tóm tắt S4)** | [19-video-sop.md](./19-video-sop.md) | AM, Copy, Art, Motion, Editor |
 | 20 | **Video SOP Studio (đầy đủ — env, image/video, UI từng bước + wireframe)** | [20-video-sop-huong-dan-day-du.md](./20-video-sop-huong-dan-day-du.md) | AM, Copy, Art, Motion, Editor, IT |
+| 34 | **Creative Production OS (Sản xuất sáng tạo — project, video AI, Brand Kit, lịch, credit)** | [34-creative-production-os.md](./34-creative-production-os.md) | AM, Creative, Brand, Legal, Motion, Admin |
 | 21 | **Video SOP — Checklist onboarding (AM / Motion / IT)** | [21-video-sop-onboarding-checklist.md](./21-video-sop-onboarding-checklist.md) | AM, Motion, IT, Admin |
 | 11 | Marketing AI Planner (tóm tắt 5 bước) | [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) | SP, MKT Lead |
 | 26 | **Sales Cockpit — hướng dẫn đầy đủ (env + UI)** | [26-sales-cockpit-huong-dan-day-du.md](./26-sales-cockpit-huong-dan-day-du.md) | AM, Sales, IT |

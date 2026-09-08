@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { FormCombobox } from '@/components/form/FormCombobox';
-import { getAccessToken } from '@/lib/auth';
+import { getStoredUser, getAccessToken } from '@/lib/auth';
+import { shouldShowVideoSopNav } from '@/components/ops-nav-video-sop';
 import {
   createCpVideo,
   formatCpApiError,
@@ -15,7 +16,7 @@ import {
   type CpVideoDraft,
 } from '@/lib/crm/cp-api';
 import { dash } from '@/lib/crm/cp-format';
-import { projectSearchOptions } from '@/lib/crm/cp-video-list.util';
+import { projectSearchOptions, videoSopHref } from '@/lib/crm/cp-video-list.util';
 
 function scopeFrom(value: string | null): CpScope {
   return value === 'team' || value === 'all' ? value : 'me';
@@ -33,6 +34,11 @@ export function CpVideoList() {
   const [error, setError] = useState('');
 
   const projectOptions = useMemo(() => projectSearchOptions(projects), [projects]);
+  const sopHref = useMemo(() => {
+    const selected = projects.find((row) => row.id === projectId);
+    return videoSopHref(selected?.lifecycle_id);
+  }, [projectId, projects]);
+  const showVideoSop = shouldShowVideoSopNav(getStoredUser());
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -94,9 +100,14 @@ export function CpVideoList() {
         <div>
           <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Video AI</p>
           <h1>Video drafts</h1>
-          <p className="cp-muted">Mở draft trong Video Studio hoặc tạo draft mới.</p>
+          <p className="cp-muted">
+            Mở draft trong Video Studio hoặc tạo draft mới. Video người / cinematic: nút Mở Video SOP.
+          </p>
         </div>
         <div className="cp-actions">
+          {showVideoSop ? (
+            <Link className="cp-btn" href={sopHref}>Mở Video SOP</Link>
+          ) : null}
           <Link className="cp-btn" href={`/crm/creative-os/video/templates?scope=${scope}`}>Mẫu video</Link>
           <Link className="cp-btn" href={`/crm/creative-os/video/batch?scope=${scope}`}>Tạo hàng loạt</Link>
           <Link className="cp-btn" href={`/crm/creative-os/video/ops?scope=${scope}`}>Render Ops</Link>

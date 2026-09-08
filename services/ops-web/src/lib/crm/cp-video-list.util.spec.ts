@@ -3,6 +3,8 @@ import {
   filterProjectOptions,
   formatProjectSearchOption,
   projectSearchOptions,
+  VIDEO_SOP_HUB,
+  videoSopHref,
 } from './cp-video-list.util';
 
 describe('VID-01 draft project search', () => {
@@ -28,5 +30,13 @@ describe('VID-01 draft project search', () => {
       { value: 'p2', label: 'Glow Reels — Glow Spa' },
     ]);
     expect(filterProjectOptions(projectSearchOptions(items), '')).toHaveLength(2);
+  });
+
+  it('links Video AI to the existing Video SOP hub, with lifecycle when mapped', () => {
+    expect(videoSopHref(null)).toBe(VIDEO_SOP_HUB);
+    expect(videoSopHref('')).toBe(VIDEO_SOP_HUB);
+    expect(videoSopHref(0)).toBe(VIDEO_SOP_HUB);
+    expect(videoSopHref('3')).toBe('/crm/video?lifecycle_id=3');
+    expect(videoSopHref(12)).toBe('/crm/video?lifecycle_id=12');
   });
 });

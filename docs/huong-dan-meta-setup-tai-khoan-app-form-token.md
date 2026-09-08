@@ -636,6 +636,7 @@ python3 scripts/ptt_fb_webhook_probe.py
 | File | Nội dung |
 |------|----------|
 | [`huong-dan-su-dung/05-meta-ads.md`](huong-dan-su-dung/05-meta-ads.md) | Dùng Meta trên ops-web |
+| [`huong-dan-su-dung/35-meta-setup-bang-cau-lenh.md`](huong-dan-su-dung/35-meta-setup-bang-cau-lenh.md) | Cùng quy trình bằng `curl` / Graph API |
 | [`huong-dan-meta-enterprise-ops.md`](huong-dan-meta-enterprise-ops.md) | Vận hành enterprise đầy đủ |
 | [`crm/huong-dan-nguon-lead-va-setup.md`](crm/huong-dan-nguon-lead-va-setup.md) | Facebook Lead CRM (legacy path) |
 | [`META_ENTERPRISE_GUIDE.md`](META_ENTERPRISE_GUIDE.md) | Setup RNOSAI Meta module |

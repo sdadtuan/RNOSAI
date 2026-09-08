@@ -43,6 +43,7 @@ Chi tiết phân quyền: [01-nen-tang-platform.md](./01-nen-tang-platform.md)
 | Tổng quan | CRM CSKH | `/crm/cskh-board` |
 | Chăm sóc KH | CRM | `/crm/leads`, `/crm/customers` |
 | Marketing | Agency, SVC | `/crm/service-delivery`, `/crm/launch-qa` |
+| CRM · Triển khai dịch vụ | Creative Production OS | `/crm/creative-os` |
 | Kinh doanh | CRM Sales | `/crm/sales`, `/crm/proposals` |
 | Nhân sự | HR | `/crm/hr`, `/crm/payroll` |
 | Tài chính | CRM Finance | `/crm/financials`, `/crm/business-dashboard` |
@@ -75,10 +76,11 @@ Mỗi bước có hướng dẫn chi tiết trong file domain tương ứng.
 |---------|-----------|
 | CSKH / Sales | [02-crm-core.md](./02-crm-core.md), [12-ai-revenue-os.md](./12-ai-revenue-os.md) |
 | Account Manager | [02-crm-core.md](./02-crm-core.md), [03-agency-service-delivery.md](./03-agency-service-delivery.md), [04-ops-dv.md](./04-ops-dv.md) |
-| Media Buyer | [05-meta-ads.md](./05-meta-ads.md), [06-zalo-ads.md](./06-zalo-ads.md), [07-google-ads.md](./07-google-ads.md) |
+| Media Buyer | [05-meta-ads.md](./05-meta-ads.md), [35-meta-setup-bang-cau-lenh.md](./35-meta-setup-bang-cau-lenh.md), [06-zalo-ads.md](./06-zalo-ads.md), [07-google-ads.md](./07-google-ads.md) |
 | SEO team | [08-seo-aeo.md](./08-seo-aeo.md) |
 | Email team | [09-email-marketing.md](./09-email-marketing.md) |
 | Content / SP | [10-content-marketing.md](./10-content-marketing.md), [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) |
+| Creative / Brand | [34-creative-production-os.md](./34-creative-production-os.md), [20-video-sop-huong-dan-day-du.md](./20-video-sop-huong-dan-day-du.md) |
 | Admin / HR | [01-nen-tang-platform.md](./01-nen-tang-platform.md), [13-hr-payroll.md](./13-hr-payroll.md) |
 | Khách hàng | [14-client-portal.md](./14-client-portal.md), [15-mobile.md](./15-mobile.md) |
 

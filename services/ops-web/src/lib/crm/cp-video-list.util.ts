@@ -1,5 +1,18 @@
 import { dash } from './cp-format';
 
+export const VIDEO_SOP_HUB = '/crm/video';
+
+/** Hub Video SOP; gắn lifecycle khi project CP đã map dịch vụ. */
+export function videoSopHref(lifecycleId?: string | number | null): string {
+  const raw = String(lifecycleId ?? '').trim();
+  if (!raw) return VIDEO_SOP_HUB;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return `${VIDEO_SOP_HUB}?lifecycle_id=${encodeURIComponent(String(numeric))}`;
+  }
+  return VIDEO_SOP_HUB;
+}
+
 export type ProjectSearchRow = {
   id: string;
   name?: string | null;

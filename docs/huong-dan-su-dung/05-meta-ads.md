@@ -150,7 +150,10 @@ Chi tiết: [14-client-portal.md](./14-client-portal.md)
 
 Quy trình đầy đủ trên nền Meta (Business Portfolio, Ad Account, Pixel, Lead Form, Developer App, webhook):
 
-→ **[huong-dan-meta-setup-tai-khoan-app-form-token.md](../huong-dan-meta-setup-tai-khoan-app-form-token.md)**
+| Cách | File |
+|------|------|
+| UI từng bước | **[huong-dan-meta-setup-tai-khoan-app-form-token.md](../huong-dan-meta-setup-tai-khoan-app-form-token.md)** |
+| Câu lệnh Graph (`curl`) | **[35-meta-setup-bang-cau-lenh.md](./35-meta-setup-bang-cau-lenh.md)** |
 
 ---
 

@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getAccessToken } from '@/lib/auth';
+import { getStoredUser, getAccessToken } from '@/lib/auth';
+import { shouldShowVideoSopNav } from '@/components/ops-nav-video-sop';
+import { videoSopHref } from '@/lib/crm/cp-video-list.util';
 import { CpStoryboard } from './CpStoryboard';
 import { CpTimeline } from './CpTimeline';
 import {
@@ -232,6 +234,9 @@ export function CpVideoStudio({
           </p>
         </div>
         <div className="cp-overview__actions">
+          {shouldShowVideoSopNav(getStoredUser()) ? (
+            <Link className="cp-btn" href={videoSopHref(null)}>Mở Video SOP</Link>
+          ) : null}
           <Link className="cp-btn" href={href('storyboard')}>Storyboard</Link>
           <button
             className="cp-btn cp-btn--primary"
