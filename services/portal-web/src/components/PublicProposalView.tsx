@@ -1,6 +1,9 @@
+import React from 'react';
 import {
   PUBLIC_ACCEPT_CTA,
   formatPublicMoney,
+  publicProposalNeedsOtp,
+  visiblePublicOptions,
   type PublicProposal,
 } from '@/lib/public-proposal';
 
@@ -8,12 +11,19 @@ type Props = {
   data: PublicProposal;
   name: string;
   email: string;
+  title?: string;
+  optionKey?: string;
+  otp?: string;
   accepted: boolean;
   acting: boolean;
   message: string;
   onName: (value: string) => void;
   onEmail: (value: string) => void;
+  onTitle?: (value: string) => void;
+  onOptionKey?: (value: string) => void;
+  onOtp?: (value: string) => void;
   onAccepted: (value: boolean) => void;
+  onRequestOtp?: () => void;
   onSubmit: () => void;
 };
 
@@ -21,19 +31,29 @@ export function PublicProposalView({
   data,
   name,
   email,
+  title = '',
+  optionKey,
+  otp = '',
   accepted,
   acting,
   message,
   onName,
   onEmail,
+  onTitle,
+  onOptionKey,
+  onOtp,
   onAccepted,
+  onRequestOtp,
   onSubmit,
 }: Props) {
   const cta = data.cta?.accept || PUBLIC_ACCEPT_CTA;
   const inv = data.investment;
+  const options = visiblePublicOptions(data);
+  const selected = optionKey || data.option_key || options[0]?.option_key || 'A';
+  const needsOtp = publicProposalNeedsOtp(data);
 
   return (
-    <article className="deal-teaser-card stack-gap">
+    <article className="deal-teaser-card stack-gap qt-public">
       <header>
         <p className="deal-teaser-eyebrow">PTT Agency · Đề xuất marketing</p>
         <h1 className="deal-teaser-title">{data.title || '—'}</h1>
@@ -103,18 +123,45 @@ export function PublicProposalView({
       {message ? <p className="muted">{message}</p> : null}
 
       {data.status === 'accepted' ? (
-        <p>Đề xuất đã được xác nhận (phương án A).</p>
+        <p>Đề xuất đã được xác nhận (phương án {data.option_key || 'A'}).</p>
       ) : (
         <form
+          className="qt-public-form"
           onSubmit={(e) => {
             e.preventDefault();
             onSubmit();
           }}
         >
+          {options.length ? (
+            <p>
+              <label>
+                Phương án
+                <select
+                  value={selected}
+                  onChange={onOptionKey ? (e) => onOptionKey(e.target.value) : undefined}
+                >
+                  {options.map((opt) => (
+                    <option key={opt.option_key} value={opt.option_key}>
+                      {opt.option_key} · {opt.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </p>
+          ) : null}
           <p>
             <label>
               Họ tên
               <input value={name} onChange={(e) => onName(e.target.value)} required />
+            </label>
+          </p>
+          <p>
+            <label>
+              Chức danh
+              <input
+                value={title}
+                onChange={onTitle ? (e) => onTitle(e.target.value) : undefined}
+              />
             </label>
           </p>
           <p>
@@ -133,6 +180,23 @@ export function PublicProposalView({
               Tôi đã đọc điều khoản và xác nhận đề xuất thương mại này.
             </label>
           </p>
+          {needsOtp ? (
+            <p>
+              <label>
+                Mã OTP
+                <input
+                  name="otp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={otp}
+                  onChange={onOtp ? (e) => onOtp(e.target.value) : undefined}
+                />
+              </label>{' '}
+              <button type="button" className="btn" disabled={acting || !email} onClick={onRequestOtp}>
+                Gửi OTP
+              </button>
+            </p>
+          ) : null}
           <button type="submit" className="btn btn-primary" disabled={acting || !accepted}>
             {cta}
           </button>

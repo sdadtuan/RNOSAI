@@ -321,6 +321,49 @@ describe('QuotePublicService', () => {
     expect(dto.investment).not.toHaveProperty('gm_bps');
     expect((dto.cta as { accept: string }).accept).toBe('Xác nhận đề xuất');
     expect(JSON.stringify(dto)).not.toMatch(/ký hợp đồng/i);
+    expect(dto.otp_required).toBe(false);
+  });
+
+  it('GET includes otp_required and only visible options', async () => {
+    const db = new PublicMemory();
+    db.seed();
+    db.settings.otp_required = true;
+    db.options = [
+      {
+        id: 'opt-a',
+        version_id: VID,
+        option_key: 'A',
+        name: 'Core',
+        recommended: false,
+        client_visible: true,
+        payable_vnd: 128_000_000,
+      },
+      {
+        id: 'opt-b',
+        version_id: VID,
+        option_key: 'B',
+        name: 'Growth',
+        recommended: true,
+        client_visible: true,
+        payable_vnd: 150_000_000,
+      },
+      {
+        id: 'opt-c',
+        version_id: VID,
+        option_key: 'C',
+        name: 'Hidden internal',
+        recommended: false,
+        client_visible: false,
+        payable_vnd: 1,
+      },
+    ];
+    const svc = loadSvc(db);
+    const minted = await svc.mintShare(9);
+    const dto = await svc.getByToken(minted.token);
+    expect(dto.otp_required).toBe(true);
+    const keys = (dto.options as Array<{ option_key: string }>).map((row) => row.option_key);
+    expect(keys).toEqual(['A', 'B']);
+    expect(JSON.stringify(dto)).not.toMatch(/Hidden internal/);
   });
 
   it('expired valid_until or expires_at or revoked returns 410 without investment', async () => {

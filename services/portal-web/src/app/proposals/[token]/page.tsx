@@ -7,6 +7,7 @@ import {
   acceptPublicProposal,
   fetchPublicProposal,
   isGonePublicProposal,
+  requestPublicProposalOtp,
   type PublicProposal,
 } from '@/lib/public-proposal';
 
@@ -18,6 +19,9 @@ export default function PublicProposalPage({ params }: { params: { token: string
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [title, setTitle] = useState('');
+  const [optionKey, setOptionKey] = useState('A');
+  const [otp, setOtp] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [acting, setActing] = useState(false);
   const [message, setMessage] = useState('');
@@ -29,7 +33,11 @@ export default function PublicProposalPage({ params }: { params: { token: string
       return;
     }
     void fetchPublicProposal(token)
-      .then(setData)
+      .then((next) => {
+        setData(next);
+        const first = (next.options ?? []).find((row) => row.client_visible !== false);
+        if (first?.option_key) setOptionKey(first.option_key);
+      })
       .catch((err) => {
         if (isGonePublicProposal(err instanceof PublicProposalApiError ? err : {})) {
           setGone(true);
@@ -45,7 +53,14 @@ export default function PublicProposalPage({ params }: { params: { token: string
     setActing(true);
     setMessage('');
     try {
-      const out = await acceptPublicProposal(token, { accepted: true, name, email });
+      const out = await acceptPublicProposal(token, {
+        accepted: true,
+        name,
+        email,
+        title,
+        option_key: optionKey,
+        otp,
+      });
       setData((prev) => (prev ? { ...prev, status: out.status, option_key: out.option_key } : prev));
       setMessage('Đã xác nhận đề xuất. Cảm ơn bạn.');
     } catch (err) {
@@ -56,6 +71,19 @@ export default function PublicProposalPage({ params }: { params: { token: string
       } else {
         setMessage(err instanceof Error ? err.message : 'Xác nhận thất bại');
       }
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function sendOtp() {
+    setActing(true);
+    setMessage('');
+    try {
+      await requestPublicProposalOtp(token, { email });
+      setMessage('Đã gửi mã OTP tới email.');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Không gửi được OTP');
     } finally {
       setActing(false);
     }
@@ -90,12 +118,19 @@ export default function PublicProposalPage({ params }: { params: { token: string
         data={data}
         name={name}
         email={email}
+        title={title}
+        optionKey={optionKey}
+        otp={otp}
         accepted={accepted}
         acting={acting}
         message={message}
         onName={setName}
         onEmail={setEmail}
+        onTitle={setTitle}
+        onOptionKey={setOptionKey}
+        onOtp={setOtp}
         onAccepted={setAccepted}
+        onRequestOtp={() => void sendOtp()}
         onSubmit={() => void submit()}
       />
     </main>

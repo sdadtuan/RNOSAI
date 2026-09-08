@@ -187,8 +187,63 @@ export async function mintQtShareApi(
 export async function fetchPublicProposalApi(
   request: APIRequestContext,
   shareToken: string,
-): Promise<QtApiResult<{ cta?: { accept?: string } }>> {
+): Promise<QtApiResult<{ cta?: { accept?: string }; otp_required?: boolean; options?: unknown[] }>> {
   return qtApi(request, '', `/api/public/proposals/${encodeURIComponent(shareToken)}`);
+}
+
+export async function requestPublicProposalOtpApi(
+  request: APIRequestContext,
+  shareToken: string,
+  email: string,
+): Promise<QtApiResult<{ sent?: boolean }>> {
+  return qtApi(request, '', `/api/public/proposals/${encodeURIComponent(shareToken)}/otp`, {
+    method: 'POST',
+    data: { email },
+  });
+}
+
+export async function acceptPublicProposalApi(
+  request: APIRequestContext,
+  shareToken: string,
+  body: {
+    accepted: boolean;
+    name: string;
+    email: string;
+    title?: string;
+    option_key?: string;
+    otp?: string;
+  },
+): Promise<QtApiResult<{ status?: string; option_key?: string }>> {
+  return qtApi(request, '', `/api/public/proposals/${encodeURIComponent(shareToken)}/accept`, {
+    method: 'POST',
+    data: body,
+  });
+}
+
+export function publicHtmlLeaks(html: string): string[] {
+  const hits: string[] = [];
+  if (/margin/i.test(html)) hits.push('margin');
+  if (/\bNSR\b/.test(html)) hits.push('NSR');
+  return hits;
+}
+
+export function renderPublicProposalFixtureHtml(overrides: Record<string, unknown> = {}): string {
+  const title = String(overrides.title ?? 'Growth Proposal Q4/2026');
+  const objective = String(overrides.objective ?? 'Lead căn hộ cao cấp');
+  const optionB = String(overrides.option_b ?? 'B · Growth');
+  const cta = String(overrides.cta ?? QT_PUBLIC_ACCEPT_CTA);
+  const extra = String(overrides.extra ?? '');
+  return [
+    '<article class="deal-teaser-card qt-public">',
+    `<h1>${title}</h1>`,
+    `<p>${objective}</p>`,
+    '<label>Phương án<select><option>A · Core</option>',
+    `<option selected>${optionB}</option></select></label>`,
+    '<label>Mã OTP<input name="otp" value="123456"/></label>',
+    `<button type="submit">${cta}</button>`,
+    extra,
+    '</article>',
+  ].join('');
 }
 
 export async function fetchQtCatalogApi(

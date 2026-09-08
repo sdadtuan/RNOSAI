@@ -107,6 +107,11 @@ export class QuotePublicService {
     });
   }
 
+  private async otpRequired(): Promise<boolean> {
+    const settings = await this.db.query(`SELECT otp_required FROM crm_quote_settings LIMIT 1`);
+    return settings.rows[0]?.otp_required !== false && settings.rows[0]?.otp_required !== 'f';
+  }
+
   private async loadShare(rawToken: string): Promise<Record<string, unknown>> {
     const token = String(rawToken ?? '').trim();
     if (!token) throw new NotFoundException({ error: 'invalid_token' });
@@ -207,6 +212,7 @@ export class QuotePublicService {
       })),
       options,
       option_key: 'A',
+      otp_required: await this.otpRequired(),
       cta: { accept: PUBLIC_ACCEPT_CTA },
     };
     return stripPublicQuote(dto);

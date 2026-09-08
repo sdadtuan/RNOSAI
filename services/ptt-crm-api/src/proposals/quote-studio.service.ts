@@ -160,6 +160,33 @@ export class QuoteStudioService {
     return this.publicQuotes.renderByVersionId(versionId);
   }
 
+  async preview(versionId: string, actor: QuoteStudioActor): Promise<Record<string, unknown>> {
+    this.assertStaff(actor);
+    return this.publicQuotes.renderByVersionId(versionId);
+  }
+
+  async saveSections(
+    versionId: string,
+    sections: Record<string, boolean>,
+    actor: QuoteStudioActor,
+  ): Promise<{ sections: Record<string, { on: boolean }> }> {
+    this.assertStaff(actor);
+    const version = await this.requireVersion(versionId);
+    const snapshot = asObject(version.snapshot_json);
+    const studio = asObject(snapshot.studio);
+    const current = asObject(studio.sections ?? snapshot.sections);
+    const next: Record<string, { on: boolean }> = { ...current } as Record<string, { on: boolean }>;
+    for (const [id, on] of Object.entries(sections ?? {})) {
+      next[id] = { on: on === true };
+    }
+    snapshot.studio = { ...studio, sections: next };
+    await this.db.query(`UPDATE crm_quote_versions SET snapshot_json = $1 WHERE id::text = $2`, [
+      snapshot,
+      versionId,
+    ]);
+    return { sections: next };
+  }
+
   private assertStaff(actor: QuoteStudioActor): void {
     if (actor.staffAuthVia === 'internal') return;
     if (!(Number(actor.staffId ?? 0) > 0)) {

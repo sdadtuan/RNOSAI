@@ -98,6 +98,21 @@ export class QuoteVersionsController {
     return this.approvals.submitApproval(vid, await this.actor(req));
   }
 
+  @Get(':vid/preview')
+  async preview(@Req() req: StaffReq, @Param('vid') vid: string) {
+    return this.studio.preview(vid, await this.actor(req));
+  }
+
+  @Patch(':vid/studio')
+  @UseGuards(StaffProposalsWriteGuard)
+  async saveStudio(
+    @Req() req: StaffReq,
+    @Param('vid') vid: string,
+    @Body() body: { sections?: Record<string, boolean> },
+  ) {
+    return this.studio.saveSections(vid, body?.sections ?? {}, await this.actor(req));
+  }
+
   @Post(':vid/publish')
   @UseGuards(StaffQuoteGuard)
   @RequireQuoteSection('crm_quote.publish', 'execute')

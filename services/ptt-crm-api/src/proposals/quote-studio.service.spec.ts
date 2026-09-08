@@ -206,6 +206,9 @@ class StudioMemory {
       const id = String(params[params.length - 1] ?? params[0] ?? '');
       const row = this.versions.get(id);
       if (!row) return { rows: [] };
+      if (/snapshot_json/i.test(sql)) {
+        row.snapshot_json = params[0];
+      }
       if (/state\s*=/i.test(sql)) row.state = params[0];
       return { rows: [row] };
     }
@@ -281,12 +284,36 @@ describe('QuoteStudioService publish gate', () => {
   });
 });
 
+describe('studio preview + section toggle', () => {
+  it('preview DTO matches public GET fields and has no cost/margin/NSR', async () => {
+    const { svc } = load();
+    const dto = await svc.preview(VID, ACTOR);
+    expect((dto.cta as { accept: string }).accept).toBe('Xác nhận đề xuất');
+    expect(dto).not.toHaveProperty('cost');
+    expect(dto).not.toHaveProperty('margin');
+    expect(JSON.stringify(dto)).not.toMatch(LEAK_RE);
+  });
+
+  it('saveSections persists 08/09 on snapshot', async () => {
+    const { svc, db } = load({ studio: { '08': { on: false }, '09': { on: false } } });
+    const out = await svc.saveSections(VID, { '08': true, '09': true }, ACTOR);
+    expect(out.sections).toMatchObject({ '08': { on: true }, '09': { on: true } });
+    const snap = db.versions.get(VID)?.snapshot_json as {
+      studio?: { sections?: Record<string, { on?: boolean }> };
+    };
+    expect(snap.studio?.sections?.['08']?.on).toBe(true);
+    expect(snap.studio?.sections?.['09']?.on).toBe(true);
+  });
+});
+
 describe('studio publish HTTP wiring', () => {
   it('wires POST publish on quote-versions with crm_quote.publish execute', () => {
     const versions = readFileSync(join(__dirname, 'quote-versions.controller.ts'), 'utf8');
     const mod = readFileSync(join(__dirname, 'proposals.module.ts'), 'utf8');
     expect(versions).toMatch(/@Controller\('api\/crm\/quote-versions'\)/);
     expect(versions).toMatch(/@Post\(':vid\/publish'\)/);
+    expect(versions).toMatch(/@Get\(':vid\/preview'\)/);
+    expect(versions).toMatch(/@Patch\(':vid\/studio'\)/);
     expect(versions).toMatch(/RequireQuoteSection\('crm_quote\.publish',\s*'execute'\)/);
     expect(versions).toMatch(/StaffQuoteGuard/);
     expect(versions).not.toMatch(/\/api\/quotes/);

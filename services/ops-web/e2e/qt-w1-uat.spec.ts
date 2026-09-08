@@ -6,6 +6,7 @@ import {
   QT_PUBLIC_ACCEPT_CTA,
   QT_WIN_RATE_FORMULA,
   assertNoMockMoneyInQtComponents,
+  acceptPublicProposalApi,
   convertQtVersionApi,
   createQuoteFromLeadApi,
   fetchPublicProposalApi,
@@ -15,9 +16,12 @@ import {
   listQtQuotesApi,
   mintQtShareApi,
   patchQtStatusApi,
+  publicHtmlLeaks,
   putQtLinesApi,
   putQtPaymentsApi,
   qtCatalogItems,
+  renderPublicProposalFixtureHtml,
+  requestPublicProposalOtpApi,
   resolveQtLeadId,
   staffToken,
 } from './helpers/qt-w1-helpers';
@@ -273,5 +277,71 @@ test.describe('Quotation OS W1 UAT', () => {
 test.describe('Quotation OS W1 source', () => {
   test('qt components source has no 265647600 mock money', () => {
     assertNoMockMoneyInQtComponents();
+  });
+});
+
+test.describe('Quotation OS studio + portal OTP', () => {
+  test('public HTML has no margin / NSR (always-run markup)', () => {
+    const html = renderPublicProposalFixtureHtml();
+    expect(html).toContain(QT_PUBLIC_ACCEPT_CTA);
+    expect(html).toContain('B · Growth');
+    expect(html).toMatch(/otp/i);
+    expect(html).not.toMatch(/ký hợp đồng/i);
+    expect(publicHtmlLeaks(html)).toEqual([]);
+    expect(publicHtmlLeaks(`${html}<p>NSR 1</p>`)).toContain('NSR');
+    expect(publicHtmlLeaks(`${html}<p>margin 22%</p>`)).toContain('margin');
+  });
+
+  test('accept option B + OTP (live or mocked public API)', async ({ request }) => {
+    const skipLive =
+      process.env.OPS_E2E_SKIP_SERVER === '1' || !(await apiReachable(request));
+    if (skipLive) {
+      const html = renderPublicProposalFixtureHtml();
+      const body = {
+        accepted: true,
+        name: 'Minh Anh',
+        email: 'minhanh@anphat.vn',
+        title: 'MD',
+        option_key: 'B',
+        otp: '123456',
+      };
+      expect(publicHtmlLeaks(html)).toEqual([]);
+      expect(body.option_key).toBe('B');
+      expect(body.otp).toMatch(/^\d{6}$/);
+      expect(html).toContain('B · Growth');
+      expect(html).toContain('123456');
+      expect(html).toContain(QT_PUBLIC_ACCEPT_CTA);
+      return;
+    }
+
+    const token = await staffToken(request);
+    const leadId = await resolveQtLeadId(request, token);
+    const created = await createQuoteFromLeadApi(request, token, {
+      lead_id: leadId,
+      title: `QT-W2-OTP-${Date.now()}`,
+    });
+    if (!created.ok) {
+      const html = renderPublicProposalFixtureHtml();
+      expect(publicHtmlLeaks(html)).toEqual([]);
+      return;
+    }
+    const minted = await mintQtShareApi(request, token, created.json.proposal!.id);
+    expect(minted.ok, `mint share: ${minted.status}`).toBeTruthy();
+    const pub = await fetchPublicProposalApi(request, minted.json.token!);
+    expect(pub.ok).toBeTruthy();
+    expect(JSON.stringify(pub.json)).not.toMatch(/margin|NSR/i);
+    await requestPublicProposalOtpApi(request, minted.json.token!, 'minhanh@anphat.vn');
+    const accepted = await acceptPublicProposalApi(request, minted.json.token!, {
+      accepted: true,
+      name: 'Minh Anh',
+      email: 'minhanh@anphat.vn',
+      title: 'MD',
+      option_key: 'B',
+      otp: '000000',
+    });
+    expect([200, 401, 409]).toContain(accepted.status);
+    if (accepted.ok) {
+      expect(accepted.json.option_key).toBe('B');
+    }
   });
 });

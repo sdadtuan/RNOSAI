@@ -718,6 +718,59 @@ export function patchQtSettings(token: string, body: Record<string, unknown>) {
   });
 }
 
+export type QtStudioPreview = {
+  quote_code: string | null;
+  title: string;
+  objective: string;
+  audience?: string;
+  campaign_period?: string;
+  valid_until: string | null;
+  version_n?: number;
+  status?: string;
+  kpis: Array<{ label?: string; value?: string }>;
+  scope: Array<{ dv_code: string; notes: string }>;
+  investment: {
+    fee_vnd: number | null;
+    media_vnd: number | null;
+    discount_vnd: number | null;
+    tax_vnd: number | null;
+    payable_vnd: number | null;
+  };
+  payments: Array<{ seq: number; pct_bps: number; amount_vnd: number | null; milestone: string }>;
+  options?: Array<{
+    option_key: string;
+    name: string;
+    recommended?: boolean;
+    client_visible?: boolean;
+    payable_vnd?: number | null;
+  }>;
+  option_key?: string;
+  otp_required?: boolean;
+  cta?: { accept: string };
+};
+
+export function getQtStudioPreview(token: string, vid: string) {
+  return qtFetch<QtStudioPreview>(token, `/quote-versions/${encodeURIComponent(vid)}/preview`);
+}
+
+export function patchQtStudioSections(
+  token: string,
+  vid: string,
+  sections: Record<string, boolean>,
+) {
+  return qtFetch<{ sections: Record<string, { on: boolean }> }>(
+    token,
+    `/quote-versions/${encodeURIComponent(vid)}/studio`,
+    { method: 'PATCH', body: JSON.stringify({ sections }) },
+  );
+}
+
+export function publishQtVersion(token: string, vid: string) {
+  return qtFetch<QtStudioPreview>(token, `/quote-versions/${encodeURIComponent(vid)}/publish`, {
+    method: 'POST',
+  });
+}
+
 export async function qtFetch<T>(
   token: string,
   path: string,

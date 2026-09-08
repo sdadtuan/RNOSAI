@@ -3,10 +3,13 @@ import {
   duplicateQtOption,
   getQtKpis,
   getQtOptions,
+  getQtStudioPreview,
   getQtVersionDiff,
   getQtVersions,
   patchQtOption,
+  patchQtStudioSections,
   postQtOption,
+  publishQtVersion,
 } from './qt-api';
 
 afterEach(() => {
@@ -52,5 +55,26 @@ describe('QT builder W2 clients', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/crm/quote-versions/vid-1/kpis');
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/api/crm/proposals/9/versions');
     expect(String(fetchMock.mock.calls[2]?.[0])).toContain('/api/crm/proposals/9/versions/1/diff/2');
+  });
+});
+
+describe('QT studio publish + preview clients', () => {
+  it('preview GET, section PATCH, and publish POST hit Task 24 quote-versions paths', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ok({ title: 'Growth', cta: { accept: 'Xác nhận đề xuất' } }))
+      .mockResolvedValueOnce(ok({ ok: true }))
+      .mockResolvedValueOnce(ok({ title: 'Growth', cta: { accept: 'Xác nhận đề xuất' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getQtStudioPreview('tok', 'vid-1');
+    await patchQtStudioSections('tok', 'vid-1', { '08': true, '09': true });
+    await publishQtVersion('tok', 'vid-1');
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/crm/quote-versions/vid-1/preview');
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'PATCH' });
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/api/crm/quote-versions/vid-1/studio');
+    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'POST' });
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain('/api/crm/quote-versions/vid-1/publish');
   });
 });

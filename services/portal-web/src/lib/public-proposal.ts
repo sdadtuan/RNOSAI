@@ -8,6 +8,14 @@ export type PublicProposalInvestment = {
   payable_vnd: number | null;
 };
 
+export type PublicProposalOption = {
+  option_key: string;
+  name: string;
+  recommended?: boolean;
+  client_visible?: boolean;
+  payable_vnd?: number | null;
+};
+
 export type PublicProposal = {
   quote_code: string | null;
   title: string;
@@ -21,9 +29,50 @@ export type PublicProposal = {
   scope: Array<{ dv_code: string; notes: string }>;
   investment: PublicProposalInvestment;
   payments: Array<{ seq: number; pct_bps: number; amount_vnd: number | null; milestone: string }>;
+  options?: PublicProposalOption[];
   option_key: string;
+  otp_required?: boolean;
   cta: { accept: string };
 };
+
+export type PublicAcceptInput = {
+  accepted: boolean;
+  name: string;
+  email: string;
+  title?: string;
+  option_key?: string;
+  otp?: string;
+};
+
+export function visiblePublicOptions(
+  data: Pick<PublicProposal, 'options'> | { options?: PublicProposalOption[] },
+): PublicProposalOption[] {
+  return (data.options ?? []).filter(
+    (row) => row.client_visible !== false && row.client_visible !== ('f' as never),
+  );
+}
+
+export function publicProposalNeedsOtp(data: Pick<PublicProposal, 'otp_required'>): boolean {
+  return data.otp_required === true;
+}
+
+export function publicHtmlLeaks(html: string): string[] {
+  const hits: string[] = [];
+  if (/margin/i.test(html)) hits.push('margin');
+  if (/\bNSR\b/.test(html)) hits.push('NSR');
+  return hits;
+}
+
+export function buildPublicAcceptBody(input: PublicAcceptInput): PublicAcceptInput {
+  return {
+    accepted: input.accepted === true,
+    name: String(input.name ?? '').trim(),
+    email: String(input.email ?? '').trim(),
+    title: String(input.title ?? '').trim() || undefined,
+    option_key: String(input.option_key ?? '').trim() || undefined,
+    otp: String(input.otp ?? '').replace(/\s+/g, '') || undefined,
+  };
+}
 
 export type PublicAcceptResult = {
   status: string;
@@ -72,15 +121,34 @@ export async function fetchPublicProposal(token: string): Promise<PublicProposal
   return body;
 }
 
+export async function requestPublicProposalOtp(
+  token: string,
+  input: { email: string },
+): Promise<{ sent: boolean; expires_in_sec?: number }> {
+  const res = await fetch(`${API_BASE}/api/public/proposals/${encodeURIComponent(token)}/otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
+    body: JSON.stringify({ email: input.email }),
+  });
+  const body = await parseBody<{ sent?: boolean; expires_in_sec?: number; error?: string; message?: string }>(
+    res,
+  );
+  if (!res.ok) {
+    throw new PublicProposalApiError(body.message ?? body.error ?? 'Không gửi được OTP', res.status);
+  }
+  return { sent: body.sent !== false, expires_in_sec: body.expires_in_sec };
+}
+
 export async function acceptPublicProposal(
   token: string,
-  input: { accepted: boolean; name: string; email: string },
+  input: PublicAcceptInput,
 ): Promise<PublicAcceptResult> {
   const res = await fetch(`${API_BASE}/api/public/proposals/${encodeURIComponent(token)}/accept`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     cache: 'no-store',
-    body: JSON.stringify(input),
+    body: JSON.stringify(buildPublicAcceptBody(input)),
   });
   const body = await parseBody<PublicAcceptResult & { error?: string; message?: string }>(res);
   if (!res.ok) {
