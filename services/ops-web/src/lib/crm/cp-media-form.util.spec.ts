@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agencyClientSearchOptions,
   buildCpRightsInput,
+  clientIdFromProject,
+  filterProjectsForClient,
   parseCpFinalizeInput,
   type CpRightsDraft,
 } from './cp-media-form.util';
@@ -81,5 +84,29 @@ describe('buildCpRightsInput', () => {
       model_release: false,
       talent_release: true,
     });
+  });
+});
+
+describe('ingest Agency / Project search', () => {
+  it('maps agency clients to searchable name options, never a raw empty id', () => {
+    expect(agencyClientSearchOptions([
+      { id: 'c1', name: 'PTT-HCM' },
+      { id: '  ', name: 'skip' },
+      { id: 'c2', name: null },
+    ])).toEqual([
+      { value: 'c1', label: 'PTT-HCM' },
+      { value: 'c2', label: 'c2' },
+    ]);
+  });
+
+  it('filters CP projects by selected agency client and can recover client from project', () => {
+    const projects = [
+      { id: 'p1', agency_client_id: 'c1', name: 'Reels Q3' },
+      { id: 'p2', agency_client_id: 'c2', name: 'TVC' },
+    ];
+    expect(filterProjectsForClient(projects, '')).toHaveLength(2);
+    expect(filterProjectsForClient(projects, 'c1').map((row) => row.id)).toEqual(['p1']);
+    expect(clientIdFromProject(projects, 'p2')).toBe('c2');
+    expect(clientIdFromProject(projects, 'missing')).toBeNull();
   });
 });

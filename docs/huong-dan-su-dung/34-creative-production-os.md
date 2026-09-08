@@ -413,9 +413,11 @@ Lưới asset. Click → chi tiết (`/crm/creative-os/media/[id]`): file, MIME,
 
 ### 6.2. Ingest (upload)
 
-1. Tab **Ingest** (hoặc từ workspace → **Upload gán project**)
-2. Chọn khách (`agency_client`), MIME trong allowlist, tên file, (tuỳ chọn) project
-3. Tạo asset; nếu tick finalize thì nhập **bytes + hash**
+1. Tab **Ingest** (hoặc nút **Upload** trên Library / workspace **Upload gán project**)
+2. Ô **Khách (Agency) \*** — gõ để tìm khách từ AM 360 (không dán UUID)
+3. Ô **Project** — gõ để tìm project CP (lọc theo khách đã chọn; chọn project sẽ điền khách)
+4. MIME trong allowlist + **Filename**
+5. Tạo asset; nếu tick finalize thì nhập **bytes + hash**
 
 MIME được phép: JPEG, PNG, WebP, MP4, QuickTime, WebM, MP3, WAV, audio/mp4, PDF.
 

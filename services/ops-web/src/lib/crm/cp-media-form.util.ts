@@ -68,3 +68,40 @@ export function buildCpRightsInput(
 function commaList(value: string): string[] {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
+
+export type AgencyClientSearchRow = {
+  id?: string | null;
+  name?: string | null;
+};
+
+export function agencyClientSearchOptions(
+  clients: AgencyClientSearchRow[],
+): Array<{ value: string; label: string }> {
+  return clients
+    .filter((row) => String(row.id ?? '').trim())
+    .map((row) => {
+      const value = String(row.id).trim();
+      const name = String(row.name ?? '').trim();
+      return { value, label: name || value };
+    });
+}
+
+export function filterProjectsForClient<T extends { agency_client_id?: string | null }>(
+  projects: T[],
+  agencyClientId: string,
+): T[] {
+  const id = agencyClientId.trim();
+  if (!id) return projects;
+  return projects.filter((row) => String(row.agency_client_id ?? '') === id);
+}
+
+export function clientIdFromProject(
+  projects: Array<{ id?: string | null; agency_client_id?: string | null }>,
+  projectId: string,
+): string | null {
+  const id = projectId.trim();
+  if (!id) return null;
+  const hit = projects.find((row) => String(row.id ?? '') === id);
+  const client = String(hit?.agency_client_id ?? '').trim();
+  return client || null;
+}
