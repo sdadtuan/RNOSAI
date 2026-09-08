@@ -21,6 +21,7 @@ export type QuoteCompareKpi = {
   name?: string;
   value_text?: string;
   client_visible?: boolean;
+  class?: string;
 };
 
 export type QuoteComparePayment = {
@@ -63,6 +64,26 @@ const PAYMENT_FIELDS: Array<{ key: keyof QuoteComparePayment; critical: boolean 
   { key: 'milestone', critical: true },
 ];
 
+const MONEY_LINE_KEYS = new Set([
+  'qty',
+  'unit_price_vnd',
+  'final_price_vnd',
+  'discount_vnd',
+  'tax_vnd',
+]);
+
+const NULL_COST_KEYS = new Set(['cost_labor_vnd', 'cost_outsource_vnd', 'cost_other_vnd']);
+
+function normalizeLineValue(key: keyof QuoteCompareLine, value: unknown): unknown {
+  if (key === 'scope_notes') return value == null ? '' : String(value);
+  if (NULL_COST_KEYS.has(key)) return value === undefined ? null : value;
+  if (MONEY_LINE_KEYS.has(key)) {
+    if (value == null || value === '') return 0;
+    return value;
+  }
+  return value;
+}
+
 function same(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a == null && b == null) return true;
@@ -78,6 +99,12 @@ function push(
 ): void {
   if (same(from, to)) return;
   out.push({ path, from: from ?? null, to: to ?? null, critical });
+}
+
+export function isKpiClientVisible(kpi: QuoteCompareKpi): boolean {
+  if (kpi.client_visible === false) return false;
+  if (String(kpi.class ?? '').trim().toLowerCase() === 'assumption_input') return false;
+  return true;
 }
 
 export function diffQuoteVersions(
@@ -96,7 +123,13 @@ export function diffQuoteVersions(
     const left = fromLines[i] ?? {};
     const right = toLines[i] ?? {};
     for (const field of LINE_FIELDS) {
-      push(out, `lines[${i}].${field.key}`, left[field.key], right[field.key], field.critical);
+      push(
+        out,
+        `lines[${i}].${field.key}`,
+        normalizeLineValue(field.key, left[field.key]),
+        normalizeLineValue(field.key, right[field.key]),
+        field.critical,
+      );
     }
   }
 
@@ -106,7 +139,7 @@ export function diffQuoteVersions(
   for (let i = 0; i < kpiCount; i += 1) {
     const left = fromKpis[i] ?? {};
     const right = toKpis[i] ?? {};
-    const visible = left.client_visible !== false && right.client_visible !== false;
+    const visible = isKpiClientVisible(left) && isKpiClientVisible(right);
     push(out, `kpis[${i}].name`, left.name, right.name, visible);
     push(out, `kpis[${i}].value_text`, left.value_text, right.value_text, visible);
   }

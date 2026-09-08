@@ -80,4 +80,55 @@ describe('diffQuoteVersions', () => {
     expect(diffs.find((d) => d.path === 'title')?.critical).not.toBe(true);
     expect(diffs.find((d) => d.path === 'kpis[0].value_text')?.critical).toBe(false);
   });
+
+  it('qty-only change against an incomplete recalc snapshot does not invent discount/tax/scope', () => {
+    const diffs = diffQuoteVersions(
+      {
+        lines: [{ qty: 1, unit_price_vnd: 25000000, final_price_vnd: 25000000 }],
+      },
+      {
+        lines: [
+          {
+            qty: 2,
+            unit_price_vnd: 25000000,
+            final_price_vnd: 25000000,
+            discount_vnd: 0,
+            tax_vnd: 0,
+            cost_labor_vnd: null,
+            cost_outsource_vnd: null,
+            cost_other_vnd: null,
+            scope_notes: '',
+          },
+        ],
+      },
+    );
+    const critical = diffs.filter((d) => d.critical).map((d) => d.path);
+    expect(critical).toEqual(['lines[0].qty']);
+    expect(critical.some((path) => path.includes('discount'))).toBe(false);
+    expect(critical.some((path) => path.includes('tax'))).toBe(false);
+    expect(critical.some((path) => path.includes('scope'))).toBe(false);
+  });
+
+  it('marks visible KPI changes critical and omits assumption/hidden KPI critical', () => {
+    const diffs = diffQuoteVersions(
+      {
+        kpis: [
+          { name: 'Leads', value_text: '20', client_visible: true, class: 'committed' },
+          { name: 'CPL', value_text: 'a', class: 'assumption_input' },
+        ],
+      },
+      {
+        kpis: [
+          { name: 'Leads', value_text: '40', client_visible: true, class: 'committed' },
+          { name: 'CPL', value_text: 'b', class: 'assumption_input' },
+        ],
+      },
+    );
+    expect(diffs.find((d) => d.path === 'kpis[0].value_text')).toMatchObject({
+      from: '20',
+      to: '40',
+      critical: true,
+    });
+    expect(diffs.find((d) => d.path === 'kpis[1].value_text')?.critical).not.toBe(true);
+  });
 });

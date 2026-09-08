@@ -689,11 +689,26 @@ export class QuoteVersionsRepository {
       amount_vnd: row.amount_vnd,
       milestone: row.milestone,
     }));
-    const kpis = (await this.listKpis(version.id, query)).map((row) => ({
-      name: String(row.name ?? ''),
-      value_text: String(row.value_text ?? ''),
-      client_visible: row.client_visible !== false && row.client_visible !== 'f',
-    }));
+    const snapKpis = Array.isArray(snap.kpis) ? (snap.kpis as QuoteCompareSnapshot['kpis']) ?? [] : [];
+    const liveKpis = await this.listKpis(version.id, query);
+    const kpis = (liveKpis.length ? liveKpis : snapKpis).map((row, index) => {
+      const live = row as Record<string, unknown>;
+      const named = snapKpis.find((k) => String(k.name ?? '') === String(live.name ?? ''));
+      const snapKpi = named ?? snapKpis[index] ?? {};
+      const className = String(live.class ?? snapKpi.class ?? '');
+      const snapVisible = (snapKpi as { client_visible?: unknown }).client_visible;
+      return {
+        name: String(live.name ?? ''),
+        value_text: String(live.value_text ?? ''),
+        class: className,
+        client_visible:
+          snapVisible === false || snapVisible === 'f'
+            ? false
+            : snapVisible === true || snapVisible === 't'
+              ? true
+              : className !== 'assumption_input',
+      };
+    });
     const clauses = (await this.listClauses(version.id, query)).map((row) => ({
       template_key: String(row.template_key ?? ''),
       body: String(row.body ?? ''),

@@ -211,6 +211,20 @@ function stripFinance<T extends Record<string, unknown>>(row: T): T {
   delete out.gm_bps;
   delete out.nsr_vnd;
   delete out.flags;
+  const snapshot = (out as Record<string, unknown>).snapshot;
+  if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
+    const snap = { ...(snapshot as Record<string, unknown>) };
+    const lines = Array.isArray(snap.lines)
+      ? (snap.lines as Record<string, unknown>[]).map((line) => {
+          const next = { ...line };
+          delete next.cost_labor_vnd;
+          delete next.cost_outsource_vnd;
+          delete next.cost_other_vnd;
+          return next;
+        })
+      : snap.lines;
+    (out as Record<string, unknown>).snapshot = { ...snap, lines };
+  }
   return out;
 }
 
@@ -339,6 +353,12 @@ export class QuoteBuilderService {
         qty: line.qty,
         unit_price_vnd: line.unit_price_vnd,
         final_price_vnd: line.final_price_vnd,
+        discount_vnd: line.discount_vnd,
+        tax_vnd: line.tax_vnd,
+        cost_labor_vnd: line.cost_labor_vnd,
+        cost_outsource_vnd: line.cost_outsource_vnd,
+        cost_other_vnd: line.cost_other_vnd,
+        scope_notes: line.scope_notes,
         media_amount_vnd: line.media_amount_vnd,
         client_visible: line.client_visible,
         catalog_snapshot_json: line.catalog_snapshot_json,

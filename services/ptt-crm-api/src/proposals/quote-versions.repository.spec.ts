@@ -374,6 +374,90 @@ describe('QuoteVersionsRepository', () => {
     expect(db.versions.get('ver-1')?.snapshot_json).not.toHaveProperty('compare');
   });
 
+  it('qty-only v1→v2 compare does not invent critical discount/tax/scope', async () => {
+    const db = new VersionMemory();
+    db.proposals.set(9, { id: 9, current_version_id: 'ver-2', status: 'sent' });
+    db.versions.set('ver-1', {
+      id: 'ver-1',
+      proposal_id: 9,
+      n: 1,
+      state: 'published',
+      snapshot_json: {
+        lines: [{ qty: 1, unit_price_vnd: 25000000, final_price_vnd: 25000000 }],
+      },
+      discount_vnd: 0,
+      tax_vnd: 0,
+    });
+    db.versions.set('ver-2', {
+      id: 'ver-2',
+      proposal_id: 9,
+      n: 2,
+      state: 'working',
+      snapshot_json: {
+        lines: [{ qty: 1, unit_price_vnd: 25000000, final_price_vnd: 25000000 }],
+      },
+      discount_vnd: 0,
+      tax_vnd: 0,
+    });
+    db.lines.push({
+      id: 1,
+      proposal_id: 9,
+      qty: 2,
+      unit_price_vnd: 25000000,
+      final_price_vnd: 25000000,
+      discount_vnd: 0,
+      tax_vnd: 0,
+      cost_labor_vnd: null,
+      cost_outsource_vnd: null,
+      cost_other_vnd: null,
+      scope_notes: '',
+    });
+    const repo = new QuoteVersionsRepository(db);
+
+    const items = await repo.compareVersions(9, 1, 2);
+    const critical = items.filter((d: QuoteVersionDiff) => d.critical).map((d: QuoteVersionDiff) => d.path);
+
+    expect(critical).toEqual(['lines[0].qty']);
+    expect(critical.some((path: string) => /discount|tax|scope/.test(path))).toBe(false);
+  });
+
+  it('overlay KPI visibility: hidden/assumption not critical, visible is', async () => {
+    const db = new VersionMemory();
+    db.proposals.set(9, { id: 9, current_version_id: 'ver-2', status: 'sent' });
+    const kpisSnap = [
+      { name: 'Leads', value_text: '20', client_visible: true, class: 'committed' },
+      { name: 'CPL', value_text: 'a', client_visible: false, class: 'assumption_input' },
+    ];
+    db.versions.set('ver-1', {
+      id: 'ver-1',
+      proposal_id: 9,
+      n: 1,
+      state: 'published',
+      snapshot_json: { kpis: kpisSnap },
+    });
+    db.versions.set('ver-2', {
+      id: 'ver-2',
+      proposal_id: 9,
+      n: 2,
+      state: 'working',
+      snapshot_json: { kpis: kpisSnap },
+    });
+    db.kpis.push(
+      { id: 'k1', version_id: 'ver-1', name: 'Leads', class: 'committed', value_text: '20' },
+      { id: 'k2', version_id: 'ver-1', name: 'CPL', class: 'assumption_input', value_text: 'a' },
+      { id: 'k3', version_id: 'ver-2', name: 'Leads', class: 'committed', value_text: '40' },
+      { id: 'k4', version_id: 'ver-2', name: 'CPL', class: 'assumption_input', value_text: 'b' },
+    );
+    const repo = new QuoteVersionsRepository(db);
+
+    const items = await repo.compareVersions(9, 1, 2);
+    const leads = items.find((d: QuoteVersionDiff) => d.path === 'kpis[0].value_text');
+    const cpl = items.find((d: QuoteVersionDiff) => d.path === 'kpis[1].value_text');
+
+    expect(leads).toMatchObject({ from: '20', to: '40', critical: true });
+    expect(cpl?.critical).not.toBe(true);
+  });
+
   it('replacePayments writes 50/30/20 remainder amounts and never hard-deletes quotes', async () => {
     const db = new VersionMemory();
     const repo = new QuoteVersionsRepository(db);

@@ -732,6 +732,7 @@ describe('QuoteBuilderService', () => {
     const diff = await svc.diffVersions(9, 1, 2);
     const qty = diff.items.find((row) => row.path === 'lines[0].qty');
     expect(qty).toMatchObject({ from: 1, to: 3, critical: true });
+    expect(diff.items.filter((row) => row.critical && /discount|tax|scope/.test(row.path))).toEqual([]);
     expect(db.versions.get(created.id)?.snapshot_json).toMatchObject({
       compare: { from_n: 1, to_n: 2 },
     });
