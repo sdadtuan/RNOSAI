@@ -24,6 +24,9 @@ export interface ProposalRow {
   price_adjustment_reason: string;
   created_at: string;
   updated_at: string;
+  quote_code?: string | null;
+  current_version_id?: string | null;
+  row_version?: number;
 }
 
 export interface QuoteLineItemRow {
@@ -47,6 +50,16 @@ export interface QuoteLineInput {
   package_tier?: string;
   final_price_vnd?: number;
   scope_notes?: string;
+  item_type?: string;
+  media_vnd?: number;
+  client_visible?: boolean;
+  catalog_snapshot_json?: Record<string, unknown>;
+  qty?: number;
+  unit_price_vnd?: number;
+  discount_vnd?: number;
+  cost_labor_vnd?: number | null;
+  cost_outsource_vnd?: number | null;
+  cost_other_vnd?: number | null;
 }
 
 export interface CreateProposalBody {

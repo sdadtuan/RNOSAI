@@ -35,6 +35,8 @@ import { CreateProposalBody, PatchProposalStatusBody, PutQuoteLinesBody } from '
 import { QuoteOverviewService, toActivityCsv } from './quote-overview.service';
 import { resolveQuoteScope, type QuoteScope } from './quote-scope.util';
 import { QuoteSettingsPatch, QuoteSettingsService } from './quote-settings.service';
+import type { QuoteBuilderActor } from './quote-builder.service';
+import type { QuoteHeaderPatch } from './quote-versions.repository';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
@@ -229,8 +231,38 @@ export class ProposalsController {
 
   @Put(':id/lines')
   @UseGuards(StaffProposalsWriteGuard)
-  putLines(@Param('id', ParseIntPipe) id: number, @Body() body: PutQuoteLinesBody) {
-    return this.proposals.putLines(id, body);
+  async putLines(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PutQuoteLinesBody,
+  ) {
+    return this.proposals.putLines(id, body, await this.quoteWriteActor(req, false));
+  }
+
+  @Patch(':id')
+  @UseGuards(StaffProposalsWriteGuard)
+  async patchHeader(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: QuoteHeaderPatch,
+    @Headers('if-match') ifMatch?: string,
+  ) {
+    return this.proposals.patchQuoteHeader(id, body ?? {}, ifMatch, await this.quoteWriteActor(req, true));
+  }
+
+  @Post(':id/versions/:vid/recalculate')
+  @UseGuards(StaffProposalsWriteGuard)
+  async recalculate(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('vid') vid: string,
+    @Query('section') section?: string,
+  ) {
+    const actor = await this.quoteWriteActor(req, true);
+    return this.proposals.recalculateQuote(id, vid, {
+      ...actor,
+      includeFinance: section === 'cost' || section === 'finance',
+    });
   }
 
   @Patch(':id/status')
@@ -264,5 +296,24 @@ export class ProposalsController {
   @UseGuards(StaffProposalsWriteGuard)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.proposals.remove(id);
+  }
+
+  private async quoteWriteActor(req: StaffReq, requireStaff: boolean): Promise<QuoteBuilderActor> {
+    if (req.staffAuthVia === 'internal' && !req.staffUser) {
+      return { staffId: 0, staffAuthVia: 'internal', hasFinance: true };
+    }
+    const staffId = req.staffUser
+      ? await this.staffAuth.resolveCrmStaffUserId(req.staffUser)
+      : null;
+    if (requireStaff && (staffId == null || staffId <= 0)) {
+      throw new ForbiddenException({ error: 'qt_unresolved_staff' });
+    }
+    const me = req.staffUser ? await this.staffAuth.me(req.staffUser) : null;
+    const hasFinance = Boolean(me && this.staffAuth.hasCap(me.caps, 'crm_quote.finance', 'view'));
+    return {
+      staffId: staffId && staffId > 0 ? staffId : 0,
+      staffAuthVia: req.staffAuthVia === 'internal' ? 'internal' : 'jwt',
+      hasFinance,
+    };
   }
 }

@@ -7,12 +7,18 @@ import { isQuoteOsCreate } from './quote-create.service';
 function loadService(overrides: {
   quoteCreate?: { create: jest.Mock };
   quoteList?: { list: jest.Mock };
+  quoteBuilder?: {
+    putLines: jest.Mock;
+    patchHeader?: jest.Mock;
+    recalculate?: jest.Mock;
+  };
   repo?: Partial<{
     listByLeadId: jest.Mock;
     listByCustomer: jest.Mock;
     listLines: jest.Mock;
     create: jest.Mock;
     getById: jest.Mock;
+    replaceLines?: jest.Mock;
   }>;
 }) {
   const repo = {
@@ -20,6 +26,7 @@ function loadService(overrides: {
     listByCustomer: jest.fn().mockResolvedValue([]),
     listLines: jest.fn().mockResolvedValue([]),
     create: jest.fn().mockResolvedValue({ id: 9 }),
+    replaceLines: jest.fn().mockResolvedValue([]),
     getById: jest.fn().mockResolvedValue({
       id: 9,
       customer_id: 3,
@@ -41,6 +48,11 @@ function loadService(overrides: {
   const quoteList = overrides.quoteList ?? {
     list: jest.fn().mockResolvedValue({ items: [], page: 1, page_size: 25, total: 0 }),
   };
+  const quoteBuilder = overrides.quoteBuilder ?? {
+    putLines: jest.fn(),
+    patchHeader: jest.fn(),
+    recalculate: jest.fn(),
+  };
   const unused = {} as never;
   const funnel = {
     getFunnel: jest.fn().mockResolvedValue({ presales: { presales: { id: 0, service_slug: '' } } }),
@@ -58,8 +70,9 @@ function loadService(overrides: {
     unused,
     quoteCreate as never,
     quoteList as never,
+    quoteBuilder as never,
   );
-  return { svc, repo, quoteCreate, quoteList };
+  return { svc, repo, quoteCreate, quoteList, quoteBuilder };
 }
 
 describe('ProposalsService quote-os wiring', () => {
@@ -209,5 +222,47 @@ describe('ProposalsService quote-os wiring', () => {
     const createBlock = src.slice(src.indexOf('@Post()'), src.indexOf('@Put(\':id/lines\')'));
     expect(createBlock).toMatch(/StaffProposalsWriteGuard/);
     expect(createBlock).not.toMatch(/RequireQuoteAction\('edit'\)/);
+  });
+
+  it('Deal Room putLines stays on repo.replaceLines', async () => {
+    const { svc, repo, quoteBuilder } = loadService({});
+    (svc as unknown as { routeMap: unknown; profiles: unknown; spc: unknown }).routeMap = {
+      getMap: () => ({
+        services: [{ code: 'DV02', name_vi: 'Content', service_slugs: { primary: 'content' } }],
+      }),
+    };
+    (svc as unknown as { profiles: { getByDvCode: () => Promise<unknown> } }).profiles = {
+      getByDvCode: async () => ({ tier_pricing: { standard: { price_vnd: 25000000 } } }),
+    };
+    (svc as unknown as { spc: { resolveQuoteLineFromSku: () => Promise<never> } }).spc = {
+      resolveQuoteLineFromSku: async () => {
+        throw new Error('no-sku');
+      },
+    };
+    repo.replaceLines.mockResolvedValue([{ id: 1, final_price_vnd: 25000000 }]);
+
+    await svc.putLines(9, { lines: [{ dv_code: 'DV02', package_tier: 'standard' }] });
+
+    expect(repo.replaceLines).toHaveBeenCalled();
+    expect(quoteBuilder.putLines).not.toHaveBeenCalled();
+  });
+
+  it('putLines with quote_code delegates to quote-builder', async () => {
+    const { svc, repo, quoteBuilder } = loadService({
+      repo: {
+        getById: jest.fn().mockResolvedValue({
+          id: 9,
+          status: 'draft',
+          quote_code: 'QT-PTT-2026-000001',
+          current_version_id: 'ver-1',
+        }),
+      },
+    });
+    quoteBuilder.putLines.mockResolvedValue({ proposal_id: 9, lines: [] });
+
+    await svc.putLines(9, { lines: [{ dv_code: 'DV02', package_tier: 'standard' }] });
+
+    expect(quoteBuilder.putLines).toHaveBeenCalled();
+    expect(repo.replaceLines).not.toHaveBeenCalled();
   });
 });

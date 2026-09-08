@@ -12,6 +12,9 @@ import { StaffQuoteGuard } from './guards/staff-quote.guard';
 import { ProposalsController } from './proposals.controller';
 import { ProposalsPgRepository } from './proposals-pg.repository';
 import { ProposalsService } from './proposals.service';
+import { QuoteBuilderService } from './quote-builder.service';
+import { QuoteVersionsController } from './quote-versions.controller';
+import { QuoteVersionsRepository } from './quote-versions.repository';
 import {
   QT_QUOTE_QUERY,
   QuoteAuditRepository,
@@ -33,7 +36,7 @@ import { QuoteSettingsService } from './quote-settings.service';
     forwardRef(() => ServiceLifecycleModule),
     forwardRef(() => LeadsFunnelModule),
   ],
-  controllers: [ProposalsController],
+  controllers: [ProposalsController, QuoteVersionsController],
   providers: [
     ProposalsService,
     ProposalsPgRepository,
@@ -48,6 +51,8 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteOverviewService,
     QuoteCreateService,
     QuoteListService,
+    QuoteVersionsRepository,
+    QuoteBuilderService,
   ],
   exports: [
     ProposalsService,
@@ -57,6 +62,8 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteOverviewService,
     QuoteCreateService,
     QuoteListService,
+    QuoteVersionsRepository,
+    QuoteBuilderService,
   ],
 })
 export class ProposalsModule {}

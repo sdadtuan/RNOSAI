@@ -345,6 +345,9 @@ export class ProposalsPgRepository implements OnModuleDestroy {
       price_adjustment_reason: String(row.price_adjustment_reason ?? ''),
       created_at: text(row.created_at),
       updated_at: text(row.updated_at),
+      quote_code: row.quote_code == null ? null : String(row.quote_code),
+      current_version_id: row.current_version_id == null ? null : String(row.current_version_id),
+      row_version: Number(row.row_version ?? 1),
     };
   }
 }

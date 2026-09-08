@@ -36,7 +36,13 @@ import {
   QuoteLineInput,
 } from './proposals.types';
 import { isQuoteOsCreate, QuoteCreateService } from './quote-create.service';
+import {
+  isQuoteBuilderTarget,
+  QuoteBuilderActor,
+  QuoteBuilderService,
+} from './quote-builder.service';
 import { QuoteListQuery, QuoteListService } from './quote-list.service';
+import type { QuoteHeaderPatch } from './quote-versions.repository';
 
 @Injectable()
 export class ProposalsService {
@@ -51,6 +57,7 @@ export class ProposalsService {
     private readonly spc: SpcService,
     private readonly quoteCreate: QuoteCreateService,
     private readonly quoteList: QuoteListService,
+    private readonly quoteBuilder: QuoteBuilderService,
   ) {}
 
   private async assertG4ForLeadContext(leadId: number): Promise<void> {
@@ -263,11 +270,18 @@ export class ProposalsService {
     return buildAutoQuoteLineInputs(mapping, tierPricing, tier);
   }
 
-  async putLines(proposalId: number, body: PutQuoteLinesBody) {
+  async putLines(proposalId: number, body: PutQuoteLinesBody, actor?: QuoteBuilderActor) {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     if (proposal.status === 'accepted') {
       throw new BadRequestException({ error: 'proposal_already_accepted' });
+    }
+    if (isQuoteBuilderTarget(proposal, body)) {
+      return this.quoteBuilder.putLines(
+        proposalId,
+        body,
+        actor ?? { staffId: 0, staffAuthVia: 'internal', hasFinance: false },
+      );
     }
     if (!Array.isArray(body.lines) || body.lines.length === 0) {
       throw new BadRequestException({ error: 'lines_required' });
@@ -279,6 +293,19 @@ export class ProposalsService {
       body.price_adjustment_reason,
     );
     return { proposal_id: proposalId, lines: items, total_vnd: items.reduce((s, l) => s + l.final_price_vnd, 0) };
+  }
+
+  async patchQuoteHeader(
+    proposalId: number,
+    body: QuoteHeaderPatch,
+    ifMatch: string | undefined,
+    actor: QuoteBuilderActor,
+  ) {
+    return this.quoteBuilder.patchHeader(proposalId, body, ifMatch, actor);
+  }
+
+  async recalculateQuote(proposalId: number, vid: string, actor: QuoteBuilderActor) {
+    return this.quoteBuilder.recalculate(proposalId, vid, actor);
   }
 
   async patchStatus(proposalId: number, body: PatchProposalStatusBody, actorEmail = 'staff') {

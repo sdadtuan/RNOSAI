@@ -80,7 +80,7 @@ export function resolveTierPricing(
   return result;
 }
 
-/** Product path: never invent 10/20/35tr when the catalog has no rate. */
+/** Product add / builder path: allowDefaultFallback=false — never invent 10/20/35tr. */
 export function resolveProductTierPricing(
   tierPricing: Record<string, unknown>,
   tier: QuotePackageTier,
