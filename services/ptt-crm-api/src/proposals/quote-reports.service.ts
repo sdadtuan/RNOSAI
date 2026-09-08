@@ -44,12 +44,6 @@ const SENT_REACHED: readonly QuoteStatus[] = [
 ];
 
 const VIEWED_CURRENT: readonly QuoteStatus[] = ['viewed', 'negotiation', 'accepted'];
-const VIEWED_TERMINALS: readonly QuoteStatus[] = [
-  'rejected',
-  'expired',
-  'cancelled',
-  'superseded',
-];
 
 export type QuoteReportQuery = {
   scope: QuoteScope;
@@ -129,8 +123,7 @@ function quoteIdsOf(quotes: QuoteRow[]): number[] {
 }
 
 function reachedViewed(row: QuoteRow, viewedIds: Set<number>): boolean {
-  if (VIEWED_CURRENT.includes(row.status) || VIEWED_TERMINALS.includes(row.status)) return true;
-  return viewedIds.has(row.id);
+  return VIEWED_CURRENT.includes(row.status) || viewedIds.has(row.id);
 }
 
 function csvCell(value: unknown): string {

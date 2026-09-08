@@ -266,7 +266,7 @@ describe('QuoteReportsService', () => {
     );
   });
 
-  it('VIEWED_REACHED includes terminals that left viewed', async () => {
+  it('VIEWED_REACHED counts current viewed statuses and view events, not never-viewed terminals', async () => {
     const { db, svc } = load();
     db.rows = [
       { id: 1, status: 'sent' },
@@ -274,14 +274,21 @@ describe('QuoteReportsService', () => {
       { id: 3, status: 'expired' },
       { id: 4, status: 'cancelled' },
       { id: 5, status: 'superseded' },
+      { id: 6, status: 'viewed' },
+      { id: 7, status: 'accepted' },
     ];
     db.views = [{ proposal_id: 2, created_at: '2026-09-08T01:00:00.000Z', section_key: 'kpi' }];
 
-    const out = (await svc.get({ ...SCOPE, tab: 'funnel' })) as {
+    const funnel = (await svc.get({ ...SCOPE, tab: 'funnel' })) as {
       steps: Array<{ step: string; count: number }>;
     };
-    const viewed = out.steps.find((step) => step.step === 'viewed')!;
-    expect(viewed.count).toBe(4);
+    const viewed = funnel.steps.find((step) => step.step === 'viewed')!;
+    expect(viewed.count).toBe(3);
+
+    const executive = (await svc.get({ ...SCOPE, tab: 'executive' })) as {
+      sent_to_viewed: number | null;
+    };
+    expect(executive.sent_to_viewed).toBe(3 / 7);
   });
 
   it('export insert failure fails when quotes exist and skips empty-tenant insert', async () => {
