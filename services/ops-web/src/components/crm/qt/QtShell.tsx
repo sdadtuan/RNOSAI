@@ -3,11 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
-import { B2bHotAlarm } from '@/components/crm/B2bHotAlarm';
-import { CsdChatDock } from '@/components/crm/csd/CsdChatDock';
-import { CsdChatNotifyHost } from '@/components/crm/csd/CsdChatNotifyHost';
-import { SlaAlertToastHost } from '@/components/crm/SlaAlertToastHost';
-import { OpsNav } from '@/components/OpsNav';
+import { StaffPageShell } from '@/components/layout';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -100,11 +96,7 @@ function QtShellInner({ children }: { children: ReactNode }) {
   }
 
   return (
-    <>
-      <OpsNav user={user} onLogout={logout} />
-      <SlaAlertToastHost user={user} />
-      <B2bHotAlarm user={user} />
-      {loading && !user ? <p className="qt-muted">Đang tải…</p> : null}
+    <StaffPageShell user={user} onLogout={logout} loading={loading && !user} width="full">
       {user && canSeeQtNav(user) ? (
         <div className={`qt-root${collapsed ? ' qt-root--collapsed' : ''}`}>
           <aside className="qt-sidebar" aria-label="Báo giá">
@@ -150,13 +142,11 @@ function QtShellInner({ children }: { children: ReactNode }) {
                 </select>
               </label>
             </header>
-            <main className="qt-main">{children}</main>
+            <div className="qt-main">{children}</div>
           </div>
         </div>
       ) : null}
-      {user ? <CsdChatNotifyHost user={user} /> : null}
-      {user ? <CsdChatDock user={user} /> : null}
-    </>
+    </StaffPageShell>
   );
 }
 
