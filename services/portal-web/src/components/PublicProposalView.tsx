@@ -5,7 +5,7 @@ import {
   publicProposalNeedsOtp,
   visiblePublicOptions,
   type PublicProposal,
-} from '@/lib/public-proposal';
+} from '../lib/public-proposal';
 
 type Props = {
   data: PublicProposal;

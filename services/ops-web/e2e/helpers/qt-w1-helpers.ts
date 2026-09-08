@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type APIRequestContext } from '@playwright/test';
@@ -220,30 +221,18 @@ export async function acceptPublicProposalApi(
   });
 }
 
-export function publicHtmlLeaks(html: string): string[] {
-  const hits: string[] = [];
-  if (/margin/i.test(html)) hits.push('margin');
-  if (/\bNSR\b/.test(html)) hits.push('NSR');
-  return hits;
-}
+export { publicHtmlLeaks } from '../../../portal-web/src/lib/public-proposal';
 
-export function renderPublicProposalFixtureHtml(overrides: Record<string, unknown> = {}): string {
-  const title = String(overrides.title ?? 'Growth Proposal Q4/2026');
-  const objective = String(overrides.objective ?? 'Lead căn hộ cao cấp');
-  const optionB = String(overrides.option_b ?? 'B · Growth');
-  const cta = String(overrides.cta ?? QT_PUBLIC_ACCEPT_CTA);
-  const extra = String(overrides.extra ?? '');
-  return [
-    '<article class="deal-teaser-card qt-public">',
-    `<h1>${title}</h1>`,
-    `<p>${objective}</p>`,
-    '<label>Phương án<select><option>A · Core</option>',
-    `<option selected>${optionB}</option></select></label>`,
-    '<label>Mã OTP<input name="otp" value="123456"/></label>',
-    `<button type="submit">${cta}</button>`,
-    extra,
-    '</article>',
-  ].join('');
+export function renderPortalPublicProposalHtml(): string {
+  const viteNode = join(__dirname, '../../node_modules/.bin/vite-node');
+  const script = join(__dirname, '../../../portal-web/scripts/print-public-proposal-html.ts');
+  return execFileSync(viteNode, ['--config', join(__dirname, '../../../portal-web/vitest.config.ts'), script], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      NODE_PATH: join(__dirname, '../../node_modules'),
+    },
+  });
 }
 
 export async function fetchQtCatalogApi(

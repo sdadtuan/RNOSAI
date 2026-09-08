@@ -162,7 +162,18 @@ export class QuoteStudioService {
 
   async preview(versionId: string, actor: QuoteStudioActor): Promise<Record<string, unknown>> {
     this.assertStaff(actor);
-    return this.publicQuotes.renderByVersionId(versionId);
+    const version = await this.requireVersion(versionId);
+    const dto = await this.publicQuotes.renderByVersionId(versionId);
+    const snapshot = asObject(version.snapshot_json);
+    return {
+      ...dto,
+      studio: {
+        sections: {
+          '08': { on: sectionOn(snapshot, '08') },
+          '09': { on: sectionOn(snapshot, '09') },
+        },
+      },
+    };
   }
 
   async saveSections(

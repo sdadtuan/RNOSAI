@@ -294,6 +294,22 @@ describe('studio preview + section toggle', () => {
     expect(JSON.stringify(dto)).not.toMatch(LEAK_RE);
   });
 
+  it('preview hydrates studio 08/09 from snapshot and missing flags stay off', async () => {
+    const off = load({ studio: { '08': { on: false }, '09': { on: false } } });
+    const offDto = await off.svc.preview(VID, ACTOR);
+    expect(offDto.studio).toMatchObject({
+      sections: { '08': { on: false }, '09': { on: false } },
+    });
+
+    const empty = load();
+    const version = empty.db.versions.get(VID);
+    if (version) version.snapshot_json = { kpis: [] };
+    const emptyDto = await empty.svc.preview(VID, ACTOR);
+    expect(emptyDto.studio).toMatchObject({
+      sections: { '08': { on: false }, '09': { on: false } },
+    });
+  });
+
   it('saveSections persists 08/09 on snapshot', async () => {
     const { svc, db } = load({ studio: { '08': { on: false }, '09': { on: false } } });
     const out = await svc.saveSections(VID, { '08': true, '09': true }, ACTOR);

@@ -7,7 +7,9 @@ import {
   QT_STUDIO_SECTIONS,
   QtStudioChrome,
   canPublishStudio,
+  hydrateStudioSections,
   pickPublicPreview,
+  studioSectionsForPublish,
   type QtStudioPreview,
 } from './QtStudio';
 
@@ -152,6 +154,44 @@ describe('QtStudioChrome', () => {
     expect(html).toContain('studio_gate');
     expect(html).toMatch(/<button[^>]*disabled[^>]*>[\s\S]*Xuất bản/);
     expect(html).not.toContain('265647600');
+  });
+
+  it('defaults 08/09 OFF and publish does not persist unsaved defaults', () => {
+    expect(hydrateStudioSections(null)).toEqual({ section08: false, section09: false });
+    expect(hydrateStudioSections({})).toEqual({ section08: false, section09: false });
+    expect(studioSectionsForPublish({ dirty: false, section08: false, section09: false })).toBeNull();
+    expect(studioSectionsForPublish({ dirty: false, section08: true, section09: true })).toBeNull();
+
+    const html = renderToStaticMarkup(
+      createElement(QtStudioChrome, { versionState: 'approved' }),
+    );
+    expect(html).toContain('studio_gate');
+    expect(html).toMatch(/data-section-toggle="08"/);
+    expect(html).toMatch(/data-section-toggle="09"/);
+    expect(html).not.toMatch(/checked[^>]*data-section-toggle="08"/);
+    expect(html).not.toMatch(/checked[^>]*data-section-toggle="09"/);
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>[\s\S]*Xuất bản/);
+  });
+
+  it('hydrates OFF from snapshot and saved OFF stays OFF', () => {
+    expect(
+      hydrateStudioSections({
+        studio: { sections: { '08': { on: false }, '09': { on: false } } },
+      }),
+    ).toEqual({ section08: false, section09: false });
+    expect(
+      studioSectionsForPublish({ dirty: true, section08: false, section09: false }),
+    ).toEqual({ '08': false, '09': false });
+    const html = renderToStaticMarkup(
+      createElement(QtStudioChrome, {
+        versionState: 'approved',
+        section08: false,
+        section09: false,
+      }),
+    );
+    expect(html).toContain('studio_gate');
+    expect(html).not.toMatch(/checked[^>]*data-section-toggle="08"/);
+    expect(html).not.toMatch(/checked[^>]*data-section-toggle="09"/);
   });
 
   it('Xuất bản invokes onPublish for an approved version with 08/09 on', () => {

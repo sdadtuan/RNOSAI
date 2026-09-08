@@ -52,6 +52,42 @@ export function studioPublishReason(opts: {
   return '';
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
+function sectionFlagOn(sections: Record<string, unknown>, id: string): boolean {
+  const row = sections[id] ?? sections[`s${id}`];
+  if (row === true || row === 't' || row === 'true') return true;
+  if (row && typeof row === 'object' && !Array.isArray(row)) {
+    const rec = row as Record<string, unknown>;
+    return rec.on === true || rec.enabled === true;
+  }
+  return false;
+}
+
+export function hydrateStudioSections(input: unknown): { section08: boolean; section09: boolean } {
+  const root = asRecord(input);
+  const studio = asRecord(root.studio);
+  const sections = asRecord(studio.sections ?? root.sections);
+  return {
+    section08: sectionFlagOn(sections, '08'),
+    section09: sectionFlagOn(sections, '09'),
+  };
+}
+
+export function studioSectionsForPublish(opts: {
+  dirty: boolean;
+  section08: boolean;
+  section09: boolean;
+}): Record<string, boolean> | null {
+  if (!opts.dirty) return null;
+  return { '08': opts.section08 === true, '09': opts.section09 === true };
+}
+
 export function pickPublicPreview(input: Record<string, unknown>): QtStudioPreview {
   const cta = input.cta && typeof input.cta === 'object' ? (input.cta as { accept?: string }) : {};
   const inv =
@@ -192,8 +228,8 @@ export function QtStudioChrome({
   quoteId = null,
   preview = null,
   versionState = null,
-  section08 = true,
-  section09 = true,
+  section08 = false,
+  section09 = false,
   onSelect,
   onSection08,
   onSection09,
@@ -342,8 +378,9 @@ export function QtStudio() {
   const [versionId, setVersionId] = useState<string | null>(null);
   const [versionState, setVersionState] = useState<string | null>(null);
   const [preview, setPreview] = useState<QtStudioPreview | null>(null);
-  const [section08, setSection08] = useState(true);
-  const [section09, setSection09] = useState(true);
+  const [section08, setSection08] = useState(false);
+  const [section09, setSection09] = useState(false);
+  const [sectionsDirty, setSectionsDirty] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -362,6 +399,10 @@ export function QtStudio() {
         setVersionState(current?.state ?? proposal.current_version_state ?? proposal.status ?? null);
         const dto = await getQtStudioPreview(token, vid);
         setPreview(pickPublicPreview(dto as Record<string, unknown>));
+        const flags = hydrateStudioSections(dto);
+        setSection08(flags.section08);
+        setSection09(flags.section09);
+        setSectionsDirty(false);
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Không tải được studio');
@@ -375,7 +416,14 @@ export function QtStudio() {
   async function persistSections(next08: boolean, next09: boolean) {
     const token = getAccessToken();
     if (!token || !versionId) return;
-    await patchQtStudioSections(token, versionId, { '08': next08, '09': next09 });
+    const payload = studioSectionsForPublish({
+      dirty: true,
+      section08: next08,
+      section09: next09,
+    });
+    if (!payload) return;
+    await patchQtStudioSections(token, versionId, payload);
+    setSectionsDirty(true);
   }
 
   async function publish() {
@@ -383,7 +431,14 @@ export function QtStudio() {
     if (!token || !versionId) return;
     setError('');
     try {
-      await persistSections(section08, section09);
+      const payload = studioSectionsForPublish({
+        dirty: sectionsDirty,
+        section08,
+        section09,
+      });
+      if (payload) {
+        await patchQtStudioSections(token, versionId, payload);
+      }
       const dto = await publishQtVersion(token, versionId);
       setPreview(pickPublicPreview(dto as Record<string, unknown>));
       setVersionState('published');

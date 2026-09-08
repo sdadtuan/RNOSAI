@@ -747,6 +747,7 @@ export type QtStudioPreview = {
   option_key?: string;
   otp_required?: boolean;
   cta?: { accept: string };
+  studio?: { sections?: Record<string, { on?: boolean } | boolean> };
 };
 
 export function getQtStudioPreview(token: string, vid: string) {
