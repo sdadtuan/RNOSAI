@@ -23,7 +23,6 @@ import {
 } from './quote-pricing.util';
 import {
   buildAutoQuoteLineInputs,
-  filterCatalogServicesForSlug,
   loadDealRoomServiceDvMap,
   resolveServiceDvMapping,
 } from './deal-room-quote.util';
@@ -41,6 +40,7 @@ import {
   QuoteBuilderActor,
   QuoteBuilderService,
 } from './quote-builder.service';
+import { QuoteCatalogService } from './quote-catalog.service';
 import { QuoteListQuery, QuoteListService } from './quote-list.service';
 import type { QuoteHeaderPatch } from './quote-versions.repository';
 
@@ -58,6 +58,7 @@ export class ProposalsService {
     private readonly quoteCreate: QuoteCreateService,
     private readonly quoteList: QuoteListService,
     private readonly quoteBuilder: QuoteBuilderService,
+    private readonly quoteCatalog: QuoteCatalogService,
   ) {}
 
   private async assertG4ForLeadContext(leadId: number): Promise<void> {
@@ -433,41 +434,7 @@ export class ProposalsService {
   }
 
   async getCatalogForQuote(serviceSlugRaw?: string) {
-    try {
-      return await this.spc.getQuoteCatalog(serviceSlugRaw);
-    } catch {
-      // legacy fallback when PG/SPC unavailable
-    }
-    const map = this.routeMap.getMap();
-    const slug = String(serviceSlugRaw ?? '').trim();
-    const base = {
-      schema_version: map.schema_version,
-      package_tiers: ['basic', 'standard', 'premium'] as QuotePackageTier[],
-    };
-    if (!slug) {
-      return {
-        ...base,
-        services: map.services.map((s) => ({
-          dv_code: s.code,
-          name: s.name_vi,
-          service_slug: s.service_slugs.primary,
-          readiness: s.readiness,
-          depends_on_dv: s.depends_on_dv ?? [],
-        })),
-        suggested_bundle: [] as string[],
-        primary_dv: null as string | null,
-      };
-    }
-    const dvMap = loadDealRoomServiceDvMap();
-    const mapping = resolveServiceDvMapping(slug, map, dvMap);
-    return {
-      ...base,
-      service_slug: slug,
-      primary_dv: mapping.primary_dv,
-      primary_name: mapping.primary_name,
-      suggested_bundle: mapping.bundle_dv,
-      services: filterCatalogServicesForSlug(map, mapping),
-    };
+    return this.quoteCatalog.get(serviceSlugRaw);
   }
 
   async generate(proposalId: number) {

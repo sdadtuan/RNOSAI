@@ -71,6 +71,7 @@ function loadService(overrides: {
     quoteCreate as never,
     quoteList as never,
     quoteBuilder as never,
+    unused,
   );
   return { svc, repo, quoteCreate, quoteList, quoteBuilder };
 }

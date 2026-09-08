@@ -13,6 +13,7 @@ import { ProposalsController } from './proposals.controller';
 import { ProposalsPgRepository } from './proposals-pg.repository';
 import { ProposalsService } from './proposals.service';
 import { QuoteBuilderService } from './quote-builder.service';
+import { QuoteCatalogService } from './quote-catalog.service';
 import { QuoteVersionsController } from './quote-versions.controller';
 import { QuoteVersionsRepository } from './quote-versions.repository';
 import {
@@ -53,6 +54,7 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteListService,
     QuoteVersionsRepository,
     QuoteBuilderService,
+    QuoteCatalogService,
   ],
   exports: [
     ProposalsService,
@@ -64,6 +66,7 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteListService,
     QuoteVersionsRepository,
     QuoteBuilderService,
+    QuoteCatalogService,
   ],
 })
 export class ProposalsModule {}
