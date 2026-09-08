@@ -1,5 +1,5 @@
-import { QtPlaceholder } from '@/components/crm/qt/QtShell';
+import { QtActivity } from '@/components/crm/qt/QtActivity';
 
 export default function QtActivityPage() {
-  return <QtPlaceholder title="Nhật ký" />;
+  return <QtActivity />;
 }

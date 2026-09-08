@@ -168,3 +168,259 @@
   font-size: 20px;
   font-weight: 600;
 }
+
+.qt-overview,
+.qt-activity {
+  min-width: 0;
+}
+
+.qt-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.qt-head h1 {
+  margin: 0;
+  color: var(--qt-navy);
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.qt-crumb {
+  margin: 0 0 6px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.qt-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.qt-btn {
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: var(--qt-navy);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.qt-btn--primary {
+  background: var(--qt-accent);
+  border-color: var(--qt-accent);
+  color: #fff;
+}
+
+.qt-link {
+  border: 0;
+  background: none;
+  color: var(--qt-accent);
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.qt-alert {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.qt-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.qt-tile {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--qt-radius);
+  padding: 12px;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+}
+
+.qt-tile span {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.qt-tile strong {
+  display: block;
+  margin: 4px 0 2px;
+  color: var(--qt-navy);
+  font-size: 20px;
+}
+
+.qt-tile em,
+.qt-tile__formula {
+  display: block;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.qt-grid2 {
+  display: grid;
+  grid-template-columns: 1.3fr 0.9fr;
+  gap: 12px;
+}
+
+.qt-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--qt-radius);
+  padding: 14px;
+  min-width: 0;
+  margin-bottom: 12px;
+}
+
+.qt-card--error {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.qt-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.qt-side-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.qt-side-row b {
+  color: #111827;
+}
+
+.qt-table-wrap {
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--qt-radius);
+  background: #fff;
+  margin-bottom: 12px;
+}
+
+.qt-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.qt-table th {
+  text-align: left;
+  font-size: 11px;
+  color: #6b7280;
+  padding: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.qt-table td {
+  padding: 8px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+
+.qt-table .qt-empty {
+  margin: 0;
+  font-size: 16px;
+}
+
+.qt-pill {
+  display: inline-flex;
+  border-radius: 99px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.qt-pill--bad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.qt-pill--warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.qt-pill--info {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.qt-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.qt-chip {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 99px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.qt-chip--on {
+  background: var(--qt-navy);
+  color: #fff;
+  border-color: var(--qt-navy);
+}
+
+.qt-inp {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font: inherit;
+}
+
+@media (max-width: 860px) {
+  .qt-grid2 {
+    grid-template-columns: 1fr;
+  }
+}
