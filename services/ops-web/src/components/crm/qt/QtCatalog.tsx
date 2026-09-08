@@ -7,6 +7,7 @@ import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import {
   getQtQuoteCatalogDoc,
   importQtCatalog,
+  qtCatalogImportOutcome,
   snapshotQtCatalogPackage,
   type QtCatalogItem,
   type QtIndustryPackage,
@@ -351,12 +352,14 @@ export function QtCatalogRates({
   hasFinance = false,
   importing = false,
   importNotice = '',
+  importError = '',
   onImport,
 }: {
   cards: QtRateCard[];
   hasFinance?: boolean;
   importing?: boolean;
   importNotice?: string;
+  importError?: string;
   onImport?: (file: File) => void | Promise<void>;
 }) {
   return (
@@ -373,7 +376,12 @@ export function QtCatalogRates({
           </Link>
         </div>
       </header>
-      <QtCatalogImportPanel importing={importing} notice={importNotice} onImport={onImport} />
+      <QtCatalogImportPanel
+        importing={importing}
+        notice={importNotice}
+        error={importError}
+        onImport={onImport}
+      />
       <div className="qt-table-wrap">
         <table className="qt-table">
           <thead>
@@ -498,6 +506,7 @@ export function QtCatalogView({
   error = '',
   importing = false,
   importNotice = '',
+  importError = '',
   onImportCatalog,
   onRetry,
 }: {
@@ -520,6 +529,7 @@ export function QtCatalogView({
   error?: string;
   importing?: boolean;
   importNotice?: string;
+  importError?: string;
   onImportCatalog?: (file: File) => void | Promise<void>;
   onRetry?: () => void;
 }) {
@@ -536,6 +546,7 @@ export function QtCatalogView({
         hasFinance={hasFinance}
         importing={importing}
         importNotice={importNotice}
+        importError={importError}
         onImport={onImportCatalog}
       />
     );
@@ -727,6 +738,7 @@ export function QtCatalog() {
       error={error}
       importing={importing}
       importNotice={importNotice}
+      importError={error}
       onImportCatalog={async (file) => {
         const token = getAccessToken();
         if (!token) return;
@@ -740,9 +752,12 @@ export function QtCatalog() {
             filename: file.name,
             ...(isJson ? { json: JSON.parse(text) } : { csv: text }),
           });
-          setImportNotice(
-            `Đã nhập ${out.result.rate_cards} rate card · ${out.result.revisions} revision`,
-          );
+          const outcome = qtCatalogImportOutcome(out);
+          if (!outcome.ok) {
+            setError(outcome.error);
+            return;
+          }
+          setImportNotice(outcome.notice);
           await load();
         } catch (caught) {
           setError(caught instanceof Error ? caught.message : 'Không nhập được catalog');

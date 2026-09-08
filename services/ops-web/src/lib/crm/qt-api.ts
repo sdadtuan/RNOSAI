@@ -202,6 +202,23 @@ export type QtCatalogImportResult = {
   result: { rate_cards: number; revisions: number; errors: string[] };
 };
 
+export type QtCatalogImportOutcome =
+  | { ok: true; notice: string }
+  | { ok: false; error: string };
+
+export function qtCatalogImportOutcome(out: QtCatalogImportResult): QtCatalogImportOutcome {
+  if (out.state !== 'done') {
+    const errors = (out.result?.errors ?? []).map((row) => String(row ?? '').trim()).filter(Boolean);
+    return { ok: false, error: errors.join(' · ') || 'Không nhập được catalog' };
+  }
+  const rates = Number(out.result?.rate_cards ?? 0);
+  const revisions = Number(out.result?.revisions ?? 0);
+  return {
+    ok: true,
+    notice: `Đã nhập ${rates} rate card · ${revisions} revision`,
+  };
+}
+
 export function importQtCatalog(
   token: string,
   body: { filename: string; csv?: string; json?: unknown },

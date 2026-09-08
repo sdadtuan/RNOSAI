@@ -9,6 +9,7 @@ import {
   getQtSettings,
   importQtCatalog,
   patchQtSettings,
+  qtCatalogImportOutcome,
   type QtSettings,
 } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
@@ -16,14 +17,16 @@ import { dash } from '@/lib/crm/qt-format';
 export function QtCatalogImportPanel({
   importing = false,
   notice = '',
+  error = '',
   onImport,
 }: {
   importing?: boolean;
   notice?: string;
+  error?: string;
   onImport?: (file: File) => void | Promise<void>;
 }) {
   return (
-    <section className="qt-card qt-catalog-import">
+    <section className={`qt-card qt-catalog-import${error ? ' qt-card--error' : ''}`}>
       <h3>Nhập catalog</h3>
       <p className="qt-muted">CSV / JSON → rate cards + revisions. Không sửa snapshot quote đã xuất bản.</p>
       <label className="qt-form-label">
@@ -44,7 +47,7 @@ export function QtCatalogImportPanel({
       <button type="button" className="qt-btn" disabled>
         {importing ? 'Đang nhập…' : 'Nhập catalog'}
       </button>
-      {notice ? <p className="qt-muted">{notice}</p> : null}
+      {error ? <p>{error}</p> : notice ? <p className="qt-muted">{notice}</p> : null}
     </section>
   );
 }
@@ -118,6 +121,7 @@ export function QtSettingsForm({
   saving = false,
   importing = false,
   importNotice = '',
+  importError = '',
   onSubmit,
   onImportCatalog,
 }: {
@@ -126,6 +130,7 @@ export function QtSettingsForm({
   saving?: boolean;
   importing?: boolean;
   importNotice?: string;
+  importError?: string;
   onSubmit?: (form: FormData) => void | Promise<void>;
   onImportCatalog?: (file: File) => void | Promise<void>;
 }) {
@@ -282,7 +287,12 @@ export function QtSettingsForm({
             Mở CAT-04
           </Link>
         </p>
-        <QtCatalogImportPanel importing={importing} notice={importNotice} onImport={onImportCatalog} />
+        <QtCatalogImportPanel
+          importing={importing}
+          notice={importNotice}
+          error={importError}
+          onImport={onImportCatalog}
+        />
       </div>
 
       <div hidden={active !== 'set-04'}>
@@ -373,6 +383,7 @@ export function QtSettingsChrome({
   onImportCatalog,
   importing = false,
   importNotice = '',
+  importError = '',
   onRetry,
 }: {
   settings: QtSettings | null;
@@ -383,6 +394,7 @@ export function QtSettingsChrome({
   notice?: string;
   importing?: boolean;
   importNotice?: string;
+  importError?: string;
   onTab?: (id: QtSettingsTabId) => void;
   onSubmit?: (form: FormData) => void | Promise<void>;
   onImportCatalog?: (file: File) => void | Promise<void>;
@@ -429,6 +441,7 @@ export function QtSettingsChrome({
           saving={saving}
           importing={importing}
           importNotice={importNotice}
+          importError={importError}
           onSubmit={onSubmit}
           onImportCatalog={onImportCatalog}
         />
@@ -513,6 +526,7 @@ export function QtSettings() {
       onSubmit={save}
       importing={importing}
       importNotice={importNotice}
+      importError={error}
       onImportCatalog={async (file) => {
         const token = getAccessToken();
         if (!token) {
@@ -529,9 +543,12 @@ export function QtSettings() {
             filename: file.name,
             ...(isJson ? { json: JSON.parse(text) } : { csv: text }),
           });
-          setImportNotice(
-            `Đã nhập ${out.result.rate_cards} rate card · ${out.result.revisions} revision`,
-          );
+          const outcome = qtCatalogImportOutcome(out);
+          if (!outcome.ok) {
+            setError(outcome.error);
+            return;
+          }
+          setImportNotice(outcome.notice);
         } catch (caught) {
           setError(caught instanceof Error ? caught.message : 'Không nhập được catalog');
         } finally {

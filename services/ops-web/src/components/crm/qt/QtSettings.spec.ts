@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { buildQtSettingsPatch } from '@/lib/crm/qt-api';
+import { buildQtSettingsPatch, qtCatalogImportOutcome } from '@/lib/crm/qt-api';
 import { QT_SETTINGS_TABS, QtSettingsForm } from './QtSettings';
 
 const SAMPLE = {
@@ -57,6 +57,29 @@ describe('QtSettingsForm', () => {
     expect(html).toMatch(/import|Nhập catalog/i);
     expect(html).toMatch(/csv|json/i);
     expect(html).toContain('qt-btn');
+  });
+
+  it('state: failed import surfaces as error and not success', () => {
+    const outcome = qtCatalogImportOutcome({
+      job_id: 'job-1',
+      state: 'failed',
+      result: { rate_cards: 0, revisions: 0, errors: ['mid_batch_rate_fail'] },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) throw new Error('expected failed');
+    expect(outcome.error).toContain('mid_batch_rate_fail');
+    expect(outcome.error).not.toMatch(/Đã nhập/);
+
+    const html = renderToStaticMarkup(
+      createElement(QtSettingsForm, {
+        settings: SAMPLE,
+        tab: 'set-03',
+        importError: outcome.error,
+      }),
+    );
+    expect(html).toContain('mid_batch_rate_fail');
+    expect(html).toContain('qt-card--error');
+    expect(html).not.toContain('Đã nhập');
   });
 });
 

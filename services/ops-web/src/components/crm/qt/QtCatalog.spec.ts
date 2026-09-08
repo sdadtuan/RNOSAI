@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { qtCatalogImportOutcome } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
 import {
   QT_CATALOG_DRAWER_TABS,
@@ -272,5 +273,22 @@ describe('QtCatalog CAT-04 rate pills', () => {
     expect(html).toMatch(/data-rate-expired="0"[\s\S]*Retired/);
     expect(retiredRow).not.toMatch(/rc-retired[\s\S]*rate_expired/);
     expect(html).not.toContain('265.647.600');
+  });
+
+  it('state: failed import surfaces as error and not success', () => {
+    const outcome = qtCatalogImportOutcome({
+      job_id: 'job-1',
+      state: 'failed',
+      result: { rate_cards: 0, revisions: 0, errors: ['mid_batch_rate_fail'] },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) throw new Error('expected failed');
+
+    const html = renderToStaticMarkup(
+      createElement(QtCatalogRates, { cards: [], importError: outcome.error }),
+    );
+    expect(html).toContain('mid_batch_rate_fail');
+    expect(html).toContain('qt-card--error');
+    expect(html).not.toContain('Đã nhập');
   });
 });
