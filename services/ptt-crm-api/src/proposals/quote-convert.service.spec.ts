@@ -192,6 +192,7 @@ function load(overrides?: {
   db?: ConvertMemory;
   vd?: VdMemory;
   cp?: { create: jest.Mock };
+  agencyClientId?: string | null;
 }) {
   const db = overrides?.db ?? new ConvertMemory();
   const lines = overrides?.lines ?? [{ ...LINE }];
@@ -203,6 +204,7 @@ function load(overrides?: {
     quote_code: overrides?.quoteCode ?? 'QT-PTT-2026-000001',
     current_version_id: overrides?.versionId === undefined ? VID : overrides.versionId,
     total_vnd: 20_000_000,
+    agency_client_id: overrides?.agencyClientId ?? null,
   };
   const repo = {
     getById: jest.fn().mockResolvedValue(proposal),
@@ -244,7 +246,7 @@ function load(overrides?: {
     overrides?.vd as never,
     overrides?.cp as never,
   );
-  return { db, repo, lifecycle, invoices, svc, lines, proposal, vd: overrides?.vd };
+  return { db, repo, lifecycle, invoices, svc, lines, proposal, vd: overrides?.vd, cp: overrides?.cp };
 }
 
 const ACTOR = { staffId: 7, staffAuthVia: 'jwt' as const, idempotencyKey: 'cvt-01' };
@@ -446,6 +448,28 @@ describe('QuoteConvertService', () => {
     ]);
     expect(db.conversions.filter((row) => row.target_type === 'lifecycle_bundle')).toHaveLength(1);
     expect(db.conversions.filter((row) => row.target_type === 'invoice_schedule')).toHaveLength(1);
+  });
+
+  it('kind=ai_video without DV12 / human_video / brand_film does not create CP', async () => {
+    const db = new ConvertMemory();
+    db.handoff_video = true;
+    const vd = new VdMemory();
+    const cp = { create: jest.fn().mockResolvedValue({ id: 'cp-should-not' }) };
+    const { svc } = load({
+      db,
+      vd,
+      cp,
+      agencyClientId: '11111111-1111-4111-8111-111111111111',
+      lines: [{ ...LINE, dv_code: 'DV02', catalog_snapshot_json: { kind: 'ai_video' } }],
+    });
+
+    const out = await svc.convert(9, VID, ACTOR);
+
+    expect(cp.create).not.toHaveBeenCalled();
+    expect(vd.repo.insertProject).not.toHaveBeenCalled();
+    expect(out.optional_handoff).toEqual([]);
+    expect(db.sqls.some((sql) => /ALTER TABLE/i.test(sql))).toBe(false);
+    expect(db.sqls.some((sql) => /INSERT INTO crm_cp_projects/i.test(sql))).toBe(false);
   });
 });
 

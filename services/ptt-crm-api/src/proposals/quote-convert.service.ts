@@ -298,14 +298,6 @@ export class QuoteConvertService {
 
   private async isHandoffVideo(query: QuoteQueryFn): Promise<boolean> {
     try {
-      await query(
-        `ALTER TABLE crm_quote_settings
-           ADD COLUMN IF NOT EXISTS handoff_video BOOLEAN NOT NULL DEFAULT FALSE`,
-      );
-    } catch {
-      /* missing table or insufficient DDL — fall through to read */
-    }
-    try {
       const result = await query(
         `SELECT handoff_video, policy_json FROM crm_quote_settings LIMIT 1`,
       );
@@ -357,11 +349,10 @@ export class QuoteConvertService {
       const kind = line ? this.lineKind(line, input.snapshot) : '';
       const production =
         created.dv_code === 'DV12' || VIDEO_KINDS.has(kind);
-      const aiVideo = kind === 'ai_video';
-      if (!production && !aiVideo) continue;
+      if (!production) continue;
 
       const handoff: QuoteConvertHandoff = {};
-      if (production && this.vdProjects) {
+      if (this.vdProjects) {
         const project = await this.linkOrCreateVdProject({
           proposalId: input.proposalId,
           clientId: input.proposal.agency_client_id,
@@ -375,7 +366,7 @@ export class QuoteConvertService {
           handoff.template_key = VID_TPL_01;
         }
       }
-      if (aiVideo) {
+      if (kind === 'ai_video') {
         const cpId = await this.optionalCpProject({
           proposalId: input.proposalId,
           clientId: input.proposal.agency_client_id,
