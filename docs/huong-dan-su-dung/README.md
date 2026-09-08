@@ -1,6 +1,6 @@
 # RNOSAI — Hướng dẫn sử dụng theo domain
 
-> **Phiên bản:** 1.3 · **Cập nhật:** 2026-09-08  
+> **Phiên bản:** 1.4 · **Cập nhật:** 2026-09-09  
 > **Đối tượng:** Nhân viên PTT (ops-web) và khách hàng (portal-web)  
 > **URL staff:** https://rs.pttads.vn · **URL portal:** https://portal.pttads.vn
 
@@ -27,6 +27,7 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 19 | **Video SOP Studio (Module 7 — tóm tắt S4)** | [19-video-sop.md](./19-video-sop.md) | AM, Copy, Art, Motion, Editor |
 | 20 | **Video SOP Studio (đầy đủ — env, image/video, UI từng bước + wireframe)** | [20-video-sop-huong-dan-day-du.md](./20-video-sop-huong-dan-day-du.md) | AM, Copy, Art, Motion, Editor, IT |
 | 34 | **Creative Production OS (Sản xuất sáng tạo — project, video AI, Brand Kit, lịch, credit)** | [34-creative-production-os.md](./34-creative-production-os.md) | AM, Creative, Brand, Legal, Motion, Admin |
+| 35 | **Quotation OS (Báo giá — 7 mục: Tổng quan, list, tạo, catalog, phê duyệt, báo cáo, cấu hình)** | [35-quotation-os.md](./35-quotation-os.md) | AM, Sales, Finance, GDKD |
 | 21 | **Video SOP — Checklist onboarding (AM / Motion / IT)** | [21-video-sop-onboarding-checklist.md](./21-video-sop-onboarding-checklist.md) | AM, Motion, IT, Admin |
 | 11 | Marketing AI Planner (tóm tắt 5 bước) | [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) | SP, MKT Lead |
 | 26 | **Sales Cockpit — hướng dẫn đầy đủ (env + UI)** | [26-sales-cockpit-huong-dan-day-du.md](./26-sales-cockpit-huong-dan-day-du.md) | AM, Sales, IT |

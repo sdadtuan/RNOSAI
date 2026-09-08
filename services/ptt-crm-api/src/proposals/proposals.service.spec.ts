@@ -453,3 +453,36 @@ describe('ProposalsService quote-os wiring', () => {
     expect(repo.patchStatus).toHaveBeenCalledWith(9, 'rejected', undefined, 'budget');
   });
 });
+
+describe('ProposalsService generate AI flag', () => {
+  const ORIGINAL_QT_AI = process.env.QT_AI_ENABLED;
+
+  afterEach(() => {
+    if (ORIGINAL_QT_AI === undefined) delete process.env.QT_AI_ENABLED;
+    else process.env.QT_AI_ENABLED = ORIGINAL_QT_AI;
+  });
+
+  it('returns 404 qt_ai_disabled when QT_AI_ENABLED is unset', async () => {
+    delete process.env.QT_AI_ENABLED;
+    const { svc, repo } = loadService({});
+
+    await expect(svc.generate(9)).rejects.toMatchObject({
+      status: 404,
+      response: { error: 'qt_ai_disabled' },
+    });
+    expect(repo.getById).not.toHaveBeenCalled();
+    expect(repo.patchStatus).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 qt_ai_disabled when QT_AI_ENABLED is empty', async () => {
+    process.env.QT_AI_ENABLED = '';
+    const { svc, repo } = loadService({});
+
+    await expect(svc.generate(9)).rejects.toMatchObject({
+      status: 404,
+      response: { error: 'qt_ai_disabled' },
+    });
+    expect(repo.getById).not.toHaveBeenCalled();
+    expect(repo.patchStatus).not.toHaveBeenCalled();
+  });
+});

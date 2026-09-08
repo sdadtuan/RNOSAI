@@ -554,6 +554,9 @@ export class ProposalsService {
   }
 
   async generate(proposalId: number) {
+    if (!process.env.QT_AI_ENABLED) {
+      throw new NotFoundException({ error: 'qt_ai_disabled' });
+    }
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) {
       throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
