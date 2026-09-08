@@ -51,7 +51,10 @@ type SorRow = {
 const GROUP_KEYWORDS: Array<[RegExp, QuoteCatalogGroup]> = [
   [/package|ngành|nganh|growth[\s-]?launch/i, 'package'],
   [/brand[\s-]?film|reels|video|image|sản xuất|san xuat|\btvc\b/i, 'production'],
-  [/strateg|research|nghiên cứu|nghien cuu/i, 'strategy'],
+  [
+    /strateg|research|nghiên cứu|nghien cuu|thị[\s-]?trường|thi[\s-]?truong|phân[\s-]?tích[\s-]?thị[\s-]?trường|phan[\s-]?tich[\s-]?thi[\s-]?truong/i,
+    'strategy',
+  ],
   [/brand|nhận diện|nhan dien|identity|creative|key visual/i, 'branding'],
   [/content|social|nội dung|noi dung|mạng xã hội|mang xa hoi/i, 'content'],
   [/performance|media|\bads\b|quảng cáo|quang cao|meta|google|tiktok/i, 'performance'],

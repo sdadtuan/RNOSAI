@@ -217,8 +217,8 @@ describe('QuoteCatalogService CAT-01 add rules', () => {
     const { svc } = load([
       row({
         dv_code: 'DV12',
-        name: 'Market research',
-        slug: 'market-research',
+        name: 'Báo cáo phân tích thị trường',
+        slug: 'phan-tich-thi-truong',
         active: true,
         tier_pricing: STANDARD_RATE,
       }),
@@ -228,7 +228,9 @@ describe('QuoteCatalogService CAT-01 add rules', () => {
     const item = itemOf(out, 'DV12');
 
     expect(item.group).toBe('strategy');
+    expect(item.dv_code).toBe('DV12');
     expect(item).not.toHaveProperty('template_key');
+    expect(item.template_key).not.toBe('VID-TPL-01');
   });
 
   it('attaches VID-TPL-01 for brand-film / reels / video storyboard regardless of dv_code', async () => {
