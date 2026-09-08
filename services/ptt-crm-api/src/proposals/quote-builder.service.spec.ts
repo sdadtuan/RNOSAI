@@ -815,10 +815,13 @@ describe('Quote OS HTTP wiring', () => {
   it('wires version diff and POST /versions before :id without bare StaffAuthGuard', () => {
     const proposals = readFileSync(join(__dirname, 'proposals.controller.ts'), 'utf8');
     const getId = proposals.indexOf("@Get(':id')");
+    const list = proposals.indexOf("@Get(':id/versions')");
     const diff = proposals.indexOf("@Get(':id/versions/:a/diff/:b')");
     const post = proposals.indexOf("@Post(':id/versions')");
+    expect(list).toBeGreaterThan(-1);
     expect(diff).toBeGreaterThan(-1);
     expect(post).toBeGreaterThan(-1);
+    expect(list).toBeLessThan(getId);
     expect(diff).toBeLessThan(getId);
     expect(post).toBeLessThan(getId);
     expect(proposals).toMatch(/StaffOrInternalKeyGuard/);

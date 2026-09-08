@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { dash } from '@/lib/crm/qt-format';
+import { funnelFromProjectedKpis } from '@/lib/crm/qt-builder-w2.util';
 import {
   QT_BUILDER_TABS,
   QT_SKU_TIERS,
@@ -10,6 +11,7 @@ import {
   QtContextFields,
   QtHistoryChrome,
   QtKpiChrome,
+  QtMetaFunnel,
   QtOptionsChrome,
   QtSkuPicker,
   isQtWritable,
@@ -109,6 +111,145 @@ describe('QtBuilder tabs + chrome', () => {
     expect(history).toContain('v1');
     expect(history).not.toContain('v2');
     expect(history).not.toContain('mở ở Wave');
+  });
+
+  it('renders live A/B/C option cards with recommended and client_visible', () => {
+    const html = renderToStaticMarkup(
+      createElement(QtOptionsChrome, {
+        options: [
+          {
+            option_key: 'A',
+            name: 'Growth Launch',
+            recommended: true,
+            client_visible: true,
+            payable_vnd: 108_000_000,
+          },
+          {
+            option_key: 'B',
+            name: 'Essential',
+            recommended: false,
+            client_visible: true,
+            payable_vnd: 86_000_000,
+          },
+          {
+            option_key: 'C',
+            name: 'Aggressive',
+            recommended: false,
+            client_visible: false,
+            payable_vnd: 140_000_000,
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain('A · Growth Launch');
+    expect(html).toContain('B · Essential');
+    expect(html).toContain('C · Aggressive');
+    expect(html).toContain('Recommended');
+    expect(html).toContain('client_visible');
+    expect(html).toContain('108.000.000');
+    expect(html).not.toContain('265647600');
+    expect(html).not.toContain('265.647.600');
+    expect(html).not.toContain('22,4');
+    expect(html).not.toContain('8,46');
+    expect(html).not.toContain('mở ở Wave');
+    expect(html).toContain('qt-opt');
+  });
+
+  it('Meta funnel uses projected_result only and dashes missing CTR', () => {
+    const funnel = funnelFromProjectedKpis([
+      { name: 'Imp.', value_text: '2,4tr', class: 'projected_result' },
+      { name: 'Click', value_text: '43K', class: 'projected_result' },
+      { name: 'Lead', value_text: '1.5K', class: 'projected_result' },
+      { name: 'CTR', value_text: '99%', class: 'committed' },
+    ]);
+    const html = renderToStaticMarkup(createElement(QtMetaFunnel, { funnel }));
+
+    expect(html).toContain('2,4tr');
+    expect(html).toContain('43K');
+    expect(html).toContain('1.5K');
+    expect(html).toContain(dash(null));
+    expect(html).not.toContain('99%');
+    expect(html).toContain('projected');
+    expect(html).toContain('qt-funnel');
+    expect(html).not.toContain('265647600');
+    expect(html).not.toContain('22,4');
+    expect(html).not.toContain('8,46');
+  });
+
+  it('KPI table lists official classes from live rows', () => {
+    const html = renderToStaticMarkup(
+      createElement(QtKpiChrome, {
+        kpis: [
+          {
+            name: '24 bài / tháng',
+            class: 'committed',
+            value_text: '36 asset',
+            source: 'deliverable',
+            assumption: 'Duyệt ≤2 ngày',
+          },
+          {
+            name: 'CTR Meta',
+            class: 'optimization_target',
+            value_text: '≥1,8%',
+            source: 'Ads Manager',
+            assumption: '',
+          },
+          {
+            name: 'Lead',
+            class: 'projected_result',
+            value_text: '1.000',
+            source: 'CRM',
+            assumption: 'Media đủ',
+          },
+          {
+            name: 'Ngân sách media',
+            class: 'assumption_input',
+            value_text: '120.000.000 ₫',
+            source: 'khách',
+            assumption: '',
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain('committed');
+    expect(html).toContain('optimization_target');
+    expect(html).toContain('projected_result');
+    expect(html).toContain('assumption_input');
+    expect(html).toContain('24 bài / tháng');
+    expect(html).toContain('1.000');
+    expect(html).not.toContain('265647600');
+    expect(html).not.toContain('22,4');
+    expect(html).not.toContain('8,46');
+  });
+
+  it('history renders Task 23 diff rows without inventing numbers', () => {
+    const html = renderToStaticMarkup(
+      createElement(QtHistoryChrome, {
+        versions: [
+          { n: 1, state: 'superseded' },
+          { n: 2, state: 'working' },
+        ],
+        diffs: [
+          { path: 'lines[0].unit_price_vnd', from: '42000000', to: '48000000', critical: true },
+          { path: 'payments[0].pct_bps', from: '6000', to: '5000', critical: true },
+        ],
+      }),
+    );
+
+    expect(html).toContain('v1');
+    expect(html).toContain('v2');
+    expect(html).toContain('superseded');
+    expect(html).toContain('working');
+    expect(html).toContain('lines[0].unit_price_vnd');
+    expect(html).toContain('42000000');
+    expect(html).toContain('48000000');
+    expect(html).toContain('qt-diff');
+    expect(html).not.toContain('265647600');
+    expect(html).not.toContain('22,4');
+    expect(html).not.toContain('8,46');
+    expect(html).not.toContain('mở ở Wave');
   });
 
   it('status pills are Vietnamese', () => {

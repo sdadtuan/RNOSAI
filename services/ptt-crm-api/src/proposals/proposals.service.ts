@@ -330,6 +330,10 @@ export class ProposalsService {
     return this.quoteBuilder.createRevision(proposalId, actor);
   }
 
+  async listQuoteVersions(proposalId: number) {
+    return this.quoteBuilder.listVersions(proposalId);
+  }
+
   async diffQuoteVersions(proposalId: number, fromN: number, toN: number) {
     return this.quoteBuilder.diffVersions(proposalId, fromN, toN);
   }

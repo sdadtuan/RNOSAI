@@ -445,6 +445,20 @@ export class QuoteBuilderService {
     return created;
   }
 
+  async listVersions(proposalId: number): Promise<{ versions: Array<{ id: string; n: number; state: string }> }> {
+    await this.requireQuoteProposal(proposalId);
+    const versions = await this.versions.listVersions(proposalId);
+    return {
+      versions: versions.map((row) => ({ id: row.id, n: row.n, state: row.state })),
+    };
+  }
+
+  async listKpis(vid: string): Promise<{ version_id: string; kpis: Record<string, unknown>[] }> {
+    const version = await this.versions.getVersion(vid);
+    if (!version) throw new NotFoundException({ error: 'version_not_found' });
+    return { version_id: vid, kpis: await this.versions.listKpis(vid) };
+  }
+
   async diffVersions(
     proposalId: number,
     fromN: number,

@@ -114,6 +114,22 @@ describe('QuoteOptionsService', () => {
     expect(db.options.filter((o) => o.recommended === true)).toHaveLength(1);
   });
 
+  it('lists options for a version', async () => {
+    const { svc } = load();
+
+    await svc.create(VID, { name: 'Standard', payable_vnd: 108_000_000, client_visible: true }, ACTOR);
+    const out = await svc.list(VID);
+
+    expect(out.options).toHaveLength(1);
+    expect(out.options[0]).toMatchObject({
+      option_key: 'A',
+      name: 'Standard',
+      recommended: false,
+      client_visible: true,
+      payable_vnd: 108_000_000,
+    });
+  });
+
   it('duplicate copies source onto the next free A/B/C key', async () => {
     const { svc } = load();
 
@@ -184,6 +200,8 @@ describe('quote option HTTP wiring', () => {
     const versions = readFileSync(join(__dirname, 'quote-versions.controller.ts'), 'utf8');
     const mod = readFileSync(join(__dirname, 'proposals.module.ts'), 'utf8');
     expect(versions).toMatch(/@Controller\('api\/crm\/quote-versions'\)/);
+    expect(versions).toMatch(/@Get\(':vid\/options'\)/);
+    expect(versions).toMatch(/@Get\(':vid\/kpis'\)/);
     expect(versions).toMatch(/@Post\(':vid\/options'\)/);
     expect(versions).toMatch(/@Post\(':vid\/options\/:key\/duplicate'\)/);
     expect(versions).toMatch(/@Patch\(':vid\/options\/:key'\)/);

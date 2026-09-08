@@ -395,6 +395,134 @@ export function putQtPayments(token: string, vid: string, items: QtPaymentItem[]
   );
 }
 
+export type QtOptionKey = 'A' | 'B' | 'C';
+
+export type QtQuoteOption = {
+  id?: string;
+  version_id?: string;
+  option_key: QtOptionKey | string;
+  name: string;
+  recommended: boolean;
+  client_visible: boolean;
+  payable_vnd?: number | null;
+};
+
+export type QtQuoteKpi = {
+  id?: string;
+  version_id?: string;
+  option_key?: string | null;
+  name: string;
+  class: string;
+  value_text?: string | null;
+  source?: string | null;
+  assumption?: string | null;
+};
+
+export type QtQuoteVersion = {
+  id?: string;
+  n: number;
+  state: string;
+};
+
+export type QtVersionDiff = {
+  path: string;
+  from?: unknown;
+  to?: unknown;
+  critical?: boolean;
+};
+
+export type QtOptionWrite = {
+  option_key?: string;
+  name?: string;
+  recommended?: boolean;
+  client_visible?: boolean;
+  payable_vnd?: number;
+};
+
+export type QtOptionPatch = {
+  recommended?: boolean;
+  client_visible?: boolean;
+  name?: string;
+};
+
+export function asQtOptions(body: unknown): QtQuoteOption[] {
+  if (Array.isArray(body)) return body as QtQuoteOption[];
+  if (body && typeof body === 'object' && Array.isArray((body as { options?: unknown }).options)) {
+    return (body as { options: QtQuoteOption[] }).options;
+  }
+  return [];
+}
+
+export function asQtKpis(body: unknown): QtQuoteKpi[] {
+  if (Array.isArray(body)) return body as QtQuoteKpi[];
+  if (body && typeof body === 'object' && Array.isArray((body as { kpis?: unknown }).kpis)) {
+    return (body as { kpis: QtQuoteKpi[] }).kpis;
+  }
+  return [];
+}
+
+export function asQtVersions(body: unknown): QtQuoteVersion[] {
+  if (Array.isArray(body)) return body as QtQuoteVersion[];
+  if (body && typeof body === 'object' && Array.isArray((body as { versions?: unknown }).versions)) {
+    return (body as { versions: QtQuoteVersion[] }).versions;
+  }
+  return [];
+}
+
+export function asQtVersionDiffs(body: unknown): QtVersionDiff[] {
+  if (Array.isArray(body)) return body as QtVersionDiff[];
+  if (body && typeof body === 'object' && Array.isArray((body as { items?: unknown }).items)) {
+    return (body as { items: QtVersionDiff[] }).items;
+  }
+  return [];
+}
+
+export function getQtOptions(token: string, vid: string) {
+  return qtFetch<unknown>(token, `/quote-versions/${encodeURIComponent(vid)}/options`).then(
+    (body) => ({ options: asQtOptions(body) }),
+  );
+}
+
+export function postQtOption(token: string, vid: string, body: QtOptionWrite) {
+  return qtFetch<{ option: QtQuoteOption; options: QtQuoteOption[] }>(
+    token,
+    `/quote-versions/${encodeURIComponent(vid)}/options`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export function patchQtOption(token: string, vid: string, key: string, body: QtOptionPatch) {
+  return qtFetch<{ option: QtQuoteOption; options: QtQuoteOption[] }>(
+    token,
+    `/quote-versions/${encodeURIComponent(vid)}/options/${encodeURIComponent(key)}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+  );
+}
+
+export function duplicateQtOption(token: string, vid: string, key: string) {
+  return qtFetch<{ option: QtQuoteOption; options: QtQuoteOption[] }>(
+    token,
+    `/quote-versions/${encodeURIComponent(vid)}/options/${encodeURIComponent(key)}/duplicate`,
+    { method: 'POST' },
+  );
+}
+
+export function getQtKpis(token: string, vid: string) {
+  return qtFetch<unknown>(token, `/quote-versions/${encodeURIComponent(vid)}/kpis`).then((body) => ({
+    kpis: asQtKpis(body),
+  }));
+}
+
+export function getQtVersions(token: string, id: number) {
+  return qtFetch<unknown>(token, `/${id}/versions`).then((body) => ({ versions: asQtVersions(body) }));
+}
+
+export function getQtVersionDiff(token: string, id: number, fromN: number, toN: number) {
+  return qtFetch<unknown>(token, `/${id}/versions/${fromN}/diff/${toN}`).then((body) => ({
+    items: asQtVersionDiffs(body),
+  }));
+}
+
 export function getQtQuoteCatalog(token: string, query?: { service?: string; tab?: string }) {
   const params = new URLSearchParams();
   if (query?.service) params.set('service', query.service);

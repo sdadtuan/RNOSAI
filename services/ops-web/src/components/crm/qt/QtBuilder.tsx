@@ -8,10 +8,17 @@ import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import { fetchAmAccounts } from '@/lib/crm/am-api';
 import {
   QtApiError,
+  duplicateQtOption,
+  getQtKpis,
+  getQtOptions,
   getQtProposal,
   getQtProposalLines,
   getQtQuoteCatalog,
+  getQtVersionDiff,
+  getQtVersions,
+  patchQtOption,
   patchQtProposal,
+  postQtOption,
   putQtLines,
   putQtPayments,
   recalculateQtVersion,
@@ -20,9 +27,17 @@ import {
   type QtCatalogItem,
   type QtPackageTier,
   type QtPaymentItem,
+  type QtQuoteKpi,
+  type QtQuoteOption,
+  type QtQuoteVersion,
   type QtRecalcResult,
+  type QtVersionDiff,
 } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
+import {
+  funnelFromProjectedKpis,
+  type QtMetaFunnelValues,
+} from '@/lib/crm/qt-builder-w2.util';
 import {
   QtStickyCommercial,
   formatQtGm,
@@ -286,22 +301,174 @@ export function QtCatalogAddCta({
   );
 }
 
-export function QtOptionsChrome() {
+export function QtOptionsChrome({
+  options = [],
+  selectedKey,
+  writable,
+  onSelect,
+  onRecommend,
+  onToggleVisible,
+  onDuplicate,
+  onCreate,
+}: {
+  options?: QtQuoteOption[];
+  selectedKey?: string;
+  writable?: boolean;
+  onSelect?: (key: string) => void;
+  onRecommend?: (key: string) => void;
+  onToggleVisible?: (key: string, visible: boolean) => void;
+  onDuplicate?: (key: string) => void;
+  onCreate?: () => void;
+} = {}) {
+  if (!options.length) {
+    return (
+      <section className="qt-card">
+        <header className="qt-card__head">
+          <b>Phương án</b>
+        </header>
+        <div className="qt-opt">
+          <h3>A</h3>
+          <p className="qt-empty">{dash(null)}</p>
+        </div>
+        {writable && onCreate ? (
+          <button type="button" className="qt-btn" onClick={onCreate}>
+            Thêm phương án
+          </button>
+        ) : null}
+      </section>
+    );
+  }
+
+  const keys = options.map((row) => String(row.option_key));
   return (
     <section className="qt-card">
       <header className="qt-card__head">
         <b>Phương án</b>
-        <span className="qt-muted">W1 · một phương án A</span>
+        <span className="qt-muted">Tối đa 1 recommended · client_visible</span>
       </header>
-      <div className="qt-opt">
-        <h3>A</h3>
-        <p className="qt-empty">{dash(null)}</p>
+      <div className="qt-opt-grid">
+        {options.map((row) => {
+          const key = String(row.option_key);
+          const on = selectedKey ? selectedKey === key : row.recommended;
+          return (
+            <button
+              key={key}
+              type="button"
+              className={`qt-opt${on ? ' qt-opt--on' : ''}${row.recommended ? ' qt-opt--rec' : ''}`}
+              onClick={() => onSelect?.(key)}
+            >
+              {row.recommended ? <span className="qt-pill qt-pill--ok">Recommended</span> : null}
+              <h3>
+                {key} · {row.name || dash(null)}
+              </h3>
+              <p className="qt-muted">{row.client_visible !== false ? 'client_visible' : 'ẩn khỏi khách'}</p>
+              <b>{formatQtVnd(row.payable_vnd ?? null)}</b>
+            </button>
+          );
+        })}
       </div>
+      <div className="qt-table-wrap">
+        <table className="qt-table">
+          <thead>
+            <tr>
+              <th></th>
+              {keys.map((key) => (
+                <th key={`h-${key}`}>{key}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Phải thu</td>
+              {options.map((row) => (
+                <td key={`pay-${row.option_key}`}>{formatQtVnd(row.payable_vnd ?? null)}</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {writable ? (
+        <div className="qt-actions">
+          {options.map((row) => {
+            const key = String(row.option_key);
+            return (
+              <span key={`act-${key}`} className="qt-actions__group">
+                <button type="button" className="qt-btn" onClick={() => onRecommend?.(key)}>
+                  Recommended {key}
+                </button>
+                <button
+                  type="button"
+                  className="qt-btn"
+                  onClick={() => onToggleVisible?.(key, row.client_visible === false)}
+                >
+                  {row.client_visible === false ? `Hiện ${key}` : `Ẩn ${key} khỏi khách`}
+                </button>
+                {options.length < 3 ? (
+                  <button type="button" className="qt-btn" onClick={() => onDuplicate?.(key)}>
+                    Nhân bản {key}
+                  </button>
+                ) : null}
+              </span>
+            );
+          })}
+          {options.length < 3 && onCreate ? (
+            <button type="button" className="qt-btn" onClick={onCreate}>
+              Thêm phương án
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
 
-export function QtKpiChrome() {
+export function QtMetaFunnel({ funnel }: { funnel: QtMetaFunnelValues }) {
+  return (
+    <div className="qt-funnelbox">
+      <div>
+        <div className="qt-muted">Funnel Meta (forecast)</div>
+        <div className="qt-funnel">
+          <div className="qt-fstep">
+            <b>{dash(funnel.impressions)}</b>
+            <span>Imp.</span>
+          </div>
+          <div className="qt-fstep">
+            <b>{dash(funnel.clicks)}</b>
+            <span>Click</span>
+          </div>
+          <div className="qt-fstep">
+            <b>{dash(funnel.leads)}</b>
+            <span>Lead</span>
+          </div>
+          <div className="qt-fstep">
+            <b>{dash(funnel.sql)}</b>
+            <span>SQL</span>
+          </div>
+        </div>
+      </div>
+      <div className="qt-funnel-kpis">
+        <div className="qt-funnel-kpi">
+          <span>CTR</span>
+          <b>{dash(funnel.ctr)}</b>
+        </div>
+        <div className="qt-funnel-kpi">
+          <span>CVR</span>
+          <b>{dash(funnel.cvr)}</b>
+        </div>
+        <div className="qt-funnel-kpi">
+          <span>CPL</span>
+          <b>{dash(funnel.cpl)}</b>
+        </div>
+        <div className="qt-funnel-kpi">
+          <span>Nhãn</span>
+          <b>projected</b>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function QtKpiChrome({ kpis = [] }: { kpis?: QtQuoteKpi[] } = {}) {
   return (
     <section className="qt-card">
       <header className="qt-card__head">
@@ -319,11 +486,37 @@ export function QtKpiChrome() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="qt-empty" colSpan={5}>
-                {dash(null)}
-              </td>
-            </tr>
+            {kpis.length ? (
+              kpis.map((row, index) => (
+                <tr key={`${row.name}-${index}`}>
+                  <td>{row.name || dash(null)}</td>
+                  <td>
+                    <span
+                      className={`qt-pill${
+                        row.class === 'committed'
+                          ? ' qt-pill--ok'
+                          : row.class === 'optimization_target'
+                            ? ' qt-pill--info'
+                            : row.class === 'projected_result'
+                              ? ' qt-pill--warn'
+                              : ''
+                      }`}
+                    >
+                      {row.class || dash(null)}
+                    </span>
+                  </td>
+                  <td>{dash(row.value_text)}</td>
+                  <td>{dash(row.source)}</td>
+                  <td>{dash(row.assumption)}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td className="qt-empty" colSpan={5}>
+                  {dash(null)}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -331,16 +524,57 @@ export function QtKpiChrome() {
   );
 }
 
-export function QtHistoryChrome({ versionN = 1 }: { versionN?: number }) {
+export function QtHistoryChrome({
+  versionN = 1,
+  versions,
+  diffs = [],
+}: {
+  versionN?: number;
+  versions?: QtQuoteVersion[];
+  diffs?: QtVersionDiff[];
+} = {}) {
+  const rows = versions?.length ? versions : [{ n: versionN, state: 'working' }];
   return (
     <section className="qt-card">
       <header className="qt-card__head">
         <b>Lịch sử</b>
       </header>
-      <div className="qt-side-row">
-        <span>v{versionN}</span>
-        <b>working</b>
+      <div className="qt-table-wrap">
+        <table className="qt-table">
+          <thead>
+            <tr>
+              <th>Ver</th>
+              <th>State</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={`v-${row.n}`}>
+                <td>v{row.n}</td>
+                <td>
+                  <b>{row.state || dash(null)}</b>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+      {diffs.length ? (
+        <div className="qt-card">
+          <header className="qt-card__head">
+            <b>Diff commercial</b>
+          </header>
+          {diffs.map((row) => (
+            <div className="qt-diff" key={row.path}>
+              <b>{row.path}</b>
+              <p className="qt-muted">
+                {dash(row.from)} → {dash(row.to)}
+                {row.critical ? ' · critical' : ''}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -483,6 +717,11 @@ export function QtBuilder() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [options, setOptions] = useState<QtQuoteOption[]>([]);
+  const [kpis, setKpis] = useState<QtQuoteKpi[]>([]);
+  const [versions, setVersions] = useState<QtQuoteVersion[]>([]);
+  const [diffs, setDiffs] = useState<QtVersionDiff[]>([]);
+  const [selectedOption, setSelectedOption] = useState<string>('');
 
   const searchKey = searchParams.toString();
   const current = useMemo(() => new URLSearchParams(searchKey), [searchKey]);
@@ -532,6 +771,28 @@ export function QtBuilder() {
       setLeadCode(detail.lead_id ? `LD-${detail.lead_id}` : lead ? `LD-${lead.id}` : null);
 
       const vid = detail.current_version_id;
+      const emptyOptions = { options: [] as QtQuoteOption[] };
+      const emptyKpis = { kpis: [] as QtQuoteKpi[] };
+      const emptyVersions = { versions: [] as QtQuoteVersion[] };
+      const [optionRes, kpiRes, versionRes] = await Promise.all([
+        vid ? getQtOptions(token, vid).catch(() => emptyOptions) : emptyOptions,
+        vid ? getQtKpis(token, vid).catch(() => emptyKpis) : emptyKpis,
+        getQtVersions(token, proposalId).catch(() => emptyVersions),
+      ]);
+      setOptions(optionRes.options);
+      setKpis(kpiRes.kpis);
+      setVersions(versionRes.versions);
+      const recommended = optionRes.options.find((row) => row.recommended);
+      setSelectedOption(recommended ? String(recommended.option_key) : String(optionRes.options[0]?.option_key ?? ''));
+      const sorted = [...versionRes.versions].sort((a, b) => a.n - b.n);
+      if (sorted.length >= 2) {
+        const fromN = sorted[sorted.length - 2].n;
+        const toN = sorted[sorted.length - 1].n;
+        const diffRes = await getQtVersionDiff(token, proposalId, fromN, toN).catch(() => ({ items: [] }));
+        setDiffs(diffRes.items);
+      } else {
+        setDiffs([]);
+      }
       if (vid) {
         try {
           const recalc = await recalculateQtVersion(token, proposalId, vid, hasFinance);
@@ -673,6 +934,30 @@ export function QtBuilder() {
   }
 
   const writable = isQtWritable(proposal?.status, proposal?.current_version_state);
+  const funnel = useMemo(() => funnelFromProjectedKpis(kpis), [kpis]);
+
+  async function persistOptions(next: Promise<{ options?: QtQuoteOption[] }>) {
+    try {
+      const saved = await next;
+      const rows = saved.options ?? [];
+      setOptions(rows);
+      if (rows.length && !rows.some((row) => String(row.option_key) === selectedOption)) {
+        const recommended = rows.find((row) => row.recommended);
+        setSelectedOption(String(recommended?.option_key ?? rows[0].option_key));
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Không lưu được phương án');
+    }
+  }
+
+  function mutateOption(
+    write: (token: string, vid: string) => Promise<{ options?: QtQuoteOption[] }>,
+  ) {
+    const token = getAccessToken();
+    const vid = proposal?.current_version_id;
+    if (!token || !vid || !writable) return;
+    void persistOptions(write(token, vid));
+  }
 
   return (
     <div className="qt-builder">
@@ -744,7 +1029,27 @@ export function QtBuilder() {
             </section>
           ) : null}
 
-          {tab === 'options' ? <QtOptionsChrome /> : null}
+          {tab === 'options' ? (
+            <QtOptionsChrome
+              options={options}
+              selectedKey={selectedOption}
+              writable={writable}
+              onSelect={setSelectedOption}
+              onRecommend={(key) => mutateOption((token, vid) => patchQtOption(token, vid, key, { recommended: true }))}
+              onToggleVisible={(key, visible) =>
+                mutateOption((token, vid) => patchQtOption(token, vid, key, { client_visible: visible }))
+              }
+              onDuplicate={(key) => mutateOption((token, vid) => duplicateQtOption(token, vid, key))}
+              onCreate={() =>
+                mutateOption((token, vid) =>
+                  postQtOption(token, vid, {
+                    name: `Phương án ${options.length ? String.fromCharCode(65 + options.length) : 'A'}`,
+                    client_visible: true,
+                  }),
+                )
+              }
+            />
+          ) : null}
 
           {tab === 'services' ? (
             <section className="qt-card">
@@ -771,6 +1076,7 @@ export function QtBuilder() {
               ) : (
                 <p className="qt-empty">{dash(null)}</p>
               )}
+              <QtMetaFunnel funnel={funnel} />
               <div className="qt-catalog-list">
                 {catalog.map((item) => (
                   <QtCatalogAddCta
@@ -785,7 +1091,7 @@ export function QtBuilder() {
             </section>
           ) : null}
 
-          {tab === 'kpi' ? <QtKpiChrome /> : null}
+          {tab === 'kpi' ? <QtKpiChrome kpis={kpis} /> : null}
 
           {tab === 'cost' ? (
             <section className="qt-card">
@@ -913,7 +1219,13 @@ export function QtBuilder() {
             </section>
           ) : null}
 
-          {tab === 'history' ? <QtHistoryChrome versionN={1} /> : null}
+          {tab === 'history' ? (
+            <QtHistoryChrome
+              versionN={versions[versions.length - 1]?.n ?? 1}
+              versions={versions}
+              diffs={diffs}
+            />
+          ) : null}
         </div>
 
         <QtStickyCommercial

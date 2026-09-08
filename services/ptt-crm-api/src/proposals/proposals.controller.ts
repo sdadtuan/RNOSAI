@@ -222,6 +222,11 @@ export class ProposalsController {
     return this.proposals.createQuoteVersion(id, await this.quoteWriteActor(req, true));
   }
 
+  @Get(':id/versions')
+  async listVersions(@Param('id', ParseIntPipe) id: number) {
+    return this.proposals.listQuoteVersions(id);
+  }
+
   @Get(':id/versions/:a/diff/:b')
   async diffVersions(
     @Param('id', ParseIntPipe) id: number,

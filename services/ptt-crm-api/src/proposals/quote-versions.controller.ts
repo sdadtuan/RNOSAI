@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   Param,
   Patch,
   Post,
@@ -44,6 +45,16 @@ export class QuoteVersionsController {
     @Body() body: { items?: QuotePaymentItemInput[] },
   ) {
     return this.builder.putPayments(vid, body ?? {}, await this.actor(req));
+  }
+
+  @Get(':vid/options')
+  async listOptions(@Param('vid') vid: string) {
+    return this.options.list(vid);
+  }
+
+  @Get(':vid/kpis')
+  async listKpis(@Param('vid') vid: string) {
+    return this.builder.listKpis(vid);
   }
 
   @Post(':vid/options')

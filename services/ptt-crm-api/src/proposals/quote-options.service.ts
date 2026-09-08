@@ -90,6 +90,11 @@ function mapOption(row: Record<string, unknown>): QuoteOption {
 export class QuoteOptionsService {
   constructor(@Inject(QT_QUOTE_QUERY) private readonly db: QuoteQueryPort) {}
 
+  async list(vid: string): Promise<{ options: QuoteOption[] }> {
+    await this.requireVersion(vid, (sql, params) => this.db.query(sql, params));
+    return { options: await this.listOptions(vid, (sql, params) => this.db.query(sql, params)) };
+  }
+
   async create(
     vid: string,
     input: QuoteOptionCreateInput,
