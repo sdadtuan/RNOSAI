@@ -215,7 +215,15 @@ export async function acceptPublicProposalApi(
     option_key?: string;
     otp?: string;
   },
-): Promise<QtApiResult<{ status?: string; option_key?: string }>> {
+): Promise<
+  QtApiResult<{
+    status?: string;
+    option_key?: string;
+    accepted_option_key?: string;
+    locked?: boolean;
+    convert_allowed?: boolean;
+  }>
+> {
   return qtApi(request, '', `/api/public/proposals/${encodeURIComponent(shareToken)}/accept`, {
     method: 'POST',
     data: body,

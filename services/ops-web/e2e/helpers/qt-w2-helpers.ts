@@ -309,6 +309,27 @@ export function qtApiError(json: unknown): string {
   return qtError(json);
 }
 
+/** Empty money stays null — never coerce blank to 0. */
+export function qtLineFeeVnd(line: QtLineRow | undefined): number | null {
+  const unit = line?.unit_price_vnd;
+  if (unit != null && unit !== '' && Number.isFinite(Number(unit))) {
+    return Number(unit);
+  }
+  const suggested = line?.catalog_snapshot_json?.rate?.suggested_vnd;
+  if (suggested != null && Number.isFinite(Number(suggested))) {
+    return Number(suggested);
+  }
+  return null;
+}
+
+export function requireQtLineFeeVnd(line: QtLineRow | undefined, label: string): number {
+  const fee = qtLineFeeVnd(line);
+  if (fee == null) {
+    throw new Error(`Wave 2 prerequisite missing: ${label} fee snapshot is empty (null/—), not 0`);
+  }
+  return fee;
+}
+
 /** Product UI only — unit specs may mention 265647600 as a forbidden fixture. */
 export function assertNoMockMoneyInQtProductUi(): void {
   const root = join(__dirname, '../../src/components/crm/qt');

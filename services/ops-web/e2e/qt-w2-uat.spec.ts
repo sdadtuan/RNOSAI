@@ -30,6 +30,7 @@ import {
   putQtFeeLine,
   qtApiError,
   qtCatalogItems,
+  requireQtLineFeeVnd,
   recalculateQtApi,
   requestPublicProposalOtpApi,
   requireActiveCatalogItem,
@@ -92,7 +93,7 @@ test.describe('Quotation OS W2 UAT', () => {
     const seeded = await seedQtWorkingQuote(request, token, `QT-W2-AC04-${Date.now()}`);
     const v1Line = await seedQtLineWithCosts(request, token, seeded.proposalId, {
       unit_price_vnd: QT_AC03_FEE_VND,
-      cost_labor_vnd: QT_HEALTHY_GM_COST_VND,
+      cost_labor_vnd: QT_AC03_COST_VND,
       qty: 1,
     });
     await prepareQtForApproval(request, token, seeded);
@@ -123,7 +124,7 @@ test.describe('Quotation OS W2 UAT', () => {
       client_visible: true,
       qty: frozenQty + 2,
       unit_price_vnd: Number(v1Line.unit_price_vnd ?? QT_AC03_FEE_VND) + 1_000_000,
-      cost_labor_vnd: QT_HEALTHY_GM_COST_VND,
+      cost_labor_vnd: QT_AC03_COST_VND,
     });
     expect(blocked.ok).toBeFalsy();
     expect(blocked.status).toBe(409);
@@ -150,7 +151,7 @@ test.describe('Quotation OS W2 UAT', () => {
       client_visible: true,
       qty: 3,
       unit_price_vnd: Number(v1Line.unit_price_vnd ?? QT_AC03_FEE_VND),
-      cost_labor_vnd: QT_HEALTHY_GM_COST_VND,
+      cost_labor_vnd: QT_AC03_COST_VND,
     });
     expect(written.ok, `put lines on v2: ${written.status} ${JSON.stringify(written.json)}`).toBeTruthy();
     expect(Number(written.json.lines?.[0]?.qty ?? 0)).toBe(3);
@@ -163,6 +164,20 @@ test.describe('Quotation OS W2 UAT', () => {
     expect(diff.ok, `diff 1/2: ${diff.status} ${JSON.stringify(diff.json)}`).toBeTruthy();
     const qty = (diff.json.items ?? []).find((row) => row.path === 'lines[0].qty');
     expect(qty).toMatchObject({ from: frozenQty, to: 3, critical: true });
+
+    const v2Id = String(revision.json.id);
+    await prepareQtForApproval(request, token, { ...seeded, versionId: v2Id });
+    const rePolicy = await submitQtApprovalApi(request, token, v2Id);
+    expect(
+      rePolicy.ok,
+      `re-policy after critical qty: ${rePolicy.status} ${JSON.stringify(rePolicy.json)}`,
+    ).toBeTruthy();
+    const reSections = (rePolicy.json.steps ?? []).map((step) => String(step.section));
+    expect(reSections).toEqual(expect.arrayContaining(['Finance', 'GDKD']));
+    const liveGm = rePolicy.json.approval?.policy_snapshot?.gm_bps;
+    if (liveGm != null && liveGm < QT_GM_FLOOR_BPS) {
+      expect(reSections.filter((section) => section === 'Finance' || section === 'GDKD')).toHaveLength(2);
+    }
   });
 
   test('AC-05 share token on v2, choose option B, checkbox + OTP → acceptance, accepted, lock, convert allowed', async ({
@@ -232,13 +247,17 @@ test.describe('Quotation OS W2 UAT', () => {
     expect(qtApiError(noOtp.json)).toMatch(/otp_invalid|otp_required/);
 
     const otp = String(process.env.OPS_E2E_QT_OTP ?? '').replace(/\s+/g, '');
-    if (!otp) {
-      return;
-    }
+    test.skip(
+      !otp,
+      'Wave 2 prerequisite missing: set OPS_E2E_QT_OTP to complete AC-05 accept/lock/convert (API never returns OTP)',
+    );
     const accepted = await acceptPublicProposalApi(request, shareToken, { ...signer, otp });
     expect(accepted.ok, `accept B: ${accepted.status} ${JSON.stringify(accepted.json)}`).toBeTruthy();
     expect(accepted.json.status).toBe('accepted');
     expect(accepted.json.option_key).toBe('B');
+    expect(accepted.json.accepted_option_key ?? accepted.json.option_key).toBe('B');
+    expect(accepted.json.locked).toBe(true);
+    expect(accepted.json.convert_allowed).toBe(true);
 
     const after = await getQtProposalApi(request, token, seeded.proposalId);
     expect(after.json.status).toBe('accepted');
@@ -307,11 +326,7 @@ test.describe('Quotation OS W2 UAT', () => {
     });
     expect(first.ok, `first tier line: ${first.status} ${JSON.stringify(first.json)}`).toBeTruthy();
     expect(first.json.lines?.[0]?.package_tier).toBe(firstTier);
-    const firstFee = Number(
-      first.json.lines?.[0]?.unit_price_vnd ??
-        first.json.lines?.[0]?.catalog_snapshot_json?.rate?.suggested_vnd ??
-        0,
-    );
+    const firstFee = requireQtLineFeeVnd(first.json.lines?.[0], 'first SKU/tier');
 
     const options = await ensureQtOptionsAbc(request, token, seeded.versionId);
     expect(options.map((row) => row.option_key).sort()).toEqual(['A', 'B', 'C']);
@@ -341,12 +356,11 @@ test.describe('Quotation OS W2 UAT', () => {
     });
     expect(second.ok, `changed SKU/tier: ${second.status} ${JSON.stringify(second.json)}`).toBeTruthy();
     expect(second.json.lines?.[0]?.package_tier).toBe(secondTier);
-    const secondFee = Number(
-      second.json.lines?.[0]?.unit_price_vnd ??
-        second.json.lines?.[0]?.catalog_snapshot_json?.rate?.suggested_vnd ??
-        0,
-    );
-    expect(second.json.lines?.[0]?.catalog_snapshot_json?.rate?.suggested_vnd).not.toBeUndefined();
+    const secondFee = requireQtLineFeeVnd(second.json.lines?.[0], 'changed SKU/tier');
+    const secondSuggested = second.json.lines?.[0]?.catalog_snapshot_json?.rate?.suggested_vnd;
+    if (secondSuggested == null) {
+      throw new Error('Wave 2 prerequisite missing: changed SKU/tier catalog rate.suggested_vnd is empty');
+    }
     if (secondDv === String(active.dv_code) && next?.suggested_vnd != null) {
       expect(secondFee).not.toBe(firstFee);
     } else {
