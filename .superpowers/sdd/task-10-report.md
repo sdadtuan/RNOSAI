@@ -2,7 +2,7 @@
 
 **Status:** GREEN  
 **Branch:** `feat/quotation-os`  
-**Commit:** `feat(qt): idempotent convert to lifecycle and invoice draft`
+**Commit:** `e66d95d1` `feat(qt): idempotent convert to lifecycle and invoice draft`
 
 ## Requirements (verbatim from brief)
 
@@ -97,3 +97,60 @@ Convert spec (10):
 - `spawn_week` on PATCH accepted is no longer applied (W1 convert is lifecycle + invoice draft only).
 - Lifecycle + invoice writes use `ServiceLifecycleService` / `InvoicesService` (separate connections). Conversion rows are transactional; uniqueness + advisory lock is the SoR against a second bundle.
 - Quote SoR stays `crm_proposals`. No second campaign table. Soft-delete unused.
+
+---
+
+## Review fix (Critical + Important)
+
+**Status:** GREEN  
+**Commit:** `fix(qt): keep Deal Room accept and require accepted convert`
+
+### Findings fixed
+
+1. **Critical — Deal Room accept without version still spawns lifecycles.**  
+   If `quote_code` and `current_version_id` are both empty, PATCH accepted uses the previous inline spawn (`ServiceLifecycleService.create` per line, `setLineLifecycle`, optional `spawn_week`). It does not return `lifecycles: []`.
+
+2. **Important — Invoice drafts do not multiply on retry.**  
+   Convert looks up `crm_quote_conversions` `invoice_schedule` and existing `crm_invoices` rows (`notes = Quote convert {vid}`) before `InvoicesService.create`. Unique-violation replay merges `invoice_draft_ids` from the lifecycle payload or the invoice conversion row. Conversion rows remain the success marker (AC-08 unique `(version_id, target_type)`).
+
+3. **Important — Quote OS PATCH accepted + convert is atomic from the caller’s view.**  
+   Quote OS (and Deal Room with a version) writes `accepted` then convert with `legacy-accept:{id}`. If convert throws (`version_not_found`, missing lines), status is rolled back to the previous value. No committed accepted-without-convert.
+
+4. **Important — Explicit POST convert requires accepted.**  
+   Draft/sent → 400 `{ error: 'quote_not_accepted' }`. PATCH-accepted runs convert after the status write so the check sees `accepted`. Guard on POST is unchanged: `RequireQuoteSection('crm_quote.convert','execute')`.
+
+Unchanged: `optional_handoff: []`; no CSD tickets; no `crm_cp_projects`.
+
+### Tests added / adjusted
+
+- Deal Room accept without `current_version_id` → one lifecycle per line (`quote-convert.service.spec.ts`, `proposals.service.spec.ts`)
+- Two converts → same lifecycle + same `invoice_draft_ids`; existing drafts reused (no extra `InvoicesService.create`)
+- Explicit convert on draft/sent → `quote_not_accepted`
+- Quote OS PATCH accepted that fails convert rolls status back to `sent`
+- Quote OS accept without explicit convert still one convert via `legacy-accept:{id}`
+- Existing: two converts one set (AC-08); Deal Room with version uses legacy key; missing cap 403
+
+### Verification
+
+```
+cd services/ptt-crm-api && ./node_modules/.bin/jest --verbose src/proposals
+```
+
+**Result:** 20 suites, 132 tests passed.
+
+| New / adjusted test | Outcome |
+|---|---|
+| Deal Room accept without version → lifecycles created | PASS |
+| Two converts → same lifecycle + same invoice_draft_ids | PASS |
+| Existing invoices for version reused; no extra drafts | PASS |
+| Explicit convert on draft/sent → `quote_not_accepted` | PASS |
+| Quote OS PATCH accepted + failed convert rolls back | PASS |
+| Quote OS accept without explicit convert → legacy key | PASS |
+| Unique `(version_id, target_type)` replay (AC-08) | PASS |
+| missing `crm_quote.convert` execute → 403 | PASS |
+
+### Remaining concerns
+
+- Lifecycle + invoice writes still use separate connections (`ServiceLifecycleService` / `InvoicesService`). Accept rollback is a second `patchStatus` after convert throws; it is not one DB transaction with those services.
+- Invoice reuse by `notes = Quote convert {vid}` assumes that note stays the create key. A unique-violation loser that created drafts *before* the lookup path existed could still have leftovers; new retries reuse by notes or conversion payload.
+- Quote SoR stays `crm_proposals`. No CSD / `crm_cp_projects`. Soft-delete unused.

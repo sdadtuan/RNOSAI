@@ -12,6 +12,10 @@ function loadService(overrides: {
     patchHeader?: jest.Mock;
     recalculate?: jest.Mock;
   };
+  quoteConvert?: { convert: jest.Mock };
+  lifecycle?: { create: jest.Mock; setCommercialSku?: jest.Mock };
+  ops?: { spawnWeek: jest.Mock };
+  config?: Record<string, unknown>;
   repo?: Partial<{
     listByLeadId: jest.Mock;
     listByCustomer: jest.Mock;
@@ -19,6 +23,11 @@ function loadService(overrides: {
     create: jest.Mock;
     getById: jest.Mock;
     replaceLines?: jest.Mock;
+    patchStatus?: jest.Mock;
+    setLineLifecycle?: jest.Mock;
+    activateLifecycle?: jest.Mock;
+    setLifecycleSkuCode?: jest.Mock;
+    setProposalLifecycle?: jest.Mock;
   }>;
 }) {
   const repo = {
@@ -33,6 +42,14 @@ function loadService(overrides: {
       status: 'draft',
       lines: [],
     }),
+    patchStatus: jest.fn().mockImplementation(async (id: number, status: string) => ({
+      id,
+      status,
+    })),
+    setLineLifecycle: jest.fn(),
+    activateLifecycle: jest.fn(),
+    setLifecycleSkuCode: jest.fn(),
+    setProposalLifecycle: jest.fn(),
     ...overrides.repo,
   };
   const quoteCreate = overrides.quoteCreate ?? {
@@ -59,22 +76,35 @@ function loadService(overrides: {
     getPresalesProposalHandoff: jest.fn().mockResolvedValue({ handoff: { customer_id: 3 } }),
     getPresalesProposalGate: jest.fn().mockResolvedValue({ gate: { ok: true, messages: [] } }),
   };
+  let nextLc = 80;
+  const lifecycle = overrides.lifecycle ?? {
+    create: jest.fn().mockImplementation(async () => ({ id: nextLc++ })),
+    setCommercialSku: jest.fn().mockResolvedValue(undefined),
+  };
+  const ops = overrides.ops ?? { spawnWeek: jest.fn().mockResolvedValue(undefined) };
+  const quoteConvert = overrides.quoteConvert ?? { convert: jest.fn() };
+  const config = {
+    dealRoomGateStrict: false,
+    opsWeeklySpawnEnabled: true,
+    opsDvEnabled: true,
+    ...(overrides.config ?? {}),
+  };
   const svc = new ProposalsService(
     repo as never,
     unused,
     unused,
-    unused,
-    unused,
-    { dealRoomGateStrict: false } as never,
+    lifecycle as never,
+    ops as never,
+    config as never,
     funnel as never,
     unused,
     quoteCreate as never,
     quoteList as never,
     quoteBuilder as never,
     unused,
-    { convert: jest.fn() } as never,
+    quoteConvert as never,
   );
-  return { svc, repo, quoteCreate, quoteList, quoteBuilder };
+  return { svc, repo, quoteCreate, quoteList, quoteBuilder, quoteConvert, lifecycle, ops };
 }
 
 describe('ProposalsService quote-os wiring', () => {
@@ -262,6 +292,52 @@ describe('ProposalsService quote-os wiring', () => {
     ).rejects.toMatchObject({ response: { error: 'not_a_quote' } });
     expect(quoteBuilder.patchHeader).not.toHaveBeenCalled();
     expect(repo.getById).toHaveBeenCalledWith(9);
+  });
+
+  it('Deal Room accept without current_version_id creates one lifecycle per line', async () => {
+    const lines = [
+      {
+        id: 11,
+        dv_code: 'DV02',
+        sku_code: 'DV02-TC',
+        package_tier: 'standard',
+        service_slug: 'content',
+        final_price_vnd: 20_000_000,
+        lifecycle_id: null,
+      },
+      {
+        id: 12,
+        dv_code: 'DV03',
+        sku_code: 'DV03-TC',
+        package_tier: 'standard',
+        service_slug: 'seo',
+        final_price_vnd: 15_000_000,
+        lifecycle_id: null,
+      },
+    ];
+    const { svc, repo, quoteConvert, lifecycle } = loadService({
+      repo: {
+        getById: jest.fn().mockResolvedValue({
+          id: 9,
+          customer_id: 3,
+          status: 'sent',
+          quote_code: null,
+          current_version_id: null,
+        }),
+        listLines: jest.fn().mockResolvedValue(lines),
+        patchStatus: jest.fn().mockResolvedValue({ id: 9, status: 'accepted' }),
+      },
+    });
+
+    const out = await svc.patchStatus(9, { status: 'accepted' });
+
+    expect(quoteConvert.convert).not.toHaveBeenCalled();
+    expect(lifecycle.create).toHaveBeenCalledTimes(2);
+    expect(repo.setLineLifecycle).toHaveBeenCalledTimes(2);
+    expect(out.lifecycles).toEqual([
+      { line_id: 11, lifecycle_id: 80, dv_code: 'DV02' },
+      { line_id: 12, lifecycle_id: 81, dv_code: 'DV03' },
+    ]);
   });
 
   it('putLines with quote_code delegates to quote-builder', async () => {

@@ -321,7 +321,12 @@ export class ProposalsService {
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     const next = body.status;
     if (next === 'accepted') {
-      return this.acceptProposal(proposalId, body.price_adjustment_reason);
+      return this.acceptProposal(
+        proposalId,
+        Boolean(body.spawn_week),
+        actorEmail,
+        body.price_adjustment_reason,
+      );
     }
     const allowed = PROPOSAL_STATUS_FLOW[proposal.status] ?? [];
     if (!allowed.includes(next)) {
@@ -339,7 +344,12 @@ export class ProposalsService {
     return this.quoteConvert.convert(proposalId, vid, actor);
   }
 
-  private async acceptProposal(proposalId: number, priceAdjustmentReason?: string) {
+  private async acceptProposal(
+    proposalId: number,
+    spawnWeek: boolean,
+    actorEmail: string,
+    priceAdjustmentReason?: string,
+  ) {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     if (proposal.status !== 'accepted') {
@@ -353,24 +363,97 @@ export class ProposalsService {
       }
     }
 
+    const versionId = String(proposal.current_version_id ?? '').trim();
+    if (!proposal.quote_code && !versionId) {
+      return this.acceptDealRoomInline(proposal, spawnWeek, actorEmail, priceAdjustmentReason);
+    }
+
+    const previousStatus = proposal.status;
     const updated =
-      proposal.status === 'accepted'
+      previousStatus === 'accepted'
         ? proposal
         : await this.repo.patchStatus(proposalId, 'accepted', priceAdjustmentReason);
-    const lines = await this.repo.listLines(proposalId);
-    const versionId = String(proposal.current_version_id ?? '').trim();
-    const isQuoteOs = Boolean(proposal.quote_code);
 
-    if (!isQuoteOs && versionId) {
+    try {
+      if (!versionId) {
+        throw new NotFoundException({ error: 'version_not_found' });
+      }
       const conversion = await this.quoteConvert.convert(proposalId, versionId, {
         staffId: 0,
         staffAuthVia: 'internal',
         idempotencyKey: `legacy-accept:${proposalId}`,
       });
-      return { proposal: updated, lines, lifecycles: conversion.lifecycles };
+      return {
+        proposal: updated,
+        lines: await this.repo.listLines(proposalId),
+        lifecycles: conversion.lifecycles,
+      };
+    } catch (err) {
+      if (previousStatus !== 'accepted') {
+        await this.repo.patchStatus(proposalId, previousStatus);
+      }
+      throw err;
+    }
+  }
+
+  private async acceptDealRoomInline(
+    proposal: { id: number; customer_id: number },
+    spawnWeek: boolean,
+    actorEmail: string,
+    priceAdjustmentReason?: string,
+  ) {
+    const proposalId = proposal.id;
+    const lines = await this.repo.listLines(proposalId);
+    if (!lines.length) {
+      throw new BadRequestException({ error: 'quote_lines_required_for_accept' });
     }
 
-    return { proposal: updated, lines, lifecycles: [] };
+    const lifecycles: Array<{ line_id: number; lifecycle_id: number; dv_code: string }> = [];
+    for (const line of lines) {
+      if (line.lifecycle_id) {
+        lifecycles.push({
+          line_id: line.id,
+          lifecycle_id: line.lifecycle_id,
+          dv_code: line.dv_code,
+        });
+        continue;
+      }
+      const note = `Quote #${proposalId} · ${line.dv_code} ${line.package_tier} · ${line.final_price_vnd.toLocaleString('vi-VN')} VND`;
+      const created = await this.lifecycle.create({
+        customer_id: proposal.customer_id,
+        service_slug: line.service_slug,
+      });
+      await this.repo.activateLifecycle(created.id, 'onboard', note);
+      await this.repo.setLineLifecycle(line.id, created.id);
+      const skuCode =
+        line.sku_code?.trim() ||
+        skuFromDvTier(line.dv_code, normalizeQuoteTier(line.package_tier) ?? 'standard');
+      try {
+        await this.lifecycle.setCommercialSku(created.id, skuCode);
+      } catch {
+        await this.repo.setLifecycleSkuCode(created.id, skuCode);
+      }
+      lifecycles.push({ line_id: line.id, lifecycle_id: created.id, dv_code: line.dv_code });
+
+      if (spawnWeek && this.config.opsWeeklySpawnEnabled && this.config.opsDvEnabled) {
+        try {
+          await this.ops.spawnWeek(created.id, actorEmail);
+        } catch {
+          // spawn optional — lifecycle still created
+        }
+      }
+    }
+
+    if (lifecycles.length === 1) {
+      await this.repo.setProposalLifecycle(proposalId, lifecycles[0].lifecycle_id);
+    }
+
+    const updated = await this.repo.patchStatus(proposalId, 'accepted', priceAdjustmentReason);
+    return {
+      proposal: updated,
+      lines: await this.repo.listLines(proposalId),
+      lifecycles,
+    };
   }
 
   async exportQuote(proposalId: number, format: 'pdf' | 'docx' = 'pdf') {

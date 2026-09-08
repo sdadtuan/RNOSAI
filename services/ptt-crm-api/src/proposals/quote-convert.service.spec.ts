@@ -127,12 +127,19 @@ class ConvertMemory {
       this.conversions.push(row);
       return { rows: [row] };
     }
+    if (/FROM crm_invoices/i.test(sql)) {
+      const notes = String(params[0] ?? '');
+      return {
+        rows: this.invoices.filter((row) => String(row.notes ?? '') === notes),
+      };
+    }
     if (/INSERT INTO crm_invoices/i.test(sql)) {
       const row = {
         id: this.nextInvoice++,
         status: 'draft',
         customer_id: params[0],
         amount_vnd: params[1],
+        notes: String(params[2] ?? ''),
       };
       this.invoices.push(row);
       return { rows: [row] };
@@ -180,8 +187,13 @@ function load(overrides?: {
     setCommercialSku: jest.fn().mockResolvedValue(undefined),
   };
   const invoices = {
-    create: jest.fn().mockImplementation(async (body: { amount_vnd?: number }) => {
-      const row = { id: db.nextInvoice++, status: 'draft', amount_vnd: body.amount_vnd ?? 0 };
+    create: jest.fn().mockImplementation(async (body: { amount_vnd?: number; notes?: string }) => {
+      const row = {
+        id: db.nextInvoice++,
+        status: 'draft',
+        amount_vnd: body.amount_vnd ?? 0,
+        notes: body.notes ?? '',
+      };
       db.invoices.push(row);
       return { invoice: row };
     }),
@@ -194,7 +206,7 @@ const ACTOR = { staffId: 7, staffAuthVia: 'jwt' as const, idempotencyKey: 'cvt-0
 
 describe('QuoteConvertService', () => {
   it('two converts return one lifecycle set and the same conversion ids (AC-08)', async () => {
-    const { db, lifecycle, svc } = load();
+    const { db, lifecycle, invoices, svc } = load();
 
     const first = await svc.convert(9, VID, ACTOR);
     const second = await svc.convert(9, VID, { ...ACTOR, idempotencyKey: 'cvt-01-replay' });
@@ -206,6 +218,8 @@ describe('QuoteConvertService', () => {
     expect(first.lifecycles).toEqual([
       { line_id: 11, lifecycle_id: 50, dv_code: 'DV02' },
     ]);
+    expect(second.invoice_draft_ids).toHaveLength(2);
+    expect(invoices.create).toHaveBeenCalledTimes(2);
     expect(lifecycle.create).toHaveBeenCalledTimes(1);
     expect(lifecycle.create).toHaveBeenCalledWith({
       customer_id: 3,
@@ -215,6 +229,24 @@ describe('QuoteConvertService', () => {
     expect(db.conversions.filter((row) => row.target_type === 'invoice_schedule')).toHaveLength(1);
     expect(db.sqls.some((sql) => /UNIQUE|crm_quote_conversions/i.test(sql))).toBe(true);
     expect(db.txCalls).toBeGreaterThan(0);
+  });
+
+  it('does not multiply invoice drafts when invoices already exist for the version', async () => {
+    const seeded = new ConvertMemory();
+    seeded.invoices.push(
+      { id: 201, notes: `Quote convert ${VID}` },
+      { id: 202, notes: `Quote convert ${VID}` },
+    );
+    seeded.nextInvoice = 300;
+    const { invoices, svc } = load({ db: seeded });
+
+    const first = await svc.convert(9, VID, ACTOR);
+    const second = await svc.convert(9, VID, { ...ACTOR, idempotencyKey: 'cvt-01-replay' });
+
+    expect(first.invoice_draft_ids).toEqual([201, 202]);
+    expect(second.invoice_draft_ids).toEqual([201, 202]);
+    expect(invoices.create).not.toHaveBeenCalled();
+    expect(seeded.invoices.map((row) => row.id)).toEqual([201, 202]);
   });
 
   it('unique violation on (version_id, target_type) replays the same ids', async () => {
@@ -265,6 +297,24 @@ describe('QuoteConvertService', () => {
     expect(db.invoices.length).toBeGreaterThan(0);
   });
 
+  it('explicit convert on draft is rejected with quote_not_accepted', async () => {
+    const { svc, lifecycle, invoices } = load({ status: 'draft' });
+
+    await expect(svc.convert(9, VID, ACTOR)).rejects.toMatchObject({
+      response: { error: 'quote_not_accepted' },
+    });
+    expect(lifecycle.create).not.toHaveBeenCalled();
+    expect(invoices.create).not.toHaveBeenCalled();
+  });
+
+  it('explicit convert on sent is rejected with quote_not_accepted', async () => {
+    const { svc } = load({ status: 'sent' });
+
+    await expect(svc.convert(9, VID, ACTOR)).rejects.toMatchObject({
+      response: { error: 'quote_not_accepted' },
+    });
+  });
+
   it('JWT unresolved staff throws 403 qt_unresolved_staff', async () => {
     const { svc } = load();
 
@@ -278,21 +328,25 @@ describe('accept path vs convert', () => {
   function loadProposals(overrides: {
     quoteConvert?: { convert: jest.Mock };
     repo?: Record<string, jest.Mock>;
+    lifecycle?: { create: jest.Mock; setCommercialSku?: jest.Mock };
+    ops?: { spawnWeek: jest.Mock };
+    config?: Record<string, unknown>;
   }) {
-    const repo = {
-      getById: jest.fn().mockResolvedValue({
+    const state = {
+      proposal: {
         id: 9,
         customer_id: 3,
-        status: 'sent',
-        quote_code: 'QT-PTT-2026-000001',
-        current_version_id: VID,
-      }),
+        status: 'sent' as string,
+        quote_code: 'QT-PTT-2026-000001' as string | null,
+        current_version_id: VID as string | null,
+      },
+    };
+    const repo = {
+      getById: jest.fn().mockImplementation(async () => ({ ...state.proposal })),
       listLines: jest.fn().mockResolvedValue([{ ...LINE }]),
-      patchStatus: jest.fn().mockResolvedValue({
-        id: 9,
-        status: 'accepted',
-        quote_code: 'QT-PTT-2026-000001',
-        current_version_id: VID,
+      patchStatus: jest.fn().mockImplementation(async (_id: number, status: string) => {
+        state.proposal = { ...state.proposal, status };
+        return { ...state.proposal };
       }),
       setLineLifecycle: jest.fn(),
       activateLifecycle: jest.fn(),
@@ -314,13 +368,25 @@ describe('accept path vs convert', () => {
       getPresalesProposalHandoff: jest.fn(),
       getPresalesProposalGate: jest.fn(),
     };
+    let nextLc = 80;
+    const lifecycle = overrides.lifecycle ?? {
+      create: jest.fn().mockImplementation(async () => ({ id: nextLc++ })),
+      setCommercialSku: jest.fn().mockResolvedValue(undefined),
+    };
+    const ops = overrides.ops ?? { spawnWeek: jest.fn().mockResolvedValue(undefined) };
+    const config = {
+      dealRoomGateStrict: false,
+      opsWeeklySpawnEnabled: true,
+      opsDvEnabled: true,
+      ...(overrides.config ?? {}),
+    };
     const svc = new ProposalsService(
       repo as never,
       unused,
       unused,
-      unused,
-      unused,
-      { dealRoomGateStrict: false } as never,
+      lifecycle as never,
+      ops as never,
+      config as never,
       funnel as never,
       unused,
       { create: jest.fn() } as never,
@@ -329,18 +395,78 @@ describe('accept path vs convert', () => {
       unused,
       quoteConvert as never,
     );
-    return { svc, repo, quoteConvert };
+    return { svc, repo, quoteConvert, lifecycle, ops, state };
   }
 
-  it('accepted without convert leaves no extra lifecycle on the new Quote OS path', async () => {
+  it('Quote OS accept without explicit convert still one convert via legacy key', async () => {
     const { svc, repo, quoteConvert } = loadProposals({});
 
     const out = await svc.patchStatus(9, { status: 'accepted' });
 
     expect(repo.patchStatus).toHaveBeenCalledWith(9, 'accepted', undefined);
+    expect(quoteConvert.convert).toHaveBeenCalledTimes(1);
+    expect(quoteConvert.convert).toHaveBeenCalledWith(
+      9,
+      VID,
+      expect.objectContaining({ idempotencyKey: 'legacy-accept:9' }),
+    );
+    expect(out.lifecycles).toEqual([{ line_id: 11, lifecycle_id: 50, dv_code: 'DV02' }]);
+  });
+
+  it('Quote OS PATCH accepted that fails convert rolls back accepted', async () => {
+    const convert = jest.fn().mockRejectedValue({
+      response: { error: 'version_not_found' },
+    });
+    const { svc, repo } = loadProposals({ quoteConvert: { convert } });
+
+    await expect(svc.patchStatus(9, { status: 'accepted' })).rejects.toMatchObject({
+      response: { error: 'version_not_found' },
+    });
+    expect(repo.patchStatus).toHaveBeenCalledWith(9, 'accepted', undefined);
+    expect(repo.patchStatus).toHaveBeenCalledWith(9, 'sent');
+    const after = await repo.getById(9);
+    expect(after.status).toBe('sent');
+  });
+
+  it('Deal Room accept without current_version_id creates one lifecycle per line', async () => {
+    const line2 = { ...LINE, id: 12, dv_code: 'DV03', service_slug: 'seo' };
+    const { svc, repo, quoteConvert, lifecycle, ops } = loadProposals({
+      repo: {
+        getById: jest.fn().mockResolvedValue({
+          id: 9,
+          customer_id: 3,
+          status: 'sent',
+          quote_code: null,
+          current_version_id: null,
+        }),
+        listLines: jest.fn().mockResolvedValue([{ ...LINE }, line2]),
+        patchStatus: jest.fn().mockResolvedValue({
+          id: 9,
+          status: 'accepted',
+          quote_code: null,
+          current_version_id: null,
+        }),
+      },
+    });
+
+    const out = await svc.patchStatus(9, { status: 'accepted', spawn_week: true }, 'staff@ptt');
+
     expect(quoteConvert.convert).not.toHaveBeenCalled();
-    expect(repo.setLineLifecycle).not.toHaveBeenCalled();
-    expect(out.lifecycles ?? []).toEqual([]);
+    expect(lifecycle.create).toHaveBeenCalledTimes(2);
+    expect(lifecycle.create).toHaveBeenNthCalledWith(1, {
+      customer_id: 3,
+      service_slug: 'content',
+    });
+    expect(lifecycle.create).toHaveBeenNthCalledWith(2, {
+      customer_id: 3,
+      service_slug: 'seo',
+    });
+    expect(repo.setLineLifecycle).toHaveBeenCalledTimes(2);
+    expect(ops.spawnWeek).toHaveBeenCalledTimes(2);
+    expect(out.lifecycles).toEqual([
+      { line_id: 11, lifecycle_id: 80, dv_code: 'DV02' },
+      { line_id: 12, lifecycle_id: 81, dv_code: 'DV03' },
+    ]);
   });
 
   it('legacy PATCH accepted calls convert once with legacy-accept key and replays same ids', async () => {

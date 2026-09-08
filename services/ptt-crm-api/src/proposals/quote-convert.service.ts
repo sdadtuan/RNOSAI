@@ -84,12 +84,18 @@ export class QuoteConvertService {
     if (!proposal) {
       throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     }
+    if (proposal.status !== 'accepted') {
+      throw new BadRequestException({ error: 'quote_not_accepted' });
+    }
 
     return this.inTx(async (query) => {
       await query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`qt-convert:${vid}`]);
 
       const existing = await this.loadConversion(vid, TARGET_LIFECYCLE, query);
-      if (existing) return this.replay(existing);
+      if (existing) {
+        const invoiceRow = await this.loadConversion(vid, TARGET_INVOICE, query);
+        return this.replay(existing, invoiceRow);
+      }
 
       const version = await this.loadVersion(vid, query);
       if (!version || Number(version.proposal_id) !== proposalId) {
@@ -169,7 +175,10 @@ export class QuoteConvertService {
       } catch (err) {
         if (!isUniqueViolation(err)) throw err;
         const replayed = await this.loadConversion(vid, TARGET_LIFECYCLE, query);
-        if (replayed) return this.replay(replayed);
+        if (replayed) {
+          const invoiceRow = await this.loadConversion(vid, TARGET_INVOICE, query);
+          return this.replay(replayed, invoiceRow);
+        }
         throw err;
       }
     });
@@ -215,20 +224,32 @@ export class QuoteConvertService {
     return result.rows[0] ?? null;
   }
 
-  private replay(row: Record<string, unknown>): QuoteConvertResult {
+  private replay(
+    row: Record<string, unknown>,
+    invoiceRow?: Record<string, unknown> | null,
+  ): QuoteConvertResult {
     const payload = asPayload(row.payload_json);
+    const invoicePayload = asPayload(invoiceRow?.payload_json);
     const lifecycles = Array.isArray(payload.lifecycles)
       ? (payload.lifecycles as QuoteConvertLifecycle[])
       : [];
-    const invoiceDraftIds = Array.isArray(payload.invoice_draft_ids)
-      ? payload.invoice_draft_ids.map((id) => Number(id))
-      : [];
+    const invoiceDraftIds = this.idsFrom(
+      payload.invoice_draft_ids ?? invoicePayload.invoice_draft_ids ?? invoiceRow?.target_id,
+    );
     return {
       conversion_id: String(payload.conversion_id || row.id || ''),
       lifecycles,
       invoice_draft_ids: invoiceDraftIds,
       optional_handoff: [],
     };
+  }
+
+  private idsFrom(value: unknown): number[] {
+    if (Array.isArray(value)) {
+      return value.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+    }
+    const single = Number(value);
+    return Number.isFinite(single) && single > 0 ? [single] : [];
   }
 
   private async insertConversion(
@@ -255,6 +276,22 @@ export class QuoteConvertService {
     vid: string,
     query: QuoteQueryFn,
   ): Promise<number[]> {
+    const existingConv = await this.loadConversion(vid, TARGET_INVOICE, query);
+    if (existingConv) {
+      const fromPayload = this.idsFrom(
+        asPayload(existingConv.payload_json).invoice_draft_ids ?? existingConv.target_id,
+      );
+      if (fromPayload.length) return fromPayload;
+    }
+    const existingDrafts = await query(
+      `SELECT id FROM crm_invoices WHERE notes = $1 ORDER BY id ASC`,
+      [`Quote convert ${vid}`],
+    );
+    const reused = existingDrafts.rows
+      .map((row) => Number(row.id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    if (reused.length) return reused;
+
     const payments = await query(
       `SELECT id, seq, pct_bps, amount_vnd, milestone
          FROM crm_quote_payment_schedules
