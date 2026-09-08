@@ -350,6 +350,14 @@
     "crm_cp.approve_legal": ["execute"],
     "crm_cp.finance": ["view"],
     "crm_cp.view_audit": ["view"],
+    "crm_quote": ["view", "view_all", "edit", "manage"],
+    "crm_quote.approve": ["execute"],
+    "crm_quote.finance": ["view", "edit"],
+    "crm_quote.legal": ["execute"],
+    "crm_quote.publish": ["execute"],
+    "crm_quote.convert": ["execute"],
+    "crm_quote.catalog": ["view", "manage"],
+    "crm_quote.audit": ["view"],
     "crm_revops": ["view", "view_team", "view_all", "manage"],
     "crm_revops.commission": ["view", "manage"],
     "spc": [
@@ -1279,6 +1287,62 @@
       "description": "Xem nhật ký kiểm toán."
     },
     {
+      "id": "crm_quote",
+      "label": "Quotation OS",
+      "group": "CRM",
+      "page": "/crm/proposals",
+      "description": "Truy cập và quản lý module báo giá thương mại."
+    },
+    {
+      "id": "crm_quote.approve",
+      "label": "Quotation OS — Phê duyệt",
+      "group": "CRM",
+      "page": "/crm/proposals",
+      "description": "Thực thi bước phê duyệt được route."
+    },
+    {
+      "id": "crm_quote.finance",
+      "label": "Quotation OS — Tài chính",
+      "group": "CRM",
+      "page": "/crm/proposals",
+      "description": "Xem và chỉnh cost, margin, grant rate override."
+    },
+    {
+      "id": "crm_quote.legal",
+      "label": "Quotation OS — Pháp lý",
+      "group": "CRM",
+      "page": "/crm/proposals",
+      "description": "Thực thi duyệt điều khoản lệch template."
+    },
+    {
+      "id": "crm_quote.publish",
+      "label": "Quotation OS — Phát hành",
+      "group": "CRM",
+      "page": "/crm/proposals",
+      "description": "Publish, gửi hoặc thu hồi link báo giá."
+    },
+    {
+      "id": "crm_quote.convert",
+      "label": "Quotation OS — Chuyển đổi",
+      "group": "CRM",
+      "page": "/crm/proposals",
+      "description": "Chuyển báo giá đã accept sang lifecycle / invoice."
+    },
+    {
+      "id": "crm_quote.catalog",
+      "label": "Quotation OS — Service Catalog",
+      "group": "CRM",
+      "page": "/crm/proposals",
+      "description": "Xem và quản lý catalog dịch vụ thương mại."
+    },
+    {
+      "id": "crm_quote.audit",
+      "label": "Quotation OS — Nhật ký",
+      "group": "CRM",
+      "page": "/crm/proposals",
+      "description": "Xem và export nhật ký báo giá."
+    },
+    {
       "id": "crm_revops",
       "label": "Revenue Operations",
       "group": "CRM",
@@ -2079,6 +2143,14 @@
     "crm_cp.approve_legal",
     "crm_cp.finance",
     "crm_cp.view_audit",
+    "crm_quote",
+    "crm_quote.approve",
+    "crm_quote.audit",
+    "crm_quote.catalog",
+    "crm_quote.convert",
+    "crm_quote.finance",
+    "crm_quote.legal",
+    "crm_quote.publish",
     "crm_revops",
     "crm_revops.commission",
     "spc",
