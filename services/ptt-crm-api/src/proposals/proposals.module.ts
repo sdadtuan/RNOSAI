@@ -16,6 +16,9 @@ import { ProposalsService } from './proposals.service';
 import { QuoteBuilderService } from './quote-builder.service';
 import { QuoteCatalogService } from './quote-catalog.service';
 import { QuoteConvertService } from './quote-convert.service';
+import { QuotePublicController } from './quote-public.controller';
+import { QuotePublicService } from './quote-public.service';
+import { QuoteShareController } from './quote-share.controller';
 import { QuoteVersionsController } from './quote-versions.controller';
 import { QuoteVersionsRepository } from './quote-versions.repository';
 import {
@@ -40,7 +43,12 @@ import { QuoteSettingsService } from './quote-settings.service';
     forwardRef(() => LeadsFunnelModule),
     InvoicesModule,
   ],
-  controllers: [ProposalsController, QuoteVersionsController],
+  controllers: [
+    ProposalsController,
+    QuoteVersionsController,
+    QuotePublicController,
+    QuoteShareController,
+  ],
   providers: [
     ProposalsService,
     ProposalsPgRepository,
@@ -59,6 +67,7 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteBuilderService,
     QuoteCatalogService,
     QuoteConvertService,
+    QuotePublicService,
   ],
   exports: [
     ProposalsService,
@@ -72,6 +81,7 @@ import { QuoteSettingsService } from './quote-settings.service';
     QuoteBuilderService,
     QuoteCatalogService,
     QuoteConvertService,
+    QuotePublicService,
   ],
 })
 export class ProposalsModule {}
