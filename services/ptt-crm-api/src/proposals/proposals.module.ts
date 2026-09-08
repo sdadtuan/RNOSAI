@@ -8,6 +8,7 @@ import {
   StaffProposalsViewGuard,
   StaffProposalsWriteGuard,
 } from './guards/staff-proposals.guard';
+import { StaffQuoteGuard } from './guards/staff-quote.guard';
 import { ProposalsController } from './proposals.controller';
 import { ProposalsPgRepository } from './proposals-pg.repository';
 import { ProposalsService } from './proposals.service';
@@ -26,6 +27,7 @@ import { ProposalsService } from './proposals.service';
     ProposalsPgRepository,
     StaffProposalsViewGuard,
     StaffProposalsWriteGuard,
+    StaffQuoteGuard,
   ],
   exports: [ProposalsService, ProposalsPgRepository],
 })
