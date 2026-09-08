@@ -181,7 +181,7 @@ export function findBrandFilmCatalogItem(
       template === QT_VID_TPL_01 ||
       kind === 'brand_film' ||
       kind === 'human_video' ||
-      /brand\s*film|reels|video/i.test(name)
+      /brand\s*film/i.test(name)
     );
   });
   return match;
@@ -229,30 +229,31 @@ export async function seedBrandFilmLine(
 ): Promise<QtLineRow> {
   const catalog = await fetchQtCatalogApi(request, token);
   const brand = findBrandFilmCatalogItem(catalog.json);
-  const active = brand ?? requireActiveCatalogItem(catalog.json);
-  const dvCode = String(active.dv_code);
-  const snapshot = {
-    ...(typeof active.catalog_snapshot_json === 'object' && active.catalog_snapshot_json
-      ? (active.catalog_snapshot_json as Record<string, unknown>)
-      : {}),
-    status: 'active',
-    kind: brand ? String((active as { kind?: string }).kind ?? 'brand_film') : 'brand_film',
-    template_key: QT_VID_TPL_01,
-    rate:
-      (active as { rate?: { suggested_vnd?: number } }).rate ??
-      ({ suggested_vnd: QT_AC03_FEE_VND } as { suggested_vnd: number }),
+  if (!brand?.dv_code) {
+    throw new Error(
+      'Wave 3 prerequisite missing: no active DV12 / Brand Film / human_video|brand_film catalog item',
+    );
+  }
+  const dvCode = String(brand.dv_code);
+  const existingSnap =
+    typeof brand.catalog_snapshot_json === 'object' && brand.catalog_snapshot_json
+      ? (brand.catalog_snapshot_json as Record<string, unknown>)
+      : null;
+  const kind = String(brand.kind ?? brand.catalog_kind ?? existingSnap?.kind ?? '')
+    .trim()
+    .toLowerCase();
+  const line: Record<string, unknown> = {
+    dv_code: dvCode,
+    package_tier: 'standard',
+    client_visible: true,
+    qty: 1,
+    unit_price_vnd: QT_AC03_FEE_VND,
+    cost_labor_vnd: QT_HEALTHY_GM_COST_VND,
   };
-  const added = await putQtLinesApi(request, token, proposalId, [
-    {
-      dv_code: dvCode,
-      package_tier: 'standard',
-      client_visible: true,
-      qty: 1,
-      unit_price_vnd: QT_AC03_FEE_VND,
-      cost_labor_vnd: QT_HEALTHY_GM_COST_VND,
-      catalog_snapshot_json: snapshot,
-    },
-  ]);
+  if (kind === 'brand_film' || kind === 'human_video') {
+    line.catalog_snapshot_json = { ...(existingSnap ?? {}), kind };
+  }
+  const added = await putQtLinesApi(request, token, proposalId, [line]);
   expect(added.ok, `Brand Film line: ${added.status} ${JSON.stringify(added.json)}`).toBeTruthy();
   return ((added.json as { lines?: QtLineRow[] }).lines?.[0] ?? {
     dv_code: dvCode,
