@@ -48,12 +48,6 @@ type SorRow = {
   tier_pricing: Record<string, unknown>;
 };
 
-const DV_GROUP: Record<string, QuoteCatalogGroup> = {
-  DV05: 'content',
-  DV08: 'performance',
-  DV12: 'production',
-};
-
 const GROUP_KEYWORDS: Array<[RegExp, QuoteCatalogGroup]> = [
   [/package|ngành|nganh|growth[\s-]?launch/i, 'package'],
   [/brand[\s-]?film|reels|video|image|sản xuất|san xuat|\btvc\b/i, 'production'],
@@ -93,23 +87,20 @@ function isActive(value: unknown): boolean {
 }
 
 export function resolveQuoteCatalogGroup(
-  dvCode: string,
+  _dvCode: string,
   name: string,
   slug: string,
 ): QuoteCatalogGroup {
-  const dv = String(dvCode ?? '').trim().toUpperCase();
-  if (DV_GROUP[dv]) return DV_GROUP[dv];
-  const hay = `${name} ${slug} ${dv}`;
+  const hay = `${name} ${slug}`;
   for (const [pattern, group] of GROUP_KEYWORDS) {
     if (pattern.test(hay)) return group;
   }
   return 'strategy';
 }
 
-function templateKeyFor(dvCode: string, name: string, slug: string): string | undefined {
-  const dv = String(dvCode ?? '').trim().toUpperCase();
+function templateKeyFor(name: string, slug: string): string | undefined {
   const hay = `${name} ${slug}`;
-  if (dv === 'DV12' || /brand[\s-]?film|reels|vid-tpl-01/i.test(hay)) {
+  if (/brand[\s-]?film|reels|video[\s-]?storyboard|vid-tpl-01/i.test(hay)) {
     return VID_TPL_01;
   }
   return undefined;
@@ -196,7 +187,7 @@ export class QuoteCatalogService {
       .toUpperCase();
     const name = String(sor?.name || family.name_vi || family.name || '');
     const slug = String(sor?.service_slug || sor?.slug || family.service_slug || '');
-    const status: QuoteCatalogStatus = sor?.status === 'draft' ? 'draft' : 'active';
+    const status: QuoteCatalogStatus = sor?.status === 'active' ? 'active' : 'draft';
     const package_tiers: QuoteCatalogTier[] = QUOTE_PACKAGE_TIERS.map((tier) => ({
       tier,
       ...resolveProductTierPricing(sor?.tier_pricing ?? {}, tier),
@@ -214,7 +205,7 @@ export class QuoteCatalogService {
       rate_missing,
       package_tiers,
     };
-    const template_key = templateKeyFor(dv, name, slug);
+    const template_key = templateKeyFor(name, slug);
     if (template_key) item.template_key = template_key;
     return item;
   }

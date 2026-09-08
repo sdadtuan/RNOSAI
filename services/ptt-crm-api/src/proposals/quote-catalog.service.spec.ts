@@ -213,6 +213,52 @@ describe('QuoteCatalogService CAT-01 add rules', () => {
     expect(JSON.stringify(item)).not.toMatch(/data:video|video\/mp4/);
   });
 
+  it('groups live DV12 market research from SoR name and does not attach VID-TPL-01', async () => {
+    const { svc } = load([
+      row({
+        dv_code: 'DV12',
+        name: 'Market research',
+        slug: 'market-research',
+        active: true,
+        tier_pricing: STANDARD_RATE,
+      }),
+    ]);
+
+    const out = await svc.get();
+    const item = itemOf(out, 'DV12');
+
+    expect(item.group).toBe('strategy');
+    expect(item).not.toHaveProperty('template_key');
+  });
+
+  it('attaches VID-TPL-01 for brand-film / reels / video storyboard regardless of dv_code', async () => {
+    const { svc } = load([
+      row({
+        dv_code: 'DV05',
+        name: 'Video storyboard',
+        slug: 'video-storyboard',
+        active: true,
+        tier_pricing: STANDARD_RATE,
+      }),
+    ]);
+
+    const out = await svc.get();
+    const item = itemOf(out, 'DV05');
+
+    expect(item.template_key).toBe('VID-TPL-01');
+    expect(item.group).toBe('production');
+  });
+
+  it('SPC-only family with no SoR row is draft and cannot add', async () => {
+    const { svc } = load([], [family('DV08', 'CRM Automation')]);
+
+    const out = await svc.get();
+    const item = itemOf(out, 'DV08');
+
+    expect(item.status).toBe('draft');
+    expect(item.can_add_to_client_quote).toBe(false);
+  });
+
   it('wraps SPC getQuoteCatalog and keeps family offers', async () => {
     const { svc, spc } = load(
       [
