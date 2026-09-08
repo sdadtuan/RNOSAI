@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RNOSAI · QT OS · Portal & convert</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="rnosai-quote-os-mockup.css"/>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn" type="button" onclick="document.getElementById('app').classList.toggle('collapsed')">☰</button>
+    <span class="logo">RNOSAI <span style="font-weight:500;color:var(--mute);font-size:12px">PTT · Quotation OS</span></span>
+    <button class="search-btn" type="button"><span>Tìm QT-PTT, khách AM 360, lead…</span><span class="kbd">⌘K</span></button>
+    <div class="top-right">
+      <span class="fresh">Đồng bộ 09:18 · last_updated ISO</span>
+      <button class="icon-btn" type="button" onclick="document.getElementById('notify').classList.toggle('is-on')">🔔<i class="dot"></i></button>
+      <span class="ava" title="AM Minh">AM</span>
+    </div>
+    <div class="notify" id="notify">
+      <div class="card-h"><b>Thông báo</b></div>
+      <p>QT-PTT-2026-000071 Finance SLA +6h</p>
+      <p>An Phát xem proposal v2</p>
+      <p>GM 22,4% dưới floor — sample</p>
+    </div>
+  </header>
+  <div class="catalog">
+    <b>Kinh doanh</b>
+    <select class="scope"><option>Vai trò: AM — Minh</option><option>Finance — Lan</option><option>GDKD</option><option>Legal</option></select>
+    <select class="scope"><option>Phạm vi: Của tôi</option><option>Team</option><option>Toàn PTT</option></select>
+    <div class="ops">
+      <label class="fresh" for="demo-jump">Nhảy màn</label>
+      <select class="scope" id="demo-jump" onchange="show(this.value)"><option value="pub-01">PUB-01 Trang khách · Proposal</option><option value="pub-02">PUB-02 Xác nhận đề xuất (OTP)</option><option value="pub-03">PUB-03 Hết hạn / thu hồi</option><option value="cvt-01">CVT-01 Convert → lifecycle</option></select>
+      <details class="demo-more"><summary>Toàn catalog</summary><button class="sc is-on" type="button" data-page="pub-01" onclick="show('pub-01')">PUB-01</button><button class="sc" type="button" data-page="pub-02" onclick="show('pub-02')">PUB-02</button><button class="sc" type="button" data-page="pub-03" onclick="show('pub-03')">PUB-03</button><button class="sc" type="button" data-page="cvt-01" onclick="show('cvt-01')">CVT-01</button></details>
+    </div>
+  </div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="nav">
+<div class="grp">KINH DOANH</div>
+<button class="nav-btn is-on" type="button" data-page="ovr-01" onclick="show('ovr-01')">Tổng quan</button>
+<button class="nav-btn" type="button" data-page="lst-01" onclick="show('lst-01')">Báo giá</button>
+<button class="nav-btn" type="button" data-page="new-01" onclick="show('new-01')">Tạo báo giá</button>
+<button class="nav-btn" type="button" data-page="cat-01" onclick="show('cat-01')">Service Catalog</button>
+<div class="grp">KIỂM SOÁT</div>
+<button class="nav-btn" type="button" data-page="apr-01" onclick="show('apr-01')">Phê duyệt</button>
+<button class="nav-btn" type="button" data-page="rpt-01" onclick="show('rpt-01')">Báo cáo</button>
+<div class="grp">QUẢN TRỊ</div>
+<button class="nav-btn" type="button" data-page="set-01" onclick="show('set-01')">Cấu hình</button>
+</div>
+      <div class="sb-foot">Chờ phê duyệt<br><b>2 quote</b>1 vượt SLA 24h · sample</div>
+    </aside>
+    <main class="main"><section class="page is-on" id="pub-01" data-title="Trang khách · Proposal">
+<div class="crumb">Kinh doanh / Báo giá / Portal khách</div>
+<div class="head"><div><h1>Trang đề xuất (khách)</h1><p class="sub">PUB-01 · portal-web / token · không cost/margin/approval/option ẩn</p></div><div class="actions"><span class="muted">PTT Ads · QT-PTT-2026-000089 · v2 · đến 07/10/2026</span></div></div>
+<div class="hero-pub"><small>ĐỀ XUẤT MARKETING TÍCH HỢP</small><h1>Growth Proposal Q4/2026</h1><p>Dành cho Công ty Cổ phần An Phát · phát hành 08/09/2026 · PTT HCM</p></div>
+<div class="grid2">
+  <div>
+    <div class="card"><h3>Mục tiêu hợp tác</h3><p>Hệ thống tạo lead căn hộ cao cấp: content, Meta Ads, Reels, landing page.</p></div>
+    <div class="card"><h3>Phạm vi</h3><ul><li>24 bài + 12 Reels / tháng</li><li>3 campaign set Meta · A/B creative</li><li>1 landing page CRO</li><li>Báo cáo tuần</li></ul></div>
+    <div class="card"><h3>Chỉ số — đã gắn nhãn</h3>
+      <div class="tiles"><div class="tile"><span>Lead dự kiến</span><strong>1.000–1.200</strong><em>forecast</em></div><div class="tile"><span>CPL mục tiêu</span><strong>≤100K</strong><em>optimization</em></div><div class="tile"><span>Bài / Reels</span><strong>36</strong><em>cam kết bàn giao</em></div></div>
+      <p class="muted">Forecast phụ thuộc media, tệp, creative, LP và tốc độ xử lý lead.</p>
+    </div>
+  </div>
+  <div>
+    <div class="card"><h3>Tóm tắt đầu tư</h3>
+      <div class="price-row"><span>Phí dịch vụ</span><b>132.600.000 ₫</b></div>
+      <div class="price-row"><span>Ngân sách media</span><b>120.000.000 ₫</b></div>
+      <div class="price-row"><span>Chiết khấu</span><b>−6.630.000 ₫</b></div>
+      <div class="price-row"><span>VAT 8%</span><b>19.677.600 ₫</b></div>
+      <div class="total-row"><span>Tổng</span><b>265.647.600 ₫</b></div>
+    </div>
+    <div class="card"><h3>Thanh toán</h3>
+      <p>50% xác nhận · 30% giữa kỳ · 20% nghiệm thu</p>
+      <button class="accept" type="button" onclick="show('pub-02')">✓ Xác nhận đề xuất</button>
+      <p style="text-align:center"><button class="linkish" type="button">Yêu cầu điều chỉnh</button></p>
+      <p class="muted">Không phải hợp đồng pháp lý. Hợp đồng / PO đi SoR pháp chế sau convert.</p>
+    </div>
+  </div>
+</div>
+<p class="note">Sample mockup (An Phát · QT-PTT-2026-000089 · 265.647.600 ₫ · GM 22,4%). Runtime thiếu số = <code>null</code> / <code>—</code>. Không hard-code vào app.</p>
+</section><section class="page" id="pub-02" data-title="Xác nhận đề xuất (OTP)">
+<div class="crumb">Kinh doanh / Báo giá / Portal / xác nhận</div>
+<div class="head"><div><h1>Xác nhận đề xuất</h1><p class="sub">PUB-02 · checkbox điều khoản + OTP email · ghi name/title/email/time/IP/UA/option/version</p></div><div class="actions"><button class="btn" type="button" onclick="show(&quot;pub-01&quot;)">Quay lại</button></div></div>
+<div class="modal-demo">
+  <div class="form">
+    <label>Phương án xác nhận<select class="inp"><option>A · Growth Launch · 265.647.600 ₫</option><option>B · Essential</option></select></label>
+    <label>Họ tên người xác nhận *<input class="inp" value="Nguyễn Minh Anh"/></label>
+    <label>Chức danh *<input class="inp" value="Marketing Director"/></label>
+    <label>Email nhận OTP *<input class="inp" value="minhanh@anphat.vn"/></label>
+    <label><input type="checkbox"/> Tôi đã đọc điều khoản phiên bản v2 và xác nhận đề xuất thương mại này (không phải ký HĐ).</label>
+    <label>Mã OTP *<input class="inp" placeholder="6 số · gửi email"/></label>
+    <button class="btn-primary btn" type="button" onclick="show('cvt-01')">Xác nhận</button>
+  </div>
+  <p class="muted">Hết hạn token / revoked → PUB-03, không accept. Một option lock; option khác giữ audit.</p>
+</div>
+</section><section class="page" id="pub-03" data-title="Hết hạn / thu hồi">
+<div class="crumb">Kinh doanh / Báo giá / Portal / hết hạn</div>
+<div class="head"><div><h1>Liên kết không còn hiệu lực</h1><p class="sub">PUB-03 · expired / revoked · không lộ body proposal</p></div><div class="actions"></div></div>
+<div class="card" style="max-width:520px">
+  <h2>Đề xuất đã hết hạn hoặc được thu hồi</h2>
+  <p>Mã <code>QT-PTT-2026-000089</code> · liên hệ AM Minh để nhận phiên bản mới.</p>
+  <p class="muted">Không render section giá / KPI / file. Token gắn một version — không tái sử dụng.</p>
+</div>
+</section><section class="page" id="cvt-01" data-title="Convert → lifecycle">
+<div class="crumb">Kinh doanh / Báo giá / Convert</div>
+<div class="head"><div><h1>Convert sau xác nhận</h1><p class="sub">CVT-01 · idempotent (version_id, target_type) · N lifecycle + 1 schedule + invoice draft</p></div><div class="actions"><button class="btn-primary btn" type="button">Chạy convert</button></div></div>
+<div class="alert"><span>QT-PTT-2026-000089 v2 · option A accepted 08/09 10:02 · OTP ok. Convert lần 2 không nhân bản.</span></div>
+<div class="grid2">
+  <div class="card"><b>Sẽ tạo</b>
+    <div class="side-row"><span>service_lifecycle ×3</span><b>DV08 · DV05 · DV12</b></div>
+    <div class="side-row"><span>Payment schedule</span><b>50/30/20 → invoices draft</b></div>
+    <div class="side-row"><span>Content OS</span><b>deep-link tab content-os (DV05)</b></div>
+    <div class="side-row"><span>Video SOP / CP</span><b>optional DV12 · VID-TPL-01</b></div>
+    <p class="muted">Không tạo campaign bảng 2. Không clone CSD ticket. Owner = AM + delivery lead catalog.</p>
+  </div>
+  <div class="card"><b>Kết quả (đã chạy)</b>
+    <p>LC-ANPHAT-Q4-META · <button class="linkish" type="button">mở lifecycle</button></p>
+    <p>LC-ANPHAT-Q4-SOC</p>
+    <p>LC-ANPHAT-Q4-VID · gắn template 6 scene</p>
+    <p>INV draft · 3 đợt · tổng 265.647.600 ₫</p>
+    <p><code>crm_quote_conversions</code> unique cvt_2a</p>
+  </div>
+</div>
+</section></main>
+  </div>
+</div>
+<script>
+function show(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('is-on'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('is-on');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id || (NAV_MAP[id]&&b.dataset.page===NAV_MAP[id])));
+  document.querySelectorAll('.sc').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id));
+  const j=document.getElementById('demo-jump'); if(j) j.value=id;
+  document.querySelectorAll('.page .tab').forEach(()=>{});
+  const tabs={
+    'bld-01':0,'bld-02':1,'bld-03':2,'bld-04':3,'bld-05':4,'bld-06':5,'bld-07':6,'prs-01':7
+  };
+  if(el){
+    const bar=el.querySelector('.tabs');
+    if(bar && tabs[id]!==undefined){
+      bar.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('is-on', i===tabs[id]));
+    }
+  }
+}
+function subtab(btn,id){
+  const root=btn.closest('.page');
+  root.querySelectorAll('.tab').forEach(t=>t.classList.remove('is-on'));
+  btn.classList.add('is-on');
+  root.querySelectorAll('.subpage').forEach(p=>p.classList.toggle('is-on', p.id===id));
+}
+const NAV_MAP = {"ovr-02": "ovr-01", "ovr-03": "ovr-01", "new-01": "lst-01", "bld-01": "new-01", "bld-02": "new-01", "bld-03": "new-01", "bld-04": "new-01", "bld-05": "new-01", "bld-06": "new-01", "bld-07": "new-01", "prs-01": "new-01", "cat-02": "cat-01", "cat-03": "cat-01", "cat-04": "cat-01", "cat-05": "cat-01", "apr-02": "apr-01", "pub-01": "lst-01", "pub-02": "lst-01", "pub-03": "lst-01", "cvt-01": "lst-01", "rpt-02": "rpt-01", "rpt-03": "rpt-01", "rpt-04": "rpt-01", "rpt-05": "rpt-01", "set-02": "set-01", "set-03": "set-01", "set-04": "set-01", "set-05": "set-01", "set-06": "set-01"};
+document.addEventListener('DOMContentLoaded',()=>{
+  const q=new URLSearchParams(location.search).get('s');
+  if(q) show(q);
+});
+</script>
+</body>
+</html>

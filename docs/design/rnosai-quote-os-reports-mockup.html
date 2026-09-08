@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RNOSAI · QT OS · Báo cáo & cấu hình</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="rnosai-quote-os-mockup.css"/>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn" type="button" onclick="document.getElementById('app').classList.toggle('collapsed')">☰</button>
+    <span class="logo">RNOSAI <span style="font-weight:500;color:var(--mute);font-size:12px">PTT · Quotation OS</span></span>
+    <button class="search-btn" type="button"><span>Tìm QT-PTT, khách AM 360, lead…</span><span class="kbd">⌘K</span></button>
+    <div class="top-right">
+      <span class="fresh">Đồng bộ 09:18 · last_updated ISO</span>
+      <button class="icon-btn" type="button" onclick="document.getElementById('notify').classList.toggle('is-on')">🔔<i class="dot"></i></button>
+      <span class="ava" title="AM Minh">AM</span>
+    </div>
+    <div class="notify" id="notify">
+      <div class="card-h"><b>Thông báo</b></div>
+      <p>QT-PTT-2026-000071 Finance SLA +6h</p>
+      <p>An Phát xem proposal v2</p>
+      <p>GM 22,4% dưới floor — sample</p>
+    </div>
+  </header>
+  <div class="catalog">
+    <b>Kinh doanh</b>
+    <select class="scope"><option>Vai trò: AM — Minh</option><option>Finance — Lan</option><option>GDKD</option><option>Legal</option></select>
+    <select class="scope"><option>Phạm vi: Của tôi</option><option>Team</option><option>Toàn PTT</option></select>
+    <div class="ops">
+      <label class="fresh" for="demo-jump">Nhảy màn</label>
+      <select class="scope" id="demo-jump" onchange="show(this.value)"><option value="rpt-01">RPT-01 Báo cáo điều hành</option><option value="rpt-02">RPT-02 Funnel chuyển đổi</option><option value="rpt-03">RPT-03 Margin theo nhóm</option><option value="rpt-04">RPT-04 Lý do thua</option><option value="rpt-05">RPT-05 Tương tác proposal</option><option value="set-01">SET-01 Mặc định thương mại</option><option value="set-02">SET-02 Guardrail</option><option value="set-03">SET-03 Rate card</option><option value="set-04">SET-04 Chia sẻ & OTP</option><option value="set-05">SET-05 Approver</option><option value="set-06">SET-06 Template điều khoản</option></select>
+      <details class="demo-more"><summary>Toàn catalog</summary><button class="sc is-on" type="button" data-page="rpt-01" onclick="show('rpt-01')">RPT-01</button><button class="sc" type="button" data-page="rpt-02" onclick="show('rpt-02')">RPT-02</button><button class="sc" type="button" data-page="rpt-03" onclick="show('rpt-03')">RPT-03</button><button class="sc" type="button" data-page="rpt-04" onclick="show('rpt-04')">RPT-04</button><button class="sc" type="button" data-page="rpt-05" onclick="show('rpt-05')">RPT-05</button><button class="sc" type="button" data-page="set-01" onclick="show('set-01')">SET-01</button><button class="sc" type="button" data-page="set-02" onclick="show('set-02')">SET-02</button><button class="sc" type="button" data-page="set-03" onclick="show('set-03')">SET-03</button><button class="sc" type="button" data-page="set-04" onclick="show('set-04')">SET-04</button><button class="sc" type="button" data-page="set-05" onclick="show('set-05')">SET-05</button><button class="sc" type="button" data-page="set-06" onclick="show('set-06')">SET-06</button></details>
+    </div>
+  </div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="nav">
+<div class="grp">KINH DOANH</div>
+<button class="nav-btn is-on" type="button" data-page="ovr-01" onclick="show('ovr-01')">Tổng quan</button>
+<button class="nav-btn" type="button" data-page="lst-01" onclick="show('lst-01')">Báo giá</button>
+<button class="nav-btn" type="button" data-page="new-01" onclick="show('new-01')">Tạo báo giá</button>
+<button class="nav-btn" type="button" data-page="cat-01" onclick="show('cat-01')">Service Catalog</button>
+<div class="grp">KIỂM SOÁT</div>
+<button class="nav-btn" type="button" data-page="apr-01" onclick="show('apr-01')">Phê duyệt</button>
+<button class="nav-btn" type="button" data-page="rpt-01" onclick="show('rpt-01')">Báo cáo</button>
+<div class="grp">QUẢN TRỊ</div>
+<button class="nav-btn" type="button" data-page="set-01" onclick="show('set-01')">Cấu hình</button>
+</div>
+      <div class="sb-foot">Chờ phê duyệt<br><b>2 quote</b>1 vượt SLA 24h · sample</div>
+    </aside>
+    <main class="main"><section class="page is-on" id="rpt-01" data-title="Báo cáo điều hành">
+<div class="crumb">Kinh doanh / Báo giá / Báo cáo</div>
+<div class="head"><div><h1>Báo cáo điều hành</h1><p class="sub">RPT-01 · kỳ + scope · doanh thu agency không cộng media</p></div><div class="actions"><select class="scope"><option>Tháng 09/2026</option></select><select class="scope"><option>Toàn PTT</option></select><button class="btn" type="button">Xuất XLSX</button></div></div>
+<div class="tiles">
+  <div class="tile"><span>Quote đã gửi</span><strong>31</strong><em>3,80 tỷ ₫ payable</em></div>
+  <div class="tile"><span>Được xem</span><strong>24</strong><em class="up">77,4% sent-to-viewed</em></div>
+  <div class="tile"><span>Đã xác nhận</span><strong>9</strong><em class="up">29,0% sent-to-accepted</em></div>
+  <div class="tile"><span>Avg. approval</span><strong>13,6h</strong><em class="dn">mục tiêu &lt;12h</em></div>
+</div>
+<div class="card"><div class="card-h"><b>Giá trị gửi theo tuần</b></div>
+  <div class="bars"><i style="height:42%"></i><i style="height:66%"></i><i style="height:51%"></i><i style="height:88%"></i></div>
+</div>
+<p class="muted">Win rate dashboard = accepted/(accepted+rejected). Báo cáo này ghi sent-to-accepted riêng. Export = view_audit.</p>
+<p class="note">Sample mockup (An Phát · QT-PTT-2026-000089 · 265.647.600 ₫ · GM 22,4%). Runtime thiếu số = <code>null</code> / <code>—</code>. Không hard-code vào app.</p>
+</section><section class="page" id="rpt-02" data-title="Funnel chuyển đổi">
+<div class="crumb">Kinh doanh / Báo giá / Báo cáo / Funnel</div>
+<div class="head"><div><h1>Funnel chuyển đổi</h1><p class="sub">RPT-02 · mẫu số ghi trên từng bậc</p></div><div class="actions"><button class="btn" type="button" onclick="show(&quot;rpt-01&quot;)">Điều hành</button></div></div>
+<div class="card">
+  <div class="side-row"><span>Draft</span><b>62 · 100%</b></div><div class="track"><b></b><i style="width:100%"></i></div>
+  <div class="side-row"><span>Sent</span><b>31 · 50% draft</b></div><div class="track"><b></b><i style="width:50%"></i></div>
+  <div class="side-row"><span>Viewed</span><b>24 · 77% sent</b></div><div class="track"><b></b><i style="width:39%"></i></div>
+  <div class="side-row"><span>Accepted</span><b>9 · 29% sent</b></div><div class="track"><b></b><i style="width:15%;background:var(--ok)"></i></div>
+</div>
+<p class="muted">Không gộp rejected vào mẫu số viewed. Kỳ filter + scope Của tôi/Team/Toàn PTT.</p>
+</section><section class="page" id="rpt-03" data-title="Margin theo nhóm">
+<div class="crumb">Kinh doanh / Báo giá / Báo cáo / Margin</div>
+<div class="head"><div><h1>Margin theo nhóm dịch vụ</h1><p class="sub">RPT-03 · finance only · NSR fee-only</p></div><div class="actions"></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Nhóm</th><th>NSR</th><th>Direct cost</th><th>GM</th></tr></thead><tbody>
+<tr><td>Strategy</td><td>420tr</td><td>243tr</td><td class="up">42,2%</td></tr>
+<tr><td>Social &amp; Content</td><td>1,12 tỷ</td><td>764tr</td><td class="up">31,8%</td></tr>
+<tr><td>Performance</td><td>890tr</td><td>670tr</td><td class="dn">24,7%</td></tr>
+<tr><td>Production</td><td>610tr</td><td>475tr</td><td class="dn">22,1%</td></tr>
+</tbody></table></div>
+<p class="muted">Media pass-through loại khỏi NSR. 403 nếu thiếu finance.</p>
+</section><section class="page" id="rpt-04" data-title="Lý do thua">
+<div class="crumb">Kinh doanh / Báo giá / Báo cáo / Lost</div>
+<div class="head"><div><h1>Lý do thua quote</h1><p class="sub">RPT-04 · rejected + lost reason bắt buộc</p></div><div class="actions"></div></div>
+<div class="card">
+  <div class="side-row"><span>Ngân sách không phù hợp</span><b>37%</b></div>
+  <div class="side-row"><span>Chọn đối thủ</span><b>25%</b></div>
+  <div class="side-row"><span>Đổi ưu tiên nội bộ</span><b>21%</b></div>
+  <div class="side-row"><span>Scope / timeline</span><b>17%</b></div>
+</div>
+<p class="muted">Status rejected yêu cầu lost_reason enum. Không để trống.</p>
+</section><section class="page" id="rpt-05" data-title="Tương tác proposal">
+<div class="crumb">Kinh doanh / Báo giá / Báo cáo / Engagement</div>
+<div class="head"><div><h1>Tương tác proposal</h1><p class="sub">RPT-05 · first/last view · section · privacy notice</p></div><div class="actions"></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Quote</th><th>First view</th><th>Last</th><th>Section sâu</th><th>Comment</th></tr></thead><tbody>
+<tr><td>QT-PTT-2026-000089</td><td>08/09 08:41</td><td>08/09 09:02</td><td>Đầu tư</td><td>0</td></tr>
+<tr><td>QT-PTT-2026-000102</td><td>07/09 14:10</td><td>08/09 11:00</td><td>KPI</td><td>2</td></tr>
+</tbody></table></div>
+<p class="muted">Tracking có notice trên PUB-01. Không heatmap pixel bên thứ ba W1.</p>
+</section><section class="page" id="set-01" data-title="Mặc định thương mại">
+<div class="crumb">Kinh doanh / Báo giá / Cấu hình</div>
+<div class="head"><div><h1>Mặc định thương mại</h1><p class="sub">SET-01 · tenant PTT · một legal entity PTT HCM</p></div><div class="actions"><button class="btn-primary btn" type="button">Lưu</button></div></div>
+<div class="grid2">
+  <div class="card form">
+    <label>Format mã<input class="inp" value="QT-PTT-{YYYY}-{SEQ:6}" readonly/></label>
+    <label>Hiệu lực mặc định (ngày)<input class="inp" value="30"/></label>
+    <label>VAT %<input class="inp" value="8"/></label>
+    <label>Tiền tệ<input class="inp" value="VND" readonly/></label>
+    <label>Payment template<select class="inp"><option>50 / 30 / 20</option><option>40 / 40 / 20</option></select></label>
+  </div>
+  <div class="card"><b>Khóa W1</b><p>Không multi-currency. Không multi-brand render. Timezone <code>Asia/Ho_Chi_Minh</code>.</p></div>
+</div>
+</section><section class="page" id="set-02" data-title="Guardrail">
+<div class="crumb">Kinh doanh / Báo giá / Cấu hình / Guardrail</div>
+<div class="head"><div><h1>Guardrail giá &amp; margin</h1><p class="sub">SET-02 · policy engine APR</p></div><div class="actions"><button class="btn-primary btn" type="button">Lưu</button></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Điều kiện</th><th>Approver</th></tr></thead><tbody>
+<tr><td>Discount ≤5% và GM ≥25%</td><td>Auto / Sales Manager</td></tr>
+<tr><td>Discount 5–10%</td><td>AM Lead / AD</td></tr>
+<tr><td>Discount &gt;10%</td><td>AD + Finance</td></tr>
+<tr><td>GM &lt; 25%</td><td>Finance + GDKD</td></tr>
+<tr><td>Tổng &gt; 200.000.000 ₫</td><td>GDKD</td></tr>
+<tr><td>Payment term &gt; 60 ngày</td><td>Finance</td></tr>
+<tr><td>Clause lệch template</td><td>Legal</td></tr>
+<tr><td>Custom / zero-price / thiếu cost</td><td>Finance</td></tr>
+</tbody></table></div>
+<p class="muted">Không bypass bằng dòng ảo (BR-QT-006). Floor mặc định 25%.</p>
+</section><section class="page" id="set-03" data-title="Rate card">
+<div class="crumb">Kinh doanh / Báo giá / Cấu hình / Rate</div>
+<div class="head"><div><h1>Quản trị rate card</h1><p class="sub">SET-03 · deep-link CAT-04 · Active/Retired</p></div><div class="actions"><button class="btn" type="button" onclick="show(&quot;cat-04&quot;)">Mở CAT-04</button></div></div>
+<div class="card"><p>Card theo legal entity PTT HCM. Import W3. Đổi card = revision catalog, không rewrite quote cũ.</p></div>
+</section><section class="page" id="set-04" data-title="Chia sẻ & OTP">
+<div class="crumb">Kinh doanh / Báo giá / Cấu hình / Chia sẻ</div>
+<div class="head"><div><h1>Chia sẻ & OTP</h1><p class="sub">SET-04 · token entropy · expiry · PDF · OTP · view tracking</p></div><div class="actions"><button class="btn-primary btn" type="button">Lưu</button></div></div>
+<div class="card form">
+  <label>Hết hạn link mặc định (ngày)<input class="inp" value="14"/></label>
+  <label><input type="checkbox" checked/> Cho phép tải PDF</label>
+  <label><input type="checkbox" checked/> OTP email khi xác nhận</label>
+  <label><input type="checkbox" checked/> Ghi first/last view + section (có notice PUB-01)</label>
+  <p class="muted">W1 = checkbox + OTP. E-sign provider = W3. Revoke tức thì → PUB-03.</p>
+</div>
+</section><section class="page" id="set-05" data-title="Approver">
+<div class="crumb">Kinh doanh / Báo giá / Cấu hình / Approver</div>
+<div class="head"><div><h1>Ma trận approver</h1><p class="sub">SET-05 · map job function PTT · không INSERT staff_section_permissions</p></div><div class="actions"><button class="btn-primary btn" type="button">Lưu</button></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Bước</th><th>Cap</th><th>Người / hàng</th></tr></thead><tbody>
+<tr><td>Sales Manager</td><td>crm_quote.approve</td><td>AM Lead team</td></tr>
+<tr><td>Finance</td><td>crm_quote.finance</td><td>Controller Lan</td></tr>
+<tr><td>GDKD</td><td>crm_quote.approve</td><td>Commercial Director</td></tr>
+<tr><td>Legal</td><td>crm_quote.legal</td><td>Legal desk</td></tr>
+</tbody></table></div>
+<p class="muted">Grant qua Admin RBAC catalog-only. Delegate lưu actor gốc + hạn + lý do.</p>
+</section><section class="page" id="set-06" data-title="Template điều khoản">
+<div class="crumb">Kinh doanh / Báo giá / Cấu hình / Template</div>
+<div class="head"><div><h1>Template điều khoản & Studio</h1><p class="sub">SET-06 · clause snapshot lúc publish</p></div><div class="actions"><button class="btn-primary btn" type="button">Lưu</button></div></div>
+<div class="grid2">
+  <div class="card"><h3>Clause PTT HCM chuẩn</h3><p>Thanh toán · IP nội dung · giới hạn trách nhiệm · bảo mật. Lệch → Legal.</p></div>
+  <div class="card"><h3>Studio cover</h3><p>Logo PTT navy · merge quote_code · valid_until. Cấm kéo field finance.</p></div>
+</div>
+<p class="muted">SSO / MFA = platform Admin — không nằm QT.</p>
+</section></main>
+  </div>
+</div>
+<script>
+function show(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('is-on'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('is-on');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id || (NAV_MAP[id]&&b.dataset.page===NAV_MAP[id])));
+  document.querySelectorAll('.sc').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id));
+  const j=document.getElementById('demo-jump'); if(j) j.value=id;
+  document.querySelectorAll('.page .tab').forEach(()=>{});
+  const tabs={
+    'bld-01':0,'bld-02':1,'bld-03':2,'bld-04':3,'bld-05':4,'bld-06':5,'bld-07':6,'prs-01':7
+  };
+  if(el){
+    const bar=el.querySelector('.tabs');
+    if(bar && tabs[id]!==undefined){
+      bar.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('is-on', i===tabs[id]));
+    }
+  }
+}
+function subtab(btn,id){
+  const root=btn.closest('.page');
+  root.querySelectorAll('.tab').forEach(t=>t.classList.remove('is-on'));
+  btn.classList.add('is-on');
+  root.querySelectorAll('.subpage').forEach(p=>p.classList.toggle('is-on', p.id===id));
+}
+const NAV_MAP = {"ovr-02": "ovr-01", "ovr-03": "ovr-01", "new-01": "lst-01", "bld-01": "new-01", "bld-02": "new-01", "bld-03": "new-01", "bld-04": "new-01", "bld-05": "new-01", "bld-06": "new-01", "bld-07": "new-01", "prs-01": "new-01", "cat-02": "cat-01", "cat-03": "cat-01", "cat-04": "cat-01", "cat-05": "cat-01", "apr-02": "apr-01", "pub-01": "lst-01", "pub-02": "lst-01", "pub-03": "lst-01", "cvt-01": "lst-01", "rpt-02": "rpt-01", "rpt-03": "rpt-01", "rpt-04": "rpt-01", "rpt-05": "rpt-01", "set-02": "set-01", "set-03": "set-01", "set-04": "set-01", "set-05": "set-01", "set-06": "set-01"};
+document.addEventListener('DOMContentLoaded',()=>{
+  const q=new URLSearchParams(location.search).get('s');
+  if(q) show(q);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PTT — Mockup Video Brand Ads</title>
+  <style>
+    :root {
+      --ink: #07152e;
+      --ink-2: #0b2147;
+      --blue: #2a6cff;
+      --cyan: #57dcff;
+      --coral: #ff715d;
+      --lime: #9ef27d;
+      --paper: #f3f6fc;
+      --muted: #9fb0ce;
+      --line: rgba(255,255,255,.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 12% 8%, #18396e 0, transparent 28%), linear-gradient(130deg, #06112a, #0a2148 55%, #06152f);
+      color: #fff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .page { max-width: 1500px; padding: 42px 32px 56px; margin: 0 auto; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 30px; }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand-mark { width: 48px; height: 48px; display: grid; place-items: center; font-size: 20px; font-weight: 900; letter-spacing: -1px; border-radius: 14px; background: linear-gradient(135deg, var(--blue), var(--cyan)); box-shadow: 0 12px 28px rgba(42,108,255,.35); }
+    .brand-name { font-size: 18px; font-weight: 800; letter-spacing: .12em; }
+    .brand-sub { color: var(--muted); font-size: 12px; margin-top: 3px; letter-spacing: .04em; }
+    .status { padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; color: #c9d8f4; font-size: 13px; background: rgba(255,255,255,.06); }
+    h1 { font-size: clamp(28px, 4vw, 52px); line-height: 1.08; margin: 0; max-width: 850px; letter-spacing: -1.8px; }
+    .lead { max-width: 720px; margin: 14px 0 30px; color: #b8c8e7; line-height: 1.6; font-size: 16px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: start; }
+    .board { padding: 22px; border: 1px solid var(--line); border-radius: 26px; background: rgba(5,18,46,.62); box-shadow: 0 24px 80px rgba(0,0,0,.24); }
+    .board-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .board-head h2 { font-size: 16px; margin: 0; letter-spacing: .02em; }
+    .board-head span { color: var(--muted); font-size: 12px; }
+    .storyboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .scene { position: relative; overflow: hidden; aspect-ratio: 9 / 14.3; min-height: 330px; border: 1px solid rgba(255,255,255,.13); border-radius: 20px; background: #0a1c3d; isolation: isolate; box-shadow: inset 0 0 0 1px rgba(255,255,255,.03); }
+    .scene::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(4,11,30,.04) 18%, rgba(4,11,30,.14) 42%, rgba(4,11,30,.94) 100%); }
+    .scene-1 { background: radial-gradient(circle at 72% 24%, rgba(255,113,93,.72), transparent 26%), linear-gradient(145deg, #102d68, #17213d 49%, #09152d); }
+    .scene-2 { background: radial-gradient(circle at 48% 10%, rgba(87,220,255,.64), transparent 27%), linear-gradient(145deg, #163d7e, #0d1c42 60%, #09142e); }
+    .scene-3 { background: radial-gradient(circle at 76% 28%, rgba(158,242,125,.5), transparent 28%), linear-gradient(145deg, #0e2856, #14224d 53%, #07152e); }
+    .scene-4 { background: radial-gradient(circle at 28% 12%, rgba(255,113,93,.62), transparent 25%), linear-gradient(145deg, #3b255c, #12254f 59%, #07152e); }
+    .scene-5 { background: radial-gradient(circle at 55% 20%, rgba(42,108,255,.82), transparent 30%), linear-gradient(145deg, #102e6a, #0d1e46 62%, #061229); }
+    .scene-6 { background: radial-gradient(circle at 49% 10%, rgba(87,220,255,.45), transparent 30%), linear-gradient(145deg, #173865, #0b2147 55%, #06142d); }
+    .time { position: absolute; top: 14px; left: 14px; z-index: 2; padding: 6px 9px; border-radius: 8px; background: rgba(3,10,28,.48); backdrop-filter: blur(10px); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+    .mini-logo { position: absolute; top: 16px; right: 14px; z-index: 2; font-size: 13px; letter-spacing: .16em; font-weight: 900; }
+    .art { position: absolute; inset: 0; overflow: hidden; }
+    .person { position: absolute; bottom: 68px; width: 92px; height: 160px; border-radius: 46px 46px 18px 18px; background: linear-gradient(120deg, #263a59, #07152e); box-shadow: 0 -42px 0 -17px #d69c7e; }
+    .person::before { content: ""; position: absolute; width: 48px; height: 52px; top: -45px; left: 22px; border-radius: 48% 48% 44% 44%; background: #dca689; box-shadow: 0 -7px 0 2px #17233c; }
+    .person::after { content: ""; position: absolute; width: 122px; height: 65px; right: -72px; top: 23px; border-radius: 8px; transform: rotate(-12deg); background: linear-gradient(135deg, #eaf4ff, #8ba6cf); box-shadow: 0 14px 30px rgba(0,0,0,.25); }
+    .p1 { left: 24%; transform: scale(.8); }
+    .p2 { left: 49%; bottom: 58px; transform: scale(1.08); background: linear-gradient(120deg, #ff715d, #912f48); }
+    .p3 { left: 71%; transform: scale(.76); background: linear-gradient(120deg, #2a6cff, #152857); }
+    .screen { position: absolute; top: 81px; left: 18px; right: 18px; height: 155px; padding: 14px; border: 1px solid rgba(87,220,255,.38); border-radius: 13px; background: rgba(2,13,39,.58); box-shadow: 0 20px 35px rgba(0,0,0,.22); }
+    .screen-title { color: #cadcff; font-size: 10px; font-weight: 700; }
+    .chart { height: 86px; margin-top: 12px; border-bottom: 1px solid rgba(255,255,255,.15); background: repeating-linear-gradient(0deg, transparent, transparent 21px, rgba(255,255,255,.07) 22px); position: relative; }
+    .chart svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .strategy { position: absolute; width: 158px; height: 215px; right: -24px; top: 74px; border: 1px solid rgba(255,255,255,.28); background: rgba(242,248,255,.92); border-radius: 8px; transform: rotate(8deg); padding: 15px; color: #0d285a; box-shadow: 0 15px 30px rgba(0,0,0,.25); }
+    .strategy strong { display: block; font-size: 11px; margin-bottom: 13px; }
+    .sticky { height: 32px; margin-bottom: 9px; border-radius: 3px; background: #b8efff; }
+    .sticky:nth-child(3) { background: #ffcd74; width: 74%; }
+    .sticky:nth-child(4) { background: #c4f3ae; width: 88%; }
+    .funnel { position: absolute; left: 30px; right: 30px; top: 100px; display: grid; gap: 9px; }
+    .funnel div { margin: auto; height: 34px; border-radius: 7px; background: linear-gradient(90deg, var(--blue), var(--cyan)); opacity: .95; }
+    .funnel div:nth-child(1) { width: 100%; }
+    .funnel div:nth-child(2) { width: 78%; background: linear-gradient(90deg, #658dff, #89e5ff); }
+    .funnel div:nth-child(3) { width: 58%; background: linear-gradient(90deg, #ff715d, #ffc074); }
+    .camera { position: absolute; top: 110px; left: 31px; width: 115px; height: 78px; border: 7px solid #111e36; border-radius: 14px; background: #293b5f; box-shadow: 0 12px 24px rgba(0,0,0,.22); }
+    .camera::after { content: ""; position: absolute; right: -39px; top: 16px; border-left: 36px solid #111e36; border-top: 18px solid transparent; border-bottom: 18px solid transparent; }
+    .ring { position: absolute; top: 65px; right: 33px; width: 82px; height: 82px; border-radius: 50%; border: 11px solid rgba(255,227,159,.9); box-shadow: 0 0 32px #ffe09b; }
+    .phone { position: absolute; top: 85px; left: 50%; width: 116px; height: 212px; transform: translateX(-50%); border: 7px solid #0a1020; border-radius: 21px; background: linear-gradient(150deg, #2a6cff, #b7f2ff 55%, #071831); box-shadow: 0 25px 36px rgba(0,0,0,.28); }
+    .phone::before { content: ""; position: absolute; top: 8px; left: 34px; width: 40px; height: 4px; border-radius: 5px; background: #0a1020; }
+    .pipeline { position: absolute; top: 91px; left: 18px; right: 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .column { min-height: 186px; padding: 8px; border-radius: 10px; background: rgba(2,14,38,.56); border: 1px solid rgba(255,255,255,.12); }
+    .column b { display: block; color: #d7e8ff; font-size: 8px; margin-bottom: 9px; }
+    .card { height: 35px; margin-bottom: 7px; border-radius: 5px; background: linear-gradient(135deg, #eaf4ff, #99bcea); opacity: .95; }
+    .card:nth-child(3) { background: linear-gradient(135deg, #e1ffd8, #9ef27d); }
+    .card:nth-child(4) { background: linear-gradient(135deg, #ffe4de, #ff977e); }
+    .outro-glow { position: absolute; top: 65px; left: 50%; width: 180px; height: 180px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle, rgba(87,220,255,.78), rgba(42,108,255,.18) 48%, transparent 70%); }
+    .outro-logo { position: absolute; top: 128px; left: 0; right: 0; text-align: center; font-size: 58px; letter-spacing: -.08em; font-weight: 950; }
+    .copy { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 18px; }
+    .eyebrow { color: var(--cyan); font-size: 10px; text-transform: uppercase; font-weight: 800; letter-spacing: .12em; margin-bottom: 8px; }
+    .copy h3 { margin: 0; max-width: 270px; font-size: clamp(19px, 2vw, 29px); line-height: 1.06; letter-spacing: -.7px; }
+    .copy p { margin: 8px 0 0; color: #c3d4ef; font-size: 11px; line-height: 1.4; }
+    .tag { display: inline-block; margin-top: 12px; padding: 8px 11px; border-radius: 8px; background: var(--coral); color: #fff; font-size: 10px; font-weight: 850; letter-spacing: .04em; }
+    .side { display: grid; gap: 18px; }
+    .panel { padding: 20px; border-radius: 20px; border: 1px solid var(--line); background: rgba(255,255,255,.06); }
+    .panel h2 { margin: 0 0 12px; font-size: 15px; }
+    .panel p { margin: 0; color: #b9c9e6; font-size: 13px; line-height: 1.55; }
+    .pill { display: inline-flex; align-items: center; gap: 8px; margin: 12px 6px 0 0; padding: 8px 10px; border-radius: 999px; background: rgba(87,220,255,.12); color: #c8f6ff; border: 1px solid rgba(87,220,255,.2); font-size: 11px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 10px var(--lime); }
+    .script { counter-reset: step; }
+    .script-item { position: relative; padding: 0 0 16px 30px; color: #c4d3ed; font-size: 12px; line-height: 1.45; }
+    .script-item:last-child { padding-bottom: 0; }
+    .script-item::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: #07152e; background: var(--cyan); font-size: 10px; font-weight: 900; }
+    .cta-big { display: block; width: 100%; margin-top: 16px; padding: 13px; text-align: center; text-decoration: none; color: white; background: linear-gradient(90deg, #ff715d, #ff927c); border-radius: 12px; font-weight: 850; font-size: 13px; letter-spacing: .03em; }
+    @media (max-width: 1050px) { .layout { grid-template-columns: 1fr; } .side { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 760px) { .page { padding: 24px 16px 40px; } .topbar { align-items: flex-start; } .status { display: none; } .storyboard { grid-template-columns: repeat(2, minmax(0, 1fr)); } .scene { min-height: 360px; } .side { grid-template-columns: 1fr; } }
+    @media (max-width: 430px) { .storyboard { grid-template-columns: 1fr; } .scene { min-height: 480px; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">PTT</div>
+        <div>
+          <div class="brand-name">PTT AGENCY</div>
+          <div class="brand-sub">GROWTH MARKETING PARTNER</div>
+        </div>
+      </div>
+      <div class="status">● VIDEO BRAND ADS / STORYBOARD 9:16</div>
+    </header>
+
+    <h1>Marketing không chỉ là chạy ads.<br>Đó là hệ thống tạo tăng trưởng.</h1>
+    <p class="lead">Mockup storyboard cho video quảng cáo thương hiệu PTT Agency. Thiết kế theo cấu trúc hook → chiến lược → creative → performance → CRM → CTA, phù hợp Reels, TikTok và YouTube Shorts.</p>
+
+    <div class="layout">
+      <section class="board">
+        <div class="board-head">
+          <h2>VIDEO STORYBOARD — 45 GIÂY</h2>
+          <span>Master format: 1080 × 1920</span>
+        </div>
+
+        <div class="storyboard">
+          <article class="scene scene-1">
+            <span class="time">00:00 — 00:03</span><span class="mini-logo">PTT</span>
+            <div class="art"><div class="screen"><div class="screen-title">CHI PHÍ QUẢNG CÁO</div><div class="chart"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline fill="none" stroke="#ff715d" stroke-width="2" points="0,35 18,28 38,31 57,16 76,25 100,3"/></svg></div></div><div class="person p2"></div></div>
+            <div class="copy"><div class="eyebrow">Vấn đề doanh nghiệp</div><h3>Marketing nhiều.<br>Tăng trưởng ít?</h3><p>Ngân sách tăng, nhưng lead và doanh thu chưa tương xứng.</p></div>
+          </article>
+
+          <article class="scene scene-2">
+            <span class="time">00:03 — 00:07</span><span class="mini-logo">PTT</span>
+            <div class="art"><div class="screen"><div class="screen-title">GROWTH STRATEGY / Q4</div><div class="chart"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline fill="none" stroke="#57dcff" stroke-width="2" points="0,34 17,32 35,23 51,25 71,12 100,5"/></svg></div></div><div class="person p1"></div><div class="person p2"></div><div class="person p3"></div></div>
+            <div class="copy"><div class="eyebrow">PTT Agency</div><h3>Marketing không chỉ là chạy ads.</h3><p>Chúng tôi bắt đầu bằng chiến lược tăng trưởng.</p></div>
+          </article>
+
+          <article class="scene scene-3">
+            <span class="time">00:07 — 00:13</span><span class="mini-logo">PTT</span>
+            <div class="art"><div class="strategy"><strong>CUSTOMER INSIGHT</strong><div class="sticky"></div><div class="sticky"></div><div class="sticky"></div><div class="sticky"></div></div><div class="funnel"><div></div><div></div><div></div></div></div>
+            <div class="copy"><div class="eyebrow">Research & strategy</div><h3>Chiến lược đúng trước.<br>Ngân sách sau.</h3><p>Hiểu khách hàng, thị trường và lợi thế cạnh tranh.</p></div>
+          </article>
+
+          <article class="scene scene-4">
+            <span class="time">00:13 — 00:20</span><span class="mini-logo">PTT</span>
+            <div class="art"><div class="ring"></div><div class="camera"></div><div class="phone"></div></div>
+            <div class="copy"><div class="eyebrow">Creative production</div><h3>Nội dung khiến khách hàng dừng lại.</h3><p>Creative · Video · Social Content</p></div>
+          </article>
+
+          <article class="scene scene-5">
+            <span class="time">00:20 — 00:34</span><span class="mini-logo">PTT</span>
+            <div class="art"><div class="pipeline"><div class="column"><b>LEAD MỚI</b><div class="card"></div><div class="card"></div><div class="card"></div></div><div class="column"><b>TƯ VẤN</b><div class="card"></div><div class="card"></div></div><div class="column"><b>CHỐT DEAL</b><div class="card"></div><div class="card"></div></div></div></div>
+            <div class="copy"><div class="eyebrow">Performance & CRM</div><h3>Awareness → Lead → Revenue</h3><p>Dữ liệu, ads và lead pipeline được kết nối thành một hệ thống.</p></div>
+          </article>
+
+          <article class="scene scene-6">
+            <span class="time">00:34 — 00:45</span><span class="mini-logo">PTT</span>
+            <div class="art"><div class="outro-glow"></div><div class="outro-logo">PTT</div></div>
+            <div class="copy"><div class="eyebrow">Growth marketing partner</div><h3>Biến marketing thành tăng trưởng có thể đo lường.</h3><span class="tag">ĐẶT LỊCH TƯ VẤN</span></div>
+          </article>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="panel">
+          <h2>Thông điệp thương hiệu</h2>
+          <p>PTT Agency kết hợp chiến lược, creative, media performance và dữ liệu để tạo ra hành trình marketing đi từ nhận diện đến doanh thu.</p>
+          <span class="pill"><span class="dot"></span> Strategy-first</span>
+          <span class="pill"><span class="dot"></span> Data-driven</span>
+          <span class="pill"><span class="dot"></span> Result-focused</span>
+        </section>
+        <section class="panel script">
+          <h2>Voice-over rút gọn</h2>
+          <div class="script-item">Đang chi nhiều hơn cho marketing nhưng doanh thu chưa tăng tương xứng?</div>
+          <div class="script-item">Vấn đề không phải luôn nằm ở ngân sách, mà ở một chiến lược chưa đủ rõ.</div>
+          <div class="script-item">PTT xây nội dung, quảng cáo và hệ thống đo lường cùng hướng đến tăng trưởng.</div>
+          <div class="script-item">PTT — biến marketing thành tăng trưởng có thể đo lường.</div>
+        </section>
+        <section class="panel">
+          <h2>CTA đề xuất</h2>
+          <p>Đặt lịch tư vấn chiến lược 1:1 để audit hành trình marketing hiện tại của doanh nghiệp.</p>
+          <a class="cta-big" href="#">ĐẶT LỊCH TƯ VẤN</a>
+        </section>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>
