@@ -14,6 +14,7 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffProposalsWriteGuard } from './guards/staff-proposals.guard';
+import { QuoteApprovalService } from './quote-approval.service';
 import { QuoteBuilderService, type QuotePaymentItemInput } from './quote-builder.service';
 import {
   QuoteOptionsService,
@@ -29,6 +30,7 @@ export class QuoteVersionsController {
   constructor(
     private readonly builder: QuoteBuilderService,
     private readonly options: QuoteOptionsService,
+    private readonly approvals: QuoteApprovalService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -67,6 +69,11 @@ export class QuoteVersionsController {
     @Body() body: QuoteOptionPatchInput,
   ) {
     return this.options.patch(vid, key, body ?? {}, await this.actor(req));
+  }
+
+  @Post(':vid/submit-approval')
+  async submitApproval(@Req() req: StaffReq, @Param('vid') vid: string) {
+    return this.approvals.submitApproval(vid, await this.actor(req));
   }
 
   private async actor(req: StaffReq) {

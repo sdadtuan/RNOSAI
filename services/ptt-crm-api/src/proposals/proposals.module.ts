@@ -19,6 +19,8 @@ import { QuoteConvertService } from './quote-convert.service';
 import { QuotePublicController } from './quote-public.controller';
 import { QuotePublicService } from './quote-public.service';
 import { QuoteShareController } from './quote-share.controller';
+import { QuoteApprovalStepsController } from './quote-approval-steps.controller';
+import { QuoteApprovalService } from './quote-approval.service';
 import { QuoteVersionsController } from './quote-versions.controller';
 import { QuoteVersionsRepository } from './quote-versions.repository';
 import {
@@ -48,6 +50,7 @@ import { QuoteOptionsService } from './quote-options.service';
   controllers: [
     ProposalsController,
     QuoteVersionsController,
+    QuoteApprovalStepsController,
     QuotePublicController,
     QuoteShareController,
   ],
@@ -72,6 +75,7 @@ import { QuoteOptionsService } from './quote-options.service';
     QuotePublicService,
     QuoteExpiryWorkerService,
     QuoteOptionsService,
+    QuoteApprovalService,
   ],
   exports: [
     ProposalsService,
@@ -87,6 +91,7 @@ import { QuoteOptionsService } from './quote-options.service';
     QuoteConvertService,
     QuotePublicService,
     QuoteOptionsService,
+    QuoteApprovalService,
   ],
 })
 export class ProposalsModule {}
