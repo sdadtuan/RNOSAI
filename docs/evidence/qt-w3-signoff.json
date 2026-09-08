@@ -3,7 +3,7 @@
   "component": "quotation_os_wave3",
   "srs": "2026-09-08-quotation-os-srs.md §21 AC-01…12 + plan Task 36",
   "branch": "feat/quotation-os",
-  "head_commit": "1620ef92",
+  "head_commit": "f46dacdb",
   "environment": "local",
   "evaluated_at": "2026-09-09T01:12:23+07:00",
   "signed_at": null,
