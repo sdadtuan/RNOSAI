@@ -33,6 +33,13 @@ export type QuoteReferencePrice = {
   suggested_vnd: number;
 };
 
+export type QuoteProductTierPrice = {
+  min_vnd: number | null;
+  max_vnd: number | null;
+  suggested_vnd: number | null;
+  rate_missing: boolean;
+};
+
 export function normalizeQuoteTier(raw: string): QuotePackageTier | null {
   const s = String(raw ?? '').trim().toLowerCase();
   if (s === 'basic' || s === 'coban' || s === 'co_ban') return 'basic';
@@ -71,6 +78,23 @@ export function resolveTierPricing(
     return resolveTierPricing(DEFAULT_QUOTE_TIER_PRICING as Record<string, unknown>, tier, false);
   }
   return result;
+}
+
+/** Product add / builder path: allowDefaultFallback=false — never invent 10/20/35tr. */
+export function resolveProductTierPricing(
+  tierPricing: Record<string, unknown>,
+  tier: QuotePackageTier,
+): QuoteProductTierPrice {
+  const ref = resolveTierPricing(tierPricing, tier, false);
+  if (ref.suggested_vnd <= 0) {
+    return { min_vnd: null, max_vnd: null, suggested_vnd: null, rate_missing: true };
+  }
+  return {
+    min_vnd: ref.min_vnd,
+    max_vnd: ref.max_vnd,
+    suggested_vnd: ref.suggested_vnd,
+    rate_missing: false,
+  };
 }
 
 export function quotePdfBuffer(input: {

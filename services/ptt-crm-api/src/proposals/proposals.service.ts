@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   StreamableFile,
@@ -22,7 +23,6 @@ import {
 } from './quote-pricing.util';
 import {
   buildAutoQuoteLineInputs,
-  filterCatalogServicesForSlug,
   loadDealRoomServiceDvMap,
   resolveServiceDvMapping,
 } from './deal-room-quote.util';
@@ -34,6 +34,16 @@ import {
   PutQuoteLinesBody,
   QuoteLineInput,
 } from './proposals.types';
+import { isQuoteOsCreate, QuoteCreateService } from './quote-create.service';
+import {
+  isQuoteBuilderTarget,
+  QuoteBuilderActor,
+  QuoteBuilderService,
+} from './quote-builder.service';
+import { QuoteCatalogService } from './quote-catalog.service';
+import { QuoteConvertActor, QuoteConvertService } from './quote-convert.service';
+import { QuoteListQuery, QuoteListService } from './quote-list.service';
+import type { QuoteHeaderPatch } from './quote-versions.repository';
 
 @Injectable()
 export class ProposalsService {
@@ -46,6 +56,11 @@ export class ProposalsService {
     private readonly config: AppConfigService,
     private readonly funnel: LeadsFunnelService,
     private readonly spc: SpcService,
+    private readonly quoteCreate: QuoteCreateService,
+    private readonly quoteList: QuoteListService,
+    private readonly quoteBuilder: QuoteBuilderService,
+    private readonly quoteCatalog: QuoteCatalogService,
+    private readonly quoteConvert: QuoteConvertService,
   ) {}
 
   private async assertG4ForLeadContext(leadId: number): Promise<void> {
@@ -61,7 +76,7 @@ export class ProposalsService {
     }
   }
 
-  async list(customerIdRaw?: string, leadIdRaw?: string) {
+  async list(customerIdRaw?: string, leadIdRaw?: string, scoped?: QuoteListQuery) {
     const leadId = Number(leadIdRaw ?? 0);
     if (Number.isFinite(leadId) && leadId > 0) {
       const rows = await this.repo.listByLeadId(leadId);
@@ -74,17 +89,20 @@ export class ProposalsService {
       return { proposals };
     }
     const customerId = Number(customerIdRaw ?? 0);
-    if (!Number.isFinite(customerId) || customerId <= 0) {
-      throw new BadRequestException({ error: 'Cần customer_id hoặc lead_id' });
+    if (Number.isFinite(customerId) && customerId > 0) {
+      const rows = await this.repo.listByCustomer(customerId);
+      const proposals = await Promise.all(
+        rows.map(async (proposal) => ({
+          ...proposal,
+          line_count: (await this.repo.listLines(proposal.id)).length,
+        })),
+      );
+      return { proposals };
     }
-    const rows = await this.repo.listByCustomer(customerId);
-    const proposals = await Promise.all(
-      rows.map(async (proposal) => ({
-        ...proposal,
-        line_count: (await this.repo.listLines(proposal.id)).length,
-      })),
-    );
-    return { proposals };
+    if (scoped) {
+      return this.quoteList.list(scoped);
+    }
+    throw new BadRequestException({ error: 'Cần customer_id hoặc lead_id' });
   }
 
   async detail(proposalId: number) {
@@ -94,14 +112,24 @@ export class ProposalsService {
     }
     return {
       ...proposal,
-      lines: await this.repo.listLines(proposalId),
+      lines: await this.listMappedLines(proposalId, proposal),
     };
   }
 
   async getLines(proposalId: number) {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
-    return { proposal_id: proposalId, lines: await this.repo.listLines(proposalId) };
+    return { proposal_id: proposalId, lines: await this.listMappedLines(proposalId, proposal) };
+  }
+
+  private listMappedLines(
+    proposalId: number,
+    proposal: { quote_code?: string | null; current_version_id?: string | null },
+  ) {
+    if (proposal.quote_code || proposal.current_version_id) {
+      return this.repo.listLines(proposalId, { quoteOs: true });
+    }
+    return this.repo.listLines(proposalId);
   }
 
   private resolveDvEntry(dvCode: string) {
@@ -169,7 +197,21 @@ export class ProposalsService {
     };
   }
 
-  async create(body: CreateProposalBody) {
+  async create(
+    body: CreateProposalBody,
+    actor?: { staffId?: number; staffAuthVia?: 'internal' | 'jwt'; idempotencyKey?: string },
+  ) {
+    if (isQuoteOsCreate(body)) {
+      const staffId = Number(actor?.staffId ?? 0);
+      if (actor?.staffAuthVia !== 'internal' && !(staffId > 0)) {
+        throw new ForbiddenException({ error: 'qt_unresolved_staff' });
+      }
+      return this.quoteCreate.create(body, {
+        staffId,
+        staffAuthVia: actor?.staffAuthVia,
+        idempotencyKey: actor?.idempotencyKey,
+      });
+    }
     let customerId = Number(body.customer_id ?? 0);
     const leadId = Number(body.lead_id ?? 0);
     let presalesId = Number(body.presales_id ?? 0);
@@ -241,11 +283,18 @@ export class ProposalsService {
     return buildAutoQuoteLineInputs(mapping, tierPricing, tier);
   }
 
-  async putLines(proposalId: number, body: PutQuoteLinesBody) {
+  async putLines(proposalId: number, body: PutQuoteLinesBody, actor?: QuoteBuilderActor) {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     if (proposal.status === 'accepted') {
       throw new BadRequestException({ error: 'proposal_already_accepted' });
+    }
+    if (isQuoteBuilderTarget(proposal, body)) {
+      return this.quoteBuilder.putLines(
+        proposalId,
+        body,
+        actor ?? { staffId: 0, staffAuthVia: 'internal', hasFinance: false },
+      );
     }
     if (!Array.isArray(body.lines) || body.lines.length === 0) {
       throw new BadRequestException({ error: 'lines_required' });
@@ -259,11 +308,37 @@ export class ProposalsService {
     return { proposal_id: proposalId, lines: items, total_vnd: items.reduce((s, l) => s + l.final_price_vnd, 0) };
   }
 
+  async patchQuoteHeader(
+    proposalId: number,
+    body: QuoteHeaderPatch,
+    ifMatch: string | undefined,
+    actor: QuoteBuilderActor,
+  ) {
+    const proposal = await this.repo.getById(proposalId);
+    if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
+    if (!proposal.quote_code && !proposal.current_version_id) {
+      throw new NotFoundException({ error: 'not_a_quote' });
+    }
+    return this.quoteBuilder.patchHeader(proposalId, body, ifMatch, actor);
+  }
+
+  async recalculateQuote(proposalId: number, vid: string, actor: QuoteBuilderActor) {
+    return this.quoteBuilder.recalculate(proposalId, vid, actor);
+  }
+
   async patchStatus(proposalId: number, body: PatchProposalStatusBody, actorEmail = 'staff') {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
     const next = body.status;
-    const allowed = PROPOSAL_STATUS_FLOW[proposal.status] ?? [];
+    if (next === 'accepted') {
+      return this.acceptProposal(
+        proposalId,
+        Boolean(body.spawn_week),
+        actorEmail,
+        body.price_adjustment_reason,
+      );
+    }
+    const allowed = PROPOSAL_STATUS_FLOW[proposal.status as ProposalStatus] ?? [];
     if (!allowed.includes(next)) {
       throw new BadRequestException({
         error: 'invalid_status_transition',
@@ -271,11 +346,12 @@ export class ProposalsService {
         to: next,
       });
     }
-    if (next === 'accepted') {
-      return this.acceptProposal(proposalId, Boolean(body.spawn_week), actorEmail, body.price_adjustment_reason);
-    }
     const updated = await this.repo.patchStatus(proposalId, next, body.price_adjustment_reason);
-    return { proposal: updated, lines: await this.repo.listLines(proposalId) };
+    return { proposal: updated, lines: await this.repo.listLines(proposalId), lifecycles: [] };
+  }
+
+  async convert(proposalId: number, vid: string, actor: QuoteConvertActor) {
+    return this.quoteConvert.convert(proposalId, vid, actor);
   }
 
   private async acceptProposal(
@@ -286,6 +362,57 @@ export class ProposalsService {
   ) {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
+    if (proposal.status !== 'accepted') {
+      const allowed = PROPOSAL_STATUS_FLOW[proposal.status as ProposalStatus] ?? [];
+      if (!allowed.includes('accepted')) {
+        throw new BadRequestException({
+          error: 'invalid_status_transition',
+          from: proposal.status,
+          to: 'accepted',
+        });
+      }
+    }
+
+    const versionId = String(proposal.current_version_id ?? '').trim();
+    if (!proposal.quote_code && !versionId) {
+      return this.acceptDealRoomInline(proposal, spawnWeek, actorEmail, priceAdjustmentReason);
+    }
+
+    const previousStatus = proposal.status;
+    const updated =
+      previousStatus === 'accepted'
+        ? proposal
+        : await this.repo.patchStatus(proposalId, 'accepted', priceAdjustmentReason);
+
+    try {
+      if (!versionId) {
+        throw new NotFoundException({ error: 'version_not_found' });
+      }
+      const conversion = await this.quoteConvert.convert(proposalId, versionId, {
+        staffId: 0,
+        staffAuthVia: 'internal',
+        idempotencyKey: `legacy-accept:${proposalId}`,
+      });
+      return {
+        proposal: updated,
+        lines: await this.repo.listLines(proposalId),
+        lifecycles: conversion.lifecycles,
+      };
+    } catch (err) {
+      if (previousStatus !== 'accepted') {
+        await this.repo.patchStatus(proposalId, previousStatus as ProposalStatus);
+      }
+      throw err;
+    }
+  }
+
+  private async acceptDealRoomInline(
+    proposal: { id: number; customer_id: number },
+    spawnWeek: boolean,
+    actorEmail: string,
+    priceAdjustmentReason?: string,
+  ) {
+    const proposalId = proposal.id;
     const lines = await this.repo.listLines(proposalId);
     if (!lines.length) {
       throw new BadRequestException({ error: 'quote_lines_required_for_accept' });
@@ -294,7 +421,11 @@ export class ProposalsService {
     const lifecycles: Array<{ line_id: number; lifecycle_id: number; dv_code: string }> = [];
     for (const line of lines) {
       if (line.lifecycle_id) {
-        lifecycles.push({ line_id: line.id, lifecycle_id: line.lifecycle_id, dv_code: line.dv_code });
+        lifecycles.push({
+          line_id: line.id,
+          lifecycle_id: line.lifecycle_id,
+          dv_code: line.dv_code,
+        });
         continue;
       }
       const note = `Quote #${proposalId} · ${line.dv_code} ${line.package_tier} · ${line.final_price_vnd.toLocaleString('vi-VN')} VND`;
@@ -379,41 +510,7 @@ export class ProposalsService {
   }
 
   async getCatalogForQuote(serviceSlugRaw?: string) {
-    try {
-      return await this.spc.getQuoteCatalog(serviceSlugRaw);
-    } catch {
-      // legacy fallback when PG/SPC unavailable
-    }
-    const map = this.routeMap.getMap();
-    const slug = String(serviceSlugRaw ?? '').trim();
-    const base = {
-      schema_version: map.schema_version,
-      package_tiers: ['basic', 'standard', 'premium'] as QuotePackageTier[],
-    };
-    if (!slug) {
-      return {
-        ...base,
-        services: map.services.map((s) => ({
-          dv_code: s.code,
-          name: s.name_vi,
-          service_slug: s.service_slugs.primary,
-          readiness: s.readiness,
-          depends_on_dv: s.depends_on_dv ?? [],
-        })),
-        suggested_bundle: [] as string[],
-        primary_dv: null as string | null,
-      };
-    }
-    const dvMap = loadDealRoomServiceDvMap();
-    const mapping = resolveServiceDvMapping(slug, map, dvMap);
-    return {
-      ...base,
-      service_slug: slug,
-      primary_dv: mapping.primary_dv,
-      primary_name: mapping.primary_name,
-      suggested_bundle: mapping.bundle_dv,
-      services: filterCatalogServicesForSlug(map, mapping),
-    };
+    return this.quoteCatalog.get(serviceSlugRaw);
   }
 
   async generate(proposalId: number) {

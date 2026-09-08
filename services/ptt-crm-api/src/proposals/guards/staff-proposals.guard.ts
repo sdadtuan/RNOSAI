@@ -20,8 +20,11 @@ export class StaffProposalsViewGuard implements CanActivate {
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
     const me = await this.staffAuth.me(req.staffUser);
-    if (!this.staffAuth.hasCap(me.caps, 'crm_board', 'view')) {
-      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_board' });
+    if (
+      !this.staffAuth.hasCap(me.caps, 'crm_quote', 'view') &&
+      !this.staffAuth.hasCap(me.caps, 'crm_board', 'view')
+    ) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_quote' });
     }
     return true;
   }
@@ -38,8 +41,11 @@ export class StaffProposalsWriteGuard implements CanActivate {
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
     const me = await this.staffAuth.me(req.staffUser);
-    if (!this.staffAuth.hasCap(me.caps, 'crm_board', 'edit')) {
-      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_board' });
+    if (
+      !this.staffAuth.hasCap(me.caps, 'crm_quote', 'edit') &&
+      !this.staffAuth.hasCap(me.caps, 'crm_board', 'edit')
+    ) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_quote' });
     }
     return true;
   }

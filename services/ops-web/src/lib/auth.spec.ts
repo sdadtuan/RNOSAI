@@ -162,6 +162,14 @@ describe('rbac-routes', () => {
     expect(canAccessPath('/crm/account-management', dir, 'crm')).toBe(true);
   });
 
+  it('/crm/proposals is true with crm_quote.view and false with an unrelated cap', () => {
+    const quote = user([{ section: 'crm_quote', action: 'view' }]);
+    const unrelated = user([{ section: 'crm_leads', action: 'view' }]);
+    expect(canAccessPath('/crm/proposals', quote, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/proposals/list', quote, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/proposals', unrelated, 'crm')).toBe(false);
+  });
+
   it('Creative OS path requires crm_cp.view — agency-only is 403', () => {
     const cpView = userWith([{ section: 'crm_cp', action: 'view' }]);
     const agency = userWith([{ section: 'crm_board', action: 'view' }]);

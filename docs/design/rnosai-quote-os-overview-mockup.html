@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RNOSAI · QT OS · Tổng quan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="rnosai-quote-os-mockup.css"/>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="icon-btn" type="button" onclick="document.getElementById('app').classList.toggle('collapsed')">☰</button>
+    <span class="logo">RNOSAI <span style="font-weight:500;color:var(--mute);font-size:12px">PTT · Quotation OS</span></span>
+    <button class="search-btn" type="button"><span>Tìm QT-PTT, khách AM 360, lead…</span><span class="kbd">⌘K</span></button>
+    <div class="top-right">
+      <span class="fresh">Đồng bộ 09:18 · last_updated ISO</span>
+      <button class="icon-btn" type="button" onclick="document.getElementById('notify').classList.toggle('is-on')">🔔<i class="dot"></i></button>
+      <span class="ava" title="AM Minh">AM</span>
+    </div>
+    <div class="notify" id="notify">
+      <div class="card-h"><b>Thông báo</b></div>
+      <p>QT-PTT-2026-000071 Finance SLA +6h</p>
+      <p>An Phát xem proposal v2</p>
+      <p>GM 22,4% dưới floor — sample</p>
+    </div>
+  </header>
+  <div class="catalog">
+    <b>Kinh doanh</b>
+    <select class="scope"><option>Vai trò: AM — Minh</option><option>Finance — Lan</option><option>GDKD</option><option>Legal</option></select>
+    <select class="scope"><option>Phạm vi: Của tôi</option><option>Team</option><option>Toàn PTT</option></select>
+    <div class="ops">
+      <label class="fresh" for="demo-jump">Nhảy màn</label>
+      <select class="scope" id="demo-jump" onchange="show(this.value)"><option value="ovr-01">OVR-01 Tổng quan Báo giá</option><option value="ovr-02">OVR-02 Action Center</option><option value="ovr-03">OVR-03 Nhật ký</option></select>
+      <details class="demo-more"><summary>Toàn catalog</summary><button class="sc is-on" type="button" data-page="ovr-01" onclick="show('ovr-01')">OVR-01</button><button class="sc" type="button" data-page="ovr-02" onclick="show('ovr-02')">OVR-02</button><button class="sc" type="button" data-page="ovr-03" onclick="show('ovr-03')">OVR-03</button></details>
+    </div>
+  </div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="nav">
+<div class="grp">KINH DOANH</div>
+<button class="nav-btn is-on" type="button" data-page="ovr-01" onclick="show('ovr-01')">Tổng quan</button>
+<button class="nav-btn" type="button" data-page="lst-01" onclick="show('lst-01')">Báo giá</button>
+<button class="nav-btn" type="button" data-page="new-01" onclick="show('new-01')">Tạo báo giá</button>
+<button class="nav-btn" type="button" data-page="cat-01" onclick="show('cat-01')">Service Catalog</button>
+<div class="grp">KIỂM SOÁT</div>
+<button class="nav-btn" type="button" data-page="apr-01" onclick="show('apr-01')">Phê duyệt</button>
+<button class="nav-btn" type="button" data-page="rpt-01" onclick="show('rpt-01')">Báo cáo</button>
+<div class="grp">QUẢN TRỊ</div>
+<button class="nav-btn" type="button" data-page="set-01" onclick="show('set-01')">Cấu hình</button>
+</div>
+      <div class="sb-foot">Chờ phê duyệt<br><b>2 quote</b>1 vượt SLA 24h · sample</div>
+    </aside>
+    <main class="main"><section class="page is-on" id="ovr-01" data-title="Tổng quan Báo giá">
+<div class="crumb">Kinh doanh / Báo giá / Tổng quan</div>
+<div class="head"><div><h1>Tổng quan Báo giá</h1><p class="sub">OVR-01 · last_updated 2026-09-08T09:18:00+07:00 · URL filter share được · công thức win rate trên thẻ</p></div><div class="actions"><select class="scope"><option>Tháng 09/2026</option><option>7 ngày</option><option>Quý 3</option></select><select class="scope"><option>Phạm vi: Của tôi</option><option>Team</option><option>Toàn PTT</option></select><button class="btn" type="button" onclick="show('ovr-02')">Action Center (5)</button><button class="btn-primary btn" type="button" onclick="show('new-01')">Tạo báo giá</button></div></div>
+<div class="alert"><span>2 chờ phê duyệt · 1 vượt SLA 24h · QT-PTT-2026-000089 GM 22,4% dưới floor 25%.</span><button class="btn" type="button" onclick="show('ovr-02')">Mở Action Center</button></div>
+<div class="tiles">
+  <button class="tile" type="button" onclick="show('lst-01')"><span>Giá trị quote đang mở</span><strong>8,46 tỷ ₫</strong><em class="up">draft…negotiation · không gồm accepted</em></button>
+  <button class="tile" type="button" onclick="show('apr-01')"><span>Chờ phê duyệt</span><strong>2</strong><em class="dn">1 vượt SLA</em></button>
+  <button class="tile" type="button" onclick="show('rpt-01')"><span>Tỷ lệ chốt</span><strong>31,4%</strong><em>accepted / (accepted+rejected) trong kỳ</em></button>
+  <button class="tile" type="button" onclick="show('rpt-03')"><span>GM dự kiến (mở)</span><strong>29,1%</strong><em>ẩn nếu thiếu crm_quote.finance</em></button>
+</div>
+<div class="grid2">
+  <div class="card"><div class="card-h"><b>Quote theo trạng thái</b><span class="muted">count + value · kỳ filter</span></div>
+    <div class="side-row"><span>Nháp</span><b>18 · 1,24 tỷ ₫</b></div><div class="track"><b></b><i style="width:45%"></i></div>
+    <div class="side-row"><span>Đã gửi</span><b>31 · 3,80 tỷ ₫</b></div><div class="track"><b></b><i style="width:78%"></i></div>
+    <div class="side-row"><span>Thương lượng</span><b>14 · 2,16 tỷ ₫</b></div><div class="track"><b></b><i style="width:57%"></i></div>
+    <div class="side-row"><span>Đã xác nhận</span><b>09 · 1,26 tỷ ₫</b></div><div class="track"><b></b><i style="width:38%;background:var(--ok)"></i></div>
+  </div>
+  <div class="card"><div class="card-h"><b>Sức khỏe thương mại</b><button class="linkish" type="button" onclick="show('set-02')">Policy</button></div>
+    <div class="side-row"><span>Dưới GM floor 25%</span><b class="dn">5</b></div>
+    <div class="side-row"><span>Discount &gt; 10%</span><b class="dn">3</b></div>
+    <div class="side-row"><span>Thiếu cost estimate</span><b class="dn">7</b></div>
+    <div class="side-row"><span>Khách đã xem chưa phản hồi</span><b>21</b></div>
+  </div>
+</div>
+<div class="grid2">
+  <div class="card"><div class="card-h"><b>Việc cần xử lý</b><button class="linkish" type="button" onclick="show('ovr-02')">Tất cả</button></div>
+    <p>QT-PTT-2026-000071 · Finance · SLA quá 6h · <button class="linkish" type="button" onclick="show('apr-02')">Duyệt</button></p>
+    <p>QT-PTT-2026-000089 · hết hạn 10/09 · <button class="linkish" type="button" onclick="show('bld-01')">Mở builder</button></p>
+    <p>An Phát xem v2 lúc 08:41 · <button class="linkish" type="button" onclick="show('lst-01')">Follow-up</button></p>
+  </div>
+  <div class="card"><div class="card-h"><b>Top dịch vụ theo giá trị</b><button class="linkish" type="button" onclick="show('cat-01')">Catalog</button></div>
+    <div class="side-row"><span>DV08 Meta Ads · Tiêu chuẩn</span><b>2,14 tỷ ₫</b></div>
+    <div class="side-row"><span>DV05 Social retainer</span><b>1,81 tỷ ₫</b></div>
+    <div class="side-row"><span>DV12 Brand Film</span><b>1,26 tỷ ₫</b></div>
+  </div>
+</div>
+<p class="note">Sample mockup (An Phát · QT-PTT-2026-000089 · 265.647.600 ₫ · GM 22,4%). Runtime thiếu số = <code>null</code> / <code>—</code>. Không hard-code vào app.</p>
+</section><section class="page" id="ovr-02" data-title="Action Center">
+<div class="crumb">Kinh doanh / Báo giá / Action Center</div>
+<div class="head"><div><h1>Action Center</h1><p class="sub">OVR-02 · FR-OVR-003 · severity · resource · owner · SLA · CTA · audit</p></div><div class="actions"><button class="btn-primary btn" type="button" onclick="show(&quot;ovr-01&quot;)">Về dashboard</button></div></div>
+<div class="tbl-wrap"><table><thead><tr><th>Sev</th><th>Việc</th><th>Impact</th><th>Owner</th><th>SLA</th><th>CTA</th></tr></thead><tbody>
+<tr><td><span class="pill s-bad">Crit</span></td><td>QT-PTT-2026-000071 chờ Finance</td><td>GM 22,4% &lt; floor</td><td>Finance Lan</td><td>quá 6h</td><td><button class="btn" type="button" onclick="show('apr-02')">Duyệt / trả</button></td></tr>
+<tr><td><span class="pill s-warn">High</span></td><td>QT-PTT-2026-000089 hết hạn 10/09</td><td>valid_until TZ Asia/Ho_Chi_Minh</td><td>AM Minh</td><td>2 ngày</td><td><button class="btn" type="button" onclick="show('bld-01')">Gia hạn / gửi</button></td></tr>
+<tr><td><span class="pill s-warn">High</span></td><td>An Phát xem v2 · chưa comment</td><td>sent-to-viewed 18h</td><td>AM Minh</td><td>follow 24h</td><td><button class="btn" type="button" onclick="show('lst-01')">Mở quote</button></td></tr>
+<tr><td><span class="pill s-info">Med</span></td><td>5 quote thiếu cost</td><td>Block submit nếu policy</td><td>AM team</td><td>—</td><td><button class="btn" type="button" onclick="show('bld-05')">Cost</button></td></tr>
+<tr><td><span class="pill s-info">Med</span></td><td>Discount 12% Bloom</td><td>Route AD + Finance</td><td>AD Kiều</td><td>12h</td><td><button class="btn" type="button" onclick="show('apr-01')">Inbox</button></td></tr>
+</tbody></table></div>
+<div class="card"><b>Escalate</b><p class="muted">Approval +24h → owner + GDKD. Expiry ≤3 ngày → AM. Viewed +48h không phản hồi → task Deal Room. GM &lt; floor không được publish trước approve.</p></div>
+</section><section class="page" id="ovr-03" data-title="Nhật ký">
+<div class="crumb">Kinh doanh / Báo giá / Nhật ký</div>
+<div class="head"><div><h1>Nhật ký báo giá</h1><p class="sub">OVR-03 · filter actor / action / quote · export = crm_quote.audit</p></div><div class="actions"><input class="inp" placeholder="Tìm QT-PTT, actor, lead"/><button class="btn" type="button">Export CSV</button></div></div>
+<div class="filters"><button class="chip is-on">Tất cả</button><button class="chip">Status</button><button class="chip">Approval</button><button class="chip">Share</button><button class="chip">Accept</button><button class="chip">Convert</button></div>
+<div class="tbl-wrap"><table><thead><tr><th>Thời điểm</th><th>Actor</th><th>Action</th><th>Resource</th><th>Snapshot</th></tr></thead><tbody>
+<tr><td>09:12</td><td>AM Minh</td><td>quote.submit_approval</td><td>QT-PTT-2026-000089 v2</td><td>GM 22,4% · discount 5%</td></tr>
+<tr><td>08:41</td><td>portal</td><td>publication.viewed</td><td>share sh_9f · An Phát</td><td>section=investment · IP masked</td></tr>
+<tr><td>08:05</td><td>Finance Lan</td><td>approval.return</td><td>step finance</td><td>thiếu cost DV12</td></tr>
+<tr><td>07:50</td><td>AM Minh</td><td>quote.convert</td><td>QT-PTT-2026-000044 v1</td><td>idem cvt_2a · 3 lifecycle</td></tr>
+</tbody></table></div>
+<p class="note">Sample mockup (An Phát · QT-PTT-2026-000089 · 265.647.600 ₫ · GM 22,4%). Runtime thiếu số = <code>null</code> / <code>—</code>. Không hard-code vào app.</p>
+</section></main>
+  </div>
+</div>
+<script>
+function show(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('is-on'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('is-on');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id || (NAV_MAP[id]&&b.dataset.page===NAV_MAP[id])));
+  document.querySelectorAll('.sc').forEach(b=>b.classList.toggle('is-on', b.dataset.page===id));
+  const j=document.getElementById('demo-jump'); if(j) j.value=id;
+  document.querySelectorAll('.page .tab').forEach(()=>{});
+  const tabs={
+    'bld-01':0,'bld-02':1,'bld-03':2,'bld-04':3,'bld-05':4,'bld-06':5,'bld-07':6,'prs-01':7
+  };
+  if(el){
+    const bar=el.querySelector('.tabs');
+    if(bar && tabs[id]!==undefined){
+      bar.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('is-on', i===tabs[id]));
+    }
+  }
+}
+function subtab(btn,id){
+  const root=btn.closest('.page');
+  root.querySelectorAll('.tab').forEach(t=>t.classList.remove('is-on'));
+  btn.classList.add('is-on');
+  root.querySelectorAll('.subpage').forEach(p=>p.classList.toggle('is-on', p.id===id));
+}
+const NAV_MAP = {"ovr-02": "ovr-01", "ovr-03": "ovr-01", "new-01": "lst-01", "bld-01": "new-01", "bld-02": "new-01", "bld-03": "new-01", "bld-04": "new-01", "bld-05": "new-01", "bld-06": "new-01", "bld-07": "new-01", "prs-01": "new-01", "cat-02": "cat-01", "cat-03": "cat-01", "cat-04": "cat-01", "cat-05": "cat-01", "apr-02": "apr-01", "pub-01": "lst-01", "pub-02": "lst-01", "pub-03": "lst-01", "cvt-01": "lst-01", "rpt-02": "rpt-01", "rpt-03": "rpt-01", "rpt-04": "rpt-01", "rpt-05": "rpt-01", "set-02": "set-01", "set-03": "set-01", "set-04": "set-01", "set-05": "set-01", "set-06": "set-01"};
+document.addEventListener('DOMContentLoaded',()=>{
+  const q=new URLSearchParams(location.search).get('s');
+  if(q) show(q);
+});
+</script>
+</body>
+</html>

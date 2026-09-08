@@ -1,18 +1,9 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { QtOverview } from '@/components/crm/qt/QtOverview';
+import { qtOverviewRedirect, type QtSearchParams } from '@/lib/crm/qt-redirect';
 
-import { Suspense } from 'react';
-import { ProposalsContent } from './ProposalsContent';
-
-export default function CrmProposalsPage() {
-  return (
-    <Suspense
-      fallback={
-        <main style={{ padding: '2rem' }}>
-          <p className="muted">Đang tải…</p>
-        </main>
-      }
-    >
-      <ProposalsContent />
-    </Suspense>
-  );
+export default function CrmProposalsPage({ searchParams }: { searchParams: QtSearchParams }) {
+  const target = qtOverviewRedirect(searchParams);
+  if (target) redirect(target);
+  return <QtOverview />;
 }

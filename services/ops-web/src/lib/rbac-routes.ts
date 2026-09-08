@@ -187,6 +187,14 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     ],
   },
   {
+    prefix: '/crm/proposals',
+    anyOf: [
+      { section: 'crm_quote', action: 'view' },
+      { section: 'crm_quote', action: 'view_all' },
+      { section: 'crm_board', action: 'view' }, // compat until Admin grants crm_quote
+    ],
+  },
+  {
     prefix: '/crm',
     anyOf: CRM_PREFIX_CAPS,
   },

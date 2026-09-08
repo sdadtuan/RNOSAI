@@ -20,6 +20,7 @@ import { canViewEmailGateA } from '@/lib/email/caps';
 import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
 import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
 import { canSeeAmNav } from '@/lib/crm/am-nav.util';
+import { canSeeQtNav } from '@/lib/crm/qt-nav.util';
 import { canSeeRevopsNav } from '@/lib/crm/revops-nav.util';
 import { isRevopsShellEnabled } from '@/lib/crm/revops-flags';
 import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
@@ -175,7 +176,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/hr': 'HR Hub',
   '/crm/staff-kpi': 'KPI AM/SP',
   '/crm/staff': 'Nhân viên',
-  '/crm/proposals': 'Đề xuất dịch vụ',
+  '/crm/proposals': 'Báo giá',
   '/crm/orders': 'Đơn hàng',
   '/crm/invoices': 'Hóa đơn',
   '/crm/re-projects': 'Dự án BĐS',
@@ -382,8 +383,10 @@ function buildSections(
   if (hasCap(user, 'crm_sales_overview', 'view') || hasCap(user, 'crm_sales_plans', 'view')) {
     b2bSales.push({ href: '/crm/sales', label: 'Kinh doanh' });
   }
+  if (canSeeQtNav(user)) {
+    b2bSales.push({ href: '/crm/proposals', label: 'Báo giá' });
+  }
   if (hasCap(user, 'crm_board', 'view')) {
-    b2bSales.push({ href: '/crm/proposals', label: 'Đề xuất' });
     if (isOpsDvFeEnabled()) {
       b2bSales.push({ href: '/crm/sales/services', label: 'Tra cứu dịch vụ' });
     }
