@@ -18,15 +18,33 @@ function shouldStripKey(key: string): boolean {
   return false;
 }
 
+function isHiddenClientOption(value: unknown, parentKey?: string): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const obj = value as Record<string, unknown>;
+  if (obj.client_visible !== false && obj.client_visible !== 'f') return false;
+  if (parentKey === 'options') return true;
+  return (
+    Object.prototype.hasOwnProperty.call(obj, 'option_key') &&
+    Object.prototype.hasOwnProperty.call(obj, 'recommended')
+  );
+}
+
 export function stripPublicQuote<T>(input: T): T {
+  return stripInner(input) as T;
+}
+
+function stripInner(input: unknown, parentKey?: string): unknown {
   if (Array.isArray(input)) {
-    return input.map((item) => stripPublicQuote(item)) as T;
+    return input
+      .filter((item) => !isHiddenClientOption(item, parentKey))
+      .map((item) => stripInner(item));
   }
   if (!input || typeof input !== 'object') return input;
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
     if (shouldStripKey(key)) continue;
-    out[key] = stripPublicQuote(value);
+    if (!Array.isArray(value) && isHiddenClientOption(value, key)) continue;
+    out[key] = stripInner(value, key);
   }
-  return out as T;
+  return out;
 }

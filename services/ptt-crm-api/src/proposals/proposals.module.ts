@@ -34,6 +34,7 @@ import {
 } from './quote-settings.repository';
 import { QuoteSettingsService } from './quote-settings.service';
 import { QuoteExpiryWorkerService } from './quote-expiry-worker.service';
+import { QuoteOptionsService } from './quote-options.service';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { QuoteExpiryWorkerService } from './quote-expiry-worker.service';
     QuoteConvertService,
     QuotePublicService,
     QuoteExpiryWorkerService,
+    QuoteOptionsService,
   ],
   exports: [
     ProposalsService,
@@ -84,6 +86,7 @@ import { QuoteExpiryWorkerService } from './quote-expiry-worker.service';
     QuoteCatalogService,
     QuoteConvertService,
     QuotePublicService,
+    QuoteOptionsService,
   ],
 })
 export class ProposalsModule {}

@@ -39,4 +39,49 @@ describe('stripPublicQuote', () => {
     });
     expect(stripped.title).toBe('Growth Q4');
   });
+
+  it('drops options where client_visible is false, including nested option arrays', () => {
+    const stripped = stripPublicQuote({
+      title: 'Growth Q4',
+      options: [
+        {
+          option_key: 'A',
+          name: 'Standard',
+          recommended: true,
+          client_visible: true,
+          payable_vnd: 100_000_000,
+        },
+        {
+          option_key: 'B',
+          name: 'Hidden',
+          recommended: false,
+          client_visible: false,
+          payable_vnd: 80_000_000,
+        },
+      ],
+      compare: {
+        options: [
+          {
+            option_key: 'C',
+            name: 'Internal',
+            recommended: false,
+            client_visible: false,
+            payable_vnd: 1,
+          },
+        ],
+      },
+    });
+
+    expect(stripped.options).toEqual([
+      {
+        option_key: 'A',
+        name: 'Standard',
+        recommended: true,
+        client_visible: true,
+        payable_vnd: 100_000_000,
+      },
+    ]);
+    expect(stripped.compare.options).toEqual([]);
+    expect(JSON.stringify(stripped)).not.toMatch(/"Hidden"|"Internal"/);
+  });
 });

@@ -3,6 +3,8 @@ import {
   Controller,
   ForbiddenException,
   Param,
+  Patch,
+  Post,
   Put,
   Req,
   UseGuards,
@@ -13,6 +15,11 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffProposalsWriteGuard } from './guards/staff-proposals.guard';
 import { QuoteBuilderService, type QuotePaymentItemInput } from './quote-builder.service';
+import {
+  QuoteOptionsService,
+  type QuoteOptionCreateInput,
+  type QuoteOptionPatchInput,
+} from './quote-options.service';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
@@ -21,6 +28,7 @@ type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'interna
 export class QuoteVersionsController {
   constructor(
     private readonly builder: QuoteBuilderService,
+    private readonly options: QuoteOptionsService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -31,6 +39,34 @@ export class QuoteVersionsController {
     @Body() body: { items?: QuotePaymentItemInput[] },
   ) {
     return this.builder.putPayments(vid, body ?? {}, await this.actor(req));
+  }
+
+  @Post(':vid/options')
+  async createOption(
+    @Req() req: StaffReq,
+    @Param('vid') vid: string,
+    @Body() body: QuoteOptionCreateInput,
+  ) {
+    return this.options.create(vid, body ?? {}, await this.actor(req));
+  }
+
+  @Post(':vid/options/:key/duplicate')
+  async duplicateOption(
+    @Req() req: StaffReq,
+    @Param('vid') vid: string,
+    @Param('key') key: string,
+  ) {
+    return this.options.duplicate(vid, key, await this.actor(req));
+  }
+
+  @Patch(':vid/options/:key')
+  async patchOption(
+    @Req() req: StaffReq,
+    @Param('vid') vid: string,
+    @Param('key') key: string,
+    @Body() body: QuoteOptionPatchInput,
+  ) {
+    return this.options.patch(vid, key, body ?? {}, await this.actor(req));
   }
 
   private async actor(req: StaffReq) {
