@@ -1,0 +1,179 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { B2bHotAlarm } from '@/components/crm/B2bHotAlarm';
+import { CsdChatDock } from '@/components/crm/csd/CsdChatDock';
+import { CsdChatNotifyHost } from '@/components/crm/csd/CsdChatNotifyHost';
+import { SlaAlertToastHost } from '@/components/crm/SlaAlertToastHost';
+import { OpsNav } from '@/components/OpsNav';
+import { staffMe, staffRefresh } from '@/lib/api';
+import {
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  getStoredUser,
+  updateAccessToken,
+  updateStoredUser,
+  type StoredStaffUser,
+} from '@/lib/auth';
+import { dash } from '@/lib/crm/qt-format';
+import { QT_NAV, canSeeQtNav, qtNavIsActive } from '@/lib/crm/qt-nav.util';
+
+const COLLAPSE_KEY = 'qt-sidebar-collapsed';
+
+function parseScope(raw: string | null): 'me' | 'team' | 'all' {
+  if (raw === 'team' || raw === 'all') return raw;
+  return 'me';
+}
+
+function QtShellInner({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname() ?? '';
+  const searchParams = useSearchParams();
+  const scope = parseScope(searchParams.get('scope'));
+  const [user, setUser] = useState<StoredStaffUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const ensureAuth = useCallback(async () => {
+    let access = getAccessToken();
+    if (!access) {
+      router.replace('/login');
+      return;
+    }
+    const cached = getStoredUser();
+    if (cached) setUser(cached);
+
+    async function finish(me: StoredStaffUser) {
+      setUser(me);
+      updateStoredUser(me);
+      if (!canSeeQtNav(me)) {
+        router.replace(`/403?from=${encodeURIComponent(window.location.pathname)}`);
+      }
+    }
+
+    try {
+      await finish(await staffMe(access));
+    } catch {
+      const refresh = getRefreshToken();
+      if (!refresh) {
+        clearSession();
+        router.replace('/login');
+        return;
+      }
+      const out = await staffRefresh(refresh);
+      updateAccessToken(out.access_token);
+      access = out.access_token;
+      await finish(await staffMe(access));
+    }
+  }, [router]);
+
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === '1');
+  }, []);
+
+  useEffect(() => {
+    void ensureAuth().finally(() => setLoading(false));
+  }, [ensureAuth]);
+
+  function toggleCollapsed() {
+    setCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+      return next;
+    });
+  }
+
+  function changeScope(next: 'me' | 'team' | 'all') {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'me') params.delete('scope');
+    else params.set('scope', next);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }
+
+  function logout() {
+    clearSession();
+    router.push('/login');
+  }
+
+  return (
+    <>
+      <OpsNav user={user} onLogout={logout} />
+      <SlaAlertToastHost user={user} />
+      <B2bHotAlarm user={user} />
+      {loading && !user ? <p className="qt-muted">Đang tải…</p> : null}
+      {user && canSeeQtNav(user) ? (
+        <div className={`qt-root${collapsed ? ' qt-root--collapsed' : ''}`}>
+          <aside className="qt-sidebar" aria-label="Báo giá">
+            <nav className="qt-sidebar__nav">
+              {QT_NAV.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className={`qt-sidebar__link${
+                    qtNavIsActive(pathname, item.href) ? ' qt-sidebar__link--active' : ''
+                  }`}
+                  title={item.label}
+                >
+                  {collapsed ? item.label.slice(0, 1) : item.label}
+                </Link>
+              ))}
+            </nav>
+            <div className="qt-sidebar__foot">
+              {collapsed ? null : <b>{user.display_name || user.email}</b>}
+              <button
+                type="button"
+                className="qt-sidebar__collapse"
+                onClick={toggleCollapsed}
+                aria-label={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+              >
+                {collapsed ? '»' : '« Thu gọn'}
+              </button>
+            </div>
+          </aside>
+          <div className="qt-column">
+            <header className="qt-top">
+              <strong className="qt-product-name">Báo giá</strong>
+              <label className="qt-scope">
+                <span>Phạm vi</span>
+                <select
+                  value={scope}
+                  onChange={(event) => changeScope(parseScope(event.target.value))}
+                  aria-label="Phạm vi"
+                >
+                  <option value="me">Của tôi</option>
+                  <option value="team">Team</option>
+                  <option value="all">Toàn bộ</option>
+                </select>
+              </label>
+            </header>
+            <main className="qt-main">{children}</main>
+          </div>
+        </div>
+      ) : null}
+      {user ? <CsdChatNotifyHost user={user} /> : null}
+      {user ? <CsdChatDock user={user} /> : null}
+    </>
+  );
+}
+
+export function QtPlaceholder({ title }: { title: string }) {
+  return (
+    <section className="qt-placeholder">
+      <h1>{title}</h1>
+      <p className="qt-muted">{dash(null)}</p>
+      <span className="qt-empty">{dash(null)}</span>
+    </section>
+  );
+}
+
+export function QtShell({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<p className="qt-muted">Đang tải…</p>}>
+      <QtShellInner>{children}</QtShellInner>
+    </Suspense>
+  );
+}
