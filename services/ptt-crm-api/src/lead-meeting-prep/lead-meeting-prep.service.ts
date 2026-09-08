@@ -217,7 +217,11 @@ export class LeadMeetingPrepService {
         lead_id: leadId,
         lines,
       });
-      proposalId = Number(created.id);
+      proposalId = Number(
+        created && typeof created === 'object' && 'proposal' in created
+          ? created.proposal.id
+          : created.id,
+      );
     }
 
     return {
