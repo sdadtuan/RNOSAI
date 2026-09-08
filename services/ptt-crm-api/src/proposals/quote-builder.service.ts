@@ -14,8 +14,12 @@ import {
   QuoteBuilderLineWrite,
   QuoteHeaderPatch,
   QuoteProposalHeader,
+  QuoteVersionDiff,
+  QuoteVersionRow,
   QuoteVersionsRepository,
 } from './quote-versions.repository';
+
+const REVISION_PARENT_STATUSES = new Set(['approved', 'sent', 'viewed', 'negotiation']);
 
 export type QuoteBuilderActor = {
   staffId: number;
@@ -254,14 +258,14 @@ export class QuoteBuilderService {
       throw new ForbiddenException({ error: 'missing_cap', section: 'crm_quote.finance' });
     }
     if (!Array.isArray(body.lines) || body.lines.length === 0) bad('lines_required');
-    const proposal = await this.requireWritableProposal(proposalId);
+    const proposal = await this.requireWritableProposal(proposalId, { critical: true });
     return this.versions.withTransaction(async (query) => {
       const version =
         (proposal.current_version_id
           ? await this.versions.getVersion(proposal.current_version_id, query)
           : null) ??
         (await this.versions.createWorkingVersion(proposalId, actor.staffId || 0, query));
-      this.assertWorkingVersion(version);
+      this.assertMutableVersion(version, { critical: true });
 
       const writes: QuoteBuilderLineWrite[] = [];
       let costMissing = false;
@@ -403,6 +407,38 @@ export class QuoteBuilderService {
     return (actor.hasFinance ? out : stripFinance(out)) as QuoteRecalcResult;
   }
 
+  async createRevision(proposalId: number, actor: QuoteBuilderActor): Promise<QuoteVersionRow> {
+    this.assertStaff(actor);
+    const proposal = await this.requireQuoteProposal(proposalId);
+    const created = await this.versions.createNextWorkingVersion(proposalId, actor.staffId || 0);
+    await this.audit.insert({
+      proposal_id: proposalId,
+      version_id: created.id,
+      actor_staff_id: actor.staffId || null,
+      action: 'quote.version_created',
+      resource: 'quote_version',
+      snapshot_json: { n: created.n, from_version_id: proposal.current_version_id },
+    });
+    return created;
+  }
+
+  async diffVersions(
+    proposalId: number,
+    fromN: number,
+    toN: number,
+  ): Promise<{ items: QuoteVersionDiff[]; from_n: number; to_n: number }> {
+    await this.requireQuoteProposal(proposalId);
+    try {
+      const items = await this.versions.compareVersions(proposalId, fromN, toN);
+      return { items, from_n: fromN, to_n: toN };
+    } catch (err) {
+      if (err instanceof Error && err.message === 'version_not_found') {
+        throw new NotFoundException({ error: 'version_not_found' });
+      }
+      throw err;
+    }
+  }
+
   async putPayments(
     vid: string,
     body: { items?: QuotePaymentItemInput[] },
@@ -416,8 +452,8 @@ export class QuoteBuilderService {
 
     const version = await this.versions.getVersion(vid);
     if (!version) throw new NotFoundException({ error: 'version_not_found' });
-    await this.requireWritableProposal(version.proposal_id);
-    this.assertWorkingVersion(version);
+    await this.requireWritableProposal(version.proposal_id, { critical: true });
+    this.assertMutableVersion(version, { critical: true });
     const settings = await this.versions.loadSettings();
     const lines = await this.versions.listLines(version.proposal_id);
     const money = this.computeMoney(lines, settings.vat_bps);
@@ -648,7 +684,7 @@ export class QuoteBuilderService {
     return (actor.hasFinance ? out : stripFinance(out)) as QuoteBuilderLinesResult;
   }
 
-  private async requireWritableProposal(id: number): Promise<QuoteProposalHeader> {
+  private async requireQuoteProposal(id: number): Promise<QuoteProposalHeader> {
     const proposal = await this.versions.getProposal(id);
     if (!proposal) throw new NotFoundException({ error: 'quote_not_found' });
     if (!isQuoteOsProposal(proposal)) {
@@ -657,8 +693,27 @@ export class QuoteBuilderService {
     if (proposal.archived_at) {
       throw new ConflictException({ error: 'quote_archived' });
     }
-    const rawStatus = String(proposal.status ?? '').trim().toLowerCase();
-    if (rawStatus !== 'draft') {
+    return proposal;
+  }
+
+  private async requireWritableProposal(
+    id: number,
+    opts?: { critical?: boolean },
+  ): Promise<QuoteProposalHeader> {
+    const proposal = await this.requireQuoteProposal(id);
+    const version = proposal.current_version_id
+      ? await this.versions.getVersion(proposal.current_version_id)
+      : null;
+    const status = String(proposal.status ?? '').trim().toLowerCase();
+    const state = String(version?.state ?? '').trim().toLowerCase();
+    if (opts?.critical && (state === 'approved' || state === 'published')) {
+      throw new ConflictException({ error: 'revision_required' });
+    }
+    if (state === 'working' && (status === 'draft' || REVISION_PARENT_STATUSES.has(status))) {
+      return proposal;
+    }
+    if (!version && status === 'draft') return proposal;
+    if (status !== 'draft') {
       throw new ConflictException({ error: 'quote_not_draft' });
     }
     return proposal;
@@ -668,6 +723,18 @@ export class QuoteBuilderService {
     if (!version || String(version.state ?? '').trim().toLowerCase() !== 'working') {
       throw new ConflictException({ error: 'version_not_working' });
     }
+  }
+
+  private assertMutableVersion(
+    version: { state?: string } | null,
+    opts?: { critical?: boolean },
+  ): void {
+    const state = String(version?.state ?? '').trim().toLowerCase();
+    if (state === 'working') return;
+    if (opts?.critical && (state === 'approved' || state === 'published')) {
+      throw new ConflictException({ error: 'revision_required' });
+    }
+    throw new ConflictException({ error: 'version_not_working' });
   }
 
   private assertStaff(actor: QuoteBuilderActor): void {

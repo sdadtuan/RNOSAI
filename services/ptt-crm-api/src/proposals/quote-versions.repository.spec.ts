@@ -1,4 +1,4 @@
-import { QuoteVersionsRepository } from './quote-versions.repository';
+import { QuoteVersionsRepository, type QuoteVersionDiff } from './quote-versions.repository';
 
 class VersionMemory {
   sqls: string[] = [];
@@ -6,6 +6,8 @@ class VersionMemory {
   versions = new Map<string, Record<string, unknown>>();
   lines: Record<string, unknown>[] = [];
   payments: Record<string, unknown>[] = [];
+  kpis: Record<string, unknown>[] = [];
+  clauses: Record<string, unknown>[] = [];
   catalog = new Map<string, Record<string, unknown>>();
   settings: Record<string, unknown> = {
     tenant_id: 'PTT',
@@ -37,6 +39,14 @@ class VersionMemory {
       const row = this.proposals.get(Number(params[0]));
       return { rows: row ? [row] : [] };
     }
+    if (/UPDATE crm_proposals/i.test(sql) && /SET\s+current_version_id/i.test(sql)) {
+      const id = Number(params[params.length - 1]);
+      const row = this.proposals.get(id);
+      if (!row) return { rows: [] };
+      if (/current_version_id IS NULL/i.test(sql) && row.current_version_id) return { rows: [] };
+      row.current_version_id = params[0];
+      return { rows: [row] };
+    }
     if (/UPDATE crm_proposals/i.test(sql) && /row_version/i.test(sql)) {
       const id = Number(params[params.length - 1] ?? params[0]);
       const expected = Number(params[params.length - 2] ?? 0);
@@ -50,7 +60,53 @@ class VersionMemory {
       row.updated_at = new Date().toISOString();
       return { rows: [row], rowCount: 1 };
     }
+    if (/FROM crm_quote_kpis/i.test(sql)) {
+      const vid = String(params[0] ?? '');
+      return { rows: this.kpis.filter((k) => String(k.version_id) === vid) };
+    }
+    if (/INSERT INTO crm_quote_kpis/i.test(sql)) {
+      const row = {
+        id: `kpi-${this.kpis.length + 1}`,
+        version_id: params[0],
+        option_key: params[1],
+        name: params[2],
+        class: params[3],
+        value_text: params[4],
+        source: params[5],
+        assumption: params[6],
+      };
+      this.kpis.push(row);
+      return { rows: [row] };
+    }
+    if (/FROM crm_quote_clauses/i.test(sql)) {
+      const vid = String(params[0] ?? '');
+      return { rows: this.clauses.filter((c) => String(c.version_id) === vid) };
+    }
+    if (/INSERT INTO crm_quote_clauses/i.test(sql)) {
+      const row = {
+        id: `cl-${this.clauses.length + 1}`,
+        version_id: params[0],
+        template_key: params[1],
+        body: params[2],
+        diverged: params[3],
+      };
+      this.clauses.push(row);
+      return { rows: [row] };
+    }
     if (/FROM crm_quote_versions/i.test(sql)) {
+      if (/AND n =/i.test(sql)) {
+        const row = [...this.versions.values()].find(
+          (v) => Number(v.proposal_id) === Number(params[0]) && Number(v.n) === Number(params[1]),
+        );
+        return { rows: row ? [row] : [] };
+      }
+      if (/proposal_id = \$1/i.test(sql) && !/id::text/i.test(sql)) {
+        return {
+          rows: [...this.versions.values()]
+            .filter((v) => Number(v.proposal_id) === Number(params[0]))
+            .sort((a, b) => Number(a.n) - Number(b.n)),
+        };
+      }
       const vid = String(params[0] ?? '');
       const row = this.versions.get(vid);
       return { rows: row ? [row] : [] };
@@ -59,6 +115,10 @@ class VersionMemory {
       const vid = String(params[params.length - 1] ?? '');
       const row = this.versions.get(vid);
       if (!row) return { rows: [] };
+      if (params.length <= 2) {
+        row.snapshot_json = params[0];
+        return { rows: [row] };
+      }
       row.fee_vnd = params[0];
       row.media_vnd = params[1];
       row.discount_vnd = params[2];
@@ -129,13 +189,22 @@ class VersionMemory {
       return { rows: this.lines.filter((l) => Number(l.proposal_id) === pid) };
     }
     if (/INSERT INTO crm_quote_versions/i.test(sql)) {
+      const copied = params.length >= 4;
       const row = {
         id: `ver-${this.versions.size + 1}`,
         proposal_id: params[0],
-        n: params[1],
+        n: copied ? params[1] : 1,
         state: 'working',
-        snapshot_json: {},
-        created_by: params[2],
+        snapshot_json: copied ? JSON.parse(JSON.stringify(params[2] ?? {})) : {},
+        created_by: copied ? params[3] : params[1],
+        fee_vnd: copied ? params[4] : 0,
+        media_vnd: copied ? params[5] : 0,
+        discount_vnd: copied ? params[6] : 0,
+        tax_vnd: copied ? params[7] : 0,
+        payable_vnd: copied ? params[8] : 0,
+        nsr_vnd: copied ? params[9] : null,
+        direct_cost_vnd: copied ? params[10] : null,
+        gm_bps: copied ? params[11] : null,
       };
       this.versions.set(String(row.id), row);
       return { rows: [row] };
@@ -224,6 +293,85 @@ describe('QuoteVersionsRepository', () => {
     });
     expect(db.sqls.some((sql) => /catalog_snapshot_json/i.test(sql))).toBe(true);
     expect(db.sqls.some((sql) => /item_type/i.test(sql))).toBe(true);
+  });
+
+  it('createNextWorkingVersion copies snapshot into v_n+1 and leaves v1 immutable', async () => {
+    const db = new VersionMemory();
+    db.proposals.set(9, {
+      id: 9,
+      quote_code: 'QT-PTT-2026-000001',
+      current_version_id: 'ver-1',
+      row_version: 1,
+      status: 'sent',
+    });
+    const snap = { lines: [{ qty: 1, unit_price_vnd: 25000000 }], money: { fee_vnd: 25000000 } };
+    db.versions.set('ver-1', {
+      id: 'ver-1',
+      proposal_id: 9,
+      n: 1,
+      state: 'published',
+      snapshot_json: snap,
+      fee_vnd: 25000000,
+      created_by: 7,
+    });
+    db.payments.push({
+      id: 'pay-1',
+      version_id: 'ver-1',
+      seq: 1,
+      pct_bps: 10000,
+      amount_vnd: 25000000,
+      milestone: 'Full',
+    });
+    const repo = new QuoteVersionsRepository(db);
+
+    const v2 = await repo.createNextWorkingVersion(9, 7);
+
+    expect(v2.n).toBe(2);
+    expect(v2.state).toBe('working');
+    expect(v2.snapshot_json).toEqual(snap);
+    expect(db.versions.get('ver-1')?.snapshot_json).toEqual(snap);
+    expect(db.versions.get('ver-1')?.state).toBe('published');
+    expect(db.proposals.get(9)?.current_version_id).toBe(v2.id);
+    const copied = await repo.listPayments(v2.id);
+    expect(copied).toHaveLength(1);
+    expect(copied[0].pct_bps).toBe(10000);
+  });
+
+  it('compareVersions persists v_n → v_n+1 commercial diff', async () => {
+    const db = new VersionMemory();
+    db.proposals.set(9, { id: 9, current_version_id: 'ver-2', status: 'sent' });
+    db.versions.set('ver-1', {
+      id: 'ver-1',
+      proposal_id: 9,
+      n: 1,
+      state: 'published',
+      snapshot_json: {
+        lines: [{ qty: 1, unit_price_vnd: 25000000, scope_notes: 'A' }],
+        payments: [{ seq: 1, pct_bps: 10000, amount_vnd: 25000000, milestone: 'Full' }],
+      },
+    });
+    db.versions.set('ver-2', {
+      id: 'ver-2',
+      proposal_id: 9,
+      n: 2,
+      state: 'working',
+      snapshot_json: {
+        lines: [{ qty: 2, unit_price_vnd: 30000000, scope_notes: 'B' }],
+        payments: [{ seq: 1, pct_bps: 5000, amount_vnd: 15000000, milestone: 'Cọc' }],
+      },
+    });
+    const repo = new QuoteVersionsRepository(db);
+
+    const items = await repo.compareVersions(9, 1, 2);
+
+    expect(
+      items.some((d: QuoteVersionDiff) => d.path === 'lines[0].qty' && d.from === 1 && d.to === 2 && d.critical),
+    ).toBe(true);
+    expect(items.some((d: QuoteVersionDiff) => d.path.includes('unit_price') && d.critical)).toBe(true);
+    expect(db.versions.get('ver-2')?.snapshot_json).toMatchObject({
+      compare: { from_n: 1, to_n: 2 },
+    });
+    expect(db.versions.get('ver-1')?.snapshot_json).not.toHaveProperty('compare');
   });
 
   it('replacePayments writes 50/30/20 remainder amounts and never hard-deletes quotes', async () => {

@@ -164,6 +164,22 @@ export class ProposalsController {
     return listed;
   }
 
+  @Post(':id/versions')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(StaffProposalsWriteGuard)
+  async createVersion(@Req() req: StaffReq, @Param('id', ParseIntPipe) id: number) {
+    return this.proposals.createQuoteVersion(id, await this.quoteWriteActor(req, true));
+  }
+
+  @Get(':id/versions/:a/diff/:b')
+  async diffVersions(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('a', ParseIntPipe) fromN: number,
+    @Param('b', ParseIntPipe) toN: number,
+  ) {
+    return this.proposals.diffQuoteVersions(id, fromN, toN);
+  }
+
   @Get()
   async list(
     @Req() req: StaffReq,

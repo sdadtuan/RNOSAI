@@ -20,6 +20,8 @@ class BuilderMemory {
   versions = new Map<string, Record<string, unknown>>();
   lines: Record<string, unknown>[] = [];
   payments: Record<string, unknown>[] = [];
+  kpis: Record<string, unknown>[] = [];
+  clauses: Record<string, unknown>[] = [];
   activity: Record<string, unknown>[] = [];
   catalog = new Map<string, Record<string, unknown>>();
   settings: Record<string, unknown> = {
@@ -65,6 +67,7 @@ class BuilderMemory {
       gm_bps: null,
       created_by: 7,
     });
+    this.nextVersion = Math.max(this.nextVersion, this.versions.size + 1);
     return { id, vid };
   }
 
@@ -102,6 +105,14 @@ class BuilderMemory {
       const row = this.catalog.get(key);
       return { rows: row ? [row] : [] };
     }
+    if (/UPDATE crm_proposals/i.test(sql) && /SET\s+current_version_id/i.test(sql)) {
+      const id = Number(params[params.length - 1]);
+      const row = this.proposals.get(id);
+      if (!row) return { rows: [] };
+      if (/current_version_id IS NULL/i.test(sql) && row.current_version_id) return { rows: [] };
+      row.current_version_id = params[0];
+      return { rows: [row] };
+    }
     if (/UPDATE crm_proposals/i.test(sql) && /row_version/i.test(sql)) {
       const expected = Number(params.find((p, i) => typeof p === 'number' && i > 0) ?? params[params.length - 2]);
       const id = Number(params[params.length - 1]);
@@ -130,21 +141,22 @@ class BuilderMemory {
       return { rows: row ? [row] : [] };
     }
     if (/INSERT INTO crm_quote_versions/i.test(sql)) {
+      const copied = params.length >= 4;
       const row = {
         id: `ver-${this.nextVersion++}`,
         proposal_id: params[0],
-        n: params[1] ?? 1,
+        n: copied ? params[1] : 1,
         state: 'working',
-        snapshot_json: {},
-        created_by: params[2],
-        fee_vnd: 0,
-        media_vnd: 0,
-        discount_vnd: 0,
-        tax_vnd: 0,
-        payable_vnd: 0,
-        nsr_vnd: null,
-        direct_cost_vnd: null,
-        gm_bps: null,
+        snapshot_json: copied ? JSON.parse(JSON.stringify(params[2] ?? {})) : {},
+        created_by: copied ? params[3] : params[1],
+        fee_vnd: copied ? params[4] : 0,
+        media_vnd: copied ? params[5] : 0,
+        discount_vnd: copied ? params[6] : 0,
+        tax_vnd: copied ? params[7] : 0,
+        payable_vnd: copied ? params[8] : 0,
+        nsr_vnd: copied ? params[9] : null,
+        direct_cost_vnd: copied ? params[10] : null,
+        gm_bps: copied ? params[11] : null,
       };
       this.versions.set(String(row.id), row);
       return { rows: [row] };
@@ -153,6 +165,10 @@ class BuilderMemory {
       const vid = String(params[params.length - 1] ?? '');
       const row = this.versions.get(vid);
       if (!row) return { rows: [] };
+      if (params.length <= 2) {
+        row.snapshot_json = params[0];
+        return { rows: [row] };
+      }
       Object.assign(row, {
         fee_vnd: params[0],
         media_vnd: params[1],
@@ -166,7 +182,51 @@ class BuilderMemory {
       });
       return { rows: [row] };
     }
+    if (/FROM crm_quote_kpis/i.test(sql)) {
+      const vid = String(params[0] ?? '');
+      return { rows: this.kpis.filter((k) => String(k.version_id) === vid) };
+    }
+    if (/INSERT INTO crm_quote_kpis/i.test(sql)) {
+      const row = {
+        id: `kpi-${this.kpis.length + 1}`,
+        version_id: params[0],
+        option_key: params[1],
+        name: params[2],
+        class: params[3],
+        value_text: params[4],
+      };
+      this.kpis.push(row);
+      return { rows: [row] };
+    }
+    if (/FROM crm_quote_clauses/i.test(sql)) {
+      const vid = String(params[0] ?? '');
+      return { rows: this.clauses.filter((c) => String(c.version_id) === vid) };
+    }
+    if (/INSERT INTO crm_quote_clauses/i.test(sql)) {
+      const row = {
+        id: `cl-${this.clauses.length + 1}`,
+        version_id: params[0],
+        template_key: params[1],
+        body: params[2],
+        diverged: params[3],
+      };
+      this.clauses.push(row);
+      return { rows: [row] };
+    }
     if (/FROM crm_quote_versions/i.test(sql)) {
+      if (/AND n =/i.test(sql)) {
+        const row = [...this.versions.values()].find(
+          (v) => Number(v.proposal_id) === Number(params[0]) && Number(v.n) === Number(params[1]),
+        );
+        return { rows: row ? [row] : [] };
+      }
+      if (/proposal_id = \$1/i.test(sql) && !/id::text/i.test(sql)) {
+        return {
+          rows: [...this.versions.values()]
+            .filter((v) => Number(v.proposal_id) === Number(params[0]))
+            .sort((a, b) => Number(a.n) - Number(b.n)),
+        };
+      }
       const vid = String(params[0] ?? '');
       const byId = this.versions.get(vid);
       if (byId) return { rows: [byId] };
@@ -635,6 +695,48 @@ describe('QuoteBuilderService', () => {
     expect(db.versions.get(vid)?.fee_vnd).toBe(0);
   });
 
+  it('AC-04 published/sent v1 qty change requires v2 and leaves v1 snapshot immutable', async () => {
+    const { db, svc } = load();
+    const { vid } = db.seedQuote();
+    db.catalog.set('DV02', activeCatalog());
+    await svc.putLines(9, { lines: [{ dv_code: 'DV02', package_tier: 'standard', qty: 1 }] }, FINANCE);
+    const v1 = await svc.recalculate(9, vid, FINANCE);
+    db.versions.get(vid)!.state = 'published';
+    db.proposals.get(9)!.status = 'sent';
+    const frozen = structuredClone(db.versions.get(vid)?.snapshot_json);
+
+    await expect(
+      svc.putLines(9, { lines: [{ dv_code: 'DV02', package_tier: 'standard', qty: 3 }] }, FINANCE),
+    ).rejects.toMatchObject({ response: { error: 'revision_required' } });
+    expect(db.versions.get(vid)?.snapshot_json).toEqual(frozen);
+    expect(db.versions.get(vid)?.n).toBe(1);
+    expect(db.versions.get(vid)?.state).toBe('published');
+
+    const created = await svc.createRevision(9, FINANCE);
+    expect(created.n).toBe(2);
+    expect(created.state).toBe('working');
+    expect(created.id).not.toBe(vid);
+    expect(db.proposals.get(9)?.current_version_id).toBe(created.id);
+    expect(db.versions.get(vid)?.snapshot_json).toEqual(frozen);
+
+    const written = await svc.putLines(
+      9,
+      { lines: [{ dv_code: 'DV02', package_tier: 'standard', qty: 3 }] },
+      FINANCE,
+    );
+    expect(written.lines[0].qty).toBe(3);
+    expect(db.versions.get(vid)?.snapshot_json).toEqual(frozen);
+    expect(db.versions.get(vid)?.state).toBe('published');
+    expect(JSON.stringify(db.versions.get(vid)?.snapshot_json)).toContain(String(v1.fee_vnd));
+
+    const diff = await svc.diffVersions(9, 1, 2);
+    const qty = diff.items.find((row) => row.path === 'lines[0].qty');
+    expect(qty).toMatchObject({ from: 1, to: 3, critical: true });
+    expect(db.versions.get(created.id)?.snapshot_json).toMatchObject({
+      compare: { from_n: 1, to_n: 2 },
+    });
+  });
+
   it('does not treat raw in_review as draft for W1 writes', async () => {
     const { db, svc } = load();
     const { vid } = db.seedQuote({ status: 'in_review' });
@@ -707,5 +809,19 @@ describe('Quote OS HTTP wiring', () => {
     expect(mod).toMatch(/QuoteBuilderService/);
     expect(mod).toMatch(/QuoteVersionsRepository/);
     expect(mod).toMatch(/QuoteVersionsController/);
+  });
+
+  it('wires version diff and POST /versions before :id without bare StaffAuthGuard', () => {
+    const proposals = readFileSync(join(__dirname, 'proposals.controller.ts'), 'utf8');
+    const getId = proposals.indexOf("@Get(':id')");
+    const diff = proposals.indexOf("@Get(':id/versions/:a/diff/:b')");
+    const post = proposals.indexOf("@Post(':id/versions')");
+    expect(diff).toBeGreaterThan(-1);
+    expect(post).toBeGreaterThan(-1);
+    expect(diff).toBeLessThan(getId);
+    expect(post).toBeLessThan(getId);
+    expect(proposals).toMatch(/StaffOrInternalKeyGuard/);
+    expect(proposals).toMatch(/StaffProposalsWriteGuard/);
+    expect(proposals).not.toMatch(/StaffAuthGuard/);
   });
 });

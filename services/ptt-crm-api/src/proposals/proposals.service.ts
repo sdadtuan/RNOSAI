@@ -326,6 +326,14 @@ export class ProposalsService {
     return this.quoteBuilder.recalculate(proposalId, vid, actor);
   }
 
+  async createQuoteVersion(proposalId: number, actor: QuoteBuilderActor) {
+    return this.quoteBuilder.createRevision(proposalId, actor);
+  }
+
+  async diffQuoteVersions(proposalId: number, fromN: number, toN: number) {
+    return this.quoteBuilder.diffVersions(proposalId, fromN, toN);
+  }
+
   async patchStatus(proposalId: number, body: PatchProposalStatusBody, actorEmail = 'staff') {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });

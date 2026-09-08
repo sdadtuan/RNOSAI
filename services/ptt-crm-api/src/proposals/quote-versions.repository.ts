@@ -1,6 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { QT_QUOTE_QUERY, QuoteQueryFn, QuoteQueryPort } from './quote-audit.repository';
 import { QT_TENANT_ID } from './quote-settings.repository';
+import {
+  diffQuoteVersions,
+  type QuoteCompareSnapshot,
+  type QuoteVersionDiff,
+} from './quote-version-diff.util';
+
+export type { QuoteVersionDiff };
 
 export type QuoteHeaderPatch = {
   title?: string;
@@ -216,6 +223,10 @@ function mapPayment(row: Record<string, unknown>): QuotePaymentRow {
   };
 }
 
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value ?? {})) as T;
+}
+
 function mapCatalog(row: Record<string, unknown>): QuoteCatalogRow {
   const active = row.active !== false && row.active !== 'f';
   const rawStatus = String(row.status ?? '').trim().toLowerCase();
@@ -328,6 +339,112 @@ export class QuoteVersionsRepository {
       [row.id, new Date().toISOString(), proposalId],
     );
     return mapVersion(row);
+  }
+
+  async listVersions(proposalId: number, query?: QuoteQueryFn): Promise<QuoteVersionRow[]> {
+    const result = await this.run(query)(
+      `SELECT id, proposal_id, n, state, snapshot_json, fee_vnd, media_vnd, discount_vnd,
+              tax_vnd, payable_vnd, nsr_vnd, direct_cost_vnd, gm_bps, created_by
+         FROM crm_quote_versions
+        WHERE proposal_id = $1
+        ORDER BY n ASC`,
+      [proposalId],
+    );
+    return result.rows.map(mapVersion);
+  }
+
+  async getVersionByN(
+    proposalId: number,
+    n: number,
+    query?: QuoteQueryFn,
+  ): Promise<QuoteVersionRow | null> {
+    const result = await this.run(query)(
+      `SELECT id, proposal_id, n, state, snapshot_json, fee_vnd, media_vnd, discount_vnd,
+              tax_vnd, payable_vnd, nsr_vnd, direct_cost_vnd, gm_bps, created_by
+         FROM crm_quote_versions
+        WHERE proposal_id = $1
+          AND n = $2
+        LIMIT 1`,
+      [proposalId, n],
+    );
+    return result.rows[0] ? mapVersion(result.rows[0]) : null;
+  }
+
+  async createNextWorkingVersion(
+    proposalId: number,
+    createdBy: number,
+    query?: QuoteQueryFn,
+  ): Promise<QuoteVersionRow> {
+    const write = async (q: QuoteQueryFn) => {
+      const versions = await this.listVersions(proposalId, q);
+      const source = [...versions].sort((a, b) => b.n - a.n)[0] ?? null;
+      const nextN = (source?.n ?? 0) + 1;
+      const snapshot = cloneJson(source?.snapshot_json ?? {});
+      delete (snapshot as { compare?: unknown }).compare;
+      const result = await q(
+        `INSERT INTO crm_quote_versions (
+           proposal_id, n, state, snapshot_json, created_by,
+           fee_vnd, media_vnd, discount_vnd, tax_vnd, payable_vnd,
+           nsr_vnd, direct_cost_vnd, gm_bps
+         ) VALUES ($1, $2, 'working', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         RETURNING id, proposal_id, n, state, snapshot_json, fee_vnd, media_vnd, discount_vnd,
+                   tax_vnd, payable_vnd, nsr_vnd, direct_cost_vnd, gm_bps, created_by`,
+        [
+          proposalId,
+          nextN,
+          snapshot,
+          createdBy,
+          source?.fee_vnd ?? 0,
+          source?.media_vnd ?? 0,
+          source?.discount_vnd ?? 0,
+          source?.tax_vnd ?? 0,
+          source?.payable_vnd ?? 0,
+          source?.nsr_vnd ?? null,
+          source?.direct_cost_vnd ?? null,
+          source?.gm_bps ?? null,
+        ],
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('version_insert_failed');
+      const created = mapVersion(row);
+      if (source) {
+        await this.copyVersionChildren(source.id, created.id, q);
+      }
+      await q(`UPDATE crm_proposals SET current_version_id = $1, updated_at = $2 WHERE id = $3`, [
+        created.id,
+        new Date().toISOString(),
+        proposalId,
+      ]);
+      return created;
+    };
+    if (query) return write(query);
+    return this.withTransaction(write);
+  }
+
+  async compareVersions(
+    proposalId: number,
+    fromN: number,
+    toN: number,
+    query?: QuoteQueryFn,
+  ): Promise<QuoteVersionDiff[]> {
+    const write = async (q: QuoteQueryFn) => {
+      const from = await this.getVersionByN(proposalId, fromN, q);
+      const to = await this.getVersionByN(proposalId, toN, q);
+      if (!from || !to) throw new Error('version_not_found');
+      const left = await this.toCompareSnapshot(from, q);
+      const right = await this.toCompareSnapshot(to, q);
+      const items = diffQuoteVersions(left, right);
+      if (String(to.state).toLowerCase() === 'working') {
+        const nextSnap = { ...cloneJson(to.snapshot_json), compare: { from_n: fromN, to_n: toN, items } };
+        await q(
+          `UPDATE crm_quote_versions SET snapshot_json = $1 WHERE id::text = $2 RETURNING id`,
+          [nextSnap, to.id],
+        );
+      }
+      return items;
+    };
+    if (query) return write(query);
+    return this.withTransaction(write);
   }
 
   async listLines(proposalId: number, query?: QuoteQueryFn): Promise<QuoteBuilderLineRow[]> {
@@ -482,6 +599,113 @@ export class QuoteVersionsRepository {
     return {
       vat_bps: num(row.vat_bps, 800),
       payment_template: String(row.payment_template ?? '50/30/20'),
+    };
+  }
+
+  async listKpis(vid: string, query?: QuoteQueryFn): Promise<Record<string, unknown>[]> {
+    const result = await this.run(query)(
+      `SELECT id, version_id, option_key, name, class, value_text, source, assumption
+         FROM crm_quote_kpis
+        WHERE version_id::text = $1
+        ORDER BY name ASC`,
+      [vid],
+    );
+    return result.rows;
+  }
+
+  async listClauses(vid: string, query?: QuoteQueryFn): Promise<Record<string, unknown>[]> {
+    const result = await this.run(query)(
+      `SELECT id, version_id, template_key, body, diverged
+         FROM crm_quote_clauses
+        WHERE version_id::text = $1
+        ORDER BY template_key ASC`,
+      [vid],
+    );
+    return result.rows;
+  }
+
+  private async copyVersionChildren(fromVid: string, toVid: string, query: QuoteQueryFn): Promise<void> {
+    const payments = await this.listPayments(fromVid, query);
+    if (payments.length) {
+      await this.replacePayments(
+        toVid,
+        payments.map((row) => ({
+          seq: row.seq,
+          pct_bps: row.pct_bps,
+          amount_vnd: row.amount_vnd,
+          milestone: row.milestone,
+        })),
+        query,
+      );
+    }
+    const kpis = await this.listKpis(fromVid, query);
+    for (const kpi of kpis) {
+      await query(
+        `INSERT INTO crm_quote_kpis (version_id, option_key, name, class, value_text, source, assumption)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          toVid,
+          kpi.option_key ?? null,
+          kpi.name,
+          kpi.class,
+          kpi.value_text,
+          kpi.source ?? null,
+          kpi.assumption ?? null,
+        ],
+      );
+    }
+    const clauses = await this.listClauses(fromVid, query);
+    for (const clause of clauses) {
+      await query(
+        `INSERT INTO crm_quote_clauses (version_id, template_key, body, diverged)
+         VALUES ($1, $2, $3, $4)`,
+        [toVid, clause.template_key, clause.body, clause.diverged === true],
+      );
+    }
+  }
+
+  private async toCompareSnapshot(
+    version: QuoteVersionRow,
+    query?: QuoteQueryFn,
+  ): Promise<QuoteCompareSnapshot> {
+    const snap = cloneJson(version.snapshot_json ?? {});
+    const working = String(version.state).toLowerCase() === 'working';
+    const lines = working
+      ? (await this.listLines(version.proposal_id, query)).map((line) => ({
+          qty: line.qty,
+          unit_price_vnd: line.unit_price_vnd,
+          final_price_vnd: line.final_price_vnd,
+          discount_vnd: line.discount_vnd,
+          tax_vnd: line.tax_vnd,
+          cost_labor_vnd: line.cost_labor_vnd,
+          cost_outsource_vnd: line.cost_outsource_vnd,
+          cost_other_vnd: line.cost_other_vnd,
+          scope_notes: line.scope_notes,
+        }))
+      : ((snap.lines as QuoteCompareSnapshot['lines']) ?? []);
+    const payments = (await this.listPayments(version.id, query)).map((row) => ({
+      seq: row.seq,
+      pct_bps: row.pct_bps,
+      amount_vnd: row.amount_vnd,
+      milestone: row.milestone,
+    }));
+    const kpis = (await this.listKpis(version.id, query)).map((row) => ({
+      name: String(row.name ?? ''),
+      value_text: String(row.value_text ?? ''),
+      client_visible: row.client_visible !== false && row.client_visible !== 'f',
+    }));
+    const clauses = (await this.listClauses(version.id, query)).map((row) => ({
+      template_key: String(row.template_key ?? ''),
+      body: String(row.body ?? ''),
+    }));
+    return {
+      title: snap.title == null ? undefined : String(snap.title),
+      lines: lines.length ? lines : ((snap.lines as QuoteCompareSnapshot['lines']) ?? []),
+      discount_vnd: version.discount_vnd,
+      tax_vnd: version.tax_vnd,
+      kpis: kpis.length ? kpis : ((snap.kpis as QuoteCompareSnapshot['kpis']) ?? []),
+      payments: payments.length ? payments : ((snap.payments as QuoteCompareSnapshot['payments']) ?? []),
+      clauses: clauses.length ? clauses : ((snap.clauses as QuoteCompareSnapshot['clauses']) ?? []),
     };
   }
 
