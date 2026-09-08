@@ -202,6 +202,143 @@ export function getQtActivityCsv(token: string, query: QtOverviewQuery = {}) {
   return qtFetch<{ csv: string; filename: string }>(token, `/activity?${params.toString()}`);
 }
 
+export type QtPackageTier = 'basic' | 'standard' | 'premium';
+
+export type QtBuilderProposal = {
+  id: number;
+  quote_code?: string | null;
+  current_version_id?: string | null;
+  row_version?: number;
+  status: string;
+  title?: string | null;
+  objective?: string | null;
+  audience?: string | null;
+  campaign_period?: string | null;
+  agency_client_id?: string | null;
+  customer_id?: number | null;
+  lead_id?: number | null;
+  valid_until?: string | null;
+  owner_staff_id?: number | null;
+  created_at?: string | null;
+  lines?: QtBuilderLine[];
+};
+
+export type QtBuilderLine = {
+  id?: number;
+  dv_code: string;
+  sku_code?: string | null;
+  package_tier?: string;
+  service_slug?: string;
+  item_type?: string;
+  qty?: number;
+  client_visible?: boolean;
+  media_vnd?: number | null;
+  media_amount_vnd?: number | null;
+  final_price_vnd?: number | null;
+  unit_price_vnd?: number | null;
+  discount_vnd?: number | null;
+  catalog_snapshot_json?: Record<string, unknown> | null;
+  cost_labor_vnd?: number | null;
+  cost_outsource_vnd?: number | null;
+  cost_other_vnd?: number | null;
+  name?: string | null;
+};
+
+export type QtRecalcResult = {
+  fee_vnd?: number | null;
+  media_vnd?: number | null;
+  discount_vnd?: number | null;
+  tax_vnd?: number | null;
+  payable_vnd?: number | null;
+  nsr_vnd?: number | null;
+  gm_bps?: number | null;
+  payments?: Array<{ pct_bps: number; amount_vnd: number; milestone: string }>;
+};
+
+export type QtCatalogItem = {
+  dv_code: string;
+  name?: string | null;
+  name_vi?: string | null;
+  status?: string;
+  can_add_to_client_quote?: boolean;
+  package_tiers?: Array<{
+    tier: string;
+    suggested_vnd?: number | null;
+    rate_missing?: boolean;
+  }>;
+  catalog_snapshot_json?: Record<string, unknown>;
+};
+
+export type QtPaymentItem = {
+  pct_bps: number;
+  amount_vnd?: number | null;
+  milestone?: string;
+  seq?: number;
+};
+
+export function asQtCatalogItems(body: unknown): QtCatalogItem[] {
+  if (Array.isArray(body)) return body as QtCatalogItem[];
+  if (body && typeof body === 'object') {
+    const rec = body as { services?: unknown; families?: unknown; items?: unknown };
+    if (Array.isArray(rec.services)) return rec.services as QtCatalogItem[];
+    if (Array.isArray(rec.families)) return rec.families as QtCatalogItem[];
+    if (Array.isArray(rec.items)) return rec.items as QtCatalogItem[];
+  }
+  return [];
+}
+
+export function getQtProposal(token: string, id: number) {
+  return qtFetch<QtBuilderProposal>(token, `/${id}`);
+}
+
+export function getQtProposalLines(token: string, id: number) {
+  return qtFetch<{ proposal_id: number; lines: QtBuilderLine[] }>(token, `/${id}/lines`);
+}
+
+export function patchQtProposal(
+  token: string,
+  id: number,
+  body: Record<string, unknown>,
+  rowVersion: number,
+) {
+  return qtFetch<QtBuilderProposal>(token, `/${id}`, {
+    method: 'PATCH',
+    headers: { 'If-Match': String(rowVersion) },
+    body: JSON.stringify(body),
+  });
+}
+
+export function putQtLines(token: string, id: number, lines: QtBuilderLine[]) {
+  return qtFetch<{ proposal_id: number; lines: QtBuilderLine[] }>(token, `/${id}/lines`, {
+    method: 'PUT',
+    body: JSON.stringify({ lines }),
+  });
+}
+
+export function recalculateQtVersion(
+  token: string,
+  id: number,
+  vid: string,
+  includeFinance = false,
+) {
+  const suffix = includeFinance ? '?section=finance' : '';
+  return qtFetch<QtRecalcResult>(token, `/${id}/versions/${encodeURIComponent(vid)}/recalculate${suffix}`, {
+    method: 'POST',
+  });
+}
+
+export function putQtPayments(token: string, vid: string, items: QtPaymentItem[]) {
+  return qtFetch<{ version_id: string; items: QtPaymentItem[] }>(
+    token,
+    `/quote-versions/${encodeURIComponent(vid)}/payments`,
+    { method: 'PUT', body: JSON.stringify({ items }) },
+  );
+}
+
+export function getQtQuoteCatalog(token: string) {
+  return qtFetch<unknown>(token, '/quote-catalog').then(asQtCatalogItems);
+}
+
 export async function qtFetch<T>(
   token: string,
   path: string,
@@ -214,9 +351,14 @@ export async function qtFetch<T>(
   if (init?.body && !headers['Content-Type'] && typeof init.body === 'string') {
     headers['Content-Type'] = 'application/json';
   }
-  const suffix =
-    !path || path.startsWith('?') ? path : path.startsWith('/') ? path : `/${path}`;
-  const res = await fetch(`${API_BASE}/api/crm/proposals${suffix}`, {
+  const trimmed = path.startsWith('/') ? path.slice(1) : path;
+  const isVersion = trimmed.startsWith('quote-versions/') || path.startsWith('/quote-versions/');
+  const url = isVersion
+    ? `${API_BASE}/api/crm/${trimmed}`
+    : `${API_BASE}/api/crm/proposals${
+        !path || path.startsWith('?') ? path : path.startsWith('/') ? path : `/${path}`
+      }`;
+  const res = await fetch(url, {
     ...init,
     headers,
     cache: 'no-store',

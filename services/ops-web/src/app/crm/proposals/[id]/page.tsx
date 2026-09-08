@@ -1,5 +1,5 @@
-import { QtPlaceholder } from '@/components/crm/qt/QtShell';
+import { QtBuilder } from '@/components/crm/qt/QtBuilder';
 
 export default function QtBuilderPage() {
-  return <QtPlaceholder title="Báo giá" />;
+  return <QtBuilder />;
 }
