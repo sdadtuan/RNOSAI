@@ -43,7 +43,13 @@ const SENT_REACHED: readonly QuoteStatus[] = [
   'superseded',
 ];
 
-const VIEWED_REACHED: readonly QuoteStatus[] = ['viewed', 'negotiation', 'accepted'];
+const VIEWED_CURRENT: readonly QuoteStatus[] = ['viewed', 'negotiation', 'accepted'];
+const VIEWED_TERMINALS: readonly QuoteStatus[] = [
+  'rejected',
+  'expired',
+  'cancelled',
+  'superseded',
+];
 
 export type QuoteReportQuery = {
   scope: QuoteScope;
@@ -118,6 +124,15 @@ function ratio(numerator: number, denominator: number): number | null {
   return denominator > 0 ? numerator / denominator : null;
 }
 
+function quoteIdsOf(quotes: QuoteRow[]): number[] {
+  return quotes.map((row) => row.id).filter((id) => Number.isFinite(id) && id > 0);
+}
+
+function reachedViewed(row: QuoteRow, viewedIds: Set<number>): boolean {
+  if (VIEWED_CURRENT.includes(row.status) || VIEWED_TERMINALS.includes(row.status)) return true;
+  return viewedIds.has(row.id);
+}
+
 function csvCell(value: unknown): string {
   if (value == null || value === '') return '';
   const text = String(value);
@@ -138,11 +153,14 @@ export class QuoteReportsService {
       throw new ForbiddenException({ error: 'missing_cap', section: 'crm_quote.finance' });
     }
     const quotes = await this.loadQuotes(query);
-    if (tab === 'funnel') return this.funnel(quotes);
+    const viewedIds = new Set(
+      (await this.loadViews(query, quoteIdsOf(quotes))).map((event) => event.proposal_id),
+    );
+    if (tab === 'funnel') return this.funnel(quotes, viewedIds);
     if (tab === 'margin') return this.margin(query, quotes);
     if (tab === 'loss') return this.loss(quotes);
     if (tab === 'engagement') return this.engagement(query, quotes);
-    return this.executive(query, quotes);
+    return this.executive(query, quotes, viewedIds);
   }
 
   async export(
@@ -153,32 +171,32 @@ export class QuoteReportsService {
     const csv = serializeReportCsv(report);
     const quotes = await this.loadQuotes(query);
     const proposalId = quotes[0]?.id ?? 0;
-    try {
-      await this.audit.insert({
-        proposal_id: Number.isFinite(proposalId) && proposalId > 0 ? proposalId : 0,
-        actor_staff_id: query.staffId > 0 ? query.staffId : null,
-        actor_kind: 'staff',
-        action: 'report_export',
-        resource: 'report',
-        snapshot_json: {
-          tab,
-          from: query.from ?? null,
-          to: query.to ?? null,
-          scope: query.scope,
-        },
-      });
-    } catch {
-      /* empty tenant has no proposal_id FK target */
+    if (!(Number.isFinite(proposalId) && proposalId > 0)) {
+      return { csv, filename: `quote-report-${tab}.csv` };
     }
+    await this.audit.insert({
+      proposal_id: proposalId,
+      actor_staff_id: query.staffId > 0 ? query.staffId : null,
+      actor_kind: 'staff',
+      action: 'report_export',
+      resource: 'report',
+      snapshot_json: {
+        tab,
+        from: query.from ?? null,
+        to: query.to ?? null,
+        scope: query.scope,
+      },
+    });
     return { csv, filename: `quote-report-${tab}.csv` };
   }
 
   private async executive(
     query: QuoteReportQuery,
     quotes: QuoteRow[],
+    viewedIds: Set<number>,
   ): Promise<Record<string, unknown>> {
     const sent = quotes.filter((row) => SENT_REACHED.includes(row.status));
-    const viewed = quotes.filter((row) => VIEWED_REACHED.includes(row.status));
+    const viewed = quotes.filter((row) => reachedViewed(row, viewedIds));
     const accepted = quotes.filter((row) => row.status === 'accepted');
     return {
       tab: 'executive',
@@ -186,15 +204,15 @@ export class QuoteReportsService {
       sent_value_vnd: sumMoney(sent.map((row) => row.payable_vnd)),
       sent_to_viewed: ratio(viewed.length, sent.length),
       sent_to_accepted: ratio(accepted.length, sent.length),
-      avg_approval_hours: await this.avgApprovalHours(query),
+      avg_approval_hours: await this.avgApprovalHours(query, quoteIdsOf(quotes)),
       last_updated: new Date().toISOString(),
     };
   }
 
-  private funnel(quotes: QuoteRow[]): Record<string, unknown> {
+  private funnel(quotes: QuoteRow[], viewedIds: Set<number>): Record<string, unknown> {
     const draft = quotes.length;
     const sent = quotes.filter((row) => SENT_REACHED.includes(row.status)).length;
-    const viewed = quotes.filter((row) => VIEWED_REACHED.includes(row.status)).length;
+    const viewed = quotes.filter((row) => reachedViewed(row, viewedIds)).length;
     const accepted = quotes.filter((row) => row.status === 'accepted').length;
     return {
       tab: 'funnel',
@@ -229,8 +247,8 @@ export class QuoteReportsService {
       nsr_vnd: money.nsr,
       direct_cost_vnd: money.cost,
       gm:
-        money.nsr != null && money.nsr > 0
-          ? (money.nsr - (money.cost ?? 0)) / money.nsr
+        money.nsr != null && money.nsr > 0 && money.cost != null
+          ? (money.nsr - money.cost) / money.nsr
           : null,
     }));
     return {
@@ -262,8 +280,9 @@ export class QuoteReportsService {
     query: QuoteReportQuery,
     quotes: QuoteRow[],
   ): Promise<Record<string, unknown>> {
-    const events = await this.loadViews(query);
-    const comments = await this.loadComments(query);
+    const ids = quoteIdsOf(quotes);
+    const events = await this.loadViews(query, ids);
+    const comments = await this.loadComments(query, ids);
     const byQuote = new Map<
       number,
       { first: string | null; last: string | null; section: string | null; comments: number }
@@ -276,7 +295,9 @@ export class QuoteReportsService {
         comments: comments.get(quote.id) ?? 0,
       });
     }
+    const scoped = new Set(ids);
     for (const event of events) {
+      if (!scoped.has(event.proposal_id)) continue;
       const current = byQuote.get(event.proposal_id) ?? {
         first: null,
         last: null,
@@ -312,7 +333,12 @@ export class QuoteReportsService {
     };
   }
 
-  private async avgApprovalHours(query: QuoteReportQuery): Promise<number | null> {
+  private async avgApprovalHours(
+    query: QuoteReportQuery,
+    quoteIds: number[],
+  ): Promise<number | null> {
+    if (!quoteIds.length) return null;
+    const scoped = new Set(quoteIds);
     const submitted = new Map<number, number>();
     const approved = new Map<number, number>();
     try {
@@ -320,14 +346,15 @@ export class QuoteReportsService {
         `SELECT proposal_id, action, created_at
            FROM crm_quote_activity
           WHERE action IN ('quote.approval_submitted', 'quote.approval_approved')
+            AND proposal_id = ANY($3::int[])
             AND ($1::text IS NULL OR created_at >= $1::timestamptz)
             AND ($2::text IS NULL OR created_at < $2::timestamptz + INTERVAL '1 day')`,
-        [query.from ?? null, query.to ?? null],
+        [query.from ?? null, query.to ?? null, quoteIds],
       );
       for (const row of result.rows) {
         const id = Number(row.proposal_id ?? 0);
         const at = Date.parse(String(row.created_at ?? ''));
-        if (!Number.isFinite(id) || id <= 0 || !Number.isFinite(at)) continue;
+        if (!Number.isFinite(id) || id <= 0 || !scoped.has(id) || !Number.isFinite(at)) continue;
         if (String(row.action) === 'quote.approval_submitted') submitted.set(id, at);
         if (String(row.action) === 'quote.approval_approved') approved.set(id, at);
       }
@@ -398,8 +425,12 @@ export class QuoteReportsService {
                      THEN COALESCE(l.final_price_vnd, l.unit_price_vnd * COALESCE(l.qty, 1) - COALESCE(l.discount_vnd, 0))
                      ELSE NULL
                 END AS net_vnd,
-                (COALESCE(l.cost_labor_vnd, 0) + COALESCE(l.cost_outsource_vnd, 0)
-                  + COALESCE(l.cost_other_vnd, 0)) AS cost_vnd
+                CASE
+                  WHEN l.cost_labor_vnd IS NULL AND l.cost_outsource_vnd IS NULL
+                       AND l.cost_other_vnd IS NULL THEN NULL
+                  ELSE COALESCE(l.cost_labor_vnd, 0) + COALESCE(l.cost_outsource_vnd, 0)
+                       + COALESCE(l.cost_other_vnd, 0)
+                END AS cost_vnd
            FROM crm_quote_line_item l
            JOIN crm_proposals p ON p.id = l.proposal_id
            LEFT JOIN crm_quote_versions v ON v.id = p.current_version_id
@@ -418,7 +449,10 @@ export class QuoteReportsService {
 
   private async loadViews(
     query: QuoteReportQuery,
+    quoteIds: number[],
   ): Promise<Array<{ proposal_id: number; created_at: string | null; section: string | null }>> {
+    if (!quoteIds.length) return [];
+    const scoped = new Set(quoteIds);
     try {
       const result = await this.db.query(
         `SELECT p.id AS proposal_id, e.created_at, e.section_key
@@ -426,37 +460,46 @@ export class QuoteReportsService {
            JOIN crm_quote_shares s ON s.id = e.share_id
            JOIN crm_quote_versions v ON v.id = s.version_id
            JOIN crm_proposals p ON p.id = v.proposal_id
-          WHERE ($1::text IS NULL OR e.created_at >= $1::timestamptz)
+          WHERE p.id = ANY($3::int[])
+            AND ($1::text IS NULL OR e.created_at >= $1::timestamptz)
             AND ($2::text IS NULL OR e.created_at < $2::timestamptz + INTERVAL '1 day')
           ORDER BY e.created_at`,
-        [query.from ?? null, query.to ?? null],
+        [query.from ?? null, query.to ?? null, quoteIds],
       );
-      return result.rows.map((row) => ({
-        proposal_id: Number(row.proposal_id ?? 0),
-        created_at: row.created_at == null ? null : String(row.created_at),
-        section: row.section_key == null || row.section_key === '' ? null : String(row.section_key),
-      }));
+      return result.rows
+        .map((row) => ({
+          proposal_id: Number(row.proposal_id ?? 0),
+          created_at: row.created_at == null ? null : String(row.created_at),
+          section: row.section_key == null || row.section_key === '' ? null : String(row.section_key),
+        }))
+        .filter((row) => scoped.has(row.proposal_id));
     } catch {
       return [];
     }
   }
 
-  private async loadComments(query: QuoteReportQuery): Promise<Map<number, number>> {
+  private async loadComments(
+    query: QuoteReportQuery,
+    quoteIds: number[],
+  ): Promise<Map<number, number>> {
     const counts = new Map<number, number>();
+    if (!quoteIds.length) return counts;
+    const scoped = new Set(quoteIds);
     try {
       const result = await this.db.query(
         `SELECT v.proposal_id, COUNT(*)::int AS comment_count
            FROM crm_quote_comments c
            JOIN crm_quote_versions v ON v.id = c.version_id
-          WHERE ($1::text IS NULL OR c.created_at >= $1::timestamptz)
+          WHERE v.proposal_id = ANY($3::int[])
+            AND ($1::text IS NULL OR c.created_at >= $1::timestamptz)
             AND ($2::text IS NULL OR c.created_at < $2::timestamptz + INTERVAL '1 day')
           GROUP BY v.proposal_id`,
-        [query.from ?? null, query.to ?? null],
+        [query.from ?? null, query.to ?? null, quoteIds],
       );
       for (const row of result.rows) {
         const id = Number(row.proposal_id ?? 0);
         const count = finiteNumber(row.comment_count);
-        if (id > 0 && count != null) counts.set(id, count);
+        if (id > 0 && scoped.has(id) && count != null) counts.set(id, count);
       }
     } catch {
       return counts;

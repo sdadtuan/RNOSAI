@@ -162,6 +162,23 @@ describe('QtApprovalDetail', () => {
       false,
     );
     expect(
+      canSubmitStepAction({
+        action: 'reject',
+        comment: 'lost',
+        canApprove: true,
+        stepState: 'waiting',
+      }),
+    ).toBe(false);
+    expect(
+      canSubmitStepAction({
+        action: 'reject',
+        comment: 'lost',
+        lostReason: 'budget',
+        canApprove: true,
+        stepState: 'waiting',
+      }),
+    ).toBe(true);
+    expect(
       canSubmitStepAction({ action: 'approve', comment: '', canApprove: true, stepState: 'waiting' }),
     ).toBe(true);
     expect(
@@ -178,6 +195,18 @@ describe('QtApprovalDetail', () => {
     );
     expect(noComment).toMatch(/<button[^>]*disabled[^>]*>[\s\S]*Trả lại/);
     expect(noComment).toMatch(/<button[^>]*disabled[^>]*>[\s\S]*Từ chối/);
+    expect(noComment).toMatch(/lost_reason|Lý do thua|budget/i);
+
+    const withReason = renderToStaticMarkup(
+      createElement(QtApprovalDetail, {
+        item: SAMPLE_ITEM,
+        hasFinance: true,
+        canApprove: true,
+        comment: 'lost the deal',
+        lostReason: 'budget',
+      }),
+    );
+    expect(withReason).toMatch(/<button(?![^>]*disabled)[^>]*>[\s\S]*Từ chối/);
     expect(noComment).toMatch(/<button[^>]*>[\s\S]*Phê duyệt/);
 
     const locked = renderToStaticMarkup(

@@ -11,10 +11,16 @@ class ReportsMemory {
   activity: Record<string, unknown>[] = [];
   teamRows: Record<string, unknown>[] = [];
   lastSql = '';
+  sqls: string[] = [];
+  params: unknown[][] = [];
+  failInsert: Error | null = null;
 
   async query(sql: string, params: unknown[] = []) {
     this.lastSql = sql;
+    this.sqls.push(sql);
+    this.params.push(params);
     if (/INSERT INTO crm_quote_activity/i.test(sql)) {
+      if (this.failInsert) throw this.failInsert;
       const row = {
         id: `act-${this.activity.length + 1}`,
         snapshot_json: params[7] ?? {},
@@ -62,11 +68,13 @@ describe('QuoteReportsService', () => {
 
   it('export writes activity', async () => {
     const { svc, db } = load();
+    db.rows = [{ id: 9, status: 'sent', payable_vnd: 10 }];
 
     const out = await svc.export({ ...SCOPE, tab: 'executive' });
 
     expect(out.csv).toEqual(expect.any(String));
     expect(db.activity.some((row) => row.action === 'report_export')).toBe(true);
+    expect(db.activity.find((row) => row.action === 'report_export')?.proposal_id).toBe(9);
   });
 
   it('empty and missing money stay null, never fake 0', async () => {
@@ -165,6 +173,130 @@ describe('QuoteReportsService', () => {
     for (const needle of ['265.647.600', '22,4', '8,46', '8460000000']) {
       expect(src.includes(needle)).toBe(false);
     }
+  });
+
+  it('RPT-05 views and comments restrict to scoped proposal ids', async () => {
+    const { db, svc } = load();
+    db.rows = [{ id: 9, status: 'viewed', quote_code: 'QT-MINE', owner_staff_id: 7 }];
+    db.views = [
+      { proposal_id: 9, created_at: '2026-09-08T01:00:00.000Z', section_key: 'investment' },
+      { proposal_id: 99, created_at: '2026-09-08T02:00:00.000Z', section_key: 'other' },
+    ];
+    db.comments = [
+      { proposal_id: 9, comment_count: 1 },
+      { proposal_id: 99, comment_count: 8 },
+    ];
+
+    const out = (await svc.get({ ...SCOPE, scope: 'me', tab: 'engagement' })) as {
+      items: Array<{ proposal_id: number; comment_count: number | null; section: string | null }>;
+    };
+
+    expect(out.items.map((row) => row.proposal_id)).toEqual([9]);
+    expect(out.items[0].section).toBe('investment');
+    expect(out.items[0].comment_count).toBe(1);
+    const scopedSql = db.sqls.filter((sql) => /view_events|quote_comments/i.test(sql)).join('\n');
+    expect(scopedSql).toMatch(/ANY\(\$\d+::int\[\]\)/);
+    expect(db.params.some((params) => params.some((value) => Array.isArray(value) && value.includes(9)))).toBe(
+      true,
+    );
+  });
+
+  it('avg approval hours only uses scoped proposal activity', async () => {
+    const { db, svc } = load();
+    db.rows = [{ id: 9, status: 'accepted', payable_vnd: 10 }];
+    db.activity = [
+      {
+        proposal_id: 9,
+        action: 'quote.approval_submitted',
+        created_at: '2026-09-08T00:00:00.000Z',
+      },
+      {
+        proposal_id: 9,
+        action: 'quote.approval_approved',
+        created_at: '2026-09-08T02:00:00.000Z',
+      },
+      {
+        proposal_id: 99,
+        action: 'quote.approval_submitted',
+        created_at: '2026-09-08T00:00:00.000Z',
+      },
+      {
+        proposal_id: 99,
+        action: 'quote.approval_approved',
+        created_at: '2026-09-08T20:00:00.000Z',
+      },
+    ];
+
+    const out = (await svc.get({ ...SCOPE, scope: 'me', tab: 'executive' })) as {
+      avg_approval_hours: number | null;
+    };
+
+    expect(out.avg_approval_hours).toBe(2);
+    expect(db.sqls.some((sql) => /crm_quote_activity/i.test(sql) && /ANY\(\$\d+::int\[\]\)/.test(sql))).toBe(
+      true,
+    );
+  });
+
+  it('RPT-03 missing cost stays null and does not fake GM', async () => {
+    const { db, svc } = load();
+    db.rows = [{ id: 9, status: 'sent', nsr_vnd: 80 }];
+    db.lines = [
+      {
+        proposal_id: 9,
+        item_type: 'fee',
+        dv_code: 'DV01',
+        service_slug: 'strategy',
+        name: 'Strategy',
+        net_vnd: 80,
+        cost_labor_vnd: null,
+        cost_outsource_vnd: null,
+        cost_other_vnd: null,
+      },
+    ];
+
+    const out = (await svc.get({ ...SCOPE, tab: 'margin' })) as {
+      groups: Array<{ nsr_vnd: number | null; direct_cost_vnd: number | null; gm: number | null }>;
+    };
+
+    expect(out.groups[0].nsr_vnd).toBe(80);
+    expect(out.groups[0].direct_cost_vnd).toBeNull();
+    expect(out.groups[0].gm).toBeNull();
+    expect(db.sqls.some((sql) => /cost_labor_vnd IS NULL/i.test(sql) && /THEN NULL/i.test(sql))).toBe(
+      true,
+    );
+  });
+
+  it('VIEWED_REACHED includes terminals that left viewed', async () => {
+    const { db, svc } = load();
+    db.rows = [
+      { id: 1, status: 'sent' },
+      { id: 2, status: 'rejected' },
+      { id: 3, status: 'expired' },
+      { id: 4, status: 'cancelled' },
+      { id: 5, status: 'superseded' },
+    ];
+    db.views = [{ proposal_id: 2, created_at: '2026-09-08T01:00:00.000Z', section_key: 'kpi' }];
+
+    const out = (await svc.get({ ...SCOPE, tab: 'funnel' })) as {
+      steps: Array<{ step: string; count: number }>;
+    };
+    const viewed = out.steps.find((step) => step.step === 'viewed')!;
+    expect(viewed.count).toBe(4);
+  });
+
+  it('export insert failure fails when quotes exist and skips empty-tenant insert', async () => {
+    const empty = load();
+    await expect(empty.svc.export({ ...SCOPE, tab: 'executive' })).resolves.toEqual(
+      expect.objectContaining({ csv: expect.any(String) }),
+    );
+    expect(empty.db.activity).toHaveLength(0);
+
+    const { db, svc } = load();
+    db.rows = [{ id: 9, status: 'sent' }];
+    db.failInsert = Object.assign(new Error('fk_violation'), { code: '23503' });
+    await expect(svc.export({ ...SCOPE, tab: 'executive' })).rejects.toMatchObject({
+      message: 'fk_violation',
+    });
   });
 
   it('wires GET reports and export before :id with StaffQuoteGuard', () => {

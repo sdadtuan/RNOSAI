@@ -13,6 +13,18 @@ import {
 import { dash } from '@/lib/crm/qt-format';
 import { formatQtGm, formatQtVnd } from './QtStickyCommercial';
 
+export const QT_LOST_REASONS = ['budget', 'competitor', 'priority', 'scope', 'other'] as const;
+
+export type QtLostReason = (typeof QT_LOST_REASONS)[number];
+
+const LOST_REASON_LABEL: Record<QtLostReason, string> = {
+  budget: 'Ngân sách không phù hợp',
+  competitor: 'Chọn đối thủ',
+  priority: 'Đổi ưu tiên nội bộ',
+  scope: 'Scope / timeline',
+  other: 'Khác',
+};
+
 export const QT_APPROVAL_CHIPS = [
   { id: 'mine', label: 'Chờ tôi' },
   { id: 'done', label: 'Đã xử lý' },
@@ -63,10 +75,14 @@ export function canSubmitStepAction(opts: {
   canApprove: boolean;
   stepState: string;
   delegateStaffId?: number | null;
+  lostReason?: string | null;
 }): boolean {
   if (!opts.canApprove) return false;
   if (opts.stepState !== 'waiting') return false;
   if (actionNeedsComment(opts.action) && !String(opts.comment ?? '').trim()) return false;
+  if (opts.action === 'reject' && !QT_LOST_REASONS.includes(opts.lostReason as QtLostReason)) {
+    return false;
+  }
   if (opts.action === 'delegate') {
     return Number(opts.delegateStaffId ?? 0) > 0;
   }
@@ -167,6 +183,8 @@ export function QtApprovalDetail({
   canApprove,
   comment,
   onComment,
+  lostReason = '',
+  onLostReason,
   onAction,
   onBack,
   delegateStaffId,
@@ -179,6 +197,8 @@ export function QtApprovalDetail({
   canApprove: boolean;
   comment: string;
   onComment?: (value: string) => void;
+  lostReason?: string;
+  onLostReason?: (value: string) => void;
   onAction?: (action: 'approve' | 'return' | 'reject' | 'delegate') => void;
   onBack?: () => void;
   delegateStaffId?: string;
@@ -207,6 +227,7 @@ export function QtApprovalDetail({
   const rejectOk = canSubmitStepAction({
     action: 'reject',
     comment,
+    lostReason,
     canApprove,
     stepState: item.state,
   });
@@ -292,6 +313,23 @@ export function QtApprovalDetail({
                 readOnly={!onComment}
                 placeholder="Lý do"
               />
+            </label>
+            <label className="qt-form-label">
+              Lý do thua (lost_reason)
+              <select
+                className="qt-inp"
+                aria-label="lost_reason"
+                value={lostReason}
+                onChange={onLostReason ? (event) => onLostReason(event.target.value) : undefined}
+                disabled={!onLostReason}
+              >
+                <option value="">Chọn lý do</option>
+                {QT_LOST_REASONS.map((reason) => (
+                  <option key={reason} value={reason}>
+                    {LOST_REASON_LABEL[reason]}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="qt-form-label">
               <span>
@@ -383,6 +421,7 @@ export function QtApprovals() {
     can_approve: false,
   });
   const [comment, setComment] = useState('');
+  const [lostReason, setLostReason] = useState('');
   const [delegateStaffId, setDelegateStaffId] = useState('');
   const [until, setUntil] = useState('');
   const [error, setError] = useState('');
@@ -430,6 +469,7 @@ export function QtApprovals() {
       !canSubmitStepAction({
         action,
         comment,
+        lostReason,
         canApprove,
         stepState: selected.state,
         delegateStaffId: Number(delegateStaffId || 0) || null,
@@ -442,10 +482,12 @@ export function QtApprovals() {
       await postQtApprovalAction(token, selected.step_id, {
         action,
         comment: comment.trim() || null,
+        lost_reason: action === 'reject' ? lostReason || null : undefined,
         delegate_staff_id: action === 'delegate' ? Number(delegateStaffId) : undefined,
         until: action === 'delegate' ? until || null : undefined,
       });
       setComment('');
+      setLostReason('');
       setDelegateStaffId('');
       setUntil('');
       replaceParams((params) => params.delete('step'));
@@ -469,6 +511,8 @@ export function QtApprovals() {
           canApprove={canApprove}
           comment={comment}
           onComment={setComment}
+          lostReason={lostReason}
+          onLostReason={setLostReason}
           onAction={(action) => void runAction(action)}
           onBack={() => replaceParams((params) => params.delete('step'))}
           delegateStaffId={delegateStaffId}
