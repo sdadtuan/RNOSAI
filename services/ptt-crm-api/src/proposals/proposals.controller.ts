@@ -96,8 +96,51 @@ export class ProposalsController {
   }
 
   @Get('quote-catalog')
-  getQuoteCatalog(@Query('service_slug') serviceSlug?: string) {
-    return this.proposals.getCatalogForQuote(serviceSlug);
+  async getQuoteCatalog(
+    @Req() req: StaffReq,
+    @Query('service_slug') serviceSlug?: string,
+    @Query('service') service?: string,
+    @Query('tab') tab?: string,
+  ) {
+    const caller = await this.quoteCaller(req);
+    return this.proposals.getCatalogForQuote(serviceSlug || service, {
+      hasFinance: caller.hasFinance,
+      includeRates: tab === 'rates',
+    });
+  }
+
+  @Get('quote-catalog/packages')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.catalog', 'view')
+  async getQuoteCatalogPackages(
+    @Req() req: StaffReq,
+    @Query('quote_date') quoteDate?: string,
+  ) {
+    const catalog = await this.proposals.getCatalogForQuote(undefined, {
+      hasFinance: (await this.quoteCaller(req)).hasFinance,
+    });
+    return { packages: catalog.packages, quote_date: quoteDate ?? null };
+  }
+
+  @Post('quote-catalog/packages/:key/snapshot')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.catalog', 'view')
+  snapshotCatalogPackage(
+    @Param('key') key: string,
+    @Body() body?: { quote_date?: string },
+  ) {
+    return this.proposals.snapshotCatalogPackage(key, body?.quote_date);
+  }
+
+  @Get('quote-catalog/rate-cards')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.catalog', 'view')
+  async getQuoteCatalogRateCards(
+    @Req() req: StaffReq,
+    @Query('quote_date') quoteDate?: string,
+  ) {
+    const caller = await this.quoteCaller(req);
+    return this.proposals.listCatalogRateCards(quoteDate, caller.hasFinance);
   }
 
   @Get('settings')

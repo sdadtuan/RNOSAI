@@ -4,8 +4,10 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { QuoteAuditRepository } from './quote-audit.repository';
+import { QuoteCatalogService } from './quote-catalog.service';
 import { allocatePayment, calcGmBps, calcNsr, calcPayable } from './quote-money.util';
 import { normalizeQuoteTier, resolveProductTierPricing } from './quote-pricing.util';
 import type { PutQuoteLinesBody, QuoteLineInput } from './proposals.types';
@@ -233,6 +235,7 @@ export class QuoteBuilderService {
   constructor(
     private readonly versions: QuoteVersionsRepository,
     private readonly audit: QuoteAuditRepository,
+    @Optional() private readonly catalog?: QuoteCatalogService,
   ) {}
 
   async patchHeader(
@@ -521,6 +524,21 @@ export class QuoteBuilderService {
 
     const tierPricing = catalog?.tier_pricing ?? {};
     const existingRate = existingSnap ? snapshotRate(existingSnap) : null;
+    let liveRate: {
+      min_vnd: number | null;
+      max_vnd: number | null;
+      suggested_vnd: number;
+      rate_card_id?: string | null;
+    } | null = null;
+    if (!existingRate && this.catalog) {
+      const resolved = await this.catalog.resolveRate(dvCode, tier);
+      liveRate = {
+        min_vnd: resolved.min_vnd,
+        max_vnd: resolved.max_vnd,
+        suggested_vnd: resolved.suggested_vnd,
+        rate_card_id: resolved.rate_card_id,
+      };
+    }
     const priced =
       existingRate?.suggested_vnd && existingRate.suggested_vnd > 0
         ? {
@@ -529,7 +547,14 @@ export class QuoteBuilderService {
             suggested_vnd: existingRate.suggested_vnd,
             rate_missing: false,
           }
-        : resolveProductTierPricing(tierPricing, tier);
+        : liveRate
+          ? {
+              min_vnd: liveRate.min_vnd,
+              max_vnd: liveRate.max_vnd,
+              suggested_vnd: liveRate.suggested_vnd,
+              rate_missing: false,
+            }
+          : resolveProductTierPricing(tierPricing, tier);
     if (priced.rate_missing || !priced.suggested_vnd) bad('rate_missing', { dv_code: dvCode, tier });
 
     const qty = Number(input.qty ?? 1) > 0 ? Number(input.qty ?? 1) : 1;
@@ -573,6 +598,7 @@ export class QuoteBuilderService {
         min_vnd: priced.min_vnd,
         max_vnd: priced.max_vnd,
         suggested_vnd: priced.suggested_vnd,
+        ...(liveRate?.rate_card_id ? { rate_card_id: liveRate.rate_card_id } : {}),
       },
       cost: costMissing
         ? { labor_vnd: null, outsource_vnd: null, other_vnd: null }

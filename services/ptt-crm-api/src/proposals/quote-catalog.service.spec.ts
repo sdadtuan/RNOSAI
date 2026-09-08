@@ -21,12 +21,28 @@ type CatalogRow = {
   tier_pricing: Record<string, unknown>;
 };
 
+type RateCardRow = {
+  id: string;
+  tenant_id?: string;
+  dv_code: string;
+  package_tier: string;
+  fee_vnd: number;
+  cost_labor_vnd?: number | null;
+  effective_from: string;
+  effective_to: string | null;
+  state: string;
+};
+
 class CatalogMemory {
   rows: CatalogRow[] = [];
+  rateCards: RateCardRow[] = [];
   sqls: string[] = [];
 
   async query(sql: string) {
     this.sqls.push(sql);
+    if (/FROM crm_quote_rate_cards/i.test(sql)) {
+      return { rows: this.rateCards };
+    }
     if (/FROM crm_catalog_services/i.test(sql) || /FROM ops_service_profile/i.test(sql)) {
       return { rows: this.rows };
     }
@@ -302,5 +318,89 @@ describe('QuoteCatalogService CAT-01 add rules', () => {
     expect(src).toMatch(/@Get\('quote-catalog'\)/);
     expect(src.indexOf("@Get('quote-catalog')")).toBeLessThan(src.indexOf("@Get(':id')"));
     expect(src).toMatch(/StaffProposalsViewGuard/);
+    expect(src).toMatch(/@Get\('quote-catalog\/packages'\)/);
+    expect(src).toMatch(/@Get\('quote-catalog\/rate-cards'\)/);
+    expect(src).toMatch(/@RequireQuoteSection\('crm_quote.catalog', 'view'\)/);
+    expect(src).toMatch(/StaffQuoteGuard/);
+    expect(src.indexOf("@Get('quote-catalog/rate-cards')")).toBeLessThan(src.indexOf("@Get(':id')"));
+  });
+});
+
+describe('QuoteCatalogService CAT-03 packages + CAT-04 rates', () => {
+  function packageCatalogRows(): CatalogRow[] {
+    return [
+      row({ dv_code: 'DV05', name: 'Content & Social', active: true, tier_pricing: STANDARD_RATE }),
+      row({ dv_code: 'DV08', name: 'Meta Ads Performance', active: true, tier_pricing: STANDARD_RATE }),
+      row({ dv_code: 'DV03', name: 'Website & Landing Page', active: true, tier_pricing: STANDARD_RATE }),
+      row({ dv_code: 'DV12', name: 'Brand Film / Reels', active: true, tier_pricing: STANDARD_RATE }),
+    ];
+  }
+
+  it('package add snapshots N lines', async () => {
+    const { svc } = load(packageCatalogRows());
+
+    const out = await svc.snapshotPackage('growth_launch', '2026-09-08');
+
+    expect(out.package_key).toBe('growth_launch');
+    expect(out.package_discount_bps).toBeGreaterThan(0);
+    expect(out.lines.length).toBeGreaterThan(1);
+    expect(out.lines.every((line) => line.catalog_snapshot_json?.dv_code)).toBe(true);
+    expect(out.lines.every((line) => line.catalog_snapshot_json?.quoted_at)).toBe(true);
+    expect(out.lines.map((line) => line.dv_code)).toEqual(
+      expect.arrayContaining(['DV05', 'DV08', 'DV03', 'DV12']),
+    );
+    const frozen = structuredClone(out.lines[0].catalog_snapshot_json);
+    const live = await svc.get();
+    const item = itemOf(live, String(out.lines[0].dv_code));
+    (item as { package_tiers: Array<{ suggested_vnd: number }> }).package_tiers[1].suggested_vnd =
+      99_000_000;
+    expect(out.lines[0].catalog_snapshot_json).toEqual(frozen);
+    expect(out.lines[0].catalog_snapshot_json.rate?.suggested_vnd).not.toBe(99_000_000);
+  });
+
+  it('expired rate → rate_expired', async () => {
+    const { db, svc } = load([
+      row({ dv_code: 'DV08', name: 'Meta Ads Performance', active: true, tier_pricing: STANDARD_RATE }),
+    ]);
+    db.rateCards = [
+      {
+        id: 'rc-expired',
+        tenant_id: 'PTT',
+        dv_code: 'DV08',
+        package_tier: 'standard',
+        fee_vnd: 12_000_000,
+        cost_labor_vnd: 7_000_000,
+        effective_from: '2025-01-01',
+        effective_to: '2025-12-31',
+        state: 'retired',
+      },
+    ];
+
+    await expect(svc.resolveRate('DV08', 'standard', '2026-09-08')).rejects.toMatchObject({
+      response: { error: 'rate_expired' },
+    });
+
+    const listed = await svc.listRateCards('2026-09-08');
+    expect(listed.items[0].rate_expired).toBe(true);
+    expect(listed.items[0].state).toBe('retired');
+  });
+
+  it('draft catalog still cannot add via industry package', async () => {
+    const { svc } = load([
+      row({
+        dv_code: 'DV05',
+        name: 'Content & Social',
+        active: false,
+        status: 'draft',
+        tier_pricing: STANDARD_RATE,
+      }),
+      row({ dv_code: 'DV08', name: 'Meta Ads Performance', active: true, tier_pricing: STANDARD_RATE }),
+      row({ dv_code: 'DV03', name: 'Website & Landing Page', active: true, tier_pricing: STANDARD_RATE }),
+      row({ dv_code: 'DV12', name: 'Brand Film / Reels', active: true, tier_pricing: STANDARD_RATE }),
+    ]);
+
+    await expect(svc.snapshotPackage('growth_launch', '2026-09-08')).rejects.toMatchObject({
+      response: { error: 'catalog_not_active' },
+    });
   });
 });

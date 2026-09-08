@@ -216,8 +216,8 @@ export function QtSettingsForm({
         <h2>Quản trị rate card</h2>
         <p className="qt-muted">SET-03 · deep-link catalog · Active/Retired</p>
         <p>
-          <Link className="qt-btn" href="/crm/proposals/catalog">
-            Mở catalog
+          <Link className="qt-btn" href="/crm/proposals/catalog?tab=rates">
+            Mở CAT-04
           </Link>
         </p>
         <p className="qt-empty">{dash(null)}</p>

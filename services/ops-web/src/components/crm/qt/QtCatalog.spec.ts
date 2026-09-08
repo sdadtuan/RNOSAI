@@ -3,7 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { dash } from '@/lib/crm/qt-format';
 import {
+  QT_CATALOG_DRAWER_TABS,
   QT_CATALOG_NAV_GROUPS,
+  QtCatalogDrawer,
   QtCatalogGroups,
   QtCatalogServiceRow,
   QtVidTpl01Template,
@@ -114,5 +116,38 @@ describe('QtCatalog CAT-05 VID-TPL-01', () => {
     expect(html).not.toContain('<main');
     expect(html).not.toContain('265.647.600');
     expect(html).not.toContain('video/mp4');
+  });
+});
+
+describe('QtCatalog CAT-02 drawer tabs', () => {
+  it('exposes the 6 tab ids overview, deliverable, KPI, timeline, pricing, policy', () => {
+    expect(QT_CATALOG_DRAWER_TABS.map((tab) => tab.id)).toEqual([
+      'overview',
+      'deliverable',
+      'kpi',
+      'timeline',
+      'pricing',
+      'policy',
+    ]);
+
+    const html = renderToStaticMarkup(
+      createElement(QtCatalogDrawer, {
+        item: {
+          dv_code: 'DV08',
+          name_vi: 'Meta Ads Performance',
+          group: 'performance',
+          status: 'active',
+          can_add_to_client_quote: true,
+        },
+        hasFinance: true,
+      }),
+    );
+
+    for (const id of ['overview', 'deliverable', 'kpi', 'timeline', 'pricing', 'policy']) {
+      expect(html).toContain(`data-tab="${id}"`);
+    }
+    expect(html).toContain('KPI');
+    expect(html).not.toContain('265.647.600');
+    expect(html).not.toContain('NOVA');
   });
 });

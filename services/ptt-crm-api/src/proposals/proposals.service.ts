@@ -517,8 +517,19 @@ export class ProposalsService {
     });
   }
 
-  async getCatalogForQuote(serviceSlugRaw?: string) {
-    return this.quoteCatalog.get(serviceSlugRaw);
+  async getCatalogForQuote(
+    serviceSlugRaw?: string,
+    opts?: { hasFinance?: boolean; includeRates?: boolean },
+  ) {
+    return this.quoteCatalog.get(serviceSlugRaw, opts);
+  }
+
+  snapshotCatalogPackage(packageKey: string, quoteDate?: string) {
+    return this.quoteCatalog.snapshotPackage(packageKey, quoteDate);
+  }
+
+  listCatalogRateCards(quoteDate?: string, hasFinance = false) {
+    return this.quoteCatalog.listRateCards(quoteDate, hasFinance);
   }
 
   async generate(proposalId: number) {

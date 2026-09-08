@@ -256,6 +256,14 @@ export type QtRecalcResult = {
   payments?: Array<{ pct_bps: number; amount_vnd: number; milestone: string }>;
 };
 
+export type QtCatalogDrawerTabId =
+  | 'overview'
+  | 'deliverable'
+  | 'kpi'
+  | 'timeline'
+  | 'pricing'
+  | 'policy';
+
 export type QtCatalogItem = {
   dv_code: string;
   name?: string | null;
@@ -264,12 +272,50 @@ export type QtCatalogItem = {
   can_add_to_client_quote?: boolean;
   group?: string;
   template_key?: string;
+  service_slug?: string;
   package_tiers?: Array<{
     tier: string;
     suggested_vnd?: number | null;
     rate_missing?: boolean;
   }>;
   catalog_snapshot_json?: Record<string, unknown>;
+  drawer?: {
+    overview?: { included?: string[] | null; excluded?: string[] | null; owner?: string | null; effort?: string | null };
+    deliverable?: { items?: string[] | null };
+    kpi?: { committed?: string | null; optimization?: string | null; forecast?: string | null };
+    timeline?: { kickoff?: string | null; duration?: string | null; notes?: string | null };
+    pricing?: { restricted?: boolean; package_tiers?: QtCatalogItem['package_tiers'] };
+    policy?: { client_visible?: boolean; studio_sections?: string[] };
+  };
+};
+
+export type QtIndustryPackage = {
+  key: string;
+  name: string;
+  package_discount_bps: number;
+  line_count: number;
+  dv_codes: string[];
+  can_add?: boolean;
+};
+
+export type QtRateCard = {
+  id: string;
+  dv_code: string;
+  package_tier: string;
+  fee_vnd: number;
+  cost_labor_vnd?: number | null;
+  effective_from: string;
+  effective_to: string | null;
+  state: string;
+  rate_expired: boolean;
+};
+
+export type QtCatalogDoc = {
+  services?: QtCatalogItem[];
+  families?: QtCatalogItem[];
+  packages?: QtIndustryPackage[];
+  rate_cards?: QtRateCard[];
+  drawer_tabs?: Array<{ id: string; label: string }>;
 };
 
 export type QtPaymentItem = {
@@ -338,8 +384,31 @@ export function putQtPayments(token: string, vid: string, items: QtPaymentItem[]
   );
 }
 
-export function getQtQuoteCatalog(token: string) {
-  return qtFetch<unknown>(token, '/quote-catalog').then(asQtCatalogItems);
+export function getQtQuoteCatalog(token: string, query?: { service?: string; tab?: string }) {
+  const params = new URLSearchParams();
+  if (query?.service) params.set('service', query.service);
+  if (query?.tab) params.set('tab', query.tab);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return qtFetch<unknown>(token, `/quote-catalog${suffix}`).then(asQtCatalogItems);
+}
+
+export function getQtQuoteCatalogDoc(token: string, query?: { service?: string; tab?: string }) {
+  const params = new URLSearchParams();
+  if (query?.service) params.set('service', query.service);
+  if (query?.tab) params.set('tab', query.tab);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return qtFetch<QtCatalogDoc>(token, `/quote-catalog${suffix}`);
+}
+
+export function snapshotQtCatalogPackage(token: string, packageKey: string, quoteDate?: string) {
+  return qtFetch<{
+    package_key: string;
+    package_discount_bps: number;
+    lines: Array<{ dv_code: string; catalog_snapshot_json: Record<string, unknown> }>;
+  }>(token, `/quote-catalog/packages/${encodeURIComponent(packageKey)}/snapshot`, {
+    method: 'POST',
+    body: JSON.stringify(quoteDate ? { quote_date: quoteDate } : {}),
+  });
 }
 
 export type QtConvertLifecycle = {
