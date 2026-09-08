@@ -1,0 +1,67 @@
+{
+  "wave": "W2",
+  "component": "quotation_os_wave2",
+  "srs": "2026-09-08-quotation-os-srs.md + plan Task 30",
+  "branch": "feat/quotation-os",
+  "head_commit": "d682e3a9",
+  "environment": "local",
+  "evaluated_at": "2026-09-08T22:40:00+07:00",
+  "signed_at": null,
+  "status": "pending",
+  "ok": false,
+  "qt_ai_enabled": false,
+  "entry_required": {
+    "wave_2_implementation_present": true,
+    "api_reachable": false,
+    "note": "Playwright discovers 7 W2 UAT tests (5 named ACs + 2 skip-server source checks). Local API at 127.0.0.1:3000 and ops-web at 127.0.0.1:3200 were unreachable (curl exit 7). Production https://rs.pttads.vn was not used. QT_AI_ENABLED was not set."
+  },
+  "gates": {
+    "playwright_qt_w2_discovery": true,
+    "playwright_qt_w2_source_check": true,
+    "playwright_qt_w2_uat": false
+  },
+  "gate_notes": {
+    "playwright_qt_w2_discovery": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/qt-w2-uat.spec.ts --list — 7 tests discovered",
+    "playwright_qt_w2_source_check": "OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/qt-w2-uat.spec.ts -g 'always-run markup|mock money' — 2 passed (portal HTML/JSON leak helper + product UI has no 265647600 / 22,4 / 8,46)",
+    "playwright_qt_w2_uat": "API unreachable; 5 live AC cases were not executed. This is not a green signoff."
+  },
+  "w2_acceptance": {
+    "ac_03_gm_2240_routes_finance_gdkd_no_publish": false,
+    "ac_04_revision_required_v1_immutable_v2": false,
+    "ac_05_option_b_otp_accept_lock_convert": false,
+    "ac_06_public_no_cost_margin_internal_hidden": true,
+    "ac_11_package_tier_options_abc_fee_snapshot": false
+  },
+  "unit_covered": [
+    "AC-03: GM 2240 bps below floor 2500 routes Finance + GDKD (quote-policy.util.spec.ts)",
+    "AC-03: submit-approval creates Finance + GDKD; cannot publish before done (quote-approval.service.spec.ts)",
+    "AC-04: published/sent v1 qty change → revision_required; v1 snapshot immutable; v2 working (quote-builder.service.spec.ts)",
+    "AC-05: option B + OTP locks acceptance and allows convert (quote-share.service.spec.ts)",
+    "AC-06: publish/public JSON excludes cost/margin/gm_bps/nsr/hidden option (quote-studio.service.spec.ts + quote-public.service.spec.ts + portal publicHtmlLeaks)",
+    "AC-11: catalog packages + package_tier lines + options A/B/C (quote-catalog.service.spec.ts + quote-options.service.spec.ts)"
+  ],
+  "needs_live_run": [
+    "POST submit-approval on GM 2240 bps → Finance + GDKD; POST publish → approval_incomplete",
+    "v1 published/sent PUT lines qty/price → 409 revision_required; POST versions → v2; v1 immutable; GET diff 1/2",
+    "mint share on v2; option B + checkbox + OTP → accepted/lock; convert allowed (OTP via OPS_E2E_QT_OTP — API never returns the code)",
+    "GET /api/public/proposals/:token JSON has no cost/margin/internal/hidden option C",
+    "PUT lines package_tier + POST options A/B/C; change SKU/tier changes fee snapshot"
+  ],
+  "commands": {
+    "uat": "cd services/ops-web && ./node_modules/.bin/playwright test e2e/qt-w2-uat.spec.ts",
+    "discovery": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/qt-w2-uat.spec.ts --list",
+    "source": "cd services/ops-web && OPS_E2E_SKIP_SERVER=1 ./node_modules/.bin/playwright test e2e/qt-w2-uat.spec.ts -g 'always-run markup|mock money'"
+  },
+  "signoffs": {
+    "product_owner": null,
+    "qa": null,
+    "engineering": null
+  },
+  "blockers": [
+    "Local Nest API at 127.0.0.1:3000 did not accept connections.",
+    "Local ops-web at 127.0.0.1:3200 did not accept connections.",
+    "Five of seven Playwright cases require a live API and were not run.",
+    "Wave 3 was not started."
+  ],
+  "notes": "Intentionally not a green signoff. Public CTA remains Xác nhận đề xuất. Staff APIs stay under /api/crm. QT_AI_ENABLED was not set. Scripts do not GRANT staff_section_permissions. AC-03 22.4% is a test input (2240 bps vs floor 2500), not product UI copy. Live AC-05 lock/convert needs OPS_E2E_QT_OTP because OTP is hashed and redacted from mailer logs."
+}

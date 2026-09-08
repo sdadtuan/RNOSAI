@@ -98,12 +98,13 @@ export async function qtApi<T = Record<string, unknown>>(
   request: APIRequestContext,
   token: string,
   path: string,
-  init?: { method?: string; data?: unknown; idempotencyKey?: string },
+  init?: { method?: string; data?: unknown; idempotencyKey?: string; headers?: Record<string, string> },
 ): Promise<QtApiResult<T>> {
   const method = (init?.method ?? 'GET').toUpperCase();
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
+    ...init?.headers,
   };
   if (init?.idempotencyKey) headers['Idempotency-Key'] = init.idempotencyKey;
   const url = path.startsWith('http') ? path : `${API_URL}${path}`;
@@ -254,7 +255,22 @@ export async function getQtProposalApi(
   request: APIRequestContext,
   token: string,
   id: number,
-): Promise<QtApiResult<{ id?: number; status?: string; current_version_id?: string; lead_id?: number }>> {
+): Promise<
+  QtApiResult<{
+    id?: number;
+    status?: string;
+    current_version_id?: string;
+    lead_id?: number;
+    title?: string | null;
+    objective?: string | null;
+    audience?: string | null;
+    campaign_period?: string | null;
+    agency_client_id?: string | null;
+    customer_id?: number | null;
+    row_version?: number;
+    quote_code?: string | null;
+  }>
+> {
   return qtApi(request, token, `/api/crm/proposals/${id}`);
 }
 
