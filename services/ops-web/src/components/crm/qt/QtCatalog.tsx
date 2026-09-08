@@ -65,7 +65,7 @@ export function catalogGroupKeys(items: QtCatalogItem[]): Array<QtCatalogNavGrou
 }
 
 export function canAddToClientQuote(item: QtCatalogItem): boolean {
-  return item.can_add_to_client_quote === true;
+  return item.can_add_to_client_quote === true && String(item.status ?? '').toLowerCase() !== 'draft';
 }
 
 export function catalogDisplayName(item: QtCatalogItem): string {

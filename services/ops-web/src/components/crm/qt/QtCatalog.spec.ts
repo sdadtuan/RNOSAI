@@ -78,6 +78,23 @@ describe('QtCatalog draft add', () => {
     expect(html).not.toContain('265.647.600');
     expect(dash(null)).toBe('—');
   });
+
+  it('disables add-to-quote when status is draft even if can_add_to_client_quote is true', () => {
+    const html = renderToStaticMarkup(
+      createElement(QtCatalogServiceRow, {
+        item: {
+          dv_code: 'DV12',
+          name_vi: 'Brand Film draft',
+          group: 'production',
+          status: 'draft',
+          can_add_to_client_quote: true,
+        },
+      }),
+    );
+
+    expect(html).toContain('Draft');
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>\s*Thêm vào báo giá/);
+  });
 });
 
 describe('QtCatalog CAT-05 VID-TPL-01', () => {
