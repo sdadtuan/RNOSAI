@@ -189,6 +189,54 @@ function isRateEffective(
   return quoteDate >= from && (!to || quoteDate <= to);
 }
 
+function cardMatches(
+  card: RateCardRow,
+  dvCode: string,
+  tier?: QuotePackageTier | string,
+): boolean {
+  if (String(card.dv_code).toUpperCase() !== dvCode) return false;
+  if (!tier) return true;
+  return (normalizeQuoteTier(String(card.package_tier)) ?? String(card.package_tier)) === tier;
+}
+
+function isLiveRateCard(card: RateCardRow, quoteDate: string): boolean {
+  return (
+    cardState(card.state) === 'active' &&
+    isRateEffective(String(card.effective_from), card.effective_to, quoteDate)
+  );
+}
+
+function cardsFor(
+  cards: RateCardRow[],
+  dvCode: string,
+  tier?: QuotePackageTier | string,
+): RateCardRow[] {
+  return cards.filter((card) => cardMatches(card, dvCode, tier));
+}
+
+function canAddWithRateCards(
+  status: QuoteCatalogStatus,
+  rateMissing: boolean,
+  cards: RateCardRow[],
+  dvCode: string,
+  quoteDate: string,
+  tier?: QuotePackageTier | string,
+): boolean {
+  if (status !== 'active') return false;
+  const match = cardsFor(cards, dvCode, tier);
+  if (!match.length) return !rateMissing;
+  return match.some((card) => isLiveRateCard(card, quoteDate));
+}
+
+function liveCostLaborVnd(cards: RateCardRow[], dvCode: string, quoteDate: string): number | null {
+  const live = cardsFor(cards, dvCode).filter((card) => isLiveRateCard(card, quoteDate));
+  const preferred =
+    live.find((card) => (normalizeQuoteTier(String(card.package_tier)) ?? card.package_tier) === 'standard') ??
+    live[0];
+  if (!preferred || preferred.cost_labor_vnd == null) return null;
+  return Number(preferred.cost_labor_vnd);
+}
+
 type SorRow = {
   dv_code: string;
   slug: string;
@@ -283,21 +331,23 @@ export class QuoteCatalogService {
 
   async get(serviceSlugRaw?: string, opts?: QuoteCatalogGetOpts) {
     const hasFinance = opts?.hasFinance === true;
+    const day = quoteDateKey();
     const base = await this.loadBase(serviceSlugRaw);
     const rows = await this.listSor();
+    const cards = await this.loadRateCardRows();
     const byDv = new Map(rows.map((row) => [row.dv_code, row]));
     const seen = new Set<string>();
     const families = (base.families ?? []).map((family) => {
       const dv = String(family.dv_code ?? '').trim().toUpperCase();
       if (dv) seen.add(dv);
-      return this.present(family as Record<string, unknown>, byDv.get(dv) ?? null, hasFinance);
+      return this.present(family as Record<string, unknown>, byDv.get(dv) ?? null, hasFinance, cards, day);
     });
     for (const row of rows) {
       if (!seen.has(row.dv_code)) {
-        families.push(this.present({}, row, hasFinance));
+        families.push(this.present({}, row, hasFinance, cards, day));
       }
     }
-    const packages = this.listIndustryPackages(rows);
+    const packages = this.listIndustryPackages(rows, cards, day);
     const out: Record<string, unknown> = {
       ...base,
       groups: [...QT_CATALOG_NAV_GROUPS],
@@ -348,6 +398,8 @@ export class QuoteCatalogService {
     family: Record<string, unknown>,
     sor: SorRow | null,
     hasFinance = false,
+    cards: RateCardRow[] = [],
+    quoteDate = quoteDateKey(),
   ) {
     const dv = String(sor?.dv_code || family.dv_code || '')
       .trim()
@@ -360,7 +412,13 @@ export class QuoteCatalogService {
       ...resolveProductTierPricing(sor?.tier_pricing ?? {}, tier),
     }));
     const rate_missing = package_tiers.every((tier) => tier.rate_missing);
-    const can_add_to_client_quote = status === 'active' && !rate_missing;
+    const can_add_to_client_quote = canAddWithRateCards(
+      status,
+      rate_missing,
+      cards,
+      dv,
+      quoteDate,
+    );
     const item: Record<string, unknown> = {
       ...family,
       dv_code: dv,
@@ -371,7 +429,7 @@ export class QuoteCatalogService {
       can_add_to_client_quote,
       rate_missing,
       package_tiers,
-      drawer: this.drawerFor(family, package_tiers, hasFinance),
+      drawer: this.drawerFor(family, package_tiers, hasFinance, cards, dv, quoteDate),
     };
     const template_key = templateKeyFor(name, slug);
     if (template_key) item.template_key = template_key;
@@ -382,6 +440,9 @@ export class QuoteCatalogService {
     family: Record<string, unknown>,
     packageTiers: QuoteCatalogTier[],
     hasFinance: boolean,
+    cards: RateCardRow[] = [],
+    dvCode = '',
+    quoteDate = quoteDateKey(),
   ) {
     const offers = Array.isArray(family.offers) ? (family.offers as Array<Record<string, unknown>>) : [];
     const included: string[] = [];
@@ -404,7 +465,7 @@ export class QuoteCatalogService {
     const pricing: Record<string, unknown> = hasFinance
       ? {
           package_tiers: packageTiers,
-          cost_labor_vnd: null,
+          cost_labor_vnd: liveCostLaborVnd(cards, dvCode, quoteDate),
           cost_missing: packageTiers.every((tier) => tier.rate_missing),
         }
       : { restricted: true };
@@ -438,7 +499,7 @@ export class QuoteCatalogService {
     };
   }
 
-  listIndustryPackages(rows?: SorRow[]) {
+  listIndustryPackages(rows?: SorRow[], cards: RateCardRow[] = [], quoteDate = quoteDateKey()) {
     const byDv = new Map((rows ?? []).map((row) => [row.dv_code, row]));
     return QT_INDUSTRY_PACKAGES.map((pkg) => {
       const members = pkg.lines.map((line) => {
@@ -449,7 +510,14 @@ export class QuoteCatalogService {
           ...line,
           status,
           rate_missing: priced.rate_missing,
-          can_add_to_client_quote: status === 'active' && !priced.rate_missing,
+          can_add_to_client_quote: canAddWithRateCards(
+            status,
+            priced.rate_missing,
+            cards,
+            line.dv_code,
+            quoteDate,
+            line.package_tier,
+          ),
         };
       });
       return {
@@ -569,7 +637,7 @@ export class QuoteCatalogService {
           effective_from: String(row.effective_from ?? '').slice(0, 10),
           effective_to: effectiveTo,
           state,
-          rate_expired: state === 'retired' || isRateExpired(effectiveTo, day),
+          rate_expired: isRateExpired(effectiveTo, day),
         };
         if (hasFinance) {
           item.cost_labor_vnd = row.cost_labor_vnd == null ? null : Number(row.cost_labor_vnd);

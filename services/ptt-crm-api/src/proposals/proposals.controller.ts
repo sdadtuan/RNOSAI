@@ -95,6 +95,13 @@ export class ProposalsController {
     }
   }
 
+  private async quoteCatalogHasFinance(req: StaffReq): Promise<boolean> {
+    if (req.staffAuthVia === 'internal' && !req.staffUser) return true;
+    if (!req.staffUser) return false;
+    const me = await this.staffAuth.me(req.staffUser);
+    return Boolean(me && this.staffAuth.hasCap(me.caps, 'crm_quote.finance', 'view'));
+  }
+
   @Get('quote-catalog')
   async getQuoteCatalog(
     @Req() req: StaffReq,
@@ -102,9 +109,8 @@ export class ProposalsController {
     @Query('service') service?: string,
     @Query('tab') tab?: string,
   ) {
-    const caller = await this.quoteCaller(req);
     return this.proposals.getCatalogForQuote(serviceSlug || service, {
-      hasFinance: caller.hasFinance,
+      hasFinance: await this.quoteCatalogHasFinance(req),
       includeRates: tab === 'rates',
     });
   }
@@ -117,7 +123,7 @@ export class ProposalsController {
     @Query('quote_date') quoteDate?: string,
   ) {
     const catalog = await this.proposals.getCatalogForQuote(undefined, {
-      hasFinance: (await this.quoteCaller(req)).hasFinance,
+      hasFinance: await this.quoteCatalogHasFinance(req),
     });
     return { packages: catalog.packages, quote_date: quoteDate ?? null };
   }
@@ -139,8 +145,10 @@ export class ProposalsController {
     @Req() req: StaffReq,
     @Query('quote_date') quoteDate?: string,
   ) {
-    const caller = await this.quoteCaller(req);
-    return this.proposals.listCatalogRateCards(quoteDate, caller.hasFinance);
+    return this.proposals.listCatalogRateCards(
+      quoteDate,
+      await this.quoteCatalogHasFinance(req),
+    );
   }
 
   @Get('settings')

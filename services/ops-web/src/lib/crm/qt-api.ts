@@ -280,11 +280,22 @@ export type QtCatalogItem = {
   }>;
   catalog_snapshot_json?: Record<string, unknown>;
   drawer?: {
-    overview?: { included?: string[] | null; excluded?: string[] | null; owner?: string | null; effort?: string | null };
+    overview?: {
+      included?: string[] | null;
+      excluded?: string[] | null;
+      cta?: string | null;
+      uta?: string | null;
+      owner?: string | null;
+      effort?: string | null;
+    };
     deliverable?: { items?: string[] | null };
     kpi?: { committed?: string | null; optimization?: string | null; forecast?: string | null };
     timeline?: { kickoff?: string | null; duration?: string | null; notes?: string | null };
-    pricing?: { restricted?: boolean; package_tiers?: QtCatalogItem['package_tiers'] };
+    pricing?: {
+      restricted?: boolean;
+      package_tiers?: QtCatalogItem['package_tiers'];
+      cost_labor_vnd?: number | null;
+    };
     policy?: { client_visible?: boolean; studio_sections?: string[] };
   };
 };

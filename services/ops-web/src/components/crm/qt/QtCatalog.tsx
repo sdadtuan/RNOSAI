@@ -245,6 +245,8 @@ export function QtCatalogDrawer({
             <p>
               <b>Excluded</b> {listOrDash(drawer?.overview?.excluded)}
             </p>
+            <p>CTA {textOrDash(drawer?.overview?.cta)}</p>
+            <p>UTA {textOrDash(drawer?.overview?.uta)}</p>
             <p className="qt-muted">
               Owner {textOrDash(drawer?.overview?.owner)} · Effort {textOrDash(drawer?.overview?.effort)}
             </p>
@@ -267,13 +269,16 @@ export function QtCatalogDrawer({
         ) : null}
         {active === 'pricing' ? (
           hasFinance && drawer?.pricing?.restricted !== true ? (
-            <p>
-              {drawer?.pricing?.package_tiers?.length
-                ? drawer.pricing.package_tiers
-                    .map((tier) => `${tier.tier}: ${tier.suggested_vnd == null ? dash(null) : tier.suggested_vnd}`)
-                    .join(' · ')
-                : dash(null)}
-            </p>
+            <>
+              <p>
+                {drawer?.pricing?.package_tiers?.length
+                  ? drawer.pricing.package_tiers
+                      .map((tier) => `${tier.tier}: ${tier.suggested_vnd == null ? dash(null) : tier.suggested_vnd}`)
+                      .join(' · ')
+                  : dash(null)}
+              </p>
+              <p>Cost {textOrDash(drawer?.pricing?.cost_labor_vnd)}</p>
+            </>
           ) : (
             <p className="qt-muted">Pricing &amp; Cost · cần crm_quote.finance · {dash(null)}</p>
           )
@@ -379,9 +384,10 @@ export function QtCatalogRates({ cards, hasFinance = false }: { cards: QtRateCar
                     {card.effective_to ? `–${card.effective_to}` : '–'}
                   </td>
                   <td>
-                    <span className={`qt-pill${card.rate_expired ? ' qt-pill--warn' : ' qt-pill--info'}`}>
-                      {card.rate_expired ? 'rate_expired' : card.state === 'retired' ? 'Retired' : 'Active'}
+                    <span className={`qt-pill${card.state === 'retired' ? '' : ' qt-pill--info'}`}>
+                      {card.state === 'retired' ? 'Retired' : 'Active'}
                     </span>
+                    {card.rate_expired ? <span className="qt-pill qt-pill--warn">rate_expired</span> : null}
                   </td>
                 </tr>
               ))

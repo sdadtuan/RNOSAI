@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { SpcService } from '../spc/spc.service';
 import { DEFAULT_QUOTE_TIER_PRICING } from './quote-pricing.util';
+import { ProposalsController } from './proposals.controller';
 import { QT_CATALOG_NAV_GROUPS, QuoteCatalogService } from './quote-catalog.service';
 
 const STANDARD_RATE = {
@@ -383,6 +384,130 @@ describe('QuoteCatalogService CAT-03 packages + CAT-04 rates', () => {
     const listed = await svc.listRateCards('2026-09-08');
     expect(listed.items[0].rate_expired).toBe(true);
     expect(listed.items[0].state).toBe('retired');
+  });
+
+  it('retired pill vs date-expired: Retired stays Retired; rate_expired is date-only', async () => {
+    const { db, svc } = load([
+      row({ dv_code: 'DV08', name: 'Meta Ads Performance', active: true, tier_pricing: STANDARD_RATE }),
+    ]);
+    db.rateCards = [
+      {
+        id: 'rc-retired-live',
+        tenant_id: 'PTT',
+        dv_code: 'DV08',
+        package_tier: 'standard',
+        fee_vnd: 12_000_000,
+        cost_labor_vnd: 7_000_000,
+        effective_from: '2026-01-01',
+        effective_to: '2026-12-31',
+        state: 'retired',
+      },
+      {
+        id: 'rc-active-expired',
+        tenant_id: 'PTT',
+        dv_code: 'DV05',
+        package_tier: 'standard',
+        fee_vnd: 18_000_000,
+        cost_labor_vnd: 11_000_000,
+        effective_from: '2025-01-01',
+        effective_to: '2025-12-31',
+        state: 'active',
+      },
+    ];
+
+    const listed = await svc.listRateCards('2026-09-08');
+    const retired = listed.items.find((item) => item.id === 'rc-retired-live');
+    const expired = listed.items.find((item) => item.id === 'rc-active-expired');
+    expect(retired).toMatchObject({ state: 'retired', rate_expired: false });
+    expect(expired).toMatchObject({ state: 'active', rate_expired: true });
+  });
+
+  it('can_add is false when only expired rate cards exist', async () => {
+    const { db, svc } = load(packageCatalogRows());
+    db.rateCards = [
+      {
+        id: 'rc-only-expired',
+        tenant_id: 'PTT',
+        dv_code: 'DV08',
+        package_tier: 'standard',
+        fee_vnd: 12_000_000,
+        cost_labor_vnd: 7_000_000,
+        effective_from: '2025-01-01',
+        effective_to: '2025-12-31',
+        state: 'retired',
+      },
+    ];
+
+    const out = await svc.get(undefined, { hasFinance: true });
+    expect(itemOf(out, 'DV08').can_add_to_client_quote).toBe(false);
+    const growth = (out.packages as Array<{ key: string; can_add: boolean }>).find(
+      (pkg) => pkg.key === 'growth_launch',
+    );
+    expect(growth?.can_add).toBe(false);
+  });
+
+  it('finance payload includes cost field (null or number)', async () => {
+    const { db, svc } = load([
+      row({ dv_code: 'DV08', name: 'Meta Ads Performance', active: true, tier_pricing: STANDARD_RATE }),
+      row({ dv_code: 'DV05', name: 'Content & Social', active: true, tier_pricing: STANDARD_RATE }),
+    ]);
+    db.rateCards = [
+      {
+        id: 'rc-live',
+        tenant_id: 'PTT',
+        dv_code: 'DV08',
+        package_tier: 'standard',
+        fee_vnd: 16_000_000,
+        cost_labor_vnd: 9_200_000,
+        effective_from: '2026-01-01',
+        effective_to: '2026-12-31',
+        state: 'active',
+      },
+    ];
+
+    const withFinance = await svc.get(undefined, { hasFinance: true });
+    const dv08 = itemOf(withFinance, 'DV08').drawer as {
+      pricing: { cost_labor_vnd: number | null; restricted?: boolean };
+    };
+    const dv05 = itemOf(withFinance, 'DV05').drawer as {
+      pricing: { cost_labor_vnd: number | null };
+    };
+    expect(dv08.pricing.restricted).not.toBe(true);
+    expect(dv08.pricing.cost_labor_vnd).toBe(9_200_000);
+    expect(dv05.pricing.cost_labor_vnd).toBeNull();
+
+    const noFinance = await svc.get();
+    expect((itemOf(noFinance, 'DV08').drawer as { pricing: { restricted: boolean } }).pricing.restricted).toBe(
+      true,
+    );
+  });
+
+  it('GET catalog works with staffId 0 / unresolved', async () => {
+    const proposals = {
+      getCatalogForQuote: jest.fn().mockResolvedValue({ families: [], packages: [] }),
+    };
+    const staffAuth = {
+      resolveCrmStaffUserId: jest.fn().mockResolvedValue(null),
+      me: jest.fn().mockResolvedValue(null),
+      hasCap: jest.fn().mockReturnValue(false),
+    };
+    const ctrl = new ProposalsController(
+      proposals as never,
+      {} as never,
+      {} as never,
+      staffAuth as never,
+    );
+
+    await expect(
+      ctrl.getQuoteCatalog({ staffAuthVia: 'jwt', staffUser: { sub: 'uuid-1' } } as never),
+    ).resolves.toEqual({ families: [], packages: [] });
+    expect(proposals.getCatalogForQuote).toHaveBeenCalled();
+    expect(staffAuth.resolveCrmStaffUserId).not.toHaveBeenCalled();
+
+    await expect(ctrl.getQuoteCatalog({ staffAuthVia: 'internal' } as never)).resolves.toEqual({
+      families: [],
+      packages: [],
+    });
   });
 
   it('draft catalog still cannot add via industry package', async () => {
