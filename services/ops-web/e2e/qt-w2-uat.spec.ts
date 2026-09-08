@@ -172,10 +172,13 @@ test.describe('Quotation OS W2 UAT', () => {
       rePolicy.ok,
       `re-policy after critical qty: ${rePolicy.status} ${JSON.stringify(rePolicy.json)}`,
     ).toBeTruthy();
-    const reSections = (rePolicy.json.steps ?? []).map((step) => String(step.section));
-    expect(reSections).toEqual(expect.arrayContaining(['Finance', 'GDKD']));
+    const reSteps = rePolicy.json.steps ?? [];
+    expect(reSteps.length, 'critical qty must re-fire submit-approval').toBeGreaterThan(0);
+    const reSections = reSteps.map((step) => String(step.section));
     const liveGm = rePolicy.json.approval?.policy_snapshot?.gm_bps;
+    // cost_labor_vnd is a line lump; qty 3 with unscaled labor can lift GM above floor.
     if (liveGm != null && liveGm < QT_GM_FLOOR_BPS) {
+      expect(reSections).toEqual(expect.arrayContaining(['Finance', 'GDKD']));
       expect(reSections.filter((section) => section === 'Finance' || section === 'GDKD')).toHaveLength(2);
     }
   });

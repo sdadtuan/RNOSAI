@@ -42,7 +42,7 @@
   ],
   "needs_live_run": [
     "POST submit-approval on GM 2240 bps \u2192 Finance + GDKD; POST publish \u2192 approval_incomplete",
-    "v1 published/sent PUT lines qty/price \u2192 409 revision_required; POST versions \u2192 v2; v1 immutable; GET diff 1/2; re-submit approval after critical qty (Finance + GDKD when GM still below floor)",
+    "v1 published/sent PUT lines qty/price \u2192 409 revision_required; POST versions \u2192 v2; v1 immutable; GET diff 1/2; re-submit approval after critical qty (Finance + GDKD only when live GM still below floor)",
     "mint share on v2; option B + checkbox + OTP \u2192 accepted/lock; convert allowed (OTP via OPS_E2E_QT_OTP \u2014 API never returns the code)",
     "GET /api/public/proposals/:token JSON has no cost/margin/internal/hidden option C",
     "PUT lines package_tier + POST options A/B/C; change SKU/tier changes fee snapshot"
