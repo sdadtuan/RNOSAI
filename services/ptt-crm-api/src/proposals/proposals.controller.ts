@@ -162,6 +162,28 @@ export class ProposalsController {
     );
   }
 
+  @Post('quote-catalog/import')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.catalog', 'manage')
+  async importQuoteCatalog(
+    @Req() req: StaffReq,
+    @Body() body?: { filename?: string; csv?: string; json?: unknown },
+  ) {
+    const staffId =
+      req.staffAuthVia === 'internal' && !req.staffUser
+        ? 0
+        : await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (staffId == null || (req.staffAuthVia !== 'internal' && staffId <= 0)) {
+      throw new ForbiddenException({ error: 'qt_unresolved_staff' });
+    }
+    return this.proposals.importCatalog({
+      filename: body?.filename,
+      csv: body?.csv,
+      json: body?.json,
+      created_by: staffId,
+    });
+  }
+
   @Get('settings')
   @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
   @RequireQuoteAction('view')

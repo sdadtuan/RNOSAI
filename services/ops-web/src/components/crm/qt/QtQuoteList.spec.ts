@@ -5,11 +5,14 @@ import { buildQtListSearchParams } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
 import {
   QT_LIST_CHIPS,
+  QT_LIST_LOST_REASONS,
   QT_OPEN_LIST_STATUSES,
   QtListChips,
   QtListPager,
   QtQuoteTable,
+  QtRejectModal,
   activeListChip,
+  canRejectQuote,
   listQueryFromSearch,
   type QtListItem,
 } from './QtQuoteList';
@@ -142,6 +145,41 @@ describe('list chips + open=1', () => {
     expect(buildQtListSearchParams(listQueryFromSearch(new URLSearchParams('chip=sent'))).get('status')).toBe(
       'sent,viewed',
     );
+  });
+});
+
+describe('LST-01 lost-reason reject modal', () => {
+  it('exposes lost_reason enum budget|competitor|priority|scope|other on rejectable rows', () => {
+    expect(QT_LIST_LOST_REASONS).toEqual(['budget', 'competitor', 'priority', 'scope', 'other']);
+    expect(canRejectQuote('sent')).toBe(true);
+    expect(canRejectQuote('viewed')).toBe(true);
+    expect(canRejectQuote('accepted')).toBe(false);
+
+    const table = renderToStaticMarkup(
+      createElement(QtQuoteTable, {
+        items: [{ ...EMPTY_ROW, id: 9, quote_code: 'QT-PTT-2026-000009', status: 'sent' }],
+        onReject: () => {},
+      }),
+    );
+    expect(table).toMatch(/Từ chối|lost_reason/i);
+    expect(table).toContain('qt-btn');
+
+    const modal = renderToStaticMarkup(
+      createElement(QtRejectModal, {
+        quoteCode: 'QT-PTT-2026-000009',
+        lostReason: '',
+        onLostReason: () => {},
+        onConfirm: () => {},
+        onClose: () => {},
+      }),
+    );
+    expect(modal).toMatch(/lost_reason|Lý do thua/i);
+    expect(modal).toContain('budget');
+    expect(modal).toContain('competitor');
+    expect(modal).toContain('priority');
+    expect(modal).toContain('scope');
+    expect(modal).toContain('other');
+    expect(modal).toContain('qt-card');
   });
 });
 

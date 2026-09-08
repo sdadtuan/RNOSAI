@@ -430,4 +430,26 @@ describe('ProposalsService quote-os wiring', () => {
     });
     expect(repo.patchStatus).not.toHaveBeenCalled();
   });
+
+  it('quote OS viewed → rejected stores lost_reason', async () => {
+    const { svc, repo } = loadService({
+      repo: {
+        getById: jest.fn().mockResolvedValue({
+          id: 9,
+          status: 'viewed',
+          quote_code: 'QT-PTT-2026-000001',
+        }),
+        patchStatus: jest.fn().mockResolvedValue({
+          id: 9,
+          status: 'rejected',
+          lost_reason: 'budget',
+        }),
+        listLines: jest.fn().mockResolvedValue([]),
+      },
+    });
+
+    const out = await svc.patchStatus(9, { status: 'rejected', lost_reason: 'budget' });
+    expect(out.proposal?.status).toBe('rejected');
+    expect(repo.patchStatus).toHaveBeenCalledWith(9, 'rejected', undefined, 'budget');
+  });
 });

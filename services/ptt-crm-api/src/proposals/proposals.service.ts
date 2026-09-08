@@ -35,6 +35,8 @@ import {
   QuoteLineInput,
 } from './proposals.types';
 import { requireLostReason } from './quote-lost-reason.util';
+import { canTransition } from './quote-status.util';
+import type { QuoteStatus } from './quote.types';
 import { isQuoteOsCreate, QuoteCreateService } from './quote-create.service';
 import {
   isQuoteBuilderTarget,
@@ -352,8 +354,12 @@ export class ProposalsService {
         body.price_adjustment_reason,
       );
     }
-    const allowed = PROPOSAL_STATUS_FLOW[proposal.status as ProposalStatus] ?? [];
-    if (!allowed.includes(next)) {
+    const current = String(proposal.status ?? '');
+    const legacyAllowed = PROPOSAL_STATUS_FLOW[current as ProposalStatus];
+    const allowed = legacyAllowed
+      ? legacyAllowed.includes(next)
+      : canTransition(current as QuoteStatus, next as QuoteStatus);
+    if (!allowed) {
       throw new BadRequestException({
         error: 'invalid_status_transition',
         from: proposal.status,
@@ -541,6 +547,10 @@ export class ProposalsService {
 
   listCatalogRateCards(quoteDate?: string, hasFinance = false) {
     return this.quoteCatalog.listRateCards(quoteDate, hasFinance);
+  }
+
+  importCatalog(input: { filename?: string; csv?: string; json?: unknown; created_by: number }) {
+    return this.quoteCatalog.importCatalog(input);
   }
 
   async generate(proposalId: number) {

@@ -54,9 +54,13 @@ export class QuotePublicService {
     return this.shares.accept(rawToken, body, meta);
   }
 
-  async getByToken(rawToken: string): Promise<Record<string, unknown>> {
+  async getByToken(
+    rawToken: string,
+    opts?: { section?: string | null },
+  ): Promise<Record<string, unknown>> {
     const loaded = await this.loadShare(rawToken);
     this.assertLive(loaded);
+    await this.recordView(loaded, opts?.section);
     return this.toPublicDto(loaded);
   }
 
@@ -105,6 +109,20 @@ export class QuotePublicService {
       campaign_period: p.campaign_period,
       proposal_valid_until: p.valid_until,
     });
+  }
+
+  private async recordView(row: Record<string, unknown>, section?: string | null): Promise<void> {
+    const shareId = String(row.id ?? '').trim();
+    if (!shareId) return;
+    const settings = await this.db.query(`SELECT view_tracking FROM crm_quote_settings LIMIT 1`);
+    if (settings.rows[0]?.view_tracking === false || settings.rows[0]?.view_tracking === 'f') {
+      return;
+    }
+    const sectionKey = String(section ?? '').trim() || null;
+    await this.db.query(
+      `INSERT INTO crm_quote_view_events (share_id, section_key) VALUES ($1, $2)`,
+      [shareId, sectionKey],
+    );
   }
 
   private async otpRequired(): Promise<boolean> {

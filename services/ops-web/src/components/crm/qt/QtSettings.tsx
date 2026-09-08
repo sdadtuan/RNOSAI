@@ -7,10 +7,47 @@ import { getAccessToken } from '@/lib/auth';
 import {
   buildQtSettingsPatch,
   getQtSettings,
+  importQtCatalog,
   patchQtSettings,
   type QtSettings,
 } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
+
+export function QtCatalogImportPanel({
+  importing = false,
+  notice = '',
+  onImport,
+}: {
+  importing?: boolean;
+  notice?: string;
+  onImport?: (file: File) => void | Promise<void>;
+}) {
+  return (
+    <section className="qt-card qt-catalog-import">
+      <h3>Nhập catalog</h3>
+      <p className="qt-muted">CSV / JSON → rate cards + revisions. Không sửa snapshot quote đã xuất bản.</p>
+      <label className="qt-form-label">
+        File CSV hoặc JSON
+        <input
+          className="qt-inp"
+          type="file"
+          accept=".csv,.json,text/csv,application/json"
+          aria-label="catalog import file"
+          disabled={!onImport || importing}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file && onImport) void onImport(file);
+            event.target.value = '';
+          }}
+        />
+      </label>
+      <button type="button" className="qt-btn" disabled>
+        {importing ? 'Đang nhập…' : 'Nhập catalog'}
+      </button>
+      {notice ? <p className="qt-muted">{notice}</p> : null}
+    </section>
+  );
+}
 
 export const QT_SETTINGS_TABS = [
   { id: 'set-01', label: 'Mặc định' },
@@ -79,12 +116,18 @@ export function QtSettingsForm({
   settings,
   tab = 'set-01',
   saving = false,
+  importing = false,
+  importNotice = '',
   onSubmit,
+  onImportCatalog,
 }: {
   settings: QtSettings;
   tab?: QtSettingsTabId;
   saving?: boolean;
+  importing?: boolean;
+  importNotice?: string;
   onSubmit?: (form: FormData) => void | Promise<void>;
+  onImportCatalog?: (file: File) => void | Promise<void>;
 }) {
   const active = asSettingsTab(tab);
 
@@ -239,7 +282,7 @@ export function QtSettingsForm({
             Mở CAT-04
           </Link>
         </p>
-        <p className="qt-empty">{dash(null)}</p>
+        <QtCatalogImportPanel importing={importing} notice={importNotice} onImport={onImportCatalog} />
       </div>
 
       <div hidden={active !== 'set-04'}>
@@ -327,6 +370,9 @@ export function QtSettingsChrome({
   notice = '',
   onTab,
   onSubmit,
+  onImportCatalog,
+  importing = false,
+  importNotice = '',
   onRetry,
 }: {
   settings: QtSettings | null;
@@ -335,8 +381,11 @@ export function QtSettingsChrome({
   loading?: boolean;
   error?: string;
   notice?: string;
+  importing?: boolean;
+  importNotice?: string;
   onTab?: (id: QtSettingsTabId) => void;
   onSubmit?: (form: FormData) => void | Promise<void>;
+  onImportCatalog?: (file: File) => void | Promise<void>;
   onRetry?: () => void;
 }) {
   const active = asSettingsTab(tab);
@@ -374,7 +423,15 @@ export function QtSettingsChrome({
       {notice ? <p className="qt-muted">{notice}</p> : null}
       {loading && !settings ? <p className="qt-muted">Đang tải…</p> : null}
       {settings ? (
-        <QtSettingsForm settings={settings} tab={active} saving={saving} onSubmit={onSubmit} />
+        <QtSettingsForm
+          settings={settings}
+          tab={active}
+          saving={saving}
+          importing={importing}
+          importNotice={importNotice}
+          onSubmit={onSubmit}
+          onImportCatalog={onImportCatalog}
+        />
       ) : !loading ? (
         <p className="qt-empty">{dash(null)}</p>
       ) : null}
@@ -392,6 +449,8 @@ export function QtSettings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState('');
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -452,6 +511,33 @@ export function QtSettings() {
       notice={notice}
       onTab={changeTab}
       onSubmit={save}
+      importing={importing}
+      importNotice={importNotice}
+      onImportCatalog={async (file) => {
+        const token = getAccessToken();
+        if (!token) {
+          setError('Phiên đăng nhập không hợp lệ');
+          return;
+        }
+        setImporting(true);
+        setError('');
+        setImportNotice('');
+        try {
+          const text = await file.text();
+          const isJson = /\.json$/i.test(file.name) || text.trim().startsWith('{') || text.trim().startsWith('[');
+          const out = await importQtCatalog(token, {
+            filename: file.name,
+            ...(isJson ? { json: JSON.parse(text) } : { csv: text }),
+          });
+          setImportNotice(
+            `Đã nhập ${out.result.rate_cards} rate card · ${out.result.revisions} revision`,
+          );
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'Không nhập được catalog');
+        } finally {
+          setImporting(false);
+        }
+      }}
       onRetry={() => void load()}
     />
   );

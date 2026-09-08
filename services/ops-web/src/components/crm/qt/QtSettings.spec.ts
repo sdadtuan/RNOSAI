@@ -49,6 +49,15 @@ describe('QtSettingsForm', () => {
       expect(html).not.toContain(banned);
     }
   });
+
+  it('SET-03 exposes catalog CSV/JSON import', () => {
+    const html = renderToStaticMarkup(
+      createElement(QtSettingsForm, { settings: SAMPLE, tab: 'set-03' }),
+    );
+    expect(html).toMatch(/import|Nhập catalog/i);
+    expect(html).toMatch(/csv|json/i);
+    expect(html).toContain('qt-btn');
+  });
 });
 
 describe('buildQtSettingsPatch', () => {

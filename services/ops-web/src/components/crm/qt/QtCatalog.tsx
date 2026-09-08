@@ -6,12 +6,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import {
   getQtQuoteCatalogDoc,
+  importQtCatalog,
   snapshotQtCatalogPackage,
   type QtCatalogItem,
   type QtIndustryPackage,
   type QtRateCard,
 } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
+import { QtCatalogImportPanel } from './QtSettings';
 
 export type { QtCatalogItem };
 
@@ -344,7 +346,19 @@ export function QtCatalogPackages({
   );
 }
 
-export function QtCatalogRates({ cards, hasFinance = false }: { cards: QtRateCard[]; hasFinance?: boolean }) {
+export function QtCatalogRates({
+  cards,
+  hasFinance = false,
+  importing = false,
+  importNotice = '',
+  onImport,
+}: {
+  cards: QtRateCard[];
+  hasFinance?: boolean;
+  importing?: boolean;
+  importNotice?: string;
+  onImport?: (file: File) => void | Promise<void>;
+}) {
   return (
     <section className="qt-catalog qt-catalog--rates" data-screen="cat-04">
       <header className="qt-head">
@@ -359,6 +373,7 @@ export function QtCatalogRates({ cards, hasFinance = false }: { cards: QtRateCar
           </Link>
         </div>
       </header>
+      <QtCatalogImportPanel importing={importing} notice={importNotice} onImport={onImport} />
       <div className="qt-table-wrap">
         <table className="qt-table">
           <thead>
@@ -481,6 +496,9 @@ export function QtCatalogView({
   onAddPackage,
   loading = false,
   error = '',
+  importing = false,
+  importNotice = '',
+  onImportCatalog,
   onRetry,
 }: {
   items: QtCatalogItem[];
@@ -500,6 +518,9 @@ export function QtCatalogView({
   onAddPackage?: (key: string) => void;
   loading?: boolean;
   error?: string;
+  importing?: boolean;
+  importNotice?: string;
+  onImportCatalog?: (file: File) => void | Promise<void>;
   onRetry?: () => void;
 }) {
   if (templateKey === VID_TPL_01) {
@@ -509,7 +530,15 @@ export function QtCatalogView({
     return <QtCatalogPackages packages={packages} onAdd={onAddPackage} addingKey={addingPackage} />;
   }
   if (catalogTab === 'rates') {
-    return <QtCatalogRates cards={rateCards} hasFinance={hasFinance} />;
+    return (
+      <QtCatalogRates
+        cards={rateCards}
+        hasFinance={hasFinance}
+        importing={importing}
+        importNotice={importNotice}
+        onImport={onImportCatalog}
+      />
+    );
   }
 
   const drawerItem = serviceSlug
@@ -613,6 +642,8 @@ export function QtCatalog() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [addingPackage, setAddingPackage] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState('');
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -694,6 +725,31 @@ export function QtCatalog() {
       }}
       loading={loading}
       error={error}
+      importing={importing}
+      importNotice={importNotice}
+      onImportCatalog={async (file) => {
+        const token = getAccessToken();
+        if (!token) return;
+        setImporting(true);
+        setError('');
+        setImportNotice('');
+        try {
+          const text = await file.text();
+          const isJson = /\.json$/i.test(file.name) || text.trim().startsWith('{') || text.trim().startsWith('[');
+          const out = await importQtCatalog(token, {
+            filename: file.name,
+            ...(isJson ? { json: JSON.parse(text) } : { csv: text }),
+          });
+          setImportNotice(
+            `Đã nhập ${out.result.rate_cards} rate card · ${out.result.revisions} revision`,
+          );
+          await load();
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'Không nhập được catalog');
+        } finally {
+          setImporting(false);
+        }
+      }}
       onRetry={() => void load()}
     />
   );

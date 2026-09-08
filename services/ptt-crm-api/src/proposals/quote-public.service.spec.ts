@@ -24,10 +24,11 @@ class PublicMemory {
   activity: Record<string, unknown>[] = [];
   acceptances: Record<string, unknown>[] = [];
   options: Record<string, unknown>[] = [];
-  settings: Record<string, unknown> = { share_expiry_days: 14, otp_required: false };
+  settings: Record<string, unknown> = { share_expiry_days: 14, otp_required: false, view_tracking: true };
   convertCalls = 0;
   txCalls = 0;
   failOnVersionUpdate = false;
+  viewEvents: Record<string, unknown>[] = [];
 
   seed(overrides: { proposal?: Record<string, unknown>; version?: Record<string, unknown> } = {}) {
     const future = new Date(Date.now() + 7 * 86400000).toISOString();
@@ -140,6 +141,16 @@ class PublicMemory {
     if (/INSERT INTO crm_csd|INTO crm_cp_projects|service_lifecycle/i.test(sql)) {
       this.convertCalls += 1;
       throw new Error('must_not_spawn_lifecycles');
+    }
+    if (/INSERT INTO crm_quote_view_events/i.test(sql)) {
+      const row = {
+        id: `view-${this.viewEvents.length + 1}`,
+        share_id: params[0],
+        section_key: params[1] ?? null,
+        created_at: new Date().toISOString(),
+      };
+      this.viewEvents.push(row);
+      return { rows: [row] };
     }
     if (/INSERT INTO crm_quote_shares/i.test(sql)) {
       const row = {
@@ -322,6 +333,33 @@ describe('QuotePublicService', () => {
     expect((dto.cta as { accept: string }).accept).toBe('Xác nhận đề xuất');
     expect(JSON.stringify(dto)).not.toMatch(/ký hợp đồng/i);
     expect(dto.otp_required).toBe(false);
+    expect(db.viewEvents).toHaveLength(1);
+    expect(db.viewEvents[0].share_id).toBe(db.shares[0].id);
+    expect(db.viewEvents[0].section_key).toBeNull();
+  });
+
+  it('GET public share writes view event section and never leaks cost/margin', async () => {
+    const db = new PublicMemory();
+    db.seed();
+    const svc = loadSvc(db);
+    const minted = await svc.mintShare(9);
+
+    const dto = await svc.getByToken(minted.token, { section: '04' });
+    expect(db.viewEvents).toEqual([
+      expect.objectContaining({ share_id: db.shares[0].id, section_key: '04' }),
+    ]);
+    expect(JSON.stringify(dto)).not.toMatch(/"cost"|"margin"|"gm_bps"|"nsr"/);
+    expect(dto.investment).not.toHaveProperty('gm_bps');
+  });
+
+  it('expired public GET does not write view events', async () => {
+    const db = new PublicMemory();
+    db.seed({ proposal: { valid_until: '2020-01-01' } });
+    const svc = loadSvc(db);
+    const minted = await svc.mintShare(9);
+
+    await expect(svc.getByToken(minted.token)).rejects.toBeInstanceOf(GoneException);
+    expect(db.viewEvents).toHaveLength(0);
   });
 
   it('GET includes otp_required and only visible options', async () => {

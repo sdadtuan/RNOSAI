@@ -858,6 +858,22 @@
   text-align: left;
 }
 
+.qt-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 39, 71, 0.36);
+}
+
+.qt-modal .qt-card {
+  width: min(420px, 100%);
+  margin: 0;
+}
+
 .qt-settings-form h2,
 .qt-reports h2,
 .qt-studio h2 {

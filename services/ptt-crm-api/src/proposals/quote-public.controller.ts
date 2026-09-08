@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { QuotePublicService } from './quote-public.service';
 import { QuoteShareService } from './quote-share.service';
@@ -21,8 +21,8 @@ export class QuotePublicController {
 
   @Get(':token')
   @Header('Cache-Control', 'no-store')
-  get(@Param('token') token: string) {
-    return this.quotes.getByToken(token);
+  get(@Param('token') token: string, @Query('section') section?: string) {
+    return this.quotes.getByToken(token, { section });
   }
 
   @Post(':token/otp')

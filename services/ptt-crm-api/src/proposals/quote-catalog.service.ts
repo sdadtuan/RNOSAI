@@ -1,6 +1,8 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { SpcService } from '../spc/spc.service';
 import { QT_QUOTE_QUERY, QuoteQueryPort } from './quote-audit.repository';
+import { parseQuoteCatalogImport } from './quote-catalog-import.util';
+import { applyQuoteCatalogImport, type QuoteCatalogImportJobResult } from './quote-catalog-import.worker';
 import { QT_TENANT_ID } from './quote-settings.repository';
 import {
   QUOTE_PACKAGE_TIERS,
@@ -620,6 +622,29 @@ export class QuoteCatalogService {
       rate_card_id: null,
       cost_labor_vnd: null,
     };
+  }
+
+  async importCatalog(input: {
+    filename?: string;
+    csv?: string;
+    json?: unknown;
+    created_by: number;
+  }): Promise<QuoteCatalogImportJobResult> {
+    const filename = String(input.filename ?? '').trim() || 'catalog.json';
+    const parsed = parseQuoteCatalogImport({
+      filename,
+      csv: input.csv,
+      json: input.json,
+    });
+    const queued = await this.db.query(
+      `INSERT INTO crm_quote_import_jobs (filename, state, result_json, created_by)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, filename, state, result_json, created_by`,
+      [filename, 'queued', { filename }, input.created_by],
+    );
+    const jobId = String(queued.rows[0]?.id ?? '');
+    if (!jobId) catalogBad('import_job_failed');
+    return applyQuoteCatalogImport(this.db.query.bind(this.db), { jobId, parsed });
   }
 
   async listRateCards(quoteDate?: string, hasFinance = false): Promise<QuoteRateCardList> {

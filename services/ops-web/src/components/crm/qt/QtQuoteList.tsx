@@ -6,10 +6,35 @@ import React, { useCallback, useEffect, useMemo, useState, type FormEvent } from
 import { getAccessToken } from '@/lib/auth';
 import {
   getQtQuotes,
+  patchQtQuoteStatus,
   type QtListItem,
   type QtListQuery,
 } from '@/lib/crm/qt-api';
 import { dash } from '@/lib/crm/qt-format';
+
+export const QT_LIST_LOST_REASONS = ['budget', 'competitor', 'priority', 'scope', 'other'] as const;
+
+export type QtListLostReason = (typeof QT_LIST_LOST_REASONS)[number];
+
+const LOST_REASON_LABEL: Record<QtListLostReason, string> = {
+  budget: 'Ngân sách không phù hợp',
+  competitor: 'Chọn đối thủ',
+  priority: 'Đổi ưu tiên nội bộ',
+  scope: 'Scope / timeline',
+  other: 'Khác',
+};
+
+export const QT_LIST_REJECTABLE = [
+  'draft',
+  'sent',
+  'viewed',
+  'negotiation',
+  'pending_approval',
+] as const;
+
+export function canRejectQuote(status: string): boolean {
+  return (QT_LIST_REJECTABLE as readonly string[]).includes(status);
+}
 
 export type { QtListItem };
 
@@ -135,7 +160,65 @@ export function QtListChips({
   );
 }
 
-export function QtQuoteTable({ items }: { items: QtListItem[] }) {
+export function QtRejectModal({
+  quoteCode,
+  lostReason,
+  onLostReason,
+  onConfirm,
+  onClose,
+}: {
+  quoteCode?: string | null;
+  lostReason: string;
+  onLostReason: (value: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="qt-modal" role="dialog" aria-label="lost_reason">
+      <section className="qt-card">
+        <h2>Từ chối báo giá</h2>
+        <p className="qt-muted">{dash(quoteCode)} · lý do thua (lost_reason)</p>
+        <label className="qt-form-label">
+          Lý do thua (lost_reason)
+          <select
+            className="qt-inp"
+            aria-label="lost_reason"
+            value={lostReason}
+            onChange={(event) => onLostReason(event.target.value)}
+          >
+            <option value="">Chọn lý do</option>
+            {QT_LIST_LOST_REASONS.map((reason) => (
+              <option key={reason} value={reason}>
+                {LOST_REASON_LABEL[reason]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="qt-head__actions">
+          <button type="button" className="qt-btn" onClick={onClose}>
+            Huỷ
+          </button>
+          <button
+            type="button"
+            className="qt-btn qt-btn--primary"
+            disabled={!QT_LIST_LOST_REASONS.includes(lostReason as QtListLostReason)}
+            onClick={onConfirm}
+          >
+            Xác nhận từ chối
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function QtQuoteTable({
+  items,
+  onReject,
+}: {
+  items: QtListItem[];
+  onReject?: (row: QtListItem) => void;
+}) {
   return (
     <div className="qt-table-wrap">
       <table className="qt-table">
@@ -152,6 +235,7 @@ export function QtQuoteTable({ items }: { items: QtListItem[] }) {
             <th>Status</th>
             <th>Hiệu lực</th>
             <th>Owner</th>
+            {onReject ? <th>Thao tác</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -175,11 +259,22 @@ export function QtQuoteTable({ items }: { items: QtListItem[] }) {
                 </td>
                 <td>{formatWhen(row.valid_until)}</td>
                 <td>{dash(row.owner?.name)}</td>
+                {onReject ? (
+                  <td>
+                    {canRejectQuote(row.status) ? (
+                      <button type="button" className="qt-btn" onClick={() => onReject(row)}>
+                        Từ chối
+                      </button>
+                    ) : (
+                      dash(null)
+                    )}
+                  </td>
+                ) : null}
               </tr>
             ))
           ) : (
             <tr>
-              <td className="qt-empty" colSpan={11}>
+              <td className="qt-empty" colSpan={onReject ? 12 : 11}>
                 {dash(null)}
               </td>
             </tr>
@@ -234,6 +329,8 @@ export function QtQuoteList() {
   const [draftQ, setDraftQ] = useState(current.get('q') ?? '');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [rejecting, setRejecting] = useState<QtListItem | null>(null);
+  const [lostReason, setLostReason] = useState('');
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -361,8 +458,34 @@ export function QtQuoteList() {
       </div>
 
       <div aria-busy={loading}>
-        <QtQuoteTable items={items} />
+        <QtQuoteTable items={items} onReject={(row) => { setRejecting(row); setLostReason(''); }} />
       </div>
+      {rejecting ? (
+        <QtRejectModal
+          quoteCode={rejecting.quote_code}
+          lostReason={lostReason}
+          onLostReason={setLostReason}
+          onClose={() => setRejecting(null)}
+          onConfirm={() => {
+            void (async () => {
+              const token = getAccessToken();
+              if (!token || !rejecting) return;
+              setError('');
+              try {
+                await patchQtQuoteStatus(token, rejecting.id, {
+                  status: 'rejected',
+                  lost_reason: lostReason,
+                });
+                setRejecting(null);
+                setLostReason('');
+                await load();
+              } catch (caught) {
+                setError(caught instanceof Error ? caught.message : 'Không từ chối được báo giá');
+              }
+            })();
+          }}
+        />
+      ) : null}
       <QtListPager
         page={page}
         pageSize={pageSize}

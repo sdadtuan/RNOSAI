@@ -184,6 +184,34 @@ export function getQtQuotes(token: string, query: QtListQuery = {}) {
   return qtFetch<QtListResult>(token, qs ? `?${qs}` : '');
 }
 
+export function patchQtQuoteStatus(
+  token: string,
+  id: number,
+  body: { status: string; lost_reason?: string | null },
+) {
+  return qtFetch<{ proposal: { id: number; status: string; lost_reason?: string | null } }>(
+    token,
+    `/${id}/status`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+  );
+}
+
+export type QtCatalogImportResult = {
+  job_id: string;
+  state: 'done' | 'failed' | string;
+  result: { rate_cards: number; revisions: number; errors: string[] };
+};
+
+export function importQtCatalog(
+  token: string,
+  body: { filename: string; csv?: string; json?: unknown },
+) {
+  return qtFetch<QtCatalogImportResult>(token, '/quote-catalog/import', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export function createQtQuote(token: string, body: QtCreateBody, idempotencyKey: string) {
   return qtFetch<QtCreateResult>(token, '', {
     method: 'POST',
