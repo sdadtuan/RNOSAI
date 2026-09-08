@@ -74,6 +74,11 @@ CREATE TABLE IF NOT EXISTS crm_quote_publications (
 ALTER TABLE crm_quote_shares
   ADD COLUMN IF NOT EXISTS publication_id UUID REFERENCES crm_quote_publications(id);
 
+ALTER TABLE crm_quote_shares
+  ADD COLUMN IF NOT EXISTS otp_hash TEXT,
+  ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS otp_attempts INTEGER NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS crm_quote_view_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   share_id UUID NOT NULL REFERENCES crm_quote_shares(id),

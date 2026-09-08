@@ -1,34 +1,11 @@
-import {
-  BadRequestException,
-  ConflictException,
-  GoneException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import {
-  QuoteAuditRepository,
-  QT_QUOTE_QUERY,
-  QuoteQueryFn,
-  QuoteQueryPort,
-} from './quote-audit.repository';
+import { GoneException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { QT_QUOTE_QUERY, QuoteQueryPort } from './quote-audit.repository';
 import { stripPublicQuote } from './quote-public-strip.util';
-import { canTransition } from './quote-status.util';
-import type { QuoteStatus } from './quote.types';
-import {
-  generateQuoteShareToken,
-  hashQuoteShareToken,
-  isTimestampPast,
-  shareExpiresAt,
-} from './quote-share.util';
+import { QuoteShareService, type PublicAcceptBody, type PublicAcceptMeta } from './quote-share.service';
+import { PUBLIC_ACCEPT_CTA, hashQuoteShareToken, isTimestampPast } from './quote-share.util';
 
-export const PUBLIC_ACCEPT_CTA = 'Xác nhận đề xuất';
-
-export type PublicAcceptBody = {
-  accepted?: unknown;
-  name?: unknown;
-  email?: unknown;
-};
+export { PUBLIC_ACCEPT_CTA };
+export type { PublicAcceptBody, PublicAcceptMeta };
 
 function asObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -62,38 +39,19 @@ function gone(error: 'quote_expired' | 'quote_revoked', quoteCode: string | null
 export class QuotePublicService {
   constructor(
     @Inject(QT_QUOTE_QUERY) private readonly db: QuoteQueryPort,
-    private readonly audit: QuoteAuditRepository,
+    private readonly shares: QuoteShareService,
   ) {}
 
   async mintShare(proposalId: number): Promise<{ token: string; expires_at: string; share_id: string }> {
-    const proposal = await this.db.query(
-      `SELECT id, current_version_id FROM crm_proposals WHERE id = $1 LIMIT 1`,
-      [proposalId],
-    );
-    const row = proposal.rows[0];
-    const versionId = String(row?.current_version_id ?? '').trim();
-    if (!row || !versionId) {
-      throw new NotFoundException({ error: 'version_not_found' });
-    }
-    const settings = await this.db.query(
-      `SELECT share_expiry_days FROM crm_quote_settings LIMIT 1`,
-    );
-    const days = Number(settings.rows[0]?.share_expiry_days ?? 14);
-    const token = generateQuoteShareToken();
-    const expires = shareExpiresAt(days);
-    const inserted = await this.db.query(
-      `INSERT INTO crm_quote_shares (version_id, token_hash, expires_at)
-       VALUES ($1, $2, $3)
-       RETURNING id, version_id, token_hash, expires_at, revoked_at`,
-      [versionId, hashQuoteShareToken(token), expires.toISOString()],
-    );
-    const share = inserted.rows[0];
-    if (!share) throw new BadRequestException({ error: 'share_insert_failed' });
-    return {
-      token,
-      expires_at: String(share.expires_at ?? expires.toISOString()),
-      share_id: String(share.id),
-    };
+    return this.shares.mintShare(proposalId);
+  }
+
+  async accept(
+    rawToken: string,
+    body: PublicAcceptBody,
+    meta: PublicAcceptMeta = {},
+  ): Promise<Record<string, unknown>> {
+    return this.shares.accept(rawToken, body, meta);
   }
 
   async getByToken(rawToken: string): Promise<Record<string, unknown>> {
@@ -147,71 +105,6 @@ export class QuotePublicService {
       campaign_period: p.campaign_period,
       proposal_valid_until: p.valid_until,
     });
-  }
-
-  async accept(rawToken: string, body: PublicAcceptBody): Promise<Record<string, unknown>> {
-    const loaded = await this.loadShare(rawToken);
-    this.assertLive(loaded);
-    if (body.accepted !== true) {
-      throw new BadRequestException({ error: 'accept_required' });
-    }
-    const name = String(body.name ?? '').trim();
-    const email = String(body.email ?? '').trim();
-    if (!name) throw new BadRequestException({ error: 'name_required' });
-    if (!email || !email.includes('@')) throw new BadRequestException({ error: 'email_required' });
-
-    const proposalId = Number(loaded.proposal_id);
-    const accepted = {
-      status: 'accepted',
-      option_key: 'A',
-      cta: { accept: PUBLIC_ACCEPT_CTA },
-    };
-    const currentStatus = String(loaded.status ?? '') as QuoteStatus;
-    if (currentStatus === 'accepted') {
-      return accepted;
-    }
-    if (!canTransition(currentStatus, 'accepted')) {
-      throw new ConflictException({ error: 'invalid_status_transition', status: currentStatus });
-    }
-
-    const snap = {
-      ...asObject(loaded.snapshot_json),
-      accepted_option_key: 'A',
-    };
-    await this.inTx(async (query) => {
-      await query(
-        `UPDATE crm_proposals SET status = $1, updated_at = $2 WHERE id = $3`,
-        ['accepted', new Date().toISOString(), proposalId],
-      );
-      await query(
-        `UPDATE crm_quote_versions SET state = $1, snapshot_json = $2 WHERE id::text = $3`,
-        ['accepted', snap, String(loaded.version_id)],
-      );
-      await query(
-        `UPDATE crm_quote_line_item SET option_key = $1 WHERE proposal_id = $2`,
-        ['A', proposalId],
-      );
-      await this.audit.insert(
-        {
-          proposal_id: proposalId,
-          version_id: String(loaded.version_id),
-          actor_kind: 'client',
-          action: 'public.accept',
-          resource: 'quote_share',
-          snapshot_json: { option_key: 'A', name, email },
-        },
-        query,
-      );
-    });
-
-    return accepted;
-  }
-
-  private inTx<T>(fn: (query: QuoteQueryFn) => Promise<T>): Promise<T> {
-    if (!this.db.withTransaction) {
-      throw new BadRequestException({ error: 'tx_unavailable' });
-    }
-    return this.db.withTransaction(fn);
   }
 
   private async loadShare(rawToken: string): Promise<Record<string, unknown>> {

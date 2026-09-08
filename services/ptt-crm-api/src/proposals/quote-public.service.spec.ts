@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import { ConflictException, GoneException } from '@nestjs/common';
 import { QuoteAuditRepository } from './quote-audit.repository';
 import { QuotePublicService } from './quote-public.service';
+import { QuoteShareService } from './quote-share.service';
 import { hashQuoteShareToken } from './quote-share.util';
 
 const VID = '19d722af-0000-4000-8000-000000000010';
@@ -21,7 +22,9 @@ class PublicMemory {
   payments: Record<string, unknown>[] = [];
   lines: Record<string, unknown>[] = [];
   activity: Record<string, unknown>[] = [];
-  settings: Record<string, unknown> = { share_expiry_days: 14 };
+  acceptances: Record<string, unknown>[] = [];
+  options: Record<string, unknown>[] = [];
+  settings: Record<string, unknown> = { share_expiry_days: 14, otp_required: false };
   convertCalls = 0;
   txCalls = 0;
   failOnVersionUpdate = false;
@@ -145,9 +148,25 @@ class PublicMemory {
         token_hash: params[1],
         expires_at: params[2],
         revoked_at: null,
+        otp_hash: null,
+        otp_expires_at: null,
+        otp_attempts: 0,
       };
       this.shares.push(row);
       return { rows: [row] };
+    }
+    if (/UPDATE crm_quote_shares/i.test(sql) && /otp_/i.test(sql)) {
+      const share = this.shares.find((row) => String(row.id) === String(params[params.length - 1]));
+      if (share) {
+        if (/otp_hash/i.test(sql) && /otp_expires_at/i.test(sql)) {
+          share.otp_hash = params[0];
+          share.otp_expires_at = params[1];
+          share.otp_attempts = params[2] ?? 0;
+        } else if (/otp_attempts/i.test(sql)) {
+          share.otp_attempts = params[0];
+        }
+      }
+      return { rows: share ? [share] : [] };
     }
     if (/FROM crm_quote_shares/i.test(sql)) {
       const hash = String(params[0] ?? '');
@@ -197,6 +216,24 @@ class PublicMemory {
     if (/FROM crm_quote_settings/i.test(sql)) {
       return { rows: [this.settings] };
     }
+    if (/FROM crm_quote_options/i.test(sql)) {
+      const vid = String(params[0] ?? '');
+      return { rows: this.options.filter((row) => String(row.version_id) === vid) };
+    }
+    if (/INSERT INTO crm_quote_acceptances/i.test(sql)) {
+      const row = {
+        id: `acc-${this.acceptances.length + 1}`,
+        version_id: params[0],
+        option_key: params[1],
+        signer_name: params[2],
+        signer_title: params[3],
+        signer_email: params[4],
+        ip: params[5],
+        user_agent: params[6],
+      };
+      this.acceptances.push(row);
+      return { rows: [row] };
+    }
     if (/FROM crm_proposals/i.test(sql) && /WHERE id/i.test(sql)) {
       const row = this.proposals.get(Number(params[0]));
       return { rows: row ? [row] : [] };
@@ -232,7 +269,7 @@ class PublicMemory {
     if (/UPDATE crm_quote_line_item/i.test(sql)) {
       for (const line of this.lines) {
         if (Number(line.proposal_id) === Number(params[1] ?? params[0])) {
-          line.option_key = 'A';
+          line.option_key = params[0];
         }
       }
       return { rows: this.lines };
@@ -258,7 +295,9 @@ class PublicMemory {
 
 function loadSvc(db: PublicMemory) {
   const audit = new QuoteAuditRepository(db);
-  return new QuotePublicService(db, audit);
+  const mailer = { send: async () => ({ ok: true, skipped: true }) };
+  const shares = new QuoteShareService(db, audit, mailer as never);
+  return new QuotePublicService(db, shares);
 }
 
 describe('QuotePublicService', () => {
@@ -438,6 +477,7 @@ describe('quote-public.controller wiring', () => {
     expect(src).toMatch(/@Controller\('api\/public\/proposals'\)/);
     expect(src).not.toMatch(/StaffQuoteGuard|StaffOrInternalKeyGuard|StaffProposalsWriteGuard/);
     expect(src).toMatch(/:token\/accept/);
+    expect(src).toMatch(/:token\/otp/);
     expect(src).toMatch(/Get\(':token'\)/);
   });
 });

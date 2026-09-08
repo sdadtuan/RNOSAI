@@ -4,6 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { QuoteApprovalService } from './quote-approval.service';
 import { QuoteAuditRepository } from './quote-audit.repository';
 import { QuotePublicService } from './quote-public.service';
+import { QuoteShareService } from './quote-share.service';
 import { QuoteStudioService } from './quote-studio.service';
 
 const VID = '19d722af-0000-4000-8000-000000000024';
@@ -238,7 +239,9 @@ function load(overrides: { studio?: Record<string, unknown> } = {}) {
   db.seed(overrides);
   const audit = new QuoteAuditRepository(db);
   const approvals = new QuoteApprovalService(db);
-  const publicQuotes = new QuotePublicService(db, audit);
+  const mailer = { send: async () => ({ ok: true, skipped: true }) };
+  const shares = new QuoteShareService(db, audit, mailer as never);
+  const publicQuotes = new QuotePublicService(db, shares);
   const svc = new QuoteStudioService(db, approvals, publicQuotes, audit);
   return { db, svc, publicQuotes };
 }

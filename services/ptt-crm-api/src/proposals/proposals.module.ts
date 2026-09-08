@@ -16,9 +16,11 @@ import { ProposalsService } from './proposals.service';
 import { QuoteBuilderService } from './quote-builder.service';
 import { QuoteCatalogService } from './quote-catalog.service';
 import { QuoteConvertService } from './quote-convert.service';
+import { PortalModule } from '../portal/portal.module';
 import { QuotePublicController } from './quote-public.controller';
 import { QuotePublicService } from './quote-public.service';
 import { QuoteShareController } from './quote-share.controller';
+import { QuoteShareService } from './quote-share.service';
 import { QuoteApprovalStepsController } from './quote-approval-steps.controller';
 import { QuoteApprovalService } from './quote-approval.service';
 import { QuoteVersionsController } from './quote-versions.controller';
@@ -47,6 +49,7 @@ import { QuoteStudioService } from './quote-studio.service';
     forwardRef(() => ServiceLifecycleModule),
     forwardRef(() => LeadsFunnelModule),
     InvoicesModule,
+    PortalModule,
   ],
   controllers: [
     ProposalsController,
@@ -74,6 +77,7 @@ import { QuoteStudioService } from './quote-studio.service';
     QuoteCatalogService,
     QuoteConvertService,
     QuotePublicService,
+    QuoteShareService,
     QuoteExpiryWorkerService,
     QuoteOptionsService,
     QuoteApprovalService,
@@ -92,6 +96,7 @@ import { QuoteStudioService } from './quote-studio.service';
     QuoteCatalogService,
     QuoteConvertService,
     QuotePublicService,
+    QuoteShareService,
     QuoteOptionsService,
     QuoteApprovalService,
     QuoteStudioService,
