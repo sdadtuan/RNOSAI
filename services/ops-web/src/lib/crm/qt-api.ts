@@ -107,6 +107,86 @@ export function getQtActivity(token: string, query: QtOverviewQuery = {}) {
   return qtFetch<{ items: QtActivityRow[] }>(token, querySuffix('/activity', query));
 }
 
+export type QtListQuery = {
+  scope?: 'me' | 'team' | 'all';
+  status?: string;
+  q?: string;
+  expiring?: boolean | string;
+  pending_my_approval?: boolean | string;
+  page?: number | string;
+  page_size?: number | string;
+  open?: boolean;
+};
+
+export type QtListItem = {
+  id: number;
+  quote_code: string | null;
+  version_n: number | null;
+  client_name: string | null;
+  lead_code: string | null;
+  option: null;
+  payable_vnd: number | null;
+  fee_vnd: number | null;
+  gm_bps: number | null;
+  status: string;
+  valid_until: string | null;
+  owner: { staff_id: number | null; name: string | null };
+};
+
+export type QtListResult = {
+  items: QtListItem[];
+  page: number;
+  page_size: number;
+  total: number;
+};
+
+export type QtCreateSource = 'lead' | 'am360' | 'blank';
+
+export type QtCreateBody = {
+  source: QtCreateSource;
+  lead_id?: number;
+  agency_client_id?: string;
+  customer_id?: number;
+  title: string;
+  quote_type: string;
+};
+
+export type QtCreateResult = {
+  proposal: {
+    id: number;
+    quote_code: string;
+    status: string;
+    current_version_id: string;
+  };
+};
+
+function truthyFlag(value: unknown): boolean {
+  if (value === true) return true;
+  const raw = String(value ?? '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+export function getQtQuotes(token: string, query: QtListQuery = {}) {
+  const params = new URLSearchParams();
+  if (query.scope) params.set('scope', query.scope);
+  if (query.status) params.set('status', query.status);
+  if (query.q) params.set('q', query.q);
+  if (truthyFlag(query.expiring)) params.set('expiring', '1');
+  if (truthyFlag(query.pending_my_approval)) params.set('pending_my_approval', '1');
+  if (query.page) params.set('page', String(query.page));
+  if (query.page_size) params.set('page_size', String(query.page_size));
+  const qs = params.toString();
+  return qtFetch<QtListResult>(token, qs ? `?${qs}` : '');
+}
+
+export function createQtQuote(token: string, body: QtCreateBody, idempotencyKey: string) {
+  return qtFetch<QtCreateResult>(token, '', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(body),
+  });
+}
+
 export function getQtActivityCsv(token: string, query: QtOverviewQuery = {}) {
   const params = new URLSearchParams();
   if (query.from) params.set('from', query.from);
@@ -129,7 +209,8 @@ export async function qtFetch<T>(
   if (init?.body && !headers['Content-Type'] && typeof init.body === 'string') {
     headers['Content-Type'] = 'application/json';
   }
-  const suffix = path.startsWith('/') ? path : `/${path}`;
+  const suffix =
+    !path || path.startsWith('?') ? path : path.startsWith('/') ? path : `/${path}`;
   const res = await fetch(`${API_BASE}/api/crm/proposals${suffix}`, {
     ...init,
     headers,

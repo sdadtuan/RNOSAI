@@ -1,5 +1,5 @@
-import { QtPlaceholder } from '@/components/crm/qt/QtShell';
+import { QtCreateForm } from '@/components/crm/qt/QtCreateForm';
 
 export default function QtNewPage() {
-  return <QtPlaceholder title="Tạo báo giá" />;
+  return <QtCreateForm />;
 }

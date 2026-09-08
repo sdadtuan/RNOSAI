@@ -1,5 +1,5 @@
-import { QtPlaceholder } from '@/components/crm/qt/QtShell';
+import { QtQuoteList } from '@/components/crm/qt/QtQuoteList';
 
 export default function QtListPage() {
-  return <QtPlaceholder title="Báo giá" />;
+  return <QtQuoteList />;
 }
