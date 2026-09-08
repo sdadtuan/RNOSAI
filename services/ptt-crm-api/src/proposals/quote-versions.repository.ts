@@ -24,6 +24,7 @@ export type QuoteProposalHeader = {
   customer_id: number | null;
   valid_until: string | null;
   owner_staff_id: number | null;
+  archived_at: string | null;
 };
 
 export type QuoteVersionRow = {
@@ -154,6 +155,7 @@ function mapProposal(row: Record<string, unknown>): QuoteProposalHeader {
     customer_id: nullableNum(row.customer_id),
     valid_until: row.valid_until == null ? null : String(row.valid_until),
     owner_staff_id: nullableNum(row.owner_staff_id),
+    archived_at: row.archived_at == null || row.archived_at === '' ? null : String(row.archived_at),
   };
 }
 
@@ -244,7 +246,8 @@ export class QuoteVersionsRepository {
   async getProposal(id: number, query?: QuoteQueryFn): Promise<QuoteProposalHeader | null> {
     const result = await this.run(query)(
       `SELECT id, quote_code, current_version_id, row_version, status, title, objective,
-              audience, campaign_period, agency_client_id, customer_id, valid_until, owner_staff_id
+              audience, campaign_period, agency_client_id, customer_id, valid_until, owner_staff_id,
+              archived_at
          FROM crm_proposals
         WHERE id = $1
         LIMIT 1`,
@@ -273,7 +276,8 @@ export class QuoteVersionsRepository {
         WHERE row_version = $7
           AND id = $8
         RETURNING id, quote_code, current_version_id, row_version, status, title, objective,
-                  audience, campaign_period, agency_client_id, customer_id, valid_until, owner_staff_id`,
+                  audience, campaign_period, agency_client_id, customer_id, valid_until, owner_staff_id,
+                  archived_at`,
       [
         patch.title ?? current.title,
         patch.objective ?? current.objective,

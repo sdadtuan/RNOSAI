@@ -301,6 +301,11 @@ export class ProposalsService {
     ifMatch: string | undefined,
     actor: QuoteBuilderActor,
   ) {
+    const proposal = await this.repo.getById(proposalId);
+    if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
+    if (!proposal.quote_code && !proposal.current_version_id) {
+      throw new NotFoundException({ error: 'not_a_quote' });
+    }
     return this.quoteBuilder.patchHeader(proposalId, body, ifMatch, actor);
   }
 

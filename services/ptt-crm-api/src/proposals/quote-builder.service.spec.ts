@@ -46,6 +46,7 @@ class BuilderMemory {
       agency_client_id: CLIENT_ID,
       customer_id: 44,
       owner_staff_id: 7,
+      archived_at: null,
       ...overrides,
     });
     this.versions.set(vid, {
@@ -544,6 +545,143 @@ describe('QuoteBuilderService', () => {
         { staffId: 0, staffAuthVia: 'internal', hasFinance: true },
       ),
     ).resolves.toMatchObject({ proposal_id: 9 });
+  });
+
+  it('recalc persist uses one withTransaction for payments, totals, payable, and audit', async () => {
+    const { db, versions, audit, svc } = load();
+    const { vid } = db.seedQuote();
+    db.catalog.set('DV02', activeCatalog());
+    await svc.putLines(9, { lines: [{ dv_code: 'DV02', package_tier: 'standard' }] }, FINANCE);
+
+    const persistQuery = jest.fn(async (sql: string, params?: unknown[]) => db.query(sql, params));
+    const withTxn = jest
+      .spyOn(versions, 'withTransaction')
+      .mockImplementation(async (fn) => fn(persistQuery));
+    const replacePayments = jest.spyOn(versions, 'replacePayments');
+    const updateTotals = jest.spyOn(versions, 'updateTotals');
+    const setPayable = jest.spyOn(versions, 'setProposalPayable');
+    const auditInsert = jest.spyOn(audit, 'insert');
+
+    await svc.recalculate(9, vid, FINANCE);
+
+    expect(withTxn).toHaveBeenCalledTimes(1);
+    expect(replacePayments).toHaveBeenCalledWith(vid, expect.any(Array), persistQuery);
+    expect(updateTotals).toHaveBeenCalledWith(
+      vid,
+      expect.any(Object),
+      expect.any(Object),
+      persistQuery,
+    );
+    expect(setPayable).toHaveBeenCalledWith(9, expect.anything(), persistQuery);
+    expect(auditInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'quote.recalculated' }),
+      persistQuery,
+    );
+  });
+
+  it('PATCH Deal Room proposal without quote_code is rejected', async () => {
+    const { db, svc } = load();
+    db.proposals.set(9, {
+      id: 9,
+      quote_code: null,
+      current_version_id: null,
+      row_version: 1,
+      status: 'draft',
+      title: 'Deal Room',
+      objective: 'Win',
+      audience: 'CFO',
+      campaign_period: '2026-Q3',
+      agency_client_id: CLIENT_ID,
+      customer_id: 44,
+      owner_staff_id: 7,
+      archived_at: null,
+    });
+
+    await expect(svc.patchHeader(9, { title: 'Hacked' }, '1', FINANCE)).rejects.toMatchObject({
+      response: { error: 'not_a_quote' },
+    });
+    expect(db.proposals.get(9)?.title).toBe('Deal Room');
+  });
+
+  it('archived_at rejects header, lines, recalc, and payments', async () => {
+    const { db, svc } = load();
+    const { vid } = db.seedQuote({ archived_at: '2026-09-01T00:00:00.000Z' });
+    db.catalog.set('DV02', activeCatalog());
+
+    await expect(svc.patchHeader(9, { title: 'x' }, '1', FINANCE)).rejects.toMatchObject({
+      response: { error: 'quote_archived' },
+    });
+    await expect(
+      svc.putLines(9, { lines: [{ dv_code: 'DV02', package_tier: 'standard' }] }, FINANCE),
+    ).rejects.toMatchObject({ response: { error: 'quote_archived' } });
+    await expect(svc.recalculate(9, vid, FINANCE)).rejects.toMatchObject({
+      response: { error: 'quote_archived' },
+    });
+    await expect(
+      svc.putPayments(vid, { items: [{ pct_bps: 5000 }, { pct_bps: 5000 }] }, FINANCE),
+    ).rejects.toMatchObject({ response: { error: 'quote_archived' } });
+  });
+
+  it('recalc of a non-working version is rejected', async () => {
+    const { db, svc } = load();
+    const { vid } = db.seedQuote();
+    db.catalog.set('DV02', activeCatalog());
+    await svc.putLines(9, { lines: [{ dv_code: 'DV02', package_tier: 'standard' }] }, FINANCE);
+    db.versions.get(vid)!.state = 'published';
+
+    await expect(svc.recalculate(9, vid, FINANCE)).rejects.toMatchObject({
+      response: { error: 'version_not_working' },
+    });
+    expect(db.versions.get(vid)?.fee_vnd).toBe(0);
+  });
+
+  it('does not treat raw in_review as draft for W1 writes', async () => {
+    const { db, svc } = load();
+    const { vid } = db.seedQuote({ status: 'in_review' });
+    db.catalog.set('DV02', activeCatalog());
+
+    await expect(
+      svc.putLines(9, { lines: [{ dv_code: 'DV02', package_tier: 'standard' }] }, FINANCE),
+    ).rejects.toMatchObject({ response: { error: 'quote_not_draft' } });
+    await expect(svc.patchHeader(9, { title: 'x' }, '1', FINANCE)).rejects.toMatchObject({
+      response: { error: 'quote_not_draft' },
+    });
+    await expect(svc.recalculate(9, vid, FINANCE)).rejects.toMatchObject({
+      response: { error: 'quote_not_draft' },
+    });
+  });
+
+  it('persists pass_through and excludes it from NSR', async () => {
+    const { db, svc } = load();
+    const { vid } = db.seedQuote();
+    db.catalog.set('DV02', activeCatalog(25000000, 10000000));
+    db.catalog.set('DV99', {
+      dv_code: 'DV99',
+      slug: 'pass',
+      name: 'Pass',
+      active: true,
+      status: 'active',
+      service_slug: 'pass',
+      tier_pricing: {
+        standard: { price_vnd: 5000000, min_vnd: 5000000, max_vnd: 5000000 },
+      },
+    });
+
+    const written = await svc.putLines(
+      9,
+      {
+        lines: [
+          { dv_code: 'DV02', package_tier: 'standard', item_type: 'fee' },
+          { dv_code: 'DV99', package_tier: 'standard', item_type: 'pass_through' },
+        ],
+      },
+      FINANCE,
+    );
+    expect(written.lines.map((line) => line.item_type)).toEqual(['fee', 'pass_through']);
+
+    const out = await svc.recalculate(9, vid, FINANCE);
+    expect(out.nsr_vnd).toBe(25000000);
+    expect(out.fee_vnd).toBe(25000000);
   });
 
   it('product add does not fall back to DEFAULT_QUOTE_TIER_PRICING', async () => {

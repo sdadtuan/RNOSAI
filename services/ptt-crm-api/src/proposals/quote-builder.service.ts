@@ -32,6 +32,7 @@ export type QuotePaymentItemInput = {
 
 export type QuoteBuilderLineResult = Record<string, unknown> & {
   package_tier: string;
+  item_type?: string;
   catalog_snapshot_json: Record<string, unknown> & {
     rate?: { suggested_vnd?: number };
   };
@@ -117,6 +118,20 @@ export function parsePaymentTemplate(template: string): number[] {
 
 function bad(error: string, extra?: Record<string, unknown>): never {
   throw new BadRequestException({ error, ...extra });
+}
+
+function isQuoteOsProposal(proposal: {
+  quote_code?: string | null;
+  current_version_id?: string | null;
+}): boolean {
+  return Boolean(proposal.quote_code || proposal.current_version_id);
+}
+
+function normalizeItemType(value: unknown): 'fee' | 'media' | 'pass_through' {
+  const raw = String(value ?? 'fee').trim().toLowerCase();
+  if (raw === 'media') return 'media';
+  if (raw === 'pass_through') return 'pass_through';
+  return 'fee';
 }
 
 function asInt(value: unknown): number {
@@ -209,8 +224,8 @@ export class QuoteBuilderService {
     actor: QuoteBuilderActor,
   ) {
     this.assertStaff(actor);
+    const current = await this.requireWritableProposal(proposalId);
     const expected = this.parseIfMatch(ifMatch);
-    const current = await this.requireProposal(proposalId);
     const updated = await this.versions.updateHeader(proposalId, patch, expected);
     if (!updated) {
       throw new ConflictException({
@@ -239,13 +254,14 @@ export class QuoteBuilderService {
       throw new ForbiddenException({ error: 'missing_cap', section: 'crm_quote.finance' });
     }
     if (!Array.isArray(body.lines) || body.lines.length === 0) bad('lines_required');
-    const proposal = await this.requireProposal(proposalId);
+    const proposal = await this.requireWritableProposal(proposalId);
     return this.versions.withTransaction(async (query) => {
       const version =
         (proposal.current_version_id
           ? await this.versions.getVersion(proposal.current_version_id, query)
           : null) ??
         (await this.versions.createWorkingVersion(proposalId, actor.staffId || 0, query));
+      this.assertWorkingVersion(version);
 
       const writes: QuoteBuilderLineWrite[] = [];
       let costMissing = false;
@@ -281,11 +297,12 @@ export class QuoteBuilderService {
     if (actor.includeFinance && !actor.hasFinance) {
       throw new ForbiddenException({ error: 'missing_cap', section: 'crm_quote.finance' });
     }
-    const proposal = await this.requireProposal(proposalId);
+    const proposal = await this.requireWritableProposal(proposalId);
     const version = await this.versions.getVersion(vid);
     if (!version || version.proposal_id !== proposalId) {
       throw new NotFoundException({ error: 'version_not_found' });
     }
+    this.assertWorkingVersion(version);
     if (!isQuoteHeaderComplete(proposal)) bad('header_incomplete');
 
     const lines = await this.versions.listLines(proposalId);
@@ -308,7 +325,6 @@ export class QuoteBuilderService {
       amount_vnd: amounts[index] ?? 0n,
       milestone: payments[index]?.milestone || `Đợt ${index + 1}`,
     }));
-    payments = await this.versions.replacePayments(vid, paymentRows);
     const snapshot = {
       vat_bps: settings.vat_bps,
       lines: lines.map((line) => ({
@@ -334,28 +350,36 @@ export class QuoteBuilderService {
         gm_bps: money.gmBps,
       },
     };
-    await this.versions.updateTotals(
-      vid,
-      {
-        fee_vnd: money.feeVnd,
-        media_vnd: money.mediaVnd,
-        discount_vnd: money.discountVnd,
-        tax_vnd: money.taxVnd,
-        payable_vnd: money.payableVnd,
-        nsr_vnd: money.nsrVnd,
-        direct_cost_vnd: money.directCostVnd,
-        gm_bps: money.gmBps,
-      },
-      snapshot,
-    );
-    await this.versions.setProposalPayable(proposalId, money.payableVnd);
-    await this.audit.insert({
-      proposal_id: proposalId,
-      version_id: vid,
-      actor_staff_id: actor.staffId || null,
-      action: 'quote.recalculated',
-      resource: 'quote_version',
-      snapshot_json: { payable_vnd: Number(money.payableVnd) },
+    payments = await this.versions.withTransaction(async (query) => {
+      const saved = await this.versions.replacePayments(vid, paymentRows, query);
+      await this.versions.updateTotals(
+        vid,
+        {
+          fee_vnd: money.feeVnd,
+          media_vnd: money.mediaVnd,
+          discount_vnd: money.discountVnd,
+          tax_vnd: money.taxVnd,
+          payable_vnd: money.payableVnd,
+          nsr_vnd: money.nsrVnd,
+          direct_cost_vnd: money.directCostVnd,
+          gm_bps: money.gmBps,
+        },
+        snapshot,
+        query,
+      );
+      await this.versions.setProposalPayable(proposalId, money.payableVnd, query);
+      await this.audit.insert(
+        {
+          proposal_id: proposalId,
+          version_id: vid,
+          actor_staff_id: actor.staffId || null,
+          action: 'quote.recalculated',
+          resource: 'quote_version',
+          snapshot_json: { payable_vnd: Number(money.payableVnd) },
+        },
+        query,
+      );
+      return saved;
     });
 
     const out: Record<string, unknown> = {
@@ -392,6 +416,8 @@ export class QuoteBuilderService {
 
     const version = await this.versions.getVersion(vid);
     if (!version) throw new NotFoundException({ error: 'version_not_found' });
+    await this.requireWritableProposal(version.proposal_id);
+    this.assertWorkingVersion(version);
     const settings = await this.versions.loadSettings();
     const lines = await this.versions.listLines(version.proposal_id);
     const money = this.computeMoney(lines, settings.vat_bps);
@@ -424,7 +450,7 @@ export class QuoteBuilderService {
     const tier = normalizeQuoteTier(String(input.package_tier ?? 'standard'));
     if (!tier) bad('invalid_package_tier', { tier: input.package_tier });
     const clientVisible = input.client_visible !== false;
-    const itemType = String(input.item_type ?? 'fee').trim() === 'media' ? 'media' : 'fee';
+    const itemType = normalizeItemType(input.item_type);
 
     const existingSnap =
       input.catalog_snapshot_json && typeof input.catalog_snapshot_json === 'object'
@@ -525,19 +551,33 @@ export class QuoteBuilderService {
   }
 
   private computeMoney(lines: QuoteBuilderLineRow[], vatBps: number) {
-    const feeLines = lines.filter((line) => line.item_type !== 'media');
-    const mediaLines = lines.filter((line) => line.item_type === 'media');
+    const feeLines = lines.filter((line) => normalizeItemType(line.item_type) === 'fee');
+    const mediaLines = lines.filter((line) => normalizeItemType(line.item_type) === 'media');
+    const passThroughLines = lines.filter(
+      (line) => normalizeItemType(line.item_type) === 'pass_through',
+    );
     const feeVnd = feeLines.reduce((sum, line) => sum + moneyOf(line.final_price_vnd), 0n);
     const mediaVnd = mediaLines.reduce(
       (sum, line) => sum + moneyOf(line.media_amount_vnd || line.final_price_vnd),
       0n,
     );
+    const passThroughVnd = passThroughLines.reduce(
+      (sum, line) => sum + moneyOf(line.final_price_vnd),
+      0n,
+    );
     const discountVnd = 0n;
-    const { taxVnd, payableVnd } = calcPayable({ feeVnd, mediaVnd, discountVnd, vatBps });
+    const { taxVnd, payableVnd } = calcPayable({
+      feeVnd: feeVnd + passThroughVnd,
+      mediaVnd,
+      discountVnd,
+      vatBps,
+    });
     const nsrVnd = calcNsr(
       lines.map((line) => ({
-        itemType: line.item_type,
-        netVnd: moneyOf(line.item_type === 'media' ? 0 : line.final_price_vnd),
+        itemType: normalizeItemType(line.item_type),
+        netVnd: moneyOf(
+          normalizeItemType(line.item_type) === 'fee' ? line.final_price_vnd : 0,
+        ),
       })),
     );
     let costLabor: number | null = 0;
@@ -608,10 +648,26 @@ export class QuoteBuilderService {
     return (actor.hasFinance ? out : stripFinance(out)) as QuoteBuilderLinesResult;
   }
 
-  private async requireProposal(id: number): Promise<QuoteProposalHeader> {
+  private async requireWritableProposal(id: number): Promise<QuoteProposalHeader> {
     const proposal = await this.versions.getProposal(id);
     if (!proposal) throw new NotFoundException({ error: 'quote_not_found' });
+    if (!isQuoteOsProposal(proposal)) {
+      throw new NotFoundException({ error: 'not_a_quote' });
+    }
+    if (proposal.archived_at) {
+      throw new ConflictException({ error: 'quote_archived' });
+    }
+    const rawStatus = String(proposal.status ?? '').trim().toLowerCase();
+    if (rawStatus !== 'draft') {
+      throw new ConflictException({ error: 'quote_not_draft' });
+    }
     return proposal;
+  }
+
+  private assertWorkingVersion(version: { state?: string } | null): void {
+    if (!version || String(version.state ?? '').trim().toLowerCase() !== 'working') {
+      throw new ConflictException({ error: 'version_not_working' });
+    }
   }
 
   private assertStaff(actor: QuoteBuilderActor): void {

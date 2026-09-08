@@ -247,6 +247,21 @@ describe('ProposalsService quote-os wiring', () => {
     expect(quoteBuilder.putLines).not.toHaveBeenCalled();
   });
 
+  it('PATCH Deal Room id without quote_code is rejected', async () => {
+    const { svc, quoteBuilder, repo } = loadService({});
+
+    await expect(
+      svc.patchQuoteHeader(
+        9,
+        { title: 'Hacked' },
+        '1',
+        { staffId: 7, staffAuthVia: 'jwt', hasFinance: true },
+      ),
+    ).rejects.toMatchObject({ response: { error: 'not_a_quote' } });
+    expect(quoteBuilder.patchHeader).not.toHaveBeenCalled();
+    expect(repo.getById).toHaveBeenCalledWith(9);
+  });
+
   it('putLines with quote_code delegates to quote-builder', async () => {
     const { svc, repo, quoteBuilder } = loadService({
       repo: {

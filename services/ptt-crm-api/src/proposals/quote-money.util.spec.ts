@@ -16,6 +16,15 @@ describe('quote-money.util', () => {
     expect(nsr).toBe(126000000n);
   });
 
+  it('excludes pass_through from NSR', () => {
+    const nsr = calcNsr([
+      { itemType: 'fee', netVnd: 25000000n },
+      { itemType: 'pass_through', netVnd: 5000000n },
+      { itemType: 'media', netVnd: 120000000n },
+    ]);
+    expect(nsr).toBe(25000000n);
+  });
+
   it('puts rounding remainder on the last installment', () => {
     expect(allocatePayment(100n, [3333, 3333, 3334])).toEqual([33n, 33n, 34n]);
   });
