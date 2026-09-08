@@ -12,6 +12,7 @@ class OptionsMemory {
   ]);
   options: Record<string, unknown>[] = [];
   nextId = 1;
+  throwUniqueOnInsert = false;
 
   async withTransaction<T>(
     fn: (query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>) => Promise<T>,
@@ -30,6 +31,11 @@ class OptionsMemory {
       return { rows: row ? [row] : [] };
     }
     if (/INSERT INTO crm_quote_options/i.test(sql)) {
+      if (this.throwUniqueOnInsert) {
+        throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+          code: '23505',
+        });
+      }
       const row = {
         id: `opt-${this.nextId++}`,
         version_id: params[0],
@@ -137,6 +143,16 @@ describe('QuoteOptionsService', () => {
     });
     await expect(svc.patch(VID, 'D', { name: 'Nope' }, ACTOR)).rejects.toMatchObject({
       response: { error: 'invalid_option_key' },
+    });
+  });
+
+  it('maps unique-violation on insert to option_key_taken', async () => {
+    const db = new OptionsMemory();
+    db.throwUniqueOnInsert = true;
+    const { svc } = load(db);
+
+    await expect(svc.create(VID, { name: 'Phương án A' }, ACTOR)).rejects.toMatchObject({
+      response: { error: 'option_key_taken' },
     });
   });
 

@@ -48,6 +48,10 @@ function bad(error: string): never {
   throw new BadRequestException({ error });
 }
 
+function isUniqueViolation(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && (err as { code?: string }).code === '23505');
+}
+
 function asOptionKey(value: unknown): QuoteOptionKey | null {
   const key = String(value ?? '').trim().toUpperCase();
   if (key === 'A' || key === 'B' || key === 'C') return key;
@@ -108,10 +112,8 @@ export class QuoteOptionsService {
       if (!name) bad('name_required');
       const recommended = asBool(input.recommended, false);
       if (recommended) await this.clearOtherRecommended(vid, requested, query);
-      const inserted = await query(
-        `INSERT INTO crm_quote_options (version_id, option_key, name, recommended, client_visible, payable_vnd)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, version_id, option_key, name, recommended, client_visible, payable_vnd`,
+      const inserted = await this.insertOption(
+        query,
         [
           vid,
           requested,
@@ -121,6 +123,7 @@ export class QuoteOptionsService {
           asPayableVnd(input.payable_vnd, 0),
         ],
       );
+      if (recommended) await this.clearOtherRecommended(vid, requested, query);
       const option = mapOption(inserted.rows[0] ?? { option_key: requested, name });
       return { option, options: await this.listOptions(vid, query) };
     });
@@ -137,12 +140,14 @@ export class QuoteOptionsService {
       if (!source) throw new NotFoundException({ error: 'option_not_found' });
       const next = this.nextKey(existing);
       if (!next) bad('option_slots_full');
-      const inserted = await query(
-        `INSERT INTO crm_quote_options (version_id, option_key, name, recommended, client_visible, payable_vnd)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, version_id, option_key, name, recommended, client_visible, payable_vnd`,
-        [vid, next, source.name, false, source.client_visible, source.payable_vnd],
-      );
+      const inserted = await this.insertOption(query, [
+        vid,
+        next,
+        source.name,
+        false,
+        source.client_visible,
+        source.payable_vnd,
+      ]);
       const option = mapOption(inserted.rows[0] ?? { option_key: next, name: source.name });
       return { option, options: await this.listOptions(vid, query) };
     });
@@ -182,6 +187,7 @@ export class QuoteOptionsService {
           RETURNING id, version_id, option_key, name, recommended, client_visible, payable_vnd`,
         [vid, optionKey, name, recommended, clientVisible],
       );
+      if (recommended) await this.clearOtherRecommended(vid, optionKey, query);
       const option = mapOption(updated.rows[0] ?? current);
       return { option, options: await this.listOptions(vid, query) };
     });
@@ -202,6 +208,23 @@ export class QuoteOptionsService {
   private inTx<T>(fn: (query: QuoteQueryFn) => Promise<T>): Promise<T> {
     if (this.db.withTransaction) return this.db.withTransaction(fn);
     return fn((sql, params) => this.db.query(sql, params));
+  }
+
+  private async insertOption(
+    query: QuoteQueryFn,
+    params: unknown[],
+  ): Promise<{ rows: Record<string, unknown>[] }> {
+    try {
+      return await query(
+        `INSERT INTO crm_quote_options (version_id, option_key, name, recommended, client_visible, payable_vnd)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, version_id, option_key, name, recommended, client_visible, payable_vnd`,
+        params,
+      );
+    } catch (err) {
+      if (isUniqueViolation(err)) bad('option_key_taken');
+      throw err;
+    }
   }
 
   private async requireVersion(vid: string, query: QuoteQueryFn): Promise<void> {
