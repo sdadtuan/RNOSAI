@@ -23,11 +23,21 @@ export function clearPresalesAiDraftMeta(prof: Record<string, string>): Record<s
 }
 
 export function parseTargetMarketProfJson(raw: unknown): Record<string, string> {
-  try {
-    return JSON.parse(String(raw ?? '{}')) as Record<string, string>;
-  } catch {
-    return {};
+  if (raw == null || raw === '') return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return Object.fromEntries(
+      Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k, v == null ? '' : String(v)]),
+    );
   }
+  try {
+    const parsed = JSON.parse(String(raw)) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parseTargetMarketProfJson(parsed);
+    }
+  } catch {
+    /* fall through */
+  }
+  return {};
 }
 
 export function parsePresalesAiDraftMeta(prof: Record<string, string> | null | undefined): {

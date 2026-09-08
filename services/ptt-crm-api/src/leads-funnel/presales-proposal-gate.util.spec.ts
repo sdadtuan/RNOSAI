@@ -28,6 +28,23 @@ describe('buildProposalAdvanceGate', () => {
     expect(gate.messages.some((m) => m.includes('kế hoạch') || m.includes('North Star'))).toBe(true);
   });
 
+  it('passes when consult done and R5 JSONB is a parsed object', () => {
+    const gate = buildProposalAdvanceGate({
+      consultProgress: { total: 1, done: 1 },
+      plan: {
+        name: 'KH sơ bộ',
+        north_star: 'Tăng lead',
+        objectives: '',
+        strategy_framework_json: {
+          market_message: 'msg',
+          media_reach: 'media',
+          conversion_strategy: 'conv',
+        },
+      },
+    });
+    expect(gate.ok).toBe(true);
+  });
+
   it('passes when consult done and R5 valid', () => {
     const gate = buildProposalAdvanceGate({
       consultProgress: { total: 1, done: 1 },

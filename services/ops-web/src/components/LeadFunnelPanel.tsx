@@ -24,6 +24,10 @@ import { LeadPipelineIntakePanel } from '@/components/crm/LeadPipelineIntakePane
 import { LeadPipelinePresalesPanel } from '@/components/crm/LeadPipelinePresalesPanel';
 import { LeadPipelineStepPanel } from '@/components/crm/LeadPipelineStepPanel';
 import { showPresalesForFlow } from '@/lib/crm/lead-flow-kind';
+import {
+  hydratePresalesR5Form,
+  shouldHydratePresalesMarketingPlan,
+} from '@/lib/crm/presales-r5-plan.util';
 import type {
   FunnelStepState,
   IntakeStepSummary,
@@ -123,6 +127,7 @@ export function LeadFunnelPanel({
   const [aiBusyTaskId, setAiBusyTaskId] = useState<number | null>(null);
   const [aiPlanDraftBusy, setAiPlanDraftBusy] = useState(false);
   const [showAiDraftBadge, setShowAiDraftBadge] = useState(false);
+  const [planLoading, setPlanLoading] = useState(false);
   const [prepStatus, setPrepStatus] = useState<LeadMeetingPrepStatus | null>(null);
   const presalesServiceOptions = useMemo(
     () => mergePresalesServiceOptions(serviceOptions),
@@ -144,6 +149,40 @@ export function LeadFunnelPanel({
     setSelectedServiceSlug(presalesServiceOptions[0]?.slug ?? DEFAULT_PRESALES_SLUG);
   }, [presalesServiceOptions, selectedServiceSlug, serviceSlug]);
 
+  const applyMarketingPlanFields = useCallback(
+    (plan: Record<string, unknown>, validationMessages: string[], isAiDraft = false) => {
+      const hydrated = hydratePresalesR5Form(plan);
+      setPlanName(hydrated.planName);
+      setPlanNorthStar(hydrated.planNorthStar);
+      setPlanObjectives(hydrated.planObjectives);
+      setPlanStrategy(hydrated.planStrategy);
+      setPlanValidation(validationMessages);
+      setShowAiDraftBadge(isAiDraft);
+    },
+    [],
+  );
+
+  const hydrateMarketingPlan = useCallback(
+    async (stage?: string | null) => {
+      if (stage !== 'consult' && stage !== 'proposal') return;
+      setPlanLoading(true);
+      try {
+        const mp = await fetchLeadPresalesMarketingPlan(token, leadId);
+        applyMarketingPlanFields(
+          mp.plan,
+          mp.validation.messages ?? [],
+          Boolean(mp.ai_draft?.is_ai_draft),
+        );
+      } catch {
+        setPlanValidation([]);
+        setShowAiDraftBadge(false);
+      } finally {
+        setPlanLoading(false);
+      }
+    },
+    [applyMarketingPlanFields, leadId, token],
+  );
+
   const reload = useCallback(async () => {
     setLoading(true);
     setPanelError('');
@@ -151,38 +190,14 @@ export function LeadFunnelPanel({
       const snap = await fetchLeadFunnel(token, leadId);
       setFunnel(snap);
       onFunnelChange?.(snap);
-      if (snap.presales) {
-        if (
-          snap.presales.presales.stage === 'consult' ||
-          snap.presales.presales.stage === 'proposal'
-        ) {
-          try {
-            const mp = await fetchLeadPresalesMarketingPlan(token, leadId);
-            setPlanName(String(mp.plan.name ?? ''));
-            setPlanNorthStar(String(mp.plan.north_star ?? ''));
-            setPlanObjectives(String(mp.plan.objectives ?? ''));
-            let sf: Record<string, string> = {};
-            try {
-              sf = JSON.parse(String(mp.plan.strategy_framework_json ?? '{}')) as Record<string, string>;
-            } catch {
-              sf = {};
-            }
-            setPlanStrategy(sf);
-            setPlanValidation(mp.validation.messages ?? []);
-            setShowAiDraftBadge(Boolean((mp as { ai_draft?: { is_ai_draft?: boolean } }).ai_draft?.is_ai_draft));
-          } catch {
-            setPlanValidation([]);
-            setShowAiDraftBadge(false);
-          }
-        }
-      }
+      await hydrateMarketingPlan(snap.presales?.presales.stage);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Tải funnel thất bại';
       setPanelError(msg);
     } finally {
       setLoading(false);
     }
-  }, [token, leadId, onError, onFunnelChange]);
+  }, [hydrateMarketingPlan, token, leadId, onError, onFunnelChange]);
 
   useEffect(() => {
     if (!fetchOnMount && syncFunnel) {
@@ -192,6 +207,22 @@ export function LeadFunnelPanel({
     }
     void reload();
   }, [fetchOnMount, reload, syncFunnel]);
+
+  useEffect(() => {
+    const stage = syncFunnel?.presales?.presales.stage;
+    if (
+      !shouldHydratePresalesMarketingPlan({
+        fetchOnMount,
+        hasSyncFunnel: Boolean(syncFunnel),
+        stage,
+      })
+    ) {
+      return;
+    }
+    void hydrateMarketingPlan(stage);
+    // Remount (Consult → Tổng quan) reloads saved R5 once; skip funnel snapshot deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount / lead only
+  }, [hydrateMarketingPlan, leadId, token]);
 
   useEffect(() => {
     if (syncFunnel) {
@@ -261,18 +292,8 @@ export function LeadFunnelPanel({
 
   const presalesStage = funnel?.presales?.presales.stage;
 
-  async function applyMarketingPlanResponse(plan: Record<string, unknown>, validationMessages: string[]) {
-    setPlanName(String(plan.name ?? ''));
-    setPlanNorthStar(String(plan.north_star ?? ''));
-    setPlanObjectives(String(plan.objectives ?? ''));
-    let sf: Record<string, string> = {};
-    try {
-      sf = JSON.parse(String(plan.strategy_framework_json ?? '{}')) as Record<string, string>;
-    } catch {
-      sf = {};
-    }
-    setPlanStrategy(sf);
-    setPlanValidation(validationMessages);
+  function applyMarketingPlanResponse(plan: Record<string, unknown>, validationMessages: string[]) {
+    applyMarketingPlanFields(plan, validationMessages);
   }
 
   async function saveMarketingPlan() {
@@ -284,8 +305,12 @@ export function LeadFunnelPanel({
     });
     setFunnel(out.funnel);
     onFunnelChange?.(out.funnel);
-    setPlanValidation(out.validation.messages ?? []);
-    setShowAiDraftBadge(false);
+    if (out.plan) {
+      applyMarketingPlanFields(out.plan, out.validation.messages ?? [], false);
+    } else {
+      setPlanValidation(out.validation.messages ?? []);
+      setShowAiDraftBadge(false);
+    }
     onMessage?.('Đã lưu KH MKT sơ bộ');
   }
 
@@ -372,7 +397,7 @@ export function LeadFunnelPanel({
       planObjectives={planObjectives}
       planStrategy={planStrategy}
       planValidation={planValidation}
-      disabled={busy || aiPlanDraftBusy}
+      disabled={busy || aiPlanDraftBusy || planLoading}
       canEdit={canEdit}
       showAiDraftBadge={showAiDraftBadge}
       canAiDraft={canAiDraft}

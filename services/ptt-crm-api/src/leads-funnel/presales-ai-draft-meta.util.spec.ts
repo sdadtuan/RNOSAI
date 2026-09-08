@@ -1,6 +1,7 @@
 import {
   clearPresalesAiDraftMeta,
   parsePresalesAiDraftMeta,
+  parseTargetMarketProfJson,
   PRESALES_AI_DRAFT_AT_KEY,
   PRESALES_AI_DRAFT_BADGE_VI,
   stampPresalesAiDraftMeta,
@@ -14,6 +15,10 @@ describe('presales-ai-draft-meta.util', () => {
     expect(meta.is_ai_draft).toBe(true);
     expect(meta.badge_vi).toBe(PRESALES_AI_DRAFT_BADGE_VI);
     expect(meta.draft_by).toBe('sp@test.vn');
+  });
+
+  it('parses target_market_prof JSONB object from pg', () => {
+    expect(parseTargetMarketProfJson({ segment: 'B2B' })).toEqual({ segment: 'B2B' });
   });
 
   it('clears draft meta on manual review save', () => {

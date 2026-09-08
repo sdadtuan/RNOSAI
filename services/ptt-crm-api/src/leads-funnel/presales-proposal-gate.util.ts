@@ -16,7 +16,7 @@ export function buildProposalAdvanceGate(input: {
     name?: string | null;
     north_star?: string | null;
     objectives?: string | null;
-    strategy_framework_json?: string | null;
+    strategy_framework_json?: string | Record<string, string> | null;
   } | null;
 }): ProposalAdvanceGate {
   const total = input.consultProgress.total;

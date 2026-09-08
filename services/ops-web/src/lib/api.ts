@@ -1820,7 +1820,12 @@ export async function patchLeadPresalesMarketingPlan(
     strategy_framework?: Record<string, string>;
     target_market_prof?: Record<string, string>;
   },
-): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot; validation: { ok: boolean; messages: string[] } }> {
+): Promise<{
+    ok: boolean;
+    funnel: LeadFunnelSnapshot;
+    validation: { ok: boolean; messages: string[] };
+    plan?: Record<string, unknown>;
+  }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan`, {
     method: 'PATCH',
     body: JSON.stringify(body),

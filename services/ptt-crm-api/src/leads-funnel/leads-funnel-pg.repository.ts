@@ -47,6 +47,7 @@ import {
 } from './presales-solution-handoff.util';
 import {
   defaultStrategyJson,
+  parsePresalesJsonRecord,
   planContentFromRow,
   validatePreliminaryPlan,
 } from './presales-marketing-plan.util';
@@ -1353,12 +1354,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     if (body.strategy_framework) {
       content.strategy_framework = { ...content.strategy_framework, ...body.strategy_framework };
     }
-    let targetMarketProf: Record<string, string> = {};
-    try {
-      targetMarketProf = JSON.parse(String(plan.target_market_prof_json || '{}')) as Record<string, string>;
-    } catch {
-      targetMarketProf = {};
-    }
+    let targetMarketProf = parsePresalesJsonRecord(plan.target_market_prof_json);
     if (body.target_market_prof) {
       targetMarketProf = { ...targetMarketProf, ...body.target_market_prof };
     }

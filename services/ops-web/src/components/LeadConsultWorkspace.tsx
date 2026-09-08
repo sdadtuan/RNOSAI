@@ -21,6 +21,7 @@ import {
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
+import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
 import {
   isConsultWorkspaceReadOnly,
   resolvePresalesSolutionCaps,
@@ -89,16 +90,11 @@ export function LeadConsultWorkspace({
     if (!funnel.presales) return;
     try {
       const mp = await fetchLeadPresalesMarketingPlan(token, leadId);
-      setPlanName(String(mp.plan.name ?? ''));
-      setPlanNorthStar(String(mp.plan.north_star ?? ''));
-      setPlanObjectives(String(mp.plan.objectives ?? ''));
-      let sf: Record<string, string> = {};
-      try {
-        sf = JSON.parse(String(mp.plan.strategy_framework_json ?? '{}')) as Record<string, string>;
-      } catch {
-        sf = {};
-      }
-      setPlanStrategy(sf);
+      const hydrated = hydratePresalesR5Form(mp.plan);
+      setPlanName(hydrated.planName);
+      setPlanNorthStar(hydrated.planNorthStar);
+      setPlanObjectives(hydrated.planObjectives);
+      setPlanStrategy(hydrated.planStrategy);
       setPlanValidation(mp.validation.messages ?? []);
     } catch {
       setPlanValidation([]);
