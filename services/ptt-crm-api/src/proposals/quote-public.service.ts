@@ -102,6 +102,53 @@ export class QuotePublicService {
     return this.toPublicDto(loaded);
   }
 
+  async renderByVersionId(versionId: string): Promise<Record<string, unknown>> {
+    const vid = String(versionId ?? '').trim();
+    if (!vid) throw new NotFoundException({ error: 'version_not_found' });
+    const version = await this.db.query(
+      `SELECT id, proposal_id, n, state, snapshot_json, fee_vnd, media_vnd, discount_vnd,
+              tax_vnd, payable_vnd, nsr_vnd, direct_cost_vnd, gm_bps, valid_until
+         FROM crm_quote_versions
+        WHERE id::text = $1
+        LIMIT 1`,
+      [vid],
+    );
+    const v = version.rows[0];
+    if (!v) throw new NotFoundException({ error: 'version_not_found' });
+    const proposal = await this.db.query(
+      `SELECT id, quote_code, status, title, objective, audience, campaign_period, valid_until
+         FROM crm_proposals
+        WHERE id = $1
+        LIMIT 1`,
+      [v.proposal_id],
+    );
+    const p = proposal.rows[0];
+    if (!p) throw new NotFoundException({ error: 'quote_not_found' });
+    return this.toPublicDto({
+      version_id: v.id,
+      version_n: v.n,
+      version_state: v.state,
+      snapshot_json: v.snapshot_json,
+      fee_vnd: v.fee_vnd,
+      media_vnd: v.media_vnd,
+      discount_vnd: v.discount_vnd,
+      tax_vnd: v.tax_vnd,
+      payable_vnd: v.payable_vnd,
+      nsr_vnd: v.nsr_vnd,
+      direct_cost_vnd: v.direct_cost_vnd,
+      gm_bps: v.gm_bps,
+      version_valid_until: v.valid_until,
+      proposal_id: p.id,
+      quote_code: p.quote_code,
+      status: p.status,
+      title: p.title,
+      objective: p.objective,
+      audience: p.audience,
+      campaign_period: p.campaign_period,
+      proposal_valid_until: p.valid_until,
+    });
+  }
+
   async accept(rawToken: string, body: PublicAcceptBody): Promise<Record<string, unknown>> {
     const loaded = await this.loadShare(rawToken);
     this.assertLive(loaded);
@@ -219,6 +266,23 @@ export class QuotePublicService {
       [proposalId],
     );
     const snapshot = asObject(row.snapshot_json);
+    const optionRows = await this.db.query(
+      `SELECT id, version_id, option_key, name, recommended, client_visible, payable_vnd
+         FROM crm_quote_options
+        WHERE version_id::text = $1
+        ORDER BY option_key`,
+      [vid],
+    );
+    const snapOptions = Array.isArray(snapshot.options) ? snapshot.options : [];
+    const options = optionRows.rows.length
+      ? optionRows.rows.map((opt) => ({
+          option_key: String(opt.option_key ?? ''),
+          name: String(opt.name ?? ''),
+          recommended: opt.recommended === true || opt.recommended === 't',
+          client_visible: opt.client_visible !== false && opt.client_visible !== 'f',
+          payable_vnd: money(opt.payable_vnd),
+        }))
+      : snapOptions;
     const dto = {
       quote_code: row.quote_code == null ? null : String(row.quote_code),
       title: String(row.title ?? ''),
@@ -248,6 +312,7 @@ export class QuotePublicService {
         amount_vnd: money(pay.amount_vnd),
         milestone: String(pay.milestone ?? ''),
       })),
+      options,
       option_key: 'A',
       cta: { accept: PUBLIC_ACCEPT_CTA },
     };

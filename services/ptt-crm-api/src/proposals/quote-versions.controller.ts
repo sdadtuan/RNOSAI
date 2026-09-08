@@ -14,6 +14,7 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffProposalsWriteGuard } from './guards/staff-proposals.guard';
+import { RequireQuoteSection, StaffQuoteGuard } from './guards/staff-quote.guard';
 import { QuoteApprovalService } from './quote-approval.service';
 import { QuoteBuilderService, type QuotePaymentItemInput } from './quote-builder.service';
 import {
@@ -21,6 +22,7 @@ import {
   type QuoteOptionCreateInput,
   type QuoteOptionPatchInput,
 } from './quote-options.service';
+import { QuoteStudioService } from './quote-studio.service';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
@@ -31,6 +33,7 @@ export class QuoteVersionsController {
     private readonly builder: QuoteBuilderService,
     private readonly options: QuoteOptionsService,
     private readonly approvals: QuoteApprovalService,
+    private readonly studio: QuoteStudioService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -74,6 +77,13 @@ export class QuoteVersionsController {
   @Post(':vid/submit-approval')
   async submitApproval(@Req() req: StaffReq, @Param('vid') vid: string) {
     return this.approvals.submitApproval(vid, await this.actor(req));
+  }
+
+  @Post(':vid/publish')
+  @UseGuards(StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.publish', 'execute')
+  async publish(@Req() req: StaffReq, @Param('vid') vid: string) {
+    return this.studio.publish(vid, await this.actor(req));
   }
 
   private async actor(req: StaffReq) {
