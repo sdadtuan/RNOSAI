@@ -1,5 +1,5 @@
-import { QtPlaceholder } from '@/components/crm/qt/QtShell';
+import { QtStudio } from '@/components/crm/qt/QtStudio';
 
 export default function QtStudioPage() {
-  return <QtPlaceholder title="Studio" />;
+  return <QtStudio />;
 }

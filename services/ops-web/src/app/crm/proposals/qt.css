@@ -652,11 +652,49 @@
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
+.qt-approvals,
+.qt-studio,
+.qt-reports,
+.qt-settings {
+  min-width: 0;
+}
+
+.qt-studio__grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.4fr) minmax(200px, 0.7fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.qt-studio__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qt-studio__nav .qt-tab {
+  width: 100%;
+  height: auto;
+  min-height: 34px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.qt-settings-form h2,
+.qt-reports h2,
+.qt-studio h2 {
+  margin: 8px 0 6px;
+  color: var(--qt-navy);
+  font-size: 16px;
+}
+
 @media (max-width: 860px) {
   .qt-grid2,
   .qt-grid3,
   .qt-builder__grid,
-  .qt-cat-grid {
+  .qt-cat-grid,
+  .qt-studio__grid {
     grid-template-columns: 1fr;
   }
 

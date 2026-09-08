@@ -342,6 +342,68 @@ export function getQtQuoteCatalog(token: string) {
   return qtFetch<unknown>(token, '/quote-catalog').then(asQtCatalogItems);
 }
 
+export const QT_SETTINGS_PATCH_FIELDS = [
+  'validity_days',
+  'vat_bps',
+  'payment_template',
+  'gm_floor_bps',
+  'discount_auto_bps',
+  'director_value_vnd',
+  'payment_term_max_days',
+  'share_expiry_days',
+  'pdf_download',
+  'otp_required',
+  'view_tracking',
+  'ai_enabled',
+] as const;
+
+export type QtSettingsPatchField = (typeof QT_SETTINGS_PATCH_FIELDS)[number];
+
+export type QtSettings = {
+  tenant_id?: string;
+  quote_code_pattern: string;
+  validity_days: number | null;
+  vat_bps: number | null;
+  currency_code?: string | null;
+  timezone?: string | null;
+  issuing_entity?: string | null;
+  payment_template: string | null;
+  gm_floor_bps: number | null;
+  discount_auto_bps: number | null;
+  director_value_vnd: number | null;
+  payment_term_max_days: number | null;
+  share_expiry_days: number | null;
+  pdf_download: boolean;
+  otp_required: boolean;
+  view_tracking: boolean;
+  ai_enabled: boolean;
+  updated_at?: string | null;
+  updated_by_staff_id?: number | null;
+};
+
+export type QtSettingsPatch = Partial<Record<QtSettingsPatchField, unknown>>;
+
+export function buildQtSettingsPatch(input: Record<string, unknown>): QtSettingsPatch {
+  const patch: QtSettingsPatch = {};
+  for (const field of QT_SETTINGS_PATCH_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(input, field)) {
+      patch[field] = input[field];
+    }
+  }
+  return patch;
+}
+
+export function getQtSettings(token: string) {
+  return qtFetch<QtSettings>(token, '/settings');
+}
+
+export function patchQtSettings(token: string, body: Record<string, unknown>) {
+  return qtFetch<QtSettings>(token, '/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(buildQtSettingsPatch(body)),
+  });
+}
+
 export async function qtFetch<T>(
   token: string,
   path: string,

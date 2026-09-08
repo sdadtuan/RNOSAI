@@ -1,5 +1,5 @@
-import { QtPlaceholder } from '@/components/crm/qt/QtShell';
+import { QtReports } from '@/components/crm/qt/QtReports';
 
 export default function QtReportsPage() {
-  return <QtPlaceholder title="Báo cáo" />;
+  return <QtReports />;
 }

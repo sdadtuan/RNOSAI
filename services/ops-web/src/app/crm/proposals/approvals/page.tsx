@@ -1,5 +1,5 @@
-import { QtPlaceholder } from '@/components/crm/qt/QtShell';
+import { QtApprovals } from '@/components/crm/qt/QtApprovals';
 
 export default function QtApprovalsPage() {
-  return <QtPlaceholder title="Phê duyệt" />;
+  return <QtApprovals />;
 }
