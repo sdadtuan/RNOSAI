@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   PUBLIC_ACCEPT_CTA,
-  acceptPublicProposal,
+  createPublicProposalAccept,
   publicHtmlLeaks,
   type PublicProposal,
 } from '@/lib/public-proposal';
 import { renderPublicProposalViewHtml } from '@/lib/public-proposal-view-html';
-import { PublicProposalView } from './PublicProposalView';
+import { submitPublicProposalView } from './PublicProposalView';
 
 const DATA: PublicProposal = {
   quote_code: 'QT-PTT-2026-000089',
@@ -82,36 +82,29 @@ describe('PublicProposalView', () => {
     expect(publicHtmlLeaks(html)).toEqual([]);
   });
 
-  it('accept B + OTP submits option_key B and otp from the real view fields', async () => {
-    const html = renderPublicProposalViewHtml({
-      data: DATA,
-      name: 'Minh Anh',
-      email: 'minhanh@anphat.vn',
-      title: 'MD',
-      optionKey: 'B',
-      otp: '654321',
-      accepted: true,
-    });
-    expect(html).toContain('value="B"');
-    expect(html).toContain('654321');
-    expect(html).toContain(PUBLIC_ACCEPT_CTA);
-    expect(publicHtmlLeaks(html)).toEqual([]);
-    expect(PublicProposalView).toBeTypeOf('function');
-
+  it('accept B + OTP records POST body from the real view submit', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: 'accepted', option_key: 'B' }), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const out = await acceptPublicProposal('share-token', {
-      accepted: true,
-      name: 'Minh Anh',
-      email: 'minhanh@anphat.vn',
-      title: 'MD',
-      option_key: 'B',
-      otp: '654321',
-    });
-    expect(out.option_key).toBe('B');
+    const form = createPublicProposalAccept({ token: 'share-token', data: DATA });
+    form.view.onName('Minh Anh');
+    form.view.onEmail('minhanh@anphat.vn');
+    form.view.onTitle('MD');
+    form.view.onOptionKey('B');
+    form.view.onOtp('654321');
+    form.view.onAccepted(true);
+
+    const html = renderPublicProposalViewHtml({ data: DATA, ...form.fields() });
+    expect(html).toContain('value="B"');
+    expect(html).toContain('654321');
+    expect(html).toContain(PUBLIC_ACCEPT_CTA);
+    expect(publicHtmlLeaks(html)).toEqual([]);
+
+    await form.view.onSubmit(submitPublicProposalView({ data: DATA, ...form.fields() }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const sent = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? '{}')) as {
       option_key?: string;
       otp?: string;

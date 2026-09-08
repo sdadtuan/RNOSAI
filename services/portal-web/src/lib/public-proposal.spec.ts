@@ -6,6 +6,7 @@ import {
   isGonePublicProposal,
   publicHtmlLeaks,
   publicProposalNeedsOtp,
+  publicProposalSubmitPayload,
   visiblePublicOptions,
 } from './public-proposal';
 
@@ -77,6 +78,19 @@ describe('public-proposal helper', () => {
       option_key: 'B',
       otp: '123456',
     });
+    expect(
+      publicProposalSubmitPayload(
+        { option_key: 'A', options, otp_required: true },
+        {
+          name: 'Minh Anh',
+          email: 'minhanh@anphat.vn',
+          title: 'MD',
+          optionKey: 'B',
+          otp: '654321',
+          accepted: true,
+        },
+      ),
+    ).toMatchObject({ option_key: 'B', otp: '654321' });
   });
 
   it('public HTML leak helper fails when margin or NSR appear', () => {

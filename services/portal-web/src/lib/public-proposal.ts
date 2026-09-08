@@ -74,6 +74,82 @@ export function buildPublicAcceptBody(input: PublicAcceptInput): PublicAcceptInp
   };
 }
 
+export type PublicProposalViewFields = {
+  name: string;
+  email: string;
+  title?: string;
+  optionKey?: string;
+  otp?: string;
+  accepted: boolean;
+};
+
+export function publicProposalSelectedOptionKey(
+  data: Pick<PublicProposal, 'option_key' | 'options'>,
+  optionKey?: string,
+): string {
+  const options = visiblePublicOptions(data);
+  return optionKey || data.option_key || options[0]?.option_key || 'A';
+}
+
+/** Same body the portal view posts when the user confirms. */
+export function publicProposalSubmitPayload(
+  data: Pick<PublicProposal, 'option_key' | 'options' | 'otp_required'>,
+  fields: PublicProposalViewFields,
+): PublicAcceptInput {
+  return buildPublicAcceptBody({
+    accepted: fields.accepted,
+    name: fields.name,
+    email: fields.email,
+    title: fields.title,
+    option_key: publicProposalSelectedOptionKey(data, fields.optionKey),
+    otp: publicProposalNeedsOtp(data) ? fields.otp : undefined,
+  });
+}
+
+export function createPublicProposalAccept(opts: { token: string; data: PublicProposal }) {
+  const state: PublicProposalViewFields = {
+    name: '',
+    email: '',
+    title: '',
+    optionKey: publicProposalSelectedOptionKey(opts.data),
+    otp: '',
+    accepted: false,
+  };
+
+  function fields(): PublicProposalViewFields {
+    return { ...state };
+  }
+
+  async function onSubmit(body?: PublicAcceptInput) {
+    return acceptPublicProposal(opts.token, body ?? publicProposalSubmitPayload(opts.data, fields()));
+  }
+
+  return {
+    fields,
+    view: {
+      onName: (value: string) => {
+        state.name = value;
+      },
+      onEmail: (value: string) => {
+        state.email = value;
+      },
+      onTitle: (value: string) => {
+        state.title = value;
+      },
+      onOptionKey: (value: string) => {
+        state.optionKey = value;
+      },
+      onOtp: (value: string) => {
+        state.otp = value;
+      },
+      onAccepted: (value: boolean) => {
+        state.accepted = value;
+      },
+      onSubmit,
+    },
+  };
+}
+
 export type PublicAcceptResult = {
   status: string;
   option_key: string;

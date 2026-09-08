@@ -3,7 +3,9 @@ import {
   PUBLIC_ACCEPT_CTA,
   formatPublicMoney,
   publicProposalNeedsOtp,
+  publicProposalSubmitPayload,
   visiblePublicOptions,
+  type PublicAcceptInput,
   type PublicProposal,
 } from '../lib/public-proposal';
 
@@ -24,8 +26,23 @@ type Props = {
   onOtp?: (value: string) => void;
   onAccepted: (value: boolean) => void;
   onRequestOtp?: () => void;
-  onSubmit: () => void;
+  onSubmit: (body: PublicAcceptInput) => void;
 };
+
+export function submitPublicProposalView(
+  props: Pick<Props, 'data' | 'name' | 'email' | 'title' | 'optionKey' | 'otp' | 'accepted'>,
+): PublicAcceptInput {
+  const options = visiblePublicOptions(props.data);
+  const selected = props.optionKey || props.data.option_key || options[0]?.option_key || 'A';
+  return publicProposalSubmitPayload(props.data, {
+    name: props.name,
+    email: props.email,
+    title: props.title,
+    optionKey: selected,
+    otp: props.otp,
+    accepted: props.accepted,
+  });
+}
 
 export function PublicProposalView({
   data,
@@ -129,7 +146,7 @@ export function PublicProposalView({
           className="qt-public-form"
           onSubmit={(e) => {
             e.preventDefault();
-            onSubmit();
+            onSubmit(submitPublicProposalView({ data, name, email, title, optionKey: selected, otp, accepted }));
           }}
         >
           {options.length ? (

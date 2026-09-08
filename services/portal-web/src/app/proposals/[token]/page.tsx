@@ -8,6 +8,7 @@ import {
   fetchPublicProposal,
   isGonePublicProposal,
   requestPublicProposalOtp,
+  type PublicAcceptInput,
   type PublicProposal,
 } from '@/lib/public-proposal';
 
@@ -49,18 +50,11 @@ export default function PublicProposalPage({ params }: { params: { token: string
       .finally(() => setLoading(false));
   }, [token]);
 
-  async function submit() {
+  async function submit(body: PublicAcceptInput) {
     setActing(true);
     setMessage('');
     try {
-      const out = await acceptPublicProposal(token, {
-        accepted: true,
-        name,
-        email,
-        title,
-        option_key: optionKey,
-        otp,
-      });
+      const out = await acceptPublicProposal(token, body);
       setData((prev) => (prev ? { ...prev, status: out.status, option_key: out.option_key } : prev));
       setMessage('Đã xác nhận đề xuất. Cảm ơn bạn.');
     } catch (err) {
@@ -131,7 +125,7 @@ export default function PublicProposalPage({ params }: { params: { token: string
         onOtp={setOtp}
         onAccepted={setAccepted}
         onRequestOtp={() => void sendOtp()}
-        onSubmit={() => void submit()}
+        onSubmit={(body) => void submit(body)}
       />
     </main>
   );
