@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   KPI_HUB_NAV,
   KPI_HUB_NAV_GROUPS,
+  SERVICE_KPI_NAV_GROUP,
   activeKpiHubHref,
   isKpiHubPath,
+  kpiHubNavGroup,
   kpiHubNavGroupsWithDelivery,
 } from './kpi-hub-nav';
 
@@ -29,6 +31,12 @@ describe('kpi-hub-nav', () => {
     ]);
     expect(isKpiHubPath('/crm/kpi-hub/executive')).toBe(true);
     expect(activeKpiHubHref('/crm/kpi-hub/executive')).toBe('/crm/kpi-hub/executive');
+  });
+
+  it('exports SERVICE KPI group with war room and reconcile', () => {
+    expect(SERVICE_KPI_NAV_GROUP.label).toBe('SERVICE KPI');
+    expect(kpiHubNavGroup('service-kpi')?.items.map((i) => i.href)).toContain('/crm/kpi-hub/reconcile');
+    expect(SERVICE_KPI_NAV_GROUP.items.length).toBeGreaterThanOrEqual(8);
   });
 
   it('flat nav includes all grouped items', () => {

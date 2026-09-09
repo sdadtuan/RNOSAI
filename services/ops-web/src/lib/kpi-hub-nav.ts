@@ -69,6 +69,13 @@ export const KPI_HUB_NAV_GROUPS: KpiHubNavGroup[] = [
 
 export const KPI_HUB_NAV: KpiHubNavItem[] = KPI_HUB_NAV_GROUPS.flatMap((g) => g.items);
 
+export const SERVICE_KPI_NAV_GROUP: KpiHubNavGroup =
+  KPI_HUB_NAV_GROUPS.find((g) => g.id === 'service-kpi') ?? KPI_HUB_NAV_GROUPS[2]!;
+
+export function kpiHubNavGroup(id: string): KpiHubNavGroup | undefined {
+  return KPI_HUB_NAV_GROUPS.find((g) => g.id === id);
+}
+
 export function isKpiHubPath(pathname: string): boolean {
   return (
     pathname === '/crm/kpi-hub' ||

@@ -533,18 +533,23 @@ function buildSections(
   if (hasCap(user, 'crm_kpi_hub_settings', 'view')) {
     kpiHub.push({ href: '/crm/kpi-hub/settings', label: 'Cài đặt' });
   }
-  if (hasCap(user, 'crm_kpi_hub', 'view')) {
-    kpiHub.push({ href: '/crm/kpi-hub/service-kpi', label: 'Service KPI War Room' });
-    kpiHub.push({ href: '/crm/kpi-hub/service-templates', label: 'Service KPI Template' });
-    kpiHub.push({ href: '/crm/kpi-hub/instances', label: 'KPI Instances' });
-    kpiHub.push({ href: '/crm/kpi-hub/measurement', label: 'Measurement Plan' });
-    kpiHub.push({ href: '/crm/kpi-hub/tracking', label: 'Actual Tracking' });
-    kpiHub.push({ href: '/crm/kpi-hub/kpi-contracts', label: 'KPI Contract & Risk' });
-    kpiHub.push({ href: '/crm/kpi-hub/reconcile', label: 'Quoted vs Actual' });
-    kpiHub.push({ href: '/crm/kpi-hub/policy-packs', label: 'Policy Pack' });
-  }
   if (kpiHub.length) {
     sections.push({ label: 'KPI Hub', links: kpiHub, defaultOpen: true });
+  }
+
+  const serviceKpi: NavLink[] = [];
+  if (hasCap(user, 'crm_kpi_hub', 'view')) {
+    serviceKpi.push({ href: '/crm/kpi-hub/service-kpi', label: 'War Room' });
+    serviceKpi.push({ href: '/crm/kpi-hub/service-templates', label: 'Service KPI Template' });
+    serviceKpi.push({ href: '/crm/kpi-hub/instances', label: 'KPI Instances' });
+    serviceKpi.push({ href: '/crm/kpi-hub/measurement', label: 'Measurement Plan' });
+    serviceKpi.push({ href: '/crm/kpi-hub/tracking', label: 'Actual Tracking' });
+    serviceKpi.push({ href: '/crm/kpi-hub/kpi-contracts', label: 'KPI Contract & Risk' });
+    serviceKpi.push({ href: '/crm/kpi-hub/reconcile', label: 'Quoted vs Actual' });
+    serviceKpi.push({ href: '/crm/kpi-hub/policy-packs', label: 'Policy Pack' });
+  }
+  if (serviceKpi.length) {
+    sections.push({ label: 'SERVICE KPI', links: serviceKpi, defaultOpen: true });
   }
 
   const delivery: NavLink[] = [];

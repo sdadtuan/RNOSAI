@@ -18329,11 +18329,19 @@ body {
   gap: 0.35rem;
   padding: 0.75rem 0.5rem;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .kpi-hub-sidebar__group-block {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+}
+.kpi-hub-sidebar__group-block--service-kpi {
+  margin-top: 0.15rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #f3f4f6;
 }
 .kpi-hub-sidebar__group {
   margin: 0.35rem 0.75rem 0.15rem;

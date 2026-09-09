@@ -157,7 +157,12 @@ export function KpiHubShell({
         </div>
         <nav className="kpi-hub-sidebar__nav" aria-label="KPI Hub">
           {navGroups.map((group) => (
-            <div key={group.id} className="kpi-hub-sidebar__group-block">
+            <div
+              key={group.id}
+              className={`kpi-hub-sidebar__group-block${
+                group.id === 'service-kpi' ? ' kpi-hub-sidebar__group-block--service-kpi' : ''
+              }`}
+            >
               {!collapsed ? (
                 <p className="kpi-hub-sidebar__group" aria-hidden>
                   {group.label}
