@@ -213,9 +213,10 @@ describe('QtBuilder tabs + chrome', () => {
       }),
     );
 
-    expect(html).toContain('committed');
-    expect(html).toContain('optimization_target');
-    expect(html).toContain('projected_result');
+    expect(html).toContain('Cam kết giao hàng');
+    expect(html).toContain('Mục tiêu tối ưu');
+    expect(html).toContain('Kết quả dự kiến');
+    expect(html).toContain('Cam kết · Mục tiêu tối ưu · Kết quả dự kiến');
     expect(html).toContain('assumption_input');
     expect(html).toContain('24 bài / tháng');
     expect(html).toContain('1.000');

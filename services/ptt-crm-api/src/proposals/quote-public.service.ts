@@ -1,4 +1,5 @@
-import { GoneException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { GoneException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { ServiceKpiInstancesService } from '../kpi-hub/service-kpi/service-kpi-instances.service';
 import { QT_QUOTE_QUERY, QuoteQueryPort } from './quote-audit.repository';
 import { stripPublicQuote } from './quote-public-strip.util';
 import { QuoteShareService, type PublicAcceptBody, type PublicAcceptMeta } from './quote-share.service';
@@ -40,6 +41,7 @@ export class QuotePublicService {
   constructor(
     @Inject(QT_QUOTE_QUERY) private readonly db: QuoteQueryPort,
     private readonly shares: QuoteShareService,
+    @Optional() private readonly kpiInstances?: ServiceKpiInstancesService,
   ) {}
 
   async mintShare(proposalId: number): Promise<{ token: string; expires_at: string; share_id: string }> {
@@ -201,6 +203,10 @@ export class QuotePublicService {
           payable_vnd: money(opt.payable_vnd),
         }))
       : snapOptions;
+    const kpisFromSnapshot = Array.isArray(snapshot.kpis) ? snapshot.kpis : [];
+    const kpisFromService = this.kpiInstances
+      ? await this.kpiInstances.getPublicKpisForProposal(proposalId, vid)
+      : [];
     const dto = {
       quote_code: row.quote_code == null ? null : String(row.quote_code),
       title: String(row.title ?? ''),
@@ -210,7 +216,7 @@ export class QuotePublicService {
       valid_until: row.proposal_valid_until ?? row.version_valid_until ?? null,
       version_n: Number(row.version_n ?? 1),
       status: String(row.status ?? ''),
-      kpis: Array.isArray(snapshot.kpis) ? snapshot.kpis : [],
+      kpis: kpisFromService.length ? kpisFromService : kpisFromSnapshot,
       scope: lines.rows
         .filter((line) => line.client_visible !== false && line.client_visible !== 'f')
         .map((line) => ({

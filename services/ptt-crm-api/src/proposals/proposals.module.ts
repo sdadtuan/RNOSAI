@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { KpiHubModule } from '../kpi-hub/kpi-hub.module';
 import { CpModule } from '../cp/cp.module';
 import { InvoicesModule } from '../invoices/invoices.module';
 import { LeadsFunnelModule } from '../leads-funnel/leads-funnel.module';
@@ -47,6 +48,7 @@ import { QuoteStudioService } from './quote-studio.service';
 @Module({
   imports: [
     StaffAuthModule,
+    forwardRef(() => KpiHubModule),
     SpcModule,
     forwardRef(() => OpsModule),
     forwardRef(() => ServiceLifecycleModule),

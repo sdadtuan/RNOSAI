@@ -41,10 +41,17 @@ import { KpiHubActivityService, KpiHubReportsService } from './reports/kpi-hub-r
 import { KpiHubTargetsService } from './targets/kpi-hub-targets.service';
 import { KpiHubWorkspaceRepository } from './workspace/kpi-hub-workspace.repository';
 import { KpiHubWorkspaceService } from './workspace/kpi-hub-workspace.service';
+import { ServiceKpiController } from './service-kpi/service-kpi.controller';
+import { ServiceKpiQuoteScoreService } from './service-kpi/service-kpi-quote-score';
+import { ServiceKpiRepository } from './service-kpi/service-kpi.repository';
+import { ServiceKpiTemplatesService } from './service-kpi/service-kpi-templates.service';
+import { ServiceKpiBenchmarksService } from './service-kpi/service-kpi-benchmarks.service';
+import { ServiceKpiInstancesService } from './service-kpi/service-kpi-instances.service';
+import { ServiceKpiOperationsService } from './service-kpi/service-kpi-operations.service';
 
 @Module({
   imports: [StaffAuthModule, forwardRef(() => DeliveryProjectsModule), ScheduleModule.forRoot()],
-  controllers: [KpiHubController, KpiHubBiController],
+  controllers: [KpiHubController, KpiHubBiController, ServiceKpiController],
   providers: [
     KpiHubWorkspaceRepository,
     KpiHubWorkspaceService,
@@ -82,7 +89,26 @@ import { KpiHubWorkspaceService } from './workspace/kpi-hub-workspace.service';
     StaffKpiHubReportsManageGuard,
     StaffKpiHubSettingsViewGuard,
     StaffKpiHubSettingsManageGuard,
+    ServiceKpiRepository,
+    ServiceKpiTemplatesService,
+    ServiceKpiQuoteScoreService,
+    ServiceKpiInstancesService,
+    ServiceKpiOperationsService,
+    ServiceKpiBenchmarksService,
   ],
-  exports: [KpiHubDictionaryService, KpiHubDashboardService, KpiHubAlertEngineService, KpiHubFactsService, KpiHubTargetsService, KpiHubApprovalsService],
+  exports: [
+    KpiHubDictionaryService,
+    KpiHubDashboardService,
+    KpiHubAlertEngineService,
+    KpiHubFactsService,
+    KpiHubTargetsService,
+    KpiHubApprovalsService,
+    ServiceKpiTemplatesService,
+    ServiceKpiQuoteScoreService,
+    ServiceKpiInstancesService,
+    ServiceKpiOperationsService,
+    ServiceKpiBenchmarksService,
+    ServiceKpiRepository,
+  ],
 })
 export class KpiHubModule {}

@@ -20,6 +20,10 @@ import {
   QuoteVersionRow,
   QuoteVersionsRepository,
 } from './quote-versions.repository';
+import { ServiceKpiBenchmarksService } from '../kpi-hub/service-kpi/service-kpi-benchmarks.service';
+import { mergeQuoteKpis } from '../kpi-hub/service-kpi/service-kpi-quote-kpi';
+import { ServiceKpiInstancesService } from '../kpi-hub/service-kpi/service-kpi-instances.service';
+import { resolveStudioIndustry } from '../kpi-hub/service-kpi/service-kpi-publish-policy';
 
 const REVISION_PARENT_STATUSES = new Set(['approved', 'sent', 'viewed', 'negotiation']);
 
@@ -236,6 +240,8 @@ export class QuoteBuilderService {
     private readonly versions: QuoteVersionsRepository,
     private readonly audit: QuoteAuditRepository,
     @Optional() private readonly catalog?: QuoteCatalogService,
+    @Optional() private readonly serviceKpiInstances?: ServiceKpiInstancesService,
+    @Optional() private readonly serviceKpiBenchmarks?: ServiceKpiBenchmarksService,
   ) {}
 
   async patchHeader(
@@ -294,6 +300,17 @@ export class QuoteBuilderService {
         writes.push(resolved);
       }
       const lines = await this.versions.replaceLines(proposalId, writes, query);
+      if (this.serviceKpiInstances) {
+        for (const line of lines) {
+          const dv = String(line.dv_code ?? '').trim();
+          if (!dv) continue;
+          await this.serviceKpiInstances.syncFromCatalog({
+            sourceType: 'quote_line_item',
+            sourceId: String(line.id),
+            dvCode: dv,
+          });
+        }
+      }
       await this.audit.insert(
         {
           proposal_id: proposalId,
@@ -456,7 +473,49 @@ export class QuoteBuilderService {
   async listKpis(vid: string): Promise<{ version_id: string; kpis: Record<string, unknown>[] }> {
     const version = await this.versions.getVersion(vid);
     if (!version) throw new NotFoundException({ error: 'version_not_found' });
-    return { version_id: vid, kpis: await this.versions.listKpis(vid) };
+    const legacy = await this.versions.listKpis(vid);
+    if (!this.serviceKpiInstances) {
+      return { version_id: vid, kpis: legacy };
+    }
+
+    const lines = await this.versions.listLines(version.proposal_id);
+    const instances = (
+      await Promise.all(
+        lines.map((line) =>
+          this.serviceKpiInstances!.list({
+            source_type: 'quote_line_item',
+            source_id: String(line.id),
+          }),
+        ),
+      )
+    ).flatMap((res) => res.items);
+
+    const snapshot =
+      version.snapshot_json && typeof version.snapshot_json === 'object' && !Array.isArray(version.snapshot_json)
+        ? (version.snapshot_json as Record<string, unknown>)
+        : {};
+    const industry = resolveStudioIndustry(snapshot);
+    const hints = new Map<string, string>();
+    if (this.serviceKpiBenchmarks && industry) {
+      await Promise.all(
+        instances.map(async (inst) => {
+          const hint = await this.serviceKpiBenchmarks!.formatHint({
+            dv_code: inst.dv_code,
+            dictionary_id: inst.dictionary_id,
+            industry,
+            channel: 'meta',
+            budget_min: inst.target_min,
+            budget_max: inst.target_max,
+          });
+          if (hint) hints.set(inst.dictionary_id, hint);
+        }),
+      );
+    }
+
+    return {
+      version_id: vid,
+      kpis: mergeQuoteKpis(legacy, instances, hints),
+    };
   }
 
   async diffVersions(

@@ -9,12 +9,21 @@ const EXACT_STRIP = new Set([
   'approvals',
   'approval_id',
   'pending_approval',
+  'kpi_contract_score',
+  'score',
 ]);
 
 function shouldStripKey(key: string): boolean {
   const k = key.toLowerCase();
   if (EXACT_STRIP.has(k)) return true;
   if (k.startsWith('cost_') || k.startsWith('approval_')) return true;
+  return false;
+}
+
+function shouldStripKpiEntry(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const obj = value as Record<string, unknown>;
+  if (String(obj.classification ?? '') === 'INTERNAL_OPERATIONAL') return true;
   return false;
 }
 
@@ -37,7 +46,8 @@ function stripInner(input: unknown, parentKey?: string): unknown {
   if (Array.isArray(input)) {
     return input
       .filter((item) => !isHiddenClientOption(item, parentKey))
-      .map((item) => stripInner(item));
+      .filter((item) => !(parentKey === 'kpis' && shouldStripKpiEntry(item)))
+      .map((item) => stripInner(item, parentKey));
   }
   if (!input || typeof input !== 'object') return input;
   const out: Record<string, unknown> = {};

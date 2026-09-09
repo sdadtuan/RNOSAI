@@ -573,9 +573,11 @@ export type QtQuoteKpi = {
   option_key?: string | null;
   name: string;
   class: string;
+  label_vi?: string | null;
   value_text?: string | null;
   source?: string | null;
   assumption?: string | null;
+  benchmark_hint?: string | null;
 };
 
 export type QtQuoteVersion = {

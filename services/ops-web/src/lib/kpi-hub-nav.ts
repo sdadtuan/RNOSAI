@@ -7,7 +7,11 @@ export type KpiHubNavIcon =
   | 'chart'
   | 'gear'
   | 'inbox'
-  | 'list';
+  | 'list'
+  | 'template'
+  | 'layers'
+  | 'plan'
+  | 'track';
 
 export type KpiHubNavItem = {
   href: string;
@@ -36,6 +40,20 @@ export const KPI_HUB_NAV_GROUPS: KpiHubNavGroup[] = [
       { href: '/crm/kpi-hub/sources', label: 'Nguồn dữ liệu', icon: 'database' },
       { href: '/crm/kpi-hub/quality', label: 'Data Quality', icon: 'shield' },
       { href: '/crm/kpi-hub/approvals', label: 'Approval Center', icon: 'inbox' },
+    ],
+  },
+  {
+    id: 'service-kpi',
+    label: 'SERVICE KPI',
+    items: [
+      { href: '/crm/kpi-hub/service-kpi', label: 'War Room', icon: 'dashboard' },
+      { href: '/crm/kpi-hub/service-templates', label: 'Service KPI Template', icon: 'template' },
+      { href: '/crm/kpi-hub/instances', label: 'KPI Instances', icon: 'layers' },
+      { href: '/crm/kpi-hub/measurement', label: 'Measurement Plan', icon: 'plan' },
+      { href: '/crm/kpi-hub/tracking', label: 'Actual Tracking', icon: 'track' },
+      { href: '/crm/kpi-hub/kpi-contracts', label: 'KPI Contract & Risk', icon: 'shield' },
+      { href: '/crm/kpi-hub/reconcile', label: 'Quoted vs Actual', icon: 'list' },
+      { href: '/crm/kpi-hub/policy-packs', label: 'Policy Pack', icon: 'book' },
     ],
   },
   {

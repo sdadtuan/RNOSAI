@@ -18,6 +18,8 @@ export type QuotePolicyFlags = {
   has_custom?: boolean;
   has_zero_price?: boolean;
   cost_missing?: boolean;
+  kpi_contract_block?: boolean;
+  kpi_contract_score?: number;
 };
 
 export type QuotePolicyStep = {
@@ -117,6 +119,11 @@ export function evaluateQuotePolicy(
   }
   if (flags.has_custom || flags.has_zero_price || flags.cost_missing) {
     addTrigger(hits, 'Finance', 'custom_or_cost');
+  }
+  if (flags.kpi_contract_block) {
+    addTrigger(hits, 'Finance', 'kpi_contract');
+    addTrigger(hits, 'GDKD', 'kpi_contract');
+    addTrigger(hits, 'AD', 'kpi_contract');
   }
 
   return QUOTE_APPROVER_SECTIONS.filter((section) => hits.has(section)).map((section) => {

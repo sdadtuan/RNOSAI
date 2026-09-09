@@ -4,7 +4,15 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import {
+  assertBannedPhrases,
+  collectProposalText,
+  resolveStudioIndustry,
+  rowToPolicyPack,
+} from '../kpi-hub/service-kpi/service-kpi-publish-policy';
+import { ServiceKpiRepository } from '../kpi-hub/service-kpi/service-kpi.repository';
 import { QuoteApprovalService } from './quote-approval.service';
 import {
   QuoteAuditRepository,
@@ -115,6 +123,7 @@ export class QuoteStudioService {
     private readonly approvals: QuoteApprovalService,
     private readonly publicQuotes: QuotePublicService,
     private readonly audit: QuoteAuditRepository,
+    @Optional() private readonly serviceKpiRepo?: ServiceKpiRepository,
   ) {}
 
   async publish(versionId: string, actor: QuoteStudioActor): Promise<Record<string, unknown>> {
@@ -125,6 +134,7 @@ export class QuoteStudioService {
     if (!(num(version.payable_vnd) > 0)) bad('payable_required');
     await this.assertPaymentPct(versionId);
     await this.assertForecastAssumptions(versionId, asObject(version.snapshot_json));
+    await this.assertPolicyPackWording(versionId, asObject(version.snapshot_json), num(version.proposal_id));
 
     const proposalId = num(version.proposal_id);
     const now = new Date().toISOString();
@@ -223,6 +233,34 @@ export class QuoteStudioService {
     );
     const total = result.rows.reduce((sum, row) => sum + num(row.pct_bps), 0);
     if (total !== 10000) bad('payment_pct_invalid');
+  }
+
+  private async assertPolicyPackWording(
+    versionId: string,
+    snapshot: Record<string, unknown>,
+    proposalId: number,
+  ): Promise<void> {
+    if (!this.serviceKpiRepo) return;
+    const industry = resolveStudioIndustry(snapshot);
+    if (!industry) return;
+    const packRow = await this.serviceKpiRepo.getPolicyPack(industry);
+    if (!packRow?.regulated) return;
+
+    const proposal = await this.db.query(`SELECT title, objective FROM crm_proposals WHERE id = $1 LIMIT 1`, [
+      proposalId,
+    ]);
+    const clauses = await this.db.query(`SELECT body FROM crm_quote_clauses WHERE version_id::text = $1`, [versionId]);
+    const kpis = await this.db.query(
+      `SELECT name, assumption, value_text FROM crm_quote_kpis WHERE version_id::text = $1`,
+      [versionId],
+    );
+    const text = collectProposalText({
+      title: proposal.rows[0]?.title != null ? String(proposal.rows[0].title) : '',
+      objective: proposal.rows[0]?.objective != null ? String(proposal.rows[0].objective) : '',
+      clauses: clauses.rows as Array<{ body?: string }>,
+      kpis: kpis.rows as Array<{ name?: string; assumption?: string; value_text?: string }>,
+    });
+    assertBannedPhrases(rowToPolicyPack(packRow), text);
   }
 
   private async assertForecastAssumptions(

@@ -5,6 +5,7 @@ import { QuoteApprovalService } from './quote-approval.service';
 import { QuoteAuditRepository } from './quote-audit.repository';
 import { QuotePublicService } from './quote-public.service';
 import { QuoteShareService } from './quote-share.service';
+import { ServiceKpiRepository } from '../kpi-hub/service-kpi/service-kpi.repository';
 import { QuoteStudioService } from './quote-studio.service';
 
 const VID = '19d722af-0000-4000-8000-000000000024';
@@ -245,15 +246,19 @@ class StudioMemory {
   }
 }
 
-function load(overrides: { studio?: Record<string, unknown> } = {}) {
+function load(overrides: { studio?: Record<string, unknown>; objective?: string } = {}) {
   const db = new StudioMemory();
   db.seed(overrides);
+  if (overrides.objective) {
+    db.proposals.get(9)!.objective = overrides.objective;
+  }
   const audit = new QuoteAuditRepository(db);
   const approvals = new QuoteApprovalService(db);
   const mailer = { send: async () => ({ ok: true, skipped: true }) };
   const shares = new QuoteShareService(db, audit, mailer as never);
   const publicQuotes = new QuotePublicService(db, shares);
-  const svc = new QuoteStudioService(db, approvals, publicQuotes, audit);
+  const serviceKpiRepo = new ServiceKpiRepository({ databaseUrl: 'postgres://invalid' } as never);
+  const svc = new QuoteStudioService(db, approvals, publicQuotes, audit, serviceKpiRepo);
   return { db, svc, publicQuotes };
 }
 
@@ -298,6 +303,19 @@ describe('QuoteStudioService publish gate', () => {
 
     await expect(svc.publish(VID, ACTOR)).rejects.toMatchObject({
       response: { error: 'company_name_required', message: 'Nhập tên công ty trước khi gửi báo giá.' },
+    });
+    expect(db.versions.get(VID)?.state).toBe('approved');
+  });
+
+  it('real_estate banned phrase in objective blocks publish with 400', async () => {
+    const { svc, db } = load({ objective: 'Chiến dịch cam kết doanh số 50 căn' });
+    const snap = db.versions.get(VID)!.snapshot_json as Record<string, unknown>;
+    const studio = (snap.studio ?? {}) as Record<string, unknown>;
+    studio.industry = 'real_estate';
+    snap.studio = studio;
+
+    await expect(svc.publish(VID, ACTOR)).rejects.toMatchObject({
+      response: { error: 'kpi_policy_banned_phrase' },
     });
     expect(db.versions.get(VID)?.state).toBe('approved');
   });

@@ -4,7 +4,10 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ServiceKpiInstancesService } from '../kpi-hub/service-kpi/service-kpi-instances.service';
+import { ServiceKpiQuoteScoreService } from '../kpi-hub/service-kpi/service-kpi-quote-score';
 import { QT_QUOTE_QUERY, QuoteQueryFn, QuoteQueryPort } from './quote-audit.repository';
 import { QT_TENANT_ID } from './quote-settings.repository';
 import { DEFAULT_PTT_SETTINGS } from './quote-settings.service';
@@ -110,6 +113,7 @@ const TRIGGER_BADGE: Record<string, string> = {
   payment_term: 'PAYMENT_TERM',
   clause_diverged: 'CLAUSE_DIVERGED',
   custom_or_cost: 'COST_MISSING',
+  kpi_contract: 'KPI_CONTRACT',
 };
 
 function bindScope(
@@ -200,6 +204,18 @@ function bad(error: string): never {
   throw new BadRequestException({ error });
 }
 
+function badKpiContract(score: {
+  score: number;
+  requiredReviewers: string[];
+}): never {
+  throw new BadRequestException({
+    error: 'kpi_contract_blocked',
+    score: score.score,
+    required_reviewers: score.requiredReviewers,
+    hint: 'Phương án B hoặc waiver Finance+GDKD+Strategy',
+  });
+}
+
 function num(value: unknown, fallback = 0): number {
   if (value == null || value === '') return fallback;
   if (typeof value === 'bigint') return Number(value);
@@ -262,7 +278,11 @@ function commentText(value: unknown): string {
 
 @Injectable()
 export class QuoteApprovalService {
-  constructor(@Inject(QT_QUOTE_QUERY) private readonly db: QuoteQueryPort) {}
+  constructor(
+    @Inject(QT_QUOTE_QUERY) private readonly db: QuoteQueryPort,
+    @Optional() private readonly kpiQuoteScore?: ServiceKpiQuoteScoreService,
+    @Optional() private readonly kpiInstances?: ServiceKpiInstancesService,
+  ) {}
 
   async submitApproval(vid: string, actor: QuoteApprovalActor) {
     this.assertStaff(actor);
@@ -272,13 +292,24 @@ export class QuoteApprovalService {
         bad('version_not_working');
       }
       const settings = await this.loadSettings(query);
-      const flags = await this.loadFlags(version, query);
+      const baseFlags = await this.loadFlags(version, query);
       const totals = {
         fee_vnd: num(version.fee_vnd),
         discount_vnd: num(version.discount_vnd),
         payable_vnd: num(version.payable_vnd),
         gm_bps: nullableNum(version.gm_bps),
       };
+      const contractScore = this.kpiQuoteScore
+        ? await this.kpiQuoteScore.scoreForVersion(vid, totals.gm_bps)
+        : null;
+      const flags = {
+        ...baseFlags,
+        kpi_contract_block: contractScore?.blockSubmit ?? false,
+        kpi_contract_score: contractScore?.score,
+      };
+      if (contractScore?.blockSubmit) {
+        badKpiContract(contractScore);
+      }
       const planned = evaluateQuotePolicy(settings, totals, flags);
       if (totals.gm_bps == null) bad('gm_required');
       if (!planned.length) bad('approval_plan_empty');
@@ -291,6 +322,7 @@ export class QuoteApprovalService {
         discount_bps: discountBps,
         settings,
         flags,
+        kpi_contract_score: contractScore?.score ?? null,
         steps: planned,
       };
       const inserted = await query(
@@ -326,6 +358,9 @@ export class QuoteApprovalService {
         'quote.approval_submitted',
         snapshot,
       );
+      if (this.kpiInstances) {
+        await this.kpiInstances.snapshotQuoted(vid);
+      }
       return { approval: { ...approval, policy_snapshot: snapshot }, steps };
     });
   }

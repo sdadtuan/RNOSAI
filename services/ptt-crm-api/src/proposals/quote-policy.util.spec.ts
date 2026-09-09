@@ -87,6 +87,16 @@ describe('quote-policy.util', () => {
     ).toEqual(['Sales Manager']);
   });
 
+  it('kpi_contract_block routes Finance, GDKD, and AD (Strategy)', () => {
+    const steps = evaluateQuotePolicy(
+      SETTINGS,
+      { fee_vnd: 100_000_000, discount_vnd: 0, payable_vnd: 108_000_000, gm_bps: 2240 },
+      { kpi_contract_block: true },
+    );
+    expect(steps.map((s) => s.section)).toEqual(expect.arrayContaining(['Finance', 'GDKD', 'AD']));
+    expect(steps.some((s) => s.trigger === 'kpi_contract')).toBe(true);
+  });
+
   it('clause divergence routes Legal; custom/zero/missing cost routes Finance', () => {
     const base = {
       fee_vnd: 10_000_000,

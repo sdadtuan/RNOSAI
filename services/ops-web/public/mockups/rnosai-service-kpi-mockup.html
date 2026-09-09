@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RNOSAI · Service KPI — Mockup KPI Hub</title>
+<style>
+:root{--navy:#0c1730;--navy2:#101e3b;--blue:#2563eb;--blue2:#1d4ed8;--blueSoft:#eff6ff;--bg:#f6f7fb;--card:#fff;--ink:#17233a;--muted:#68778e;--line:#e6eaf0;--green:#15803d;--greenSoft:#ecfdf3;--amber:#b45309;--amberSoft:#fff7e8;--red:#dc2626;--redSoft:#fff1f2;--purple:#6d28d9;--purpleSoft:#f5f3ff;--teal:#0f8f82;--tealSoft:#ecfdf9;--shadow:0 10px 26px rgba(15,23,42,.055)}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 Inter,"Be Vietnam Pro",Arial,sans-serif}.app{display:grid;grid-template-columns:255px minmax(0,1fr);min-height:100vh}.side{position:sticky;top:0;height:100vh;padding:19px 13px;background:var(--navy);overflow:auto;color:#afbdd2}.brand{display:flex;align-items:center;gap:10px;padding:5px 10px 25px;color:#fff;font-weight:800;letter-spacing:.09em}.mark{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;background:linear-gradient(135deg,#3980ff,#85adff);box-shadow:0 7px 18px #2563eb55}.space{margin:0 0 17px;padding:11px 12px;border:1px solid #ffffff12;border-radius:10px;background:#ffffff07}.space small{display:block;margin-bottom:4px;color:#7786a0;font-size:9px;font-weight:800;letter-spacing:.07em}.space b{color:#edf3ff;font-size:11px}.navcap{margin:19px 10px 7px;color:#72819a;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.nav a{display:flex;align-items:center;gap:10px;margin:2px 0;padding:9px 11px;border-radius:8px;color:#adbad0;text-decoration:none;font-size:11px;font-weight:650;cursor:pointer}.nav a:hover{background:#ffffff0c;color:#fff}.nav a.active{background:var(--blue2);color:#fff;box-shadow:0 7px 16px #1d4ed844}.ico{width:17px;text-align:center;font-size:14px}.ncount{margin-left:auto;padding:2px 6px;border-radius:99px;background:#ffffff1a;color:#e1ebff;font-size:8px}.side-note{margin-top:22px;padding:11px;border:1px solid #ffffff12;border-radius:10px;background:#ffffff06;color:#94a3b8;font-size:9px;line-height:1.6}.side-note b{display:block;color:#e9f0ff}.shell{min-width:0}.top{height:66px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--line);background:#fff}.crumb{color:var(--muted);font-size:11px}.crumb b{color:var(--ink)}.topright{display:flex;align-items:center;gap:12px}.search{width:260px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#fafcff;outline:0;font:inherit;font-size:10px}.search:focus{border-color:#91b7ff;box-shadow:0 0 0 3px #eff6ff}.avatar{display:grid;place-items:center;width:31px;height:31px;border-radius:50%;color:#fff;background:linear-gradient(135deg,#8b5cf6,#ec4899);font-size:10px;font-weight:800}.page{max-width:1900px;margin:auto;padding:24px 29px 50px}.view{display:none}.view.active{display:block}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:17px}.head h1{margin:0 0 6px;font-size:23px;letter-spacing:-.04em}.sub{color:var(--muted);font-size:10px}.actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}.btn{padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#334155;font:inherit;font-size:10px;font-weight:750;cursor:pointer}.btn:hover{background:#f8fafc}.btn.primary{border-color:var(--blue);background:var(--blue);color:#fff;box-shadow:0 6px 14px #2563eb33}.btn.primary:hover{background:var(--blue2)}.btn.danger{border-color:#fecaca;background:#fff;color:var(--red)}.btn.sm{padding:6px 8px;font-size:9px}.card{border:1px solid var(--line);border-radius:13px;background:var(--card);box-shadow:var(--shadow)}.pad{padding:16px}.grid{display:grid;gap:14px}.kpis{grid-template-columns:repeat(4,1fr)}.kpi{padding:15px}.kpi label{display:block;color:var(--muted);font-size:8px;font-weight:800;letter-spacing:.06em}.kpi b{display:block;margin:8px 0 4px;font-size:22px;letter-spacing:-.055em}.kpi span{font-size:9px}.green{color:var(--green)}.amber{color:var(--amber)}.red{color:var(--red)}.filters{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:14px}.filter{padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#526174;font:inherit;font-size:9px;font-weight:650;cursor:pointer}.filter.active{border-color:#bfd5ff;background:var(--blueSoft);color:var(--blue)}.tablebox{overflow:auto}.table{width:100%;min-width:900px;border-collapse:collapse}.table th{padding:10px 12px;border-bottom:1px solid var(--line);background:#fbfcfe;color:var(--muted);text-align:left;font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}.table td{padding:11px 12px;border-bottom:1px solid #edf1f6;color:#46566c;font-size:9px;vertical-align:middle}.table tr:last-child td{border:0}.table tr:hover td{background:#fbfdff}.code{color:var(--blue);font-weight:800;cursor:pointer}.badge{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;border-radius:99px;font-size:8px;font-weight:800;white-space:nowrap}.badge.blue{color:#1d4ed8;background:#eaf1ff}.badge.green{color:var(--green);background:var(--greenSoft)}.badge.amber{color:var(--amber);background:var(--amberSoft)}.badge.red{color:var(--red);background:var(--redSoft)}.badge.purple{color:var(--purple);background:var(--purpleSoft)}.badge.teal{color:var(--teal);background:var(--tealSoft)}.two{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}.sticky{position:sticky;top:16px}.section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}.section-title h2{margin:0;font-size:12px}.section-title span{color:var(--muted);font-size:9px}.list{display:grid;gap:10px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.row span{color:var(--muted);font-size:9px}.row b{color:#334155;font-size:10px}.detail-layout{display:grid;grid-template-columns:minmax(600px,1fr) 320px;gap:16px;align-items:start}.detail-main{display:grid;gap:14px}.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}.field label{display:block;margin-bottom:5px;color:#475569;font-size:9px;font-weight:700}.input,.select,.textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;outline:0;background:#fff;color:#334155;font:inherit;font-size:10px}.textarea{min-height:80px;resize:vertical}.input:focus,.select:focus,.textarea:focus{border-color:#91b7ff;box-shadow:0 0 0 3px #eff6ff}.full{grid-column:1/-1}.formula{padding:13px;border:1px solid #dce7f7;border-radius:10px;background:#f8fbff}.formula b{display:block;margin-bottom:5px;font-size:10px}.formula code{color:#1d4ed8;font-size:12px;font-weight:800}.var{display:grid;grid-template-columns:130px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid #e7eef8;color:#526174;font-size:9px}.var:last-child{border:0}.var b{color:#334155}.notice{padding:10px;border-radius:8px;background:var(--amberSoft);color:#854d0e;font-size:9px;line-height:1.55}.success{padding:10px;border-radius:8px;background:var(--greenSoft);color:#166534;font-size:9px;line-height:1.55}.metricgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.metric{padding:10px;border:1px solid #e6edf8;border-radius:9px;background:#fbfcff}.metric span{display:block;color:var(--muted);font-size:8px;font-weight:700}.metric b{display:block;margin-top:6px;color:#172033;font-size:12px}.chartarea{display:flex;align-items:end;gap:13px;height:155px;padding:0 5px;border-bottom:1px solid var(--line)}.col{display:flex;flex:1;flex-direction:column;align-items:center;justify-content:end;gap:6px}.col i{display:block;width:100%;max-width:34px;border-radius:6px 6px 0 0;background:linear-gradient(#60a5fa,#2563eb)}.col span{color:var(--muted);font-size:8px}.kpi-group{padding:10px 12px;background:#f8fafc;color:#475569;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}.kpi-row{display:grid;grid-template-columns:34px 1.35fr .9fr .9fr .7fr 80px;gap:9px;align-items:center;padding:11px;border-bottom:1px solid #edf1f6}.kpi-row:last-child{border:0}.kpi-no{display:grid;place-items:center;width:25px;height:25px;border-radius:7px;background:#eff6ff;color:#2563eb;font-size:8px;font-weight:800}.modalbg{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;padding:18px;background:#0b122080}.modalbg.open{display:flex}.modal{width:min(720px,100%);max-height:90vh;overflow:auto;border-radius:15px;background:#fff;box-shadow:0 25px 55px #0005}.modalhead{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}.modalhead h2{margin:0;font-size:14px}.close{border:0;background:transparent;color:#64748b;font-size:20px;cursor:pointer}.modalbody{padding:18px}.modalfoot{display:flex;justify-content:flex-end;gap:8px;padding:13px 18px;border-top:1px solid var(--line);background:#fbfcfe}.toast{position:fixed;right:22px;bottom:22px;z-index:50;display:none;padding:12px 15px;border-radius:10px;background:#172033;color:#fff;box-shadow:0 14px 30px #0f172040;font-size:10px}.toast.show{display:block}.spec-link{margin-top:14px;padding:10px 12px;border:1px dashed #bfd5ff;border-radius:8px;background:#f8fbff;color:#475569;font-size:9px;line-height:1.55}@media(max-width:1200px){.detail-layout,.two{grid-template-columns:1fr}.sticky{position:static}}@media(max-width:900px){.app{grid-template-columns:1fr}.side{display:none}.top{padding:0 17px}.page{padding:20px 17px 38px}.search{display:none}.head{display:block}.actions{justify-content:flex-start;margin-top:12px}.kpis{grid-template-columns:repeat(2,1fr)}.formgrid,.metricgrid{grid-template-columns:1fr}.kpi-row{grid-template-columns:30px 1fr 80px}.kpi-row>div:nth-child(3),.kpi-row>div:nth-child(4),.kpi-row>div:nth-child(5){display:none}}@media(max-width:520px){.kpis{grid-template-columns:1fr}.var{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+<div class="brand"><div class="mark">P</div><span>PTT · RNOSAI</span></div>
+<div class="space"><small>KPI HUB</small><b>PTT Growth Operations ⌄</b></div>
+<nav class="nav">
+<div class="navcap">TỔNG QUAN</div>
+<a data-view="overview"><span class="ico">▦</span>Executive Command Center</a>
+<div class="navcap">GOVERNANCE</div>
+<a data-view="dictionary"><span class="ico">▤</span>KPI Dictionary</a>
+<a data-view="targets"><span class="ico">◉</span>Target & Cảnh báo</a>
+<div class="navcap">SERVICE KPI</div>
+<a class="active" data-view="warroom"><span class="ico">▦</span>War Room <span class="ncount">07</span></a>
+<a data-view="templates"><span class="ico">▣</span>Service KPI Template</a>
+<a data-view="instances"><span class="ico">◌</span>KPI Instances</a>
+<a data-view="measurement"><span class="ico">⌁</span>Measurement Plan</a>
+<a data-view="tracking"><span class="ico">↗</span>Actual Tracking</a>
+<a data-view="contracts"><span class="ico">⚖</span>KPI Contract &amp; Risk <span class="ncount">02</span></a>
+<a data-view="reconcile"><span class="ico">⇄</span>Quoted vs Actual</a>
+<a data-view="packs"><span class="ico">⬡</span>Policy Pack</a>
+<div class="navcap">PHÂN TÍCH</div>
+<a data-view="reports"><span class="ico">▥</span>Báo cáo KPI</a>
+</nav>
+<div class="side-note"><b>KPI Contract OS</b>2 quote score ≥70 chờ duyệt cùng GM · 1 report bị chặn actual Unverified · 4 assumption khách chưa confirm.</div>
+</aside>
+<div class="shell">
+<header class="top">
+<div class="crumb">CRM / KPI Hub / Service KPI / <b id="crumb">War Room</b></div>
+<div class="topright"><input class="search" placeholder="Tìm KPI, service DV, client, quote…"/><span>🔔</span><div class="avatar">TT</div></div>
+</header>
+<main class="page">
+
+<section class="view active" id="warroom">
+<div class="head"><div><h1>Service KPI War Room</h1><div class="sub">SKPI-00 · Nhịp vận hành tuần — không phải dashboard thứ hai. Việc hôm nay: assumption, alert, data stale, lệch KPI+GM, quote score cao.</div></div><div class="actions"><button class="btn" onclick="showView('contracts')">Mở Contract Score</button><button class="btn primary" onclick="showView('reconcile')">Đối soát 3 sổ</button></div></div>
+<div class="grid kpis">
+<article class="card kpi" style="background:#fff1f2;border-color:#fecaca"><label>CRITICAL QUÁ HẠN</label><b>02</b><span class="red">CPL An Phát · Lead SLA Minh Long</span></article>
+<article class="card kpi" style="background:#fff7e8;border-color:#fdba74"><label>ASSUMPTION MỞ</label><b>04</b><span class="amber">Budget / LP / Sales SLA / Creative</span></article>
+<article class="card kpi" style="background:#fff7e8;border-color:#fdba74"><label>CẤM XUẤT REPORT</label><b>01</b><span class="amber">Actual Unverified · QT-0089</span></article>
+<article class="card kpi"><label>QUOTE SCORE ≥ 70</label><b>02</b><span class="red">Cùng GM dưới floor</span></article>
+</div>
+<div class="two" style="margin-top:15px">
+<div class="grid">
+<article class="card pad"><div class="section-title"><h2>Hàng đợi việc — hôm nay</h2><span>Owner → due</span></div>
+<div class="list">
+<div class="row"><span><b style="display:block;color:#334155">Xác nhận Sales SLA &lt; 15 phút · Minh Long</b><span class="sub">Assumption Not met · BUSINESS_OUTCOME</span></span><span class="badge red">Block start</span></div>
+<div class="row"><span><b style="display:block;color:#334155">CPL 128K vs max 100K · An Phát</b><span class="sub">Nguyễn Kiều · overdue 2h 32m</span></span><button class="btn sm" onclick="showView('tracking')">Track</button></div>
+<div class="row"><span><b style="display:block;color:#334155">CRM stale 29h — cấm label Verified</b><span class="sub">Ảnh hưởng 14 instance · 1 client report</span></span><button class="btn sm" onclick="showView('reconcile')">3 sổ</button></div>
+<div class="row"><span><b style="display:block;color:#334155">QT-0089 GM 22,4% + CPL 50K</b><span class="sub">Contract Score 78 · Finance + GDKD</span></span><button class="btn sm" onclick="showView('contracts')">Duyệt</button></div>
+</div>
+</article>
+<article class="card pad"><div class="section-title"><h2>DV lệch KPI và margin</h2><span>internal</span></div>
+<div class="list">
+<div class="row"><span>DV04 Meta Ads</span><b class="amber">69% KPI · GM 18,4%</b></div>
+<div class="row"><span>DV05 SEO</span><b class="amber">74% KPI · GM 28%</b></div>
+<div class="row"><span>DV02 Social</span><b class="green">86% KPI · GM 28,3%</b></div>
+<div class="row"><span>DV07 CRM</span><b class="green">92% KPI · GM 31%</b></div>
+</div>
+<div class="notice" style="margin-top:12px"><b>Moat:</b> AgencyAnalytics thấy 69% health. Productive thấy GM 18%. Chỉ RNOSAI thấy cả hai trên cùng hàng đợi — và chặn bán tiếp.</div>
+</article>
+</div>
+<aside class="sticky grid">
+<article class="card pad"><div class="section-title"><h2>Nhịp tuần bắt buộc</h2></div>
+<div class="list"><div class="row"><span>1. Assumption</span><b>04 mở</b></div><div class="row"><span>2. Alert quá hạn</span><b class="red">02</b></div><div class="row"><span>3. Data stale</span><b class="amber">01 nguồn</b></div><div class="row"><span>4. KPI + GM</span><b>DV04</b></div><div class="row"><span>5. Quote score ≥70</span><b>02</b></div></div>
+</article>
+</aside>
+</div>
+</section>
+
+<section class="view" id="overview">
+<div class="head"><div><h1>Service KPI — Tổng quan</h1><div class="sub">SKPI-00 · Dashboard vận hành template, instance, readiness và rủi ro theo Portfolio 21 DV.</div></div></div>
+<div class="grid kpis">
+<article class="card kpi"><label>SERVICE TEMPLATE ACTIVE</label><b>87</b><span>21 DV + package ngành</span></article>
+<article class="card kpi"><label>INSTANCE TRACKING</label><b>1.284</b><span class="green">93,2% có measurement plan</span></article>
+<article class="card kpi"><label>READINESS WARNING</label><b>187</b><span class="amber">71 blocking</span></article>
+<article class="card kpi"><label>KPI AT RISK</label><b>04</b><span class="red">02 critical</span></article>
+</div>
+</section>
+
+<section class="view" id="templates">
+<div class="head"><div><h1>Service KPI Template</h1><div class="sub">SKPI-01 · Cấu hình bộ KPI chuẩn cho Service Catalog (Portfolio 21 DV), package và vertical.</div></div><div class="actions"><button class="btn" onclick="showView('dictionary')">Mở KPI Dictionary</button><button class="btn" onclick="notify('Export template (demo)')">⇩ Export</button><button class="btn primary" onclick="openTemplateModal()">＋ Tạo Template</button></div></div>
+<div class="grid kpis">
+<article class="card kpi"><label>TEMPLATE ACTIVE</label><b>87</b><span>13 nhóm dịch vụ</span></article>
+<article class="card kpi"><label>IN REVIEW</label><b>02</b><span class="amber">Chờ Data/BI</span></article>
+<article class="card kpi"><label>DV CÓ TEMPLATE</label><b>19/21</b><span class="green">DV01–DV21 Portfolio</span></article>
+<article class="card kpi"><label>CLIENT-VISIBLE KPI</label><b>412</b><span>Trung bình 4,7/template</span></article>
+</div>
+<div class="filters" style="margin-top:14px"><button class="filter active">Tất cả</button><button class="filter">Active</button><button class="filter">In Review</button><button class="filter">Performance ▾</button><button class="filter">Client-facing ▾</button></div>
+<article class="card tablebox"><table class="table"><thead><tr><th>Service / Template</th><th>DV · KPI bundle</th><th>Required</th><th>Client visible</th><th>Owner team</th><th>Version</th><th>Status</th><th></th></tr></thead><tbody>
+<tr><td><span class="code" onclick="openTemplateDetail('meta')">Meta Ads Performance</span><br><span class="sub">SVC-ADS-MET-001 · DV04</span></td><td>MKT_004 · MKT_006 · MKT_007</td><td>06 / 09</td><td>07 KPI</td><td>Performance MKT</td><td>v4</td><td><span class="badge amber">In Review</span></td><td><button class="btn sm" onclick="openTemplateDetail('meta')">Cấu hình</button></td></tr>
+<tr><td><span class="code" onclick="openTemplateDetail('social')">Social Media Management</span><br><span class="sub">SVC-CNT-SOC-001 · DV02</span></td><td>Post · Reach · ER · Response SLA</td><td>05 / 08</td><td>06 KPI</td><td>Social + Content</td><td>v3</td><td><span class="badge green">Active</span></td><td><button class="btn sm" onclick="openTemplateDetail('social')">Cấu hình</button></td></tr>
+<tr><td><span class="code" onclick="openTemplateDetail('seo')">SEO Content Package</span><br><span class="sub">SVC-SEO-CNT-001 · DV05</span></td><td>Article · Keyword · Organic Traffic</td><td>05 / 07</td><td>06 KPI</td><td>SEO Team</td><td>v2</td><td><span class="badge amber">In Review</span></td><td><button class="btn sm" onclick="openTemplateDetail('seo')">Cấu hình</button></td></tr>
+<tr><td><span class="code" onclick="openTemplateDetail('crm')">CRM Implementation</span><br><span class="sub">SVC-CRM-IMP-001 · DV07</span></td><td>Pipeline · Lead SLA · Adoption</td><td>07 / 10</td><td>05 KPI</td><td>CRM/Tech</td><td>v4</td><td><span class="badge green">Active</span></td><td><button class="btn sm" onclick="openTemplateDetail('crm')">Cấu hình</button></td></tr>
+<tr><td><span class="code" onclick="openTemplateDetail('video')">Video Production</span><br><span class="sub">SVC-VID-PRD-001 · DV15</span></td><td>Master video · Watch rate · Deliverable</td><td>04 / 06</td><td>05 KPI</td><td>Production</td><td>v2</td><td><span class="badge green">Active</span></td><td><button class="btn sm" onclick="openTemplateDetail('video')">Cấu hình</button></td></tr>
+</tbody></table></article>
+<div class="notice" style="margin-top:14px"><b>Liên kết Portfolio 21 DV:</b> Template chỉ chọn KPI Definition Active từ KPI Dictionary. Khi Account thêm DV vào Quote, hệ thống clone Template Version thành KPI Instances. Template mới không ghi đè snapshot proposal/project đã phát hành.</div>
+<div class="spec-link"><b>SRS:</b> docs/specs/2026-09-09-service-kpi-module-srs.md · Route production: <code>/crm/kpi-hub/service-templates</code></div>
+</section>
+
+<section class="view" id="instances">
+<div class="head"><div><h1>KPI Instances</h1><div class="sub">SKPI-03 · KPI kế thừa/cấu hình theo Quote, Proposal, Project, Work Order hoặc Campaign.</div></div><div class="actions"><button class="btn" onclick="showView('templates')">Mở Service Template</button><button class="btn primary" onclick="openInstanceModal()">＋ KPI Instance</button></div></div>
+<div class="filters"><button class="filter active">Tất cả</button><button class="filter">Quote</button><button class="filter">Project</button><button class="filter">At Risk</button><button class="filter">Client: An Phát ▾</button></div>
+<article class="card tablebox"><table class="table"><thead><tr><th>KPI / Source</th><th>Classification</th><th>Target / Scenario</th><th>Actual</th><th>Variance</th><th>Readiness</th><th>Owner</th><th>Status</th><th></th></tr></thead><tbody>
+<tr><td><span class="code">MKT_006 · CPL Valid Lead</span><br><span class="sub">QT-2026-0089 · DV04 · Công ty An Phát</span></td><td><span class="badge purple">Mục tiêu tối ưu</span></td><td>85K–100K ₫ · Base</td><td><b>128.000 ₫</b></td><td class="red">+28%</td><td><span class="badge amber">Warning</span></td><td>Nguyễn Kiều</td><td><span class="badge red">AT RISK</span></td><td><button class="btn sm" onclick="showView('measurement')">Plan</button></td></tr>
+<tr><td><span class="code">MKT_007 · Tổng MQL</span><br><span class="sub">QT-2026-0089 · Growth Launch · An Phát</span></td><td><span class="badge amber">Kết quả dự kiến</span></td><td>96–120 · Base</td><td><b>25 (W1)</b></td><td>On track</td><td><span class="badge green">Ready</span></td><td>Nguyễn Kiều</td><td><span class="badge blue">TRACKING</span></td><td><button class="btn sm" onclick="showView('tracking')">Track</button></td></tr>
+<tr><td><span class="code">DLV_SOC_POST · Posts Delivered</span><br><span class="sub">PRJ-2026-042 · DV02 · Bella Spa</span></td><td><span class="badge blue">Cam kết bàn giao</span></td><td>24 / tháng</td><td><b>18 / 24</b></td><td>75%</td><td><span class="badge green">Ready</span></td><td>Phạm Anh</td><td><span class="badge blue">TRACKING</span></td><td><button class="btn sm" onclick="showView('tracking')">Track</button></td></tr>
+<tr><td><span class="code">CRM_LEAD_SLA · First Response</span><br><span class="sub">PRJ-2026-048 · DV07 · Minh Long RE</span></td><td><span class="badge amber">Business Outcome</span></td><td>&lt; 15 phút</td><td><b>27 phút</b></td><td class="red">+12 phút</td><td><span class="badge amber">Warning</span></td><td>Lê Hoàng</td><td><span class="badge red">AT RISK</span></td><td><button class="btn sm" onclick="showView('targets')">Xử lý</button></td></tr>
+</tbody></table></article>
+<div class="success" style="margin-top:14px"><b>Snapshot:</b> KPI Instance giữ Target, Scenario, Baseline, Assumption, Disclaimer theo ngữ cảnh client. Quote publish tạo KPI Snapshot client-visible; Quote Accepted kế thừa vào Project để tracking actual.</div>
+</section>
+
+<section class="view" id="measurement">
+<div class="head"><div><h1>Measurement Plan</h1><div class="sub">SKPI-05 · Kế hoạch đo: source mapping, formula snapshot, owner, cadence, QA và freshness SLA.</div></div><div class="actions"><button class="btn" onclick="showView('instances')">KPI Instances</button><button class="btn primary" onclick="openPlanModal()">＋ Tạo Measurement Plan</button></div></div>
+<div class="detail-layout">
+<div class="detail-main">
+<article class="card pad"><div class="section-title"><h2>Measurement Plan — MKT_006 CPL Valid Lead</h2><span class="badge amber">Data Quality Warning</span></div>
+<div class="formgrid">
+<div class="field"><label>KPI Instance</label><select class="select"><option>QT-2026-0089 · DV04 Meta Ads · An Phát</option></select></div>
+<div class="field"><label>KPI Owner</label><select class="select"><option>Nguyễn Kiều · Performance MKT</option></select></div>
+<div class="field"><label>Cadence</label><select class="select"><option>Daily</option></select></div>
+<div class="field"><label>Timezone</label><select class="select"><option>Asia/Ho_Chi_Minh (UTC+7)</option></select></div>
+<div class="field"><label>Data Source</label><select class="select"><option>Meta Ads API + CRM Core</option></select></div>
+<div class="field"><label>Freshness SLA</label><select class="select"><option>24 giờ</option></select></div>
+<div class="field full"><label>Source field mapping</label><textarea class="textarea">ad_spend = Meta Ads Insights.spend
+valid_leads = CRM Lead WHERE source = META AND is_valid = true AND deduplicated = true
+CPL Valid Lead = ad_spend / valid_leads</textarea></div>
+</div></article>
+<article class="card pad"><div class="section-title"><h2>Formula snapshot & QA</h2></div>
+<div class="formula"><b>Formula</b><code>CPL Valid Lead = Tổng chi tiêu quảng cáo / Tổng Valid Leads</code>
+<div style="margin-top:10px"><div class="var"><b>ad_spend</b><span>Meta Ads Insights.spend · VND · API · Daily.</span></div><div class="var"><b>valid_leads</b><span>CRM Lead với valid rule v2.1 và deduplicated=true.</span></div><div class="var"><b>zero denominator</b><span>Return N/A; tạo Data Quality Alert.</span></div></div></div>
+</article>
+</div>
+<aside class="sticky grid">
+<article class="card pad"><div class="section-title"><h2>Readiness</h2></div>
+<div class="list"><div class="row"><span>Definition/formula</span><b class="green">✓ Valid</b></div><div class="row"><span>Source mapping</span><b class="green">✓ Configured</b></div><div class="row"><span>Owner/cadence</span><b class="green">✓ Assigned</b></div><div class="row"><span>Freshness</span><b class="amber">! Stale 29h</b></div><div class="row"><span>QA verification</span><b class="amber">Pending</b></div></div>
+</article>
+<article class="card pad"><button class="btn primary" style="width:100%" onclick="showView('tracking')">Mở Actual Tracking</button></article>
+</aside>
+</div>
+</section>
+
+<section class="view" id="tracking">
+<div class="head"><div><h1>Actual Tracking</h1><div class="sub">SKPI-06 · Ghi nhận actual từ API, CSV/XLSX, manual entry; kiểm soát quality và reconciliation.</div></div><div class="actions"><button class="btn" onclick="openActual('import')">⇧ Import CSV/XLSX</button><button class="btn primary" onclick="openActual('manual')">＋ Nhập Actual</button></div></div>
+<div class="grid kpis">
+<article class="card kpi"><label>ACTUAL HÔM NAY</label><b>276</b><span class="green">96,1% valid/verified</span></article>
+<article class="card kpi"><label>API / CONNECTOR</label><b>218</b><span>Meta, GA4, CRM</span></article>
+<article class="card kpi"><label>MANUAL / IMPORT</label><b>58</b><span class="amber">12 pending verify</span></article>
+<article class="card kpi"><label>DATA ISSUES</label><b>07</b><span class="amber">04 stale · 03 duplicate</span></article>
+</div>
+<div class="two" style="margin-top:15px">
+<div class="grid">
+<article class="card pad"><div class="section-title"><h2>MKT_006 CPL Valid Lead — Target vs Actual</h2><span class="badge amber">At Risk</span></div>
+<div class="metricgrid"><div class="metric"><span>TARGET BASE</span><b>85K–100K ₫</b></div><div class="metric"><span>ACTUAL (07/10)</span><b>128.000 ₫</b></div><div class="metric"><span>VARIANCE</span><b class="red">+28%</b></div></div>
+<div class="chartarea" style="margin-top:13px"><div class="col"><i style="height:41%"></i><span>01/10</span></div><div class="col"><i style="height:53%"></i><span>02/10</span></div><div class="col"><i style="height:74%;background:linear-gradient(#fbbf24,#f59e0b)"></i><span>04/10</span></div><div class="col"><i style="height:86%;background:linear-gradient(#fb7185,#dc2626)"></i><span>05/10</span></div><div class="col"><i style="height:82%;background:linear-gradient(#fb7185,#dc2626)"></i><span>07/10</span></div></div>
+</article>
+<article class="card pad"><div class="section-title"><h2>Actual records</h2></div>
+<div class="list"><div class="row"><span>07/10 · Meta API + CRM</span><b>128.000 ₫ <span class="badge amber">Pending</span></b></div><div class="row"><span>06/10 · Meta API + CRM</span><b>123.000 ₫ <span class="badge green">Verified</span></b></div><div class="row"><span>05/10 · Meta API + CRM</span><b>131.000 ₫ <span class="badge green">Verified</span></b></div></div>
+</article>
+</div>
+<aside class="sticky grid"><article class="card pad"><button class="btn" style="width:100%;margin-bottom:7px" onclick="showView('targets')">Target & Cảnh báo</button><button class="btn" style="width:100%" onclick="showView('measurement')">Measurement Plan</button></article></aside>
+</div>
+</section>
+
+<section class="view" id="contracts">
+<div class="head"><div><h1>KPI Contract &amp; Risk</h1><div class="sub">SKPI-09 · Điểm rủi ro hợp đồng KPI — duyệt cùng GM floor. Internal only. Không xuống proposal.</div></div><div class="actions"><button class="btn" onclick="showView('warroom')">War Room</button><button class="btn primary" onclick="notify('Đã mở QT-0089 trên Quote Builder (demo)')">Mở Quote QT-0089</button></div></div>
+<div class="grid kpis">
+<article class="card kpi" style="background:#fff1f2;border-color:#fecaca"><label>QT-2026-0089 SCORE</label><b>78</b><span class="red">Block submit · GM 22,4% + CPL 50K</span></article>
+<article class="card kpi"><label>CLASSIFICATION RISK</label><b>22</b><span>Forecast client-facing · BĐS</span></article>
+<article class="card kpi"><label>TARGET AGGRESSIVENESS</label><b>28</b><span class="red">CPL 50K vs floor 85K (−41%)</span></article>
+<article class="card kpi"><label>MARGIN PRESSURE</label><b>18</b><span class="amber">GM 22,4% &lt; floor 25%</span></article>
+</div>
+<div class="two" style="margin-top:15px">
+<div class="grid">
+<article class="card pad"><div class="section-title"><h2>Cổng duyệt — cùng lúc GM + Score</h2><span class="badge red">Blocked</span></div>
+<div class="notice"><b>Trigger:</b> Gross margin dưới floor <b>và</b> CPL target dưới benchmark 41%. Policy: Finance + GDKD + Strategy. Account không được publish bằng cách ẩn disclaimer.</div>
+<div class="list" style="margin-top:12px">
+<div class="row"><span>GM floor 25%</span><b class="red">22,4%</b></div>
+<div class="row"><span>CPL template range</span><b>85K–100K</b></div>
+<div class="row"><span>CPL đề xuất</span><b class="red">50.000 ₫</b></div>
+<div class="row"><span>Assumption budget 120tr</span><b class="amber">Pending client</b></div>
+<div class="row"><span>Disclaimer forecast</span><b class="green">Có</b></div>
+</div>
+<div class="actions" style="justify-content:flex-start;margin-top:14px"><button class="btn primary" onclick="notify('Yêu cầu phương án B: CPL 85–100K hoặc tăng fee (demo)')">Bắt buộc phương án B</button><button class="btn" onclick="notify('Waiver Finance+GDKD đã tạo (demo)')">Xin waiver</button></div>
+</article>
+<article class="card pad"><div class="section-title"><h2>Vì sao đối thủ không làm được</h2></div>
+<p class="sub" style="line-height:1.65">AgencyAnalytics không biết GM. Productive biết utilization, không biết CPL có phải cam kết. HubSpot duyệt deal, không duyệt ngôn ngữ forecast trên proposal agency. RNOSAI cộng Score vào cổng Quote OS đã có.</p>
+</article>
+</div>
+<aside class="sticky grid">
+<article class="card pad"><div class="section-title"><h2>Công thức (internal)</h2></div>
+<div class="formula"><code>Risk = 0.25 Class + 0.25 Aggr + 0.20 Assume + 0.15 Data + 0.15 Margin</code></div>
+<div class="list" style="margin-top:10px"><div class="row"><span>Public API</span><b class="green">Không trả score</b></div></div>
+</article>
+</aside>
+</div>
+</section>
+
+<section class="view" id="reconcile">
+<div class="head"><div><h1>Quoted vs Delivered vs Reported</h1><div class="sub">SKPI-10 · Ba sổ. Cấm xuất Reported từ actual Unverified. Chênh material → Change Order.</div></div><div class="actions"><button class="btn" onclick="notify('Đã tạo Change Order từ Quoted snapshot (demo)')">＋ Change Order</button></div></div>
+<article class="card tablebox"><table class="table"><thead><tr><th>KPI</th><th>Quoted (accept)</th><th>Delivered (nội bộ)</th><th>Reported (khách)</th><th>Quality</th><th>Hành vi</th></tr></thead><tbody>
+<tr><td><span class="code">MKT_006 CPL</span><br><span class="sub">QT-0089 · An Phát</span></td><td>85K–100K · Base</td><td><b>128.000 ₫</b></td><td class="red">Blocked</td><td><span class="badge amber">Pending</span></td><td>Cấm report</td></tr>
+<tr><td><span class="code">MKT_007 MQL</span></td><td>96–120 · Forecast</td><td>25 (W1)</td><td>25 · “đúng tiến độ W1”</td><td><span class="badge green">Verified</span></td><td>OK + disclaimer</td></tr>
+<tr><td><span class="code">DLV_SOC_POST</span></td><td>24 / tháng</td><td>18 / 24</td><td>18 / 24</td><td><span class="badge green">Verified</span></td><td>On track</td></tr>
+<tr><td><span class="code">CRM_LEAD_SLA</span></td><td>&lt; 15 phút</td><td>27 phút</td><td>—</td><td><span class="badge amber">Assumption fail</span></td><td>AT_RISK · khách chưa confirm SLA</td></tr>
+</tbody></table></article>
+<div class="success" style="margin-top:14px"><b>3 sổ:</b> Quoted = snapshot pháp lý. Delivered = vận hành. Reported = đã QA + client-visible. Dashboard SaaS chỉ có sổ Reported.</div>
+</section>
+
+<section class="view" id="packs">
+<div class="head"><div><h1>Industry Policy Pack</h1><div class="sub">SKPI-11 · Rule + từ cấm + reviewer theo ngành. Functional Lead không override pack regulated.</div></div></div>
+<div class="two">
+<div class="grid">
+<article class="card pad"><div class="section-title"><h2>Pack · Bất động sản</h2><span class="badge red">Regulated</span></div>
+<div class="list">
+<div class="row"><span>Booking / deposit / GMV</span><b>Cấm COMMITTED</b></div>
+<div class="row"><span>Lead forecast</span><b>Budget + LP + creative</b></div>
+<div class="row"><span>Từ cấm proposal</span><b class="red">“cam kết doanh số”</b></div>
+<div class="row"><span>Reviewer</span><b>Legal khi claim nhạy</b></div>
+</div>
+<div class="notice" style="margin-top:12px">QT-0089 ngành BĐS: KPI booking nếu gắn Cam kết bàn giao → block publish. Ép BUSINESS_OUTCOME + Sales SLA khách.</div>
+</article>
+<article class="card pad"><div class="section-title"><h2>Pack khác</h2></div>
+<div class="list"><div class="row"><span>Spa / Beauty</span><b>Cấm guarantee liệu trình</b></div><div class="row"><span>Education</span><b>Cấm cam kết tuyển sinh</b></div><div class="row"><span>Healthcare</span><b>Legal bắt buộc</b></div></div>
+</article>
+</div>
+<aside class="sticky grid">
+<article class="card pad"><div class="section-title"><h2>Wording firewall</h2></div>
+<p class="sub" style="line-height:1.6">Rule-based Wave 1 (không LLM). Quét proposal: nếu classification = PROJECTED_RESULT mà copy chứa “cam kết / đảm bảo / chắc chắn X lead” → block.</p>
+</article>
+</aside>
+</div>
+</section>
+
+<section class="view" id="dictionary"><div class="head"><div><h1>KPI Dictionary</h1><div class="sub">Liên kết: Service KPI Template chỉ dùng KPI Definition Active từ Dictionary.</div></div><div class="actions"><button class="btn primary" onclick="showView('templates')">Quay lại Service Template</button></div></div><div class="notice">Màn hình KPI Dictionary đã có tại <code>/crm/kpi-hub/dictionary</code>. Mockup này chỉ demo luồng cross-link.</div></section>
+<section class="view" id="targets"><div class="head"><div><h1>Target & Cảnh báo</h1><div class="sub">Liên kết module Target & Cảnh báo hiện có tại <code>/crm/kpi-hub/targets</code>.</div></div></div></section>
+<section class="view" id="reports"><div class="head"><div><h1>Báo cáo KPI</h1><div class="sub">Liên kết <code>/crm/kpi-hub/reports</code>.</div></div></div></section>
+
+</main></div></div>
+
+<div class="modalbg" id="modalbg"><div class="modal"><div class="modalhead"><h2 id="modalTitle"></h2><button class="close" onclick="closeModal()">×</button></div><div class="modalbody" id="modalBody"></div><div class="modalfoot" id="modalFoot"></div></div></div>
+<div class="toast" id="toast"></div>
+<script>
+const titles={warroom:'War Room',overview:'Service KPI — Tổng quan',templates:'Service KPI Template',instances:'KPI Instances',measurement:'Measurement Plan',tracking:'Actual Tracking',contracts:'KPI Contract & Risk',reconcile:'Quoted vs Actual',packs:'Policy Pack',dictionary:'KPI Dictionary',targets:'Target & Cảnh báo',reports:'Báo cáo KPI'};
+function showView(id){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));const el=document.getElementById(id);if(el)el.classList.add('active');document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.dataset.view===id));document.getElementById('crumb').textContent=titles[id]||id;window.scrollTo({top:0,behavior:'smooth'})}
+document.querySelectorAll('[data-view]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();showView(a.dataset.view)}));
+function modal(t,b,f){document.getElementById('modalTitle').textContent=t;document.getElementById('modalBody').innerHTML=b;document.getElementById('modalFoot').innerHTML=f;document.getElementById('modalbg').classList.add('open')}
+function closeModal(){document.getElementById('modalbg').classList.remove('open')}
+document.getElementById('modalbg').addEventListener('click',e=>{if(e.target.id==='modalbg')closeModal()});
+function notify(t){const x=document.getElementById('toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),2700)}
+function openTemplateModal(){modal('Tạo Service KPI Template',`<div class="formgrid"><div class="field"><label>Service Catalog Item (21 DV) *</label><select class="select"><option>DV04 — Meta Ads Performance</option><option>DV02 — Social Media Management</option><option>DV05 — SEO Content</option><option>DV07 — CRM Implementation</option><option>DV15 — Video Production</option></select></div><div class="field"><label>Template name *</label><input class="input" placeholder="Ví dụ: Meta Ads Lead Generation v1"></div><div class="field full"><label>Chọn KPI từ Dictionary</label><select class="select" multiple style="height:105px"><option>MKT_004 — Tổng chi tiêu quảng cáo</option><option>MKT_006 — CPL Valid Lead</option><option>MKT_007 — Tổng MQL</option></select></div><div class="field"><label>Owner team</label><select class="select"><option>Performance MKT</option><option>Social + Content</option></select></div><div class="field"><label>Client visibility</label><select class="select"><option>Inherit from KPI Definition</option></select></div></div>`,`<button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="closeModal();notify('Đã tạo Service KPI Template Draft (demo)')">Tạo Template</button>`)}
+function openTemplateDetail(type){const names={meta:'Meta Ads Performance · DV04',social:'Social Media Management · DV02',seo:'SEO Content · DV05',crm:'CRM Implementation · DV07',video:'Video Production · DV15'};modal('SKPI-02 — Cấu hình Template — '+names[type],`<div class="notice"><b>Template lifecycle:</b> Active Template chỉ sửa bằng version Draft mới. Quote/Project giữ KPI Snapshot theo version cũ.</div><div style="margin-top:12px"><div class="kpi-group">Cam kết bàn giao</div><div class="kpi-row"><div class="kpi-no">01</div><div><b>Campaign Sets Configured</b><span>Deliverable</span></div><div><span class="badge blue">Cam kết</span></div><div><b>03</b><span>campaign</span></div><div>Ready</div><button class="btn sm">Sửa</button></div><div class="kpi-group">Performance & Forecast</div><div class="kpi-row"><div class="kpi-no">02</div><div><b>MKT_006 CPL Valid Lead</b><span>Optimization target</span></div><div><span class="badge purple">Tối ưu</span></div><div><b>85K–100K</b><span>VND/lead</span></div><div>Ready</div><button class="btn sm">Sửa</button></div><div class="kpi-row"><div class="kpi-no">03</div><div><b>MKT_007 Leads Forecast</b><span>Projected result</span></div><div><span class="badge amber">Dự kiến</span></div><div><b>1K–1.2K</b><span>Base</span></div><div>Review</div><button class="btn sm">Sửa</button></div></div>`,`<button class="btn" onclick="closeModal()">Đóng</button><button class="btn primary" onclick="closeModal();notify('Đã submit review (demo)')">Submit review</button>`)}
+function openInstanceModal(){modal('Tạo KPI Instance',`<div class="formgrid"><div class="field"><label>Source Type</label><select class="select"><option>Quote Line Item</option><option>Project / Work Order</option></select></div><div class="field"><label>Source *</label><select class="select"><option>QT-2026-0089 · DV04 Meta Ads</option></select></div><div class="field"><label>KPI Definition</label><select class="select"><option>MKT_006 — CPL Valid Lead</option></select></div><div class="field"><label>Scenario</label><select class="select"><option>Base</option></select></div><div class="field"><label>Target range</label><input class="input" value="85.000 – 100.000"></div><div class="field full"><label>Assumption & disclaimer</label><textarea class="textarea">CPL là mục tiêu tối ưu; phụ thuộc thị trường, creative, offer và sales SLA.</textarea></div></div>`,`<button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="closeModal();notify('Đã tạo KPI Instance Draft (demo)')">Tạo Instance</button>`)}
+function openPlanModal(){modal('Tạo Measurement Plan',`<div class="formgrid"><div class="field"><label>KPI Instance *</label><select class="select"><option>MKT_006 · QT-2026-0089</option></select></div><div class="field"><label>Data source</label><select class="select"><option>Meta Ads API + CRM Core</option></select></div><div class="field full"><label>Mapping note</label><textarea class="textarea">Define source field, transform, deduplication, timezone.</textarea></div></div>`,`<button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="closeModal();notify('Đã lưu Measurement Plan (demo)')">Lưu Plan</button>`)}
+function openActual(type){modal(type==='import'?'Import Actual KPI':'Nhập Actual KPI',type==='import'?`<div class="notice"><b>Import schema:</b> kpi_code, period_start, period_end, value, quality_status, source_ref.</div><div class="field" style="margin-top:13px"><label>Chọn file</label><input class="input" type="file"></div>`:`<div class="formgrid"><div class="field"><label>KPI Instance</label><select class="select"><option>MKT_006 · QT-2026-0089</option></select></div><div class="field"><label>Actual value</label><input class="input" value="128000"></div></div>`,`<button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="closeModal();notify('Đã ghi Actual (demo)')">Xác nhận</button>`)}
+const hash=(location.hash||'').replace('#','');if(hash&&document.getElementById(hash))showView(hash);
+</script>
+</body>
+</html>

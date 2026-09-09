@@ -468,11 +468,29 @@ export function QtMetaFunnel({ funnel }: { funnel: QtMetaFunnelValues }) {
   );
 }
 
+function kpiLayerLabel(row: QtQuoteKpi): string {
+  if (row.label_vi?.trim()) return row.label_vi.trim();
+  if (row.class === 'committed') return 'Cam kết giao hàng';
+  if (row.class === 'optimization_target') return 'Mục tiêu tối ưu';
+  if (row.class === 'projected_result') return 'Kết quả dự kiến';
+  if (row.class === 'business_outcome') return 'Kết quả kinh doanh';
+  if (row.class === 'quality_standard') return 'Tiêu chuẩn chất lượng';
+  return row.class || dash(null);
+}
+
+function kpiLayerClass(row: QtQuoteKpi): string {
+  if (row.class === 'committed' || row.class === 'quality_standard') return ' qt-pill--ok';
+  if (row.class === 'optimization_target' || row.class === 'business_outcome') return ' qt-pill--info';
+  if (row.class === 'projected_result') return ' qt-pill--warn';
+  return '';
+}
+
 export function QtKpiChrome({ kpis = [] }: { kpis?: QtQuoteKpi[] } = {}) {
   return (
     <section className="qt-card">
       <header className="qt-card__head">
         <b>KPI 3 lớp</b>
+        <span className="qt-card__hint">Cam kết · Mục tiêu tối ưu · Kết quả dự kiến</span>
       </header>
       <div className="qt-table-wrap">
         <table className="qt-table">
@@ -489,21 +507,14 @@ export function QtKpiChrome({ kpis = [] }: { kpis?: QtQuoteKpi[] } = {}) {
             {kpis.length ? (
               kpis.map((row, index) => (
                 <tr key={`${row.name}-${index}`}>
-                  <td>{row.name || dash(null)}</td>
                   <td>
-                    <span
-                      className={`qt-pill${
-                        row.class === 'committed'
-                          ? ' qt-pill--ok'
-                          : row.class === 'optimization_target'
-                            ? ' qt-pill--info'
-                            : row.class === 'projected_result'
-                              ? ' qt-pill--warn'
-                              : ''
-                      }`}
-                    >
-                      {row.class || dash(null)}
-                    </span>
+                    <div>{row.name || dash(null)}</div>
+                    {row.benchmark_hint ? (
+                      <div className="qt-table__sub">{row.benchmark_hint}</div>
+                    ) : null}
+                  </td>
+                  <td>
+                    <span className={`qt-pill${kpiLayerClass(row)}`}>{kpiLayerLabel(row)}</span>
                   </td>
                   <td>{dash(row.value_text)}</td>
                   <td>{dash(row.source)}</td>

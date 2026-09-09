@@ -11,6 +11,7 @@ import { InvoicesService } from '../invoices/invoices.service';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import { skuFromDvTier } from '../spc/spc-sku.util';
 import { VdProjectService } from '../video-sop/project/vd-project.service';
+import { ServiceKpiInstancesService } from '../kpi-hub/service-kpi/service-kpi-instances.service';
 import { ProposalsPgRepository } from './proposals-pg.repository';
 import { QT_QUOTE_QUERY, QuoteQueryFn, QuoteQueryPort } from './quote-audit.repository';
 import { VID_TPL_01 } from './quote-catalog.service';
@@ -81,6 +82,7 @@ export class QuoteConvertService {
     private readonly invoices: InvoicesService,
     @Optional() private readonly vdProjects?: VdProjectService,
     @Optional() private readonly cpProjects?: CpProjectsService,
+    @Optional() private readonly serviceKpiInstances?: ServiceKpiInstancesService,
   ) {}
 
   async convert(
@@ -153,6 +155,15 @@ export class QuoteConvertService {
 
       if (lifecycles.length === 1) {
         await this.repo.setProposalLifecycle(proposalId, lifecycles[0].lifecycle_id);
+      }
+
+      if (this.serviceKpiInstances) {
+        for (const lc of lifecycles) {
+          await this.serviceKpiInstances.cloneToProject({
+            lineId: String(lc.line_id),
+            projectId: String(lc.lifecycle_id),
+          });
+        }
       }
 
       const invoiceDraftIds = await this.createInvoiceDrafts(

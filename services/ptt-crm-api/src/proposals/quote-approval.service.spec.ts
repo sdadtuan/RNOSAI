@@ -219,8 +219,21 @@ class ApprovalMemory {
   }
 }
 
-function load(db = new ApprovalMemory()) {
-  return { db, svc: new QuoteApprovalService(db) };
+type MockKpiScore = { scoreForVersion: jest.Mock };
+
+function mockKpiScore(overrides: Partial<{ score: number; blockSubmit: boolean }> = {}): MockKpiScore {
+  return {
+    scoreForVersion: jest.fn().mockResolvedValue({
+      score: overrides.score ?? 0,
+      blockSubmit: overrides.blockSubmit ?? false,
+      requiredReviewers: overrides.blockSubmit ? ['Finance', 'GDKD', 'Strategy'] : [],
+      parts: {},
+    }),
+  };
+}
+
+function load(db = new ApprovalMemory(), kpiScore?: MockKpiScore) {
+  return { db, svc: new QuoteApprovalService(db, kpiScore as never) };
 }
 
 describe('QuoteApprovalService AC-03 / comments / BR-QT-006', () => {
@@ -250,6 +263,18 @@ describe('QuoteApprovalService AC-03 / comments / BR-QT-006', () => {
     const gdkd = out.steps.find((s) => s.section === 'GDKD')!;
     await svc.actOnStep(gdkd.id, { action: 'approve' }, ACTOR);
     await expect(svc.assertPublishable(VID)).resolves.toBeUndefined();
+  });
+
+  it('blocks submit when KPI contract score fails (kpi_contract_blocked)', async () => {
+    const kpiScore = mockKpiScore({ score: 19, blockSubmit: true });
+    const { svc } = load(new ApprovalMemory(), kpiScore);
+    await expect(svc.submitApproval(VID, ACTOR)).rejects.toMatchObject({
+      response: {
+        error: 'kpi_contract_blocked',
+        score: 19,
+        required_reviewers: ['Finance', 'GDKD', 'Strategy'],
+      },
+    });
   });
 
   it('return/reject without comment → 400 comment_required', async () => {

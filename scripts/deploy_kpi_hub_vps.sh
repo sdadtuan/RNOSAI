@@ -25,8 +25,11 @@ run_local() {
     set +a
   fi
 
-  echo "== 0/5 apply KPI Hub DDL =="
+  echo "== 0/6 apply KPI Hub DDL =="
   bash "$ROOT/scripts/apply_pg_ddl_kpi_hub.sh"
+
+  echo "== 0b/6 apply Service KPI DDL =="
+  bash "$ROOT/scripts/apply_pg_ddl_service_kpi.sh"
 
   echo "== 1/5 seed KPI Hub RBAC =="
   bash "$ROOT/scripts/seed_kpi_hub_rbac.sh" --apply

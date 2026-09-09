@@ -167,6 +167,14 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/kpi-hub/quality': 'Data Quality',
   '/crm/kpi-hub/reports': 'Báo cáo KPI Hub',
   '/crm/kpi-hub/settings': 'Cài đặt KPI Hub',
+  '/crm/kpi-hub/service-kpi': 'Service KPI War Room',
+  '/crm/kpi-hub/service-templates': 'Service KPI Template',
+  '/crm/kpi-hub/instances': 'KPI Instances',
+  '/crm/kpi-hub/measurement': 'Measurement Plan',
+  '/crm/kpi-hub/tracking': 'Actual Tracking',
+  '/crm/kpi-hub/kpi-contracts': 'KPI Contract & Risk',
+  '/crm/kpi-hub/reconcile': 'Quoted vs Actual',
+  '/crm/kpi-hub/policy-packs': 'Policy Pack',
   '/crm/ai/insights': 'AI Insights',
   '/crm/ai/coach': 'Manager Coach',
   '/crm/ai/query': 'NL Analytics',
@@ -524,6 +532,16 @@ function buildSections(
   }
   if (hasCap(user, 'crm_kpi_hub_settings', 'view')) {
     kpiHub.push({ href: '/crm/kpi-hub/settings', label: 'Cài đặt' });
+  }
+  if (hasCap(user, 'crm_kpi_hub', 'view')) {
+    kpiHub.push({ href: '/crm/kpi-hub/service-kpi', label: 'Service KPI War Room' });
+    kpiHub.push({ href: '/crm/kpi-hub/service-templates', label: 'Service KPI Template' });
+    kpiHub.push({ href: '/crm/kpi-hub/instances', label: 'KPI Instances' });
+    kpiHub.push({ href: '/crm/kpi-hub/measurement', label: 'Measurement Plan' });
+    kpiHub.push({ href: '/crm/kpi-hub/tracking', label: 'Actual Tracking' });
+    kpiHub.push({ href: '/crm/kpi-hub/kpi-contracts', label: 'KPI Contract & Risk' });
+    kpiHub.push({ href: '/crm/kpi-hub/reconcile', label: 'Quoted vs Actual' });
+    kpiHub.push({ href: '/crm/kpi-hub/policy-packs', label: 'Policy Pack' });
   }
   if (kpiHub.length) {
     sections.push({ label: 'KPI Hub', links: kpiHub, defaultOpen: true });

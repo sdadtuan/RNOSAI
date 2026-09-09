@@ -98,6 +98,38 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     anyOf: [{ section: 'crm_kpi_dictionary', action: 'view' }],
   },
   {
+    prefix: '/crm/kpi-hub/service-kpi',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/kpi-contracts',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/reconcile',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/policy-packs',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/service-templates',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/instances',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/measurement',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
+    prefix: '/crm/kpi-hub/tracking',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
     prefix: '/crm/kpi-hub',
     anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
   },
