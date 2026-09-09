@@ -269,7 +269,7 @@ export function seedPerformanceCatalog(): PmCatalog {
       { campaign: 'Student Recruitment', client: 'EduNext', quote_wo: 'QT-0067', kpi: 'Qualified Lead', quoted: '1.200', actual: '860', media_budget: '96M', agency_fee: '24M', status: 'yellow' },
     ],
     crm_mappings: [
-      { kpi: 'Valid Lead', definition: 'is_valid=true, deduplicated=true', field: 'lead.status', cadence: 'Hourly', quality: 'Stale 29h', related: 'CPL Valid Lead' },
+      { kpi: 'Valid Lead', definition: 'is_valid ∧ dedup · v3', field: 'lead.status', cadence: 'Hourly', quality: 'Stale 29h', related: 'CPL Valid Lead' },
       { kpi: 'MQL', definition: 'lifecycle_stage=MQL', field: 'lead.lifecycle_stage', cadence: 'Hourly', quality: 'Verified', related: 'MQL Target / MQL Rate' },
       { kpi: 'SQL', definition: 'Sales Qualified Lead', field: 'lead.lifecycle_stage', cadence: 'Daily', quality: 'Verified', related: 'MQL → SQL Rate' },
       { kpi: 'First Response', definition: 'first_contact_at - created_at', field: 'activity.created_at', cadence: 'Hourly', quality: 'Verified', related: 'Lead Response SLA' },
