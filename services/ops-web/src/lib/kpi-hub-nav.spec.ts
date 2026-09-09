@@ -8,15 +8,21 @@ import {
 } from './kpi-hub-nav';
 
 describe('kpi-hub-nav', () => {
-  it('groups three headings with command centers and governance extras', () => {
-    expect(KPI_HUB_NAV_GROUPS.map((g) => g.label)).toEqual(['TỔNG QUAN', 'GOVERNANCE', 'PHÂN TÍCH']);
+  it('groups four headings with command centers, governance, and service KPI', () => {
+    expect(KPI_HUB_NAV_GROUPS.map((g) => g.label)).toEqual([
+      'TỔNG QUAN',
+      'GOVERNANCE',
+      'SERVICE KPI',
+      'PHÂN TÍCH',
+    ]);
     expect(KPI_HUB_NAV_GROUPS[0].items.map((i) => i.href)).toEqual([
       '/crm/kpi-hub/executive',
       '/crm/kpi-hub/marketing',
       '/crm/kpi-hub/sales',
     ]);
     expect(KPI_HUB_NAV_GROUPS[1].items.map((i) => i.href)).toContain('/crm/kpi-hub/approvals');
-    expect(KPI_HUB_NAV_GROUPS[2].items.map((i) => i.href)).toEqual([
+    expect(KPI_HUB_NAV_GROUPS[2].items.map((i) => i.href)).toContain('/crm/kpi-hub/service-kpi');
+    expect(KPI_HUB_NAV_GROUPS[3].items.map((i) => i.href)).toEqual([
       '/crm/kpi-hub/reports',
       '/crm/kpi-hub/audit',
       '/crm/kpi-hub/settings',
