@@ -22,7 +22,7 @@ async function pmFetch<T>(token: string, path: string, init?: RequestInit): Prom
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: 'no-store' });
   const body = await parseJson<T & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body?.message ?? body?.error ?? `HTTP ${res.status}`, res.status, body);
+    throw new ApiError(body?.message ?? body?.error ?? `HTTP ${res.status}`, res.status);
   }
   return body as T;
 }
