@@ -553,6 +553,49 @@ export class ProposalsService {
     return this.quoteCatalog.importCatalog(input);
   }
 
+  createCatalogGroup(input: { key?: string; title?: string; description?: string; icon?: string }) {
+    return this.quoteCatalog.createGroup(input);
+  }
+
+  updateCatalogGroup(key: string, input: { title?: string; description?: string; icon?: string }) {
+    return this.quoteCatalog.updateGroup(key, input);
+  }
+
+  deleteCatalogGroup(key: string) {
+    return this.quoteCatalog.deleteGroup(key);
+  }
+
+  createCatalogService(input: {
+    name?: string;
+    group_key?: string;
+    description?: string;
+    dv_code?: string;
+    recommended?: boolean;
+    tags?: string[];
+    client_visible?: boolean;
+  }) {
+    return this.quoteCatalog.createService(input);
+  }
+
+  updateCatalogService(
+    dv: string,
+    input: {
+      name?: string;
+      group_key?: string;
+      description?: string;
+      active?: boolean;
+      recommended?: boolean;
+      tags?: string[];
+      client_visible?: boolean;
+    },
+  ) {
+    return this.quoteCatalog.updateService(dv, input);
+  }
+
+  deleteCatalogService(dv: string) {
+    return this.quoteCatalog.deleteService(dv);
+  }
+
   async generate(proposalId: number) {
     if (!process.env.QT_AI_ENABLED) {
       throw new NotFoundException({ error: 'qt_ai_disabled' });

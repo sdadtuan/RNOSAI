@@ -5,14 +5,22 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import {
+  createQtCatalogGroup,
+  createQtCatalogService,
+  deleteQtCatalogGroup,
+  deleteQtCatalogService,
   getQtQuoteCatalogDoc,
   importQtCatalog,
   qtCatalogImportOutcome,
   snapshotQtCatalogPackage,
+  updateQtCatalogGroup,
+  updateQtCatalogService,
+  type QtCatalogGroup,
   type QtCatalogItem,
   type QtIndustryPackage,
   type QtRateCard,
 } from '@/lib/crm/qt-api';
+import { QtCatalogOs, asCatalogGroups } from './QtCatalogOs';
 import { dash } from '@/lib/crm/qt-format';
 import { QtCatalogImportPanel } from './QtSettings';
 
@@ -40,22 +48,22 @@ export const VID_TPL_01 = 'VID-TPL-01';
 
 export const QT_CATALOG_GROUP_META: Record<
   QtCatalogNavGroup | 'package',
-  { title: string; hint: string }
+  { title: string; hint: string; description: string; icon: string }
 > = {
-  strategy: { title: '1. Strategy & Research', hint: 'DV12 · audit / GTM' },
-  branding: { title: '2. Branding & Creative', hint: 'DV01 · CB/TC/CS' },
-  content: { title: '3. Content & Social', hint: 'DV02 · CB/TC/CS' },
-  production: { title: '4. Video & Image', hint: 'DV15 · Reels · Brand Film' },
-  performance: { title: '5. Performance & Media', hint: 'DV04 kênh · DV18 plan · DV19 TMĐT' },
-  web: { title: '6. Web, LP & CRO', hint: 'DV03' },
-  seo: { title: '7. SEO / AEO / Organic', hint: 'DV05 · 3 line' },
-  crm: { title: '8. CRM, Automation & AI', hint: 'DV07–11 · không phải Draft mặc định' },
-  retention: { title: '9. Email & Retention', hint: 'DV20 · DV06' },
-  pr: { title: '10. PR, KOL & Reputation', hint: 'DV14 · DV16' },
-  event: { title: '11. Event & Activation', hint: 'DV17 · DV21 POSM' },
-  sales: { title: '12. Sales Enablement B2B', hint: 'Không phải DV mới — chỉ khi có owner' },
-  data: { title: '13. Data & Analytics', hint: 'DV13' },
-  package: { title: 'Ngành BĐS / Spa / Edu / Growth', hint: 'Nổ ra line DV + discount' },
+  strategy: { title: 'Strategy & Research', hint: 'DV12 · audit / GTM', description: 'Discovery, audit, research, strategy, GTM và consulting.', icon: '✦' },
+  branding: { title: 'Branding & Creative', hint: 'DV01 · CB/TC/CS', description: 'Định vị, nhận diện, creative concept và brand asset.', icon: '◇' },
+  content: { title: 'Content & Social', hint: 'DV02 · CB/TC/CS', description: 'Content strategy, social operation, copywriting và community.', icon: '✎' },
+  production: { title: 'Video & Image Production', hint: 'DV15 · Reels · Brand Film', description: 'Pre-production, video, image, motion và livestream.', icon: '▶' },
+  performance: { title: 'Performance & Media', hint: 'DV04 kênh · DV18 plan · DV19 TMĐT', description: 'Paid media, media buying, TMĐT và growth ads.', icon: '◉' },
+  web: { title: 'Web, Landing Page & CRO', hint: 'DV03', description: 'UX/UI, website, landing page, tracking và CRO.', icon: '▣' },
+  seo: { title: 'SEO, AEO/GEO & Organic', hint: 'DV05 · 3 line', description: 'Technical SEO, content SEO, local SEO và AI-search.', icon: '⌕' },
+  crm: { title: 'CRM, Automation & AI', hint: 'DV07–11 · không phải Draft mặc định', description: 'CRM, lead routing, automation, chatbot và dashboard.', icon: '♟' },
+  retention: { title: 'Email & Retention', hint: 'DV20 · DV06', description: 'Lifecycle, nurture, reactivation và reminders.', icon: '↻' },
+  pr: { title: 'PR, KOL & Reputation', hint: 'DV14 · DV16', description: 'PR, media relations, KOL/KOC và ORM.', icon: '◌' },
+  event: { title: 'Event & Activation', hint: 'DV17 · DV21 POSM', description: 'Event, launch, activation, roadshow và POSM.', icon: '★' },
+  sales: { title: 'Sales Enablement B2B', hint: 'Không phải DV mới — chỉ khi có owner', description: 'Sales deck, ABM, outreach và pitch support.', icon: '↗' },
+  data: { title: 'Data & Analytics', hint: 'DV13', description: 'GA4/GTM, attribution, reporting và dashboard.', icon: '▤' },
+  package: { title: 'Package theo ngành', hint: 'Nổ ra line DV + discount', description: 'Gói N line DV + discount, không tạo family mới.', icon: '▣' },
 };
 
 export const QT_CATALOG_DRAWER_TABS = [
@@ -524,6 +532,7 @@ export function QtVidTpl01Template() {
 
 export function QtCatalogView({
   items,
+  groups = [],
   templateKey,
   selectedGroup,
   onSelectGroup,
@@ -533,11 +542,18 @@ export function QtCatalogView({
   packages = [],
   rateCards = [],
   hasFinance = false,
+  canManage = false,
   addingPackage = null,
   onOpenService,
   onDrawerTab,
   onCloseDrawer,
   onAddPackage,
+  onCreateGroup,
+  onUpdateGroup,
+  onDeleteGroup,
+  onCreateService,
+  onUpdateService,
+  onDeleteService,
   loading = false,
   error = '',
   importing = false,
@@ -547,6 +563,7 @@ export function QtCatalogView({
   onRetry,
 }: {
   items: QtCatalogItem[];
+  groups?: QtCatalogGroup[];
   templateKey?: string | null;
   selectedGroup?: string | null;
   onSelectGroup?: (group: string | null) => void;
@@ -556,11 +573,21 @@ export function QtCatalogView({
   packages?: QtIndustryPackage[];
   rateCards?: QtRateCard[];
   hasFinance?: boolean;
+  canManage?: boolean;
   addingPackage?: string | null;
   onOpenService?: (item: QtCatalogItem) => void;
   onDrawerTab?: (tab: QtCatalogDrawerTabId) => void;
   onCloseDrawer?: () => void;
   onAddPackage?: (key: string) => void;
+  onCreateGroup?: (body: { title: string; description?: string; icon?: string }) => Promise<void>;
+  onUpdateGroup?: (key: string, body: { title?: string; description?: string; icon?: string }) => Promise<void>;
+  onDeleteGroup?: (key: string) => Promise<void>;
+  onCreateService?: (body: { name: string; group_key: string; description?: string }) => Promise<void>;
+  onUpdateService?: (
+    dv: string,
+    body: { name?: string; group_key?: string; description?: string; active?: boolean },
+  ) => Promise<void>;
+  onDeleteService?: (dv: string) => Promise<void>;
   loading?: boolean;
   error?: string;
   importing?: boolean;
@@ -613,41 +640,8 @@ export function QtCatalogView({
     );
   }
 
-  const visible = selectedGroup
-    ? items.filter((item) => item.group === selectedGroup)
-    : items;
-  const portfolioCount = items.filter((item) => /^DV\d{2}$/i.test(String(item.dv_code ?? ''))).length;
-  const hasVidTpl = items.some((item) => item.template_key === VID_TPL_01);
-  const emptyCopy = selectedGroup
-    ? 'Nhóm này không có DV trong Portfolio 21'
-    : 'Chưa tải được Portfolio 21 DV';
-
   return (
     <div className="qt-catalog">
-      <header className="qt-head">
-        <div>
-          <p className="qt-crumb">Kinh doanh / Báo giá / Service Catalog</p>
-          <h1>Service Catalog</h1>
-          <p className="qt-muted">
-            Portfolio DV01–21 · lọc 13 nhóm · Active mới add Quote
-            {portfolioCount ? ` · ${portfolioCount} dịch vụ từ Portfolio` : ''}
-          </p>
-        </div>
-        <div className="qt-head__actions">
-          <Link className="qt-btn" href="/crm/proposals/catalog?tab=packages">
-            Package ngành
-          </Link>
-          <Link className="qt-btn" href="/crm/proposals/catalog?tab=rates">
-            Rate card
-          </Link>
-          {hasVidTpl ? (
-            <Link className="qt-btn" href={`/crm/proposals/catalog?template=${VID_TPL_01}`}>
-              VID-TPL-01
-            </Link>
-          ) : null}
-        </div>
-      </header>
-
       {error ? (
         <section className="qt-card qt-card--error">
           <p>{error}</p>
@@ -658,23 +652,22 @@ export function QtCatalogView({
           ) : null}
         </section>
       ) : null}
-
-      <div aria-busy={loading}>
-        <QtCatalogGroups items={items} selected={selectedGroup} onSelect={onSelectGroup} />
-        <section className="qt-catalog-list">
-          {visible.length ? (
-            visible.map((item) => (
-              <QtCatalogServiceRow
-                key={item.dv_code || catalogDisplayName(item)}
-                item={item}
-                onOpen={onOpenService}
-              />
-            ))
-          ) : (
-            <p className="qt-empty">{loading ? 'Đang tải Portfolio 21 DV…' : emptyCopy}</p>
-          )}
-        </section>
-      </div>
+      <QtCatalogOs
+        items={items}
+        groups={asCatalogGroups(groups, items)}
+        packages={packages}
+        selectedGroup={selectedGroup}
+        onSelectGroup={onSelectGroup}
+        onOpenService={onOpenService}
+        canManage={canManage}
+        loading={loading}
+        onCreateGroup={onCreateGroup}
+        onUpdateGroup={onUpdateGroup}
+        onDeleteGroup={onDeleteGroup}
+        onCreateService={onCreateService}
+        onUpdateService={onUpdateService}
+        onDeleteService={onDeleteService}
+      />
     </div>
   );
 }
@@ -689,7 +682,9 @@ export function QtCatalog() {
   const drawerTab = searchParams.get('drawer');
   const user = getStoredUser();
   const hasFinance = hasCap(user, 'crm_quote.finance', 'view');
+  const canManage = hasCap(user, 'crm_quote.catalog', 'manage');
   const [items, setItems] = useState<QtCatalogItem[]>([]);
+  const [groups, setGroups] = useState<QtCatalogGroup[]>([]);
   const [packages, setPackages] = useState<QtIndustryPackage[]>([]);
   const [rateCards, setRateCards] = useState<QtRateCard[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -722,10 +717,12 @@ export function QtCatalog() {
           ? doc.families
           : [];
       setItems(families);
+      setGroups(asCatalogGroups(doc.groups, families));
       setPackages(Array.isArray(doc.packages) ? doc.packages : []);
       setRateCards(Array.isArray(doc.rate_cards) ? doc.rate_cards : []);
     } catch (caught) {
       setItems([]);
+      setGroups([]);
       setPackages([]);
       setRateCards([]);
       setError(caught instanceof Error ? caught.message : 'Không tải được catalog');
@@ -757,6 +754,7 @@ export function QtCatalog() {
   return (
     <QtCatalogView
       items={items}
+      groups={groups}
       templateKey={templateKey}
       selectedGroup={activeGroup}
       onSelectGroup={(group) => {
@@ -770,12 +768,77 @@ export function QtCatalog() {
       packages={packages}
       rateCards={rateCards}
       hasFinance={hasFinance}
+      canManage={canManage}
       addingPackage={addingPackage}
       onOpenService={(item) => {
         replaceQuery({ service: item.service_slug || item.dv_code, tab: null, drawer: 'overview' });
       }}
       onDrawerTab={(tab) => replaceQuery({ drawer: tab })}
       onCloseDrawer={() => replaceQuery({ service: null, drawer: null })}
+      onCreateGroup={async (body) => {
+        const token = getAccessToken();
+        if (!token) return;
+        try {
+          await createQtCatalogGroup(token, body);
+          await load();
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'Không tạo được nhóm');
+          throw caught;
+        }
+      }}
+      onUpdateGroup={async (key, body) => {
+        const token = getAccessToken();
+        if (!token) return;
+        try {
+          await updateQtCatalogGroup(token, key, body);
+          await load();
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'Không sửa được nhóm');
+          throw caught;
+        }
+      }}
+      onDeleteGroup={async (key) => {
+        const token = getAccessToken();
+        if (!token) return;
+        try {
+          await deleteQtCatalogGroup(token, key);
+          await load();
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'Không xóa được nhóm');
+        }
+      }}
+      onCreateService={async (body) => {
+        const token = getAccessToken();
+        if (!token) return;
+        try {
+          await createQtCatalogService(token, body);
+          await load();
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'Không tạo được dịch vụ');
+          throw caught;
+        }
+      }}
+      onUpdateService={async (dv, body) => {
+        const token = getAccessToken();
+        if (!token) return;
+        try {
+          await updateQtCatalogService(token, dv, body);
+          await load();
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'Không sửa được dịch vụ');
+          throw caught;
+        }
+      }}
+      onDeleteService={async (dv) => {
+        const token = getAccessToken();
+        if (!token) return;
+        try {
+          await deleteQtCatalogService(token, dv);
+          await load();
+        } catch (caught) {
+          setError(caught instanceof Error ? caught.message : 'Không xóa được dịch vụ');
+        }
+      }}
       onAddPackage={async (key) => {
         const token = getAccessToken();
         if (!token) return;

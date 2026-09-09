@@ -17,7 +17,33 @@ export const QT_CATALOG_NAV_GROUPS = [
 ] as const;
 
 export type QuoteCatalogNavGroup = (typeof QT_CATALOG_NAV_GROUPS)[number];
-export type QuoteCatalogGroup = QuoteCatalogNavGroup | 'package';
+export type QuoteCatalogGroup = QuoteCatalogNavGroup | 'package' | string;
+
+export type QuoteCatalogGroupDef = {
+  key: string;
+  title: string;
+  description: string;
+  icon: string;
+  sort_order: number;
+  system: boolean;
+};
+
+export const QT_CATALOG_GROUP_DEFS: QuoteCatalogGroupDef[] = [
+  { key: 'strategy', title: 'Strategy & Research', description: 'Discovery, audit, research, strategy, GTM và consulting.', icon: '✦', sort_order: 1, system: true },
+  { key: 'branding', title: 'Branding & Creative', description: 'Định vị, nhận diện, creative concept và brand asset.', icon: '◇', sort_order: 2, system: true },
+  { key: 'content', title: 'Content & Social', description: 'Content strategy, social operation, copywriting và community.', icon: '✎', sort_order: 3, system: true },
+  { key: 'production', title: 'Video & Image Production', description: 'Pre-production, video, image, motion và livestream.', icon: '▶', sort_order: 4, system: true },
+  { key: 'performance', title: 'Performance & Media', description: 'Paid media, media buying, TMĐT và growth ads.', icon: '◉', sort_order: 5, system: true },
+  { key: 'web', title: 'Web, Landing Page & CRO', description: 'UX/UI, website, landing page, tracking và CRO.', icon: '▣', sort_order: 6, system: true },
+  { key: 'seo', title: 'SEO, AEO/GEO & Organic', description: 'Technical SEO, content SEO, local SEO và AI-search.', icon: '⌕', sort_order: 7, system: true },
+  { key: 'crm', title: 'CRM, Automation & AI', description: 'CRM, lead routing, automation, chatbot và dashboard.', icon: '♟', sort_order: 8, system: true },
+  { key: 'retention', title: 'Email & Retention', description: 'Lifecycle, nurture, reactivation và reminders.', icon: '↻', sort_order: 9, system: true },
+  { key: 'pr', title: 'PR, KOL & Reputation', description: 'PR, media relations, KOL/KOC và ORM.', icon: '◌', sort_order: 10, system: true },
+  { key: 'event', title: 'Event & Activation', description: 'Event, launch, activation, roadshow và POSM.', icon: '★', sort_order: 11, system: true },
+  { key: 'sales', title: 'Sales Enablement B2B', description: 'Sales deck, ABM, outreach và pitch support. Không phải DV mới mặc định.', icon: '↗', sort_order: 12, system: true },
+  { key: 'data', title: 'Data & Analytics', description: 'GA4/GTM, attribution, reporting và dashboard.', icon: '▤', sort_order: 13, system: true },
+  { key: 'package', title: 'Package theo ngành', description: 'Gói N line DV + discount, không tạo family mới.', icon: '▣', sort_order: 14, system: true },
+];
 export type QuoteDvKpiKind = 'committed' | 'forecast' | 'optimization';
 
 export type QuoteDvKpi = {
@@ -132,10 +158,15 @@ export function resolveQuoteCatalogGroup(
   dvCode: string,
   name: string,
   slug: string,
+  storedGroup?: string | null,
 ): QuoteCatalogGroup {
   const hay = `${name} ${slug}`;
   if (/package|ngành|nganh|growth[\s-]?launch/i.test(hay)) return 'package';
   if (/brand[\s-]?film|reels|video[\s-]?storyboard|vid-tpl-01/i.test(hay)) return 'production';
+  const stored = String(storedGroup ?? '')
+    .trim()
+    .toLowerCase();
+  if (stored) return stored;
   const dv = String(dvCode ?? '')
     .trim()
     .toUpperCase();

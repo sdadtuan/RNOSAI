@@ -162,6 +162,72 @@ export class ProposalsController {
     );
   }
 
+  @Post('quote-catalog/groups')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.catalog', 'manage')
+  createQuoteCatalogGroup(@Body() body?: { key?: string; title?: string; description?: string; icon?: string }) {
+    return this.proposals.createCatalogGroup(body ?? {});
+  }
+
+  @Patch('quote-catalog/groups/:key')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.catalog', 'manage')
+  updateQuoteCatalogGroup(
+    @Param('key') key: string,
+    @Body() body?: { title?: string; description?: string; icon?: string },
+  ) {
+    return this.proposals.updateCatalogGroup(key, body ?? {});
+  }
+
+  @Delete('quote-catalog/groups/:key')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.catalog', 'manage')
+  deleteQuoteCatalogGroup(@Param('key') key: string) {
+    return this.proposals.deleteCatalogGroup(key);
+  }
+
+  @Post('quote-catalog/services')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.catalog', 'manage')
+  createQuoteCatalogService(
+    @Body() body?: {
+      name?: string;
+      group_key?: string;
+      description?: string;
+      dv_code?: string;
+      recommended?: boolean;
+      tags?: string[];
+      client_visible?: boolean;
+    },
+  ) {
+    return this.proposals.createCatalogService(body ?? {});
+  }
+
+  @Patch('quote-catalog/services/:dv')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.catalog', 'manage')
+  updateQuoteCatalogService(
+    @Param('dv') dv: string,
+    @Body() body?: {
+      name?: string;
+      group_key?: string;
+      description?: string;
+      active?: boolean;
+      recommended?: boolean;
+      tags?: string[];
+      client_visible?: boolean;
+    },
+  ) {
+    return this.proposals.updateCatalogService(dv, body ?? {});
+  }
+
+  @Delete('quote-catalog/services/:dv')
+  @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
+  @RequireQuoteSection('crm_quote.catalog', 'manage')
+  deleteQuoteCatalogService(@Param('dv') dv: string) {
+    return this.proposals.deleteCatalogService(dv);
+  }
+
   @Post('quote-catalog/import')
   @UseGuards(StaffOrInternalKeyGuard, StaffQuoteGuard)
   @RequireQuoteSection('crm_quote.catalog', 'manage')

@@ -393,6 +393,16 @@ export type QtCatalogDrawerTabId =
   | 'pricing'
   | 'policy';
 
+export type QtCatalogGroup = {
+  key: string;
+  title: string;
+  description?: string;
+  icon?: string;
+  sort_order?: number;
+  system?: boolean;
+  service_count?: number;
+};
+
 export type QtCatalogItem = {
   dv_code: string;
   name?: string | null;
@@ -400,6 +410,13 @@ export type QtCatalogItem = {
   status?: string;
   can_add_to_client_quote?: boolean;
   group?: string;
+  recommended?: boolean;
+  tags?: string[];
+  duration?: string | null;
+  effort?: string | null;
+  price_vnd?: number | null;
+  price_unit?: string | null;
+  client_visible?: boolean;
   template_key?: string;
   service_slug?: string;
   package_tiers?: Array<{
@@ -467,6 +484,8 @@ export type QtCatalogDoc = {
   families?: QtCatalogItem[];
   packages?: QtIndustryPackage[];
   rate_cards?: QtRateCard[];
+  groups?: QtCatalogGroup[] | string[];
+  group_keys?: string[];
   drawer_tabs?: Array<{ id: string; label: string }>;
 };
 
@@ -678,6 +697,70 @@ export function getQtQuoteCatalogDoc(token: string, query?: { service?: string; 
   if (query?.tab) params.set('tab', query.tab);
   const suffix = params.toString() ? `?${params.toString()}` : '';
   return qtFetch<QtCatalogDoc>(token, `/quote-catalog${suffix}`);
+}
+
+export function createQtCatalogGroup(
+  token: string,
+  body: { key?: string; title: string; description?: string; icon?: string },
+) {
+  return qtFetch<QtCatalogGroup>(token, '/quote-catalog/groups', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateQtCatalogGroup(
+  token: string,
+  key: string,
+  body: { title?: string; description?: string; icon?: string },
+) {
+  return qtFetch<QtCatalogGroup>(token, `/quote-catalog/groups/${encodeURIComponent(key)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteQtCatalogGroup(token: string, key: string) {
+  return qtFetch<{ ok: boolean; key: string }>(token, `/quote-catalog/groups/${encodeURIComponent(key)}`, {
+    method: 'DELETE',
+  });
+}
+
+export function createQtCatalogService(
+  token: string,
+  body: { name: string; group_key: string; description?: string; dv_code?: string; tags?: string[] },
+) {
+  return qtFetch<QtCatalogItem>(token, '/quote-catalog/services', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateQtCatalogService(
+  token: string,
+  dv: string,
+  body: {
+    name?: string;
+    group_key?: string;
+    description?: string;
+    active?: boolean;
+    recommended?: boolean;
+    tags?: string[];
+    client_visible?: boolean;
+  },
+) {
+  return qtFetch<QtCatalogItem>(token, `/quote-catalog/services/${encodeURIComponent(dv)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteQtCatalogService(token: string, dv: string) {
+  return qtFetch<{ ok: boolean; dv_code: string; deleted?: boolean; status?: string }>(
+    token,
+    `/quote-catalog/services/${encodeURIComponent(dv)}`,
+    { method: 'DELETE' },
+  );
 }
 
 export function snapshotQtCatalogPackage(token: string, packageKey: string, quoteDate?: string) {

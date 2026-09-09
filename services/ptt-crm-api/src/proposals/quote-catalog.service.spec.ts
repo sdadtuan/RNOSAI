@@ -5,6 +5,7 @@ import { SpcService } from '../spc/spc.service';
 import { DEFAULT_QUOTE_TIER_PRICING } from './quote-pricing.util';
 import { ProposalsController } from './proposals.controller';
 import {
+  QT_CATALOG_GROUP_DEFS,
   QT_CATALOG_NAV_GROUPS,
   QT_PORTFOLIO_DV_CODES,
   QT_RATE_SEED_EXTRA_DV,
@@ -22,10 +23,24 @@ type CatalogRow = {
   dv_code: string;
   slug: string;
   name: string;
+  description?: string;
   active: boolean;
   status: string;
   service_slug: string;
+  group_key?: string | null;
+  recommended?: boolean;
+  tags_json?: string[] | string;
+  client_visible?: boolean;
   tier_pricing: Record<string, unknown>;
+};
+
+type GroupRow = {
+  key: string;
+  title: string;
+  description: string;
+  icon: string;
+  sort_order: number;
+  system: boolean;
 };
 
 type RateCardRow = {
@@ -43,12 +58,93 @@ type RateCardRow = {
 class CatalogMemory {
   rows: CatalogRow[] = [];
   rateCards: RateCardRow[] = [];
+  groups: GroupRow[] = QT_CATALOG_GROUP_DEFS.map((row) => ({ ...row }));
+  lineItems: Array<{ dv_code: string }> = [];
   sqls: string[] = [];
 
-  async query(sql: string) {
+  async query(sql: string, params: unknown[] = []) {
     this.sqls.push(sql);
     if (/FROM crm_quote_rate_cards/i.test(sql)) {
       return { rows: this.rateCards };
+    }
+    if (/INSERT INTO crm_catalog_groups/i.test(sql)) {
+      const [key, title, description, icon, sort_order, system] = params;
+      const row: GroupRow = {
+        key: String(key),
+        title: String(title),
+        description: String(description ?? ''),
+        icon: String(icon ?? '▣'),
+        sort_order: Number(sort_order ?? 0),
+        system: system === true,
+      };
+      if (!this.groups.some((item) => item.key === row.key)) this.groups.push(row);
+      return { rows: [row] };
+    }
+    if (/UPDATE crm_catalog_groups/i.test(sql)) {
+      const [key, title, description, icon] = params;
+      const found = this.groups.find((item) => item.key === key);
+      if (found) {
+        found.title = String(title);
+        found.description = String(description ?? '');
+        found.icon = String(icon ?? found.icon);
+      }
+      return { rows: found ? [found] : [] };
+    }
+    if (/DELETE FROM crm_catalog_groups/i.test(sql)) {
+      const key = String(params[0] ?? '');
+      this.groups = this.groups.filter((item) => item.key !== key);
+      return { rows: [] };
+    }
+    if (/FROM crm_catalog_groups/i.test(sql)) {
+      return { rows: this.groups };
+    }
+    if (/INSERT INTO crm_catalog_services/i.test(sql)) {
+      const [slug, name, description, dv, group_key, recommended, tags, client_visible, sort] = params;
+      const row = {
+        slug: String(slug),
+        name: String(name),
+        description: String(description ?? ''),
+        dv_code: String(dv),
+        group_key: String(group_key ?? ''),
+        recommended: recommended === true,
+        tags_json: typeof tags === 'string' ? JSON.parse(tags) : tags,
+        client_visible: client_visible !== false,
+        active: false,
+        status: 'draft',
+        service_slug: String(slug),
+        tier_pricing: {},
+        sort_order: Number(sort ?? 0),
+      } as CatalogRow;
+      this.rows.push(row);
+      return { rows: [row] };
+    }
+    if (/UPDATE crm_catalog_services/i.test(sql)) {
+      const dv = String(params[0] ?? '').toUpperCase();
+      const found = this.rows.find((item) => item.dv_code.toUpperCase() === dv);
+      if (!found) return { rows: [] };
+      if (/SET active=false/i.test(sql)) {
+        found.active = false;
+        found.status = 'draft';
+        return { rows: [found] };
+      }
+      found.name = String(params[1] ?? found.name);
+      found.description = String(params[2] ?? found.description ?? '');
+      found.group_key = params[3] == null ? found.group_key : String(params[3]);
+      found.recommended = params[4] === true;
+      found.tags_json = typeof params[5] === 'string' ? JSON.parse(String(params[5])) : found.tags_json;
+      found.client_visible = params[6] !== false;
+      found.active = params[7] === true;
+      found.status = found.active ? 'active' : 'draft';
+      return { rows: [found] };
+    }
+    if (/DELETE FROM crm_catalog_services/i.test(sql)) {
+      const dv = String(params[0] ?? '').toUpperCase();
+      this.rows = this.rows.filter((item) => item.dv_code.toUpperCase() !== dv);
+      return { rows: [] };
+    }
+    if (/FROM crm_quote_line_item/i.test(sql)) {
+      const dv = String(params[0] ?? '');
+      return { rows: this.lineItems.filter((item) => item.dv_code === dv) };
     }
     if (/FROM crm_catalog_services/i.test(sql) || /FROM ops_service_profile/i.test(sql)) {
       return { rows: this.rows };
@@ -216,9 +312,10 @@ describe('QuoteCatalogService CAT-01 add rules', () => {
       'sales',
       'data',
     ]);
-    expect(out.groups).toEqual([...QT_CATALOG_NAV_GROUPS]);
-    expect(out.groups).toHaveLength(13);
-    expect(out.groups).not.toContain('package');
+    const keys = (out.groups as Array<{ key: string }>).map((group) => group.key);
+    expect(keys.filter((key) => key !== 'package')).toEqual([...QT_CATALOG_NAV_GROUPS]);
+    expect(keys).toContain('package');
+    expect(out.group_keys).toEqual(keys);
     expect(itemOf(out, 'PKG01').group).toBe('package');
   });
 
@@ -230,6 +327,55 @@ describe('QuoteCatalogService CAT-01 add rules', () => {
     expect(itemOf(out, 'DV01').name_vi).toBe('Hệ thống nhận diện Thương hiệu');
     expect(itemOf(out, 'DV01').status).toBe('draft');
     expect(itemOf(out, 'DV19').group).toBe('performance');
+  });
+
+  it('uses stored group_key and supports group/service CRUD', async () => {
+    const { svc } = load([
+      row({
+        dv_code: 'DV04',
+        name: 'Meta Ads Performance',
+        group_key: 'crm',
+        active: true,
+        tier_pricing: STANDARD_RATE,
+      }),
+    ]);
+
+    expect(itemOf(await svc.get(), 'DV04').group).toBe('crm');
+
+    const created = await svc.createGroup({ title: 'Commerce Live', description: 'Livestream bán hàng' });
+    expect(created.key).toBe('commerce_live');
+    await expect(svc.createGroup({ title: 'Commerce Live' })).rejects.toMatchObject({
+      response: { error: 'group_exists' },
+    });
+
+    const renamed = await svc.updateGroup('commerce_live', { title: 'Livestream Commerce' });
+    expect(renamed.title).toBe('Livestream Commerce');
+
+    const custom = await svc.createService({
+      name: 'TikTok Live Desk',
+      group_key: 'commerce_live',
+      description: 'Vận hành livestream',
+    });
+    expect(custom.dv_code).toBe('DV22');
+    expect(custom.group).toBe('commerce_live');
+    expect(custom.status).toBe('draft');
+
+    const moved = await svc.updateService('DV22', { group_key: 'performance', name: 'TikTok Live Desk Pro' });
+    expect(moved.group).toBe('performance');
+    expect(moved.name_vi).toBe('TikTok Live Desk Pro');
+
+    await expect(svc.deleteGroup('performance')).rejects.toMatchObject({
+      response: { error: 'group_not_empty' },
+    });
+    expect((await svc.deleteGroup('commerce_live')).ok).toBe(true);
+
+    const official = await svc.deleteService('DV04');
+    expect(official.status).toBe('draft');
+    expect(itemOf(await svc.get(), 'DV04').status).toBe('draft');
+
+    expect((await svc.deleteService('DV22')).deleted).toBe(true);
+    const leftover = ((await svc.get()).families as Array<{ dv_code: string }>).map((item) => item.dv_code);
+    expect(leftover).not.toContain('DV22');
   });
 
   it('CAT-05 returns VID-TPL-01 on DV12 / brand-film and no video binary', async () => {
@@ -341,6 +487,10 @@ describe('QuoteCatalogService CAT-01 add rules', () => {
     expect(src).toMatch(/@RequireQuoteSection\('crm_quote.catalog', 'view'\)/);
     expect(src).toMatch(/StaffQuoteGuard/);
     expect(src.indexOf("@Get('quote-catalog/rate-cards')")).toBeLessThan(src.indexOf("@Get(':id')"));
+    expect(src).toMatch(/@Post\('quote-catalog\/groups'\)/);
+    expect(src).toMatch(/@Patch\('quote-catalog\/services\/:dv'\)/);
+    expect(src.indexOf("quote-catalog/groups")).toBeLessThan(src.indexOf("@Get(':id')"));
+    expect(src.indexOf("quote-catalog/services/:dv")).toBeLessThan(src.indexOf("@Get(':id')"));
   });
 });
 

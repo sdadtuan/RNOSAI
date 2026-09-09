@@ -1,4 +1,5 @@
 import {
+  QT_CATALOG_GROUP_DEFS,
   QT_CATALOG_NAV_GROUPS,
   QT_DV_NAME_VI,
   QT_DV_NAV_GROUP,
@@ -21,6 +22,15 @@ describe('quote-catalog-dv-playbook', () => {
       expect(QT_DV_PLAYBOOKS[code].group).toBe(QT_DV_NAV_GROUP[code]);
       expect(QT_CATALOG_NAV_GROUPS).toContain(QT_DV_PLAYBOOKS[code].group);
     }
+  });
+
+  it('seeds 13 capability groups plus package and prefers stored group_key', () => {
+    expect(QT_CATALOG_GROUP_DEFS.map((row) => row.key)).toEqual([
+      ...QT_CATALOG_NAV_GROUPS,
+      'package',
+    ]);
+    expect(resolveQuoteCatalogGroup('DV04', 'Meta Ads', 'meta-ads', 'crm')).toBe('crm');
+    expect(resolveQuoteCatalogGroup('DV04', 'Meta Ads', 'meta-ads')).toBe('performance');
   });
 
   it('maps official DV codes even when the display name is misleading', () => {

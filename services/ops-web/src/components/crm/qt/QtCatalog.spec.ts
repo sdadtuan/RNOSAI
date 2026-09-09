@@ -13,6 +13,7 @@ import {
   QtCatalogView,
   QtVidTpl01Template,
 } from './QtCatalog';
+import { QtCatalogOs } from './QtCatalogOs';
 
 describe('QtCatalog CAT-01 groups', () => {
   it('renders exactly 13 CAT-01 group filter chips', () => {
@@ -85,16 +86,40 @@ describe('QtCatalog CAT-01 groups', () => {
       }),
     );
     expect(html).toContain('Portfolio DV01–21');
-    expect(html).toContain('2 dịch vụ từ Portfolio');
     expect(html).toContain('Hệ thống nhận diện Thương hiệu');
     expect(html).toContain('data-dv="DV01"');
     expect(html).toContain('data-filter="all"');
+    expect(html).toContain('Nhóm dịch vụ');
+    expect(html).toContain('data-group="performance"');
+    expect(html).not.toContain('NOVA');
   });
 
   it('shows empty Portfolio state instead of a dash', () => {
     const html = renderToStaticMarkup(createElement(QtCatalogView, { items: [], loading: false }));
-    expect(html).toContain('Chưa tải được Portfolio 21 DV');
+    expect(html).toContain('Không tìm thấy service phù hợp');
     expect(html).not.toContain(`qt-empty">${dash(null)}`);
+  });
+
+  it('shows group and service edit actions when manage is allowed', () => {
+    const html = renderToStaticMarkup(
+      createElement(QtCatalogOs, {
+        items: [
+          {
+            dv_code: 'DV04',
+            name_vi: 'Quảng cáo tối ưu chuyển đổi',
+            group: 'performance',
+            status: 'active',
+            can_add_to_client_quote: true,
+            price_vnd: 16_000_000,
+          },
+        ],
+        canManage: true,
+      }),
+    );
+    expect(html).toContain('+ Thêm Service');
+    expect(html).toContain('Sửa');
+    expect(html).toContain('Xóa');
+    expect(html).toContain('16.000.000');
   });
 });
 

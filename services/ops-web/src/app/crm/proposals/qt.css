@@ -189,6 +189,11 @@
   color: #fff;
 }
 
+.qt-btn--sm {
+  padding: 7px 9px;
+  font-size: 11px;
+}
+
 .qt-link {
   border: 0;
   background: none;
@@ -892,5 +897,507 @@
 
   .qt-sticky {
     position: static;
+  }
+}
+
+.qt-os-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.qt-os-head h1 {
+  margin: 0 0 6px;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+
+.qt-os-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.qt-os-search {
+  width: 240px;
+  padding: 9px 11px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafcff;
+  font: inherit;
+  font-size: 12px;
+}
+
+.qt-os-layout {
+  display: grid;
+  grid-template-columns: 253px minmax(0, 1fr);
+  gap: 17px;
+  align-items: start;
+}
+
+.qt-os-side {
+  position: sticky;
+  top: 16px;
+  padding: 13px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 9px 25px rgba(15, 23, 42, 0.06);
+}
+
+.qt-os-side__h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 2px 4px 12px;
+}
+
+.qt-os-side h2 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.qt-os-iconbtn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--qt-navy);
+  cursor: pointer;
+}
+
+.qt-os-catwrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.qt-os-cat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #526174;
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.qt-os-cat:hover {
+  background: #f8fafc;
+}
+
+.qt-os-cat--on {
+  border-color: #d3e1ff;
+  background: #eff6ff;
+  color: var(--qt-accent);
+}
+
+.qt-os-ico {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.qt-os-cat--on .qt-os-ico {
+  background: #dceaff;
+  color: var(--qt-accent);
+}
+
+.qt-os-count {
+  margin-left: auto;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.qt-os-catacts {
+  display: flex;
+  gap: 8px;
+  padding: 0 10px 6px 39px;
+}
+
+.qt-os-catacts button {
+  border: 0;
+  background: none;
+  color: #64748b;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.qt-os-note {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.qt-os-note b {
+  color: #334155;
+}
+
+.qt-os-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.qt-os-filter {
+  padding: 9px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #526174;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.qt-os-filter--on {
+  border-color: #bed5ff;
+  background: #eff6ff;
+  color: var(--qt-accent);
+}
+
+.qt-os-filter select {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.qt-os-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.qt-os-sum {
+  padding: 13px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.qt-os-sum span {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.qt-os-sum b {
+  display: block;
+  margin-top: 6px;
+  font-size: 20px;
+}
+
+.qt-os-sum small {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.qt-os-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 13px;
+  padding: 13px 15px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.qt-os-banner h2 {
+  margin: 0 0 3px;
+  font-size: 15px;
+}
+
+.qt-os-banner p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.qt-os-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border-radius: 99px;
+  background: #eaf1ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.qt-os-badge--on {
+  color: #15803d;
+  background: #ecfdf3;
+}
+
+.qt-os-badge--draft {
+  color: #b45309;
+  background: #fff7e8;
+}
+
+.qt-os-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.qt-os-svc {
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 9px 25px rgba(15, 23, 42, 0.04);
+}
+
+.qt-os-svc__h {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.qt-os-svcico {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: var(--qt-accent);
+}
+
+.qt-os-svc h3 {
+  margin: 11px 0 5px;
+  font-size: 14px;
+}
+
+.qt-os-svc p {
+  min-height: 36px;
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.qt-os-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.qt-os-tags span {
+  padding: 3px 6px;
+  border: 1px solid #dbe5f5;
+  border-radius: 5px;
+  background: #f8fafc;
+  color: #526174;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.qt-os-tag--rec {
+  color: #6d28d9 !important;
+  background: #f5f3ff !important;
+}
+
+.qt-os-mini {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.qt-os-mini b {
+  display: block;
+  overflow: hidden;
+  color: #334155;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qt-os-mini span {
+  display: block;
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.qt-os-svc__f {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.qt-os-svc__f b {
+  display: block;
+  font-size: 13px;
+}
+
+.qt-os-svc__f span {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.qt-os-svcacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.qt-os-warn {
+  min-height: 0 !important;
+  margin-top: 8px !important;
+  color: #b45309 !important;
+}
+
+.qt-os-modalbg {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: #0b122080;
+}
+
+.qt-os-modal {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 25px 55px #0005;
+}
+
+.qt-os-modal header,
+.qt-os-modal footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 19px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.qt-os-modal footer {
+  border-bottom: 0;
+  border-top: 1px solid #e5e7eb;
+  justify-content: flex-end;
+}
+
+.qt-os-modal h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.qt-os-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px;
+  padding: 18px 19px;
+}
+
+.qt-os-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.qt-os-form input,
+.qt-os-form select,
+.qt-os-form textarea {
+  width: 100%;
+  padding: 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 500;
+}
+
+.qt-os-form textarea {
+  min-height: 80px;
+}
+
+.qt-os-full {
+  grid-column: 1 / -1;
+}
+
+.qt-os-check {
+  flex-direction: row !important;
+  align-items: center;
+}
+
+.qt-os-check input {
+  width: auto;
+}
+
+@media (max-width: 1100px) {
+  .qt-os-grid,
+  .qt-os-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .qt-os-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .qt-os-side {
+    position: static;
+  }
+
+  .qt-os-search {
+    width: 100%;
+  }
+
+  .qt-os-grid,
+  .qt-os-summary,
+  .qt-os-form {
+    grid-template-columns: 1fr;
   }
 }

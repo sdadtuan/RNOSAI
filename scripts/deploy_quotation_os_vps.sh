@@ -39,6 +39,9 @@ run_local() {
   echo "== 2b/8 apply lead-party DDL =="
   bash "$ROOT/scripts/apply_pg_ddl_lead_party.sh"
 
+  echo "== 2c/8 apply QT catalog admin DDL =="
+  bash "$ROOT/scripts/apply_pg_ddl_qt_catalog_admin.sh"
+
   echo "== 3/8 QT RBAC catalog (no user grants) =="
   bash "$ROOT/scripts/seed_qt_rbac.sh"
 
