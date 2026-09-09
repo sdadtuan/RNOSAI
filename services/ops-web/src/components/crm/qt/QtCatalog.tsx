@@ -121,13 +121,23 @@ export function QtCatalogGroups({
 }: {
   items: QtCatalogItem[];
   selected?: string | null;
-  onSelect?: (group: string) => void;
+  onSelect?: (group: string | null) => void;
 }) {
   const keys = catalogGroupKeys(items);
   return (
-    <div className="qt-cat-grid">
+    <div className="qt-cat-grid" role="tablist" aria-label="Lọc nhóm Portfolio">
+      <button
+        type="button"
+        className={`qt-cat-item${selected ? '' : ' qt-cat-item--on'}`}
+        data-filter="all"
+        onClick={onSelect ? () => onSelect(null) : undefined}
+      >
+        <h3>Tất cả</h3>
+        <p className="qt-muted">Portfolio 21 DV</p>
+      </button>
       {keys.map((key) => {
         const meta = QT_CATALOG_GROUP_META[key];
+        const count = items.filter((item) => item.group === key).length;
         const draft = items.some((item) => item.group === key && item.status === 'draft');
         return (
           <button
@@ -139,7 +149,9 @@ export function QtCatalogGroups({
           >
             {draft ? <span className="qt-pill qt-pill--info">Draft</span> : null}
             <h3>{meta.title}</h3>
-            <p className="qt-muted">{meta.hint}</p>
+            <p className="qt-muted">
+              {count ? `${count} DV` : meta.hint}
+            </p>
           </button>
         );
       })}
@@ -537,7 +549,7 @@ export function QtCatalogView({
   items: QtCatalogItem[];
   templateKey?: string | null;
   selectedGroup?: string | null;
-  onSelectGroup?: (group: string) => void;
+  onSelectGroup?: (group: string | null) => void;
   catalogTab?: string | null;
   serviceSlug?: string | null;
   drawerTab?: string | null;
@@ -604,7 +616,11 @@ export function QtCatalogView({
   const visible = selectedGroup
     ? items.filter((item) => item.group === selectedGroup)
     : items;
+  const portfolioCount = items.filter((item) => /^DV\d{2}$/i.test(String(item.dv_code ?? ''))).length;
   const hasVidTpl = items.some((item) => item.template_key === VID_TPL_01);
+  const emptyCopy = selectedGroup
+    ? 'Nhóm này không có DV trong Portfolio 21'
+    : 'Chưa tải được Portfolio 21 DV';
 
   return (
     <div className="qt-catalog">
@@ -612,7 +628,10 @@ export function QtCatalogView({
         <div>
           <p className="qt-crumb">Kinh doanh / Báo giá / Service Catalog</p>
           <h1>Service Catalog</h1>
-          <p className="qt-muted">CAT-01 · 13 nhóm + package ngành · Active mới add quote client-facing</p>
+          <p className="qt-muted">
+            Portfolio DV01–21 · lọc 13 nhóm · Active mới add Quote
+            {portfolioCount ? ` · ${portfolioCount} dịch vụ từ Portfolio` : ''}
+          </p>
         </div>
         <div className="qt-head__actions">
           <Link className="qt-btn" href="/crm/proposals/catalog?tab=packages">
@@ -652,7 +671,7 @@ export function QtCatalogView({
               />
             ))
           ) : (
-            <p className="qt-empty">{dash(null)}</p>
+            <p className="qt-empty">{loading ? 'Đang tải Portfolio 21 DV…' : emptyCopy}</p>
           )}
         </section>
       </div>
@@ -682,7 +701,14 @@ export function QtCatalog() {
 
   const load = useCallback(async () => {
     const token = getAccessToken();
-    if (!token) return;
+    if (!token) {
+      setItems([]);
+      setPackages([]);
+      setRateCards([]);
+      setError('Chưa đăng nhập — không tải được Portfolio 21 DV');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -733,7 +759,11 @@ export function QtCatalog() {
       items={items}
       templateKey={templateKey}
       selectedGroup={activeGroup}
-      onSelectGroup={(group) => setSelectedGroup((current) => (current === group ? null : group))}
+      onSelectGroup={(group) => {
+        const next = group && activeGroup === group ? null : group;
+        setSelectedGroup(next);
+        replaceQuery({ group: next });
+      }}
       catalogTab={catalogTab}
       serviceSlug={serviceSlug}
       drawerTab={drawerTab}

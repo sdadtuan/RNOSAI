@@ -46,6 +46,36 @@ export type QuoteDvPlaybook = {
   media_pass_through: boolean;
 };
 
+export const QT_PORTFOLIO_DV_CODES = Array.from(
+  { length: 21 },
+  (_, i) => `DV${String(i + 1).padStart(2, '0')}`,
+);
+
+/** Official Portfolio names from ops-dv01-dv21-route-map. */
+export const QT_DV_NAME_VI: Record<string, string> = {
+  DV01: 'Hệ thống nhận diện Thương hiệu',
+  DV02: 'Chiến lược nội dung & Mạng xã hội',
+  DV03: 'Website & Landing Page',
+  DV04: 'Quảng cáo tối ưu chuyển đổi',
+  DV05: 'Tối ưu SEO & AEO',
+  DV06: 'Nuôi dưỡng & Tạo chuyển đổi',
+  DV07: 'AI Chatbot & Trợ lý bán hàng AI',
+  DV08: 'Thiết lập & Tích hợp hệ thống CRM',
+  DV09: 'Tự động hoá nuôi dưỡng khách hàng',
+  DV10: 'AI System & Intelligence',
+  DV11: 'Thiết lập Marketing Automation',
+  DV12: 'Báo cáo phân tích thị trường',
+  DV13: 'Bảng điều khiển & Báo cáo AI',
+  DV14: 'PR & Booking báo chí',
+  DV15: 'Sản xuất Video/TVC quảng cáo',
+  DV16: 'Booking & Quản lý KOL/KOC',
+  DV17: 'Tổ chức Sự kiện & Activation (BTL)',
+  DV18: 'Media Planning & Booking quảng cáo diện rộng',
+  DV19: 'Vận hành & Quảng cáo trên sàn TMĐT',
+  DV20: 'Email / SMS / Zalo ZNS Marketing đa kênh',
+  DV21: 'Trade Marketing & POSM tại điểm bán',
+};
+
 export const QT_DV_NAV_GROUP: Record<string, QuoteCatalogNavGroup> = {
   DV01: 'branding',
   DV02: 'content',

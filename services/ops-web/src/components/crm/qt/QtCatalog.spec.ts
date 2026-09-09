@@ -10,11 +10,12 @@ import {
   QtCatalogGroups,
   QtCatalogRates,
   QtCatalogServiceRow,
+  QtCatalogView,
   QtVidTpl01Template,
 } from './QtCatalog';
 
 describe('QtCatalog CAT-01 groups', () => {
-  it('renders exactly 13 CAT-01 group cards', () => {
+  it('renders exactly 13 CAT-01 group filter chips', () => {
     expect([...QT_CATALOG_NAV_GROUPS]).toEqual([
       'strategy',
       'branding',
@@ -60,6 +61,40 @@ describe('QtCatalog CAT-01 groups', () => {
     const groups = [...html.matchAll(/data-group="([^"]+)"/g)].map((match) => match[1]);
     expect(groups).toHaveLength(14);
     expect(groups[13]).toBe('package');
+  });
+
+  it('lists Portfolio DVs as the catalog, not the 13 group chips as SKUs', () => {
+    const html = renderToStaticMarkup(
+      createElement(QtCatalogView, {
+        items: [
+          {
+            dv_code: 'DV01',
+            name_vi: 'Hệ thống nhận diện Thương hiệu',
+            group: 'branding',
+            status: 'active',
+            can_add_to_client_quote: true,
+          },
+          {
+            dv_code: 'DV12',
+            name_vi: 'Báo cáo phân tích thị trường',
+            group: 'strategy',
+            status: 'active',
+            can_add_to_client_quote: true,
+          },
+        ],
+      }),
+    );
+    expect(html).toContain('Portfolio DV01–21');
+    expect(html).toContain('2 dịch vụ từ Portfolio');
+    expect(html).toContain('Hệ thống nhận diện Thương hiệu');
+    expect(html).toContain('data-dv="DV01"');
+    expect(html).toContain('data-filter="all"');
+  });
+
+  it('shows empty Portfolio state instead of a dash', () => {
+    const html = renderToStaticMarkup(createElement(QtCatalogView, { items: [], loading: false }));
+    expect(html).toContain('Chưa tải được Portfolio 21 DV');
+    expect(html).not.toContain(`qt-empty">${dash(null)}`);
   });
 });
 

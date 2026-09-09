@@ -1,7 +1,9 @@
 import {
   QT_CATALOG_NAV_GROUPS,
+  QT_DV_NAME_VI,
   QT_DV_NAV_GROUP,
   QT_DV_PLAYBOOKS,
+  QT_PORTFOLIO_DV_CODES,
   formatPlaybookKpis,
   getDvPlaybook,
   resolveQuoteCatalogGroup,
@@ -11,6 +13,8 @@ import {
 describe('quote-catalog-dv-playbook', () => {
   it('covers DV01–DV21 exactly once and never invents a 22nd family', () => {
     const codes = Array.from({ length: 21 }, (_, i) => `DV${String(i + 1).padStart(2, '0')}`);
+    expect(QT_PORTFOLIO_DV_CODES).toEqual(codes);
+    expect(Object.keys(QT_DV_NAME_VI).sort()).toEqual([...codes].sort());
     expect(Object.keys(QT_DV_PLAYBOOKS).sort()).toEqual([...codes].sort());
     expect(Object.keys(QT_DV_NAV_GROUP).sort()).toEqual([...codes].sort());
     for (const code of codes) {

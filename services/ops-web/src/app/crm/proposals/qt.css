@@ -726,16 +726,19 @@
 }
 
 .qt-cat-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
 .qt-cat-item {
-  display: block;
-  width: 100%;
-  padding: 14px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: auto;
+  max-width: 220px;
+  padding: 8px 10px;
   border: 1px solid #e5e7eb;
   border-radius: var(--qt-radius);
   background: #fff;
@@ -746,9 +749,18 @@
 }
 
 .qt-cat-item h3 {
-  margin: 8px 0 4px;
+  margin: 0;
   color: var(--qt-navy);
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.qt-cat-item p {
+  margin: 2px 0 0;
+  font-size: 11px;
+}
+
+.qt-cat-item .qt-pill {
+  margin-bottom: 4px;
 }
 
 .qt-cat-item--on {
@@ -874,7 +886,6 @@
   .qt-grid2,
   .qt-grid3,
   .qt-builder__grid,
-  .qt-cat-grid,
   .qt-studio__grid {
     grid-template-columns: 1fr;
   }

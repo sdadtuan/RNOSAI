@@ -6,6 +6,7 @@ import { DEFAULT_QUOTE_TIER_PRICING } from './quote-pricing.util';
 import { ProposalsController } from './proposals.controller';
 import {
   QT_CATALOG_NAV_GROUPS,
+  QT_PORTFOLIO_DV_CODES,
   QT_RATE_SEED_EXTRA_DV,
   QuoteCatalogService,
   quoteIndustryPackageDvCodes,
@@ -219,6 +220,16 @@ describe('QuoteCatalogService CAT-01 add rules', () => {
     expect(out.groups).toHaveLength(13);
     expect(out.groups).not.toContain('package');
     expect(itemOf(out, 'PKG01').group).toBe('package');
+  });
+
+  it('always returns Portfolio DV01–21 even when SoR and SPC are empty', async () => {
+    const { svc } = load([]);
+    const out = await svc.get();
+    const codes = (out.families as Array<{ dv_code: string }>).map((item) => item.dv_code);
+    expect(codes.filter((code) => /^DV\d{2}$/.test(code))).toEqual(QT_PORTFOLIO_DV_CODES);
+    expect(itemOf(out, 'DV01').name_vi).toBe('Hệ thống nhận diện Thương hiệu');
+    expect(itemOf(out, 'DV01').status).toBe('draft');
+    expect(itemOf(out, 'DV19').group).toBe('performance');
   });
 
   it('CAT-05 returns VID-TPL-01 on DV12 / brand-film and no video binary', async () => {

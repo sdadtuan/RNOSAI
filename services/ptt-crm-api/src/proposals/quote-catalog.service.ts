@@ -6,6 +6,8 @@ import { applyQuoteCatalogImport, type QuoteCatalogImportJobResult } from './quo
 import { QT_TENANT_ID } from './quote-settings.repository';
 import {
   QT_CATALOG_NAV_GROUPS,
+  QT_DV_NAME_VI,
+  QT_PORTFOLIO_DV_CODES,
   firstNonEmpty,
   formatPlaybookKpis,
   getDvPlaybook,
@@ -20,7 +22,13 @@ import {
   type QuotePackageTier,
 } from './quote-pricing.util';
 
-export { QT_CATALOG_NAV_GROUPS, resolveQuoteCatalogGroup, skuCodesFor } from './quote-catalog-dv-playbook';
+export {
+  QT_CATALOG_NAV_GROUPS,
+  QT_DV_NAME_VI,
+  QT_PORTFOLIO_DV_CODES,
+  resolveQuoteCatalogGroup,
+  skuCodesFor,
+} from './quote-catalog-dv-playbook';
 export type { QuoteCatalogGroup, QuoteCatalogNavGroup } from './quote-catalog-dv-playbook';
 
 export const VID_TPL_01 = 'VID-TPL-01';
@@ -314,15 +322,32 @@ export class QuoteCatalogService {
     const rows = await this.listSor();
     const cards = await this.loadRateCardRows();
     const byDv = new Map(rows.map((row) => [row.dv_code, row]));
-    const seen = new Set<string>();
-    const families = (base.families ?? []).map((family) => {
+    const byFamily = new Map<string, Record<string, unknown>>();
+    for (const family of base.families ?? []) {
       const dv = String(family.dv_code ?? '').trim().toUpperCase();
-      if (dv) seen.add(dv);
-      return this.present(family as Record<string, unknown>, byDv.get(dv) ?? null, hasFinance, cards, day);
-    });
+      if (dv) byFamily.set(dv, family as Record<string, unknown>);
+    }
+    const seen = new Set<string>();
+    const families: Array<Record<string, unknown>> = [];
+    for (const dv of QT_PORTFOLIO_DV_CODES) {
+      const family = byFamily.get(dv) ?? {
+        dv_code: dv,
+        name_vi: QT_DV_NAME_VI[dv],
+        service_slug: dv.toLowerCase(),
+      };
+      families.push(this.present(family, byDv.get(dv) ?? null, hasFinance, cards, day));
+      seen.add(dv);
+    }
     for (const row of rows) {
       if (!seen.has(row.dv_code)) {
         families.push(this.present({}, row, hasFinance, cards, day));
+        seen.add(row.dv_code);
+      }
+    }
+    for (const [dv, family] of byFamily) {
+      if (!seen.has(dv)) {
+        families.push(this.present(family, byDv.get(dv) ?? null, hasFinance, cards, day));
+        seen.add(dv);
       }
     }
     const packages = this.listIndustryPackages(rows, cards, day);
@@ -382,7 +407,7 @@ export class QuoteCatalogService {
     const dv = String(sor?.dv_code || family.dv_code || '')
       .trim()
       .toUpperCase();
-    const name = String(sor?.name || family.name_vi || family.name || '');
+    const name = String(sor?.name || family.name_vi || family.name || QT_DV_NAME_VI[dv] || '');
     const slug = String(sor?.service_slug || sor?.slug || family.service_slug || '');
     const status: QuoteCatalogStatus = sor?.status === 'active' ? 'active' : 'draft';
     const package_tiers: QuoteCatalogTier[] = QUOTE_PACKAGE_TIERS.map((tier) => ({
@@ -401,7 +426,7 @@ export class QuoteCatalogService {
     const item: Record<string, unknown> = {
       ...family,
       dv_code: dv,
-      name_vi: String(family.name_vi ?? name),
+      name_vi: name,
       service_slug: slug || String(family.service_slug ?? ''),
       group: resolveQuoteCatalogGroup(dv, name, slug),
       status,
