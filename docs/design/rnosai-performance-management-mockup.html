@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RNOSAI · KPI Hub — Performance OS | 11 màn thắng đối thủ</title>
+<style>
+:root{--navy:#0c1730;--navy2:#101e3b;--blue:#2563eb;--blue2:#1d4ed8;--blueSoft:#eff6ff;--bg:#f6f7fb;--card:#fff;--ink:#17233a;--muted:#68778e;--line:#e6eaf0;--green:#15803d;--greenSoft:#ecfdf3;--amber:#b45309;--amberSoft:#fff7e8;--red:#dc2626;--redSoft:#fff1f2;--purple:#6d28d9;--purpleSoft:#f5f3ff;--teal:#0f8f82;--tealSoft:#ecfdf9;--shadow:0 10px 26px rgba(15,23,42,.055)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 Inter,"Be Vietnam Pro",Arial,sans-serif}
+.app{display:grid;grid-template-columns:255px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;padding:19px 13px;background:var(--navy);overflow:auto;color:#afbdd2}
+.brand{display:flex;align-items:center;gap:10px;padding:5px 10px 25px;color:#fff;font-weight:800;letter-spacing:.09em}
+.mark{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;background:linear-gradient(135deg,#3980ff,#85adff);box-shadow:0 7px 18px #2563eb55}
+.space{margin:0 0 17px;padding:11px 12px;border:1px solid #ffffff12;border-radius:10px;background:#ffffff07}
+.space small{display:block;margin-bottom:4px;color:#7786a0;font-size:9px;font-weight:800;letter-spacing:.07em}
+.space b{color:#edf3ff;font-size:11px}
+.navcap{margin:19px 10px 7px;color:#72819a;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.nav a{display:flex;align-items:center;gap:10px;margin:2px 0;padding:9px 11px;border-radius:8px;color:#adbad0;text-decoration:none;font-size:11px;font-weight:650;cursor:pointer}
+.nav a:hover{background:#ffffff0c;color:#fff}
+.nav a.active{background:var(--blue2);color:#fff;box-shadow:0 7px 16px #1d4ed844}
+.ico{width:17px;text-align:center;font-size:14px}
+.ncount{margin-left:auto;padding:2px 6px;border-radius:99px;background:#ffffff1a;color:#e1ebff;font-size:8px}
+.side-note{margin-top:22px;padding:11px;border:1px solid #ffffff12;border-radius:10px;background:#ffffff06;color:#94a3b8;font-size:9px;line-height:1.6}
+.side-note b{display:block;color:#e9f0ff}
+.shell{min-width:0}
+.top{height:66px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--line);background:#fff}
+.crumb{color:var(--muted);font-size:11px}.crumb b{color:var(--ink)}
+.topright{display:flex;align-items:center;gap:12px}
+.search{width:280px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#fafcff;outline:0;font:inherit;font-size:10px}
+.avatar{display:grid;place-items:center;width:31px;height:31px;border-radius:50%;color:#fff;background:linear-gradient(135deg,#8b5cf6,#ec4899);font-size:10px;font-weight:800}
+.page{max-width:1900px;margin:auto;padding:24px 29px 50px}
+.view{display:none}.view.active{display:block}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:17px}
+.head h1{margin:0 0 6px;font-size:23px;letter-spacing:-.04em}
+.sub{color:var(--muted);font-size:10px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.btn{padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#334155;font:inherit;font-size:10px;font-weight:750;cursor:pointer}
+.btn.primary{border-color:var(--blue);background:var(--blue);color:#fff;box-shadow:0 6px 14px #2563eb33}
+.btn.sm{padding:6px 8px;font-size:9px}
+.card{border:1px solid var(--line);border-radius:13px;background:var(--card);box-shadow:var(--shadow)}
+.pad{padding:16px}
+.grid{display:grid;gap:14px}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:11px}
+.kpi{padding:15px}
+.kpi label{display:block;color:var(--muted);font-size:8px;font-weight:800;letter-spacing:.06em}
+.kpi b{display:block;margin:8px 0 4px;font-size:22px;letter-spacing:-.055em}
+.kpi span{font-size:9px}
+.green{color:var(--green)}.amber{color:var(--amber)}.red{color:var(--red)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.sticky{position:sticky;top:16px}
+.section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}
+.section-title h2{margin:0;font-size:12px}
+.list{display:grid;gap:10px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.row span{color:var(--muted);font-size:9px}.row b{color:#334155;font-size:10px}
+.badge{display:inline-flex;align-items:center;padding:4px 7px;border-radius:99px;font-size:8px;font-weight:800}
+.badge.blue{color:#1d4ed8;background:#eaf1ff}.badge.green{color:var(--green);background:var(--greenSoft)}
+.badge.amber{color:var(--amber);background:var(--amberSoft)}.badge.red{color:var(--red);background:var(--redSoft)}
+.badge.purple{color:var(--purple);background:var(--purpleSoft)}.badge.teal{color:var(--teal);background:var(--tealSoft)}
+.notice{padding:10px 12px;border-radius:8px;background:var(--amberSoft);color:#854d0e;font-size:9px;line-height:1.55;margin-bottom:14px}
+.moat{padding:10px 12px;border-radius:8px;background:var(--purpleSoft);color:#4c1d95;font-size:9px;line-height:1.55;margin-bottom:14px}
+.success{padding:10px 12px;border-radius:8px;background:var(--greenSoft);color:#166534;font-size:9px;line-height:1.55}
+.ledgers{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-bottom:14px}
+.ledger{padding:13px}
+.ledger label{font-size:8px;font-weight:800;letter-spacing:.06em;color:var(--muted)}
+.ledger b{display:block;margin:6px 0 4px;font-size:16px}
+.ledger span{font-size:9px;color:var(--muted)}
+.table{width:100%;min-width:880px;border-collapse:collapse}
+.table th{padding:10px 12px;border-bottom:1px solid var(--line);background:#fbfcfe;color:var(--muted);text-align:left;font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.table td{padding:11px 12px;border-bottom:1px solid #edf1f6;color:#46566c;font-size:9px}
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.filter{padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#526174;font:inherit;font-size:9px;font-weight:650}
+.tabs{display:flex;gap:16px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.tabs button{padding:0 0 10px;border:0;border-bottom:2px solid transparent;background:none;color:#5d6b80;font:inherit;font-size:10px;font-weight:750;cursor:pointer}
+.tabs button.active{border-color:var(--blue);color:var(--blue)}
+.chartarea{display:flex;align-items:end;gap:13px;height:140px;padding:0 5px;border-bottom:1px solid var(--line)}
+.col{display:flex;flex:1;flex-direction:column;align-items:center;justify-content:end;gap:6px}
+.col i{display:block;width:100%;max-width:34px;border-radius:6px 6px 0 0;background:linear-gradient(#60a5fa,#2563eb)}
+.col span{color:var(--muted);font-size:8px}
+.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}
+.field label{display:block;margin-bottom:5px;color:#475569;font-size:9px;font-weight:700}
+.input,.select,.textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:10px}
+.textarea{min-height:64px}
+.full{grid-column:1/-1}
+.gate{display:grid;gap:8px}
+.gate .row b.ok{color:var(--green)}.gate .row b.warn{color:var(--amber)}.gate .row b.bad{color:var(--red)}
+.metricgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.metric{padding:10px;border:1px solid #e6edf8;border-radius:9px;background:#fbfcff}
+.metric span{display:block;color:var(--muted);font-size:8px;font-weight:700}
+.metric b{display:block;margin-top:6px;font-size:12px}
+.stackrow{display:grid;grid-template-columns:86px 1fr 40px;gap:9px;align-items:center;margin:10px 0}
+.stack{display:flex;overflow:hidden;height:18px;border-radius:4px;background:#e9eef5}
+.stack i{display:block;height:100%}
+.g{background:#10a36f}.y{background:#f5b31a}.r{background:#e54444}.x{background:#cbd2dd}
+.flow{display:grid;gap:11px}
+.flowrow{display:flex;gap:9px;align-items:flex-start}
+.dot{display:grid;place-items:center;flex:0 0 auto;width:23px;height:23px;border-radius:50%;background:#eaf0ff;color:var(--blue);font-size:9px;font-weight:800}
+.toast{position:fixed;right:22px;bottom:22px;z-index:50;display:none;padding:12px 15px;border-radius:10px;background:#172033;color:#fff;font-size:10px}
+.toast.show{display:block}
+.modalbg{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;padding:18px;background:#0b122080}
+.modalbg.open{display:flex}
+.modal{width:min(720px,100%);max-height:90vh;overflow:auto;border-radius:15px;background:#fff}
+.modalhead{display:flex;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
+.modalbody{padding:18px}.modalfoot{display:flex;justify-content:flex-end;gap:8px;padding:13px 18px;border-top:1px solid var(--line)}
+@media(max-width:1200px){.two,.ledgers{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,1fr)}.sticky{position:static}}
+@media(max-width:900px){.app{grid-template-columns:1fr}.side{display:none}.kpis,.formgrid,.metricgrid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+  <div class="brand"><div class="mark">P</div><span>PTT · RNOSAI</span></div>
+  <div class="space"><small>KPI HUB</small><b>PTT Growth Operations ⌄</b></div>
+  <nav class="nav">
+    <div class="navcap">TỔNG QUAN</div>
+    <a href="/crm/kpi-hub/executive"><span class="ico">▦</span>Executive Command Center</a>
+    <div class="navcap">GOVERNANCE</div>
+    <a href="/crm/kpi-hub/dictionary"><span class="ico">▤</span>KPI Dictionary</a>
+    <a href="/crm/kpi-hub/targets"><span class="ico">◉</span>Target &amp; Cảnh báo</a>
+    <div class="navcap">SERVICE KPI</div>
+    <a href="/crm/kpi-hub/service-kpi"><span class="ico">▦</span>War Room</a>
+    <a href="/crm/kpi-hub/tracking"><span class="ico">↗</span>Actual Tracking</a>
+    <a href="/crm/kpi-hub/kpi-contracts"><span class="ico">⚖</span>KPI Contract</a>
+    <div class="navcap">HIỆU SUẤT</div>
+    <a class="active" data-view="dashboard"><span class="ico">⌂</span>Operating Dashboard</a>
+    <a data-view="manage"><span class="ico">◎</span>Assignment Registry <span class="ncount">58</span></a>
+    <a data-view="create"><span class="ico">＋</span>Tạo Assignment</a>
+    <a data-view="scorecard"><span class="ico">▣</span>Scorecard Builder</a>
+    <a data-view="item"><span class="ico">⊕</span>Thêm chỉ tiêu</a>
+    <a data-view="checkin"><span class="ico">✓</span>Check-in Ritual <span class="ncount">06</span></a>
+    <a data-view="marketing"><span class="ico">⚑</span>Marketing OS</a>
+    <a data-view="campaign"><span class="ico">♧</span>Campaign Control</a>
+    <a data-view="crm"><span class="ico">♙</span>CRM Source Map</a>
+    <a data-view="reports"><span class="ico">▥</span>Snapshot Report</a>
+    <a data-view="settings"><span class="ico">⚙</span>Policy</a>
+  </nav>
+  <div class="side-note"><b>Performance OS · moat</b>Không đánh Lattice/AgencyAnalytics. Thắng bằng 3 sổ Quoted/Assigned/Verified + quality cascade + snapshot vào báo giá lần sau.</div>
+</aside>
+<div class="shell">
+<header class="top">
+  <div class="crumb">CRM / KPI Hub / Hiệu suất / <b id="crumb">Operating Dashboard</b></div>
+  <div class="topright"><input class="search" placeholder="Tìm KPI, owner, client, quote, campaign…"/><span>🔔</span><div class="avatar">TT</div></div>
+</header>
+<main class="page">
+
+<section class="view active" id="dashboard">
+  <div class="head">
+    <div>
+      <h1>Operating Dashboard</h1>
+      <div class="sub">PM-01 · Nhịp tuần agency — không phải dashboard OKR generic. Scope: PTT Growth · Tháng 09/2026</div>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="showView('reports')">Snapshot Report</button>
+      <button class="btn primary" onclick="showView('create')">＋ Assignment</button>
+    </div>
+  </div>
+  <div class="moat"><b>Khác Lattice / 15Five:</b> tile thứ 6 “Data blocked” cấm close/report khi actual stale. <b>Khác AgencyAnalytics:</b> 3 sổ Quoted · Assigned · Verified trên cùng definition Dictionary.</div>
+  <div class="kpis">
+    <article class="card kpi"><label>ĐÚNG TIẾN ĐỘ</label><b class="green">42 / 58</b><span>Green + quality ≠ stale</span></article>
+    <article class="card kpi"><label>THEO DÕI</label><b class="amber">11</b><span>Yellow hoặc assumption mở</span></article>
+    <article class="card kpi"><label>KHÔNG ĐẠT</label><b class="red">5</b><span>Red / overrun &gt;10% (CPL/SLA)</span></article>
+    <article class="card kpi"><label>COMPLETION</label><b>82,4%</b><span>Mean item score — không raw</span></article>
+    <article class="card kpi"><label>CHECK-IN ĐÚNG HẠN</label><b>91%</b><span>6 overdue → ritual</span></article>
+    <article class="card kpi" style="background:var(--redSoft);border-color:#fecaca"><label>DATA BLOCKED</label><b class="red">04</b><span>Cấm close / client report</span></article>
+  </div>
+  <div class="ledgers" style="margin-top:14px">
+    <article class="card ledger"><label>SỔ QUOTED</label><b>≤100K CPL</b><span>Snapshot QT-0089 · An Phát · không sửa thầm</span></article>
+    <article class="card ledger"><label>SỔ ASSIGNED</label><b>≤100K CPL</b><span>Scorecard Performance · Lê Hoàng</span></article>
+    <article class="card ledger"><label>SỔ VERIFIED</label><b class="amber">128K · Pending</b><span>CRM stale 29h — chưa được close</span></article>
+  </div>
+  <div class="two">
+    <div class="grid">
+      <article class="card pad">
+        <div class="section-title"><h2>Nhịp tuần — 5 câu bắt buộc</h2><span class="badge purple">War Room twin</span></div>
+        <div class="flow">
+          <div class="flowrow"><i class="dot">1</i><div><b>Assumption chưa confirm</b><p>Budget An Phát 120tr · LP EduNext chưa live · Sales SLA Spa ABC 27 phút.</p></div><button class="btn sm" onclick="showView('checkin')">Mở</button></div>
+          <div class="flowrow"><i class="dot">2</i><div><b>At-risk + action quá hạn</b><p>CPL An Phát Critical · P1 SLA 5,2h · 3 action due.</p></div><button class="btn sm" onclick="showView('manage')">Registry</button></div>
+          <div class="flowrow"><i class="dot">3</i><div><b>Data stale → cấm báo cáo khách</b><p>CRM Valid Lead 29h &gt; SLA 12h · 4 KPI Pending Validation.</p></div><button class="btn sm" onclick="showView('crm')">CRM Map</button></div>
+          <div class="flowrow"><i class="dot">4</i><div><b>Lệch KPI + GM</b><p>DV04 Meta · CPL miss + GM 22,4% dưới floor — mở Contract Score.</p></div><button class="btn sm">Contract</button></div>
+          <div class="flowrow"><i class="dot">5</i><div><b>Scorecard pending</b><p>Q4 Marketing Lead weight 100% chờ GĐ Marketing.</p></div><button class="btn sm" onclick="showView('scorecard')">Duyệt</button></div>
+        </div>
+      </article>
+      <article class="card pad">
+        <div class="section-title"><h2>Điểm theo phòng ban</h2><span>Item score đã quy đổi</span></div>
+        <div class="chartarea">
+          <div class="col"><i style="height:86%"></i><span>MKT 86</span></div>
+          <div class="col"><i style="height:78%;background:linear-gradient(#f9be46,#e49a08)"></i><span>Sales 78</span></div>
+          <div class="col"><i style="height:91%;background:linear-gradient(#4ade80,#16a34a)"></i><span>Content 91</span></div>
+          <div class="col"><i style="height:84%"></i><span>Perf 84</span></div>
+          <div class="col"><i style="height:69%;background:linear-gradient(#f87171,#dc2626)"></i><span>Tech 69</span></div>
+        </div>
+      </article>
+    </div>
+    <aside class="sticky grid">
+      <article class="card pad">
+        <div class="section-title"><h2>Queue</h2></div>
+        <div class="list">
+          <div class="row"><span>CPL Valid Lead · An Phát</span><b class="badge red">Critical</b></div>
+          <div class="row"><span>06 check-in quá hạn</span><b class="badge amber">Ritual</b></div>
+          <div class="row"><span>CRM freshness stale</span><b class="badge amber">29h</b></div>
+          <div class="row"><span>Quoted ≠ Assigned · CPL</span><b class="badge purple">CO</b></div>
+        </div>
+      </article>
+      <article class="card pad"><button class="btn primary" style="width:100%" onclick="showView('manage')">Assignment Registry</button></article>
+    </aside>
+  </div>
+</section>
+
+<section class="view" id="manage">
+  <div class="head">
+    <div><h1>Assignment Registry</h1><div class="sub">PM-02 · Direction-aware · quality chip · Quoted Δ. Không average raw đơn vị.</div></div>
+    <div class="actions"><button class="btn" onclick="showView('reports')">Export (audit)</button><button class="btn primary" onclick="showView('create')">＋ Assignment</button></div>
+  </div>
+  <div class="notice"><b>AC-PM-02:</b> CPA Meta 149K / target ≤160K là <b>Green</b> (lower-is-better). Tool OKR generic sẽ hiện 93% “thiếu” — đó là chỗ RNOSAI thắng.</div>
+  <div class="filters">
+    <button class="filter">Tháng 09/2026</button><button class="filter">Toàn công ty</button><button class="filter">Quality: All</button><button class="filter">Direction: All</button>
+  </div>
+  <article class="card pad">
+    <div class="tabs">
+      <button class="active">Tất cả</button><button>Cá nhân</button><button>Team</button><button>Phòng ban</button><button>Dự án</button><button>Khách hàng</button><button>Campaign</button>
+    </div>
+    <div style="overflow:auto">
+      <table class="table">
+        <thead><tr><th>KPI</th><th>Owner</th><th>Scope</th><th>Dir</th><th>Target</th><th>Actual</th><th>Quoted Δ</th><th>Progress</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>CPL Valid Lead</b><br><span class="sub">MKT_006 · inherit Dictionary</span></td>
+            <td>Lê Hoàng</td><td>An Phát / Campaign</td><td>↓ lower</td>
+            <td>≤100K</td>
+            <td>128K <span class="badge amber">Pending</span></td>
+            <td class="red">+28% vs QT-0089</td>
+            <td>78% · Red</td>
+            <td><span class="badge red">Critical</span></td>
+            <td><button class="btn sm" onclick="showView('checkin')">Ritual</button></td>
+          </tr>
+          <tr>
+            <td><b>CPA Meta Ads</b><br><span class="sub">MKT_012</span></td>
+            <td>Lê Hoàng</td><td>Spa ABC</td><td>↓ lower</td>
+            <td>≤160K</td>
+            <td>149K <span class="badge green">Verified</span></td>
+            <td>—</td>
+            <td>107% · Green</td>
+            <td><span class="badge green">On track</span></td>
+            <td><button class="btn sm" onclick="showView('campaign')">Campaign</button></td>
+          </tr>
+          <tr>
+            <td><b>Qualified Lead</b><br><span class="sub">SAL_014</span></td>
+            <td>Nguyễn Minh Anh</td><td>Sales</td><td>↑ higher</td>
+            <td>1.000</td>
+            <td>720 <span class="badge green">Verified</span></td>
+            <td>—</td>
+            <td>72%</td>
+            <td><span class="badge amber">Watch</span></td>
+            <td><button class="btn sm" onclick="showView('checkin')">Ritual</button></td>
+          </tr>
+          <tr>
+            <td><b>P1 resolution</b><br><span class="sub">TEC_008</span></td>
+            <td>Trần Văn Nam</td><td>Technology</td><td>↓ lower</td>
+            <td>≤4h</td>
+            <td>5,2h <span class="badge green">Verified</span></td>
+            <td>—</td>
+            <td>Overrun 30%</td>
+            <td><span class="badge red">Red</span></td>
+            <td><button class="btn sm" onclick="showView('checkin')">Blocker</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+
+<section class="view" id="create">
+  <div class="head">
+    <div><h1>Tạo Assignment</h1><div class="sub">PM-03 · Prefill Dictionary Active. Custom KPI cần approval. Activate bị chặn nếu readiness đỏ.</div></div>
+    <div class="actions"><button class="btn">Lưu nháp</button><button class="btn primary" onclick="notify('Activate bị chặn: Source mapping chưa pass')">Submit Activate</button></div>
+  </div>
+  <div class="two">
+    <div class="grid">
+      <article class="card pad">
+        <h2 style="margin:0 0 12px;font-size:12px">1. Metric chuẩn</h2>
+        <div class="formgrid">
+          <div class="field"><label>KPI Definition *</label><select class="select"><option>MKT_006 — CPL Valid Lead (Active)</option><option>SAL_014 — Qualified Lead</option></select></div>
+          <div class="field"><label>Classification</label><input class="input" value="OPTIMIZATION_TARGET · inherit" disabled></div>
+          <div class="field full"><label>Formula snapshot (read-only)</label><input class="input" value="Ads Spend / COUNT(leads WHERE is_valid AND deduplicated)" disabled></div>
+        </div>
+      </article>
+      <article class="card pad">
+        <h2 style="margin:0 0 12px;font-size:12px">2. Scope &amp; owner</h2>
+        <div class="formgrid">
+          <div class="field"><label>Scope</label><select class="select"><option>Campaign · Growth Launch Q4</option></select></div>
+          <div class="field"><label>Owner *</label><select class="select"><option>Lê Hoàng — Performance</option></select></div>
+        </div>
+      </article>
+      <article class="card pad">
+        <h2 style="margin:0 0 12px;font-size:12px">3. Target band</h2>
+        <div class="formgrid">
+          <div class="field"><label>Direction</label><input class="input" value="Lower is better" disabled></div>
+          <div class="field"><label>Target *</label><input class="input" value="100000"></div>
+          <div class="field"><label>Minimum</label><input class="input" value="85000"></div>
+          <div class="field"><label>Stretch</label><input class="input" value="70000"></div>
+        </div>
+        <p class="notice" style="margin-top:10px;margin-bottom:0">Target 100K = Quoted QT-0089. Đổi xuống 85K → material variance → Change Order + Contract Score.</p>
+      </article>
+    </div>
+    <aside class="sticky card pad">
+      <div class="section-title"><h2>Readiness gate</h2></div>
+      <div class="gate">
+        <div class="row"><span>Definition Active</span><b class="ok">Pass</b></div>
+        <div class="row"><span>Owner active</span><b class="ok">Pass</b></div>
+        <div class="row"><span>Direction / band</span><b class="ok">Pass</b></div>
+        <div class="row"><span>Measurement Plan</span><b class="warn">Pending map</b></div>
+        <div class="row"><span>Client disclaimer</span><b class="ok">Inherit</b></div>
+      </div>
+      <p class="notice" style="margin-top:12px;margin-bottom:0">Activate block cho đến khi Source mapping pass — không tạo KPI “mồ côi” như HubSpot Goals.</p>
+    </aside>
+  </div>
+</section>
+
+<section class="view" id="scorecard">
+  <div class="head">
+    <div><h1>Scorecard Builder — Marketing Lead Q4/2026</h1><div class="sub">PM-04 · Inherit Service Template DV04 + Quote snapshot. Weight = 100% mới Active.</div></div>
+    <div class="actions"><button class="btn">Lưu nháp</button><button class="btn primary" onclick="notify('Đã gửi GĐ Marketing — weight 100% hợp lệ')">Gửi phê duyệt</button></div>
+  </div>
+  <div class="moat">Item sinh Assignment khi Active. Mỗi dòng giữ <b>definition_version + formula_snapshot</b>. Close kỳ sau không bị formula mới làm sai lịch sử.</div>
+  <div class="two">
+    <article class="card pad">
+      <div class="formgrid" style="margin-bottom:14px">
+        <div class="field"><label>Loại</label><select class="select"><option>Role — Marketing Leader</option></select></div>
+        <div class="field"><label>Kỳ</label><input class="input" value="01/10/2026 — 31/12/2026"></div>
+        <div class="field"><label>Inherit từ</label><select class="select"><option>Service Template DV04 Meta + QT-0089</option></select></div>
+        <div class="field"><label>Approver</label><select class="select"><option>Giám đốc Marketing</option></select></div>
+      </div>
+      <table class="table" style="min-width:640px">
+        <thead><tr><th>KPI</th><th>Weight</th><th>Target</th><th>Dir</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>MQL</td><td>30%</td><td>1.200</td><td>↑</td><td>CRM lifecycle</td></tr>
+          <tr><td>CPL Valid Lead</td><td>20%</td><td>≤85K</td><td>↓</td><td>Ads+CRM</td></tr>
+          <tr><td>MQL → SQL</td><td>20%</td><td>≥18%</td><td>↑</td><td>CRM</td></tr>
+          <tr><td>Influenced revenue</td><td>20%</td><td>2,5 tỷ</td><td>↑</td><td>Attribution · Finance</td></tr>
+          <tr><td>Campaign on-time</td><td>10%</td><td>≥95%</td><td>↑</td><td>Project</td></tr>
+        </tbody>
+      </table>
+      <p class="success" style="margin-top:12px">Tổng trọng số 100% — hợp lệ. CPL 85K vs template floor 85–100K: trong band.</p>
+    </article>
+    <aside class="sticky grid">
+      <article class="card pad">
+        <div class="section-title"><h2>Phân bổ</h2></div>
+        <div class="list">
+          <div class="row"><span>Outcome</span><b>50%</b></div>
+          <div class="row"><span>Efficiency</span><b>20%</b></div>
+          <div class="row"><span>Funnel quality</span><b>20%</b></div>
+          <div class="row"><span>Delivery</span><b>10%</b></div>
+        </div>
+      </article>
+      <article class="card pad"><button class="btn" style="width:100%" onclick="showView('item')">＋ Thêm chỉ tiêu</button></article>
+    </aside>
+  </div>
+</section>
+
+<section class="view" id="item">
+  <div class="head">
+    <div><h1>Thêm chỉ tiêu vào Scorecard</h1><div class="sub">PM-05 · Weight realtime. Target ngoài template range → approval cùng Contract Score.</div></div>
+    <div class="actions"><button class="btn" onclick="showView('scorecard')">Hủy</button><button class="btn primary" onclick="notify('Bị chặn: tổng weight 105%')">Thêm chỉ tiêu</button></div>
+  </div>
+  <div class="two">
+    <article class="card pad">
+      <div class="formgrid">
+        <div class="field"><label>Definition *</label><select class="select"><option>MKT_007 — Marketing Qualified Leads</option></select></div>
+        <div class="field"><label>Weight % *</label><input class="input" value="15"></div>
+        <div class="field"><label>Target *</label><input class="input" value="1200"></div>
+        <div class="field"><label>Direction</label><input class="input" value="Higher is better" disabled></div>
+        <div class="field full"><label>Formula snapshot</label><input class="input" value="COUNT(leads WHERE lifecycle_stage='MQL')" disabled></div>
+      </div>
+    </article>
+    <aside class="sticky card pad">
+      <div class="section-title"><h2>Preview weight</h2></div>
+      <div class="list">
+        <div class="row"><span>Hiện tại</span><b>100%</b></div>
+        <div class="row"><span>Sau khi add 15%</span><b class="red">115%</b></div>
+      </div>
+      <p class="notice" style="margin-top:12px;margin-bottom:0">AC-PM-01: Add bị block. Draft vẫn giữ scorecard cũ.</p>
+    </aside>
+  </div>
+</section>
+
+<section class="view" id="checkin">
+  <div class="head">
+    <div><h1>Check-in Ritual — P1 resolution</h1><div class="sub">PM-06 · TEC_008 · Lower-is-better · Auto actual locked · Red bắt buộc blocker.</div></div>
+    <div class="actions"><button class="btn" onclick="showView('manage')">Registry</button><button class="btn primary" onclick="openCheckin()">＋ Check-in</button></div>
+  </div>
+  <div class="notice"><b>Khác 15Five:</b> đây không phải weekly journal. Actual 5,2h đến từ Incident Dashboard (Verified). Owner không ghi đè — chỉ confirm, forecast, blocker, evidence.</div>
+  <div class="two">
+    <div class="grid">
+      <article class="card pad">
+        <div class="metricgrid">
+          <div class="metric"><span>TARGET</span><b>≤ 4h</b></div>
+          <div class="metric"><span>ACTUAL · Verified</span><b class="red">5,2h</b></div>
+          <div class="metric"><span>OVERRUN</span><b class="red">+30% → Red</b></div>
+        </div>
+      </article>
+      <article class="card pad">
+        <div class="section-title"><h2>Timeline</h2></div>
+        <div class="flow">
+          <div class="flowrow"><i class="dot" style="background:var(--redSoft);color:var(--red)">!</i><div><b>07/09 · Trần Văn Nam · Critical</b><p>03 blocker P1 · forecast 4,8h · evidence Incident #4412.</p></div><button class="btn sm" onclick="openAction()">Action</button></div>
+          <div class="flowrow"><i class="dot">✓</i><div><b>24/08 · Team Lead approved</b><p>Xác nhận nguồn Incident Dashboard. Không sửa actual.</p></div><span class="badge green">Approved</span></div>
+        </div>
+      </article>
+    </div>
+    <aside class="sticky grid">
+      <article class="card pad">
+        <div class="section-title"><h2>Quality stamp</h2></div>
+        <div class="list">
+          <div class="row"><span>Source</span><b>Incident API</b></div>
+          <div class="row"><span>Last sync</span><b>12 phút</b></div>
+          <div class="row"><span>Quality</span><b class="badge green">Verified</b></div>
+        </div>
+      </article>
+      <article class="card pad"><button class="btn primary" style="width:100%" onclick="openAction()">＋ Corrective Action</button></article>
+    </aside>
+  </div>
+</section>
+
+<section class="view" id="marketing">
+  <div class="head">
+    <div><h1>Marketing OS</h1><div class="sub">PM-07 · Source health bắt buộc. ROAS = N/A nếu attribution thiếu — không bịa số đẹp.</div></div>
+    <div class="actions"><button class="btn" onclick="showView('campaign')">Campaign Control</button><button class="btn primary">Command Center</button></div>
+  </div>
+  <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+    <article class="card kpi"><label>MEDIA SPEND</label><b>324,8M</b><span>Maintain vs plan 320M</span></article>
+    <article class="card kpi"><label>VALID LEADS</label><b>3.248</b><span class="amber">CRM stale → Pending</span></article>
+    <article class="card kpi"><label>CPL VALID</label><b>99.900 ₫</b><span>Tile tổng; An Phát riêng Critical</span></article>
+    <article class="card kpi"><label>MQL RATE</label><b>18,6%</b><span class="green">Target ≥16%</span></article>
+    <article class="card kpi"><label>ROAS</label><b class="amber">N/A</b><span>Thiếu attribution model</span></article>
+  </div>
+  <div class="two" style="margin-top:14px">
+    <article class="card pad">
+      <div class="section-title"><h2>At risk</h2></div>
+      <div class="list">
+        <div class="row"><span>CPL · An Phát 128K / 100K</span><b class="badge red">Critical</b></div>
+        <div class="row"><span>Creative · Spa ABC 75% / 90%</span><b class="badge amber">Watch</b></div>
+        <div class="row"><span>ROAS bị ẩn — không đủ model</span><b class="badge purple">Policy</b></div>
+      </div>
+    </article>
+    <aside class="card pad">
+      <div class="section-title"><h2>Source health</h2></div>
+      <div class="list">
+        <div class="row"><span>Meta Ads</span><b class="badge green">Healthy</b></div>
+        <div class="row"><span>Google Ads</span><b class="badge green">Healthy</b></div>
+        <div class="row"><span>CRM Valid Lead</span><b class="badge amber">Stale 29h</b></div>
+        <div class="row"><span>GA4</span><b class="badge green">Healthy</b></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="view" id="campaign">
+  <div class="head">
+    <div><h1>Campaign Control</h1><div class="sub">PM-08 · Inherit Instance từ Quote. Media budget ≠ agency fee. Funnel không bịa stage thiếu mapping.</div></div>
+    <div class="actions"><button class="btn" onclick="showView('marketing')">Marketing OS</button></div>
+  </div>
+  <article class="card pad" style="overflow:auto">
+    <table class="table">
+      <thead><tr><th>Campaign</th><th>Client</th><th>Quote / WO</th><th>KPI</th><th>Quoted</th><th>Actual</th><th>Media</th><th>Fee</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Growth Launch Q4</td><td>An Phát</td><td>QT-0089</td><td>CPL Valid</td>
+          <td>≤100K</td><td>128K</td><td>120M</td><td>18M</td>
+          <td><span class="badge red">At Risk</span></td>
+        </tr>
+        <tr>
+          <td>Spa Lead Growth</td><td>Spa ABC</td><td>QT-0102</td><td>Booking Rate</td>
+          <td>≥22%</td><td>24,1%</td><td>90M</td><td>14M</td>
+          <td><span class="badge green">On Track</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </article>
+  <div class="two" style="margin-top:14px">
+    <article class="card pad">
+      <div class="section-title"><h2>Funnel — Growth Launch Q4</h2><span>Stage thiếu source = empty</span></div>
+      <div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+        <article class="kpi"><label>IMPRESSIONS</label><b>1,8M</b><span>Meta</span></article>
+        <article class="kpi"><label>CLICKS</label><b>32K</b><span>CTR 1,8%</span></article>
+        <article class="kpi"><label>VALID LEAD</label><b>250</b><span class="amber">Pending CRM</span></article>
+        <article class="kpi"><label>BOOKING</label><b class="amber">—</b><span>Chưa map Sales CRM</span></article>
+      </div>
+    </article>
+    <aside class="card pad">
+      <div class="section-title"><h2>Dependencies</h2></div>
+      <p class="sub" style="line-height:1.7">Media pacing, creative cadence, LP live, valid-lead rule v3, Sales SLA. Client report ẩn fee/margin.</p>
+    </aside>
+  </div>
+</section>
+
+<section class="view" id="crm">
+  <div class="head">
+    <div><h1>CRM Source Map</h1><div class="sub">PM-09 · Rule versioned. Stale cascade sang CPL. Không PII lead-level.</div></div>
+    <div class="actions"><button class="btn">Measurement Plan</button><button class="btn primary" onclick="showView('checkin')">Mở Check-in CPL</button></div>
+  </div>
+  <div class="moat"><b>AC-PM-04:</b> Valid Lead stale 29h → mọi KPI phụ thuộc (CPL, MQL Rate) = Pending Validation. Period close bị chặn.</div>
+  <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+    <article class="card kpi"><label>RAW</label><b>4.126</b><span>Hourly</span></article>
+    <article class="card kpi"><label>VALID</label><b>3.248</b><span class="amber">Rule v3 · Stale 29h</span></article>
+    <article class="card kpi"><label>MQL</label><b>604</b><span class="green">Verified</span></article>
+    <article class="card kpi"><label>SQL</label><b>152</b><span>25,2% MQL→SQL</span></article>
+    <article class="card kpi"><label>RESPONSE SLA</label><b class="red">27 phút</b><span>Target &lt; 15 phút</span></article>
+  </div>
+  <article class="card pad" style="margin-top:14px;overflow:auto">
+    <table class="table">
+      <thead><tr><th>KPI</th><th>Rule (versioned)</th><th>Field</th><th>Cadence</th><th>Quality</th><th>Dependent PM KPI</th></tr></thead>
+      <tbody>
+        <tr><td>Valid Lead</td><td>is_valid ∧ dedup · <b>v3</b></td><td>lead.status</td><td>Hourly</td><td><span class="badge amber">Stale 29h</span></td><td>CPL Valid Lead</td></tr>
+        <tr><td>MQL</td><td>lifecycle=MQL · v2</td><td>lead.lifecycle_stage</td><td>Hourly</td><td><span class="badge green">Verified</span></td><td>MQL Rate</td></tr>
+        <tr><td>First Response</td><td>first_contact − created</td><td>activity.created_at</td><td>Hourly</td><td><span class="badge green">Verified</span></td><td>Lead SLA</td></tr>
+      </tbody>
+    </table>
+  </article>
+</section>
+
+<section class="view" id="reports">
+  <div class="head">
+    <div><h1>Snapshot Report</h1><div class="sub">PM-10 · Kỳ đóng đọc snapshot bất biến. Export = field-level + audit. Không mix 2 formula version.</div></div>
+    <div class="actions"><button class="btn">Kỳ 09/2026 ▾</button><button class="btn primary" onclick="notify('Export XLSX đã ghi audit · ẩn Finance fields')">Export XLSX</button></div>
+  </div>
+  <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+    <article class="card kpi"><label>COMPLETION</label><b>82,4%</b><span>Item score</span></article>
+    <article class="card kpi"><label>COMPLIANCE</label><b>91%</b><span>Check-in on time</span></article>
+    <article class="card kpi"><label>AT RISK</label><b>19%</b><span>11 watch</span></article>
+    <article class="card kpi"><label>OVERDUE</label><b class="red">06</b><span>Escalation</span></article>
+    <article class="card kpi"><label>SNAPSHOTS</label><b>23</b><span>Closed + hash</span></article>
+  </div>
+  <div class="two" style="margin-top:14px">
+    <article class="card pad">
+      <div class="section-title"><h2>Health by scope</h2></div>
+      <div class="stackrow"><label>Cá nhân</label><div class="stack"><i class="g" style="width:84%"></i><i class="x" style="width:16%"></i></div><b>84%</b></div>
+      <div class="stackrow"><label>Team</label><div class="stack"><i class="g" style="width:81%"></i><i class="x" style="width:19%"></i></div><b>81%</b></div>
+      <div class="stackrow"><label>Client</label><div class="stack"><i class="g" style="width:62%"></i><i class="y" style="width:20%"></i><i class="r" style="width:18%"></i></div><b>74%</b></div>
+    </article>
+    <aside class="card pad">
+      <div class="section-title"><h2>Close policy</h2></div>
+      <p class="sub" style="line-height:1.7">Tháng 08 đã close — report này đọc snapshot. Sửa CPL 09 sau close → Adjustment + lý do + audit. AC-PM-06.</p>
+    </aside>
+  </div>
+</section>
+
+<section class="view" id="settings">
+  <div class="head">
+    <div><h1>Performance Policy</h1><div class="sub">PM-11 · Effective date. Không rewrite snapshot. Impact analysis trước khi save.</div></div>
+    <div class="actions"><button class="btn primary" onclick="notify('Policy v3 effective 01/10 — 23 scorecard, 58 assignment, không đụng snapshot 08')">Lưu + effective date</button></div>
+  </div>
+  <div class="two">
+    <div class="grid">
+      <article class="card pad">
+        <h2 style="margin:0 0 12px;font-size:12px">Scoring</h2>
+        <div class="formgrid">
+          <div class="field"><label>Score cap</label><select class="select"><option>100%</option><option>120% stretch</option></select></div>
+          <div class="field"><label>Weight Active</label><select class="select"><option>Bắt buộc = 100%</option></select></div>
+          <div class="field"><label>Lower-is-better Red</label><input class="input" value="Overrun > 10% target"></div>
+          <div class="field"><label>Effective</label><input class="input" value="01/10/2026"></div>
+        </div>
+      </article>
+      <article class="card pad">
+        <h2 style="margin:0 0 12px;font-size:12px">Ritual &amp; close</h2>
+        <div class="formgrid">
+          <div class="field"><label>Reminder</label><input class="input" value="T-1, due, T+1 overdue"></div>
+          <div class="field"><label>Escalation</label><input class="input" value="Owner → Lead → Head"></div>
+          <div class="field"><label>Stale</label><input class="input" value="Pending + block close/report"></div>
+          <div class="field"><label>Close</label><input class="input" value="Manager + immutable snapshot"></div>
+        </div>
+      </article>
+    </div>
+    <aside class="sticky card pad">
+      <div class="section-title"><h2>Impact</h2></div>
+      <div class="list">
+        <div class="row"><span>Scorecard Active</span><b>23</b></div>
+        <div class="row"><span>Assignment</span><b>58</b></div>
+        <div class="row"><span>Snapshot 08</span><b class="green">Không đụng</b></div>
+      </div>
+      <p class="notice" style="margin-top:12px;margin-bottom:0">Khác admin form Lattice: mọi đổi policy có ngày hiệu lực + audit + không sửa kỳ đã chốt.</p>
+    </aside>
+  </div>
+</section>
+
+</main>
+</div>
+</div>
+<div class="modalbg" id="modalbg"><div class="modal"><div class="modalhead"><h2 id="mtitle"></h2><button class="close" onclick="closeModal()">×</button></div><div class="modalbody" id="mbody"></div><div class="modalfoot" id="mfoot"></div></div></div>
+<div class="toast" id="toast"></div>
+<script>
+const titles={dashboard:'Operating Dashboard',manage:'Assignment Registry',create:'Tạo Assignment',scorecard:'Scorecard Builder',item:'Thêm chỉ tiêu',checkin:'Check-in Ritual',marketing:'Marketing OS',campaign:'Campaign Control',crm:'CRM Source Map',reports:'Snapshot Report',settings:'Performance Policy'};
+function showView(id){document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('.nav a[data-view]').forEach(a=>a.classList.toggle('active',a.dataset.view===id));document.getElementById('crumb').textContent=titles[id];window.scrollTo({top:0,behavior:'smooth'})}
+document.querySelectorAll('[data-view]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();showView(a.dataset.view)}));
+function notify(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2800)}
+function modal(t,b,f){document.getElementById('mtitle').textContent=t;document.getElementById('mbody').innerHTML=b;document.getElementById('mfoot').innerHTML=f;document.getElementById('modalbg').classList.add('open')}
+function closeModal(){document.getElementById('modalbg').classList.remove('open')}
+document.getElementById('modalbg').addEventListener('click',e=>{if(e.target.id==='modalbg')closeModal()});
+function openCheckin(){modal('Check-in Ritual',`<div class="field"><label>Actual (locked · Verified)</label><input class="input" value="5,2 giờ" disabled></div><div class="field"><label>Forecast cuối kỳ</label><input class="input" value="4,8 giờ"></div><div class="field"><label>Blocker * (bắt buộc vì Red)</label><textarea class="textarea">03 ticket P1 chờ Platform</textarea></div><div class="field"><label>Evidence</label><input class="input" value="Incident #4412"></div>`,`<button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="closeModal();notify('Check-in gửi Lead · actual không bị ghi đè')">Gửi ritual</button>`)}
+function openAction(){modal('Corrective Action',`<div class="field"><label>Tiêu đề *</label><input class="input" value="Xử lý 03 blocker P1"></div><div class="field"><label>Owner</label><input class="input" value="Trần Văn Nam"></div><div class="field"><label>Due</label><input class="input" value="10/09/2026 17:00"></div><div class="field"><label>Expected impact</label><textarea class="textarea">P1 ≤ 4h trước period close</textarea></div>`,`<button class="btn" onclick="closeModal()">Hủy</button><button class="btn primary" onclick="closeModal();notify('Action đã tạo · gắn check-in Critical')">Tạo Action</button>`)}
+</script>
+</body>
+</html>

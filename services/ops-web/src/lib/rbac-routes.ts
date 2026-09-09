@@ -130,6 +130,10 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
   },
   {
+    prefix: '/crm/kpi-hub/performance',
+    anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
+  },
+  {
     prefix: '/crm/kpi-hub',
     anyOf: [{ section: 'crm_kpi_hub', action: 'view' }],
   },

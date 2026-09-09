@@ -123,6 +123,21 @@ function NavIcon({ icon }: { icon: string }) {
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
         </svg>
       );
+    case 'check':
+      return (
+        <svg {...common}>
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+      );
+    case 'users':
+      return (
+        <svg {...common}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -160,7 +175,11 @@ export function KpiHubShell({
             <div
               key={group.id}
               className={`kpi-hub-sidebar__group-block${
-                group.id === 'service-kpi' ? ' kpi-hub-sidebar__group-block--service-kpi' : ''
+                group.id === 'service-kpi'
+                  ? ' kpi-hub-sidebar__group-block--service-kpi'
+                  : group.id === 'performance'
+                    ? ' kpi-hub-sidebar__group-block--performance'
+                    : ''
               }`}
             >
               {!collapsed ? (

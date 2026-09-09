@@ -175,6 +175,12 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/kpi-hub/kpi-contracts': 'KPI Contract & Risk',
   '/crm/kpi-hub/reconcile': 'Quoted vs Actual',
   '/crm/kpi-hub/policy-packs': 'Policy Pack',
+  '/crm/kpi-hub/performance': 'Operating Dashboard',
+  '/crm/kpi-hub/performance/assignments': 'Assignment Registry',
+  '/crm/kpi-hub/performance/scorecards': 'Scorecard Builder',
+  '/crm/kpi-hub/performance/check-ins': 'Check-in Ritual',
+  '/crm/kpi-hub/performance/campaigns': 'Campaign Control',
+  '/crm/kpi-hub/performance/crm-source': 'CRM Source Map',
   '/crm/ai/insights': 'AI Insights',
   '/crm/ai/coach': 'Manager Coach',
   '/crm/ai/query': 'NL Analytics',
@@ -550,6 +556,22 @@ function buildSections(
   }
   if (serviceKpi.length) {
     sections.push({ label: 'SERVICE KPI', links: serviceKpi, defaultOpen: true });
+  }
+
+  const performance: NavLink[] = [];
+  if (hasCap(user, 'crm_kpi_hub', 'view')) {
+    performance.push({ href: '/crm/kpi-hub/performance', label: 'Operating Dashboard' });
+    performance.push({ href: '/crm/kpi-hub/performance/assignments', label: 'Assignment Registry' });
+    performance.push({ href: '/crm/kpi-hub/performance/scorecards', label: 'Scorecard Builder' });
+    performance.push({ href: '/crm/kpi-hub/performance/check-ins', label: 'Check-in Ritual' });
+    performance.push({ href: '/crm/kpi-hub/performance/marketing', label: 'Marketing OS' });
+    performance.push({ href: '/crm/kpi-hub/performance/campaigns', label: 'Campaign Control' });
+    performance.push({ href: '/crm/kpi-hub/performance/crm-source', label: 'CRM Source Map' });
+    performance.push({ href: '/crm/kpi-hub/performance/reports', label: 'Snapshot Report' });
+    performance.push({ href: '/crm/kpi-hub/performance/settings', label: 'Policy' });
+  }
+  if (performance.length) {
+    sections.push({ label: 'HIỆU SUẤT', links: performance, defaultOpen: true });
   }
 
   const delivery: NavLink[] = [];
