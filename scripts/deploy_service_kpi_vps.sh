@@ -27,6 +27,7 @@ run_local() {
 
   echo "== 1/5 apply Service KPI DDL =="
   bash "$ROOT/scripts/apply_pg_ddl_service_kpi.sh"
+  bash "$ROOT/scripts/apply_pg_ddl_performance_os.sh"
 
   echo "== 2/5 ptt-crm-api build + service-kpi tests =="
   cd "$ROOT/services/ptt-crm-api"
