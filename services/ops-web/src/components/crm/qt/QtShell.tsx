@@ -17,8 +17,6 @@ import {
 import { dash } from '@/lib/crm/qt-format';
 import { QT_NAV, canSeeQtNav, qtNavIsActive } from '@/lib/crm/qt-nav.util';
 
-const COLLAPSE_KEY = 'qt-sidebar-collapsed';
-
 function parseScope(raw: string | null): 'me' | 'team' | 'all' {
   if (raw === 'team' || raw === 'all') return raw;
   return 'me';
@@ -31,7 +29,6 @@ function QtShellInner({ children }: { children: ReactNode }) {
   const scope = parseScope(searchParams.get('scope'));
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
 
   const ensureAuth = useCallback(async () => {
     let access = getAccessToken();
@@ -67,20 +64,8 @@ function QtShellInner({ children }: { children: ReactNode }) {
   }, [router]);
 
   useEffect(() => {
-    setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === '1');
-  }, []);
-
-  useEffect(() => {
     void ensureAuth().finally(() => setLoading(false));
   }, [ensureAuth]);
-
-  function toggleCollapsed() {
-    setCollapsed((current) => {
-      const next = !current;
-      window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
-      return next;
-    });
-  }
 
   function changeScope(next: 'me' | 'team' | 'all') {
     const params = new URLSearchParams(searchParams.toString());
@@ -98,34 +83,20 @@ function QtShellInner({ children }: { children: ReactNode }) {
   return (
     <StaffPageShell user={user} onLogout={logout} loading={loading && !user} width="full">
       {user && canSeeQtNav(user) ? (
-        <div className={`qt-root${collapsed ? ' qt-root--collapsed' : ''}`}>
-          <aside className="qt-sidebar" aria-label="Báo giá">
-            <nav className="qt-sidebar__nav">
-              {QT_NAV.map((item) => (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={`qt-sidebar__link${
-                    qtNavIsActive(pathname, item.href) ? ' qt-sidebar__link--active' : ''
-                  }`}
-                  title={item.label}
-                >
-                  {collapsed ? item.label.slice(0, 1) : item.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="qt-sidebar__foot">
-              {collapsed ? null : <b>{user.display_name || user.email}</b>}
-              <button
-                type="button"
-                className="qt-sidebar__collapse"
-                onClick={toggleCollapsed}
-                aria-label={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+        <div className="qt-root">
+          <nav className="qt-sidebar" aria-label="Báo giá">
+            {QT_NAV.map((item) => (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={`qt-sidebar__link${
+                  qtNavIsActive(pathname, item.href) ? ' qt-sidebar__link--active' : ''
+                }`}
               >
-                {collapsed ? '»' : '« Thu gọn'}
-              </button>
-            </div>
-          </aside>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
           <div className="qt-column">
             <header className="qt-top">
               <strong className="qt-product-name">Báo giá</strong>

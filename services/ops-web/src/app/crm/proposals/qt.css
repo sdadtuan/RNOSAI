@@ -14,6 +14,7 @@
 
 .qt-root {
   display: flex;
+  flex-direction: column;
   align-items: stretch;
   min-height: calc(100vh - var(--ops-chrome-h, 56px));
   width: 100%;
@@ -22,40 +23,27 @@
   font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
 }
 
-.qt-root--collapsed .qt-sidebar {
-  flex-basis: 64px;
-  width: 64px;
-  max-width: 64px;
-}
-
 .qt-sidebar {
   display: flex;
-  flex: 0 0 248px;
-  flex-direction: column;
-  width: 248px;
-  max-width: 248px;
-  min-height: 100%;
-  border-right: 1px solid var(--qt-sidebar-line);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--qt-sidebar-line);
   background: var(--qt-sidebar);
   color: #4b5d73;
 }
 
-.qt-sidebar__nav {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 8px;
-}
-
 .qt-sidebar__link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  min-height: 34px;
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 6px 12px;
   color: var(--qt-navy);
   font-size: 13px;
+  white-space: nowrap;
   text-decoration: none;
 }
 
@@ -67,29 +55,6 @@
   background: var(--qt-accent);
   color: #fff;
   font-weight: 600;
-}
-
-.qt-sidebar__foot {
-  padding: 10px;
-  border-top: 1px solid var(--qt-sidebar-line);
-  color: #64748b;
-  font-size: 11px;
-}
-
-.qt-sidebar__foot b {
-  display: block;
-  color: var(--qt-navy);
-}
-
-.qt-sidebar__collapse {
-  width: 100%;
-  margin-top: 8px;
-  border: 0;
-  border-radius: 10px;
-  padding: 8px;
-  background: var(--qt-sidebar-hover);
-  color: var(--qt-navy);
-  cursor: pointer;
 }
 
 .qt-column {
