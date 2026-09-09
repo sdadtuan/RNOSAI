@@ -5,32 +5,25 @@ import { parseQuoteCatalogImport } from './quote-catalog-import.util';
 import { applyQuoteCatalogImport, type QuoteCatalogImportJobResult } from './quote-catalog-import.worker';
 import { QT_TENANT_ID } from './quote-settings.repository';
 import {
+  QT_CATALOG_NAV_GROUPS,
+  firstNonEmpty,
+  formatPlaybookKpis,
+  getDvPlaybook,
+  mergeCatalogLists,
+  resolveQuoteCatalogGroup,
+  skuCodesFor,
+} from './quote-catalog-dv-playbook';
+import {
   QUOTE_PACKAGE_TIERS,
   normalizeQuoteTier,
   resolveProductTierPricing,
   type QuotePackageTier,
 } from './quote-pricing.util';
 
-export const QT_CATALOG_NAV_GROUPS = [
-  'strategy',
-  'branding',
-  'content',
-  'production',
-  'performance',
-  'web',
-  'seo',
-  'crm',
-  'retention',
-  'pr',
-  'event',
-  'sales',
-  'data',
-] as const;
+export { QT_CATALOG_NAV_GROUPS, resolveQuoteCatalogGroup, skuCodesFor } from './quote-catalog-dv-playbook';
+export type { QuoteCatalogGroup, QuoteCatalogNavGroup } from './quote-catalog-dv-playbook';
 
 export const VID_TPL_01 = 'VID-TPL-01';
-
-export type QuoteCatalogNavGroup = (typeof QT_CATALOG_NAV_GROUPS)[number];
-export type QuoteCatalogGroup = QuoteCatalogNavGroup | 'package';
 
 export type QuoteCatalogStatus = 'active' | 'draft';
 
@@ -120,42 +113,57 @@ export const QT_INDUSTRY_PACKAGES: QuoteIndustryPackage[] = [
     name: 'Growth Launch',
     package_discount_bps: 500,
     lines: [
-      { dv_code: 'DV05', package_tier: 'standard', qty: 1 },
-      { dv_code: 'DV08', package_tier: 'standard', qty: 1 },
-      { dv_code: 'DV03', package_tier: 'standard', qty: 1 },
       { dv_code: 'DV12', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV04', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV03', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV02', package_tier: 'standard', qty: 1 },
     ],
   },
   {
     key: 'bds',
-    name: 'BĐS',
+    name: 'BĐS Lead Launch',
     package_discount_bps: 500,
     lines: [
-      { dv_code: 'DV08', package_tier: 'standard', qty: 1 },
-      { dv_code: 'DV05', package_tier: 'standard', qty: 1 },
       { dv_code: 'DV12', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV04', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV03', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV15', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV08', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV13', package_tier: 'standard', qty: 1 },
     ],
   },
   {
     key: 'spa_clinic',
-    name: 'Spa/Clinic',
+    name: 'Spa/Clinic Lead Growth',
     package_discount_bps: 300,
     lines: [
-      { dv_code: 'DV05', package_tier: 'standard', qty: 1 },
-      { dv_code: 'DV08', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV04', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV02', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV03', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV11', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV06', package_tier: 'standard', qty: 1 },
     ],
   },
   {
     key: 'education',
-    name: 'Education',
+    name: 'Education Student Recruitment',
     package_discount_bps: 400,
     lines: [
-      { dv_code: 'DV08', package_tier: 'standard', qty: 1 },
-      { dv_code: 'DV05', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV04', package_tier: 'standard', qty: 1 },
       { dv_code: 'DV03', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV08', package_tier: 'standard', qty: 1 },
+      { dv_code: 'DV02', package_tier: 'standard', qty: 1 },
     ],
   },
 ];
+
+export function quoteIndustryPackageDvCodes(
+  packages: QuoteIndustryPackage[] = QT_INDUSTRY_PACKAGES,
+): string[] {
+  return [...new Set(packages.flatMap((pkg) => pkg.lines.map((line) => line.dv_code)))].sort();
+}
+
+export const QT_RATE_SEED_EXTRA_DV = ['DV19'] as const;
 
 export type QuoteCatalogGetOpts = {
   hasFinance?: boolean;
@@ -249,26 +257,6 @@ type SorRow = {
   tier_pricing: Record<string, unknown>;
 };
 
-const GROUP_KEYWORDS: Array<[RegExp, QuoteCatalogGroup]> = [
-  [/package|ngành|nganh|growth[\s-]?launch/i, 'package'],
-  [/brand[\s-]?film|reels|video|image|sản xuất|san xuat|\btvc\b/i, 'production'],
-  [
-    /strateg|research|nghiên cứu|nghien cuu|thị[\s-]?trường|thi[\s-]?truong|phân[\s-]?tích[\s-]?thị[\s-]?trường|phan[\s-]?tich[\s-]?thi[\s-]?truong/i,
-    'strategy',
-  ],
-  [/brand|nhận diện|nhan dien|identity|creative|key visual/i, 'branding'],
-  [/content|social|nội dung|noi dung|mạng xã hội|mang xa hoi/i, 'content'],
-  [/performance|media|\bads\b|quảng cáo|quang cao|meta|google|tiktok/i, 'performance'],
-  [/web|landing|\blp\b|cro|website/i, 'web'],
-  [/\bseo\b|\baeo\b|organic/i, 'seo'],
-  [/email|retention|nurture|nuôi dưỡng|nuoi duong|zalo|sms|zns/i, 'retention'],
-  [/\bcrm\b|automation|chatbot/i, 'crm'],
-  [/\bpr\b|kol|koc|báo chí|bao chi|reputation/i, 'pr'],
-  [/event|sự kiện|su kien|activation|\bbtl\b/i, 'event'],
-  [/sales|enablement|playbook|bán hàng|ban hang/i, 'sales'],
-  [/data|analytics|dashboard|pixel|báo cáo|bao cao/i, 'data'],
-];
-
 function asObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -288,18 +276,6 @@ function asObject(value: unknown): Record<string, unknown> {
 
 function isActive(value: unknown): boolean {
   return value !== false && value !== 'f' && value !== 'false';
-}
-
-export function resolveQuoteCatalogGroup(
-  _dvCode: string,
-  name: string,
-  slug: string,
-): QuoteCatalogGroup {
-  const hay = `${name} ${slug}`;
-  for (const [pattern, group] of GROUP_KEYWORDS) {
-    if (pattern.test(hay)) return group;
-  }
-  return 'strategy';
 }
 
 function templateKeyFor(name: string, slug: string): string | undefined {
@@ -421,6 +397,7 @@ export class QuoteCatalogService {
       dv,
       quoteDate,
     );
+    const playbook = getDvPlaybook(dv);
     const item: Record<string, unknown> = {
       ...family,
       dv_code: dv,
@@ -431,6 +408,10 @@ export class QuoteCatalogService {
       can_add_to_client_quote,
       rate_missing,
       package_tiers,
+      sku_codes: skuCodesFor(dv),
+      summary_vi: firstNonEmpty(family.summary_vi, family.summary, playbook?.summary),
+      channel_lines: playbook?.channel_lines ?? [],
+      media_pass_through: playbook?.media_pass_through === true,
       drawer: this.drawerFor(family, package_tiers, hasFinance, cards, dv, quoteDate),
     };
     const template_key = templateKeyFor(name, slug);
@@ -464,39 +445,54 @@ export class QuoteCatalogService {
     const deliverables = components
       .map((row) => String(row.deliverable_vi ?? '').trim())
       .filter(Boolean);
+    const playbook = getDvPlaybook(dvCode);
     const pricing: Record<string, unknown> = hasFinance
       ? {
           package_tiers: packageTiers,
           cost_labor_vnd: liveCostLaborVnd(cards, dvCode, quoteDate),
           cost_missing: packageTiers.every((tier) => tier.rate_missing),
+          media_pass_through: playbook?.media_pass_through === true,
         }
-      : { restricted: true };
+      : { restricted: true, media_pass_through: playbook?.media_pass_through === true };
     return {
       tabs: QT_CATALOG_DRAWER_TABS.map((tab) => tab.id),
       overview: {
-        included: included.length ? included : null,
-        excluded: excluded.length ? excluded : null,
-        cta: family.cta == null ? null : String(family.cta),
-        uta: family.uta == null ? null : String(family.uta),
-        owner: family.owner == null ? null : String(family.owner),
-        effort: family.effort == null ? null : String(family.effort),
+        included: mergeCatalogLists(included, playbook?.included ?? []),
+        excluded: mergeCatalogLists(excluded, playbook?.excluded ?? []),
+        assume: mergeCatalogLists(
+          Array.isArray(family.assume)
+            ? (family.assume as unknown[]).map((row) => String(row).trim()).filter(Boolean)
+            : [],
+          playbook?.assume ?? [],
+        ),
+        cta: firstNonEmpty(family.cta, playbook?.cta.join(' · ')),
+        uta: firstNonEmpty(family.uta, playbook?.uta),
+        owner: firstNonEmpty(family.owner, playbook?.owner),
+        effort: firstNonEmpty(family.effort, playbook?.effort),
+        channel_lines: playbook?.channel_lines ?? [],
       },
-      deliverable: { items: deliverables.length ? deliverables : null },
+      deliverable: { items: mergeCatalogLists(deliverables, playbook?.deliverables ?? []) },
       kpi: {
-        committed: family.kpi_committed == null ? null : String(family.kpi_committed),
-        optimization: family.kpi_optimization == null ? null : String(family.kpi_optimization),
-        forecast: family.kpi_forecast == null ? null : String(family.kpi_forecast),
+        committed: firstNonEmpty(family.kpi_committed, playbook ? formatPlaybookKpis(playbook, 'committed') : null),
+        optimization: firstNonEmpty(
+          family.kpi_optimization,
+          playbook ? formatPlaybookKpis(playbook, 'optimization') : null,
+        ),
+        forecast: firstNonEmpty(family.kpi_forecast, playbook ? formatPlaybookKpis(playbook, 'forecast') : null),
+        items: playbook?.kpis ?? [],
       },
       timeline: {
-        kickoff: family.timeline_kickoff == null ? null : String(family.timeline_kickoff),
-        duration: family.timeline_duration == null ? null : String(family.timeline_duration),
-        notes: family.timeline_notes == null ? null : String(family.timeline_notes),
+        kickoff: firstNonEmpty(family.timeline_kickoff, playbook?.kickoff),
+        duration: firstNonEmpty(family.timeline_duration, playbook?.duration),
+        notes: firstNonEmpty(family.timeline_notes, playbook?.timeline_notes),
       },
       pricing,
       policy: {
         client_visible: family.client_visible !== false,
         studio_sections: ['04', '07'],
         custom_price_requires_approval: true,
+        assumptions_required: true,
+        sku_codes: skuCodesFor(dvCode),
       },
     };
   }

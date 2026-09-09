@@ -25,6 +25,46 @@
       "basic": { "price_vnd": 8000000, "min_vnd": 6000000, "max_vnd": 10000000 },
       "standard": { "price_vnd": 15000000, "min_vnd": 12000000, "max_vnd": 19000000 },
       "premium": { "price_vnd": 25000000, "min_vnd": 20000000, "max_vnd": 32000000 }
+    },
+    "DV03": {
+      "basic": { "price_vnd": 18000000, "min_vnd": 15300000, "max_vnd": 20700000 },
+      "standard": { "price_vnd": 28000000, "min_vnd": 23800000, "max_vnd": 32200000 },
+      "premium": { "price_vnd": 120000000, "min_vnd": 102000000, "max_vnd": 138000000 }
+    },
+    "DV06": {
+      "basic": { "price_vnd": 14000000, "min_vnd": 11900000, "max_vnd": 16100000 },
+      "standard": { "price_vnd": 22000000, "min_vnd": 18700000, "max_vnd": 25300000 },
+      "premium": { "price_vnd": 32000000, "min_vnd": 27200000, "max_vnd": 36800000 }
+    },
+    "DV08": {
+      "basic": { "price_vnd": 65000000, "min_vnd": 55250000, "max_vnd": 74750000 },
+      "standard": { "price_vnd": 95000000, "min_vnd": 80750000, "max_vnd": 109250000 },
+      "premium": { "price_vnd": 140000000, "min_vnd": 119000000, "max_vnd": 161000000 }
+    },
+    "DV11": {
+      "basic": { "price_vnd": 32000000, "min_vnd": 27200000, "max_vnd": 36800000 },
+      "standard": { "price_vnd": 45000000, "min_vnd": 38250000, "max_vnd": 51750000 },
+      "premium": { "price_vnd": 65000000, "min_vnd": 55250000, "max_vnd": 74750000 }
+    },
+    "DV12": {
+      "basic": { "price_vnd": 18000000, "min_vnd": 15300000, "max_vnd": 20700000 },
+      "standard": { "price_vnd": 32000000, "min_vnd": 27200000, "max_vnd": 36800000 },
+      "premium": { "price_vnd": 45000000, "min_vnd": 38250000, "max_vnd": 51750000 }
+    },
+    "DV13": {
+      "basic": { "price_vnd": 18000000, "min_vnd": 15300000, "max_vnd": 20700000 },
+      "standard": { "price_vnd": 32000000, "min_vnd": 27200000, "max_vnd": 36800000 },
+      "premium": { "price_vnd": 48000000, "min_vnd": 40800000, "max_vnd": 55200000 }
+    },
+    "DV15": {
+      "basic": { "price_vnd": 15000000, "min_vnd": 12750000, "max_vnd": 17250000 },
+      "standard": { "price_vnd": 25000000, "min_vnd": 21250000, "max_vnd": 28750000 },
+      "premium": { "price_vnd": 95000000, "min_vnd": 80750000, "max_vnd": 109250000 }
+    },
+    "DV19": {
+      "basic": { "price_vnd": 12000000, "min_vnd": 10200000, "max_vnd": 13800000 },
+      "standard": { "price_vnd": 18000000, "min_vnd": 15300000, "max_vnd": 20700000 },
+      "premium": { "price_vnd": 28000000, "min_vnd": 23800000, "max_vnd": 32200000 }
     }
   }
 }

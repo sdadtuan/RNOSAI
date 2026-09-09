@@ -407,25 +407,37 @@ export type QtCatalogItem = {
     suggested_vnd?: number | null;
     rate_missing?: boolean;
   }>;
+  sku_codes?: string[];
+  summary_vi?: string | null;
+  channel_lines?: string[];
+  media_pass_through?: boolean;
   catalog_snapshot_json?: Record<string, unknown>;
   drawer?: {
     overview?: {
       included?: string[] | null;
       excluded?: string[] | null;
+      assume?: string[] | null;
       cta?: string | null;
       uta?: string | null;
       owner?: string | null;
       effort?: string | null;
+      channel_lines?: string[];
     };
     deliverable?: { items?: string[] | null };
-    kpi?: { committed?: string | null; optimization?: string | null; forecast?: string | null };
+    kpi?: {
+      committed?: string | null;
+      optimization?: string | null;
+      forecast?: string | null;
+      items?: Array<{ name: string; value: string; kind: string }>;
+    };
     timeline?: { kickoff?: string | null; duration?: string | null; notes?: string | null };
     pricing?: {
       restricted?: boolean;
       package_tiers?: QtCatalogItem['package_tiers'];
       cost_labor_vnd?: number | null;
+      media_pass_through?: boolean;
     };
-    policy?: { client_visible?: boolean; studio_sections?: string[] };
+    policy?: { client_visible?: boolean; studio_sections?: string[]; sku_codes?: string[]; assumptions_required?: boolean };
   };
 };
 

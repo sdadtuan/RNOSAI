@@ -42,20 +42,20 @@ export const QT_CATALOG_GROUP_META: Record<
   QtCatalogNavGroup | 'package',
   { title: string; hint: string }
 > = {
-  strategy: { title: '1. Strategy & Research', hint: 'Audit · insight · kế hoạch' },
-  branding: { title: '2. Branding & Creative', hint: 'Identity · key visual' },
-  content: { title: '3. Content & Social', hint: 'Retainer 3 SKU' },
-  production: { title: '4. Video & Image', hint: 'Reels · Brand Film' },
-  performance: { title: '5. Performance & Media', hint: 'Meta / Google / TikTok' },
-  web: { title: '6. Web, LP & CRO', hint: 'Landing · A/B' },
-  seo: { title: '7. SEO / AEO / Organic', hint: 'Technical + content' },
-  crm: { title: '8. CRM, Automation & AI', hint: 'Không add quote khách' },
-  retention: { title: '9. Email & Retention', hint: 'Journey · flow' },
-  pr: { title: '10. PR, KOL & Reputation', hint: 'Booking KOL' },
-  event: { title: '11. Event & Activation', hint: 'Offline / launch' },
-  sales: { title: '12. Sales Enablement B2B', hint: 'Deck · playbook' },
-  data: { title: '13. Data & Analytics', hint: 'Dashboard · pixel' },
-  package: { title: 'Ngành BĐS / Spa / Edu / Growth', hint: 'Package ngành' },
+  strategy: { title: '1. Strategy & Research', hint: 'DV12 · audit / GTM' },
+  branding: { title: '2. Branding & Creative', hint: 'DV01 · CB/TC/CS' },
+  content: { title: '3. Content & Social', hint: 'DV02 · CB/TC/CS' },
+  production: { title: '4. Video & Image', hint: 'DV15 · Reels · Brand Film' },
+  performance: { title: '5. Performance & Media', hint: 'DV04 kênh · DV18 plan · DV19 TMĐT' },
+  web: { title: '6. Web, LP & CRO', hint: 'DV03' },
+  seo: { title: '7. SEO / AEO / Organic', hint: 'DV05 · 3 line' },
+  crm: { title: '8. CRM, Automation & AI', hint: 'DV07–11 · không phải Draft mặc định' },
+  retention: { title: '9. Email & Retention', hint: 'DV20 · DV06' },
+  pr: { title: '10. PR, KOL & Reputation', hint: 'DV14 · DV16' },
+  event: { title: '11. Event & Activation', hint: 'DV17 · DV21 POSM' },
+  sales: { title: '12. Sales Enablement B2B', hint: 'Không phải DV mới — chỉ khi có owner' },
+  data: { title: '13. Data & Analytics', hint: 'DV13' },
+  package: { title: 'Ngành BĐS / Spa / Edu / Growth', hint: 'Nổ ra line DV + discount' },
 };
 
 export const QT_CATALOG_DRAWER_TABS = [
@@ -70,10 +70,10 @@ export const QT_CATALOG_DRAWER_TABS = [
 export type QtCatalogDrawerTabId = (typeof QT_CATALOG_DRAWER_TABS)[number]['id'];
 
 export const QT_INDUSTRY_PACKAGE_FALLBACK: QtIndustryPackage[] = [
-  { key: 'growth_launch', name: 'Growth Launch', package_discount_bps: 500, line_count: 4, dv_codes: ['DV05', 'DV08', 'DV03', 'DV12'] },
-  { key: 'bds', name: 'BĐS', package_discount_bps: 500, line_count: 3, dv_codes: ['DV08', 'DV05', 'DV12'] },
-  { key: 'spa_clinic', name: 'Spa/Clinic', package_discount_bps: 300, line_count: 2, dv_codes: ['DV05', 'DV08'] },
-  { key: 'education', name: 'Education', package_discount_bps: 400, line_count: 3, dv_codes: ['DV08', 'DV05', 'DV03'] },
+  { key: 'growth_launch', name: 'Growth Launch', package_discount_bps: 500, line_count: 4, dv_codes: ['DV12', 'DV04', 'DV03', 'DV02'] },
+  { key: 'bds', name: 'BĐS Lead Launch', package_discount_bps: 500, line_count: 6, dv_codes: ['DV12', 'DV04', 'DV03', 'DV15', 'DV08', 'DV13'] },
+  { key: 'spa_clinic', name: 'Spa/Clinic Lead Growth', package_discount_bps: 300, line_count: 5, dv_codes: ['DV04', 'DV02', 'DV03', 'DV11', 'DV06'] },
+  { key: 'education', name: 'Education Student Recruitment', package_discount_bps: 400, line_count: 4, dv_codes: ['DV04', 'DV03', 'DV08', 'DV02'] },
 ];
 
 function textOrDash(value: unknown): string {
@@ -155,6 +155,7 @@ export function QtCatalogServiceRow({
   onOpen?: (item: QtCatalogItem) => void;
 }) {
   const canAdd = canAddToClientQuote(item);
+  const skus = item.sku_codes?.length ? item.sku_codes : item.dv_code ? [`${item.dv_code}-CB`, `${item.dv_code}-TC`, `${item.dv_code}-CS`] : [];
   return (
     <article className="qt-svc" data-dv={item.dv_code} data-group={item.group ?? ''}>
       <div className="qt-svc__h">
@@ -163,6 +164,8 @@ export function QtCatalogServiceRow({
       </div>
       <p className="qt-muted">
         {item.dv_code || dash(null)}
+        {skus.length ? ` · ${skus[1] || skus[0]}` : ''}
+        {item.media_pass_through ? ' · media tách fee' : ''}
         {item.template_key === VID_TPL_01 ? (
           <>
             {' · '}
@@ -172,6 +175,7 @@ export function QtCatalogServiceRow({
           </>
         ) : null}
       </p>
+      {item.summary_vi ? <p className="qt-muted">{item.summary_vi}</p> : null}
       <div className="qt-catalog-add">
         <button type="button" className="qt-btn" onClick={onOpen ? () => onOpen(item) : undefined}>
           Chi tiết
@@ -243,10 +247,19 @@ export function QtCatalogDrawer({
         {active === 'overview' ? (
           <>
             <p>
+              <b>SKU</b> {listOrDash(item.sku_codes ?? drawer?.policy?.sku_codes)}
+            </p>
+            <p>
               <b>Included</b> {listOrDash(drawer?.overview?.included)}
             </p>
             <p>
               <b>Excluded</b> {listOrDash(drawer?.overview?.excluded)}
+            </p>
+            <p>
+              <b>Assumption</b> {listOrDash(drawer?.overview?.assume)}
+            </p>
+            <p>
+              <b>Line / kênh</b> {listOrDash(drawer?.overview?.channel_lines ?? item.channel_lines)}
             </p>
             <p>CTA {textOrDash(drawer?.overview?.cta)}</p>
             <p>UTA {textOrDash(drawer?.overview?.uta)}</p>
@@ -261,6 +274,15 @@ export function QtCatalogDrawer({
             <p>committed: {textOrDash(drawer?.kpi?.committed)}</p>
             <p>optimization: {textOrDash(drawer?.kpi?.optimization)}</p>
             <p>forecast: {textOrDash(drawer?.kpi?.forecast)}</p>
+            {drawer?.kpi?.items?.length ? (
+              <ul className="qt-drawer-list">
+                {drawer.kpi.items.map((row) => (
+                  <li key={`${row.kind}-${row.name}`}>
+                    {row.kind} · {row.name}: {row.value}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </>
         ) : null}
         {active === 'timeline' ? (
@@ -281,6 +303,7 @@ export function QtCatalogDrawer({
                   : dash(null)}
               </p>
               <p>Cost {textOrDash(drawer?.pricing?.cost_labor_vnd)}</p>
+              <p>Media/pass-through {drawer?.pricing?.media_pass_through || item.media_pass_through ? 'tách fee' : 'không'}</p>
             </>
           ) : (
             <p className="qt-muted">Pricing &amp; Cost · cần crm_quote.finance · {dash(null)}</p>
@@ -290,6 +313,7 @@ export function QtCatalogDrawer({
           <p>
             client_visible {drawer?.policy?.client_visible === false ? 'không' : 'mặc định'} · Studio{' '}
             {drawer?.policy?.studio_sections?.join(' + ') || '04 + 07'}
+            {drawer?.policy?.assumptions_required ? ' · assumption bắt buộc trên proposal' : ''}
           </p>
         ) : null}
       </div>
@@ -313,7 +337,7 @@ export function QtCatalogPackages({
         <div>
           <p className="qt-crumb">Kinh doanh / Báo giá / Catalog / Package ngành</p>
           <h1>Package theo ngành</h1>
-          <p className="qt-muted">CAT-03 · Growth Launch · BĐS · Spa/Clinic · Education · add = N line snapshot</p>
+          <p className="qt-muted">CAT-03 · bundle DV + discount · không tạo family mới · add = N line snapshot</p>
         </div>
         <div className="qt-head__actions">
           <Link className="qt-btn" href="/crm/proposals/catalog">
@@ -444,7 +468,7 @@ export function QtVidTpl01Template() {
             Về catalog
           </Link>
           <button type="button" className="qt-btn qt-btn--primary" disabled>
-            Dùng khi convert DV12
+            Dùng khi convert DV15
           </button>
         </div>
       </header>
@@ -478,7 +502,7 @@ export function QtVidTpl01Template() {
             </table>
           </div>
           <p className="qt-muted">
-            Template text. Khi line DV12 accepted → optional spawn /crm/video hoặc CP project.
+            Template text. Khi line DV15 accepted → optional spawn /crm/video hoặc CP project.
           </p>
         </section>
       </div>

@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0.0",
+  "rate_card": "HCM 2026",
+  "tenant_id": "PTT",
+  "effective_from": "2026-01-01",
+  "effective_to": null,
+  "margin_floor_bps": 2500,
+  "activate_dv": [
+    "DV02",
+    "DV03",
+    "DV04",
+    "DV06",
+    "DV08",
+    "DV11",
+    "DV12",
+    "DV13",
+    "DV15",
+    "DV19"
+  ],
+  "rates": {
+    "DV02": {
+      "basic": { "fee_vnd": 15000000, "cost_labor_vnd": 8700000 },
+      "standard": { "fee_vnd": 28000000, "cost_labor_vnd": 16240000 },
+      "premium": { "fee_vnd": 45000000, "cost_labor_vnd": 26100000 }
+    },
+    "DV03": {
+      "basic": { "fee_vnd": 18000000, "cost_labor_vnd": 10440000 },
+      "standard": { "fee_vnd": 28000000, "cost_labor_vnd": 16240000 },
+      "premium": { "fee_vnd": 120000000, "cost_labor_vnd": 69600000 }
+    },
+    "DV04": {
+      "basic": { "fee_vnd": 12000000, "cost_labor_vnd": 6960000 },
+      "standard": { "fee_vnd": 25000000, "cost_labor_vnd": 14500000 },
+      "premium": { "fee_vnd": 40000000, "cost_labor_vnd": 23200000 }
+    },
+    "DV06": {
+      "basic": { "fee_vnd": 14000000, "cost_labor_vnd": 8120000 },
+      "standard": { "fee_vnd": 22000000, "cost_labor_vnd": 12760000 },
+      "premium": { "fee_vnd": 32000000, "cost_labor_vnd": 18560000 }
+    },
+    "DV08": {
+      "basic": { "fee_vnd": 65000000, "cost_labor_vnd": 37700000 },
+      "standard": { "fee_vnd": 95000000, "cost_labor_vnd": 55100000 },
+      "premium": { "fee_vnd": 140000000, "cost_labor_vnd": 81200000 }
+    },
+    "DV11": {
+      "basic": { "fee_vnd": 32000000, "cost_labor_vnd": 18560000 },
+      "standard": { "fee_vnd": 45000000, "cost_labor_vnd": 26100000 },
+      "premium": { "fee_vnd": 65000000, "cost_labor_vnd": 37700000 }
+    },
+    "DV12": {
+      "basic": { "fee_vnd": 18000000, "cost_labor_vnd": 10440000 },
+      "standard": { "fee_vnd": 32000000, "cost_labor_vnd": 18560000 },
+      "premium": { "fee_vnd": 45000000, "cost_labor_vnd": 26100000 }
+    },
+    "DV13": {
+      "basic": { "fee_vnd": 18000000, "cost_labor_vnd": 10440000 },
+      "standard": { "fee_vnd": 32000000, "cost_labor_vnd": 18560000 },
+      "premium": { "fee_vnd": 48000000, "cost_labor_vnd": 27840000 }
+    },
+    "DV15": {
+      "basic": { "fee_vnd": 15000000, "cost_labor_vnd": 8700000 },
+      "standard": { "fee_vnd": 25000000, "cost_labor_vnd": 14500000 },
+      "premium": { "fee_vnd": 95000000, "cost_labor_vnd": 55100000 }
+    },
+    "DV19": {
+      "basic": { "fee_vnd": 12000000, "cost_labor_vnd": 6960000 },
+      "standard": { "fee_vnd": 18000000, "cost_labor_vnd": 10440000 },
+      "premium": { "fee_vnd": 28000000, "cost_labor_vnd": 16240000 }
+    }
+  }
+}

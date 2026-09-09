@@ -42,12 +42,16 @@ run_local() {
   echo "== 3/8 QT RBAC catalog (no user grants) =="
   bash "$ROOT/scripts/seed_qt_rbac.sh"
 
+  echo "== 3b/8 QT rate/cost seed (package DVs + DV19) =="
+  bash "$ROOT/scripts/seed_qt_rate_cost.sh"
+
   echo "== 4/8 ptt-crm-api build + QT unit tests =="
   cd "$ROOT/services/ptt-crm-api"
   npm ci
   export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
   npm run build
   npx jest --config jest.config.js src/proposals --forceExit --no-coverage
+  node --test "$ROOT/scripts/lib/qt-rate-cost-seed.spec.js"
 
   echo "== 5/8 ops-web QT unit tests =="
   cd "$ROOT/services/ops-web"

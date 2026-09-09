@@ -64,6 +64,25 @@ describe('QtCatalog CAT-01 groups', () => {
 });
 
 describe('QtCatalog draft add', () => {
+  it('shows official dv_code and default TC SKU on the card', () => {
+    const html = renderToStaticMarkup(
+      createElement(QtCatalogServiceRow, {
+        item: {
+          dv_code: 'DV04',
+          name_vi: 'Quảng cáo tối ưu chuyển đổi',
+          group: 'performance',
+          status: 'active',
+          can_add_to_client_quote: true,
+          sku_codes: ['DV04-CB', 'DV04-TC', 'DV04-CS'],
+          media_pass_through: true,
+        },
+      }),
+    );
+    expect(html).toContain('DV04');
+    expect(html).toContain('DV04-TC');
+    expect(html).toContain('media tách fee');
+  });
+
   it('shows Draft and disables add-to-quote when can_add_to_client_quote is false', () => {
     const html = renderToStaticMarkup(
       createElement(QtCatalogServiceRow, {
@@ -114,7 +133,7 @@ describe('QtCatalog CAT-05 VID-TPL-01', () => {
     expect(html).toContain('CTA đặt lịch');
     expect(html).toContain('0–6s');
     expect(html).toContain('40–45s');
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>\s*Dùng khi convert DV12/);
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>\s*Dùng khi convert DV15/);
     expect(html).not.toContain('<main');
     expect(html).not.toContain('265.647.600');
     expect(html).not.toContain('video/mp4');
@@ -180,6 +199,8 @@ describe('QtCatalog CAT-02 drawer tabs', () => {
     expect(withCopy).toContain('Đặt lịch tư vấn');
     expect(withCopy).toContain('UTA');
     expect(withCopy).toContain('Không cam kết CPL');
+    expect(withCopy).toContain('Assumption');
+    expect(withCopy).toContain('SKU');
 
     const empty = renderToStaticMarkup(
       createElement(QtCatalogDrawer, {

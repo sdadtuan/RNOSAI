@@ -572,6 +572,13 @@
   font-size: 15px;
 }
 
+.qt-drawer-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
 .qt-catalog-list {
   display: flex;
   flex-direction: column;
