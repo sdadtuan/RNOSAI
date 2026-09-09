@@ -50,6 +50,9 @@ import { ServiceKpiBenchmarksService } from './service-kpi/service-kpi-benchmark
 import { ServiceKpiInstancesService } from './service-kpi/service-kpi-instances.service';
 import { ServiceKpiChangeOrderService } from './service-kpi/service-kpi-change-order.service';
 import { ServiceKpiOperationsService } from './service-kpi/service-kpi-operations.service';
+import { PerformanceController } from './performance/performance.controller';
+import { PerformanceRepository } from './performance/performance.repository';
+import { PerformanceService } from './performance/performance.service';
 
 @Module({
   imports: [
@@ -58,7 +61,7 @@ import { ServiceKpiOperationsService } from './service-kpi/service-kpi-operation
     forwardRef(() => ProposalsModule),
     ScheduleModule.forRoot(),
   ],
-  controllers: [KpiHubController, KpiHubBiController, ServiceKpiController],
+  controllers: [KpiHubController, KpiHubBiController, ServiceKpiController, PerformanceController],
   providers: [
     KpiHubWorkspaceRepository,
     KpiHubWorkspaceService,
@@ -103,6 +106,8 @@ import { ServiceKpiOperationsService } from './service-kpi/service-kpi-operation
     ServiceKpiOperationsService,
     ServiceKpiChangeOrderService,
     ServiceKpiBenchmarksService,
+    PerformanceRepository,
+    PerformanceService,
   ],
   exports: [
     KpiHubDictionaryService,
@@ -118,6 +123,8 @@ import { ServiceKpiOperationsService } from './service-kpi/service-kpi-operation
     ServiceKpiChangeOrderService,
     ServiceKpiBenchmarksService,
     ServiceKpiRepository,
+    PerformanceRepository,
+    PerformanceService,
   ],
 })
 export class KpiHubModule {}
