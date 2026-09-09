@@ -2,8 +2,14 @@ import { API_BASE, ApiError, parseJson } from './api';
 import type {
   CreateServiceKpiInstanceBody,
   CreateServiceKpiTemplateBody,
+  ImportActualRow,
+  ImportActualResult,
   IngestActualBody,
   ServiceKpiActualRecord,
+  ServiceKpiContractRiskResponse,
+  ServiceKpiContractScoreLive,
+  ServiceKpiQuoteContractScore,
+  ServiceKpiReconcileSource,
   ServiceKpiInstanceItem,
   ServiceKpiMeasurementPlan,
   ServiceKpiPolicyPack,
@@ -173,5 +179,42 @@ export async function upsertServiceKpiMeasurementPlan(
     token,
     `${BASE}/instances/${encodeURIComponent(instanceId)}/measurement-plan`,
     { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export async function importServiceKpiActuals(token: string, rows: ImportActualRow[]) {
+  return serviceKpiFetch<ImportActualResult>(token, `${BASE}/actuals/import`, {
+    method: 'POST',
+    body: JSON.stringify({ rows }),
+  });
+}
+
+export async function fetchServiceKpiContractRisk(token: string, versionId?: string, gmBps?: number) {
+  return serviceKpiFetch<ServiceKpiContractRiskResponse>(
+    token,
+    `${BASE}/service-kpi/contract-risk${buildQuery({ version_id: versionId, gm_bps: gmBps })}`,
+  );
+}
+
+export async function fetchServiceKpiContractQuotes(token: string) {
+  return serviceKpiFetch<{ items: ServiceKpiQuoteContractScore[] }>(token, `${BASE}/service-kpi/contract-quotes`);
+}
+
+export async function fetchServiceKpiContractScoreLive(token: string, versionId: string, gmBps?: number | null) {
+  return serviceKpiFetch<ServiceKpiContractScoreLive>(
+    token,
+    `${BASE}/service-kpi/contract-risk${buildQuery({ version_id: versionId, gm_bps: gmBps ?? undefined })}`,
+  );
+}
+
+export async function fetchServiceKpiReconcileSources(token: string) {
+  return serviceKpiFetch<{ items: ServiceKpiReconcileSource[] }>(token, `${BASE}/reconcile/sources`);
+}
+
+export async function validateServiceKpiInstanceReadiness(token: string, instanceId: string) {
+  return serviceKpiFetch<{ level: string; errors: Array<{ field: string; message: string }> }>(
+    token,
+    `${BASE}/instances/${encodeURIComponent(instanceId)}/validate-readiness`,
+    { method: 'POST' },
   );
 }

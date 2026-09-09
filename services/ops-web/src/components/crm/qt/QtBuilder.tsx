@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchLeads } from '@/lib/api';
+import { QtContractScorePanel } from '@/components/crm/qt/QtContractScorePanel';
 import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import { fetchAmAccounts } from '@/lib/crm/am-api';
 import {
@@ -1102,7 +1103,18 @@ export function QtBuilder() {
             </section>
           ) : null}
 
-          {tab === 'kpi' ? <QtKpiChrome kpis={kpis} /> : null}
+          {tab === 'kpi' ? (
+            <>
+              <QtKpiChrome kpis={kpis} />
+              <QtContractScorePanel
+                token={getAccessToken() ?? ''}
+                versionId={proposal?.current_version_id ?? null}
+                gmBps={money.gm_bps ?? null}
+                proposalId={proposalId}
+                quoteCode={proposal?.quote_code ?? null}
+              />
+            </>
+          ) : null}
 
           {tab === 'cost' ? (
             <section className="qt-card">

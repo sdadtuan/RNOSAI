@@ -1,3 +1,12 @@
+export type WarRoomQueueItem = {
+  title: string;
+  subtitle: string;
+  href: string;
+  badge: string;
+  action_label?: string;
+  action_href?: string;
+};
+
 export type WarRoomInput = {
   instances: Array<{
     id: string;
@@ -11,6 +20,15 @@ export type WarRoomInput = {
   }>;
   actuals_pending: number;
   quotes_high_score: number;
+  quote_scores?: Array<{
+    version_id: string;
+    proposal_id: number;
+    quote_code: string | null;
+    client_name: string | null;
+    gm_bps: number | null;
+    score: number;
+    blocked: boolean;
+  }>;
   gm_by_dv: Array<{ dv_code: string; gm_pct: number | null }>;
   include_gm: boolean;
 };
@@ -20,7 +38,7 @@ export type WarRoomResponse = {
   assumptions_open: number;
   blocked_reports: number;
   quotes_score_gte_70: number;
-  queue: Array<{ title: string; subtitle: string; href: string; badge: string }>;
+  queue: WarRoomQueueItem[];
   dv_health: Array<{ dv_code: string; kpi_health_pct: number; gm_pct: number | null }>;
 };
 
@@ -28,22 +46,26 @@ export function buildWarRoom(input: WarRoomInput): WarRoomResponse {
   const atRisk = input.instances.filter((i) => i.status === 'AT_RISK');
   const assumptionsOpen = input.instances.filter((i) => i.assumption_state === 'not_met' || i.assumption_state === 'pending').length;
   const blockedReports = input.actuals_pending;
-  const queue: WarRoomResponse['queue'] = [];
+  const queue: WarRoomQueueItem[] = [];
 
   for (const inst of input.instances.filter((i) => i.assumption_state === 'not_met')) {
     queue.push({
       title: `Assumption chưa đạt · ${inst.dv_code ?? '—'}`,
-      subtitle: inst.id,
-      href: `/crm/kpi-hub/instances`,
+      subtitle: inst.classification,
+      href: `/crm/kpi-hub/instances?instance=${encodeURIComponent(inst.id)}`,
       badge: 'Assumption',
+      action_label: 'Instance',
+      action_href: `/crm/kpi-hub/instances?instance=${encodeURIComponent(inst.id)}`,
     });
   }
-  for (const inst of atRisk) {
+  for (const inst of atRisk.slice(0, 5)) {
     queue.push({
       title: `KPI at-risk · ${inst.dv_code ?? '—'}`,
       subtitle: inst.classification,
-      href: `/crm/kpi-hub/instances?status=AT_RISK`,
+      href: `/crm/kpi-hub/tracking?instance=${encodeURIComponent(inst.id)}`,
       badge: 'At-risk',
+      action_label: 'Track',
+      action_href: `/crm/kpi-hub/tracking?instance=${encodeURIComponent(inst.id)}`,
     });
   }
   if (blockedReports > 0) {
@@ -52,6 +74,18 @@ export function buildWarRoom(input: WarRoomInput): WarRoomResponse {
       subtitle: `${blockedReports} bản ghi`,
       href: '/crm/kpi-hub/reconcile',
       badge: 'Blocked',
+      action_label: '3 sổ',
+      action_href: '/crm/kpi-hub/reconcile',
+    });
+  }
+  for (const q of input.quote_scores ?? []) {
+    queue.push({
+      title: `${q.quote_code ?? 'Quote'} · GM ${q.gm_bps != null ? (q.gm_bps / 100).toFixed(1) : '—'}%`,
+      subtitle: `Contract Score ${q.score}${q.client_name ? ` · ${q.client_name}` : ''}`,
+      href: `/crm/kpi-hub/kpi-contracts?version=${encodeURIComponent(q.version_id)}&proposal=${q.proposal_id}`,
+      badge: q.blocked ? 'Blocked' : 'Score',
+      action_label: 'Duyệt',
+      action_href: `/crm/proposals/${q.proposal_id}?tab=kpi`,
     });
   }
 

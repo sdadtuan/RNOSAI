@@ -5,9 +5,10 @@ import type { ServiceKpiReconcileRow } from '@/lib/service-kpi-types';
 type Props = {
   rows: ServiceKpiReconcileRow[];
   sourceId: string;
+  dictionaryLabels?: Record<string, string>;
 };
 
-export function ServiceKpiReconcileTable({ rows, sourceId }: Props) {
+export function ServiceKpiReconcileTable({ rows, sourceId, dictionaryLabels = {} }: Props) {
   if (!sourceId) {
     return <p className="kpi-hub-muted">Nhập source_id (quote line) để đối soát 3 sổ.</p>;
   }
@@ -31,7 +32,9 @@ export function ServiceKpiReconcileTable({ rows, sourceId }: Props) {
           {rows.map((row) => (
             <tr key={row.instance_id}>
               <td>
-                <span className="kpi-hub-table__mono">{row.dictionary_id}</span>
+                <span className="kpi-hub-table__mono">
+                  {dictionaryLabels[row.dictionary_id] ?? row.dictionary_id}
+                </span>
                 <div className="kpi-hub-table__sub">{row.classification}</div>
               </td>
               <td>{formatCell(row.quoted)}</td>

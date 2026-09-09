@@ -25,22 +25,22 @@ run_local() {
     set +a
   fi
 
-  echo "== 1/4 apply Service KPI DDL =="
+  echo "== 1/5 apply Service KPI DDL =="
   bash "$ROOT/scripts/apply_pg_ddl_service_kpi.sh"
 
-  echo "== 2/4 ptt-crm-api build + service-kpi tests =="
+  echo "== 2/5 ptt-crm-api build + service-kpi tests =="
   cd "$ROOT/services/ptt-crm-api"
   npm ci
   export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
   npm run build
   npx jest --testPathPattern='src/kpi-hub/service-kpi|quote-studio.service.spec' --no-coverage
 
-  echo "== 3/4 ops-web build =="
+  echo "== 3/5 ops-web build =="
   cd "$ROOT"
   export NEXT_PUBLIC_PTT_API_URL="${NEXT_PUBLIC_PTT_API_URL:-https://rs.pttads.vn}"
   "$ROOT/scripts/deploy_ops_web.sh" build
 
-  echo "== 4/4 restart services (API + ops-web required for Service KPI routes) =="
+  echo "== 4/5 restart services (API + ops-web required for Service KPI routes) =="
   if command -v systemctl >/dev/null 2>&1; then
     if sudo -n systemctl restart ptt-crm-api ptt-ops-web 2>/dev/null; then
       sleep 3
@@ -50,6 +50,13 @@ run_local() {
       echo "WARN  sudo systemctl restart skipped — Service KPI API sẽ 404 cho đến khi restart"
       echo "      Run: sudo systemctl restart ptt-crm-api ptt-ops-web"
     fi
+  fi
+
+  echo "== 5/5 seed KPI Hub RBAC (MD/MKL/ACM + leadership) =="
+  if [[ -f "$ROOT/.env" ]] && [[ -n "${DATABASE_URL:-}" ]]; then
+    bash "$ROOT/scripts/seed_kpi_hub_rbac.sh" --apply || echo "WARN  RBAC seed failed — chạy tay: bash scripts/seed_kpi_hub_rbac.sh --apply"
+  else
+    echo "WARN  DATABASE_URL missing — bỏ qua RBAC seed"
   fi
 
   echo "OK  Service KPI deployed"

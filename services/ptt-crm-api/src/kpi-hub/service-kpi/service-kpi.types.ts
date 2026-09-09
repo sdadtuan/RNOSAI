@@ -183,6 +183,47 @@ export type IngestActualBody = {
   duplicate_action?: 'skip' | 'merge' | 'correction';
 };
 
+export type ImportActualRow = {
+  instance_id?: string;
+  dictionary_id?: string;
+  source_id?: string;
+  period_start: string;
+  period_end: string;
+  value?: number | null;
+  quality_status?: string;
+  source_ref?: string;
+  duplicate_action?: 'skip' | 'merge' | 'correction';
+};
+
+export type QuoteContractScoreRow = {
+  version_id: string;
+  proposal_id: number;
+  quote_code: string | null;
+  client_name: string | null;
+  gm_bps: number | null;
+  score: number;
+  blocked: boolean;
+};
+
+export type ContractRiskItem = {
+  instance_id: string;
+  source_type: string;
+  source_id: string;
+  dictionary_id: string;
+  dv_code: string | null;
+  classification: SkpiClassification;
+  status: string;
+  assumption_state: string;
+  score: number;
+  block_submit: boolean;
+  required_reviewers: string[];
+  parts: Record<string, number>;
+  target_min: number | null;
+  target_max: number | null;
+  latest_actual: number | null;
+  variance_pct: number | null;
+};
+
 export type ServiceKpiBenchmarkRow = {
   id: string;
   dv_code: string;

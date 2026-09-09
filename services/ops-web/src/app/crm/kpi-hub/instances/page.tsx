@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { KpiHubPageGate } from '@/components/kpi-hub/KpiHubPageGate';
 import { KpiHubShell } from '@/components/kpi-hub/KpiHubShell';
+import { ServiceKpiInstanceDetailDrawer } from '@/components/kpi-hub/service-kpi/ServiceKpiInstanceDetailDrawer';
 import { ServiceKpiInstanceDrawer } from '@/components/kpi-hub/service-kpi/ServiceKpiInstanceDrawer';
 import { ServiceKpiInstanceTable } from '@/components/kpi-hub/service-kpi/ServiceKpiInstanceTable';
+import type { ServiceKpiInstanceItem } from '@/lib/service-kpi-types';
 import { useKpiHubDictionary } from '@/hooks/useKpiHubDictionary';
 import { useServiceKpiInstances } from '@/hooks/useServiceKpiInstances';
 import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
@@ -29,7 +31,9 @@ export default function KpiHubInstancesPage() {
   const token = getAccessToken() ?? '';
   const canManage = hasCap(getStoredUser(), 'crm_kpi_dictionary', 'manage');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [detailInstance, setDetailInstance] = useState<ServiceKpiInstanceItem | null>(null);
   const params = useSearchParams();
+  const instanceParam = params.get('instance') ?? '';
   const [sourceType, setSourceType] = useState('');
   const [statusFilter, setStatusFilter] = useState(params.get('status') ?? '');
 
@@ -40,6 +44,17 @@ export default function KpiHubInstancesPage() {
     status: statusFilter || undefined,
     source_type: sourceType || undefined,
   });
+
+  const sortedItems = useMemo(() => {
+    if (!instanceParam) return items;
+    return [...items].sort((a, b) => (a.id === instanceParam ? -1 : b.id === instanceParam ? 1 : 0));
+  }, [items, instanceParam]);
+
+  useEffect(() => {
+    if (!instanceParam || !items.length) return;
+    const hit = items.find((i) => i.id === instanceParam);
+    if (hit) setDetailInstance(hit);
+  }, [instanceParam, items]);
 
   return (
     <KpiHubPageGate section="crm_kpi_hub">
@@ -92,13 +107,25 @@ export default function KpiHubInstancesPage() {
         </div>
         {loading ? <p className="kpi-hub-muted">Đang tải…</p> : null}
         {error ? <p className="kpi-hub-form-error">{error}</p> : null}
-        <ServiceKpiInstanceTable rows={items} dictionaryLabels={labels} />
+        <ServiceKpiInstanceTable
+          rows={sortedItems}
+          dictionaryLabels={labels}
+          onSelect={(row) => setDetailInstance(row)}
+        />
       </KpiHubShell>
       <ServiceKpiInstanceDrawer
         open={drawerOpen}
         token={token}
         onClose={() => setDrawerOpen(false)}
         onCreated={() => refresh()}
+      />
+      <ServiceKpiInstanceDetailDrawer
+        open={Boolean(detailInstance)}
+        token={token}
+        instance={detailInstance}
+        dictionaryLabel={detailInstance ? labels[detailInstance.dictionary_id] : undefined}
+        onClose={() => setDetailInstance(null)}
+        onUpdated={() => refresh()}
       />
     </KpiHubPageGate>
   );

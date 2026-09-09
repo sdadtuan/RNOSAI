@@ -25,9 +25,11 @@ import { ServiceKpiInstancesService } from './service-kpi-instances.service';
 import { ServiceKpiOperationsService } from './service-kpi-operations.service';
 import { ServiceKpiRepository } from './service-kpi.repository';
 import { ServiceKpiTemplatesService } from './service-kpi-templates.service';
+import { ServiceKpiQuoteScoreService } from './service-kpi-quote-score';
 import type {
   CreateInstanceBody,
   CreateTemplateBody,
+  ImportActualRow,
   IngestActualBody,
   PatchInstanceBody,
 } from './service-kpi.types';
@@ -42,6 +44,7 @@ export class ServiceKpiController {
     private readonly repo: ServiceKpiRepository,
     private readonly instances: ServiceKpiInstancesService,
     private readonly operations: ServiceKpiOperationsService,
+    private readonly quoteScore: ServiceKpiQuoteScoreService,
     private readonly staffAuth: StaffAuthService,
   ) {}
 
@@ -210,6 +213,34 @@ export class ServiceKpiController {
   @UseGuards(StaffKpiHubViewGuard)
   listActuals(@Param('id') id: string) {
     return this.operations.listActuals(id);
+  }
+
+  @Post('actuals/import')
+  @UseGuards(StaffKpiHubDictionaryManageGuard)
+  importActuals(@Body() body: { rows?: ImportActualRow[] }) {
+    return this.operations.importActualsBatch(body.rows ?? []);
+  }
+
+  @Get('service-kpi/contract-risk')
+  @UseGuards(StaffKpiHubViewGuard)
+  contractRisk(@Query('version_id') versionId?: string, @Query('gm_bps') gmBps?: string) {
+    if (versionId?.trim()) {
+      const gm = gmBps != null && gmBps !== '' ? Number(gmBps) : null;
+      return this.quoteScore.scoreForVersion(versionId.trim(), gm);
+    }
+    return this.operations.listContractRisk();
+  }
+
+  @Get('service-kpi/contract-quotes')
+  @UseGuards(StaffKpiHubViewGuard)
+  contractQuotes() {
+    return this.operations.listQuoteContractScores();
+  }
+
+  @Get('reconcile/sources')
+  @UseGuards(StaffKpiHubViewGuard)
+  reconcileSources() {
+    return this.operations.listReconcileSources();
   }
 
   @Get('reconcile')

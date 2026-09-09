@@ -93,13 +93,45 @@ export type ServiceKpiInstanceItem = {
   variance_pct?: number | null;
 };
 
+export type ServiceKpiWarRoomQueueItem = {
+  title: string;
+  subtitle: string;
+  href: string;
+  badge: string;
+  action_label?: string;
+  action_href?: string;
+};
+
 export type ServiceKpiWarRoomData = {
   critical_overdue: number;
   assumptions_open: number;
   blocked_reports: number;
   quotes_score_gte_70: number;
-  queue: Array<{ title: string; subtitle: string; href: string; badge: string }>;
+  queue: ServiceKpiWarRoomQueueItem[];
   dv_health: Array<{ dv_code: string; kpi_health_pct: number; gm_pct: number | null }>;
+};
+
+export type ServiceKpiQuoteContractScore = {
+  version_id: string;
+  proposal_id: number;
+  quote_code: string | null;
+  client_name: string | null;
+  gm_bps: number | null;
+  score: number;
+  blocked: boolean;
+};
+
+export type ServiceKpiReconcileSource = {
+  source_type: string;
+  source_id: string;
+  instance_count: number;
+};
+
+export type ServiceKpiContractScoreLive = {
+  score: number;
+  parts: Record<string, number>;
+  blockSubmit: boolean;
+  requiredReviewers: string[];
 };
 
 export type IngestActualBody = {
@@ -146,3 +178,50 @@ export type ServiceKpiReconcileRow = {
   quality_status: string;
   behavior: string;
 };
+
+export type ImportActualRow = {
+  instance_id?: string;
+  dictionary_id?: string;
+  source_id?: string;
+  period_start: string;
+  period_end: string;
+  value?: number | null;
+  quality_status?: string;
+  source_ref?: string;
+  duplicate_action?: 'skip' | 'merge' | 'correction';
+};
+
+export type ImportActualResult = {
+  imported: number;
+  skipped: number;
+  total: number;
+  errors: Array<{ row: number; error: string }>;
+};
+
+export type ServiceKpiContractRiskItem = {
+  instance_id: string;
+  source_type: string;
+  source_id: string;
+  dictionary_id: string;
+  dv_code: string | null;
+  classification: SkpiClassification;
+  status: string;
+  assumption_state: string;
+  score: number;
+  block_submit: boolean;
+  required_reviewers: string[];
+  parts: Record<string, number>;
+  target_min: number | null;
+  target_max: number | null;
+  latest_actual: number | null;
+  variance_pct: number | null;
+};
+
+export type ServiceKpiContractRiskResponse =
+  | { items: ServiceKpiContractRiskItem[] }
+  | {
+      score: number;
+      parts: Record<string, number>;
+      blockSubmit: boolean;
+      requiredReviewers: string[];
+    };

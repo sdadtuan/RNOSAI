@@ -15,6 +15,7 @@ import type {
   ServiceKpiSnapshotRow,
   ServiceKpiTemplateRow,
   ServiceKpiTemplateVersionRow,
+  QuoteContractScoreRow,
 } from './service-kpi.types';
 import { SERVICE_KPI_TENANT_ID } from './service-kpi.types';
 
@@ -933,6 +934,50 @@ export class ServiceKpiRepository implements OnModuleDestroy {
 
   async listAllInstances(): Promise<ServiceKpiInstanceRow[]> {
     return this.listInstances({});
+  }
+
+  async listDistinctSourceIds(): Promise<Array<{ source_type: string; source_id: string; instance_count: number }>> {
+    const all = await this.listAllInstances();
+    const map = new Map<string, { source_type: string; source_id: string; instance_count: number }>();
+    for (const inst of all) {
+      const key = `${inst.source_type}:${inst.source_id}`;
+      const cur = map.get(key) ?? { source_type: inst.source_type, source_id: inst.source_id, instance_count: 0 };
+      cur.instance_count += 1;
+      map.set(key, cur);
+    }
+    return [...map.values()].sort((a, b) => b.instance_count - a.instance_count);
+  }
+
+  async listQuoteContractScores(limit = 20): Promise<QuoteContractScoreRow[]> {
+    return skpiDbFallback(
+      async () => {
+        const res = await this.db.query(
+          `SELECT v.id AS version_id, v.proposal_id, v.gm_bps,
+                  p.quote_code, c.name AS client_name,
+                  COALESCE((a.policy_snapshot->>'kpi_contract_score')::int, 0) AS score,
+                  COALESCE((a.policy_snapshot->'flags'->>'kpi_contract_block')::boolean, false) AS blocked
+             FROM crm_quote_approvals a
+             JOIN crm_quote_versions v ON v.id = a.version_id
+             JOIN crm_proposals p ON p.id = v.proposal_id
+             LEFT JOIN clients c ON c.id = p.agency_client_id
+            WHERE COALESCE((a.policy_snapshot->>'kpi_contract_score')::int, 0) >= 70
+               OR COALESCE((a.policy_snapshot->'flags'->>'kpi_contract_block')::boolean, false) = true
+            ORDER BY a.created_at DESC
+            LIMIT $1`,
+          [limit],
+        );
+        return res.rows.map((r) => ({
+          version_id: String(r.version_id),
+          proposal_id: Number(r.proposal_id),
+          quote_code: r.quote_code == null ? null : String(r.quote_code),
+          client_name: r.client_name == null ? null : String(r.client_name),
+          gm_bps: r.gm_bps == null ? null : Number(r.gm_bps),
+          score: Number(r.score ?? 0),
+          blocked: Boolean(r.blocked),
+        }));
+      },
+      () => [],
+    );
   }
 
   async findBenchmark(query: {

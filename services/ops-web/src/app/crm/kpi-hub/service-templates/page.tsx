@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { ServiceKpiSummaryTiles } from '@/components/kpi-hub/service-kpi/ServiceKpiSummaryTiles';
 import { KpiHubPageGate } from '@/components/kpi-hub/KpiHubPageGate';
 import { KpiHubShell } from '@/components/kpi-hub/KpiHubShell';
 import { ServiceKpiTemplateBuilder } from '@/components/kpi-hub/service-kpi/ServiceKpiTemplateBuilder';
@@ -31,9 +32,26 @@ export default function KpiHubServiceTemplatesPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const { rows: dictionaryRows } = useKpiHubDictionary(token, { status: 'ACTIVE' });
 
-  const { items, summary, loading, error, total, refresh } = useServiceKpiTemplates(token, {
+  const { items, loading, error, refresh } = useServiceKpiTemplates(token, {
     status: statusFilter || undefined,
   });
+  const { items: allTemplates, summary: globalSummary } = useServiceKpiTemplates(token);
+
+  const summaryTiles = useMemo(() => {
+    const dvCodes = new Set(allTemplates.map((t) => t.dv_code));
+    const clientVisible = allTemplates.reduce((s, t) => s + (t.client_visible_count ?? 0), 0);
+    return [
+      { label: 'Template active', value: globalSummary.active, hint: `${allTemplates.length} tổng`, tone: 'ok' as const },
+      {
+        label: 'In review',
+        value: globalSummary.in_review,
+        hint: 'Chờ Data/BI',
+        tone: globalSummary.in_review ? ('warn' as const) : ('default' as const),
+      },
+      { label: 'DV có template', value: dvCodes.size, hint: 'Portfolio 21 DV', tone: 'ok' as const },
+      { label: 'Client-visible KPI', value: clientVisible, hint: 'Theo template rules' },
+    ];
+  }, [allTemplates, globalSummary]);
 
   const handleConfigure = useCallback(
     async (row: ServiceKpiTemplateListItem) => {
@@ -137,11 +155,7 @@ export default function KpiHubServiceTemplatesPage() {
         }
         searchPlaceholder="Tìm template, DV, service…"
       >
-        <div className="kpi-hub-skpi-summary">
-          <span>{summary.active} Active</span>
-          <span>{summary.in_review} In Review</span>
-          <span>{total} tổng</span>
-        </div>
+        <ServiceKpiSummaryTiles tiles={summaryTiles} />
         <div className="kpi-hub-filters" style={{ marginTop: 12 }}>
           {['', 'ACTIVE', 'IN_REVIEW', 'DRAFT'].map((s) => (
             <button

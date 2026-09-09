@@ -1,11 +1,17 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { DEFAULT_PTT_SETTINGS } from '../../proposals/quote-settings.service';
 import { applyZeroDenominator, detectDuplicateActual } from './service-kpi-actuals';
+import {
+  aggressivenessFromTarget,
+  evaluateKpiContractScore,
+  marginPressureFromGm,
+} from './service-kpi-contract-score';
 import { canPublishClientReport } from './service-kpi-ledgers';
 import { ServiceKpiInstancesService } from './service-kpi-instances.service';
 import { ServiceKpiRepository } from './service-kpi.repository';
 import { buildWarRoom } from './service-kpi-war-room';
 import { fireServiceKpiVarianceAlert } from './service-kpi-variance-alert';
-import type { IngestActualBody } from './service-kpi.types';
+import type { ContractRiskItem, ImportActualRow, IngestActualBody } from './service-kpi.types';
 
 @Injectable()
 export class ServiceKpiOperationsService {
@@ -79,6 +85,122 @@ export class ServiceKpiOperationsService {
     return this.repo.listActuals(instanceId);
   }
 
+  async importActualsBatch(rows: ImportActualRow[]) {
+    let imported = 0;
+    let skipped = 0;
+    const errors: Array<{ row: number; error: string }> = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]!;
+      try {
+        const instanceId = await this.resolveImportInstanceId(row);
+        if (!instanceId) {
+          errors.push({ row: i + 1, error: 'INSTANCE_NOT_FOUND' });
+          continue;
+        }
+        await this.ingestActual(instanceId, {
+          period_start: row.period_start,
+          period_end: row.period_end,
+          value: row.value ?? null,
+          quality_status: row.quality_status ?? 'pending_validation',
+          source_ref: row.source_ref ?? 'import',
+          collection_method: 'import',
+          duplicate_action: row.duplicate_action ?? 'skip',
+        });
+        imported += 1;
+      } catch (err: unknown) {
+        const code = (err as { response?: { error?: string } })?.response?.error;
+        if (code === 'ACTUAL_DUPLICATE' && (row.duplicate_action ?? 'skip') === 'skip') {
+          skipped += 1;
+          continue;
+        }
+        errors.push({ row: i + 1, error: code ?? (err instanceof Error ? err.message : 'IMPORT_FAILED') });
+      }
+    }
+
+    return { imported, skipped, errors, total: rows.length };
+  }
+
+  async listContractRisk(): Promise<{ items: ContractRiskItem[] }> {
+    const all = await this.repo.listAllInstances();
+    const gmFloorBps = Number(DEFAULT_PTT_SETTINGS.gm_floor_bps);
+    const items: ContractRiskItem[] = [];
+
+    for (const row of all) {
+      const inst = await this.instances.get(row.id);
+      const risky =
+        inst.status === 'AT_RISK' ||
+        inst.assumption_state === 'not_met' ||
+        (inst.variance_pct != null && inst.variance_pct > 20);
+      if (!risky) continue;
+
+      const classificationRisk = this.classificationRiskPct(inst.classification, inst.client_visible);
+      const proposed = inst.target_min ?? inst.target_max ?? 0;
+      const floor = inst.target_max ?? inst.target_min ?? (proposed || 1);
+      const targetAggressiveness = aggressivenessFromTarget(proposed, floor, true);
+      const assumptionOpen = inst.assumption_state === 'pending' ? 100 : inst.assumption_state === 'not_met' ? 80 : 0;
+      const dataReadinessGap = inst.readiness_level === 'blocking' ? 80 : inst.readiness_level === 'warning' ? 40 : 0;
+
+      const score = evaluateKpiContractScore({
+        classificationRisk,
+        targetAggressiveness,
+        assumptionOpen,
+        dataReadinessGap,
+        marginPressure: 0,
+        gmBps: null,
+        gmFloorBps,
+      });
+
+      items.push({
+        instance_id: inst.id,
+        source_type: inst.source_type,
+        source_id: inst.source_id,
+        dictionary_id: inst.dictionary_id,
+        dv_code: inst.dv_code,
+        classification: inst.classification,
+        status: inst.status,
+        assumption_state: inst.assumption_state,
+        score: score.score,
+        block_submit: score.blockSubmit,
+        required_reviewers: score.requiredReviewers,
+        parts: score.parts,
+        target_min: inst.target_min,
+        target_max: inst.target_max,
+        latest_actual: inst.latest_actual ?? null,
+        variance_pct: inst.variance_pct ?? null,
+      });
+    }
+
+    items.sort((a, b) => b.score - a.score);
+    return { items };
+  }
+
+  private classificationRiskPct(classification: string, clientVisible: boolean): number {
+    if (!clientVisible) return 0;
+    const weights: Record<string, number> = {
+      COMMITTED_DELIVERABLE: 10,
+      QUALITY_STANDARD: 15,
+      OPTIMIZATION_TARGET: 35,
+      PROJECTED_RESULT: 45,
+      BUSINESS_OUTCOME: 55,
+      INTERNAL_OPERATIONAL: 0,
+    };
+    return weights[classification] ?? 20;
+  }
+
+  private async resolveImportInstanceId(row: ImportActualRow): Promise<string | null> {
+    if (row.instance_id?.trim()) {
+      const inst = await this.repo.getInstance(row.instance_id.trim());
+      return inst?.id ?? null;
+    }
+    const dictionaryId = row.dictionary_id?.trim();
+    const sourceId = row.source_id?.trim();
+    if (!dictionaryId || !sourceId) return null;
+    const matches = await this.repo.listInstances({ source_id: sourceId });
+    const hit = matches.find((m) => m.dictionary_id === dictionaryId);
+    return hit?.id ?? null;
+  }
+
   async reconcile(sourceId: string) {
     const instances = await this.repo.listInstances({ source_id: sourceId });
     const rows = [];
@@ -112,6 +234,7 @@ export class ServiceKpiOperationsService {
       await Promise.all(all.map((i) => this.repo.listActuals(i.id)))
     ).flat().filter((a) => a.quality_status === 'pending_validation').length;
 
+    const quoteScores = await this.repo.listQuoteContractScores(10);
     const dvCodes = [...new Set(all.map((i) => i.dv_code).filter(Boolean))] as string[];
     const gm_by_dv = dvCodes.map((dv_code) => ({ dv_code, gm_pct: opts.includeGm ? null : null }));
 
@@ -127,9 +250,19 @@ export class ServiceKpiOperationsService {
         latest_actual: i.latest_actual ?? null,
       })),
       actuals_pending: actualsPending,
-      quotes_high_score: 0,
+      quotes_high_score: quoteScores.length,
+      quote_scores: quoteScores,
       gm_by_dv,
       include_gm: opts.includeGm,
     });
+  }
+
+  async listQuoteContractScores() {
+    return { items: await this.repo.listQuoteContractScores(30) };
+  }
+
+  async listReconcileSources() {
+    const rows = await this.repo.listDistinctSourceIds();
+    return { items: rows };
   }
 }
