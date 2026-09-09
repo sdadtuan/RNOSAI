@@ -167,11 +167,7 @@ CREATE TABLE IF NOT EXISTS crm_service_kpi_benchmarks (
 );
 
 INSERT INTO schema_migrations (version, description)
-VALUES ('2026-09-09-service-kpi', 'service kpi templates/instances/actuals/policy packs')
-ON CONFLICT (version) DO NOTHING;
-
-INSERT INTO schema_migrations (version, description)
-VALUES ('2026-09-09-service-kpi-benchmarks', 'service kpi internal benchmark bands')
+VALUES ('2026-09-09-service-kpi', 'service kpi templates/instances/benchmarks/policy packs')
 ON CONFLICT (version) DO NOTHING;
 
 COMMIT;
