@@ -144,11 +144,11 @@ export default function CreatePerformanceKpiPage() {
       await activatePmAssignment(token, created.id);
       router.push('/crm/kpi-hub/performance/assignments');
     } catch (err: unknown) {
-      const body = err as { body?: { error?: string; gates?: Array<{ id: string; status: string; detail: string }> } };
-      if (body?.body?.error === 'readiness_blocked' && body.body.gates) {
-        setBlockedGates(body.body.gates);
+      const msg = err instanceof Error ? err.message : 'Không activate được';
+      if (msg === 'readiness_blocked') {
+        setBlockedGates(readiness.gates);
       }
-      setError(body?.body?.error === 'readiness_blocked' ? 'readiness_blocked' : err instanceof Error ? err.message : 'Không activate được');
+      setError(msg === 'readiness_blocked' ? 'readiness_blocked' : msg);
     } finally {
       setSaving(false);
     }

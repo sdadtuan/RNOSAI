@@ -52,7 +52,7 @@ export default function AddScorecardItemPage() {
       });
       router.push('/crm/kpi-hub/performance/scorecards');
     } catch (err: unknown) {
-      if (err instanceof ApiError && (err.body as { error?: string })?.error === 'weight_exceeds_100') {
+      if (err instanceof ApiError && err.message === 'weight_exceeds_100') {
         setBlocked(true);
         setError('weight_exceeds_100');
       } else {

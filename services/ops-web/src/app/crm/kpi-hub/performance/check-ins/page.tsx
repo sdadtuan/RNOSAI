@@ -74,8 +74,7 @@ function PerformanceCheckInInner() {
       setMessage('Check-in gửi Lead · actual không bị ghi đè');
       reload();
     } catch (err: unknown) {
-      const code = err instanceof ApiError ? (err.body as { error?: string })?.error : undefined;
-      setError(code ?? (err instanceof Error ? err.message : 'Không gửi check-in'));
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Không gửi check-in');
     }
   };
 
