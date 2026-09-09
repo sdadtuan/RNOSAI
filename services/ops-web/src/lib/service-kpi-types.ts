@@ -20,6 +20,7 @@ export type ServiceKpiTemplateListItem = {
   required_count?: number;
   client_visible_count?: number;
   updated_at?: string;
+  current_version?: { id: string; rules: ServiceKpiTemplateRule[] } | null;
 };
 
 export type ServiceKpiTemplateRule = {

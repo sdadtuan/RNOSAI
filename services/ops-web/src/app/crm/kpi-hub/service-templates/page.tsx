@@ -16,7 +16,7 @@ export default function KpiHubServiceTemplatesPage() {
   const token = getAccessToken() ?? '';
   const [statusFilter, setStatusFilter] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selected, setSelected] = useState<(ServiceKpiTemplateListItem & { current_version?: { id: string; rules: unknown[] } | null }) | null>(null);
+  const [selected, setSelected] = useState<ServiceKpiTemplateListItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -31,9 +31,7 @@ export default function KpiHubServiceTemplatesPage() {
         return;
       }
       try {
-        const detail = (await fetchServiceKpiTemplate(token, row.id)) as ServiceKpiTemplateListItem & {
-          current_version?: { id: string; rules: unknown[] } | null;
-        };
+        const detail = (await fetchServiceKpiTemplate(token, row.id)) as ServiceKpiTemplateListItem;
         setSelected(detail);
       } catch {
         setSelected(row);

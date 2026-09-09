@@ -1,6 +1,6 @@
 'use client';
 
-import type { ServiceKpiTemplateListItem } from '@/lib/service-kpi-types';
+import type { ServiceKpiTemplateListItem, ServiceKpiTemplateRule } from '@/lib/service-kpi-types';
 
 const CLASS_LABEL: Record<string, string> = {
   COMMITTED_DELIVERABLE: 'Cam kết',
@@ -20,20 +20,8 @@ const CLASS_BADGE: Record<string, string> = {
   INTERNAL_OPERATIONAL: 'gray',
 };
 
-type Rule = {
-  id: string;
-  dictionary_id: string;
-  classification: string;
-  target_min: number | null;
-  target_max: number | null;
-  assumption_template: string;
-  disclaimer_template: string;
-};
-
 type Props = {
-  template: ServiceKpiTemplateListItem & {
-    current_version?: { id: string; rules: Rule[] } | null;
-  };
+  template: ServiceKpiTemplateListItem;
   onSubmitReview?: (versionId: string) => void;
   submitting?: boolean;
 };
@@ -46,13 +34,13 @@ export function ServiceKpiTemplateBuilder({ template, onSubmitReview, submitting
   );
   const internal = rules.filter((r) => r.classification === 'INTERNAL_OPERATIONAL');
 
-  function renderGroup(title: string, items: Rule[]) {
+  function renderGroup(title: string, items: ServiceKpiTemplateRule[]) {
     if (!items.length) return null;
     return (
       <section className="kpi-hub-skpi-group">
         <h3 className="kpi-hub-skpi-group__title">{title}</h3>
         {items.map((rule, idx) => (
-          <div key={rule.id} className="kpi-hub-skpi-rule">
+          <div key={rule.id ?? `${rule.dictionary_id}-${idx}`} className="kpi-hub-skpi-rule">
             <span className="kpi-hub-skpi-rule__no">{String(idx + 1).padStart(2, '0')}</span>
             <div className="kpi-hub-skpi-rule__main">
               <strong>{rule.dictionary_id}</strong>
