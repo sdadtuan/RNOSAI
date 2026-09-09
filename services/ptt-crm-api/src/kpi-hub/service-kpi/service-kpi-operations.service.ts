@@ -9,9 +9,16 @@ import {
 import { canPublishClientReport } from './service-kpi-ledgers';
 import { ServiceKpiInstancesService } from './service-kpi-instances.service';
 import { ServiceKpiRepository } from './service-kpi.repository';
+import { flagMaterialReconcileRows } from './service-kpi-change-order';
+import { aggregateTrackingSummary } from './service-kpi-tracking';
 import { buildWarRoom } from './service-kpi-war-room';
 import { fireServiceKpiVarianceAlert } from './service-kpi-variance-alert';
-import type { ContractRiskItem, ImportActualRow, IngestActualBody } from './service-kpi.types';
+import type {
+  ContractRiskItem,
+  ImportActualRow,
+  IngestActualBody,
+  ServiceKpiTrackingDashboard,
+} from './service-kpi.types';
 
 @Injectable()
 export class ServiceKpiOperationsService {
@@ -224,7 +231,7 @@ export class ServiceKpiOperationsService {
         behavior: reportedBlocked ? 'Chặn Reported' : 'OK',
       });
     }
-    return { source_id: sourceId, rows };
+    return { source_id: sourceId, rows: flagMaterialReconcileRows(rows) };
   }
 
   async getWarRoom(opts: { includeGm: boolean }) {
@@ -264,5 +271,44 @@ export class ServiceKpiOperationsService {
   async listReconcileSources() {
     const rows = await this.repo.listDistinctSourceIds();
     return { items: rows };
+  }
+
+  async getTrackingDashboard(highlightInstanceId?: string): Promise<ServiceKpiTrackingDashboard> {
+    const [openActuals, recent, staleCount, duplicateCount] = await Promise.all([
+      this.repo.listOpenActualsForSummary(),
+      this.repo.listRecentActuals(25),
+      this.repo.countStaleActualInstances(),
+      this.repo.countSupersededActuals(),
+    ]);
+
+    const summary = aggregateTrackingSummary({
+      actuals: openActuals,
+      staleCount,
+      duplicateCount,
+    });
+
+    let highlight: ServiceKpiTrackingDashboard['highlight'] = null;
+    const highlightId = highlightInstanceId?.trim();
+    if (highlightId) {
+      try {
+        const inst = await this.instances.get(highlightId);
+        const actuals = await this.repo.listActuals(highlightId);
+        highlight = {
+          instance_id: inst.id,
+          dictionary_id: inst.dictionary_id,
+          source_id: inst.source_id,
+          status: inst.status,
+          target_min: inst.target_min,
+          target_max: inst.target_max,
+          latest_value: inst.latest_actual ?? actuals[0]?.value ?? null,
+          variance_pct: inst.variance_pct ?? null,
+          actuals,
+        };
+      } catch {
+        highlight = null;
+      }
+    }
+
+    return { summary, recent, highlight };
   }
 }

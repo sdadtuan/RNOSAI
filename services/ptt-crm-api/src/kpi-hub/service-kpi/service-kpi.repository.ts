@@ -15,6 +15,7 @@ import type {
   ServiceKpiSnapshotRow,
   ServiceKpiTemplateRow,
   ServiceKpiTemplateVersionRow,
+  ServiceKpiTrackingActualItem,
   QuoteContractScoreRow,
 } from './service-kpi.types';
 import { SERVICE_KPI_TENANT_ID } from './service-kpi.types';
@@ -839,6 +840,7 @@ export class ServiceKpiRepository implements OnModuleDestroy {
           source_ref: body.source_ref ?? '',
           note: body.note ?? '',
           superseded_by: null,
+          created_at: new Date().toISOString(),
         };
         this.memory.actuals.push(row);
         return row;
@@ -854,6 +856,118 @@ export class ServiceKpiRepository implements OnModuleDestroy {
       () => {
         const row = this.memory.actuals.find((a) => a.id === oldId);
         if (row) row.superseded_by = newId;
+      },
+    );
+  }
+
+  async listRecentActuals(limit = 30): Promise<ServiceKpiTrackingActualItem[]> {
+    return skpiDbFallback(
+      async () => {
+        const res = await this.db.query(
+          `SELECT a.*, i.dictionary_id, i.source_id, i.dv_code, i.status AS instance_status
+             FROM crm_service_kpi_actuals a
+             JOIN crm_service_kpi_instances i ON i.id = a.instance_id
+            WHERE a.tenant_id = $1 AND a.superseded_by IS NULL AND i.deleted_at IS NULL
+            ORDER BY a.period_end DESC, a.created_at DESC
+            LIMIT $2`,
+          [SERVICE_KPI_TENANT_ID, limit],
+        );
+        return res.rows.map((r) => this.mapTrackingActual(r));
+      },
+      () => {
+        const instMap = new Map(this.memory.instances.map((i) => [i.id, i]));
+        return [...this.memory.actuals]
+          .filter((a) => !a.superseded_by && instMap.has(a.instance_id))
+          .sort((a, b) => b.period_end.localeCompare(a.period_end))
+          .slice(0, limit)
+          .map((a) => {
+            const inst = instMap.get(a.instance_id)!;
+            return {
+              id: a.id,
+              instance_id: a.instance_id,
+              dictionary_id: inst.dictionary_id,
+              source_id: inst.source_id,
+              dv_code: inst.dv_code,
+              period_start: a.period_start,
+              period_end: a.period_end,
+              value: a.value,
+              quality_status: a.quality_status,
+              collection_method: a.collection_method,
+              source_ref: a.source_ref,
+              created_at: a.created_at ?? null,
+              instance_status: inst.status,
+            };
+          });
+      },
+    );
+  }
+
+  async listOpenActualsForSummary(): Promise<ServiceKpiActualRow[]> {
+    return skpiDbFallback(
+      async () => {
+        const res = await this.db.query(
+          `SELECT * FROM crm_service_kpi_actuals
+            WHERE tenant_id = $1 AND superseded_by IS NULL`,
+          [SERVICE_KPI_TENANT_ID],
+        );
+        return res.rows.map((r) => this.mapActual(r));
+      },
+      () => this.memory.actuals.filter((a) => !a.superseded_by),
+    );
+  }
+
+  async countSupersededActuals(): Promise<number> {
+    return skpiDbFallback(
+      async () => {
+        const res = await this.db.query(
+          `SELECT COUNT(*)::int AS c FROM crm_service_kpi_actuals WHERE tenant_id = $1 AND superseded_by IS NOT NULL`,
+          [SERVICE_KPI_TENANT_ID],
+        );
+        return Number(res.rows[0]?.c ?? 0);
+      },
+      () => this.memory.actuals.filter((a) => a.superseded_by).length,
+    );
+  }
+
+  async countStaleActualInstances(): Promise<number> {
+    return skpiDbFallback(
+      async () => {
+        const res = await this.db.query(
+          `SELECT COUNT(DISTINCT i.id)::int AS c
+             FROM crm_service_kpi_instances i
+             JOIN crm_service_kpi_measurement_plans p ON p.instance_id = i.id
+             LEFT JOIN LATERAL (
+               SELECT MAX(a.period_end) AS last_end
+                 FROM crm_service_kpi_actuals a
+                WHERE a.instance_id = i.id AND a.superseded_by IS NULL
+             ) la ON true
+            WHERE i.tenant_id = $1 AND i.deleted_at IS NULL
+              AND (
+                la.last_end IS NULL
+                OR la.last_end < (CURRENT_DATE - ((p.freshness_sla_hours / 24)::int))
+              )`,
+          [SERVICE_KPI_TENANT_ID],
+        );
+        return Number(res.rows[0]?.c ?? 0);
+      },
+      () => {
+        let stale = 0;
+        for (const inst of this.memory.instances) {
+          const plan = this.memory.measurementPlans.find((p) => p.instance_id === inst.id);
+          if (!plan) continue;
+          const latest = this.memory.actuals
+            .filter((a) => a.instance_id === inst.id && !a.superseded_by)
+            .sort((a, b) => b.period_end.localeCompare(a.period_end))[0];
+          if (!latest) {
+            stale += 1;
+            continue;
+          }
+          const slaDays = Math.max(1, Math.ceil(plan.freshness_sla_hours / 24));
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - slaDays);
+          if (new Date(latest.period_end) < cutoff) stale += 1;
+        }
+        return stale;
       },
     );
   }
@@ -934,6 +1048,47 @@ export class ServiceKpiRepository implements OnModuleDestroy {
 
   async listAllInstances(): Promise<ServiceKpiInstanceRow[]> {
     return this.listInstances({});
+  }
+
+  async resolveQuoteContext(
+    sourceId: string,
+  ): Promise<{ proposal_id: number; version_id: string; quote_code: string | null } | null> {
+    return skpiDbFallback(
+      async () => {
+        const res = await this.db.query(
+          `SELECT p.id AS proposal_id, v.id::text AS version_id, p.quote_code
+             FROM crm_service_kpi_instances i
+             JOIN crm_service_kpi_snapshots s ON s.instance_id = i.id AND s.ledger = 'quoted'
+             JOIN crm_quote_versions v ON v.id::text = s.quote_version_id
+             JOIN crm_proposals p ON p.id = v.proposal_id
+            WHERE i.tenant_id = $1 AND i.source_id = $2 AND i.deleted_at IS NULL
+            ORDER BY s.created_at DESC
+            LIMIT 1`,
+          [SERVICE_KPI_TENANT_ID, sourceId],
+        );
+        const row = res.rows[0];
+        if (!row) return null;
+        return {
+          proposal_id: Number(row.proposal_id),
+          version_id: String(row.version_id),
+          quote_code: row.quote_code == null ? null : String(row.quote_code),
+        };
+      },
+      () => {
+        const inst = this.memory.instances.find((i) => i.source_id === sourceId);
+        if (!inst) return null;
+        const snap = this.memory.snapshots.find((s) => s.instance_id === inst.id && s.ledger === 'quoted');
+        if (!snap) return null;
+        const payload = snap.payload_json as { proposal_id?: number; quote_code?: string | null };
+        const proposalId = payload.proposal_id;
+        if (!proposalId) return null;
+        return {
+          proposal_id: proposalId,
+          version_id: snap.quote_version_id,
+          quote_code: payload.quote_code ?? null,
+        };
+      },
+    );
   }
 
   async listDistinctSourceIds(): Promise<Array<{ source_type: string; source_id: string; instance_count: number }>> {
@@ -1149,6 +1304,26 @@ export class ServiceKpiRepository implements OnModuleDestroy {
       source_ref: String(row.source_ref ?? ''),
       note: String(row.note ?? ''),
       superseded_by: row.superseded_by != null ? String(row.superseded_by) : null,
+      created_at: row.created_at != null ? String(row.created_at) : null,
+    };
+  }
+
+  private mapTrackingActual(row: Record<string, unknown>): ServiceKpiTrackingActualItem {
+    const base = this.mapActual(row);
+    return {
+      id: base.id,
+      instance_id: base.instance_id,
+      dictionary_id: String(row.dictionary_id ?? ''),
+      source_id: String(row.source_id ?? ''),
+      dv_code: row.dv_code == null ? null : String(row.dv_code),
+      period_start: base.period_start,
+      period_end: base.period_end,
+      value: base.value,
+      quality_status: base.quality_status,
+      collection_method: base.collection_method,
+      source_ref: base.source_ref,
+      created_at: base.created_at ?? null,
+      instance_status: String(row.instance_status ?? ''),
     };
   }
 

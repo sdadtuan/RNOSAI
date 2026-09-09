@@ -127,11 +127,42 @@ export type ServiceKpiReconcileSource = {
   instance_count: number;
 };
 
+export type ServiceKpiContractGateRow = {
+  label: string;
+  value: string;
+  tone: 'ok' | 'warn' | 'critical' | 'default';
+};
+
+export type ServiceKpiContractKpiSummary = {
+  dictionary_id: string;
+  classification: string;
+  target_min: number | null;
+  target_max: number | null;
+  assumption_state: string;
+  assumption_text: string | null;
+  disclaimer_text: string | null;
+  client_visible: boolean;
+  aggressiveness_pct: number | null;
+};
+
 export type ServiceKpiContractScoreLive = {
   score: number;
   parts: Record<string, number>;
   blockSubmit: boolean;
   requiredReviewers: string[];
+  gm_bps?: number | null;
+  gm_floor_bps?: number;
+  classification_risk?: number;
+  target_aggressiveness?: number;
+  assumption_open?: number;
+  data_readiness_gap?: number;
+  margin_pressure?: number;
+  industry?: string | null;
+  trigger_summary?: string;
+  trigger_policy?: string;
+  classification_hint?: string;
+  gate_rows?: ServiceKpiContractGateRow[];
+  kpis?: ServiceKpiContractKpiSummary[];
 };
 
 export type IngestActualBody = {
@@ -165,7 +196,55 @@ export type ServiceKpiActualRecord = {
   value: number | null;
   quality_status: string;
   source_ref?: string;
+  collection_method?: string;
   note?: string;
+  created_at?: string | null;
+};
+
+export type ServiceKpiTrackingActualItem = {
+  id: string;
+  instance_id: string;
+  dictionary_id: string;
+  source_id: string;
+  dv_code: string | null;
+  period_start: string;
+  period_end: string;
+  value: number | null;
+  quality_status: string;
+  collection_method: string;
+  source_ref: string;
+  created_at: string | null;
+  instance_status: string;
+};
+
+export type ServiceKpiTrackingSummary = {
+  today_total: number;
+  verified_pct: number;
+  api_connector_total: number;
+  api_connector_hint: string;
+  manual_import_total: number;
+  pending_verify: number;
+  data_issues: number;
+  stale_count: number;
+  duplicate_count: number;
+};
+
+export type ServiceKpiTrackingHighlight = {
+  instance_id: string;
+  dictionary_id: string;
+  source_id: string;
+  status: string;
+  target_min: number | null;
+  target_max: number | null;
+  latest_value: number | null;
+  variance_pct: number | null;
+  actuals: ServiceKpiActualRecord[];
+};
+
+export type ServiceKpiTrackingDashboard = {
+  summary: ServiceKpiTrackingSummary;
+  recent: ServiceKpiTrackingActualItem[];
+  highlight: ServiceKpiTrackingHighlight | null;
 };
 
 export type ServiceKpiReconcileRow = {
@@ -177,6 +256,31 @@ export type ServiceKpiReconcileRow = {
   reported: unknown;
   quality_status: string;
   behavior: string;
+  material_variance?: boolean;
+  variance_pct?: number | null;
+};
+
+export type ServiceKpiChangeOrderPreview = {
+  source_id: string;
+  quote_context: {
+    proposal_id: number;
+    version_id: string;
+    quote_code: string | null;
+  } | null;
+  rows: ServiceKpiReconcileRow[];
+  material_count: number;
+};
+
+export type ServiceKpiChangeOrderResult = {
+  change_order_id: string;
+  source_id: string;
+  proposal_id: number;
+  from_version_id: string;
+  new_version_id: string;
+  version_n: number;
+  material_count: number;
+  delivered_snapshots: number;
+  builder_href: string;
 };
 
 export type ImportActualRow = {

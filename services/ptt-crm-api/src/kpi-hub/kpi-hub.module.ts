@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DeliveryProjectsModule } from '../delivery-projects/delivery-projects.module';
+import { ProposalsModule } from '../proposals/proposals.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { KpiHubApprovalsService } from './approvals/kpi-hub-approvals.service';
 import { KpiHubAlertsService } from './alerts/kpi-hub-alerts.service';
@@ -47,10 +48,16 @@ import { ServiceKpiRepository } from './service-kpi/service-kpi.repository';
 import { ServiceKpiTemplatesService } from './service-kpi/service-kpi-templates.service';
 import { ServiceKpiBenchmarksService } from './service-kpi/service-kpi-benchmarks.service';
 import { ServiceKpiInstancesService } from './service-kpi/service-kpi-instances.service';
+import { ServiceKpiChangeOrderService } from './service-kpi/service-kpi-change-order.service';
 import { ServiceKpiOperationsService } from './service-kpi/service-kpi-operations.service';
 
 @Module({
-  imports: [StaffAuthModule, forwardRef(() => DeliveryProjectsModule), ScheduleModule.forRoot()],
+  imports: [
+    StaffAuthModule,
+    forwardRef(() => DeliveryProjectsModule),
+    forwardRef(() => ProposalsModule),
+    ScheduleModule.forRoot(),
+  ],
   controllers: [KpiHubController, KpiHubBiController, ServiceKpiController],
   providers: [
     KpiHubWorkspaceRepository,
@@ -94,6 +101,7 @@ import { ServiceKpiOperationsService } from './service-kpi/service-kpi-operation
     ServiceKpiQuoteScoreService,
     ServiceKpiInstancesService,
     ServiceKpiOperationsService,
+    ServiceKpiChangeOrderService,
     ServiceKpiBenchmarksService,
   ],
   exports: [
@@ -107,6 +115,7 @@ import { ServiceKpiOperationsService } from './service-kpi/service-kpi-operation
     ServiceKpiQuoteScoreService,
     ServiceKpiInstancesService,
     ServiceKpiOperationsService,
+    ServiceKpiChangeOrderService,
     ServiceKpiBenchmarksService,
     ServiceKpiRepository,
   ],

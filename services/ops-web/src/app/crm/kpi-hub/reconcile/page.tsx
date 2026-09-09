@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { KpiHubPageGate } from '@/components/kpi-hub/KpiHubPageGate';
 import { KpiHubShell } from '@/components/kpi-hub/KpiHubShell';
-import { ServiceKpiChangeOrderStub } from '@/components/kpi-hub/service-kpi/ServiceKpiChangeOrderStub';
+import { ServiceKpiChangeOrderDrawer } from '@/components/kpi-hub/service-kpi/ServiceKpiChangeOrderDrawer';
 import { ServiceKpiReconcileTable } from '@/components/kpi-hub/service-kpi/ServiceKpiReconcileTable';
 import { useKpiHubDictionary } from '@/hooks/useKpiHubDictionary';
 import { getAccessToken } from '@/lib/auth';
@@ -44,6 +44,7 @@ export default function KpiHubReconcilePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [coOpen, setCoOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const { rows: dictionaryRows } = useKpiHubDictionary(token, { status: 'ACTIVE' });
   const labels = useMemo(() => dictionaryLabelMap(dictionaryRows), [dictionaryRows]);
 
@@ -78,7 +79,7 @@ export default function KpiHubReconcilePage() {
       .then((res) => setRows(res.rows))
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Lỗi reconcile'))
       .finally(() => setLoading(false));
-  }, [token, sourceId]);
+  }, [token, sourceId, refreshKey]);
 
   const selectedLabel = sourceOptions.find((o) => o.source_id === sourceId)?.label ?? sourceId;
 
@@ -121,7 +122,13 @@ export default function KpiHubReconcilePage() {
         {error ? <p className="kpi-hub-form-error">{error}</p> : null}
         <ServiceKpiReconcileTable rows={rows} sourceId={selectedLabel} dictionaryLabels={labels} />
       </KpiHubShell>
-      <ServiceKpiChangeOrderStub open={coOpen} sourceId={sourceId || '—'} onClose={() => setCoOpen(false)} />
+      <ServiceKpiChangeOrderDrawer
+        open={coOpen}
+        token={token}
+        sourceId={sourceId}
+        onClose={() => setCoOpen(false)}
+        onCreated={() => setRefreshKey((k) => k + 1)}
+      />
     </KpiHubPageGate>
   );
 }

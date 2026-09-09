@@ -8,16 +8,14 @@ import {
   marginPressureFromGm,
   type ContractScoreResult,
 } from './service-kpi-contract-score';
+import {
+  buildContractDetail,
+  type ContractDetailPayload,
+  type ContractInstanceInput,
+} from './service-kpi-contract-detail';
+import { resolveStudioIndustry } from './service-kpi-publish-policy';
 import { isMissingRelationError, withDbFallback } from '../kpi-hub.memory-store';
 import { SERVICE_KPI_TENANT_ID } from './service-kpi.types';
-
-type InstanceRow = {
-  classification: string;
-  target_min: number | null;
-  target_max: number | null;
-  assumption_state: string;
-  client_visible: boolean;
-};
 
 @Injectable()
 export class ServiceKpiQuoteScoreService {
@@ -33,20 +31,49 @@ export class ServiceKpiQuoteScoreService {
   }
 
   async scoreForVersion(versionId: string, gmBps: number | null): Promise<ContractScoreResult> {
+    const detail = await this.contractDetailForVersion(versionId, gmBps);
+    return {
+      score: detail.score,
+      parts: detail.parts,
+      blockSubmit: detail.blockSubmit,
+      requiredReviewers: detail.requiredReviewers,
+    };
+  }
+
+  async contractDetailForVersion(versionId: string, gmBps: number | null): Promise<ContractDetailPayload> {
     const gmFloorBps = Number(DEFAULT_PTT_SETTINGS.gm_floor_bps);
     const instances = await this.loadInstances(versionId);
+    const industry = await this.loadVersionIndustry(versionId);
+    const metrics = this.computeMetrics(instances, gmBps, gmFloorBps);
+    const score = evaluateKpiContractScore({
+      classificationRisk: metrics.classificationRisk,
+      targetAggressiveness: metrics.targetAggressiveness,
+      assumptionOpen: metrics.assumptionOpen,
+      dataReadinessGap: metrics.dataReadinessGap,
+      marginPressure: metrics.marginPressure,
+      gmBps,
+      gmFloorBps,
+    });
+    return buildContractDetail({
+      score,
+      gmBps,
+      gmFloorBps,
+      industry,
+      instances,
+      ...metrics,
+    });
+  }
+
+  private computeMetrics(instances: ContractInstanceInput[], gmBps: number | null, gmFloorBps: number) {
     if (!instances.length) {
-      return evaluateKpiContractScore({
+      return {
         classificationRisk: 0,
         targetAggressiveness: 0,
         assumptionOpen: 0,
         dataReadinessGap: 0,
         marginPressure: marginPressureFromGm(gmBps, gmFloorBps),
-        gmBps,
-        gmFloorBps,
-      });
+      };
     }
-
     const classificationRisk = this.classificationRisk(instances);
     const targetAggressiveness = Math.max(
       ...instances.map((i) => {
@@ -58,20 +85,16 @@ export class ServiceKpiQuoteScoreService {
     );
     const assumptionOpen =
       (instances.filter((i) => i.assumption_state === 'pending').length / instances.length) * 100;
-    const dataReadinessGap = 0;
-
-    return evaluateKpiContractScore({
+    return {
       classificationRisk,
       targetAggressiveness,
       assumptionOpen,
-      dataReadinessGap,
+      dataReadinessGap: 0,
       marginPressure: marginPressureFromGm(gmBps, gmFloorBps),
-      gmBps,
-      gmFloorBps,
-    });
+    };
   }
 
-  private classificationRisk(instances: InstanceRow[]): number {
+  private classificationRisk(instances: ContractInstanceInput[]): number {
     const weights: Record<string, number> = {
       COMMITTED_DELIVERABLE: 10,
       QUALITY_STANDARD: 15,
@@ -86,11 +109,12 @@ export class ServiceKpiQuoteScoreService {
     return Math.min(100, sum / visible.length);
   }
 
-  private async loadInstances(versionId: string): Promise<InstanceRow[]> {
+  private async loadInstances(versionId: string): Promise<ContractInstanceInput[]> {
     return withDbFallback(async () => {
       try {
         const res = await this.db.query(
-          `SELECT i.classification, i.target_min, i.target_max, i.assumption_state, i.client_visible
+          `SELECT i.dictionary_id, i.dv_code, i.classification, i.target_min, i.target_max,
+                  i.assumption_state, i.assumption_text, i.disclaimer_text, i.client_visible
            FROM crm_service_kpi_instances i
            WHERE i.tenant_id = $1 AND i.deleted_at IS NULL
              AND (
@@ -102,10 +126,14 @@ export class ServiceKpiQuoteScoreService {
           [SERVICE_KPI_TENANT_ID, versionId],
         );
         return res.rows.map((r) => ({
+          dictionary_id: String(r.dictionary_id),
+          dv_code: r.dv_code == null ? null : String(r.dv_code),
           classification: String(r.classification),
           target_min: r.target_min != null ? Number(r.target_min) : null,
           target_max: r.target_max != null ? Number(r.target_max) : null,
           assumption_state: String(r.assumption_state ?? 'pending'),
+          assumption_text: r.assumption_text == null ? null : String(r.assumption_text),
+          disclaimer_text: r.disclaimer_text == null ? null : String(r.disclaimer_text),
           client_visible: Boolean(r.client_visible),
         }));
       } catch (err) {
@@ -113,5 +141,22 @@ export class ServiceKpiQuoteScoreService {
         throw err;
       }
     }, () => []);
+  }
+
+  private async loadVersionIndustry(versionId: string): Promise<string | null> {
+    return withDbFallback(async () => {
+      try {
+        const res = await this.db.query(`SELECT snapshot_json FROM crm_quote_versions WHERE id = $1`, [
+          versionId,
+        ]);
+        const snap = res.rows[0]?.snapshot_json;
+        if (!snap || typeof snap !== 'object' || Array.isArray(snap)) return null;
+        const industry = resolveStudioIndustry(snap as Record<string, unknown>);
+        return industry || null;
+      } catch (err) {
+        if (isMissingRelationError(err)) return null;
+        throw err;
+      }
+    }, () => null);
   }
 }

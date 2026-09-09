@@ -7,9 +7,12 @@ import type {
   IngestActualBody,
   ServiceKpiActualRecord,
   ServiceKpiContractRiskResponse,
+  ServiceKpiChangeOrderPreview,
+  ServiceKpiChangeOrderResult,
   ServiceKpiContractScoreLive,
   ServiceKpiQuoteContractScore,
   ServiceKpiReconcileSource,
+  ServiceKpiTrackingDashboard,
   ServiceKpiInstanceItem,
   ServiceKpiMeasurementPlan,
   ServiceKpiPolicyPack,
@@ -155,6 +158,13 @@ export async function fetchServiceKpiWarRoom(token: string) {
   return serviceKpiFetch<ServiceKpiWarRoomData>(token, `${BASE}/service-kpi/war-room`);
 }
 
+export async function fetchServiceKpiTrackingDashboard(token: string, highlightInstanceId?: string) {
+  return serviceKpiFetch<ServiceKpiTrackingDashboard>(
+    token,
+    `${BASE}/service-kpi/tracking${buildQuery({ instance: highlightInstanceId })}`,
+  );
+}
+
 export async function fetchServiceKpiReconcile(token: string, sourceId: string) {
   return serviceKpiFetch<{ source_id: string; rows: ServiceKpiReconcileRow[] }>(
     token,
@@ -209,6 +219,23 @@ export async function fetchServiceKpiContractScoreLive(token: string, versionId:
 
 export async function fetchServiceKpiReconcileSources(token: string) {
   return serviceKpiFetch<{ items: ServiceKpiReconcileSource[] }>(token, `${BASE}/reconcile/sources`);
+}
+
+export async function previewServiceKpiChangeOrder(token: string, sourceId: string) {
+  return serviceKpiFetch<ServiceKpiChangeOrderPreview>(
+    token,
+    `${BASE}/reconcile/change-order/preview${buildQuery({ source_id: sourceId })}`,
+  );
+}
+
+export async function createServiceKpiChangeOrder(
+  token: string,
+  body: { source_id: string; reason?: string },
+) {
+  return serviceKpiFetch<ServiceKpiChangeOrderResult>(token, `${BASE}/reconcile/change-order`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
 export async function validateServiceKpiInstanceReadiness(token: string, instanceId: string) {

@@ -86,4 +86,43 @@ describe('ServiceKpiOperationsService', () => {
     expect(first.imported).toBe(1);
     expect(first.skipped).toBe(1);
   });
+
+  it('getTrackingDashboard aggregates actuals and highlight instance', async () => {
+    const repo = new ServiceKpiRepository({ databaseUrl: 'postgres://invalid' } as never);
+    const instances = new ServiceKpiInstancesService(repo);
+    const ops = new ServiceKpiOperationsService(repo, instances);
+
+    const inst = await repo.insertInstance({
+      source_type: 'quote_line_item',
+      source_id: 'track-line',
+      dv_code: 'DV04',
+      dictionary_id: 'dict-cpl',
+      template_version_id: null,
+      classification: 'OPTIMIZATION_TARGET',
+      status: 'AT_RISK',
+      client_visible: true,
+      owner_name: 'AM',
+      target_min: 85000,
+      target_max: 100000,
+      scenario: 'base',
+      assumption_text: 'A',
+      assumption_state: 'confirmed',
+      disclaimer_text: 'D',
+    });
+
+    await ops.ingestActual(inst.id, {
+      period_start: '2026-10-07',
+      period_end: '2026-10-07',
+      value: 128000,
+      source_ref: 'Meta API + CRM',
+      quality_status: 'pending_validation',
+      collection_method: 'api',
+    });
+
+    const dash = await ops.getTrackingDashboard(inst.id);
+    expect(dash.summary.manual_import_total + dash.summary.api_connector_total).toBeGreaterThan(0);
+    expect(dash.recent.length).toBeGreaterThan(0);
+    expect(dash.highlight?.instance_id).toBe(inst.id);
+    expect(dash.highlight?.actuals.length).toBeGreaterThan(0);
+  });
 });

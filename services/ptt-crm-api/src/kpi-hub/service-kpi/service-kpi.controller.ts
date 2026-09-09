@@ -22,6 +22,7 @@ import {
   StaffKpiHubViewGuard,
 } from '../guards/staff-kpi-hub.guard';
 import { ServiceKpiInstancesService } from './service-kpi-instances.service';
+import { ServiceKpiChangeOrderService } from './service-kpi-change-order.service';
 import { ServiceKpiOperationsService } from './service-kpi-operations.service';
 import { ServiceKpiRepository } from './service-kpi.repository';
 import { ServiceKpiTemplatesService } from './service-kpi-templates.service';
@@ -44,6 +45,7 @@ export class ServiceKpiController {
     private readonly repo: ServiceKpiRepository,
     private readonly instances: ServiceKpiInstancesService,
     private readonly operations: ServiceKpiOperationsService,
+    private readonly changeOrder: ServiceKpiChangeOrderService,
     private readonly quoteScore: ServiceKpiQuoteScoreService,
     private readonly staffAuth: StaffAuthService,
   ) {}
@@ -226,7 +228,7 @@ export class ServiceKpiController {
   contractRisk(@Query('version_id') versionId?: string, @Query('gm_bps') gmBps?: string) {
     if (versionId?.trim()) {
       const gm = gmBps != null && gmBps !== '' ? Number(gmBps) : null;
-      return this.quoteScore.scoreForVersion(versionId.trim(), gm);
+      return this.quoteScore.contractDetailForVersion(versionId.trim(), gm);
     }
     return this.operations.listContractRisk();
   }
@@ -247,6 +249,32 @@ export class ServiceKpiController {
   @UseGuards(StaffKpiHubViewGuard)
   reconcile(@Query('source_id') sourceId: string) {
     return this.operations.reconcile(String(sourceId ?? ''));
+  }
+
+  @Get('reconcile/change-order/preview')
+  @UseGuards(StaffKpiHubViewGuard)
+  previewChangeOrder(@Query('source_id') sourceId: string) {
+    return this.changeOrder.preview(String(sourceId ?? ''));
+  }
+
+  @Post('reconcile/change-order')
+  @UseGuards(StaffKpiHubDictionaryManageGuard)
+  async createChangeOrder(
+    @Req() req: AuthedReq,
+    @Body() body: { source_id?: string; reason?: string },
+  ) {
+    const actor = await this.actor(req);
+    if (!body.source_id?.trim()) throw new BadRequestException({ error: 'source_id_required' });
+    return this.changeOrder.create(body.source_id.trim(), {
+      staffId: actor.staffId,
+      hasFinance: actor.hasFinance,
+    }, body.reason);
+  }
+
+  @Get('service-kpi/tracking')
+  @UseGuards(StaffKpiHubViewGuard)
+  trackingDashboard(@Query('instance') instanceId?: string) {
+    return this.operations.getTrackingDashboard(instanceId);
   }
 
   @Get('service-kpi/war-room')

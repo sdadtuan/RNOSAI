@@ -88,9 +88,19 @@ export default function KpiHubContractsPage() {
         subtitle="Điểm rủi ro hợp đồng KPI — duyệt cùng GM floor. Internal only."
         breadcrumb={[{ label: 'KPI Hub' }, { label: 'Service KPI' }, { label: 'KPI Contract & Risk' }]}
         actions={
-          <Link href="/crm/kpi-hub/service-kpi" className="kpi-hub-btn kpi-hub-btn--ghost">
-            War Room
-          </Link>
+          <>
+            <Link href="/crm/kpi-hub/service-kpi" className="kpi-hub-btn kpi-hub-btn--ghost">
+              War Room
+            </Link>
+            {quotes.find((q) => q.version_id === selectedVersionId) ? (
+              <Link
+                href={`/crm/proposals/${quotes.find((q) => q.version_id === selectedVersionId)!.proposal_id}?tab=kpi`}
+                className="kpi-hub-btn kpi-hub-btn--primary"
+              >
+                Mở Quote
+              </Link>
+            ) : null}
+          </>
         }
         searchPlaceholder="Tìm quote, score, waiver…"
       >

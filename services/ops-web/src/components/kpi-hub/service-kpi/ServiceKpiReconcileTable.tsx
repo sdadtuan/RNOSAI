@@ -41,7 +41,14 @@ export function ServiceKpiReconcileTable({ rows, sourceId, dictionaryLabels = {}
               <td>{formatCell(row.delivered)}</td>
               <td>{formatCell(row.reported)}</td>
               <td>{row.quality_status}</td>
-              <td>{row.behavior}</td>
+              <td>
+                {row.behavior}
+                {row.material_variance ? (
+                  <span className="kpi-hub-badge kpi-hub-badge--amber" style={{ marginLeft: 6 }}>
+                    Material
+                  </span>
+                ) : null}
+              </td>
             </tr>
           ))}
         </tbody>

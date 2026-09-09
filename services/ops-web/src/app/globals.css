@@ -20909,12 +20909,127 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   color: #64748b;
   white-space: nowrap;
 }
-.kpi-hub-skpi-actual-records {
+.kpi-hub-skpi-tracking-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.8fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+.kpi-hub-skpi-tracking-main {
+  display: grid;
+  gap: 0.85rem;
+}
+.kpi-hub-skpi-tracking-aside {
+  display: grid;
+  gap: 0.85rem;
+  position: sticky;
+  top: 1rem;
+}
+.kpi-hub-skpi-tracking-aside__actions {
+  display: grid;
+  gap: 0.5rem;
+}
+.kpi-hub-skpi-tracking-aside__actions .kpi-hub-btn {
+  width: 100%;
+  justify-content: center;
+}
+.kpi-hub-skpi-metricgrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.kpi-hub-skpi-metric span {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+.kpi-hub-skpi-metric b {
+  font-size: 1rem;
+  color: #0f172a;
+}
+.kpi-hub-skpi-metric--critical { color: #dc2626; }
+.kpi-hub-skpi-metric--ok { color: #15803d; }
+.kpi-hub-skpi-chartarea {
   margin-top: 0.85rem;
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+  gap: 0.45rem;
+  align-items: end;
+  min-height: 120px;
+  padding: 0.65rem 0.35rem 0;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+}
+.kpi-hub-skpi-chartarea__col {
+  display: grid;
   gap: 0.35rem;
-  max-height: 220px;
+  justify-items: center;
+  align-content: end;
+  min-height: 100px;
+}
+.kpi-hub-skpi-chartarea__bar {
+  display: block;
+  width: 100%;
+  max-width: 36px;
+  min-height: 8px;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #34d399, #17692f);
+}
+.kpi-hub-skpi-chartarea__bar.is-warn {
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+}
+.kpi-hub-skpi-chartarea__bar.is-risk {
+  background: linear-gradient(180deg, #fb7185, #dc2626);
+}
+.kpi-hub-skpi-chartarea__col span {
+  font-size: 0.68rem;
+  color: #64748b;
+}
+.kpi-hub-skpi-actual-records {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  max-height: 320px;
   overflow: auto;
+}
+.kpi-hub-skpi-actual-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.kpi-hub-skpi-actual-row:last-child { border-bottom: 0; }
+.kpi-hub-skpi-actual-row__meta {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.kpi-hub-skpi-actual-row__meta a {
+  font-weight: 600;
+  color: #0f172a;
+  text-decoration: none;
+}
+.kpi-hub-skpi-actual-row__meta a:hover { text-decoration: underline; }
+.kpi-hub-skpi-actual-row__meta span {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+.kpi-hub-skpi-actual-row__value {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+.kpi-hub-skpi-actual-row__value b {
+  font-variant-numeric: tabular-nums;
 }
 .kpi-hub-skpi-warroom,
 .kpi-hub-skpi-measurement,
@@ -21012,8 +21127,73 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
 .kpi-hub-skpi-kpi--ok b { color: #15803d; }
 .kpi-hub-skpi-contract__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
-  margin: 0.75rem 0;
+  margin: 0.75rem 0 0;
+}
+.kpi-hub-skpi-contract__picker {
+  max-width: 560px;
+  margin-bottom: 12px;
+}
+.kpi-hub-skpi-contract__main {
+  display: grid;
+  gap: 0.85rem;
+}
+.kpi-hub-skpi-contract__aside {
+  position: sticky;
+  top: 12px;
+}
+.kpi-hub-skpi-contract__moat {
+  line-height: 1.65;
+  margin: 0;
+}
+.kpi-hub-skpi-gate-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.kpi-hub-skpi-gate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.1rem;
+  border-bottom: 1px solid #edf1f6;
+  font-size: 0.85rem;
+}
+.kpi-hub-skpi-gate-row:last-child {
+  border-bottom: 0;
+}
+.kpi-hub-skpi-gate-row span {
+  color: #64748b;
+}
+.kpi-hub-skpi-gate-row b {
+  color: #1e293b;
+  font-weight: 650;
+  text-align: right;
+}
+.kpi-hub-skpi-gate-row.is-critical b {
+  color: #dc2626;
+}
+.kpi-hub-skpi-gate-row.is-warn b {
+  color: #b45309;
+}
+.kpi-hub-skpi-gate-row.is-ok b {
+  color: #15803d;
+}
+.kpi-hub-skpi-formula {
+  padding: 0.75rem;
+  border: 1px solid #dce7f7;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+.kpi-hub-skpi-formula code {
+  font-size: 0.78rem;
+  color: #1d4ed8;
+  font-weight: 700;
+  line-height: 1.5;
 }
 .qt-contract-score {
   display: grid;
@@ -21086,6 +21266,13 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
 @media (max-width: 900px) {
   .kpi-hub-skpi-measurement-form__layout {
     grid-template-columns: 1fr;
+  }
+  .kpi-hub-skpi-tracking-layout,
+  .kpi-hub-skpi-metricgrid {
+    grid-template-columns: 1fr;
+  }
+  .kpi-hub-skpi-tracking-aside {
+    position: static;
   }
   .kpi-hub-skpi-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));

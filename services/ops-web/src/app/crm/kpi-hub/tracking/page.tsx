@@ -8,9 +8,13 @@ import { KpiHubShell } from '@/components/kpi-hub/KpiHubShell';
 import { ServiceKpiActualDrawer } from '@/components/kpi-hub/service-kpi/ServiceKpiActualDrawer';
 import { ServiceKpiActualImportDrawer } from '@/components/kpi-hub/service-kpi/ServiceKpiActualImportDrawer';
 import { ServiceKpiSummaryTiles } from '@/components/kpi-hub/service-kpi/ServiceKpiSummaryTiles';
-import { ServiceKpiTrackingPanel } from '@/components/kpi-hub/service-kpi/ServiceKpiTrackingPanel';
+import {
+  ServiceKpiTrackingPanel,
+  trackingSummaryTiles,
+} from '@/components/kpi-hub/service-kpi/ServiceKpiTrackingPanel';
 import { useKpiHubDictionary } from '@/hooks/useKpiHubDictionary';
 import { useServiceKpiInstances } from '@/hooks/useServiceKpiInstances';
+import { useServiceKpiTracking } from '@/hooks/useServiceKpiTracking';
 import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import { dictionaryLabelMap } from '@/lib/service-kpi-dictionary-labels';
 
@@ -20,53 +24,46 @@ export default function KpiHubTrackingPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const params = useSearchParams();
-  const highlightId = params.get('instance') ?? '';
-  const { items, loading, error, refresh } = useServiceKpiInstances(token);
+  const highlightFromUrl = params.get('instance') ?? '';
+  const { items, loading: instancesLoading, error: instancesError, refresh: refreshInstances } =
+    useServiceKpiInstances(token);
   const { rows: dictionaryRows } = useKpiHubDictionary(token, { status: 'ACTIVE' });
   const labels = useMemo(() => dictionaryLabelMap(dictionaryRows), [dictionaryRows]);
 
-  const sortedItems = useMemo(() => {
-    if (!highlightId) return items;
-    return [...items].sort((a, b) => (a.id === highlightId ? -1 : b.id === highlightId ? 1 : 0));
-  }, [items, highlightId]);
+  const effectiveHighlightId = useMemo(() => {
+    if (highlightFromUrl) return highlightFromUrl;
+    const atRisk = items.find((i) => i.status === 'AT_RISK');
+    if (atRisk) return atRisk.id;
+    const withActual = items.find((i) => i.latest_actual != null);
+    if (withActual) return withActual.id;
+    return items[0]?.id ?? '';
+  }, [highlightFromUrl, items]);
 
-  const trackingTiles = useMemo(() => {
-    const withActual = items.filter((i) => i.latest_actual != null).length;
-    const tracking = items.filter((i) => i.status === 'TRACKING').length;
-    const withoutActual = items.length - withActual;
-    const assumptionOpen = items.filter(
-      (i) => i.assumption_state === 'not_met' || i.assumption_state === 'pending',
-    ).length;
-    const atRisk = items.filter((i) => i.status === 'AT_RISK').length;
-    const readinessWarn = items.filter(
-      (i) => i.readiness_level === 'warning' || i.readiness_level === 'blocking',
-    ).length;
-    return [
-      {
-        label: 'Actual có dữ liệu',
-        value: withActual,
-        hint: items.length ? `${Math.round((withActual / items.length) * 100)}% instances` : '—',
-        tone: 'ok' as const,
-      },
-      {
-        label: 'API / connector',
-        value: tracking,
-        hint: 'Đang TRACKING',
-      },
-      {
-        label: 'Manual / import',
-        value: withoutActual,
-        hint: assumptionOpen ? `${assumptionOpen} assumption mở` : 'Chưa có actual',
-        tone: withoutActual ? ('warn' as const) : ('default' as const),
-      },
-      {
-        label: 'Data issues',
-        value: atRisk + readinessWarn,
-        hint: `${atRisk} at-risk · ${readinessWarn} readiness`,
-        tone: atRisk ? ('critical' as const) : readinessWarn ? ('warn' as const) : ('default' as const),
-      },
-    ];
-  }, [items]);
+  const {
+    summary,
+    recent,
+    highlight,
+    loading: trackingLoading,
+    error: trackingError,
+    refresh: refreshTracking,
+  } = useServiceKpiTracking(token, effectiveHighlightId || undefined);
+
+  const trackingTiles = useMemo(() => trackingSummaryTiles(summary), [summary]);
+
+  const sortedItems = useMemo(() => {
+    if (!effectiveHighlightId) return items;
+    return [...items].sort((a, b) =>
+      a.id === effectiveHighlightId ? -1 : b.id === effectiveHighlightId ? 1 : 0,
+    );
+  }, [items, effectiveHighlightId]);
+
+  const handleSaved = () => {
+    refreshInstances();
+    refreshTracking();
+  };
+
+  const loading = instancesLoading || trackingLoading;
+  const error = instancesError ?? trackingError;
 
   return (
     <KpiHubPageGate section="crm_kpi_hub">
@@ -97,7 +94,13 @@ export default function KpiHubTrackingPage() {
         {error ? <p className="kpi-hub-form-error">{error}</p> : null}
         <ServiceKpiSummaryTiles tiles={trackingTiles} />
         <div style={{ marginTop: 16 }}>
-          <ServiceKpiTrackingPanel instances={sortedItems} dictionaryLabels={labels} highlightId={highlightId} />
+          <ServiceKpiTrackingPanel
+            summary={summary}
+            recent={recent}
+            highlight={highlight}
+            dictionaryLabels={labels}
+            loading={trackingLoading}
+          />
         </div>
       </KpiHubShell>
       <ServiceKpiActualDrawer
@@ -106,13 +109,13 @@ export default function KpiHubTrackingPage() {
         instances={sortedItems}
         dictionaryLabels={labels}
         onClose={() => setDrawerOpen(false)}
-        onSaved={() => refresh()}
+        onSaved={handleSaved}
       />
       <ServiceKpiActualImportDrawer
         open={importOpen}
         token={token}
         onClose={() => setImportOpen(false)}
-        onImported={() => refresh()}
+        onImported={handleSaved}
       />
     </KpiHubPageGate>
   );
