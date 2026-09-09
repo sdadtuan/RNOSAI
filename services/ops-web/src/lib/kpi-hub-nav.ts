@@ -14,7 +14,9 @@ export type KpiHubNavIcon =
   | 'template'
   | 'layers'
   | 'plan'
-  | 'track';
+  | 'track'
+  | 'check'
+  | 'users';
 
 export type KpiHubNavItem = {
   href: string;
@@ -57,6 +59,23 @@ export const KPI_HUB_NAV_GROUPS: KpiHubNavGroup[] = [
       { href: '/crm/kpi-hub/kpi-contracts', label: 'KPI Contract & Risk', icon: 'shield' },
       { href: '/crm/kpi-hub/reconcile', label: 'Quoted vs Actual', icon: 'list' },
       { href: '/crm/kpi-hub/policy-packs', label: 'Policy Pack', icon: 'book' },
+    ],
+  },
+  {
+    id: 'performance',
+    label: 'HIỆU SUẤT',
+    items: [
+      { href: '/crm/kpi-hub/performance', label: 'Operating Dashboard', icon: 'dashboard' },
+      { href: '/crm/kpi-hub/performance/assignments', label: 'Assignment Registry', icon: 'list' },
+      { href: '/crm/kpi-hub/performance/assignments/new', label: 'Tạo Assignment', icon: 'layers' },
+      { href: '/crm/kpi-hub/performance/scorecards', label: 'Scorecard Builder', icon: 'template' },
+      { href: '/crm/kpi-hub/performance/scorecards/items', label: 'Thêm chỉ tiêu', icon: 'target' },
+      { href: '/crm/kpi-hub/performance/check-ins', label: 'Check-in Ritual', icon: 'check' },
+      { href: '/crm/kpi-hub/performance/marketing', label: 'Marketing OS', icon: 'chart' },
+      { href: '/crm/kpi-hub/performance/campaigns', label: 'Campaign Control', icon: 'track' },
+      { href: '/crm/kpi-hub/performance/crm-source', label: 'CRM Source Map', icon: 'database' },
+      { href: '/crm/kpi-hub/performance/reports', label: 'Snapshot Report', icon: 'chart' },
+      { href: '/crm/kpi-hub/performance/settings', label: 'Policy', icon: 'gear' },
     ],
   },
   {

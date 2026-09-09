@@ -23,11 +23,12 @@ function userWithCaps(caps: Array<{ section: string; action: string }>): StoredS
 }
 
 describe('kpi-hub-nav', () => {
-  it('groups four headings with command centers, governance, and service KPI', () => {
+  it('groups five headings including Performance Management', () => {
     expect(KPI_HUB_NAV_GROUPS.map((g) => g.label)).toEqual([
       'TỔNG QUAN',
       'GOVERNANCE',
       'SERVICE KPI',
+      'HIỆU SUẤT',
       'PHÂN TÍCH',
     ]);
     expect(KPI_HUB_NAV_GROUPS[0].items.map((i) => i.href)).toEqual([
@@ -37,7 +38,22 @@ describe('kpi-hub-nav', () => {
     ]);
     expect(KPI_HUB_NAV_GROUPS[1].items.map((i) => i.href)).toContain('/crm/kpi-hub/approvals');
     expect(KPI_HUB_NAV_GROUPS[2].items.map((i) => i.href)).toContain('/crm/kpi-hub/service-kpi');
-    expect(KPI_HUB_NAV_GROUPS[3].items.map((i) => i.href)).toEqual([
+    expect(KPI_HUB_NAV_GROUPS[3].items.map((i) => i.href)).toContain('/crm/kpi-hub/performance');
+    expect(KPI_HUB_NAV_GROUPS[3].items).toHaveLength(11);
+    expect(KPI_HUB_NAV_GROUPS[3].items.map((i) => i.label)).toEqual([
+      'Operating Dashboard',
+      'Assignment Registry',
+      'Tạo Assignment',
+      'Scorecard Builder',
+      'Thêm chỉ tiêu',
+      'Check-in Ritual',
+      'Marketing OS',
+      'Campaign Control',
+      'CRM Source Map',
+      'Snapshot Report',
+      'Policy',
+    ]);
+    expect(KPI_HUB_NAV_GROUPS[4].items.map((i) => i.href)).toEqual([
       '/crm/kpi-hub/reports',
       '/crm/kpi-hub/audit',
       '/crm/kpi-hub/settings',
@@ -66,6 +82,8 @@ describe('kpi-hub-nav', () => {
     const hubView = userWithCaps([{ section: 'crm_kpi_hub', action: 'view' }]);
     const withService = kpiHubNavGroupsForUser(hubView);
     expect(withService.map((g) => g.label)).toContain('SERVICE KPI');
+    expect(withService.map((g) => g.label)).toContain('HIỆU SUẤT');
+    expect(groups.map((g) => g.label)).not.toContain('HIỆU SUẤT');
   });
 
   it('delivery path resolves after Wave B helper', () => {
