@@ -25,7 +25,12 @@ import { ServiceKpiInstancesService } from './service-kpi-instances.service';
 import { ServiceKpiOperationsService } from './service-kpi-operations.service';
 import { ServiceKpiRepository } from './service-kpi.repository';
 import { ServiceKpiTemplatesService } from './service-kpi-templates.service';
-import type { CreateTemplateBody, IngestActualBody, PatchInstanceBody } from './service-kpi.types';
+import type {
+  CreateInstanceBody,
+  CreateTemplateBody,
+  IngestActualBody,
+  PatchInstanceBody,
+} from './service-kpi.types';
 
 type AuthedReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
@@ -104,6 +109,15 @@ export class ServiceKpiController {
     return this.templates.activate(versionId);
   }
 
+  @Patch('service-template-versions/:id/rules')
+  @UseGuards(StaffKpiHubDictionaryManageGuard)
+  updateVersionRules(
+    @Param('id') versionId: string,
+    @Body() body: { rules: CreateTemplateBody['rules'] },
+  ) {
+    return this.templates.updateVersionRules(versionId, body.rules ?? []);
+  }
+
   @Get('policy-packs')
   @UseGuards(StaffKpiHubViewGuard)
   listPolicyPacks() {
@@ -116,6 +130,12 @@ export class ServiceKpiController {
     const pack = await this.repo.getPolicyPack(industry);
     if (!pack) return { error: 'PACK_NOT_FOUND' };
     return pack;
+  }
+
+  @Post('instances')
+  @UseGuards(StaffKpiHubDictionaryManageGuard)
+  createInstance(@Body() body: CreateInstanceBody) {
+    return this.instances.create(body);
   }
 
   @Get('instances')
@@ -156,6 +176,12 @@ export class ServiceKpiController {
   @UseGuards(StaffKpiHubViewGuard)
   validateInstanceReadiness(@Param('id') id: string) {
     return this.instances.validateReadiness(id);
+  }
+
+  @Get('instances/:id/measurement-plan')
+  @UseGuards(StaffKpiHubViewGuard)
+  getMeasurementPlan(@Param('id') id: string) {
+    return this.operations.getMeasurementPlan(id);
   }
 
   @Post('instances/:id/measurement-plan')

@@ -1,8 +1,11 @@
 import { API_BASE, ApiError, parseJson } from './api';
 import type {
+  CreateServiceKpiInstanceBody,
   CreateServiceKpiTemplateBody,
   IngestActualBody,
+  ServiceKpiActualRecord,
   ServiceKpiInstanceItem,
+  ServiceKpiMeasurementPlan,
   ServiceKpiPolicyPack,
   ServiceKpiReconcileRow,
   ServiceKpiTemplatesResponse,
@@ -67,6 +70,40 @@ export async function submitServiceKpiTemplateVersion(token: string, versionId: 
   );
 }
 
+export async function activateServiceKpiTemplateVersion(token: string, versionId: string) {
+  return serviceKpiFetch<{ status: string }>(
+    token,
+    `${BASE}/service-template-versions/${encodeURIComponent(versionId)}/activate`,
+    { method: 'POST' },
+  );
+}
+
+export async function updateServiceKpiTemplateRules(
+  token: string,
+  versionId: string,
+  rules: CreateServiceKpiTemplateBody['rules'],
+) {
+  return serviceKpiFetch<{ id: string; rules: CreateServiceKpiTemplateBody['rules'] }>(
+    token,
+    `${BASE}/service-template-versions/${encodeURIComponent(versionId)}/rules`,
+    { method: 'PATCH', body: JSON.stringify({ rules }) },
+  );
+}
+
+export async function fetchServiceKpiMeasurementPlan(token: string, instanceId: string) {
+  return serviceKpiFetch<ServiceKpiMeasurementPlan>(
+    token,
+    `${BASE}/instances/${encodeURIComponent(instanceId)}/measurement-plan`,
+  );
+}
+
+export async function fetchServiceKpiActuals(token: string, instanceId: string) {
+  return serviceKpiFetch<ServiceKpiActualRecord[]>(
+    token,
+    `${BASE}/instances/${encodeURIComponent(instanceId)}/actuals`,
+  );
+}
+
 export async function fetchServiceKpiPolicyPacks(token: string) {
   return serviceKpiFetch<ServiceKpiPolicyPack[]>(token, `${BASE}/policy-packs`);
 }
@@ -76,6 +113,13 @@ export async function fetchServiceKpiPolicyPack(token: string, industry: string)
     token,
     `${BASE}/policy-packs/${encodeURIComponent(industry)}`,
   );
+}
+
+export async function createServiceKpiInstance(token: string, body: CreateServiceKpiInstanceBody) {
+  return serviceKpiFetch<ServiceKpiInstanceItem>(token, `${BASE}/instances`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
 export async function fetchServiceKpiInstances(

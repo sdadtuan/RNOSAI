@@ -30,10 +30,10 @@ function EditorBody() {
 
 export default function KpiHubDictionaryNewPage() {
   return (
-    <KpiHubPageGate section="crm_kpi_dictionary">
+    <KpiHubPageGate section="crm_kpi_dictionary" action="manage">
       <KpiHubShell
-        title="Tạo KPI"
-        subtitle="Thêm chỉ tiêu mới vào Dictionary"
+        title="Tạo KPI Definition"
+        subtitle="Thêm định nghĩa chỉ số mới vào KPI Dictionary"
         breadcrumb={[
           { label: 'KPI Dictionary', href: '/crm/kpi-hub/dictionary' },
           { label: 'Tạo mới' },

@@ -14,6 +14,12 @@ export class ServiceKpiOperationsService {
     private readonly instances: ServiceKpiInstancesService,
   ) {}
 
+  async getMeasurementPlan(instanceId: string) {
+    await this.instances.get(instanceId);
+    const plan = await this.repo.getMeasurementPlan(instanceId);
+    return plan ?? { instance_id: instanceId, qa_status: 'draft' };
+  }
+
   async upsertMeasurementPlan(
     instanceId: string,
     body: {

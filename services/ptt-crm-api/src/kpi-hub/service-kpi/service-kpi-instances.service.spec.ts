@@ -104,4 +104,20 @@ describe('ServiceKpiInstancesService AC-SKPI-02', () => {
     const updated = await instances.patch(row.id, { assumption_state: 'not_met' }, row.row_version);
     expect(updated.status).toBe('AT_RISK');
   });
+
+  it('create manual instance with DRAFT status', async () => {
+    const repo = new ServiceKpiRepository({ databaseUrl: 'postgres://invalid' } as never);
+    const instances = new ServiceKpiInstancesService(repo);
+    const row = await instances.create({
+      source_type: 'quote_line_item',
+      source_id: 'QT-2026-0099',
+      dictionary_id: 'dict-manual',
+      dv_code: 'DV04',
+      target_min: 85000,
+      target_max: 100000,
+    });
+    expect(row.status).toBe('DRAFT');
+    expect(row.source_id).toBe('QT-2026-0099');
+    expect(row.dictionary_id).toBe('dict-manual');
+  });
 });

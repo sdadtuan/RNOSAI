@@ -3,6 +3,7 @@
 #
 # Positions:
 #   SUPER-ADMIN, CEO, GD — full Hub caps (view/manage/configure/publish/send)
+#   MD, MKL, ACM, AE, CE, PD, MEP — Service KPI operators (hub + dictionary view)
 #
 # Usage:
 #   ./scripts/seed_kpi_hub_rbac.sh          # dry-run
@@ -50,6 +51,20 @@ ON CONFLICT (position_id, section_id, action) DO NOTHING;
 SQL
 }
 
+grant_operator_sql() {
+  cat <<'SQL'
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT p.id, g.section_id, g.action
+FROM crm_positions p
+CROSS JOIN (VALUES
+  ('crm_kpi_hub', 'view'),
+  ('crm_kpi_dictionary', 'view')
+) AS g(section_id, action)
+WHERE lower(trim(p.code)) IN ('md', 'mkl', 'acm', 'ae', 'ce', 'pd', 'mep')
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
+SQL
+}
+
 echo "== KPI Hub RBAC caps =="
 
 if [[ "$APPLY" != "--apply" ]]; then
@@ -70,5 +85,6 @@ if [[ "$APPLY" != "--apply" ]]; then
 fi
 
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<<"$(grant_sql)"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<<"$(grant_operator_sql)"
 
 echo "OK  KPI Hub caps applied — đăng xuất / đăng nhập lại để menu cập nhật"

@@ -58,6 +58,21 @@ export type ServiceKpiTemplatesResponse = {
   summary: { active: number; in_review: number };
 };
 
+export type CreateServiceKpiInstanceBody = {
+  source_type: string;
+  source_id: string;
+  dictionary_id: string;
+  dv_code?: string;
+  classification?: SkpiClassification;
+  scenario?: string;
+  target_min?: number;
+  target_max?: number;
+  assumption_text?: string;
+  disclaimer_text?: string;
+  owner_name?: string;
+  client_visible?: boolean;
+};
+
 export type ServiceKpiInstanceItem = {
   id: string;
   source_type: string;
@@ -96,6 +111,29 @@ export type IngestActualBody = {
   collection_method?: string;
   note?: string;
   duplicate_action?: 'skip' | 'merge' | 'correction';
+};
+
+export type ServiceKpiMeasurementPlan = {
+  id?: string;
+  instance_id: string;
+  owner_name?: string;
+  cadence?: string;
+  timezone?: string;
+  data_source?: string;
+  field_mapping?: string;
+  freshness_sla_hours?: number;
+  qa_status?: string;
+};
+
+export type ServiceKpiActualRecord = {
+  id: string;
+  instance_id: string;
+  period_start: string;
+  period_end: string;
+  value: number | null;
+  quality_status: string;
+  source_ref?: string;
+  note?: string;
 };
 
 export type ServiceKpiReconcileRow = {

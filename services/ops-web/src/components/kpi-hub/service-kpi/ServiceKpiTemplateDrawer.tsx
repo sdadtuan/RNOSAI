@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createServiceKpiTemplate } from '@/lib/service-kpi-api';
 import { fetchKpiHubDictionary } from '@/lib/kpi-hub-api';
 import { normalizeDictionaryList } from '@/lib/kpi-hub-normalize';
@@ -20,6 +21,9 @@ type Props = {
 };
 
 export function ServiceKpiTemplateDrawer({ open, token, onClose, onCreated }: Props) {
+  const panelRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const [dvCode, setDvCode] = useState('DV04');
   const [name, setName] = useState('');
   const [ownerTeam, setOwnerTeam] = useState('Performance MKT');
@@ -34,6 +38,16 @@ export function ServiceKpiTemplateDrawer({ open, token, onClose, onCreated }: Pr
       .then((raw) => setDictionary(normalizeDictionaryList(raw as Record<string, unknown>).data))
       .catch(() => setDictionary([]));
   }, [open, token]);
+
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCloseRef.current();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
 
   const activeKpis = useMemo(
     () => dictionary.filter((d) => d.status === 'ACTIVE'),
@@ -83,7 +97,15 @@ export function ServiceKpiTemplateDrawer({ open, token, onClose, onCreated }: Pr
 
   return (
     <div className="kpi-hub-drawer-backdrop" role="presentation" onClick={onClose}>
-      <aside className="kpi-hub-drawer" role="dialog" aria-label="Tạo Service KPI Template" onClick={(e) => e.stopPropagation()}>
+      <aside
+        ref={panelRef}
+        className="kpi-hub-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Tạo Service KPI Template"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
         <header className="kpi-hub-drawer__head">
           <h2>Tạo Service KPI Template</h2>
           <button type="button" className="kpi-hub-drawer__close" onClick={onClose} aria-label="Đóng">
@@ -111,20 +133,29 @@ export function ServiceKpiTemplateDrawer({ open, token, onClose, onCreated }: Pr
           </label>
           <label className="kpi-hub-field">
             <span>KPI từ Dictionary (Active)</span>
-            <select
-              multiple
-              size={6}
-              value={selectedKpis}
-              onChange={(e) =>
-                setSelectedKpis(Array.from(e.target.selectedOptions).map((o) => o.value))
-              }
-            >
-              {activeKpis.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.code} — {k.name}
-                </option>
-              ))}
-            </select>
+            {activeKpis.length ? (
+              <select
+                multiple
+                size={6}
+                value={selectedKpis}
+                onChange={(e) =>
+                  setSelectedKpis(Array.from(e.target.selectedOptions).map((o) => o.value))
+                }
+              >
+                {activeKpis.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.code} — {k.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="kpi-hub-empty" style={{ marginTop: 4 }}>
+                <p>Chưa có KPI Definition Active trong Dictionary.</p>
+                <Link href="/crm/kpi-hub/dictionary/new" className="kpi-hub-btn kpi-hub-btn--primary">
+                  + Tạo KPI Definition
+                </Link>
+              </div>
+            )}
           </label>
           {error ? <p className="kpi-hub-form-error">{error}</p> : null}
           <footer className="kpi-hub-drawer__foot">

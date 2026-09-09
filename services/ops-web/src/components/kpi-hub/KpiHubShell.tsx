@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { type ReactNode, useMemo, useState } from 'react';
-import { KPI_HUB_NAV_GROUPS, activeKpiHubHref, isKpiHubPath, kpiHubNavGroupsWithDelivery } from '@/lib/kpi-hub-nav';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { getStoredUser, type StoredStaffUser } from '@/lib/auth';
+import { activeKpiHubHref, isKpiHubPath, kpiHubNavGroupsForUser } from '@/lib/kpi-hub-nav';
 import { KpiHubFreshnessFooter } from './KpiHubFreshnessFooter';
 
 export type KpiHubBreadcrumb = { label: string; href?: string };
@@ -138,12 +139,11 @@ export function KpiHubShell({
 }: KpiHubShellProps) {
   const pathname = usePathname() ?? '';
   const activeHref = useMemo(() => activeKpiHubHref(pathname), [pathname]);
-  const navGroups = useMemo(() => {
-    if (pathname.startsWith('/crm/delivery-projects')) {
-      return kpiHubNavGroupsWithDelivery();
-    }
-    return KPI_HUB_NAV_GROUPS;
-  }, [pathname]);
+  const [user, setUser] = useState<StoredStaffUser | null>(null);
+  useEffect(() => {
+    setUser(getStoredUser());
+  }, []);
+  const navGroups = useMemo(() => kpiHubNavGroupsForUser(user, pathname), [user, pathname]);
   const [collapsed, setCollapsed] = useState(false);
 
   return (

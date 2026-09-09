@@ -457,6 +457,62 @@ export class ServiceKpiRepository implements OnModuleDestroy {
     );
   }
 
+  async replaceVersionRules(
+    versionId: string,
+    rules: CreateTemplateBody['rules'],
+  ): Promise<ServiceKpiTemplateVersionRow | null> {
+    return skpiDbFallback(
+      async () => {
+        const version = await this.getVersion(versionId);
+        if (!version || version.status !== 'DRAFT') return null;
+        const client = await this.db.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query(
+            `DELETE FROM crm_service_kpi_template_rules WHERE template_version_id = $1 AND tenant_id = $2`,
+            [versionId, SERVICE_KPI_TENANT_ID],
+          );
+          await this.insertRules(client, versionId, rules);
+          await client.query('COMMIT');
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        } finally {
+          client.release();
+        }
+        return this.getVersion(versionId);
+      },
+      () => {
+        const ver = this.memory.versions.find((v) => v.id === versionId);
+        if (!ver || ver.status !== 'DRAFT') return null;
+        ver.rules = rules.map((r, i) => ({
+          id: randomUUID(),
+          dictionary_id: r.dictionary_id,
+          classification: r.classification,
+          is_required: r.is_required !== false,
+          client_visible: r.client_visible !== false,
+          display_order: i,
+          target_min: r.target_min ?? null,
+          target_max: r.target_max ?? null,
+          target_unit: null,
+          scenario: 'base',
+          assumption_template: r.assumption_template ?? '',
+          disclaimer_template: r.disclaimer_template ?? '',
+          owner_role: r.owner_role ?? '',
+          cadence: r.cadence ?? 'weekly',
+        }));
+        const tpl = this.memory.templates.find((t) => t.id === ver.template_id);
+        if (tpl?.current_version?.id === versionId) {
+          tpl.current_version = ver;
+          tpl.rule_count = ver.rules.length;
+          tpl.required_count = ver.rules.filter((x) => x.is_required).length;
+          tpl.client_visible_count = ver.rules.filter((x) => x.client_visible).length;
+        }
+        return ver;
+      },
+    );
+  }
+
   private async insertRules(
     client: { query: Pool['query'] },
     versionId: string,

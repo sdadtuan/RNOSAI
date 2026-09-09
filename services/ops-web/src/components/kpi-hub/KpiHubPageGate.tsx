@@ -40,7 +40,7 @@ export function KpiHubPageGate({ section, action = 'view', children }: KpiHubPag
       setUser(me);
       updateStoredUser(me);
       if (!hasCap(me, section, action)) {
-        setError('Không có quyền truy cập KPI Hub');
+        setError(`Không có quyền ${section}.${action} — liên hệ admin để cấp quyền KPI Hub`);
         return;
       }
     } catch {
@@ -57,7 +57,7 @@ export function KpiHubPageGate({ section, action = 'view', children }: KpiHubPag
       setUser(me);
       updateStoredUser(me);
       if (!hasCap(me, section, action)) {
-        setError('Không có quyền truy cập KPI Hub');
+        setError(`Không có quyền ${section}.${action} — liên hệ admin để cấp quyền KPI Hub`);
       }
     }
   }, [action, router, section]);

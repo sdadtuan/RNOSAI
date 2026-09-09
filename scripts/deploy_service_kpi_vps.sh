@@ -40,13 +40,14 @@ run_local() {
   export NEXT_PUBLIC_PTT_API_URL="${NEXT_PUBLIC_PTT_API_URL:-https://rs.pttads.vn}"
   "$ROOT/scripts/deploy_ops_web.sh" build
 
-  echo "== 4/4 restart services (local systemd if present) =="
+  echo "== 4/4 restart services (API + ops-web required for Service KPI routes) =="
   if command -v systemctl >/dev/null 2>&1; then
     if sudo -n systemctl restart ptt-crm-api ptt-ops-web 2>/dev/null; then
-      sleep 2
+      sleep 3
       systemctl is-active ptt-crm-api ptt-ops-web
+      curl -sf http://127.0.0.1:3000/health >/dev/null && echo "OK  ptt-crm-api /health"
     else
-      echo "WARN  sudo systemctl restart skipped"
+      echo "WARN  sudo systemctl restart skipped — Service KPI API sẽ 404 cho đến khi restart"
       echo "      Run: sudo systemctl restart ptt-crm-api ptt-ops-web"
     fi
   fi

@@ -1,10 +1,10 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { isInternalOnly } from './service-kpi-classification';
 import { canPublishClientReport } from './service-kpi-ledgers';
 import { validateReadiness } from './service-kpi-readiness';
 import { percentile50, percentile80 } from './service-kpi-benchmark';
 import { ServiceKpiRepository } from './service-kpi.repository';
-import type { PatchInstanceBody, ServiceKpiInstanceRow } from './service-kpi.types';
+import type { CreateInstanceBody, PatchInstanceBody, ServiceKpiInstanceRow } from './service-kpi.types';
 
 @Injectable()
 export class ServiceKpiInstancesService {
@@ -48,6 +48,35 @@ export class ServiceKpiInstancesService {
       created += 1;
     }
     return { created, template_version_id: version.id };
+  }
+
+  async create(body: CreateInstanceBody): Promise<ServiceKpiInstanceRow> {
+    const sourceType = String(body.source_type ?? '').trim();
+    const sourceId = String(body.source_id ?? '').trim();
+    const dictionaryId = String(body.dictionary_id ?? '').trim();
+    if (!sourceType || !sourceId || !dictionaryId) {
+      throw new BadRequestException({ error: 'INSTANCE_CREATE_INVALID' });
+    }
+    const dv = String(body.dv_code ?? '').trim().toUpperCase() || null;
+    const classification = body.classification ?? 'OPTIMIZATION_TARGET';
+    const row = await this.repo.insertInstance({
+      source_type: sourceType,
+      source_id: sourceId,
+      dv_code: dv,
+      dictionary_id: dictionaryId,
+      template_version_id: body.template_version_id ?? null,
+      classification,
+      status: 'DRAFT',
+      client_visible: body.client_visible ?? classification !== 'INTERNAL_OPERATIONAL',
+      owner_name: body.owner_name?.trim() || null,
+      target_min: body.target_min ?? null,
+      target_max: body.target_max ?? null,
+      scenario: body.scenario?.trim() || 'base',
+      assumption_text: body.assumption_text?.trim() || '',
+      assumption_state: 'pending',
+      disclaimer_text: body.disclaimer_text?.trim() || '',
+    });
+    return this.enrichInstance(row);
   }
 
   async list(query: {

@@ -1,3 +1,6 @@
+import type { StoredStaffUser } from './auth';
+import { hasAnyCap, resolvePathCapRequirements } from './rbac-routes';
+
 export type KpiHubNavIcon =
   | 'dashboard'
   | 'book'
@@ -94,6 +97,32 @@ export function activeKpiHubHref(pathname: string): string {
     return '/crm/delivery-projects';
   }
   return '/crm/kpi-hub/executive';
+}
+
+/** Hide sidebar links the user cannot open (path caps from rbac-routes). */
+export function filterKpiHubNavGroupsForUser(
+  groups: KpiHubNavGroup[],
+  user: StoredStaffUser | null,
+): KpiHubNavGroup[] {
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => {
+        const reqs = resolvePathCapRequirements(item.href);
+        return !reqs.length || hasAnyCap(user, reqs);
+      }),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
+export function kpiHubNavGroupsForUser(
+  user: StoredStaffUser | null,
+  pathname?: string,
+): KpiHubNavGroup[] {
+  const base = pathname?.startsWith('/crm/delivery-projects')
+    ? kpiHubNavGroupsWithDelivery()
+    : KPI_HUB_NAV_GROUPS;
+  return filterKpiHubNavGroupsForUser(base, user);
 }
 
 /** Wave B: append Project Delivery to overview group without replacing command centers. */

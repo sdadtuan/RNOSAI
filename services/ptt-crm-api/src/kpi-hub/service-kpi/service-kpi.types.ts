@@ -143,6 +143,22 @@ export type ServiceKpiSnapshotRow = {
   created_at: string;
 };
 
+export type CreateInstanceBody = {
+  source_type: string;
+  source_id: string;
+  dictionary_id: string;
+  dv_code?: string;
+  template_version_id?: string | null;
+  classification?: SkpiClassification;
+  scenario?: string;
+  target_min?: number;
+  target_max?: number;
+  assumption_text?: string;
+  disclaimer_text?: string;
+  owner_name?: string;
+  client_visible?: boolean;
+};
+
 export type PatchInstanceBody = {
   owner_name?: string;
   target_min?: number;

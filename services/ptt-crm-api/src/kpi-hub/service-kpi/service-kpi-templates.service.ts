@@ -81,4 +81,24 @@ export class ServiceKpiTemplatesService {
     await this.repo.setVersionStatus(versionId, 'ACTIVE', 'ACTIVE');
     return { status: 'ACTIVE' as const };
   }
+
+  async updateVersionRules(versionId: string, rules: CreateTemplateBody['rules']) {
+    if (!rules?.length) {
+      throw new BadRequestException({ error: 'RULES_REQUIRED' });
+    }
+    for (const rule of rules) {
+      const status = await this.repo.getDictionaryStatus(rule.dictionary_id);
+      if (status !== 'ACTIVE') {
+        throw new BadRequestException({ error: 'DICTIONARY_NOT_ACTIVE', dictionary_id: rule.dictionary_id });
+      }
+    }
+    const version = await this.repo.getVersion(versionId);
+    if (!version) throw new NotFoundException({ error: 'VERSION_NOT_FOUND' });
+    if (version.status !== 'DRAFT') {
+      throw new BadRequestException({ error: 'VERSION_NOT_EDITABLE' });
+    }
+    const updated = await this.repo.replaceVersionRules(versionId, rules);
+    if (!updated) throw new BadRequestException({ error: 'VERSION_NOT_EDITABLE' });
+    return updated;
+  }
 }

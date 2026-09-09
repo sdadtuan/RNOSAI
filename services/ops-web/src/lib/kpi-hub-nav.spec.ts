@@ -1,13 +1,26 @@
 import { describe, expect, it } from 'vitest';
+import type { StoredStaffUser } from './auth';
 import {
   KPI_HUB_NAV,
   KPI_HUB_NAV_GROUPS,
   SERVICE_KPI_NAV_GROUP,
   activeKpiHubHref,
+  filterKpiHubNavGroupsForUser,
   isKpiHubPath,
   kpiHubNavGroup,
+  kpiHubNavGroupsForUser,
   kpiHubNavGroupsWithDelivery,
 } from './kpi-hub-nav';
+
+function userWithCaps(caps: Array<{ section: string; action: string }>): StoredStaffUser {
+  return {
+    id: 'u1',
+    email: 'test@ptt.vn',
+    display_name: 'Test',
+    position_code: 'CEO',
+    caps,
+  } as StoredStaffUser;
+}
 
 describe('kpi-hub-nav', () => {
   it('groups four headings with command centers, governance, and service KPI', () => {
@@ -42,6 +55,17 @@ describe('kpi-hub-nav', () => {
   it('flat nav includes all grouped items', () => {
     const flatCount = KPI_HUB_NAV_GROUPS.reduce((n, g) => n + g.items.length, 0);
     expect(KPI_HUB_NAV).toHaveLength(flatCount);
+  });
+
+  it('hides SERVICE KPI group without crm_kpi_hub.view', () => {
+    const dictOnly = userWithCaps([{ section: 'crm_kpi_dictionary', action: 'view' }]);
+    const groups = filterKpiHubNavGroupsForUser(KPI_HUB_NAV_GROUPS, dictOnly);
+    expect(groups.map((g) => g.label)).not.toContain('SERVICE KPI');
+    expect(groups.map((g) => g.label)).toContain('GOVERNANCE');
+
+    const hubView = userWithCaps([{ section: 'crm_kpi_hub', action: 'view' }]);
+    const withService = kpiHubNavGroupsForUser(hubView);
+    expect(withService.map((g) => g.label)).toContain('SERVICE KPI');
   });
 
   it('delivery path resolves after Wave B helper', () => {

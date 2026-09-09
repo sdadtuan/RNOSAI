@@ -11,7 +11,7 @@ import { KpiHubDictTable } from '@/components/kpi-hub/dictionary/KpiHubDictTable
 import { useKpiHubDictionary } from '@/hooks/useKpiHubDictionary';
 import { useKpiHubDictionaryDetail } from '@/hooks/useKpiHubDictionaryDetail';
 import { uniqueOwners } from '@/lib/kpi-hub-dictionary-utils';
-import { getAccessToken } from '@/lib/auth';
+import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import type { KpiHubDictionaryRow } from '@/lib/kpi-hub-fixtures';
 
 const PAGE_SIZE = 5;
@@ -19,6 +19,7 @@ const PAGE_SIZE = 5;
 export default function KpiHubDictionaryPage() {
   const router = useRouter();
   const token = getAccessToken() ?? '';
+  const canManageDictionary = hasCap(getStoredUser(), 'crm_kpi_dictionary', 'manage');
   const [q, setQ] = useState('');
   const [group, setGroup] = useState('');
   const [owner, setOwner] = useState('');
@@ -84,13 +85,19 @@ export default function KpiHubDictionaryPage() {
         subtitle="Chuẩn hóa định nghĩa chỉ số cho Marketing, Sales và Finance."
         breadcrumb={[{ label: 'Quản trị dữ liệu' }, { label: 'KPI Dictionary' }]}
         actions={
-          <button
-            type="button"
-            className="kpi-hub-btn kpi-hub-btn--primary"
-            onClick={() => router.push('/crm/kpi-hub/dictionary/new')}
-          >
-            + Tạo KPI
-          </button>
+          canManageDictionary ? (
+            <button
+              type="button"
+              className="kpi-hub-btn kpi-hub-btn--primary"
+              onClick={() => router.push('/crm/kpi-hub/dictionary/new')}
+            >
+              + Tạo KPI Definition
+            </button>
+          ) : (
+            <span className="kpi-hub-muted" title="Cần quyền crm_kpi_dictionary.manage">
+              Chỉ xem Dictionary
+            </span>
+          )
         }
       >
         {error ? <p className="error">{error}</p> : null}

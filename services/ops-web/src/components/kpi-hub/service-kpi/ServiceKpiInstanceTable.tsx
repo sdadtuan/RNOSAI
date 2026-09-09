@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { ServiceKpiInstanceItem } from '@/lib/service-kpi-types';
 
 const CLASS_BADGE: Record<string, string> = {
@@ -12,13 +13,19 @@ const CLASS_BADGE: Record<string, string> = {
 
 type Props = {
   rows: ServiceKpiInstanceItem[];
+  dictionaryLabels?: Record<string, string>;
   onSelect?: (row: ServiceKpiInstanceItem) => void;
 };
 
-export function ServiceKpiInstanceTable({ rows, onSelect }: Props) {
+export function ServiceKpiInstanceTable({ rows, dictionaryLabels = {}, onSelect }: Props) {
   if (!rows.length) {
-    return <div className="kpi-hub-empty"><p>Chưa có KPI instance — thêm DV vào Quote để kế thừa template.</p></div>;
+    return (
+      <div className="kpi-hub-empty">
+        <p>Chưa có KPI instance — bấm 「+ Tạo KPI Instance」 hoặc thêm DV vào Quote để kế thừa template.</p>
+      </div>
+    );
   }
+
   return (
     <div className="kpi-hub-table-wrap">
       <table className="kpi-hub-table">
@@ -32,14 +39,20 @@ export function ServiceKpiInstanceTable({ rows, onSelect }: Props) {
             <th>Readiness</th>
             <th>Owner</th>
             <th>Status</th>
+            <th aria-label="Thao tác" />
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.id} onClick={() => onSelect?.(row)} className={onSelect ? 'kpi-hub-row-clickable' : ''}>
               <td>
-                <span className="kpi-hub-table__mono">{row.dictionary_id}</span>
-                <div className="kpi-hub-table__sub">{row.source_type} · {row.source_id}</div>
+                <span className="kpi-hub-table__mono kpi-hub-linkish">
+                  {dictionaryLabels[row.dictionary_id] ?? row.dictionary_id}
+                </span>
+                <div className="kpi-hub-table__sub">
+                  {row.source_type} · {row.source_id}
+                  {row.dv_code ? ` · ${row.dv_code}` : ''}
+                </div>
               </td>
               <td>
                 <span className={`kpi-hub-badge kpi-hub-badge--${CLASS_BADGE[row.classification] ?? 'gray'}`}>
@@ -58,6 +71,24 @@ export function ServiceKpiInstanceTable({ rows, onSelect }: Props) {
                 <span className={`kpi-hub-badge kpi-hub-badge--${row.status === 'AT_RISK' ? 'red' : 'gray'}`}>
                   {row.status}
                 </span>
+              </td>
+              <td>
+                <div className="kpi-hub-table__actions">
+                  <Link
+                    href={`/crm/kpi-hub/measurement?instance=${encodeURIComponent(row.id)}`}
+                    className="kpi-hub-btn kpi-hub-btn--ghost kpi-hub-btn--sm"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Plan
+                  </Link>
+                  <Link
+                    href={`/crm/kpi-hub/tracking?instance=${encodeURIComponent(row.id)}`}
+                    className="kpi-hub-btn kpi-hub-btn--ghost kpi-hub-btn--sm"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Track
+                  </Link>
+                </div>
               </td>
             </tr>
           ))}
