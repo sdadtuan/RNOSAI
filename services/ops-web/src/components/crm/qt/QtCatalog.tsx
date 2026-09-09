@@ -5,22 +5,14 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import {
-  createQtCatalogGroup,
-  createQtCatalogService,
-  deleteQtCatalogGroup,
-  deleteQtCatalogService,
   getQtQuoteCatalogDoc,
   importQtCatalog,
   qtCatalogImportOutcome,
   snapshotQtCatalogPackage,
-  updateQtCatalogGroup,
-  updateQtCatalogService,
-  type QtCatalogGroup,
   type QtCatalogItem,
   type QtIndustryPackage,
   type QtRateCard,
 } from '@/lib/crm/qt-api';
-import { QtCatalogOs, asCatalogGroups } from './QtCatalogOs';
 import { dash } from '@/lib/crm/qt-format';
 import { QtCatalogImportPanel } from './QtSettings';
 
@@ -532,7 +524,6 @@ export function QtVidTpl01Template() {
 
 export function QtCatalogView({
   items,
-  groups = [],
   templateKey,
   selectedGroup,
   onSelectGroup,
@@ -542,18 +533,11 @@ export function QtCatalogView({
   packages = [],
   rateCards = [],
   hasFinance = false,
-  canManage = false,
   addingPackage = null,
   onOpenService,
   onDrawerTab,
   onCloseDrawer,
   onAddPackage,
-  onCreateGroup,
-  onUpdateGroup,
-  onDeleteGroup,
-  onCreateService,
-  onUpdateService,
-  onDeleteService,
   loading = false,
   error = '',
   importing = false,
@@ -563,7 +547,6 @@ export function QtCatalogView({
   onRetry,
 }: {
   items: QtCatalogItem[];
-  groups?: QtCatalogGroup[];
   templateKey?: string | null;
   selectedGroup?: string | null;
   onSelectGroup?: (group: string | null) => void;
@@ -573,21 +556,11 @@ export function QtCatalogView({
   packages?: QtIndustryPackage[];
   rateCards?: QtRateCard[];
   hasFinance?: boolean;
-  canManage?: boolean;
   addingPackage?: string | null;
   onOpenService?: (item: QtCatalogItem) => void;
   onDrawerTab?: (tab: QtCatalogDrawerTabId) => void;
   onCloseDrawer?: () => void;
   onAddPackage?: (key: string) => void;
-  onCreateGroup?: (body: { title: string; description?: string; icon?: string }) => Promise<void>;
-  onUpdateGroup?: (key: string, body: { title?: string; description?: string; icon?: string }) => Promise<void>;
-  onDeleteGroup?: (key: string) => Promise<void>;
-  onCreateService?: (body: { name: string; group_key: string; description?: string }) => Promise<void>;
-  onUpdateService?: (
-    dv: string,
-    body: { name?: string; group_key?: string; description?: string; active?: boolean },
-  ) => Promise<void>;
-  onDeleteService?: (dv: string) => Promise<void>;
   loading?: boolean;
   error?: string;
   importing?: boolean;
@@ -640,8 +613,47 @@ export function QtCatalogView({
     );
   }
 
+  const visible = selectedGroup
+    ? items.filter((item) => item.group === selectedGroup)
+    : items;
+  const portfolioCount = items.filter((item) => /^DV\d{2}$/i.test(String(item.dv_code ?? ''))).length;
+  const hasVidTpl = items.some((item) => item.template_key === VID_TPL_01);
+  const emptyCopy = selectedGroup
+    ? 'Nhóm này không có DV trong Portfolio 21'
+    : 'Chưa tải được Portfolio 21 DV';
+
   return (
     <div className="qt-catalog">
+      <header className="qt-head">
+        <div>
+          <p className="qt-crumb">Kinh doanh / Báo giá / Service Catalog</p>
+          <h1>Service Catalog</h1>
+          <p className="qt-muted">
+            Chọn DV từ Portfolio để add Quote · quản trị nhóm/DV tại{' '}
+            <Link className="qt-link" href="/admin/services/portfolio">
+              Admin Portfolio 21 DV
+            </Link>
+            {portfolioCount ? ` · ${portfolioCount} dịch vụ` : ''}
+          </p>
+        </div>
+        <div className="qt-head__actions">
+          <Link className="qt-btn" href="/admin/services/portfolio">
+            Portfolio admin
+          </Link>
+          <Link className="qt-btn" href="/crm/proposals/catalog?tab=packages">
+            Package ngành
+          </Link>
+          <Link className="qt-btn" href="/crm/proposals/catalog?tab=rates">
+            Rate card
+          </Link>
+          {hasVidTpl ? (
+            <Link className="qt-btn" href={`/crm/proposals/catalog?template=${VID_TPL_01}`}>
+              VID-TPL-01
+            </Link>
+          ) : null}
+        </div>
+      </header>
+
       {error ? (
         <section className="qt-card qt-card--error">
           <p>{error}</p>
@@ -652,22 +664,23 @@ export function QtCatalogView({
           ) : null}
         </section>
       ) : null}
-      <QtCatalogOs
-        items={items}
-        groups={asCatalogGroups(groups, items)}
-        packages={packages}
-        selectedGroup={selectedGroup}
-        onSelectGroup={onSelectGroup}
-        onOpenService={onOpenService}
-        canManage={canManage}
-        loading={loading}
-        onCreateGroup={onCreateGroup}
-        onUpdateGroup={onUpdateGroup}
-        onDeleteGroup={onDeleteGroup}
-        onCreateService={onCreateService}
-        onUpdateService={onUpdateService}
-        onDeleteService={onDeleteService}
-      />
+
+      <div aria-busy={loading}>
+        <QtCatalogGroups items={items} selected={selectedGroup} onSelect={onSelectGroup} />
+        <section className="qt-catalog-list">
+          {visible.length ? (
+            visible.map((item) => (
+              <QtCatalogServiceRow
+                key={item.dv_code || catalogDisplayName(item)}
+                item={item}
+                onOpen={onOpenService}
+              />
+            ))
+          ) : (
+            <p className="qt-empty">{loading ? 'Đang tải Portfolio 21 DV…' : emptyCopy}</p>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
@@ -682,9 +695,7 @@ export function QtCatalog() {
   const drawerTab = searchParams.get('drawer');
   const user = getStoredUser();
   const hasFinance = hasCap(user, 'crm_quote.finance', 'view');
-  const canManage = hasCap(user, 'crm_quote.catalog', 'manage');
   const [items, setItems] = useState<QtCatalogItem[]>([]);
-  const [groups, setGroups] = useState<QtCatalogGroup[]>([]);
   const [packages, setPackages] = useState<QtIndustryPackage[]>([]);
   const [rateCards, setRateCards] = useState<QtRateCard[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -717,12 +728,10 @@ export function QtCatalog() {
           ? doc.families
           : [];
       setItems(families);
-      setGroups(asCatalogGroups(doc.groups, families));
       setPackages(Array.isArray(doc.packages) ? doc.packages : []);
       setRateCards(Array.isArray(doc.rate_cards) ? doc.rate_cards : []);
     } catch (caught) {
       setItems([]);
-      setGroups([]);
       setPackages([]);
       setRateCards([]);
       setError(caught instanceof Error ? caught.message : 'Không tải được catalog');
@@ -754,7 +763,6 @@ export function QtCatalog() {
   return (
     <QtCatalogView
       items={items}
-      groups={groups}
       templateKey={templateKey}
       selectedGroup={activeGroup}
       onSelectGroup={(group) => {
@@ -768,77 +776,12 @@ export function QtCatalog() {
       packages={packages}
       rateCards={rateCards}
       hasFinance={hasFinance}
-      canManage={canManage}
       addingPackage={addingPackage}
       onOpenService={(item) => {
         replaceQuery({ service: item.service_slug || item.dv_code, tab: null, drawer: 'overview' });
       }}
       onDrawerTab={(tab) => replaceQuery({ drawer: tab })}
       onCloseDrawer={() => replaceQuery({ service: null, drawer: null })}
-      onCreateGroup={async (body) => {
-        const token = getAccessToken();
-        if (!token) return;
-        try {
-          await createQtCatalogGroup(token, body);
-          await load();
-        } catch (caught) {
-          setError(caught instanceof Error ? caught.message : 'Không tạo được nhóm');
-          throw caught;
-        }
-      }}
-      onUpdateGroup={async (key, body) => {
-        const token = getAccessToken();
-        if (!token) return;
-        try {
-          await updateQtCatalogGroup(token, key, body);
-          await load();
-        } catch (caught) {
-          setError(caught instanceof Error ? caught.message : 'Không sửa được nhóm');
-          throw caught;
-        }
-      }}
-      onDeleteGroup={async (key) => {
-        const token = getAccessToken();
-        if (!token) return;
-        try {
-          await deleteQtCatalogGroup(token, key);
-          await load();
-        } catch (caught) {
-          setError(caught instanceof Error ? caught.message : 'Không xóa được nhóm');
-        }
-      }}
-      onCreateService={async (body) => {
-        const token = getAccessToken();
-        if (!token) return;
-        try {
-          await createQtCatalogService(token, body);
-          await load();
-        } catch (caught) {
-          setError(caught instanceof Error ? caught.message : 'Không tạo được dịch vụ');
-          throw caught;
-        }
-      }}
-      onUpdateService={async (dv, body) => {
-        const token = getAccessToken();
-        if (!token) return;
-        try {
-          await updateQtCatalogService(token, dv, body);
-          await load();
-        } catch (caught) {
-          setError(caught instanceof Error ? caught.message : 'Không sửa được dịch vụ');
-          throw caught;
-        }
-      }}
-      onDeleteService={async (dv) => {
-        const token = getAccessToken();
-        if (!token) return;
-        try {
-          await deleteQtCatalogService(token, dv);
-          await load();
-        } catch (caught) {
-          setError(caught instanceof Error ? caught.message : 'Không xóa được dịch vụ');
-        }
-      }}
       onAddPackage={async (key) => {
         const token = getAccessToken();
         if (!token) return;

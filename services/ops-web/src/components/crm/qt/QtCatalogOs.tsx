@@ -48,6 +48,8 @@ function groupMeta(group: QtCatalogGroup) {
   };
 }
 
+export type QtCatalogOsVariant = 'quote' | 'admin';
+
 export function QtCatalogOs({
   items,
   groups = [],
@@ -57,6 +59,7 @@ export function QtCatalogOs({
   onOpenService,
   canManage = false,
   loading = false,
+  variant = 'quote',
   onCreateGroup,
   onUpdateGroup,
   onDeleteGroup,
@@ -72,6 +75,7 @@ export function QtCatalogOs({
   onOpenService?: (item: QtCatalogItem) => void;
   canManage?: boolean;
   loading?: boolean;
+  variant?: QtCatalogOsVariant;
   onCreateGroup?: (body: { title: string; description?: string; icon?: string }) => Promise<void>;
   onUpdateGroup?: (key: string, body: { title?: string; description?: string; icon?: string }) => Promise<void>;
   onDeleteGroup?: (key: string) => Promise<void>;
@@ -115,6 +119,14 @@ export function QtCatalogOs({
     ? nav.find((group) => group.key === selectedGroup)
     : { key: 'all', title: 'Tất cả dịch vụ', description: 'Portfolio DV01–21 có thể cấu hình vào báo giá.', icon: '▦' };
   const banner = selectedMeta ? groupMeta(selectedMeta as QtCatalogGroup) : groupMeta({ key: 'all', title: 'Tất cả dịch vụ' });
+  const isAdmin = variant === 'admin';
+  const headCrumb = isAdmin
+    ? 'Quản trị hệ thống / Dịch vụ & Catalog / Portfolio 21 DV'
+    : 'Kinh doanh / Báo giá / Service Catalog';
+  const headTitle = isAdmin ? 'Portfolio 21 DV — Full-service Agency' : 'Service Catalog — Full-service Agency';
+  const headSubtitle = isAdmin
+    ? 'L0 service_family · nhóm dịch vụ · SKU CB/TC/CS · publish workflow'
+    : 'Portfolio DV01–21 theo nhóm dịch vụ: scope, deliverable, KPI, CTA/UTA, rate card.';
 
   async function submitEditor(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -150,11 +162,9 @@ export function QtCatalogOs({
     <div className="qt-os" data-screen="cat-01">
       <header className="qt-os-head">
         <div>
-          <p className="qt-crumb">Kinh doanh / Báo giá / Service Catalog</p>
-          <h1>Service Catalog — Full-service Agency</h1>
-          <p className="qt-muted">
-            Portfolio DV01–21 theo nhóm dịch vụ: scope, deliverable, KPI, CTA/UTA, rate card.
-          </p>
+          <p className="qt-crumb">{headCrumb}</p>
+          <h1>{headTitle}</h1>
+          <p className="qt-muted">{headSubtitle}</p>
         </div>
         <div className="qt-os-actions">
           <input
@@ -164,10 +174,13 @@ export function QtCatalogOs({
             placeholder="Tìm service, DV, KPI, CTA..."
             aria-label="Tìm catalog"
           />
-          <Link className="qt-btn" href="/crm/proposals/catalog?tab=rates">
+          <Link className="qt-btn" href={isAdmin ? '/admin/services/publish' : '/crm/proposals/catalog?tab=rates'}>
             Import
           </Link>
-          <Link className="qt-btn" href="/crm/proposals/catalog?tab=packages">
+          <Link
+            className="qt-btn"
+            href={isAdmin ? '/crm/proposals/catalog?tab=packages' : '/crm/proposals/catalog?tab=packages'}
+          >
             + Tạo Package
           </Link>
           {canManage ? (
@@ -374,7 +387,9 @@ export function QtCatalogOs({
                         </button>
                       </div>
                     </div>
-                    {!canAddToClientQuote(item) ? <p className="qt-os-warn">Chưa add được vào Quote client-facing</p> : null}
+                    {!isAdmin && !canAddToClientQuote(item) ? (
+                      <p className="qt-os-warn">Chưa add được vào Quote client-facing</p>
+                    ) : null}
                   </article>
                 );
               })

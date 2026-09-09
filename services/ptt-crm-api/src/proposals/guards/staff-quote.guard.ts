@@ -62,9 +62,19 @@ export class StaffQuoteGuard implements CanActivate {
       'crm_quote';
 
     const me = await this.staffAuth.me(req.staffUser);
-    const allowed =
+    let allowed =
       this.staffAuth.hasCap(me.caps, section, action) ||
       (action === 'view' && this.staffAuth.hasCap(me.caps, section, 'view_all'));
+    if (
+      !allowed &&
+      section === 'crm_quote.catalog' &&
+      action === 'manage' &&
+      me?.caps?.length
+    ) {
+      allowed =
+        this.staffAuth.hasCap(me.caps, 'spc', 'edit') ||
+        this.staffAuth.hasCap(me.caps, 'crm_data_config', 'configure');
+    }
     if (!allowed) {
       throw new ForbiddenException({ error: 'missing_cap', section, action });
     }

@@ -85,24 +85,24 @@ describe('QtCatalog CAT-01 groups', () => {
         ],
       }),
     );
-    expect(html).toContain('Portfolio DV01–21');
+    expect(html).toContain('Admin Portfolio 21 DV');
     expect(html).toContain('Hệ thống nhận diện Thương hiệu');
     expect(html).toContain('data-dv="DV01"');
     expect(html).toContain('data-filter="all"');
-    expect(html).toContain('Nhóm dịch vụ');
-    expect(html).toContain('data-group="performance"');
+    expect(html).not.toContain('Nhóm dịch vụ');
     expect(html).not.toContain('NOVA');
   });
 
   it('shows empty Portfolio state instead of a dash', () => {
     const html = renderToStaticMarkup(createElement(QtCatalogView, { items: [], loading: false }));
-    expect(html).toContain('Không tìm thấy service phù hợp');
+    expect(html).toContain('Chưa tải được Portfolio 21 DV');
     expect(html).not.toContain(`qt-empty">${dash(null)}`);
   });
 
-  it('shows group and service edit actions when manage is allowed', () => {
+  it('shows group and service edit actions on admin portfolio OS', () => {
     const html = renderToStaticMarkup(
       createElement(QtCatalogOs, {
+        variant: 'admin',
         items: [
           {
             dv_code: 'DV04',
@@ -116,6 +116,7 @@ describe('QtCatalog CAT-01 groups', () => {
         canManage: true,
       }),
     );
+    expect(html).toContain('Portfolio 21 DV — Full-service Agency');
     expect(html).toContain('+ Thêm Service');
     expect(html).toContain('Sửa');
     expect(html).toContain('Xóa');
