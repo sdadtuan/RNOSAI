@@ -57,7 +57,7 @@ export function ServiceKpiTemplateDrawer({ open, token, onClose, onCreated }: Pr
       rules: selectedKpis.map((dictionaryId) => {
         const row = activeKpis.find((k) => k.id === dictionaryId);
         const classification: SkpiClassification =
-          row?.group === 'Finance' ? 'INTERNAL_OPERATIONAL' : 'OPTIMIZATION_TARGET';
+          row?.group === 'FINANCE' ? 'INTERNAL_OPERATIONAL' : 'OPTIMIZATION_TARGET';
         return {
           dictionary_id: dictionaryId,
           classification,
