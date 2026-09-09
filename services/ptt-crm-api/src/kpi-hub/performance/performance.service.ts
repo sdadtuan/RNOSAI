@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import type { ServiceKpiRepository } from '../service-kpi/service-kpi.repository';
 import { filterFieldsForRole } from './performance-acl';
 import { computeDashboardTiles, buildWeeklyRhythm } from './performance-dashboard';
 import { buildLedgers, isMaterialQuotedDelta, quotedDeltaPct } from './performance-ledgers';
@@ -69,6 +70,14 @@ function parseMappingQuality(raw: string): Quality {
 export class PerformanceService {
   private catalog: PmCatalog = seedPerformanceCatalog();
   private idempotency = new Map<string, unknown>();
+  private hydratedActuals: Array<{
+    instance_id: string;
+    value: number | null;
+    quality_status?: string;
+    quality?: string;
+  }> | null = null;
+
+  constructor(@Optional() private readonly serviceKpiRepo?: ServiceKpiRepository) {}
 
   getCatalog(): PmCatalog {
     return this.catalog;
@@ -138,8 +147,42 @@ export class PerformanceService {
     };
   }
 
-  listAssignments(scope?: string) {
-    const items = this.catalog.assignments.map((a) => this.enrich(a));
+  private mapSkpiQuality(raw: string | undefined): LedgerQuality {
+    if (raw === 'valid' || raw === 'verified') return 'verified';
+    if (raw === 'stale') return 'stale';
+    return 'pending';
+  }
+
+  private async loadHydratedActuals(): Promise<void> {
+    if (!this.serviceKpiRepo || this.hydratedActuals) return;
+    this.hydratedActuals = await this.serviceKpiRepo.listRecentActuals();
+  }
+
+  private async hydrateFromInstance(asg: PmAssignment): Promise<PmAssignment> {
+    if (!this.serviceKpiRepo || !asg.instance_id) return this.enrich(asg);
+    await this.loadHydratedActuals();
+    const match = this.hydratedActuals?.find((a) => a.instance_id === asg.instance_id);
+    if (!match || match.value == null) return this.enrich(asg);
+    const rawQuality = match.quality_status ?? match.quality;
+    asg.actual = match.value;
+    asg.quality = this.mapSkpiQuality(rawQuality);
+    asg.progress = progressPercent({ actual: match.value, target: asg.target, direction: asg.direction });
+    asg.status = healthFromDirection({
+      actual: match.value,
+      target: asg.target,
+      direction: asg.direction,
+      progress: asg.progress,
+    });
+    return this.enrich(asg);
+  }
+
+  async listAssignments(scope?: string) {
+    let items = this.catalog.assignments;
+    if (this.serviceKpiRepo) {
+      items = await Promise.all(items.map((a) => this.hydrateFromInstance({ ...a })));
+    } else {
+      items = items.map((a) => this.enrich(a));
+    }
     if (!scope || scope === 'all') return { items };
     return { items: items.filter((a) => a.scope_type === scope) };
   }

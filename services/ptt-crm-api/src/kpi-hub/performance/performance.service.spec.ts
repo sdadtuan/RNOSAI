@@ -2,9 +2,9 @@ import { BadRequestException } from '@nestjs/common';
 import { PerformanceService } from './performance.service';
 
 describe('PerformanceService', () => {
-  it('lists seeded assignments and creates a draft', () => {
+  it('lists seeded assignments and creates a draft', async () => {
     const svc = new PerformanceService();
-    const before = svc.listAssignments().items.length;
+    const before = (await svc.listAssignments()).items.length;
     const created = svc.createAssignment({
       name: 'Lead đủ điều kiện Q4',
       owner: 'Nguyễn Minh Anh',
@@ -14,7 +14,7 @@ describe('PerformanceService', () => {
       direction: 'higher',
     });
     expect(created.status).toBe('no_data');
-    expect(svc.listAssignments().items.length).toBe(before + 1);
+    expect((await svc.listAssignments()).items.length).toBe(before + 1);
   });
 
   it('rejects scorecard item when weight exceeds 100', () => {
@@ -97,5 +97,26 @@ describe('PerformanceService', () => {
       display: 'N/A',
       reason: 'Thiếu attribution model',
     });
+  });
+
+  it('hydrates assignment actual from service kpi instance when repo provided', async () => {
+    const repo = {
+      listRecentActuals: async () => [{ instance_id: 'inst-1', value: 99000, quality_status: 'valid' }],
+    };
+    const svc = new PerformanceService(repo as never);
+    svc.createAssignment({
+      name: 'CPL hydrated',
+      definition_code: 'MKT_006',
+      owner: 'Lê Hoàng',
+      scope_type: 'campaign',
+      scope_name: 'An Phát',
+      target: 100000,
+      direction: 'lower',
+      instance_id: 'inst-1',
+    });
+    const items = (await svc.listAssignments()).items;
+    const row = items.find((a) => a.instance_id === 'inst-1');
+    expect(row?.actual).toBe(99000);
+    expect(row?.quality).toBe('verified');
   });
 });
