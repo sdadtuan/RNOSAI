@@ -18,7 +18,21 @@ class CreateMemory {
         full_name: 'An Phát',
       },
     ],
+    [
+      5,
+      {
+        sqlite_lead_id: 5,
+        agency_client_id: null,
+        converted_customer_id: null,
+        owner_id: 7,
+        full_name: 'Tuan Truong',
+        company_name: '',
+        phone: '0901',
+        email: '',
+      },
+    ],
   ]);
+  leadUpdates: Record<string, unknown>[] = [];
   proposals: Record<string, unknown>[] = [];
   versions: Record<string, unknown>[] = [];
   activity: Record<string, unknown>[] = [];
@@ -87,6 +101,18 @@ class CreateMemory {
     if (/FROM clients/i.test(sql)) {
       const id = String(params[0] ?? '');
       return { rows: this.clients.has(id) ? [{ id }] : [] };
+    }
+    if (/UPDATE crm_leads/i.test(sql)) {
+      this.leadUpdates.push({ sql, params });
+      const leadId = Number(params[params.length - 1]);
+      const lead = this.leads.get(leadId);
+      if (lead && /company_name/i.test(sql)) {
+        lead.company_name = params[0];
+        if (params.length > 2) lead.company_address = params[1];
+        if (params.length > 3) lead.phone = params[2];
+        if (params.length > 4) lead.email = params[3];
+      }
+      return { rows: lead ? [lead] : [] };
     }
     if (/FROM crm_leads/i.test(sql)) {
       const lead = this.leads.get(Number(params[0]));
@@ -265,5 +291,47 @@ describe('QuoteCreateService', () => {
     expect(db.proposals).toHaveLength(1);
     expect(db.sqls.some((sql) => /pg_advisory_xact_lock\(hashtext/i.test(sql))).toBe(true);
     expect(db.txCalls).toBeGreaterThan(0);
+  });
+
+  it('AC-LP-01: lead without agency_client_id still creates a draft', async () => {
+    const { db, svc } = load();
+
+    const out = await svc.create(
+      {
+        source: 'lead',
+        lead_id: 5,
+        title: '360 Auto Q1',
+        quote_type: 'new_business',
+      },
+      { staffId: 7, idempotencyKey: 'lp-01-key' },
+    );
+
+    expect(out.proposal.status).toBe('draft');
+    expect(out.proposal.id).toBeGreaterThan(0);
+    expect(db.proposalInsertParams[5]).toBeNull();
+    expect(db.sqls.some((sql) => /INSERT INTO clients/i.test(sql))).toBe(false);
+  });
+
+  it('AC-LP-05: create with lead_party writes company onto the lead', async () => {
+    const { db, svc } = load();
+
+    await svc.create(
+      {
+        source: 'lead',
+        lead_id: 5,
+        title: '360 Auto Q1',
+        quote_type: 'new_business',
+        lead_party: {
+          company_name: '360 Auto Detailing',
+          company_address: '12 Nguyễn Huệ',
+          phone: '0901234567',
+          email: 'am@360auto.vn',
+        },
+      },
+      { staffId: 7, idempotencyKey: 'lp-05-key' },
+    );
+
+    expect(db.leadUpdates.length).toBeGreaterThan(0);
+    expect(db.leads.get(5)?.company_name).toBe('360 Auto Detailing');
   });
 });

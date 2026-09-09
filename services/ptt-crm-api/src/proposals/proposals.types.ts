@@ -93,6 +93,13 @@ export interface CreateProposalBody {
   source?: 'lead' | 'am360' | 'blank';
   agency_client_id?: string;
   quote_type?: string;
+  lead_party?: {
+    company_name?: string;
+    company_address?: string;
+    phone?: string;
+    email?: string;
+    logo_asset_id?: string | null;
+  };
 }
 
 export interface PatchProposalStatusBody {

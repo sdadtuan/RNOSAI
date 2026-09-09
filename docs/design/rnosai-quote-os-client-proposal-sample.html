@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>QT-PTT-2026-000104 · Đề xuất Marketing — 360 AUTO DETAILING</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --navy: #0b1f3a;
+    --navy-2: #14325a;
+    --gold: #c4a574;
+    --ink: #1a2332;
+    --muted: #5c6b7a;
+    --line: #e4e8ee;
+    --paper: #f7f4ee;
+    --card: #fff;
+    --ok: #1b6b4a;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: #d8dde4;
+    color: var(--ink);
+    font: 15px/1.55 "Be Vietnam Pro", system-ui, sans-serif;
+  }
+  .toolbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between;
+    padding: 10px 18px;
+    background: var(--navy); color: #e8eef6;
+    font-size: 13px;
+  }
+  .toolbar small { color: #9bb0c9; }
+  .toolbar button, .toolbar a {
+    appearance: none; border: 0; border-radius: 8px;
+    padding: 8px 12px; font: inherit; font-weight: 600; cursor: pointer;
+    background: #fff; color: var(--navy); text-decoration: none;
+  }
+  .toolbar button.ghost { background: transparent; color: #fff; border: 1px solid #3a5474; }
+  .sheet {
+    width: min(920px, 100%);
+    margin: 24px auto 64px;
+    background: var(--card);
+    box-shadow: 0 18px 50px rgba(11, 31, 58, 0.18);
+  }
+  .cover {
+    min-height: 520px;
+    padding: 48px 56px 40px;
+    background:
+      radial-gradient(900px 420px at 110% -10%, #1e4a82 0%, transparent 55%),
+      linear-gradient(165deg, var(--navy) 0%, var(--navy-2) 55%, #0a1728 100%);
+    color: #fff;
+  }
+  .cover-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+  .brand { display: flex; gap: 12px; align-items: center; }
+  .brand-mark {
+    width: 44px; height: 44px; border-radius: 10px;
+    display: grid; place-items: center;
+    background: var(--gold); color: var(--navy); font-weight: 700; letter-spacing: -0.04em;
+  }
+  .brand b { display: block; font-size: 15px; letter-spacing: 0.08em; }
+  .brand span { font-size: 11px; color: #c5d2e3; letter-spacing: 0.04em; }
+  .doc-meta { text-align: right; font-size: 12px; color: #c5d2e3; }
+  .doc-meta strong { display: block; color: #fff; font-size: 14px; margin-bottom: 4px; }
+  .cover-kicker {
+    margin: 72px 0 12px;
+    font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold);
+  }
+  .cover h1 { margin: 0 0 12px; font-size: 40px; line-height: 1.15; letter-spacing: -0.03em; max-width: 16ch; }
+  .cover .lede { max-width: 52ch; color: #d5deea; font-size: 16px; }
+  .parties {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    margin-top: 48px;
+  }
+  .party {
+    padding: 16px 18px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.06);
+    border-radius: 12px;
+  }
+  .party small { display: block; color: var(--gold); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+  .party-head { display: flex; gap: 12px; align-items: center; }
+  .client-logo {
+    width: 52px; height: 52px; border-radius: 10px; flex: 0 0 auto;
+    display: grid; place-items: center;
+    background: #111; color: #f3c14a; font-weight: 700; font-size: 13px; letter-spacing: -0.04em;
+    border: 2px solid var(--gold);
+  }
+  .party strong { display: block; font-size: 16px; }
+  .party p { margin: 4px 0 0; font-size: 12px; color: #c9d5e4; line-height: 1.45; }
+  .page { padding: 40px 56px; border-top: 1px solid var(--line); }
+  .page h2 {
+    margin: 0 0 8px;
+    font-size: 22px; letter-spacing: -0.03em;
+  }
+  .page .sec-no { color: var(--gold); font-size: 12px; letter-spacing: 0.12em; font-weight: 700; }
+  .page p.intro { color: var(--muted); margin: 0 0 20px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card {
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fbfcfe;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 14px; }
+  .card p, .card li { color: #3d4b5c; font-size: 14px; }
+  .card ul { margin: 0; padding-left: 1.15rem; }
+  .pillars { display: grid; gap: 12px; }
+  .pillar {
+    display: grid; grid-template-columns: 44px 1fr; gap: 14px;
+    padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px;
+  }
+  .pillar i {
+    display: grid; place-items: center;
+    width: 44px; height: 44px; border-radius: 10px;
+    background: var(--navy); color: #fff; font-style: normal; font-weight: 700;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .kpi { padding: 14px; border-radius: 12px; background: var(--paper); }
+  .kpi span { display: block; font-size: 11px; color: var(--muted); font-weight: 600; }
+  .kpi b { display: block; margin-top: 6px; font-size: 18px; letter-spacing: -0.03em; }
+  .kpi em { display: block; margin-top: 4px; font-size: 11px; color: #7a6548; font-style: normal; }
+  .funnel { display: flex; gap: 8px; margin-top: 16px; }
+  .fstep { flex: 1; padding: 12px 8px; text-align: center; color: #fff; border-radius: 10px; }
+  .fstep:nth-child(1) { background: #14325a; }
+  .fstep:nth-child(2) { flex: 0.78; background: #1d4a7c; }
+  .fstep:nth-child(3) { flex: 0.55; background: #2563a8; }
+  .fstep:nth-child(4) { flex: 0.4; background: #3b82c4; }
+  .fstep b { display: block; font-size: 16px; }
+  .fstep span { font-size: 11px; opacity: 0.85; }
+  .tl { position: relative; display: grid; gap: 16px; }
+  .tl::before { content: ""; position: absolute; left: 15px; top: 8px; bottom: 8px; width: 2px; background: #d5deea; }
+  .ms { display: grid; grid-template-columns: 32px 1fr 140px; gap: 12px; }
+  .dot { z-index: 1; width: 32px; height: 32px; border-radius: 50%; background: var(--navy); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+  .ms h4 { margin: 2px 0 4px; font-size: 15px; }
+  .ms p { margin: 0; color: var(--muted); font-size: 13px; }
+  .ms time { font-size: 12px; color: var(--navy); font-weight: 600; text-align: right; }
+  .price-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 14px; }
+  .price-row.total { margin-top: 8px; padding-top: 14px; border-top: 2px solid var(--navy); font-size: 18px; font-weight: 700; }
+  .pay { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pay div { padding: 14px; border-radius: 12px; border: 1px solid var(--line); }
+  .pay b { display: block; font-size: 22px; color: var(--navy); }
+  .pay span { font-size: 13px; color: var(--muted); }
+  .note { font-size: 12.5px; color: var(--muted); background: #fff8e8; border: 1px solid #f0e0b8; padding: 12px 14px; border-radius: 10px; }
+  .terms dt { font-weight: 700; margin-top: 12px; }
+  .terms dd { margin: 4px 0 0; color: #3d4b5c; }
+  .accept {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+    padding: 20px 22px; border-radius: 14px; background: var(--navy); color: #fff;
+  }
+  .accept p { margin: 4px 0 0; color: #c5d2e3; font-size: 13px; }
+  .accept button {
+    border: 0; border-radius: 10px; padding: 12px 18px;
+    background: var(--gold); color: var(--navy); font: inherit; font-weight: 700; cursor: pointer;
+  }
+  footer.doc-foot {
+    padding: 20px 56px 36px;
+    display: flex; justify-content: space-between; gap: 16px;
+    color: var(--muted); font-size: 12px; border-top: 1px solid var(--line);
+  }
+  @media (max-width: 720px) {
+    .cover, .page, footer.doc-foot { padding: 28px 20px; }
+    .cover h1 { font-size: 30px; }
+    .parties, .grid2, .kpis, .pay { grid-template-columns: 1fr; }
+    .ms { grid-template-columns: 32px 1fr; }
+    .ms time { text-align: left; grid-column: 2; }
+    .funnel { flex-wrap: wrap; }
+  }
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none; }
+    .sheet { width: 100%; margin: 0; box-shadow: none; }
+    .page, .cover { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<header class="toolbar">
+  <div>
+    <b>Mẫu báo giá gửi khách</b>
+    <small> · QT-LEAD-PARTY · không cost/margin · snapshot Lead party</small>
+  </div>
+  <div>
+    <button class="ghost" type="button" onclick="window.print()">In / PDF</button>
+    <a href="./rnosai-quote-os-public-mockup.html">PUB-01 ops</a>
+  </div>
+</header>
+
+<article class="sheet">
+  <section class="cover">
+    <div class="cover-top">
+      <div class="brand">
+        <div class="brand-mark">PTT</div>
+        <div>
+          <b>PTT ADS</b>
+          <span>Phát hành PTT HCM · VND · VAT 8%</span>
+        </div>
+      </div>
+      <div class="doc-meta">
+        <strong>QT-PTT-2026-000104</strong>
+        Bản v1 · New business<br/>
+        Phát hành 09/09/2026 · Hiệu lực đến 09/10/2026<br/>
+        Lead LD-5 · chưa AM 360
+      </div>
+    </div>
+    <p class="cover-kicker">Đề xuất marketing tích hợp</p>
+    <h1>Hiện diện thương hiệu 360° trên TikTok, Facebook &amp; YouTube</h1>
+    <p class="lede">Xây nhận diện 360 Auto Detailing qua nội dung nghề và người làm nghề — tiếp cận đúng chủ xe quan tâm chăm sóc xe, chuyển đổi về form / inbox.</p>
+    <div class="parties">
+      <div class="party">
+        <small>Bên phát hành</small>
+        <strong>PTT Advertising — HCM</strong>
+        <p>Owner: AM Minh<br/>Timezone Asia/Ho_Chi_Minh<br/>Bảo mật: nội bộ + khách được share</p>
+      </div>
+      <div class="party">
+        <small>Khách — thông tin trên Lead (chưa agency_client)</small>
+        <div class="party-head">
+          <div class="client-logo" title="logo_asset_id trên lead">360</div>
+          <div>
+            <strong>360 AUTO DETAILING</strong>
+            <p>
+              Người liên hệ: Tuan Truong<br/>
+              12 Nguyễn Văn Linh, Q.7, TP.HCM<br/>
+              0901 234 567 · tuan@360autodetailing.vn
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="s02">
+    <div class="sec-no">02 · BỐI CẢNH &amp; MỤC TIÊU</div>
+    <h2>Vì sao hợp tác lúc này</h2>
+    <p class="intro">Lead LD-5 đã xong Consult + KH MKT sơ bộ (R5). Đây là snapshot gửi khách — không phải hợp đồng.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>Thách thức</h3>
+        <p>Thương hiệu detailing có tay nghề nhưng hiện diện rời rạc trên mạng. Chủ xe tìm dịch vụ qua TikTok / Facebook, chưa có hệ thống nội dung nghề và đường chuyển đổi rõ.</p>
+      </div>
+      <div class="card">
+        <h3>Mục tiêu hợp tác (3 tháng)</h3>
+        <ul>
+          <li>Mở 3 kênh chủ: TikTok, Facebook, YouTube</li>
+          <li>Nhận diện đúng nhóm chủ xe chăm sóc xe</li>
+          <li>Lead inbox / form đo được từng tuần</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Đối tượng</h3>
+        <p>Chủ xe sedan / SUV tại HCM &amp; lân cận, quan tâm phủ ceramic, detailing nội thất, bảo dưỡng định kỳ. Không bán đại trà “rửa xe giá rẻ”.</p>
+      </div>
+      <div class="card">
+        <h3>Thời gian</h3>
+        <p>01/10/2026 — 31/12/2026 · Kick-off trong 7 ngày sau xác nhận đề xuất.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="s03">
+    <div class="sec-no">03 · CHIẾN LƯỢC</div>
+    <h2>Ba trụ từ KH MKT sơ bộ (R5)</h2>
+    <p class="intro">Nội dung nghề + người làm nghề. Media: TikTok, Facebook, YouTube. Chuyển đổi: landing / form / inbox.</p>
+    <div class="pillars">
+      <div class="pillar">
+        <i>01</i>
+        <div>
+          <h3>Thông điệp thị trường</h3>
+          <p>Kể chuyện nghề detailing: tay nghề, quy trình, before/after trung thực. Không claim “bóng nhất SG”.</p>
+        </div>
+      </div>
+      <div class="pillar">
+        <i>02</i>
+        <div>
+          <h3>Kênh tiếp cận</h3>
+          <p>TikTok (khám phá), Facebook (cộng đồng + ads), YouTube (uy tín quy trình dài). Ngân sách media tách khỏi phí agency.</p>
+        </div>
+      </div>
+      <div class="pillar">
+        <i>03</i>
+        <div>
+          <h3>Chuyển đổi</h3>
+          <p>Landing + form đặt lịch; inbox Zalo/FB trong SLA 15 phút. Remarketing người xem video ≥ 50%.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="s04">
+    <div class="sec-no">04 · PHẠM VI DỊCH VỤ</div>
+    <h2>Hạng mục cam kết bàn giao</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Dịch vụ</th>
+          <th>SKU / gói</th>
+          <th>Deliverable (cam kết)</th>
+          <th>Kết quả liên quan</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Quản trị nội dung MXH</td>
+          <td>Growth · Standard</td>
+          <td>16 bài + 12 Reels / tháng · 2 vòng sửa</td>
+          <td>ER mục tiêu ≥ 4%</td>
+        </tr>
+        <tr>
+          <td>Meta Ads (Facebook / IG)</td>
+          <td>Performance · Launch</td>
+          <td>2 campaign set · A/B creative · report tuần</td>
+          <td>CPL mục tiêu ≤ 80.000 ₫</td>
+        </tr>
+        <tr>
+          <td>TikTok organic + spark</td>
+          <td>Always-on</td>
+          <td>12 video dọc / tháng · hook nghề</td>
+          <td>Watch rate mục tiêu ≥ 30%</td>
+        </tr>
+        <tr>
+          <td>Landing + form đặt lịch</td>
+          <td>CRO · 1 page</td>
+          <td>1 LP + tracking + kết nối inbox</td>
+          <td>Tỷ lệ form mục tiêu ≥ 8%</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note" style="margin-top:16px"><b>Trong scope:</b> chiến lược, sản xuất nội dung, setup ads, LP, báo cáo tuần.<br/><b>Ngoài scope:</b> quay studio thuê ngoài, celebrity, media vượt ngân sách đã duyệt, CRM cửa hàng.</p>
+  </section>
+
+  <section class="page" id="s05">
+    <div class="sec-no">05 · KPI 3 LỚP</div>
+    <h2>Cam kết bàn giao ≠ mục tiêu tối ưu ≠ forecast</h2>
+    <div class="kpis">
+      <div class="kpi"><span>Bài + Reels / tháng</span><b>28</b><em>Cam kết bàn giao</em></div>
+      <div class="kpi"><span>Lead form / inbox</span><b>180–240</b><em>Forecast 3 tháng</em></div>
+      <div class="kpi"><span>CPL mục tiêu</span><b>≤ 80K</b><em>Tối ưu (không cam kết tuyệt đối)</em></div>
+      <div class="kpi"><span>Thời gian TL inbox</span><b>&lt; 15 phút</b><em>Giả định phía khách</em></div>
+    </div>
+    <div class="funnel">
+      <div class="fstep"><b>1,2Tr</b><span>Impression</span></div>
+      <div class="fstep"><b>22K</b><span>Click / xem</span></div>
+      <div class="fstep"><b>180–240</b><span>Lead</span></div>
+      <div class="fstep"><b>36–48</b><span>Đặt lịch</span></div>
+    </div>
+    <p class="note" style="margin-top:16px">Forecast phụ thuộc ngân sách media, creative, LP, mùa vụ và tốc độ cửa hàng xử lý lead. PTT không cam kết doanh thu showroom.</p>
+  </section>
+
+  <section class="page" id="s06">
+    <div class="sec-no">06 · TIMELINE</div>
+    <h2>Bốn mốc 90 ngày</h2>
+    <div class="tl">
+      <div class="ms">
+        <div class="dot">1</div>
+        <div>
+          <h4>Kick-off &amp; nền</h4>
+          <p>Chốt thông điệp, brand kit nhẹ, tracking, LP, lịch nội dung tháng 1.</p>
+        </div>
+        <time>01–10/10/2026</time>
+      </div>
+      <div class="ms">
+        <div class="dot">2</div>
+        <div>
+          <h4>Launch kênh + ads</h4>
+          <p>Publish đều, chạy Meta + TikTok spark, A/B 4 creative gốc.</p>
+        </div>
+        <time>11–31/10/2026</time>
+      </div>
+      <div class="ms">
+        <div class="dot">3</div>
+        <div>
+          <h4>Scale nhóm hiệu quả</h4>
+          <p>Cắt adset yếu, remarketing xem video, tối ưu form.</p>
+        </div>
+        <time>01–30/11/2026</time>
+      </div>
+      <div class="ms">
+        <div class="dot">4</div>
+        <div>
+          <h4>Ổn định &amp; đề xuất năm</h4>
+          <p>Báo cáo nghiệm thu, playbook nội dung, option gia hạn Q1.</p>
+        </div>
+        <time>01–31/12/2026</time>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="s07">
+    <div class="sec-no">07 · ĐẦU TƯ</div>
+    <h2>Phí agency tách ngân sách media</h2>
+    <div class="grid2">
+      <div>
+        <div class="price-row"><span>Phí dịch vụ 3 tháng (nội dung + ads ops + LP)</span><b>96.000.000 ₫</b></div>
+        <div class="price-row"><span>Ngân sách media (pass-through)</span><b>60.000.000 ₫</b></div>
+        <div class="price-row"><span>Chiết khấu gói Launch</span><b>−4.800.000 ₫</b></div>
+        <div class="price-row"><span>Tạm tính trước VAT</span><b>151.200.000 ₫</b></div>
+        <div class="price-row"><span>VAT 8%</span><b>12.096.000 ₫</b></div>
+        <div class="price-row total"><span>Tổng thanh toán</span><b>163.296.000 ₫</b></div>
+      </div>
+      <div class="card">
+        <h3>Ghi chú giá</h3>
+        <ul>
+          <li>Media chuyển đúng nền tảng, không tính vào phí agency.</li>
+          <li>Quay ngoài giờ / thuê studio: báo giá phát sinh.</li>
+          <li>Không hiển thị cost nội bộ / GM trên bản khách.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="s08">
+    <div class="sec-no">08 · THANH TOÁN &amp; ĐIỀU KHOẢN</div>
+    <h2>50 / 30 / 20</h2>
+    <div class="pay">
+      <div><b>50%</b><span>Khi xác nhận đề xuất — khởi động</span></div>
+      <div><b>30%</b><span>Ngày 01/11/2026 — giữa kỳ</span></div>
+      <div><b>20%</b><span>Nghiệm thu 31/12/2026</span></div>
+    </div>
+    <dl class="terms">
+      <dt>Hiệu lực</dt>
+      <dd>30 ngày từ 09/09/2026. Hết hạn thì cần bản revision.</dd>
+      <dt>Phạm vi</dt>
+      <dd>Hạng mục ngoài bảng §04 theo Change Request và báo giá bổ sung.</dd>
+      <dt>Sở hữu sáng tạo</dt>
+      <dd>Chuyển giao quyền sử dụng tài sản đã bàn giao sau khi hoàn tất nghĩa vụ thanh toán tương ứng.</dd>
+      <dt>Bảo mật</dt>
+      <dd>Hai bên không tiết lộ giá, creative chưa public, dữ liệu khách hàng cửa hàng.</dd>
+      <dt>Pháp lý</dt>
+      <dd>Tài liệu này là <b>đề xuất thương mại</b>, không phải hợp đồng. HĐ / PO lập sau khi khách xác nhận và PTT convert.</dd>
+    </dl>
+  </section>
+
+  <section class="page" id="s09">
+    <div class="sec-no">09 · XÁC NHẬN</div>
+    <h2>Bước tiếp theo</h2>
+    <div class="accept">
+      <div>
+        <strong>Xác nhận đề xuất QT-PTT-2026-000104 · v1</strong>
+        <p>OTP email · ghi họ tên, chức danh, thời điểm. Không phải chữ ký số HĐ.</p>
+      </div>
+      <button type="button">Xác nhận đề xuất</button>
+    </div>
+    <p class="intro" style="margin-top:16px">Sau xác nhận: PTT mở HĐ draft → khi HĐ active mới tạo khách AM 360 từ thông tin Lead ở bìa (công ty, địa chỉ, SĐT, email, logo).</p>
+  </section>
+
+  <footer class="doc-foot">
+    <div>PTT Ads · mẫu client-facing · spec 2026-09-09-lead-party-quote-design.md</div>
+    <div>Trang gửi khách · ẩn cost / margin / approval</div>
+  </footer>
+</article>
+</body>
+</html>

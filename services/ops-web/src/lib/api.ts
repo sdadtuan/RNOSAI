@@ -50,6 +50,9 @@ export interface LeadRow {
   in_call?: boolean;
   expected_value?: number | null;
   margin_pct?: number | null;
+  company_name?: string;
+  company_address?: string;
+  logo_asset_id?: string | null;
   review_queue?: {
     active: boolean;
     message?: string;
@@ -1285,6 +1288,46 @@ export interface PatchLeadBody {
   status?: string;
   assigned_by?: string;
   audit_note?: string;
+  company_name?: string;
+  company_address?: string;
+  phone?: string;
+  email?: string;
+  logo_asset_id?: string | null;
+}
+
+export async function uploadLeadPartyLogo(
+  token: string,
+  id: number,
+  file: File,
+): Promise<LeadRow> {
+  const body = new FormData();
+  body.append('file', file);
+  const res = await fetch(`${API_BASE}/api/v1/leads/${id}/party-logo`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body,
+  });
+  const out = await parseJson<LeadRow & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.error ?? out.message ?? 'Không tải được logo', res.status);
+  }
+  return out;
+}
+
+export async function deleteLeadPartyLogo(token: string, id: number): Promise<LeadRow> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${id}/party-logo`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  const out = await parseJson<LeadRow & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.error ?? out.message ?? 'Không gỡ được logo', res.status);
+  }
+  return out;
+}
+
+export function leadPartyLogoUrl(id: number): string {
+  return `${API_BASE}/api/v1/leads/${id}/party-logo`;
 }
 
 export async function patchLead(

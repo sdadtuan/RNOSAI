@@ -103,6 +103,11 @@ describe('QtStudioChrome', () => {
     expect(leaked).not.toHaveProperty('margin');
     expect(leaked).not.toHaveProperty('nsr');
     expect(leaked.options?.map((row) => row.option_key)).toEqual(['A', 'B']);
+    expect(
+      pickPublicPreview({
+        party: { company_name: '360 Auto', contact_name: 'Tuan', phone: '0901' },
+      }).party,
+    ).toMatchObject({ company_name: '360 Auto', contact_name: 'Tuan', phone: '0901' });
 
     const html = renderToStaticMarkup(
       createElement(QtStudioChrome, {

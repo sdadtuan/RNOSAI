@@ -354,6 +354,22 @@
   flex-wrap: wrap;
 }
 
+.lead-party-card__logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.lead-party-card__thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
 .qt-side-row {
   display: flex;
   justify-content: space-between;

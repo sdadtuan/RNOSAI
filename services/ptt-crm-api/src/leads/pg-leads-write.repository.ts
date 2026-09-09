@@ -189,6 +189,15 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
       if (body.margin_pct !== undefined) financial.margin_pct = body.margin_pct;
       push(`meta_json = meta_json || ?::jsonb`, JSON.stringify({ financial }));
     }
+    if (body.company_name !== undefined) push('company_name = ?', String(body.company_name ?? '').trim());
+    if (body.company_address !== undefined) {
+      push('company_address = ?', String(body.company_address ?? '').trim());
+    }
+    if (body.phone !== undefined) push('phone = ?', String(body.phone ?? '').trim());
+    if (body.email !== undefined) push('email = ?', String(body.email ?? '').trim());
+    if (body.logo_asset_id !== undefined) {
+      push('logo_asset_id = ?', body.logo_asset_id ? String(body.logo_asset_id).trim() : null);
+    }
 
     if (sets.length <= 2) {
       throw new BadRequestException({ error: 'No supported patch fields' });
@@ -247,6 +256,7 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
               l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,
               l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
               l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
+              l.company_name, l.company_address, l.logo_asset_id,
               l.meta_json::text AS meta_json
        FROM crm_leads l WHERE l.sqlite_lead_id = $1`,
       [leadId],

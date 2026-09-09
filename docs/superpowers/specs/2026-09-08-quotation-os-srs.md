@@ -292,7 +292,7 @@ Field:
 | Field | Bắt buộc | SoR |
 |---|---|---|
 | Nguồn + lead_id | nếu nguồn Lead | `crm_leads` select tên `LD-…` |
-| agency_client_id | có trước submit | `crm_clients` select tên |
+| agency_client_id | bắt buộc khi nguồn AM 360; **không** bắt buộc khi nguồn Lead | `clients` select tên (upsell) |
 | title | có | |
 | quote_type | có | enum new_business/renewal/upsell/retainer/campaign/project/change_request |
 | owner_staff_id | có | prefill lead |
@@ -304,7 +304,7 @@ Field:
 
 **FR-NEW-001** POST tạo root + working v1; cấp `quote_code` unique.  
 **FR-NEW-002** Prefill contact quyết định + expected close từ lead.  
-**AC-NEW-01** Lead có client + owner → Draft, audit `quote.created`.
+**AC-NEW-01** Lead có `lead_id` + title → Draft, audit `quote.created`. Không bắt `agency_client_id` khi nguồn Lead. Header khách (`company_name` + phone hoặc email trên `lead_party`) bắt buộc trước **gửi khách**, không trước tạo nháp.
 
 ---
 
@@ -314,7 +314,7 @@ Layout: main (tab BLD-01…07) + **sticky phải** (đầu tư client-facing · 
 CTA: Lưu nháp · Xem Proposal (PRS-01) · Gửi phê duyệt.  
 Autosave ~2s, optimistic lock `row_version`.
 
-**Header bắt buộc trước submit:** title, `agency_client_id`, owner, VND, quote_date, valid_until, ≥1 line client-facing, payment % = 100, commercial validation.
+**Header bắt buộc trước gửi khách:** `company_name` + (phone hoặc email) từ Lead party; title, owner, VND, quote_date, valid_until, ≥1 line client-facing, payment % = 100, commercial validation. `agency_client_id` bắt buộc khi nguồn AM 360.
 
 ### 7.1. BLD-01 Khách & bối cảnh
 

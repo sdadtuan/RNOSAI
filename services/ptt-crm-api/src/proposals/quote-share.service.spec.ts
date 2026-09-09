@@ -40,6 +40,7 @@ class ShareMemory {
   activity: Record<string, unknown>[] = [];
   lines: Record<string, unknown>[] = [];
   settings: Record<string, unknown> = { share_expiry_days: 14, otp_required: true };
+  leads = new Map<number, Record<string, unknown>>();
   txCalls = 0;
 
   seed() {
@@ -169,10 +170,18 @@ class ShareMemory {
       if (current && typeof params[0] === 'string') current.status = params[0];
       return { rows: current ? [current] : [] };
     }
+    if (/FROM crm_leads/i.test(sql)) {
+      const lead = this.leads.get(Number(params[0]));
+      return { rows: lead ? [lead] : [] };
+    }
     if (/UPDATE crm_quote_versions/i.test(sql)) {
       const vid = String(params[params.length - 1] ?? VID);
       const current = this.versions.get(vid);
       if (!current) return { rows: [] };
+      if (/party_json/i.test(sql)) {
+        current.party_json = params[0];
+        return { rows: [current] };
+      }
       const snap =
         typeof params[1] === 'object' && params[1]
           ? { ...(current.snapshot_json as object), ...(params[1] as object) }
@@ -400,6 +409,36 @@ describe('QuoteShareService', () => {
         expect(gone.getResponse()).not.toHaveProperty('investment');
       }
     }
+  });
+
+  it('AC-LP-03: share with company but no phone/email is 400', async () => {
+    const { db, svc } = load();
+    db.proposals.get(9)!.lead_id = 5;
+    db.leads.set(5, { company_name: '360 Auto', phone: '', email: '', full_name: 'Tuan' });
+
+    await expect(svc.mintShare(9)).rejects.toMatchObject({
+      response: { error: 'contact_required', message: 'Cần SĐT hoặc email trên Lead để gửi báo giá.' },
+    });
+    expect(db.shares).toHaveLength(0);
+  });
+
+  it('share with company + email writes party_json snapshot', async () => {
+    const { db, svc } = load();
+    db.proposals.get(9)!.lead_id = 5;
+    db.leads.set(5, {
+      company_name: '360 Auto',
+      phone: '',
+      email: 'am@360auto.vn',
+      full_name: 'Tuan Truong',
+      company_address: 'Q1',
+    });
+
+    const minted = await svc.mintShare(9);
+    expect(minted.token).toBeTruthy();
+    expect(db.versions.get(VID)?.party_json).toMatchObject({
+      company_name: '360 Auto',
+      email: 'am@360auto.vn',
+    });
   });
 });
 

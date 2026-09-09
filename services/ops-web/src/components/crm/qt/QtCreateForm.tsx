@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { fetchLeads } from '@/lib/api';
+import { fetchLead, fetchLeads } from '@/lib/api';
 import { getAccessToken } from '@/lib/auth';
 import { fetchAmAccounts } from '@/lib/crm/am-api';
+import { LeadPartyCard, emptyLeadParty, type LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
+import { leadPartyClientLabel } from '@/lib/crm/lead-party.util';
 import {
   createQtQuote,
   type QtCreateBody,
@@ -29,7 +31,7 @@ export const QT_CREATE_SOURCES = [
   {
     id: 'blank' as const,
     label: 'Trống',
-    hint: 'Bắt buộc chọn khách trước submit. Không invent client.',
+    hint: 'Chọn Lead hoặc khách AM 360. Không invent client.',
     recommended: false,
   },
 ];
@@ -44,7 +46,16 @@ export const QT_QUOTE_TYPES = [
   { id: 'change_request', label: 'Change request' },
 ] as const;
 
-export type QtLeadOption = { id: number; full_name: string; client_id?: string | null };
+export type QtLeadOption = {
+  id: number;
+  full_name: string;
+  client_id?: string | null;
+  company_name?: string | null;
+  company_address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  logo_asset_id?: string | null;
+};
 export type QtClientOption = { agency_client_id: string; name: string };
 
 export function prefillFromSearch(search: URLSearchParams): {
@@ -71,6 +82,17 @@ export function resolveAgencyClientFromLead(input: {
   return lead?.client_id?.trim() ?? '';
 }
 
+export function partyFromLeadOption(lead?: QtLeadOption | null): LeadPartyFormValue {
+  return {
+    company_name: String(lead?.company_name ?? ''),
+    company_address: String(lead?.company_address ?? ''),
+    phone: String(lead?.phone ?? ''),
+    email: String(lead?.email ?? ''),
+    logo_asset_id: String(lead?.logo_asset_id ?? ''),
+    full_name: String(lead?.full_name ?? ''),
+  };
+}
+
 export function buildQuoteCreateRequest(input: {
   source: QtCreateSource;
   leadId: string;
@@ -79,6 +101,7 @@ export function buildQuoteCreateRequest(input: {
   title: string;
   quoteType: string;
   idempotencyKey: string;
+  party?: LeadPartyFormValue;
 }): { headers: { 'Idempotency-Key': string }; body: QtCreateBody } {
   const body: QtCreateBody = {
     source: input.source,
@@ -91,6 +114,15 @@ export function buildQuoteCreateRequest(input: {
   if (client) body.agency_client_id = client;
   const customerId = Number(input.customerId);
   if (Number.isFinite(customerId) && customerId > 0) body.customer_id = customerId;
+  if (input.source === 'lead' && input.party) {
+    body.lead_party = {
+      company_name: input.party.company_name,
+      company_address: input.party.company_address,
+      phone: input.party.phone,
+      email: input.party.email,
+      logo_asset_id: input.party.logo_asset_id || null,
+    };
+  }
   return {
     headers: { 'Idempotency-Key': input.idempotencyKey },
     body,
@@ -135,6 +167,8 @@ export function QtCreateFields({
   onClientChange,
   onTitleChange,
   onQuoteTypeChange,
+  party,
+  onPartyChange,
 }: {
   source: QtCreateSource;
   leadId: string;
@@ -148,6 +182,8 @@ export function QtCreateFields({
   onClientChange: (agencyClientId: string) => void;
   onTitleChange: (title: string) => void;
   onQuoteTypeChange: (quoteType: string) => void;
+  party?: LeadPartyFormValue;
+  onPartyChange?: (next: LeadPartyFormValue) => void;
 }) {
   const leadOptions = [...leads];
   if (leadId && !leadOptions.some((lead) => String(lead.id) === leadId)) {
@@ -160,6 +196,7 @@ export function QtCreateFields({
   const selectedLead = leadOptions.find((lead) => String(lead.id) === leadId);
 
   return (
+    <div className="qt-create-fields">
     <div className="qt-grid2">
       <div className="qt-card qt-form">
         <label>
@@ -184,7 +221,7 @@ export function QtCreateFields({
           </select>
         </label>
         <label>
-          Khách (AM 360) *
+          {source === 'lead' ? 'Đã có trên AM 360 (upsell)' : 'Khách (AM 360) *'}
           <select
             className="qt-inp"
             name="agency_client_id"
@@ -192,14 +229,18 @@ export function QtCreateFields({
             onChange={(event) => onClientChange(event.target.value)}
             required={source !== 'lead'}
           >
-            <option value="">Chọn khách</option>
+            <option value="">{source === 'lead' ? 'Không — chỉ Lead' : 'Chọn khách'}</option>
             {clientOptions.map((client) => (
               <option key={client.agency_client_id} value={client.agency_client_id}>
                 {client.name}
               </option>
             ))}
           </select>
-          <span className="qt-muted">Chọn tên — không dán UUID</span>
+          <span className="qt-muted">
+            {source === 'lead'
+              ? 'Không tạo khách mới tại đây. Chỉ chọn nếu khách đã có sổ AM 360.'
+              : 'Chọn tên — không dán UUID'}
+          </span>
         </label>
         <label>
           Tiêu đề *
@@ -238,7 +279,7 @@ export function QtCreateFields({
           <span>Khách</span>
           <b>
             {clientOptions.find((client) => client.agency_client_id === agencyClientId)?.name ??
-              dash(null)}
+              leadPartyClientLabel({ company_name: party?.company_name ?? selectedLead?.company_name })}
           </b>
         </div>
         <div className="qt-side-row">
@@ -255,6 +296,14 @@ export function QtCreateFields({
         </div>
         <p className="qt-muted">Tạo = root + working v1. valid_until mặc định +30 ngày.</p>
       </section>
+    </div>
+      {source === 'lead' && party && onPartyChange ? (
+        <LeadPartyCard
+          leadId={Number(leadId) || undefined}
+          value={party}
+          onChange={onPartyChange}
+        />
+      ) : null}
     </div>
   );
 }
@@ -275,6 +324,7 @@ export function QtCreateForm() {
   const [clients, setClients] = useState<QtClientOption[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [party, setParty] = useState<LeadPartyFormValue>(emptyLeadParty());
 
   useEffect(() => {
     setSource(prefill.source);
@@ -296,6 +346,11 @@ export function QtCreateForm() {
           id: lead.id,
           full_name: lead.full_name,
           client_id: lead.client_id,
+          company_name: lead.company_name,
+          company_address: lead.company_address,
+          phone: lead.phone,
+          email: lead.email,
+          logo_asset_id: lead.logo_asset_id,
         })),
       );
       setClients(
@@ -322,6 +377,29 @@ export function QtCreateForm() {
     if (next) setAgencyClientId(next);
   }, [leadId, leads, prefill.agencyClientId]);
 
+  useEffect(() => {
+    const selected = leads.find((row) => String(row.id) === leadId);
+    if (selected) setParty(partyFromLeadOption(selected));
+    const token = getAccessToken();
+    const id = Number(leadId);
+    if (!token || !Number.isFinite(id) || id <= 0) return;
+    if (selected?.company_name) return;
+    void fetchLead(token, id)
+      .then((lead) => {
+        setParty(partyFromLeadOption({
+          id: lead.id,
+          full_name: lead.full_name,
+          client_id: lead.client_id,
+          company_name: lead.company_name,
+          company_address: lead.company_address,
+          phone: lead.phone,
+          email: lead.email,
+          logo_asset_id: lead.logo_asset_id,
+        }));
+      })
+      .catch(() => undefined);
+  }, [leadId, leads]);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     const token = getAccessToken();
@@ -341,6 +419,7 @@ export function QtCreateForm() {
         title,
         quoteType,
         idempotencyKey,
+        party,
       });
       const created = await createQtQuote(token, req.body, req.headers['Idempotency-Key']);
       router.push(`/crm/proposals/${created.proposal.id}`);
@@ -388,10 +467,13 @@ export function QtCreateForm() {
         onLeadChange={(next, clientId) => {
           setLeadId(next);
           if (clientId) setAgencyClientId(clientId);
+          else if (source === 'lead') setAgencyClientId('');
         }}
         onClientChange={setAgencyClientId}
         onTitleChange={setTitle}
         onQuoteTypeChange={setQuoteType}
+        party={party}
+        onPartyChange={setParty}
       />
     </form>
   );

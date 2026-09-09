@@ -3,8 +3,18 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { createHash, randomUUID } from 'crypto';
+import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import {
+  LEAD_PARTY_LOGO_MAX_BYTES,
+  isLeadPartyLogoMimeAllowed,
+  leadPartyLogoExt,
+} from './lead-party.util';
 import { AiScoreAsyncService } from '../ai-intelligence/ai-score-async.service';
 import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
 import { DomainEventService } from '../events/domain-event.service';
@@ -134,7 +144,12 @@ export class LeadsWriteService {
       body.status === undefined &&
       body.score === undefined &&
       body.expected_value === undefined &&
-      body.margin_pct === undefined
+      body.margin_pct === undefined &&
+      body.company_name === undefined &&
+      body.company_address === undefined &&
+      body.phone === undefined &&
+      body.email === undefined &&
+      body.logo_asset_id === undefined
     ) {
       throw new BadRequestException({ error: 'At least one patch field required' });
     }
@@ -178,7 +193,12 @@ export class LeadsWriteService {
         patchBody.status !== undefined ||
         patchBody.score !== undefined ||
         patchBody.expected_value !== undefined ||
-        patchBody.margin_pct !== undefined;
+        patchBody.margin_pct !== undefined ||
+        patchBody.company_name !== undefined ||
+        patchBody.company_address !== undefined ||
+        patchBody.phone !== undefined ||
+        patchBody.email !== undefined ||
+        patchBody.logo_asset_id !== undefined;
 
       let result;
       if (hasPatchFields) {
@@ -282,6 +302,68 @@ export class LeadsWriteService {
     }
 
     return { assigned: assignedIds.length, skipped, lead_ids: assignedIds };
+  }
+
+  async uploadPartyLogo(
+    leadId: number,
+    file: { buffer?: Buffer; mimetype?: string; size?: number } | undefined,
+  ): Promise<LeadV1> {
+    const existing = await this.leadsRepo.getLeadById(leadId);
+    if (!existing) throw new NotFoundException({ error: 'Not found' });
+    if (!file?.buffer?.length) {
+      throw new BadRequestException({ error: 'logo_required', message: 'Chọn file logo PNG/JPEG/WebP.' });
+    }
+    const mime = String(file.mimetype ?? '');
+    if (!isLeadPartyLogoMimeAllowed(mime)) {
+      throw new BadRequestException({
+        error: 'logo_mime',
+        message: 'Logo chỉ nhận PNG, JPEG hoặc WebP.',
+      });
+    }
+    if ((file.size ?? file.buffer.length) > LEAD_PARTY_LOGO_MAX_BYTES) {
+      throw new BadRequestException({ error: 'logo_too_large', message: 'Logo tối đa 2 MB.' });
+    }
+    const ext = leadPartyLogoExt(mime);
+    if (!ext) {
+      throw new BadRequestException({ error: 'logo_mime', message: 'Logo chỉ nhận PNG, JPEG hoặc WebP.' });
+    }
+    const assetId = `${randomUUID()}.${ext}`;
+    const dir = this.logoDir();
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, assetId), file.buffer);
+    if (existing.logo_asset_id) {
+      await unlink(join(dir, existing.logo_asset_id)).catch(() => undefined);
+    }
+    const result = await this.writeRepo.patchLead(leadId, { logo_asset_id: assetId });
+    if (!result) throw new NotFoundException({ error: 'Not found' });
+    return result.lead;
+  }
+
+  async deletePartyLogo(leadId: number): Promise<LeadV1> {
+    const existing = await this.leadsRepo.getLeadById(leadId);
+    if (!existing) throw new NotFoundException({ error: 'Not found' });
+    if (existing.logo_asset_id) {
+      await unlink(join(this.logoDir(), existing.logo_asset_id)).catch(() => undefined);
+    }
+    const result = await this.writeRepo.patchLead(leadId, { logo_asset_id: null });
+    if (!result) throw new NotFoundException({ error: 'Not found' });
+    return result.lead;
+  }
+
+  async readPartyLogo(leadId: number): Promise<{ buffer: Buffer; mime: string; etag: string }> {
+    const existing = await this.leadsRepo.getLeadById(leadId);
+    const assetId = String(existing?.logo_asset_id ?? '').trim();
+    if (!existing || !assetId) throw new NotFoundException({ error: 'logo_not_found' });
+    const buffer = await readFile(join(this.logoDir(), assetId)).catch(() => null);
+    if (!buffer) throw new NotFoundException({ error: 'logo_not_found' });
+    const mime =
+      assetId.endsWith('.png') ? 'image/png' : assetId.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+    const etag = createHash('sha1').update(buffer).digest('hex');
+    return { buffer, mime, etag };
+  }
+
+  private logoDir(): string {
+    return process.env.PTT_LEAD_PARTY_LOGO_DIR?.trim() || join(tmpdir(), 'ptt-lead-party-logos');
   }
 
   private rethrowPg(err: unknown): never {

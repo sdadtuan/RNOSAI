@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -225,6 +226,38 @@ export class LeadsController {
     @Headers('x-ptt-actor') actor?: string,
   ): Promise<BulkAssignLeadsResult> {
     return this.leadsWriteService.bulkAssignLeads(body, actor);
+  }
+
+  @Post(':id/party-logo')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 2 * 1024 * 1024 },
+    }),
+  )
+  async uploadPartyLogo(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<LeadV1> {
+    return this.leadsWriteService.uploadPartyLogo(id, file);
+  }
+
+  @Delete(':id/party-logo')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard, LeadNotInReviewQueueGuard)
+  async deletePartyLogo(@Param('id', ParseIntPipe) id: number): Promise<LeadV1> {
+    return this.leadsWriteService.deletePartyLogo(id);
+  }
+
+  @Get(':id/party-logo')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async getPartyLogo(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    const logo = await this.leadsWriteService.readPartyLogo(id);
+    res.setHeader('Content-Type', logo.mime);
+    res.setHeader('ETag', logo.etag);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(logo.buffer);
   }
 
   @Patch(':id')

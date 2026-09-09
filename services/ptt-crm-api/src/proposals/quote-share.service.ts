@@ -25,6 +25,7 @@ import {
   isTimestampPast,
   shareExpiresAt,
 } from './quote-share.util';
+import { persistVersionPartyJson, snapshotLeadPartyForSend } from './quote-lead-party.util';
 import { canTransition } from './quote-status.util';
 import type { QuoteOptionKey, QuoteStatus } from './quote.types';
 
@@ -90,13 +91,17 @@ export class QuoteShareService {
 
   async mintShare(proposalId: number): Promise<{ token: string; expires_at: string; share_id: string }> {
     const proposal = await this.db.query(
-      `SELECT id, current_version_id FROM crm_proposals WHERE id = $1 LIMIT 1`,
+      `SELECT id, current_version_id, lead_id FROM crm_proposals WHERE id = $1 LIMIT 1`,
       [proposalId],
     );
     const row = proposal.rows[0];
     const versionId = String(row?.current_version_id ?? '').trim();
     if (!row || !versionId) {
       throw new NotFoundException({ error: 'version_not_found' });
+    }
+    const party = await snapshotLeadPartyForSend((sql, params) => this.db.query(sql, params), row.lead_id);
+    if (party) {
+      await persistVersionPartyJson((sql, params) => this.db.query(sql, params), versionId, party);
     }
     const settings = await this.db.query(
       `SELECT share_expiry_days FROM crm_quote_settings LIMIT 1`,

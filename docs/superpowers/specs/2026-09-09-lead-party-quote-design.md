@@ -1,7 +1,7 @@
 # Design: Thông tin khách trên Lead cho Báo giá (chưa AM 360)
 
 **Ngày:** 2026-09-09  
-**Trạng thái:** Chờ duyệt  
+**Trạng thái:** Đã triển khai (wave 1)  
 **Document ID:** QT-LEAD-PARTY-20260909  
 **Branch dự kiến:** `feat/quotation-os`  
 **Sửa:** [QT-20260908](./2026-09-08-quotation-os-srs.md) §6.2 NEW-01, header bắt buộc trước *gửi khách*  

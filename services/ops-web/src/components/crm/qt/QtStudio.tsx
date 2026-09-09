@@ -129,6 +129,20 @@ export function pickPublicPreview(input: Record<string, unknown>): QtStudioPrevi
     option_key: input.option_key == null ? undefined : String(input.option_key),
     otp_required: input.otp_required === true,
     cta: { accept: cta.accept || QT_PUBLIC_ACCEPT_CTA },
+    party: (() => {
+      const raw =
+        input.party && typeof input.party === 'object' && !Array.isArray(input.party)
+          ? (input.party as Record<string, unknown>)
+          : {};
+      return {
+        company_name: String(raw.company_name ?? ''),
+        contact_name: String(raw.contact_name ?? ''),
+        address: String(raw.address ?? ''),
+        phone: String(raw.phone ?? ''),
+        email: String(raw.email ?? ''),
+        logo_asset_id: String(raw.logo_asset_id ?? ''),
+      };
+    })(),
   };
 }
 
@@ -143,6 +157,13 @@ function sectionBody(id: QtStudioSectionId, preview: QtStudioPreview | null): Re
     return (
       <>
         <p>PTT HCM</p>
+        <h3>{dash(data.party?.company_name || data.title || null)}</h3>
+        <p className="qt-muted">
+          {dash(data.party?.contact_name || null)}
+          {data.party?.phone ? ` · ${data.party.phone}` : ''}
+          {data.party?.email ? ` · ${data.party.email}` : ''}
+        </p>
+        <p className="qt-muted">{dash(data.party?.address || null)}</p>
         <h3>{dash(data.title || null)}</h3>
         <p className="qt-muted">
           {dash(data.quote_code)}
@@ -333,7 +354,11 @@ export function QtStudioChrome({
             <b>Xem trước khách</b>
             {client ? (
               <>
-                <h3>{dash(client.title || null)}</h3>
+                <h3>{dash(client.party?.company_name || client.title || null)}</h3>
+                <p className="qt-muted">
+                  {dash(client.party?.contact_name || null)}
+                  {client.party?.phone ? ` · ${client.party.phone}` : ''}
+                </p>
                 <p>{dash(client.objective || null)}</p>
                 {client.scope.length ? (
                   <ul>

@@ -17,6 +17,7 @@ class StudioMemory {
   sqls: string[] = [];
   versions = new Map<string, Record<string, unknown>>();
   proposals = new Map<number, Record<string, unknown>>();
+  leads = new Map<number, Record<string, unknown>>();
   payments: Record<string, unknown>[] = [];
   lines: Record<string, unknown>[] = [];
   kpis: Record<string, unknown>[] = [];
@@ -167,6 +168,10 @@ class StudioMemory {
       const row = this.proposals.get(id);
       return { rows: row ? [row] : [] };
     }
+    if (/FROM crm_leads/i.test(sql)) {
+      const lead = this.leads.get(Number(params[0]));
+      return { rows: lead ? [lead] : [] };
+    }
     if (/FROM crm_quote_approvals/i.test(sql)) {
       const key = String(params[0] ?? '');
       const row =
@@ -208,6 +213,9 @@ class StudioMemory {
       if (!row) return { rows: [] };
       if (/snapshot_json/i.test(sql)) {
         row.snapshot_json = params[0];
+      }
+      if (/party_json/i.test(sql)) {
+        row.party_json = params[0];
       }
       if (/state\s*=/i.test(sql)) row.state = params[0];
       return { rows: [row] };
@@ -281,6 +289,39 @@ describe('QuoteStudioService publish gate', () => {
     }
     expect(db.versions.get(VID)?.state).toBe('approved');
     expect(db.proposals.get(9)?.status).toBe('approved');
+  });
+
+  it('AC-LP-02: publish with lead missing company_name is 400', async () => {
+    const { svc, db } = load();
+    db.proposals.get(9)!.lead_id = 5;
+    db.leads.set(5, { company_name: '', phone: '0901', email: '', full_name: 'Tuan' });
+
+    await expect(svc.publish(VID, ACTOR)).rejects.toMatchObject({
+      response: { error: 'company_name_required', message: 'Nhập tên công ty trước khi gửi báo giá.' },
+    });
+    expect(db.versions.get(VID)?.state).toBe('approved');
+  });
+
+  it('AC-LP-04: publish with company + phone snapshots party_json', async () => {
+    const { svc, db } = load();
+    db.proposals.get(9)!.lead_id = 5;
+    db.leads.set(5, {
+      company_name: '360 Auto',
+      company_address: '',
+      phone: '0901234567',
+      email: '',
+      full_name: 'Tuan Truong',
+      logo_asset_id: null,
+    });
+
+    await svc.publish(VID, ACTOR);
+
+    expect(db.versions.get(VID)?.state).toBe('published');
+    expect(db.versions.get(VID)?.party_json).toMatchObject({
+      company_name: '360 Auto',
+      contact_name: 'Tuan Truong',
+      phone: '0901234567',
+    });
   });
 });
 

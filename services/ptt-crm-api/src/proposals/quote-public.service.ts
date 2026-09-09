@@ -68,7 +68,7 @@ export class QuotePublicService {
     const vid = String(versionId ?? '').trim();
     if (!vid) throw new NotFoundException({ error: 'version_not_found' });
     const version = await this.db.query(
-      `SELECT id, proposal_id, n, state, snapshot_json, fee_vnd, media_vnd, discount_vnd,
+      `SELECT id, proposal_id, n, state, snapshot_json, party_json, fee_vnd, media_vnd, discount_vnd,
               tax_vnd, payable_vnd, nsr_vnd, direct_cost_vnd, gm_bps, valid_until
          FROM crm_quote_versions
         WHERE id::text = $1
@@ -91,6 +91,7 @@ export class QuotePublicService {
       version_n: v.n,
       version_state: v.state,
       snapshot_json: v.snapshot_json,
+      party_json: v.party_json,
       fee_vnd: v.fee_vnd,
       media_vnd: v.media_vnd,
       discount_vnd: v.discount_vnd,
@@ -137,7 +138,7 @@ export class QuotePublicService {
       `SELECT s.id, s.version_id, s.token_hash, s.expires_at, s.revoked_at,
               p.id AS proposal_id, p.quote_code, p.status, p.title, p.objective,
               p.audience, p.campaign_period, p.valid_until AS proposal_valid_until,
-              v.n AS version_n, v.state AS version_state, v.snapshot_json,
+              v.n AS version_n, v.state AS version_state, v.snapshot_json, v.party_json,
               v.fee_vnd, v.media_vnd, v.discount_vnd, v.tax_vnd, v.payable_vnd,
               v.nsr_vnd, v.direct_cost_vnd, v.gm_bps, v.valid_until AS version_valid_until
          FROM crm_quote_shares s
@@ -182,6 +183,7 @@ export class QuotePublicService {
       [proposalId],
     );
     const snapshot = asObject(row.snapshot_json);
+    const party = asObject(row.party_json);
     const optionRows = await this.db.query(
       `SELECT id, version_id, option_key, name, recommended, client_visible, payable_vnd
          FROM crm_quote_options
@@ -232,6 +234,14 @@ export class QuotePublicService {
       option_key: 'A',
       otp_required: await this.otpRequired(),
       cta: { accept: PUBLIC_ACCEPT_CTA },
+      party: {
+        company_name: String(party.company_name ?? ''),
+        contact_name: String(party.contact_name ?? ''),
+        address: String(party.address ?? ''),
+        phone: String(party.phone ?? ''),
+        email: String(party.email ?? ''),
+        logo_asset_id: String(party.logo_asset_id ?? ''),
+      },
     };
     return stripPublicQuote(dto);
   }

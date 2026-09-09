@@ -14,6 +14,7 @@ import {
 } from './quote-audit.repository';
 import { QuotePublicService } from './quote-public.service';
 import { stripPublicQuote } from './quote-public-strip.util';
+import { persistVersionPartyJson, snapshotLeadPartyForSend } from './quote-lead-party.util';
 import { canTransition, type QuoteStatus } from './quote-status.util';
 
 export const QT_STUDIO_SECTIONS = [
@@ -128,11 +129,14 @@ export class QuoteStudioService {
     const proposalId = num(version.proposal_id);
     const now = new Date().toISOString();
     await this.inTx(async (query) => {
-      const proposal = await query(`SELECT id, status FROM crm_proposals WHERE id = $1 LIMIT 1`, [
-        proposalId,
-      ]);
+      const proposal = await query(
+        `SELECT id, status, lead_id FROM crm_proposals WHERE id = $1 LIMIT 1`,
+        [proposalId],
+      );
       const current = String(proposal.rows[0]?.status ?? '') as QuoteStatus;
       if (current !== 'sent' && !canTransition(current, 'sent')) bad('illegal_status');
+      const party = await snapshotLeadPartyForSend(query, proposal.rows[0]?.lead_id);
+      if (party) await persistVersionPartyJson(query, versionId, party);
       await query(`UPDATE crm_quote_versions SET state = $1 WHERE id::text = $2`, [
         'published',
         versionId,

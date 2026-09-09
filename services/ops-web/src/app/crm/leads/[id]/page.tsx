@@ -26,7 +26,9 @@ import { SalesCockpitDrawer } from '@/components/crm/SalesCockpitDrawer';
 import { LeadMobileCallBar } from '@/components/crm/LeadMobileCallBar';
 import { LeadContractPanel } from '@/components/LeadContractPanel';
 import { LeadDetailHero } from '@/components/crm/LeadDetailHero';
+import { LeadPartyCard, emptyLeadParty, type LeadPartyFormValue } from '@/components/crm/LeadPartyCard';
 import { LeadPropertyRail } from '@/components/crm/LeadPropertyRail';
+import { getQtQuotes } from '@/lib/crm/qt-api';
 import { LeadSlaCarePanel } from '@/components/crm/LeadSlaCarePanel';
 import { ClosedLoopPanel } from '@/components/crm/ClosedLoopPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
@@ -225,6 +227,9 @@ export default function CrmLeadDetailPage() {
   const [prep, setPrep] = useState<LeadMeetingPrepResponse | null>(null);
   const [companyName, setCompanyName] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
+  const [party, setParty] = useState<LeadPartyFormValue>(emptyLeadParty());
+  const [partySaving, setPartySaving] = useState(false);
+  const [quoteHref, setQuoteHref] = useState<string | null>(null);
   const [nbaBusy, setNbaBusy] = useState(false);
   const [b2CallJustPlaced, setB2CallJustPlaced] = useState(false);
   const [cockpitOpen, setCockpitOpen] = useState(false);
@@ -700,8 +705,22 @@ export default function CrmLeadDetailPage() {
           fetchLeadAttribution(access, leadId).catch(() => null),
         ]);
         setLead(row);
+        setParty({
+          company_name: row.company_name ?? '',
+          company_address: row.company_address ?? '',
+          phone: row.phone ?? '',
+          email: row.email ?? '',
+          logo_asset_id: row.logo_asset_id ?? '',
+          full_name: row.full_name ?? '',
+        });
         setAttribution(attr);
         setStatus(row.status || 'moi');
+        void getQtQuotes(access, { q: `LD-${leadId}`, page_size: 1 })
+          .then((list) => {
+            const existing = list.items.find((item) => item.lead_code === `LD-${leadId}` || item.id);
+            setQuoteHref(existing ? `/crm/proposals/${existing.id}` : `/crm/proposals/new?lead_id=${leadId}`);
+          })
+          .catch(() => setQuoteHref(`/crm/proposals/new?lead_id=${leadId}`));
         if (catalog?.staff?.length) {
           setStaffOptions(catalog.staff);
         }
@@ -825,6 +844,43 @@ export default function CrmLeadDetailPage() {
     if (!access || !lead) return;
     void reloadStatusOptions(access);
   }, [lead?.status, lead?.id, b2Complete, reloadStatusOptions]);
+
+  async function onSaveParty() {
+    if (!user || !lead) return;
+    if (!hasCap(user, 'crm_leads', 'edit')) {
+      setError('Không có quyền sửa thông tin khách');
+      return;
+    }
+    const access = getAccessToken();
+    if (!access) {
+      router.replace('/login');
+      return;
+    }
+    setPartySaving(true);
+    setError('');
+    try {
+      const updated = await patchLead(access, lead.id, {
+        company_name: party.company_name,
+        company_address: party.company_address,
+        phone: party.phone,
+        email: party.email,
+      });
+      setLead(updated);
+      setParty({
+        company_name: updated.company_name ?? party.company_name,
+        company_address: updated.company_address ?? party.company_address,
+        phone: updated.phone ?? party.phone,
+        email: updated.email ?? party.email,
+        logo_asset_id: updated.logo_asset_id ?? party.logo_asset_id,
+        full_name: updated.full_name ?? party.full_name,
+      });
+      setMessage('Đã lưu thông tin khách trên Lead.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không lưu được thông tin khách');
+    } finally {
+      setPartySaving(false);
+    }
+  }
 
   async function onSaveStatus(e: React.FormEvent) {
     e.preventDefault();
@@ -1137,6 +1193,16 @@ export default function CrmLeadDetailPage() {
                 />
               ) : null
             }
+          />
+
+          <LeadPartyCard
+            leadId={lead.id}
+            value={party}
+            onChange={setParty}
+            disabled={!hasCap(user, 'crm_leads', 'edit') || partySaving}
+            onSave={() => void onSaveParty()}
+            saving={partySaving}
+            quoteHref={quoteHref}
           />
 
           {stageVis.showNbaB2b && stageVis.showJourney && nba && !showPipelineTab ? (

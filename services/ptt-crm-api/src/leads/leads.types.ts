@@ -27,6 +27,9 @@ export interface LeadV1 {
   /** WIN-4-B — financial ABAC pilot (from meta_json.financial). */
   expected_value?: number | null;
   margin_pct?: number | null;
+  company_name?: string;
+  company_address?: string;
+  logo_asset_id?: string | null;
   review_queue?: {
     active: boolean;
     message?: string;
@@ -75,6 +78,9 @@ export interface PgLeadRow {
   owner_company_id?: string | null;
   assign_strategy?: string | null;
   assign_confidence?: number | null;
+  company_name?: string | null;
+  company_address?: string | null;
+  logo_asset_id?: string | null;
   /** B2B list enrichment (from PG joins) */
   project_code?: string | null;
   lead_score?: number | null;
@@ -146,6 +152,11 @@ export interface PatchLeadV1Body {
   /** WIN-4-B — requires crm_leads.view_financial */
   expected_value?: number | null;
   margin_pct?: number | null;
+  company_name?: string;
+  company_address?: string;
+  phone?: string;
+  email?: string;
+  logo_asset_id?: string | null;
 }
 
 export interface PatchLeadResult {

@@ -8,6 +8,7 @@ import {
   isB2bInHoursNow,
   isB2bLeadInCall,
 } from '../b2b-projects/b2b-lead-list.util';
+import { prefillCompanyName } from './lead-party.util';
 
 function parseMeta(raw: string | null | undefined): Record<string, unknown> {
   if (!raw) {
@@ -95,6 +96,9 @@ export function leadRowToV1(row: LeadRow): LeadV1 {
     is_duplicate: Boolean(row.is_duplicate),
     ...leadFinancialFields(meta),
     review_queue: reviewQueuePublicState(meta, String(metaString(meta, 'assigned_at') || '')),
+    company_name: prefillCompanyName({ column: '', meta, fullName: row.full_name }),
+    company_address: metaString(meta, 'company_address'),
+    logo_asset_id: metaString(meta, 'logo_asset_id') || null,
   };
 }
 
@@ -153,6 +157,13 @@ export function pgRowToV1(row: PgLeadRow): LeadV1 {
     ...b2bExtras,
     ...leadFinancialFields(meta),
     review_queue: reviewQueuePublicState(meta, assignedAt),
+    company_name: prefillCompanyName({
+      column: row.company_name,
+      meta,
+      fullName: row.full_name,
+    }),
+    company_address: String(row.company_address ?? metaString(meta, 'company_address') ?? ''),
+    logo_asset_id: row.logo_asset_id ? String(row.logo_asset_id) : metaString(meta, 'logo_asset_id') || null,
   };
 }
 

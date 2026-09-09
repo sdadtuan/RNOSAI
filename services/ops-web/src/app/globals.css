@@ -2715,6 +2715,42 @@ body:has(.ops-sidebar) main {
   color: var(--muted);
 }
 
+.lead-party-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.lead-party-card .qt-inp,
+.lead-party-card input,
+.lead-party-card textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 400;
+}
+
+.lead-party-card__logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.lead-party-card__thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
 .lead-actions-grid {
   display: grid;
   gap: 1rem;

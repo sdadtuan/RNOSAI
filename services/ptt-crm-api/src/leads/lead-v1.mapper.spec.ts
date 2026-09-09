@@ -38,7 +38,28 @@ describe('leadRowToV1', () => {
       expected_value: null,
       margin_pct: null,
       review_queue: { active: false },
+      company_name: '',
+      company_address: '',
+      logo_asset_id: null,
     });
+  });
+
+  it('maps company_name from meta when column is empty and never uses full_name', () => {
+    const row: LeadRow = {
+      id: 5,
+      full_name: 'Tuan Truong',
+      phone: '0901',
+      email: '',
+      status: 'new',
+      source: 'facebook',
+      owner_id: null,
+      created_at: '2026-09-09',
+      is_duplicate: 0,
+      meta_json: JSON.stringify({ company_name: '360 Auto Detailing' }),
+    };
+    const out = leadRowToV1(row);
+    expect(out.company_name).toBe('360 Auto Detailing');
+    expect(out.full_name).toBe('Tuan Truong');
   });
 });
 
@@ -84,7 +105,37 @@ describe('pgRowToV1', () => {
       margin_pct: null,
       owner_company_id: null,
       review_queue: { active: false },
+      company_name: '',
+      company_address: '',
+      logo_asset_id: null,
     });
+  });
+
+  it('maps company party columns from PG row', () => {
+    const row: PgLeadRow = {
+      sqlite_lead_id: 5,
+      full_name: 'Tuan Truong',
+      phone: '0901',
+      email: 'am@360auto.vn',
+      status: 'new',
+      source: 'facebook',
+      owner_id: null,
+      is_duplicate: false,
+      agency_client_id: null,
+      channel: 'meta',
+      external_lead_id: null,
+      campaign_id: null,
+      received_at: new Date('2026-09-09T00:00:00.000Z'),
+      created_at: new Date('2026-09-09T00:00:00.000Z'),
+      company_name: '360 Auto Detailing',
+      company_address: '12 Nguyễn Huệ',
+      logo_asset_id: 'logo-1',
+    };
+    const out = pgRowToV1(row);
+    expect(out.company_name).toBe('360 Auto Detailing');
+    expect(out.company_address).toBe('12 Nguyễn Huệ');
+    expect(out.logo_asset_id).toBe('logo-1');
+    expect(out.full_name).toBe('Tuan Truong');
   });
 
   it('sets in_call when human session is ringing', () => {

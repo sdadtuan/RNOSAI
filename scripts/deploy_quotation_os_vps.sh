@@ -36,6 +36,9 @@ run_local() {
   echo "== 2/8 apply QT Wave 3 DDL =="
   bash "$ROOT/scripts/apply_pg_ddl_qt_w3.sh"
 
+  echo "== 2b/8 apply lead-party DDL =="
+  bash "$ROOT/scripts/apply_pg_ddl_lead_party.sh"
+
   echo "== 3/8 QT RBAC catalog (no user grants) =="
   bash "$ROOT/scripts/seed_qt_rbac.sh"
 
@@ -49,7 +52,7 @@ run_local() {
   echo "== 5/8 ops-web QT unit tests =="
   cd "$ROOT/services/ops-web"
   npm ci
-  npx vitest run src/components/crm/qt src/lib/crm/qt-*.spec.ts src/lib/auth.spec.ts
+  npx vitest run src/components/crm/qt src/components/crm/LeadPartyCard.spec.ts src/lib/crm/qt-*.spec.ts src/lib/crm/lead-party.util.spec.ts src/lib/auth.spec.ts
 
   echo "== 6/8 ops-web build =="
   cd "$ROOT"

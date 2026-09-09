@@ -7,6 +7,7 @@ import {
 } from './quote-audit.repository';
 import { formatQuoteCode, quoteCodeYear } from './quote-code.util';
 import type { QuoteStatus } from './quote.types';
+import { leadPartyFromCreateBody, type LeadPartyFields } from '../leads/lead-party.util';
 
 export const QUOTE_TYPES = [
   'new_business',
@@ -28,6 +29,7 @@ export type QuoteCreateInput = {
   customer_id?: number;
   title?: string;
   quote_type?: string;
+  lead_party?: LeadPartyFields;
 };
 
 export type QuoteCreateActor = {
@@ -104,6 +106,9 @@ export class QuoteCreateService {
       await query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [key]);
       const lockedReplay = await this.findByIdempotencyKey(key, query);
       if (lockedReplay) return lockedReplay;
+      if (resolved.leadId) {
+        await this.persistLeadParty(query, resolved.leadId, input.lead_party);
+      }
 
       const seqRow = await query(`SELECT nextval('crm_quote_code_seq') AS seq`);
       const seq = Number(seqRow.rows[0]?.seq ?? seqRow.rows[0]?.nextval ?? 0);
@@ -216,7 +221,7 @@ export class QuoteCreateService {
     leadId: number;
     ownerStaffId: number;
   }> {
-    if (source === 'lead') {
+    if (source === 'lead' || (source === 'blank' && finiteId(input.lead_id))) {
       const leadId = finiteId(input.lead_id);
       if (!leadId) bad('lead_id_required');
       const lead = await this.loadLead(leadId);
@@ -224,7 +229,6 @@ export class QuoteCreateService {
       const fromLead = asUuid(lead.agency_client_id);
       const agencyClientId = fromBody ?? fromLead;
       const customerId = finiteId(input.customer_id) || finiteId(lead.converted_customer_id);
-      if (!agencyClientId && !customerId) bad('lead_client_required');
       if (fromBody || fromLead) await this.requireClient(agencyClientId);
       return {
         agencyClientId,
@@ -246,6 +250,38 @@ export class QuoteCreateService {
       leadId: finiteId(input.lead_id),
       ownerStaffId: 0,
     };
+  }
+
+  private async persistLeadParty(
+    query: QuoteQueryFn,
+    leadId: number,
+    raw: unknown,
+  ): Promise<void> {
+    const party = leadPartyFromCreateBody(raw);
+    if (!party) return;
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    const push = (col: string, value: unknown) => {
+      params.push(value);
+      sets.push(`${col} = $${params.length}`);
+    };
+    if (party.company_name !== undefined) push('company_name', String(party.company_name ?? '').trim());
+    if (party.company_address !== undefined) {
+      push('company_address', String(party.company_address ?? '').trim());
+    }
+    if (party.phone !== undefined) push('phone', String(party.phone ?? '').trim());
+    if (party.email !== undefined) push('email', String(party.email ?? '').trim());
+    if (party.logo_asset_id !== undefined) {
+      push('logo_asset_id', String(party.logo_asset_id ?? '').trim() || null);
+    }
+    if (!sets.length) return;
+    params.push(leadId);
+    await query(
+      `UPDATE crm_leads
+          SET ${sets.join(', ')}, updated_at = NOW(), synced_at = NOW()
+        WHERE sqlite_lead_id = $${params.length}`,
+      params,
+    );
   }
 
   private async loadLead(leadId: number): Promise<Record<string, unknown>> {

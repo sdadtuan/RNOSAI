@@ -142,6 +142,14 @@ export type QtListResult = {
 
 export type QtCreateSource = 'lead' | 'am360' | 'blank';
 
+export type QtLeadPartyBody = {
+  company_name?: string;
+  company_address?: string;
+  phone?: string;
+  email?: string;
+  logo_asset_id?: string | null;
+};
+
 export type QtCreateBody = {
   source: QtCreateSource;
   lead_id?: number;
@@ -149,6 +157,7 @@ export type QtCreateBody = {
   customer_id?: number;
   title: string;
   quote_type: string;
+  lead_party?: QtLeadPartyBody;
 };
 
 export type QtCreateResult = {
@@ -877,6 +886,14 @@ export type QtStudioPreview = {
   otp_required?: boolean;
   cta?: { accept: string };
   studio?: { sections?: Record<string, { on?: boolean } | boolean> };
+  party?: {
+    company_name?: string;
+    contact_name?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    logo_asset_id?: string;
+  };
 };
 
 export function getQtStudioPreview(token: string, vid: string) {
@@ -930,7 +947,7 @@ export async function qtFetch<T>(
   });
   const body = await parseJson<T & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new QtApiError(body.error ?? body.message ?? 'QT request failed', res.status, body.error);
+    throw new QtApiError(body.message ?? body.error ?? 'QT request failed', res.status, body.error);
   }
   return body;
 }
