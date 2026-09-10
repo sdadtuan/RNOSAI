@@ -37,6 +37,13 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Get('requests')
+  listRequests(@Req() req: Request) {
+    return this.portfolio.listRequests({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+    });
+  }
+
   @Post('requests')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffContentMarketingWriteGuard)

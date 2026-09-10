@@ -86,6 +86,17 @@ export class ContentOsPortfolioService {
     return { slots };
   }
 
+  async listRequests(scope: { staffId: number }): Promise<{ items: ContentRequestRow[] }> {
+    const ids = await this.scopedLifecycleIds(scope.staffId);
+    if (!ids.length) return { items: [] };
+    try {
+      const items = await this.repo.listRequests(ids);
+      return { items: items ?? [] };
+    } catch {
+      return { items: [] };
+    }
+  }
+
   async createRequest(input: {
     lifecycleId: number;
     actor: string;

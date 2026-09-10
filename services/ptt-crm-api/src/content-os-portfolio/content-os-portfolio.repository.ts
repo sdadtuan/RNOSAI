@@ -188,6 +188,22 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     return this.nextDisplaySeq(formatContentItemCode(now, 0), 'cmkt_content_items');
   }
 
+  async listRequests(lifecycleIds: number[]): Promise<ContentRequestRow[]> {
+    if (!lifecycleIds.length) return [];
+    if (!(await this.ensurePgReady())) return [];
+    try {
+      const res = await this.db.query(
+        `SELECT * FROM cmkt_content_requests
+         WHERE lifecycle_id = ANY($1::bigint[])
+         ORDER BY created_at DESC NULLS LAST, id DESC`,
+        [lifecycleIds],
+      );
+      return res.rows.map((row) => this.mapRequestRow(row as Record<string, unknown>));
+    } catch {
+      return [];
+    }
+  }
+
   async insertRequest(row: ContentRequestWrite): Promise<ContentRequestRow> {
     const res = await this.db.query(
       `INSERT INTO cmkt_content_requests (

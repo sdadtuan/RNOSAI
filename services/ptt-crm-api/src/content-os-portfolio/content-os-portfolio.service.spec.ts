@@ -96,6 +96,47 @@ describe('ContentOsPortfolioService.listApprovals', () => {
   });
 });
 
+describe('ContentOsPortfolioService.listRequests', () => {
+  it('returns empty items when staffId is missing or zero', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn(), listRequests: jest.fn() };
+    const svc = makeSvc(repo);
+    const out = await svc.listRequests({ staffId: 0 });
+    expect(out).toEqual({ items: [] });
+    expect(repo.listScopedLifecycleIds).not.toHaveBeenCalled();
+    expect(repo.listRequests).not.toHaveBeenCalled();
+  });
+
+  it('returns empty items when no lifecycles in scope', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([]), listRequests: jest.fn() };
+    const svc = makeSvc(repo);
+    const out = await svc.listRequests({ staffId: 1 });
+    expect(out).toEqual({ items: [] });
+    expect(repo.listRequests).not.toHaveBeenCalled();
+  });
+
+  it('returns empty items when requests table is missing', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listRequests: jest.fn().mockRejectedValue(new Error('relation cmkt_content_requests does not exist')),
+    };
+    const svc = makeSvc(repo);
+    const out = await svc.listRequests({ staffId: 1 });
+    expect(out).toEqual({ items: [] });
+  });
+
+  it('returns scoped request rows without inventing extras', async () => {
+    const row = { id: 9, display_code: 'CR-20260910-001', triage_status: 'Submitted' };
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listRequests: jest.fn().mockResolvedValue([row]),
+    };
+    const svc = makeSvc(repo);
+    const out = await svc.listRequests({ staffId: 1 });
+    expect(out).toEqual({ items: [row] });
+    expect(repo.listRequests).toHaveBeenCalledWith([4]);
+  });
+});
+
 describe('ContentOsPortfolioService.listPublications', () => {
   it('returns empty slots when no lifecycles in scope', async () => {
     const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([]) };

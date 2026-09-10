@@ -27,4 +27,12 @@ describe('ContentOsPortfolioController', () => {
     });
     expect(out).toEqual({ slots: [] });
   });
+
+  it('GET requests delegates to listRequests with staffId', async () => {
+    const service = { listRequests: jest.fn().mockResolvedValue({ items: [] }) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.listRequests({ staffUser: { sub: '7' } } as never);
+    expect(service.listRequests).toHaveBeenCalledWith({ staffId: 7 });
+    expect(out).toEqual({ items: [] });
+  });
 });
