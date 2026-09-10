@@ -183,6 +183,30 @@ export class ContentOsPortfolioService {
     };
   }
 
+  async getPortfolioItem(input: {
+    staffId: number;
+    itemId: number;
+    lifecycleHint?: number;
+  }): Promise<CmktItemRow> {
+    const ids = await this.scopedLifecycleIds(input.staffId);
+    if (!ids.length) {
+      throw new NotFoundException({ error: 'item_not_found', id: input.itemId });
+    }
+    const hint = input.lifecycleHint;
+    if (hint && ids.includes(hint)) {
+      try {
+        return await this.items.getItem(hint, input.itemId);
+      } catch {
+        // hint missed — scan scoped items
+      }
+    }
+    const found = await this.marketingRepo.findItemById(input.itemId);
+    if (!found || !ids.includes(found.lifecycle_id)) {
+      throw new NotFoundException({ error: 'item_not_found', id: input.itemId });
+    }
+    return found;
+  }
+
   private parseRequestSource(raw: unknown): ContentRequestSource {
     if (raw === undefined) return 'account';
     const source = String(raw).trim();

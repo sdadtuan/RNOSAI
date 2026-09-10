@@ -11,8 +11,9 @@ function makeSvc(
   repo: object,
   workflow: object = stubs().workflow,
   marketingRepo: object = stubs().marketingRepo,
+  items: object = { createItem: jest.fn() },
 ) {
-  return new ContentOsPortfolioService(repo as never, workflow as never, marketingRepo as never, { createItem: jest.fn() } as never);
+  return new ContentOsPortfolioService(repo as never, workflow as never, marketingRepo as never, items as never);
 }
 
 describe('ContentOsPortfolioService.getCommandCenter', () => {
@@ -237,6 +238,55 @@ describe('ContentOsPortfolioService.listPublications', () => {
     expect(from.getUTCDay()).toBe(1);
     expect(to.getUTCDay()).toBe(0);
     expect(to.getTime()).toBeGreaterThan(from.getTime());
+  });
+});
+
+describe('ContentOsPortfolioService.getPortfolioItem', () => {
+  const item = { id: 21, lifecycle_id: 4, title: 'Master story', status: 'draft' };
+
+  it('404 when staff has no scoped lifecycles', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([]) };
+    const marketingRepo = { findItemById: jest.fn() };
+    const items = { getItem: jest.fn() };
+    const svc = makeSvc(repo, undefined, marketingRepo, items);
+    await expect(svc.getPortfolioItem({ staffId: 1, itemId: 21 })).rejects.toMatchObject({ status: 404 });
+    expect(marketingRepo.findItemById).not.toHaveBeenCalled();
+    expect(items.getItem).not.toHaveBeenCalled();
+  });
+
+  it('404 when item is outside staff-scoped lifecycles', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) };
+    const marketingRepo = { findItemById: jest.fn().mockResolvedValue({ ...item, lifecycle_id: 9 }) };
+    const svc = makeSvc(repo, undefined, marketingRepo);
+    await expect(svc.getPortfolioItem({ staffId: 1, itemId: 21 })).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('returns the item when it belongs to a scoped lifecycle', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4, 7]) };
+    const marketingRepo = { findItemById: jest.fn().mockResolvedValue(item) };
+    const svc = makeSvc(repo, undefined, marketingRepo);
+    await expect(svc.getPortfolioItem({ staffId: 1, itemId: 21 })).resolves.toEqual(item);
+  });
+
+  it('uses lifecycle hint first when the hint is in scope', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4, 7]) };
+    const items = { getItem: jest.fn().mockResolvedValue(item) };
+    const marketingRepo = { findItemById: jest.fn() };
+    const svc = makeSvc(repo, undefined, marketingRepo, items);
+    await expect(svc.getPortfolioItem({ staffId: 1, itemId: 21, lifecycleHint: 4 })).resolves.toEqual(item);
+    expect(items.getItem).toHaveBeenCalledWith(4, 21);
+    expect(marketingRepo.findItemById).not.toHaveBeenCalled();
+  });
+
+  it('falls back to scoped scan when hint misses', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4, 7]) };
+    const items = { getItem: jest.fn().mockRejectedValue(Object.assign(new Error('not found'), { status: 404 })) };
+    const marketingRepo = { findItemById: jest.fn().mockResolvedValue({ ...item, lifecycle_id: 7 }) };
+    const svc = makeSvc(repo, undefined, marketingRepo, items);
+    await expect(svc.getPortfolioItem({ staffId: 1, itemId: 21, lifecycleHint: 4 })).resolves.toEqual({
+      ...item,
+      lifecycle_id: 7,
+    });
   });
 });
 

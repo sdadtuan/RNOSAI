@@ -37,6 +37,20 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Get('items/:itemId')
+  getPortfolioItem(
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Req() req: Request,
+    @Query('lifecycle') lifecycle?: string,
+  ) {
+    const hint = Number(lifecycle);
+    return this.portfolio.getPortfolioItem({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      itemId,
+      lifecycleHint: Number.isInteger(hint) && hint > 0 ? hint : undefined,
+    });
+  }
+
   @Get('requests')
   listRequests(@Req() req: Request) {
     return this.portfolio.listRequests({

@@ -35,4 +35,13 @@ describe('ContentOsPortfolioController', () => {
     expect(service.listRequests).toHaveBeenCalledWith({ staffId: 7 });
     expect(out).toEqual({ items: [] });
   });
+
+  it('GET items/:itemId delegates to getPortfolioItem with staffId and lifecycle hint', async () => {
+    const item = { id: 21, lifecycle_id: 4 };
+    const service = { getPortfolioItem: jest.fn().mockResolvedValue(item) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.getPortfolioItem(21, { staffUser: { sub: '7' } } as never, '4');
+    expect(service.getPortfolioItem).toHaveBeenCalledWith({ staffId: 7, itemId: 21, lifecycleHint: 4 });
+    expect(out).toEqual(item);
+  });
 });

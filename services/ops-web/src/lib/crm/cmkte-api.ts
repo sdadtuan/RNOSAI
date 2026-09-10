@@ -1,4 +1,5 @@
 import { API_BASE } from '@/lib/api';
+import type { ContentOsItem } from '@/lib/content-os-api';
 
 export type PortfolioRiskQueueItem = {
   item_id: number;
@@ -183,6 +184,19 @@ export async function convertPortfolioRequest(
     body: '{}',
   });
   if (!res.ok) throw new Error('Không chuyển được request thành content item.');
+  return res.json();
+}
+
+export async function fetchPortfolioItem(
+  token: string,
+  itemId: number,
+  lifecycleHint?: number,
+): Promise<ContentOsItem> {
+  const qs = lifecycleHint && lifecycleHint > 0 ? `?lifecycle=${lifecycleHint}` : '';
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/items/${itemId}${qs}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('item_not_found');
   return res.json();
 }
 

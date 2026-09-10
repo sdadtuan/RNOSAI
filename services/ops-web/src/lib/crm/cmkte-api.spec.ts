@@ -3,6 +3,7 @@ import { API_BASE } from '@/lib/api';
 import {
   convertPortfolioRequest,
   fetchCommandCenter,
+  fetchPortfolioItem,
   fetchPortfolioRequests,
   mapIntakeRows,
   type PortfolioContentRequest,
@@ -199,5 +200,36 @@ describe('convertPortfolioRequest', () => {
       body: '{}',
     });
     expect(result).toEqual(body);
+  });
+});
+
+describe('fetchPortfolioItem', () => {
+  it('GETs portfolio item with optional lifecycle hint', async () => {
+    const body = { id: 21, lifecycle_id: 4, title: 'Master story' };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchPortfolioItem('tok-9', 21, 4);
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/items/21?lifecycle=4`, {
+      headers: { Authorization: 'Bearer tok-9' },
+    });
+    expect(result).toEqual(body);
+  });
+
+  it('throws when item is not in staff scope', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: 'item_not_found' }),
+      }),
+    );
+
+    await expect(fetchPortfolioItem('tok-9', 21)).rejects.toThrow('item_not_found');
   });
 });
