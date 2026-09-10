@@ -12,6 +12,18 @@ describe('ContentOsPortfolioService.getCommandCenter', () => {
     expect(repo.aggregateCommand).not.toHaveBeenCalled();
   });
 
+  it('returns empty command center when staffId is missing or zero', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn(), aggregateCommand: jest.fn() };
+    const svc = new ContentOsPortfolioService(repo as never);
+    const out = await svc.getCommandCenter({ staffId: 0 });
+    expect(out.throughput_week).toBe(0);
+    expect(out.wip).toBe(0);
+    expect(out.risk_queue).toEqual([]);
+    expect(out.capacity_pct).toBeNull();
+    expect(repo.listScopedLifecycleIds).not.toHaveBeenCalled();
+    expect(repo.aggregateCommand).not.toHaveBeenCalled();
+  });
+
   it('does not invent capacity when repo returns null', async () => {
     const repo = {
       listScopedLifecycleIds: jest.fn().mockResolvedValue([3]),

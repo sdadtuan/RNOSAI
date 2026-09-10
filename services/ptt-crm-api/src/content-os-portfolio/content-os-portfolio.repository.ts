@@ -40,6 +40,7 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
   }
 
   async listScopedLifecycleIds(staffId: number): Promise<number[]> {
+    if (!(staffId > 0)) return [];
     if (!(await this.ensurePgReady())) return [];
     try {
       const params: unknown[] = [];

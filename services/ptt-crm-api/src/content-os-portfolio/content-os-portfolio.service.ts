@@ -11,10 +11,11 @@ export class ContentOsPortfolioService {
   constructor(private readonly repo: ContentOsPortfolioRepository) {}
 
   async getCommandCenter(scope: PortfolioCommandScope): Promise<PortfolioCommandCenter> {
-    const staffId = Number(scope.staffId ?? 0);
-    const lifecycleIds = await this.repo.listScopedLifecycleIds(
-      Number.isFinite(staffId) ? staffId : 0,
-    );
+    const staffId = scope.staffId ?? 0;
+    if (!(staffId > 0)) {
+      return emptyPortfolioCommandCenter();
+    }
+    const lifecycleIds = await this.repo.listScopedLifecycleIds(staffId);
     if (!lifecycleIds.length) {
       return emptyPortfolioCommandCenter();
     }
