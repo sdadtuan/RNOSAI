@@ -135,6 +135,81 @@ describe('ContentOsPortfolioService.listRequests', () => {
     expect(out).toEqual({ items: [row] });
     expect(repo.listRequests).toHaveBeenCalledWith([4]);
   });
+
+  it('merges unconverted ideas from scoped lifecycles without inventing clients', async () => {
+    const row = { id: 9, display_code: 'CR-20260910-001', triage_status: 'Submitted', client_label: 'Acme' };
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listRequests: jest.fn().mockResolvedValue([row]),
+    };
+    const marketingRepo = {
+      listIdeas: jest.fn().mockResolvedValue([
+        {
+          id: 3,
+          lifecycle_id: 4,
+          title: 'Hook idea',
+          status: 'backlog',
+          target_goal: 'Reach',
+          created_by: 'am@ptt.vn',
+          created_at: '2026-09-10T00:00:00.000Z',
+          updated_at: '2026-09-10T00:00:00.000Z',
+        },
+        { id: 4, lifecycle_id: 4, title: 'Done', status: 'converted' },
+        { id: 5, lifecycle_id: 4, title: 'Old', status: 'archived' },
+      ]),
+    };
+    const svc = makeSvc(repo, undefined, marketingRepo);
+    const out = await svc.listRequests({ staffId: 1 });
+
+    expect(out.items).toHaveLength(2);
+    expect(out.items[0]).toEqual(row);
+    expect(out.items[1]).toEqual(
+      expect.objectContaining({
+        source: 'idea',
+        idea_id: 3,
+        deliverable_ask: 'Hook idea',
+        lifecycle_id: 4,
+        client_label: '',
+        brand_label: '',
+        triage_status: 'backlog',
+      }),
+    );
+    expect(out.items.map((item) => item.client_label)).toEqual(['Acme', '']);
+    expect(marketingRepo.listIdeas).toHaveBeenCalledWith(4, {});
+  });
+
+  it('adds no extra rows when scoped ideas are empty', async () => {
+    const row = { id: 9, display_code: 'CR-20260910-001', triage_status: 'Submitted' };
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listRequests: jest.fn().mockResolvedValue([row]),
+    };
+    const marketingRepo = { listIdeas: jest.fn().mockResolvedValue([]) };
+    const svc = makeSvc(repo, undefined, marketingRepo);
+    const out = await svc.listRequests({ staffId: 1 });
+    expect(out).toEqual({ items: [row] });
+  });
+
+  it('skips a lifecycle when listIdeas throws', async () => {
+    const row = { id: 9, display_code: 'CR-20260910-001', triage_status: 'Submitted' };
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4, 7]),
+      listRequests: jest.fn().mockResolvedValue([row]),
+    };
+    const marketingRepo = {
+      listIdeas: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('lifecycle_disabled'))
+        .mockResolvedValueOnce([
+          { id: 8, lifecycle_id: 7, title: 'Keep', status: 'backlog' },
+        ]),
+    };
+    const svc = makeSvc(repo, undefined, marketingRepo);
+    const out = await svc.listRequests({ staffId: 1 });
+    expect(out.items).toHaveLength(2);
+    expect(out.items[1]).toEqual(expect.objectContaining({ source: 'idea', idea_id: 8, deliverable_ask: 'Keep' }));
+    expect(marketingRepo.listIdeas).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('ContentOsPortfolioService.listPublications', () => {

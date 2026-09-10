@@ -81,6 +81,79 @@ export type LifecycleIdeaRow = {
   created_at?: string;
 };
 
+export type IntakeRow = {
+  key: string;
+  kind: 'request' | 'idea';
+  requestId: number | null;
+  code: string;
+  deliverable: string;
+  context: string;
+  completeness: string | null;
+  effort: string;
+  risk: string;
+  source: string;
+  triageStatus: string;
+  canConvert: boolean;
+};
+
+export function mapIntakeRows(
+  items: PortfolioContentRequest[],
+  ideas: LifecycleIdeaRow[] = [],
+): IntakeRow[] {
+  const fromItems = items.map((row) => {
+    const isIdea = row.source === 'idea';
+    return {
+      key: isIdea ? `idea-${row.idea_id ?? row.id}` : `req-${row.id}`,
+      kind: isIdea ? ('idea' as const) : ('request' as const),
+      requestId: isIdea ? null : row.id,
+      code: row.display_code || (isIdea ? `IDEA-${row.idea_id ?? row.id}` : `CR-${row.id}`),
+      deliverable: row.deliverable_ask,
+      context: isIdea
+        ? row.objective?.trim() || '—'
+        : [row.client_label, row.brand_label, row.source].filter(Boolean).join(' / ') || '—',
+      completeness: !isIdea && Number.isFinite(row.completeness) ? `${row.completeness}% complete` : null,
+      effort: isIdea
+        ? '—'
+        : [row.effort_h != null ? `${row.effort_h}h` : null, row.tier || row.priority]
+            .filter(Boolean)
+            .join(' · ') || '—',
+      risk: isIdea ? '—' : row.risk_level || '—',
+      source: isIdea ? 'idea' : row.source,
+      triageStatus: row.triage_status,
+      canConvert: !isIdea && row.triage_status === 'Accepted',
+    };
+  });
+  const seenIdeaIds = new Set(
+    items.filter((row) => row.source === 'idea').map((row) => row.idea_id ?? row.id),
+  );
+  const fromIdeas = ideas
+    .filter((idea) => idea.status !== 'converted' && idea.status !== 'archived')
+    .filter((idea) => !seenIdeaIds.has(idea.id))
+    .map((idea) => ({
+      key: `idea-${idea.id}`,
+      kind: 'idea' as const,
+      requestId: null,
+      code: `IDEA-${idea.id}`,
+      deliverable: idea.title,
+      context: idea.target_goal?.trim() || '—',
+      completeness: null,
+      effort: '—',
+      risk: '—',
+      source: 'idea',
+      triageStatus: idea.status,
+      canConvert: false,
+    }));
+  return [...fromItems, ...fromIdeas];
+}
+
+export function filterPortfolioRequests(
+  items: PortfolioContentRequest[],
+  lifecycleId?: number,
+): PortfolioContentRequest[] {
+  if (!(lifecycleId && lifecycleId > 0)) return items;
+  return items.filter((row) => row.lifecycle_id === lifecycleId);
+}
+
 export async function fetchPortfolioRequests(token: string): Promise<PortfolioRequestList> {
   const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/requests`, {
     headers: { Authorization: `Bearer ${token}` },

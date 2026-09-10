@@ -1,7 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ContentItemService } from '../content-marketing/content-item.service';
 import { ContentMarketingRepository } from '../content-marketing/content-marketing.repository';
-import type { CmktCalendarSlotRow, CmktItemRow, CmktReviewQueueItem } from '../content-marketing/content-marketing.types';
+import type {
+  CmktCalendarSlotRow,
+  CmktIdeaRow,
+  CmktItemRow,
+  CmktReviewQueueItem,
+} from '../content-marketing/content-marketing.types';
 import { ContentWorkflowService } from '../content-marketing/content-workflow.service';
 import { ContentOsPortfolioRepository } from './content-os-portfolio.repository';
 import {
@@ -89,12 +94,14 @@ export class ContentOsPortfolioService {
   async listRequests(scope: { staffId: number }): Promise<{ items: ContentRequestRow[] }> {
     const ids = await this.scopedLifecycleIds(scope.staffId);
     if (!ids.length) return { items: [] };
+    let items: ContentRequestRow[] = [];
     try {
-      const items = await this.repo.listRequests(ids);
-      return { items: items ?? [] };
+      items = (await this.repo.listRequests(ids)) ?? [];
     } catch {
-      return { items: [] };
+      items = [];
     }
+    const ideas = await this.listUnconvertedIdeaItems(ids);
+    return { items: [...items, ...ideas] };
   }
 
   async createRequest(input: {
@@ -189,5 +196,46 @@ export class ContentOsPortfolioService {
     if (!(staffId > 0)) return [];
     const ids = await this.repo.listScopedLifecycleIds(staffId);
     return ids.slice(0, PORTFOLIO_LIFECYCLE_CAP);
+  }
+
+  private async listUnconvertedIdeaItems(ids: number[]): Promise<ContentRequestRow[]> {
+    const items: ContentRequestRow[] = [];
+    for (const id of ids) {
+      try {
+        const ideas = await this.marketingRepo.listIdeas(id, {});
+        for (const idea of ideas ?? []) {
+          if (idea.status === 'converted' || idea.status === 'archived') continue;
+          items.push(this.ideaToRequestRow(idea));
+        }
+      } catch {
+        // disabled / missing lifecycle — skip
+      }
+    }
+    return items;
+  }
+
+  private ideaToRequestRow(idea: CmktIdeaRow): ContentRequestRow {
+    return {
+      id: idea.id,
+      lifecycle_id: idea.lifecycle_id,
+      display_code: `IDEA-${idea.id}`,
+      source: 'idea',
+      requester_email: idea.created_by ?? '',
+      client_label: '',
+      brand_label: '',
+      deliverable_ask: idea.title,
+      objective: idea.target_goal ?? '',
+      due_at: null,
+      priority: '',
+      risk_level: '',
+      completeness: 0,
+      effort_h: null,
+      tier: null,
+      triage_status: idea.status,
+      idea_id: idea.id,
+      created_by: idea.created_by ?? '',
+      created_at: idea.created_at ?? '',
+      updated_at: idea.updated_at ?? '',
+    };
   }
 }

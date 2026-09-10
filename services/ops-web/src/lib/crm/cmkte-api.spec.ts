@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/lib/api';
-import { convertPortfolioRequest, fetchCommandCenter, fetchPortfolioRequests } from './cmkte-api';
+import {
+  convertPortfolioRequest,
+  fetchCommandCenter,
+  fetchPortfolioRequests,
+  mapIntakeRows,
+  type PortfolioContentRequest,
+} from './cmkte-api';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -73,6 +79,59 @@ describe('fetchPortfolioRequests', () => {
     );
 
     await expect(fetchPortfolioRequests('tok-9')).resolves.toEqual({ items: [] });
+  });
+});
+
+describe('mapIntakeRows', () => {
+  const request = {
+    id: 9,
+    lifecycle_id: 4,
+    display_code: 'CR-20260910-001',
+    source: 'account',
+    requester_email: 'am@ptt.vn',
+    client_label: 'Acme',
+    brand_label: 'Brand',
+    deliverable_ask: '12 social posts',
+    objective: 'Awareness',
+    due_at: '2026-09-20',
+    priority: 'High',
+    risk_level: 'normal',
+    completeness: 100,
+    effort_h: 2,
+    tier: 'S',
+    triage_status: 'Accepted',
+    idea_id: null,
+    created_by: 'am@ptt.vn',
+    created_at: '2026-09-10T00:00:00.000Z',
+    updated_at: '2026-09-10T00:00:00.000Z',
+  } satisfies PortfolioContentRequest;
+
+  it('shows idea items from GET without a lifecycle query', () => {
+    const ideaItem = {
+      ...request,
+      id: 3,
+      display_code: 'IDEA-3',
+      source: 'idea',
+      client_label: '',
+      brand_label: '',
+      deliverable_ask: 'Hook idea',
+      objective: 'Reach',
+      triage_status: 'backlog',
+      idea_id: 3,
+      completeness: 0,
+      effort_h: null,
+      tier: null,
+      risk_level: '',
+    };
+    const rows = mapIntakeRows([request, ideaItem]);
+    const idea = rows.find((row) => row.source === 'idea');
+    expect(idea).toMatchObject({
+      kind: 'idea',
+      deliverable: 'Hook idea',
+      canConvert: false,
+      requestId: null,
+    });
+    expect(rows.find((row) => row.source === 'account')?.canConvert).toBe(true);
   });
 });
 

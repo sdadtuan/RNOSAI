@@ -18,6 +18,7 @@ import { CmktERequests } from '@/components/content-os/cmkte/CmktERequests';
 import {
   fetchLifecycleIdeas,
   fetchPortfolioRequests,
+  filterPortfolioRequests,
   type LifecycleIdeaRow,
   type PortfolioContentRequest,
 } from '@/lib/crm/cmkte-api';
@@ -100,7 +101,7 @@ function CrmContentOsRequestsContent() {
       setError('');
       try {
         const list = await fetchPortfolioRequests(access);
-        setItems(list.items);
+        setItems(filterPortfolioRequests(list.items, lifecycleId));
         if (lifecycleId) {
           setIdeas(await fetchLifecycleIdeas(access, lifecycleId));
         } else {

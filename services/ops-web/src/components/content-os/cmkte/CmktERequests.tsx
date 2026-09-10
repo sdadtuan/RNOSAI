@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
 import {
   convertPortfolioRequest,
+  mapIntakeRows,
   type LifecycleIdeaRow,
   type PortfolioContentRequest,
 } from '@/lib/crm/cmkte-api';
@@ -12,62 +13,9 @@ import type { ContentRequestCreated } from '@/lib/crm/cmkte-request-form';
 import { cmktePath } from '@/lib/crm/cmkte-routes';
 import { CmktERequestModal } from './CmktERequestModal';
 
-type IntakeRow = {
-  key: string;
-  kind: 'request' | 'idea';
-  requestId: number | null;
-  code: string;
-  deliverable: string;
-  context: string;
-  completeness: string | null;
-  effort: string;
-  risk: string;
-  source: string;
-  triageStatus: string;
-  canConvert: boolean;
-};
-
 function dash(value: string | number | null | undefined): string {
   if (value == null || value === '') return '—';
   return String(value);
-}
-
-function requestRows(items: PortfolioContentRequest[]): IntakeRow[] {
-  return items.map((row) => ({
-    key: `req-${row.id}`,
-    kind: 'request',
-    requestId: row.id,
-    code: row.display_code || `CR-${row.id}`,
-    deliverable: row.deliverable_ask,
-    context: [row.client_label, row.brand_label, row.source].filter(Boolean).join(' / ') || '—',
-    completeness: Number.isFinite(row.completeness) ? `${row.completeness}% complete` : null,
-    effort: [row.effort_h != null ? `${row.effort_h}h` : null, row.tier || row.priority]
-      .filter(Boolean)
-      .join(' · ') || '—',
-    risk: row.risk_level || '—',
-    source: row.source,
-    triageStatus: row.triage_status,
-    canConvert: row.triage_status === 'Accepted',
-  }));
-}
-
-function ideaRows(ideas: LifecycleIdeaRow[]): IntakeRow[] {
-  return ideas
-    .filter((idea) => idea.status !== 'converted')
-    .map((idea) => ({
-      key: `idea-${idea.id}`,
-      kind: 'idea',
-      requestId: null,
-      code: `IDEA-${idea.id}`,
-      deliverable: idea.title,
-      context: idea.target_goal?.trim() || '—',
-      completeness: null,
-      effort: '—',
-      risk: '—',
-      source: 'idea',
-      triageStatus: idea.status,
-      canConvert: false,
-    }));
 }
 
 function tagClass(value: string): string {
@@ -102,7 +50,7 @@ export function CmktERequests({
     setLocalItems(items);
   }, [items]);
 
-  const rows = useMemo(() => [...requestRows(localItems), ...ideaRows(ideas)], [localItems, ideas]);
+  const rows = useMemo(() => mapIntakeRows(localItems, ideas), [localItems, ideas]);
 
   function showToast(message: string) {
     setToast(message);

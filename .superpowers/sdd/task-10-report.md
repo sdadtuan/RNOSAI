@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-10  
 **Branch:** `feat/cmkte-e0`  
-**Commit:** `feat(cmkte): operate Content Request intake from COS modal`  
+**Commit:** `8d3214ea` — `feat(cmkte): operate Content Request intake from COS modal`  
 **Status:** DONE
 
 ## What was implemented
@@ -81,3 +81,69 @@ cd services/ptt-crm-api && npx jest src/content-os-portfolio --no-coverage
 - GET list and POST create are untested against a live `cmkt_content_requests` table (Task 6 DDL apply was skipped). Empty `{ items: [] }` is the fallback.
 - Hub/Intake still duplicate shell auth/refresh (Task 8 leftover).
 - Browser flow (login → modal → toast → convert) was not exercised; no local ops-web server was running.
+
+## Fix
+
+Review: unconverted ideas never appeared on default `/crm/content-os/requests` because merge required `?lifecycle=`.
+
+**Covering files**
+- `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.service.ts` — `listRequests` unions `ContentMarketingRepository.listIdeas` on the same staff-scoped lifecycle ids (cap 20). Skip converted/archived; skip a lifecycle if `listIdeas` throws. Empty client/brand — no Sunlight/Nova/Tâm An.
+- `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.service.spec.ts` — merge / empty / skip-throw cases
+- `services/ops-web/src/lib/crm/cmkte-api.ts` — `mapIntakeRows` + `filterPortfolioRequests`
+- `services/ops-web/src/lib/crm/cmkte-api.spec.ts` — GET idea items render without `?lifecycle=`; convert hidden unless real `Accepted` request
+- `services/ops-web/src/components/content-os/cmkte/CmktERequests.tsx` — uses mapper
+- `services/ops-web/src/app/crm/content-os/requests/page.tsx` — default list is GET `{ items }` (ideas included); `?lifecycle=` only filters
+
+Command Center metrics unchanged.
+
+### RED
+
+```
+cd services/ptt-crm-api && npx jest src/content-os-portfolio --no-coverage
+
+FAIL src/content-os-portfolio/content-os-portfolio.service.spec.ts
+  ● ContentOsPortfolioService.listRequests › merges unconverted ideas from scoped lifecycles without inventing clients
+    Expected length: 2
+    Received length: 1
+  ● ContentOsPortfolioService.listRequests › skips a lifecycle when listIdeas throws
+    Expected length: 2
+    Received length: 1
+
+Test Suites: 1 failed, 4 passed, 5 total
+Tests:       2 failed, 29 passed, 31 total
+```
+
+```
+cd services/ops-web && npx vitest run src/lib/crm/cmkte-request-form.spec.ts src/lib/crm/cmkte-api.spec.ts
+
+ FAIL  src/lib/crm/cmkte-api.spec.ts > mapIntakeRows > shows idea items from GET without a lifecycle query
+TypeError: (0 , mapIntakeRows) is not a function
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 9 passed (10)
+```
+
+### GREEN
+
+```
+cd services/ptt-crm-api && npx jest src/content-os-portfolio --no-coverage
+
+PASS src/content-os-portfolio/content-os-portfolio.util.spec.ts
+PASS src/content-os-portfolio/publish-gate.util.spec.ts
+PASS src/content-os-portfolio/content-os-portfolio.controller.spec.ts
+PASS src/content-os-portfolio/content-os-portfolio.service.request.spec.ts
+PASS src/content-os-portfolio/content-os-portfolio.service.spec.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       31 passed, 31 total
+```
+
+```
+cd services/ops-web && npx vitest run src/lib/crm/cmkte-request-form.spec.ts src/lib/crm/cmkte-api.spec.ts
+
+ ✓ src/lib/crm/cmkte-request-form.spec.ts (4 tests)
+ ✓ src/lib/crm/cmkte-api.spec.ts (6 tests)
+
+ Test Files  2 passed (2)
+      Tests  10 passed (10)
+```
