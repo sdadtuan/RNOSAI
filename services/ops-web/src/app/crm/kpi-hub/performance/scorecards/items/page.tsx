@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PmAmberNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { PmPage } from '@/components/kpi-hub/performance/PmPage';
 import { getAccessToken } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
@@ -66,7 +67,7 @@ export default function AddScorecardItemPage() {
   return (
     <PmPage
       title="Thêm chỉ tiêu vào Scorecard"
-      subtitle="PM-05 · Weight realtime. Target ngoài template range → approval cùng Contract Score."
+      subtitle={PM_SUBTITLES.scorecardItem}
       crumb="Thêm chỉ tiêu"
       actions={
         <>

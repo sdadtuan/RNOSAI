@@ -20,7 +20,7 @@ export function PmPage({ title, subtitle, crumb, actions, children }: Props) {
         subtitle={subtitle}
         breadcrumb={[{ label: 'KPI Hub' }, { label: 'Hiệu suất' }, { label: crumb }]}
         actions={actions}
-        searchPlaceholder="Tìm KPI, nhân sự, phòng ban, dự án, khách hàng…"
+        searchPlaceholder="Tìm KPI, owner, client, quote, campaign…"
       >
         {children}
       </KpiHubShell>

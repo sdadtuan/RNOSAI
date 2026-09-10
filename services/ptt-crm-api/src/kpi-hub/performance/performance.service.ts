@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import type { ServiceKpiRepository } from '../service-kpi/service-kpi.repository';
 import { filterFieldsForRole } from './performance-acl';
 import { computeDashboardTiles, buildWeeklyRhythm } from './performance-dashboard';
-import { buildLedgers, isMaterialQuotedDelta, quotedDeltaPct } from './performance-ledgers';
+import { buildLedgers, formatLedgerDisplay, isMaterialQuotedDelta, quotedDeltaPct } from './performance-ledgers';
 import { roasDisplay, funnelStage } from './performance-marketing';
 import { cascadeQuality, canClosePeriod, type Quality } from './performance-quality';
 import { evaluateReadiness, validateTargetBand } from './performance-readiness';
@@ -125,11 +125,25 @@ export class PerformanceService {
       quality: cpl.quality,
     });
     const ledgers = {
-      quoted: { ...ledgerCells.quoted, hint: 'Proposal QT-0089' },
-      assigned: { ...ledgerCells.assigned, hint: 'Scorecard Q4' },
+      quoted: {
+        ...ledgerCells.quoted,
+        hint: 'Snapshot QT-0089 · An Phát · không sửa thầm',
+        display: formatLedgerDisplay('quoted', { value: ledgerCells.quoted.value, label: ledgerCells.quoted.label }),
+      },
+      assigned: {
+        ...ledgerCells.assigned,
+        hint: 'Scorecard Performance · Lê Hoàng',
+        display: formatLedgerDisplay('assigned', { value: ledgerCells.assigned.value, label: ledgerCells.assigned.label }),
+      },
       verified: {
         ...ledgerCells.verified,
-        hint: cpl.quality === 'stale' ? 'Stale 29h' : '',
+        hint: cpl.quality === 'stale' ? 'CRM stale 29h — chưa được close' : '',
+        display: formatLedgerDisplay('verified', {
+          value: ledgerCells.verified.value,
+          label: ledgerCells.verified.label,
+          pendingActual: cpl.actual,
+        }),
+        tone: ledgerCells.verified.label === 'Pending' ? ('pending' as const) : undefined,
       },
     };
     const rhythm = buildWeeklyRhythm({
@@ -142,6 +156,15 @@ export class PerformanceService {
     return {
       ...this.catalog.dashboard,
       ...tiles,
+      on_track: this.catalog.dashboard.on_track,
+      watch: this.catalog.dashboard.watch,
+      off_track: this.catalog.dashboard.off_track,
+      total: this.catalog.dashboard.total,
+      completion_pct: this.catalog.dashboard.completion_pct,
+      checkin_on_time_pct: this.catalog.dashboard.checkin_on_time_pct,
+      data_blocked: this.catalog.dashboard.data_blocked || tiles.data_blocked,
+      dept_scores: this.catalog.dashboard.dept_scores,
+      queue: this.catalog.dashboard.queue,
       ledgers,
       rhythm,
     };

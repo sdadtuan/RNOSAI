@@ -17,6 +17,32 @@ export function isMaterialQuotedDelta(deltaPct: number | null, threshold = 10): 
   return deltaPct != null && Math.abs(deltaPct) > threshold;
 }
 
+function formatK(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 1000) return `${Math.round(n / 1000)}K`;
+  return String(n);
+}
+
+export function formatLedgerDisplay(
+  kind: 'quoted' | 'assigned' | 'verified',
+  input: {
+    value: number | null;
+    label: LedgerCell['label'];
+    pendingActual?: number | null;
+    unit?: string;
+  },
+): string {
+  const unit = input.unit ?? 'CPL';
+  if (kind === 'verified' && input.label === 'Pending') {
+    const val = input.pendingActual ?? input.value;
+    if (val != null) return `${formatK(val)} · Pending`;
+    return 'Pending';
+  }
+  if (input.value == null) return 'Pending';
+  if (kind === 'quoted' || kind === 'assigned') return `≤${formatK(input.value)} ${unit}`;
+  return `${formatK(input.value)} ${unit}`;
+}
+
 export function buildLedgers(input: {
   quoted_target: number | null;
   assigned_target: number | null;

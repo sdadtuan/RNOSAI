@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react';
 import { PmMoatNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
 import { PmPage, pmBadge } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
-import { ServiceKpiSummaryTiles } from '@/components/kpi-hub/service-kpi/ServiceKpiSummaryTiles';
+import { PmSummaryTiles } from '@/components/kpi-hub/performance/PmSummaryTiles';
 import { getAccessToken } from '@/lib/auth';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { fetchPmCrmSource } from '@/lib/performance-api';
 import type { PmCrmSource } from '@/lib/performance-types';
 
@@ -32,7 +33,7 @@ export default function PerformanceCrmSourcePage() {
   return (
     <PmPage
       title="CRM Source Map"
-      subtitle="PM-09 · Rule versioned. Stale cascade sang CPL. Không PII lead-level."
+      subtitle={PM_SUBTITLES.crm}
       crumb="CRM Source Map"
       actions={
         <>
@@ -52,7 +53,8 @@ export default function PerformanceCrmSourcePage() {
       <PmPageState loading={loading} error={error} empty={!loading && !error && !data.mappings.length} />
       {!loading && !error ? (
         <>
-          <ServiceKpiSummaryTiles
+          <PmSummaryTiles
+            cols={5}
             tiles={data.tiles.map((t) => ({
               label: t.label,
               value: t.value,

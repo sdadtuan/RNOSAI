@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { PmPage, pmBadge } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
-import { ServiceKpiSummaryTiles } from '@/components/kpi-hub/service-kpi/ServiceKpiSummaryTiles';
+import { PmSummaryTiles } from '@/components/kpi-hub/performance/PmSummaryTiles';
+import { PmAmberNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
 import { getAccessToken } from '@/lib/auth';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { fetchPmCampaigns } from '@/lib/performance-api';
 import type { PmCampaigns } from '@/lib/performance-types';
 
@@ -38,7 +40,7 @@ export default function PerformanceCampaignsPage() {
   return (
     <PmPage
       title="Campaign Control"
-      subtitle="PM-08 · Inherit Instance từ Quote. Media budget ≠ agency fee. Funnel không bịa stage thiếu mapping."
+      subtitle={PM_SUBTITLES.campaign}
       crumb="Campaign Control"
       actions={
         <Link href="/crm/kpi-hub/performance/marketing" className="kpi-hub-btn kpi-hub-btn--ghost">
@@ -49,6 +51,9 @@ export default function PerformanceCampaignsPage() {
       <PmPageState loading={loading} error={error} empty={!loading && !error && !data.items.length} />
       {!loading && !error ? (
         <>
+          <PmAmberNotice>
+            Media budget và agency fee tách sổ — client report không lẫn fee/margin nội bộ.
+          </PmAmberNotice>
           <article className="kpi-hub-card">
             <div className="kpi-hub-card__body" style={{ overflowX: 'auto' }}>
               <table className="kpi-hub-table">
@@ -92,7 +97,8 @@ export default function PerformanceCampaignsPage() {
                 <span className="kpi-hub-muted">Stage thiếu source = empty</span>
               </header>
               <div className="kpi-hub-card__body">
-                <ServiceKpiSummaryTiles
+                <PmSummaryTiles
+                  cols={4}
                   tiles={data.funnel.map((f) => ({
                     label: f.label,
                     value: f.display,

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PmAmberNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { PmPage } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
 import { getAccessToken } from '@/lib/auth';
@@ -58,7 +59,7 @@ export default function PerformanceSettingsPage() {
   return (
     <PmPage
       title="Performance Policy"
-      subtitle="PM-11 · Effective date. Không rewrite snapshot. Impact analysis trước khi save."
+      subtitle={PM_SUBTITLES.policy}
       crumb="Performance Policy"
       actions={
         <button type="button" className="kpi-hub-btn kpi-hub-btn--primary" onClick={() => void save()}>
@@ -129,7 +130,7 @@ export default function PerformanceSettingsPage() {
               </div>
             </article>
           </div>
-          <aside className="kpi-hub-pm-aside">
+          <aside className="kpi-hub-pm-aside kpi-hub-pm-aside--sticky">
             <article className="kpi-hub-card">
               <header className="kpi-hub-card__head">
                 <h2>Impact</h2>

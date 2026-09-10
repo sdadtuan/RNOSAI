@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { PmAmberNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
 import { PmPage, pmBadge } from '@/components/kpi-hub/performance/PmPage';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
 import { PmQualityChip } from '@/components/kpi-hub/performance/PmQualityChip';
 import { getAccessToken } from '@/lib/auth';
@@ -78,7 +79,7 @@ export default function PerformanceAssignmentsPage() {
   return (
     <PmPage
       title="Assignment Registry"
-      subtitle="PM-02 · Direction-aware · quality chip · Quoted Δ. Không average raw đơn vị."
+      subtitle={PM_SUBTITLES.registry}
       crumb="Assignment Registry"
       actions={
         <>
@@ -98,17 +99,16 @@ export default function PerformanceAssignmentsPage() {
       <PmPageState loading={loading} error={error} empty={!loading && !error && !rows.length} />
       {!loading && !error ? (
         <>
-          <div className="kpi-hub-pm-tabs" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 7 }}>
-            <button type="button" className="kpi-hub-btn kpi-hub-btn--ghost" style={{ fontSize: '0.75rem' }}>
+          <div className="kpi-hub-pm-filters">
+            <button type="button" className="kpi-hub-pm-filter is-active">
               Tháng 09/2026
             </button>
-            <button type="button" className="kpi-hub-btn kpi-hub-btn--ghost" style={{ fontSize: '0.75rem' }}>
+            <button type="button" className="kpi-hub-pm-filter is-active">
               Toàn công ty
             </button>
             <button
               type="button"
-              className={`kpi-hub-btn kpi-hub-btn--ghost${qualityFilter !== 'all' ? ' is-active' : ''}`}
-              style={{ fontSize: '0.75rem' }}
+              className={`kpi-hub-pm-filter${qualityFilter !== 'all' ? ' is-active' : ''}`}
               onClick={() =>
                 setQualityFilter((q) => (q === 'all' ? 'verified' : q === 'verified' ? 'stale' : 'all'))
               }
@@ -117,8 +117,7 @@ export default function PerformanceAssignmentsPage() {
             </button>
             <button
               type="button"
-              className={`kpi-hub-btn kpi-hub-btn--ghost${directionFilter !== 'all' ? ' is-active' : ''}`}
-              style={{ fontSize: '0.75rem' }}
+              className={`kpi-hub-pm-filter${directionFilter !== 'all' ? ' is-active' : ''}`}
               onClick={() =>
                 setDirectionFilter((d) => (d === 'all' ? 'lower' : d === 'lower' ? 'higher' : 'all'))
               }

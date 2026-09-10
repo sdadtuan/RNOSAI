@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { PmPage, pmBadge } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
-import { ServiceKpiSummaryTiles } from '@/components/kpi-hub/service-kpi/ServiceKpiSummaryTiles';
+import { PmSummaryTiles } from '@/components/kpi-hub/performance/PmSummaryTiles';
 import { getAccessToken } from '@/lib/auth';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { fetchPmMarketing } from '@/lib/performance-api';
 import type { PmMarketing } from '@/lib/performance-types';
 
@@ -41,7 +42,7 @@ export default function PerformanceMarketingPage() {
   return (
     <PmPage
       title="Marketing OS"
-      subtitle="PM-07 · Source health bắt buộc. ROAS = N/A nếu attribution thiếu — không bịa số đẹp."
+      subtitle={PM_SUBTITLES.marketing}
       crumb="Marketing OS"
       actions={
         <>
@@ -57,7 +58,8 @@ export default function PerformanceMarketingPage() {
       <PmPageState loading={loading} error={error} />
       {!loading && !error ? (
         <>
-          <ServiceKpiSummaryTiles
+          <PmSummaryTiles
+            cols={5}
             tiles={[
               { label: 'MEDIA SPEND', value: data.spend, hint: 'Maintain vs plan 320M' },
               {

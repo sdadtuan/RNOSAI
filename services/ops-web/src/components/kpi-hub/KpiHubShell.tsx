@@ -5,8 +5,10 @@ import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { getAccessToken, getStoredUser, type StoredStaffUser } from '@/lib/auth';
 import { activeKpiHubHref, isKpiHubPath, kpiHubNavGroupsForUser } from '@/lib/kpi-hub-nav';
-import { SIDE_NOTE_KPI_CONTRACT } from '@/lib/service-kpi-copy';
+import { usePerformanceNavBadges } from '@/hooks/usePerformanceNavBadges';
 import { useServiceKpiNavBadges } from '@/hooks/useServiceKpiNavBadges';
+import { PM_SEARCH_PLACEHOLDER, SIDE_NOTE_PERFORMANCE_OS } from '@/lib/performance-copy';
+import { SIDE_NOTE_KPI_CONTRACT } from '@/lib/service-kpi-copy';
 import { KpiHubFreshnessFooter } from './KpiHubFreshnessFooter';
 
 export type KpiHubBreadcrumb = { label: string; href?: string };
@@ -163,12 +165,20 @@ export function KpiHubShell({
   const navGroups = useMemo(() => kpiHubNavGroupsForUser(user, pathname), [user, pathname]);
   const token = getAccessToken() ?? '';
   const skpiBadges = useServiceKpiNavBadges(token);
+  const pmBadges = usePerformanceNavBadges(token);
   const showSkpiSideNote = navGroups.some((g) => g.id === 'service-kpi');
+  const showPmSideNote = navGroups.some((g) => g.id === 'performance');
+  const resolvedSearchPlaceholder =
+    pathname.startsWith('/crm/kpi-hub/performance') ? PM_SEARCH_PLACEHOLDER : searchPlaceholder;
   const [collapsed, setCollapsed] = useState(false);
 
-  function navBadgeCount(badgeKey?: 'warRoom' | 'contract'): number | undefined {
+  function navBadgeCount(badgeKey?: 'warRoom' | 'contract' | 'registry' | 'checkIn'): number | undefined {
     if (!badgeKey) return undefined;
-    const n = badgeKey === 'warRoom' ? skpiBadges.warRoom : skpiBadges.contract;
+    let n = 0;
+    if (badgeKey === 'warRoom') n = skpiBadges.warRoom;
+    else if (badgeKey === 'contract') n = skpiBadges.contract;
+    else if (badgeKey === 'registry') n = pmBadges.registry;
+    else if (badgeKey === 'checkIn') n = pmBadges.checkIn;
     return n > 0 ? n : undefined;
   }
 
@@ -225,6 +235,12 @@ export function KpiHubShell({
             {skpiBadges.sideNoteBody || SIDE_NOTE_KPI_CONTRACT}
           </div>
         ) : null}
+        {!collapsed && showPmSideNote ? (
+          <div className="kpi-hub-sidebar__side-note">
+            <strong>Performance OS · moat</strong>
+            {SIDE_NOTE_PERFORMANCE_OS}
+          </div>
+        ) : null}
         <button
           type="button"
           className="kpi-hub-sidebar__collapse"
@@ -264,7 +280,7 @@ export function KpiHubShell({
               <input
                 type="search"
                 className="kpi-hub-header__search"
-                placeholder={searchPlaceholder}
+                placeholder={resolvedSearchPlaceholder}
                 aria-label="Tìm kiếm"
               />
             ) : null}

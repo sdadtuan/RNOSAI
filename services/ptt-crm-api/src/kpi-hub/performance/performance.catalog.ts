@@ -236,7 +236,7 @@ export function seedPerformanceCatalog(): PmCatalog {
       total: 58,
       completion_pct: 82.4,
       checkin_on_time_pct: 91,
-      data_blocked: 0,
+      data_blocked: 4,
       ledgers,
       rhythm: [],
       dept_scores: [

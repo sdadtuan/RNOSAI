@@ -4,10 +4,13 @@ import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PmAmberNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
+import { PmModal } from '@/components/kpi-hub/performance/PmModal';
 import { PmPage, pmBadge } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
 import { PmQualityChip } from '@/components/kpi-hub/performance/PmQualityChip';
+import { PmToast } from '@/components/kpi-hub/performance/PmToast';
 import { getAccessToken } from '@/lib/auth';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { ApiError } from '@/lib/api';
 import { createPmAction, createPmCheckIn, fetchPmCheckIns } from '@/lib/performance-api';
 import type { PmCheckInBundle } from '@/lib/performance-types';
@@ -95,7 +98,7 @@ function PerformanceCheckInInner() {
   return (
     <PmPage
       title={asg ? `Check-in Ritual — ${asg.name}` : 'Check-in Ritual'}
-      subtitle="PM-06 · TEC_008 · Lower-is-better · Auto actual locked · Red bắt buộc blocker."
+      subtitle={PM_SUBTITLES.checkin}
       crumb="Check-in Ritual"
       actions={
         <>
@@ -119,7 +122,7 @@ function PerformanceCheckInInner() {
       {error === 'blocker_required_when_red' ? (
         <p className="kpi-hub-form-error">blocker_required_when_red</p>
       ) : null}
-      {message ? <p className="kpi-hub-notice kpi-hub-notice--success">{message}</p> : null}
+      <PmToast message={message} />
       {asg ? (
         <div className="kpi-hub-pm-layout">
           <div className="kpi-hub-pm-main">
@@ -198,87 +201,75 @@ function PerformanceCheckInInner() {
         </div>
       ) : null}
 
-      {checkinOpen ? (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onClick={() => setCheckinOpen(false)}
-          onKeyDown={() => undefined}
-        >
-          <div className="kpi-hub-card" role="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520, margin: '10vh auto', padding: 0 }}>
-            <header className="kpi-hub-card__head">
-              <h2>Check-in Ritual</h2>
-            </header>
-            <div className="kpi-hub-card__body kpi-hub-pm-fields">
-              <label className="kpi-hub-field">
-                <span>Actual (locked · Verified)</span>
-                <input value={asg?.actual != null ? `${asg.actual}` : ''} disabled={asg?.actual_locked ?? true} />
-              </label>
-              <label className="kpi-hub-field">
-                <span>Forecast cuối kỳ</span>
-                <input value={forecast} onChange={(e) => setForecast(e.target.value)} />
-              </label>
-              <label className="kpi-hub-field">
-                <span>Blocker * (bắt buộc vì Red)</span>
-                <textarea value={blocker} onChange={(e) => setBlocker(e.target.value)} rows={3} required={asg?.status === 'red'} />
-              </label>
-              <label className="kpi-hub-field">
-                <span>Evidence</span>
-                <input value={evidence} onChange={(e) => setEvidence(e.target.value)} />
-              </label>
-            </div>
-            <div className="kpi-hub-card__body" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" className="kpi-hub-btn kpi-hub-btn--ghost" onClick={() => setCheckinOpen(false)}>
-                Hủy
-              </button>
-              <button type="button" className="kpi-hub-btn kpi-hub-btn--primary" onClick={() => void submitCheckIn()}>
-                Gửi ritual
-              </button>
-            </div>
-          </div>
+      <PmModal
+        open={checkinOpen}
+        title="Check-in Ritual"
+        onClose={() => setCheckinOpen(false)}
+        footer={
+          <>
+            <button type="button" className="kpi-hub-btn kpi-hub-btn--ghost" onClick={() => setCheckinOpen(false)}>
+              Hủy
+            </button>
+            <button type="button" className="kpi-hub-btn kpi-hub-btn--primary" onClick={() => void submitCheckIn()}>
+              Gửi ritual
+            </button>
+          </>
+        }
+      >
+        <div className="kpi-hub-pm-fields">
+          <label className="kpi-hub-field">
+            <span>Actual (locked · Verified)</span>
+            <input value={asg?.actual != null ? `${asg.actual}` : ''} disabled={asg?.actual_locked ?? true} />
+          </label>
+          <label className="kpi-hub-field">
+            <span>Forecast cuối kỳ</span>
+            <input value={forecast} onChange={(e) => setForecast(e.target.value)} />
+          </label>
+          <label className="kpi-hub-field">
+            <span>Blocker * (bắt buộc vì Red)</span>
+            <textarea value={blocker} onChange={(e) => setBlocker(e.target.value)} rows={3} required={asg?.status === 'red'} />
+          </label>
+          <label className="kpi-hub-field">
+            <span>Evidence</span>
+            <input value={evidence} onChange={(e) => setEvidence(e.target.value)} />
+          </label>
         </div>
-      ) : null}
+      </PmModal>
 
-      {actionOpen ? (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onClick={() => setActionOpen(false)}
-          onKeyDown={() => undefined}
-        >
-          <div className="kpi-hub-card" role="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520, margin: '10vh auto', padding: 0 }}>
-            <header className="kpi-hub-card__head">
-              <h2>Corrective Action</h2>
-            </header>
-            <div className="kpi-hub-card__body kpi-hub-pm-fields">
-              <label className="kpi-hub-field">
-                <span>Tiêu đề *</span>
-                <input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} />
-              </label>
-              <label className="kpi-hub-field">
-                <span>Owner</span>
-                <input value={asg?.owner ?? ''} disabled />
-              </label>
-              <label className="kpi-hub-field">
-                <span>Due</span>
-                <input value={actionDue} onChange={(e) => setActionDue(e.target.value)} />
-              </label>
-              <label className="kpi-hub-field">
-                <span>Expected impact</span>
-                <textarea value={actionImpact} onChange={(e) => setActionImpact(e.target.value)} rows={3} />
-              </label>
-            </div>
-            <div className="kpi-hub-card__body" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" className="kpi-hub-btn kpi-hub-btn--ghost" onClick={() => setActionOpen(false)}>
-                Hủy
-              </button>
-              <button type="button" className="kpi-hub-btn kpi-hub-btn--primary" onClick={() => void submitAction()}>
-                Tạo Action
-              </button>
-            </div>
-          </div>
+      <PmModal
+        open={actionOpen}
+        title="Corrective Action"
+        onClose={() => setActionOpen(false)}
+        footer={
+          <>
+            <button type="button" className="kpi-hub-btn kpi-hub-btn--ghost" onClick={() => setActionOpen(false)}>
+              Hủy
+            </button>
+            <button type="button" className="kpi-hub-btn kpi-hub-btn--primary" onClick={() => void submitAction()}>
+              Tạo Action
+            </button>
+          </>
+        }
+      >
+        <div className="kpi-hub-pm-fields">
+          <label className="kpi-hub-field">
+            <span>Tiêu đề *</span>
+            <input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} />
+          </label>
+          <label className="kpi-hub-field">
+            <span>Owner</span>
+            <input value={asg?.owner ?? ''} disabled />
+          </label>
+          <label className="kpi-hub-field">
+            <span>Due</span>
+            <input value={actionDue} onChange={(e) => setActionDue(e.target.value)} />
+          </label>
+          <label className="kpi-hub-field">
+            <span>Expected impact</span>
+            <textarea value={actionImpact} onChange={(e) => setActionImpact(e.target.value)} rows={3} />
+          </label>
         </div>
-      ) : null}
+      </PmModal>
     </PmPage>
   );
 }

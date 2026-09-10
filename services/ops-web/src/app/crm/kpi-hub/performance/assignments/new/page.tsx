@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { PmAmberNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { PmPage } from '@/components/kpi-hub/performance/PmPage';
 import { PmReadinessRail } from '@/components/kpi-hub/performance/PmReadinessRail';
 import { getAccessToken } from '@/lib/auth';
@@ -157,7 +158,7 @@ export default function CreatePerformanceKpiPage() {
   return (
     <PmPage
       title="Tạo Assignment"
-      subtitle="PM-03 · Prefill Dictionary Active. Custom KPI cần approval. Activate bị chặn nếu readiness đỏ."
+      subtitle={PM_SUBTITLES.create}
       crumb="Tạo Assignment"
       actions={
         <>
@@ -193,10 +194,10 @@ export default function CreatePerformanceKpiPage() {
                 <span>Classification</span>
                 <input value={def.classification} disabled />
               </label>
-              <label className="kpi-hub-field kpi-hub-field--full">
+              <div className="kpi-hub-field kpi-hub-field--full">
                 <span>Formula snapshot (read-only)</span>
-                <input value={def.formula} disabled />
-              </label>
+                <pre className="kpi-hub-pm-formula">{def.formula}</pre>
+              </div>
             </div>
           </article>
           <article className="kpi-hub-card">

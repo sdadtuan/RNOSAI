@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { PmMoatNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { PmPage } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
 import { getAccessToken } from '@/lib/auth';
@@ -44,7 +45,7 @@ export default function PerformanceScorecardsPage() {
   return (
     <PmPage
       title={sc ? `Scorecard Builder — ${sc.title}` : 'Scorecard Builder'}
-      subtitle="PM-04 · Inherit Service Template DV04 + Quote snapshot. Weight = 100% mới Active."
+      subtitle={PM_SUBTITLES.scorecard}
       crumb="Scorecard Builder"
       actions={
         <>
@@ -123,7 +124,7 @@ export default function PerformanceScorecardsPage() {
               )}
             </div>
           </article>
-          <aside className="kpi-hub-pm-aside">
+          <aside className="kpi-hub-pm-aside kpi-hub-pm-aside--sticky">
             <article className="kpi-hub-card">
               <header className="kpi-hub-card__head">
                 <h2>Phân bổ</h2>

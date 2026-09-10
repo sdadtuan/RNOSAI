@@ -1,14 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PmLedgers } from '@/components/kpi-hub/performance/PmLedgers';
 import { PmMoatNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
 import { PmPage, pmBadge } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
+import { PmSummaryTiles } from '@/components/kpi-hub/performance/PmSummaryTiles';
 import { PmWeeklyRhythm } from '@/components/kpi-hub/performance/PmWeeklyRhythm';
-import { ServiceKpiSummaryTiles } from '@/components/kpi-hub/service-kpi/ServiceKpiSummaryTiles';
 import { getAccessToken } from '@/lib/auth';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { fetchPmDashboard } from '@/lib/performance-api';
 import type { PmDashboard } from '@/lib/performance-types';
 
@@ -37,6 +38,13 @@ function queueHref(item: { title: string; href: string }) {
   return item.href;
 }
 
+function overdueCheckinCount(queue: PmDashboard['queue']): number {
+  const row = queue.find((q) => /check-in quá hạn/i.test(q.title));
+  if (!row) return 0;
+  const m = row.title.match(/(\d+)/);
+  return m ? Number(m[1]) : 0;
+}
+
 export default function PerformanceDashboardPage() {
   const token = getAccessToken() ?? '';
   const [data, setData] = useState<PmDashboard>(EMPTY);
@@ -54,6 +62,8 @@ export default function PerformanceDashboardPage() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  const overdue = useMemo(() => overdueCheckinCount(data.queue), [data.queue]);
+
   const state = (
     <PmPageState
       loading={loading}
@@ -65,7 +75,7 @@ export default function PerformanceDashboardPage() {
   return (
     <PmPage
       title="Operating Dashboard"
-      subtitle="PM-01 · Nhịp tuần agency — không phải dashboard OKR generic. Scope: PTT Growth · Tháng 09/2026"
+      subtitle={PM_SUBTITLES.dashboard}
       crumb="Operating Dashboard"
       actions={
         <>
@@ -85,7 +95,8 @@ export default function PerformanceDashboardPage() {
             <b>Khác Lattice / 15Five:</b> tile thứ 6 “Data blocked” cấm close/report khi actual stale.{' '}
             <b>Khác AgencyAnalytics:</b> 3 sổ Quoted · Assigned · Verified trên cùng definition Dictionary.
           </PmMoatNotice>
-          <ServiceKpiSummaryTiles
+          <PmSummaryTiles
+            cols={6}
             tiles={[
               {
                 label: 'ĐÚNG TIẾN ĐỘ',
@@ -113,7 +124,7 @@ export default function PerformanceDashboardPage() {
               {
                 label: 'CHECK-IN ĐÚNG HẠN',
                 value: `${data.checkin_on_time_pct}%`,
-                hint: `${data.watch ? '6' : '0'} overdue → ritual`,
+                hint: `${overdue} overdue → ritual`,
                 tone: 'ok',
               },
               {
@@ -121,6 +132,7 @@ export default function PerformanceDashboardPage() {
                 value: String(data.data_blocked).padStart(2, '0'),
                 hint: 'Cấm close / client report',
                 tone: 'critical',
+                variant: 'blocked',
               },
             ]}
           />
@@ -156,7 +168,7 @@ export default function PerformanceDashboardPage() {
                 </div>
               </article>
             </div>
-            <aside className="kpi-hub-pm-aside">
+            <aside className="kpi-hub-pm-aside kpi-hub-pm-aside--sticky">
               <article className="kpi-hub-card">
                 <header className="kpi-hub-card__head">
                   <h2>Queue</h2>

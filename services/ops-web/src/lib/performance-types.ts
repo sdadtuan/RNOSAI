@@ -69,11 +69,11 @@ export type PmDashboard = {
   checkin_on_time_pct: number;
   data_blocked: number;
   ledgers: {
-    quoted: { value: number | null; label: string; hint: string };
-    assigned: { value: number | null; label: string; hint: string };
-    verified: { value: number | null; label: string; hint: string };
+    quoted: { value: number | null; label: string; hint: string; display?: string };
+    assigned: { value: number | null; label: string; hint: string; display?: string };
+    verified: { value: number | null; label: string; hint: string; display?: string; tone?: 'pending' };
   };
-  rhythm: Array<{ id: string; title: string; body: string; href: string }>;
+  rhythm: Array<{ id: string; title: string; body: string; href: string; cta_label?: string }>;
   dept_scores: Array<{ department: string; score: number; status: PmHealth }>;
   queue: Array<{ title: string; badge: string; href: string }>;
 };

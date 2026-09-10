@@ -1,6 +1,16 @@
 import React from 'react';
 
-type Cell = { value: number | null; label: string; hint: string };
+type Cell = {
+  value: number | null;
+  label: string;
+  hint: string;
+  display?: string;
+  tone?: 'pending';
+};
+
+function fmt(n: number | null) {
+  return n == null ? 'Pending' : n.toLocaleString('vi-VN');
+}
 
 export function PmLedgers({
   quoted,
@@ -11,22 +21,23 @@ export function PmLedgers({
   assigned: Cell;
   verified: Cell;
 }) {
-  const fmt = (n: number | null) => (n == null ? 'Pending' : n.toLocaleString('vi-VN'));
   return (
     <div className="kpi-hub-pm-ledgers">
       <article className="kpi-hub-card kpi-hub-pm-ledger">
         <label>SỔ QUOTED</label>
-        <b>{fmt(quoted.value)}</b>
+        <b>{quoted.display ?? fmt(quoted.value)}</b>
         <span>{quoted.hint}</span>
       </article>
       <article className="kpi-hub-card kpi-hub-pm-ledger">
         <label>SỔ ASSIGNED</label>
-        <b>{fmt(assigned.value)}</b>
+        <b>{assigned.display ?? fmt(assigned.value)}</b>
         <span>{assigned.hint}</span>
       </article>
       <article className="kpi-hub-card kpi-hub-pm-ledger">
         <label>SỔ VERIFIED</label>
-        <b>{fmt(verified.value)}</b>
+        <b className={verified.tone === 'pending' ? 'is-pending' : undefined}>
+          {verified.display ?? fmt(verified.value)}
+        </b>
         <span>{verified.hint}</span>
       </article>
     </div>

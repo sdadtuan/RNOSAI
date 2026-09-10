@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react';
 import { PmPage } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
-import { ServiceKpiSummaryTiles } from '@/components/kpi-hub/service-kpi/ServiceKpiSummaryTiles';
+import { PmScopeBar } from '@/components/kpi-hub/performance/PmScopeBar';
+import { PmSummaryTiles } from '@/components/kpi-hub/performance/PmSummaryTiles';
+import { PmToast } from '@/components/kpi-hub/performance/PmToast';
 import { getAccessToken } from '@/lib/auth';
+import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { exportPmReport, fetchPmReports } from '@/lib/performance-api';
 import type { PmReports } from '@/lib/performance-types';
 
@@ -18,23 +21,6 @@ const EMPTY: PmReports = {
   period_state: 'open',
   by_scope: [],
 };
-
-function ScopeBar({ scope }: { scope: PmReports['by_scope'][number] }) {
-  const green = scope.green ?? scope.healthy_pct;
-  const yellow = scope.yellow ?? 0;
-  const red = scope.red ?? Math.max(0, 100 - green - yellow);
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '86px 1fr 40px', gap: 9, alignItems: 'center', margin: '10px 0' }}>
-      <label style={{ fontSize: '0.75rem', color: '#64748b' }}>{scope.scope}</label>
-      <div style={{ display: 'flex', overflow: 'hidden', height: 18, borderRadius: 4, background: '#e9eef5' }}>
-        {green > 0 ? <i style={{ display: 'block', height: '100%', width: `${green}%`, background: '#10a36f' }} /> : null}
-        {yellow > 0 ? <i style={{ display: 'block', height: '100%', width: `${yellow}%`, background: '#f5b31a' }} /> : null}
-        {red > 0 ? <i style={{ display: 'block', height: '100%', width: `${red}%`, background: '#e54444' }} /> : null}
-      </div>
-      <b style={{ fontSize: '0.8rem' }}>{scope.healthy_pct}%</b>
-    </div>
-  );
-}
 
 export default function PerformanceReportsPage() {
   const token = getAccessToken() ?? '';
@@ -67,7 +53,7 @@ export default function PerformanceReportsPage() {
   return (
     <PmPage
       title="Snapshot Report"
-      subtitle="PM-10 · Kỳ đóng đọc snapshot bất biến. Export = field-level + audit. Không mix 2 formula version."
+      subtitle={PM_SUBTITLES.reports}
       crumb="Snapshot Report"
       actions={
         <>
@@ -80,31 +66,49 @@ export default function PerformanceReportsPage() {
         </>
       }
     >
-      {toast ? <p className="kpi-hub-notice kpi-hub-notice--success">{toast}</p> : null}
+      <PmToast message={toast} />
       <PmPageState loading={loading} error={error} />
       {!loading && !error ? (
         <>
-          <ServiceKpiSummaryTiles
+          <PmSummaryTiles
+            cols={5}
             tiles={[
               { label: 'COMPLETION', value: `${data.completion_pct}%`, hint: 'Item score' },
               { label: 'COMPLIANCE', value: `${data.compliance_pct}%`, hint: 'Check-in on time', tone: 'ok' },
               { label: 'AT RISK', value: `${data.at_risk_pct}%`, hint: '11 watch', tone: 'warn' },
-              { label: 'OVERDUE', value: String(data.overdue_checkins).padStart(2, '0'), hint: 'Escalation', tone: 'critical' },
+              {
+                label: 'OVERDUE',
+                value: String(data.overdue_checkins).padStart(2, '0'),
+                hint: 'Escalation',
+                tone: 'critical',
+              },
               { label: 'SNAPSHOTS', value: data.snapshots, hint: 'Closed + hash' },
             ]}
           />
-          <div className="kpi-hub-pm-layout" style={{ marginTop: 16 }}>
+          <div className="kpi-hub-pm-layout">
             <article className="kpi-hub-card">
               <header className="kpi-hub-card__head">
                 <h2>Health by scope</h2>
               </header>
               <div className="kpi-hub-card__body">
-                {data.by_scope.map((s) => (
-                  <ScopeBar key={s.scope} scope={s} />
-                ))}
+                {data.by_scope.map((s) => {
+                  const green = s.green ?? s.healthy_pct;
+                  const yellow = s.yellow ?? 0;
+                  const red = s.red ?? Math.max(0, 100 - green - yellow);
+                  return (
+                    <PmScopeBar
+                      key={s.scope}
+                      scope={s.scope}
+                      green={green}
+                      yellow={yellow}
+                      red={red}
+                      healthyPct={s.healthy_pct}
+                    />
+                  );
+                })}
               </div>
             </article>
-            <aside className="kpi-hub-pm-aside">
+            <aside className="kpi-hub-pm-aside kpi-hub-pm-aside--sticky">
               <article className="kpi-hub-card">
                 <header className="kpi-hub-card__head">
                   <h2>Close policy</h2>
