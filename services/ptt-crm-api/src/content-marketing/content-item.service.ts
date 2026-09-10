@@ -5,6 +5,7 @@ import {
   briefScoreThreshold,
 } from '../content-os-portfolio/brief-score.util';
 import { evaluateItemRights } from '../content-os-portfolio/asset-rights.service';
+import { attachApprovalMatrix, buildApprovalMatrixForItem } from '../content-os-portfolio/approval-matrix.util';
 import { evaluatePublishGate } from '../content-os-portfolio/publish-gate.util';
 import {
   CONTENT_RESEARCH_BRIEF_KEY,
@@ -47,7 +48,8 @@ export class ContentItemService {
     if (!item) {
       throw new NotFoundException({ error: 'item_not_found', id: itemId });
     }
-    return item;
+    const rights = await this.repo.listAssetRights(itemId);
+    return attachApprovalMatrix(item, rights);
   }
 
   async createItem(
@@ -328,6 +330,7 @@ export class ContentItemService {
     const score = item.brief_score ?? briefCompleteness(item.brief_json ?? {}, DEFAULT_BRIEF_WEIGHTS);
     const publishedUrlProvided = body.published_url != null;
     const publishedUrl = publishedUrlProvided ? String(body.published_url).trim() : null;
+    const { approval_matrix } = buildApprovalMatrixForItem(item, rightsRows);
     const gate = evaluatePublishGate({
       briefReady: score >= briefScoreThreshold(item.risk_level),
       internalApproved: ['approved_internal', 'client_approved', 'pending_client', 'scheduled'].includes(
@@ -342,7 +345,11 @@ export class ContentItemService {
       ...evaluateItemRights(item.media_json, rightsRows),
     });
     if (gate.status === 'Blocked') {
-      throw new ConflictException({ error: 'publish_gate_blocked', blockers: gate.blockers });
+      throw new ConflictException({
+        error: 'publish_gate_blocked',
+        blockers: gate.blockers,
+        ...(approval_matrix.gateBlockers.length ? { gateBlockers: approval_matrix.gateBlockers } : {}),
+      });
     }
 
     const updated = await this.repo.patchItem(lifecycleId, itemId, {
@@ -351,6 +358,6 @@ export class ContentItemService {
       published_url: publishedUrl || item.published_url,
     });
     await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'publish');
-    return updated;
+    return attachApprovalMatrix(updated, rightsRows);
   }
 }

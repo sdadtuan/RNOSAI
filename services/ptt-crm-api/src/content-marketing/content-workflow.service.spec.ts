@@ -62,7 +62,34 @@ describe('ContentWorkflowService', () => {
 
     const out = await service.submitReview(1, 1, 'sp@test.vn');
     expect(out.status).toBe('in_review');
+    expect(out.approval_matrix).toEqual({
+      steps: ['owner', 'account_director', 'client'],
+      gateBlockers: [],
+    });
     expect(repo.insertItemVersion).toHaveBeenCalledWith(1, expect.anything(), 'sp@test.vn', 'submit_review');
+  });
+
+  it('submitReview attaches legal step when body hits a default claim lexeme', async () => {
+    repo.getItemById.mockResolvedValue({
+      id: 1,
+      status: 'draft',
+      risk_level: 'Normal',
+      channel: 'facebook',
+      brief_json: COMPLETE_BRIEF,
+      body_json: { markdown: 'Gói giá rẻ cho mọi nhà' },
+    });
+    repo.patchItem.mockResolvedValue({
+      id: 1,
+      status: 'in_review',
+      body_json: { markdown: 'Gói giá rẻ cho mọi nhà' },
+    });
+
+    const out = await service.submitReview(1, 1, 'sp@test.vn');
+    expect(out.approval_matrix).toEqual({
+      steps: ['owner', 'legal', 'account_director', 'client'],
+      gateBlockers: [],
+    });
+    expect(out.claim_hits).toEqual(['giá rẻ']);
   });
 
   it('submitReview inserts a Sent approval package snapshot after gates pass', async () => {

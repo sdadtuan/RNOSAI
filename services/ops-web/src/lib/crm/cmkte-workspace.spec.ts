@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { evaluatePublishGate } from './cmkte-publish-gate';
 import {
   canMarkPublished,
+  claimHighlightSegments,
+  DEFAULT_CLAIM_LEXEMES,
+  itemClaimHits,
   itemMediaUrls,
   publishGateFlagsFromItem,
   rejectCommentValid,
@@ -107,5 +110,24 @@ describe('rejectCommentValid', () => {
   it('requires at least 10 characters', () => {
     expect(rejectCommentValid('short')).toBe(false);
     expect(rejectCommentValid('1234567890')).toBe(true);
+  });
+});
+
+describe('claim highlight', () => {
+  it('uses E1 default lexemes and prefers API claim_hits', () => {
+    expect(DEFAULT_CLAIM_LEXEMES).toEqual(['cam kết sinh lời', 'giá rẻ', 'số 1']);
+    expect(itemClaimHits(item({ claim_hits: ['giá rẻ'] }))).toEqual(['giá rẻ']);
+    expect(
+      itemClaimHits(item({ body_json: { markdown: 'Chúng tôi là Số 1' } })),
+    ).toEqual(['số 1']);
+  });
+
+  it('wraps matched lexemes as hit segments', () => {
+    const segs = claimHighlightSegments('Gói giá rẻ hôm nay', ['giá rẻ']);
+    expect(segs).toEqual([
+      { text: 'Gói ', hit: false },
+      { text: 'giá rẻ', hit: true },
+      { text: ' hôm nay', hit: false },
+    ]);
   });
 });

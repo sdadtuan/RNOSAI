@@ -13,7 +13,16 @@ import {
 import { evaluatePublishGate } from '@/lib/crm/cmkte-publish-gate';
 import { cmktePath, contentOsPanelHref } from '@/lib/crm/cmkte-routes';
 import { CMKTE_EMPTY_ITEM, CMKTE_TABS, nextTabLabel, type CmktETabId } from '@/lib/crm/cmkte-tabs';
-import { canMarkPublished, dash, isBlankRecord, itemMediaUrls, publishGateFlagsFromItem, rejectCommentValid } from '@/lib/crm/cmkte-workspace';
+import {
+  canMarkPublished,
+  claimHighlightSegments,
+  dash,
+  isBlankRecord,
+  itemClaimHits,
+  itemMediaUrls,
+  publishGateFlagsFromItem,
+  rejectCommentValid,
+} from '@/lib/crm/cmkte-workspace';
 import { useCmktItem } from '@/lib/crm/use-cmkt-item';
 import { deliverableFormatChannel } from './cmkte-deliverables';
 
@@ -151,6 +160,7 @@ export function CmktEWorkspace({
   const item = bundle.item;
   const slots = contextSlots(bundle);
   const urls = itemMediaUrls(item);
+  const claimHits = itemClaimHits(item);
   const token = getAccessToken();
 
   return (
@@ -235,7 +245,28 @@ export function CmktEWorkspace({
               <a href={contentOsPanelHref(item.lifecycle_id)}>Mở editor CMKT</a>
             </p>
           ) : null}
-          <JsonBlock value={item.body_json?.markdown || item.body_json} empty="Chưa có copy." />
+          {claimHits.length ? (
+            <ul className="cmkte-list">
+              {claimHits.map((hit) => (
+                <li key={hit}>Restricted: {hit}</li>
+              ))}
+            </ul>
+          ) : null}
+          {item.body_json?.markdown ? (
+            <pre className="cmkte-json">
+              {claimHighlightSegments(item.body_json.markdown, claimHits).map((seg, idx) =>
+                seg.hit ? (
+                  <mark key={`${seg.text}-${idx}`} className="cmkte-claim">
+                    {seg.text}
+                  </mark>
+                ) : (
+                  <span key={`${seg.text}-${idx}`}>{seg.text}</span>
+                ),
+              )}
+            </pre>
+          ) : (
+            <JsonBlock value={item.body_json} empty="Chưa có copy." />
+          )}
           {bundle.versions.length ? (
             <p className="cmkte-desc">{bundle.versions.length} phiên bản.</p>
           ) : (

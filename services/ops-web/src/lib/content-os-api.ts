@@ -173,6 +173,8 @@ export type ContentOsItem = {
   created_by: string;
   created_at: string;
   updated_at: string;
+  approval_matrix?: { steps: string[]; gateBlockers: string[] };
+  claim_hits?: string[];
 };
 
 export const CMKT_P0_PAIRS = [

@@ -311,6 +311,79 @@ describe('ContentItemService publishItem gate', () => {
     });
     expect(repo.patchItem).not.toHaveBeenCalled();
   });
+
+  it('passes matrix gateBlockers as extra context when publish is already blocked', async () => {
+    repo.getItemById.mockResolvedValue(
+      publishableItem({
+        channel: 'meta_ads',
+        brief_json: {
+          objective: 'Lead',
+          funnel: 'BOFU',
+          persona: 'CMO',
+          smm: 'Ads',
+          proofs: 'Case',
+          restricted: 'None',
+          disclaimer: 'N/A',
+          cta: 'Book',
+          kpi: 'SQL',
+        },
+      }),
+    );
+    repo.listAssetRights.mockResolvedValue([
+      { asset_ref: 'https://cdn/blocked.jpg', status: 'Invalid', paid_ok: false },
+    ]);
+
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toMatchObject({
+      response: {
+        error: 'publish_gate_blocked',
+        blockers: expect.arrayContaining([expect.objectContaining({ code: 'rights_invalid' })]),
+        gateBlockers: ['Paid media rights invalid'],
+      },
+    });
+  });
+});
+
+describe('ContentItemService.getItem matrix', () => {
+  const config = {};
+  const core = { ensureLifecycleEnabled: jest.fn().mockResolvedValue({}) };
+  const repo = {
+    getItemById: jest.fn(),
+    listAssetRights: jest.fn(),
+    getLatestApprovalPackage: jest.fn(),
+  };
+
+  let service: ContentItemService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    repo.getLatestApprovalPackage.mockResolvedValue(null);
+    repo.listAssetRights.mockResolvedValue([]);
+    service = new ContentItemService(
+      config as never,
+      core as never,
+      repo as never,
+      new ApprovalPackageService(repo as never),
+    );
+  });
+
+  it('attaches approval_matrix and claim_hits on GET item', async () => {
+    repo.getItemById.mockResolvedValue({
+      id: 7,
+      lifecycle_id: 1,
+      status: 'draft',
+      risk_level: 'Normal',
+      channel: 'facebook',
+      brief_json: { restricted: 'No medical claims' },
+      body_json: { markdown: 'Chúng tôi là số 1' },
+    });
+
+    const out = await service.getItem(1, 7);
+    expect(out.approval_matrix).toEqual({
+      steps: ['owner', 'legal', 'account_director', 'client'],
+      gateBlockers: [],
+    });
+    expect(out.claim_hits).toEqual(['số 1']);
+  });
 });
 
 describe('ContentItemService package lock', () => {

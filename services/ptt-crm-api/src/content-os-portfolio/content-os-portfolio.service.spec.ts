@@ -306,8 +306,10 @@ describe('ContentOsPortfolioService.getPortfolioItem', () => {
   it('returns the item when it belongs to a scoped lifecycle', async () => {
     const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4, 7]) };
     const marketingRepo = { findItemById: jest.fn().mockResolvedValue(item) };
-    const svc = makeSvc(repo, undefined, marketingRepo);
+    const items = { getItem: jest.fn().mockResolvedValue(item) };
+    const svc = makeSvc(repo, undefined, marketingRepo, items);
     await expect(svc.getPortfolioItem({ staffId: 1, itemId: 21 })).resolves.toEqual(item);
+    expect(items.getItem).toHaveBeenCalledWith(4, 21);
   });
 
   it('uses lifecycle hint first when the hint is in scope', async () => {
@@ -322,13 +324,21 @@ describe('ContentOsPortfolioService.getPortfolioItem', () => {
 
   it('falls back to scoped scan when hint misses', async () => {
     const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4, 7]) };
-    const items = { getItem: jest.fn().mockRejectedValue(Object.assign(new Error('not found'), { status: 404 })) };
-    const marketingRepo = { findItemById: jest.fn().mockResolvedValue({ ...item, lifecycle_id: 7 }) };
-    const svc = makeSvc(repo, undefined, marketingRepo, items);
-    await expect(svc.getPortfolioItem({ staffId: 1, itemId: 21, lifecycleHint: 4 })).resolves.toEqual({
+    const found = {
       ...item,
       lifecycle_id: 7,
-    });
+      approval_matrix: { steps: ['owner', 'account_director', 'client'], gateBlockers: [] },
+    };
+    const items = {
+      getItem: jest
+        .fn()
+        .mockRejectedValueOnce(Object.assign(new Error('not found'), { status: 404 }))
+        .mockResolvedValueOnce(found),
+    };
+    const marketingRepo = { findItemById: jest.fn().mockResolvedValue({ ...item, lifecycle_id: 7 }) };
+    const svc = makeSvc(repo, undefined, marketingRepo, items);
+    await expect(svc.getPortfolioItem({ staffId: 1, itemId: 21, lifecycleHint: 4 })).resolves.toEqual(found);
+    expect(items.getItem).toHaveBeenNthCalledWith(2, 7, 21);
   });
 });
 

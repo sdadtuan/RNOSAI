@@ -18,6 +18,7 @@ import {
   briefCompleteness,
   briefScoreThreshold,
 } from '../content-os-portfolio/brief-score.util';
+import { attachApprovalMatrix } from '../content-os-portfolio/approval-matrix.util';
 import type { CmktItemRow, CmktReviewQueueItem, CmktReviewQueueSummary } from './content-marketing.types';
 
 @Injectable()
@@ -63,7 +64,8 @@ export class ContentWorkflowService {
     });
     await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'submit_review');
     await this.packages.createSentOnSubmit(item, actorEmail);
-    return updated;
+    const rights = await this.repo.listAssetRights(itemId);
+    return attachApprovalMatrix({ ...item, ...updated }, rights);
   }
 
   async approve(

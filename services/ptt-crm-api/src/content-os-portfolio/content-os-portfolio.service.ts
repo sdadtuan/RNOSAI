@@ -216,7 +216,7 @@ export class ContentOsPortfolioService {
     if (!found || !ids.includes(found.lifecycle_id)) {
       throw new NotFoundException({ error: 'item_not_found', id: input.itemId });
     }
-    return found;
+    return this.items.getItem(found.lifecycle_id, input.itemId);
   }
 
   private parseRequestSource(raw: unknown): ContentRequestSource {
