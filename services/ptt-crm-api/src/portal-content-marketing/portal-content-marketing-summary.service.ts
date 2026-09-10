@@ -10,7 +10,11 @@ import { ContentWorkflowService } from '../content-marketing/content-workflow.se
 import { PortalJwtPayload } from '../portal/portal-jwt.util';
 import { ServiceLifecycleService } from '../service-lifecycle/service-lifecycle.service';
 import type { CmktPortalContentSummary } from './portal-content-marketing.types';
-import { buildStaffContentOsUrl, toPortalSummaryItem } from './portal-content-marketing.util';
+import {
+  buildStaffContentOsUrl,
+  stripPortalInternalFields,
+  toPortalSummaryItem,
+} from './portal-content-marketing.util';
 
 @Injectable()
 export class PortalContentMarketingSummaryService {
@@ -64,7 +68,7 @@ export class PortalContentMarketingSummaryService {
     lifecycleId: number,
   ): Promise<CmktPortalContentSummary> {
     if (!this.isEnabled()) {
-      return {
+      return stripPortalInternalFields({
         ok: true,
         enabled: false,
         lifecycle_id: lifecycleId,
@@ -74,7 +78,7 @@ export class PortalContentMarketingSummaryService {
         published_mtd: 0,
         pending_items: [],
         staff_content_url: '',
-      };
+      });
     }
 
     const { serviceSlug } = await this.assertPortalLifecycleAccess(user, lifecycleId);
@@ -82,8 +86,15 @@ export class PortalContentMarketingSummaryService {
       this.repo.getContextCounts(lifecycleId),
       this.repo.listItems(lifecycleId, { status: 'pending_client' }),
     ]);
+    const pendingSlice = pendingRows.slice(0, 12);
+    const pending_items = await Promise.all(
+      pendingSlice.map(async (row) => {
+        const pkg = await this.repo.getLatestApprovalPackage(row.id);
+        return toPortalSummaryItem(row, pkg);
+      }),
+    );
 
-    return {
+    return stripPortalInternalFields({
       ok: true,
       enabled: true,
       lifecycle_id: lifecycleId,
@@ -91,9 +102,9 @@ export class PortalContentMarketingSummaryService {
       items_by_status: counts.items_by_status,
       pending_client_count: Number(counts.items_by_status.pending_client ?? pendingRows.length),
       published_mtd: counts.published_mtd,
-      pending_items: pendingRows.slice(0, 12).map(toPortalSummaryItem),
+      pending_items,
       staff_content_url: buildStaffContentOsUrl(this.opsWebBaseUrl(), lifecycleId),
-    };
+    });
   }
 
   private assertPortalApprover(user: PortalJwtPayload): void {
@@ -110,7 +121,8 @@ export class PortalContentMarketingSummaryService {
       itemId,
       `portal:${user.email}`,
     );
-    return { ok: true, item: toPortalSummaryItem(item) };
+    const pkg = await this.repo.getLatestApprovalPackage(item.id);
+    return stripPortalInternalFields({ ok: true, item: toPortalSummaryItem(item, pkg) });
   }
 
   async portalClientReject(
@@ -127,6 +139,7 @@ export class PortalContentMarketingSummaryService {
       body,
       `portal:${user.email}`,
     );
-    return { ok: true, item: toPortalSummaryItem(item) };
+    const pkg = await this.repo.getLatestApprovalPackage(item.id);
+    return stripPortalInternalFields({ ok: true, item: toPortalSummaryItem(item, pkg) });
   }
 }

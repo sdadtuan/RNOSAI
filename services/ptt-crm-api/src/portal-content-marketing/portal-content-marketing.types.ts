@@ -1,3 +1,10 @@
+export type CmktPortalApprovalPackage = {
+  id: number;
+  status: string;
+  created_at: string;
+  snapshot_json: Record<string, unknown>;
+};
+
 export type CmktPortalSummaryItem = {
   id: number;
   title: string;
@@ -5,6 +12,7 @@ export type CmktPortalSummaryItem = {
   format: string;
   status: string;
   updated_at: string;
+  approval_package?: CmktPortalApprovalPackage;
 };
 
 export type CmktPortalContentSummary = {
