@@ -1,6 +1,9 @@
 # Brand uploads (runtime — seed from docs/brand/)
 /data/brand/
 
+node_modules/
+node_modules
+
 # CSD chat attachments (runtime — PTT_CSD_FILE_DIR)
 /data/csd-files/
 
