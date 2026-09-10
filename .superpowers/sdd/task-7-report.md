@@ -84,3 +84,42 @@ Request spec cases:
 
 1. **DDL not applied locally** — Task 6 skipped Postgres apply. Repo SQL is untested against a live DB; unit tests mock the repo.
 2. Jest printed a worker teardown warning (`force exited`) after the green run; all 20 tests still passed.
+
+## Fix
+
+Review findings: convert must create+link before marking Converted; reject non-finite/`<= 0` `lifecycleId` on create.
+
+**Covering test file:** `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.service.request.spec.ts`
+
+**Command:**
+
+```
+cd services/ptt-crm-api && npx jest src/content-os-portfolio/content-os-portfolio.service.request.spec.ts --no-coverage
+```
+
+### RED
+
+```
+FAIL src/content-os-portfolio/content-os-portfolio.service.request.spec.ts
+  ✕ rejects invalid lifecycleId 0 with 400 and no insert
+  ✕ rejects invalid lifecycleId NaN with 400 and no insert
+  ✕ leaves request Accepted when createItem throws
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 3 passed, 6 total
+```
+
+### GREEN
+
+```
+PASS src/content-os-portfolio/content-os-portfolio.service.request.spec.ts
+  ✓ rejects missing deliverable
+  ✓ rejects invalid lifecycleId 0 with 400 and no insert
+  ✓ rejects invalid lifecycleId NaN with 400 and no insert
+  ✓ creates Submitted with completeness and CR code
+  ✓ converts Accepted request and creates item with CNT code
+  ✓ leaves request Accepted when createItem throws
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+```

@@ -91,6 +91,9 @@ export class ContentOsPortfolioService {
     actor: string;
     body: Record<string, unknown>;
   }): Promise<ContentRequestRow> {
+    if (!Number.isFinite(input.lifecycleId) || input.lifecycleId <= 0) {
+      throw new BadRequestException({ error: 'invalid_lifecycle_id' });
+    }
     const deliverable_ask = String(input.body.deliverable_ask ?? '').trim();
     if (!deliverable_ask) {
       throw new BadRequestException({ error: 'deliverable_ask_required' });
@@ -141,7 +144,6 @@ export class ContentOsPortfolioService {
     if (request.triage_status !== 'Accepted') {
       throw new BadRequestException({ error: 'request_not_accepted', status: request.triage_status });
     }
-    const converted = await this.repo.updateRequestStatus(request.id, 'Converted');
     const channel = String(input.body.channel ?? 'facebook').trim() || 'facebook';
     const format = String(input.body.format ?? 'social_post').trim() || 'social_post';
     const item = await this.items.createItem(
@@ -156,6 +158,7 @@ export class ContentOsPortfolioService {
       request_id: request.id,
       display_code,
     });
+    const converted = await this.repo.updateRequestStatus(request.id, 'Converted');
     return {
       request: converted,
       item: { ...item, request_id: linked.request_id, display_code: linked.display_code },

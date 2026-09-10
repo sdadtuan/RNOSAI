@@ -24,6 +24,16 @@ describe('ContentOsPortfolioService.createRequest', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 
+  it.each([0, NaN])('rejects invalid lifecycleId %p with 400 and no insert', async (lifecycleId) => {
+    repo.nextRequestSeq = jest.fn();
+    repo.insertRequest = jest.fn();
+    await expect(
+      svc.createRequest({ lifecycleId, actor: 'a@b.c', body: { deliverable_ask: 'posts' } }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(repo.nextRequestSeq).not.toHaveBeenCalled();
+    expect(repo.insertRequest).not.toHaveBeenCalled();
+  });
+
   it('creates Submitted with completeness and CR code', async () => {
     repo.nextRequestSeq = jest.fn().mockResolvedValue(24);
     repo.insertRequest = jest.fn().mockImplementation(async (row) => row);
@@ -84,5 +94,23 @@ describe('ContentOsPortfolioService.createRequest', () => {
     );
     expect(out.item.request_id).toBe(9);
     expect(out.item.display_code).toMatch(/^CNT-\d{8}-021$/);
+  });
+
+  it('leaves request Accepted when createItem throws', async () => {
+    const accepted = {
+      id: 9,
+      lifecycle_id: 1,
+      deliverable_ask: '12 social posts',
+      triage_status: 'Accepted',
+    };
+    repo.getRequestById = jest.fn().mockResolvedValue(accepted);
+    repo.updateRequestStatus = jest.fn();
+    items.createItem.mockRejectedValue(new Error('create failed'));
+
+    await expect(svc.convertRequest({ requestId: 9, actor: 'am@ptt.vn', body: {} })).rejects.toThrow(
+      'create failed',
+    );
+
+    expect(repo.updateRequestStatus).not.toHaveBeenCalled();
   });
 });
