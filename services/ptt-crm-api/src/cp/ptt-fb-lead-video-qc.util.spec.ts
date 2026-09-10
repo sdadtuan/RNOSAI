@@ -133,6 +133,13 @@ describe('evaluateLeadVideoPack / assertLeadVideoLaunchable', () => {
     expect(() => assertLeadVideoLaunchable(pack, { require_h1_30: false })).not.toThrow();
   });
 
+  it('allows wave-1 launch when only the three 15s files are present', () => {
+    const pack = evaluateLeadVideoPack(passingPack().filter((f) => f.hook_id !== 'h1_30'));
+    expect(pack.files.h1_30).toEqual({ overall: 'blocked', reason: 'missing_file' });
+    expect(pack.overall).toBe('blocked');
+    expect(() => assertLeadVideoLaunchable(pack, { require_h1_30: false })).not.toThrow();
+  });
+
   it('blocks launch when any 15s file is missing', () => {
     const pack = evaluateLeadVideoPack(passingPack().filter((f) => f.hook_id !== 'h2'));
     expect(pack.files.h2).toEqual({ overall: 'blocked', reason: 'missing_file' });

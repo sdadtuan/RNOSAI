@@ -115,6 +115,7 @@ export function evaluateLeadVideoPack(files: LeadVideoFileFacts[]): LeadVideoPac
       ? evaluateLeadVideoFile({ ...facts, filename: row.filename, hook_id: row.hook_id })
       : { overall: 'blocked', reason: 'missing_file' };
   }
+  // overall 'passed' means all four files including H1-30 (scale-ready), not wave-1 launchable.
   const overall = Object.values(out).some((file) => file.overall === 'blocked') ? 'blocked' : 'passed';
   return { overall, files: out };
 }
