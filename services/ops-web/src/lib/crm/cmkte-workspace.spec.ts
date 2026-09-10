@@ -83,6 +83,22 @@ describe('canMarkPublished', () => {
     expect(canMarkPublished('Blocked')).toBe(false);
     expect(canMarkPublished('Pass', 'published')).toBe(false);
   });
+
+  // E1 UAT: Rights Invalid → gate Blocked → Mark published disabled.
+  it('is false when rightsValid is false because the gate is Blocked', () => {
+    const gate = evaluatePublishGate({
+      briefReady: true,
+      internalApproved: true,
+      legalRequired: false,
+      legalApproved: false,
+      clientApproved: true,
+      urlOk: true,
+      rightsValid: false,
+    });
+    expect(gate.status).toBe('Blocked');
+    expect(gate.blockers.map((row) => row.code)).toContain('rights_invalid');
+    expect(canMarkPublished(gate.status)).toBe(false);
+  });
 });
 
 describe('calendar collision notice', () => {

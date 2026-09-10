@@ -399,6 +399,7 @@ describe('ContentItemService package lock', () => {
     getLatestApprovalPackage: jest.fn(),
     updateApprovalPackageStatus: jest.fn(),
     staffExists: jest.fn(),
+    listAssetRights: jest.fn(),
   };
 
   let service: ContentItemService;
@@ -406,6 +407,7 @@ describe('ContentItemService package lock', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     repo.getLatestApprovalPackage.mockResolvedValue(null);
+    repo.listAssetRights.mockResolvedValue([]);
     service = new ContentItemService(
       config as never,
       core as never,
@@ -500,5 +502,56 @@ describe('ContentItemService package lock', () => {
 
     expect(repo.patchItem).toHaveBeenCalledWith(1, 7, { assignee_sp: 4 });
     expect(repo.updateApprovalPackageStatus).not.toHaveBeenCalled();
+  });
+
+  // E1 UAT: after approve, editing a claim requires force_version → new version + Legal step.
+  it('force_version claim after Sent writes a version and GET adds legal when lexeme hits', async () => {
+    const claimBody = { markdown: 'Chúng tôi là số 1' };
+    repo.getItemById.mockResolvedValue(draftItem());
+    repo.getLatestApprovalPackage.mockResolvedValue({ id: 11, item_id: 7, status: 'Sent' });
+
+    await expect(
+      service.patchItem(1, 7, { body_json: claimBody }, 'sp@test.vn'),
+    ).rejects.toMatchObject({ response: { error: 'package_locked' } });
+    expect(repo.patchItem).not.toHaveBeenCalled();
+
+    repo.patchItem.mockResolvedValue({
+      id: 7,
+      status: 'in_review',
+      brief_json: { objective: 'Lead' },
+      body_json: claimBody,
+    });
+    repo.updateApprovalPackageStatus.mockResolvedValue({ id: 11, status: 'Superseded' });
+
+    await service.patchItem(
+      1,
+      7,
+      { body_json: claimBody, force_version: true },
+      'sp@test.vn',
+    );
+
+    expect(repo.insertItemVersion).toHaveBeenCalledWith(
+      7,
+      claimBody,
+      'sp@test.vn',
+      'package_force_version',
+    );
+
+    repo.getItemById.mockResolvedValue({
+      id: 7,
+      lifecycle_id: 1,
+      status: 'in_review',
+      risk_level: 'Normal',
+      channel: 'facebook',
+      brief_json: { objective: 'Lead' },
+      body_json: claimBody,
+    });
+
+    const out = await service.getItem(1, 7);
+    expect(out.claim_hits).toEqual(['số 1']);
+    expect(out.approval_matrix).toEqual({
+      steps: ['owner', 'legal', 'account_director', 'client'],
+      gateBlockers: [],
+    });
   });
 });
