@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { fetchServiceLifecycles, staffMe, staffRefresh, type ServiceLifecycleRow } from '@/lib/api';
 import {
   canViewContentOs,
@@ -95,73 +94,55 @@ export default function CrmContentOsHubPage() {
     })();
   }, [ensureAuth, router]);
 
-  function logout() {
-    clearSession();
-    router.push('/login');
-  }
-
   if (!user) {
-    return (
-      <CrmDeliveryPageShell user={null} onLogout={logout} title="Content Marketing OS" loading>
-        <span />
-      </CrmDeliveryPageShell>
-    );
+    return null;
   }
 
   if (!isContentMarketingFeEnabled()) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Content Marketing OS">
-        <div className="page-card">
-          <p>Module tắt</p>
-        </div>
-      </CrmDeliveryPageShell>
+      <div className="page-card">
+        <p>Module tắt</p>
+      </div>
     );
   }
 
   return (
-    <CrmDeliveryPageShell
-      user={user}
-      onLogout={logout}
-      title="Content Marketing OS"
-      subtitle="Chọn lifecycle để mở Content Board"
-    >
-      <div className="page-card stack-gap">
-        {loading ? <p className="muted">Đang tải…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+    <div className="page-card stack-gap">
+      {loading ? <p className="muted">Đang tải…</p> : null}
+      {error ? <p className="error">{error}</p> : null}
 
-        {!loading && !error && rows.length === 0 ? <p className="muted">{EMPTY_COPY}</p> : null}
+      {!loading && !error && rows.length === 0 ? <p className="muted">{EMPTY_COPY}</p> : null}
 
-        {rows.length > 0 ? (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Lifecycle</th>
-                  <th>slug</th>
-                  <th>stage</th>
-                  <th>status</th>
-                  <th>updated</th>
+      {rows.length > 0 ? (
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Lifecycle</th>
+                <th>slug</th>
+                <th>stage</th>
+                <th>status</th>
+                <th>updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <Link href={contentOsBoardHref(row.id)} className="nav-link">
+                      #{row.id} · Content Board
+                    </Link>
+                  </td>
+                  <td>{row.service_slug}</td>
+                  <td>{row.stage}</td>
+                  <td>{row.status}</td>
+                  <td>{row.updated_at ? String(row.updated_at).slice(0, 10) : '—'}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <Link href={contentOsBoardHref(row.id)} className="nav-link">
-                        #{row.id} · Content Board
-                      </Link>
-                    </td>
-                    <td>{row.service_slug}</td>
-                    <td>{row.stage}</td>
-                    <td>{row.status}</td>
-                    <td>{row.updated_at ? String(row.updated_at).slice(0, 10) : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </div>
-    </CrmDeliveryPageShell>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
   );
 }
