@@ -11,6 +11,7 @@ import {
   type PortfolioCommandCenter,
   type PortfolioRiskQueueItem,
 } from './content-os-portfolio.types';
+import { nextDisplaySeq } from './display-seq';
 import { formatContentItemCode, formatContentRequestCode } from './content-os-portfolio.util';
 
 @Injectable()
@@ -280,14 +281,7 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
   }
 
   private async nextDisplaySeq(zeroCode: string, table: 'cmkt_content_requests' | 'cmkt_content_items' = 'cmkt_content_requests'): Promise<number> {
-    const prefix = zeroCode.slice(0, -3);
-    const res = await this.db.query(
-      `SELECT COALESCE(MAX(CAST(split_part(display_code, '-', 3) AS INT)), 0) + 1 AS seq
-       FROM ${table}
-       WHERE display_code LIKE $1`,
-      [`${prefix}%`],
-    );
-    return Number(res.rows[0]?.seq ?? 1);
+    return nextDisplaySeq((sql, values) => this.db.query(sql, values), zeroCode, table);
   }
 
   private mapRequestRow(row: Record<string, unknown>): ContentRequestRow {

@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { CMKT_ITEM_STATUSES, CMKT_REVIEW_SLA_HOURS } from './content-marketing.constants';
 import { isReviewSlaBreach } from './content-workflow.util';
 import { emptyBodyJson } from './content-marketing.util';
+import { nextDisplaySeq } from '../content-os-portfolio/display-seq';
 import { formatContentItemCode } from '../content-os-portfolio/content-os-portfolio.util';
 import type {
   CmktActiveSnapshotRow,
@@ -865,26 +866,11 @@ export class ContentMarketingRepository implements OnModuleDestroy {
   }
 
   async nextItemSeq(now = new Date()): Promise<number> {
-    const prefix = formatContentItemCode(now, 0).slice(0, -3);
-    if (await this.ensurePgReady()) {
-      const res = await this.db.query(
-        `SELECT COALESCE(MAX(CAST(split_part(display_code, '-', 3) AS INT)), 0) + 1 AS seq
-         FROM cmkt_content_items
-         WHERE display_code LIKE $1`,
-        [`${prefix}%`],
-      );
-      return Number(res.rows[0]?.seq ?? 1);
-    }
-    let max = 0;
-    for (const items of this.memory.items.values()) {
-      for (const item of items) {
-        const code = String(item.display_code ?? '');
-        if (!code.startsWith(prefix)) continue;
-        const seq = Number(code.split('-')[2] ?? 0);
-        if (Number.isFinite(seq) && seq > max) max = seq;
-      }
-    }
-    return max + 1;
+    return nextDisplaySeq(
+      (sql, values) => this.db.query(sql, values),
+      formatContentItemCode(now, 0),
+      'cmkt_content_items',
+    );
   }
 
   async createItem(
