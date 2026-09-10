@@ -625,6 +625,11 @@ export function postContentOsPublishItem(
   });
 }
 
+export type ContentOsPublicationCollision = {
+  item_id: number;
+  at: string;
+};
+
 export type ContentOsCalendarSlot = {
   id: number;
   lifecycle_id: number;
@@ -633,6 +638,7 @@ export type ContentOsCalendarSlot = {
   timezone: string;
   reminder_sent: boolean;
   item?: ContentOsItem;
+  collision?: ContentOsPublicationCollision | null;
 };
 
 export function fetchContentOsCalendar(
@@ -652,7 +658,11 @@ export function putContentOsCalendarSlot(
   lifecycleId: number,
   itemId: number,
   body: { scheduled_at: string; timezone?: string },
-): Promise<{ slot: ContentOsCalendarSlot; item: ContentOsItem }> {
+): Promise<{
+  slot: ContentOsCalendarSlot;
+  item: ContentOsItem;
+  collision: ContentOsPublicationCollision | null;
+}> {
   return cmktFetch(token, lifecycleId, `/calendar/slots/${itemId}`, {
     method: 'PUT',
     body: JSON.stringify(body),

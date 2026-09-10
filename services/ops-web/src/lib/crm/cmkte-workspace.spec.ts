@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { evaluatePublishGate } from './cmkte-publish-gate';
 import {
+  calendarCollisionNotice,
   canMarkPublished,
   claimHighlightSegments,
   DEFAULT_CLAIM_LEXEMES,
+  firstCalendarCollision,
   itemClaimHits,
   itemMediaUrls,
   publishGateFlagsFromItem,
@@ -80,6 +82,26 @@ describe('canMarkPublished', () => {
     expect(canMarkPublished('Warning')).toBe(false);
     expect(canMarkPublished('Blocked')).toBe(false);
     expect(canMarkPublished('Pass', 'published')).toBe(false);
+  });
+});
+
+describe('calendar collision notice', () => {
+  it('prefers last upsert collision, then listed slots, and does not block publish', () => {
+    expect(firstCalendarCollision([])).toBeNull();
+    expect(
+      firstCalendarCollision([{ collision: { item_id: 12, at: '2026-09-11T11:30:00.000Z' } }]),
+    ).toEqual({ item_id: 12, at: '2026-09-11T11:30:00.000Z' });
+    expect(
+      firstCalendarCollision(
+        [{ collision: { item_id: 9, at: '2026-09-11T08:00:00.000Z' } }],
+        { collision: { item_id: 12, at: '2026-09-11T11:30:00.000Z' } },
+      ),
+    ).toEqual({ item_id: 12, at: '2026-09-11T11:30:00.000Z' });
+    expect(canMarkPublished('Pass', 'scheduled')).toBe(true);
+    expect(calendarCollisionNotice({ item_id: 12, at: '2026-09-11T11:30:00.000Z' })).toContain(
+      'Cảnh báo trùng lịch',
+    );
+    expect(calendarCollisionNotice(null)).toBeNull();
   });
 });
 

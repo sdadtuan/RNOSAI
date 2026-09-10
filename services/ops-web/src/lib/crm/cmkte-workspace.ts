@@ -38,6 +38,20 @@ export function canMarkPublished(
   return gateStatus === 'Pass' && itemStatus !== 'published';
 }
 
+export type PublicationCollision = { item_id: number; at: string };
+
+export function firstCalendarCollision(
+  slots: Array<{ collision?: PublicationCollision | null }>,
+  lastUpsert?: { collision?: PublicationCollision | null } | null,
+): PublicationCollision | null {
+  return lastUpsert?.collision ?? slots.find((slot) => slot.collision)?.collision ?? null;
+}
+
+export function calendarCollisionNotice(collision: PublicationCollision | null | undefined): string | null {
+  if (!collision) return null;
+  return `Cảnh báo trùng lịch xuất bản với item ${collision.item_id} lúc ${collision.at}. Không chặn đánh dấu published.`;
+}
+
 export function rejectCommentValid(comment: string): boolean {
   return comment.trim().length >= 10;
 }

@@ -350,6 +350,11 @@ export type CmktReviewQueueSummary = {
   avg_hours_in_review: number | null;
 };
 
+export type CmktPublicationCollision = {
+  item_id: number;
+  at: string;
+};
+
 export type CmktCalendarSlotRow = {
   id: number;
   lifecycle_id: number;
@@ -358,6 +363,7 @@ export type CmktCalendarSlotRow = {
   timezone: string;
   reminder_sent: boolean;
   item?: CmktItemRow;
+  collision?: CmktPublicationCollision | null;
 };
 
 export type CmktRepurposeTarget = {

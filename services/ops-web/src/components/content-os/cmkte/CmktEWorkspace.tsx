@@ -14,9 +14,11 @@ import { evaluatePublishGate } from '@/lib/crm/cmkte-publish-gate';
 import { cmktePath, contentOsPanelHref } from '@/lib/crm/cmkte-routes';
 import { CMKTE_EMPTY_ITEM, CMKTE_TABS, nextTabLabel, type CmktETabId } from '@/lib/crm/cmkte-tabs';
 import {
+  calendarCollisionNotice,
   canMarkPublished,
   claimHighlightSegments,
   dash,
+  firstCalendarCollision,
   isBlankRecord,
   itemClaimHits,
   itemMediaUrls,
@@ -162,6 +164,7 @@ export function CmktEWorkspace({
   const urls = itemMediaUrls(item);
   const claimHits = itemClaimHits(item);
   const token = getAccessToken();
+  const collisionNotice = calendarCollisionNotice(firstCalendarCollision(bundle.slots));
 
   return (
     <div className="cmkte-work">
@@ -309,6 +312,12 @@ export function CmktEWorkspace({
       {tab === 'seo' ? (
         <section className="cmkte-card">
           <h2 className="cmkte-section-title">SEO & Distribution</h2>
+          {collisionNotice ? (
+            <div className="cmkte-notice cmkte-notice--warn" role="status">
+              <b>Trùng lịch xuất bản</b>
+              <span>{collisionNotice}</span>
+            </div>
+          ) : null}
           {!bundle.seo || !bundle.seo.linked ? (
             <p className="cmkte-empty">Chưa liên kết SEO.</p>
           ) : (
@@ -379,6 +388,12 @@ export function CmktEWorkspace({
       {tab === 'publish' ? (
         <section className="cmkte-card">
           <h2 className="cmkte-section-title">Publish Control</h2>
+          {collisionNotice ? (
+            <div className="cmkte-notice cmkte-notice--warn" role="status">
+              <b>Trùng lịch xuất bản</b>
+              <span>{collisionNotice}</span>
+            </div>
+          ) : null}
           {bundle.slots.length === 0 ? (
             <p className="cmkte-empty">Chưa có lịch xuất bản.</p>
           ) : (
