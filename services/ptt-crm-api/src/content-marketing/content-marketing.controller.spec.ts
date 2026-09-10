@@ -16,6 +16,8 @@ describe('ContentMarketingController', () => {
     patchItem: jest.fn(),
     publishItem: jest.fn(),
     lockBrief: jest.fn(),
+    promoteMaster: jest.fn(),
+    listDeliverables: jest.fn(),
   };
   const snapshots = {
     getPlanSnapshot: jest.fn(),
@@ -165,6 +167,20 @@ describe('ContentMarketingController', () => {
       brief_locked_at: '2026-09-10T00:00:00.000Z',
     });
     expect(items.lockBrief).toHaveBeenCalledWith(123, 42);
+  });
+
+  it('POST items/:id/promote-master delegates to item service', async () => {
+    items.promoteMaster.mockResolvedValue({ id: 42, master_id: null });
+    await expect(controller.promoteMaster(123, 42)).resolves.toEqual({ id: 42, master_id: null });
+    expect(items.promoteMaster).toHaveBeenCalledWith(123, 42);
+  });
+
+  it('GET items/:id/deliverables delegates to item service', async () => {
+    items.listDeliverables.mockResolvedValue({ items: [{ id: 42, master_id: null }] });
+    await expect(controller.listDeliverables(123, 42)).resolves.toEqual({
+      items: [{ id: 42, master_id: null }],
+    });
+    expect(items.listDeliverables).toHaveBeenCalledWith(123, 42);
   });
 
 

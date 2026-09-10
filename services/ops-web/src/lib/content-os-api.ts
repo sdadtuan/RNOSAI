@@ -150,6 +150,8 @@ export type ContentOsItem = {
   lifecycle_id: number;
   idea_id: number | null;
   parent_item_id?: number | null;
+  master_id?: number | null;
+  display_code?: string | null;
   title: string;
   format: string;
   channel: string;
@@ -234,6 +236,14 @@ export function fetchContentOsItem(
   itemId: number,
 ): Promise<ContentOsItem> {
   return cmktFetch(token, lifecycleId, `/items/${itemId}`);
+}
+
+export function fetchContentOsItemDeliverables(
+  token: string,
+  lifecycleId: number,
+  itemId: number,
+): Promise<{ items: ContentOsItem[] }> {
+  return cmktFetch(token, lifecycleId, `/items/${itemId}/deliverables`);
 }
 
 export function patchContentOsItem(

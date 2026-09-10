@@ -15,6 +15,7 @@ import { cmktePath, contentOsPanelHref } from '@/lib/crm/cmkte-routes';
 import { CMKTE_EMPTY_ITEM, CMKTE_TABS, nextTabLabel, type CmktETabId } from '@/lib/crm/cmkte-tabs';
 import { canMarkPublished, dash, isBlankRecord, itemMediaUrls, publishGateFlagsFromItem, rejectCommentValid } from '@/lib/crm/cmkte-workspace';
 import { useCmktItem } from '@/lib/crm/use-cmkt-item';
+import { deliverableFormatChannel } from './cmkte-deliverables';
 
 function JsonBlock({ value, empty }: { value: unknown; empty: string }) {
   if (isBlankRecord(value)) return <p className="cmkte-empty">{empty}</p>;
@@ -199,33 +200,29 @@ export function CmktEWorkspace({
       {tab === 'architecture' ? (
         <section className="cmkte-card">
           <h2 className="cmkte-section-title">Content Architecture</h2>
-          {bundle.pillars.length === 0 && item.parent_item_id == null && bundle.derivations.length === 0 ? (
-            <p className="cmkte-empty">Chưa có pillar hoặc item cha.</p>
+          {bundle.deliverables.length === 0 ? (
+            <p className="cmkte-empty">Chưa có deliverable trong lifecycle này.</p>
           ) : (
-            <>
-              <p className="cmkte-desc">Parent item: {dash(item.parent_item_id)}</p>
-              {bundle.pillars.length ? (
-                <ul className="cmkte-list">
-                  {bundle.pillars.map((pillar) => (
-                    <li key={pillar.id}>
-                      <b>{pillar.name || '—'}</b>
-                      <span className="cmkte-dep">{pillar.goal || '—'}</span>
-                    </li>
+            <div className="cmkte-table-scroll">
+              <table className="cmkte-table">
+                <thead>
+                  <tr>
+                    <th>Mã</th>
+                    <th>Title</th>
+                    <th>Format / Channel</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bundle.deliverables.map((row) => (
+                    <tr key={row.id}>
+                      <td>{dash(row.display_code)}</td>
+                      <td>{dash(row.title)}</td>
+                      <td>{dash(deliverableFormatChannel(row))}</td>
+                    </tr>
                   ))}
-                </ul>
-              ) : (
-                <p className="cmkte-empty">Chưa có pillar.</p>
-              )}
-              {bundle.derivations.length ? (
-                <ul className="cmkte-list">
-                  {bundle.derivations.map((row) => (
-                    <li key={row.id}>
-                      {row.transform_type} → {row.derived_item_id}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </>
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       ) : null}

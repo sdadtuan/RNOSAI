@@ -64,6 +64,7 @@ export class ContentRepurposeService {
         const suffix = count > 1 ? ` (${i + 1}/${count})` : '';
         const derived = await this.repo.createDerivedItem(lifecycleId, {
           parent_item_id: source.id,
+          master_id: source.master_id ?? source.id,
           title: `${source.title} — ${transform.label}${suffix}`,
           channel: transform.target.channel,
           format: transform.target.format,

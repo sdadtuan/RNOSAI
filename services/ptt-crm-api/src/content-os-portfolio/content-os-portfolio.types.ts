@@ -72,7 +72,7 @@ export type ContentRequestWrite = {
 
 export type ItemRequestLinkPatch = {
   request_id: number;
-  display_code: string;
+  display_code?: string;
 };
 
 export const PORTFOLIO_SLA_AT_RISK_HOURS = 18;

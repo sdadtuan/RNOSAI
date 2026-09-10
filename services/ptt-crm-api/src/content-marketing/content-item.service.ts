@@ -17,6 +17,7 @@ import { assertTransition, publishFromStatuses } from './content-workflow.util';
 import { diffMarkdownLines } from './content-version-diff.util';
 import type { CmktBodyJson, CmktIdeaRow, CmktItemRow, CmktItemVersionRow, CmktVersionComparePayload } from './content-marketing.types';
 import { AppConfigService } from '../config/app-config.service';
+import { formatContentItemCode } from '../content-os-portfolio/content-os-portfolio.util';
 
 @Injectable()
 export class ContentItemService {
@@ -57,7 +58,18 @@ export class ContentItemService {
     if (!title) {
       throw new BadRequestException({ error: 'title_required' });
     }
-    return this.repo.createItem(lifecycleId, {
+    const input: {
+      title: string;
+      channel: string;
+      format: string;
+      funnel_goal: string;
+      idea_id: number | null;
+      brief_json: Record<string, unknown>;
+      body_json: CmktBodyJson;
+      created_by: string;
+      master_id?: number | null;
+      display_code?: string;
+    } = {
       title,
       channel,
       format,
@@ -66,7 +78,35 @@ export class ContentItemService {
       brief_json: (body.brief_json as Record<string, unknown>) ?? {},
       body_json: (body.body_json as CmktBodyJson) ?? emptyBodyJson(),
       created_by: actorEmail,
-    });
+    };
+    if (body.as_master === true) {
+      const now = new Date();
+      const seq = await this.repo.nextItemSeq(now);
+      input.master_id = null;
+      input.display_code = formatContentItemCode(now, seq);
+    }
+    return this.repo.createItem(lifecycleId, input);
+  }
+
+  async promoteMaster(lifecycleId: number, itemId: number): Promise<CmktItemRow> {
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    const existing = await this.repo.getItemById(lifecycleId, itemId);
+    if (!existing) {
+      throw new NotFoundException({ error: 'item_not_found', id: itemId });
+    }
+    return this.repo.patchItem(lifecycleId, itemId, { master_id: null });
+  }
+
+  async listDeliverables(lifecycleId: number, itemId: number): Promise<{ items: CmktItemRow[] }> {
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    const current = await this.repo.getItemById(lifecycleId, itemId);
+    if (!current) {
+      throw new NotFoundException({ error: 'item_not_found', id: itemId });
+    }
+    const items = await this.repo.listItems(lifecycleId, {});
+    return {
+      items: items.filter((row) => row.id === itemId || row.master_id === itemId),
+    };
   }
 
   async createItemFromIdea(

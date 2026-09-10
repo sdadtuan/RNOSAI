@@ -96,21 +96,28 @@ describe('ContentOsPortfolioService.createRequest', () => {
       title: '12 social posts',
       channel: 'facebook',
       format: 'social_post',
+      master_id: null,
+      display_code: 'CNT-20260910-021',
     });
 
     const out = await svc.convertRequest({ staffId: 1, requestId: 9, actor: 'am@ptt.vn', body: {} });
 
     expect(out.request.triage_status).toBe('Converted');
+    expect(items.createItem).toHaveBeenCalledTimes(1);
     expect(items.createItem).toHaveBeenCalledWith(
       1,
       expect.objectContaining({
         title: '12 social posts',
         channel: 'facebook',
         format: 'social_post',
+        as_master: true,
       }),
       'am@ptt.vn',
     );
+    expect(repo.nextItemSeq).not.toHaveBeenCalled();
+    expect(repo.updateItemRequestLink).toHaveBeenCalledWith(55, { request_id: 9 });
     expect(out.item.request_id).toBe(9);
+    expect(out.item.master_id).toBeNull();
     expect(out.item.display_code).toMatch(/^CNT-\d{8}-021$/);
   });
 

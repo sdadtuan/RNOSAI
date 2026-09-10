@@ -8,6 +8,9 @@ describe('ContentItemService brief lock', () => {
     getItemById: jest.fn(),
     patchItem: jest.fn(),
     insertItemVersion: jest.fn(),
+    createItem: jest.fn(),
+    nextItemSeq: jest.fn(),
+    listItems: jest.fn(),
   };
 
   let service: ContentItemService;
@@ -115,5 +118,98 @@ describe('ContentItemService brief lock', () => {
       7,
       expect.objectContaining({ brief_locked_at: expect.any(String) }),
     );
+  });
+});
+
+describe('ContentItemService master / deliverable', () => {
+  const config = {};
+  const core = { ensureLifecycleEnabled: jest.fn().mockResolvedValue({}) };
+  const repo = {
+    getItemById: jest.fn(),
+    patchItem: jest.fn(),
+    insertItemVersion: jest.fn(),
+    createItem: jest.fn(),
+    nextItemSeq: jest.fn(),
+    listItems: jest.fn(),
+  };
+
+  let service: ContentItemService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new ContentItemService(config as never, core as never, repo as never);
+  });
+
+  it('createItem as_master persists master_id null and a CNT display_code', async () => {
+    repo.nextItemSeq.mockResolvedValue(21);
+    repo.createItem.mockImplementation(async (_lifecycleId: number, input: Record<string, unknown>) => ({
+      id: 55,
+      lifecycle_id: 1,
+      title: input.title,
+      master_id: input.master_id ?? null,
+      display_code: input.display_code,
+    }));
+
+    const out = await service.createItem(
+      1,
+      {
+        title: '12 social posts',
+        channel: 'facebook',
+        format: 'social_post',
+        as_master: true,
+      },
+      'am@ptt.vn',
+    );
+
+    expect(repo.nextItemSeq).toHaveBeenCalledTimes(1);
+    expect(repo.createItem).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        title: '12 social posts',
+        master_id: null,
+        display_code: expect.stringMatching(/^CNT-\d{8}-021$/),
+      }),
+    );
+    expect(out.master_id).toBeNull();
+    expect(out.display_code).toMatch(/^CNT-\d{8}-021$/);
+  });
+
+  it('createItem without as_master does not mint a CNT code', async () => {
+    repo.createItem.mockResolvedValue({ id: 3, title: 'Draft', master_id: null });
+
+    await service.createItem(
+      1,
+      { title: 'Draft', channel: 'facebook', format: 'social_post' },
+      'am@ptt.vn',
+    );
+
+    expect(repo.nextItemSeq).not.toHaveBeenCalled();
+    expect(repo.createItem).toHaveBeenCalledWith(
+      1,
+      expect.not.objectContaining({ display_code: expect.anything() }),
+    );
+  });
+
+  it('promoteMaster sets master_id null so the item is a standalone deliverable', async () => {
+    repo.getItemById.mockResolvedValue({ id: 7, master_id: 3, status: 'draft' });
+    repo.patchItem.mockResolvedValue({ id: 7, master_id: null });
+
+    const out = await service.promoteMaster(1, 7);
+
+    expect(out.master_id).toBeNull();
+    expect(repo.patchItem).toHaveBeenCalledWith(1, 7, { master_id: null });
+  });
+
+  it('listDeliverables returns self and items whose master_id is current', async () => {
+    repo.getItemById.mockResolvedValue({ id: 10, master_id: null, title: 'Master' });
+    repo.listItems.mockResolvedValue([
+      { id: 10, master_id: null, title: 'Master' },
+      { id: 11, master_id: 10, title: 'Child A' },
+      { id: 12, master_id: 99, title: 'Other family' },
+    ]);
+
+    const out = await service.listDeliverables(1, 10);
+
+    expect(out.items.map((row) => row.id)).toEqual([10, 11]);
   });
 });

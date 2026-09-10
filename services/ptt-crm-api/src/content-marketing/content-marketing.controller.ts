@@ -219,6 +219,24 @@ export class ContentMarketingController {
     return this.items.lockBrief(lifecycleId, itemId);
   }
 
+  @Get('items/:itemId/deliverables')
+  listDeliverables(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.items.listDeliverables(lifecycleId, itemId);
+  }
+
+  @Post('items/:itemId/promote-master')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  promoteMaster(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.items.promoteMaster(lifecycleId, itemId);
+  }
+
   @Patch('items/:itemId/assignees')
   @UseGuards(StaffContentMarketingAssignGuard)
   patchItemAssignees(

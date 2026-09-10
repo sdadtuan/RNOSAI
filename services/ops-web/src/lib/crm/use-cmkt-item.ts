@@ -8,6 +8,7 @@ import {
   fetchContentOsContext,
   fetchContentOsDerivations,
   fetchContentOsItemComments,
+  fetchContentOsItemDeliverables,
   fetchContentOsItemVersions,
   fetchContentOsPillars,
   fetchPlanSnapshot,
@@ -21,6 +22,7 @@ import {
   type ContentOsPlanSnapshot,
 } from '@/lib/content-os-api';
 import { fetchPortfolioItem } from './cmkte-api';
+import { filterMasterDeliverables } from '@/components/content-os/cmkte/cmkte-deliverables';
 
 export type CmktItemBundle = {
   item: ContentOsItem | null;
@@ -31,6 +33,7 @@ export type CmktItemBundle = {
   versions: ContentOsItemVersion[];
   pillars: ContentOsPillar[];
   derivations: ContentOsDerivation[];
+  deliverables: ContentOsItem[];
   seo: { linked: boolean; seo_content_id: number | null; workflow_status: string | null; href: string | null } | null;
   slots: ContentOsCalendarSlot[];
   context: ContentOsContext | null;
@@ -47,6 +50,7 @@ const empty: Omit<CmktItemBundle, 'reload'> = {
   versions: [],
   pillars: [],
   derivations: [],
+  deliverables: [],
   seo: null,
   slots: [],
   context: null,
@@ -76,11 +80,13 @@ export function useCmktItem(itemId: number, lifecycleHint?: number): CmktItemBun
         const item = await fetchPortfolioItem(token, itemId, lifecycleHint);
         if (cancelled) return;
         const lifecycleId = item.lifecycle_id;
-        const [comments, versions, pillars, derivations, seo, calendar, context, plan] = await Promise.all([
+        const [comments, versions, pillars, derivations, deliverables, seo, calendar, context, plan] =
+          await Promise.all([
           fetchContentOsItemComments(token, lifecycleId, item.id).catch(() => ({ comments: [] })),
           fetchContentOsItemVersions(token, lifecycleId, item.id).catch(() => ({ versions: [] })),
           fetchContentOsPillars(token, lifecycleId).catch(() => ({ pillars: [] })),
           fetchContentOsDerivations(token, lifecycleId, item.id).catch(() => ({ derivations: [] })),
+          fetchContentOsItemDeliverables(token, lifecycleId, item.id).catch(() => ({ items: [] })),
           fetchContentOsBridgeSeoStatus(token, lifecycleId, item.id).catch(() => null),
           fetchContentOsCalendar(token, lifecycleId).catch(() => ({ slots: [] })),
           fetchContentOsContext(token, lifecycleId).catch(() => null),
@@ -96,6 +102,7 @@ export function useCmktItem(itemId: number, lifecycleHint?: number): CmktItemBun
           versions: versions.versions ?? [],
           pillars: pillars.pillars ?? [],
           derivations: derivations.derivations ?? [],
+          deliverables: filterMasterDeliverables(deliverables.items ?? [], item.id),
           seo,
           slots: (calendar.slots ?? []).filter((slot) => slot.item_id === item.id),
           context,

@@ -172,6 +172,8 @@ export type CmktItemRow = {
   lifecycle_id: number;
   idea_id: number | null;
   parent_item_id: number | null;
+  master_id?: number | null;
+  display_code?: string | null;
   title: string;
   format: string;
   channel: string;

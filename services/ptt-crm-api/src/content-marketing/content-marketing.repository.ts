@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { CMKT_ITEM_STATUSES, CMKT_REVIEW_SLA_HOURS } from './content-marketing.constants';
 import { isReviewSlaBreach } from './content-workflow.util';
 import { emptyBodyJson } from './content-marketing.util';
+import { formatContentItemCode } from '../content-os-portfolio/content-os-portfolio.util';
 import type {
   CmktActiveSnapshotRow,
   CmktBodyJson,
@@ -122,6 +123,8 @@ function mapItemRow(row: Record<string, unknown>): CmktItemRow {
     lifecycle_id: Number(row.lifecycle_id),
     idea_id: row.idea_id != null ? Number(row.idea_id) : null,
     parent_item_id: row.parent_item_id != null ? Number(row.parent_item_id) : null,
+    master_id: row.master_id != null ? Number(row.master_id) : null,
+    display_code: row.display_code != null ? String(row.display_code) : null,
     title: String(row.title ?? ''),
     format: String(row.format ?? ''),
     channel: String(row.channel ?? ''),
@@ -861,6 +864,29 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     return null;
   }
 
+  async nextItemSeq(now = new Date()): Promise<number> {
+    const prefix = formatContentItemCode(now, 0).slice(0, -3);
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT COALESCE(MAX(CAST(split_part(display_code, '-', 3) AS INT)), 0) + 1 AS seq
+         FROM cmkt_content_items
+         WHERE display_code LIKE $1`,
+        [`${prefix}%`],
+      );
+      return Number(res.rows[0]?.seq ?? 1);
+    }
+    let max = 0;
+    for (const items of this.memory.items.values()) {
+      for (const item of items) {
+        const code = String(item.display_code ?? '');
+        if (!code.startsWith(prefix)) continue;
+        const seq = Number(code.split('-')[2] ?? 0);
+        if (Number.isFinite(seq) && seq > max) max = seq;
+      }
+    }
+    return max + 1;
+  }
+
   async createItem(
     lifecycleId: number,
     input: {
@@ -872,26 +898,47 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       brief_json: Record<string, unknown>;
       body_json: CmktBodyJson;
       created_by: string;
+      master_id?: number | null;
+      display_code?: string | null;
     },
   ): Promise<CmktItemRow> {
     if (await this.ensurePgReady()) {
+      const cols = [
+        'lifecycle_id',
+        'idea_id',
+        'title',
+        'format',
+        'channel',
+        'funnel_goal',
+        'status',
+        'brief_json',
+        'body_json',
+        'created_by',
+      ];
+      const vals: unknown[] = [
+        lifecycleId,
+        input.idea_id,
+        input.title,
+        input.format,
+        input.channel,
+        input.funnel_goal,
+        'draft',
+        JSON.stringify(input.brief_json),
+        JSON.stringify(input.body_json),
+        input.created_by,
+      ];
+      if ('master_id' in input) {
+        cols.push('master_id');
+        vals.push(input.master_id ?? null);
+      }
+      if (input.display_code != null) {
+        cols.push('display_code');
+        vals.push(input.display_code);
+      }
+      const placeholders = vals.map((_, i) => `$${i + 1}`).join(',');
       const res = await this.db.query(
-        `INSERT INTO cmkt_content_items (
-           lifecycle_id, idea_id, title, format, channel, funnel_goal, status,
-           brief_json, body_json, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,'draft',$7,$8,$9)
-         RETURNING *`,
-        [
-          lifecycleId,
-          input.idea_id,
-          input.title,
-          input.format,
-          input.channel,
-          input.funnel_goal,
-          JSON.stringify(input.brief_json),
-          JSON.stringify(input.body_json),
-          input.created_by,
-        ],
+        `INSERT INTO cmkt_content_items (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`,
+        vals,
       );
       const item = mapItemRow(res.rows[0]);
       await this.insertItemVersion(item.id, item.body_json, input.created_by, 'manual');
@@ -903,6 +950,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       lifecycle_id: lifecycleId,
       idea_id: input.idea_id,
       parent_item_id: null,
+      master_id: 'master_id' in input ? (input.master_id ?? null) : null,
+      display_code: input.display_code ?? null,
       title: input.title,
       format: input.format,
       channel: input.channel,
@@ -1489,14 +1538,15 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       funnel_goal: string;
       brief_json: Record<string, unknown>;
       created_by: string;
+      master_id?: number | null;
     },
   ): Promise<CmktItemRow> {
     if (await this.ensurePgReady()) {
       const res = await this.db.query(
         `INSERT INTO cmkt_content_items (
            lifecycle_id, parent_item_id, title, format, channel, funnel_goal, status,
-           brief_json, body_json, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,'draft',$7,$8,$9)
+           brief_json, body_json, created_by, master_id
+         ) VALUES ($1,$2,$3,$4,$5,$6,'draft',$7,$8,$9,$10)
          RETURNING *`,
         [
           lifecycleId,
@@ -1508,6 +1558,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
           JSON.stringify(input.brief_json),
           JSON.stringify(emptyBodyJson()),
           input.created_by,
+          input.master_id ?? null,
         ],
       );
       const item = mapItemRow(res.rows[0]);
@@ -1520,6 +1571,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       lifecycle_id: lifecycleId,
       idea_id: null,
       parent_item_id: input.parent_item_id,
+      master_id: input.master_id ?? null,
       title: input.title,
       format: input.format,
       channel: input.channel,

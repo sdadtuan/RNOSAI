@@ -17,7 +17,7 @@ import {
   type PortfolioCommandCenter,
   type PortfolioCommandScope,
 } from './content-os-portfolio.types';
-import { formatContentItemCode, formatContentRequestCode, requestCompleteness } from './content-os-portfolio.util';
+import { formatContentRequestCode, requestCompleteness } from './content-os-portfolio.util';
 
 const PORTFOLIO_LIFECYCLE_CAP = 20;
 
@@ -178,20 +178,20 @@ export class ContentOsPortfolioService {
     const format = String(input.body.format ?? 'social_post').trim() || 'social_post';
     const item = await this.items.createItem(
       request.lifecycle_id,
-      { title: request.deliverable_ask, channel, format },
+      { title: request.deliverable_ask, channel, format, as_master: true },
       input.actor,
     );
-    const now = new Date();
-    const seq = await this.repo.nextItemSeq(now);
-    const display_code = formatContentItemCode(now, seq);
     const linked = await this.repo.updateItemRequestLink(item.id, {
       request_id: request.id,
-      display_code,
     });
     const converted = await this.repo.updateRequestStatus(request.id, 'Converted');
     return {
       request: converted,
-      item: { ...item, request_id: linked.request_id, display_code: linked.display_code },
+      item: {
+        ...item,
+        request_id: linked.request_id,
+        display_code: linked.display_code || item.display_code || '',
+      },
     };
   }
 

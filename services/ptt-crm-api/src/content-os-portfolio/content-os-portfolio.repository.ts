@@ -252,13 +252,22 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
   }
 
   async updateItemRequestLink(itemId: number, patch: ItemRequestLinkPatch): Promise<ItemRequestLinkPatch & { id: number }> {
-    const res = await this.db.query(
-      `UPDATE cmkt_content_items
-       SET request_id = $2, display_code = $3, updated_at = NOW()
-       WHERE id = $1
-       RETURNING id, request_id, display_code`,
-      [itemId, patch.request_id, patch.display_code],
-    );
+    const res =
+      patch.display_code != null && patch.display_code !== ''
+        ? await this.db.query(
+            `UPDATE cmkt_content_items
+             SET request_id = $2, display_code = $3, updated_at = NOW()
+             WHERE id = $1
+             RETURNING id, request_id, display_code`,
+            [itemId, patch.request_id, patch.display_code],
+          )
+        : await this.db.query(
+            `UPDATE cmkt_content_items
+             SET request_id = $2, updated_at = NOW()
+             WHERE id = $1
+             RETURNING id, request_id, display_code`,
+            [itemId, patch.request_id],
+          );
     const row = res.rows[0] as { id?: unknown; request_id?: unknown; display_code?: unknown } | undefined;
     if (!row) {
       throw new Error(`content_item_not_found:${itemId}`);
