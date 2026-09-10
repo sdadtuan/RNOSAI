@@ -5,9 +5,13 @@ import { CMKT_REVIEW_SLA_HOURS } from '../content-marketing/content-marketing.co
 import {
   emptyPortfolioCommandCenter,
   PORTFOLIO_SLA_AT_RISK_HOURS,
+  type ContentRequestRow,
+  type ContentRequestWrite,
+  type ItemRequestLinkPatch,
   type PortfolioCommandCenter,
   type PortfolioRiskQueueItem,
 } from './content-os-portfolio.types';
+import { formatContentItemCode, formatContentRequestCode } from './content-os-portfolio.util';
 
 @Injectable()
 export class ContentOsPortfolioRepository implements OnModuleDestroy {
@@ -173,6 +177,116 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
       owner_label: null,
       sla_remaining_h: remaining,
       recommended_action,
+    };
+  }
+
+  async nextRequestSeq(now = new Date()): Promise<number> {
+    return this.nextDisplaySeq(formatContentRequestCode(now, 0));
+  }
+
+  async nextItemSeq(now = new Date()): Promise<number> {
+    return this.nextDisplaySeq(formatContentItemCode(now, 0), 'cmkt_content_items');
+  }
+
+  async insertRequest(row: ContentRequestWrite): Promise<ContentRequestRow> {
+    const res = await this.db.query(
+      `INSERT INTO cmkt_content_requests (
+         lifecycle_id, display_code, source, requester_email, client_label, brand_label,
+         deliverable_ask, objective, due_at, priority, completeness, triage_status, created_by
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       RETURNING *`,
+      [
+        row.lifecycle_id,
+        row.display_code,
+        row.source,
+        row.requester_email,
+        row.client_label,
+        row.brand_label,
+        row.deliverable_ask,
+        row.objective,
+        row.due_at,
+        row.priority,
+        row.completeness,
+        row.triage_status,
+        row.created_by,
+      ],
+    );
+    return this.mapRequestRow(res.rows[0] as Record<string, unknown>);
+  }
+
+  async getRequestById(id: number): Promise<ContentRequestRow | null> {
+    const res = await this.db.query(`SELECT * FROM cmkt_content_requests WHERE id = $1`, [id]);
+    const row = res.rows[0];
+    return row ? this.mapRequestRow(row as Record<string, unknown>) : null;
+  }
+
+  async updateRequestStatus(id: number, triageStatus: string): Promise<ContentRequestRow> {
+    const res = await this.db.query(
+      `UPDATE cmkt_content_requests
+       SET triage_status = $2, updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [id, triageStatus],
+    );
+    const row = res.rows[0];
+    if (!row) {
+      throw new Error(`content_request_not_found:${id}`);
+    }
+    return this.mapRequestRow(row as Record<string, unknown>);
+  }
+
+  async updateItemRequestLink(itemId: number, patch: ItemRequestLinkPatch): Promise<ItemRequestLinkPatch & { id: number }> {
+    const res = await this.db.query(
+      `UPDATE cmkt_content_items
+       SET request_id = $2, display_code = $3, updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, request_id, display_code`,
+      [itemId, patch.request_id, patch.display_code],
+    );
+    const row = res.rows[0] as { id?: unknown; request_id?: unknown; display_code?: unknown } | undefined;
+    if (!row) {
+      throw new Error(`content_item_not_found:${itemId}`);
+    }
+    return {
+      id: Number(row.id),
+      request_id: Number(row.request_id),
+      display_code: String(row.display_code ?? ''),
+    };
+  }
+
+  private async nextDisplaySeq(zeroCode: string, table: 'cmkt_content_requests' | 'cmkt_content_items' = 'cmkt_content_requests'): Promise<number> {
+    const prefix = zeroCode.slice(0, -3);
+    const res = await this.db.query(
+      `SELECT COALESCE(MAX(CAST(split_part(display_code, '-', 3) AS INT)), 0) + 1 AS seq
+       FROM ${table}
+       WHERE display_code LIKE $1`,
+      [`${prefix}%`],
+    );
+    return Number(res.rows[0]?.seq ?? 1);
+  }
+
+  private mapRequestRow(row: Record<string, unknown>): ContentRequestRow {
+    return {
+      id: Number(row.id),
+      lifecycle_id: Number(row.lifecycle_id),
+      display_code: String(row.display_code ?? ''),
+      source: String(row.source ?? ''),
+      requester_email: String(row.requester_email ?? ''),
+      client_label: String(row.client_label ?? ''),
+      brand_label: String(row.brand_label ?? ''),
+      deliverable_ask: String(row.deliverable_ask ?? ''),
+      objective: String(row.objective ?? ''),
+      due_at: row.due_at != null ? String(row.due_at) : null,
+      priority: String(row.priority ?? 'Standard'),
+      risk_level: String(row.risk_level ?? 'Normal'),
+      completeness: Number(row.completeness ?? 0),
+      effort_h: row.effort_h != null ? Number(row.effort_h) : null,
+      tier: row.tier != null ? String(row.tier) : null,
+      triage_status: String(row.triage_status ?? 'Submitted'),
+      idea_id: row.idea_id != null ? Number(row.idea_id) : null,
+      created_by: String(row.created_by ?? ''),
+      created_at: String(row.created_at ?? ''),
+      updated_at: String(row.updated_at ?? ''),
     };
   }
 }

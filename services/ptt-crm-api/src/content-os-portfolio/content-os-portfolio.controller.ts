@@ -1,8 +1,17 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
+import {
+  StaffContentMarketingViewGuard,
+  StaffContentMarketingWriteGuard,
+} from '../content-marketing/guards/staff-content-marketing.guard';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
-import { StaffContentMarketingViewGuard } from '../content-marketing/guards/staff-content-marketing.guard';
+import type { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { ContentOsPortfolioService } from './content-os-portfolio.service';
+
+function actorEmail(req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' }): string {
+  if (req.staffAuthVia === 'internal') return 'internal';
+  return req.staffUser?.email ?? 'unknown';
+}
 
 @Controller('api/crm/content-os/portfolio')
 @UseGuards(StaffOrInternalKeyGuard, StaffContentMarketingViewGuard)
@@ -25,6 +34,32 @@ export class ContentOsPortfolioController {
       staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
       from,
       to,
+    });
+  }
+
+  @Post('requests')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  createRequest(@Body() body: Record<string, unknown>, @Req() req: Request) {
+    return this.portfolio.createRequest({
+      lifecycleId: Number(body.lifecycle_id),
+      actor: actorEmail(req),
+      body,
+    });
+  }
+
+  @Post('requests/:id/convert')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  convertRequest(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.portfolio.convertRequest({
+      requestId: id,
+      actor: actorEmail(req),
+      body: body ?? {},
     });
   }
 }

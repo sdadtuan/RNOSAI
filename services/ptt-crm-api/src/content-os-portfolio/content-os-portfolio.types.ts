@@ -26,6 +26,53 @@ export type PortfolioCommandScope = {
   staffId?: number;
 };
 
+export const CONTENT_REQUEST_SOURCES = ['account', 'client_portal', 'campaign', 'api', 'idea'] as const;
+export type ContentRequestSource = (typeof CONTENT_REQUEST_SOURCES)[number];
+
+export type ContentRequestRow = {
+  id: number;
+  lifecycle_id: number;
+  display_code: string;
+  source: string;
+  requester_email: string;
+  client_label: string;
+  brand_label: string;
+  deliverable_ask: string;
+  objective: string;
+  due_at: string | null;
+  priority: string;
+  risk_level: string;
+  completeness: number;
+  effort_h: number | null;
+  tier: string | null;
+  triage_status: string;
+  idea_id: number | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ContentRequestWrite = {
+  lifecycle_id: number;
+  display_code: string;
+  source: string;
+  requester_email: string;
+  client_label: string;
+  brand_label: string;
+  deliverable_ask: string;
+  objective: string;
+  due_at: string | null;
+  priority: string;
+  completeness: number;
+  triage_status: string;
+  created_by: string;
+};
+
+export type ItemRequestLinkPatch = {
+  request_id: number;
+  display_code: string;
+};
+
 export const PORTFOLIO_SLA_AT_RISK_HOURS = 18;
 
 export function emptyPortfolioCommandCenter(): PortfolioCommandCenter {

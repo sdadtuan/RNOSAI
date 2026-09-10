@@ -1,13 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ContentItemService } from '../content-marketing/content-item.service';
 import { ContentMarketingRepository } from '../content-marketing/content-marketing.repository';
-import type { CmktCalendarSlotRow, CmktReviewQueueItem } from '../content-marketing/content-marketing.types';
+import type { CmktCalendarSlotRow, CmktItemRow, CmktReviewQueueItem } from '../content-marketing/content-marketing.types';
 import { ContentWorkflowService } from '../content-marketing/content-workflow.service';
 import { ContentOsPortfolioRepository } from './content-os-portfolio.repository';
 import {
+  CONTENT_REQUEST_SOURCES,
   emptyPortfolioCommandCenter,
+  type ContentRequestRow,
+  type ContentRequestSource,
   type PortfolioCommandCenter,
   type PortfolioCommandScope,
 } from './content-os-portfolio.types';
+import { formatContentItemCode, formatContentRequestCode, requestCompleteness } from './content-os-portfolio.util';
 
 const PORTFOLIO_LIFECYCLE_CAP = 20;
 
@@ -29,6 +34,7 @@ export class ContentOsPortfolioService {
     private readonly repo: ContentOsPortfolioRepository,
     private readonly workflow: ContentWorkflowService,
     private readonly marketingRepo: ContentMarketingRepository,
+    private readonly items: ContentItemService,
   ) {}
 
   async getCommandCenter(scope: PortfolioCommandScope): Promise<PortfolioCommandCenter> {
@@ -78,6 +84,91 @@ export class ContentOsPortfolioService {
       }
     }
     return { slots };
+  }
+
+  async createRequest(input: {
+    lifecycleId: number;
+    actor: string;
+    body: Record<string, unknown>;
+  }): Promise<ContentRequestRow> {
+    const deliverable_ask = String(input.body.deliverable_ask ?? '').trim();
+    if (!deliverable_ask) {
+      throw new BadRequestException({ error: 'deliverable_ask_required' });
+    }
+    const source = this.parseRequestSource(input.body.source);
+    const client_label = String(input.body.client_label ?? '').trim();
+    const brand_label = String(input.body.brand_label ?? '').trim();
+    const objective = String(input.body.objective ?? '').trim();
+    const due_at = String(input.body.due_at ?? '').trim() || null;
+    const priority = String(input.body.priority ?? '').trim() || 'Standard';
+    const completeness = requestCompleteness({
+      client: client_label,
+      brand: brand_label,
+      deliverable: deliverable_ask,
+      objective,
+      due: due_at ?? '',
+      source,
+    });
+    const now = new Date();
+    const seq = await this.repo.nextRequestSeq(now);
+    const display_code = formatContentRequestCode(now, seq);
+    return this.repo.insertRequest({
+      lifecycle_id: input.lifecycleId,
+      display_code,
+      source,
+      requester_email: input.actor,
+      client_label,
+      brand_label,
+      deliverable_ask,
+      objective,
+      due_at,
+      priority,
+      completeness,
+      triage_status: 'Submitted',
+      created_by: input.actor,
+    });
+  }
+
+  async convertRequest(input: {
+    requestId: number;
+    actor: string;
+    body: Record<string, unknown>;
+  }): Promise<{ request: ContentRequestRow; item: CmktItemRow & { request_id: number; display_code: string } }> {
+    const request = await this.repo.getRequestById(input.requestId);
+    if (!request) {
+      throw new NotFoundException({ error: 'request_not_found', id: input.requestId });
+    }
+    if (request.triage_status !== 'Accepted') {
+      throw new BadRequestException({ error: 'request_not_accepted', status: request.triage_status });
+    }
+    const converted = await this.repo.updateRequestStatus(request.id, 'Converted');
+    const channel = String(input.body.channel ?? 'facebook').trim() || 'facebook';
+    const format = String(input.body.format ?? 'social_post').trim() || 'social_post';
+    const item = await this.items.createItem(
+      request.lifecycle_id,
+      { title: request.deliverable_ask, channel, format },
+      input.actor,
+    );
+    const now = new Date();
+    const seq = await this.repo.nextItemSeq(now);
+    const display_code = formatContentItemCode(now, seq);
+    const linked = await this.repo.updateItemRequestLink(item.id, {
+      request_id: request.id,
+      display_code,
+    });
+    return {
+      request: converted,
+      item: { ...item, request_id: linked.request_id, display_code: linked.display_code },
+    };
+  }
+
+  private parseRequestSource(raw: unknown): ContentRequestSource {
+    if (raw === undefined) return 'account';
+    const source = String(raw).trim();
+    if ((CONTENT_REQUEST_SOURCES as readonly string[]).includes(source)) {
+      return source as ContentRequestSource;
+    }
+    throw new BadRequestException({ error: 'invalid_source', source });
   }
 
   private async scopedLifecycleIds(staffId: number): Promise<number[]> {

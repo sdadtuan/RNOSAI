@@ -12,7 +12,7 @@ function makeSvc(
   workflow: object = stubs().workflow,
   marketingRepo: object = stubs().marketingRepo,
 ) {
-  return new ContentOsPortfolioService(repo as never, workflow as never, marketingRepo as never);
+  return new ContentOsPortfolioService(repo as never, workflow as never, marketingRepo as never, { createItem: jest.fn() } as never);
 }
 
 describe('ContentOsPortfolioService.getCommandCenter', () => {
