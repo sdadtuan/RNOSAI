@@ -19,6 +19,11 @@ describe('ContentMarketingController', () => {
     promoteMaster: jest.fn(),
     listDeliverables: jest.fn(),
   };
+  const assetRights = {
+    listRights: jest.fn(),
+    replaceRights: jest.fn(),
+    overrideRight: jest.fn(),
+  };
   const snapshots = {
     getPlanSnapshot: jest.fn(),
     ingestPlanSnapshot: jest.fn(),
@@ -115,6 +120,7 @@ describe('ContentMarketingController', () => {
       pillars as never,
       seoBridgeSync as never,
       staffAuth as never,
+      assetRights as never,
     );
   });
 
@@ -183,6 +189,36 @@ describe('ContentMarketingController', () => {
     expect(items.listDeliverables).toHaveBeenCalledWith(123, 42);
   });
 
+  it('GET items/:id/rights delegates to asset rights service', async () => {
+    assetRights.listRights.mockResolvedValue({ rights: [] });
+    await expect(controller.listItemRights(123, 42)).resolves.toEqual({ rights: [] });
+    expect(assetRights.listRights).toHaveBeenCalledWith(123, 42);
+  });
+
+  it('PUT items/:id/rights delegates to asset rights service', async () => {
+    assetRights.replaceRights.mockResolvedValue({ rights: [{ asset_ref: 'https://cdn/a.jpg' }] });
+    await expect(
+      controller.replaceItemRights(123, 42, { rights: [{ asset_ref: 'https://cdn/a.jpg' }] }),
+    ).resolves.toEqual({ rights: [{ asset_ref: 'https://cdn/a.jpg' }] });
+    expect(assetRights.replaceRights).toHaveBeenCalledWith(123, 42, {
+      rights: [{ asset_ref: 'https://cdn/a.jpg' }],
+    });
+  });
+
+  it('POST items/:id/rights/:rightsId/override delegates to asset rights service', async () => {
+    assetRights.overrideRight.mockResolvedValue({ id: 9, status: 'Valid' });
+    const req = { staffUser: { email: 'qa@test.vn' } } as never;
+    await expect(
+      controller.overrideItemRight(123, 42, 9, { reason: 'Client license on file', evidence: 'doc' }, req),
+    ).resolves.toEqual({ id: 9, status: 'Valid' });
+    expect(assetRights.overrideRight).toHaveBeenCalledWith(
+      123,
+      42,
+      9,
+      { reason: 'Client license on file', evidence: 'doc' },
+      'qa@test.vn',
+    );
+  });
 
   it('GET pillars delegates to pillar service', async () => {
     pillars.listPillars.mockResolvedValue({ pillars: [{ id: 1, name: 'Launch' }] });

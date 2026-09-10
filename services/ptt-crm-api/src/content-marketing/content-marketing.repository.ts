@@ -27,6 +27,7 @@ import type {
   CmktWeeklyMemoPreview,
 } from './content-marketing.types';
 import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
+import type { AssetRightStatus, CmktAssetRightRow, CmktAssetRightWrite } from '../content-os-portfolio/content-os-portfolio.types';
 
 type MemoryStore = {
   ideas: Map<number, CmktIdeaRow[]>;
@@ -52,6 +53,8 @@ type MemoryStore = {
   nextDerivationId: number;
   nextVersionNo: Map<number, number>;
   plannerSources: Map<number, PlannerIngestSource>;
+  assetRights: Map<number, CmktAssetRightRow[]>;
+  nextRightsId: number;
 };
 
 function emptyCounts(): CmktContextCounts {
@@ -183,6 +186,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     nextDerivationId: 1,
     nextVersionNo: new Map(),
     plannerSources: new Map(),
+    assetRights: new Map(),
+    nextRightsId: 1,
   };
 
   constructor(private readonly config: AppConfigService) {}
@@ -2033,4 +2038,133 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     this.memory.pillars.set(lifecycleId, list);
     return list[idx];
   }
+
+  async listAssetRights(itemId: number): Promise<CmktAssetRightRow[]> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, item_id, asset_ref, license_type, channels, territory, expiry_at,
+                paid_ok, releases_ok, ai_declaration, status, created_at
+         FROM cmkt_asset_rights
+         WHERE item_id = $1
+         ORDER BY id ASC`,
+        [itemId],
+      );
+      return res.rows.map((row) => mapAssetRightRow(row as Record<string, unknown>));
+    }
+    return [...(this.memory.assetRights.get(itemId) ?? [])].sort((a, b) => a.id - b.id);
+  }
+
+  async replaceAssetRights(itemId: number, rows: CmktAssetRightWrite[]): Promise<CmktAssetRightRow[]> {
+    if (await this.ensurePgReady()) {
+      const client = await this.db.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`DELETE FROM cmkt_asset_rights WHERE item_id = $1`, [itemId]);
+        const inserted: CmktAssetRightRow[] = [];
+        for (const row of rows) {
+          const res = await client.query(
+            `INSERT INTO cmkt_asset_rights
+               (item_id, asset_ref, license_type, channels, territory, expiry_at,
+                paid_ok, releases_ok, ai_declaration, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             RETURNING id, item_id, asset_ref, license_type, channels, territory, expiry_at,
+                       paid_ok, releases_ok, ai_declaration, status, created_at`,
+            [
+              itemId,
+              row.asset_ref,
+              row.license_type ?? null,
+              row.channels ?? [],
+              row.territory ?? null,
+              row.expiry_at ?? null,
+              row.paid_ok ?? false,
+              row.releases_ok ?? false,
+              row.ai_declaration ?? false,
+              row.status ?? 'Unknown',
+            ],
+          );
+          inserted.push(mapAssetRightRow(res.rows[0] as Record<string, unknown>));
+        }
+        await client.query('COMMIT');
+        return inserted;
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+    const next = rows.map((row) => ({
+      id: this.memory.nextRightsId++,
+      item_id: itemId,
+      asset_ref: row.asset_ref,
+      license_type: row.license_type ?? null,
+      channels: row.channels ?? [],
+      territory: row.territory ?? null,
+      expiry_at: row.expiry_at ?? null,
+      paid_ok: row.paid_ok ?? false,
+      releases_ok: row.releases_ok ?? false,
+      ai_declaration: row.ai_declaration ?? false,
+      status: row.status ?? 'Unknown',
+      created_at: new Date().toISOString(),
+    }));
+    this.memory.assetRights.set(itemId, next);
+    return next;
+  }
+
+  async getAssetRightById(rightsId: number): Promise<CmktAssetRightRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, item_id, asset_ref, license_type, channels, territory, expiry_at,
+                paid_ok, releases_ok, ai_declaration, status, created_at
+         FROM cmkt_asset_rights
+         WHERE id = $1`,
+        [rightsId],
+      );
+      return res.rows[0] ? mapAssetRightRow(res.rows[0] as Record<string, unknown>) : null;
+    }
+    for (const list of this.memory.assetRights.values()) {
+      const found = list.find((row) => row.id === rightsId);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  async updateAssetRightStatus(rightsId: number, status: AssetRightStatus): Promise<CmktAssetRightRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE cmkt_asset_rights
+         SET status = $2
+         WHERE id = $1
+         RETURNING id, item_id, asset_ref, license_type, channels, territory, expiry_at,
+                   paid_ok, releases_ok, ai_declaration, status, created_at`,
+        [rightsId, status],
+      );
+      return res.rows[0] ? mapAssetRightRow(res.rows[0] as Record<string, unknown>) : null;
+    }
+    for (const [itemId, list] of this.memory.assetRights.entries()) {
+      const idx = list.findIndex((row) => row.id === rightsId);
+      if (idx < 0) continue;
+      list[idx] = { ...list[idx], status };
+      this.memory.assetRights.set(itemId, list);
+      return list[idx];
+    }
+    return null;
+  }
+}
+
+function mapAssetRightRow(row: Record<string, unknown>): CmktAssetRightRow {
+  return {
+    id: Number(row.id),
+    item_id: Number(row.item_id),
+    asset_ref: String(row.asset_ref ?? ''),
+    license_type: row.license_type != null ? String(row.license_type) : null,
+    channels: Array.isArray(row.channels) ? row.channels.map((ch) => String(ch)) : [],
+    territory: row.territory != null ? String(row.territory) : null,
+    expiry_at: row.expiry_at != null ? new Date(String(row.expiry_at)).toISOString() : null,
+    paid_ok: Boolean(row.paid_ok),
+    releases_ok: Boolean(row.releases_ok),
+    ai_declaration: Boolean(row.ai_declaration),
+    status: String(row.status ?? 'Unknown') as AssetRightStatus,
+    created_at: row.created_at != null ? new Date(String(row.created_at)).toISOString() : new Date().toISOString(),
+  };
 }

@@ -75,6 +75,36 @@ export type ItemRequestLinkPatch = {
   display_code?: string;
 };
 
+export const ASSET_RIGHT_STATUSES = ['Valid', 'Invalid', 'Unknown', 'Expiring'] as const;
+export type AssetRightStatus = (typeof ASSET_RIGHT_STATUSES)[number];
+
+export type CmktAssetRightRow = {
+  id: number;
+  item_id: number;
+  asset_ref: string;
+  license_type: string | null;
+  channels: string[];
+  territory: string | null;
+  expiry_at: string | null;
+  paid_ok: boolean;
+  releases_ok: boolean;
+  ai_declaration: boolean;
+  status: AssetRightStatus;
+  created_at: string;
+};
+
+export type CmktAssetRightWrite = {
+  asset_ref: string;
+  license_type?: string | null;
+  channels?: string[];
+  territory?: string | null;
+  expiry_at?: string | null;
+  paid_ok?: boolean;
+  releases_ok?: boolean;
+  ai_declaration?: boolean;
+  status?: AssetRightStatus;
+};
+
 export const PORTFOLIO_SLA_AT_RISK_HOURS = 18;
 
 export function emptyPortfolioCommandCenter(): PortfolioCommandCenter {

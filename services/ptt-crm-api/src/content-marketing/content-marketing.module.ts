@@ -44,9 +44,11 @@ import {
   StaffContentMarketingGenerateGuard,
   StaffContentMarketingProductionGuard,
   StaffContentMarketingPublishGuard,
+  StaffContentMarketingQaGuard,
   StaffContentMarketingViewGuard,
   StaffContentMarketingWriteGuard,
 } from './guards/staff-content-marketing.guard';
+import { AssetRightsService } from '../content-os-portfolio/asset-rights.service';
 import { AppConfigService } from '../config/app-config.service';
 import { Pool } from 'pg';
 import { VideoLicenseRepository } from './video-kernel/video-license.repository';
@@ -104,10 +106,12 @@ import { SocialVideoService } from './video-social/social-video.service';
     ContentJobWorkerService,
     ContentIdeaService,
     ContentItemService,
+    AssetRightsService,
     StaffContentMarketingViewGuard,
     StaffContentMarketingWriteGuard,
     StaffContentMarketingGenerateGuard,
     StaffContentMarketingApproveGuard,
+    StaffContentMarketingQaGuard,
     StaffContentMarketingAssignGuard,
     StaffContentMarketingPublishGuard,
     StaffContentMarketingProductionGuard,

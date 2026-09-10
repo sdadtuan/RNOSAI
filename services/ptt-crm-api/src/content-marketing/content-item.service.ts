@@ -2,7 +2,10 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import {
   DEFAULT_BRIEF_WEIGHTS,
   briefCompleteness,
+  briefScoreThreshold,
 } from '../content-os-portfolio/brief-score.util';
+import { evaluateItemRights } from '../content-os-portfolio/asset-rights.service';
+import { evaluatePublishGate } from '../content-os-portfolio/publish-gate.util';
 import {
   CONTENT_RESEARCH_BRIEF_KEY,
   stripContentResearchFromBrief,
@@ -311,7 +314,27 @@ export class ContentItemService {
     assertProductionGateForPublish(item);
     assertVisualGateForPublish(item, this.config.contentMarketingMediaEnabled);
 
-    const publishedUrl = body.published_url != null ? String(body.published_url).trim() : null;
+    const rightsRows = await this.repo.listAssetRights(itemId);
+    const score = item.brief_score ?? briefCompleteness(item.brief_json ?? {}, DEFAULT_BRIEF_WEIGHTS);
+    const publishedUrlProvided = body.published_url != null;
+    const publishedUrl = publishedUrlProvided ? String(body.published_url).trim() : null;
+    const gate = evaluatePublishGate({
+      briefReady: score >= briefScoreThreshold(item.risk_level),
+      internalApproved: ['approved_internal', 'client_approved', 'pending_client', 'scheduled'].includes(
+        item.status,
+      ),
+      legalRequired: false,
+      legalApproved: false,
+      clientApproved: this.config.contentMarketingClientGate
+        ? ['client_approved', 'scheduled'].includes(item.status)
+        : true,
+      urlOk: publishedUrlProvided ? Boolean(publishedUrl) : true,
+      ...evaluateItemRights(item.media_json, rightsRows),
+    });
+    if (gate.status === 'Blocked') {
+      throw new ConflictException({ error: 'publish_gate_blocked', blockers: gate.blockers });
+    }
+
     const updated = await this.repo.patchItem(lifecycleId, itemId, {
       status: 'published',
       published_at: new Date().toISOString(),

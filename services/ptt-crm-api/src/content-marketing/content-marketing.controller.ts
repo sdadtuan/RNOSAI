@@ -38,12 +38,14 @@ import { ContentVisualService } from './content-visual.service';
 import { ContentSeoBridgeService } from './content-seo-bridge.service';
 import { ContentWorkflowService } from './content-workflow.service';
 import { ContentMarketingService } from './content-marketing.service';
+import { AssetRightsService } from '../content-os-portfolio/asset-rights.service';
 import {
   StaffContentMarketingApproveGuard,
   StaffContentMarketingAssignGuard,
   StaffContentMarketingGenerateGuard,
   StaffContentMarketingProductionGuard,
   StaffContentMarketingPublishGuard,
+  StaffContentMarketingQaGuard,
   StaffContentMarketingViewGuard,
   StaffContentMarketingWriteGuard,
 } from './guards/staff-content-marketing.guard';
@@ -77,6 +79,7 @@ export class ContentMarketingController {
     private readonly pillars: ContentPillarService,
     private readonly seoBridgeSync: ContentSeoBridgeSyncService,
     private readonly staffAuth: StaffAuthService,
+    private readonly assetRights: AssetRightsService,
   ) {}
 
   @Get('context')
@@ -410,6 +413,37 @@ export class ContentMarketingController {
     @Req() req: Request,
   ) {
     return this.workflow.clientReject(lifecycleId, itemId, body, actorEmail(req));
+  }
+
+  @Get('items/:itemId/rights')
+  listItemRights(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.assetRights.listRights(lifecycleId, itemId);
+  }
+
+  @Put('items/:itemId/rights')
+  @UseGuards(StaffContentMarketingWriteGuard)
+  replaceItemRights(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+  ) {
+    return this.assetRights.replaceRights(lifecycleId, itemId, body);
+  }
+
+  @Post('items/:itemId/rights/:rightsId/override')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingQaGuard)
+  overrideItemRight(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Param('rightsId', ParseIntPipe) rightsId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.assetRights.overrideRight(lifecycleId, itemId, rightsId, body, actorEmail(req));
   }
 
   @Post('items/:itemId/publish')

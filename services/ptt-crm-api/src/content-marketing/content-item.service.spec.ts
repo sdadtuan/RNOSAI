@@ -213,3 +213,77 @@ describe('ContentItemService master / deliverable', () => {
     expect(out.items.map((row) => row.id)).toEqual([10, 11]);
   });
 });
+
+describe('ContentItemService publishItem gate', () => {
+  const config = { contentMarketingClientGate: false, contentMarketingMediaEnabled: false };
+  const core = { ensureLifecycleEnabled: jest.fn().mockResolvedValue({}) };
+  const repo = {
+    getItemById: jest.fn(),
+    patchItem: jest.fn(),
+    insertItemVersion: jest.fn(),
+    createItem: jest.fn(),
+    nextItemSeq: jest.fn(),
+    listItems: jest.fn(),
+    listAssetRights: jest.fn(),
+  };
+
+  let service: ContentItemService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new ContentItemService(config as never, core as never, repo as never);
+  });
+
+  function publishableItem(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 7,
+      status: 'approved_internal',
+      format: 'social_post',
+      channel: 'facebook',
+      brief_json: {
+        objective: 'Lead',
+        funnel: 'BOFU',
+        persona: 'CMO',
+        smm: 'LinkedIn',
+        proofs: 'Case',
+        restricted: 'None',
+        disclaimer: 'N/A',
+        cta: 'Book',
+        kpi: 'SQL',
+      },
+      brief_score: 100,
+      risk_level: 'Normal',
+      body_json: { markdown: 'ready' },
+      media_json: {
+        ai_assets: [
+          {
+            id: 'a1',
+            type: 'image',
+            url: 'https://cdn/blocked.jpg',
+            ai_generated: true,
+            provider: 'x',
+            selected: true,
+          },
+        ],
+      },
+      production_json: {},
+      visual_status: 'not_needed',
+      published_url: null,
+      ...overrides,
+    };
+  }
+
+  it('throws publish_gate_blocked when rightsValid is false', async () => {
+    repo.getItemById.mockResolvedValue(publishableItem());
+    repo.listAssetRights.mockResolvedValue([{ asset_ref: 'https://cdn/blocked.jpg', status: 'Invalid' }]);
+
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toMatchObject({
+      response: {
+        error: 'publish_gate_blocked',
+        blockers: expect.arrayContaining([expect.objectContaining({ code: 'rights_invalid' })]),
+      },
+    });
+    expect(repo.patchItem).not.toHaveBeenCalled();
+  });
+});
