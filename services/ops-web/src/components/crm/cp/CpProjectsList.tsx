@@ -12,7 +12,7 @@ import {
   type CpScope,
 } from '@/lib/crm/cp-api';
 import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
-import { legacyContentOsRedirect } from '@/lib/crm/cmkte-routes';
+import { contentOsBoardHref } from '@/lib/crm/content-os-hub.util';
 import { dash } from '@/lib/crm/cp-format';
 import {
   PORTFOLIO_STATUS_CHIPS,
@@ -297,7 +297,7 @@ export function CpProjectsList() {
                   {project.lifecycle_id ? (
                     <>
                       {' · '}
-                      <a className="cp-link" href={legacyContentOsRedirect(project.lifecycle_id)}>
+                      <a className="cp-link" href={contentOsBoardHref(project.lifecycle_id)}>
                         {project.lifecycle_name || project.lifecycle_id}
                       </a>
                     </>
@@ -347,7 +347,7 @@ export function CpProjectsList() {
                       </a>
                       {' / '}
                       {project.lifecycle_id ? (
-                        <a className="cp-link" href={legacyContentOsRedirect(project.lifecycle_id)}>
+                        <a className="cp-link" href={contentOsBoardHref(project.lifecycle_id)}>
                           {project.lifecycle_name || project.lifecycle_id}
                         </a>
                       ) : dash(null)}

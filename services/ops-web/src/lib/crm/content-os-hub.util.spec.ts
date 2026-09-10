@@ -23,6 +23,7 @@ describe('content-os-hub.util', () => {
   it('builds Content Board href', () => {
     expect(CONTENT_OS_HUB).toBe('/crm/content-os');
     expect(contentOsBoardHref(3)).toBe('/crm/content-os?lifecycle=3');
+    expect(contentOsBoardHref('9')).toBe('/crm/content-os?lifecycle=9');
   });
 
   it('keeps all rows when allowlist empty', () => {
