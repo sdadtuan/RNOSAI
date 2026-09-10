@@ -1173,6 +1173,15 @@ export function fetchContentOsIntelligence(
   return cmktFetch(token, lifecycleId, `/intelligence?${q.toString()}`);
 }
 
+export function fetchContentOsIntelligenceSummary(
+  token: string,
+  lifecycleId: number,
+  range = '30d',
+): Promise<ContentOsIntelligence> {
+  const q = new URLSearchParams({ range });
+  return cmktFetch(token, lifecycleId, `/intelligence/summary?${q.toString()}`);
+}
+
 export function postContentOsItemMetric(
   token: string,
   lifecycleId: number,

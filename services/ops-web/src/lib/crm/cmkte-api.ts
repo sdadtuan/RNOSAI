@@ -1,5 +1,5 @@
 import { API_BASE } from '@/lib/api';
-import type { ContentOsItem } from '@/lib/content-os-api';
+import type { ContentOsCalendarSlot, ContentOsItem, ContentOsReviewQueueItem } from '@/lib/content-os-api';
 
 export type PortfolioRiskQueueItem = {
   item_id: number;
@@ -185,6 +185,34 @@ export async function convertPortfolioRequest(
   });
   if (!res.ok) throw new Error('Không chuyển được request thành content item.');
   return res.json();
+}
+
+export type PortfolioApprovalItem = ContentOsReviewQueueItem;
+
+export type PortfolioApprovalList = {
+  items: PortfolioApprovalItem[];
+};
+
+export async function fetchPortfolioApprovals(token: string): Promise<PortfolioApprovalList> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/approvals`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return { items: [] };
+  const body = (await res.json()) as PortfolioApprovalList | null;
+  return { items: Array.isArray(body?.items) ? body.items : [] };
+}
+
+export type PortfolioPublicationList = {
+  slots: ContentOsCalendarSlot[];
+};
+
+export async function fetchPortfolioPublications(token: string): Promise<PortfolioPublicationList> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/publications`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return { slots: [] };
+  const body = (await res.json()) as PortfolioPublicationList | null;
+  return { slots: Array.isArray(body?.slots) ? body.slots : [] };
 }
 
 export async function fetchPortfolioItem(

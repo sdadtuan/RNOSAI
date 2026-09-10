@@ -40,3 +40,18 @@ export function publishGateFlagsFromItem(item: ContentOsItem | null): PublishGat
 export function rejectCommentValid(comment: string): boolean {
   return comment.trim().length >= 10;
 }
+
+export function itemMediaUrls(item: ContentOsItem | null | undefined): string[] {
+  if (!item) return [];
+  const fromProd = Array.isArray(item.production_json?.asset_urls)
+    ? item.production_json.asset_urls.filter((url): url is string => typeof url === 'string' && url.trim() !== '')
+    : [];
+  const media = [
+    ...(item.media_json?.ai_assets ?? []),
+    ...(item.media_json?.carousel_slides ?? []),
+    item.media_json?.video_short,
+  ]
+    .filter((asset): asset is NonNullable<typeof asset> => Boolean(asset?.url))
+    .map((asset) => asset.url);
+  return [...fromProd, ...media];
+}

@@ -9,12 +9,11 @@ import {
   postContentOsPublishItem,
   postContentOsRejectItem,
   postContentOsSubmitReview,
-  type ContentOsItem,
 } from '@/lib/content-os-api';
 import { evaluatePublishGate } from '@/lib/crm/cmkte-publish-gate';
 import { cmktePath } from '@/lib/crm/cmkte-routes';
 import { CMKTE_EMPTY_ITEM, CMKTE_TABS, nextTabLabel, type CmktETabId } from '@/lib/crm/cmkte-tabs';
-import { dash, isBlankRecord, publishGateFlagsFromItem, rejectCommentValid } from '@/lib/crm/cmkte-workspace';
+import { dash, isBlankRecord, itemMediaUrls, publishGateFlagsFromItem, rejectCommentValid } from '@/lib/crm/cmkte-workspace';
 import { useCmktItem } from '@/lib/crm/use-cmkt-item';
 
 function JsonBlock({ value, empty }: { value: unknown; empty: string }) {
@@ -52,24 +51,18 @@ function contextSlots(bundle: ReturnType<typeof useCmktItem>): Array<{ label: st
   ];
 }
 
-function assetUrls(item: ContentOsItem): string[] {
-  const fromProd = Array.isArray(item.production_json?.asset_urls)
-    ? item.production_json.asset_urls.filter((url): url is string => typeof url === 'string' && url.trim() !== '')
-    : [];
-  const media = [
-    ...(item.media_json?.ai_assets ?? []),
-    ...(item.media_json?.carousel_slides ?? []),
-    item.media_json?.video_short,
-  ]
-    .filter((asset): asset is NonNullable<typeof asset> => Boolean(asset?.url))
-    .map((asset) => asset.url);
-  return [...fromProd, ...media];
-}
-
-export function CmktEWorkspace({ itemId, lifecycleHint }: { itemId: number; lifecycleHint?: number }) {
+export function CmktEWorkspace({
+  itemId,
+  lifecycleHint,
+  initialTab,
+}: {
+  itemId: number;
+  lifecycleHint?: number;
+  initialTab?: CmktETabId;
+}) {
   const router = useRouter();
   const bundle = useCmktItem(itemId, lifecycleHint);
-  const [tab, setTab] = useState<CmktETabId>('brief');
+  const [tab, setTab] = useState<CmktETabId>(initialTab ?? 'brief');
   const [toast, setToast] = useState('');
   const [rejectComment, setRejectComment] = useState('');
   const [busy, setBusy] = useState(false);
@@ -156,7 +149,7 @@ export function CmktEWorkspace({ itemId, lifecycleHint }: { itemId: number; life
 
   const item = bundle.item;
   const slots = contextSlots(bundle);
-  const urls = assetUrls(item);
+  const urls = itemMediaUrls(item);
   const token = getAccessToken();
 
   return (

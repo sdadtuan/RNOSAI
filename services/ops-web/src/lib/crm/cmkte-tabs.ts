@@ -26,4 +26,9 @@ export function nextTabLabel(id: CmktETabId): string {
   return NEXT_TAB_LABEL[id];
 }
 
+export function parseCmktETab(raw: string | null | undefined): CmktETabId | undefined {
+  if (!raw) return undefined;
+  return CMKTE_TABS.some((tab) => tab.id === raw) ? (raw as CmktETabId) : undefined;
+}
+
 export const CMKTE_EMPTY_ITEM = 'Chọn item từ Requests / Command Center';

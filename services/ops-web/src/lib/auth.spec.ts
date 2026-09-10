@@ -107,6 +107,17 @@ describe('rbac-routes', () => {
     ]);
   });
 
+  it('/crm/content-os/approvals uses the same caps as /crm/content-os', () => {
+    const content = user([{ section: 'crm_content', action: 'view' }]);
+    const leadsOnly = user([{ section: 'crm_leads', action: 'view' }]);
+    expect(canAccessPath('/crm/content-os/approvals', content, 'crm')).toBe(true);
+    expect(canAccessPath('/crm/content-os/approvals', leadsOnly, 'crm')).toBe(false);
+    expect(resolvePathCapRequirements('/crm/content-os/approvals', 'crm')).toEqual(
+      resolvePathCapRequirements('/crm/content-os', 'crm'),
+    );
+  });
+
+
   it('/crm/video requires crm_vd.project or crm_content view', () => {
     const vd = user([{ section: 'crm_vd.project', action: 'view' }]);
     const content = user([{ section: 'crm_content', action: 'view' }]);

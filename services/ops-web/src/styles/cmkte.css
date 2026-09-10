@@ -323,6 +323,11 @@
   font-size: 10px;
 }
 
+.cmkte-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .cmkte-card {
   background: #fff;
   border: 1px solid var(--line);
@@ -472,6 +477,37 @@
   display: block;
   color: #3d57bc;
   margin-bottom: 4px;
+}
+
+.cmkte-notice--warn {
+  border-color: #f3dfb3;
+  background: var(--amber50);
+}
+
+.cmkte-notice--warn b {
+  color: #a86600;
+}
+
+.cmkte-checkrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.cmkte-checkrow__flag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cmkte-checkrow input[role='switch'] {
+  width: 28px;
+  height: 16px;
+  accent-color: #d5dbe6;
+  pointer-events: none;
 }
 
 .cmkte-modalback {

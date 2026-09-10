@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluatePublishGate } from './cmkte-publish-gate';
-import { publishGateFlagsFromItem, rejectCommentValid } from './cmkte-workspace';
+import { itemMediaUrls, publishGateFlagsFromItem, rejectCommentValid } from './cmkte-workspace';
 import type { ContentOsItem } from '@/lib/content-os-api';
 
 function item(partial: Partial<ContentOsItem>): ContentOsItem {
@@ -31,6 +31,29 @@ describe('publishGateFlagsFromItem', () => {
     expect(gate.blockers.map((row) => row.code)).toEqual(
       expect.arrayContaining(['brief', 'internal_approval', 'rights_invalid', 'a11y_alt', 'client_approval']),
     );
+  });
+});
+
+describe('itemMediaUrls', () => {
+  it('collects production and media urls without inventing assets', () => {
+    expect(itemMediaUrls(item({}))).toEqual([]);
+    expect(
+      itemMediaUrls(
+        item({
+          production_json: { asset_urls: ['https://cdn.example/a.jpg', ''] },
+          media_json: {
+            ai_assets: [{ url: 'https://cdn.example/b.jpg' }],
+            carousel_slides: [{ url: 'https://cdn.example/c.jpg' }],
+            video_short: { url: 'https://cdn.example/d.mp4' },
+          },
+        }),
+      ),
+    ).toEqual([
+      'https://cdn.example/a.jpg',
+      'https://cdn.example/b.jpg',
+      'https://cdn.example/c.jpg',
+      'https://cdn.example/d.mp4',
+    ]);
   });
 });
 

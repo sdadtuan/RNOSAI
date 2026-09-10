@@ -3,7 +3,9 @@ import { API_BASE } from '@/lib/api';
 import {
   convertPortfolioRequest,
   fetchCommandCenter,
+  fetchPortfolioApprovals,
   fetchPortfolioItem,
+  fetchPortfolioPublications,
   fetchPortfolioRequests,
   mapIntakeRows,
   type PortfolioContentRequest,
@@ -231,5 +233,65 @@ describe('fetchPortfolioItem', () => {
     );
 
     await expect(fetchPortfolioItem('tok-9', 21)).rejects.toThrow('item_not_found');
+  });
+});
+
+describe('fetchPortfolioApprovals', () => {
+  it('GETs portfolio approvals with Bearer token', async () => {
+    const body = { items: [{ id: 21, lifecycle_id: 4, title: 'Master' }] };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchPortfolioApprovals('tok-9');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/approvals`, {
+      headers: { Authorization: 'Bearer tok-9' },
+    });
+    expect(result).toEqual(body);
+  });
+
+  it('returns empty items when response is not ok', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ message: 'nope' }),
+      }),
+    );
+
+    await expect(fetchPortfolioApprovals('tok-9')).resolves.toEqual({ items: [] });
+  });
+});
+
+describe('fetchPortfolioPublications', () => {
+  it('GETs portfolio publications with Bearer token', async () => {
+    const body = { slots: [{ id: 3, item_id: 21, scheduled_at: '2026-09-14T10:00:00.000Z' }] };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchPortfolioPublications('tok-9');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/publications`, {
+      headers: { Authorization: 'Bearer tok-9' },
+    });
+    expect(result).toEqual(body);
+  });
+
+  it('returns empty slots when response is not ok', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ message: 'nope' }),
+      }),
+    );
+
+    await expect(fetchPortfolioPublications('tok-9')).resolves.toEqual({ slots: [] });
   });
 });

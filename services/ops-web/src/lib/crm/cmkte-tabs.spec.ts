@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CMKTE_TABS, nextTabLabel } from './cmkte-tabs';
+import { CMKTE_TABS, nextTabLabel, parseCmktETab } from './cmkte-tabs';
 
 describe('CMKTE_TABS', () => {
   it('locks 8 workspace tab labels from the mockup contract', () => {
@@ -24,6 +24,15 @@ describe('CMKTE_TABS', () => {
       '7. Approval & Governance',
       '8. Publish Control',
     ]);
+  });
+});
+
+describe('parseCmktETab', () => {
+  it('accepts a locked tab id and ignores unknown values', () => {
+    expect(parseCmktETab('approvaltab')).toBe('approvaltab');
+    expect(parseCmktETab('publish')).toBe('publish');
+    expect(parseCmktETab('unknown')).toBeUndefined();
+    expect(parseCmktETab(null)).toBeUndefined();
   });
 });
 
