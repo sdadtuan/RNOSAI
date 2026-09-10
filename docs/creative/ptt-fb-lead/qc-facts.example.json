@@ -1,0 +1,28 @@
+{
+  "files": [
+    {
+      "hook_id": "h1",
+      "filename": "ptt-lead-h1-15.mp4",
+      "width": 1080,
+      "height": 1920,
+      "duration_sec": 15,
+      "has_audio": true,
+      "face_sec": 5.5,
+      "face_id": "ptt-advisor-f-01",
+      "founder_claim": false,
+      "ui_shot": true,
+      "caption_has_spaces": true,
+      "caption_top_third": true,
+      "safe_top_px": 110,
+      "safe_bottom_px": 280,
+      "logo_present": true,
+      "cta_is_form": true,
+      "cta_is_call_only": false,
+      "ai_label_on_creative": false,
+      "fake_cpl_claim": false,
+      "contains_human": true,
+      "ai_disclosure": true,
+      "primary_text": "Ngân sách chạy. Inbox im. Để lại SĐT — PTT chỉ chỗ đang thủng."
+    }
+  ]
+}
