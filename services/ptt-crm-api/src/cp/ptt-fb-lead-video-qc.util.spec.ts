@@ -124,6 +124,12 @@ describe('evaluateLeadVideoFile', () => {
     expect(evaluateLeadVideoFile({ ...base15('h1', 'ptt-lead-h1-15.mp4'), ai_disclosure: false }).checks.internal)
       .toEqual({ result: 'blocked', reason: 'ai_disclosure_missing' });
   });
+
+  it('blocks when filename does not match LEAD_VIDEO_FILES for that hook', () => {
+    const report = evaluateLeadVideoFile({ ...base15('h1', 'ptt-lead-h2-15.mp4') });
+    expect(report.overall).toBe('blocked');
+    expect(report.checks.filename).toEqual({ result: 'blocked', reason: 'filename_mismatch' });
+  });
 });
 
 describe('evaluateLeadVideoPack / assertLeadVideoLaunchable', () => {
@@ -147,6 +153,18 @@ describe('evaluateLeadVideoPack / assertLeadVideoLaunchable', () => {
     expect(() => assertLeadVideoLaunchable(pack, { require_h1_30: false })).toThrow(
       expect.objectContaining({ error: 'pack_qc_blocked' }),
     );
+  });
+
+  it('does not overwrite facts.filename and blocks a mismatched pack file', () => {
+    const pack = evaluateLeadVideoPack([
+      { ...base15('h1', 'renamed-h1.mp4') },
+      ...passingPack().filter((f) => f.hook_id !== 'h1'),
+    ]);
+    expect(pack.files.h1.overall).toBe('blocked');
+    expect('checks' in pack.files.h1 && pack.files.h1.checks.filename).toEqual({
+      result: 'blocked',
+      reason: 'filename_mismatch',
+    });
   });
 
   it('blocks scale when require_h1_30 and H1-30 is missing or failed', () => {

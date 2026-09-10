@@ -47,6 +47,10 @@ function check(result: 'passed' | 'blocked', reason: string | null = null): Lead
   return { result, reason };
 }
 
+function expectedFilename(hookId: LeadVideoHookId): string {
+  return LEAD_VIDEO_FILES.find((row) => row.hook_id === hookId)!.filename;
+}
+
 function expectedDuration(hookId: LeadVideoHookId): number {
   return hookId === 'h1_30' ? 30 : 15;
 }
@@ -56,6 +60,10 @@ function maxFaceSec(hookId: LeadVideoHookId): number {
 }
 
 export function evaluateLeadVideoFile(facts: LeadVideoFileFacts): LeadVideoFileReport {
+  const filename = facts.filename !== expectedFilename(facts.hook_id)
+    ? check('blocked', 'filename_mismatch')
+    : check('passed');
+
   const target = expectedDuration(facts.hook_id);
   const technical = !facts.has_audio
     ? check('blocked', 'missing_audio')
@@ -96,7 +104,7 @@ export function evaluateLeadVideoFile(facts: LeadVideoFileFacts): LeadVideoFileR
     ? check('passed')
     : check('blocked', 'ai_disclosure_missing');
 
-  const checks = { technical, safe_area, caption, talent, ui, cta, copy, claim, internal };
+  const checks = { filename, technical, safe_area, caption, talent, ui, cta, copy, claim, internal };
   const overall = Object.values(checks).some((item) => item.result === 'blocked') ? 'blocked' : 'passed';
   return { overall, checks };
 }
@@ -112,7 +120,7 @@ export function evaluateLeadVideoPack(files: LeadVideoFileFacts[]): LeadVideoPac
   for (const row of LEAD_VIDEO_FILES) {
     const facts = byHook.get(row.hook_id);
     out[row.hook_id] = facts
-      ? evaluateLeadVideoFile({ ...facts, filename: row.filename, hook_id: row.hook_id })
+      ? evaluateLeadVideoFile({ ...facts, hook_id: row.hook_id })
       : { overall: 'blocked', reason: 'missing_file' };
   }
   // overall 'passed' means all four files including H1-30 (scale-ready), not wave-1 launchable.

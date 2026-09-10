@@ -16,9 +16,10 @@ Quay 9:16 hoặc crop 1080×1920. Không mock dashboard tiếng Anh.
 | 2.5–3.5 | — | Ads Manager spend (blur) |
 | 3.5–7.5 | — | QC fail → pass |
 | 7.5–11.5 | — | Form → lead CRM |
+| 11.5–12.0 | — | Hold last UI frame (Form → lead). No Advisor face. |
 | 12.0–15 | Advisor CTA | Type `Audit 15 phút — miễn phí.` |
 
-H1/H1-30 face windows must sum to ≤ 5.5s (hook 0.0–2.5 + CTA 12.0–15 = 5.5s).
+Measure `face_sec` as the sum of Advisor shots, round down to 0.1s; stay ≤ 5.5 (H1) / ≤ 7 (H3).
 
 ## H2 15s
 

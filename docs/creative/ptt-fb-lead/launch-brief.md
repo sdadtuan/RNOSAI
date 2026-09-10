@@ -22,6 +22,18 @@
 
 Labels VI on the form; **keys must match the table** (no `20–50` en-dash).
 
+### Form display labels (VI)
+
+Shown to the lead on Instant Form. Graph `field_data` **values** MUST stay the ASCII strings in the table above — never `20–50` (en-dash) and never `chưa chạy`.
+
+| Key | Display (VI) |
+|---|---|
+| full_name | Họ tên |
+| phone_number | SĐT |
+| company_name | Tên công ty |
+| ad_budget_band | NS ads / tháng |
+| ad_channels | Kênh đang chạy |
+
 ## Ads
 
 Campaign: `PTT | Lead | Audit15 | 2026-09`

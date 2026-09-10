@@ -23,9 +23,10 @@ Caption: Be Vietnam Pro / Inter, trắng + stroke đen, **cách từ**, neo **ph
 | 2.5–3.5 | Cắt UI | `Không phải cho khách.` | (kéo nốt câu trên) |
 | 3.5–7.5 | QC fail → pass | `Creative đạt — form mới ăn.` | «Creative không đạt QC thì form không ăn.» |
 | 7.5–11.5 | Form → lead CRM | `Lead vào CRM trong phút.` | «Lead vào CRM trong phút. Không chờ báo cáo thứ Hai.» |
+| 11.5–12.0 | Hold last UI frame (Form → lead). No Advisor face. | `Lead vào CRM trong phút.` | (hold) |
 | 12.0–15 | Mặt AI + type | `Audit 15 phút — miễn phí.` | «Để lại SĐT. PTT audit CPL và creative — 15 phút.» |
 
-H1/H1-30 face windows must sum to ≤ 5.5s (hook 0.0–2.5 + CTA 12.0–15 = 5.5s).
+Measure `face_sec` as the sum of Advisor shots, round down to 0.1s; stay ≤ 5.5 (H1) / ≤ 7 (H3).
 
 ---
 
