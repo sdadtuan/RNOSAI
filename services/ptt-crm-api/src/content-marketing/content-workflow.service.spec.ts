@@ -1,6 +1,18 @@
 import { BadRequestException } from '@nestjs/common';
 import { ContentWorkflowService } from './content-workflow.service';
 
+const COMPLETE_BRIEF = {
+  objective: 'Lead gen',
+  funnel: 'consideration',
+  persona: 'CMO',
+  smm: 'LinkedIn cadence',
+  proofs: 'Case study',
+  restricted: 'No medical claims',
+  disclaimer: 'Results vary',
+  cta: 'Book demo',
+  kpi: 'MQLs',
+};
+
 describe('ContentWorkflowService', () => {
   const core = { ensureLifecycleEnabled: jest.fn().mockResolvedValue({}) };
   const config = { contentMarketingClientGate: true };
@@ -26,6 +38,8 @@ describe('ContentWorkflowService', () => {
     repo.getItemById.mockResolvedValue({
       id: 1,
       status: 'draft',
+      risk_level: 'Normal',
+      brief_json: COMPLETE_BRIEF,
       body_json: { markdown: 'Hello world content' },
     });
     repo.patchItem.mockResolvedValue({
@@ -37,6 +51,40 @@ describe('ContentWorkflowService', () => {
     const out = await service.submitReview(1, 1, 'sp@test.vn');
     expect(out.status).toBe('in_review');
     expect(repo.insertItemVersion).toHaveBeenCalledWith(1, expect.anything(), 'sp@test.vn', 'submit_review');
+  });
+
+  it('submitReview rejects when brief score is below threshold', async () => {
+    repo.getItemById.mockResolvedValue({
+      id: 1,
+      status: 'draft',
+      risk_level: 'Normal',
+      brief_json: { objective: 'Lead gen' },
+      body_json: { markdown: 'Hello world content' },
+    });
+
+    await expect(service.submitReview(1, 1, 'sp@test.vn')).rejects.toMatchObject({
+      response: { error: 'brief_incomplete', score: 15, threshold: 80 },
+    });
+    expect(repo.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('submitReview uses 95 threshold for Brand-Sensitive risk', async () => {
+    repo.getItemById.mockResolvedValue({
+      id: 1,
+      status: 'draft',
+      risk_level: 'Brand-Sensitive',
+      brief_json: {
+        ...COMPLETE_BRIEF,
+        cta: '',
+        kpi: '',
+      },
+      body_json: { markdown: 'Hello world content' },
+    });
+
+    await expect(service.submitReview(1, 1, 'sp@test.vn')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.submitReview(1, 1, 'sp@test.vn')).rejects.toMatchObject({
+      response: { error: 'brief_incomplete', score: 85, threshold: 95 },
+    });
   });
 
   it('reject without comment fails', async () => {

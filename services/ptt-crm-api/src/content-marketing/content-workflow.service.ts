@@ -12,6 +12,11 @@ import {
   CMKT_SUBMIT_CLIENT_FROM,
   CMKT_SUBMIT_REVIEW_FROM,
 } from './content-workflow.util';
+import {
+  DEFAULT_BRIEF_WEIGHTS,
+  briefCompleteness,
+  briefScoreThreshold,
+} from '../content-os-portfolio/brief-score.util';
 import type { CmktItemRow, CmktReviewQueueItem, CmktReviewQueueSummary } from './content-marketing.types';
 
 @Injectable()
@@ -43,6 +48,12 @@ export class ContentWorkflowService {
 
     assertTransition(item.status, CMKT_SUBMIT_REVIEW_FROM, 'submit_review');
     assertBodyNonEmpty(item.body_json);
+
+    const score = briefCompleteness(item.brief_json ?? {}, DEFAULT_BRIEF_WEIGHTS);
+    const threshold = briefScoreThreshold(item.risk_level);
+    if (score < threshold) {
+      throw new BadRequestException({ error: 'brief_incomplete', score, threshold });
+    }
 
     const updated = await this.repo.patchItem(lifecycleId, itemId, {
       status: 'in_review',

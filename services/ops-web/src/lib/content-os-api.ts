@@ -60,8 +60,16 @@ export function parseCmktGateError(err: unknown): string {
         return 'Comment từ chối tối thiểu 10 ký tự.';
       case 'media_copy_not_approved':
         return 'Media job chỉ chạy sau khi copy được duyệt nội bộ.';
-      case 'brief_incomplete':
+      case 'brief_incomplete': {
+        const score = err.details?.score;
+        const threshold = err.details?.threshold;
+        if (typeof score === 'number' && typeof threshold === 'number') {
+          return `Brief chưa đủ (${score}/${threshold}) — bổ sung trước khi gửi duyệt.`;
+        }
         return 'Brief thiếu audience hoặc goal — bổ sung trước khi generate.';
+      }
+      case 'brief_locked':
+        return 'Brief đã khóa — cần force version để sửa.';
       case 'regenerate_body_required':
         return 'Cần nội dung draft trước khi regenerate.';
       case 'studio_locked':

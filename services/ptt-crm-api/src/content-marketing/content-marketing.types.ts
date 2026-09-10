@@ -180,6 +180,9 @@ export type CmktItemRow = {
   assignee_sp: number | null;
   assignee_qa: number | null;
   brief_json: Record<string, unknown>;
+  brief_score?: number | null;
+  brief_locked_at?: string | null;
+  risk_level?: string;
   body_json: CmktBodyJson;
   selected_variant_idx: number | null;
   quality_score_json: Record<string, unknown>;

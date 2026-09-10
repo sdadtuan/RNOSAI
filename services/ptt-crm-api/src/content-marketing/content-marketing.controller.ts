@@ -209,6 +209,16 @@ export class ContentMarketingController {
     return this.items.patchItem(lifecycleId, itemId, body, actorEmail(req));
   }
 
+  @Post('items/:itemId/brief/lock')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard, StaffContentMarketingApproveGuard)
+  lockBrief(
+    @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+  ) {
+    return this.items.lockBrief(lifecycleId, itemId);
+  }
+
   @Patch('items/:itemId/assignees')
   @UseGuards(StaffContentMarketingAssignGuard)
   patchItemAssignees(

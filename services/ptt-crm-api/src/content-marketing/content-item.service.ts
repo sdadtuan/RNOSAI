@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  DEFAULT_BRIEF_WEIGHTS,
+  briefCompleteness,
+} from '../content-os-portfolio/brief-score.util';
 import {
   CONTENT_RESEARCH_BRIEF_KEY,
   stripContentResearchFromBrief,
@@ -105,12 +109,19 @@ export class ContentItemService {
     if (body.title != null) patch.title = String(body.title).trim();
     if (body.funnel_goal != null) patch.funnel_goal = String(body.funnel_goal).trim();
     if (body.brief_json != null) {
+      if (existing.brief_locked_at && body.force_version !== true) {
+        throw new ConflictException({ error: 'brief_locked' });
+      }
       const stripped = stripContentResearchFromBrief(body.brief_json as Record<string, unknown>);
       const existingCite = (existing.brief_json ?? {})[CONTENT_RESEARCH_BRIEF_KEY];
       patch.brief_json =
         existingCite !== undefined
           ? { ...stripped, [CONTENT_RESEARCH_BRIEF_KEY]: existingCite }
           : stripped;
+      patch.brief_score = briefCompleteness(
+        patch.brief_json as Record<string, unknown>,
+        DEFAULT_BRIEF_WEIGHTS,
+      );
     }
     if (body.selected_variant_idx != null) {
       patch.selected_variant_idx = Number(body.selected_variant_idx);
@@ -149,7 +160,21 @@ export class ContentItemService {
     if (versionReason) {
       await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, versionReason);
     }
+    if (existing.brief_locked_at && body.brief_json != null && body.force_version === true) {
+      await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'brief_force_version');
+    }
     return updated;
+  }
+
+  async lockBrief(lifecycleId: number, itemId: number): Promise<CmktItemRow> {
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    const existing = await this.repo.getItemById(lifecycleId, itemId);
+    if (!existing) {
+      throw new NotFoundException({ error: 'item_not_found', id: itemId });
+    }
+    return this.repo.patchItem(lifecycleId, itemId, {
+      brief_locked_at: new Date().toISOString(),
+    });
   }
 
   async patchItemAssignees(

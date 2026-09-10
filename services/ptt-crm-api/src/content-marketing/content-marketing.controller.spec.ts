@@ -15,6 +15,7 @@ describe('ContentMarketingController', () => {
     createItem: jest.fn(),
     patchItem: jest.fn(),
     publishItem: jest.fn(),
+    lockBrief: jest.fn(),
   };
   const snapshots = {
     getPlanSnapshot: jest.fn(),
@@ -156,6 +157,16 @@ describe('ContentMarketingController', () => {
     await expect(controller.submitReview(123, 42, req)).resolves.toEqual({ id: 42, status: 'in_review' });
     expect(workflow.submitReview).toHaveBeenCalledWith(123, 42, 'sp@test.vn');
   });
+
+  it('POST brief/lock delegates to item service', async () => {
+    items.lockBrief.mockResolvedValue({ id: 42, brief_locked_at: '2026-09-10T00:00:00.000Z' });
+    await expect(controller.lockBrief(123, 42)).resolves.toEqual({
+      id: 42,
+      brief_locked_at: '2026-09-10T00:00:00.000Z',
+    });
+    expect(items.lockBrief).toHaveBeenCalledWith(123, 42);
+  });
+
 
   it('GET pillars delegates to pillar service', async () => {
     pillars.listPillars.mockResolvedValue({ pillars: [{ id: 1, name: 'Launch' }] });
