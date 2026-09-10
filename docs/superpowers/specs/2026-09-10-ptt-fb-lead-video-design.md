@@ -54,7 +54,7 @@ Bản cắt 15s + thêm khoảng trắng **không đủ**. Đối thủ thắng 
 
 | Lớp | Tỷ lệ | Luật |
 |---|---|---|
-| Talent AI | H1/H2/H1-30 ≤ 5.5s; H3 ≤ 7s | H1 hook 0–2.5 + CTA 11.5–15. H2 chỉ CTA 12–15. H3 = 0–3 + 11–15 |
+| Talent AI | H1/H2/H1-30 ≤ 5.5s; H3 ≤ 7s | H1 hook 0–2.5 + CTA 12.0–15. H2 chỉ CTA 12–15. H3 = 0–3 + 11–15 |
 | UI thật | Phần còn lại của phần giữa | Creative OS QC, Meta Ads Ops (Spend/CPL), lead vào CRM. Blur tên khách |
 | Type card | CTA / beat 30s | Nền `#07152e`, accent `#2a6cff` / `#ff715d`, ≤ 6 từ/dòng |
 
@@ -105,7 +105,7 @@ Nhịp: câu ngắn, nghỉ ~0.2s sau hook. Giọng 28–40 tuổi, một vùng 
 | 2.5–3.5 | Cắt UI | `Không phải cho khách.` | (kéo nốt câu trên) |
 | 3.5–7.5 | QC fail → pass | `Creative đạt — form mới ăn.` | «Creative không đạt QC thì form không ăn.» |
 | 7.5–11.5 | Form → lead CRM | `Lead vào CRM trong phút.` | «Lead vào CRM trong phút. Không chờ báo cáo thứ Hai.» |
-| 11.5–15 | Mặt AI + type | `Audit 15 phút — miễn phí.` | «Để lại SĐT. PTT audit CPL và creative — 15 phút.» |
+| 12.0–15 | Mặt AI + type | `Audit 15 phút — miễn phí.` | «Để lại SĐT. PTT audit CPL và creative — 15 phút.» |
 
 **Primary text:** Ngân sách chạy. Inbox im. Để lại SĐT — PTT chỉ chỗ đang thủng.
 

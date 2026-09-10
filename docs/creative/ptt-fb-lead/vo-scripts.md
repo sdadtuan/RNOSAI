@@ -23,7 +23,9 @@ Caption: Be Vietnam Pro / Inter, trắng + stroke đen, **cách từ**, neo **ph
 | 2.5–3.5 | Cắt UI | `Không phải cho khách.` | (kéo nốt câu trên) |
 | 3.5–7.5 | QC fail → pass | `Creative đạt — form mới ăn.` | «Creative không đạt QC thì form không ăn.» |
 | 7.5–11.5 | Form → lead CRM | `Lead vào CRM trong phút.` | «Lead vào CRM trong phút. Không chờ báo cáo thứ Hai.» |
-| 11.5–15 | Mặt AI + type | `Audit 15 phút — miễn phí.` | «Để lại SĐT. PTT audit CPL và creative — 15 phút.» |
+| 12.0–15 | Mặt AI + type | `Audit 15 phút — miễn phí.` | «Để lại SĐT. PTT audit CPL và creative — 15 phút.» |
+
+H1/H1-30 face windows must sum to ≤ 5.5s (hook 0.0–2.5 + CTA 12.0–15 = 5.5s).
 
 ---
 
@@ -74,6 +76,6 @@ Không monologue 15s.
 
 8–18s: ba beat UI `Chiến lược` → `Creative QC` → `Form → CRM`.
 
-**Extra VO (locked):** «Không cam kết doanh thu trên video. Cam kết quy trình đo được.»
+**Extra VO (locked):** 18–26s: «Không cam kết doanh thu trên video. Cam kết quy trình đo được.»
 
 26–30s: type `Audit 15 phút` + logo. SĐT `0900 353 9226` **phụ**, góc nhỏ, ngoài 280px đáy — primary vẫn form.
