@@ -1,9 +1,24 @@
 # Hướng dẫn — Content Marketing OS (đầy đủ)
 
-> **Module:** MOD-CMKT · **Phiên bản:** P0–P2 + M7–M16  
+> **Module:** MOD-CMKT · **Phiên bản:** P0–P2 + M7–M16 + COS E0  
 > **Đối tượng:** SP Content, Lead SP, QA, AM, Designer, Khách hàng (portal)  
-> **URL chính:** `/crm/content-os` (sidebar) → `/crm/service-delivery/[id]?tab=content-os`  
+> **URL chính:** `/crm/content-os` (sidebar **Content Marketing OS**, flag `NEXT_PUBLIC_CONTENT_MARKETING`)  
 > **Use case:** [`docs/use-cases/11-CONTENT-MARKETING.md`](../use-cases/11-CONTENT-MARKETING.md)
+
+**IA COS (E0) — 8 màn trong shell, không mở board cũ:**
+
+| Màn | Route |
+|-----|--------|
+| Command Center | `/crm/content-os` |
+| Content Requests | `/crm/content-os/requests` |
+| Production Workspace (8 tab) | `/crm/content-os/w/:id` |
+| Approval Center | `/crm/content-os/approvals` |
+| Publication Control | `/crm/content-os/calendar` |
+| Brand & Asset Library | `/crm/content-os/library` |
+| Content Intelligence | `/crm/content-os/intelligence` |
+| Governance Settings | `/crm/content-os/settings` |
+
+Legacy `/crm/service-delivery/[id]?tab=content-os` **redirect** vào COS (`/crm/content-os?lifecycle=:id`). Workspace `w/0` trống cho đến khi chọn item.
 
 Tài liệu này mô tả **toàn bộ phân hệ tạo content** — mọi kênh, AI draft, tạo hình ảnh/carousel, tạo video ngắn, repurpose, bridge SEO/Email — với **hướng dẫn từng bước trên UI**.
 
