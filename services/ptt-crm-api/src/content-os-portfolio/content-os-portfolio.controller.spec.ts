@@ -8,6 +8,13 @@ describe('ContentOsPortfolioController', () => {
     expect(service.getCommandCenter).toHaveBeenCalled();
   });
 
+  it('GET command-center passes ?lifecycle= as a hint', async () => {
+    const service = { getCommandCenter: jest.fn().mockResolvedValue({ throughput_week: 0, risk_queue: [] }) };
+    const c = new ContentOsPortfolioController(service as never);
+    await c.commandCenter({ staffUser: { sub: '7' } } as never, '4');
+    expect(service.getCommandCenter).toHaveBeenCalledWith({ staffId: 7, lifecycleHint: 4 });
+  });
+
   it('GET approvals delegates to listApprovals with staffId', async () => {
     const service = { listApprovals: jest.fn().mockResolvedValue({ items: [] }) };
     const c = new ContentOsPortfolioController(service as never);

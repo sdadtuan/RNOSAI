@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cmktePath, legacyContentOsRedirect } from './cmkte-routes';
+import { cmktePath, contentOsPanelHref, legacyContentOsRedirect, resolveServiceDeliveryContentOsTab } from './cmkte-routes';
 
 describe('cmktePath', () => {
   it('builds COS routes', () => {
@@ -17,5 +17,19 @@ describe('cmktePath', () => {
 describe('legacyContentOsRedirect', () => {
   it('maps old board tab to COS filter', () => {
     expect(legacyContentOsRedirect(9)).toBe('/crm/content-os?lifecycle=9');
+  });
+});
+
+describe('contentOsPanelHref', () => {
+  it('deep-links the CMKT editor without making it COS IA', () => {
+    expect(contentOsPanelHref(9)).toBe('/crm/service-delivery/9?tab=content-os-panel');
+  });
+});
+
+describe('resolveServiceDeliveryContentOsTab', () => {
+  it('keeps content-os as COS shell and content-os-panel as the editor', () => {
+    expect(resolveServiceDeliveryContentOsTab('content-os')).toBe('cos-shell');
+    expect(resolveServiceDeliveryContentOsTab('content-os-panel')).toBe('panel');
+    expect(resolveServiceDeliveryContentOsTab('workflow')).toBeNull();
   });
 });

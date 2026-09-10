@@ -19,22 +19,23 @@ const CLIENT_OK = new Set(['client_approved', 'scheduled', 'published']);
 
 export function publishGateFlagsFromItem(item: ContentOsItem | null): PublishGateInput {
   const brief = item?.brief_json ?? {};
-  const stored = (brief.publish_gate as Partial<PublishGateInput> | undefined) ?? {};
   const dest = String(brief.destination_url ?? brief.url ?? item?.published_url ?? '').trim();
   const status = item?.status ?? '';
   return {
-    briefReady: stored.briefReady ?? !isBlankRecord(item?.brief_json),
-    internalApproved: stored.internalApproved ?? INTERNAL_OK.has(status),
-    legalRequired: stored.legalRequired ?? false,
-    legalApproved: stored.legalApproved ?? false,
-    rightsValid: stored.rightsValid ?? false,
-    altComplete: stored.altComplete ?? false,
-    clientApproved: stored.clientApproved ?? CLIENT_OK.has(status),
-    urlOk: stored.urlOk ?? /^https?:\/\//i.test(dest),
-    versionLocked: stored.versionLocked ?? false,
-    accountHealthy: stored.accountHealthy ?? false,
-    paidExpiryWarning: stored.paidExpiryWarning,
+    briefReady: !isBlankRecord(item?.brief_json),
+    internalApproved: INTERNAL_OK.has(status),
+    legalRequired: false,
+    legalApproved: false,
+    clientApproved: CLIENT_OK.has(status),
+    urlOk: /^https?:\/\//i.test(dest),
   };
+}
+
+export function canMarkPublished(
+  gateStatus: 'Pass' | 'Warning' | 'Blocked',
+  itemStatus?: string,
+): boolean {
+  return gateStatus === 'Pass' && itemStatus !== 'published';
 }
 
 export function rejectCommentValid(comment: string): boolean {

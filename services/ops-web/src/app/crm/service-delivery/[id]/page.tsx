@@ -10,7 +10,8 @@ import { LifecycleSopPanel } from '@/components/LifecycleSopPanel';
 import { LifecycleStaffPicker } from '@/components/LifecycleStaffPicker';
 import { LifecycleTmmtPanel } from '@/components/LifecycleTmmtPanel';
 import { MarketingAiPlannerPanel } from '@/components/mkt-ai/MarketingAiPlannerPanel';
-import { legacyContentOsRedirect } from '@/lib/crm/cmkte-routes';
+import { ContentOsPanel } from '@/components/content-os/ContentOsPanel';
+import { legacyContentOsRedirect, resolveServiceDeliveryContentOsTab } from '@/lib/crm/cmkte-routes';
 import { OpsServiceHubPanel } from '@/components/ops/OpsServiceHubPanel';
 import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { DetailPageLayout } from '@/components/layout';
@@ -63,7 +64,7 @@ export default function CrmServiceDeliveryDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [detailTab, setDetailTab] = useState<
-    'workflow' | 'tmmt' | 'ai-planner' | 'ops-hub' | 'finance' | 'sop' | 'launch_qa'
+    'workflow' | 'tmmt' | 'ai-planner' | 'content-os-panel' | 'ops-hub' | 'finance' | 'sop' | 'launch_qa'
   >('workflow');
   const [researchProjectLookup, setResearchProjectLookup] =
     useState<ResearchProjectLookup>('pending');
@@ -151,7 +152,8 @@ export default function CrmServiceDeliveryDetailPage() {
   }, [ensureAuth, lifecycleId, reloadDetail, reloadAdvanceInfo]);
 
   useEffect(() => {
-    if (searchParams.get('tab') === 'content-os') {
+    const contentOsTab = resolveServiceDeliveryContentOsTab(searchParams.get('tab'));
+    if (contentOsTab === 'cos-shell') {
       router.replace(legacyContentOsRedirect(lifecycleId));
       return;
     }
@@ -160,6 +162,7 @@ export default function CrmServiceDeliveryDetailPage() {
       tab === 'workflow' ||
       tab === 'tmmt' ||
       tab === 'ai-planner' ||
+      tab === 'content-os-panel' ||
       tab === 'ops-hub' ||
       tab === 'finance' ||
       tab === 'sop' ||
@@ -512,6 +515,8 @@ export default function CrmServiceDeliveryDetailPage() {
               onOpenTmmtTab={() => switchTab('tmmt')}
               onApplied={() => void reloadDetail(token)}
             />
+          ) : detailTab === 'content-os-panel' && user ? (
+            <ContentOsPanel token={token} user={user} lifecycleId={lifecycleId} />
           ) : detailTab === 'ops-hub' && showOpsHubTab ? (
             <OpsServiceHubPanel token={token} lifecycleId={lifecycleId} user={user} />
           ) : detailTab === 'finance' ? (

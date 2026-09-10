@@ -33,6 +33,19 @@ describe('evaluatePublishGate', () => {
     expect(r.blockers).toEqual([]);
   });
 
+  it('omits E1 flags with no data source so Pass is possible', () => {
+    const r = evaluatePublishGate({
+      briefReady: true,
+      internalApproved: true,
+      legalRequired: false,
+      legalApproved: false,
+      clientApproved: true,
+      urlOk: true,
+    });
+    expect(r.status).toBe('Pass');
+    expect(r.blockers).toEqual([]);
+  });
+
   it('Warning when rights paid expiry approaching but still valid', () => {
     const r = evaluatePublishGate({
       ...base,

@@ -1,5 +1,37 @@
 import { API_BASE } from '@/lib/api';
 
+export const CMKTE_LAST_LIFECYCLE_KEY = 'cmkte-last-lifecycle';
+
+export function parseLifecycleId(raw: unknown): number | undefined {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+export function resolveRequestLifecycleId(input: {
+  explicit?: number | null;
+  search?: string | null;
+  stored?: string | number | null;
+}): number | undefined {
+  return parseLifecycleId(input.explicit) ?? parseLifecycleId(input.search) ?? parseLifecycleId(input.stored);
+}
+
+export function readLastLifecycleId(): number | undefined {
+  try {
+    return parseLifecycleId(globalThis.localStorage?.getItem(CMKTE_LAST_LIFECYCLE_KEY));
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeLastLifecycleId(id: number): void {
+  if (!(id > 0)) return;
+  try {
+    globalThis.localStorage?.setItem(CMKTE_LAST_LIFECYCLE_KEY, String(id));
+  } catch {
+    // storage unavailable
+  }
+}
+
 export function validateRequestForm(f: {
   client: string; source: string; deliverable: string; objective: string; due: string;
 }): string | null {
@@ -65,5 +97,6 @@ export async function submitRequestForm(
   if (!res.ok) {
     return { error: 'Không tạo được Content Request.' };
   }
+  writeLastLifecycleId(f.lifecycle_id);
   return { request: await res.json() };
 }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/lib/api';
-import { submitRequestForm, validateRequestForm } from './cmkte-request-form';
+import { resolveRequestLifecycleId, submitRequestForm, validateRequestForm } from './cmkte-request-form';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -13,6 +13,16 @@ const valid = {
   objective: 'Awareness',
   due: '2026-09-20',
 };
+
+describe('resolveRequestLifecycleId', () => {
+  it('prefers explicit context, then ?lifecycle=, then last-used — never invents', () => {
+    expect(resolveRequestLifecycleId({ explicit: 4, search: '9', stored: '12' })).toBe(4);
+    expect(resolveRequestLifecycleId({ search: '9', stored: '12' })).toBe(9);
+    expect(resolveRequestLifecycleId({ stored: '12' })).toBe(12);
+    expect(resolveRequestLifecycleId({})).toBeUndefined();
+    expect(resolveRequestLifecycleId({ search: '0', stored: 'nope' })).toBeUndefined();
+  });
+});
 
 describe('validateRequestForm', () => {
   it('returns required-field message when deliverable is missing', () => {

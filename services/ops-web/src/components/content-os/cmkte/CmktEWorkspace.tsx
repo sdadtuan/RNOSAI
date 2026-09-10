@@ -11,9 +11,9 @@ import {
   postContentOsSubmitReview,
 } from '@/lib/content-os-api';
 import { evaluatePublishGate } from '@/lib/crm/cmkte-publish-gate';
-import { cmktePath } from '@/lib/crm/cmkte-routes';
+import { cmktePath, contentOsPanelHref } from '@/lib/crm/cmkte-routes';
 import { CMKTE_EMPTY_ITEM, CMKTE_TABS, nextTabLabel, type CmktETabId } from '@/lib/crm/cmkte-tabs';
-import { dash, isBlankRecord, itemMediaUrls, publishGateFlagsFromItem, rejectCommentValid } from '@/lib/crm/cmkte-workspace';
+import { canMarkPublished, dash, isBlankRecord, itemMediaUrls, publishGateFlagsFromItem, rejectCommentValid } from '@/lib/crm/cmkte-workspace';
 import { useCmktItem } from '@/lib/crm/use-cmkt-item';
 
 function JsonBlock({ value, empty }: { value: unknown; empty: string }) {
@@ -233,6 +233,11 @@ export function CmktEWorkspace({
       {tab === 'copy' ? (
         <section className="cmkte-card">
           <h2 className="cmkte-section-title">Copy Studio</h2>
+          {item.lifecycle_id > 0 ? (
+            <p className="cmkte-desc">
+              <a href={contentOsPanelHref(item.lifecycle_id)}>Mở editor CMKT</a>
+            </p>
+          ) : null}
           <JsonBlock value={item.body_json?.markdown || item.body_json} empty="Chưa có copy." />
           {bundle.versions.length ? (
             <p className="cmkte-desc">{bundle.versions.length} phiên bản.</p>
@@ -371,7 +376,7 @@ export function CmktEWorkspace({
           <button
             type="button"
             className="cmkte-btn"
-            disabled={busy || !token || item.status === 'published'}
+            disabled={busy || !token || !canMarkPublished(gate.status, item.status)}
             onClick={() =>
               void runAction(() => postContentOsPublishItem(token as string, item.lifecycle_id, item.id))
             }

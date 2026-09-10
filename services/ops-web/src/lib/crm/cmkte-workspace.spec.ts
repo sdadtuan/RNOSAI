@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { evaluatePublishGate } from './cmkte-publish-gate';
-import { itemMediaUrls, publishGateFlagsFromItem, rejectCommentValid } from './cmkte-workspace';
+import {
+  canMarkPublished,
+  itemMediaUrls,
+  publishGateFlagsFromItem,
+  rejectCommentValid,
+} from './cmkte-workspace';
 import type { ContentOsItem } from '@/lib/content-os-api';
 
 function item(partial: Partial<ContentOsItem>): ContentOsItem {
@@ -24,13 +29,54 @@ function item(partial: Partial<ContentOsItem>): ContentOsItem {
 }
 
 describe('publishGateFlagsFromItem', () => {
-  it('treats missing flags as blockers', () => {
-    const flags = publishGateFlagsFromItem(item({ brief_json: {} }));
+  it('reaches Pass when brief, internal, and client are ready without inventing E1 flags', () => {
+    const flags = publishGateFlagsFromItem(
+      item({
+        status: 'client_approved',
+        brief_json: { hook: 'ready', destination_url: 'https://example.com/post' },
+      }),
+    );
+    expect(flags).not.toHaveProperty('rightsValid');
+    expect(flags).not.toHaveProperty('altComplete');
+    expect(flags).not.toHaveProperty('versionLocked');
+    expect(flags).not.toHaveProperty('accountHealthy');
+    expect(evaluatePublishGate(flags).status).toBe('Pass');
+  });
+
+  it('ignores brief_json.publish_gate so write-cap cannot stuff Pass', () => {
+    const flags = publishGateFlagsFromItem(
+      item({
+        status: 'draft',
+        brief_json: {
+          publish_gate: {
+            briefReady: true,
+            internalApproved: true,
+            legalRequired: false,
+            legalApproved: true,
+            rightsValid: true,
+            altComplete: true,
+            clientApproved: true,
+            urlOk: true,
+            versionLocked: true,
+            accountHealthy: true,
+          },
+        },
+      }),
+    );
     const gate = evaluatePublishGate(flags);
     expect(gate.status).toBe('Blocked');
     expect(gate.blockers.map((row) => row.code)).toEqual(
-      expect.arrayContaining(['brief', 'internal_approval', 'rights_invalid', 'a11y_alt', 'client_approval']),
+      expect.arrayContaining(['internal_approval', 'client_approval']),
     );
+  });
+});
+
+describe('canMarkPublished', () => {
+  it('allows Mark published only when gate is Pass', () => {
+    expect(canMarkPublished('Pass')).toBe(true);
+    expect(canMarkPublished('Warning')).toBe(false);
+    expect(canMarkPublished('Blocked')).toBe(false);
+    expect(canMarkPublished('Pass', 'published')).toBe(false);
   });
 });
 

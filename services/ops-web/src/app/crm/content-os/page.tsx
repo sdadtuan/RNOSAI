@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   canViewContentOs,
@@ -16,9 +16,21 @@ import {
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { CmktECommandCenter } from '@/components/content-os/cmkte/CmktECommandCenter';
 import { fetchCommandCenter, type PortfolioCommandCenter } from '@/lib/crm/cmkte-api';
+import { parseLifecycleQuery } from '@/lib/crm/use-cmkte-page';
+import { writeLastLifecycleId } from '@/lib/crm/cmkte-request-form';
 
 export default function CrmContentOsHubPage() {
+  return (
+    <Suspense fallback={<p className="cmkte-status">Đang tải…</p>}>
+      <CrmContentOsHubContent />
+    </Suspense>
+  );
+}
+
+function CrmContentOsHubContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const lifecycleId = parseLifecycleQuery(searchParams.get('lifecycle'));
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [center, setCenter] = useState<PortfolioCommandCenter | null>(null);
   const [error, setError] = useState('');
@@ -82,14 +94,15 @@ export default function CrmContentOsHubPage() {
       setLoading(true);
       setError('');
       try {
-        setCenter(await fetchCommandCenter(access));
+        setCenter(await fetchCommandCenter(access, lifecycleId));
+        if (lifecycleId) writeLastLifecycleId(lifecycleId);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Không tải được Command Center');
       } finally {
         setLoading(false);
       }
     })();
-  }, [ensureAuth, router]);
+  }, [ensureAuth, lifecycleId, router]);
 
   if (!user) {
     return null;
@@ -103,7 +116,7 @@ export default function CrmContentOsHubPage() {
     <div>
       {loading ? <p className="cmkte-status">Đang tải…</p> : null}
       {error ? <p className="cmkte-status cmkte-status--error">{error}</p> : null}
-      {!loading && !error && center ? <CmktECommandCenter data={center} /> : null}
+      {!loading && !error && center ? <CmktECommandCenter data={center} lifecycleId={lifecycleId} /> : null}
     </div>
   );
 }

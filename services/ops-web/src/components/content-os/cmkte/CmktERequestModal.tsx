@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import type { ContentRequestCreated } from '@/lib/crm/cmkte-request-form';
-import { submitRequestForm } from '@/lib/crm/cmkte-request-form';
+import { readLastLifecycleId, resolveRequestLifecycleId, submitRequestForm } from '@/lib/crm/cmkte-request-form';
 
 const SOURCES = [
   { value: 'account', label: 'Account team' },
@@ -41,9 +41,16 @@ export function CmktERequestModal({ open, onClose, onCreated, lifecycleId }: Pro
     if (!open) return;
     setError('');
     setBusy(false);
+    const search =
+      typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('lifecycle') : null;
+    const resolved = resolveRequestLifecycleId({
+      explicit: lifecycleId,
+      search,
+      stored: readLastLifecycleId(),
+    });
     setForm({
       ...EMPTY,
-      lifecycle_id: lifecycleId && lifecycleId > 0 ? String(lifecycleId) : '',
+      lifecycle_id: resolved ? String(resolved) : '',
     });
   }, [open, lifecycleId]);
 

@@ -24,6 +24,7 @@ export type PortfolioCommandCenter = {
 
 export type PortfolioCommandScope = {
   staffId?: number;
+  lifecycleHint?: number;
 };
 
 export const CONTENT_REQUEST_SOURCES = ['account', 'client_portal', 'campaign', 'api', 'idea'] as const;

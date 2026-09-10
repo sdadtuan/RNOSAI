@@ -2,6 +2,7 @@ import { ContentOsPortfolioService } from './content-os-portfolio.service';
 
 describe('ContentOsPortfolioService.createRequest', () => {
   let repo: {
+    listScopedLifecycleIds?: jest.Mock;
     nextRequestSeq?: jest.Mock;
     insertRequest?: jest.Mock;
     getRequestById?: jest.Mock;
@@ -13,14 +14,14 @@ describe('ContentOsPortfolioService.createRequest', () => {
   let svc: ContentOsPortfolioService;
 
   beforeEach(() => {
-    repo = {};
+    repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([1]) };
     items = { createItem: jest.fn() };
     svc = new ContentOsPortfolioService(repo as never, {} as never, {} as never, items as never);
   });
 
   it('rejects missing deliverable', async () => {
     await expect(
-      svc.createRequest({ lifecycleId: 1, actor: 'a@b.c', body: { objective: 'x' } }),
+      svc.createRequest({ staffId: 1, lifecycleId: 1, actor: 'a@b.c', body: { objective: 'x' } }),
     ).rejects.toMatchObject({ status: 400 });
   });
 
@@ -28,16 +29,33 @@ describe('ContentOsPortfolioService.createRequest', () => {
     repo.nextRequestSeq = jest.fn();
     repo.insertRequest = jest.fn();
     await expect(
-      svc.createRequest({ lifecycleId, actor: 'a@b.c', body: { deliverable_ask: 'posts' } }),
+      svc.createRequest({ staffId: 1, lifecycleId, actor: 'a@b.c', body: { deliverable_ask: 'posts' } }),
     ).rejects.toMatchObject({ status: 400 });
     expect(repo.nextRequestSeq).not.toHaveBeenCalled();
     expect(repo.insertRequest).not.toHaveBeenCalled();
+  });
+
+  it('rejects lifecycle outside staff scope with 403 and no insert', async () => {
+    repo.listScopedLifecycleIds = jest.fn().mockResolvedValue([4, 7]);
+    repo.nextRequestSeq = jest.fn();
+    repo.insertRequest = jest.fn();
+    await expect(
+      svc.createRequest({
+        staffId: 1,
+        lifecycleId: 99,
+        actor: 'a@b.c',
+        body: { deliverable_ask: 'posts' },
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(repo.insertRequest).not.toHaveBeenCalled();
+    expect(repo.nextRequestSeq).not.toHaveBeenCalled();
   });
 
   it('creates Submitted with completeness and CR code', async () => {
     repo.nextRequestSeq = jest.fn().mockResolvedValue(24);
     repo.insertRequest = jest.fn().mockImplementation(async (row) => row);
     const out = await svc.createRequest({
+      staffId: 1,
       lifecycleId: 1,
       actor: 'am@ptt.vn',
       body: {
@@ -80,7 +98,7 @@ describe('ContentOsPortfolioService.createRequest', () => {
       format: 'social_post',
     });
 
-    const out = await svc.convertRequest({ requestId: 9, actor: 'am@ptt.vn', body: {} });
+    const out = await svc.convertRequest({ staffId: 1, requestId: 9, actor: 'am@ptt.vn', body: {} });
 
     expect(out.request.triage_status).toBe('Converted');
     expect(items.createItem).toHaveBeenCalledWith(
@@ -107,10 +125,26 @@ describe('ContentOsPortfolioService.createRequest', () => {
     repo.updateRequestStatus = jest.fn();
     items.createItem.mockRejectedValue(new Error('create failed'));
 
-    await expect(svc.convertRequest({ requestId: 9, actor: 'am@ptt.vn', body: {} })).rejects.toThrow(
+    await expect(svc.convertRequest({ staffId: 1, requestId: 9, actor: 'am@ptt.vn', body: {} })).rejects.toThrow(
       'create failed',
     );
 
+    expect(repo.updateRequestStatus).not.toHaveBeenCalled();
+  });
+
+  it('rejects convert when request lifecycle is outside staff scope with 403 and no item insert', async () => {
+    repo.listScopedLifecycleIds = jest.fn().mockResolvedValue([4, 7]);
+    repo.getRequestById = jest.fn().mockResolvedValue({
+      id: 9,
+      lifecycle_id: 99,
+      deliverable_ask: '12 social posts',
+      triage_status: 'Accepted',
+    });
+    repo.updateRequestStatus = jest.fn();
+    await expect(svc.convertRequest({ staffId: 1, requestId: 9, actor: 'am@ptt.vn', body: {} })).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(items.createItem).not.toHaveBeenCalled();
     expect(repo.updateRequestStatus).not.toHaveBeenCalled();
   });
 });

@@ -25,7 +25,13 @@ function riskTitle(row: PortfolioRiskQueueItem): string {
   return `${dash(row.content_code)} · ${dash(row.title)}`;
 }
 
-export function CmktECommandCenter({ data }: { data: PortfolioCommandCenter }) {
+export function CmktECommandCenter({
+  data,
+  lifecycleId,
+}: {
+  data: PortfolioCommandCenter;
+  lifecycleId?: number;
+}) {
   const [requestOpen, setRequestOpen] = useState(false);
   const [toast, setToast] = useState('');
   const empty = data.throughput_week === 0 && data.risk_queue.length === 0;
@@ -176,6 +182,7 @@ export function CmktECommandCenter({ data }: { data: PortfolioCommandCenter }) {
       <CmktERequestModal
         open={requestOpen}
         onClose={() => setRequestOpen(false)}
+        lifecycleId={lifecycleId}
         onCreated={(request) => {
           setToast(`${request.display_code || 'Request'} đã tạo · ở lại Intake.`);
         }}

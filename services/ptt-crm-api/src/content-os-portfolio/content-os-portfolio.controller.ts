@@ -19,8 +19,12 @@ export class ContentOsPortfolioController {
   constructor(private readonly portfolio: ContentOsPortfolioService) {}
 
   @Get('command-center')
-  commandCenter(@Req() req: Request) {
-    return this.portfolio.getCommandCenter({ staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0) });
+  commandCenter(@Req() req: Request, @Query('lifecycle') lifecycle?: string) {
+    const hint = Number(lifecycle);
+    return this.portfolio.getCommandCenter({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      lifecycleHint: Number.isInteger(hint) && hint > 0 ? hint : undefined,
+    });
   }
 
   @Get('approvals')
@@ -63,6 +67,7 @@ export class ContentOsPortfolioController {
   @UseGuards(StaffContentMarketingWriteGuard)
   createRequest(@Body() body: Record<string, unknown>, @Req() req: Request) {
     return this.portfolio.createRequest({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
       lifecycleId: Number(body.lifecycle_id),
       actor: actorEmail(req),
       body,
@@ -78,6 +83,7 @@ export class ContentOsPortfolioController {
     @Req() req: Request,
   ) {
     return this.portfolio.convertRequest({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
       requestId: id,
       actor: actorEmail(req),
       body: body ?? {},

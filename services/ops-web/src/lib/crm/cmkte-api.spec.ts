@@ -7,7 +7,9 @@ import {
   fetchPortfolioItem,
   fetchPortfolioPublications,
   fetchPortfolioRequests,
+  filterCommandCenter,
   mapIntakeRows,
+  type PortfolioCommandCenter,
   type PortfolioContentRequest,
 } from './cmkte-api';
 
@@ -52,6 +54,74 @@ describe('fetchCommandCenter', () => {
     );
 
     await expect(fetchCommandCenter('tok-9')).rejects.toThrow('Không tải được Command Center');
+  });
+
+  it('passes ?lifecycle= as a hint and does not drop the filter', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        throughput_week: 1,
+        completed_week: 0,
+        wip: 1,
+        sla_at_risk: 0,
+        sla_breached: 0,
+        first_pass_pct: null,
+        capacity_pct: null,
+        blocked: 0,
+        risk_queue: [],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchCommandCenter('tok-9', 4);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/api/crm/content-os/portfolio/command-center?lifecycle=4`,
+      { headers: { Authorization: 'Bearer tok-9' } },
+    );
+  });
+});
+
+describe('filterCommandCenter', () => {
+  const center: PortfolioCommandCenter = {
+    throughput_week: 2,
+    completed_week: 1,
+    wip: 1,
+    sla_at_risk: 0,
+    sla_breached: 0,
+    first_pass_pct: null,
+    capacity_pct: null,
+    blocked: 0,
+    risk_queue: [
+      {
+        item_id: 21,
+        lifecycle_id: 4,
+        content_code: 'CNT-1',
+        title: 'A',
+        client_label: 'Acme',
+        risk_signal: 'sla',
+        owner_label: 'am',
+        sla_remaining_h: 2,
+        recommended_action: 'Approve',
+      },
+      {
+        item_id: 22,
+        lifecycle_id: 7,
+        content_code: 'CNT-2',
+        title: 'B',
+        client_label: 'Beta',
+        risk_signal: 'blocked',
+        owner_label: 'sp',
+        sla_remaining_h: 1,
+        recommended_action: 'Unblock',
+      },
+    ],
+  };
+
+  it('filters the risk queue to the hinted lifecycle and keeps other tiles', () => {
+    expect(filterCommandCenter(center, 4).risk_queue.map((row) => row.item_id)).toEqual([21]);
+    expect(filterCommandCenter(center, 4).throughput_week).toBe(2);
+    expect(filterCommandCenter(center).risk_queue).toHaveLength(2);
   });
 });
 

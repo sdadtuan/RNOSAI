@@ -32,12 +32,27 @@ export type PortfolioCommandCenter = {
   insight?: PortfolioCommandCenterInsight | null;
 };
 
-export async function fetchCommandCenter(token: string): Promise<PortfolioCommandCenter> {
-  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/command-center`, {
+export async function fetchCommandCenter(
+  token: string,
+  lifecycleHint?: number,
+): Promise<PortfolioCommandCenter> {
+  const qs = lifecycleHint && lifecycleHint > 0 ? `?lifecycle=${lifecycleHint}` : '';
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/command-center${qs}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error('Không tải được Command Center');
   return res.json();
+}
+
+export function filterCommandCenter(
+  data: PortfolioCommandCenter,
+  lifecycleId?: number,
+): PortfolioCommandCenter {
+  if (!(lifecycleId && lifecycleId > 0)) return data;
+  return {
+    ...data,
+    risk_queue: data.risk_queue.filter((row) => row.lifecycle_id === lifecycleId),
+  };
 }
 
 export type PortfolioContentRequest = {

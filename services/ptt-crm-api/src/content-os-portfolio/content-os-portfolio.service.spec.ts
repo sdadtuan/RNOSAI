@@ -60,6 +60,48 @@ describe('ContentOsPortfolioService.getCommandCenter', () => {
     expect(out.capacity_pct).toBeNull();
     expect(out.throughput_week).toBe(4);
   });
+
+  it('filters tiles and queue to ?lifecycle= when that id is in scope', async () => {
+    const filtered = {
+      throughput_week: 1,
+      completed_week: 1,
+      wip: 0,
+      sla_at_risk: 0,
+      sla_breached: 0,
+      first_pass_pct: null,
+      capacity_pct: null,
+      blocked: 0,
+      risk_queue: [{ item_id: 21, lifecycle_id: 4 }],
+    };
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4, 7]),
+      aggregateCommand: jest.fn().mockResolvedValue(filtered),
+    };
+    const svc = makeSvc(repo);
+    const out = await svc.getCommandCenter({ staffId: 1, lifecycleHint: 4 });
+    expect(repo.aggregateCommand).toHaveBeenCalledWith([4]);
+    expect(out.risk_queue).toEqual([{ item_id: 21, lifecycle_id: 4 }]);
+  });
+
+  it('passes through scoped ids when lifecycle hint is out of scope', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4, 7]),
+      aggregateCommand: jest.fn().mockResolvedValue({
+        throughput_week: 2,
+        completed_week: 1,
+        wip: 1,
+        sla_at_risk: 0,
+        sla_breached: 0,
+        first_pass_pct: null,
+        capacity_pct: null,
+        blocked: 0,
+        risk_queue: [],
+      }),
+    };
+    const svc = makeSvc(repo);
+    await svc.getCommandCenter({ staffId: 1, lifecycleHint: 99 });
+    expect(repo.aggregateCommand).toHaveBeenCalledWith([4, 7]);
+  });
 });
 
 describe('ContentOsPortfolioService.listApprovals', () => {

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ContentItemService } from '../content-marketing/content-item.service';
 import { ContentMarketingRepository } from '../content-marketing/content-marketing.repository';
 import type {
@@ -51,7 +51,9 @@ export class ContentOsPortfolioService {
     if (!lifecycleIds.length) {
       return emptyPortfolioCommandCenter();
     }
-    return this.repo.aggregateCommand(lifecycleIds);
+    const hint = scope.lifecycleHint;
+    const ids = hint && hint > 0 && lifecycleIds.includes(hint) ? [hint] : lifecycleIds;
+    return this.repo.aggregateCommand(ids);
   }
 
   async listApprovals(scope: { staffId: number }): Promise<{ items: CmktReviewQueueItem[] }> {
@@ -105,12 +107,17 @@ export class ContentOsPortfolioService {
   }
 
   async createRequest(input: {
+    staffId: number;
     lifecycleId: number;
     actor: string;
     body: Record<string, unknown>;
   }): Promise<ContentRequestRow> {
     if (!Number.isFinite(input.lifecycleId) || input.lifecycleId <= 0) {
       throw new BadRequestException({ error: 'invalid_lifecycle_id' });
+    }
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    if (!scoped.includes(input.lifecycleId)) {
+      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
     }
     const deliverable_ask = String(input.body.deliverable_ask ?? '').trim();
     if (!deliverable_ask) {
@@ -151,6 +158,7 @@ export class ContentOsPortfolioService {
   }
 
   async convertRequest(input: {
+    staffId: number;
     requestId: number;
     actor: string;
     body: Record<string, unknown>;
@@ -158,6 +166,10 @@ export class ContentOsPortfolioService {
     const request = await this.repo.getRequestById(input.requestId);
     if (!request) {
       throw new NotFoundException({ error: 'request_not_found', id: input.requestId });
+    }
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    if (!scoped.includes(request.lifecycle_id)) {
+      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
     }
     if (request.triage_status !== 'Accepted') {
       throw new BadRequestException({ error: 'request_not_accepted', status: request.triage_status });
