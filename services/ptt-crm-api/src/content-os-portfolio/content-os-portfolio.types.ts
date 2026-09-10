@@ -33,6 +33,7 @@ export type ContentRequestRow = {
   id: number;
   lifecycle_id: number;
   display_code: string;
+  kind: 'request' | 'idea';
   source: string;
   requester_email: string;
   client_label: string;

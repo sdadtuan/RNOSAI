@@ -165,6 +165,7 @@ describe('ContentOsPortfolioService.listRequests', () => {
     expect(out.items[0]).toEqual(row);
     expect(out.items[1]).toEqual(
       expect.objectContaining({
+        kind: 'idea',
         source: 'idea',
         idea_id: 3,
         deliverable_ask: 'Hook idea',
@@ -207,7 +208,9 @@ describe('ContentOsPortfolioService.listRequests', () => {
     const svc = makeSvc(repo, undefined, marketingRepo);
     const out = await svc.listRequests({ staffId: 1 });
     expect(out.items).toHaveLength(2);
-    expect(out.items[1]).toEqual(expect.objectContaining({ source: 'idea', idea_id: 8, deliverable_ask: 'Keep' }));
+    expect(out.items[1]).toEqual(
+      expect.objectContaining({ kind: 'idea', source: 'idea', idea_id: 8, deliverable_ask: 'Keep' }),
+    );
     expect(marketingRepo.listIdeas).toHaveBeenCalledTimes(2);
   });
 });

@@ -286,6 +286,7 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
       id: Number(row.id),
       lifecycle_id: Number(row.lifecycle_id),
       display_code: String(row.display_code ?? ''),
+      kind: 'request',
       source: String(row.source ?? ''),
       requester_email: String(row.requester_email ?? ''),
       client_label: String(row.client_label ?? ''),

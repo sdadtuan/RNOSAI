@@ -111,6 +111,7 @@ describe('mapIntakeRows', () => {
       ...request,
       id: 3,
       display_code: 'IDEA-3',
+      kind: 'idea' as const,
       source: 'idea',
       client_label: '',
       brand_label: '',
@@ -124,7 +125,7 @@ describe('mapIntakeRows', () => {
       risk_level: '',
     };
     const rows = mapIntakeRows([request, ideaItem]);
-    const idea = rows.find((row) => row.source === 'idea');
+    const idea = rows.find((row) => row.kind === 'idea');
     expect(idea).toMatchObject({
       kind: 'idea',
       deliverable: 'Hook idea',
@@ -132,6 +133,49 @@ describe('mapIntakeRows', () => {
       requestId: null,
     });
     expect(rows.find((row) => row.source === 'account')?.canConvert).toBe(true);
+  });
+
+  it('allows convert for Accepted CR rows even when source is idea', () => {
+    const ideaSourcedRequest = {
+      ...request,
+      id: 12,
+      display_code: 'CR-20260910-012',
+      kind: 'request' as const,
+      source: 'idea',
+      triage_status: 'Accepted',
+      idea_id: 3,
+    };
+    const rows = mapIntakeRows([ideaSourcedRequest]);
+    expect(rows[0]).toMatchObject({
+      kind: 'request',
+      source: 'idea',
+      canConvert: true,
+      requestId: 12,
+    });
+  });
+
+  it('blocks convert for synthetic IDEA rows', () => {
+    const syntheticIdea = {
+      ...request,
+      id: 3,
+      display_code: 'IDEA-3',
+      kind: 'idea' as const,
+      source: 'idea',
+      triage_status: 'Accepted',
+      idea_id: 3,
+      client_label: '',
+      brand_label: '',
+      completeness: 0,
+      effort_h: null,
+      tier: null,
+      risk_level: '',
+    };
+    const rows = mapIntakeRows([syntheticIdea]);
+    expect(rows[0]).toMatchObject({
+      kind: 'idea',
+      canConvert: false,
+      requestId: null,
+    });
   });
 });
 

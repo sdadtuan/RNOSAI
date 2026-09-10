@@ -219,6 +219,7 @@ export class ContentOsPortfolioService {
       id: idea.id,
       lifecycle_id: idea.lifecycle_id,
       display_code: `IDEA-${idea.id}`,
+      kind: 'idea',
       source: 'idea',
       requester_email: idea.created_by ?? '',
       client_label: '',

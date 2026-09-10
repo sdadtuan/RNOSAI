@@ -43,6 +43,7 @@ export type PortfolioContentRequest = {
   id: number;
   lifecycle_id: number;
   display_code: string;
+  kind?: 'request' | 'idea';
   source: string;
   requester_email: string;
   client_label: string;
@@ -96,12 +97,18 @@ export type IntakeRow = {
   canConvert: boolean;
 };
 
+function isSyntheticIdeaRow(row: PortfolioContentRequest): boolean {
+  if (row.kind === 'idea') return true;
+  if (row.kind === 'request') return false;
+  return row.display_code.startsWith('IDEA-');
+}
+
 export function mapIntakeRows(
   items: PortfolioContentRequest[],
   ideas: LifecycleIdeaRow[] = [],
 ): IntakeRow[] {
   const fromItems = items.map((row) => {
-    const isIdea = row.source === 'idea';
+    const isIdea = isSyntheticIdeaRow(row);
     return {
       key: isIdea ? `idea-${row.idea_id ?? row.id}` : `req-${row.id}`,
       kind: isIdea ? ('idea' as const) : ('request' as const),
@@ -118,13 +125,13 @@ export function mapIntakeRows(
             .filter(Boolean)
             .join(' · ') || '—',
       risk: isIdea ? '—' : row.risk_level || '—',
-      source: isIdea ? 'idea' : row.source,
+      source: row.source,
       triageStatus: row.triage_status,
       canConvert: !isIdea && row.triage_status === 'Accepted',
     };
   });
   const seenIdeaIds = new Set(
-    items.filter((row) => row.source === 'idea').map((row) => row.idea_id ?? row.id),
+    items.filter(isSyntheticIdeaRow).map((row) => row.idea_id ?? row.id),
   );
   const fromIdeas = ideas
     .filter((idea) => idea.status !== 'converted' && idea.status !== 'archived')

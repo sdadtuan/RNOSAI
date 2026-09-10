@@ -147,3 +147,57 @@ cd services/ops-web && npx vitest run src/lib/crm/cmkte-request-form.spec.ts src
  Test Files  2 passed (2)
       Tests  10 passed (10)
 ```
+
+## Fix
+
+Review: `mapIntakeRows` treated every `source === 'idea'` as a non-convertible backlog idea, hiding **Triage & create** for Accepted `CR-*` rows created from ideas.
+
+**Covering files**
+- `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.types.ts` — `kind: 'request' | 'idea'` on list items
+- `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.repository.ts` — real rows emit `kind: 'request'`
+- `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.service.ts` — synthetic GET ideas emit `kind: 'idea'`
+- `services/ops-web/src/lib/crm/cmkte-api.ts` — `isSyntheticIdeaRow` discriminates by `kind` / `IDEA-*` prefix; convert keyed to real request ids only
+- `services/ops-web/src/lib/crm/cmkte-api.spec.ts` — `CR-*` + `source: 'idea'` + `Accepted` → `canConvert: true`; `IDEA-*` → `canConvert: false`
+
+### RED
+
+```
+cd services/ops-web && npx vitest run src/lib/crm/cmkte-api.spec.ts
+
+ FAIL  src/lib/crm/cmkte-api.spec.ts > mapIntakeRows > allows convert for Accepted CR rows even when source is idea
+AssertionError: expected { key: 'idea-3', kind: 'idea', …(10) } to match object { kind: 'request', …(3) }
+
+- Expected
++ Received
+
+  {
+-   "canConvert": true,
+-   "kind": "request",
+-   "requestId": 12,
++   "canConvert": false,
++   "kind": "idea",
++   "requestId": null,
+    "source": "idea",
+  }
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+```
+
+### GREEN
+
+```
+cd services/ops-web && npx vitest run src/lib/crm/cmkte-api.spec.ts
+
+ ✓ src/lib/crm/cmkte-api.spec.ts (8 tests)
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+```
+
+```
+cd services/ptt-crm-api && npx jest src/content-os-portfolio --no-coverage
+
+Test Suites: 5 passed, 5 total
+Tests:       31 passed, 31 total
+```
