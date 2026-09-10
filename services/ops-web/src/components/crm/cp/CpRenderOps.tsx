@@ -13,7 +13,9 @@ import {
   type CpRenderJob,
   type CpScope,
 } from '@/lib/crm/cp-api';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import { dash } from '@/lib/crm/cp-format';
+import Link from 'next/link';
 
 export const CP_RENDER_TRACE_STAGES = [
   'Validation+reserve',

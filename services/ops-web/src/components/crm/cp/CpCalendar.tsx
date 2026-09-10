@@ -21,6 +21,7 @@ import {
   type CpCalendarTab,
   type CpCalendarView,
 } from '@/lib/crm/cp-calendar.util';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import { dash } from '@/lib/crm/cp-format';
 
 const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -136,7 +137,7 @@ function CpCalendarInner() {
         <div>
           <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Lịch xuất bản</p>
           <h1>Lịch xuất bản</h1>
-          <p className="cp-muted">TZ {CP_DEFAULT_TZ} · chỉ video PublishItem · copy lịch ở Content OS</p>
+          <p className="cp-muted">{CP_SUBTITLES.calCalendar}</p>
         </div>
         <Link className="cp-btn cp-btn--primary" href={hrefWith(pathname, searchParams, { tab: 'composer' })}>
           Composer

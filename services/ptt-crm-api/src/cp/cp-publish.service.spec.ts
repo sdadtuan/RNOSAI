@@ -4,6 +4,7 @@ import {
   CpPublishService,
   fileExportPostRef,
   nativePublishEnabled,
+  resolvePublishPostRef,
   spreadBulkSlots,
 } from './cp-publish.service';
 
@@ -345,6 +346,12 @@ describe('nativePublishEnabled / file-export ref', () => {
     expect(fileExportPostRef(ITEM_ID)).toBe(`export:${ITEM_ID}`);
     expect(fileExportPostRef(ITEM_ID)).not.toMatch(/tiktok|reels|instagram/i);
   });
+
+  it('resolvePublishPostRef uses native: prefix when native is enabled', () => {
+    expect(resolvePublishPostRef(ITEM_ID, 'tiktok', false)).toBe(`export:${ITEM_ID}`);
+    expect(resolvePublishPostRef(ITEM_ID, 'tiktok', true)).toBe(`native:tiktok:${ITEM_ID}`);
+    expect(resolvePublishPostRef(ITEM_ID, 'tiktok', true)).not.toMatch(/tiktok\.com|reels/i);
+  });
 });
 
 describe('spreadBulkSlots', () => {
@@ -420,7 +427,8 @@ describe('CpPublishService deliver / retry / bulk', () => {
       last_error: null,
     }];
     const settings = new SettingsPort();
-    const svc = new CpPublishService(videos as never, db, undefined, settings as never);
+    const audit = new AuditPort();
+    const svc = new CpPublishService(videos as never, db, audit as never, settings as never);
 
     const row = await svc.deliver(ITEM_ID, SCOPE);
     expect(row).toMatchObject({
@@ -430,6 +438,34 @@ describe('CpPublishService deliver / retry / bulk', () => {
       kind: 'video',
     });
     expect(String(row.post_ref)).not.toMatch(/tiktok\.com|instagram|reels/i);
+    expect(audit.rows).toEqual([
+      expect.objectContaining({
+        action: 'publish.deliver',
+        resource_type: 'publish_item',
+        resource_id: ITEM_ID,
+      }),
+    ]);
+  });
+
+  it('deliver uses native: post_ref when publish_native is enabled', async () => {
+    const videos = new VersionPort();
+    const db = new PublishQuery();
+    db.items = [{
+      id: ITEM_ID,
+      video_version_id: VERSION_ID,
+      channel: 'tiktok',
+      status: 'scheduled',
+    }];
+    const settings = new SettingsPort();
+    settings.publish_native = true;
+    const svc = new CpPublishService(videos as never, db, undefined, settings as never);
+
+    const row = await svc.deliver(ITEM_ID, SCOPE);
+    expect(row).toMatchObject({
+      status: 'published',
+      post_ref: `native:tiktok:${ITEM_ID}`,
+    });
+    expect(String(row.post_ref)).not.toMatch(/tiktok\.com|reels/i);
   });
 
   it('deliver marks failed + last_error when the handoff cannot load the version', async () => {

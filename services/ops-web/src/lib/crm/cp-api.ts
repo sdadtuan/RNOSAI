@@ -70,6 +70,8 @@ export type CpProjectSummary = {
   credit_used?: number | null;
   deliverable_done?: number | null;
   deliverable_total?: number | null;
+  progress_pct?: number | null;
+  lifecycle_label?: string | null;
   video_final?: number | null;
   overdue_deliverables?: number | null;
   credit_charged?: number | null;
@@ -403,6 +405,7 @@ export type CpQcFacts = {
   loudness_lufs?: number | null;
   black_frozen?: boolean | null;
   moderation?: string | boolean | null;
+  pack?: string | null;
 };
 
 export type CpVideoVersion = {
@@ -1656,11 +1659,19 @@ export type CpBatchJob = {
   unit_credits?: number | null;
 };
 
+export type CpBatchMatrix = {
+  ratios?: string[];
+  locales?: string[];
+  ctas?: string[];
+  channels?: string[];
+};
+
 export type CpBatchInput = {
   template_id: string;
   project_id?: string | null;
   rows?: Record<string, unknown>[];
   mapping?: Record<string, string>;
+  matrix?: CpBatchMatrix;
   source?: {
     type?: string;
     client_id?: string;

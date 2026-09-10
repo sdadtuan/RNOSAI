@@ -39,6 +39,15 @@ run_local() {
   echo "== 1b/5 import CP projects from Dự án PTT =="
   bash "$ROOT/scripts/seed_cp_projects_from_b2b.sh"
 
+  if [[ "${SEED_CP_PLAYBOOKS:-0}" == "1" ]]; then
+    echo "== 1c/5 seed Industry Playbooks (Phase A) =="
+    bash "$ROOT/scripts/seed_cp_playbooks_phase_a.sh"
+  fi
+  if [[ "${SEED_CP_DEMO:-0}" == "1" ]]; then
+    echo "== 1d/5 demo seed The Peak =="
+    bash "$ROOT/scripts/seed_cp_demo_the_peak.sh"
+  fi
+
   echo "== 2/5 ptt-crm-api build + CP unit tests =="
   cd "$ROOT/services/ptt-crm-api"
   npm ci

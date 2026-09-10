@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { CP_TENANT_ID } from './cp-audit.repository';
 import { CpRendersService, CpRenderScope } from './cp-renders.service';
 import { cpScopeSql } from './cp-scope.util';
+import { expandBatchMatrix, type CpBatchMatrix } from './cp-batch-matrix.util';
 import { unitCredits } from './cp-templates.service';
 import { CpVideosService } from './cp-videos.service';
 
@@ -51,6 +52,7 @@ export type CpBatchInput = {
   rows?: unknown;
   mapping?: Record<string, string>;
   source?: CpBatchSource;
+  matrix?: CpBatchMatrix;
 };
 
 export type CpBatchItemPatch = {
@@ -124,8 +126,21 @@ export class CpBatchesService {
   ) {
     const template = await this.loadTemplate(requiredUuid(input.template_id, 'template_id_required'));
     const mapping = objectValue(input.mapping) as Record<string, string>;
-    const rows = await this.resolveRows(input, mapping);
-    if (rows.length > CP_BATCH_MAX_ROWS) cpThrow(400, { error: 'batch_too_large' });
+    let rows = await this.resolveRows(input, mapping);
+    if (input.matrix && Object.keys(input.matrix).length) {
+      const expanded = expandBatchMatrix(rows, input.matrix);
+      if (expanded.length > CP_BATCH_MAX_ROWS) {
+        cpThrow(400, {
+          error: 'batch_matrix_too_large',
+          max: CP_BATCH_MAX_ROWS,
+          count: expanded.length,
+          base_rows: rows.length,
+        });
+      }
+      rows = expanded;
+    } else if (rows.length > CP_BATCH_MAX_ROWS) {
+      cpThrow(400, { error: 'batch_too_large' });
+    }
     const projectId = optionalUuid(input.project_id, 'invalid_project_id');
     if (projectId) await this.loadProject(projectId, scope);
 
@@ -361,6 +376,10 @@ export class CpBatchesService {
           row_no: item.row_no,
           estimated_credits: unit,
           variables: row,
+          ratio: nullableText(row.ratio),
+          locale: nullableText(row.locale),
+          channel: nullableText(row.channel),
+          variant_key: nullableText(row.variant_key),
         },
       }, scope);
       const submitted = await this.renders.submit(String(draft.id), key, scope, {

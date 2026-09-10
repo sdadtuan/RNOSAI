@@ -212,6 +212,48 @@ describe('CpBatchesService', () => {
     });
   });
 
+  it('expands matrix variants and rejects when expansion exceeds 50 rows', async () => {
+    const { service } = makeService(new BatchQuery());
+    const rows = [sampleRow(1), sampleRow(2)];
+
+    await expect(
+      service.create({
+        template_id: TEMPLATE_ID,
+        project_id: PROJECT_ID,
+        rows,
+        matrix: {
+          ratios: ['9:16', '1:1', '4:5', '16:9'],
+          locales: ['vi', 'en'],
+          channels: ['meta', 'tiktok'],
+          ctas: ['Form', 'Gọi ngay'],
+        },
+      }, 9, SCOPE),
+    ).rejects.toMatchObject({
+      response: { error: 'batch_matrix_too_large' },
+    });
+
+    const db = new BatchQuery();
+    const expanded = makeService(db);
+    await expanded.service.create({
+      template_id: TEMPLATE_ID,
+      project_id: PROJECT_ID,
+      rows: [sampleRow(1)],
+      matrix: {
+        ratios: ['9:16', '1:1'],
+        locales: ['vi'],
+        channels: ['meta'],
+        ctas: ['Form'],
+      },
+    }, 9, SCOPE);
+    expect(db.items).toHaveLength(2);
+    expect(db.items[0]).toMatchObject({
+      row_json: expect.objectContaining({
+        ratio: '9:16',
+        variant_key: '9:16|vi|meta|Form',
+      }),
+    });
+  });
+
   it('validates a 48-row sample as 46 valid and 2 invalid and estimates 46 × unit', async () => {
     const db = new BatchQuery();
     const { service } = makeService(db);

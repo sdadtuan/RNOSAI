@@ -2,6 +2,11 @@ import { HttpException, Inject, Injectable, OnModuleDestroy, Optional } from '@n
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { CpAuditRepository, CP_TENANT_ID } from './cp-audit.repository';
+import {
+  buildScenesFromPlaybook,
+  regenerateScene as regeneratePlaybookScene,
+} from './cp-playbook-script.engine';
+import { CpPlaybookVars } from './cp-playbook.types';
 import { cpScopeSql, CpScope } from './cp-scope.util';
 
 export const CP_VIDEOS_QUERY = 'CP_VIDEOS_QUERY';
@@ -374,7 +379,20 @@ export class CpVideosService {
     const scene = found.rows[0] ?? cpThrow(404, { error: 'not_found' });
     if (isLocked(scene.locked)) return scene;
 
-    const generated = stubRegeneratedCopy(sceneIdx);
+    const playbook = playbookFromDraft(draft);
+    const generated = playbook.playbook_id
+      ? regeneratePlaybookScene(
+        playbook.playbook_id,
+        sceneIdx,
+        playbook.playbook_vars,
+        {
+          locked: isLocked(scene.locked),
+          visual: nullableText(scene.visual),
+          vo: nullableText(scene.vo),
+          overlay: nullableText(scene.overlay),
+        },
+      )
+      : stubRegeneratedCopy(sceneIdx);
     const updated = await this.db.query(
       `UPDATE crm_cp_scenes
           SET visual = $3, vo = $4, overlay = $5
@@ -383,6 +401,50 @@ export class CpVideosService {
       [draft.id, sceneIdx, generated.visual, generated.vo, generated.overlay],
     );
     return updated.rows[0] ?? scene;
+  }
+
+  async autoScript(
+    id: string,
+    scope: CpVideoScope = DEFAULT_SCOPE,
+  ) {
+    const draft = await this.get(id, scope);
+    const playbook = playbookFromDraft(draft);
+    if (!playbook.playbook_id) cpThrow(400, { error: 'playbook_required' });
+
+    const scenes = buildScenesFromPlaybook(playbook.playbook_id, playbook.playbook_vars);
+    const saved = await this.putScenes(id, {
+      scenes: scenes.map((scene) => ({
+        idx: scene.idx,
+        title: scene.title,
+        t_start: scene.t_start,
+        t_end: scene.t_end,
+        visual: scene.visual,
+        vo: scene.vo,
+        overlay: scene.overlay,
+        locked: scene.locked ?? false,
+      })),
+    }, scope);
+
+    const scriptJson = {
+      playbook_id: playbook.playbook_id,
+      beats: scenes.map((scene) => ({
+        idx: scene.idx,
+        beat: scene.beat ?? scene.title,
+        vo: scene.vo,
+        overlay: scene.overlay,
+      })),
+    };
+    const config = mergePlaybookConfig(draft.config_json, playbook);
+    const patched = await this.patchDraft(id, {
+      script_json: scriptJson,
+      config_json: config,
+    }, scope);
+
+    return {
+      draft: patched,
+      scenes: saved.items,
+      script_json: scriptJson,
+    };
   }
 
   async patchVersion(
@@ -577,11 +639,48 @@ function lockCompletedLanguage(
   next: unknown,
   completed: boolean,
 ): Record<string, unknown> {
-  const merged = asRecord(next === undefined ? current : next);
+  const merged = {
+    ...asRecord(current),
+    ...asRecord(next === undefined ? current : next),
+  };
   if (!completed) return merged;
   merged.language = Object.prototype.hasOwnProperty.call(asRecord(current), 'language')
     ? asRecord(current).language
     : null;
+  return merged;
+}
+
+function playbookFromDraft(draft: Record<string, unknown>): {
+  playbook_id: string | null;
+  playbook_vars: CpPlaybookVars;
+} {
+  return asPlaybookConfig(draft.config_json);
+}
+
+function asPlaybookConfig(value: unknown): {
+  playbook_id: string | null;
+  playbook_vars: CpPlaybookVars;
+} {
+  const config = asRecord(value);
+  const playbookId = nullableText(config.playbook_id);
+  const vars = asRecord(config.playbook_vars);
+  return {
+    playbook_id: playbookId,
+    playbook_vars: vars as CpPlaybookVars,
+  };
+}
+
+function mergePlaybookConfig(
+  current: unknown,
+  playbook: { playbook_id?: string | null; playbook_vars?: CpPlaybookVars },
+): Record<string, unknown> {
+  const merged = asRecord(current);
+  if (playbook.playbook_id !== undefined) {
+    merged.playbook_id = playbook.playbook_id;
+  }
+  if (playbook.playbook_vars !== undefined) {
+    merged.playbook_vars = playbook.playbook_vars;
+  }
   return merged;
 }
 

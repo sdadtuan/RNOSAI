@@ -27,6 +27,8 @@ import {
   type CpVideoDraft,
   type CpVideoInputMode,
 } from '@/lib/crm/cp-api';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
+import { autoScriptCpVideo } from '@/lib/crm/cp-playbook-api';
 import { dash, draftLanguageWritable, mergeDraftAfterAutosave } from '@/lib/crm/cp-format';
 import {
   VIDEO_STUDIO_TABS,
@@ -92,6 +94,14 @@ export function CpVideoStudio({
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [scripting, setScripting] = useState(false);
+
+  const playbookId = useMemo(() => {
+    const cfg = draft?.config_json;
+    if (!cfg || typeof cfg !== 'object') return null;
+    const id = (cfg as Record<string, unknown>).playbook_id;
+    return typeof id === 'string' ? id : null;
+  }, [draft?.config_json]);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -176,6 +186,23 @@ export function CpVideoStudio({
     return () => window.clearTimeout(timer);
   }, [draft?.id, loading, payload, scope]);
 
+  async function runAutoScript() {
+    const token = getAccessToken();
+    if (!token || !draft) return;
+    setScripting(true);
+    setError('');
+    setNotice('');
+    try {
+      await autoScriptCpVideo(token, draft.id);
+      setNotice('Đã tạo lại kịch bản từ playbook');
+      await load();
+    } catch (caught) {
+      setError(formatCpApiError(caught, 'Không tạo lại được kịch bản'));
+    } finally {
+      setScripting(false);
+    }
+  }
+
   async function submitRender() {
     const token = getAccessToken();
     if (!token || !draft) {
@@ -229,14 +256,30 @@ export function CpVideoStudio({
           </p>
           <h1>{name ? `Video Studio — ${name}` : 'Video Studio'}</h1>
           <p className="cp-muted">
-            VID-01 · FR-VID-001…010 · autosave 2s · estimate + pricing
+            {CP_SUBTITLES.vidStudio}
             {saving ? ' · Đang autosave…' : draft?.autosaved_at ? ` · ${draft.autosaved_at}` : ''}
           </p>
+          {playbookId ? (
+            <p className="cp-alert cp-alert--inline">
+              Playbook: {playbookId}
+              {playbookId === 'tvc_short_169'
+                ? ' · Render cinematic trong Video SOP → ingest version vào CP (QC tvc_short + Legal)'
+                : null}
+            </p>
+          ) : null}
         </div>
         <div className="cp-overview__actions">
           {shouldShowVideoSopNav(getStoredUser()) ? (
             <Link className="cp-btn" href={videoSopHref(null)}>Mở Video SOP</Link>
           ) : null}
+          <button
+            type="button"
+            className="cp-btn"
+            disabled={loading || scripting || !draft || !playbookId}
+            onClick={() => void runAutoScript()}
+          >
+            {scripting ? 'Đang tạo…' : 'Tạo lại kịch bản'}
+          </button>
           <Link className="cp-btn" href={href('storyboard')}>Storyboard</Link>
           <button
             className="cp-btn cp-btn--primary"

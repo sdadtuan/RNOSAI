@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { CreativesService } from '../creatives/creatives.service';
 import { CpAuditRepository, CP_TENANT_ID } from './cp-audit.repository';
+import { buildCpCreativeDescription } from './cp-launch-gate.util';
 import { assertNotQcBlocked } from './cp-qc.service';
 import { cpScopeSql, CpScope } from './cp-scope.util';
 import { CpVideosService } from './cp-videos.service';
@@ -102,6 +103,12 @@ export interface CpProjectsDb {
 }
 
 export type CpProjectCursor = { created_at: string; id: string };
+
+export type CpProjectListItem = Record<string, unknown> & {
+  deliverable_done?: number;
+  deliverable_total?: number;
+  progress_pct?: number;
+};
 
 @Injectable()
 export class CpProjectsRepository implements CpProjectsDb, OnModuleDestroy {
@@ -327,7 +334,7 @@ export class CpProjectsService {
     );
     const rows = result.rows;
     const hasMore = rows.length > PAGE_SIZE;
-    const items = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+    const items = (hasMore ? rows.slice(0, PAGE_SIZE) : rows).map(mapProjectProgress);
     const summary = await this.portfolioSummary(query);
     return {
       items,
@@ -602,6 +609,7 @@ export class CpProjectsService {
     const submitted = await this.creatives.submit({
       client_id: String(project.agency_client_id),
       title,
+      description: buildCpCreativeDescription(String(version.id)),
       asset_url: outputUri ?? undefined,
       asset_type: 'video',
       version: Number(version.version_n) > 0 ? Number(version.version_n) : undefined,
@@ -906,6 +914,22 @@ export class CpProjectsService {
     const creditBudget = Number(budget);
     return projectIsAtRisk(risk, creditBudget);
   }
+}
+
+export function projectProgressPct(done: unknown, total: unknown): number {
+  const deliverableDone = Number(done ?? 0);
+  const deliverableTotal = Number(total ?? 0);
+  if (!Number.isFinite(deliverableDone) || !Number.isFinite(deliverableTotal) || deliverableTotal <= 0) {
+    return 0;
+  }
+  return Math.round((deliverableDone / deliverableTotal) * 100);
+}
+
+export function mapProjectProgress(row: Record<string, unknown>): CpProjectListItem {
+  return {
+    ...row,
+    progress_pct: projectProgressPct(row.deliverable_done, row.deliverable_total),
+  };
 }
 
 export function projectIsAtRisk(

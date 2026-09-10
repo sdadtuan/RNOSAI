@@ -19,6 +19,7 @@ type PerformanceOut = {
   slug: string;
   metrics: Record<string, Sourced>;
   funnel: unknown;
+  closed_loop?: unknown[];
 };
 type ExecutiveOut = {
   funnel: unknown;
@@ -46,6 +47,7 @@ describe('CpReportsService performance', () => {
     expect(out.metrics.ctr.value).toBeNull();
     expect(out.metrics.views.value).toBeNull();
     expect(out.funnel).toBeNull();
+    expect(out.closed_loop).toEqual([]);
   });
 
   it('does not invent CTR when ingest has views but no ctr', async () => {

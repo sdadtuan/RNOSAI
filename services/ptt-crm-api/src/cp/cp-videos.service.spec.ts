@@ -199,6 +199,17 @@ class SceneQuery {
 
   async query(sql: string, params: unknown[] = []) {
     this.calls.push({ sql, params });
+    if (sql.includes('UPDATE crm_cp_video_drafts') && sql.includes('script_json')) {
+      this.draft.revision = Number(this.draft.revision) + 1;
+      this.draft.name = String(params[1]);
+      this.draft.script_json = typeof params[4] === 'string'
+        ? JSON.parse(params[4] as string)
+        : params[4] ?? this.draft.script_json;
+      this.draft.config_json = typeof params[5] === 'string'
+        ? JSON.parse(params[5] as string)
+        : params[5] ?? this.draft.config_json;
+      return { rows: [{ ...this.draft, revision: this.draft.revision }] };
+    }
     if (sql.includes('UPDATE crm_cp_video_drafts') && sql.includes('revision')) {
       this.draft.revision = Number(this.draft.revision) + 1;
       this.draft.config_json = typeof params[1] === 'string'
@@ -363,6 +374,47 @@ describe('CpVideosService scenes and timeline', () => {
       call.sql.includes('UPDATE crm_cp_scenes')
       && /\blocked\s*=\s*false\b/.test(call.sql)
     ))).toBe(true);
+  });
+});
+
+describe('CpVideosService playbook integration', () => {
+  it('regenerates via script engine when playbook_id is set on draft config', async () => {
+    const db = new SceneQuery();
+    db.draft.config_json = {
+      playbook_id: 'bds_social_916',
+      playbook_vars: {
+        project_name: 'The Peak',
+        price_from: 'từ 3 tỷ',
+        location: 'Quận 7',
+        hotline: '1900',
+        cta: 'Đăng ký',
+      },
+    };
+    db.scenes = [lockedScene({ locked: false, overlay: 'OLD', visual: 'old', vo: 'old' })];
+    const videos = new CpVideosService(db);
+
+    const result = await videos.regenerateScene(DRAFT_ID, 0, SCENE_SCOPE);
+
+    expect(result.visual).toContain('The Peak');
+    expect(result.overlay).toContain('The Peak');
+    expect(result.vo).toBeTruthy();
+  });
+
+  it('autoScript builds scenes and script_json from playbook config', async () => {
+    const db = new SceneQuery();
+    db.draft.config_json = {
+      playbook_id: 'lead_social_916',
+      playbook_vars: { hook_id: 'h1', offer: 'PTT audit CPL' },
+    };
+    const videos = new CpVideosService(db);
+
+    const result = await videos.autoScript(DRAFT_ID, SCENE_SCOPE);
+
+    expect(result.scenes.length).toBeGreaterThanOrEqual(5);
+    expect(result.script_json).toMatchObject({
+      playbook_id: 'lead_social_916',
+      beats: expect.any(Array),
+    });
   });
 });
 

@@ -21,7 +21,33 @@ import {
   type CpTemplate,
 } from '@/lib/crm/cp-api';
 import { buildCpBatchSource } from '@/lib/crm/cp-batch-source';
+import { matrixExpansionCount, type CpBatchMatrix } from '@/lib/crm/cp-batch-matrix.util';
 import { dash } from '@/lib/crm/cp-format';
+import { CpFilterChips } from './CpFilterChips';
+
+const MATRIX_RATIOS = ['9:16', '16:9', '1:1', '4:5'];
+const MATRIX_LOCALES = ['vi', 'en'];
+const MATRIX_CHANNELS = ['meta', 'tiktok', 'google'];
+const MATRIX_CTAS = ['Form', 'Gọi ngay', 'Zalo', 'Inbox'];
+const CP_BATCH_MAX_ROWS = 50;
+
+function toggleMatrixValue(list: string[], value: string): string[] {
+  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+}
+
+function buildMatrix(
+  ratios: string[],
+  locales: string[],
+  channels: string[],
+  ctas: string[],
+): CpBatchMatrix | undefined {
+  const matrix: CpBatchMatrix = {};
+  if (ratios.length) matrix.ratios = ratios;
+  if (locales.length) matrix.locales = locales;
+  if (channels.length) matrix.channels = channels;
+  if (ctas.length) matrix.ctas = ctas;
+  return Object.keys(matrix).length ? matrix : undefined;
+}
 
 const STEPS = [
   { n: 1, label: '1 Template' },
@@ -87,8 +113,10 @@ export function CpBatchFactory() {
   const [crmLifecycleId, setCrmLifecycleId] = useState('');
   const [rowEdits, setRowEdits] = useState<Record<string, Record<string, string>>>({});
   const [patchedRows, setPatchedRows] = useState<Record<string, boolean>>({});
-  const [ratio, setRatio] = useState('9:16');
-  const [locale, setLocale] = useState('vi');
+  const [matrixRatios, setMatrixRatios] = useState<string[]>(['9:16']);
+  const [matrixLocales, setMatrixLocales] = useState<string[]>(['vi']);
+  const [matrixChannels, setMatrixChannels] = useState<string[]>(['meta']);
+  const [matrixCtas, setMatrixCtas] = useState<string[]>([]);
   const [batch, setBatch] = useState<CpBatchJob | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
@@ -96,6 +124,15 @@ export function CpBatchFactory() {
 
   const selected = templates.find((item) => item.id === templateId) ?? null;
   const rows = useMemo(() => parseCsv(csv), [csv]);
+  const matrix = useMemo(
+    () => buildMatrix(matrixRatios, matrixLocales, matrixChannels, matrixCtas),
+    [matrixRatios, matrixLocales, matrixChannels, matrixCtas],
+  );
+  const expansionCount = useMemo(
+    () => matrixExpansionCount(rows.length, matrix),
+    [rows.length, matrix],
+  );
+  const matrixTooLarge = expansionCount > CP_BATCH_MAX_ROWS;
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -133,8 +170,9 @@ export function CpBatchFactory() {
       const created = await createCpBatch(token, {
         template_id: templateId,
         project_id: projectId || null,
-        rows: rows.map((row) => ({ ...row, ratio, locale })),
+        rows,
         mapping,
+        matrix,
         source,
       }, scope);
       const validated = await validateCpBatch(token, created.id, scope);
@@ -253,12 +291,12 @@ export function CpBatchFactory() {
         </div>
         <Link className="cp-btn" href={`/crm/creative-os/video/templates?scope=${scope}`}>Mẫu video</Link>
       </header>
-      <nav className="cp-stepper" aria-label="Các bước batch">
+      <nav className="stepper cp-stepper" aria-label="Các bước batch">
         {STEPS.map((item) => (
           <button
             key={item.n}
             type="button"
-            className={item.n === step ? 'cp-stepper__item is-on' : 'cp-stepper__item'}
+            className={`stepper__item cp-stepper__item${item.n === step ? ' is-on' : ''}${item.n < step ? ' is-done' : ''}`}
             onClick={() => setStep(item.n)}
           >
             {item.label}
@@ -339,31 +377,55 @@ export function CpBatchFactory() {
 
       {step === 3 ? (
         <section className="cp-card">
-          <div className="cp-card__head"><h2>Variants</h2></div>
+          <div className="cp-card__head"><h2>Variant matrix</h2></div>
           <form
-            className="cp-form-2"
+            className="cp-form"
             onSubmit={(event) => {
               event.preventDefault();
-              setStep(4);
+              if (!matrixTooLarge) setStep(4);
             }}
           >
-            <label className="cp-field">
+            <p className="cp-muted">Chọn tổ hợp ratio × locale × channel × CTA. Để trống CTA sẽ lấy từ CSV.</p>
+            <div className="cp-field">
               <span>Ratio</span>
-              <select value={ratio} onChange={(event) => setRatio(event.target.value)}>
-                <option>9:16</option>
-                <option>16:9</option>
-                <option>1:1</option>
-                <option>4:5</option>
-              </select>
-            </label>
-            <label className="cp-field">
+              <CpFilterChips
+                chips={MATRIX_RATIOS.map((id) => ({ id, label: id, active: matrixRatios.includes(id) }))}
+                onToggle={(id) => setMatrixRatios((current) => toggleMatrixValue(current, id))}
+              />
+            </div>
+            <div className="cp-field">
               <span>Locale</span>
-              <select value={locale} onChange={(event) => setLocale(event.target.value)}>
-                <option value="vi">vi</option>
-                <option value="en">en</option>
-              </select>
-            </label>
-            <button className="cp-btn cp-btn--primary" type="submit">Review & Run</button>
+              <CpFilterChips
+                chips={MATRIX_LOCALES.map((id) => ({ id, label: id, active: matrixLocales.includes(id) }))}
+                onToggle={(id) => setMatrixLocales((current) => toggleMatrixValue(current, id))}
+              />
+            </div>
+            <div className="cp-field">
+              <span>Channel</span>
+              <CpFilterChips
+                chips={MATRIX_CHANNELS.map((id) => ({ id, label: id, active: matrixChannels.includes(id) }))}
+                onToggle={(id) => setMatrixChannels((current) => toggleMatrixValue(current, id))}
+              />
+            </div>
+            <div className="cp-field">
+              <span>CTA (tùy chọn)</span>
+              <CpFilterChips
+                chips={MATRIX_CTAS.map((id) => ({ id, label: id, active: matrixCtas.includes(id) }))}
+                onToggle={(id) => setMatrixCtas((current) => toggleMatrixValue(current, id))}
+              />
+            </div>
+            <p className={matrixTooLarge ? 'cp-card--error' : 'cp-muted'}>
+              {rows.length
+                ? `${rows.length} hàng CSV × matrix → ${expansionCount} variant (tối đa ${CP_BATCH_MAX_ROWS})`
+                : 'Chưa có hàng CSV — quay lại bước Mapping'}
+            </p>
+            <button
+              className="cp-btn cp-btn--primary"
+              type="submit"
+              disabled={!rows.length || matrixTooLarge}
+            >
+              Review & Run
+            </button>
           </form>
         </section>
       ) : null}
@@ -395,6 +457,7 @@ export function CpBatchFactory() {
                   <th>project_name</th>
                   <th>price_from</th>
                   <th>cta</th>
+                  <th>variant</th>
                   <th>Status</th>
                   <th />
                 </tr>
@@ -415,6 +478,7 @@ export function CpBatchFactory() {
                       <td>{dash((row as Record<string, unknown>).project_name as string | undefined)}</td>
                       <td>{dash((row as Record<string, unknown>).price_from as string | undefined)}</td>
                       <td>{dash((row as Record<string, unknown>).cta as string | undefined)}</td>
+                      <td>{dash((row as Record<string, unknown>).variant_key as string | undefined)}</td>
                       <td>{dash(status)}</td>
                       <td>
                         {status === 'invalid' ? (
@@ -473,7 +537,7 @@ export function CpBatchFactory() {
                     </tr>
                   );
                 }) : (
-                  <tr><td className="cp-empty" colSpan={6}>{dash(null)}</td></tr>
+                  <tr><td className="cp-empty" colSpan={7}>{dash(null)}</td></tr>
                 )}
               </tbody>
             </table>

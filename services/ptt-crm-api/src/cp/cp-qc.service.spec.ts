@@ -5,6 +5,15 @@ import {
   evaluateQcChecks,
   QC_CHECK_KEYS,
 } from './cp-qc.service';
+import * as mediaProbe from './cp-media-probe.util';
+
+jest.mock('./cp-media-probe.util', () => ({
+  hasFullTechnicalFacts: jest.fn((facts: { width?: unknown; height?: unknown; duration_sec?: unknown }) =>
+    facts.width != null && facts.height != null && facts.duration_sec != null),
+  isProbeableOutputUri: jest.fn((uri: string | null | undefined) =>
+    String(uri ?? '').startsWith('file://') || String(uri ?? '').startsWith('/')),
+  probeOutputUri: jest.fn(),
+}));
 
 const VERSION_ID = '55555555-5555-4555-8555-555555555555';
 const SCOPE = { scope: 'all' as const, staffId: 9 };
@@ -115,6 +124,28 @@ describe('evaluateQcChecks', () => {
 });
 
 describe('CpQcService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('auto-probes local output_uri when technical facts are incomplete', async () => {
+    const videos = new VersionPort();
+    videos.version.output_uri = 'file:///tmp/demo.mp4';
+    const db = new QcQuery();
+    const qc = new CpQcService(videos as never, db);
+    jest.spyOn(mediaProbe, 'probeOutputUri').mockReturnValue({
+      width: 1920,
+      height: 1080,
+      duration_sec: 30,
+      has_audio: true,
+    });
+
+    const result = await qc.run(VERSION_ID, {}, SCOPE);
+
+    expect(mediaProbe.probeOutputUri).toHaveBeenCalledWith('file:///tmp/demo.mp4');
+    expect(result.qc_json.checks.technical.result).toBe('passed');
+  });
+
   it('persists overall result on qc_status and the ten checks on qc_json', async () => {
     const videos = new VersionPort();
     const db = new QcQuery();

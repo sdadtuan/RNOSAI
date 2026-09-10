@@ -45,6 +45,8 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { CP_RE_HANDOFF_BUTTON } from '@/lib/crm/cp-playbook-copy';
+import { reProjectCpHandoff } from '@/lib/crm/cp-playbook-api';
 
 type DetailTab =
   | 'summary'
@@ -92,6 +94,7 @@ export default function CrmReProjectDetailPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [cpHandoffBusy, setCpHandoffBusy] = useState(false);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -443,6 +446,21 @@ export default function CrmReProjectDetailPage() {
     }
   }
 
+  async function onCpHandoff() {
+    const access = getAccessToken();
+    if (!access) return;
+    setCpHandoffBusy(true);
+    setError('');
+    try {
+      const result = await reProjectCpHandoff(access, projectId);
+      router.push(result.href);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tạo creative pack thất bại');
+    } finally {
+      setCpHandoffBusy(false);
+    }
+  }
+
   function logout() {
     clearSession();
     router.push('/login');
@@ -475,6 +493,7 @@ export default function CrmReProjectDetailPage() {
     hasCap(user, 'crm_re_projects', 'export') ||
     hasCap(user, 'crm_re_projects', 'view') ||
     hasCap(user, 'crm_re_projects', 'edit');
+  const canCpHandoff = hasCap(user, 'crm_cp', 'edit');
 
   const pnl = (accounting?.pnl ?? {}) as Record<string, unknown>;
   const cf = (accounting?.cash_flow ?? {}) as Record<string, unknown>;
@@ -536,18 +555,33 @@ export default function CrmReProjectDetailPage() {
         </div>
 
         {tab === 'summary' && summary ? (
-          <pre
-            style={{
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '0.75rem',
-              overflow: 'auto',
-              fontSize: '0.85rem',
-            }}
-          >
-            {JSON.stringify(summary, null, 2)}
-          </pre>
+          <>
+            {canCpHandoff ? (
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  disabled={cpHandoffBusy}
+                  onClick={() => void onCpHandoff()}
+                >
+                  {cpHandoffBusy ? 'Đang tạo…' : CP_RE_HANDOFF_BUTTON}
+                </button>
+                <span className="muted">Playbook BĐS Social · batch Creative OS</span>
+              </div>
+            ) : null}
+            <pre
+              style={{
+                background: 'var(--bg)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '0.75rem',
+                overflow: 'auto',
+                fontSize: '0.85rem',
+              }}
+            >
+              {JSON.stringify(summary, null, 2)}
+            </pre>
+          </>
         ) : null}
 
         {tab === 'products' ? (

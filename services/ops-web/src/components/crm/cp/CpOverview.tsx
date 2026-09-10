@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
+import { CpFilterChips, DEFAULT_OVERVIEW_FILTER_CHIPS } from './CpFilterChips';
+import { CpSummaryTiles, kpiTilesFromRecord } from './CpSummaryTiles';
 import {
   getOverviewActions,
   getOverviewHealth,
@@ -23,8 +26,6 @@ import {
 import {
   dash,
   hasTrendData,
-  KPI_TILES,
-  normalizeCpHref,
   type CpKpiKey,
   type CpTrendPoint,
 } from '@/lib/crm/cp-format';
@@ -159,7 +160,7 @@ export function CpOverview() {
   const [data, setData] = useState<OverviewState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const actionDrawerOpen = currentSearch.get('panel') === 'actions';
+  const [filterChips, setFilterChips] = useState(DEFAULT_OVERVIEW_FILTER_CHIPS);
 
   useEffect(() => {
     setDraft(filterDraft(currentSearch));
@@ -237,12 +238,24 @@ export function CpOverview() {
     router.replace(next ? `${pathname}?${next}` : pathname);
   }
 
-  function setActionDrawer(open: boolean) {
-    const params = new URLSearchParams(currentSearch);
-    if (open) params.set('panel', 'actions');
-    else params.delete('panel');
-    const next = params.toString();
-    router.replace(next ? `${pathname}?${next}` : pathname);
+  function toggleFilterChip(id: string) {
+    setFilterChips((current) =>
+      current.map((chip) => ({ ...chip, active: chip.id === id })),
+    );
+    if (id === '30d') {
+      const to = new Date();
+      const from = new Date(to.getTime() - 30 * DAY_MS);
+      const params = new URLSearchParams(currentSearch);
+      params.set('from', from.toISOString().slice(0, 10));
+      params.set('to', to.toISOString().slice(0, 10));
+      router.replace(`${pathname}?${params.toString()}`);
+    }
+    if (id === 'client_all' || id === 'lifecycle_all') {
+      const params = new URLSearchParams(currentSearch);
+      params.delete('client');
+      params.delete('lifecycle');
+      router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname);
+    }
   }
 
   const criticalActions = data.actions.filter(
@@ -257,16 +270,19 @@ export function CpOverview() {
         <div>
           <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Tổng quan</p>
           <h1>Tổng quan sản xuất</h1>
+          <p className="cp-muted">{CP_SUBTITLES.ovrDashboard}</p>
           <p className="cp-muted">
             Cập nhật {formatDateTime(data.lastUpdated)} · phạm vi {query.scope ?? 'me'}
           </p>
         </div>
-        <button type="button" className="cp-btn" onClick={() => setActionDrawer(true)}>
+        <Link className="cp-btn cp-btn--primary" href={scopedHref('/crm/creative-os/actions', currentSearch)}>
           Action Center ({data.actions.length})
-        </button>
+        </Link>
       </header>
 
-      <form className="cp-filters" onSubmit={submitFilters}>
+      <CpFilterChips chips={filterChips} onToggle={toggleFilterChip} />
+
+      <form className="cp-filters cp-filters--advanced" onSubmit={submitFilters}>
         <label>
           <span>Từ ngày</span>
           <input
@@ -338,23 +354,14 @@ export function CpOverview() {
             ? `${criticalActions.length} cảnh báo critical cần xử lý.`
             : 'Không có cảnh báo critical.'}
         </span>
-        <button type="button" className="cp-btn" onClick={() => setActionDrawer(true)}>
+        <Link className="cp-btn" href={scopedHref('/crm/creative-os/actions', currentSearch)}>
           Mở Action Center
-        </button>
+        </Link>
       </section>
 
-      <div className="cp-kpi-grid" aria-busy={loading}>
-        {KPI_TILES.map((tile) => (
-          <Link
-            key={tile.key}
-            href={scopedHref(tile.href, currentSearch)}
-            className="cp-kpi-tile"
-          >
-            <span>{tile.label}</span>
-            <strong>{formatKpi(tile.key, data.kpis[tile.key])}</strong>
-          </Link>
-        ))}
-      </div>
+      <CpSummaryTiles
+        tiles={kpiTilesFromRecord(data.kpis, (key, value) => formatKpi(key, value))}
+      />
 
       <div className="cp-overview-grid cp-overview-grid--hero">
         <section className="cp-card">
@@ -429,6 +436,7 @@ export function CpOverview() {
                   <th>Khách</th>
                   <th>Trạng thái</th>
                   <th>Hạn</th>
+                  <th>Tiến độ</th>
                   <th>Credit budget</th>
                 </tr>
               </thead>
@@ -441,17 +449,24 @@ export function CpOverview() {
                           {project.name}
                         </Link>
                       </td>
-                      <td>{dash(project.agency_client_id)}</td>
+                      <td>{dash(project.client_name ?? project.agency_client_id)}</td>
                       <td>
                         <span className="cp-pill">{dash(project.status)}</span>
                       </td>
                       <td>{formatDate(project.due_at)}</td>
+                      <td>
+                        {project.progress_pct != null
+                          ? `${project.progress_pct}%`
+                          : project.deliverable_total
+                            ? `${Math.round(((project.deliverable_done ?? 0) / project.deliverable_total) * 100)}%`
+                            : dash(null)}
+                      </td>
                       <td>{dash(project.credit_budget)}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="cp-empty">
+                    <td colSpan={6} className="cp-empty">
                       —
                     </td>
                   </tr>
@@ -507,48 +522,6 @@ export function CpOverview() {
         )}
       </section>
 
-      {actionDrawerOpen ? (
-        <div className="cp-drawer-layer">
-          <button
-            type="button"
-            className="cp-drawer-backdrop"
-            aria-label="Đóng Action Center"
-            onClick={() => setActionDrawer(false)}
-          />
-          <aside className="cp-action-drawer" role="dialog" aria-modal="true" aria-labelledby="cp-actions-title">
-            <header className="cp-action-drawer__head">
-              <div>
-                <p className="cp-crumb">OVR-02</p>
-                <h2 id="cp-actions-title">Action Center</h2>
-              </div>
-              <button type="button" className="cp-btn" onClick={() => setActionDrawer(false)}>
-                Đóng
-              </button>
-            </header>
-            {data.actions.length ? (
-              <ul className="cp-action-list">
-                {data.actions.map((action, index) => (
-                  <li key={`${action.kind}-${action.resource_id ?? index}`}>
-                    <div className="cp-action-list__title">
-                      <span className={severityClass(action.severity)}>{action.severity}</span>
-                      <b>{action.title}</b>
-                    </div>
-                    <p className="cp-muted">
-                      {action.resource_type} {dash(action.resource_id)} · Owner{' '}
-                      {dash(action.owner_staff_id)} · SLA {formatDateTime(action.sla_at)}
-                    </p>
-                    <Link className="cp-btn cp-btn--primary" href={normalizeCpHref(action.href)}>
-                      Xử lý
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="cp-empty">—</p>
-            )}
-          </aside>
-        </div>
-      ) : null}
     </div>
   );
 }

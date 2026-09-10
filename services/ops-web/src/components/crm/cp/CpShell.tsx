@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
-import { StaffPageShell } from '@/components/layout';
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -14,7 +13,10 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { CP_CREDIT_FOOTER_LABEL, CP_PRODUCT_NAME, CP_SEARCH_PLACEHOLDER } from '@/lib/crm/cp-copy';
 import { CP_NAV, canSeeCpNav } from '@/lib/crm/cp-nav.util';
+import { useCpCreditFooter } from '@/hooks/useCpCreditFooter';
+import { CpScopeBar } from './CpScopeBar';
 
 const COLLAPSE_KEY = 'cp-sidebar-collapsed';
 
@@ -28,6 +30,13 @@ function navIsActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function initials(user: StoredStaffUser): string {
+  const name = user.display_name || user.email || '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
 function CpShellInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname() ?? '';
@@ -36,6 +45,8 @@ function CpShellInner({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const [syncLabel, setSyncLabel] = useState('');
+  const credit = useCpCreditFooter(scope);
 
   const ensureAuth = useCallback(async () => {
     let access = getAccessToken();
@@ -78,6 +89,26 @@ function CpShellInner({ children }: { children: ReactNode }) {
     void ensureAuth().finally(() => setLoading(false));
   }, [ensureAuth]);
 
+  useEffect(() => {
+    const tick = () => {
+      setSyncLabel(
+        new Intl.DateTimeFormat('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(new Date()),
+      );
+    };
+    tick();
+    const id = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const presetDays = useMemo<'30' | 'all'>(() => {
+    const from = searchParams.get('from');
+    if (!from) return 'all';
+    return '30';
+  }, [searchParams]);
+
   function toggleCollapsed() {
     setCollapsed((current) => {
       const next = !current;
@@ -86,71 +117,91 @@ function CpShellInner({ children }: { children: ReactNode }) {
     });
   }
 
-  function changeScope(next: 'me' | 'team' | 'all') {
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === 'me') params.delete('scope');
-    else params.set('scope', next);
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname);
-  }
-
   function logout() {
     clearSession();
     router.push('/login');
   }
 
+  if (loading && !user) {
+    return (
+      <div className="cp-app">
+        <p className="cp-muted cp-app__loading">Đang tải Creative OS…</p>
+      </div>
+    );
+  }
+
+  if (!user || !canSeeCpNav(user)) return null;
+
   return (
-    <StaffPageShell user={user} onLogout={logout} loading={loading && !user} width="full">
-      {user && canSeeCpNav(user) ? (
-        <div className={`cp-root${collapsed ? ' cp-root--collapsed' : ''}`}>
-          <aside className="cp-sidebar" aria-label="Creative Production OS">
-            <nav className="cp-sidebar__nav">
-              {CP_NAV.map((item) => (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={`cp-sidebar__link${
-                    navIsActive(pathname, item.href) ? ' cp-sidebar__link--active' : ''
-                  }`}
-                  title={item.label}
-                >
-                  {collapsed ? item.label.slice(0, 1) : item.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="cp-sidebar__foot">
-              {collapsed ? null : <b>{user.display_name || user.email}</b>}
-              <button
-                type="button"
-                className="cp-sidebar__collapse"
-                onClick={toggleCollapsed}
-                aria-label={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
-              >
-                {collapsed ? '»' : '« Thu gọn'}
-              </button>
-            </div>
-          </aside>
-          <div className="cp-column">
-            <header className="cp-top">
-              <strong className="cp-product-name">Creative Production OS</strong>
-              <label className="cp-scope">
-                <span>Phạm vi</span>
-                <select
-                  value={scope}
-                  onChange={(event) => changeScope(parseScope(event.target.value))}
-                  aria-label="Phạm vi"
-                >
-                  <option value="me">Của tôi</option>
-                  <option value="team">Team</option>
-                  <option value="all">Toàn bộ</option>
-                </select>
-              </label>
-            </header>
-            <div className="cp-main">{children}</div>
-          </div>
+    <div className="cp-app">
+      <header className="cp-topbar">
+        <Link className="cp-topbar__logo" href="/crm/creative-os">
+          {CP_PRODUCT_NAME}
+        </Link>
+        <button type="button" className="cp-search-btn" aria-label={CP_SEARCH_PLACEHOLDER}>
+          <span>{CP_SEARCH_PLACEHOLDER}</span>
+          <kbd className="cp-kbd">⌘K</kbd>
+        </button>
+        <div className="cp-topbar__right">
+          <span className="cp-fresh">Sync {syncLabel}</span>
+          <button type="button" className="cp-icon-btn" aria-label="Thông báo">
+            <span className="cp-dot" aria-hidden />
+            🔔
+          </button>
+          <button
+            type="button"
+            className="cp-ava"
+            aria-label="Tài khoản"
+            title={user.display_name || user.email}
+            onClick={logout}
+          >
+            {initials(user)}
+          </button>
         </div>
-      ) : null}
-    </StaffPageShell>
+      </header>
+
+      <CpScopeBar user={user} presetDays={presetDays} />
+
+      <div className={`cp-shell${collapsed ? ' cp-shell--collapsed' : ''}`}>
+        <aside className="cp-sidebar" aria-label="Creative Production OS">
+          <nav className="cp-sidebar__nav">
+            <p className="cp-sidebar__grp">SẢN XUẤT</p>
+            {CP_NAV.map((item) => (
+              <Link
+                key={item.id}
+                href={item.href}
+                className={`cp-sidebar__link${
+                  navIsActive(pathname, item.href) ? ' cp-sidebar__link--active' : ''
+                }`}
+                title={item.label}
+              >
+                {collapsed ? item.label.slice(0, 1) : item.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="cp-sidebar__foot">
+            {collapsed ? null : (
+              <>
+                <b>{user.display_name || user.email}</b>
+                <span className="cp-sidebar__credit">
+                  {CP_CREDIT_FOOTER_LABEL}{' '}
+                  {credit.loading ? '…' : `${credit.used}/${credit.limit}`}
+                </span>
+              </>
+            )}
+            <button
+              type="button"
+              className="cp-sidebar__collapse"
+              onClick={toggleCollapsed}
+              aria-label={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+            >
+              {collapsed ? '»' : '« Thu gọn'}
+            </button>
+          </div>
+        </aside>
+        <main className="cp-main">{children}</main>
+      </div>
+    </div>
   );
 }
 

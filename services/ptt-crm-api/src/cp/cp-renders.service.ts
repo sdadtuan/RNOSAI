@@ -11,7 +11,12 @@ import {
   isTerminalRenderState,
   mapRenderJobEvent,
 } from './cp-render-events.util';
-import { CpRenderWorker, CP_STUB_PRICING_VERSION } from './cp-render.worker';
+import {
+  providerPricingVersion,
+  CpRenderWorker,
+  CP_STUB_PRICING_VERSION,
+} from './cp-render.worker';
+import { resolveRenderProvider } from './cp-render-mode.util';
 import { CpBrandService } from './cp-brand.service';
 import { renderBlockReasons } from './cp-render-block.util';
 import { cpScopeSql, CpScope } from './cp-scope.util';
@@ -245,6 +250,18 @@ export class CpRendersService {
           has_claim: config.has_claim === true,
         })
         : { enforcement: null };
+      const settingsRow = await tx.query(
+        `SELECT routing_json
+           FROM crm_cp_settings
+          WHERE tenant_id = $1
+          LIMIT 1`,
+        [CP_TENANT_ID],
+      );
+      const routing = objectValue(settingsRow.rows[0]?.routing_json);
+      const provider = resolveRenderProvider({
+        config,
+        routing,
+      });
       const reasons = renderBlockReasons({
         aiEnabled: process.env.CP_AI_ENABLED === 'true',
         hasRenderCap: true,
@@ -254,14 +271,16 @@ export class CpRendersService {
         moderationBlocked: draft.moderation_blocked === true,
         qcStatus: nullableText(draft.qc_status),
         brandRuleEnforcement: brandRule.enforcement,
-      }).filter((reason) => reason !== 'ai_disabled');
+      }).filter((reason) => !(provider === 'stub' && reason === 'ai_disabled'));
       if (reasons.length) cpThrow(409, { error: 'render_blocked', reasons });
 
+      const pricingVersion = providerPricingVersion(provider);
       const snapshot = {
         draft: snapshotDraft(draft),
         kit_version: draft.kit_version ?? null,
         asset_versions: arrayValue(draft.asset_versions),
-        pricing_version: CP_STUB_PRICING_VERSION,
+        pricing_version: pricingVersion,
+        render_provider: provider,
       };
       const correlationId = `${key}:${Date.now()}`;
       const inserted = await tx.query(
@@ -269,7 +288,7 @@ export class CpRendersService {
            draft_id, parent_job_id, batch_item_id, state, stage, progress, provider,
            idempotency_key, correlation_id, stage_log_json, attempt, model
          ) VALUES (
-           $1::uuid, $2::uuid, $3::uuid, 'queued', 'queued', 0, 'stub',
+           $1::uuid, $2::uuid, $3::uuid, 'queued', 'queued', 0, $9,
            $4, $5, $6::jsonb, $7, $8
          )
          ON CONFLICT (idempotency_key) DO NOTHING
@@ -280,9 +299,15 @@ export class CpRendersService {
           batchItemId,
           key,
           correlationId,
-          JSON.stringify([{ stage: 'queued', estimate, at: new Date().toISOString() }]),
+          JSON.stringify([{
+            stage: 'queued',
+            estimate,
+            provider,
+            at: new Date().toISOString(),
+          }]),
           attempt,
           nullableText(config.model),
+          provider,
         ],
       );
       const job = inserted.rows[0];

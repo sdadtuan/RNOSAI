@@ -8,6 +8,7 @@ import { CampaignWritesService } from '../campaign-writes/campaign-writes.servic
 import { evaluateMetaLaunchQaItems } from '../meta-tracking/launch-qa-meta.util';
 import { MetaTrackingRepository } from '../meta-tracking/meta-tracking.repository';
 import { checkMetaAdsOpsPilot, metaAdsManagerDeepLink } from './meta-ads-ops-pilot.util';
+import { CpLaunchGateService } from '../cp/cp-launch-gate.service';
 import { MetaAdsOpsRepository } from './meta-ads-ops.repository';
 import type {
   MetaAdsOpsEditSnapshotResponse,
@@ -45,6 +46,7 @@ export class MetaAdsOpsService {
     private readonly repo: MetaAdsOpsRepository,
     private readonly trackingRepo: MetaTrackingRepository,
     private readonly writes: CampaignWritesService,
+    private readonly cpLaunchGate: CpLaunchGateService,
   ) {}
 
   isEnabled(): boolean {
@@ -178,6 +180,11 @@ export class MetaAdsOpsService {
     }
 
     const template = TEMPLATES.find((t) => t.id === (body.template_id ?? 're_lead_default')) ?? TEMPLATES[0];
+    await this.cpLaunchGate.assertAdsLaunchAllowed({
+      templateId: template.id,
+      creativeId,
+      clientId: cid,
+    });
     const newValue = {
       action: 'create_campaign',
       template_id: template.id,

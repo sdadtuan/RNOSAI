@@ -14,7 +14,7 @@ const MODEL_FIELDS = new Set([
   'fallback_id',
 ]);
 const POLICY_SECRET_FIELD = /secret|token|password|credential|api_key/i;
-const ROUTING_FIELDS = new Set(['fallback_id']);
+const ROUTING_FIELDS = new Set(['fallback_id', 'render_provider']);
 const PATCH_FIELDS = [
   'locale',
   'timezone',

@@ -52,7 +52,11 @@ import { CpSettingsPatch, CpSettingsService } from './cp-settings.service';
 import { CpApprovalsService, CpApprovalInput, isLegalApprovalInput } from './cp-approvals.service';
 import { CpCommentInput, CpCommentsService } from './cp-comments.service';
 import { CpBulkInput, CpPublishInput, CpPublishService } from './cp-publish.service';
+import { CpQcPackId } from './cp-playbook.types';
+import { CpPlaybooksService } from './cp-playbooks.service';
+import { CpReHandoffService, CpReHandoffInput } from './cp-re-handoff.service';
 import { CpQcService, QcFacts } from './cp-qc.service';
+import { CpSopIngestInput, CpSopIngestService } from './cp-sop-ingest.service';
 import {
   CpSceneInput,
   CpTimelinePatch,
@@ -120,6 +124,9 @@ export class CpController {
     private readonly collections: CpCollectionsService,
     private readonly reports: CpReportsService,
     private readonly experiments: CpExperimentsService,
+    private readonly playbooks: CpPlaybooksService,
+    private readonly reHandoff: CpReHandoffService,
+    private readonly sopIngest: CpSopIngestService,
   ) {}
 
   private async assertReportExportCap(req: AuthedReq) {
@@ -526,6 +533,50 @@ export class CpController {
     return this.brand.getKit(id, await this.scope(req, scope));
   }
 
+  @Get('playbooks')
+  @RequireCpAction('view')
+  listPlaybooks() {
+    return this.playbooks.list();
+  }
+
+  @Get('playbooks/:id')
+  @RequireCpAction('view')
+  getPlaybook(@Param('id') id: string) {
+    return this.playbooks.get(id);
+  }
+
+  @Post('playbooks/:id/clone-template')
+  @RequireCpAction('edit')
+  clonePlaybookTemplate(
+    @Param('id') id: string,
+    @Body() body: { name?: string; agency_client_id?: string | null },
+  ) {
+    return this.playbooks.cloneToTemplate(id, body ?? {});
+  }
+
+  @Post('playbooks/:id/run')
+  @RequireCpAction('edit')
+  async runPlaybook(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @Query('scope') scope?: CpScope,
+  ) {
+    const actor = await this.scope(req, scope);
+    return this.playbooks.run(id, body ?? {}, actor, actor.staffId);
+  }
+
+  @Post('re-projects/:id/cp-handoff')
+  @RequireCpAction('edit')
+  async reProjectCpHandoff(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: CpReHandoffInput,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.reHandoff.handoff(id, body ?? {}, await this.scope(req, scope));
+  }
+
   @Get('videos')
   @RequireCpAction('view')
   async listVideos(@Req() req: AuthedReq, @Query('scope') scope?: CpScope) {
@@ -544,6 +595,12 @@ export class CpController {
     return this.contentOs.handoff(body ?? {}, await this.scope(req));
   }
 
+  @Post('videos/sop-ingest')
+  @RequireCpAction('edit')
+  async sopVideoIngest(@Req() req: AuthedReq, @Body() body: CpSopIngestInput) {
+    return this.sopIngest.ingestFromSop(body ?? {}, await this.scope(req));
+  }
+
   @Get('videos/versions/:id')
   @RequireCpAction('view')
   async getVideoVersion(
@@ -559,10 +616,17 @@ export class CpController {
   async runVideoQc(
     @Req() req: AuthedReq,
     @Param('id') id: string,
-    @Body() body: QcFacts & { facts?: QcFacts },
+    @Body() body: QcFacts & { facts?: QcFacts; pack?: CpQcPackId },
     @Query('scope') scope?: CpScope,
   ) {
-    return this.qc.run(id, qcFactsFrom(body), await this.scope(req, scope));
+    const payload = body ?? {};
+    const { pack, ...factsBody } = payload;
+    return this.qc.run(
+      id,
+      qcFactsFrom(factsBody),
+      await this.scope(req, scope),
+      pack ? { pack } : {},
+    );
   }
 
   @Post('videos/versions/:id/export')
@@ -663,6 +727,16 @@ export class CpController {
     @Query('scope') scope?: CpScope,
   ) {
     return this.videos.regenerateScene(id, n, await this.scope(req, scope));
+  }
+
+  @Post('videos/:id/auto-script')
+  @RequireCpAction('edit')
+  async autoScriptVideo(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.videos.autoScript(id, await this.scope(req, scope));
   }
 
   @Get('videos/:id')

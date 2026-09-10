@@ -11,6 +11,7 @@ import {
   type CpBrandScopeType,
   type CpScope,
 } from '@/lib/crm/cp-api';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import { dash } from '@/lib/crm/cp-format';
 
 function parseScope(value: string | null): CpScope {
@@ -102,7 +103,7 @@ export function CpBrandPortfolio() {
         <div>
           <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Brand Kit</p>
           <h1>Brand Kit Portfolio</h1>
-          <p className="cp-muted">Quản lý bộ nhận diện theo tenant, khách hàng hoặc project.</p>
+          <p className="cp-muted">{CP_SUBTITLES.brkPortfolio}</p>
         </div>
       </header>
 
@@ -156,41 +157,30 @@ export function CpBrandPortfolio() {
       </section>
 
       <section className="cp-card" aria-busy={loading}>
-        <div className="cp-table-wrap">
-          <table className="cp-table">
-            <thead>
-              <tr>
-                <th>Kit</th>
-                <th>Scope</th>
-                <th>Đối tượng</th>
-                <th>Phiên bản mới nhất</th>
-                <th>Trạng thái</th>
-              </tr>
-            </thead>
-            <tbody>
-              {kits.length ? kits.map((kit) => (
-                <tr key={kit.id}>
-                  <td>
-                    <Link
-                      className="cp-link"
-                      href={`/crm/creative-os/brand-kits/${kit.id}?tab=editor&scope=${scope}`}
-                    >
-                      {dash(kit.name)}
-                    </Link>
-                  </td>
-                  <td>{dash(kit.scope_type)}</td>
-                  <td>{dash(kit.agency_client_id ?? kit.project_id)}</td>
-                  <td>{kit.latest_version == null ? dash(null) : `v${kit.latest_version}`}</td>
-                  <td><span className="cp-pill">{dash(kit.status)}</span></td>
-                </tr>
-              )) : (
-                <tr>
-                  <td className="cp-empty" colSpan={5}>{loading ? 'Đang tải…' : dash(null)}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {kits.length ? (
+          <div className="cp-brand-grid">
+            {kits.map((kit) => (
+              <Link
+                key={kit.id}
+                className="cp-brand-card"
+                href={`/crm/creative-os/brand-kits/${kit.id}?tab=editor&scope=${scope}`}
+              >
+                <div className="cp-card__head">
+                  <strong>{dash(kit.name)}</strong>
+                  <span className="cp-pill">{dash(kit.status)}</span>
+                </div>
+                <p className="cp-muted">
+                  {dash(kit.scope_type)}
+                  {' · '}
+                  {kit.latest_version == null ? dash(null) : `v${kit.latest_version}`}
+                </p>
+                <p className="cp-muted">{dash(kit.agency_client_id ?? kit.project_id)}</p>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="cp-empty">{loading ? 'Đang tải…' : dash(null)}</p>
+        )}
       </section>
     </div>
   );

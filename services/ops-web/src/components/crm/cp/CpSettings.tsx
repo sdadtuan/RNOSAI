@@ -15,6 +15,7 @@ import {
   type CpSettings as CpSettingsData,
   type CpSettingsPatch,
 } from '@/lib/crm/cp-api';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import { dash } from '@/lib/crm/cp-format';
 
 export const CP_SETTINGS_TABS = [
@@ -29,6 +30,17 @@ export const CP_SETTINGS_TABS = [
 ] as const;
 
 type SettingsTab = (typeof CP_SETTINGS_TABS)[number]['id'];
+
+const CP_PLATFORM_MAP = [
+  { screen: 'SET-01 Profile', cp: 'locale UI module, TZ, default kit, quota display, retention ngày', platform: 'Tên/logo tenant' },
+  { screen: 'SET-02 Members', cp: 'Project member invite expiry + role CP', platform: 'Staff invite / job function' },
+  { screen: 'SET-03 SSO', cp: 'Link “Mở Admin SSO”', platform: 'SAML/OIDC/SCIM' },
+  { screen: 'SET-04 Credit', cp: 'Grant/allocate/alert 50/80/100, ledger', platform: 'Không invoice SaaS' },
+  { screen: 'SET-05 Models', cp: 'allowlist, max res/duration, cap, region, fallback', platform: 'Secret vault' },
+  { screen: 'SET-06 Integrations', cp: 'webhook CP, Campaign Write, Content OS, Hub', platform: 'API key platform' },
+  { screen: 'SET-07 Security', cp: 'retention, legal hold flag, signed URL TTL, audit query', platform: 'IP allowlist / MFA' },
+  { screen: 'SET-08 Policy', cp: 'moderation Block/Review/Allow, watermark, escalate', platform: 'Không lộ rule nhạy ra client' },
+] as const;
 
 function parseTab(value: string | null): SettingsTab {
   return CP_SETTINGS_TABS.some((tab) => tab.id === value)
@@ -209,7 +221,15 @@ export function CpSettings() {
         <div>
           <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Cấu hình</p>
           <h1>Cấu hình module</h1>
-          <p className="cp-muted">Thiết lập vận hành Creative Production OS.</p>
+          <p className="cp-muted">
+            {tab === 'integrations'
+              ? CP_SUBTITLES.setIntegrations
+              : tab === 'policy'
+                ? CP_SUBTITLES.setPolicy
+                : tab === 'profile'
+                  ? CP_SUBTITLES.setProfile
+                  : 'Thiết lập vận hành Creative Production OS.'}
+          </p>
         </div>
       </header>
 
@@ -316,20 +336,55 @@ export function CpSettings() {
       ) : null}
 
       {!loading && tab === 'integrations' ? (
-        <section className="cp-card">
-          <div className="cp-table-wrap">
-            <table className="cp-table">
-              <thead><tr><th>Hệ thống</th><th>Trạng thái</th></tr></thead>
-              <tbody>
-                <tr><td>Hub</td><td><span className="cp-pill">ON</span></td></tr>
-                <tr><td>Content OS</td><td><span className="cp-pill">ON</span></td></tr>
-                <tr><td>Campaign Write</td><td><span className="cp-pill">ON</span></td></tr>
-                <tr><td>webhook</td><td><span className="cp-pill">OFF</span></td></tr>
-                <tr><td>publish_native</td><td><span className="cp-pill">{settings?.publish_native == null ? dash(null) : settings.publish_native ? 'ON' : 'OFF'}</span></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <>
+          <section className="cp-card">
+            <div className="cp-card__head">
+              <h2>Trạng thái tích hợp</h2>
+            </div>
+            <div className="cp-table-wrap">
+              <table className="cp-table">
+                <thead><tr><th>Hệ</th><th>Status</th><th>Ghi chú</th></tr></thead>
+                <tbody>
+                  <tr><td>Creative Hub / portal</td><td><span className="cp-pill cp-pill--ok">ON</span></td><td>submit creative</td></tr>
+                  <tr><td>Content OS</td><td><span className="cp-pill cp-pill--ok">ON</span></td><td>cite + ủy quyền generate W2</td></tr>
+                  <tr><td>Campaign Write</td><td><span className="cp-pill cp-pill--ok">ON</span></td><td>handoff file + UTM</td></tr>
+                  <tr><td>Webhook CP</td><td><span className="cp-pill">OFF</span></td><td>signing secret 1 lần</td></tr>
+                  <tr>
+                    <td>Social native</td>
+                    <td><span className="cp-pill cp-pill--warning">FLAG</span></td>
+                    <td>{settings?.publish_native == null ? 'CP_PUBLISH_NATIVE' : settings.publish_native ? 'ON' : 'OFF'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section className="cp-card cp-platform-map">
+            <div className="cp-card__head">
+              <h2>Platform vs CP</h2>
+              <p className="cp-muted">Map module cấu hình — CP làm gì vs platform giữ gì (SRS MOD-SET).</p>
+            </div>
+            <div className="cp-table-wrap">
+              <table className="cp-table">
+                <thead>
+                  <tr>
+                    <th>Màn</th>
+                    <th>CP làm</th>
+                    <th>Platform giữ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {CP_PLATFORM_MAP.map((row) => (
+                    <tr key={row.screen}>
+                      <td>{row.screen}</td>
+                      <td>{row.cp}</td>
+                      <td>{row.platform}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
       ) : null}
 
       {!loading && tab === 'security' ? (

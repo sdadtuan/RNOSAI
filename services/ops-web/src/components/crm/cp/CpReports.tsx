@@ -14,6 +14,7 @@ import {
   type CpScope,
   type CpSourcedMetric,
 } from '@/lib/crm/cp-api';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import {
   CP_REPORT_FILTERS,
   CP_REPORT_SECTIONS,
@@ -28,29 +29,46 @@ const TITLES: Record<CpReportSlug, { h1: string; crumb: string; sub: string }> =
   executive: {
     h1: 'Báo cáo điều hành',
     crumb: 'Báo cáo điều hành',
-    sub: 'KPI kỳ · funnel chỉ khi có ingest · insight không nhân quả',
+    sub: CP_SUBTITLES.rptExecutive,
   },
   production: {
-    h1: 'Phân tích sản xuất',
+    h1: 'Production Analytics',
     crumb: 'Phân tích sản xuất',
-    sub: 'Success · queue p95 · render p95 · lớp lỗi',
+    sub: CP_SUBTITLES.rptProduction,
   },
   credit: {
     h1: 'Credit & ngân sách',
     crumb: 'Credit & ngân sách',
-    sub: 'Used / charged / reserved / released · forecast + assumption',
+    sub: CP_SUBTITLES.rptCredit,
   },
   performance: {
     h1: 'Hiệu quả nội dung',
     crumb: 'Hiệu quả nội dung',
-    sub: 'Mọi metric có source + freshness · không bịa CTR',
+    sub: CP_SUBTITLES.rptPerformance,
   },
   governance: {
     h1: 'Quản trị',
     crumb: 'Quản trị',
-    sub: 'Brand · QC · quyền 14 ngày · audit · policy',
+    sub: CP_SUBTITLES.rptGovernance,
   },
 };
+
+function BarsPlaceholder({ label }: { label: string }) {
+  return (
+    <section className="cp-card" aria-label={label}>
+      <header className="cp-card__head"><h2>{label}</h2></header>
+      <div className="cp-bars" aria-hidden="true">
+        <i style={{ height: '42%' }} />
+        <i style={{ height: '55%' }} />
+        <i style={{ height: '72%' }} />
+        <i style={{ height: '48%' }} />
+        <i style={{ height: '64%' }} />
+        <i style={{ height: '38%' }} />
+      </div>
+      <p className="cp-muted">Chart placeholder · dữ liệu thật từ ingest/API</p>
+    </section>
+  );
+}
 
 function asSlug(value: string | null): CpReportSlug {
   return CP_REPORT_TABS.some((tab) => tab.slug === value)
@@ -310,6 +328,7 @@ function CpReportsInner() {
                 ?? 'Insight không nhân quả. Không suy diễn hiệu quả ads khi thiếu ingest.'}
             </p>
           </section>
+          <BarsPlaceholder label="Xu hướng KPI" />
           <SectionTable
             title="Xu hướng"
             section={CP_REPORT_SECTIONS.executive[0]}
@@ -347,6 +366,7 @@ function CpReportsInner() {
             <Tile label="Render p95" value={formatSeconds(report?.render_p95)} />
             <Tile label="Approval cycle TB" value={formatSeconds(report?.approval_cycle)} />
           </div>
+          <BarsPlaceholder label="Queue & render trend" />
           <FailureTable rows={asRows(report?.failure_class)} />
           <SectionTable
             title="Heatmap"
@@ -399,12 +419,34 @@ function CpReportsInner() {
       ) : null}
 
       {slug === 'performance' ? (
-        <section className="cp-card">
-          <header className="cp-card__head"><h2>Kênh</h2></header>
-          <MetricLine label="Views" metric={asMetric(metrics.views)} />
-          <MetricLine label="CTR" metric={asMetric(metrics.ctr)} />
-          <BreakdownTable rows={asRows(report?.breakdown)} />
-        </section>
+        <>
+          <section className="cp-card">
+            <header className="cp-card__head"><h2>Kênh</h2></header>
+            <MetricLine label="Views" metric={asMetric(metrics.views)} />
+            <MetricLine label="CTR" metric={asMetric(metrics.ctr)} />
+            <BreakdownTable rows={asRows(report?.breakdown)} />
+          </section>
+          <SectionTable
+            title="Closed-loop BĐS (RE → Ads → Lead)"
+            section="CPL theo re_project_id · Meta spend + CRM leads · null = chưa ingest"
+            columns={['RE project', 'CP project', 'Spend', 'Valid leads', 'CPL', 'Source']}
+            rows={asRows(report?.closed_loop)}
+            cells={(row) => {
+              const spend = asNumber(row.spend);
+              const leads = asNumber(row.valid_leads);
+              const cpl = asNumber(row.cpl);
+              const source = String(row.source ?? 'chưa ingest');
+              return [
+                row.re_project_name ? `${row.re_project_name} (#${row.re_project_id ?? '—'})` : dash(row.re_project_id),
+                dash(row.cp_project_name),
+                spend == null ? dash(null) : `${spend.toLocaleString('vi-VN')} ₫`,
+                formatNumber(leads),
+                cpl == null ? dash(null) : `${cpl.toLocaleString('vi-VN')} ₫`,
+                source === 'chưa ingest' ? MISSING_INGEST_COPY : source,
+              ];
+            }}
+          />
+        </>
       ) : null}
 
       {slug === 'governance' ? (

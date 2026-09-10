@@ -16,7 +16,10 @@ import {
   type CpVideoDraft,
 } from '@/lib/crm/cp-api';
 import { dash } from '@/lib/crm/cp-format';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
+import { type CpPlaybookSummary } from '@/lib/crm/cp-playbook-api';
 import { projectSearchOptions, videoSopHref } from '@/lib/crm/cp-video-list.util';
+import { CpPlaybookPicker } from './CpPlaybookPicker';
 
 function scopeFrom(value: string | null): CpScope {
   return value === 'team' || value === 'all' ? value : 'me';
@@ -31,7 +34,9 @@ export function CpVideoList() {
   const [projectId, setProjectId] = useState(searchParams.get('project') ?? '');
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [selectedPlaybook, setSelectedPlaybook] = useState<CpPlaybookSummary | null>(null);
   const [error, setError] = useState('');
+  const showPlaybookPicker = !loading && !videos.length;
 
   const projectOptions = useMemo(() => projectSearchOptions(projects), [projects]);
   const sopHref = useMemo(() => {
@@ -84,9 +89,12 @@ export function CpVideoList() {
         project_id: projectId,
         name: String(form.get('name') ?? '').trim(),
         input_mode: 'prompt',
-        config_json: {},
+        config_json: selectedPlaybook
+          ? { playbook_id: selectedPlaybook.id, qc_pack: selectedPlaybook.qc_pack }
+          : {},
       }, scope);
-      router.push(`/crm/creative-os/video/${video.id}?scope=${scope}`);
+      const playbookQuery = selectedPlaybook ? `&playbook=${encodeURIComponent(selectedPlaybook.id)}` : '';
+      router.push(`/crm/creative-os/video/${video.id}?scope=${scope}${playbookQuery}`);
     } catch (caught) {
       setError(formatCpApiError(caught, 'Không tạo được video draft'));
     } finally {
@@ -101,7 +109,7 @@ export function CpVideoList() {
           <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Video AI</p>
           <h1>Video drafts</h1>
           <p className="cp-muted">
-            Mở draft trong Video Studio hoặc tạo draft mới. Video người / cinematic: nút Mở Video SOP.
+            {CP_SUBTITLES.vidStudio}
           </p>
         </div>
         <div className="cp-actions">
@@ -114,6 +122,14 @@ export function CpVideoList() {
         </div>
       </header>
       {error ? <section className="cp-card cp-card--error"><p>{error}</p></section> : null}
+      {showPlaybookPicker ? (
+        <section className="cp-card">
+          <CpPlaybookPicker
+            selectedId={selectedPlaybook?.id ?? null}
+            onSelect={setSelectedPlaybook}
+          />
+        </section>
+      ) : null}
       <section className="cp-card">
         <div className="cp-card__head"><h2>Tạo draft</h2></div>
         <form className="cp-filters" onSubmit={create}>

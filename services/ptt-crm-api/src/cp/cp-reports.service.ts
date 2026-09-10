@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { CpAuditInsert, CpAuditRepository, CP_TENANT_ID } from './cp-audit.repository';
 import { FORECAST_ASSUMPTION, forecastCredits } from './cp-forecast.util';
 import { kpiOrNull } from './cp-format.util';
+import { mapClosedLoopRow } from './cp-reports-closed-loop.util';
 import { cpScopeSql, CpScope } from './cp-scope.util';
 
 export const CP_REPORTS_QUERY = 'CP_REPORTS_QUERY';
@@ -83,7 +84,7 @@ export class CpReportsService {
   async get(slug: string, query: CpReportQuery): Promise<Record<string, unknown>> {
     const reportSlug = parseSlug(slug);
     const ingest = await this.loadIngest(query);
-    if (reportSlug === 'performance') return this.performance(ingest);
+    if (reportSlug === 'performance') return this.performance(ingest, query);
     if (reportSlug === 'executive') return this.executive(query, ingest);
     if (reportSlug === 'production') return this.production(query);
     if (reportSlug === 'credit') return this.credit(query);
@@ -107,6 +108,61 @@ export class CpReportsService {
     };
     await this.audit.insert(insert);
     return { ok: true, slug, format, body };
+  }
+
+  private async loadClosedLoop(query: CpReportQuery) {
+    const { scopeSql, params } = bindReportFilters(query);
+    try {
+      const result = await this.db.query(
+        `WITH scoped_projects AS (
+           SELECT p.*
+             FROM crm_cp_projects p
+            WHERE p.tenant_id = '${CP_TENANT_ID}' AND ${scopeSql}
+              AND ${clientSql('p')}
+         ),
+         re_linked AS (
+           SELECT p.id AS cp_project_id,
+                  p.name AS cp_project_name,
+                  p.agency_client_id,
+                  (regexp_match(tag, '^re_project:([0-9]+)$'))[1]::bigint AS re_project_id
+             FROM scoped_projects p
+             CROSS JOIN LATERAL unnest(COALESCE(p.tags, ARRAY[]::text[])) AS tag
+            WHERE tag LIKE 're_project:%'
+         )
+         SELECT r.cp_project_id::text,
+                r.cp_project_name,
+                r.re_project_id,
+                rp.name AS re_project_name,
+                spend.total_spend,
+                leads.valid_leads,
+                GREATEST(spend.synced_at, leads.synced_at) AS synced_at
+           FROM re_linked r
+           LEFT JOIN crm_re_projects rp ON rp.id = r.re_project_id
+           LEFT JOIN LATERAL (
+             SELECT COALESCE(SUM(dp.spend), 0) AS total_spend,
+                    MAX(dp.synced_at) AS synced_at
+               FROM daily_performance dp
+              WHERE dp.client_id = r.agency_client_id
+                AND dp.channel = 'meta'
+                AND ($1::date IS NULL OR dp.performance_date >= $1::date)
+                AND ($2::date IS NULL OR dp.performance_date <= $2::date)
+           ) spend ON TRUE
+           LEFT JOIN LATERAL (
+             SELECT COUNT(*)::int AS valid_leads,
+                    MAX(l.created_at) AS synced_at
+               FROM crm_leads l
+              WHERE l.re_project_id = r.re_project_id
+                AND COALESCE(l.is_duplicate, FALSE) IS NOT TRUE
+                AND ($1::date IS NULL OR (l.created_at AT TIME ZONE '${ICT_TIMEZONE}') >= $1::date)
+                AND ($2::date IS NULL OR (l.created_at AT TIME ZONE '${ICT_TIMEZONE}') < $2::date + INTERVAL '1 day')
+           ) leads ON TRUE
+          ORDER BY r.re_project_name NULLS LAST, r.cp_project_name`,
+        params,
+      );
+      return result.rows.map((row) => mapClosedLoopRow(row));
+    } catch {
+      return [];
+    }
   }
 
   private async loadIngest(query: CpReportQuery): Promise<Record<string, unknown>[]> {
@@ -135,14 +191,19 @@ export class CpReportsService {
     return result.rows;
   }
 
-  private performance(ingest: Record<string, unknown>[]) {
+  private async performance(
+    ingest: Record<string, unknown>[],
+    query: CpReportQuery,
+  ) {
     const mapped = mapIngest(ingest);
+    const closedLoop = await this.loadClosedLoop(query);
     return {
       slug: 'performance' as const,
       metrics: mapped.metrics,
       channels: mapped.channels,
       breakdown: mapped.breakdown,
       funnel: mapped.funnel,
+      closed_loop: closedLoop,
     };
   }
 

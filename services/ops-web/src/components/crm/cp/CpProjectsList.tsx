@@ -11,6 +11,7 @@ import {
   type CpProjectSummary,
   type CpScope,
 } from '@/lib/crm/cp-api';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import { dash } from '@/lib/crm/cp-format';
 import {
   PORTFOLIO_STATUS_CHIPS,
@@ -19,8 +20,24 @@ import {
   formatPortfolioChip,
   portfolioPillClass,
   portfolioStatusLabel,
+  projectProgressPct,
   type PortfolioChipId,
 } from '@/lib/crm/cp-portfolio.util';
+
+type PortfolioViewMode = 'list' | 'grid';
+
+function ProgressBar({ done, total }: { done?: number | null; total?: number | null }) {
+  const pct = projectProgressPct(done, total);
+  if (pct == null) return <span className="cp-muted">{dash(null)}</span>;
+  return (
+    <div className="cp-progress" aria-label={`Tiến độ ${pct}%`}>
+      <div className="cp-progress__track">
+        <div className="cp-progress__fill" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="cp-progress__label">{pct}%</span>
+    </div>
+  );
+}
 
 function formatDate(value: string | null): string {
   if (!value) return dash(null);
@@ -58,6 +75,7 @@ export function CpProjectsList() {
   const [q, setQ] = useState(currentSearch.get('q') ?? '');
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [viewMode, setViewMode] = useState<PortfolioViewMode>('list');
   const [error, setError] = useState('');
 
   const scope: CpScope = useMemo(() => {
@@ -164,9 +182,27 @@ export function CpProjectsList() {
         <div>
           <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Danh mục dự án</p>
           <h1>Danh mục dự án</h1>
-          <p className="cp-muted">Theo dõi project theo trạng thái, khách hàng và owner.</p>
+          <p className="cp-muted">{CP_SUBTITLES.prjPortfolio}</p>
         </div>
         <div className="cp-overview__actions">
+          <div className="cp-chips" role="group" aria-label="Chế độ xem">
+            <button
+              type="button"
+              className={`cp-chip${viewMode === 'grid' ? ' is-on' : ''}`}
+              aria-pressed={viewMode === 'grid'}
+              onClick={() => setViewMode('grid')}
+            >
+              Lưới
+            </button>
+            <button
+              type="button"
+              className={`cp-chip${viewMode === 'list' ? ' is-on' : ''}`}
+              aria-pressed={viewMode === 'list'}
+              onClick={() => setViewMode('list')}
+            >
+              Danh sách
+            </button>
+          </div>
           <button
             className="cp-btn"
             type="button"
@@ -241,58 +277,104 @@ export function CpProjectsList() {
       {error ? <section className="cp-card cp-card--error"><p>{error}</p><button className="cp-btn" type="button" onClick={() => void load()}>Thử lại</button></section> : null}
 
       <section className="cp-card" aria-busy={loading}>
-        <div className="cp-table-wrap">
-          <table className="cp-table">
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>Khách / lifecycle</th>
-                <th>Deliverable</th>
-                <th>Hạn</th>
-                <th>Status</th>
-                <th>Owner</th>
-                <th>Credit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.length ? projects.map((project) => (
-                <tr key={project.id}>
-                  <td>
-                    <Link className="cp-link" href={`/crm/creative-os/projects/${project.id}`}>
-                      {project.name}
-                    </Link>
-                  </td>
-                  <td>
-                    <a className="cp-link" href={`/crm/account-management/clients/${project.agency_client_id}`}>
-                      {project.client_name || dash(null)}
-                    </a>
-                    {' / '}
-                    {project.lifecycle_id ? (
+        {viewMode === 'grid' ? (
+          <div className="cp-project-grid">
+            {projects.length ? projects.map((project) => (
+              <article key={project.id} className="cp-project-card">
+                <div className="cp-card__head">
+                  <Link className="cp-link" href={`/crm/creative-os/projects/${project.id}`}>
+                    <strong>{project.name}</strong>
+                  </Link>
+                  <span className={portfolioPillClass(project.status)}>
+                    {portfolioStatusLabel(project.status)}
+                  </span>
+                </div>
+                <p className="cp-muted">
+                  <a className="cp-link" href={`/crm/account-management/clients/${project.agency_client_id}`}>
+                    {project.client_name || dash(null)}
+                  </a>
+                  {project.lifecycle_id ? (
+                    <>
+                      {' · '}
                       <a className="cp-link" href={`/crm/service-delivery/${project.lifecycle_id}?tab=content-os`}>
                         {project.lifecycle_name || project.lifecycle_id}
                       </a>
-                    ) : dash(null)}
-                  </td>
-                  <td>{formatDeliverableCount(project.deliverable_done, project.deliverable_total)}</td>
-                  <td>{formatDate(project.due_at)}</td>
-                  <td>
-                    <span className={portfolioPillClass(project.status)}>
-                      {portfolioStatusLabel(project.status)}
-                    </span>
-                  </td>
-                  <td>{project.owner_name || dash(null)}</td>
-                  <td>{formatCreditPct(project.credit_used, project.credit_budget)}</td>
-                </tr>
-              )) : (
+                    </>
+                  ) : null}
+                </p>
+                <ProgressBar done={project.deliverable_done} total={project.deliverable_total} />
+                <p className="cp-muted">
+                  {formatDeliverableCount(project.deliverable_done, project.deliverable_total)}
+                  {' · Hạn '}
+                  {formatDate(project.due_at)}
+                  {' · '}
+                  {project.owner_name || dash(null)}
+                  {' · Credit '}
+                  {formatCreditPct(project.credit_used, project.credit_budget)}
+                </p>
+              </article>
+            )) : (
+              <p className="cp-empty">{loading ? 'Đang tải…' : 'Chưa có project. Lấy từ Dự án PTT hoặc tạo mới.'}</p>
+            )}
+          </div>
+        ) : (
+          <div className="cp-table-wrap">
+            <table className="cp-table">
+              <thead>
                 <tr>
-                  <td className="cp-empty" colSpan={7}>
-                    {loading ? 'Đang tải…' : 'Chưa có project. Lấy từ Dự án PTT hoặc tạo mới.'}
-                  </td>
+                  <th>Project</th>
+                  <th>Khách / lifecycle</th>
+                  <th>Tiến độ</th>
+                  <th>Deliverable</th>
+                  <th>Hạn</th>
+                  <th>Status</th>
+                  <th>Owner</th>
+                  <th>Credit</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {projects.length ? projects.map((project) => (
+                  <tr key={project.id}>
+                    <td>
+                      <Link className="cp-link" href={`/crm/creative-os/projects/${project.id}`}>
+                        {project.name}
+                      </Link>
+                    </td>
+                    <td>
+                      <a className="cp-link" href={`/crm/account-management/clients/${project.agency_client_id}`}>
+                        {project.client_name || dash(null)}
+                      </a>
+                      {' / '}
+                      {project.lifecycle_id ? (
+                        <a className="cp-link" href={`/crm/service-delivery/${project.lifecycle_id}?tab=content-os`}>
+                          {project.lifecycle_name || project.lifecycle_id}
+                        </a>
+                      ) : dash(null)}
+                    </td>
+                    <td>
+                      <ProgressBar done={project.deliverable_done} total={project.deliverable_total} />
+                    </td>
+                    <td>{formatDeliverableCount(project.deliverable_done, project.deliverable_total)}</td>
+                    <td>{formatDate(project.due_at)}</td>
+                    <td>
+                      <span className={portfolioPillClass(project.status)}>
+                        {portfolioStatusLabel(project.status)}
+                      </span>
+                    </td>
+                    <td>{project.owner_name || dash(null)}</td>
+                    <td>{formatCreditPct(project.credit_used, project.credit_budget)}</td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td className="cp-empty" colSpan={8}>
+                      {loading ? 'Đang tải…' : 'Chưa có project. Lấy từ Dự án PTT hoặc tạo mới.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );

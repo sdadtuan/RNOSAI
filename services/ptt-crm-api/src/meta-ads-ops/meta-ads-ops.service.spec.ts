@@ -18,7 +18,11 @@ describe('MetaAdsOpsService', () => {
     submit: jest.fn(),
   } as unknown as CampaignWritesService;
 
-  const service = new MetaAdsOpsService(repo, trackingRepo, writes);
+  const cpLaunchGate = {
+    assertAdsLaunchAllowed: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const service = new MetaAdsOpsService(repo, trackingRepo, writes, cpLaunchGate as never);
 
   beforeEach(() => {
     jest.resetAllMocks();

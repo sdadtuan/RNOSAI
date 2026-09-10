@@ -7,6 +7,7 @@ import {
   createCpVideoComment,
   exportCpVideoVersion,
   formatCpApiError,
+  getCpVideo,
   getCpVideoVersion,
   listCpVideoComments,
   runCpVideoQc,
@@ -18,9 +19,11 @@ import {
   type CpVideoVersion,
 } from '@/lib/crm/cp-api';
 import { dash } from '@/lib/crm/cp-format';
+import { getCpPlaybook } from '@/lib/crm/cp-playbook-api';
 import {
   APPROVAL_LABELS,
   APPROVAL_STATES,
+  DOMAIN_QC_CHECK_LABELS,
   QC_CHECK_KEYS,
   QC_CHECK_LABELS,
   isApprovalState,
@@ -33,9 +36,19 @@ function scopeFrom(value?: string): CpScope {
 
 function qcReport(value: unknown): CpQcReport | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const report = value as CpQcReport;
+  const report = value as CpQcReport & {
+    domain_checks?: Record<string, { result?: string; reason?: string | null }>;
+    pack?: string | null;
+  };
   if (!report.checks || typeof report.checks !== 'object') return null;
   return report;
+}
+
+function domainChecks(report: CpQcReport | null): Array<[string, { result?: string; reason?: string | null }]> {
+  if (!report || typeof report !== 'object') return [];
+  const domain = (report as { domain_checks?: Record<string, { result?: string; reason?: string | null }> }).domain_checks;
+  if (!domain || typeof domain !== 'object') return [];
+  return Object.entries(domain);
 }
 
 function displayJson(value: unknown): string {
@@ -48,6 +61,12 @@ function displayJson(value: unknown): string {
   }
 }
 
+function playbookIdFromConfig(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null;
+  const id = (value as Record<string, unknown>).playbook_id;
+  return typeof id === 'string' && id.trim() ? id : null;
+}
+
 export function CpVideoReview({
   versionId,
   scope: scopeValue,
@@ -57,6 +76,7 @@ export function CpVideoReview({
 }) {
   const scope = scopeFrom(scopeValue);
   const [version, setVersion] = useState<CpVideoVersion | null>(null);
+  const [qcPack, setQcPack] = useState<string | null>(null);
   const [comments, setComments] = useState<CpVideoComment[]>([]);
   const [compare, setCompare] = useState<CpVersionCompare | null>(null);
   const [otherId, setOtherId] = useState('');
@@ -68,6 +88,25 @@ export function CpVideoReview({
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+
+  const resolveQcPack = useCallback(async (token: string, nextVersion: CpVideoVersion) => {
+    if (!nextVersion.draft_id) {
+      setQcPack(null);
+      return;
+    }
+    try {
+      const draft = await getCpVideo(token, nextVersion.draft_id, scope);
+      const playbookId = playbookIdFromConfig(draft.config_json);
+      if (!playbookId) {
+        setQcPack(null);
+        return;
+      }
+      const playbook = await getCpPlaybook(token, playbookId);
+      setQcPack(playbook.qc_pack);
+    } catch {
+      setQcPack(null);
+    }
+  }, [scope]);
 
   const load = useCallback(async () => {
     const token = getAccessToken();
@@ -87,14 +126,16 @@ export function CpVideoReview({
       if (isApprovalState(nextVersion.approval_status)) {
         setApprovalStatus(nextVersion.approval_status);
       }
+      await resolveQcPack(token, nextVersion);
     } catch (caught) {
       setVersion(null);
       setComments([]);
+      setQcPack(null);
       setError(formatCpApiError(caught, 'Không tải được review'));
     } finally {
       setLoading(false);
     }
-  }, [scope, versionId]);
+  }, [resolveQcPack, scope, versionId]);
 
   useEffect(() => {
     void load();
@@ -120,9 +161,14 @@ export function CpVideoReview({
 
   async function runQc() {
     await withBusy('qc', async (token) => {
-      const next = await runCpVideoQc(token, versionId, {}, scope);
+      const next = await runCpVideoQc(
+        token,
+        versionId,
+        qcPack ? { pack: qcPack } : {},
+        scope,
+      );
       setVersion(next);
-      setNotice('Đã chạy QC');
+      setNotice(qcPack ? `Đã chạy QC · pack ${qcPack}` : 'Đã chạy QC');
     });
   }
 
@@ -167,6 +213,8 @@ export function CpVideoReview({
 
   const report = qcReport(version?.qc_json);
   const overall = version?.qc_status ?? report?.overall ?? null;
+  const domainRows = domainChecks(report);
+  const exportBlocked = overall === 'blocked';
 
   return (
     <div className="cp-overview" aria-busy={loading || Boolean(busy)}>
@@ -174,13 +222,24 @@ export function CpVideoReview({
         <div>
           <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Video Review</p>
           <h2>QC · Comments · Approval</h2>
-          <p className="cp-muted">Overall QC: {dash(overall)} · Approval: {dash(version?.approval_status)}</p>
+          <p className="cp-muted">
+            Overall QC: {dash(overall)}
+            {qcPack ? ` · Pack ${qcPack}` : ''}
+            {' · Approval: '}
+            {dash(version?.approval_status)}
+          </p>
         </div>
         <div className="cp-filters">
           <button className="cp-btn" type="button" disabled={loading || Boolean(busy)} onClick={() => void runQc()}>
             {busy === 'qc' ? 'Đang QC…' : 'Chạy QC'}
           </button>
-          <button className="cp-btn cp-btn--primary" type="button" disabled={loading || Boolean(busy)} onClick={() => void exportFinal()}>
+          <button
+            className="cp-btn cp-btn--primary"
+            type="button"
+            disabled={loading || Boolean(busy) || exportBlocked}
+            title={exportBlocked ? 'QC blocked — không export' : undefined}
+            onClick={() => void exportFinal()}
+          >
             {busy === 'export' ? 'Đang export…' : 'Export final'}
           </button>
         </div>
@@ -188,6 +247,9 @@ export function CpVideoReview({
 
       {error ? <section className="cp-card cp-card--error"><p>{error}</p></section> : null}
       {notice ? <section className="cp-alert">{notice}</section> : null}
+      {exportBlocked ? (
+        <section className="cp-alert cp-alert--active">QC blocked — không export / publish.</section>
+      ) : null}
 
       <div className="cp-overview-grid">
         <section className="cp-card">
@@ -208,6 +270,13 @@ export function CpVideoReview({
                   </tr>
                 );
               })}
+              {domainRows.map(([key, item]) => (
+                <tr key={`domain-${key}`}>
+                  <td>{DOMAIN_QC_CHECK_LABELS[key] ?? key}</td>
+                  <td>{dash(item?.result)}</td>
+                  <td>{dash(item?.reason)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
           </div>

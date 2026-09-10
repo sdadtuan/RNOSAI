@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import { listCpAssets, type CpAsset, type CpScope } from '@/lib/crm/cp-api';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import { dash, rightsStatus } from '@/lib/crm/cp-format';
 
 const MEDIA_TABS = [
@@ -74,7 +75,7 @@ export function CpMediaLibrary() {
         <div>
           <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Thư viện media</p>
           <h1>Thư viện media</h1>
-          <p className="cp-muted">Grid tài nguyên và inspector theo phạm vi truy cập.</p>
+          <p className="cp-muted">{CP_SUBTITLES.medLibrary}</p>
         </div>
         <Link className="cp-btn cp-btn--primary" href="/crm/creative-os/media?tab=ingest">
           Upload
@@ -116,31 +117,31 @@ export function CpMediaLibrary() {
       ) : null}
 
       <div className="cp-overview-grid">
-        <section
-          className="cp-card"
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}
-        >
-          {visibleAssets.length ? visibleAssets.map((asset) => (
-            <button
-              key={asset.id}
-              type="button"
-              className="cp-card"
-              aria-pressed={selectedId === asset.id}
-              onClick={() => setSelectedId(asset.id)}
-              style={{
-                minHeight: 120,
-                borderColor: selectedId === asset.id ? 'var(--cp-accent)' : undefined,
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              <span className="cp-muted">{asset.mime.split('/')[0] || dash(null)}</span>
-              <strong style={{ display: 'block', marginTop: 28, overflowWrap: 'anywhere' }}>
-                {dash(asset.filename)}
-              </strong>
-              <span className="cp-pill" style={{ marginTop: 8 }}>{dash(asset.state)}</span>
-            </button>
-          )) : (
+        <section className="cp-card">
+          {visibleAssets.length ? (
+            <div className="cp-media-grid">
+              {visibleAssets.map((asset) => {
+                const rights = rightsStatus(asset.expiry_on);
+                return (
+                  <button
+                    key={asset.id}
+                    type="button"
+                    className="cp-media-card"
+                    aria-pressed={selectedId === asset.id}
+                    onClick={() => setSelectedId(asset.id)}
+                  >
+                    <div className="cp-thumb" aria-hidden="true">
+                      {(asset.mime.split('/')[0] || 'file').slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="cp-media-card__body">
+                      <strong>{dash(asset.filename)}</strong>
+                      <span className={statusClass(rights)}>{rights ?? dash(asset.state)}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
             <div>
               <p className="cp-muted">{loading ? 'Đang tải…' : 'Chưa có dữ liệu'}</p>
               <p className="cp-empty">{dash(null)}</p>

@@ -1,4 +1,11 @@
 import { HttpException, Inject, Injectable } from '@nestjs/common';
+import {
+  hasFullTechnicalFacts,
+  isProbeableOutputUri,
+  probeOutputUri,
+} from './cp-media-probe.util';
+import { CpQcPackId } from './cp-playbook.types';
+import { evaluateDomainQc, DomainQcFacts } from './cp-qc-packs.util';
 import { CP_VIDEOS_QUERY, CpVideosQueryPort, CpVideosService, CpVideoScope } from './cp-videos.service';
 
 export const QC_CHECK_KEYS = [
@@ -25,6 +32,8 @@ export type QcCheckReport = {
 export type QcReport = {
   overall: QcResult;
   checks: Record<QcCheckKey, QcCheckReport>;
+  pack?: CpQcPackId;
+  domain_checks?: Record<string, QcCheckReport>;
 };
 
 export type QcFacts = {
@@ -55,12 +64,28 @@ export class CpQcService {
     id: string,
     facts: QcFacts = {},
     scope: CpVideoScope = DEFAULT_SCOPE,
+    options: { pack?: CpQcPackId } = {},
   ) {
     const version = await this.videos.getVersion(id, scope);
-    const report = evaluateQcChecks({
+    let mergedFacts = {
       ...factsFromVersion(version),
       ...compactFacts(facts),
-    });
+    } as DomainQcFacts;
+    if (
+      !hasFullTechnicalFacts(mergedFacts)
+      && isProbeableOutputUri(version.output_uri == null ? null : String(version.output_uri))
+    ) {
+      const probed = probeOutputUri(version.output_uri == null ? null : String(version.output_uri));
+      if (probed) {
+        mergedFacts = {
+          ...mergedFacts,
+          ...compactFacts(probed),
+        } as DomainQcFacts;
+      }
+    }
+    const report = options.pack
+      ? evaluateDomainQc(options.pack, mergedFacts)
+      : evaluateQcChecks(mergedFacts);
     const updated = await this.db.query(
       `UPDATE crm_cp_video_versions
           SET qc_status = $2, qc_json = $3::jsonb

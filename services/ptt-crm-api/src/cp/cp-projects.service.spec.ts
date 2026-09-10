@@ -1,7 +1,9 @@
 import {
   decodeProjectCursor,
   encodeProjectCursor,
+  mapProjectProgress,
   projectIsAtRisk,
+  projectProgressPct,
   CpProjectsService,
 } from './cp-projects.service';
 
@@ -153,6 +155,14 @@ describe('CpProjectsService', () => {
     expect(params).toEqual(expect.arrayContaining([createdAt, id]));
   });
 
+  it('computes progress_pct from deliverable counts', () => {
+    expect(projectProgressPct(8, 13)).toBe(62);
+    expect(projectProgressPct(0, 0)).toBe(0);
+    expect(mapProjectProgress({ deliverable_done: 3, deliverable_total: 4, name: 'Demo' })).toEqual(
+      expect.objectContaining({ name: 'Demo', progress_pct: 75 }),
+    );
+  });
+
   it('lists PRJ-01 rows with client name, owner name, deliverable counts, and credit used', async () => {
     repo.query.mockImplementation(async (sql: string) => {
       if (/COUNT\(\*\)::int AS project_count/i.test(sql)) {
@@ -202,6 +212,7 @@ describe('CpProjectsService', () => {
         owner_name: 'Quản trị hệ thống',
         deliverable_done: 8,
         deliverable_total: 13,
+        progress_pct: 62,
         credit_used: 1600,
       })],
       summary: {
@@ -504,6 +515,7 @@ describe('CpProjectsService.submitCreative', () => {
       expect.objectContaining({
         client_id: CLIENT_ID,
         title: 'Cut v2',
+        description: `cp_version:${VERSION_ID}`,
         asset_url: 's3://cp/final.mp4',
         asset_type: 'video',
       }),

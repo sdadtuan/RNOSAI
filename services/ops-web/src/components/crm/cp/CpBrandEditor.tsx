@@ -12,6 +12,7 @@ import {
   type CpBrandPayload,
   type CpScope,
 } from '@/lib/crm/cp-api';
+import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import { dash } from '@/lib/crm/cp-format';
 import { CpBrandHistory } from './CpBrandHistory';
 import { CpBrandPreview } from './CpBrandPreview';
@@ -207,8 +208,9 @@ export function CpBrandEditor({
           <p className="cp-crumb">Vận hành / Sản xuất sáng tạo / Brand Kit</p>
           <h1>{kit?.name ? `Brand Kit — ${kit.name}` : 'Brand Kit Editor'}</h1>
           <p className="cp-muted">
-            {version == null ? dash(null) : `Phiên bản hiện tại: v${version}`}
-            {' · '}Mỗi lần lưu sẽ tạo một phiên bản mới.
+            {CP_SUBTITLES.brkEditor}
+            {' · '}
+            {version == null ? dash(null) : `v${version}`}
           </p>
         </div>
         <Link className="cp-btn" href={`/crm/creative-os/brand-kits?scope=${scope}`}>
@@ -262,6 +264,16 @@ export function CpBrandEditor({
 
             <section className="cp-card">
               <div className="cp-card__head"><h2>Palette</h2></div>
+              {payload.palette.length ? (
+                <div className="cp-palette-swatches" aria-label="Palette preview">
+                  {payload.palette.map((color) => (
+                    <span key={color}>
+                      <i className="cp-swatch" style={{ background: color }} aria-hidden="true" />
+                      {color}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <div className="cp-filters">
                 <label>
                   <span>Màu, phân cách bằng dấu phẩy</span>

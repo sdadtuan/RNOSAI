@@ -114,6 +114,15 @@ export function fileExportPostRef(itemId: string): string {
   return `export:${itemId}`;
 }
 
+export function resolvePublishPostRef(
+  itemId: string,
+  channel: string,
+  nativeEnabled: boolean,
+): string {
+  if (nativeEnabled) return `native:${channel}:${itemId}`;
+  return fileExportPostRef(itemId);
+}
+
 export function looksNativeSocialRef(postRef: string | null | undefined): boolean {
   return /tiktok|instagram|reels|facebook\.com\/reel/i.test(String(postRef ?? ''));
 }
@@ -306,7 +315,21 @@ export class CpPublishService {
   async deliver(id: string, scope: CpVideoScope = DEFAULT_SCOPE): Promise<Record<string, unknown> & { kind: 'video' }> {
     const item = await this.loadItem(id, scope);
     const outcome = await this.fileExportHandoff(item, scope);
-    return this.persistOutcome(item, outcome);
+    const row = await this.persistOutcome(item, outcome);
+    if (this.audit) {
+      await this.audit.insert({
+        actor_id: scope.staffId > 0 ? scope.staffId : null,
+        action: 'publish.deliver',
+        resource_type: 'publish_item',
+        resource_id: String(item.id),
+        payload_json: {
+          status: outcome.status,
+          post_ref: outcome.post_ref,
+          last_error: outcome.last_error,
+        },
+      });
+    }
+    return row;
   }
 
   async retry(id: string, scope: CpVideoScope = DEFAULT_SCOPE): Promise<Record<string, unknown> & { kind: 'video' }> {
@@ -428,7 +451,11 @@ export class CpPublishService {
       const native = nativePublishEnabled(
         stored && typeof stored.publish_native === 'boolean' ? stored.publish_native : null,
       );
-      const postRef = fileExportPostRef(String(item.id));
+      const postRef = resolvePublishPostRef(
+        String(item.id),
+        String(item.channel ?? ''),
+        native,
+      );
       if (!native && looksNativeSocialRef(postRef)) {
         return { status: 'failed', post_ref: null, last_error: 'native_disabled' };
       }

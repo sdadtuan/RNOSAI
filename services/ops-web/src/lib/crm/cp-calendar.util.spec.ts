@@ -110,5 +110,13 @@ describe('CP calendar helpers', () => {
       post_ref: 'https://www.tiktok.com/@x/video/1',
       status: 'published',
     }, false)).not.toMatch(/tiktok|thành công native/i);
+    expect(distributionPostLabel({
+      post_ref: 'native:tiktok:77777777-7777-4777-8777-777777777777',
+      status: 'published',
+    }, true)).toBe('Native tiktok · native:tiktok:77777777-7777-4777-8777-777777777777');
+    expect(distributionPostLabel({
+      post_ref: 'native:tiktok:77777777-7777-4777-8777-777777777777',
+      status: 'published',
+    }, false)).toBe('—');
   });
 });

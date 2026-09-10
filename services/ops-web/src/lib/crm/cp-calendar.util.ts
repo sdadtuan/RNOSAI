@@ -67,6 +67,11 @@ export function distributionPostLabel(
   const ref = String(item.post_ref ?? '').trim();
   if (!ref) return dash(null);
   if (ref.startsWith('export:')) return `Xuất file · ${ref}`;
+  if (ref.startsWith('native:')) {
+    if (!nativeEnabled) return dash(null);
+    const channel = ref.split(':')[1] ?? 'channel';
+    return `Native ${channel} · ${ref}`;
+  }
   if (!nativeEnabled) return dash(null);
   return ref;
 }

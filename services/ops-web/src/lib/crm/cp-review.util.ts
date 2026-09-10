@@ -74,6 +74,15 @@ export function isApprovalState(value: string): value is CpApprovalState {
   return (APPROVAL_STATES as readonly string[]).includes(value);
 }
 
+export const DOMAIN_QC_CHECK_LABELS: Record<string, string> = {
+  banned_phrase: 'Banned phrase',
+  project_image_match: 'Project / image match',
+  price_from_wording: 'Price-from wording',
+  lead_pack: 'Lead pack',
+  legal_approval: 'Legal approval',
+  claim_disclaimer: 'Claim disclaimer',
+};
+
 export type QcFetchState =
   | { phase: 'idle' }
   | { phase: 'loading' }

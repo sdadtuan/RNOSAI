@@ -35,6 +35,15 @@ export function formatDeliverableCount(
   return `${Number(done ?? 0)} / ${all}`;
 }
 
+export function projectProgressPct(
+  done: number | null | undefined,
+  total: number | null | undefined,
+): number | null {
+  const all = Number(total);
+  if (!Number.isFinite(all) || all <= 0) return null;
+  return Math.min(100, Math.round((Number(done ?? 0) * 100) / all));
+}
+
 export function formatCreditPct(
   used: number | null | undefined,
   budget: number | null | undefined,

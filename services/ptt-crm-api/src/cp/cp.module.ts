@@ -32,8 +32,12 @@ import {
 import { CpApprovalsService } from './cp-approvals.service';
 import { CpCommentsService } from './cp-comments.service';
 import { CpPublishService } from './cp-publish.service';
+import { CP_PLAYBOOKS_QUERY, CpPlaybooksService } from './cp-playbooks.service';
+import { CP_RE_HANDOFF_QUERY, CpReHandoffService } from './cp-re-handoff.service';
 import { CpQcService } from './cp-qc.service';
+import { CpSopIngestService } from './cp-sop-ingest.service';
 import { CpContentOsHandoffService } from './cp-content-os-handoff.service';
+import { CpLaunchGateService } from './cp-launch-gate.service';
 import {
   CP_TEMPLATES_QUERY,
   CpTemplatesRepository,
@@ -88,6 +92,7 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     { provide: CP_VIDEOS_QUERY, useExisting: CpVideosRepository },
     CpVideosService,
     CpQcService,
+    CpSopIngestService,
     CpCommentsService,
     CpApprovalsService,
     CpPublishService,
@@ -107,7 +112,12 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     CpExperimentsRepository,
     { provide: CP_EXPERIMENTS_QUERY, useExisting: CpExperimentsRepository },
     CpExperimentsService,
+    { provide: CP_PLAYBOOKS_QUERY, useExisting: CpBatchesRepository },
+    CpPlaybooksService,
+    { provide: CP_RE_HANDOFF_QUERY, useExisting: CpProjectsRepository },
+    CpReHandoffService,
+    CpLaunchGateService,
   ],
-  exports: [CpProjectsService],
+  exports: [CpProjectsService, CpLaunchGateService],
 })
 export class CpModule {}
