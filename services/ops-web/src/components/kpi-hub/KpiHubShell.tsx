@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { getStoredUser, type StoredStaffUser } from '@/lib/auth';
+import { getAccessToken, getStoredUser, type StoredStaffUser } from '@/lib/auth';
 import { activeKpiHubHref, isKpiHubPath, kpiHubNavGroupsForUser } from '@/lib/kpi-hub-nav';
+import { SIDE_NOTE_KPI_CONTRACT } from '@/lib/service-kpi-copy';
+import { useServiceKpiNavBadges } from '@/hooks/useServiceKpiNavBadges';
 import { KpiHubFreshnessFooter } from './KpiHubFreshnessFooter';
 
 export type KpiHubBreadcrumb = { label: string; href?: string };
@@ -159,7 +161,16 @@ export function KpiHubShell({
     setUser(getStoredUser());
   }, []);
   const navGroups = useMemo(() => kpiHubNavGroupsForUser(user, pathname), [user, pathname]);
+  const token = getAccessToken() ?? '';
+  const skpiBadges = useServiceKpiNavBadges(token);
+  const showSkpiSideNote = navGroups.some((g) => g.id === 'service-kpi');
   const [collapsed, setCollapsed] = useState(false);
+
+  function navBadgeCount(badgeKey?: 'warRoom' | 'contract'): number | undefined {
+    if (!badgeKey) return undefined;
+    const n = badgeKey === 'warRoom' ? skpiBadges.warRoom : skpiBadges.contract;
+    return n > 0 ? n : undefined;
+  }
 
   return (
     <div className={`kpi-hub-shell${collapsed ? ' kpi-hub-shell--collapsed' : ''}`}>
@@ -199,12 +210,21 @@ export function KpiHubShell({
                       <NavIcon icon={item.icon} />
                     </span>
                     {!collapsed ? <span>{item.label}</span> : null}
+                    {!collapsed && navBadgeCount(item.badgeKey) ? (
+                      <span className="kpi-hub-sidebar__count">{navBadgeCount(item.badgeKey)}</span>
+                    ) : null}
                   </Link>
                 );
               })}
             </div>
           ))}
         </nav>
+        {!collapsed && showSkpiSideNote ? (
+          <div className="kpi-hub-sidebar__side-note">
+            <strong>KPI Contract OS</strong>
+            {skpiBadges.sideNoteBody || SIDE_NOTE_KPI_CONTRACT}
+          </div>
+        ) : null}
         <button
           type="button"
           className="kpi-hub-sidebar__collapse"

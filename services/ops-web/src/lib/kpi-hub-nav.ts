@@ -22,6 +22,7 @@ export type KpiHubNavItem = {
   href: string;
   label: string;
   icon: KpiHubNavIcon;
+  badgeKey?: 'warRoom' | 'contract';
 };
 
 export type KpiHubNavGroup = { id: string; label: string; items: KpiHubNavItem[] };
@@ -51,13 +52,13 @@ export const KPI_HUB_NAV_GROUPS: KpiHubNavGroup[] = [
     id: 'service-kpi',
     label: 'SERVICE KPI',
     items: [
-      { href: '/crm/kpi-hub/service-kpi', label: 'War Room', icon: 'dashboard' },
+      { href: '/crm/kpi-hub/service-kpi', label: 'War Room', icon: 'dashboard', badgeKey: 'warRoom' },
       { href: '/crm/kpi-hub/service-templates', label: 'Service KPI Template', icon: 'template' },
       { href: '/crm/kpi-hub/instances', label: 'KPI Instances', icon: 'layers' },
       { href: '/crm/kpi-hub/measurement', label: 'Measurement Plan', icon: 'plan' },
       { href: '/crm/kpi-hub/tracking', label: 'Actual Tracking', icon: 'track' },
-      { href: '/crm/kpi-hub/kpi-contracts', label: 'KPI Contract & Risk', icon: 'shield' },
-      { href: '/crm/kpi-hub/reconcile', label: 'Quoted vs Actual', icon: 'list' },
+      { href: '/crm/kpi-hub/kpi-contracts', label: 'KPI Contract & Risk', icon: 'shield', badgeKey: 'contract' },
+      { href: '/crm/kpi-hub/reconcile', label: 'Quoted vs Delivered vs Reported', icon: 'list' },
       { href: '/crm/kpi-hub/policy-packs', label: 'Policy Pack', icon: 'book' },
     ],
   },

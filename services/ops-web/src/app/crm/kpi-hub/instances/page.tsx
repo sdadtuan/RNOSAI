@@ -13,18 +13,15 @@ import { useKpiHubDictionary } from '@/hooks/useKpiHubDictionary';
 import { useServiceKpiInstances } from '@/hooks/useServiceKpiInstances';
 import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import { dictionaryLabelMap } from '@/lib/service-kpi-dictionary-labels';
+import { SKPI_SUBTITLES, SNAPSHOT_INSTANCE_BANNER } from '@/lib/service-kpi-copy';
+import { SkpiFilterChips } from '@/components/kpi-hub/service-kpi/SkpiFilterChips';
+import { SkpiSuccessBanner } from '@/components/kpi-hub/service-kpi/SkpiSuccessBanner';
 
-const SOURCE_FILTERS = [
+const FILTER_CHIPS = [
   { value: '', label: 'Tất cả' },
   { value: 'quote_line_item', label: 'Quote' },
   { value: 'project', label: 'Project' },
-];
-
-const STATUS_FILTERS = [
-  { value: '', label: 'Mọi status' },
-  { value: 'TRACKING', label: 'Tracking' },
   { value: 'AT_RISK', label: 'At Risk' },
-  { value: 'DRAFT', label: 'Draft' },
 ];
 
 export default function KpiHubInstancesPage() {
@@ -34,8 +31,9 @@ export default function KpiHubInstancesPage() {
   const [detailInstance, setDetailInstance] = useState<ServiceKpiInstanceItem | null>(null);
   const params = useSearchParams();
   const instanceParam = params.get('instance') ?? '';
-  const [sourceType, setSourceType] = useState('');
-  const [statusFilter, setStatusFilter] = useState(params.get('status') ?? '');
+  const [chipFilter, setChipFilter] = useState(params.get('status') ?? '');
+  const sourceType = chipFilter === 'quote_line_item' || chipFilter === 'project' ? chipFilter : '';
+  const statusFilter = chipFilter === 'AT_RISK' ? 'AT_RISK' : '';
 
   const { rows: dictionaryRows } = useKpiHubDictionary(token, { status: 'ACTIVE' });
   const labels = useMemo(() => dictionaryLabelMap(dictionaryRows), [dictionaryRows]);
@@ -60,7 +58,7 @@ export default function KpiHubInstancesPage() {
     <KpiHubPageGate section="crm_kpi_hub">
       <KpiHubShell
         title="KPI Instances"
-        subtitle="KPI kế thừa/cấu hình theo Quote, Proposal, Project, Work Order hoặc Campaign"
+        subtitle={SKPI_SUBTITLES.instances}
         breadcrumb={[{ label: 'KPI Hub' }, { label: 'Service KPI' }, { label: 'KPI Instances' }]}
         actions={
           <>
@@ -80,31 +78,10 @@ export default function KpiHubInstancesPage() {
         }
         searchPlaceholder="Tìm instance, quote, client…"
       >
-        <div className="kpi-hub-skpi-summary">
-          <span>{total} instances</span>
-        </div>
-        <div className="kpi-hub-filters" style={{ marginTop: 12 }}>
-          {SOURCE_FILTERS.map((f) => (
-            <button
-              key={f.value || 'all-src'}
-              type="button"
-              className={`kpi-hub-filter${sourceType === f.value ? ' is-active' : ''}`}
-              onClick={() => setSourceType(f.value)}
-            >
-              {f.label}
-            </button>
-          ))}
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.value || 'all-st'}
-              type="button"
-              className={`kpi-hub-filter${statusFilter === f.value ? ' is-active' : ''}`}
-              onClick={() => setStatusFilter(f.value)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        <SkpiFilterChips options={FILTER_CHIPS} value={chipFilter} onChange={setChipFilter} />
+        <p className="kpi-hub-muted" style={{ margin: '8px 0 12px' }}>
+          {total} instances
+        </p>
         {loading ? <p className="kpi-hub-muted">Đang tải…</p> : null}
         {error ? <p className="kpi-hub-form-error">{error}</p> : null}
         <ServiceKpiInstanceTable
@@ -112,6 +89,7 @@ export default function KpiHubInstancesPage() {
           dictionaryLabels={labels}
           onSelect={(row) => setDetailInstance(row)}
         />
+        <SkpiSuccessBanner title="Snapshot">{SNAPSHOT_INSTANCE_BANNER}</SkpiSuccessBanner>
       </KpiHubShell>
       <ServiceKpiInstanceDrawer
         open={drawerOpen}

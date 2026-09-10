@@ -2,20 +2,25 @@
 
 import Link from 'next/link';
 import type { ServiceKpiInstanceItem } from '@/lib/service-kpi-types';
-
-const CLASS_BADGE: Record<string, string> = {
-  COMMITTED_DELIVERABLE: 'blue',
-  OPTIMIZATION_TARGET: 'purple',
-  PROJECTED_RESULT: 'amber',
-  BUSINESS_OUTCOME: 'amber',
-  INTERNAL_OPERATIONAL: 'gray',
-};
+import { SkpiClassificationBadge } from './SkpiClassificationBadge';
 
 type Props = {
   rows: ServiceKpiInstanceItem[];
   dictionaryLabels?: Record<string, string>;
   onSelect?: (row: ServiceKpiInstanceItem) => void;
 };
+
+function readinessBadge(level?: string): { label: string; tone: string } {
+  if (!level || level === 'pass' || level === 'ready') return { label: 'Ready', tone: 'green' };
+  if (level === 'fail') return { label: 'Blocking', tone: 'red' };
+  return { label: 'Warning', tone: 'amber' };
+}
+
+function statusBadge(status: string): { label: string; tone: string } {
+  if (status === 'AT_RISK') return { label: 'AT RISK', tone: 'red' };
+  if (status === 'TRACKING') return { label: 'TRACKING', tone: 'blue' };
+  return { label: status, tone: 'gray' };
+}
 
 export function ServiceKpiInstanceTable({ rows, dictionaryLabels = {}, onSelect }: Props) {
   if (!rows.length) {
@@ -43,55 +48,69 @@ export function ServiceKpiInstanceTable({ rows, dictionaryLabels = {}, onSelect 
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} onClick={() => onSelect?.(row)} className={onSelect ? 'kpi-hub-row-clickable' : ''}>
-              <td>
-                <span className="kpi-hub-table__mono kpi-hub-linkish">
-                  {dictionaryLabels[row.dictionary_id] ?? row.dictionary_id}
-                </span>
-                <div className="kpi-hub-table__sub">
-                  {row.source_type} · {row.source_id}
-                  {row.dv_code ? ` · ${row.dv_code}` : ''}
-                </div>
-              </td>
-              <td>
-                <span className={`kpi-hub-badge kpi-hub-badge--${CLASS_BADGE[row.classification] ?? 'gray'}`}>
-                  {row.classification.replace(/_/g, ' ')}
-                </span>
-              </td>
-              <td>
-                {row.target_min ?? '—'} – {row.target_max ?? '—'}
-                <div className="kpi-hub-table__sub">{row.scenario}</div>
-              </td>
-              <td>{row.latest_actual ?? '—'}</td>
-              <td>{row.variance_pct != null ? `${row.variance_pct}%` : '—'}</td>
-              <td>{row.readiness_level ?? '—'}</td>
-              <td>{row.owner_name ?? '—'}</td>
-              <td>
-                <span className={`kpi-hub-badge kpi-hub-badge--${row.status === 'AT_RISK' ? 'red' : 'gray'}`}>
-                  {row.status}
-                </span>
-              </td>
-              <td>
-                <div className="kpi-hub-table__actions">
-                  <Link
-                    href={`/crm/kpi-hub/measurement?instance=${encodeURIComponent(row.id)}`}
-                    className="kpi-hub-btn kpi-hub-btn--ghost kpi-hub-btn--sm"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Plan
-                  </Link>
-                  <Link
-                    href={`/crm/kpi-hub/tracking?instance=${encodeURIComponent(row.id)}`}
-                    className="kpi-hub-btn kpi-hub-btn--ghost kpi-hub-btn--sm"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Track
-                  </Link>
-                </div>
-              </td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const readiness = readinessBadge(row.readiness_level);
+            const status = statusBadge(row.status);
+            const varianceClass =
+              row.variance_pct != null && row.variance_pct > 0 ? 'kpi-hub-skpi-variance--bad' : undefined;
+            return (
+              <tr key={row.id} onClick={() => onSelect?.(row)} className={onSelect ? 'kpi-hub-row-clickable' : ''}>
+                <td>
+                  <span className="kpi-hub-table__mono kpi-hub-linkish">
+                    {dictionaryLabels[row.dictionary_id] ?? row.dictionary_id}
+                  </span>
+                  <div className="kpi-hub-table__sub">
+                    {row.source_id}
+                    {row.dv_code ? ` · ${row.dv_code}` : ''}
+                  </div>
+                </td>
+                <td>
+                  <SkpiClassificationBadge classification={row.classification} />
+                </td>
+                <td>
+                  {row.target_min ?? '—'} – {row.target_max ?? '—'}
+                  <div className="kpi-hub-table__sub">{row.scenario}</div>
+                </td>
+                <td>
+                  <b>{row.latest_actual ?? '—'}</b>
+                </td>
+                <td className={varianceClass}>
+                  {row.variance_pct != null
+                    ? row.variance_pct > 0
+                      ? `+${row.variance_pct}%`
+                      : row.variance_pct === 0
+                        ? 'On track'
+                        : `${row.variance_pct}%`
+                    : '—'}
+                </td>
+                <td>
+                  <span className={`kpi-hub-badge kpi-hub-badge--${readiness.tone}`}>{readiness.label}</span>
+                </td>
+                <td>{row.owner_name ?? '—'}</td>
+                <td>
+                  <span className={`kpi-hub-badge kpi-hub-badge--${status.tone}`}>{status.label}</span>
+                </td>
+                <td>
+                  <div className="kpi-hub-table__actions">
+                    <Link
+                      href={`/crm/kpi-hub/measurement?instance=${encodeURIComponent(row.id)}`}
+                      className="kpi-hub-btn kpi-hub-btn--ghost kpi-hub-btn--sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Plan
+                    </Link>
+                    <Link
+                      href={`/crm/kpi-hub/tracking?instance=${encodeURIComponent(row.id)}`}
+                      className="kpi-hub-btn kpi-hub-btn--ghost kpi-hub-btn--sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Track
+                    </Link>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

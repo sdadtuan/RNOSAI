@@ -12,6 +12,7 @@ import {
   fetchServiceKpiContractRisk,
   fetchServiceKpiContractScoreLive,
 } from '@/lib/service-kpi-api';
+import { SKPI_SUBTITLES } from '@/lib/service-kpi-copy';
 import type {
   ServiceKpiContractRiskItem,
   ServiceKpiContractScoreLive,
@@ -85,7 +86,7 @@ export default function KpiHubContractsPage() {
     <KpiHubPageGate section="crm_kpi_hub">
       <KpiHubShell
         title="KPI Contract & Risk"
-        subtitle="Điểm rủi ro hợp đồng KPI — duyệt cùng GM floor. Internal only."
+        subtitle={SKPI_SUBTITLES.contracts}
         breadcrumb={[{ label: 'KPI Hub' }, { label: 'Service KPI' }, { label: 'KPI Contract & Risk' }]}
         actions={
           <>

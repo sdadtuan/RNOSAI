@@ -18,6 +18,7 @@ import type {
   ServiceKpiPolicyPack,
   ServiceKpiReconcileRow,
   ServiceKpiTemplatesResponse,
+  ServiceKpiOverview,
   ServiceKpiWarRoomData,
 } from './service-kpi-types';
 
@@ -152,6 +153,10 @@ export async function patchServiceKpiInstance(
     headers: { 'If-Match': String(rowVersion) },
     body: JSON.stringify(body),
   });
+}
+
+export async function fetchServiceKpiOverview(token: string) {
+  return serviceKpiFetch<ServiceKpiOverview>(token, `${BASE}/service-kpi/overview`);
 }
 
 export async function fetchServiceKpiWarRoom(token: string) {

@@ -56,11 +56,15 @@ export function ServiceKpiTemplateTable({ rows, onConfigure }: Props) {
                 <span className="kpi-hub-table__mono kpi-hub-linkish">{row.name}</span>
                 <div className="kpi-hub-table__sub">{row.dv_code}</div>
               </td>
-              <td>{row.dv_code}</td>
-              <td>{row.required_count ?? '—'}</td>
-              <td>{row.client_visible_count ?? '—'}</td>
+              <td>
+                {row.rule_count != null
+                  ? `${row.required_count ?? 0} / ${row.rule_count} KPI`
+                  : row.dv_code}
+              </td>
+              <td>{row.required_count != null && row.rule_count != null ? `${row.required_count} / ${row.rule_count}` : '—'}</td>
+              <td>{row.client_visible_count != null ? `${row.client_visible_count} KPI` : '—'}</td>
               <td>{row.owner_team || '—'}</td>
-              <td>{row.active_version_id ? 'v' : 'v1'}</td>
+              <td>{row.active_version_id ? 'v4' : 'v1'}</td>
               <td>
                 <span className={`kpi-hub-badge kpi-hub-badge--${statusClass(row.status)}`}>
                   {statusLabel(row.status)}

@@ -8,7 +8,7 @@ const SERVICE_KPI_LABELS = [
   'Measurement Plan',
   'Actual Tracking',
   'KPI Contract & Risk',
-  'Quoted vs Actual',
+  'Quoted vs Delivered vs Reported',
   'Policy Pack',
 ];
 
@@ -50,7 +50,7 @@ test.describe('Service KPI Hub', () => {
 
   test('reconcile table has Quoted Delivered Reported columns', async ({ page }) => {
     await page.goto('/crm/kpi-hub/reconcile');
-    await expect(page.getByRole('heading', { level: 1, name: 'Quoted vs Actual' })).toBeVisible({
+    await expect(page.getByRole('heading', { level: 1, name: 'Quoted vs Delivered vs Reported' })).toBeVisible({
       timeout: 20_000,
     });
     await expect(page.getByRole('columnheader', { name: 'Quoted' })).toBeVisible();

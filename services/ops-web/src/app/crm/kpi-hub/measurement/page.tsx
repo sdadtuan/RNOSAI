@@ -10,6 +10,7 @@ import { useKpiHubDictionary } from '@/hooks/useKpiHubDictionary';
 import { useServiceKpiInstances } from '@/hooks/useServiceKpiInstances';
 import { getAccessToken } from '@/lib/auth';
 import { dictionaryLabelMap } from '@/lib/service-kpi-dictionary-labels';
+import { SKPI_SUBTITLES } from '@/lib/service-kpi-copy';
 
 export default function KpiHubMeasurementPage() {
   const token = getAccessToken() ?? '';
@@ -28,7 +29,7 @@ export default function KpiHubMeasurementPage() {
     <KpiHubPageGate section="crm_kpi_hub">
       <KpiHubShell
         title="Measurement Plan"
-        subtitle="Owner, cadence, mapping nguồn dữ liệu và SLA freshness cho từng KPI instance"
+        subtitle={SKPI_SUBTITLES.measurement}
         breadcrumb={[{ label: 'KPI Hub' }, { label: 'Service KPI' }, { label: 'Measurement Plan' }]}
         actions={
           <Link href="/crm/kpi-hub/instances" className="kpi-hub-btn kpi-hub-btn--ghost">
@@ -39,7 +40,12 @@ export default function KpiHubMeasurementPage() {
       >
         {loading ? <p className="kpi-hub-muted">Đang tải…</p> : null}
         {error ? <p className="kpi-hub-form-error">{error}</p> : null}
-        <ServiceKpiMeasurementPlanForm token={token} instances={sortedItems} dictionaryLabels={labels} />
+        <ServiceKpiMeasurementPlanForm
+          token={token}
+          instances={sortedItems}
+          dictionaryLabels={labels}
+          dictionaryRows={dictionaryRows}
+        />
       </KpiHubShell>
     </KpiHubPageGate>
   );

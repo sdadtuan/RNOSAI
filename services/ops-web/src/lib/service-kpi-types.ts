@@ -102,6 +102,16 @@ export type ServiceKpiWarRoomQueueItem = {
   action_href?: string;
 };
 
+export type ServiceKpiOverview = {
+  templates_active: number;
+  instances_tracking: number;
+  instances_tracking_pct: number;
+  readiness_warning: number;
+  readiness_blocking: number;
+  at_risk: number;
+  at_risk_critical: number;
+};
+
 export type ServiceKpiWarRoomData = {
   critical_overdue: number;
   assumptions_open: number;

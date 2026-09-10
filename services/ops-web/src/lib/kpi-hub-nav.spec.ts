@@ -66,6 +66,10 @@ describe('kpi-hub-nav', () => {
     expect(SERVICE_KPI_NAV_GROUP.label).toBe('SERVICE KPI');
     expect(kpiHubNavGroup('service-kpi')?.items.map((i) => i.href)).toContain('/crm/kpi-hub/reconcile');
     expect(SERVICE_KPI_NAV_GROUP.items.length).toBeGreaterThanOrEqual(8);
+    const reconcile = SERVICE_KPI_NAV_GROUP.items.find((i) => i.href === '/crm/kpi-hub/reconcile');
+    expect(reconcile?.label).toBe('Quoted vs Delivered vs Reported');
+    const warRoom = SERVICE_KPI_NAV_GROUP.items.find((i) => i.href === '/crm/kpi-hub/service-kpi');
+    expect(warRoom?.badgeKey).toBe('warRoom');
   });
 
   it('flat nav includes all grouped items', () => {

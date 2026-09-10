@@ -13,7 +13,9 @@ import {
   fetchServiceKpiReconcileSources,
 } from '@/lib/service-kpi-api';
 import { dictionaryLabelMap } from '@/lib/service-kpi-dictionary-labels';
+import { MOAT_RECONCILE_SUCCESS, SKPI_SUBTITLES } from '@/lib/service-kpi-copy';
 import type { ServiceKpiQuoteContractScore, ServiceKpiReconcileRow } from '@/lib/service-kpi-types';
+import { SkpiSuccessBanner } from '@/components/kpi-hub/service-kpi/SkpiSuccessBanner';
 
 type SourceOption = {
   source_type: string;
@@ -86,9 +88,9 @@ export default function KpiHubReconcilePage() {
   return (
     <KpiHubPageGate section="crm_kpi_hub">
       <KpiHubShell
-        title="Quoted vs Actual"
-        subtitle="Đối soát 3 sổ Quoted · Delivered · Reported và hành vi publish"
-        breadcrumb={[{ label: 'KPI Hub' }, { label: 'Service KPI' }, { label: 'Quoted vs Actual' }]}
+        title="Quoted vs Delivered vs Reported"
+        subtitle={SKPI_SUBTITLES.reconcile}
+        breadcrumb={[{ label: 'KPI Hub' }, { label: 'Service KPI' }, { label: 'Quoted vs Delivered vs Reported' }]}
         actions={
           <button
             type="button"
@@ -121,6 +123,7 @@ export default function KpiHubReconcilePage() {
         {loading ? <p className="kpi-hub-muted">Đang tải…</p> : null}
         {error ? <p className="kpi-hub-form-error">{error}</p> : null}
         <ServiceKpiReconcileTable rows={rows} sourceId={selectedLabel} dictionaryLabels={labels} />
+        <SkpiSuccessBanner>{MOAT_RECONCILE_SUCCESS}</SkpiSuccessBanner>
       </KpiHubShell>
       <ServiceKpiChangeOrderDrawer
         open={coOpen}

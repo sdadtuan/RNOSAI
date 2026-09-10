@@ -11,6 +11,7 @@ import { ServiceKpiInstancesService } from './service-kpi-instances.service';
 import { ServiceKpiRepository } from './service-kpi.repository';
 import { flagMaterialReconcileRows } from './service-kpi-change-order';
 import { aggregateTrackingSummary } from './service-kpi-tracking';
+import { buildServiceKpiOverview } from './service-kpi-overview';
 import { buildWarRoom } from './service-kpi-war-room';
 import { fireServiceKpiVarianceAlert } from './service-kpi-variance-alert';
 import type {
@@ -232,6 +233,44 @@ export class ServiceKpiOperationsService {
       });
     }
     return { source_id: sourceId, rows: flagMaterialReconcileRows(rows) };
+  }
+
+  async getOverview() {
+    const [templatesRes, all] = await Promise.all([
+      this.repo.listTemplates({ status: 'ACTIVE' }),
+      this.repo.listAllInstances(),
+    ]);
+    const enriched = await Promise.all(all.map((row) => this.instances.get(row.id)));
+    const withPlan = await Promise.all(
+      all.map(async (i) => {
+        try {
+          await this.getMeasurementPlan(i.id);
+          return true;
+        } catch {
+          return false;
+        }
+      }),
+    );
+    const tracking = enriched.filter((i) => i.status === 'TRACKING').length;
+    const atRisk = enriched.filter((i) => i.status === 'AT_RISK').length;
+    const critical = enriched.filter(
+      (i) => i.status === 'AT_RISK' && i.variance_pct != null && i.variance_pct > 10,
+    ).length;
+    const readinessWarn = enriched.filter(
+      (i) => i.readiness_level && i.readiness_level !== 'pass' && i.readiness_level !== 'ready',
+    ).length;
+    const readinessBlock = enriched.filter((i) => i.readiness_level === 'fail').length;
+
+    return buildServiceKpiOverview({
+      templates_active: templatesRes.total,
+      instances_total: all.length,
+      instances_tracking: tracking,
+      instances_with_plan: withPlan.filter(Boolean).length,
+      readiness_warning: readinessWarn,
+      readiness_blocking: readinessBlock,
+      at_risk: atRisk,
+      at_risk_critical: critical,
+    });
   }
 
   async getWarRoom(opts: { includeGm: boolean }) {

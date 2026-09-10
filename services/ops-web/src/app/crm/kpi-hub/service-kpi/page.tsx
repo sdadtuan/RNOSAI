@@ -7,6 +7,7 @@ import { KpiHubShell } from '@/components/kpi-hub/KpiHubShell';
 import { ServiceKpiWarRoom } from '@/components/kpi-hub/service-kpi/ServiceKpiWarRoom';
 import { getAccessToken } from '@/lib/auth';
 import { fetchServiceKpiWarRoom } from '@/lib/service-kpi-api';
+import { SKPI_SUBTITLES } from '@/lib/service-kpi-copy';
 import type { ServiceKpiWarRoomData } from '@/lib/service-kpi-types';
 
 const EMPTY: ServiceKpiWarRoomData = {
@@ -41,7 +42,7 @@ export default function KpiHubServiceKpiWarRoomPage() {
     <KpiHubPageGate section="crm_kpi_hub">
       <KpiHubShell
         title="Service KPI War Room"
-        subtitle="Nhịp vận hành tuần: assumption, alert, data stale, lệch KPI+GM, quote Contract Score"
+        subtitle={SKPI_SUBTITLES.warroom}
         breadcrumb={[{ label: 'KPI Hub' }, { label: 'Service KPI' }, { label: 'War Room' }]}
         actions={
           <>

@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
+import { MOAT_CONTRACT } from '@/lib/service-kpi-copy';
 import { ServiceKpiSummaryTiles } from '@/components/kpi-hub/service-kpi/ServiceKpiSummaryTiles';
+import { SkpiTwoColumnLayout } from './SkpiTwoColumnLayout';
 import type {
   ServiceKpiContractRiskItem,
   ServiceKpiContractScoreLive,
@@ -97,19 +99,19 @@ export function ServiceKpiContractCard({
           <ServiceKpiSummaryTiles
             tiles={[
               {
-                label: `${selected.quote_code ?? 'Quote'} score`,
+                label: `${selected.quote_code ?? 'QT'} SCORE`,
                 value: liveScore.score,
                 hint: scoreHint,
                 tone: liveScore.blockSubmit ? 'critical' : liveScore.score >= 70 ? 'warn' : 'default',
               },
               {
-                label: 'Classification risk',
+                label: 'CLASSIFICATION RISK',
                 value: liveScore.classification_risk ?? Math.round((liveScore.parts.classification ?? 0) / 0.25),
-                hint: liveScore.classification_hint ?? 'Client-facing KPI',
+                hint: liveScore.classification_hint ?? 'Forecast client-facing',
                 tone: (liveScore.classification_risk ?? 0) >= 40 ? 'warn' : 'default',
               },
               {
-                label: 'Target aggressiveness',
+                label: 'TARGET AGGRESSIVENESS',
                 value: liveScore.target_aggressiveness ?? Math.round((liveScore.parts.aggressiveness ?? 0) / 0.25),
                 hint: topAggressive
                   ? `${topAggressive.dictionary_id} ${formatVnd(topAggressive.target_min ?? topAggressive.target_max)}${
@@ -121,7 +123,7 @@ export function ServiceKpiContractCard({
                 tone: (liveScore.target_aggressiveness ?? 0) >= 25 ? 'critical' : 'warn',
               },
               {
-                label: 'Margin pressure',
+                label: 'MARGIN PRESSURE',
                 value: liveScore.margin_pressure ?? Math.round((liveScore.parts.margin ?? 0) / 0.15),
                 hint:
                   gmPct != null
@@ -132,8 +134,10 @@ export function ServiceKpiContractCard({
             ]}
           />
 
-          <div className="kpi-hub-skpi-measurement-form__layout" style={{ marginTop: 16 }}>
-            <div className="kpi-hub-skpi-contract__main">
+          <SkpiTwoColumnLayout
+            className="kpi-hub-skpi-contract-layout"
+            main={
+              <div className="kpi-hub-skpi-contract__main">
               <section className="kpi-hub-card">
                 <header className="kpi-hub-card__head">
                   <h2>Cổng duyệt — cùng lúc GM + Score</h2>
@@ -184,11 +188,7 @@ export function ServiceKpiContractCard({
                   <h2>Vì sao đối thủ không làm được</h2>
                 </header>
                 <div className="kpi-hub-card__body">
-                  <p className="kpi-hub-muted kpi-hub-skpi-contract__moat">
-                    AgencyAnalytics không biết GM. Productive biết utilization, không biết CPL có phải cam kết.
-                    HubSpot duyệt deal, không duyệt ngôn ngữ forecast trên proposal agency. RNOSAI cộng Score vào
-                    cổng Quote OS đã có.
-                  </p>
+                  <p className="kpi-hub-muted kpi-hub-skpi-contract__moat">{MOAT_CONTRACT}</p>
                 </div>
               </section>
 
@@ -225,33 +225,35 @@ export function ServiceKpiContractCard({
                   </div>
                 </section>
               ) : null}
-            </div>
-
-            <aside className="kpi-hub-card kpi-hub-skpi-contract__aside">
-              <header className="kpi-hub-card__head">
-                <h2>Công thức (internal)</h2>
-              </header>
-              <div className="kpi-hub-card__body">
-                <div className="kpi-hub-skpi-formula">
-                  <code>Risk = 0.25 Class + 0.25 Aggr + 0.20 Assume + 0.15 Data + 0.15 Margin</code>
-                </div>
-                <ul className="kpi-hub-skpi-gate-list" style={{ marginTop: 12 }}>
-                  <li className="kpi-hub-skpi-gate-row is-ok">
-                    <span>Public API</span>
-                    <b>Không trả score</b>
-                  </li>
-                  <li className="kpi-hub-skpi-gate-row">
-                    <span>Assumption mở</span>
-                    <b>{liveScore.assumption_open ?? 0}%</b>
-                  </li>
-                  <li className="kpi-hub-skpi-gate-row">
-                    <span>Data readiness gap</span>
-                    <b>{liveScore.data_readiness_gap ?? 0}%</b>
-                  </li>
-                </ul>
               </div>
-            </aside>
-          </div>
+            }
+            aside={
+              <article className="kpi-hub-card kpi-hub-skpi-contract__aside">
+                <header className="kpi-hub-card__head">
+                  <h2>Công thức (internal)</h2>
+                </header>
+                <div className="kpi-hub-card__body">
+                  <div className="kpi-hub-skpi-formula">
+                    <code>Risk = 0.25 Class + 0.25 Aggr + 0.20 Assume + 0.15 Data + 0.15 Margin</code>
+                  </div>
+                  <ul className="kpi-hub-skpi-gate-list" style={{ marginTop: 12 }}>
+                    <li className="kpi-hub-skpi-gate-row is-ok">
+                      <span>Public API</span>
+                      <b>Không trả score</b>
+                    </li>
+                    <li className="kpi-hub-skpi-gate-row">
+                      <span>Assumption mở</span>
+                      <b>{liveScore.assumption_open ?? 0}%</b>
+                    </li>
+                    <li className="kpi-hub-skpi-gate-row">
+                      <span>Data readiness gap</span>
+                      <b>{liveScore.data_readiness_gap ?? 0}%</b>
+                    </li>
+                  </ul>
+                </div>
+              </article>
+            }
+          />
         </>
       ) : null}
 

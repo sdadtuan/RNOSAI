@@ -17,6 +17,7 @@ import { useServiceKpiInstances } from '@/hooks/useServiceKpiInstances';
 import { useServiceKpiTracking } from '@/hooks/useServiceKpiTracking';
 import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import { dictionaryLabelMap } from '@/lib/service-kpi-dictionary-labels';
+import { SKPI_SUBTITLES } from '@/lib/service-kpi-copy';
 
 export default function KpiHubTrackingPage() {
   const token = getAccessToken() ?? '';
@@ -69,7 +70,7 @@ export default function KpiHubTrackingPage() {
     <KpiHubPageGate section="crm_kpi_hub">
       <KpiHubShell
         title="Actual Tracking"
-        subtitle="Theo dõi actual theo kỳ, variance và chất lượng dữ liệu"
+        subtitle={SKPI_SUBTITLES.tracking}
         breadcrumb={[{ label: 'KPI Hub' }, { label: 'Service KPI' }, { label: 'Actual Tracking' }]}
         actions={
           <>

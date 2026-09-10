@@ -6,6 +6,7 @@ import { KpiHubShell } from '@/components/kpi-hub/KpiHubShell';
 import { ServiceKpiPolicyPackView } from '@/components/kpi-hub/service-kpi/ServiceKpiPolicyPackView';
 import { getAccessToken } from '@/lib/auth';
 import { fetchServiceKpiPolicyPacks } from '@/lib/service-kpi-api';
+import { SKPI_SUBTITLES } from '@/lib/service-kpi-copy';
 import type { ServiceKpiPolicyPack } from '@/lib/service-kpi-types';
 
 export default function KpiHubPolicyPacksPage() {
@@ -39,7 +40,7 @@ export default function KpiHubPolicyPacksPage() {
     <KpiHubPageGate section="crm_kpi_hub">
       <KpiHubShell
         title="Industry Policy Pack"
-        subtitle="Rule + từ cấm + reviewer theo ngành. Pack regulated không override tay."
+        subtitle={SKPI_SUBTITLES.packs}
         breadcrumb={[{ label: 'KPI Hub' }, { label: 'Service KPI' }, { label: 'Policy Pack' }]}
         searchPlaceholder="Tìm pack, ngành, từ cấm…"
       >

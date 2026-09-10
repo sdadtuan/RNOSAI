@@ -277,6 +277,12 @@ export class ServiceKpiController {
     return this.operations.getTrackingDashboard(instanceId);
   }
 
+  @Get('service-kpi/overview')
+  @UseGuards(StaffKpiHubViewGuard)
+  overview() {
+    return this.operations.getOverview();
+  }
+
   @Get('service-kpi/war-room')
   @UseGuards(StaffKpiHubViewGuard)
   async warRoom(@Req() req: AuthedReq) {

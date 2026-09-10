@@ -237,24 +237,24 @@ export function trackingSummaryTiles(summary: ServiceKpiTrackingSummary) {
 
   return [
     {
-      label: 'Actual hôm nay',
+      label: 'ACTUAL HÔM NAY',
       value: summary.today_total,
       hint: `${summary.verified_pct}% valid/verified`,
       tone: summary.today_total ? ('ok' as const) : ('default' as const),
     },
     {
-      label: 'API / connector',
+      label: 'API / CONNECTOR',
       value: summary.api_connector_total,
       hint: summary.api_connector_hint,
     },
     {
-      label: 'Manual / import',
+      label: 'MANUAL / IMPORT',
       value: summary.manual_import_total,
       hint: summary.pending_verify ? `${summary.pending_verify} pending verify` : '—',
       tone: summary.pending_verify ? ('warn' as const) : ('default' as const),
     },
     {
-      label: 'Data issues',
+      label: 'DATA ISSUES',
       value: String(summary.data_issues).padStart(2, '0'),
       hint: dataIssuesHint,
       tone: summary.data_issues ? ('critical' as const) : ('default' as const),
