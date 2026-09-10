@@ -2,7 +2,7 @@
 
 > **Module:** MOD-CMKT · **Phiên bản:** P0–P2 + M7–M16  
 > **Đối tượng:** SP Content, Lead SP, QA, AM, Designer, Khách hàng (portal)  
-> **URL chính:** `/crm/service-delivery/[id]?tab=content-os`  
+> **URL chính:** `/crm/content-os` (sidebar) → `/crm/service-delivery/[id]?tab=content-os`  
 > **Use case:** [`docs/use-cases/11-CONTENT-MARKETING.md`](../use-cases/11-CONTENT-MARKETING.md)
 
 Tài liệu này mô tả **toàn bộ phân hệ tạo content** — mọi kênh, AI draft, tạo hình ảnh/carousel, tạo video ngắn, repurpose, bridge SEO/Email — với **hướng dẫn từng bước trên UI**.
@@ -45,7 +45,7 @@ AI Planner (TMMT) → Idea bank → Content item → AI draft → Review → Cal
 |------|---------------------|-------|
 | `PTT_CONTENT_MARKETING_ENABLED` | `1` | Bật module backend |
 | `PTT_CONTENT_MARKETING_FE` | `1` | Gate BE cho ops-web |
-| `NEXT_PUBLIC_CONTENT_MARKETING` | `1` | Hiện tab **Content Board** trên ops-web |
+| `NEXT_PUBLIC_CONTENT_MARKETING` | `1` | Hiện sidebar **Content Marketing OS** + tab **Content Board** |
 | `PTT_CONTENT_MARKETING_SLUGS` | `tiep-thi-noi-dung` | Slug dịch vụ pilot (phân cách dấu phẩy nếu nhiều) |
 | `PTT_CONTENT_MARKETING_AI_ENABLED` | `1` | AI draft, variants, repurpose, bulk ideas |
 | `PTT_CONTENT_MARKETING_APPROVAL_REQUIRED` | `1` | Bắt buộc workflow duyệt |

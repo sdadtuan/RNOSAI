@@ -193,6 +193,14 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     ],
   },
   {
+    prefix: '/crm/content-os',
+    anyOf: [
+      { section: 'crm_content', action: 'view' },
+      { section: 'crm_content', action: 'write' },
+      { section: 'crm_content', action: 'generate' },
+    ],
+  },
+  {
     prefix: '/admin/crm/csd',
     anyOf: [{ section: 'csd', action: 'admin' }],
   },

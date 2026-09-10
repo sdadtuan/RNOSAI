@@ -2,7 +2,7 @@
 
 > **Module:** MOD-CMKT  
 > **Đối tượng:** SP Content, Lead SP, QA, AM  
-> **Route chính:** `/crm/service-delivery/[id]?tab=content-os`  
+> **Route chính:** `/crm/content-os` → `/crm/service-delivery/[id]?tab=content-os`  
 > **Flags:** `PTT_CONTENT_MARKETING_ENABLED=1`, `NEXT_PUBLIC_CONTENT_MARKETING=1`  
 > **Bản đầy đủ (mọi kênh, ảnh, video, thiết lập môi trường):** [`18-content-marketing-os.md`](./18-content-marketing-os.md)
 
@@ -18,8 +18,8 @@ Content OS nằm **trong lifecycle detail** — quản lý idea → draft AI →
 
 ## 2. Mở Content Board
 
-1. Mở `/crm/service-delivery/[id]`
-2. Click tab **Content Board** (content-os)
+1. Sidebar **CRM · Triển khai dịch vụ** → **Content Marketing OS** (`/crm/content-os`), hoặc mở `/crm/service-delivery/[id]`
+2. Click lifecycle / tab **Content Board** (content-os)
 3. Banner hiển thị trạng thái **snapshot Planner** (sealed / chưa import)
 4. Sub-nav: **Overview**, **Ideas**, **Board**, **Calendar**
 

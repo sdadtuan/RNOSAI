@@ -1,4 +1,5 @@
-import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { canViewContentOs, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
 
 export type ModuleNavLink = {
@@ -17,6 +18,9 @@ export function buildCrmDeliveryModuleLinks(user: StoredStaffUser | null): Modul
     { href: '/crm/creatives', label: 'Creative Hub' },
     { href: '/crm/campaign-writes', label: 'Campaign Write' },
   ];
+  if (isContentMarketingFeEnabled() && canViewContentOs(user)) {
+    links.push({ href: '/crm/content-os', label: 'Content Marketing OS' });
+  }
   if (isOpsDvFeEnabled()) {
     links.push(
       { href: '/crm/ops/dashboard', label: 'Ops Dashboard' },
