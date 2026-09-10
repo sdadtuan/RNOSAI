@@ -48,6 +48,18 @@ describe('publishGateFlagsFromItem', () => {
     expect(evaluatePublishGate(flags).status).toBe('Pass');
   });
 
+  it('sets rightsValid false when item.rights_valid is false', () => {
+    const flags = publishGateFlagsFromItem(
+      item({
+        status: 'client_approved',
+        brief_json: { hook: 'ready', destination_url: 'https://example.com/post' },
+        rights_valid: false,
+      }),
+    );
+    expect(flags.rightsValid).toBe(false);
+    expect(evaluatePublishGate(flags).status).toBe('Blocked');
+  });
+
   it('ignores brief_json.publish_gate so write-cap cannot stuff Pass', () => {
     const flags = publishGateFlagsFromItem(
       item({
@@ -84,17 +96,17 @@ describe('canMarkPublished', () => {
     expect(canMarkPublished('Pass', 'published')).toBe(false);
   });
 
-  // E1 UAT: Rights Invalid → gate Blocked → Mark published disabled.
-  it('is false when rightsValid is false because the gate is Blocked', () => {
-    const gate = evaluatePublishGate({
-      briefReady: true,
-      internalApproved: true,
-      legalRequired: false,
-      legalApproved: false,
-      clientApproved: true,
-      urlOk: true,
-      rightsValid: false,
-    });
+  // E1 UAT: Rights Invalid → GET rights_valid false → gate Blocked → Mark published disabled.
+  it('is false when item.rights_valid is false because the gate is Blocked', () => {
+    const flags = publishGateFlagsFromItem(
+      item({
+        status: 'client_approved',
+        brief_json: { hook: 'ready', destination_url: 'https://example.com/post' },
+        rights_valid: false,
+      }),
+    );
+    const gate = evaluatePublishGate(flags);
+    expect(flags.rightsValid).toBe(false);
     expect(gate.status).toBe('Blocked');
     expect(gate.blockers.map((row) => row.code)).toContain('rights_invalid');
     expect(canMarkPublished(gate.status)).toBe(false);

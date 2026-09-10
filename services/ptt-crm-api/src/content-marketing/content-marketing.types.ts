@@ -202,6 +202,7 @@ export type CmktItemRow = {
   updated_at: string;
   approval_matrix?: { steps: string[]; gateBlockers: string[] };
   claim_hits?: string[];
+  rights_valid?: boolean;
 };
 
 export type CmktItemVersionRow = {

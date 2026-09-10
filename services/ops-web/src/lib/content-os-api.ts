@@ -175,6 +175,7 @@ export type ContentOsItem = {
   updated_at: string;
   approval_matrix?: { steps: string[]; gateBlockers: string[] };
   claim_hits?: string[];
+  rights_valid?: boolean;
 };
 
 export const CMKT_P0_PAIRS = [

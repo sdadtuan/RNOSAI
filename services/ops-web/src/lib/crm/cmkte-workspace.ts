@@ -28,6 +28,7 @@ export function publishGateFlagsFromItem(item: ContentOsItem | null): PublishGat
     legalApproved: false,
     clientApproved: CLIENT_OK.has(status),
     urlOk: /^https?:\/\//i.test(dest),
+    ...(item?.rights_valid === false ? { rightsValid: false } : {}),
   };
 }
 

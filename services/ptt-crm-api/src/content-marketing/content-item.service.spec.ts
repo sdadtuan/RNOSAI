@@ -383,6 +383,52 @@ describe('ContentItemService.getItem matrix', () => {
       gateBlockers: [],
     });
     expect(out.claim_hits).toEqual(['số 1']);
+    expect(out).not.toHaveProperty('rights_valid');
+  });
+
+  it('attaches rights_valid false when required asset rights are Invalid', async () => {
+    repo.getItemById.mockResolvedValue({
+      id: 7,
+      lifecycle_id: 1,
+      status: 'draft',
+      risk_level: 'Normal',
+      channel: 'facebook',
+      brief_json: {},
+      body_json: {},
+      media_json: {
+        ai_assets: [
+          {
+            id: 'a1',
+            type: 'image',
+            url: 'https://cdn/blocked.jpg',
+            ai_generated: true,
+            provider: 'x',
+            selected: true,
+          },
+        ],
+      },
+    });
+    repo.listAssetRights.mockResolvedValue([
+      { asset_ref: 'https://cdn/blocked.jpg', status: 'Invalid' },
+    ]);
+
+    const out = await service.getItem(1, 7);
+    expect(out.rights_valid).toBe(false);
+  });
+
+  it('omits rights_valid when there are no required assets', async () => {
+    repo.getItemById.mockResolvedValue({
+      id: 7,
+      lifecycle_id: 1,
+      status: 'draft',
+      brief_json: {},
+      body_json: {},
+      media_json: {},
+    });
+    repo.listAssetRights.mockResolvedValue([]);
+
+    const out = await service.getItem(1, 7);
+    expect(out).not.toHaveProperty('rights_valid');
   });
 });
 

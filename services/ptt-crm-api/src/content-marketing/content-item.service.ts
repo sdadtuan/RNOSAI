@@ -49,7 +49,11 @@ export class ContentItemService {
       throw new NotFoundException({ error: 'item_not_found', id: itemId });
     }
     const rights = await this.repo.listAssetRights(itemId);
-    return attachApprovalMatrix(item, rights);
+    const { rightsValid } = evaluateItemRights(item.media_json, rights);
+    return {
+      ...attachApprovalMatrix(item, rights),
+      ...(rightsValid !== undefined ? { rights_valid: rightsValid } : {}),
+    };
   }
 
   async createItem(
