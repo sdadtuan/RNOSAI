@@ -32,6 +32,7 @@ import { ContentRepurposeService } from './content-repurpose.service';
 import { ContentSeoBridgeService } from './content-seo-bridge.service';
 import { ContentSeoBridgeSyncService } from './content-seo-bridge-sync.service';
 import { ContentVisualService } from './content-visual.service';
+import { ApprovalPackageService } from './approval-package.service';
 import { ContentWorkflowService } from './content-workflow.service';
 import { ContentMarketingController } from './content-marketing.controller';
 import { ContentMarketingRepository } from './content-marketing.repository';
@@ -69,6 +70,7 @@ import { SocialVideoService } from './video-social/social-video.service';
     ContentMarketingService,
     ContentBrandContextService,
     ContentPlanSnapshotService,
+    ApprovalPackageService,
     ContentWorkflowService,
     ContentCalendarService,
     ContentAuditService,

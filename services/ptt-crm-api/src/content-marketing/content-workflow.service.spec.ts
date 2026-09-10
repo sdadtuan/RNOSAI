@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { ApprovalPackageService } from './approval-package.service';
 import { ContentWorkflowService } from './content-workflow.service';
 
 const COMPLETE_BRIEF = {
@@ -23,6 +24,10 @@ describe('ContentWorkflowService', () => {
     insertItemComment: jest.fn(),
     listReviewQueue: jest.fn(),
     getReviewQueueSummary: jest.fn(),
+    listAssetRights: jest.fn().mockResolvedValue([]),
+    insertApprovalPackage: jest.fn(),
+    getLatestApprovalPackage: jest.fn(),
+    updateApprovalPackageStatus: jest.fn(),
   };
 
   const production = { initProductionOnApprove: jest.fn().mockResolvedValue(undefined) };
@@ -31,7 +36,14 @@ describe('ContentWorkflowService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ContentWorkflowService(config as never, core as never, repo as never, production as never);
+    repo.listAssetRights.mockResolvedValue([]);
+    service = new ContentWorkflowService(
+      config as never,
+      core as never,
+      repo as never,
+      production as never,
+      new ApprovalPackageService(repo as never),
+    );
   });
 
   it('submitReview moves draft to in_review', async () => {
@@ -53,6 +65,40 @@ describe('ContentWorkflowService', () => {
     expect(repo.insertItemVersion).toHaveBeenCalledWith(1, expect.anything(), 'sp@test.vn', 'submit_review');
   });
 
+  it('submitReview inserts a Sent approval package snapshot after gates pass', async () => {
+    const rights = [{ id: 2, item_id: 1, asset_ref: 'https://cdn/a.jpg', status: 'Valid' }];
+    repo.getItemById.mockResolvedValue({
+      id: 1,
+      status: 'draft',
+      risk_level: 'Normal',
+      brief_json: COMPLETE_BRIEF,
+      body_json: { markdown: 'Hello world content' },
+      media_json: { selected_asset_id: 'a1' },
+    });
+    repo.patchItem.mockResolvedValue({
+      id: 1,
+      status: 'in_review',
+      body_json: { markdown: 'Hello world content' },
+    });
+    repo.listAssetRights.mockResolvedValue(rights);
+    repo.insertApprovalPackage.mockResolvedValue({ id: 9, status: 'Sent' });
+
+    await service.submitReview(1, 1, 'sp@test.vn');
+
+    expect(repo.insertApprovalPackage).toHaveBeenCalledWith({
+      item_id: 1,
+      status: 'Sent',
+      created_by: 'sp@test.vn',
+      snapshot_json: {
+        body_json: { markdown: 'Hello world content' },
+        brief_json: COMPLETE_BRIEF,
+        media: { selected_asset_id: 'a1' },
+        rights,
+        disclaimer: 'Results vary',
+      },
+    });
+  });
+
   it('submitReview rejects when brief score is below threshold', async () => {
     repo.getItemById.mockResolvedValue({
       id: 1,
@@ -66,6 +112,7 @@ describe('ContentWorkflowService', () => {
       response: { error: 'brief_incomplete', score: 15, threshold: 80 },
     });
     expect(repo.patchItem).not.toHaveBeenCalled();
+    expect(repo.insertApprovalPackage).not.toHaveBeenCalled();
   });
 
   it('submitReview uses 95 threshold for Brand-Sensitive risk', async () => {

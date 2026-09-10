@@ -213,6 +213,30 @@ export type CmktItemVersionRow = {
   created_at: string;
 };
 
+export type CmktApprovalPackageSnapshot = {
+  body_json: CmktBodyJson;
+  brief_json: Record<string, unknown>;
+  media: CmktMediaJson;
+  rights: unknown;
+  disclaimer: unknown;
+};
+
+export type CmktApprovalPackageRow = {
+  id: number;
+  item_id: number;
+  snapshot_json: CmktApprovalPackageSnapshot;
+  status: string;
+  created_by: string;
+  created_at: string;
+};
+
+export type CmktApprovalPackageWrite = {
+  item_id: number;
+  snapshot_json: CmktApprovalPackageSnapshot;
+  status: string;
+  created_by: string;
+};
+
 export type CmktSnapshotSummary = {
   id: number;
   sealed: boolean;

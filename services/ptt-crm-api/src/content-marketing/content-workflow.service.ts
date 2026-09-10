@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { ApprovalPackageService } from './approval-package.service';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import { ContentProductionService } from './content-production.service';
@@ -26,6 +27,7 @@ export class ContentWorkflowService {
     private readonly core: ContentMarketingService,
     private readonly repo: ContentMarketingRepository,
     private readonly production: ContentProductionService,
+    private readonly packages: ApprovalPackageService,
   ) {}
 
   private assertClientGateEnabled(): void {
@@ -60,6 +62,7 @@ export class ContentWorkflowService {
       in_review_at: new Date().toISOString(),
     });
     await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'submit_review');
+    await this.packages.createSentOnSubmit(item, actorEmail);
     return updated;
   }
 

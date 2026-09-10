@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { ApprovalPackageService } from './approval-package.service';
 import { ContentIdeaService } from './content-idea.service';
 import { ContentItemService } from './content-item.service';
 import { ContentMarketingService } from './content-marketing.service';
@@ -73,6 +74,8 @@ describe('ContentItemService', () => {
     insertItemVersion: jest.fn(),
     staffExists: jest.fn(),
     getItemVersionByNo: jest.fn(),
+    getLatestApprovalPackage: jest.fn(),
+    updateApprovalPackageStatus: jest.fn(),
   };
 
   const config = {
@@ -83,7 +86,13 @@ describe('ContentItemService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ContentItemService(config as never, core as never, repo as never);
+    repo.getLatestApprovalPackage.mockResolvedValue(null);
+    service = new ContentItemService(
+      config as never,
+      core as never,
+      repo as never,
+      new ApprovalPackageService(repo as never),
+    );
   });
 
   it('createItem rejects invalid channel format', async () => {

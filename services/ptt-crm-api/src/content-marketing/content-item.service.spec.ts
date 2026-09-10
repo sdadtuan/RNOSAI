@@ -1,4 +1,5 @@
 import { ConflictException } from '@nestjs/common';
+import { ApprovalPackageService } from './approval-package.service';
 import { ContentItemService } from './content-item.service';
 
 describe('ContentItemService brief lock', () => {
@@ -11,13 +12,21 @@ describe('ContentItemService brief lock', () => {
     createItem: jest.fn(),
     nextItemSeq: jest.fn(),
     listItems: jest.fn(),
+    getLatestApprovalPackage: jest.fn(),
+    updateApprovalPackageStatus: jest.fn(),
   };
 
   let service: ContentItemService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ContentItemService(config as never, core as never, repo as never);
+    repo.getLatestApprovalPackage.mockResolvedValue(null);
+    service = new ContentItemService(
+      config as never,
+      core as never,
+      repo as never,
+      new ApprovalPackageService(repo as never),
+    );
   });
 
   it('persists brief_score when patching brief_json', async () => {
@@ -131,13 +140,21 @@ describe('ContentItemService master / deliverable', () => {
     createItem: jest.fn(),
     nextItemSeq: jest.fn(),
     listItems: jest.fn(),
+    getLatestApprovalPackage: jest.fn(),
+    updateApprovalPackageStatus: jest.fn(),
   };
 
   let service: ContentItemService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ContentItemService(config as never, core as never, repo as never);
+    repo.getLatestApprovalPackage.mockResolvedValue(null);
+    service = new ContentItemService(
+      config as never,
+      core as never,
+      repo as never,
+      new ApprovalPackageService(repo as never),
+    );
   });
 
   it('createItem as_master persists master_id null and a CNT display_code', async () => {
@@ -225,13 +242,21 @@ describe('ContentItemService publishItem gate', () => {
     nextItemSeq: jest.fn(),
     listItems: jest.fn(),
     listAssetRights: jest.fn(),
+    getLatestApprovalPackage: jest.fn(),
+    updateApprovalPackageStatus: jest.fn(),
   };
 
   let service: ContentItemService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ContentItemService(config as never, core as never, repo as never);
+    repo.getLatestApprovalPackage.mockResolvedValue(null);
+    service = new ContentItemService(
+      config as never,
+      core as never,
+      repo as never,
+      new ApprovalPackageService(repo as never),
+    );
   });
 
   function publishableItem(overrides: Record<string, unknown> = {}) {
@@ -285,5 +310,122 @@ describe('ContentItemService publishItem gate', () => {
       },
     });
     expect(repo.patchItem).not.toHaveBeenCalled();
+  });
+});
+
+describe('ContentItemService package lock', () => {
+  const config = {};
+  const core = { ensureLifecycleEnabled: jest.fn().mockResolvedValue({}) };
+  const repo = {
+    getItemById: jest.fn(),
+    patchItem: jest.fn(),
+    insertItemVersion: jest.fn(),
+    createItem: jest.fn(),
+    nextItemSeq: jest.fn(),
+    listItems: jest.fn(),
+    getLatestApprovalPackage: jest.fn(),
+    updateApprovalPackageStatus: jest.fn(),
+    staffExists: jest.fn(),
+  };
+
+  let service: ContentItemService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    repo.getLatestApprovalPackage.mockResolvedValue(null);
+    service = new ContentItemService(
+      config as never,
+      core as never,
+      repo as never,
+      new ApprovalPackageService(repo as never),
+    );
+  });
+
+  function draftItem(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 7,
+      status: 'in_review',
+      brief_json: { objective: 'Lead' },
+      body_json: { markdown: 'old body', variants: ['Hook A'] },
+      ...overrides,
+    };
+  }
+
+  it('rejects body_json patch when latest package is Sent', async () => {
+    repo.getItemById.mockResolvedValue(draftItem());
+    repo.getLatestApprovalPackage.mockResolvedValue({ id: 11, item_id: 7, status: 'Sent' });
+
+    await expect(
+      service.patchItem(1, 7, { body_json: { markdown: 'new body' } }, 'sp@test.vn'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      service.patchItem(1, 7, { body_json: { markdown: 'new body' } }, 'sp@test.vn'),
+    ).rejects.toMatchObject({ response: { error: 'package_locked' } });
+    expect(repo.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('rejects apply_variant when latest package is Sent', async () => {
+    repo.getItemById.mockResolvedValue(draftItem());
+    repo.getLatestApprovalPackage.mockResolvedValue({ id: 11, item_id: 7, status: 'Sent' });
+
+    await expect(
+      service.patchItem(1, 7, { apply_variant: true, selected_variant_idx: 0 }, 'sp@test.vn'),
+    ).rejects.toMatchObject({ response: { error: 'package_locked' } });
+    expect(repo.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('allows body patch with force_version, audits package_force_version, and supersedes Sent', async () => {
+    repo.getItemById.mockResolvedValue(draftItem());
+    repo.getLatestApprovalPackage.mockResolvedValue({ id: 11, item_id: 7, status: 'Sent' });
+    repo.patchItem.mockResolvedValue({
+      id: 7,
+      status: 'in_review',
+      body_json: { markdown: 'new body' },
+    });
+    repo.updateApprovalPackageStatus.mockResolvedValue({ id: 11, status: 'Superseded' });
+
+    await service.patchItem(
+      1,
+      7,
+      { body_json: { markdown: 'new body' }, force_version: true },
+      'sp@test.vn',
+    );
+
+    expect(repo.patchItem).toHaveBeenCalledWith(
+      1,
+      7,
+      expect.objectContaining({ body_json: { markdown: 'new body' } }),
+    );
+    expect(repo.insertItemVersion).toHaveBeenCalledWith(
+      7,
+      { markdown: 'new body' },
+      'sp@test.vn',
+      'package_force_version',
+    );
+    expect(repo.updateApprovalPackageStatus).toHaveBeenCalledWith(11, 'Superseded');
+  });
+
+  it('allows title-only patch while latest package is Sent', async () => {
+    repo.getItemById.mockResolvedValue(draftItem());
+    repo.getLatestApprovalPackage.mockResolvedValue({ id: 11, item_id: 7, status: 'Sent' });
+    repo.patchItem.mockResolvedValue({ id: 7, title: 'New title' });
+
+    await service.patchItem(1, 7, { title: 'New title' }, 'sp@test.vn');
+
+    expect(repo.patchItem).toHaveBeenCalledWith(1, 7, { title: 'New title' });
+    expect(repo.updateApprovalPackageStatus).not.toHaveBeenCalled();
+    expect(repo.insertItemVersion).not.toHaveBeenCalled();
+  });
+
+  it('allows assignee patch while latest package is Sent', async () => {
+    repo.getItemById.mockResolvedValue(draftItem());
+    repo.getLatestApprovalPackage.mockResolvedValue({ id: 11, item_id: 7, status: 'Sent' });
+    repo.staffExists.mockResolvedValue(true);
+    repo.patchItem.mockResolvedValue({ id: 7, assignee_sp: 4 });
+
+    await service.patchItemAssignees(1, 7, { assignee_sp: 4 });
+
+    expect(repo.patchItem).toHaveBeenCalledWith(1, 7, { assignee_sp: 4 });
+    expect(repo.updateApprovalPackageStatus).not.toHaveBeenCalled();
   });
 });

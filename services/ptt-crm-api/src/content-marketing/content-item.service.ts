@@ -11,6 +11,7 @@ import {
   stripContentResearchFromBrief,
 } from '../market-research/content-insight-snapshot.util';
 import { assertValidChannelFormat } from './content-marketing-channel.util';
+import { ApprovalPackageService } from './approval-package.service';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import { ContentMarketingService } from './content-marketing.service';
 import { emptyBodyJson } from './content-marketing.util';
@@ -28,6 +29,7 @@ export class ContentItemService {
     private readonly config: AppConfigService,
     private readonly core: ContentMarketingService,
     private readonly repo: ContentMarketingRepository,
+    private readonly packages: ApprovalPackageService,
   ) {}
 
   async listItems(
@@ -178,6 +180,11 @@ export class ContentItemService {
     }
 
     let versionReason: string | null = null;
+    const isBodyPatch =
+      (body.apply_variant === true && body.selected_variant_idx != null) || body.body_json != null;
+    if (isBodyPatch) {
+      await this.packages.assertBodyNotLocked(itemId, body.force_version === true);
+    }
     if (body.apply_variant === true && body.selected_variant_idx != null) {
       const idx = Number(body.selected_variant_idx);
       const variants = existing.body_json?.variants ?? [];
@@ -193,15 +200,18 @@ export class ContentItemService {
         html: existing.body_json?.html ?? '',
       };
       patch.selected_variant_idx = idx;
-      versionReason = 'manual';
+      versionReason = body.force_version === true ? 'package_force_version' : 'manual';
     } else if (body.body_json != null) {
       patch.body_json = body.body_json as CmktBodyJson;
-      versionReason = 'manual';
+      versionReason = body.force_version === true ? 'package_force_version' : 'manual';
     }
 
     const updated = await this.repo.patchItem(lifecycleId, itemId, patch);
     if (versionReason) {
       await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, versionReason);
+    }
+    if (isBodyPatch && body.force_version === true) {
+      await this.packages.supersedeLatestSent(itemId);
     }
     if (existing.brief_locked_at && body.brief_json != null && body.force_version === true) {
       await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'brief_force_version');

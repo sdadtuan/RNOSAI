@@ -25,6 +25,8 @@ import type {
   CmktReviewQueueSummary,
   CmktVisualReviewItem,
   CmktWeeklyMemoPreview,
+  CmktApprovalPackageRow,
+  CmktApprovalPackageWrite,
 } from './content-marketing.types';
 import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
 import type { AssetRightStatus, CmktAssetRightRow, CmktAssetRightWrite } from '../content-os-portfolio/content-os-portfolio.types';
@@ -55,6 +57,8 @@ type MemoryStore = {
   plannerSources: Map<number, PlannerIngestSource>;
   assetRights: Map<number, CmktAssetRightRow[]>;
   nextRightsId: number;
+  approvalPackages: Map<number, CmktApprovalPackageRow[]>;
+  nextApprovalPackageId: number;
 };
 
 function emptyCounts(): CmktContextCounts {
@@ -188,6 +192,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     plannerSources: new Map(),
     assetRights: new Map(),
     nextRightsId: 1,
+    approvalPackages: new Map(),
+    nextApprovalPackageId: 1,
   };
 
   constructor(private readonly config: AppConfigService) {}
@@ -2150,6 +2156,74 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     }
     return null;
   }
+
+  async insertApprovalPackage(input: CmktApprovalPackageWrite): Promise<CmktApprovalPackageRow> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO cmkt_approval_packages (item_id, snapshot_json, status, created_by)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, item_id, snapshot_json, status, created_by, created_at`,
+        [input.item_id, JSON.stringify(input.snapshot_json), input.status, input.created_by],
+      );
+      return mapApprovalPackageRow(res.rows[0] as Record<string, unknown>);
+    }
+    const row: CmktApprovalPackageRow = {
+      id: this.memory.nextApprovalPackageId++,
+      item_id: input.item_id,
+      snapshot_json: input.snapshot_json,
+      status: input.status,
+      created_by: input.created_by,
+      created_at: new Date().toISOString(),
+    };
+    const list = this.memory.approvalPackages.get(input.item_id) ?? [];
+    list.push(row);
+    this.memory.approvalPackages.set(input.item_id, list);
+    return row;
+  }
+
+  async getLatestApprovalPackage(itemId: number): Promise<CmktApprovalPackageRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT id, item_id, snapshot_json, status, created_by, created_at
+         FROM cmkt_approval_packages
+         WHERE item_id = $1
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1`,
+        [itemId],
+      );
+      return res.rows[0] ? mapApprovalPackageRow(res.rows[0] as Record<string, unknown>) : null;
+    }
+    const list = this.memory.approvalPackages.get(itemId) ?? [];
+    if (!list.length) return null;
+    return [...list].sort((a, b) => {
+      const byTime = String(b.created_at).localeCompare(String(a.created_at));
+      return byTime !== 0 ? byTime : b.id - a.id;
+    })[0];
+  }
+
+  async updateApprovalPackageStatus(
+    packageId: number,
+    status: string,
+  ): Promise<CmktApprovalPackageRow | null> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `UPDATE cmkt_approval_packages
+         SET status = $2
+         WHERE id = $1
+         RETURNING id, item_id, snapshot_json, status, created_by, created_at`,
+        [packageId, status],
+      );
+      return res.rows[0] ? mapApprovalPackageRow(res.rows[0] as Record<string, unknown>) : null;
+    }
+    for (const [itemId, list] of this.memory.approvalPackages.entries()) {
+      const idx = list.findIndex((row) => row.id === packageId);
+      if (idx < 0) continue;
+      list[idx] = { ...list[idx], status };
+      this.memory.approvalPackages.set(itemId, list);
+      return list[idx];
+    }
+    return null;
+  }
 }
 
 function mapAssetRightRow(row: Record<string, unknown>): CmktAssetRightRow {
@@ -2165,6 +2239,23 @@ function mapAssetRightRow(row: Record<string, unknown>): CmktAssetRightRow {
     releases_ok: Boolean(row.releases_ok),
     ai_declaration: Boolean(row.ai_declaration),
     status: String(row.status ?? 'Unknown') as AssetRightStatus,
+    created_at: row.created_at != null ? new Date(String(row.created_at)).toISOString() : new Date().toISOString(),
+  };
+}
+
+function mapApprovalPackageRow(row: Record<string, unknown>): CmktApprovalPackageRow {
+  return {
+    id: Number(row.id),
+    item_id: Number(row.item_id),
+    snapshot_json: (row.snapshot_json as CmktApprovalPackageRow['snapshot_json']) ?? {
+      body_json: {},
+      brief_json: {},
+      media: {},
+      rights: [],
+      disclaimer: null,
+    },
+    status: String(row.status ?? 'Draft'),
+    created_by: String(row.created_by ?? ''),
     created_at: row.created_at != null ? new Date(String(row.created_at)).toISOString() : new Date().toISOString(),
   };
 }

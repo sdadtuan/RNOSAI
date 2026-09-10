@@ -1,125 +1,80 @@
-# Task 18: Portal min + expire (PUB-01…03)
+# Task 18 Report: Approval package lock
 
-**Status:** GREEN  
-**Branch:** `feat/quotation-os`  
-**Commit:** `9bb808e7` `feat(qt): public proposal page and checkbox accept`
+**Date:** 2026-09-11  
+**Branch:** `feat/cmkte-e1`  
+**Worktree:** `/Users/quoctuan/Documents/CursorAI/RNOSAI/.worktrees/feat-cmkte-e1`  
+**Commit:** (this change) — `feat(cmkte): immutable approval package on submit`  
+**Status:** DONE
 
-## Requirements
+## What was implemented
 
-- `@Controller('api/public/proposals')` — no staff guard
-- W1 token: 32-byte random, store sha256 in `crm_quote_shares.token_hash`
-- Staff mint helper + `POST /api/crm/proposals/:id/share` (write guard)
-- `GET /api/public/proposals/:token` — public JSON via `stripPublicQuote` (no `cost`, `margin`, `gm_bps`, `nsr`, cost_*, approval internals)
-- Expired (`valid_until` or `expires_at`) or `revoked_at` → **410**, body without investment
-- `POST /api/public/proposals/:token/accept` — checkbox + name/email, status `accepted`, `option_key` `A`, no OTP, no convert
-- Portal `/proposals/[token]` Vietnamese, CTA **Xác nhận đề xuất**
-- Money BIGINT / empty `—`. No fake 0. No `265.647.600` in UI
+| Surface | Behavior |
+|---|---|
+| `ApprovalPackageService.createSentOnSubmit` | After brief + body gates, `submitReview` inserts `cmkt_approval_packages` with `status='Sent'` and `snapshot_json={ body_json, brief_json, media, rights, disclaimer }`. Media from `media_json`, rights from `listAssetRights`, disclaimer from `brief_json.disclaimer`. |
+| `patchItem` body / `apply_variant` | Latest package `Sent` → `ConflictException({ error: 'package_locked' })`. `brief_locked` unchanged. |
+| `force_version === true` | Allows the body patch, `insertItemVersion(..., 'package_force_version')`, latest Sent → `Superseded`. |
+| Title / assignee | Not package-locked. |
+| Reject comment ≥ 10 | Unchanged (existing `assertRejectComment`). |
 
-## TDD
+Did **not** implement Task 19 matrix, Task 20 collision, or Task 21 portal strip. Did not seed clients, enable `CP_AI_ENABLED`, or touch Video SOP / Creative OS / `QC_CHECK_KEYS`.
+
+## TDD evidence
 
 ### RED
 
-Wrote specs first. First run (no production files):
+Tests written first. First Jest run (implementation missing):
 
 ```
-TS2307: Cannot find module './quote-public-strip.util'
-TS2307: Cannot find module './quote-public.service'
-TS2307: Cannot find module './quote-share.util'
+cd services/ptt-crm-api && ./node_modules/.bin/jest \
+  src/content-marketing/approval-package.service.spec.ts \
+  src/content-marketing/content-workflow.service.spec.ts \
+  src/content-marketing/content-item.service.spec.ts \
+  --no-coverage
+```
+
+| Spec | Failure (expected) |
+|---|---|
+| `approval-package.service.spec.ts` | `TS2307: Cannot find module './approval-package.service'` |
+| `content-workflow.service.spec.ts` | Same missing module; `TS2554` Expected 4 arguments, but got 5 |
+| `content-item.service.spec.ts` | Same missing module; `TS2554` Expected 3 arguments, but got 4 |
+
+```
+Test Suites: 3 failed, 3 total
+Tests:       0 total
 ```
 
 ### GREEN
 
-```
-cd services/ptt-crm-api && ./node_modules/.bin/jest --verbose src/proposals
-```
-
-**22 suites, 148 tests passed** (6 new).
+Same covering command after implementation (plus `content-idea.service.spec.ts` for the extra ctor arg):
 
 ```
-cd services/portal-web && npx --yes vitest@2 run src/lib/public-proposal.spec.ts
+Test Suites: 4 passed, 4 total
+Tests:       36 passed, 36 total
+Time:        9.641 s
 ```
 
-**3 passed / 1 file.**
+Required cases: submit inserts Sent snapshot; body/`apply_variant` → `package_locked`; `force_version` audits + supersedes; title/assignee unlocked — pass.
 
-| Spec | Result |
-|---|---|
-| `stripPublicQuote` drops cost/margin/gm_bps/nsr + cost_* / approval | pass |
-| GET public JSON excludes those keys; CTA `Xác nhận đề xuất` | pass |
-| expired / revoked → 410 without `investment` | pass |
-| accept locks `accepted` + option `A`; no lifecycle/convert | pass |
-| accept expired → 410 without `investment` | pass |
-| public controller has no staff guard | pass |
-| portal CTA / `—` money / 410 helper | pass |
+## Self-review
 
-## Implementation
-
-**New (API)**
-
-- `quote-public-strip.util.ts` + spec
-- `quote-share.util.ts` — 32-byte token, sha256 hex
-- `quote-public.service.ts` + spec — mint / GET / accept
-- `quote-public.controller.ts` — `GET :token`, `POST :token/accept`
-- `quote-share.controller.ts` — `POST /api/crm/proposals/:id/share`
-
-**New (portal)**
-
-- `src/lib/public-proposal.ts` + spec
-- `src/components/PublicProposalView.tsx`
-- `src/app/proposals/[token]/page.tsx`
-
-**Modified**
-
-- `proposals.module.ts` — register public + share controllers / service
-
-Public accept writes `crm_proposals.status = accepted`, version snapshot `accepted_option_key: A`, line `option_key = A`, audit `public.accept`. It does **not** call `QuoteConvertService`.
+- Snapshot is built from the pre-patch item after gates succeed, so body/brief/media match what was submitted.
+- Package lock is only on body / apply_variant. Brief lock stays a separate 409.
+- `force_version === true` is a strict boolean (same as brief lock).
+- Repo has PG + memory helpers; unit tests stub those methods on the existing workflow/item mocks.
 
 ## Concerns
 
-- No public rate-limit (same as deal-teaser token). Task 26 can add OTP + tighter limits.
-- `crm_quote_shares` is assumed from Task 1 DDL; proposals-pg bootstrap does not CREATE it.
-- Staff `PATCH` accepted still auto-converts (Task 10). Only the public POST is lock-only.
-- 410 body may include `quote_code` for AM contact; never `investment`.
-- Portal page not browser-verified (no live public token in this session).
+- `cmkt_approval_packages` must exist in the target DB (DDL in `docs/specs/2026-09-10-postgresql-ddl-cmkt-e.sql`). `ensurePgReady` only probes `cmkt_content_items`.
+- Older Sent rows are left in place when only the latest Sent is superseded.
+- Jest worker “failed to exit gracefully” warning is pre-existing in this suite.
+- No HTTP-level 409 integration test (service exceptions are unit-tested).
 
----
+## Files
 
-## Review fix (Important)
-
-**Status:** GREEN  
-**Commit:** `fix(qt): gate public accept status and transactional lock`
-
-### Findings
-
-1. Accept ignored the 14-status machine (any live share could lock `accepted`).
-2. Status / version snapshot / line `option_key` / audit were four separate `this.db.query` writes — mid-flight failure could leave `accepted` without a locked version.
-
-### Fix
-
-- `canTransition(status, 'accepted')` — only `sent` | `viewed` | `negotiation`.
-- Already `accepted` → idempotent 200, no rewrite, no audit.
-- Other live statuses (`draft`, `rejected`, `cancelled`, `expired`, …) → **409**. Expired/revoked share still **410** without `investment`.
-- Lock writes run in `this.db.withTransaction` (same client): proposal + version snapshot + line `option_key` + `audit.insert(..., query)`.
-- Unchanged: `stripPublicQuote`, CTA **Xác nhận đề xuất**, no OTP, no convert from public POST.
-
-### Tests
-
-```
-cd services/ptt-crm-api && ./node_modules/.bin/jest --verbose src/proposals/quote-public.service.spec.ts src/proposals
-```
-
-**22 suites, 151 tests passed** (3 new).
-
-| Spec | Result |
-|---|---|
-| sent → accepted + one `withTransaction` | pass |
-| already-accepted replay 200, no UPDATE / no audit | pass |
-| draft → 409, status stays draft | pass |
-| mid-flight version fail rolls back (not accepted without lock) | pass |
-| expired/revoked → 410 without `investment` | pass |
-| no convert / no OTP / CTA `Xác nhận đề xuất` | pass |
-
-### Concerns
-
-- `viewed` / `negotiation` → accepted rely on `canTransition` (no dedicated public-accept specs).
-- `inTx` throws `tx_unavailable` if `withTransaction` is missing; prod `QuoteSettingsRepository` implements it.
-- Jest still reports a leaked worker (pre-existing teardown).
+- Create: `services/ptt-crm-api/src/content-marketing/approval-package.service.ts` + `.spec.ts`
+- Modify: `content-workflow.service.ts` + spec
+- Modify: `content-item.service.ts` + spec
+- Modify: `content-idea.service.spec.ts` (ctor stub)
+- Modify: `content-marketing.repository.ts` (insert / latest / status + memory)
+- Modify: `content-marketing.types.ts`
+- Modify: `content-marketing.module.ts`
