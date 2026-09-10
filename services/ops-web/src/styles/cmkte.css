@@ -267,6 +267,242 @@
   color: var(--red);
 }
 
+.cmkte-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin: 5px 0 18px;
+}
+
+.cmkte-head h1 {
+  margin: 0 0 5px;
+  font-size: 23px;
+  letter-spacing: -0.035em;
+}
+
+.cmkte-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cmkte-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cmkte-actions--end {
+  justify-content: flex-end;
+}
+
+.cmkte-btn {
+  display: inline-flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #3c4961;
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.cmkte-btn--blue {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+  box-shadow: 0 5px 12px #3268f63d;
+}
+
+.cmkte-btn--small {
+  padding: 6px 8px;
+  font-size: 10px;
+}
+
+.cmkte-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: 0 2px 5px rgba(18, 30, 53, 0.02);
+  padding: 18px;
+}
+
+.cmkte-card h3 {
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.cmkte-desc {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.cmkte-empty {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cmkte-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 13px;
+  margin-bottom: 15px;
+}
+
+.cmkte-metricrow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #6e7b91;
+  margin-bottom: 6px;
+}
+
+.cmkte-metricrow b,
+.cmkte-metricrow__warn {
+  color: #344059;
+}
+
+.cmkte-metricrow__warn {
+  color: var(--red);
+}
+
+.cmkte-metric {
+  display: block;
+  font-size: 24px;
+}
+
+.cmkte-bar {
+  height: 6px;
+  background: #edf0f5;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 11px 0 0;
+}
+
+.cmkte-bar i {
+  display: block;
+  height: 100%;
+  background: var(--blue);
+  border-radius: 8px;
+}
+
+.cmkte-layout {
+  display: grid;
+  grid-template-columns: minmax(630px, 1fr) 345px;
+  gap: 18px;
+}
+
+.cmkte-right {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cmkte-queuehead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cmkte-queuehead h3 {
+  margin-bottom: 4px;
+}
+
+.cmkte-queuehead .cmkte-desc {
+  margin: 0;
+}
+
+.cmkte-table-scroll {
+  overflow: auto;
+}
+
+.cmkte-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.cmkte-table th {
+  text-align: left;
+  color: #7d899c;
+  background: #fafbfc;
+  padding: 9px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cmkte-table td {
+  padding: 10px 9px;
+  border-bottom: 1px solid #edf0f4;
+  vertical-align: middle;
+}
+
+.cmkte-taskname {
+  display: block;
+  font-weight: 750;
+  color: #344058;
+  text-decoration: none;
+}
+
+.cmkte-dep {
+  display: block;
+  color: #75829a;
+  font-size: 9px;
+}
+
+.cmkte-notice {
+  border: 1px solid #e3e9fb;
+  background: #f6f8ff;
+  border-radius: 8px;
+  color: #5e6c88;
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 10px;
+}
+
+.cmkte-notice b {
+  display: block;
+  color: #3d57bc;
+  margin-bottom: 4px;
+}
+
+.cmkte-modalback {
+  position: fixed;
+  inset: 0;
+  background: #101a3073;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.cmkte-modal {
+  width: min(560px, 92vw);
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.cmkte-modal h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.cmkte-modal .cmkte-desc {
+  margin-bottom: 14px;
+}
+
 @media (max-width: 1100px) {
   .cmkte-side {
     display: none;
@@ -278,6 +514,10 @@
 
   .cmkte-main {
     grid-column: auto;
+  }
+
+  .cmkte-layout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -292,5 +532,22 @@
 
   .cmkte-page {
     padding: 16px 12px 95px;
+  }
+
+  .cmkte-head {
+    display: block;
+  }
+
+  .cmkte-head .cmkte-actions {
+    margin-top: 12px;
+  }
+
+  .cmkte-grid3,
+  .cmkte-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .cmkte-table {
+    min-width: 680px;
   }
 }

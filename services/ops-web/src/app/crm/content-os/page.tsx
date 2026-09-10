@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchServiceLifecycles, staffMe, staffRefresh, type ServiceLifecycleRow } from '@/lib/api';
+import { staffMe, staffRefresh } from '@/lib/api';
 import {
   canViewContentOs,
   clearSession,
@@ -15,14 +14,13 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
-import { contentOsBoardHref, filterContentOsLifecycles } from '@/lib/crm/content-os-hub.util';
-
-const EMPTY_COPY = 'Chưa có lifecycle Content Marketing. Mở Triển khai DV để tạo, rồi quay lại đây.';
+import { CmktECommandCenter } from '@/components/content-os/cmkte/CmktECommandCenter';
+import { fetchCommandCenter, type PortfolioCommandCenter } from '@/lib/crm/cmkte-api';
 
 export default function CrmContentOsHubPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
-  const [rows, setRows] = useState<ServiceLifecycleRow[]>([]);
+  const [center, setCenter] = useState<PortfolioCommandCenter | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -84,10 +82,9 @@ export default function CrmContentOsHubPage() {
       setLoading(true);
       setError('');
       try {
-        const data = await fetchServiceLifecycles(access, { include_draft: true });
-        setRows(filterContentOsLifecycles(data.lifecycles ?? []));
+        setCenter(await fetchCommandCenter(access));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Tải Content Marketing OS thất bại');
+        setError(err instanceof Error ? err.message : 'Không tải được Command Center');
       } finally {
         setLoading(false);
       }
@@ -99,50 +96,14 @@ export default function CrmContentOsHubPage() {
   }
 
   if (!isContentMarketingFeEnabled()) {
-    return (
-      <div className="page-card">
-        <p>Module tắt</p>
-      </div>
-    );
+    return <p className="cmkte-status">Module tắt</p>;
   }
 
   return (
-    <div className="page-card stack-gap">
-      {loading ? <p className="muted">Đang tải…</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-
-      {!loading && !error && rows.length === 0 ? <p className="muted">{EMPTY_COPY}</p> : null}
-
-      {rows.length > 0 ? (
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Lifecycle</th>
-                <th>slug</th>
-                <th>stage</th>
-                <th>status</th>
-                <th>updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td>
-                    <Link href={contentOsBoardHref(row.id)} className="nav-link">
-                      #{row.id} · Content Board
-                    </Link>
-                  </td>
-                  <td>{row.service_slug}</td>
-                  <td>{row.stage}</td>
-                  <td>{row.status}</td>
-                  <td>{row.updated_at ? String(row.updated_at).slice(0, 10) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+    <div>
+      {loading ? <p className="cmkte-status">Đang tải…</p> : null}
+      {error ? <p className="cmkte-status cmkte-status--error">{error}</p> : null}
+      {!loading && !error && center ? <CmktECommandCenter data={center} /> : null}
     </div>
   );
 }
