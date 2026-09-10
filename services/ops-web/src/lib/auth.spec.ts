@@ -117,6 +117,10 @@ describe('rbac-routes', () => {
     );
   });
 
+  it('/crm/content-os/w/21 uses same crm_content caps', () => {
+    const content = user([{ section: 'crm_content', action: 'view' }]);
+    expect(canAccessPath('/crm/content-os/w/21', content, 'crm')).toBe(true);
+  });
 
   it('/crm/video requires crm_vd.project or crm_content view', () => {
     const vd = user([{ section: 'crm_vd.project', action: 'view' }]);
