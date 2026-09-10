@@ -52,7 +52,7 @@ async function expandOpsNav(page: Page): Promise<void> {
   if (await expand.isVisible()) {
     await expand.click();
   }
-  const delivery = page.getByRole('button', { name: /Triển khai dịch vụ/ });
+  const delivery = page.locator('.ops-nav-group-header').filter({ hasText: 'Triển khai DV' });
   if (await delivery.isVisible()) {
     const expanded = await delivery.getAttribute('aria-expanded');
     if (expanded === 'false') {

@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-10  
 **Branch:** `feat/cmkte-e0`  
-**Commit:** (set after commit) — `test(cmkte): e2e COS shell and update operator guide IA`  
+**Commit:** `ec41ee7a` — `test(cmkte): e2e COS shell and update operator guide IA`  
 **Status:** DONE_WITH_CONCERNS
 
 ## What was implemented
@@ -55,3 +55,11 @@ WebServer started. **PLAYWRIGHT_SKIPPED:** 6 skipped — `Nest API not reachable
 - `/crm/content-os/w/0` is always empty (`itemId` must be `> 0`); spec mocks item `1`.
 - Command Center H1 depends on a mocked empty portfolio payload (avoids Sunlight/Nova seed).
 - UAT lifecycle screenshots vs mockup chrome were not captured.
+
+## Fix
+
+Review: e2e `expandOpsNav` matched `/Triển khai dịch vụ/` but OpsNav renders the group via `sectionShortLabel` as **Triển khai DV**. Updated to expand `.ops-nav-group-header` with that label (`aria-expanded`), then assert sidebar **Content Marketing OS**.
+
+```
+cd services/ops-web && ./node_modules/.bin/playwright test e2e/cmkte-shell.spec.ts
+```
