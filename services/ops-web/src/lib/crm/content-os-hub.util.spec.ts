@@ -22,7 +22,7 @@ function row(partial: Partial<ServiceLifecycleRow> & Pick<ServiceLifecycleRow, '
 describe('content-os-hub.util', () => {
   it('builds Content Board href', () => {
     expect(CONTENT_OS_HUB).toBe('/crm/content-os');
-    expect(contentOsBoardHref(3)).toBe('/crm/service-delivery/3?tab=content-os');
+    expect(contentOsBoardHref(3)).toBe('/crm/content-os?lifecycle=3');
   });
 
   it('keeps all rows when allowlist empty', () => {

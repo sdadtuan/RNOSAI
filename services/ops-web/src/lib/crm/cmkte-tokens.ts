@@ -1,0 +1,15 @@
+export const CMKTE_TOKENS = {
+  nav: '#101a30',
+  nav2: '#172642',
+  ink: '#15213a',
+  bg: '#f4f6fa',
+  blue: '#3268f6',
+  purple: '#7656e9',
+  green: '#139567',
+  amber: '#d88400',
+  red: '#d84951',
+  sidebarPx: 258,
+  topPx: 67,
+  stickyPx: 66,
+  rightPanelPx: 345,
+} as const;
