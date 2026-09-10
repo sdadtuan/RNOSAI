@@ -13,7 +13,22 @@ export type AssetRightEvalRow = {
   asset_ref: string;
   status: string;
   paid_ok?: boolean;
+  expiry_at?: string | null;
 };
+
+const EXPIRING_MS = 14 * 24 * 60 * 60 * 1000;
+
+export function effectiveRightsStatus(row: AssetRightEvalRow, now = Date.now()): string {
+  const stored = row.status ?? 'Unknown';
+  const expiryMs = row.expiry_at ? Date.parse(String(row.expiry_at)) : Number.NaN;
+  if (Number.isFinite(expiryMs)) {
+    if (expiryMs < now) return 'Invalid';
+    if (expiryMs - now <= EXPIRING_MS && (stored === 'Valid' || stored === 'Expiring')) {
+      return 'Expiring';
+    }
+  }
+  return stored;
+}
 
 export function selectedMediaAssetRefs(media: CmktMediaJson | undefined): string[] {
   if (!media) return [];
@@ -51,11 +66,31 @@ export function evaluateItemRights(
   let paidExpiryWarning = false;
   for (const ref of required) {
     const row = byRef.get(ref);
-    const status = row?.status ?? 'Unknown';
+    const status = row ? effectiveRightsStatus(row) : 'Unknown';
     if (status === 'Unknown' || status === 'Invalid') rightsValid = false;
     if (status === 'Expiring' && row?.paid_ok) paidExpiryWarning = true;
   }
   return paidExpiryWarning ? { rightsValid, paidExpiryWarning } : { rightsValid };
+}
+
+function resolvePutRightsStatus(
+  write: CmktAssetRightWrite,
+  existing: CmktAssetRightRow | undefined,
+  hasQa: boolean,
+): AssetRightStatus {
+  const requested = write.status ?? 'Unknown';
+  if (!existing) {
+    if (requested === 'Valid') return hasQa ? 'Valid' : 'Unknown';
+    return requested;
+  }
+  if (requested === 'Valid' && existing.status !== 'Valid') {
+    throw new BadRequestException({
+      error: 'rights_valid_requires_override',
+      asset_ref: write.asset_ref,
+      status: existing.status,
+    });
+  }
+  return requested;
 }
 
 function isAssetRightStatus(value: string): value is AssetRightStatus {
@@ -115,13 +150,21 @@ export class AssetRightsService {
     lifecycleId: number,
     itemId: number,
     body: Record<string, unknown>,
+    actor: { email?: string; hasQa?: boolean } = {},
   ): Promise<{ rights: CmktAssetRightRow[] }> {
     await this.core.ensureLifecycleEnabled(lifecycleId);
     const item = await this.repo.getItemById(lifecycleId, itemId);
     if (!item) {
       throw new NotFoundException({ error: 'item_not_found', id: itemId });
     }
-    const rights = await this.repo.replaceAssetRights(itemId, parseRightsWrites(body));
+    const existing = await this.repo.listAssetRights(itemId);
+    const existingByRef = new Map(existing.map((row) => [row.asset_ref, row]));
+    const writes = parseRightsWrites(body).map((write) => ({
+      ...write,
+      status: resolvePutRightsStatus(write, existingByRef.get(write.asset_ref), actor.hasQa === true),
+    }));
+    const rights = await this.repo.replaceAssetRights(itemId, writes);
+    await this.repo.insertItemVersion(itemId, item.body_json, actor.email ?? 'unknown', 'rights_put');
     return { rights };
   }
 

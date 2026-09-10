@@ -102,6 +102,9 @@ export class ContentCalendarService {
     if (!scheduledAt) {
       throw new BadRequestException({ error: 'scheduled_at_required' });
     }
+    if (Number.isNaN(Date.parse(scheduledAt))) {
+      throw new BadRequestException({ error: 'invalid_scheduled_at' });
+    }
 
     const collision = await this.findCollision(lifecycleId, {
       item_id: itemId,

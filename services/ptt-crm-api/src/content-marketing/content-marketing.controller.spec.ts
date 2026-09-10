@@ -93,7 +93,11 @@ describe('ContentMarketingController', () => {
   };
   const pillars = { listPillars: jest.fn(), patchPillar: jest.fn() };
   const seoBridgeSync = { syncPublishedUrlFromSeo: jest.fn(), getSeoBridgeStatusWithSync: jest.fn() };
-  const staffAuth = { resolveStaffIdFromJwt: jest.fn() };
+  const staffAuth = {
+    resolveStaffIdFromJwt: jest.fn(),
+    me: jest.fn().mockResolvedValue({ caps: [] }),
+    hasCap: jest.fn().mockReturnValue(false),
+  };
 
   let controller: ContentMarketingController;
 
@@ -197,12 +201,16 @@ describe('ContentMarketingController', () => {
 
   it('PUT items/:id/rights delegates to asset rights service', async () => {
     assetRights.replaceRights.mockResolvedValue({ rights: [{ asset_ref: 'https://cdn/a.jpg' }] });
+    const req = { staffUser: { email: 'writer@test.vn' } } as never;
     await expect(
-      controller.replaceItemRights(123, 42, { rights: [{ asset_ref: 'https://cdn/a.jpg' }] }),
+      controller.replaceItemRights(123, 42, { rights: [{ asset_ref: 'https://cdn/a.jpg' }] }, req),
     ).resolves.toEqual({ rights: [{ asset_ref: 'https://cdn/a.jpg' }] });
-    expect(assetRights.replaceRights).toHaveBeenCalledWith(123, 42, {
-      rights: [{ asset_ref: 'https://cdn/a.jpg' }],
-    });
+    expect(assetRights.replaceRights).toHaveBeenCalledWith(
+      123,
+      42,
+      { rights: [{ asset_ref: 'https://cdn/a.jpg' }] },
+      { email: 'writer@test.vn', hasQa: false },
+    );
   });
 
   it('POST items/:id/rights/:rightsId/override delegates to asset rights service', async () => {

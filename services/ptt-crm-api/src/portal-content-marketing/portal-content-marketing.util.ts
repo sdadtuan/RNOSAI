@@ -35,12 +35,64 @@ function stripPortalValue(value: unknown): unknown {
   return value;
 }
 
+const PUBLIC_RIGHTS_KEYS = [
+  'asset_ref',
+  'license_type',
+  'channels',
+  'territory',
+  'expiry_at',
+  'status',
+] as const;
+
+function collectMediaUrls(value: unknown, urls: string[] = []): string[] {
+  if (Array.isArray(value)) {
+    for (const entry of value) collectMediaUrls(entry, urls);
+    return urls;
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      if ((key === 'url' || key === 'poster_url') && typeof nested === 'string' && nested.trim()) {
+        urls.push(nested);
+      } else {
+        collectMediaUrls(nested, urls);
+      }
+    }
+  }
+  return urls;
+}
+
+function slimPublicRights(row: unknown): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return {};
+  const src = row as Record<string, unknown>;
+  const slim: Record<string, unknown> = {};
+  for (const key of PUBLIC_RIGHTS_KEYS) {
+    if (key in src) slim[key] = src[key];
+  }
+  return slim;
+}
+
+export function allowlistPortalSnapshot(snapshot: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const body = snapshot.body_json;
+  if (body && typeof body === 'object') {
+    const markdown = (body as Record<string, unknown>).markdown;
+    if (markdown != null) out.body_json = { markdown };
+  }
+  if (snapshot.disclaimer != null) out.disclaimer = snapshot.disclaimer;
+  if (Array.isArray(snapshot.rights)) {
+    out.rights = snapshot.rights.map(slimPublicRights);
+  }
+  const urls = collectMediaUrls(snapshot.media);
+  if (urls.length) out.media = { urls };
+  return stripPortalInternalFields(out);
+}
+
 export function toPortalApprovalPackage(row: CmktApprovalPackageRow): CmktPortalApprovalPackage {
   return stripPortalInternalFields({
     id: row.id,
     status: row.status,
     created_at: row.created_at,
-    snapshot_json: (row.snapshot_json ?? {}) as Record<string, unknown>,
+    snapshot_json: allowlistPortalSnapshot((row.snapshot_json ?? {}) as Record<string, unknown>),
   });
 }
 

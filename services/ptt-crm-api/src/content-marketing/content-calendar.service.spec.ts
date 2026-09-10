@@ -69,6 +69,16 @@ describe('ContentCalendarService collision warning', () => {
     service = new ContentCalendarService(config as never, core as never, repo as never);
   });
 
+  it('rejects unparseable scheduled_at with 400 invalid_scheduled_at', async () => {
+    repo.getItemById.mockResolvedValue(item({ id: 7, status: 'approved_internal' }));
+
+    await expect(service.upsertSlot(1, 7, { scheduled_at: 'not-a-date' }, 'sp@test.vn')).rejects.toMatchObject({
+      response: { error: 'invalid_scheduled_at' },
+    });
+    expect(repo.upsertCalendarSlot).not.toHaveBeenCalled();
+    expect(repo.listCalendarSlots).not.toHaveBeenCalled();
+  });
+
   it('returns collision null when no other slot is nearby on the same channel', async () => {
     const current = item({ id: 7, channel: 'facebook' });
     repo.getItemById.mockResolvedValue(current);

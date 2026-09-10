@@ -2181,21 +2181,34 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     return row;
   }
 
-  async getLatestApprovalPackage(itemId: number): Promise<CmktApprovalPackageRow | null> {
+  async getLatestApprovalPackage(
+    itemId: number,
+    opts?: { status?: string },
+  ): Promise<CmktApprovalPackageRow | null> {
     if (await this.ensurePgReady()) {
-      const res = await this.db.query(
-        `SELECT id, item_id, snapshot_json, status, created_by, created_at
-         FROM cmkt_approval_packages
-         WHERE item_id = $1
-         ORDER BY created_at DESC, id DESC
-         LIMIT 1`,
-        [itemId],
-      );
+      const res = opts?.status
+        ? await this.db.query(
+            `SELECT id, item_id, snapshot_json, status, created_by, created_at
+             FROM cmkt_approval_packages
+             WHERE item_id = $1 AND status = $2
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1`,
+            [itemId, opts.status],
+          )
+        : await this.db.query(
+            `SELECT id, item_id, snapshot_json, status, created_by, created_at
+             FROM cmkt_approval_packages
+             WHERE item_id = $1
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1`,
+            [itemId],
+          );
       return res.rows[0] ? mapApprovalPackageRow(res.rows[0] as Record<string, unknown>) : null;
     }
     const list = this.memory.approvalPackages.get(itemId) ?? [];
-    if (!list.length) return null;
-    return [...list].sort((a, b) => {
+    const filtered = opts?.status ? list.filter((row) => row.status === opts.status) : list;
+    if (!filtered.length) return null;
+    return [...filtered].sort((a, b) => {
       const byTime = String(b.created_at).localeCompare(String(a.created_at));
       return byTime !== 0 ? byTime : b.id - a.id;
     })[0];

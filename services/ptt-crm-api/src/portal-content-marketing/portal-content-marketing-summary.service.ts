@@ -89,7 +89,7 @@ export class PortalContentMarketingSummaryService {
     const pendingSlice = pendingRows.slice(0, 12);
     const pending_items = await Promise.all(
       pendingSlice.map(async (row) => {
-        const pkg = await this.repo.getLatestApprovalPackage(row.id);
+        const pkg = await this.repo.getLatestApprovalPackage(row.id, { status: 'Sent' });
         return toPortalSummaryItem(row, pkg);
       }),
     );
@@ -121,7 +121,7 @@ export class PortalContentMarketingSummaryService {
       itemId,
       `portal:${user.email}`,
     );
-    const pkg = await this.repo.getLatestApprovalPackage(item.id);
+    const pkg = await this.repo.getLatestApprovalPackage(item.id, { status: 'Sent' });
     return stripPortalInternalFields({ ok: true, item: toPortalSummaryItem(item, pkg) });
   }
 
@@ -139,7 +139,7 @@ export class PortalContentMarketingSummaryService {
       body,
       `portal:${user.email}`,
     );
-    const pkg = await this.repo.getLatestApprovalPackage(item.id);
+    const pkg = await this.repo.getLatestApprovalPackage(item.id, { status: 'Sent' });
     return stripPortalInternalFields({ ok: true, item: toPortalSummaryItem(item, pkg) });
   }
 }

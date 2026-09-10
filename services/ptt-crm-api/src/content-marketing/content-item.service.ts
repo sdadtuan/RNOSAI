@@ -2,7 +2,10 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import {
   DEFAULT_BRIEF_WEIGHTS,
   briefCompleteness,
+  briefReadyForPublish,
   briefScoreThreshold,
+  gateBriefScore,
+  usesEnterpriseBrief,
 } from '../content-os-portfolio/brief-score.util';
 import { evaluateItemRights } from '../content-os-portfolio/asset-rights.service';
 import { attachApprovalMatrix, buildApprovalMatrixForItem } from '../content-os-portfolio/approval-matrix.util';
@@ -49,11 +52,7 @@ export class ContentItemService {
       throw new NotFoundException({ error: 'item_not_found', id: itemId });
     }
     const rights = await this.repo.listAssetRights(itemId);
-    const { rightsValid } = evaluateItemRights(item.media_json, rights);
-    return {
-      ...attachApprovalMatrix(item, rights),
-      ...(rightsValid !== undefined ? { rights_valid: rightsValid } : {}),
-    };
+    return this.attachPublishFields(item, rights);
   }
 
   async createItem(
@@ -292,6 +291,37 @@ export class ContentItemService {
     return { item_id: itemId, v1, v2, lines: diff.lines };
   }
 
+  private attachPublishFields(item: CmktItemRow, rights: Awaited<ReturnType<ContentMarketingRepository['listAssetRights']>>): CmktItemRow {
+    const brief = item.brief_json ?? {};
+    const score = usesEnterpriseBrief(brief)
+      ? gateBriefScore(brief, item)
+      : (item.brief_score ?? briefCompleteness(brief, DEFAULT_BRIEF_WEIGHTS));
+    const dest = String(brief.destination_url ?? brief.url ?? item.published_url ?? '').trim();
+    const rightsEval = evaluateItemRights(item.media_json, rights);
+    const publish_gate = {
+      briefReady: briefReadyForPublish(item),
+      internalApproved: ['approved_internal', 'client_approved', 'pending_client', 'scheduled'].includes(
+        item.status,
+      ),
+      legalRequired: false,
+      legalApproved: false,
+      clientApproved: this.config.contentMarketingClientGate
+        ? ['client_approved', 'scheduled'].includes(item.status)
+        : true,
+      urlOk: dest ? /^https?:\/\//i.test(dest) : true,
+      ...rightsEval,
+    };
+    return {
+      ...attachApprovalMatrix(item, rights),
+      brief_score: score,
+      brief_threshold: briefScoreThreshold(item.risk_level),
+      brief_ready: publish_gate.briefReady,
+      ...(rightsEval.rightsValid !== undefined ? { rights_valid: rightsEval.rightsValid } : {}),
+      ...(rightsEval.paidExpiryWarning ? { paid_expiry_warning: true } : {}),
+      publish_gate,
+    };
+  }
+
   private async parseAssigneeId(value: unknown): Promise<number | null> {
     if (value == null || value === '') return null;
     const id = Number(value);
@@ -331,12 +361,11 @@ export class ContentItemService {
     assertVisualGateForPublish(item, this.config.contentMarketingMediaEnabled);
 
     const rightsRows = await this.repo.listAssetRights(itemId);
-    const score = item.brief_score ?? briefCompleteness(item.brief_json ?? {}, DEFAULT_BRIEF_WEIGHTS);
     const publishedUrlProvided = body.published_url != null;
     const publishedUrl = publishedUrlProvided ? String(body.published_url).trim() : null;
     const { approval_matrix } = buildApprovalMatrixForItem(item, rightsRows);
     const gate = evaluatePublishGate({
-      briefReady: score >= briefScoreThreshold(item.risk_level),
+      briefReady: briefReadyForPublish(item),
       internalApproved: ['approved_internal', 'client_approved', 'pending_client', 'scheduled'].includes(
         item.status,
       ),

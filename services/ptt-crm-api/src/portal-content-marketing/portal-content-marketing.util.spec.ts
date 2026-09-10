@@ -1,5 +1,6 @@
 import type { CmktApprovalPackageRow, CmktItemRow } from '../content-marketing/content-marketing.types';
 import {
+  allowlistPortalSnapshot,
   stripPortalInternalFields,
   toPortalApprovalPackage,
   toPortalSummaryItem,
@@ -77,8 +78,8 @@ function approvalPackage(partial: Partial<CmktApprovalPackageRow> = {}): CmktApp
         ai_prompt: 'write like a lawyer',
         cost: 1200,
       },
-      media: { selected_asset_id: 'a1', unit_cost: 40 },
-      rights: [{ asset_ref: 'https://cdn/a.jpg', license_cost: 99 }],
+      media: { selected_asset_id: 'a1', unit_cost: 40, url: 'https://cdn/a.jpg' },
+      rights: [{ asset_ref: 'https://cdn/a.jpg', license_cost: 99, status: 'Valid' }],
       disclaimer: 'Results vary',
       system_prompt: 'hidden staff prompt',
     } as CmktApprovalPackageRow['snapshot_json'],
@@ -175,6 +176,26 @@ describe('toPortalSummaryItem', () => {
   });
 });
 
+describe('allowlistPortalSnapshot', () => {
+  it('keeps only public snapshot keys and still strips prompt/cost', () => {
+    const out = allowlistPortalSnapshot({
+      body_json: { markdown: 'Public copy', html: '<p>nope</p>', prompt: 'hidden' },
+      brief_json: { objective: 'Lead', ai_prompt: 'nope', cost: 9 },
+      disclaimer: 'Results vary',
+      rights: [{ asset_ref: 'https://cdn/a.jpg', paid_ok: true, status: 'Valid', license_cost: 1 }],
+      media: { url: 'https://cdn/a.jpg', unit_cost: 40, selected_asset_id: 'a1' },
+      system_prompt: 'hidden',
+    });
+    expect(out).toEqual({
+      body_json: { markdown: 'Public copy' },
+      disclaimer: 'Results vary',
+      rights: [{ asset_ref: 'https://cdn/a.jpg', status: 'Valid' }],
+      media: { urls: ['https://cdn/a.jpg'] },
+    });
+    assertNoPromptOrCostKeys(out);
+  });
+});
+
 describe('toPortalApprovalPackage', () => {
   it('exposes a stripped snapshot so portal package keys never contain prompt or cost', () => {
     const source = approvalPackage();
@@ -182,12 +203,11 @@ describe('toPortalApprovalPackage', () => {
 
     expect(out.id).toBe(11);
     expect(out.status).toBe('Sent');
-    expect(out.snapshot_json.brief_json).toEqual({
-      objective: 'Lead gen',
-      disclaimer: 'Results vary',
-    });
-    expect(out.snapshot_json.media).toEqual({ selected_asset_id: 'a1' });
-    expect(out.snapshot_json.rights).toEqual([{ asset_ref: 'https://cdn/a.jpg' }]);
+    expect(out.snapshot_json.body_json).toEqual({ markdown: 'Client copy' });
+    expect(out.snapshot_json.disclaimer).toBe('Results vary');
+    expect(out.snapshot_json).not.toHaveProperty('brief_json');
+    expect(out.snapshot_json.media).toEqual({ urls: ['https://cdn/a.jpg'] });
+    expect(out.snapshot_json.rights).toEqual([{ asset_ref: 'https://cdn/a.jpg', status: 'Valid' }]);
     expect(out.snapshot_json).not.toHaveProperty('system_prompt');
     expect(source.snapshot_json.brief_json.internal_note).toBe('do not show client');
     expect(source.snapshot_json.brief_json.cost).toBe(1200);
@@ -199,10 +219,9 @@ describe('toPortalApprovalPackage', () => {
     const out = toPortalSummaryItem(item(), source);
 
     expect(out.approval_package?.id).toBe(11);
-    expect(out.approval_package?.snapshot_json.brief_json).toEqual({
-      objective: 'Lead gen',
-      disclaimer: 'Results vary',
-    });
+    expect(out.approval_package?.snapshot_json.body_json).toEqual({ markdown: 'Client copy' });
+    expect(out.approval_package?.snapshot_json.disclaimer).toBe('Results vary');
+    expect(out.approval_package?.snapshot_json).not.toHaveProperty('brief_json');
     expect(source.snapshot_json.brief_json.ai_prompt).toBe('write like a lawyer');
     assertNoPromptOrCostKeys(out);
   });

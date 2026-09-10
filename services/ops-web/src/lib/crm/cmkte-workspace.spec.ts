@@ -38,7 +38,7 @@ describe('publishGateFlagsFromItem', () => {
     const flags = publishGateFlagsFromItem(
       item({
         status: 'client_approved',
-        brief_json: { hook: 'ready', destination_url: 'https://example.com/post' },
+        brief_json: { audience: 'CMO', goal: 'Lead', destination_url: 'https://example.com/post' },
       }),
     );
     expect(flags).not.toHaveProperty('rightsValid');
@@ -46,6 +46,40 @@ describe('publishGateFlagsFromItem', () => {
     expect(flags).not.toHaveProperty('versionLocked');
     expect(flags).not.toHaveProperty('accountHealthy');
     expect(evaluatePublishGate(flags).status).toBe('Pass');
+  });
+
+  it('consumes server publish_gate fields instead of a non-empty brief or client URL regex', () => {
+    const flags = publishGateFlagsFromItem(
+      item({
+        status: 'draft',
+        brief_json: { hook: 'only' },
+        brief_ready: false,
+        publish_gate: {
+          briefReady: true,
+          internalApproved: true,
+          legalRequired: false,
+          legalApproved: false,
+          clientApproved: true,
+          urlOk: true,
+          paidExpiryWarning: true,
+        },
+      }),
+    );
+    expect(flags.briefReady).toBe(true);
+    expect(flags.urlOk).toBe(true);
+    expect(flags.paidExpiryWarning).toBe(true);
+    expect(evaluatePublishGate(flags).status).toBe('Warning');
+  });
+
+  it('does not treat a hook-only brief as ready when server fields are absent', () => {
+    const flags = publishGateFlagsFromItem(
+      item({
+        status: 'client_approved',
+        brief_json: { hook: 'ready', destination_url: 'https://example.com/post' },
+      }),
+    );
+    expect(flags.briefReady).toBe(false);
+    expect(evaluatePublishGate(flags).status).toBe('Blocked');
   });
 
   it('sets rightsValid false when item.rights_valid is false', () => {

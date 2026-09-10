@@ -425,12 +425,16 @@ export class ContentMarketingController {
 
   @Put('items/:itemId/rights')
   @UseGuards(StaffContentMarketingWriteGuard)
-  replaceItemRights(
+  async replaceItemRights(
     @Param('lifecycleId', ParseIntPipe) lifecycleId: number,
     @Param('itemId', ParseIntPipe) itemId: number,
     @Body() body: Record<string, unknown>,
+    @Req() req: Request,
   ) {
-    return this.assetRights.replaceRights(lifecycleId, itemId, body);
+    return this.assetRights.replaceRights(lifecycleId, itemId, body, {
+      email: actorEmail(req),
+      hasQa: await this.actorHasContentQa(req),
+    });
   }
 
   @Post('items/:itemId/rights/:rightsId/override')
@@ -985,5 +989,14 @@ export class ContentMarketingController {
     @Req() req: Request,
   ) {
     return this.ideas.startBulkIdeasJob(lifecycleId, body, actorEmail(req));
+  }
+
+  private async actorHasContentQa(
+    req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ): Promise<boolean> {
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) return false;
+    const me = await this.staffAuth.me(req.staffUser);
+    return this.staffAuth.hasCap(me.caps, 'crm_content', 'qa');
   }
 }

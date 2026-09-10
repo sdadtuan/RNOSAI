@@ -203,6 +203,19 @@ export type CmktItemRow = {
   approval_matrix?: { steps: string[]; gateBlockers: string[] };
   claim_hits?: string[];
   rights_valid?: boolean;
+  brief_threshold?: number;
+  brief_ready?: boolean;
+  paid_expiry_warning?: boolean;
+  publish_gate?: {
+    briefReady: boolean;
+    internalApproved: boolean;
+    legalRequired: boolean;
+    legalApproved: boolean;
+    clientApproved: boolean;
+    urlOk: boolean;
+    rightsValid?: boolean;
+    paidExpiryWarning?: boolean;
+  };
 };
 
 export type CmktItemVersionRow = {

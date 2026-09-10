@@ -298,6 +298,21 @@ describe('ContentItemService publishItem gate', () => {
     };
   }
 
+  it('publishes an E0 generate-path brief without inventing an 80/95 reject', async () => {
+    repo.getItemById.mockResolvedValue(
+      publishableItem({
+        brief_json: { hook: 'Open', audience: 'CMO', goal: 'Lead' },
+        brief_score: 0,
+        media_json: {},
+      }),
+    );
+    repo.listAssetRights.mockResolvedValue([]);
+    repo.patchItem.mockResolvedValue({ id: 7, status: 'published' });
+
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).resolves.toMatchObject({ status: 'published' });
+    expect(repo.patchItem).toHaveBeenCalled();
+  });
+
   it('throws publish_gate_blocked when rightsValid is false', async () => {
     repo.getItemById.mockResolvedValue(publishableItem());
     repo.listAssetRights.mockResolvedValue([{ asset_ref: 'https://cdn/blocked.jpg', status: 'Invalid' }]);
@@ -384,6 +399,14 @@ describe('ContentItemService.getItem matrix', () => {
     });
     expect(out.claim_hits).toEqual(['số 1']);
     expect(out).not.toHaveProperty('rights_valid');
+    expect(out.publish_gate).toEqual(
+      expect.objectContaining({
+        briefReady: false,
+        urlOk: true,
+      }),
+    );
+    expect(out.brief_ready).toBe(false);
+    expect(out.brief_threshold).toBe(80);
   });
 
   it('attaches rights_valid false when required asset rights are Invalid', async () => {
@@ -414,6 +437,30 @@ describe('ContentItemService.getItem matrix', () => {
 
     const out = await service.getItem(1, 7);
     expect(out.rights_valid).toBe(false);
+  });
+
+  it('attaches server publish_gate fields for an E0 generate-path brief', async () => {
+    repo.getItemById.mockResolvedValue({
+      id: 7,
+      lifecycle_id: 1,
+      status: 'approved_internal',
+      risk_level: 'Normal',
+      channel: 'facebook',
+      brief_json: { audience: 'CMO', goal: 'Lead', destination_url: 'https://example.com/post' },
+      body_json: { markdown: 'ready' },
+      media_json: {},
+    });
+    repo.listAssetRights.mockResolvedValue([]);
+
+    const out = await service.getItem(1, 7);
+    expect(out.brief_ready).toBe(true);
+    expect(out.publish_gate).toEqual(
+      expect.objectContaining({
+        briefReady: true,
+        urlOk: true,
+        internalApproved: true,
+      }),
+    );
   });
 
   it('omits rights_valid when there are no required assets', async () => {

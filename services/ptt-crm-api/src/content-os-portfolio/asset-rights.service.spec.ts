@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   AssetRightsService,
+  effectiveRightsStatus,
   evaluateItemRights,
   selectedMediaAssetRefs,
 } from './asset-rights.service';
@@ -69,6 +70,25 @@ describe('evaluateItemRights', () => {
     ).toEqual({ rightsValid: true, paidExpiryWarning: true });
   });
 
+  it('derives Invalid when expiry_at is in the past and Expiring within 14 days', () => {
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const soon = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+    expect(effectiveRightsStatus({ asset_ref: 'https://cdn/x.jpg', status: 'Valid', expiry_at: past })).toBe(
+      'Invalid',
+    );
+    expect(effectiveRightsStatus({ asset_ref: 'https://cdn/x.jpg', status: 'Valid', expiry_at: soon })).toBe(
+      'Expiring',
+    );
+    expect(
+      evaluateItemRights({}, [{ asset_ref: 'https://cdn/x.jpg', status: 'Valid', expiry_at: past }]),
+    ).toEqual({ rightsValid: false });
+    expect(
+      evaluateItemRights({}, [
+        { asset_ref: 'https://cdn/x.jpg', status: 'Valid', paid_ok: true, expiry_at: soon },
+      ]),
+    ).toEqual({ rightsValid: true, paidExpiryWarning: true });
+  });
+
   it('sets rightsValid true when every required asset is Valid', () => {
     expect(
       evaluateItemRights(
@@ -117,18 +137,74 @@ describe('AssetRightsService', () => {
   });
 
   it('replaceRights upserts the payload rows', async () => {
-    repo.getItemById.mockResolvedValue({ id: 7 });
+    repo.getItemById.mockResolvedValue({ id: 7, body_json: { markdown: 'x' } });
+    repo.listAssetRights.mockResolvedValue([]);
     repo.replaceAssetRights.mockResolvedValue([{ id: 2, item_id: 7, asset_ref: 'https://cdn/b.jpg', status: 'Unknown' }]);
 
     const out = await service.replaceRights(1, 7, {
       rights: [{ asset_ref: 'https://cdn/b.jpg' }],
-    });
+    }, { email: 'writer@ptt.vn', hasQa: false });
 
     expect(repo.replaceAssetRights).toHaveBeenCalledWith(
       7,
       expect.arrayContaining([expect.objectContaining({ asset_ref: 'https://cdn/b.jpg', status: 'Unknown' })]),
     );
+    expect(repo.insertItemVersion).toHaveBeenCalledWith(7, { markdown: 'x' }, 'writer@ptt.vn', 'rights_put');
     expect(out.rights).toHaveLength(1);
+  });
+
+  it('replaceRights defaults new Valid to Unknown unless actor has qa', async () => {
+    repo.getItemById.mockResolvedValue({ id: 7, body_json: { markdown: 'x' } });
+    repo.listAssetRights.mockResolvedValue([]);
+    repo.replaceAssetRights.mockResolvedValue([]);
+
+    await service.replaceRights(
+      1,
+      7,
+      { rights: [{ asset_ref: 'https://cdn/new.jpg', status: 'Valid' }] },
+      { email: 'writer@ptt.vn', hasQa: false },
+    );
+    expect(repo.replaceAssetRights).toHaveBeenCalledWith(
+      7,
+      expect.arrayContaining([expect.objectContaining({ asset_ref: 'https://cdn/new.jpg', status: 'Unknown' })]),
+    );
+
+    await service.replaceRights(
+      1,
+      7,
+      { rights: [{ asset_ref: 'https://cdn/new.jpg', status: 'Valid' }] },
+      { email: 'qa@ptt.vn', hasQa: true },
+    );
+    expect(repo.replaceAssetRights).toHaveBeenLastCalledWith(
+      7,
+      expect.arrayContaining([expect.objectContaining({ asset_ref: 'https://cdn/new.jpg', status: 'Valid' })]),
+    );
+  });
+
+  it('replaceRights cannot promote an existing Invalid/Expiring/Unknown row to Valid', async () => {
+    repo.getItemById.mockResolvedValue({ id: 7, body_json: { markdown: 'x' } });
+    repo.listAssetRights.mockResolvedValue([
+      { id: 3, item_id: 7, asset_ref: 'https://cdn/old.jpg', status: 'Invalid' },
+    ]);
+
+    await expect(
+      service.replaceRights(
+        1,
+        7,
+        { rights: [{ asset_ref: 'https://cdn/old.jpg', status: 'Valid' }] },
+        { email: 'writer@ptt.vn', hasQa: false },
+      ),
+    ).rejects.toMatchObject({ response: { error: 'rights_valid_requires_override' } });
+    await expect(
+      service.replaceRights(
+        1,
+        7,
+        { rights: [{ asset_ref: 'https://cdn/old.jpg', status: 'Valid' }] },
+        { email: 'qa@ptt.vn', hasQa: true },
+      ),
+    ).rejects.toMatchObject({ response: { error: 'rights_valid_requires_override' } });
+    expect(repo.replaceAssetRights).not.toHaveBeenCalled();
+    expect(repo.insertItemVersion).not.toHaveBeenCalled();
   });
 
   it('override requires reason length >= 10 and non-empty evidence', async () => {

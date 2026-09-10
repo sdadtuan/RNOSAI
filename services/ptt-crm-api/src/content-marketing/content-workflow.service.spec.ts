@@ -126,6 +126,25 @@ describe('ContentWorkflowService', () => {
     });
   });
 
+  it('submitReview allows E0 generate-path briefs without 80/95 reject', async () => {
+    repo.getItemById.mockResolvedValue({
+      id: 1,
+      status: 'draft',
+      risk_level: 'Normal',
+      brief_json: { hook: 'Open', audience: 'CMO', goal: 'Lead gen' },
+      body_json: { markdown: 'Hello world content' },
+    });
+    repo.patchItem.mockResolvedValue({
+      id: 1,
+      status: 'in_review',
+      body_json: { markdown: 'Hello world content' },
+    });
+
+    const out = await service.submitReview(1, 1, 'sp@test.vn');
+    expect(out.status).toBe('in_review');
+    expect(repo.patchItem).toHaveBeenCalled();
+  });
+
   it('submitReview rejects when brief score is below threshold', async () => {
     repo.getItemById.mockResolvedValue({
       id: 1,

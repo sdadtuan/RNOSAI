@@ -17,18 +17,36 @@ export function isBlankRecord(value: unknown): boolean {
 const INTERNAL_OK = new Set(['approved_internal', 'pending_client', 'client_approved', 'scheduled', 'published']);
 const CLIENT_OK = new Set(['client_approved', 'scheduled', 'published']);
 
+function generatePathBriefReady(brief: Record<string, unknown> | undefined): boolean {
+  const audience = !isBlankRecord(brief?.audience) || !isBlankRecord(brief?.persona);
+  const goal = !isBlankRecord(brief?.goal) || !isBlankRecord(brief?.objective);
+  return audience && goal;
+}
+
 export function publishGateFlagsFromItem(item: ContentOsItem | null): PublishGateInput {
   const brief = item?.brief_json ?? {};
   const dest = String(brief.destination_url ?? brief.url ?? item?.published_url ?? '').trim();
   const status = item?.status ?? '';
+  const server = item?.publish_gate;
+  const briefReady =
+    typeof server?.briefReady === 'boolean'
+      ? server.briefReady
+      : typeof item?.brief_ready === 'boolean'
+        ? item.brief_ready
+        : generatePathBriefReady(brief);
+  const urlOk = typeof server?.urlOk === 'boolean' ? server.urlOk : dest ? /^https?:\/\//i.test(dest) : true;
+  const rightsValid = server?.rightsValid ?? item?.rights_valid;
+  const paidExpiryWarning = server?.paidExpiryWarning ?? item?.paid_expiry_warning;
   return {
-    briefReady: !isBlankRecord(item?.brief_json),
-    internalApproved: INTERNAL_OK.has(status),
-    legalRequired: false,
-    legalApproved: false,
-    clientApproved: CLIENT_OK.has(status),
-    urlOk: /^https?:\/\//i.test(dest),
-    ...(item?.rights_valid === false ? { rightsValid: false } : {}),
+    briefReady,
+    internalApproved:
+      typeof server?.internalApproved === 'boolean' ? server.internalApproved : INTERNAL_OK.has(status),
+    legalRequired: server?.legalRequired ?? false,
+    legalApproved: server?.legalApproved ?? false,
+    clientApproved: typeof server?.clientApproved === 'boolean' ? server.clientApproved : CLIENT_OK.has(status),
+    urlOk,
+    ...(rightsValid === false ? { rightsValid: false } : {}),
+    ...(paidExpiryWarning ? { paidExpiryWarning: true } : {}),
   };
 }
 
