@@ -218,6 +218,36 @@ export async function fetchPortfolioApprovals(token: string): Promise<PortfolioA
   return { items: Array.isArray(body?.items) ? body.items : [] };
 }
 
+export type PortfolioBatchApproveResult = {
+  ok: number[];
+  failed: Array<{ id: number; error: string }>;
+};
+
+export async function postPortfolioApprovalsBatch(
+  token: string,
+  itemIds: number[],
+  step?: string,
+): Promise<PortfolioBatchApproveResult> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/approvals/batch`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ item_ids: itemIds, ...(step ? { step } : {}) }),
+  });
+  const body = (await res.json().catch(() => null)) as
+    | (PortfolioBatchApproveResult & { error?: string })
+    | null;
+  if (!res.ok) {
+    throw new Error(body?.error ?? 'batch_approve_failed');
+  }
+  return {
+    ok: Array.isArray(body?.ok) ? body.ok : [],
+    failed: Array.isArray(body?.failed) ? body.failed : [],
+  };
+}
+
 export type PortfolioPublicationList = {
   slots: ContentOsCalendarSlot[];
 };

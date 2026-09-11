@@ -79,6 +79,41 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual(approved);
   });
 
+  it('POST approvals/batch delegates to batchApprove with staffId, actor, ids, and step', async () => {
+    const service = { batchApprove: jest.fn().mockResolvedValue({ ok: [21], failed: [] }) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.batchApprove(
+      { item_ids: [21, 22], step: 'in_review' },
+      { staffUser: { sub: '7', email: 'am@ptt.vn' } } as never,
+    );
+    expect(service.batchApprove).toHaveBeenCalledWith({
+      staffId: 7,
+      actor: 'am@ptt.vn',
+      item_ids: [21, 22],
+      step: 'in_review',
+    });
+    expect(out).toEqual({ ok: [21], failed: [] });
+  });
+
+  it('POST approvals/:packageId/delegate delegates to delegateApproval', async () => {
+    const pkg = { id: 9, delegate_until: '2026-09-12T00:00:00.000Z', delegate_expired: false };
+    const service = { delegateApproval: jest.fn().mockResolvedValue(pkg) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.delegateApproval(
+      9,
+      { delegate_until: '2026-09-12T00:00:00.000Z', delegate_to: 'qa@ptt.vn' },
+      { staffUser: { sub: '7', email: 'am@ptt.vn' } } as never,
+    );
+    expect(service.delegateApproval).toHaveBeenCalledWith({
+      staffId: 7,
+      actor: 'am@ptt.vn',
+      packageId: 9,
+      delegate_until: '2026-09-12T00:00:00.000Z',
+      delegate_to: 'qa@ptt.vn',
+    });
+    expect(out).toEqual(pkg);
+  });
+
   it('GET items/:itemId/ai-traces delegates to listAiTraces with staffId and lifecycle hint', async () => {
     const traces = { items: [{ at: '2026-09-10T08:00:00.000Z', intent: 'Draft generate', sources: [], job_id: 55, status: 'succeeded' }] };
     const service = { listAiTraces: jest.fn().mockResolvedValue(traces) };

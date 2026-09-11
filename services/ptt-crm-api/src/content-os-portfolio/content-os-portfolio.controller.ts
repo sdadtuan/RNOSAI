@@ -34,6 +34,35 @@ export class ContentOsPortfolioController {
     return this.portfolio.listApprovals({ staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0) });
   }
 
+  @Post('approvals/batch')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingApproveGuard)
+  batchApprove(@Body() body: Record<string, unknown>, @Req() req: Request) {
+    return this.portfolio.batchApprove({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      actor: actorEmail(req),
+      item_ids: body.item_ids,
+      step: body.step != null ? String(body.step) : undefined,
+    });
+  }
+
+  @Post('approvals/:packageId/delegate')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingApproveGuard)
+  delegateApproval(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.portfolio.delegateApproval({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      actor: actorEmail(req),
+      packageId,
+      delegate_until: body.delegate_until,
+      delegate_to: body.delegate_to != null ? String(body.delegate_to) : undefined,
+    });
+  }
+
   @Get('publications')
   publications(@Req() req: Request, @Query('from') from?: string, @Query('to') to?: string) {
     return this.portfolio.listPublications({

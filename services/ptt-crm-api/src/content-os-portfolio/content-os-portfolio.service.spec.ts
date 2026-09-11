@@ -469,6 +469,159 @@ describe('ContentOsPortfolioService.getChannelHealth', () => {
   });
 });
 
+describe('ContentOsPortfolioService.batchApprove', () => {
+  const inReview = { id: 21, lifecycle_id: 4, status: 'in_review', created_by: 'sp@ptt.vn' };
+  const inReview22 = { id: 22, lifecycle_id: 4, status: 'in_review', created_by: 'sp@ptt.vn' };
+
+  afterEach(() => {
+    delete process.env.CMKT_SOD_ENABLED;
+  });
+
+  it('rejects empty and oversized batches with 400', async () => {
+    const svc = makeSvc({ listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) });
+    await expect(svc.batchApprove({ staffId: 1, actor: 'am@ptt.vn', item_ids: [] })).rejects.toMatchObject({
+      status: 400,
+    });
+    await expect(
+      svc.batchApprove({
+        staffId: 1,
+        actor: 'am@ptt.vn',
+        item_ids: Array.from({ length: 21 }, (_, i) => i + 1),
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('rejects mixed in-scope statuses with 409 mixed_step', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) };
+    const marketingRepo = {
+      findItemById: jest
+        .fn()
+        .mockResolvedValueOnce(inReview)
+        .mockResolvedValueOnce({ ...inReview22, status: 'draft' }),
+    };
+    const workflow = { approve: jest.fn() };
+    const svc = makeSvc(repo, workflow, marketingRepo);
+    await expect(
+      svc.batchApprove({ staffId: 1, actor: 'am@ptt.vn', item_ids: [21, 22] }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(workflow.approve).not.toHaveBeenCalled();
+  });
+
+  it('approves in-scope items and records per-item failures without blocking the rest', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) };
+    const marketingRepo = {
+      findItemById: jest.fn().mockImplementation(async (id: number) => {
+        if (id === 21) return inReview;
+        if (id === 22) return inReview22;
+        if (id === 23) return { id: 23, lifecycle_id: 9, status: 'in_review', created_by: 'sp@ptt.vn' };
+        return null;
+      }),
+    };
+    const workflow = {
+      approve: jest
+        .fn()
+        .mockResolvedValueOnce({ id: 21, status: 'approved_internal' })
+        .mockRejectedValueOnce(Object.assign(new Error('invalid_transition'), { getResponse: () => ({ error: 'invalid_transition' }) })),
+    };
+    const svc = makeSvc(repo, workflow, marketingRepo);
+    const out = await svc.batchApprove({ staffId: 1, actor: 'am@ptt.vn', item_ids: [21, 22, 23, 99] });
+    expect(out.ok).toEqual([21]);
+    expect(out.failed).toEqual(
+      expect.arrayContaining([
+        { id: 23, error: 'lifecycle_out_of_scope' },
+        { id: 99, error: 'item_not_found' },
+        expect.objectContaining({ id: 22 }),
+      ]),
+    );
+    expect(workflow.approve).toHaveBeenCalledWith(4, 21, 'am@ptt.vn');
+    expect(workflow.approve).toHaveBeenCalledWith(4, 22, 'am@ptt.vn');
+  });
+
+  it('blocks the creator from final-approve only when SoD is on', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) };
+    const marketingRepo = {
+      findItemById: jest.fn().mockResolvedValue({ ...inReview, created_by: 'am@ptt.vn' }),
+      listItemVersions: jest.fn().mockResolvedValue([]),
+      getLatestApprovalPackage: jest.fn().mockResolvedValue({ created_by: 'sp@ptt.vn' }),
+    };
+    const workflow = { approve: jest.fn().mockResolvedValue({ id: 21, status: 'approved_internal' }) };
+    const svc = makeSvc(repo, workflow, marketingRepo);
+
+    const off = await svc.batchApprove({ staffId: 1, actor: 'am@ptt.vn', item_ids: [21] });
+    expect(off.ok).toEqual([21]);
+    expect(workflow.approve).toHaveBeenCalledTimes(1);
+
+    process.env.CMKT_SOD_ENABLED = '1';
+    const on = await svc.batchApprove({ staffId: 1, actor: 'am@ptt.vn', item_ids: [21] });
+    expect(on.ok).toEqual([]);
+    expect(on.failed).toEqual([{ id: 21, error: 'sod_creator_cannot_final_approve' }]);
+    expect(workflow.approve).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let an expired delegate approve', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) };
+    const marketingRepo = {
+      findItemById: jest.fn().mockResolvedValue(inReview),
+      listItemVersions: jest.fn().mockResolvedValue([]),
+      getLatestApprovalPackage: jest.fn().mockResolvedValue({
+        created_by: 'sp@ptt.vn',
+        delegate_until: '2020-01-01T00:00:00.000Z',
+        snapshot_json: { delegate_until: '2020-01-01T00:00:00.000Z', delegate_to: 'qa@ptt.vn' },
+      }),
+    };
+    const workflow = { approve: jest.fn() };
+    const svc = makeSvc(repo, workflow, marketingRepo);
+    const out = await svc.batchApprove({ staffId: 1, actor: 'qa@ptt.vn', item_ids: [21] });
+    expect(out.failed).toEqual([{ id: 21, error: 'delegate_expired' }]);
+    expect(workflow.approve).not.toHaveBeenCalled();
+  });
+});
+
+describe('ContentOsPortfolioService.delegateApproval', () => {
+  it('persists delegate_until on the package when the item is in staff scope', async () => {
+    const until = '2026-09-12T00:00:00.000Z';
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) };
+    const marketingRepo = {
+      getApprovalPackageById: jest.fn().mockResolvedValue({ id: 9, item_id: 21, created_by: 'am@ptt.vn' }),
+      findItemById: jest.fn().mockResolvedValue({ id: 21, lifecycle_id: 4 }),
+      updateApprovalPackageDelegate: jest.fn().mockResolvedValue({
+        id: 9,
+        item_id: 21,
+        delegate_until: until,
+        snapshot_json: { delegate_until: until, delegate_to: 'qa@ptt.vn' },
+      }),
+    };
+    const svc = makeSvc(repo, undefined, marketingRepo);
+    const out = await svc.delegateApproval({
+      staffId: 1,
+      actor: 'am@ptt.vn',
+      packageId: 9,
+      delegate_until: until,
+      delegate_to: 'qa@ptt.vn',
+    });
+    expect(marketingRepo.updateApprovalPackageDelegate).toHaveBeenCalledWith(9, {
+      delegate_until: until,
+      delegate_to: 'qa@ptt.vn',
+    });
+    expect(out.delegate_until).toBe(until);
+    expect(out.delegate_expired).toBe(false);
+  });
+
+  it('404 when the package is missing', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) };
+    const marketingRepo = { getApprovalPackageById: jest.fn().mockResolvedValue(null) };
+    const svc = makeSvc(repo, undefined, marketingRepo);
+    await expect(
+      svc.delegateApproval({
+        staffId: 1,
+        actor: 'am@ptt.vn',
+        packageId: 9,
+        delegate_until: '2026-09-12T00:00:00.000Z',
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+});
+
 describe('ContentOsPortfolioService.getPortfolioItem', () => {
   const item = { id: 21, lifecycle_id: 4, title: 'Master story', status: 'draft' };
 

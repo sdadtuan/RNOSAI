@@ -2263,6 +2263,87 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     return null;
   }
 
+  async getApprovalPackageById(packageId: number): Promise<CmktApprovalPackageRow | null> {
+    if (await this.ensurePgReady()) {
+      try {
+        const res = await this.db.query(
+          `SELECT id, item_id, snapshot_json, status, created_by, created_at, delegate_until
+           FROM cmkt_approval_packages
+           WHERE id = $1`,
+          [packageId],
+        );
+        return res.rows[0] ? mapApprovalPackageRow(res.rows[0] as Record<string, unknown>) : null;
+      } catch (err) {
+        if (!isUndefinedColumn(err)) throw err;
+        const res = await this.db.query(
+          `SELECT id, item_id, snapshot_json, status, created_by, created_at
+           FROM cmkt_approval_packages
+           WHERE id = $1`,
+          [packageId],
+        );
+        return res.rows[0] ? mapApprovalPackageRow(res.rows[0] as Record<string, unknown>) : null;
+      }
+    }
+    for (const list of this.memory.approvalPackages.values()) {
+      const found = list.find((row) => row.id === packageId);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  async updateApprovalPackageDelegate(
+    packageId: number,
+    input: { delegate_until: string; delegate_to?: string },
+  ): Promise<CmktApprovalPackageRow | null> {
+    const mergeSnap = (
+      snap: CmktApprovalPackageRow['snapshot_json'] | Record<string, unknown> | undefined,
+    ): CmktApprovalPackageRow['snapshot_json'] => ({
+      ...((snap ?? {}) as CmktApprovalPackageRow['snapshot_json']),
+      delegate_until: input.delegate_until,
+      ...(input.delegate_to ? { delegate_to: input.delegate_to } : {}),
+    });
+
+    if (await this.ensurePgReady()) {
+      const current = await this.getApprovalPackageById(packageId);
+      if (!current) return null;
+      const merged = mergeSnap(current.snapshot_json);
+      try {
+        const res = await this.db.query(
+          `UPDATE cmkt_approval_packages
+              SET delegate_until = $2,
+                  snapshot_json = $3::jsonb
+            WHERE id = $1
+        RETURNING id, item_id, snapshot_json, status, created_by, created_at, delegate_until`,
+          [packageId, input.delegate_until, JSON.stringify(merged)],
+        );
+        return res.rows[0] ? mapApprovalPackageRow(res.rows[0] as Record<string, unknown>) : null;
+      } catch (err) {
+        if (!isUndefinedColumn(err)) throw err;
+        const res = await this.db.query(
+          `UPDATE cmkt_approval_packages
+              SET snapshot_json = $2::jsonb
+            WHERE id = $1
+        RETURNING id, item_id, snapshot_json, status, created_by, created_at`,
+          [packageId, JSON.stringify(merged)],
+        );
+        return res.rows[0] ? mapApprovalPackageRow(res.rows[0] as Record<string, unknown>) : null;
+      }
+    }
+    for (const [itemId, list] of this.memory.approvalPackages.entries()) {
+      const idx = list.findIndex((row) => row.id === packageId);
+      if (idx < 0) continue;
+      const next = {
+        ...list[idx],
+        delegate_until: input.delegate_until,
+        snapshot_json: mergeSnap(list[idx].snapshot_json),
+      };
+      list[idx] = next;
+      this.memory.approvalPackages.set(itemId, list);
+      return next;
+    }
+    return null;
+  }
+
   async listItemsWithProductionTasks(): Promise<CmktSlaScanItem[]> {
     if (await this.ensurePgReady()) {
       const res = await this.db.query(
@@ -2522,19 +2603,30 @@ function mapAssetRightRow(row: Record<string, unknown>): CmktAssetRightRow {
   };
 }
 
+function isUndefinedColumn(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === '42703');
+}
+
 function mapApprovalPackageRow(row: Record<string, unknown>): CmktApprovalPackageRow {
+  const snapshot = (row.snapshot_json as CmktApprovalPackageRow['snapshot_json']) ?? {
+    body_json: {},
+    brief_json: {},
+    media: {},
+    rights: [],
+    disclaimer: null,
+  };
+  const fromCol = row.delegate_until != null ? new Date(String(row.delegate_until)).toISOString() : null;
+  const fromSnap =
+    snapshot.delegate_until != null && String(snapshot.delegate_until).trim()
+      ? String(snapshot.delegate_until)
+      : null;
   return {
     id: Number(row.id),
     item_id: Number(row.item_id),
-    snapshot_json: (row.snapshot_json as CmktApprovalPackageRow['snapshot_json']) ?? {
-      body_json: {},
-      brief_json: {},
-      media: {},
-      rights: [],
-      disclaimer: null,
-    },
+    snapshot_json: snapshot,
     status: String(row.status ?? 'Draft'),
     created_by: String(row.created_by ?? ''),
     created_at: row.created_at != null ? new Date(String(row.created_at)).toISOString() : new Date().toISOString(),
+    delegate_until: fromCol ?? fromSnap,
   };
 }

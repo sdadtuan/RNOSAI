@@ -281,6 +281,8 @@ export type CmktApprovalPackageSnapshot = {
   media: CmktMediaJson;
   rights: unknown;
   disclaimer: unknown;
+  delegate_until?: string;
+  delegate_to?: string;
 };
 
 export type CmktApprovalPackageRow = {
@@ -290,6 +292,7 @@ export type CmktApprovalPackageRow = {
   status: string;
   created_by: string;
   created_at: string;
+  delegate_until?: string | null;
 };
 
 export type CmktApprovalPackageWrite = {

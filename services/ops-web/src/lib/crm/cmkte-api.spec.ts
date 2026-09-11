@@ -11,6 +11,7 @@ import {
   fetchPortfolioRequests,
   filterCommandCenter,
   mapIntakeRows,
+  postPortfolioApprovalsBatch,
   type PortfolioCommandCenter,
   type PortfolioContentRequest,
 } from './cmkte-api';
@@ -335,6 +336,29 @@ describe('fetchPortfolioApprovals', () => {
     );
 
     await expect(fetchPortfolioApprovals('tok-9')).resolves.toEqual({ items: [] });
+  });
+});
+
+describe('postPortfolioApprovalsBatch', () => {
+  it('POSTs selected item ids to portfolio approvals/batch', async () => {
+    const body = { ok: [21], failed: [] };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await postPortfolioApprovalsBatch('tok-9', [21, 22], 'in_review');
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/approvals/batch`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer tok-9',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ item_ids: [21, 22], step: 'in_review' }),
+    });
+    expect(result).toEqual(body);
   });
 });
 

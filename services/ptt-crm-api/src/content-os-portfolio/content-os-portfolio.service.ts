@@ -19,6 +19,18 @@ import {
   type ChannelConnectorRow,
   type ChannelHealth,
 } from './channel-health.util';
+import {
+  actionErrorCode,
+  actorIsItemCreator,
+  assertSameApproveStep,
+  canApproveAsDelegate,
+  isCmktSodEnabled,
+  isDelegateExpired,
+  packageDelegateTo,
+  packageDelegateUntil,
+  parseBatchItemIds,
+  parseDelegateUntil,
+} from './batch-approval.util';
 import { ContentWorkflowService } from '../content-marketing/content-workflow.service';
 import { ContentOsPortfolioRepository } from './content-os-portfolio.repository';
 import {
@@ -86,6 +98,133 @@ export class ContentOsPortfolioService {
       }
     }
     return { items };
+  }
+
+  async batchApprove(input: {
+    staffId: number;
+    actor: string;
+    item_ids: unknown;
+    step?: string;
+  }): Promise<{ ok: number[]; failed: Array<{ id: number; error: string }> }> {
+    const ids = parseBatchItemIds(input.item_ids);
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    const failed: Array<{ id: number; error: string }> = [];
+    const loaded: Array<{ id: number; item: CmktItemRow }> = [];
+    for (const id of ids) {
+      const item = await this.marketingRepo.findItemById(id);
+      if (!item) {
+        failed.push({ id, error: 'item_not_found' });
+        continue;
+      }
+      if (!scoped.includes(item.lifecycle_id)) {
+        failed.push({ id, error: 'lifecycle_out_of_scope' });
+        continue;
+      }
+      loaded.push({ id, item });
+    }
+    if (loaded.length) {
+      assertSameApproveStep(
+        loaded.map((row) => row.item.status),
+        input.step,
+      );
+    }
+    const sodOn = isCmktSodEnabled();
+    const ok: number[] = [];
+    for (const { id, item } of loaded) {
+      const pkg =
+        typeof this.marketingRepo.getLatestApprovalPackage === 'function'
+          ? await this.marketingRepo.getLatestApprovalPackage(id)
+          : null;
+      if (sodOn) {
+        const versions =
+          typeof this.marketingRepo.listItemVersions === 'function'
+            ? await this.marketingRepo.listItemVersions(id)
+            : [];
+        const first = [...(versions ?? [])].sort((a, b) => a.version_no - b.version_no)[0];
+        if (
+          actorIsItemCreator(input.actor, {
+            created_by: item.created_by,
+            first_version_author: first?.changed_by ?? null,
+            package_created_by: pkg?.created_by ?? null,
+          })
+        ) {
+          failed.push({ id, error: 'sod_creator_cannot_final_approve' });
+          continue;
+        }
+      }
+      if (pkg) {
+        const until = packageDelegateUntil(pkg);
+        const delegateTo = packageDelegateTo(pkg);
+        if (
+          delegateTo &&
+          actorIsItemCreator(input.actor, { created_by: delegateTo }) &&
+          (isDelegateExpired(until) || !canApproveAsDelegate(until))
+        ) {
+          failed.push({ id, error: 'delegate_expired' });
+          continue;
+        }
+      }
+      try {
+        await this.workflow.approve(item.lifecycle_id, id, input.actor);
+        ok.push(id);
+      } catch (err) {
+        failed.push({ id, error: actionErrorCode(err) });
+      }
+    }
+    return { ok, failed };
+  }
+
+  async delegateApproval(input: {
+    staffId: number;
+    actor: string;
+    packageId: number;
+    delegate_until: unknown;
+    delegate_to?: string;
+  }): Promise<{
+    id: number;
+    item_id: number;
+    delegate_until: string;
+    delegate_to?: string | null;
+    delegate_expired: boolean;
+    snapshot_json?: Record<string, unknown>;
+  }> {
+    const until = parseDelegateUntil(input.delegate_until);
+    const pkg =
+      typeof this.marketingRepo.getApprovalPackageById === 'function'
+        ? await this.marketingRepo.getApprovalPackageById(input.packageId)
+        : null;
+    if (!pkg) {
+      throw new NotFoundException({ error: 'package_not_found', id: input.packageId });
+    }
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    const item = await this.marketingRepo.findItemById(pkg.item_id);
+    if (!item || !scoped.includes(item.lifecycle_id)) {
+      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
+    }
+    const updated =
+      typeof this.marketingRepo.updateApprovalPackageDelegate === 'function'
+        ? await this.marketingRepo.updateApprovalPackageDelegate(pkg.id, {
+            delegate_until: until,
+            delegate_to: input.delegate_to,
+          })
+        : {
+            ...pkg,
+            delegate_until: until,
+            snapshot_json: {
+              ...pkg.snapshot_json,
+              delegate_until: until,
+              ...(input.delegate_to ? { delegate_to: input.delegate_to } : {}),
+            },
+          };
+    const storedUntil = packageDelegateUntil(updated ?? { ...pkg, delegate_until: until }) ?? until;
+    return {
+      id: (updated ?? pkg).id,
+      item_id: (updated ?? pkg).item_id,
+      delegate_until: storedUntil,
+      delegate_to: input.delegate_to ?? packageDelegateTo(updated ?? pkg),
+      delegate_expired: isDelegateExpired(storedUntil),
+      snapshot_json: (updated ?? pkg).snapshot_json as Record<string, unknown>,
+    };
   }
 
   async listPublications(scope: {

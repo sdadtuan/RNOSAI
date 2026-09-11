@@ -13,8 +13,9 @@ import {
   ESCALATE_TOAST,
   OPEN_PORTAL_TOAST,
   approvalReviewHref,
+  canBatchApprove,
 } from '@/lib/crm/cmkte-approvals';
-import type { PortfolioApprovalItem } from '@/lib/crm/cmkte-api';
+import { postPortfolioApprovalsBatch, type PortfolioApprovalItem } from '@/lib/crm/cmkte-api';
 import { rejectCommentValid } from '@/lib/crm/cmkte-workspace';
 
 function dash(value: string | number | null | undefined): string {
@@ -27,6 +28,8 @@ export function CmktEApprovals({ items }: { items: PortfolioApprovalItem[] }) {
   const [toast, setToast] = useState('');
   const [rejectComment, setRejectComment] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [batchBusy, setBatchBusy] = useState(false);
 
   const slaBreach = items.filter((row) => row.sla_breach).length;
   const clientWaiting = items.filter((row) => row.status === 'pending_client').length;
@@ -59,6 +62,37 @@ export function CmktEApprovals({ items }: { items: PortfolioApprovalItem[] }) {
     }
   }
 
+  function toggleSelected(id: number, checked: boolean) {
+    setSelected((prev) => {
+      if (checked) return prev.includes(id) ? prev : [...prev, id];
+      return prev.filter((itemId) => itemId !== id);
+    });
+  }
+
+  async function onBatchApprove() {
+    if (!canBatchApprove(selected)) return;
+    const token = getAccessToken();
+    if (!token) {
+      showToast('Thiếu phiên đăng nhập.');
+      return;
+    }
+    setBatchBusy(true);
+    try {
+      const out = await postPortfolioApprovalsBatch(token, selected);
+      const failedN = out.failed.length;
+      showToast(
+        failedN
+          ? `Đã duyệt ${out.ok.length}, lỗi ${failedN}.`
+          : `Đã duyệt hàng loạt ${out.ok.length} item.`,
+      );
+      setSelected((prev) => prev.filter((id) => !out.ok.includes(id)));
+    } catch (err) {
+      showToast(parseCmktGateError(err));
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
   function onReject(row: PortfolioApprovalItem) {
     if (!rejectCommentValid(rejectComment)) {
       showToast('Comment từ chối tối thiểu 10 ký tự.');
@@ -77,8 +111,13 @@ export function CmktEApprovals({ items }: { items: PortfolioApprovalItem[] }) {
           <p>Hàng đợi phê duyệt tập trung theo role, risk, SLA và scope để giảm bottleneck toàn agency.</p>
         </div>
         <div className="cmkte-actions">
-          <button type="button" className="cmkte-btn" disabled>
-            Create approval batch
+          <button
+            type="button"
+            className="cmkte-btn"
+            disabled={batchBusy || !canBatchApprove(selected)}
+            onClick={() => void onBatchApprove()}
+          >
+            Duyệt hàng loạt
           </button>
         </div>
       </div>
@@ -112,6 +151,7 @@ export function CmktEApprovals({ items }: { items: PortfolioApprovalItem[] }) {
           <table className="cmkte-table">
             <thead>
               <tr>
+                <th />
                 <th>Content item</th>
                 <th>Status</th>
                 <th>Channel</th>
@@ -122,13 +162,21 @@ export function CmktEApprovals({ items }: { items: PortfolioApprovalItem[] }) {
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <p className="cmkte-empty">{APPROVALS_EMPTY}</p>
                   </td>
                 </tr>
               ) : (
                 items.map((row) => (
                   <tr key={row.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`Chọn item ${row.id}`}
+                        checked={selected.includes(row.id)}
+                        onChange={(e) => toggleSelected(row.id, e.target.checked)}
+                      />
+                    </td>
                     <td>
                       <span className="cmkte-taskname">
                         {dash(row.title)} · {row.id}
