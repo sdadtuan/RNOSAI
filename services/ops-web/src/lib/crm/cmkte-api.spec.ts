@@ -611,4 +611,20 @@ describe('portfolio settings', () => {
       sso_enforced: false,
     });
   });
+
+  it('GET settings maps sso_enforced true from staff IdP without leaking secrets', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ direct_social_publish: false, sso_enforced: true }),
+      }),
+    );
+    const settings = await fetchPortfolioSettings('tok-9');
+    expect(settings).toEqual({
+      direct_social_publish: false,
+      sso_enforced: true,
+    });
+    expect(JSON.stringify(settings)).not.toMatch(/issuer|secret|client_secret|private.?key/i);
+  });
 });

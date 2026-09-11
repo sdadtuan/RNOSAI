@@ -4,8 +4,10 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { AppConfigService } from '../config/app-config.service';
 import { ContentItemService } from '../content-marketing/content-item.service';
 import { CMKT_CHANNELS } from '../content-marketing/content-marketing.constants';
 import { ContentMarketingRepository } from '../content-marketing/content-marketing.repository';
@@ -55,17 +57,20 @@ import {
   isMissingCmktSettingsSchema,
   resolveDirectSocialPublish,
 } from './direct-social-publish.util';
-import { resolveSsoEnforced } from './sso-enforced.util';
+import { resolveSsoEnforced, type StaffIdpSnapshot } from './sso-enforced.util';
 
 type PortfolioSettings = {
   direct_social_publish: boolean;
   sso_enforced: boolean;
 };
 
-function portfolioSettings(directSocialPublish: boolean): PortfolioSettings {
+function portfolioSettings(
+  directSocialPublish: boolean,
+  idp?: StaffIdpSnapshot | null,
+): PortfolioSettings {
   return {
     direct_social_publish: directSocialPublish,
-    sso_enforced: resolveSsoEnforced({ idpConfigured: false }),
+    sso_enforced: resolveSsoEnforced(idp),
   };
 }
 
@@ -90,7 +95,15 @@ export class ContentOsPortfolioService {
     private readonly workflow: ContentWorkflowService,
     private readonly marketingRepo: ContentMarketingRepository,
     private readonly items: ContentItemService,
+    @Optional() private readonly config?: AppConfigService,
   ) {}
+
+  private staffIdpSnapshot(): StaffIdpSnapshot {
+    return {
+      staffAuthMode: this.config?.staffAuthMode,
+      staffKeycloakIssuer: this.config?.staffKeycloakIssuer,
+    };
+  }
 
   async getCommandCenter(scope: PortfolioCommandScope): Promise<PortfolioCommandCenter> {
     const staffId = scope.staffId ?? 0;
@@ -312,14 +325,14 @@ export class ContentOsPortfolioService {
       throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
     }
     if (typeof this.repo.getSetting !== 'function') {
-      return portfolioSettings(false);
+      return portfolioSettings(false, this.staffIdpSnapshot());
     }
     try {
       const row = (await this.repo.getSetting(DIRECT_SOCIAL_PUBLISH_KEY)) ?? null;
-      return portfolioSettings(resolveDirectSocialPublish(row));
+      return portfolioSettings(resolveDirectSocialPublish(row), this.staffIdpSnapshot());
     } catch (err) {
       if (isMissingCmktSettingsSchema(err)) {
-        return portfolioSettings(false);
+        return portfolioSettings(false, this.staffIdpSnapshot());
       }
       throw err;
     }
@@ -337,7 +350,7 @@ export class ContentOsPortfolioService {
     if (typeof this.repo.upsertSetting === 'function') {
       await this.repo.upsertSetting(DIRECT_SOCIAL_PUBLISH_KEY, value, input.actor);
     }
-    return portfolioSettings(value);
+    return portfolioSettings(value, this.staffIdpSnapshot());
   }
 
   async listRequests(scope: { staffId: number }): Promise<{ items: ContentRequestRow[] }> {

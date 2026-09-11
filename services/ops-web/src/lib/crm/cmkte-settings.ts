@@ -10,7 +10,7 @@ export function readDirectSocialPublish(
   return settings?.direct_social_publish === true;
 }
 
-/** E3: read-only. Missing / no IdP → false. Never invent a CMKT IdP. */
+/** E3: read-only API boolean. Missing / no IdP → false. Staff IdP-enforced → true. */
 export function readSsoEnforced(
   settings: { sso_enforced?: unknown } | null | undefined,
 ): boolean {

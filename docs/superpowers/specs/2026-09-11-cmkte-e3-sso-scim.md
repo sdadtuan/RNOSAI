@@ -1,7 +1,7 @@
 # CMKT E3 — SSO / SCIM follows existing staff identity
 
-**Date:** 2026-09-11  
-**Wave:** Content Marketing OS E3  
+**Date:** 2026-09-11
+**Wave:** Content Marketing OS E3
 **Status:** Documented hook only — no new IdP, no SCIM server
 
 ## Decision
@@ -26,7 +26,8 @@ Content OS workspace access stays on existing staff JWT + `crm_content.*` caps. 
 
 - Key: `sso_enforced`
 - **Read-only in E3.** Not stored in `cmkt_settings`. PATCH must not persist it.
-- **False if no IdP is configured.** E3 Content OS also does not flip this flag on just because Staff SSO exists — enforcement stays on the staff auth layer (`STAFF_AUTH_MODE=keycloak` when IT cuts over).
+- **True only when staff login is IdP-enforced:** `STAFF_AUTH_MODE=keycloak` and `PTT_STAFF_KEYCLOAK_ISSUER` is set (same probe as `staffSsoConfigured()`). Derived at GET/PATCH time from `AppConfigService` — boolean only, no issuer or secrets in JSON.
+- **False** when no IdP / local staff auth (`STAFF_AUTH_MODE=nest` or `dual`, or issuer missing).
 - Governance Settings shows a disabled switch. Admins open Staff SSO admin; they do not toggle a CMKT IdP here.
 
 `GET/PATCH /api/crm/content-os/portfolio/settings` always includes `sso_enforced` next to `direct_social_publish`. Missing payload / no IdP → `false`.

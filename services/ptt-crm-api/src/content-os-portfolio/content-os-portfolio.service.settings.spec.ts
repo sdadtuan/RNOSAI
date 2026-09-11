@@ -1,9 +1,21 @@
 import { stubPublishConnector } from './publish-connector';
 import { ContentOsPortfolioService } from './content-os-portfolio.service';
 
-function makeSvc(repo: object, marketingRepo: object = {}) {
-  return new ContentOsPortfolioService(repo as never, {} as never, marketingRepo as never, {} as never);
+function makeSvc(repo: object, marketingRepo: object = {}, config?: object) {
+  return new ContentOsPortfolioService(
+    repo as never,
+    {} as never,
+    marketingRepo as never,
+    {} as never,
+    config as never,
+  );
 }
+
+const localStaffAuth = { staffAuthMode: 'nest', staffKeycloakIssuer: null };
+const enforcedStaffIdp = {
+  staffAuthMode: 'keycloak',
+  staffKeycloakIssuer: 'http://127.0.0.1:8080/realms/ptt-staff',
+};
 
 describe('ContentOsPortfolioService settings', () => {
   it('GET settings returns direct_social_publish false when the row is missing', async () => {
@@ -121,7 +133,7 @@ describe('ContentOsPortfolioService settings', () => {
 
   it('GET settings exposes sso_enforced read-only false when no IdP is configured', async () => {
     const repo = { getSetting: jest.fn().mockResolvedValue(null) };
-    const svc = makeSvc(repo);
+    const svc = makeSvc(repo, {}, localStaffAuth);
     await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({
       direct_social_publish: false,
       sso_enforced: false,
@@ -129,11 +141,23 @@ describe('ContentOsPortfolioService settings', () => {
     expect(repo.getSetting).not.toHaveBeenCalledWith('sso_enforced');
   });
 
+  it('GET settings exposes sso_enforced true when staff IdP is enforced', async () => {
+    const repo = { getSetting: jest.fn().mockResolvedValue(null) };
+    const svc = makeSvc(repo, {}, enforcedStaffIdp);
+    const settings = await svc.getSettings({ staffId: 7 });
+    expect(settings).toEqual({
+      direct_social_publish: false,
+      sso_enforced: true,
+    });
+    expect(repo.getSetting).not.toHaveBeenCalledWith('sso_enforced');
+    expect(JSON.stringify(settings)).not.toMatch(/issuer|secret|client_secret|private.?key/i);
+  });
+
   it('PATCH settings ignores sso_enforced and never persists it', async () => {
     const repo = {
       upsertSetting: jest.fn().mockResolvedValue({ key: 'direct_social_publish', value_json: false }),
     };
-    const svc = makeSvc(repo);
+    const svc = makeSvc(repo, {}, localStaffAuth);
     await expect(
       svc.patchSettings({
         staffId: 7,
@@ -141,6 +165,23 @@ describe('ContentOsPortfolioService settings', () => {
         body: { direct_social_publish: false, sso_enforced: true },
       }),
     ).resolves.toEqual({ direct_social_publish: false, sso_enforced: false });
+    expect(repo.upsertSetting).toHaveBeenCalledTimes(1);
+    expect(repo.upsertSetting).toHaveBeenCalledWith('direct_social_publish', false, 'admin@ptt.vn');
+    expect(repo.upsertSetting).not.toHaveBeenCalledWith('sso_enforced', expect.anything(), expect.anything());
+  });
+
+  it('PATCH settings still derives sso_enforced from staff IdP and does not persist it', async () => {
+    const repo = {
+      upsertSetting: jest.fn().mockResolvedValue({ key: 'direct_social_publish', value_json: false }),
+    };
+    const svc = makeSvc(repo, {}, enforcedStaffIdp);
+    await expect(
+      svc.patchSettings({
+        staffId: 7,
+        actor: 'admin@ptt.vn',
+        body: { direct_social_publish: false, sso_enforced: false },
+      }),
+    ).resolves.toEqual({ direct_social_publish: false, sso_enforced: true });
     expect(repo.upsertSetting).toHaveBeenCalledTimes(1);
     expect(repo.upsertSetting).toHaveBeenCalledWith('direct_social_publish', false, 'admin@ptt.vn');
     expect(repo.upsertSetting).not.toHaveBeenCalledWith('sso_enforced', expect.anything(), expect.anything());

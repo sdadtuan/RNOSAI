@@ -18,6 +18,11 @@ describe('cmkte-settings', () => {
     expect(ssoEnforcedControl(false)).toEqual({ checked: false, disabled: true, readOnly: true });
   });
 
+  it('exposes sso_enforced read-only true when staff IdP is enforced', () => {
+    expect(readSsoEnforced({ sso_enforced: true })).toBe(true);
+    expect(ssoEnforcedControl(true)).toEqual({ checked: true, disabled: true, readOnly: true });
+  });
+
   it('defaults the direct social publish switch to false', () => {
     expect(DEFAULT_DIRECT_SOCIAL_PUBLISH).toBe(false);
     expect(readDirectSocialPublish(undefined)).toBe(false);
