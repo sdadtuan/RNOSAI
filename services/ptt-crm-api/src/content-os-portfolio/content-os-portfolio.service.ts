@@ -235,7 +235,18 @@ export class ContentOsPortfolioService {
     if (insight.status !== 'Draft') {
       throw new ConflictException({ error: 'insight_not_draft', status: insight.status });
     }
-    return this.repo.updateInsightStatus(insight.id, 'Approved');
+    try {
+      return await this.repo.updateInsightStatus(insight.id, 'Approved');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message.startsWith('insight_not_found')) {
+        throw new NotFoundException({ error: 'insight_not_found', id: input.insightId });
+      }
+      if (message.startsWith('insight_not_draft')) {
+        throw new ConflictException({ error: 'insight_not_draft', status: insight.status });
+      }
+      throw err;
+    }
   }
 
   async getPortfolioItem(input: {

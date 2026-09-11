@@ -97,4 +97,24 @@ describe('ContentOsPortfolioService.approveInsight', () => {
     const svc = makeSvc(repo);
     await expect(svc.approveInsight({ staffId: 9, insightId: 404 })).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it('returns 409 when a race flips Draft after the pre-check', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      getInsightById: jest.fn().mockResolvedValue(insight({ id: 11, status: 'Draft' })),
+      updateInsightStatus: jest.fn().mockRejectedValue(new Error('insight_not_draft:11')),
+    };
+    const svc = makeSvc(repo);
+    await expect(svc.approveInsight({ staffId: 9, insightId: 11 })).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('returns 404 when a race deletes the insight after the pre-check', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      getInsightById: jest.fn().mockResolvedValue(insight({ id: 11, status: 'Draft' })),
+      updateInsightStatus: jest.fn().mockRejectedValue(new Error('insight_not_found:11')),
+    };
+    const svc = makeSvc(repo);
+    await expect(svc.approveInsight({ staffId: 9, insightId: 11 })).rejects.toBeInstanceOf(NotFoundException);
+  });
 });

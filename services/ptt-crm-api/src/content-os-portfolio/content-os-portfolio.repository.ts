@@ -349,18 +349,14 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
 
   async getInsightById(id: number): Promise<CmktInsightRow | null> {
     if (!(await this.ensurePgReady())) return null;
-    try {
-      const res = await this.db.query(
-        `SELECT id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at
-         FROM cmkt_insights
-         WHERE id = $1`,
-        [id],
-      );
-      const row = res.rows[0];
-      return row ? this.mapInsightRow(row as Record<string, unknown>) : null;
-    } catch {
-      return null;
-    }
+    const res = await this.db.query(
+      `SELECT id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at
+       FROM cmkt_insights
+       WHERE id = $1`,
+      [id],
+    );
+    const row = res.rows[0];
+    return row ? this.mapInsightRow(row as Record<string, unknown>) : null;
   }
 
   async insertInsight(row: {
@@ -393,13 +389,17 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     const res = await this.db.query(
       `UPDATE cmkt_insights
        SET status = $2
-       WHERE id = $1
+       WHERE id = $1 AND status = 'Draft'
        RETURNING id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at`,
       [id, status],
     );
     const row = res.rows[0];
     if (!row) {
-      throw new Error(`insight_not_found:${id}`);
+      const existing = await this.getInsightById(id);
+      if (!existing) {
+        throw new Error(`insight_not_found:${id}`);
+      }
+      throw new Error(`insight_not_draft:${id}:${existing.status}`);
     }
     return this.mapInsightRow(row as Record<string, unknown>);
   }
