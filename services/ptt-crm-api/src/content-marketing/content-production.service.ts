@@ -13,6 +13,7 @@ import {
   designBriefPdfFilename,
 } from './content-production-export.util';
 import type { CmktItemRow, CmktProductionJson } from './content-marketing.types';
+import { criticalPathTaskIds } from '../content-os-portfolio/production-capacity.util';
 
 const PRODUCTION_EDIT_STATUSES = new Set([
   'approved_internal',
@@ -28,9 +29,16 @@ export class ContentProductionService {
     private readonly repo: ContentMarketingRepository,
   ) {}
 
-  async getProduction(lifecycleId: number, itemId: number): Promise<{ production_json: CmktProductionJson }> {
+  async getProduction(
+    lifecycleId: number,
+    itemId: number,
+  ): Promise<{ production_json: CmktProductionJson; critical_path_task_ids: string[] }> {
     const item = await this.getEditableItem(lifecycleId, itemId);
-    return { production_json: item.production_json ?? { phase: defaultProductionPhase(item) } };
+    const production_json = item.production_json ?? { phase: defaultProductionPhase(item) };
+    return {
+      production_json,
+      critical_path_task_ids: criticalPathTaskIds(production_json.tasks),
+    };
   }
 
   async patchProduction(

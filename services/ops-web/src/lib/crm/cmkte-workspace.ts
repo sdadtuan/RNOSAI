@@ -123,6 +123,30 @@ export function claimHighlightSegments(
   return segments;
 }
 
+export function capacityBandLabel(
+  pct: number | null | undefined,
+  band?: 'ok' | 'warning' | 'at_risk' | 'overloaded' | null,
+): string | null {
+  if (pct == null || !Number.isFinite(pct)) return null;
+  if (band === 'warning') return 'Cảnh báo';
+  if (band === 'at_risk') return 'At risk';
+  if (band === 'overloaded') return 'Quá tải';
+  return null;
+}
+
+export function criticalPathTaskTitles(item: ContentOsItem | null | undefined): string[] {
+  const ids = item?.critical_path_task_ids ?? [];
+  if (!ids.length) return [];
+  const tasks = Array.isArray(item?.production_json?.tasks) ? item.production_json.tasks : [];
+  return ids
+    .map((id) => {
+      const match = tasks.find((row) => row && typeof row === 'object' && String((row as { id?: unknown }).id) === id);
+      const title = match && typeof match === 'object' ? String((match as { title?: unknown }).title ?? '').trim() : '';
+      return title || id;
+    })
+    .filter(Boolean);
+}
+
 export function itemMediaUrls(item: ContentOsItem | null | undefined): string[] {
   if (!item) return [];
   const fromProd = Array.isArray(item.production_json?.asset_urls)

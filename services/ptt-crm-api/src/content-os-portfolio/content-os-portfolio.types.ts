@@ -18,6 +18,7 @@ export type PortfolioCommandCenter = {
   sla_breached: number;
   first_pass_pct: number | null;
   capacity_pct: number | null;
+  capacity_band?: 'ok' | 'warning' | 'at_risk' | 'overloaded' | null;
   blocked: number;
   risk_queue: PortfolioRiskQueueItem[];
 };
@@ -25,6 +26,19 @@ export type PortfolioCommandCenter = {
 export type PortfolioCommandScope = {
   staffId?: number;
   lifecycleHint?: number;
+};
+
+export type PortfolioProductionItem = {
+  id: number;
+  lifecycle_id: number;
+  title: string;
+  assignee_sp: number | null;
+  production_json: {
+    effort_h?: number | null;
+    assignee_designer_id?: number | null;
+    assignee_video_id?: number | null;
+    tasks?: import('./production-capacity.util').CmktETask[];
+  };
 };
 
 export const CONTENT_REQUEST_SOURCES = ['account', 'client_portal', 'campaign', 'api', 'idea'] as const;
@@ -116,6 +130,7 @@ export function emptyPortfolioCommandCenter(): PortfolioCommandCenter {
     sla_breached: 0,
     first_pass_pct: null,
     capacity_pct: null,
+    capacity_band: null,
     blocked: 0,
     risk_queue: [],
   };

@@ -64,8 +64,12 @@ describe('content-production.util', () => {
     const merged = mergeProductionJson({ phase: 'none' }, {
       phase: 'done',
       asset_urls: ['https://cdn/a.pdf'],
+      effort_h: 20,
+      tasks: [{ id: 'a', title: 'Write', assignee_id: 1, raci: { r: 'sp', a: 'am' }, depends_on: [], sla_h: 8, effort_h: 5, status: 'todo' }],
     });
     expect(merged.phase).toBe('done');
     expect(merged.asset_urls).toEqual(['https://cdn/a.pdf']);
+    expect(merged.effort_h).toBe(20);
+    expect(merged.tasks?.[0]?.id).toBe('a');
   });
 });

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import type { PortfolioCommandCenter, PortfolioRiskQueueItem } from '@/lib/crm/cmkte-api';
+import { capacityBandLabel } from '@/lib/crm/cmkte-workspace';
 import { cmktePath } from '@/lib/crm/cmkte-routes';
 import { CmktERequestModal } from './CmktERequestModal';
 
@@ -36,6 +37,7 @@ export function CmktECommandCenter({
   const [toast, setToast] = useState('');
   const empty = data.throughput_week === 0 && data.risk_queue.length === 0;
   const approvedInsight = data.insight?.status === 'Approved' ? data.insight : null;
+  const capacityBand = capacityBandLabel(data.capacity_pct, data.capacity_band);
 
   return (
     <div className="cmkte-cmd">
@@ -86,9 +88,12 @@ export function CmktECommandCenter({
           {data.capacity_pct == null ? (
             <p className="cmkte-desc">Chưa có time tracking</p>
           ) : (
-            <div className="cmkte-bar" aria-hidden>
-              <i style={{ width: `${Math.max(0, Math.min(100, data.capacity_pct))}%` }} />
-            </div>
+            <>
+              {capacityBand ? <p className="cmkte-desc">{capacityBand}</p> : null}
+              <div className="cmkte-bar" aria-hidden>
+                <i style={{ width: `${Math.max(0, Math.min(100, data.capacity_pct))}%` }} />
+              </div>
+            </>
           )}
         </div>
       </div>

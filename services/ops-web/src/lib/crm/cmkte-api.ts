@@ -27,6 +27,7 @@ export type PortfolioCommandCenter = {
   sla_breached: number;
   first_pass_pct: number | null;
   capacity_pct: number | null;
+  capacity_band?: 'ok' | 'warning' | 'at_risk' | 'overloaded' | null;
   blocked: number;
   risk_queue: PortfolioRiskQueueItem[];
   insight?: PortfolioCommandCenterInsight | null;

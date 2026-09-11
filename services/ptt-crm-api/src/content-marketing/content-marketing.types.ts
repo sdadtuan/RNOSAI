@@ -25,6 +25,8 @@ export type CmktProductionPhase =
 
 export type CmktProductionJson = {
   phase?: CmktProductionPhase;
+  effort_h?: number;
+  tasks?: import('../content-os-portfolio/production-capacity.util').CmktETask[];
   assignee_designer_id?: number | null;
   assignee_video_id?: number | null;
   brief_exported_at?: string | null;
@@ -206,6 +208,7 @@ export type CmktItemRow = {
   brief_threshold?: number;
   brief_ready?: boolean;
   paid_expiry_warning?: boolean;
+  critical_path_task_ids?: string[];
   publish_gate?: {
     briefReady: boolean;
     internalApproved: boolean;

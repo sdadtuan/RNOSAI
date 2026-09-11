@@ -17,6 +17,7 @@ import {
   calendarCollisionNotice,
   canMarkPublished,
   claimHighlightSegments,
+  criticalPathTaskTitles,
   dash,
   firstCalendarCollision,
   isBlankRecord,
@@ -165,6 +166,7 @@ export function CmktEWorkspace({
   const claimHits = itemClaimHits(item);
   const token = getAccessToken();
   const collisionNotice = calendarCollisionNotice(firstCalendarCollision(bundle.slots));
+  const criticalTitles = criticalPathTaskTitles(item);
 
   return (
     <div className="cmkte-work">
@@ -337,6 +339,9 @@ export function CmktEWorkspace({
       {tab === 'production' ? (
         <section className="cmkte-card">
           <h2 className="cmkte-section-title">Production Plan</h2>
+          <p className="cmkte-desc">
+            Critical path: {criticalTitles.length ? criticalTitles.join(', ') : '—'}
+          </p>
           <JsonBlock value={item.production_json} empty="Chưa có production plan." />
         </section>
       ) : null}

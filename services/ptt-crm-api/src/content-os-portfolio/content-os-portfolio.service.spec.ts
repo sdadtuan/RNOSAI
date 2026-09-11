@@ -102,6 +102,121 @@ describe('ContentOsPortfolioService.getCommandCenter', () => {
     await svc.getCommandCenter({ staffId: 1, lifecycleHint: 99 });
     expect(repo.aggregateCommand).toHaveBeenCalledWith([4, 7]);
   });
+
+  it('computes capacity_pct from scoped production effort and assignees', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      aggregateCommand: jest.fn().mockResolvedValue({
+        throughput_week: 1,
+        completed_week: 0,
+        wip: 1,
+        sla_at_risk: 0,
+        sla_breached: 0,
+        first_pass_pct: null,
+        capacity_pct: null,
+        blocked: 0,
+        risk_queue: [],
+      }),
+      listScopedProductionItems: jest.fn().mockResolvedValue([
+        { id: 21, lifecycle_id: 4, title: 'Reel', assignee_sp: 7, production_json: { effort_h: 20 } },
+      ]),
+    };
+    const svc = makeSvc(repo);
+    const out = await svc.getCommandCenter({ staffId: 1 });
+    expect(repo.listScopedProductionItems).toHaveBeenCalledWith([4]);
+    expect(out.capacity_pct).toBe(50);
+    expect(out.capacity_band).toBe('ok');
+    expect(out.capacity_pct).not.toBe(78);
+  });
+
+  it('keeps capacity_pct null when scoped items lack effort plus assignee', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      aggregateCommand: jest.fn().mockResolvedValue({
+        throughput_week: 2,
+        completed_week: 1,
+        wip: 1,
+        sla_at_risk: 0,
+        sla_breached: 0,
+        first_pass_pct: null,
+        capacity_pct: null,
+        blocked: 0,
+        risk_queue: [],
+      }),
+      listScopedProductionItems: jest.fn().mockResolvedValue([
+        { id: 21, lifecycle_id: 4, title: 'Reel', assignee_sp: null, production_json: { effort_h: 20 } },
+      ]),
+    };
+    const svc = makeSvc(repo);
+    const out = await svc.getCommandCenter({ staffId: 1 });
+    expect(out.capacity_pct).toBeNull();
+    expect(out.capacity_band).toBeNull();
+  });
+
+  it('marks risk_queue CRITICAL_PATH_DELAYED when a critical task is blocked', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      aggregateCommand: jest.fn().mockResolvedValue({
+        throughput_week: 1,
+        completed_week: 0,
+        wip: 1,
+        sla_at_risk: 0,
+        sla_breached: 0,
+        first_pass_pct: null,
+        capacity_pct: null,
+        blocked: 0,
+        risk_queue: [
+          {
+            item_id: 21,
+            lifecycle_id: 4,
+            content_code: null,
+            title: 'Reel',
+            client_label: null,
+            risk_signal: 'SLA_AT_RISK',
+            owner_label: null,
+            sla_remaining_h: 2,
+            recommended_action: 'Ưu tiên duyệt trước khi quá SLA',
+          },
+        ],
+      }),
+      listScopedProductionItems: jest.fn().mockResolvedValue([
+        {
+          id: 21,
+          lifecycle_id: 4,
+          title: 'Reel',
+          assignee_sp: 7,
+          production_json: {
+            effort_h: 12,
+            tasks: [
+              {
+                id: 'script',
+                title: 'Script',
+                assignee_id: 7,
+                raci: { r: 'sp', a: 'am' },
+                depends_on: [],
+                sla_h: 8,
+                effort_h: 5,
+                status: 'todo',
+              },
+              {
+                id: 'edit',
+                title: 'Edit',
+                assignee_id: 7,
+                raci: { r: 'sp', a: 'am' },
+                depends_on: ['script'],
+                sla_h: 8,
+                effort_h: 8,
+                status: 'blocked',
+              },
+            ],
+          },
+        },
+      ]),
+    };
+    const svc = makeSvc(repo);
+    const out = await svc.getCommandCenter({ staffId: 1 });
+    expect(out.risk_queue[0].risk_signal).toBe('CRITICAL_PATH_DELAYED');
+  });
 });
 
 describe('ContentOsPortfolioService.listApprovals', () => {
@@ -310,6 +425,52 @@ describe('ContentOsPortfolioService.getPortfolioItem', () => {
     const svc = makeSvc(repo, undefined, marketingRepo, items);
     await expect(svc.getPortfolioItem({ staffId: 1, itemId: 21 })).resolves.toEqual(item);
     expect(items.getItem).toHaveBeenCalledWith(4, 21);
+  });
+
+  it('attaches critical_path_task_ids from production tasks', async () => {
+    const withTasks = {
+      ...item,
+      production_json: {
+        tasks: [
+          {
+            id: 'a',
+            title: 'Write',
+            assignee_id: 1,
+            raci: { r: 'sp', a: 'am' },
+            depends_on: [],
+            sla_h: 8,
+            effort_h: 5,
+            status: 'todo',
+          },
+          {
+            id: 'b',
+            title: 'Design',
+            assignee_id: 2,
+            raci: { r: 'sp', a: 'am' },
+            depends_on: ['a'],
+            sla_h: 8,
+            effort_h: 10,
+            status: 'todo',
+          },
+          {
+            id: 'c',
+            title: 'Side',
+            assignee_id: 3,
+            raci: { r: 'sp', a: 'am' },
+            depends_on: ['a'],
+            sla_h: 8,
+            effort_h: 2,
+            status: 'todo',
+          },
+        ],
+      },
+    };
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) };
+    const marketingRepo = { findItemById: jest.fn().mockResolvedValue(withTasks) };
+    const items = { getItem: jest.fn().mockResolvedValue(withTasks) };
+    const svc = makeSvc(repo, undefined, marketingRepo, items);
+    const out = await svc.getPortfolioItem({ staffId: 1, itemId: 21 });
+    expect(out.critical_path_task_ids).toEqual(['a', 'b']);
   });
 
   it('uses lifecycle hint first when the hint is in scope', async () => {

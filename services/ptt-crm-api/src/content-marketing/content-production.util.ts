@@ -54,6 +54,13 @@ export function mergeProductionJson(
   if (Array.isArray(patch.chapter_markers)) {
     next.chapter_markers = patch.chapter_markers.map((m) => String(m)).filter(Boolean);
   }
+  if (patch.effort_h !== undefined) {
+    const hours = Number(patch.effort_h);
+    next.effort_h = Number.isFinite(hours) ? hours : undefined;
+  }
+  if (patch.tasks !== undefined) {
+    next.tasks = Array.isArray(patch.tasks) ? (patch.tasks as CmktProductionJson['tasks']) : undefined;
+  }
   return next;
 }
 

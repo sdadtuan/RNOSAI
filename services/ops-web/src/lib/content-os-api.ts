@@ -180,6 +180,7 @@ export type ContentOsItem = {
   brief_threshold?: number;
   brief_ready?: boolean;
   paid_expiry_warning?: boolean;
+  critical_path_task_ids?: string[];
   publish_gate?: {
     briefReady: boolean;
     internalApproved: boolean;

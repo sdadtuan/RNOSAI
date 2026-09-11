@@ -16,8 +16,10 @@ import {
   type ContentRequestSource,
   type PortfolioCommandCenter,
   type PortfolioCommandScope,
+  type PortfolioProductionItem,
 } from './content-os-portfolio.types';
 import { formatContentRequestCode, requestCompleteness } from './content-os-portfolio.util';
+import { computeCapacity, criticalPathTaskIds, hasDelayedCriticalTask } from './production-capacity.util';
 
 const PORTFOLIO_LIFECYCLE_CAP = 20;
 
@@ -53,7 +55,9 @@ export class ContentOsPortfolioService {
     }
     const hint = scope.lifecycleHint;
     const ids = hint && hint > 0 && lifecycleIds.includes(hint) ? [hint] : lifecycleIds;
-    return this.repo.aggregateCommand(ids);
+    const command = await this.repo.aggregateCommand(ids);
+    const items = await this.loadProductionItems(ids);
+    return this.withCapacityAndCriticalPath(command, items);
   }
 
   async listApprovals(scope: { staffId: number }): Promise<{ items: CmktReviewQueueItem[] }> {
@@ -207,7 +211,7 @@ export class ContentOsPortfolioService {
     const hint = input.lifecycleHint;
     if (hint && ids.includes(hint)) {
       try {
-        return await this.items.getItem(hint, input.itemId);
+        return this.withCriticalPath(await this.items.getItem(hint, input.itemId));
       } catch {
         // hint missed — scan scoped items
       }
@@ -216,7 +220,54 @@ export class ContentOsPortfolioService {
     if (!found || !ids.includes(found.lifecycle_id)) {
       throw new NotFoundException({ error: 'item_not_found', id: input.itemId });
     }
-    return this.items.getItem(found.lifecycle_id, input.itemId);
+    return this.withCriticalPath(await this.items.getItem(found.lifecycle_id, input.itemId));
+  }
+
+  private async loadProductionItems(ids: number[]): Promise<PortfolioProductionItem[]> {
+    if (typeof this.repo.listScopedProductionItems !== 'function') return [];
+    try {
+      return (await this.repo.listScopedProductionItems(ids)) ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  private withCapacityAndCriticalPath(
+    command: PortfolioCommandCenter,
+    items: PortfolioProductionItem[],
+  ): PortfolioCommandCenter {
+    const cap = computeCapacity(items);
+    const risk_queue = command.risk_queue.map((row) => {
+      const match = items.find((item) => item.id === row.item_id);
+      if (!match || !hasDelayedCriticalTask(match.production_json?.tasks)) return row;
+      return { ...row, risk_signal: 'CRITICAL_PATH_DELAYED' };
+    });
+    const seen = new Set(risk_queue.map((row) => row.item_id));
+    for (const item of items) {
+      if (item.id == null || seen.has(item.id) || !hasDelayedCriticalTask(item.production_json?.tasks)) continue;
+      risk_queue.push({
+        item_id: item.id,
+        lifecycle_id: item.lifecycle_id ?? 0,
+        content_code: null,
+        title: item.title ?? '',
+        client_label: null,
+        risk_signal: 'CRITICAL_PATH_DELAYED',
+        owner_label: null,
+        sla_remaining_h: null,
+        recommended_action: 'Gỡ block trên critical path',
+      });
+    }
+    return {
+      ...command,
+      capacity_pct: cap.capacity_pct,
+      capacity_band: cap.capacity_band,
+      risk_queue,
+    };
+  }
+
+  private withCriticalPath(item: CmktItemRow): CmktItemRow {
+    const critical_path_task_ids = criticalPathTaskIds(item.production_json?.tasks);
+    return critical_path_task_ids.length ? { ...item, critical_path_task_ids } : item;
   }
 
   private parseRequestSource(raw: unknown): ContentRequestSource {

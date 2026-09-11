@@ -3,7 +3,9 @@ import { evaluatePublishGate } from './cmkte-publish-gate';
 import {
   calendarCollisionNotice,
   canMarkPublished,
+  capacityBandLabel,
   claimHighlightSegments,
+  criticalPathTaskTitles,
   DEFAULT_CLAIM_LEXEMES,
   firstCalendarCollision,
   itemClaimHits,
@@ -187,6 +189,36 @@ describe('itemMediaUrls', () => {
       'https://cdn.example/c.jpg',
       'https://cdn.example/d.mp4',
     ]);
+  });
+});
+
+describe('capacityBandLabel', () => {
+  it('shows threshold copy only when pct is a number', () => {
+    expect(capacityBandLabel(null, 'overloaded')).toBeNull();
+    expect(capacityBandLabel(50, 'ok')).toBeNull();
+    expect(capacityBandLabel(80, 'warning')).toBe('Cảnh báo');
+    expect(capacityBandLabel(90, 'at_risk')).toBe('At risk');
+    expect(capacityBandLabel(120, 'overloaded')).toBe('Quá tải');
+  });
+});
+
+describe('criticalPathTaskTitles', () => {
+  it('maps critical_path_task_ids to titles and stays empty for —', () => {
+    expect(criticalPathTaskTitles(item({}))).toEqual([]);
+    expect(
+      criticalPathTaskTitles(
+        item({
+          critical_path_task_ids: ['a', 'b'],
+          production_json: {
+            tasks: [
+              { id: 'a', title: 'Write' },
+              { id: 'b', title: 'Design' },
+              { id: 'c', title: 'Side' },
+            ],
+          },
+        }),
+      ),
+    ).toEqual(['Write', 'Design']);
   });
 });
 
