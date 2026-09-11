@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { CMKT_REVIEW_SLA_HOURS } from '../content-marketing/content-marketing.constants';
@@ -399,7 +399,9 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
   }
 
   async getSetting(key: string): Promise<CmktSettingRow | null> {
-    if (!(await this.ensurePgReady())) return null;
+    if (!(await this.ensurePgReady())) {
+      throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
+    }
     try {
       const res = await this.db.query(
         `SELECT key, value_json FROM cmkt_settings WHERE key = $1 LIMIT 1`,

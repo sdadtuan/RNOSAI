@@ -36,6 +36,14 @@ describe('ContentOsPortfolioRepository settings', () => {
     await expect(repo.getSetting('direct_social_publish')).resolves.toBeNull();
   });
 
+  it('getSetting throws when postgres is not ready instead of returning null', async () => {
+    const query = jest.fn();
+    const repo = makeRepo(query);
+    Object.assign(repo, { pgReady: false });
+    await expect(repo.getSetting('direct_social_publish')).rejects.toMatchObject({ status: 503 });
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it('getSetting rethrows a real database error', async () => {
     const query = jest
       .fn()

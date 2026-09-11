@@ -53,6 +53,16 @@ describe('ContentOsPortfolioService settings', () => {
     await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({ direct_social_publish: false });
   });
 
+  it('GET settings throws when postgres is not ready instead of returning a false disabled policy', async () => {
+    const repo = {
+      ensurePgReady: jest.fn().mockResolvedValue(false),
+      getSetting: jest.fn().mockResolvedValue(null),
+    };
+    const svc = makeSvc(repo);
+    await expect(svc.getSettings({ staffId: 7 })).rejects.toMatchObject({ status: 503 });
+    expect(repo.getSetting).not.toHaveBeenCalled();
+  });
+
   it('GET settings surfaces a real database error instead of a false disabled policy', async () => {
     const repo = {
       getSetting: jest.fn().mockRejectedValue(

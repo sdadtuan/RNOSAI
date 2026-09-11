@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ContentItemService } from '../content-marketing/content-item.service';
 import { CMKT_CHANNELS } from '../content-marketing/content-marketing.constants';
@@ -289,6 +290,9 @@ export class ContentOsPortfolioService {
   }
 
   async getSettings(_scope: { staffId: number }): Promise<{ direct_social_publish: boolean }> {
+    if (typeof this.repo.ensurePgReady === 'function' && !(await this.repo.ensurePgReady())) {
+      throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
+    }
     if (typeof this.repo.getSetting !== 'function') {
       return { direct_social_publish: false };
     }

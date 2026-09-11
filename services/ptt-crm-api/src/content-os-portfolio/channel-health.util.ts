@@ -16,7 +16,7 @@ export function resolveChannelHealth(
   connector: ChannelConnectorRow | null | undefined,
   now: Date = new Date(),
 ): ChannelHealth {
-  if (!connector) return { status: 'Manual' };
+  if (!connector || connector.enabled !== true) return { status: 'Manual' };
   const raw = connector.expires_at;
   if (raw == null || String(raw).trim() === '') {
     return { status: 'Connected' };
@@ -50,6 +50,7 @@ function isBetterConnector(candidate: ChannelConnectorRow, current: ChannelConne
 export function pickConnectorPerChannel(rows: ChannelConnectorRow[]): Map<string, ChannelConnectorRow> {
   const byChannel = new Map<string, ChannelConnectorRow>();
   for (const row of rows) {
+    if (row.enabled !== true) continue;
     const channel = String(row.channel ?? '').trim();
     if (!channel) continue;
     const existing = byChannel.get(channel);

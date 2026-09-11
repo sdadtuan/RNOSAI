@@ -8,9 +8,12 @@ describe('resolveChannelHealth', () => {
     expect(resolveChannelHealth(undefined, now)).toEqual({ status: 'Manual' });
   });
 
-  it('returns TokenExpired only when a connector row has an expired token', () => {
+  it('returns TokenExpired only when an enabled connector row has an expired token', () => {
     expect(
-      resolveChannelHealth({ channel: 'facebook', expires_at: '2026-09-01T00:00:00.000Z' }, now),
+      resolveChannelHealth(
+        { channel: 'facebook', enabled: true, expires_at: '2026-09-01T00:00:00.000Z' },
+        now,
+      ),
     ).toEqual({
       status: 'TokenExpired',
       expires_at: '2026-09-01T00:00:00.000Z',
@@ -19,15 +22,35 @@ describe('resolveChannelHealth', () => {
 
   it('does not invent TokenExpired when the connector token is still valid', () => {
     expect(
-      resolveChannelHealth({ channel: 'facebook', expires_at: '2026-12-01T00:00:00.000Z' }, now),
+      resolveChannelHealth(
+        { channel: 'facebook', enabled: true, expires_at: '2026-12-01T00:00:00.000Z' },
+        now,
+      ),
     ).toEqual({
       status: 'Connected',
       expires_at: '2026-12-01T00:00:00.000Z',
     });
   });
 
-  it('treats a connector without expiry as Connected, never a fake token date', () => {
-    expect(resolveChannelHealth({ channel: 'linkedin' }, now)).toEqual({ status: 'Connected' });
+  it('treats an enabled connector without expiry as Connected, never a fake token date', () => {
+    expect(resolveChannelHealth({ channel: 'linkedin', enabled: true }, now)).toEqual({
+      status: 'Connected',
+    });
+  });
+
+  it('returns Manual for a disabled or off connector even when a token date exists', () => {
+    expect(
+      resolveChannelHealth(
+        { channel: 'facebook', enabled: false, expires_at: '2026-12-01T00:00:00.000Z' },
+        now,
+      ),
+    ).toEqual({ status: 'Manual' });
+    expect(
+      resolveChannelHealth(
+        { channel: 'linkedin', enabled: false, expires_at: '2020-01-01T00:00:00.000Z' },
+        now,
+      ),
+    ).toEqual({ status: 'Manual' });
   });
 });
 
@@ -47,5 +70,14 @@ describe('pickConnectorPerChannel', () => {
       expires_at: '2026-12-01T00:00:00.000Z',
     });
     expect(picked.get('linkedin')?.id).toBe(2);
+  });
+
+  it('does not pick a disabled-only channel so health stays Manual', () => {
+    const picked = pickConnectorPerChannel([
+      { id: 9, channel: 'facebook', enabled: false, expires_at: '2027-01-01T00:00:00.000Z' },
+      { id: 2, channel: 'linkedin', enabled: false },
+    ]);
+    expect(picked.has('facebook')).toBe(false);
+    expect(picked.has('linkedin')).toBe(false);
   });
 });

@@ -452,10 +452,10 @@ describe('ContentOsPortfolioService.getChannelHealth', () => {
     expect(out.channels.every((row) => row.status === 'Manual')).toBe(true);
   });
 
-  it('marks TokenExpired only for a real expired connector row', async () => {
+  it('marks TokenExpired only for a real expired enabled connector row', async () => {
     const marketingRepo = {
       listChannelConnectors: jest.fn().mockResolvedValue([
-        { channel: 'facebook', expires_at: '2020-01-01T00:00:00.000Z' },
+        { channel: 'facebook', enabled: true, expires_at: '2020-01-01T00:00:00.000Z' },
       ]),
     };
     const svc = makeSvc({ listScopedLifecycleIds: jest.fn() }, undefined, marketingRepo);
@@ -485,6 +485,20 @@ describe('ContentOsPortfolioService.getChannelHealth', () => {
         expires_at: '2026-12-01T00:00:00.000Z',
       }),
     );
+  });
+
+  it('returns Manual when the only connector rows for a channel are disabled', async () => {
+    const marketingRepo = {
+      listChannelConnectors: jest.fn().mockResolvedValue([
+        { id: 9, channel: 'facebook', enabled: false, expires_at: '2027-01-01T00:00:00.000Z' },
+      ]),
+    };
+    const svc = makeSvc({ listScopedLifecycleIds: jest.fn() }, undefined, marketingRepo);
+    const out = await svc.getChannelHealth({ staffId: 1 });
+    expect(out.channels.find((row) => row.channel === 'facebook')).toEqual({
+      channel: 'facebook',
+      status: 'Manual',
+    });
   });
 });
 
