@@ -2248,26 +2248,15 @@ export class ContentMarketingRepository implements OnModuleDestroy {
 
   async listItemsWithProductionTasks(): Promise<CmktSlaScanItem[]> {
     if (await this.ensurePgReady()) {
-      try {
-        const res = await this.db.query(
-          `SELECT i.id, i.lifecycle_id, i.assignee_sp, i.production_json, lc.assigned_am
-             FROM cmkt_content_items i
-             LEFT JOIN crm_service_lifecycle lc ON lc.id = i.lifecycle_id
-            WHERE jsonb_typeof(COALESCE(i.production_json->'tasks', 'null'::jsonb)) = 'array'
-              AND jsonb_array_length(i.production_json->'tasks') > 0
-            ORDER BY i.id ASC`,
-        );
-        return res.rows.map((row) => this.mapSlaScanItem(row as Record<string, unknown>));
-      } catch {
-        const res = await this.db.query(
-          `SELECT id, lifecycle_id, assignee_sp, production_json
-             FROM cmkt_content_items
-            WHERE jsonb_typeof(COALESCE(production_json->'tasks', 'null'::jsonb)) = 'array'
-              AND jsonb_array_length(production_json->'tasks') > 0
-            ORDER BY id ASC`,
-        );
-        return res.rows.map((row) => this.mapSlaScanItem(row as Record<string, unknown>));
-      }
+      const res = await this.db.query(
+        `SELECT i.id, i.lifecycle_id, i.assignee_sp, i.production_json, lc.assigned_am
+           FROM cmkt_content_items i
+           LEFT JOIN crm_service_lifecycle lc ON lc.id = i.lifecycle_id
+          WHERE jsonb_typeof(COALESCE(i.production_json->'tasks', 'null'::jsonb)) = 'array'
+            AND jsonb_array_length(i.production_json->'tasks') > 0
+          ORDER BY i.id ASC`,
+      );
+      return res.rows.map((row) => this.mapSlaScanItem(row as Record<string, unknown>));
     }
     const out: CmktSlaScanItem[] = [];
     for (const items of this.memory.items.values()) {

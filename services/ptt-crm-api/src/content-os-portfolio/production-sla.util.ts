@@ -84,7 +84,7 @@ export function resolveAmStaffId(item: {
   owner_id?: number | null;
   assignee_sp?: number | null;
 }): number | null {
-  for (const value of [item.assigned_am, item.account_manager_id, item.am_id, item.owner_id, item.assignee_sp]) {
+  for (const value of [item.assigned_am, item.account_manager_id, item.am_id]) {
     const n = Number(value);
     if (Number.isFinite(n) && n > 0) return n;
   }

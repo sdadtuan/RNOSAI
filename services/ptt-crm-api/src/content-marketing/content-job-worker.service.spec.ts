@@ -194,7 +194,7 @@ describe('ContentJobWorkerService', () => {
       task_id: 'copy',
       threshold: 75,
       action: 'reminder',
-      am_staff_id: 11,
+      am_staff_id: null,
     });
     expect(repo.patchSlaFired).toHaveBeenCalledWith(5, ['copy:75']);
     expect(repo.patchItem).not.toHaveBeenCalled();
@@ -221,7 +221,7 @@ describe('ContentJobWorkerService', () => {
     expect(repo.patchItem).not.toHaveBeenCalled();
   });
 
-  it('tickProductionSla breaches over 100% and notifies AM, falling back to assignee_sp', async () => {
+  it('tickProductionSla breaches over 100% with null AM when only assignee_sp exists', async () => {
     repo.listItemsWithProductionTasks.mockResolvedValue([
       slaItem({ assigned_am: null, assignee_sp: 3 }),
     ]);
@@ -231,7 +231,7 @@ describe('ContentJobWorkerService', () => {
         task_id: 'copy',
         threshold: 100,
         action: 'breached',
-        am_staff_id: 3,
+        am_staff_id: null,
       }),
     );
   });
@@ -274,6 +274,33 @@ describe('ContentJobWorkerService', () => {
     expect(out).toEqual({ emitted: 0 });
     expect(repo.patchSlaFired).not.toHaveBeenCalled();
     expect(repo.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('reminder and at_risk stay in audit but are excluded from AM inbox', async () => {
+    const slaRepo = new ContentMarketingRepository({ databaseUrl: 'postgres://unused' } as never);
+    jest.spyOn(slaRepo, 'ensurePgReady').mockResolvedValue(false);
+    jest.spyOn(slaRepo, 'listItemsWithProductionTasks').mockResolvedValue([
+      slaItem({ assigned_am: 11 }),
+    ] as never);
+    const slaWorker = new ContentJobWorkerService(
+      config as never,
+      aiConfig as never,
+      llm as never,
+      agentRuns as never,
+      slaRepo,
+      brandContext as never,
+      mediaImages as never,
+      mediaVideo as never,
+      visualQa as never,
+      social as never,
+    );
+    await slaWorker.tickProductionSla(new Date('2026-09-11T10:06:00.000Z'));
+    const all = await slaRepo.listSlaAudits();
+    expect(all.map((row) => row.action)).toEqual(['reminder', 'at_risk', 'breached']);
+    expect(all.filter((row) => row.action !== 'breached').every((row) => row.am_staff_id == null)).toBe(true);
+    const inbox = await slaRepo.listSlaAudits({ am_staff_id: 11 });
+    expect(inbox).toHaveLength(1);
+    expect(inbox[0]).toMatchObject({ action: 'breached', am_staff_id: 11, task_id: 'copy' });
   });
 
   it('breach → listSlaAudits({ am_staff_id: AM }) returns exactly one breached row', async () => {

@@ -113,7 +113,7 @@ export class ContentJobWorkerService implements OnModuleInit, OnModuleDestroy {
             task_id: ev.task_id,
             threshold: ev.threshold,
             action: ev.action,
-            am_staff_id: amStaffId,
+            am_staff_id: ev.action === 'breached' ? amStaffId : null,
           });
           if (!row) continue;
           newlyEmitted += 1;

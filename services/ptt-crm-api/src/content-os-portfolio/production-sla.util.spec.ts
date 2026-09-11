@@ -109,10 +109,12 @@ describe('evaluateProductionSla', () => {
 });
 
 describe('resolveAmStaffId', () => {
-  it('prefers lifecycle account-manager / owner, else assignee_sp', () => {
+  it('uses only assigned_am / account_manager_id / am_id', () => {
     expect(resolveAmStaffId({ assigned_am: 11, assignee_sp: 3 })).toBe(11);
-    expect(resolveAmStaffId({ owner_id: 8, assignee_sp: 3 })).toBe(8);
-    expect(resolveAmStaffId({ assignee_sp: 3 })).toBe(3);
+    expect(resolveAmStaffId({ account_manager_id: 9, assignee_sp: 3 })).toBe(9);
+    expect(resolveAmStaffId({ am_id: 7, owner_id: 8 })).toBe(7);
+    expect(resolveAmStaffId({ owner_id: 8, assignee_sp: 3 })).toBeNull();
+    expect(resolveAmStaffId({ assignee_sp: 3 })).toBeNull();
     expect(resolveAmStaffId({})).toBeNull();
   });
 });
