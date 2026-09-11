@@ -9,7 +9,9 @@ import {
   fetchPortfolioItem,
   fetchPortfolioPublications,
   fetchPortfolioSlaEvents,
+  fetchPortfolioSettings,
   fetchPortfolioRequests,
+  patchPortfolioSettings,
   filterCommandCenter,
   mapIntakeRows,
   postPortfolioApprovalsBatch,
@@ -471,5 +473,43 @@ describe('fetchPortfolioSlaEvents', () => {
       }),
     );
     await expect(fetchPortfolioSlaEvents('tok-9')).resolves.toEqual({ items: [] });
+  });
+});
+
+describe('portfolio settings', () => {
+  it('GET settings defaults direct_social_publish to false', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ direct_social_publish: false }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(fetchPortfolioSettings('tok-9')).resolves.toEqual({ direct_social_publish: false });
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/settings`, {
+      headers: { Authorization: 'Bearer tok-9' },
+    });
+  });
+
+  it('defaults missing or failed GET to direct_social_publish false', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
+    await expect(fetchPortfolioSettings('tok-9')).resolves.toEqual({ direct_social_publish: false });
+  });
+
+  it('PATCH settings persists direct_social_publish', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ direct_social_publish: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(patchPortfolioSettings('tok-9', { direct_social_publish: true })).resolves.toEqual({
+      direct_social_publish: true,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/settings`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: 'Bearer tok-9',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ direct_social_publish: true }),
+    });
   });
 });

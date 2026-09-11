@@ -20,6 +20,12 @@ import {
 } from './copilot-insights.util';
 import { nextDisplaySeq } from './display-seq';
 import { formatContentItemCode, formatContentRequestCode } from './content-os-portfolio.util';
+import type { CmktSettingRow } from './direct-social-publish.util';
+
+function isUndefinedTableError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  return String((err as { code?: unknown }).code ?? '') === '42P01';
+}
 
 function isOptionalAiRunJoinError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
@@ -395,6 +401,37 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     );
     const row = res.rows[0];
     return row ? this.mapInsightRow(row as Record<string, unknown>) : null;
+  }
+
+  async getSetting(key: string): Promise<CmktSettingRow | null> {
+    if (!(await this.ensurePgReady())) return null;
+    try {
+      const res = await this.db.query(
+        `SELECT key, value_json FROM cmkt_settings WHERE key = $1 LIMIT 1`,
+        [key],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      if (!row) return null;
+      return { key: String(row.key ?? key), value_json: row.value_json };
+    } catch (err) {
+      if (isUndefinedTableError(err)) return null;
+      throw err;
+    }
+  }
+
+  async upsertSetting(key: string, value: unknown, updatedBy: string): Promise<CmktSettingRow> {
+    const res = await this.db.query(
+      `INSERT INTO cmkt_settings (key, value_json, updated_at, updated_by)
+       VALUES ($1, $2::jsonb, NOW(), $3)
+       ON CONFLICT (key) DO UPDATE
+          SET value_json = EXCLUDED.value_json,
+              updated_at = NOW(),
+              updated_by = EXCLUDED.updated_by
+       RETURNING key, value_json`,
+      [key, JSON.stringify(value), updatedBy],
+    );
+    const row = res.rows[0] as Record<string, unknown>;
+    return { key: String(row.key ?? key), value_json: row.value_json };
   }
 
   async insertInsight(row: {

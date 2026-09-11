@@ -6,6 +6,8 @@ import { clearSession } from '@/lib/auth';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { fetchContentOsContext, type ContentOsContext } from '@/lib/content-os-api';
 import { CmktESettings } from '@/components/content-os/cmkte/CmktESettings';
+import { fetchPortfolioSettings, patchPortfolioSettings } from '@/lib/crm/cmkte-api';
+import { DEFAULT_DIRECT_SOCIAL_PUBLISH } from '@/lib/crm/cmkte-settings';
 import { parseLifecycleQuery, useCmktEPageAuth } from '@/lib/crm/use-cmkte-page';
 
 export default function CrmContentOsSettingsPage() {
@@ -21,6 +23,8 @@ function CrmContentOsSettingsContent() {
   const lifecycleId = parseLifecycleQuery(searchParams.get('lifecycle'));
   const { user, error, setError, ensureAuth, router } = useCmktEPageAuth();
   const [context, setContext] = useState<ContentOsContext | null>(null);
+  const [token, setToken] = useState('');
+  const [directSocialPublish, setDirectSocialPublish] = useState(DEFAULT_DIRECT_SOCIAL_PUBLISH);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -34,13 +38,16 @@ function CrmContentOsSettingsContent() {
         return;
       }
       if (!access || !isContentMarketingFeEnabled()) return;
-      if (!lifecycleId) {
-        setContext(null);
-        return;
-      }
+      setToken(access);
       setLoading(true);
       setError('');
       try {
+        const settings = await fetchPortfolioSettings(access);
+        setDirectSocialPublish(settings.direct_social_publish);
+        if (!lifecycleId) {
+          setContext(null);
+          return;
+        }
         setContext(await fetchContentOsContext(access, lifecycleId));
       } catch (err) {
         setContext(null);
@@ -58,7 +65,20 @@ function CrmContentOsSettingsContent() {
     <div>
       {loading ? <p className="cmkte-status">Đang tải…</p> : null}
       {error ? <p className="cmkte-status cmkte-status--error">{error}</p> : null}
-      {!loading ? <CmktESettings context={context} /> : null}
+      {!loading ? (
+        <CmktESettings
+          context={context}
+          directSocialPublish={directSocialPublish}
+          onSavePolicy={
+            token
+              ? async (next) => {
+                  const saved = await patchPortfolioSettings(token, { direct_social_publish: next });
+                  setDirectSocialPublish(saved.direct_social_publish);
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </div>
   );
 }

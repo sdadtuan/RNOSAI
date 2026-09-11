@@ -2451,8 +2451,26 @@ export class ContentMarketingRepository implements OnModuleDestroy {
   }
 
   async listChannelConnectors(): Promise<ChannelConnectorRow[]> {
-    // No channel_accounts / connector table in E2 — never invent tokens.
-    return [];
+    if (!(await this.ensurePgReady())) return [];
+    try {
+      const res = await this.db.query(
+        `SELECT channel, expires_at
+           FROM cmkt_connectors`,
+      );
+      return res.rows.map((row) => {
+        const rec = row as Record<string, unknown>;
+        const expires = rec.expires_at != null ? new Date(String(rec.expires_at)) : null;
+        return {
+          channel: String(rec.channel ?? ''),
+          expires_at: expires && Number.isFinite(expires.getTime()) ? expires.toISOString() : null,
+        };
+      });
+    } catch (err) {
+      if (err && typeof err === 'object' && String((err as { code?: unknown }).code ?? '') === '42P01') {
+        return [];
+      }
+      throw err;
+    }
   }
 
   async listSlaAudits(filter?: CmktSlaAuditFilter): Promise<CmktSlaAuditRow[]> {

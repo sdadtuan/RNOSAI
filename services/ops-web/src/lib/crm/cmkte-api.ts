@@ -1,5 +1,6 @@
 import { API_BASE } from '@/lib/api';
 import type { ContentOsCalendarSlot, ContentOsItem, ContentOsReviewQueueItem } from '@/lib/content-os-api';
+import { readDirectSocialPublish } from './cmkte-settings';
 
 export type PortfolioRiskQueueItem = {
   item_id: number;
@@ -346,6 +347,40 @@ export async function approvePortfolioInsight(token: string, insightId: number):
     throw new Error(body?.error ?? 'insight_approve_failed');
   }
   return res.json();
+}
+
+export type PortfolioSettings = {
+  direct_social_publish: boolean;
+};
+
+export async function fetchPortfolioSettings(token: string): Promise<PortfolioSettings> {
+  const fallback: PortfolioSettings = { direct_social_publish: false };
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/settings`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return fallback;
+  const body = (await res.json().catch(() => null)) as PortfolioSettings | null;
+  return { direct_social_publish: readDirectSocialPublish(body) };
+}
+
+export async function patchPortfolioSettings(
+  token: string,
+  body: { direct_social_publish: boolean },
+): Promise<PortfolioSettings> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/settings`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ direct_social_publish: body.direct_social_publish === true }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(err?.error ?? 'settings_patch_failed');
+  }
+  const saved = (await res.json().catch(() => null)) as PortfolioSettings | null;
+  return { direct_social_publish: readDirectSocialPublish(saved) };
 }
 
 export async function fetchLifecycleIdeas(

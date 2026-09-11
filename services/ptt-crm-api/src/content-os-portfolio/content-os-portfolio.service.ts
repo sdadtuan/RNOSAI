@@ -47,6 +47,7 @@ import { formatContentRequestCode, requestCompleteness } from './content-os-port
 import { toAiTraceRow, type AiTraceRow } from './ai-traces.util';
 import type { CmktInsightRow } from './copilot-insights.util';
 import { computeCapacity, criticalPathTaskIds, hasDelayedCriticalTask } from './production-capacity.util';
+import { DIRECT_SOCIAL_PUBLISH_KEY, resolveDirectSocialPublish } from './direct-social-publish.util';
 
 const PORTFOLIO_LIFECYCLE_CAP = 20;
 
@@ -280,6 +281,30 @@ export class ContentOsPortfolioService {
         ...resolveChannelHealth(byChannel.get(channel) ?? null),
       })),
     };
+  }
+
+  async getSettings(_scope: { staffId: number }): Promise<{ direct_social_publish: boolean }> {
+    let row = null;
+    if (typeof this.repo.getSetting === 'function') {
+      try {
+        row = (await this.repo.getSetting(DIRECT_SOCIAL_PUBLISH_KEY)) ?? null;
+      } catch {
+        row = null;
+      }
+    }
+    return { direct_social_publish: resolveDirectSocialPublish(row) };
+  }
+
+  async patchSettings(input: {
+    staffId: number;
+    actor: string;
+    body: Record<string, unknown>;
+  }): Promise<{ direct_social_publish: boolean }> {
+    const value = input.body?.direct_social_publish === true;
+    if (typeof this.repo.upsertSetting === 'function') {
+      await this.repo.upsertSetting(DIRECT_SOCIAL_PUBLISH_KEY, value, input.actor);
+    }
+    return { direct_social_publish: value };
   }
 
   async listRequests(scope: { staffId: number }): Promise<{ items: ContentRequestRow[] }> {

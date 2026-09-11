@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import {
   StaffContentMarketingApproveGuard,
@@ -76,6 +76,23 @@ export class ContentOsPortfolioController {
   channelHealth(@Req() req: Request) {
     return this.portfolio.getChannelHealth({
       staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+    });
+  }
+
+  @Get('settings')
+  getSettings(@Req() req: Request) {
+    return this.portfolio.getSettings({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+    });
+  }
+
+  @Patch('settings')
+  @UseGuards(StaffContentMarketingWriteGuard)
+  patchSettings(@Body() body: Record<string, unknown>, @Req() req: Request) {
+    return this.portfolio.patchSettings({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      actor: actorEmail(req),
+      body: body ?? {},
     });
   }
 

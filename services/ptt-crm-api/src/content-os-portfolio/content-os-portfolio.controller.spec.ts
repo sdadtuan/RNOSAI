@@ -122,6 +122,29 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual(pkg);
   });
 
+  it('GET settings delegates to getSettings with staffId', async () => {
+    const service = { getSettings: jest.fn().mockResolvedValue({ direct_social_publish: false }) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.getSettings({ staffUser: { sub: '7' } } as never);
+    expect(service.getSettings).toHaveBeenCalledWith({ staffId: 7 });
+    expect(out).toEqual({ direct_social_publish: false });
+  });
+
+  it('PATCH settings delegates to patchSettings with staffId, actor, and body', async () => {
+    const service = { patchSettings: jest.fn().mockResolvedValue({ direct_social_publish: true }) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.patchSettings(
+      { direct_social_publish: true },
+      { staffUser: { sub: '7', email: 'admin@ptt.vn' } } as never,
+    );
+    expect(service.patchSettings).toHaveBeenCalledWith({
+      staffId: 7,
+      actor: 'admin@ptt.vn',
+      body: { direct_social_publish: true },
+    });
+    expect(out).toEqual({ direct_social_publish: true });
+  });
+
   it('GET items/:itemId/ai-traces delegates to listAiTraces with staffId and lifecycle hint', async () => {
     const traces = { items: [{ at: '2026-09-10T08:00:00.000Z', intent: 'Draft generate', sources: [], job_id: 55, status: 'succeeded' }] };
     const service = { listAiTraces: jest.fn().mockResolvedValue(traces) };
