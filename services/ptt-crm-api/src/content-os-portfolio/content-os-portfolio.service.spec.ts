@@ -416,6 +416,57 @@ describe('ContentOsPortfolioService.listPublications', () => {
     expect(to.getUTCDay()).toBe(0);
     expect(to.getTime()).toBeGreaterThan(from.getTime());
   });
+
+  it('attaches Manual channel_health when no connector rows exist', async () => {
+    const repo = { listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) };
+    const marketingRepo = {
+      listCalendarSlots: jest.fn().mockResolvedValue([
+        { id: 1, item_id: 21, item: { id: 21, channel: 'facebook' } },
+      ]),
+      listChannelConnectors: jest.fn().mockResolvedValue([]),
+    };
+    const svc = makeSvc(repo, undefined, marketingRepo);
+    const out = await svc.listPublications({ staffId: 1, from: '2026-09-07', to: '2026-09-13' });
+    expect(out.slots[0].channel_health).toEqual({ status: 'Manual' });
+    expect(out.channel_health?.find((row) => row.channel === 'facebook')).toEqual({
+      channel: 'facebook',
+      status: 'Manual',
+    });
+  });
+});
+
+describe('ContentOsPortfolioService.getChannelHealth', () => {
+  it('returns Manual for known channels when no connector table/rows exist', async () => {
+    const marketingRepo = { listChannelConnectors: jest.fn().mockResolvedValue([]) };
+    const svc = makeSvc({ listScopedLifecycleIds: jest.fn() }, undefined, marketingRepo);
+    const out = await svc.getChannelHealth({ staffId: 1 });
+    expect(out.channels.length).toBeGreaterThan(0);
+    expect(out.channels.every((row) => row.status === 'Manual')).toBe(true);
+    expect(out.channels.some((row) => row.channel === 'facebook')).toBe(true);
+    expect(JSON.stringify(out)).not.toMatch(/expires_at/);
+  });
+
+  it('returns Manual when listChannelConnectors is absent', async () => {
+    const svc = makeSvc({ listScopedLifecycleIds: jest.fn() }, undefined, {});
+    const out = await svc.getChannelHealth({ staffId: 1 });
+    expect(out.channels.every((row) => row.status === 'Manual')).toBe(true);
+  });
+
+  it('marks TokenExpired only for a real expired connector row', async () => {
+    const marketingRepo = {
+      listChannelConnectors: jest.fn().mockResolvedValue([
+        { channel: 'facebook', expires_at: '2020-01-01T00:00:00.000Z' },
+      ]),
+    };
+    const svc = makeSvc({ listScopedLifecycleIds: jest.fn() }, undefined, marketingRepo);
+    const out = await svc.getChannelHealth({ staffId: 1 });
+    expect(out.channels.find((row) => row.channel === 'facebook')).toEqual(
+      expect.objectContaining({ status: 'TokenExpired' }),
+    );
+    expect(out.channels.find((row) => row.channel === 'linkedin')).toEqual(
+      expect.objectContaining({ status: 'Manual' }),
+    );
+  });
 });
 
 describe('ContentOsPortfolioService.getPortfolioItem', () => {

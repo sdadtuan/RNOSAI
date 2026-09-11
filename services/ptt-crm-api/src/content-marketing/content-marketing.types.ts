@@ -59,6 +59,19 @@ export type CmktSlaAuditRow = CmktSlaAuditWrite & {
   created_at: string;
 };
 
+export type CmktPublicationLogWrite = {
+  item_id: number;
+  error: string | null;
+  retry_n: number;
+  post_id: string | null;
+  http_status: number | null;
+};
+
+export type CmktPublicationLogRow = CmktPublicationLogWrite & {
+  id: number;
+  attempted_at: string;
+};
+
 export type CmktSlaScanItem = {
   id: number;
   lifecycle_id: number;
@@ -410,6 +423,7 @@ export type CmktCalendarSlotRow = {
   reminder_sent: boolean;
   item?: CmktItemRow;
   collision?: CmktPublicationCollision | null;
+  channel_health?: { status: string; expires_at?: string };
 };
 
 export type CmktRepurposeTarget = {

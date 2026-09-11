@@ -244,6 +244,8 @@ describe('ContentItemService publishItem gate', () => {
     listAssetRights: jest.fn(),
     getLatestApprovalPackage: jest.fn(),
     updateApprovalPackageStatus: jest.fn(),
+    nextPublicationRetryN: jest.fn(),
+    insertPublicationLog: jest.fn(),
   };
 
   let service: ContentItemService;
@@ -251,6 +253,8 @@ describe('ContentItemService publishItem gate', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     repo.getLatestApprovalPackage.mockResolvedValue(null);
+    repo.nextPublicationRetryN.mockResolvedValue(1);
+    repo.insertPublicationLog.mockResolvedValue({ id: 1 });
     service = new ContentItemService(
       config as never,
       core as never,
@@ -311,6 +315,67 @@ describe('ContentItemService publishItem gate', () => {
 
     await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).resolves.toMatchObject({ status: 'published' });
     expect(repo.patchItem).toHaveBeenCalled();
+    expect(repo.insertPublicationLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        item_id: 7,
+        error: null,
+        post_id: null,
+        retry_n: 1,
+      }),
+    );
+  });
+
+  it('writes a publication log when publish_gate_blocked', async () => {
+    repo.getItemById.mockResolvedValue(publishableItem());
+    repo.listAssetRights.mockResolvedValue([{ asset_ref: 'https://cdn/blocked.jpg', status: 'Invalid' }]);
+
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toMatchObject({
+      response: { error: 'publish_gate_blocked' },
+    });
+    expect(repo.insertPublicationLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        item_id: 7,
+        error: 'publish_gate_blocked',
+        retry_n: 1,
+        http_status: 409,
+        post_id: null,
+      }),
+    );
+    expect(repo.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('writes a publication log when mark-published is a BadRequest transition', async () => {
+    repo.getItemById.mockResolvedValue(publishableItem({ status: 'draft' }));
+
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toMatchObject({
+      response: { error: 'invalid_transition' },
+    });
+    expect(repo.insertPublicationLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        item_id: 7,
+        error: 'invalid_transition',
+        http_status: 400,
+        retry_n: 1,
+      }),
+    );
+  });
+
+  it('increments retry_n per item on each failed mark-published', async () => {
+    repo.getItemById.mockResolvedValue(publishableItem());
+    repo.listAssetRights.mockResolvedValue([{ asset_ref: 'https://cdn/blocked.jpg', status: 'Invalid' }]);
+    repo.nextPublicationRetryN.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toBeInstanceOf(ConflictException);
+
+    expect(repo.insertPublicationLog).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ item_id: 7, retry_n: 1, error: 'publish_gate_blocked' }),
+    );
+    expect(repo.insertPublicationLog).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ item_id: 7, retry_n: 2, error: 'publish_gate_blocked' }),
+    );
   });
 
   it('throws publish_gate_blocked when rightsValid is false', async () => {

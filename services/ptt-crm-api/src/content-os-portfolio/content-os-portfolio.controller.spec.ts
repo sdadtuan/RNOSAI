@@ -35,6 +35,16 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual({ slots: [] });
   });
 
+  it('GET channel-health delegates to getChannelHealth with staffId', async () => {
+    const service = {
+      getChannelHealth: jest.fn().mockResolvedValue({ channels: [{ channel: 'facebook', status: 'Manual' }] }),
+    };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.channelHealth({ staffUser: { sub: '7' } } as never);
+    expect(service.getChannelHealth).toHaveBeenCalledWith({ staffId: 7 });
+    expect(out).toEqual({ channels: [{ channel: 'facebook', status: 'Manual' }] });
+  });
+
   it('GET requests delegates to listRequests with staffId', async () => {
     const service = { listRequests: jest.fn().mockResolvedValue({ items: [] }) };
     const c = new ContentOsPortfolioController(service as never);

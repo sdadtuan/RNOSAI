@@ -31,7 +31,11 @@ import type {
   CmktSlaAuditRow,
   CmktSlaAuditWrite,
   CmktSlaScanItem,
+  CmktPublicationLogRow,
+  CmktPublicationLogWrite,
 } from './content-marketing.types';
+import type { ChannelConnectorRow } from '../content-os-portfolio/channel-health.util';
+import { nextPublicationRetryN } from '../content-os-portfolio/publication-log.util';
 import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
 import type { AssetRightStatus, CmktAssetRightRow, CmktAssetRightWrite } from '../content-os-portfolio/content-os-portfolio.types';
 import {
@@ -70,6 +74,8 @@ type MemoryStore = {
   nextApprovalPackageId: number;
   slaEvents: CmktSlaAuditRow[];
   nextSlaEventId: number;
+  publicationLogs: CmktPublicationLogRow[];
+  nextPublicationLogId: number;
 };
 
 function emptyCounts(): CmktContextCounts {
@@ -207,6 +213,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     nextApprovalPackageId: 1,
     slaEvents: [],
     nextSlaEventId: 1,
+    publicationLogs: [],
+    nextPublicationLogId: 1,
   };
 
   constructor(private readonly config: AppConfigService) {}
@@ -2311,6 +2319,48 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     return row;
   }
 
+  async nextPublicationRetryN(itemId: number): Promise<number> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `SELECT MAX(retry_n) AS max_retry FROM cmkt_publication_logs WHERE item_id = $1`,
+        [itemId],
+      );
+      return nextPublicationRetryN(res.rows[0]?.max_retry != null ? Number(res.rows[0].max_retry) : null);
+    }
+    const max = this.memory.publicationLogs
+      .filter((row) => row.item_id === itemId)
+      .reduce((acc, row) => Math.max(acc, row.retry_n), 0);
+    return nextPublicationRetryN(max);
+  }
+
+  async insertPublicationLog(input: CmktPublicationLogWrite): Promise<CmktPublicationLogRow> {
+    if (await this.ensurePgReady()) {
+      const res = await this.db.query(
+        `INSERT INTO cmkt_publication_logs (item_id, error, retry_n, post_id, http_status)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, item_id, attempted_at, error, retry_n, post_id, http_status`,
+        [input.item_id, input.error, input.retry_n, input.post_id, input.http_status],
+      );
+      return this.mapPublicationLogRow(res.rows[0] as Record<string, unknown>);
+    }
+    const row: CmktPublicationLogRow = {
+      id: this.memory.nextPublicationLogId++,
+      item_id: input.item_id,
+      attempted_at: new Date().toISOString(),
+      error: input.error,
+      retry_n: input.retry_n,
+      post_id: input.post_id,
+      http_status: input.http_status,
+    };
+    this.memory.publicationLogs.push(row);
+    return row;
+  }
+
+  async listChannelConnectors(): Promise<ChannelConnectorRow[]> {
+    // No channel_accounts / connector table in E2 — never invent tokens.
+    return [];
+  }
+
   async listSlaAudits(filter?: CmktSlaAuditFilter): Promise<CmktSlaAuditRow[]> {
     if (await this.ensurePgReady()) {
       const res = await this.db.query(
@@ -2404,6 +2454,18 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       action: String(row.action ?? ''),
       am_staff_id: row.am_staff_id != null ? Number(row.am_staff_id) : null,
       created_at: new Date(String(row.created_at)).toISOString(),
+    };
+  }
+
+  private mapPublicationLogRow(row: Record<string, unknown>): CmktPublicationLogRow {
+    return {
+      id: Number(row.id),
+      item_id: Number(row.item_id),
+      attempted_at: new Date(String(row.attempted_at)).toISOString(),
+      error: row.error != null ? String(row.error) : null,
+      retry_n: Number(row.retry_n),
+      post_id: row.post_id != null ? String(row.post_id) : null,
+      http_status: row.http_status != null ? Number(row.http_status) : null,
     };
   }
 }

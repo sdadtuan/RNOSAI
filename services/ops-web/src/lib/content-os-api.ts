@@ -655,6 +655,7 @@ export type ContentOsCalendarSlot = {
   reminder_sent: boolean;
   item?: ContentOsItem;
   collision?: ContentOsPublicationCollision | null;
+  channel_health?: { status?: string; expires_at?: string };
 };
 
 export function fetchContentOsCalendar(

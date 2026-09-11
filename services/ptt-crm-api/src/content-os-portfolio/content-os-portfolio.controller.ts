@@ -43,6 +43,13 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Get('channel-health')
+  channelHealth(@Req() req: Request) {
+    return this.portfolio.getChannelHealth({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+    });
+  }
+
   @Get('items/:itemId/ai-traces')
   @UseGuards(StaffContentMarketingGenerateGuard)
   listAiTraces(

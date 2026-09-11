@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import type { ContentOsCalendarSlot } from '@/lib/content-os-api';
 import { evaluatePublishGate } from '@/lib/crm/cmkte-publish-gate';
-import { canShowPublicationQueueCta, PUBLICATION_QUEUE_CTA, PUBLICATIONS_EMPTY } from '@/lib/crm/cmkte-publications';
+import {
+  canShowPublicationQueueCta,
+  formatChannelHealthLabel,
+  PUBLICATION_QUEUE_CTA,
+  PUBLICATIONS_EMPTY,
+} from '@/lib/crm/cmkte-publications';
 import { publishGateFlagsFromItem } from '@/lib/crm/cmkte-workspace';
 
 function dash(value: string | number | null | undefined): string {
@@ -42,6 +47,7 @@ export function CmktECalendar({ slots }: { slots: ContentOsCalendarSlot[] }) {
                   <th>Time</th>
                   <th>Item</th>
                   <th>Channel</th>
+                  <th>Health</th>
                   <th>Gate</th>
                   <th>Action</th>
                 </tr>
@@ -60,6 +66,7 @@ export function CmktECalendar({ slots }: { slots: ContentOsCalendarSlot[] }) {
                         <span className="cmkte-dep">item {slot.item_id}</span>
                       </td>
                       <td>{dash(slot.item?.channel)}</td>
+                      <td>{formatChannelHealthLabel(slot.channel_health?.status)}</td>
                       <td>{gate ?? '—'}</td>
                       <td>
                         {canShowPublicationQueueCta(gate) ? (

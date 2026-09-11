@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ContentItemService } from '../content-marketing/content-item.service';
+import { CMKT_CHANNELS } from '../content-marketing/content-marketing.constants';
 import { ContentMarketingRepository } from '../content-marketing/content-marketing.repository';
 import type {
   CmktCalendarSlotRow,
@@ -13,6 +14,11 @@ import type {
   CmktItemRow,
   CmktReviewQueueItem,
 } from '../content-marketing/content-marketing.types';
+import {
+  resolveChannelHealth,
+  type ChannelConnectorRow,
+  type ChannelHealth,
+} from './channel-health.util';
 import { ContentWorkflowService } from '../content-marketing/content-workflow.service';
 import { ContentOsPortfolioRepository } from './content-os-portfolio.repository';
 import {
@@ -86,7 +92,10 @@ export class ContentOsPortfolioService {
     staffId: number;
     from?: string;
     to?: string;
-  }): Promise<{ slots: CmktCalendarSlotRow[] }> {
+  }): Promise<{
+    slots: CmktCalendarSlotRow[];
+    channel_health?: Array<{ channel: string } & ChannelHealth>;
+  }> {
     const ids = await this.scopedLifecycleIds(scope.staffId);
     const week = currentIsoWeekRange();
     const range = {
@@ -102,7 +111,35 @@ export class ContentOsPortfolioService {
         // disabled / missing lifecycle — skip
       }
     }
-    return { slots };
+    if (!ids.length) return { slots };
+    const health = await this.getChannelHealth(scope);
+    const byChannel = new Map(health.channels.map((row) => [row.channel, row]));
+    return {
+      slots: slots.map((slot) => {
+        const channel = slot.item?.channel ?? '';
+        const match = byChannel.get(channel);
+        return {
+          ...slot,
+          channel_health: match
+            ? { status: match.status, ...(match.expires_at ? { expires_at: match.expires_at } : {}) }
+            : { status: 'Manual' },
+        };
+      }),
+      channel_health: health.channels,
+    };
+  }
+
+  async getChannelHealth(_scope: { staffId: number }): Promise<{
+    channels: Array<{ channel: string } & ChannelHealth>;
+  }> {
+    const connectors = await this.loadChannelConnectors();
+    const byChannel = new Map(connectors.map((row) => [row.channel, row]));
+    return {
+      channels: CMKT_CHANNELS.map((channel) => ({
+        channel,
+        ...resolveChannelHealth(byChannel.get(channel) ?? null),
+      })),
+    };
   }
 
   async listRequests(scope: { staffId: number }): Promise<{ items: ContentRequestRow[] }> {
@@ -335,6 +372,15 @@ export class ContentOsPortfolioService {
       return source as ContentRequestSource;
     }
     throw new BadRequestException({ error: 'invalid_source', source });
+  }
+
+  private async loadChannelConnectors(): Promise<ChannelConnectorRow[]> {
+    if (typeof this.marketingRepo.listChannelConnectors !== 'function') return [];
+    try {
+      return (await this.marketingRepo.listChannelConnectors()) ?? [];
+    } catch {
+      return [];
+    }
   }
 
   private async scopedLifecycleIds(staffId: number): Promise<number[]> {

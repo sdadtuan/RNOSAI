@@ -26,6 +26,7 @@ import { diffMarkdownLines } from './content-version-diff.util';
 import type { CmktBodyJson, CmktIdeaRow, CmktItemRow, CmktItemVersionRow, CmktVersionComparePayload } from './content-marketing.types';
 import { AppConfigService } from '../config/app-config.service';
 import { formatContentItemCode } from '../content-os-portfolio/content-os-portfolio.util';
+import { publicationLogFromError } from '../content-os-portfolio/publication-log.util';
 
 @Injectable()
 export class ContentItemService {
@@ -350,47 +351,75 @@ export class ContentItemService {
     body: Record<string, unknown>,
     actorEmail: string,
   ): Promise<CmktItemRow> {
-    await this.core.ensureLifecycleEnabled(lifecycleId);
-    const item = await this.repo.getItemById(lifecycleId, itemId);
-    if (!item) {
-      throw new NotFoundException({ error: 'item_not_found', id: itemId });
-    }
+    try {
+      await this.core.ensureLifecycleEnabled(lifecycleId);
+      const item = await this.repo.getItemById(lifecycleId, itemId);
+      if (!item) {
+        throw new NotFoundException({ error: 'item_not_found', id: itemId });
+      }
 
-    assertTransition(item.status, publishFromStatuses(this.config.contentMarketingClientGate), 'publish');
-    assertProductionGateForPublish(item);
-    assertVisualGateForPublish(item, this.config.contentMarketingMediaEnabled);
+      assertTransition(item.status, publishFromStatuses(this.config.contentMarketingClientGate), 'publish');
+      assertProductionGateForPublish(item);
+      assertVisualGateForPublish(item, this.config.contentMarketingMediaEnabled);
 
-    const rightsRows = await this.repo.listAssetRights(itemId);
-    const publishedUrlProvided = body.published_url != null;
-    const publishedUrl = publishedUrlProvided ? String(body.published_url).trim() : null;
-    const { approval_matrix } = buildApprovalMatrixForItem(item, rightsRows);
-    const gate = evaluatePublishGate({
-      briefReady: briefReadyForPublish(item),
-      internalApproved: ['approved_internal', 'client_approved', 'pending_client', 'scheduled'].includes(
-        item.status,
-      ),
-      legalRequired: false,
-      legalApproved: false,
-      clientApproved: this.config.contentMarketingClientGate
-        ? ['client_approved', 'scheduled'].includes(item.status)
-        : true,
-      urlOk: publishedUrlProvided ? Boolean(publishedUrl) : true,
-      ...evaluateItemRights(item.media_json, rightsRows),
-    });
-    if (gate.status === 'Blocked') {
-      throw new ConflictException({
-        error: 'publish_gate_blocked',
-        blockers: gate.blockers,
-        ...(approval_matrix.gateBlockers.length ? { gateBlockers: approval_matrix.gateBlockers } : {}),
+      const rightsRows = await this.repo.listAssetRights(itemId);
+      const publishedUrlProvided = body.published_url != null;
+      const publishedUrl = publishedUrlProvided ? String(body.published_url).trim() : null;
+      const { approval_matrix } = buildApprovalMatrixForItem(item, rightsRows);
+      const gate = evaluatePublishGate({
+        briefReady: briefReadyForPublish(item),
+        internalApproved: ['approved_internal', 'client_approved', 'pending_client', 'scheduled'].includes(
+          item.status,
+        ),
+        legalRequired: false,
+        legalApproved: false,
+        clientApproved: this.config.contentMarketingClientGate
+          ? ['client_approved', 'scheduled'].includes(item.status)
+          : true,
+        urlOk: publishedUrlProvided ? Boolean(publishedUrl) : true,
+        ...evaluateItemRights(item.media_json, rightsRows),
       });
-    }
+      if (gate.status === 'Blocked') {
+        throw new ConflictException({
+          error: 'publish_gate_blocked',
+          blockers: gate.blockers,
+          ...(approval_matrix.gateBlockers.length ? { gateBlockers: approval_matrix.gateBlockers } : {}),
+        });
+      }
 
-    const updated = await this.repo.patchItem(lifecycleId, itemId, {
-      status: 'published',
-      published_at: new Date().toISOString(),
-      published_url: publishedUrl || item.published_url,
-    });
-    await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'publish');
-    return attachApprovalMatrix(updated, rightsRows);
+      const updated = await this.repo.patchItem(lifecycleId, itemId, {
+        status: 'published',
+        published_at: new Date().toISOString(),
+        published_url: publishedUrl || item.published_url,
+      });
+      await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'publish');
+      await this.writePublicationLog(itemId, { error: null, http_status: null, post_id: null });
+      return attachApprovalMatrix(updated, rightsRows);
+    } catch (err) {
+      await this.writePublicationLog(itemId, { ...publicationLogFromError(err), post_id: null });
+      throw err;
+    }
+  }
+
+  private async writePublicationLog(
+    itemId: number,
+    fields: { error: string | null; http_status: number | null; post_id: string | null },
+  ): Promise<void> {
+    if (typeof this.repo.insertPublicationLog !== 'function') return;
+    try {
+      const retry_n =
+        typeof this.repo.nextPublicationRetryN === 'function'
+          ? await this.repo.nextPublicationRetryN(itemId)
+          : 1;
+      await this.repo.insertPublicationLog({
+        item_id: itemId,
+        error: fields.error,
+        retry_n,
+        post_id: fields.post_id,
+        http_status: fields.http_status,
+      });
+    } catch {
+      // Keep the original publish 4xx/5xx; do not replace it with a log write failure.
+    }
   }
 }
