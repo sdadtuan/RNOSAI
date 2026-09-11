@@ -129,6 +129,26 @@ describe('ContentOsPortfolioService.getCommandCenter', () => {
     expect(out.capacity_pct).not.toBe(78);
   });
 
+  it('propagates production query errors instead of treating them as empty capacity', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      aggregateCommand: jest.fn().mockResolvedValue({
+        throughput_week: 1,
+        completed_week: 0,
+        wip: 1,
+        sla_at_risk: 0,
+        sla_breached: 0,
+        first_pass_pct: null,
+        capacity_pct: null,
+        blocked: 0,
+        risk_queue: [],
+      }),
+      listScopedProductionItems: jest.fn().mockRejectedValue(new Error('connection refused')),
+    };
+    const svc = makeSvc(repo);
+    await expect(svc.getCommandCenter({ staffId: 1 })).rejects.toThrow('connection refused');
+  });
+
   it('keeps capacity_pct null when scoped items lack effort plus assignee', async () => {
     const repo = {
       listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),

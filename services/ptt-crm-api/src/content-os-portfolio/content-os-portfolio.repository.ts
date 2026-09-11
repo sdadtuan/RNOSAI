@@ -120,24 +120,20 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
   async listScopedProductionItems(lifecycleIds: number[]): Promise<PortfolioProductionItem[]> {
     if (!lifecycleIds.length) return [];
     if (!(await this.ensurePgReady())) return [];
-    try {
-      const res = await this.db.query(
-        `SELECT id, lifecycle_id, title, assignee_sp, production_json
+    const res = await this.db.query(
+      `SELECT id, lifecycle_id, title, assignee_sp, production_json
          FROM cmkt_content_items
          WHERE lifecycle_id = ANY($1::bigint[])
          ORDER BY id ASC`,
-        [lifecycleIds],
-      );
-      return res.rows.map((row) => ({
-        id: Number(row.id),
-        lifecycle_id: Number(row.lifecycle_id),
-        title: String(row.title ?? ''),
-        assignee_sp: row.assignee_sp != null ? Number(row.assignee_sp) : null,
-        production_json: (row.production_json as PortfolioProductionItem['production_json']) ?? {},
-      }));
-    } catch {
-      return [];
-    }
+      [lifecycleIds],
+    );
+    return res.rows.map((row) => ({
+      id: Number(row.id),
+      lifecycle_id: Number(row.lifecycle_id),
+      title: String(row.title ?? ''),
+      assignee_sp: row.assignee_sp != null ? Number(row.assignee_sp) : null,
+      production_json: (row.production_json as PortfolioProductionItem['production_json']) ?? {},
+    }));
   }
 
   private async listRiskQueue(lifecycleIds: number[]): Promise<PortfolioRiskQueueItem[]> {

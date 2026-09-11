@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import type { CmktETask } from '../content-os-portfolio/production-capacity.util';
+import { hasDependsOnCycle, type CmktETask } from '../content-os-portfolio/production-capacity.util';
 import type { CmktItemRow, CmktProductionJson, CmktProductionPhase } from './content-marketing.types';
 
 const TASK_STATUSES = new Set<CmktETask['status']>(['todo', 'doing', 'done', 'blocked']);
@@ -70,7 +70,11 @@ function parseCmktETasks(value: unknown): CmktETask[] {
   if (!Array.isArray(value)) {
     invalidTasks('tasks must be an array');
   }
-  return value.map((row, index) => parseCmktETask(row, index));
+  const tasks = value.map((row, index) => parseCmktETask(row, index));
+  if (hasDependsOnCycle(tasks)) {
+    invalidTasks('tasks depends_on must be acyclic');
+  }
+  return tasks;
 }
 
 export function itemNeedsProduction(item: CmktItemRow): boolean {

@@ -115,13 +115,14 @@ describe('criticalPathTaskIds', () => {
     expect(criticalPathTaskIds(tasks)).toEqual(['write', 'qa']);
   });
 
-  it('returns one cyclic component in input order without looping', () => {
+  it('returns empty when depends_on has a cycle', () => {
     expect(
       criticalPathTaskIds([
         task({ id: 'x', effort_h: 2, depends_on: ['y'] }),
         task({ id: 'y', effort_h: 2, depends_on: ['x'] }),
       ]),
-    ).toEqual(['x', 'y']);
+    ).toEqual([]);
+    expect(criticalPathTaskIds([task({ id: 'loop', depends_on: ['loop'] })])).toEqual([]);
   });
 
   it('reconstructs one longest path when two remaining-effort totals tie', () => {

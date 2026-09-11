@@ -116,4 +116,32 @@ describe('content-production.util', () => {
     );
     expect(() => mergeProductionJson({}, { tasks: [{ ...valid, id: '' }] })).toThrow(BadRequestException);
   });
+
+  it('rejects a depends_on cycle as invalid_tasks', () => {
+    const valid = {
+      title: 'Write',
+      assignee_id: 1,
+      raci: { r: 'sp', a: 'am' },
+      sla_h: 8,
+      effort_h: 5,
+      status: 'todo' as const,
+    };
+    try {
+      mergeProductionJson(
+        {},
+        {
+          tasks: [
+            { ...valid, id: 'x', depends_on: ['y'] },
+            { ...valid, id: 'y', depends_on: ['x'] },
+          ],
+        },
+      );
+      throw new Error('expected invalid_tasks');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'invalid_tasks' }),
+      );
+    }
+  });
 });

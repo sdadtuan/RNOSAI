@@ -77,145 +77,102 @@ function remainingHours(task: CmktETask): number {
   return positiveNumber(task.effort_h) ?? positiveNumber(task.sla_h) ?? 0;
 }
 
-function stronglyConnectedComponents(ids: string[], succs: Map<string, string[]>): string[][] {
-  const order: string[] = [];
-  const seen = new Set<string>();
-  const visit = (start: string) => {
-    const stack: Array<{ id: string; i: number }> = [{ id: start, i: 0 }];
-    seen.add(start);
-    while (stack.length) {
-      const frame = stack[stack.length - 1];
-      const outs = succs.get(frame.id) ?? [];
-      if (frame.i < outs.length) {
-        const nxt = outs[frame.i++];
-        if (!seen.has(nxt)) {
-          seen.add(nxt);
-          stack.push({ id: nxt, i: 0 });
-        }
-        continue;
-      }
-      order.push(frame.id);
-      stack.pop();
-    }
-  };
-  for (const id of ids) if (!seen.has(id)) visit(id);
-
-  const preds = new Map<string, string[]>();
-  for (const id of ids) preds.set(id, []);
-  for (const [from, tos] of succs) {
-    for (const to of tos) preds.get(to)!.push(from);
+function taskGraph(tasks: CmktETask[] | null | undefined) {
+  const list = (tasks ?? []).filter((row) => row && String(row.id ?? ''));
+  const meta = new Map<string, { row: CmktETask; index: number }>();
+  const ids: string[] = [];
+  for (let index = 0; index < list.length; index += 1) {
+    const row = list[index];
+    const id = String(row.id);
+    if (meta.has(id)) continue;
+    meta.set(id, { row, index });
+    ids.push(id);
   }
-
-  const assigned = new Set<string>();
-  const comps: string[][] = [];
-  const assign = (start: string, bucket: string[]) => {
-    const stack = [start];
-    assigned.add(start);
-    while (stack.length) {
-      const id = stack.pop()!;
-      bucket.push(id);
-      for (const pred of preds.get(id) ?? []) {
-        if (!assigned.has(pred)) {
-          assigned.add(pred);
-          stack.push(pred);
-        }
-      }
-    }
-  };
-  for (let i = order.length - 1; i >= 0; i -= 1) {
-    const id = order[i];
-    if (assigned.has(id)) continue;
-    const bucket: string[] = [];
-    assign(id, bucket);
-    comps.push(bucket);
+  const succs = new Map<string, string[]>();
+  const indeg = new Map<string, number>();
+  for (const id of ids) {
+    succs.set(id, []);
+    indeg.set(id, 0);
   }
-  return comps;
+  const seenEdge = new Set<string>();
+  for (const id of ids) {
+    for (const dep of meta.get(id)!.row.depends_on ?? []) {
+      const from = String(dep);
+      if (!meta.has(from)) continue;
+      const key = `${from}->${id}`;
+      if (seenEdge.has(key)) continue;
+      seenEdge.add(key);
+      succs.get(from)!.push(id);
+      indeg.set(id, indeg.get(id)! + 1);
+    }
+  }
+  return { meta, ids, succs, indeg };
+}
+
+export function hasDependsOnCycle(tasks: CmktETask[] | null | undefined): boolean {
+  const { ids, succs, indeg } = taskGraph(tasks);
+  if (!ids.length) return false;
+  const queue = ids.filter((id) => indeg.get(id) === 0);
+  let visited = 0;
+  for (let q = 0; q < queue.length; q += 1) {
+    const u = queue[q];
+    visited += 1;
+    for (const v of succs.get(u) ?? []) {
+      indeg.set(v, indeg.get(v)! - 1);
+      if (indeg.get(v) === 0) queue.push(v);
+    }
+  }
+  return visited !== ids.length;
 }
 
 export function criticalPathTaskIds(tasks: CmktETask[] | null | undefined): string[] {
-  const list = (tasks ?? []).filter((row) => row && String(row.id ?? ''));
-  if (!list.length) return [];
-  const meta = new Map(list.map((row, index) => [String(row.id), { row, index }]));
-  const ids = list.map((row) => String(row.id));
-  const succs = new Map<string, string[]>();
-  for (const id of ids) succs.set(id, []);
-  for (const row of list) {
-    const to = String(row.id);
-    for (const dep of row.depends_on ?? []) {
-      const from = String(dep);
-      if (!meta.has(from) || from === to) continue;
-      succs.get(from)!.push(to);
-    }
-  }
-
-  const comps = stronglyConnectedComponents(ids, succs);
-  const sccOf = new Map<string, number>();
-  comps.forEach((comp, i) => {
-    for (const id of comp) sccOf.set(id, i);
-  });
-  const sccPreds: number[][] = comps.map(() => []);
-  const sccSuccs: number[][] = comps.map(() => []);
-  const seenEdge = new Set<string>();
-  for (const [from, tos] of succs) {
-    const a = sccOf.get(from)!;
-    for (const to of tos) {
-      const b = sccOf.get(to)!;
-      if (a === b) continue;
-      const key = `${a}->${b}`;
-      if (seenEdge.has(key)) continue;
-      seenEdge.add(key);
-      sccPreds[b].push(a);
-      sccSuccs[a].push(b);
-    }
-  }
+  const { meta, ids, succs, indeg } = taskGraph(tasks);
+  if (!ids.length) return [];
 
   const rem = (id: string) => remainingHours(meta.get(id)!.row);
-  const score = comps.map((comp) => comp.reduce((sum, id) => sum + rem(id), 0));
-  const orderKey = comps.map((comp) => Math.min(...comp.map((id) => meta.get(id)!.index)));
-  const dist = score.slice();
-  const parent = comps.map(() => -1);
-  const indeg = sccPreds.map((preds) => preds.length);
-  const queue = indeg.flatMap((deg, i) => (deg === 0 ? [i] : []));
-  const topo: number[] = [];
+  const orderKey = (id: string) => meta.get(id)!.index;
+  const dist = new Map<string, number>();
+  const parent = new Map<string, string | null>();
+  const queue: string[] = [];
+  for (const id of ids) {
+    dist.set(id, rem(id));
+    parent.set(id, null);
+    if (indeg.get(id) === 0) queue.push(id);
+  }
+
+  let visited = 0;
   for (let q = 0; q < queue.length; q += 1) {
-    const i = queue[q];
-    topo.push(i);
-    for (const nxt of sccSuccs[i]) {
-      indeg[nxt] -= 1;
-      if (indeg[nxt] === 0) queue.push(nxt);
-    }
-  }
-  for (const i of topo) {
-    for (const pred of sccPreds[i]) {
-      const cand = dist[pred] + score[i];
+    const u = queue[q];
+    visited += 1;
+    for (const v of succs.get(u) ?? []) {
+      const cand = dist.get(u)! + rem(v);
+      const curParent = parent.get(v);
       const better =
-        cand > dist[i] ||
-        (cand === dist[i] && (parent[i] < 0 || orderKey[pred] < orderKey[parent[i]]));
-      if (!better) continue;
-      dist[i] = cand;
-      parent[i] = pred;
+        cand > dist.get(v)! ||
+        (cand === dist.get(v)! && (curParent == null || orderKey(u) < orderKey(curParent)));
+      if (better) {
+        dist.set(v, cand);
+        parent.set(v, u);
+      }
+      indeg.set(v, indeg.get(v)! - 1);
+      if (indeg.get(v) === 0) queue.push(v);
     }
   }
+  if (visited !== ids.length) return [];
 
-  let best = 0;
-  for (let i = 1; i < comps.length; i += 1) {
-    if (dist[i] > dist[best] || (dist[i] === dist[best] && orderKey[i] < orderKey[best])) {
-      best = i;
+  let best = ids[0];
+  for (let i = 1; i < ids.length; i += 1) {
+    const id = ids[i];
+    if (dist.get(id)! > dist.get(best)! || (dist.get(id) === dist.get(best) && orderKey(id) < orderKey(best))) {
+      best = id;
     }
   }
-
-  const sccPath: number[] = [];
-  for (let cur = best; cur >= 0; cur = parent[cur]) sccPath.push(cur);
-  sccPath.reverse();
 
   const out: string[] = [];
-  for (const si of sccPath) {
-    const members = comps[si].slice().sort((a, b) => meta.get(a)!.index - meta.get(b)!.index);
-    for (const id of members) {
-      if (meta.get(id)!.row.status === 'done') continue;
-      out.push(id);
-    }
+  for (let cur: string | null = best; cur != null; cur = parent.get(cur) ?? null) {
+    if (meta.get(cur)!.row.status !== 'done') out.push(cur);
   }
+  out.reverse();
   return out;
 }
 

@@ -224,12 +224,9 @@ export class ContentOsPortfolioService {
   }
 
   private async loadProductionItems(ids: number[]): Promise<PortfolioProductionItem[]> {
+    if (!ids.length) return [];
     if (typeof this.repo.listScopedProductionItems !== 'function') return [];
-    try {
-      return (await this.repo.listScopedProductionItems(ids)) ?? [];
-    } catch {
-      return [];
-    }
+    return (await this.repo.listScopedProductionItems(ids)) ?? [];
   }
 
   private withCapacityAndCriticalPath(
