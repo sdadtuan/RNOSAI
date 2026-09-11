@@ -1,6 +1,9 @@
 export type PublicationPackage = {
   item_id: number;
   channel?: string;
+  page_id?: string;
+  message?: string;
+  access_token?: string;
 };
 
 export type PublishConnector = {
@@ -22,4 +25,21 @@ export function stubPublishConnector(_opts?: { direct_social_publish?: boolean }
       throw new NotEnabledError();
     },
   };
+}
+
+export function resolvePublishConnector(opts: {
+  direct_social_publish: boolean;
+  connectorStatus: string | null;
+  hasToken: boolean;
+  facebook?: PublishConnector;
+}): PublishConnector {
+  if (
+    opts.direct_social_publish &&
+    opts.connectorStatus === 'on' &&
+    opts.hasToken &&
+    opts.facebook
+  ) {
+    return opts.facebook;
+  }
+  return stubPublishConnector();
 }

@@ -1,4 +1,4 @@
-import { NotEnabledError, stubPublishConnector, type PublicationPackage, type PublishConnector } from './publish-connector';
+import { NotEnabledError, resolvePublishConnector, stubPublishConnector, type PublicationPackage, type PublishConnector } from './publish-connector';
 
 const pkg: PublicationPackage = { item_id: 21, channel: 'facebook' };
 
@@ -15,5 +15,16 @@ describe('PublishConnector stub', () => {
       name: 'NotEnabledError',
       message: 'direct_social_publish_not_enabled',
     });
+  });
+
+  it('still throws NotEnabledError in NODE_ENV=test when facebook mock is not passed', async () => {
+    expect(process.env.NODE_ENV).toBe('test');
+    const connector = resolvePublishConnector({
+      direct_social_publish: true,
+      connectorStatus: 'on',
+      hasToken: true,
+    });
+    expect(connector.id).toBe('stub');
+    await expect(connector.publish(pkg)).rejects.toBeInstanceOf(NotEnabledError);
   });
 });
