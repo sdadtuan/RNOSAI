@@ -1,3 +1,8 @@
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import {
+  StaffContentMarketingViewGuard,
+  StaffContentMarketingWriteGuard,
+} from '../content-marketing/guards/staff-content-marketing.guard';
 import {
   ContentOsPortfolioController,
   ContentOsPortfolioFacebookOAuthCallbackController,
@@ -119,6 +124,18 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual(held);
     expect(c).not.toHaveProperty('deleteItem');
     expect(c).not.toHaveProperty('hardDeleteItem');
+  });
+
+  it('PATCH legal-hold keeps class ViewGuard and does not use WriteGuard', () => {
+    const classGuards = (Reflect.getMetadata(GUARDS_METADATA, ContentOsPortfolioController) ?? []) as unknown[];
+    expect(classGuards).toContain(StaffContentMarketingViewGuard);
+    expect(classGuards).not.toContain(StaffContentMarketingWriteGuard);
+
+    const holdGuards = (Reflect.getMetadata(
+      GUARDS_METADATA,
+      ContentOsPortfolioController.prototype.patchLegalHold,
+    ) ?? []) as unknown[];
+    expect(holdGuards).not.toContain(StaffContentMarketingWriteGuard);
   });
 
   it('GET sla-events delegates to listSlaEvents with staffId and optional filters', async () => {

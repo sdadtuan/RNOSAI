@@ -706,7 +706,16 @@ export class ContentOsPortfolioService {
     if (!found || !scoped.includes(found.lifecycle_id)) {
       throw new NotFoundException({ error: 'item_not_found', id: input.itemId });
     }
-    if (!parsed.legal_hold) {
+    if (parsed.legal_hold) {
+      let canWrite = input.staffAuthVia === 'internal';
+      if (!canWrite && this.staffAuth && input.staffUser) {
+        const me = await this.staffAuth.me(input.staffUser);
+        canWrite = this.staffAuth.hasCap(me.caps, 'crm_content', 'write');
+      }
+      if (!canWrite) {
+        throw new ForbiddenException({ error: 'missing_cap', section: 'crm_content', action: 'write' });
+      }
+    } else {
       const current =
         typeof this.repo.getItemLegalHold === 'function'
           ? await this.repo.getItemLegalHold(input.itemId)

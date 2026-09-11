@@ -151,7 +151,7 @@ function mapCalendarRow(row: Record<string, unknown>): CmktCalendarSlotRow {
   };
 }
 
-function mapItemRow(row: Record<string, unknown>): CmktItemRow {
+export function mapItemRow(row: Record<string, unknown>): CmktItemRow {
   return {
     id: Number(row.id),
     lifecycle_id: Number(row.lifecycle_id),
@@ -185,6 +185,10 @@ function mapItemRow(row: Record<string, unknown>): CmktItemRow {
     created_by: String(row.created_by ?? ''),
     created_at: new Date(String(row.created_at)).toISOString(),
     updated_at: new Date(String(row.updated_at)).toISOString(),
+    legal_hold: row.legal_hold === true,
+    ...('legal_hold_set_by' in row
+      ? { legal_hold_set_by: row.legal_hold_set_by != null ? String(row.legal_hold_set_by) : null }
+      : {}),
   };
 }
 

@@ -142,6 +142,83 @@ describe('ContentOsPortfolioService legal hold', () => {
     expect(repo.updateLegalHold).not.toHaveBeenCalled();
   });
 
+  it('rejects enable when actor lacks crm_content.write', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      updateLegalHold: jest.fn(),
+    };
+    const marketingRepo = { findItemById: jest.fn().mockResolvedValue({ id: 21, lifecycle_id: 4 }) };
+    const qaOnly = {
+      me: jest.fn().mockResolvedValue({
+        caps: [{ section: 'crm_content', action: 'qa' }],
+        position_code: 'qa',
+      }),
+      hasCap: (caps: Array<{ section: string; action: string }>, section: string, action: string) =>
+        caps.some((cap) => cap.section === section && cap.action === action),
+      isSuperAdminPosition: () => false,
+    };
+    const svc = makeSvc(repo, marketingRepo, qaOnly);
+    await expect(
+      svc.patchLegalHold({
+        staffId: 7,
+        itemId: 21,
+        actor: 'qa@ptt.vn',
+        body: { legal_hold: true, reason: 'tranh chấp hợp đồng Q4' },
+        staffUser: { sub: '7', email: 'qa@ptt.vn' } as never,
+      }),
+    ).rejects.toMatchObject({ status: 403, response: { error: 'missing_cap', section: 'crm_content', action: 'write' } });
+    expect(repo.updateLegalHold).not.toHaveBeenCalled();
+  });
+
+  it('allows QA without write to release hold', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      getItemLegalHold: jest.fn().mockResolvedValue({
+        id: 21,
+        legal_hold: true,
+        legal_hold_set_by: 'w@ptt.vn',
+      }),
+      updateLegalHold: jest.fn().mockResolvedValue({
+        id: 21,
+        legal_hold: false,
+        legal_hold_set_by: null,
+      }),
+      insertAuditExport: jest.fn().mockResolvedValue({}),
+    };
+    const marketingRepo = { findItemById: jest.fn().mockResolvedValue({ id: 21, lifecycle_id: 4 }) };
+    const qaOnly = {
+      me: jest.fn().mockResolvedValue({
+        caps: [{ section: 'crm_content', action: 'qa' }],
+        position_code: 'qa',
+      }),
+      hasCap: (caps: Array<{ section: string; action: string }>, section: string, action: string) =>
+        caps.some((cap) => cap.section === section && cap.action === action),
+      isSuperAdminPosition: () => false,
+    };
+    const svc = makeSvc(repo, marketingRepo, qaOnly);
+    await expect(
+      svc.patchLegalHold({
+        staffId: 7,
+        itemId: 21,
+        actor: 'qa@ptt.vn',
+        body: { legal_hold: false, reason: 'dispute resolved' },
+        staffUser: { sub: '7', email: 'qa@ptt.vn' } as never,
+      }),
+    ).resolves.toMatchObject({ legal_hold: false, legal_hold_set_by: null });
+    expect(repo.updateLegalHold).toHaveBeenCalledWith({
+      itemId: 21,
+      legal_hold: false,
+      setBy: null,
+      reason: 'dispute resolved',
+      lifecycleIds: [4],
+    });
+    expect(repo.insertAuditExport).toHaveBeenCalledWith({
+      actor: 'qa@ptt.vn',
+      action: 'legal_hold',
+      entity: 'item:21:off',
+    });
+  });
+
   it('blocks writer release even when they have crm_content.write', async () => {
     const repo = {
       listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),

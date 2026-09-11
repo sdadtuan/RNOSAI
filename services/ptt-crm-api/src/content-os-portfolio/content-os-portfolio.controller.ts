@@ -192,7 +192,6 @@ export class ContentOsPortfolioController {
   }
 
   @Patch('items/:itemId/legal-hold')
-  @UseGuards(StaffContentMarketingWriteGuard)
   patchLegalHold(
     @Param('itemId', ParseIntPipe) itemId: number,
     @Body() body: Record<string, unknown>,
