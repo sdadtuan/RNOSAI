@@ -126,6 +126,15 @@ describe('AI trace panel item change / fetch rejection', () => {
     expect(resetAiTracePanelView()).toEqual({ items: [], forbidden: false });
   });
 
+  it('remounts the Copy Studio panel when the item id changes', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(
+      new URL('../../components/content-os/cmkte/CmktEWorkspace.tsx', import.meta.url),
+      'utf8',
+    );
+    expect(src).toMatch(/<CmktEAiTracePanel key=\{item\.id\} itemId=\{item\.id\}/);
+  });
+
   it('hides the panel when fetch rejects with 403', async () => {
     vi.stubGlobal(
       'fetch',

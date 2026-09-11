@@ -290,7 +290,7 @@ export function CmktEWorkspace({
           ) : (
             <p className="cmkte-empty">Chưa có comment.</p>
           )}
-          <CmktEAiTracePanel itemId={item.id} lifecycleHint={item.lifecycle_id} />
+          <CmktEAiTracePanel key={item.id} itemId={item.id} lifecycleHint={item.lifecycle_id} />
         </section>
       ) : null}
 

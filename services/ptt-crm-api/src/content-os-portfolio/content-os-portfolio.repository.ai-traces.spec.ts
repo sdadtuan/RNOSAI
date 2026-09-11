@@ -51,7 +51,6 @@ describe('ContentOsPortfolioRepository.listAiTraceJobs', () => {
             status: 'queued',
             created_at: '2026-09-11T01:00:00.000Z',
             finished_at: null,
-            ai_run_id: null,
             input_json: {},
           },
         ],
@@ -59,9 +58,10 @@ describe('ContentOsPortfolioRepository.listAiTraceJobs', () => {
     const repo = makeRepo(query);
     const rows = await repo.listAiTraceJobs(21);
     expect(query).toHaveBeenCalledTimes(2);
-    expect(query.mock.calls[1][0]).not.toMatch(/ai_agent_runs/);
+    expect(query.mock.calls[1][0]).not.toMatch(/ai_agent_runs|ai_run_id/);
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe(9);
+    expect(rows[0].ai_run_id).toBeNull();
     expect(rows[0].run).toBeUndefined();
   });
 
@@ -69,7 +69,7 @@ describe('ContentOsPortfolioRepository.listAiTraceJobs', () => {
     const query = jest
       .fn()
       .mockRejectedValueOnce(
-        Object.assign(new Error('column j.ai_run_id does not exist'), { code: '42703' }),
+        Object.assign(new Error('column j.ai_run_id does not exist'), { code: '42703', column: 'ai_run_id' }),
       )
       .mockResolvedValueOnce({
         rows: [
@@ -79,7 +79,6 @@ describe('ContentOsPortfolioRepository.listAiTraceJobs', () => {
             status: 'queued',
             created_at: '2026-09-11T01:00:00.000Z',
             finished_at: null,
-            ai_run_id: null,
             input_json: {},
           },
         ],
@@ -87,8 +86,33 @@ describe('ContentOsPortfolioRepository.listAiTraceJobs', () => {
     const repo = makeRepo(query);
     const rows = await repo.listAiTraceJobs(21);
     expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls[1][0]).not.toMatch(/ai_run_id/);
     expect(rows).toHaveLength(1);
+    expect(rows[0].ai_run_id).toBeNull();
     expect(rows[0].run).toBeUndefined();
+  });
+
+  it('does not treat a missing required cmkt_content_jobs column as optional', async () => {
+    const boom = Object.assign(new Error('column j.job_type does not exist'), {
+      code: '42703',
+      table: 'cmkt_content_jobs',
+      column: 'job_type',
+    });
+    const query = jest.fn().mockRejectedValue(boom);
+    const repo = makeRepo(query);
+    await expect(repo.listAiTraceJobs(21)).rejects.toBe(boom);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not treat a missing cmkt_content_jobs table as optional', async () => {
+    const boom = Object.assign(new Error('relation "cmkt_content_jobs" does not exist'), {
+      code: '42P01',
+      table: 'cmkt_content_jobs',
+    });
+    const query = jest.fn().mockRejectedValue(boom);
+    const repo = makeRepo(query);
+    await expect(repo.listAiTraceJobs(21)).rejects.toBe(boom);
+    expect(query).toHaveBeenCalledTimes(1);
   });
 
   it('does not report a non-optional DB error as an empty trace list', async () => {

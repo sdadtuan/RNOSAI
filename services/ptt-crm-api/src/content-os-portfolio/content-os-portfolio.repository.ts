@@ -24,14 +24,12 @@ import { formatContentItemCode, formatContentRequestCode } from './content-os-po
 function isOptionalAiRunJoinError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const code = String((err as { code?: unknown }).code ?? '');
+  if (code !== '42P01' && code !== '42703') return false;
   const message = err instanceof Error ? err.message : String((err as { message?: unknown }).message ?? '');
-  return (
-    code === '42P01' ||
-    code === '42703' ||
-    code === 'undefined_table' ||
-    code === 'undefined_column' ||
-    /undefined_table|undefined_column/i.test(message)
-  );
+  const table = String((err as { table?: unknown }).table ?? '');
+  const column = String((err as { column?: unknown }).column ?? '');
+  const haystack = `${message} ${table} ${column}`;
+  return /\bai_agent_runs\b|\bai_run_id\b/i.test(haystack);
 }
 
 @Injectable()
@@ -335,7 +333,7 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
          WHERE j.item_id = $1
          ORDER BY COALESCE(j.finished_at, j.created_at) DESC NULLS LAST, j.id DESC`;
     const jobsOnly = `
-         SELECT id, job_type, status, created_at, finished_at, ai_run_id::text AS ai_run_id, input_json
+         SELECT id, job_type, status, created_at, finished_at, input_json
          FROM cmkt_content_jobs
          WHERE item_id = $1
          ORDER BY COALESCE(finished_at, created_at) DESC NULLS LAST, id DESC`;
@@ -460,7 +458,7 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
       status: String(row.status ?? ''),
       created_at: createdAt,
       finished_at: finishedAt,
-      ai_run_id: row.ai_run_id != null ? String(row.ai_run_id) : null,
+      ai_run_id: opts.skipRun ? null : row.ai_run_id != null ? String(row.ai_run_id) : null,
       input_json:
         row.input_json && typeof row.input_json === 'object' && !Array.isArray(row.input_json)
           ? (row.input_json as Record<string, unknown>)
