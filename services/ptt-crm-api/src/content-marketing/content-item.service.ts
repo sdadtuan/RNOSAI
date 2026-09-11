@@ -407,19 +407,14 @@ export class ContentItemService {
   ): Promise<void> {
     if (typeof this.repo.insertPublicationLog !== 'function') return;
     try {
-      const retry_n =
-        typeof this.repo.nextPublicationRetryN === 'function'
-          ? await this.repo.nextPublicationRetryN(itemId)
-          : 1;
       await this.repo.insertPublicationLog({
         item_id: itemId,
         error: fields.error,
-        retry_n,
         post_id: fields.post_id,
         http_status: fields.http_status,
       });
     } catch {
-      // Keep the original publish 4xx/5xx; do not replace it with a log write failure.
+      // Durable log was attempted; keep the original publish 4xx/5xx.
     }
   }
 }

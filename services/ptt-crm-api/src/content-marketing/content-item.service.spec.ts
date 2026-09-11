@@ -320,7 +320,6 @@ describe('ContentItemService publishItem gate', () => {
         item_id: 7,
         error: null,
         post_id: null,
-        retry_n: 1,
       }),
     );
   });
@@ -336,7 +335,6 @@ describe('ContentItemService publishItem gate', () => {
       expect.objectContaining({
         item_id: 7,
         error: 'publish_gate_blocked',
-        retry_n: 1,
         http_status: 409,
         post_id: null,
       }),
@@ -355,27 +353,39 @@ describe('ContentItemService publishItem gate', () => {
         item_id: 7,
         error: 'invalid_transition',
         http_status: 400,
-        retry_n: 1,
       }),
     );
   });
 
-  it('increments retry_n per item on each failed mark-published', async () => {
+  it('writes a publication log on each failed mark-published without pre-assigning retry_n', async () => {
     repo.getItemById.mockResolvedValue(publishableItem());
     repo.listAssetRights.mockResolvedValue([{ asset_ref: 'https://cdn/blocked.jpg', status: 'Invalid' }]);
-    repo.nextPublicationRetryN.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
 
     await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toBeInstanceOf(ConflictException);
     await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toBeInstanceOf(ConflictException);
 
     expect(repo.insertPublicationLog).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ item_id: 7, retry_n: 1, error: 'publish_gate_blocked' }),
+      expect.objectContaining({ item_id: 7, error: 'publish_gate_blocked' }),
     );
     expect(repo.insertPublicationLog).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ item_id: 7, retry_n: 2, error: 'publish_gate_blocked' }),
+      expect.objectContaining({ item_id: 7, error: 'publish_gate_blocked' }),
     );
+    expect(repo.nextPublicationRetryN).not.toHaveBeenCalled();
+  });
+
+  it('rethrows the original HttpException after a failed durable log attempt', async () => {
+    repo.getItemById.mockResolvedValue(publishableItem());
+    repo.listAssetRights.mockResolvedValue([{ asset_ref: 'https://cdn/blocked.jpg', status: 'Invalid' }]);
+    repo.insertPublicationLog.mockRejectedValue(
+      Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' }),
+    );
+
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toMatchObject({
+      response: { error: 'publish_gate_blocked' },
+    });
+    expect(repo.insertPublicationLog).toHaveBeenCalled();
   });
 
   it('throws publish_gate_blocked when rightsValid is false', async () => {

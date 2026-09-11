@@ -35,7 +35,11 @@ import type {
   CmktPublicationLogWrite,
 } from './content-marketing.types';
 import type { ChannelConnectorRow } from '../content-os-portfolio/channel-health.util';
-import { nextPublicationRetryN } from '../content-os-portfolio/publication-log.util';
+import {
+  PUBLICATION_LOG_INSERT_SQL,
+  insertPublicationLogWithRetry,
+  nextPublicationRetryN,
+} from '../content-os-portfolio/publication-log.util';
 import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
 import type { AssetRightStatus, CmktAssetRightRow, CmktAssetRightWrite } from '../content-os-portfolio/content-os-portfolio.types';
 import {
@@ -2335,20 +2339,29 @@ export class ContentMarketingRepository implements OnModuleDestroy {
 
   async insertPublicationLog(input: CmktPublicationLogWrite): Promise<CmktPublicationLogRow> {
     if (await this.ensurePgReady()) {
-      const res = await this.db.query(
-        `INSERT INTO cmkt_publication_logs (item_id, error, retry_n, post_id, http_status)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, item_id, attempted_at, error, retry_n, post_id, http_status`,
-        [input.item_id, input.error, input.retry_n, input.post_id, input.http_status],
-      );
-      return this.mapPublicationLogRow(res.rows[0] as Record<string, unknown>);
+      return insertPublicationLogWithRetry(async () => {
+        const res = await this.db.query(PUBLICATION_LOG_INSERT_SQL, [
+          input.item_id,
+          input.error,
+          input.post_id,
+          input.http_status,
+        ]);
+        const inserted = res.rows[0] as Record<string, unknown> | undefined;
+        if (!inserted) {
+          throw new Error('publication_log_insert_empty');
+        }
+        return this.mapPublicationLogRow(inserted);
+      });
     }
+    const max = this.memory.publicationLogs
+      .filter((row) => row.item_id === input.item_id)
+      .reduce((acc, row) => Math.max(acc, row.retry_n), 0);
     const row: CmktPublicationLogRow = {
       id: this.memory.nextPublicationLogId++,
       item_id: input.item_id,
       attempted_at: new Date().toISOString(),
       error: input.error,
-      retry_n: input.retry_n,
+      retry_n: nextPublicationRetryN(max),
       post_id: input.post_id,
       http_status: input.http_status,
     };

@@ -1,5 +1,11 @@
 import { BadRequestException, ConflictException, HttpException, HttpStatus } from '@nestjs/common';
-import { nextPublicationRetryN, publicationLogFromError } from './publication-log.util';
+import {
+  PUBLICATION_LOG_INSERT_SQL,
+  insertPublicationLogWithRetry,
+  isPublicationRetryNCollision,
+  nextPublicationRetryN,
+  publicationLogFromError,
+} from './publication-log.util';
 
 describe('nextPublicationRetryN', () => {
   it('starts at 1 when the item has no prior attempts', () => {
@@ -11,6 +17,43 @@ describe('nextPublicationRetryN', () => {
   it('increments the max retry_n for the item', () => {
     expect(nextPublicationRetryN(1)).toBe(2);
     expect(nextPublicationRetryN(4)).toBe(5);
+  });
+});
+
+describe('publication log insert allocation', () => {
+  it('assigns retry_n in the same INSERT as COALESCE(MAX(retry_n),0)+1 for the item', () => {
+    expect(PUBLICATION_LOG_INSERT_SQL).toMatch(
+      /COALESCE\(\(SELECT MAX\(retry_n\) FROM cmkt_publication_logs WHERE item_id = \$1\), 0\) \+ 1/,
+    );
+    expect(PUBLICATION_LOG_INSERT_SQL).toMatch(/INSERT INTO cmkt_publication_logs/);
+  });
+
+  it('retries a unique retry_n collision and does not treat it as a successful skip', async () => {
+    let attempts = 0;
+    const row = await insertPublicationLogWithRetry(async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+          code: '23505',
+          constraint: 'cmkt_publication_logs_item_retry_uq',
+        });
+      }
+      return { id: 2, retry_n: 2 };
+    });
+    expect(attempts).toBe(2);
+    expect(row).toEqual({ id: 2, retry_n: 2 });
+  });
+
+  it('does not swallow a non-collision insert failure as success', async () => {
+    await expect(
+      insertPublicationLogWithRetry(async () => {
+        throw new Error('connection lost');
+      }),
+    ).rejects.toThrow('connection lost');
+    expect(
+      isPublicationRetryNCollision(Object.assign(new Error('dup'), { code: '23505' })),
+    ).toBe(true);
+    expect(isPublicationRetryNCollision(new Error('connection lost'))).toBe(false);
   });
 });
 

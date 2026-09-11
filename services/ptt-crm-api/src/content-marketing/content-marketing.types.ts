@@ -62,14 +62,15 @@ export type CmktSlaAuditRow = CmktSlaAuditWrite & {
 export type CmktPublicationLogWrite = {
   item_id: number;
   error: string | null;
-  retry_n: number;
+  retry_n?: number;
   post_id: string | null;
   http_status: number | null;
 };
 
-export type CmktPublicationLogRow = CmktPublicationLogWrite & {
+export type CmktPublicationLogRow = Omit<CmktPublicationLogWrite, 'retry_n'> & {
   id: number;
   attempted_at: string;
+  retry_n: number;
 };
 
 export type CmktSlaScanItem = {
