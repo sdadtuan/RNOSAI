@@ -23,8 +23,10 @@ import { formatContentItemCode, formatContentRequestCode } from './content-os-po
 import {
   AUDIT_EXPORT_ACTION,
   AUDIT_EXPORT_ENTITY,
+  HARD_DELETE_ACTION,
   type AuditExportRow,
 } from './audit-export.util';
+import type { HardDeleteOutcome } from './legal-hold.util';
 import { isMissingCmktSettingsSchema, type CmktSettingRow } from './direct-social-publish.util';
 
 function isOptionalAiRunJoinError(err: unknown): boolean {
@@ -437,42 +439,92 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     return this.mapAuditExportRow(res.rows[0] as Record<string, unknown>);
   }
 
-  async listAuditExports(): Promise<AuditExportRow[]> {
+  async listAuditActivity(lifecycleIds: number[]): Promise<AuditExportRow[]> {
+    if (!lifecycleIds.length) return [];
     if (!(await this.ensurePgReady())) {
       throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
     }
     const res = await this.db.query(
-      `SELECT actor, action, entity, created_at
-       FROM cmkt_audit_exports
+      `SELECT actor, action, entity, created_at, item_id, id
+       FROM (
+         SELECT v.changed_by AS actor,
+                v.change_reason AS action,
+                'item_version' AS entity,
+                v.created_at,
+                v.item_id,
+                v.id
+           FROM cmkt_content_item_versions v
+           JOIN cmkt_content_items i ON i.id = v.item_id
+          WHERE i.lifecycle_id = ANY($1::int[])
+         UNION ALL
+         SELECT '' AS actor,
+                CASE WHEN l.error IS NULL THEN 'published' ELSE 'publish_failed' END AS action,
+                'publication' AS entity,
+                l.attempted_at AS created_at,
+                l.item_id,
+                l.id
+           FROM cmkt_publication_logs l
+           JOIN cmkt_content_items i ON i.id = l.item_id
+          WHERE i.lifecycle_id = ANY($1::int[])
+         UNION ALL
+         SELECT COALESCE(s.am_staff_id::text, '') AS actor,
+                s.action,
+                'sla_event' AS entity,
+                s.created_at,
+                s.item_id,
+                s.id
+           FROM cmkt_sla_events s
+           JOIN cmkt_content_items i ON i.id = s.item_id
+          WHERE i.lifecycle_id = ANY($1::int[])
+       ) activity
        ORDER BY created_at ASC, id ASC`,
+      [lifecycleIds],
     );
-    return res.rows.map((row) => this.mapAuditExportRow(row as Record<string, unknown>));
+    return res.rows.map((row) => this.mapAuditActivityRow(row as Record<string, unknown>));
   }
 
-  async getItemLegalHold(
-    itemId: number,
-  ): Promise<{ id: number; lifecycle_id: number; legal_hold: boolean } | null> {
-    if (!(await this.ensurePgReady())) {
-      throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
-    }
+  async hardDeleteItem(input: {
+    itemId: number;
+    actor: string;
+    lifecycleIds: number[];
+  }): Promise<HardDeleteOutcome> {
     const res = await this.db.query(
-      `SELECT id, lifecycle_id, COALESCE(legal_hold, FALSE) AS legal_hold
-       FROM cmkt_content_items
-       WHERE id = $1`,
-      [itemId],
+      `WITH target AS (
+         SELECT id, legal_hold, lifecycle_id
+           FROM cmkt_content_items
+          WHERE id = $1
+       ),
+       deleted AS (
+         DELETE FROM cmkt_content_items AS t
+          USING target
+          WHERE t.id = target.id
+            AND target.legal_hold IS NOT TRUE
+            AND target.lifecycle_id = ANY($3::int[])
+         RETURNING t.id
+       ),
+       audited AS (
+         INSERT INTO cmkt_audit_exports (actor, action, entity)
+         SELECT $2, '${HARD_DELETE_ACTION}', 'item:' || deleted.id
+           FROM deleted
+         RETURNING id
+       )
+       SELECT CASE
+                WHEN deleted.id IS NOT NULL THEN 'deleted'
+                WHEN target.legal_hold IS TRUE THEN 'held'
+                WHEN target.id IS NULL THEN 'missing'
+                ELSE 'out_of_scope'
+              END AS outcome,
+              COALESCE(deleted.id, target.id) AS id
+         FROM (SELECT 1) AS dummy
+         LEFT JOIN target ON TRUE
+         LEFT JOIN deleted ON TRUE`,
+      [input.itemId, input.actor, input.lifecycleIds],
     );
-    const row = res.rows[0] as Record<string, unknown> | undefined;
-    if (!row) return null;
-    return {
-      id: Number(row.id),
-      lifecycle_id: Number(row.lifecycle_id),
-      legal_hold: row.legal_hold === true,
-    };
-  }
-
-  async hardDeleteItem(itemId: number): Promise<boolean> {
-    const res = await this.db.query(`DELETE FROM cmkt_content_items WHERE id = $1`, [itemId]);
-    return (res.rowCount ?? 0) > 0;
+    const outcome = String((res.rows[0] as { outcome?: unknown } | undefined)?.outcome ?? 'missing');
+    if (outcome === 'deleted' || outcome === 'held' || outcome === 'out_of_scope') {
+      return outcome;
+    }
+    return 'missing';
   }
 
   async upsertSetting(key: string, value: unknown, updatedBy: string): Promise<CmktSettingRow> {
@@ -597,6 +649,19 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
       entity: String(row.entity ?? AUDIT_EXPORT_ENTITY),
       created_at:
         createdAt instanceof Date ? createdAt.toISOString() : new Date(String(createdAt ?? '')).toISOString(),
+    };
+  }
+
+  private mapAuditActivityRow(row: Record<string, unknown>): AuditExportRow {
+    const createdAt = row.created_at;
+    return {
+      actor: String(row.actor ?? ''),
+      action: String(row.action ?? ''),
+      entity: String(row.entity ?? ''),
+      created_at:
+        createdAt instanceof Date ? createdAt.toISOString() : new Date(String(createdAt ?? '')).toISOString(),
+      item_id: row.item_id != null && row.item_id !== '' ? Number(row.item_id) : null,
+      id: row.id != null && row.id !== '' ? Number(row.id) : null,
     };
   }
 

@@ -36,53 +36,65 @@ describe('ContentOsPortfolioRepository audit + legal hold', () => {
     });
   });
 
-  it('listAuditExports returns actor, action, entity, time only', async () => {
+  it('listAuditActivity unions item versions, publication logs, and SLA events — not only export rows', async () => {
     const query = jest.fn().mockResolvedValue({
       rows: [
         {
-          actor: 'admin@ptt.vn',
-          action: 'audit_export',
-          entity: 'portfolio_audit',
-          created_at: '2026-09-11T07:47:00.000Z',
+          actor: 'editor@ptt.vn',
+          action: 'manual',
+          entity: 'item_version',
+          created_at: '2026-09-10T08:00:00.000Z',
+          item_id: 21,
+          id: 9,
         },
       ],
     });
     const repo = makeRepo(query);
-    await expect(repo.listAuditExports()).resolves.toEqual([
+    await expect(repo.listAuditActivity([4])).resolves.toEqual([
       {
-        actor: 'admin@ptt.vn',
-        action: 'audit_export',
-        entity: 'portfolio_audit',
-        created_at: '2026-09-11T07:47:00.000Z',
+        actor: 'editor@ptt.vn',
+        action: 'manual',
+        entity: 'item_version',
+        created_at: '2026-09-10T08:00:00.000Z',
+        item_id: 21,
+        id: 9,
       },
     ]);
-    expect(query).toHaveBeenCalledWith(expect.stringMatching(/FROM cmkt_audit_exports/));
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toMatch(/cmkt_content_item_versions/);
+    expect(sql).toMatch(/cmkt_publication_logs/);
+    expect(sql).toMatch(/cmkt_sla_events/);
+    expect(sql).not.toMatch(/FROM cmkt_audit_exports/);
+    expect(sql).not.toMatch(/body_json|prompt|token/i);
+    expect(query).toHaveBeenCalledWith(expect.any(String), [[4]]);
   });
 
-  it('getItemLegalHold reads legal_hold defaulting false', async () => {
+  it('hardDeleteItem deletes atomically with legal_hold and writes an audit event when a row is removed', async () => {
     const query = jest.fn().mockResolvedValue({
-      rows: [{ id: 21, lifecycle_id: 4, legal_hold: false }],
+      rows: [{ outcome: 'deleted', id: 21 }],
     });
     const repo = makeRepo(query);
-    await expect(repo.getItemLegalHold(21)).resolves.toEqual({
-      id: 21,
-      lifecycle_id: 4,
-      legal_hold: false,
-    });
-    expect(query).toHaveBeenCalledWith(
-      expect.stringMatching(/legal_hold/),
-      [21],
-    );
+    await expect(
+      repo.hardDeleteItem({ itemId: 21, actor: 'admin@ptt.vn', lifecycleIds: [4] }),
+    ).resolves.toBe('deleted');
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toMatch(/DELETE FROM cmkt_content_items/);
+    expect(sql).toMatch(/legal_hold IS NOT TRUE/);
+    expect(sql).toMatch(/INSERT INTO cmkt_audit_exports/);
+    expect(sql).toMatch(/hard_delete/);
+    expect(params).toEqual([21, 'admin@ptt.vn', [4]]);
   });
 
-  it('hardDeleteItem issues DELETE and does not update audit rows', async () => {
-    const query = jest.fn().mockResolvedValue({ rowCount: 1, rows: [] });
+  it('hardDeleteItem reports held without a prior GET when the row exists on legal hold', async () => {
+    const query = jest.fn().mockResolvedValue({
+      rows: [{ outcome: 'held', id: 21 }],
+    });
     const repo = makeRepo(query);
-    await expect(repo.hardDeleteItem(21)).resolves.toBe(true);
-    expect(query).toHaveBeenCalledWith(
-      expect.stringMatching(/DELETE FROM cmkt_content_items/),
-      [21],
-    );
-    expect(query).not.toHaveBeenCalledWith(expect.stringMatching(/UPDATE cmkt_audit_exports/), expect.anything());
+    await expect(
+      repo.hardDeleteItem({ itemId: 21, actor: 'admin@ptt.vn', lifecycleIds: [4] }),
+    ).resolves.toBe('held');
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(String(query.mock.calls[0][0])).toMatch(/DELETE FROM cmkt_content_items/);
+    expect(String(query.mock.calls[0][0])).not.toMatch(/^SELECT /);
   });
 });

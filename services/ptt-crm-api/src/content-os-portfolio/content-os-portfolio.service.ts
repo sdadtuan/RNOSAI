@@ -62,9 +62,9 @@ import {
   AUDIT_EXPORT_ACTION,
   AUDIT_EXPORT_ENTITY,
   formatAuditExportCsv,
-  isMissingAuditExportSchema,
+  isMissingAuditActivitySchema,
 } from './audit-export.util';
-import { assertHardDeleteAllowed } from './legal-hold.util';
+import { assertHardDeleteOutcome } from './legal-hold.util';
 
 type PortfolioSettings = {
   direct_social_publish: boolean;
@@ -361,28 +361,31 @@ export class ContentOsPortfolioService {
   }
 
   async exportAuditCsv(input: { staffId: number; actor: string }): Promise<string> {
-    void input.staffId;
     if (typeof this.repo.ensurePgReady === 'function' && !(await this.repo.ensurePgReady())) {
       throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
     }
-    try {
-      if (typeof this.repo.insertAuditExport === 'function') {
-        await this.repo.insertAuditExport({
-          actor: input.actor,
-          action: AUDIT_EXPORT_ACTION,
-          entity: AUDIT_EXPORT_ENTITY,
-        });
-      }
-    } catch (err) {
-      if (!isMissingAuditExportSchema(err)) throw err;
-      return formatAuditExportCsv([]);
+    if (typeof this.repo.insertAuditExport !== 'function') {
+      throw new ServiceUnavailableException({ error: 'audit_export_failed' });
     }
     try {
-      const rows = typeof this.repo.listAuditExports === 'function' ? await this.repo.listAuditExports() : [];
+      await this.repo.insertAuditExport({
+        actor: input.actor,
+        action: AUDIT_EXPORT_ACTION,
+        entity: AUDIT_EXPORT_ENTITY,
+      });
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
+      throw new ServiceUnavailableException({ error: 'audit_export_failed' });
+    }
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    try {
+      const rows =
+        typeof this.repo.listAuditActivity === 'function' ? await this.repo.listAuditActivity(scoped) : [];
       return formatAuditExportCsv(rows ?? []);
     } catch (err) {
-      if (!isMissingAuditExportSchema(err)) throw err;
-      return formatAuditExportCsv([]);
+      if (isMissingAuditActivitySchema(err)) return formatAuditExportCsv([]);
+      if (err instanceof ServiceUnavailableException) throw err;
+      throw new ServiceUnavailableException({ error: 'audit_export_failed' });
     }
   }
 
@@ -390,20 +393,16 @@ export class ContentOsPortfolioService {
     ok: true;
     id: number;
   }> {
-    void input.actor;
-    const item =
-      typeof this.repo.getItemLegalHold === 'function'
-        ? await this.repo.getItemLegalHold(input.itemId)
-        : null;
-    assertHardDeleteAllowed(item);
     const scoped = await this.scopedLifecycleIds(input.staffId);
-    if (!scoped.includes(item.lifecycle_id)) {
-      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
-    }
-    if (typeof this.repo.hardDeleteItem === 'function') {
-      await this.repo.hardDeleteItem(input.itemId);
-    }
-    return { ok: true, id: input.itemId };
+    const outcome =
+      typeof this.repo.hardDeleteItem === 'function'
+        ? await this.repo.hardDeleteItem({
+            itemId: input.itemId,
+            actor: input.actor,
+            lifecycleIds: scoped,
+          })
+        : 'missing';
+    return assertHardDeleteOutcome(outcome, input.itemId);
   }
 
   async listRequests(scope: { staffId: number }): Promise<{ items: ContentRequestRow[] }> {

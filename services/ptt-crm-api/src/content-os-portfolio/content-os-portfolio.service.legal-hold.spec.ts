@@ -12,15 +12,11 @@ function makeSvc(repo: object, marketingRepo: object = {}) {
 }
 
 describe('ContentOsPortfolioService legal hold', () => {
-  it('hard delete is blocked with 409 legal_hold when the item is on hold', async () => {
+  it('hard delete is atomic and blocked with 409 legal_hold when the delete matches a held row', async () => {
     const repo = {
-      getItemLegalHold: jest.fn().mockResolvedValue({
-        id: 21,
-        lifecycle_id: 4,
-        legal_hold: true,
-      }),
-      hardDeleteItem: jest.fn(),
+      hardDeleteItem: jest.fn().mockResolvedValue('held'),
       listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      getItemLegalHold: jest.fn(),
     };
     const svc = makeSvc(repo);
     await expect(svc.hardDeleteItem({ staffId: 7, itemId: 21, actor: 'admin@ptt.vn' })).rejects.toBeInstanceOf(
@@ -30,37 +26,48 @@ describe('ContentOsPortfolioService legal hold', () => {
       status: 409,
       response: { error: 'legal_hold' },
     });
-    expect(repo.hardDeleteItem).not.toHaveBeenCalled();
+    expect(repo.hardDeleteItem).toHaveBeenCalledWith({
+      itemId: 21,
+      actor: 'admin@ptt.vn',
+      lifecycleIds: [4],
+    });
+    expect(repo.getItemLegalHold).not.toHaveBeenCalled();
   });
 
-  it('hard deletes an item that is not on legal hold', async () => {
+  it('hard deletes atomically and writes the audit event inside the delete', async () => {
     const repo = {
-      getItemLegalHold: jest.fn().mockResolvedValue({
-        id: 21,
-        lifecycle_id: 4,
-        legal_hold: false,
-      }),
-      hardDeleteItem: jest.fn().mockResolvedValue(true),
+      hardDeleteItem: jest.fn().mockResolvedValue('deleted'),
       listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      getItemLegalHold: jest.fn(),
     };
     const svc = makeSvc(repo);
     await expect(svc.hardDeleteItem({ staffId: 7, itemId: 21, actor: 'admin@ptt.vn' })).resolves.toEqual({
       ok: true,
       id: 21,
     });
-    expect(repo.hardDeleteItem).toHaveBeenCalledWith(21);
+    expect(repo.hardDeleteItem).toHaveBeenCalledWith({
+      itemId: 21,
+      actor: 'admin@ptt.vn',
+      lifecycleIds: [4],
+    });
+    expect(repo.getItemLegalHold).not.toHaveBeenCalled();
   });
 
-  it('returns 404 when the item does not exist', async () => {
+  it('returns 404 when the atomic delete finds no row', async () => {
     const repo = {
-      getItemLegalHold: jest.fn().mockResolvedValue(null),
-      hardDeleteItem: jest.fn(),
+      hardDeleteItem: jest.fn().mockResolvedValue('missing'),
       listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      getItemLegalHold: jest.fn(),
     };
     const svc = makeSvc(repo);
     await expect(svc.hardDeleteItem({ staffId: 7, itemId: 99, actor: 'admin@ptt.vn' })).rejects.toBeInstanceOf(
       NotFoundException,
     );
-    expect(repo.hardDeleteItem).not.toHaveBeenCalled();
+    expect(repo.hardDeleteItem).toHaveBeenCalledWith({
+      itemId: 99,
+      actor: 'admin@ptt.vn',
+      lifecycleIds: [4],
+    });
+    expect(repo.getItemLegalHold).not.toHaveBeenCalled();
   });
 });
