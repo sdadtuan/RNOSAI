@@ -2,14 +2,23 @@
 
 import Link from 'next/link';
 import { canOpenCreativeOsBrandKit, CREATIVE_OS_BRAND_KITS_HREF } from '@/lib/crm/cmkte-brand-kit';
+import { DAM_PICK_LABEL, type DamUrlMetadata } from '@/lib/crm/cmkte-dam';
 import type { StaffSectionCap } from '@/lib/auth';
 
 export function CmktELibrary({
   caps,
   assetUrls,
+  damItems = [],
+  damError,
+  damLoading = false,
+  onPickFromDam,
 }: {
   caps: StaffSectionCap[] | null | undefined;
   assetUrls: string[];
+  damItems?: DamUrlMetadata[];
+  damError?: string;
+  damLoading?: boolean;
+  onPickFromDam?: () => void;
 }) {
   const canOpenKit = canOpenCreativeOsBrandKit(caps);
 
@@ -47,6 +56,30 @@ export function CmktELibrary({
         </div>
         <div className="cmkte-card">
           <h3>Approved assets</h3>
+          <div className="cmkte-actions">
+            <button
+              type="button"
+              className="cmkte-btn"
+              disabled={damLoading || !onPickFromDam}
+              onClick={() => onPickFromDam?.()}
+            >
+              {DAM_PICK_LABEL}
+            </button>
+          </div>
+          {damError ? <p className="cmkte-status cmkte-status--error">{damError}</p> : null}
+          {damItems.length > 0 ? (
+            <ul className="cmkte-list">
+              {damItems.map((asset) => (
+                <li key={asset.id}>
+                  <a href={asset.url} target="_blank" rel="noreferrer">
+                    {asset.filename || asset.url}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : damError ? (
+            <p className="cmkte-empty">Chưa có asset từ DAM.</p>
+          ) : null}
           {assetUrls.length === 0 ? (
             <p className="cmkte-empty">Chưa có asset từ item đang mở.</p>
           ) : (

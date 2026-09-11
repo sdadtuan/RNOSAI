@@ -49,6 +49,7 @@ import { formatContentRequestCode, requestCompleteness } from './content-os-port
 import { toAiTraceRow, type AiTraceRow } from './ai-traces.util';
 import type { CmktInsightRow } from './copilot-insights.util';
 import { computeCapacity, criticalPathTaskIds, hasDelayedCriticalTask } from './production-capacity.util';
+import { listDamOrEmpty, stubDamAdapter, type DamListResult } from './dam-adapter';
 import {
   DIRECT_SOCIAL_PUBLISH_KEY,
   isMissingCmktSettingsSchema,
@@ -287,6 +288,10 @@ export class ContentOsPortfolioService {
         ...resolveChannelHealth(byChannel.get(channel) ?? null),
       })),
     };
+  }
+
+  async listDamAssets(scope: { staffId: number; collection?: string }): Promise<DamListResult> {
+    return listDamOrEmpty(stubDamAdapter(), { collection: scope.collection });
   }
 
   async getSettings(_scope: { staffId: number }): Promise<{ direct_social_publish: boolean }> {

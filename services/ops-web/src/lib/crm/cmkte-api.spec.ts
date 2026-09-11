@@ -9,6 +9,7 @@ import {
   fetchPortfolioItem,
   fetchPortfolioPublications,
   fetchPortfolioSlaEvents,
+  fetchDamAssets,
   fetchPortfolioSettings,
   fetchPortfolioRequests,
   patchPortfolioSettings,
@@ -473,6 +474,48 @@ describe('fetchPortfolioSlaEvents', () => {
       }),
     );
     await expect(fetchPortfolioSlaEvents('tok-9')).resolves.toEqual({ items: [] });
+  });
+});
+
+describe('fetchDamAssets', () => {
+  it('GETs portfolio dam with collection and Bearer token', async () => {
+    const body = {
+      items: [{ id: 'asset-1', url: 'https://dam.example/files/hero.jpg', collection: 'approved' }],
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchDamAssets('tok-9', 'approved');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/api/crm/content-os/portfolio/dam?collection=approved`,
+      { headers: { Authorization: 'Bearer tok-9' } },
+    );
+    expect(result).toEqual(body);
+  });
+
+  it('maps HTTP fail to empty list plus error and does not invent DAM assets', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'dam_unavailable', items: [{ filename: 'Nova Hero' }] }),
+      }),
+    );
+    const result = await fetchDamAssets('tok-9');
+    expect(result).toEqual({ items: [], error: 'dam_unavailable' });
+    expect(JSON.stringify(result)).not.toMatch(/Sunlight|Nova/i);
+  });
+
+  it('maps network fail to empty list plus error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Failed to fetch')));
+    await expect(fetchDamAssets('tok-9', 'approved')).resolves.toEqual({
+      items: [],
+      error: 'Failed to fetch',
+    });
   });
 });
 

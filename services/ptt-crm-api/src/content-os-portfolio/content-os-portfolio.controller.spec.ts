@@ -145,6 +145,15 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual({ direct_social_publish: true });
   });
 
+  it('GET dam delegates to listDamAssets with staffId and collection', async () => {
+    const listed = { items: [], error: 'dam_not_configured' };
+    const service = { listDamAssets: jest.fn().mockResolvedValue(listed) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.listDamAssets({ staffUser: { sub: '7' } } as never, 'approved');
+    expect(service.listDamAssets).toHaveBeenCalledWith({ staffId: 7, collection: 'approved' });
+    expect(out).toEqual(listed);
+  });
+
   it('GET items/:itemId/ai-traces delegates to listAiTraces with staffId and lifecycle hint', async () => {
     const traces = { items: [{ at: '2026-09-10T08:00:00.000Z', intent: 'Draft generate', sources: [], job_id: 55, status: 'succeeded' }] };
     const service = { listAiTraces: jest.fn().mockResolvedValue(traces) };

@@ -1,5 +1,6 @@
 import { API_BASE } from '@/lib/api';
 import type { ContentOsCalendarSlot, ContentOsItem, ContentOsReviewQueueItem } from '@/lib/content-os-api';
+import { readDamListResult, type DamListResult } from './cmkte-dam';
 import { readDirectSocialPublish } from './cmkte-settings';
 
 export type PortfolioRiskQueueItem = {
@@ -352,6 +353,23 @@ export async function approvePortfolioInsight(token: string, insightId: number):
 export type PortfolioSettings = {
   direct_social_publish: boolean;
 };
+
+export async function fetchDamAssets(token: string, collection?: string): Promise<DamListResult> {
+  const qs = collection?.trim() ? `?collection=${encodeURIComponent(collection.trim())}` : '';
+  try {
+    const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/dam${qs}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      return readDamListResult(body, 'dam_list_failed');
+    }
+    return readDamListResult(body);
+  } catch (err) {
+    const message = err instanceof Error && err.message.trim() ? err.message : 'dam_list_failed';
+    return { items: [], error: message };
+  }
+}
 
 export async function fetchPortfolioSettings(token: string): Promise<PortfolioSettings> {
   const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/settings`, {

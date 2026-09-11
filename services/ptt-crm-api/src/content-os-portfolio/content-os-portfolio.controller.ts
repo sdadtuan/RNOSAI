@@ -79,6 +79,14 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Get('dam')
+  listDamAssets(@Req() req: Request, @Query('collection') collection?: string) {
+    return this.portfolio.listDamAssets({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      collection,
+    });
+  }
+
   @Get('settings')
   getSettings(@Req() req: Request) {
     return this.portfolio.getSettings({
