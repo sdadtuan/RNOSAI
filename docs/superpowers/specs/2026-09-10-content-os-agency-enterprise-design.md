@@ -9,7 +9,7 @@
 | Phiên bản | **3.1 — Enterprise Upgrade (full depth)** |
 | Thay thế | COS Agency Enterprise v2.0 (Downloads) · SPEC-CMKT-COS v2.1 (shell — **thu hồi**) · SPEC-CMKT-E 3.0 (bản rút gọn) |
 | Trạng thái | Draft for Product, UX, Architecture, Security, Engineering |
-| UI vận hành | [`../mocks/2026-09-10-content-os-agency-enterprise.html`](../mocks/2026-09-10-content-os-agency-enterprise.html) — **đây là sản phẩm**, không phải wireframe tham khảo |
+| UI vận hành | [`../mocks/2026-09-10-content-os-agency-enterprise.html`](../mocks/2026-09-10-content-os-agency-enterprise.html) — chrome + IA 8 mục (**sản phẩm**). State thắng đăng/DAM/glossary: [`../mocks/2026-09-11-content-os-competitive-win.html`](../mocks/2026-09-11-content-os-competitive-win.html) (SPEC-CMKT-WIN) |
 | Nền tảng kế thừa | Content Marketing OS M0–M16 trên lifecycle (`cmkt_*`, `/api/crm/service-lifecycle/:id/content-marketing`) |
 | Hub đã ship | `/crm/content-os` |
 | Pilot | `tiep-thi-noi-dung` → GA đa slug sau UAT enterprise |
@@ -841,6 +841,8 @@ Capacity, critical path, escalation, quorum/delegate, retry/log, channel health,
 
 Connector từng kênh, DAM pull, SSO/SCIM, legal hold, advanced report, localization memory.
 
+**E3 đã ship (2026-09-11):** framework connector **tắt** + stub DAM + glossary/hold/audit **nền**. Thắng đối thủ trên thao tác đăng/kéo file: [`2026-09-11-content-os-competitive-win-design.md`](./2026-09-11-content-os-competitive-win-design.md) (SPEC-CMKT-WIN v1.1 · Wave E4) + mockup [`../mocks/2026-09-11-content-os-competitive-win.html`](../mocks/2026-09-11-content-os-competitive-win.html).
+
 ---
 
 ## 14. Acceptance
@@ -920,3 +922,5 @@ Còn mở: database-per-tenant; white-label portal; ngành legal bắt buộc; n
 CMKT-E nâng Content Marketing OS từ **board theo lifecycle** thành **hệ điều hành nội dung agency**. Mọi yêu cầu COS v2.0 về object, SLA, rights, matrix, gate, audit **là yêu cầu hệ thống**. UI HTML là **cách đội ngũ làm việc hàng ngày**. Implementation = parity mockup + mở rộng `cmkt_*` + portfolio API — không sản phẩm song song, không “bọc vỏ”.
 
 **Cổng:** duyệt spec `docs/superpowers/specs/2026-09-10-content-os-agency-enterprise-design.md` + mockup `docs/superpowers/mocks/2026-09-10-content-os-agency-enterprise.html` trước khi viết plan / code ops-web.
+
+**Thắng đối thủ (sau E3):** [`2026-09-11-content-os-competitive-win-design.md`](./2026-09-11-content-os-competitive-win-design.md) — Facebook Page + human confirm, DAM HTTP, glossary CRUD. Không thay khóa v3.1.
