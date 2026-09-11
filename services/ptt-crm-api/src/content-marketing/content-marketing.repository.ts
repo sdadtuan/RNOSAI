@@ -2357,19 +2357,18 @@ export class ContentMarketingRepository implements OnModuleDestroy {
   }
 
   private mapSlaScanItem(row: Record<string, unknown>): CmktSlaScanItem {
-    const assigned =
-      row.assigned_am != null
-        ? Number(row.assigned_am)
-        : row.owner_id != null
-          ? Number(row.owner_id)
-          : row.am_id != null
-            ? Number(row.am_id)
-            : null;
+    const asAmId = (value: unknown): number | null => {
+      if (value == null) return null;
+      const n = Number(value);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
     return {
       id: Number(row.id),
       lifecycle_id: Number(row.lifecycle_id),
       assignee_sp: row.assignee_sp != null ? Number(row.assignee_sp) : null,
-      assigned_am: Number.isFinite(assigned as number) && (assigned as number) > 0 ? assigned : null,
+      assigned_am: asAmId(row.assigned_am),
+      account_manager_id: asAmId(row.account_manager_id),
+      am_id: asAmId(row.am_id),
       production_json: (row.production_json as CmktSlaScanItem['production_json']) ?? {},
     };
   }

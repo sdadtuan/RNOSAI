@@ -118,7 +118,6 @@ export class ContentJobWorkerService implements OnModuleInit, OnModuleDestroy {
           if (!row) continue;
           newlyEmitted += 1;
         }
-        if (!newlyEmitted) continue;
         emitted += newlyEmitted;
         await this.repo.patchSlaFired(item.id, result.sla_fired);
       }

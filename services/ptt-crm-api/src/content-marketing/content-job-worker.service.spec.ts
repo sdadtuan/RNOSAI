@@ -218,6 +218,7 @@ describe('ContentJobWorkerService', () => {
     ]);
     await worker.tickProductionSla(slaNow);
     expect(repo.insertSlaAudit).not.toHaveBeenCalled();
+    expect(repo.patchSlaFired).not.toHaveBeenCalled();
     expect(repo.patchItem).not.toHaveBeenCalled();
   });
 
@@ -267,12 +268,12 @@ describe('ContentJobWorkerService', () => {
     jest.useRealTimers();
   });
 
-  it('does not treat a unique-conflict insert as a new emit', async () => {
+  it('does not count unique-conflict inserts as emits but still heals sla_fired', async () => {
     repo.listItemsWithProductionTasks.mockResolvedValue([slaItem()]);
     repo.insertSlaAudit.mockResolvedValue(null);
     const out = await worker.tickProductionSla(slaNow);
     expect(out).toEqual({ emitted: 0 });
-    expect(repo.patchSlaFired).not.toHaveBeenCalled();
+    expect(repo.patchSlaFired).toHaveBeenCalledWith(5, ['copy:75']);
     expect(repo.patchItem).not.toHaveBeenCalled();
   });
 
@@ -393,5 +394,63 @@ describe('ContentJobWorkerService', () => {
     ]);
     await worker.tickProductionSla(slaNow);
     expect(repo.insertSlaAudit).not.toHaveBeenCalled();
+    expect(repo.patchSlaFired).not.toHaveBeenCalled();
+  });
+
+  it('mapSlaScanItem keeps assigned_am, account_manager_id, and am_id separate', async () => {
+    const slaRepo = new ContentMarketingRepository({ databaseUrl: 'postgres://unused' } as never);
+    jest.spyOn(slaRepo, 'ensurePgReady').mockResolvedValue(true);
+    const query = jest.fn().mockResolvedValue({
+      rows: [
+        {
+          id: 5,
+          lifecycle_id: 1,
+          assignee_sp: 3,
+          assigned_am: 11,
+          account_manager_id: 9,
+          am_id: 7,
+          owner_id: 8,
+          production_json: { tasks: [{ id: 'copy' }] },
+        },
+      ],
+    });
+    Object.defineProperty(slaRepo, 'pool', { configurable: true, value: { query } });
+    const items = await slaRepo.listItemsWithProductionTasks();
+    expect(items).toHaveLength(1);
+    expect(items[0]).toEqual(
+      expect.objectContaining({
+        assigned_am: 11,
+        account_manager_id: 9,
+        am_id: 7,
+      }),
+    );
+    expect(items[0]).not.toHaveProperty('owner_id');
+    expect(String(query.mock.calls[0][0])).toMatch(/lc\.assigned_am/);
+  });
+
+  it('mapSlaScanItem does not fold owner_id into assigned_am', async () => {
+    const slaRepo = new ContentMarketingRepository({ databaseUrl: 'postgres://unused' } as never);
+    jest.spyOn(slaRepo, 'ensurePgReady').mockResolvedValue(true);
+    const query = jest.fn().mockResolvedValue({
+      rows: [
+        {
+          id: 5,
+          lifecycle_id: 1,
+          assignee_sp: 3,
+          owner_id: 8,
+          production_json: { tasks: [{ id: 'copy' }] },
+        },
+      ],
+    });
+    Object.defineProperty(slaRepo, 'pool', { configurable: true, value: { query } });
+    const items = await slaRepo.listItemsWithProductionTasks();
+    expect(items[0]).toEqual(
+      expect.objectContaining({
+        assigned_am: null,
+        account_manager_id: null,
+        am_id: null,
+      }),
+    );
+    expect(items[0]).not.toHaveProperty('owner_id');
   });
 });

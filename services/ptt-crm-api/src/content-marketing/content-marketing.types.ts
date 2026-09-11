@@ -64,7 +64,7 @@ export type CmktSlaScanItem = {
   lifecycle_id: number;
   assignee_sp: number | null;
   assigned_am?: number | null;
-  owner_id?: number | null;
+  account_manager_id?: number | null;
   am_id?: number | null;
   production_json: CmktProductionJson;
 };
