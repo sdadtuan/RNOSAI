@@ -58,4 +58,24 @@ describe('cmkte-dam', () => {
     });
     expect(JSON.stringify(ok)).not.toMatch(/token|secret/i);
   });
+
+  it('treats an items array with any malformed row as dam_invalid_response, not silent empty success', () => {
+    const allRejected = readDamListResult({
+      items: [
+        { id: 'missing', access_token: 'sk_live_abc' },
+        { filename: 'no-url.jpg' },
+      ],
+    });
+    expect(allRejected).toEqual({ items: [], error: 'dam_invalid_response' });
+    expect(JSON.stringify(allRejected)).not.toMatch(/sk_live|token|secret/i);
+
+    expect(
+      readDamListResult({
+        items: [
+          { id: 'ok', url: 'https://dam.example/ok.jpg' },
+          { id: 'bad' },
+        ],
+      }),
+    ).toEqual({ items: [], error: 'dam_invalid_response' });
+  });
 });

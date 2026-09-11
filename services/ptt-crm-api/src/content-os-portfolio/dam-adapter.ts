@@ -125,7 +125,15 @@ export function stubDamAdapter(opts?: {
       if (!Array.isArray(raw)) {
         throw new DamInvalidResponseError();
       }
-      return raw.map(toDamUrlMetadata).filter((row): row is DamUrlMetadata => row != null);
+      const items: DamUrlMetadata[] = [];
+      for (const row of raw) {
+        const item = toDamUrlMetadata(row);
+        if (!item) {
+          throw new DamInvalidResponseError();
+        }
+        items.push(item);
+      }
+      return items;
     },
   };
 }

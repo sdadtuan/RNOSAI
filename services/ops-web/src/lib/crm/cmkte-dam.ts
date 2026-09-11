@@ -94,6 +94,13 @@ export function readDamListResult(body: unknown, fallbackError?: string): DamLis
   if (!Array.isArray(row?.items)) {
     return { items: [], error: 'dam_invalid_response' };
   }
-  const items = row.items.map(toDamUrlMetadata).filter((item): item is DamUrlMetadata => item != null);
+  const items: DamUrlMetadata[] = [];
+  for (const raw of row.items) {
+    const item = toDamUrlMetadata(raw);
+    if (!item) {
+      return { items: [], error: 'dam_invalid_response' };
+    }
+    items.push(item);
+  }
   return { items };
 }

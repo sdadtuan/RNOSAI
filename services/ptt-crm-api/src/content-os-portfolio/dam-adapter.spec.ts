@@ -85,6 +85,29 @@ describe('DamAdapter stub', () => {
     ]);
     expect(JSON.stringify(result)).not.toMatch(/token|secret/i);
   });
+
+  it('treats an array with any malformed asset row as dam_invalid_response, not silent empty success', async () => {
+    const allRejected = stubDamAdapter({
+      fetchList: async () => [
+        { id: 'missing', access_token: 'sk_live_abc' },
+        { filename: 'no-url.jpg' },
+      ],
+    });
+    const rejected = await listDamOrEmpty(allRejected, { collection: 'approved' });
+    expect(rejected).toEqual({ items: [], error: 'dam_invalid_response' });
+    expect(JSON.stringify(rejected)).not.toMatch(/sk_live|token|secret/i);
+
+    const mixed = stubDamAdapter({
+      fetchList: async () => [
+        { id: 'ok', url: 'https://dam.example/ok.jpg' },
+        { id: 'bad' },
+      ],
+    });
+    await expect(listDamOrEmpty(mixed)).resolves.toEqual({
+      items: [],
+      error: 'dam_invalid_response',
+    });
+  });
 });
 
 describe('toDamUrlMetadata', () => {
