@@ -2,8 +2,8 @@ import { ConflictException, ForbiddenException, NotFoundException } from '@nestj
 import { ContentOsPortfolioService } from './content-os-portfolio.service';
 import type { CmktGlossaryRow } from './copilot-glossary.util';
 
-function makeSvc(repo: object, items: object = {}) {
-  return new ContentOsPortfolioService(repo as never, {} as never, {} as never, items as never);
+function makeSvc(repo: object, items: object = {}, marketingRepo: object = {}) {
+  return new ContentOsPortfolioService(repo as never, {} as never, marketingRepo as never, items as never);
 }
 
 function glossary(
@@ -191,5 +191,62 @@ describe('ContentOsPortfolioService.getPortfolioItem glossary_hits', () => {
     const svc = makeSvc(repo, items);
     const out = await svc.getPortfolioItem({ staffId: 9, itemId: 21, lifecycleHint: 4 });
     expect(out.glossary_hits ?? []).toEqual([]);
+  });
+
+  it('highlights copy when the brief lacks brand_id/locale but the lifecycle snapshot has them', async () => {
+    const item = {
+      id: 21,
+      lifecycle_id: 4,
+      brief_json: {},
+      body_json: { markdown: 'CTA: đăng ký nhận tư vấn ngay.' },
+    };
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listGlossaryForLifecycle: jest.fn().mockResolvedValue([
+        glossary({ id: 2, status: 'Approved', term: 'đăng ký nhận tư vấn' }),
+      ]),
+    };
+    const items = { getItem: jest.fn().mockResolvedValue(item) };
+    const marketingRepo = {
+      getActiveSnapshotSummary: jest.fn().mockResolvedValue({
+        brand_context_json: { brand_id: 'brand-4', locale: 'vi' },
+      }),
+    };
+    const svc = makeSvc(repo, items, marketingRepo);
+    const out = await svc.getPortfolioItem({ staffId: 9, itemId: 21, lifecycleHint: 4 });
+    expect(marketingRepo.getActiveSnapshotSummary).toHaveBeenCalledWith(4);
+    expect(out.glossary_hits).toEqual(['đăng ký nhận tư vấn']);
+  });
+
+  it('lets item brief brand_id/locale win over snapshot scope', async () => {
+    const item = {
+      id: 21,
+      lifecycle_id: 4,
+      brief_json: { brand_id: 'brand-4', locale: 'vi' },
+      body_json: { markdown: 'item-wins snapshot-term' },
+    };
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listGlossaryForLifecycle: jest.fn().mockResolvedValue([
+        glossary({ id: 2, status: 'Approved', term: 'item-wins', brand_id: 'brand-4', locale: 'vi' }),
+        glossary({
+          id: 8,
+          status: 'Approved',
+          term: 'snapshot-term',
+          brand_id: 'brand-9',
+          locale: 'en',
+        }),
+      ]),
+    };
+    const items = { getItem: jest.fn().mockResolvedValue(item) };
+    const marketingRepo = {
+      getActiveSnapshotSummary: jest.fn().mockResolvedValue({
+        brand_context_json: { brand_id: 'brand-9', locale: 'en' },
+      }),
+    };
+    const svc = makeSvc(repo, items, marketingRepo);
+    const out = await svc.getPortfolioItem({ staffId: 9, itemId: 21, lifecycleHint: 4 });
+    expect(out.glossary_hits).toEqual(['item-wins']);
+    expect(out.glossary_hits).not.toContain('snapshot-term');
   });
 });

@@ -30,6 +30,21 @@ describe('CmktESettings audit export + retention', () => {
     expect(html).toMatch(/<button[^>]*>\s*Audit export\s*<\/button>/);
     expect(html).not.toMatch(/<button[^>]*disabled[^>]*>\s*Audit export/);
     expect(html).toContain(AUDIT_RETENTION_COPY);
+    expect(html).toMatch(/Audit lưu 7 năm/);
+  });
+});
+
+describe('CmktESettings direct social publish label', () => {
+  it('labels the switch from the current enabled state', () => {
+    const off = renderToStaticMarkup(
+      createElement(CmktESettings, { context: null, directSocialPublish: false }),
+    );
+    const on = renderToStaticMarkup(
+      createElement(CmktESettings, { context: null, directSocialPublish: true }),
+    );
+    expect(off).toMatch(/Direct social publish connector \(tắt · disabled\)/);
+    expect(on).toMatch(/Direct social publish connector \(bật · enabled\)/);
+    expect(on).not.toMatch(/tắt · disabled/);
   });
 });
 

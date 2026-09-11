@@ -191,16 +191,5 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toBe(csv);
   });
 
-  it('DELETE items/:itemId delegates to hardDeleteItem with staffId, actor, and id', async () => {
-    const service = { hardDeleteItem: jest.fn().mockResolvedValue({ ok: true, id: 21 }) };
-    const c = new ContentOsPortfolioController(service as never);
-    const out = await c.hardDeleteItem(21, { staffUser: { sub: '7', email: 'admin@ptt.vn' } } as never);
-    expect(service.hardDeleteItem).toHaveBeenCalledWith({
-      staffId: 7,
-      itemId: 21,
-      actor: 'admin@ptt.vn',
-    });
-    expect(out).toEqual({ ok: true, id: 21 });
-  });
 });
 

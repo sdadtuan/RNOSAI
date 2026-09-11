@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Header,
   HttpCode,
@@ -109,17 +108,6 @@ export class ContentOsPortfolioController {
   exportAuditCsv(@Req() req: Request) {
     return this.portfolio.exportAuditCsv({
       staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
-      actor: actorEmail(req),
-    });
-  }
-
-  @Delete('items/:itemId')
-  @HttpCode(HttpStatus.OK)
-  @UseGuards(StaffContentMarketingWriteGuard)
-  hardDeleteItem(@Param('itemId', ParseIntPipe) itemId: number, @Req() req: Request) {
-    return this.portfolio.hardDeleteItem({
-      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
-      itemId,
       actor: actorEmail(req),
     });
   }

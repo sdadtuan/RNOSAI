@@ -53,6 +53,7 @@ import type { CmktInsightRow } from './copilot-insights.util';
 import {
   collectCopyText,
   matchGlossaryTerms,
+  mergeGlossaryScope,
   resolveGlossaryScope,
   selectCopilotGlossary,
   type CmktGlossaryRow,
@@ -701,10 +702,23 @@ export class ContentOsPortfolioService {
   private async withGlossaryHits(item: CmktItemRow): Promise<CmktItemRow> {
     if (typeof this.repo.listGlossaryForLifecycle !== 'function') return item;
     const rows = await this.repo.listGlossaryForLifecycle(item.lifecycle_id).catch(() => []);
+    const snapshot =
+      typeof this.marketingRepo.getActiveSnapshotSummary === 'function'
+        ? await this.marketingRepo.getActiveSnapshotSummary(item.lifecycle_id).catch(() => null)
+        : null;
+    const brandContext =
+      snapshot?.brand_context_json &&
+      typeof snapshot.brand_context_json === 'object' &&
+      !Array.isArray(snapshot.brand_context_json)
+        ? snapshot.brand_context_json
+        : {};
     const approved = selectCopilotGlossary(
       rows,
       new Date(),
-      resolveGlossaryScope(item as unknown as Record<string, unknown>),
+      mergeGlossaryScope(
+        resolveGlossaryScope(item as unknown as Record<string, unknown>),
+        resolveGlossaryScope(brandContext),
+      ),
     );
     const glossary_hits = matchGlossaryTerms(
       collectCopyText(item.body_json),

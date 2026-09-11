@@ -24,8 +24,12 @@ function downloadAuditCsv(csv: string): void {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = 'cmkt-audit-export.csv';
+  document.body.appendChild(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    anchor.remove();
+  }, 0);
 }
 
 function flagLabel(value: boolean | undefined): string {
@@ -130,7 +134,9 @@ export function CmktESettings({
               checked={enabled}
               onChange={(event) => setEnabled(event.target.checked)}
             />
-            <span>Direct social publish connector (tắt · disabled).</span>
+            <span>
+              Direct social publish connector ({enabled ? 'bật · enabled' : 'tắt · disabled'}).
+            </span>
           </label>
         </div>
         <div className="cmkte-checkrow">

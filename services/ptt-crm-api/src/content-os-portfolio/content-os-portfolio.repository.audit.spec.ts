@@ -64,9 +64,54 @@ describe('ContentOsPortfolioRepository audit + legal hold', () => {
     expect(sql).toMatch(/cmkt_content_item_versions/);
     expect(sql).toMatch(/cmkt_publication_logs/);
     expect(sql).toMatch(/cmkt_sla_events/);
-    expect(sql).not.toMatch(/FROM cmkt_audit_exports/);
+    expect(sql).toMatch(/cmkt_audit_exports/);
     expect(sql).not.toMatch(/body_json|prompt|token/i);
     expect(query).toHaveBeenCalledWith(expect.any(String), [[4]]);
+  });
+
+  it('listAuditActivity SQL mentions cmkt_audit_exports as a fourth UNION arm', async () => {
+    const query = jest.fn().mockResolvedValue({ rows: [] });
+    const repo = makeRepo(query);
+    await repo.listAuditActivity([4]);
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toMatch(/UNION ALL[\s\S]*cmkt_audit_exports/);
+    expect(sql.match(/UNION ALL/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('listAuditActivity skips cmkt_audit_exports when that table is missing instead of emptying other arms', async () => {
+    const missing = Object.assign(new Error('relation "cmkt_audit_exports" does not exist'), {
+      code: '42P01',
+    });
+    const query = jest
+      .fn()
+      .mockRejectedValueOnce(missing)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            actor: 'editor@ptt.vn',
+            action: 'manual',
+            entity: 'item_version',
+            created_at: '2026-09-10T08:00:00.000Z',
+            item_id: 21,
+            id: 9,
+          },
+        ],
+      });
+    const repo = makeRepo(query);
+    await expect(repo.listAuditActivity([4])).resolves.toEqual([
+      {
+        actor: 'editor@ptt.vn',
+        action: 'manual',
+        entity: 'item_version',
+        created_at: '2026-09-10T08:00:00.000Z',
+        item_id: 21,
+        id: 9,
+      },
+    ]);
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(String(query.mock.calls[0][0])).toMatch(/cmkt_audit_exports/);
+    expect(String(query.mock.calls[1][0])).not.toMatch(/cmkt_audit_exports/);
+    expect(String(query.mock.calls[1][0])).toMatch(/cmkt_content_item_versions/);
   });
 
   it('hardDeleteItem deletes atomically with legal_hold and writes an audit event when a row is removed', async () => {

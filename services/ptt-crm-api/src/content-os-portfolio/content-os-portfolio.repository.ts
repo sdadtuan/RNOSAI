@@ -30,6 +30,7 @@ import {
   AUDIT_EXPORT_ACTION,
   AUDIT_EXPORT_ENTITY,
   HARD_DELETE_ACTION,
+  isMissingAuditExportSchema,
   type AuditExportRow,
 } from './audit-export.util';
 import type { HardDeleteOutcome } from './legal-hold.util';
@@ -520,8 +521,20 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     if (!(await this.ensurePgReady())) {
       throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
     }
-    const res = await this.db.query(
-      `SELECT actor, action, entity, created_at, item_id, id
+    const queryActivity = async (includeExports: boolean) => {
+      const exportArm = includeExports
+        ? `
+         UNION ALL
+         SELECT e.actor,
+                e.action,
+                e.entity,
+                e.created_at,
+                NULL::int AS item_id,
+                e.id
+           FROM cmkt_audit_exports e`
+        : '';
+      return this.db.query(
+        `SELECT actor, action, entity, created_at, item_id, id
        FROM (
          SELECT v.changed_by AS actor,
                 v.change_reason AS action,
@@ -551,12 +564,20 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
                 s.id
            FROM cmkt_sla_events s
            JOIN cmkt_content_items i ON i.id = s.item_id
-          WHERE i.lifecycle_id = ANY($1::int[])
+          WHERE i.lifecycle_id = ANY($1::int[])${exportArm}
        ) activity
        ORDER BY created_at ASC, id ASC`,
-      [lifecycleIds],
-    );
-    return res.rows.map((row) => this.mapAuditActivityRow(row as Record<string, unknown>));
+        [lifecycleIds],
+      );
+    };
+    try {
+      const res = await queryActivity(true);
+      return res.rows.map((row) => this.mapAuditActivityRow(row as Record<string, unknown>));
+    } catch (err) {
+      if (!isMissingAuditExportSchema(err)) throw err;
+      const res = await queryActivity(false);
+      return res.rows.map((row) => this.mapAuditActivityRow(row as Record<string, unknown>));
+    }
   }
 
   async hardDeleteItem(input: {
