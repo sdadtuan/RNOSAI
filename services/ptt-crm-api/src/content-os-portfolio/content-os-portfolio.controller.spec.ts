@@ -123,11 +123,13 @@ describe('ContentOsPortfolioController', () => {
   });
 
   it('GET settings delegates to getSettings with staffId', async () => {
-    const service = { getSettings: jest.fn().mockResolvedValue({ direct_social_publish: false }) };
+    const service = {
+      getSettings: jest.fn().mockResolvedValue({ direct_social_publish: false, sso_enforced: false }),
+    };
     const c = new ContentOsPortfolioController(service as never);
     const out = await c.getSettings({ staffUser: { sub: '7' } } as never);
     expect(service.getSettings).toHaveBeenCalledWith({ staffId: 7 });
-    expect(out).toEqual({ direct_social_publish: false });
+    expect(out).toEqual({ direct_social_publish: false, sso_enforced: false });
   });
 
   it('PATCH settings delegates to patchSettings with staffId, actor, and body', async () => {

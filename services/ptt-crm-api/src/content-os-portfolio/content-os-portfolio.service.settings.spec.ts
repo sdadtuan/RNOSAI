@@ -9,8 +9,12 @@ describe('ContentOsPortfolioService settings', () => {
   it('GET settings returns direct_social_publish false when the row is missing', async () => {
     const repo = { getSetting: jest.fn().mockResolvedValue(null) };
     const svc = makeSvc(repo);
-    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({ direct_social_publish: false });
+    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({
+      direct_social_publish: false,
+      sso_enforced: false,
+    });
     expect(repo.getSetting).toHaveBeenCalledWith('direct_social_publish');
+    expect(repo.getSetting).not.toHaveBeenCalledWith('sso_enforced');
   });
 
   it('PATCH settings persists the stored boolean and GET reads it back', async () => {
@@ -26,8 +30,11 @@ describe('ContentOsPortfolioService settings', () => {
       body: { direct_social_publish: true },
     });
     expect(repo.upsertSetting).toHaveBeenCalledWith('direct_social_publish', true, 'admin@ptt.vn');
-    expect(patched).toEqual({ direct_social_publish: true });
-    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({ direct_social_publish: true });
+    expect(patched).toEqual({ direct_social_publish: true, sso_enforced: false });
+    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({
+      direct_social_publish: true,
+      sso_enforced: false,
+    });
   });
 
   it('GET settings defaults false when cmkt_settings is missing (42P01)', async () => {
@@ -37,7 +44,10 @@ describe('ContentOsPortfolioService settings', () => {
       ),
     };
     const svc = makeSvc(repo);
-    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({ direct_social_publish: false });
+    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({
+      direct_social_publish: false,
+      sso_enforced: false,
+    });
   });
 
   it('GET settings defaults false when a cmkt_settings column is missing (42703)', async () => {
@@ -50,7 +60,10 @@ describe('ContentOsPortfolioService settings', () => {
       ),
     };
     const svc = makeSvc(repo);
-    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({ direct_social_publish: false });
+    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({
+      direct_social_publish: false,
+      sso_enforced: false,
+    });
   });
 
   it('GET settings throws when postgres is not ready instead of returning a false disabled policy', async () => {
@@ -102,8 +115,35 @@ describe('ContentOsPortfolioService settings', () => {
         actor: 'admin@ptt.vn',
         body: { direct_social_publish: false },
       }),
-    ).resolves.toEqual({ direct_social_publish: false });
+    ).resolves.toEqual({ direct_social_publish: false, sso_enforced: false });
     expect(repo.upsertSetting).toHaveBeenCalledWith('direct_social_publish', false, 'admin@ptt.vn');
+  });
+
+  it('GET settings exposes sso_enforced read-only false when no IdP is configured', async () => {
+    const repo = { getSetting: jest.fn().mockResolvedValue(null) };
+    const svc = makeSvc(repo);
+    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({
+      direct_social_publish: false,
+      sso_enforced: false,
+    });
+    expect(repo.getSetting).not.toHaveBeenCalledWith('sso_enforced');
+  });
+
+  it('PATCH settings ignores sso_enforced and never persists it', async () => {
+    const repo = {
+      upsertSetting: jest.fn().mockResolvedValue({ key: 'direct_social_publish', value_json: false }),
+    };
+    const svc = makeSvc(repo);
+    await expect(
+      svc.patchSettings({
+        staffId: 7,
+        actor: 'admin@ptt.vn',
+        body: { direct_social_publish: false, sso_enforced: true },
+      }),
+    ).resolves.toEqual({ direct_social_publish: false, sso_enforced: false });
+    expect(repo.upsertSetting).toHaveBeenCalledTimes(1);
+    expect(repo.upsertSetting).toHaveBeenCalledWith('direct_social_publish', false, 'admin@ptt.vn');
+    expect(repo.upsertSetting).not.toHaveBeenCalledWith('sso_enforced', expect.anything(), expect.anything());
   });
 
   it('does not publish through the stub when the admin flag is on', async () => {

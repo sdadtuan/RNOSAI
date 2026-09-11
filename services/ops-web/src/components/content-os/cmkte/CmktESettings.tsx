@@ -1,8 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { ContentOsContext } from '@/lib/content-os-api';
-import { DEFAULT_DIRECT_SOCIAL_PUBLISH } from '@/lib/crm/cmkte-settings';
+import {
+  DEFAULT_DIRECT_SOCIAL_PUBLISH,
+  DEFAULT_SSO_ENFORCED,
+  SSO_ENFORCED_LABEL,
+  ssoEnforcedControl,
+} from '@/lib/crm/cmkte-settings';
 
 export const SETTINGS_SAVE_TOAST = 'Đã lưu policy.';
 export const SETTINGS_SAVE_ERROR_TOAST = 'Không lưu được policy.';
@@ -15,10 +20,12 @@ function flagLabel(value: boolean | undefined): string {
 export function CmktESettings({
   context,
   directSocialPublish = DEFAULT_DIRECT_SOCIAL_PUBLISH,
+  ssoEnforced = DEFAULT_SSO_ENFORCED,
   onSavePolicy,
 }: {
   context: ContentOsContext | null;
   directSocialPublish?: boolean;
+  ssoEnforced?: boolean;
   onSavePolicy?: (next: boolean) => Promise<void>;
 }) {
   const [toast, setToast] = useState('');
@@ -79,6 +86,17 @@ export function CmktESettings({
               onChange={(event) => setEnabled(event.target.checked)}
             />
             <span>Direct social publish connector (tắt · disabled).</span>
+          </label>
+        </div>
+        <div className="cmkte-checkrow">
+          <label className="cmkte-checkrow__flag">
+            <input
+              type="checkbox"
+              name="sso_enforced"
+              role="switch"
+              {...ssoEnforcedControl(ssoEnforced)}
+            />
+            <span>{SSO_ENFORCED_LABEL}</span>
           </label>
         </div>
         <div className="cmkte-checkrow">

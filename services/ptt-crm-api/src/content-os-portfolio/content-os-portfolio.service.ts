@@ -55,6 +55,19 @@ import {
   isMissingCmktSettingsSchema,
   resolveDirectSocialPublish,
 } from './direct-social-publish.util';
+import { resolveSsoEnforced } from './sso-enforced.util';
+
+type PortfolioSettings = {
+  direct_social_publish: boolean;
+  sso_enforced: boolean;
+};
+
+function portfolioSettings(directSocialPublish: boolean): PortfolioSettings {
+  return {
+    direct_social_publish: directSocialPublish,
+    sso_enforced: resolveSsoEnforced({ idpConfigured: false }),
+  };
+}
 
 const PORTFOLIO_LIFECYCLE_CAP = 20;
 
@@ -294,19 +307,19 @@ export class ContentOsPortfolioService {
     return listDamOrEmpty(stubDamAdapter(), { collection: scope.collection });
   }
 
-  async getSettings(_scope: { staffId: number }): Promise<{ direct_social_publish: boolean }> {
+  async getSettings(_scope: { staffId: number }): Promise<PortfolioSettings> {
     if (typeof this.repo.ensurePgReady === 'function' && !(await this.repo.ensurePgReady())) {
       throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
     }
     if (typeof this.repo.getSetting !== 'function') {
-      return { direct_social_publish: false };
+      return portfolioSettings(false);
     }
     try {
       const row = (await this.repo.getSetting(DIRECT_SOCIAL_PUBLISH_KEY)) ?? null;
-      return { direct_social_publish: resolveDirectSocialPublish(row) };
+      return portfolioSettings(resolveDirectSocialPublish(row));
     } catch (err) {
       if (isMissingCmktSettingsSchema(err)) {
-        return { direct_social_publish: false };
+        return portfolioSettings(false);
       }
       throw err;
     }
@@ -316,7 +329,7 @@ export class ContentOsPortfolioService {
     staffId: number;
     actor: string;
     body: Record<string, unknown>;
-  }): Promise<{ direct_social_publish: boolean }> {
+  }): Promise<PortfolioSettings> {
     const value = input.body?.direct_social_publish;
     if (typeof value !== 'boolean') {
       throw new BadRequestException({ error: 'direct_social_publish_invalid' });
@@ -324,7 +337,7 @@ export class ContentOsPortfolioService {
     if (typeof this.repo.upsertSetting === 'function') {
       await this.repo.upsertSetting(DIRECT_SOCIAL_PUBLISH_KEY, value, input.actor);
     }
-    return { direct_social_publish: value };
+    return portfolioSettings(value);
   }
 
   async listRequests(scope: { staffId: number }): Promise<{ items: ContentRequestRow[] }> {

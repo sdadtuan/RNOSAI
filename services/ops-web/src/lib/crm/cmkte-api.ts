@@ -1,7 +1,7 @@
 import { API_BASE } from '@/lib/api';
 import type { ContentOsCalendarSlot, ContentOsItem, ContentOsReviewQueueItem } from '@/lib/content-os-api';
 import { readDamListResult, type DamListResult } from './cmkte-dam';
-import { readDirectSocialPublish } from './cmkte-settings';
+import { readDirectSocialPublish, readSsoEnforced } from './cmkte-settings';
 
 export type PortfolioRiskQueueItem = {
   item_id: number;
@@ -352,6 +352,7 @@ export async function approvePortfolioInsight(token: string, insightId: number):
 
 export type PortfolioSettings = {
   direct_social_publish: boolean;
+  sso_enforced: boolean;
 };
 
 export async function fetchDamAssets(token: string, collection?: string): Promise<DamListResult> {
@@ -379,7 +380,10 @@ export async function fetchPortfolioSettings(token: string): Promise<PortfolioSe
     throw new Error(err?.error ?? err?.message ?? 'settings_fetch_failed');
   }
   const body = (await res.json().catch(() => null)) as PortfolioSettings | null;
-  return { direct_social_publish: readDirectSocialPublish(body) };
+  return {
+    direct_social_publish: readDirectSocialPublish(body),
+    sso_enforced: readSsoEnforced(body),
+  };
 }
 
 export async function patchPortfolioSettings(
@@ -399,7 +403,10 @@ export async function patchPortfolioSettings(
     throw new Error(err?.error ?? 'settings_patch_failed');
   }
   const saved = (await res.json().catch(() => null)) as PortfolioSettings | null;
-  return { direct_social_publish: readDirectSocialPublish(saved) };
+  return {
+    direct_social_publish: readDirectSocialPublish(saved),
+    sso_enforced: readSsoEnforced(saved),
+  };
 }
 
 export async function fetchLifecycleIdeas(

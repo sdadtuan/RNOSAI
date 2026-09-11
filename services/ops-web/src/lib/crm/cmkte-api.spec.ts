@@ -544,7 +544,10 @@ describe('portfolio settings', () => {
       json: async () => ({ direct_social_publish: false }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    await expect(fetchPortfolioSettings('tok-9')).resolves.toEqual({ direct_social_publish: false });
+    await expect(fetchPortfolioSettings('tok-9')).resolves.toEqual({
+      direct_social_publish: false,
+      sso_enforced: false,
+    });
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/settings`, {
       headers: { Authorization: 'Bearer tok-9' },
     });
@@ -582,6 +585,7 @@ describe('portfolio settings', () => {
     vi.stubGlobal('fetch', fetchMock);
     await expect(patchPortfolioSettings('tok-9', { direct_social_publish: true })).resolves.toEqual({
       direct_social_publish: true,
+      sso_enforced: false,
     });
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/settings`, {
       method: 'PATCH',
@@ -590,6 +594,21 @@ describe('portfolio settings', () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ direct_social_publish: true }),
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).not.toHaveProperty('sso_enforced');
+  });
+
+  it('GET settings exposes sso_enforced false when the payload omits it (no IdP)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ direct_social_publish: false }),
+      }),
+    );
+    await expect(fetchPortfolioSettings('tok-9')).resolves.toEqual({
+      direct_social_publish: false,
+      sso_enforced: false,
     });
   });
 });

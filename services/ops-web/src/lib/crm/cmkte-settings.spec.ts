@@ -1,11 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_DIRECT_SOCIAL_PUBLISH,
+  DEFAULT_SSO_ENFORCED,
   readDirectSocialPublish,
+  readSsoEnforced,
+  ssoEnforcedControl,
   stripConnectorSecrets,
 } from './cmkte-settings';
 
 describe('cmkte-settings', () => {
+  it('exposes sso_enforced read-only false when no IdP is configured', () => {
+    expect(DEFAULT_SSO_ENFORCED).toBe(false);
+    expect(readSsoEnforced(undefined)).toBe(false);
+    expect(readSsoEnforced(null)).toBe(false);
+    expect(readSsoEnforced({})).toBe(false);
+    expect(readSsoEnforced({ sso_enforced: false })).toBe(false);
+    expect(ssoEnforcedControl(false)).toEqual({ checked: false, disabled: true, readOnly: true });
+  });
+
   it('defaults the direct social publish switch to false', () => {
     expect(DEFAULT_DIRECT_SOCIAL_PUBLISH).toBe(false);
     expect(readDirectSocialPublish(undefined)).toBe(false);

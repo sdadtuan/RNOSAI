@@ -7,7 +7,7 @@ import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { fetchContentOsContext, type ContentOsContext } from '@/lib/content-os-api';
 import { CmktESettings } from '@/components/content-os/cmkte/CmktESettings';
 import { fetchPortfolioSettings, patchPortfolioSettings } from '@/lib/crm/cmkte-api';
-import { DEFAULT_DIRECT_SOCIAL_PUBLISH } from '@/lib/crm/cmkte-settings';
+import { DEFAULT_DIRECT_SOCIAL_PUBLISH, DEFAULT_SSO_ENFORCED } from '@/lib/crm/cmkte-settings';
 import { parseLifecycleQuery, useCmktEPageAuth } from '@/lib/crm/use-cmkte-page';
 
 export default function CrmContentOsSettingsPage() {
@@ -25,6 +25,7 @@ function CrmContentOsSettingsContent() {
   const [context, setContext] = useState<ContentOsContext | null>(null);
   const [token, setToken] = useState('');
   const [directSocialPublish, setDirectSocialPublish] = useState(DEFAULT_DIRECT_SOCIAL_PUBLISH);
+  const [ssoEnforced, setSsoEnforced] = useState(DEFAULT_SSO_ENFORCED);
   const [settingsReady, setSettingsReady] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -46,6 +47,7 @@ function CrmContentOsSettingsContent() {
       try {
         const settings = await fetchPortfolioSettings(access);
         setDirectSocialPublish(settings.direct_social_publish);
+        setSsoEnforced(settings.sso_enforced);
         setSettingsReady(true);
         if (!lifecycleId) {
           setContext(null);
@@ -72,11 +74,13 @@ function CrmContentOsSettingsContent() {
         <CmktESettings
           context={context}
           directSocialPublish={directSocialPublish}
+          ssoEnforced={ssoEnforced}
           onSavePolicy={
             token
               ? async (next) => {
                   const saved = await patchPortfolioSettings(token, { direct_social_publish: next });
                   setDirectSocialPublish(saved.direct_social_publish);
+                  setSsoEnforced(saved.sso_enforced);
                 }
               : undefined
           }
