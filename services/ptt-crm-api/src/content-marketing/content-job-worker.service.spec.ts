@@ -18,6 +18,8 @@ describe('ContentJobWorkerService', () => {
     patchItem: jest.fn(),
     insertItemVersion: jest.fn().mockResolvedValue(2),
     finishContentJob: jest.fn(),
+    listItemsWithProductionTasks: jest.fn(),
+    insertSlaAudit: jest.fn(),
   };
   const brandContext = {
     resolveForLifecycle: jest.fn().mockResolvedValue({ brand_name: 'Acme' }),
@@ -150,5 +152,100 @@ describe('ContentJobWorkerService', () => {
       5,
       expect.objectContaining({ visual_status: 'rejected' }),
     );
+  });
+
+  const slaNow = new Date('2026-09-11T08:00:00.000Z');
+
+  function slaItem(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 5,
+      lifecycle_id: 1,
+      assignee_sp: 3,
+      assigned_am: 11,
+      production_json: {
+        tasks: [
+          {
+            id: 'copy',
+            title: 'Copy',
+            assignee_id: null,
+            raci: { r: 'sp', a: 'am' },
+            depends_on: [],
+            sla_h: 10,
+            effort_h: 4,
+            status: 'doing',
+            started_at: '2026-09-11T00:00:00.000Z',
+          },
+        ],
+      },
+      ...overrides,
+    };
+  }
+
+  it('tickProductionSla writes a reminder audit at 80% and persists sla_fired', async () => {
+    repo.listItemsWithProductionTasks.mockResolvedValue([slaItem()]);
+    await worker.tickProductionSla(slaNow);
+    expect(repo.insertSlaAudit).toHaveBeenCalledTimes(1);
+    expect(repo.insertSlaAudit).toHaveBeenCalledWith({
+      item_id: 5,
+      task_id: 'copy',
+      threshold: 75,
+      action: 'reminder',
+      am_staff_id: 11,
+    });
+    expect(repo.patchItem).toHaveBeenCalledWith(
+      1,
+      5,
+      expect.objectContaining({
+        production_json: expect.objectContaining({ sla_fired: ['copy:75'] }),
+      }),
+    );
+  });
+
+  it('tickProductionSla does not re-emit a fired threshold', async () => {
+    repo.listItemsWithProductionTasks.mockResolvedValue([
+      slaItem({
+        production_json: {
+          sla_fired: ['copy:75'],
+          tasks: [
+            {
+              id: 'copy',
+              sla_h: 10,
+              status: 'doing',
+              started_at: '2026-09-11T00:00:00.000Z',
+            },
+          ],
+        },
+      }),
+    ]);
+    await worker.tickProductionSla(slaNow);
+    expect(repo.insertSlaAudit).not.toHaveBeenCalled();
+    expect(repo.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('tickProductionSla breaches over 100% and notifies AM, falling back to assignee_sp', async () => {
+    repo.listItemsWithProductionTasks.mockResolvedValue([
+      slaItem({ assigned_am: null, assignee_sp: 3 }),
+    ]);
+    await worker.tickProductionSla(new Date('2026-09-11T10:06:00.000Z'));
+    expect(repo.insertSlaAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task_id: 'copy',
+        threshold: 100,
+        action: 'breached',
+        am_staff_id: 3,
+      }),
+    );
+  });
+
+  it('tickProductionSla skips tasks without started_at', async () => {
+    repo.listItemsWithProductionTasks.mockResolvedValue([
+      slaItem({
+        production_json: {
+          tasks: [{ id: 'copy', sla_h: 10, status: 'doing' }],
+        },
+      }),
+    ]);
+    await worker.tickProductionSla(slaNow);
+    expect(repo.insertSlaAudit).not.toHaveBeenCalled();
   });
 });

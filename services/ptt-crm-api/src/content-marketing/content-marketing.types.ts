@@ -38,6 +38,30 @@ export type CmktProductionJson = {
   notes?: string | null;
   escalate_human?: boolean;
   ai_assets?: CmktMediaAsset[];
+  sla_fired?: string[];
+};
+
+export type CmktSlaAuditWrite = {
+  item_id: number;
+  task_id: string;
+  threshold: number;
+  action: string;
+  am_staff_id: number | null;
+};
+
+export type CmktSlaAuditRow = CmktSlaAuditWrite & {
+  id: number;
+  created_at: string;
+};
+
+export type CmktSlaScanItem = {
+  id: number;
+  lifecycle_id: number;
+  assignee_sp: number | null;
+  assigned_am?: number | null;
+  owner_id?: number | null;
+  am_id?: number | null;
+  production_json: CmktProductionJson;
 };
 
 export type CmktVisualStatus =

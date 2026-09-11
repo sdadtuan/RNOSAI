@@ -27,6 +27,9 @@ import type {
   CmktWeeklyMemoPreview,
   CmktApprovalPackageRow,
   CmktApprovalPackageWrite,
+  CmktSlaAuditRow,
+  CmktSlaAuditWrite,
+  CmktSlaScanItem,
 } from './content-marketing.types';
 import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
 import type { AssetRightStatus, CmktAssetRightRow, CmktAssetRightWrite } from '../content-os-portfolio/content-os-portfolio.types';
@@ -59,6 +62,8 @@ type MemoryStore = {
   nextRightsId: number;
   approvalPackages: Map<number, CmktApprovalPackageRow[]>;
   nextApprovalPackageId: number;
+  slaEvents: CmktSlaAuditRow[];
+  nextSlaEventId: number;
 };
 
 function emptyCounts(): CmktContextCounts {
@@ -194,6 +199,8 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     nextRightsId: 1,
     approvalPackages: new Map(),
     nextApprovalPackageId: 1,
+    slaEvents: [],
+    nextSlaEventId: 1,
   };
 
   constructor(private readonly config: AppConfigService) {}
@@ -2236,6 +2243,129 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       return list[idx];
     }
     return null;
+  }
+
+  async listItemsWithProductionTasks(): Promise<CmktSlaScanItem[]> {
+    if (await this.ensurePgReady()) {
+      try {
+        const res = await this.db.query(
+          `SELECT i.id, i.lifecycle_id, i.assignee_sp, i.production_json, lc.assigned_am
+             FROM cmkt_content_items i
+             LEFT JOIN crm_service_lifecycle lc ON lc.id = i.lifecycle_id
+            WHERE jsonb_typeof(COALESCE(i.production_json->'tasks', 'null'::jsonb)) = 'array'
+              AND jsonb_array_length(i.production_json->'tasks') > 0
+            ORDER BY i.id ASC`,
+        );
+        return res.rows.map((row) => this.mapSlaScanItem(row as Record<string, unknown>));
+      } catch {
+        const res = await this.db.query(
+          `SELECT id, lifecycle_id, assignee_sp, production_json
+             FROM cmkt_content_items
+            WHERE jsonb_typeof(COALESCE(production_json->'tasks', 'null'::jsonb)) = 'array'
+              AND jsonb_array_length(production_json->'tasks') > 0
+            ORDER BY id ASC`,
+        );
+        return res.rows.map((row) => this.mapSlaScanItem(row as Record<string, unknown>));
+      }
+    }
+    const out: CmktSlaScanItem[] = [];
+    for (const items of this.memory.items.values()) {
+      for (const item of items) {
+        const tasks = item.production_json?.tasks;
+        if (!Array.isArray(tasks) || !tasks.length) continue;
+        out.push({
+          id: item.id,
+          lifecycle_id: item.lifecycle_id,
+          assignee_sp: item.assignee_sp,
+          production_json: item.production_json ?? {},
+        });
+      }
+    }
+    return out.sort((a, b) => a.id - b.id);
+  }
+
+  async insertSlaAudit(input: CmktSlaAuditWrite): Promise<CmktSlaAuditRow> {
+    if (await this.ensurePgReady()) {
+      try {
+        const res = await this.db.query(
+          `INSERT INTO cmkt_sla_events (item_id, task_id, threshold, action, am_staff_id)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, item_id, task_id, threshold, action, am_staff_id, created_at`,
+          [input.item_id, input.task_id, input.threshold, input.action, input.am_staff_id],
+        );
+        return this.mapSlaAuditRow(res.rows[0] as Record<string, unknown>);
+      } catch {
+        /* fall through to memory so ticks still record without the table */
+      }
+    }
+    const row: CmktSlaAuditRow = {
+      id: this.memory.nextSlaEventId++,
+      item_id: input.item_id,
+      task_id: input.task_id,
+      threshold: input.threshold,
+      action: input.action,
+      am_staff_id: input.am_staff_id,
+      created_at: new Date().toISOString(),
+    };
+    this.memory.slaEvents.push(row);
+    return row;
+  }
+
+  async listSlaAudits(itemId?: number): Promise<CmktSlaAuditRow[]> {
+    if (await this.ensurePgReady()) {
+      try {
+        const res =
+          itemId != null
+            ? await this.db.query(
+                `SELECT id, item_id, task_id, threshold, action, am_staff_id, created_at
+                   FROM cmkt_sla_events
+                  WHERE item_id = $1
+                  ORDER BY created_at ASC, id ASC`,
+                [itemId],
+              )
+            : await this.db.query(
+                `SELECT id, item_id, task_id, threshold, action, am_staff_id, created_at
+                   FROM cmkt_sla_events
+                  ORDER BY created_at ASC, id ASC`,
+              );
+        return res.rows.map((row) => this.mapSlaAuditRow(row as Record<string, unknown>));
+      } catch {
+        /* table missing — use memory */
+      }
+    }
+    const rows =
+      itemId != null ? this.memory.slaEvents.filter((row) => row.item_id === itemId) : this.memory.slaEvents;
+    return [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id);
+  }
+
+  private mapSlaScanItem(row: Record<string, unknown>): CmktSlaScanItem {
+    const assigned =
+      row.assigned_am != null
+        ? Number(row.assigned_am)
+        : row.owner_id != null
+          ? Number(row.owner_id)
+          : row.am_id != null
+            ? Number(row.am_id)
+            : null;
+    return {
+      id: Number(row.id),
+      lifecycle_id: Number(row.lifecycle_id),
+      assignee_sp: row.assignee_sp != null ? Number(row.assignee_sp) : null,
+      assigned_am: Number.isFinite(assigned as number) && (assigned as number) > 0 ? assigned : null,
+      production_json: (row.production_json as CmktSlaScanItem['production_json']) ?? {},
+    };
+  }
+
+  private mapSlaAuditRow(row: Record<string, unknown>): CmktSlaAuditRow {
+    return {
+      id: Number(row.id),
+      item_id: Number(row.item_id),
+      task_id: String(row.task_id ?? ''),
+      threshold: Number(row.threshold),
+      action: String(row.action ?? ''),
+      am_staff_id: row.am_staff_id != null ? Number(row.am_staff_id) : null,
+      created_at: new Date(String(row.created_at)).toISOString(),
+    };
   }
 }
 

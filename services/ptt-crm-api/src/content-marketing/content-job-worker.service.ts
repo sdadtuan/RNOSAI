@@ -47,11 +47,16 @@ import { ContentMediaImageProvider } from './content-media-image.provider';
 import { ContentMarketingRepository } from './content-marketing.repository';
 import type { CmktBodyJson, CmktIdeaRow, CmktJobRow, CmktMediaAsset } from './content-marketing.types';
 import { SocialVideoService } from './video-social/social-video.service';
+import {
+  evaluateProductionSla,
+  resolveAmStaffId,
+} from '../content-os-portfolio/production-sla.util';
 
 @Injectable()
 export class ContentJobWorkerService {
   private readonly logger = new Logger(ContentJobWorkerService.name);
   private readonly inFlight = new Set<number>();
+  private slaTickInFlight = false;
 
   constructor(
     private readonly config: AppConfigService,
@@ -69,6 +74,39 @@ export class ContentJobWorkerService {
 
   get modelName(): string {
     return this.config.mktAiModel || this.aiConfig.llmModel || 'gpt-4o-mini';
+  }
+
+  async tickProductionSla(now = new Date()): Promise<{ emitted: number }> {
+    if (this.slaTickInFlight) return { emitted: 0 };
+    this.slaTickInFlight = true;
+    try {
+      const items = await this.repo.listItemsWithProductionTasks();
+      let emitted = 0;
+      for (const item of items ?? []) {
+        const result = evaluateProductionSla(item, now);
+        if (!result.events.length) continue;
+        const amStaffId = resolveAmStaffId(item);
+        for (const ev of result.events) {
+          await this.repo.insertSlaAudit({
+            item_id: item.id,
+            task_id: ev.task_id,
+            threshold: ev.threshold,
+            action: ev.action,
+            am_staff_id: amStaffId,
+          });
+          emitted += 1;
+        }
+        await this.repo.patchItem(item.lifecycle_id, item.id, {
+          production_json: {
+            ...(item.production_json ?? {}),
+            sla_fired: result.sla_fired,
+          },
+        });
+      }
+      return { emitted };
+    } finally {
+      this.slaTickInFlight = false;
+    }
   }
 
   async processJob(jobId: number): Promise<CmktJobRow | null> {

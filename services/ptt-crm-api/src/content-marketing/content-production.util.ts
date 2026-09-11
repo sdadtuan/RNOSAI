@@ -49,6 +49,13 @@ function parseCmktETask(raw: unknown, index: number): CmktETask {
   if (typeof row.status !== 'string' || !TASK_STATUSES.has(row.status as CmktETask['status'])) {
     invalidTasks(`tasks[${index}].status must be todo, doing, done, or blocked`, { index });
   }
+  let startedAt: string | undefined;
+  if (row.started_at !== undefined && row.started_at !== null) {
+    if (typeof row.started_at !== 'string' || !Number.isFinite(Date.parse(row.started_at))) {
+      invalidTasks(`tasks[${index}].started_at must be an ISO datetime string`, { index });
+    }
+    startedAt = row.started_at;
+  }
   return {
     id: row.id.trim(),
     title: row.title,
@@ -63,6 +70,7 @@ function parseCmktETask(raw: unknown, index: number): CmktETask {
     sla_h: row.sla_h,
     effort_h: row.effort_h,
     status: row.status as CmktETask['status'],
+    ...(startedAt ? { started_at: startedAt } : {}),
   };
 }
 

@@ -7,6 +7,7 @@ export type CmktETask = {
   sla_h: number;
   effort_h: number;
   status: 'todo' | 'doing' | 'done' | 'blocked';
+  started_at?: string;
 };
 
 export type CapacityBand = 'ok' | 'warning' | 'at_risk' | 'overloaded' | null;
