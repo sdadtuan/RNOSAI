@@ -78,6 +78,7 @@ import { createOauthState } from './oauth-state.util';
 import { buildFacebookAuthUrl, exchangeFacebookCode } from './facebook-oauth.util';
 
 const OAUTH_CONNECT_ACTION = 'oauth_connect';
+const OAUTH_DISCONNECT_ACTION = 'oauth_disconnect';
 const FACEBOOK_PAGE_CHANNEL = 'facebook_page';
 
 function facebookSettingsRedirect(status: 'ok' | 'error'): string {
@@ -340,6 +341,87 @@ export class ContentOsPortfolioService {
         ...resolveChannelHealth(byChannel.get(channel) ?? null),
       })),
     };
+  }
+
+  async listChannelAccounts(scope: { staffId: number }): Promise<{
+    items: Array<{
+      id: number;
+      channel: string;
+      display_name: string;
+      account_ref: string;
+      health: ChannelHealth;
+    }>;
+  }> {
+    const lifecycleIds = await this.scopedLifecycleIds(scope.staffId);
+    if (!lifecycleIds.length || typeof this.repo.listChannelAccountsPublic !== 'function') {
+      return { items: [] };
+    }
+    const rows = await this.repo.listChannelAccountsPublic(lifecycleIds);
+    const grouped = new Map<
+      number,
+      {
+        id: number;
+        channel: string;
+        display_name: string;
+        account_ref: string;
+        connectors: ChannelConnectorRow[];
+      }
+    >();
+    for (const row of rows ?? []) {
+      const id = Number(row.id);
+      let entry = grouped.get(id);
+      if (!entry) {
+        entry = {
+          id,
+          channel: String(row.channel ?? ''),
+          display_name: String(row.display_name ?? ''),
+          account_ref: String(row.account_ref ?? ''),
+          connectors: [],
+        };
+        grouped.set(id, entry);
+      }
+      entry.connectors.push({
+        channel: String(row.channel ?? entry.channel),
+        status: row.status != null ? String(row.status) : null,
+        expires_at: row.expires_at != null ? String(row.expires_at) : null,
+      });
+    }
+    return {
+      items: [...grouped.values()].map((entry) => {
+        const picked = pickConnectorPerChannel(entry.connectors);
+        return {
+          id: entry.id,
+          channel: entry.channel,
+          display_name: entry.display_name,
+          account_ref: entry.account_ref,
+          health: resolveChannelHealth(picked.get(entry.channel) ?? null),
+        };
+      }),
+    };
+  }
+
+  async disconnectConnector(input: {
+    staffId: number;
+    connectorId: number;
+    actor: string;
+  }): Promise<{ status: 'off' }> {
+    const lifecycleIds = await this.scopedLifecycleIds(input.staffId);
+    const connector =
+      typeof this.repo.getConnectorById === 'function'
+        ? await this.repo.getConnectorById(input.connectorId, lifecycleIds)
+        : null;
+    if (!connector) {
+      throw new NotFoundException({ error: 'connector_not_found' });
+    }
+    await this.repo.clearConnectorSecrets(input.connectorId);
+    if (typeof this.repo.insertAuditExport === 'function') {
+      await this.repo.insertAuditExport({
+        actor: input.actor,
+        action: OAUTH_DISCONNECT_ACTION,
+        entity: `${connector.channel ?? FACEBOOK_PAGE_CHANNEL}:${connector.id}`,
+      });
+    }
+    return { status: 'off' };
   }
 
   async listDamAssets(scope: { staffId: number; collection?: string }): Promise<DamListResult> {

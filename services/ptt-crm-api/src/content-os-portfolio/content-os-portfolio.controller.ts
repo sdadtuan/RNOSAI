@@ -94,6 +94,24 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Get('channel-accounts')
+  listChannelAccounts(@Req() req: Request) {
+    return this.portfolio.listChannelAccounts({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+    });
+  }
+
+  @Post('connectors/:id/disconnect')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  disconnectConnector(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
+    return this.portfolio.disconnectConnector({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      connectorId: id,
+      actor: actorEmail(req),
+    });
+  }
+
   @Get('dam')
   listDamAssets(@Req() req: Request, @Query('collection') collection?: string) {
     return this.portfolio.listDamAssets({

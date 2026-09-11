@@ -851,6 +851,98 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     );
   }
 
+  async listChannelAccountsPublic(lifecycleIds: number[]): Promise<
+    Array<{
+      id: number;
+      channel: string;
+      display_name: string;
+      account_ref: string;
+      status: string | null;
+      expires_at: string | null;
+    }>
+  > {
+    if (!lifecycleIds.length) return [];
+    const res = await this.db.query(
+      `SELECT a.id, a.channel, a.display_name, a.account_ref,
+              c.status, c.expires_at
+         FROM cmkt_channel_accounts a
+         LEFT JOIN cmkt_connectors c ON c.channel_account_id = a.id
+        WHERE a.lifecycle_id = ANY($1::bigint[])
+        ORDER BY a.id ASC`,
+      [lifecycleIds],
+    );
+    return res.rows.map((row) => {
+      const rec = row as Record<string, unknown>;
+      return {
+        id: Number(rec.id),
+        channel: String(rec.channel ?? ''),
+        display_name: String(rec.display_name ?? ''),
+        account_ref: String(rec.account_ref ?? ''),
+        status: rec.status != null ? String(rec.status) : null,
+        expires_at: this.isoOrNull(rec.expires_at),
+      };
+    });
+  }
+
+  async getConnectorById(
+    connectorId: number,
+    lifecycleIds: number[],
+  ): Promise<{
+    id: number;
+    channel_account_id: number;
+    status: string;
+    channel?: string;
+    expires_at?: string | null;
+  } | null> {
+    if (!lifecycleIds.length) return null;
+    const res = await this.db.query(
+      `SELECT c.id, c.channel_account_id, c.status, c.channel, c.expires_at
+         FROM cmkt_connectors c
+         JOIN cmkt_channel_accounts a ON a.id = c.channel_account_id
+        WHERE c.id = $1
+          AND a.lifecycle_id = ANY($2::bigint[])`,
+      [connectorId, lifecycleIds],
+    );
+    const rec = res.rows[0] as Record<string, unknown> | undefined;
+    if (!rec) return null;
+    return {
+      id: Number(rec.id),
+      channel_account_id: Number(rec.channel_account_id),
+      status: String(rec.status ?? ''),
+      channel: rec.channel != null ? String(rec.channel) : undefined,
+      expires_at: this.isoOrNull(rec.expires_at),
+    };
+  }
+
+  async clearConnectorSecrets(connectorId: number): Promise<{
+    id: number;
+    status: string;
+    expires_at: string | null;
+  }> {
+    const res = await this.db.query(
+      `UPDATE cmkt_connectors
+          SET access_token = NULL, refresh_token = NULL, status = 'off', updated_at = NOW()
+        WHERE id = $1
+        RETURNING id, status, expires_at`,
+      [connectorId],
+    );
+    const rec = res.rows[0] as Record<string, unknown> | undefined;
+    return {
+      id: rec ? Number(rec.id) : connectorId,
+      status: rec ? String(rec.status ?? 'off') : 'off',
+      expires_at: rec ? this.isoOrNull(rec.expires_at) : null,
+    };
+  }
+
+  private isoOrNull(value: unknown): string | null {
+    if (value == null || value === '') return null;
+    if (value instanceof Date) {
+      return Number.isFinite(value.getTime()) ? value.toISOString() : null;
+    }
+    const parsed = new Date(String(value));
+    return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : String(value);
+  }
+
   private mapRequestRow(row: Record<string, unknown>): ContentRequestRow {
     return {
       id: Number(row.id),

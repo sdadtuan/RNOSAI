@@ -49,6 +49,39 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual({ channels: [{ channel: 'facebook', status: 'Manual' }] });
   });
 
+  it('GET channel-accounts delegates to listChannelAccounts with staffId', async () => {
+    const listed = {
+      items: [
+        {
+          id: 1,
+          channel: 'facebook_page',
+          display_name: 'PTT Ads',
+          account_ref: '555',
+          health: { status: 'Connected', expires_at: '2026-12-01T00:00:00.000Z' },
+        },
+      ],
+    };
+    const service = { listChannelAccounts: jest.fn().mockResolvedValue(listed) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.listChannelAccounts({ staffUser: { sub: '7' } } as never);
+    expect(service.listChannelAccounts).toHaveBeenCalledWith({ staffId: 7 });
+    expect(out).toEqual(listed);
+    expect(JSON.stringify(out)).not.toMatch(/token/i);
+  });
+
+  it('POST connectors/:id/disconnect uses write guard path and returns off without token', async () => {
+    const service = { disconnectConnector: jest.fn().mockResolvedValue({ status: 'off' }) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.disconnectConnector(9, { staffUser: { sub: '7', email: 'ops@ptt.vn' } } as never);
+    expect(service.disconnectConnector).toHaveBeenCalledWith({
+      staffId: 7,
+      connectorId: 9,
+      actor: 'ops@ptt.vn',
+    });
+    expect(out).toEqual({ status: 'off' });
+    expect(JSON.stringify(out)).not.toMatch(/token/i);
+  });
+
   it('GET requests delegates to listRequests with staffId', async () => {
     const service = { listRequests: jest.fn().mockResolvedValue({ items: [] }) };
     const c = new ContentOsPortfolioController(service as never);

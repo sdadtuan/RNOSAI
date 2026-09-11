@@ -522,6 +522,72 @@ describe('ContentOsPortfolioService.getChannelHealth', () => {
   });
 });
 
+describe('ContentOsPortfolioService.listChannelAccounts', () => {
+  it('returns facebook_page health without enabled or tokens', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listChannelAccountsPublic: jest.fn().mockResolvedValue([
+        {
+          id: 1,
+          channel: 'facebook_page',
+          display_name: 'PTT Ads',
+          account_ref: '555',
+          status: 'on',
+          expires_at: '2026-12-01T00:00:00.000Z',
+        },
+      ]),
+    };
+    const svc = makeSvc(repo);
+    const out = await svc.listChannelAccounts({ staffId: 7 });
+    expect(repo.listChannelAccountsPublic).toHaveBeenCalledWith([4]);
+    expect(out).toEqual({
+      items: [
+        {
+          id: 1,
+          channel: 'facebook_page',
+          display_name: 'PTT Ads',
+          account_ref: '555',
+          health: { status: 'Connected', expires_at: '2026-12-01T00:00:00.000Z' },
+        },
+      ],
+    });
+    expect(JSON.stringify(out)).not.toMatch(/access_token|refresh_token|enabled|instagram/i);
+  });
+
+  it('maps off connectors to Manual and expired on connectors to TokenExpired', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listChannelAccountsPublic: jest.fn().mockResolvedValue([
+        {
+          id: 1,
+          channel: 'facebook_page',
+          display_name: 'PTT Ads',
+          account_ref: '555',
+          status: 'off',
+          expires_at: '2026-12-01T00:00:00.000Z',
+        },
+        {
+          id: 2,
+          channel: 'facebook_page',
+          display_name: 'Expired Page',
+          account_ref: '556',
+          status: 'on',
+          expires_at: '2020-01-01T00:00:00.000Z',
+        },
+      ]),
+    };
+    const svc = makeSvc(repo);
+    const out = await svc.listChannelAccounts({ staffId: 7 });
+    expect(out.items.find((row) => row.id === 1)?.health).toEqual({ status: 'Manual' });
+    expect(out.items.find((row) => row.id === 2)?.health).toEqual({
+      status: 'TokenExpired',
+      expires_at: '2020-01-01T00:00:00.000Z',
+    });
+    expect(out.items.every((row) => row.channel === 'facebook_page')).toBe(true);
+    expect(JSON.stringify(out)).not.toMatch(/access_token|refresh_token|enabled|instagram/i);
+  });
+});
+
 describe('ContentOsPortfolioService.batchApprove', () => {
   const inReview = { id: 21, lifecycle_id: 4, status: 'in_review', created_by: 'sp@ptt.vn' };
   const inReview22 = { id: 22, lifecycle_id: 4, status: 'in_review', created_by: 'sp@ptt.vn' };
