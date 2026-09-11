@@ -22,11 +22,48 @@ export type ExecuteBody = {
 
 export type ExecuteAccepted = { queued: true; client_request_id: string; execute_id: number };
 
-export function lockedSnapshotId(item: {
-  current_version_id?: unknown;
-  version_id?: unknown;
-}): string {
-  return String(item.current_version_id ?? item.version_id ?? '');
+export type ExecuteVersionRow = { id?: unknown; version_no?: unknown };
+
+export function lockedSnapshotId(
+  item: {
+    current_version_id?: unknown;
+    version_id?: unknown;
+  },
+  versions?: ExecuteVersionRow[] | null,
+): string {
+  const fromItem = item.current_version_id ?? item.version_id;
+  if (fromItem != null && String(fromItem).trim() !== '') {
+    return String(fromItem);
+  }
+  const latest = versions?.[0];
+  if (latest == null || latest.version_no == null || String(latest.version_no).trim() === '') {
+    return '';
+  }
+  return String(latest.version_no);
+}
+
+export function snapshotIdMatchesLocked(
+  snapshotId: string,
+  item: {
+    current_version_id?: unknown;
+    version_id?: unknown;
+  },
+  versions?: ExecuteVersionRow[] | null,
+): boolean {
+  const fromItem = item.current_version_id ?? item.version_id;
+  if (fromItem != null && String(fromItem).trim() !== '') {
+    return String(fromItem) === snapshotId;
+  }
+  const latest = versions?.[0];
+  if (latest == null || latest.version_no == null || String(latest.version_no).trim() === '') {
+    return false;
+  }
+  const versionNo = latest.version_no;
+  return (
+    snapshotId === String(versionNo) ||
+    snapshotId === `v${versionNo}` ||
+    snapshotId === String(latest.id)
+  );
 }
 
 export function lockedItemCopy(item: Record<string, unknown> | null | undefined): string {

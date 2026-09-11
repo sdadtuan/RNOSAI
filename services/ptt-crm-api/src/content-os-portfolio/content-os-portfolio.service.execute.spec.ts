@@ -4,17 +4,29 @@ import { ContentOsPortfolioService } from './content-os-portfolio.service';
 
 type ExecuteGate = 'Pass' | 'Warning' | 'Blocked';
 
+const REAL_SHAPED_ITEM = {
+  id: 21,
+  lifecycle_id: 4,
+  status: 'approved_internal',
+  brief_json: {},
+  body_json: { markdown: 'Sống xanh' },
+};
+
 function makeExecuteService(opts: {
   connector?: { id: string; publish: jest.Mock };
   gate?: ExecuteGate;
   item?: Record<string, unknown>;
   insertExecute?: jest.Mock;
+  versions?: Array<{ id: number; version_no: number }>;
+  rights?: unknown[];
 } = {}) {
   const item = {
     id: 21,
     lifecycle_id: 4,
     status: 'approved_internal',
     version_id: 'v13',
+    brief_json: {},
+    body_json: { markdown: 'Ready copy' },
     brief_ready: opts.gate === 'Blocked' ? false : true,
     paid_expiry_warning: opts.gate === 'Warning',
     ...opts.item,
@@ -31,6 +43,8 @@ function makeExecuteService(opts: {
   const marketingRepo = {
     findItemById: jest.fn().mockResolvedValue(item),
     insertPublicationLog: jest.fn().mockResolvedValue({ id: 1 }),
+    listItemVersions: jest.fn().mockResolvedValue(opts.versions ?? []),
+    listAssetRights: jest.fn().mockResolvedValue(opts.rights ?? []),
   };
   const items = {
     getItem: jest.fn().mockResolvedValue(item),
@@ -68,6 +82,55 @@ describe('ContentOsPortfolioService enqueuePublicationExecute', () => {
       staffId: 7, actor: 'x',
       body: { item_id: 21, channel_account_id: 1, snapshot_id: 'v13', confirm: true, client_request_id: 'r2' },
     })).rejects.toMatchObject({ response: { error: 'material_change' } });
+  });
+
+  it('queues a real-shaped item when snapshot matches listItemVersions', async () => {
+    const svc = makeExecuteService({
+      item: { ...REAL_SHAPED_ITEM, version_id: undefined, current_version_id: undefined, brief_ready: undefined },
+      versions: [{ id: 99, version_no: 13 }],
+      rights: [],
+    });
+    const out = await svc.enqueuePublicationExecute({
+      staffId: 7, actor: 'social@ptt.vn',
+      body: { item_id: 21, channel_account_id: 1, snapshot_id: '13', confirm: true, client_request_id: 'r1' },
+    });
+    expect(out).toEqual({ queued: true, client_request_id: 'r1', execute_id: 88 });
+  });
+
+  it('rejects a real-shaped item when snapshot does not match listItemVersions', async () => {
+    const svc = makeExecuteService({
+      item: { ...REAL_SHAPED_ITEM, version_id: undefined, current_version_id: undefined, brief_ready: undefined },
+      versions: [{ id: 99, version_no: 13 }],
+      rights: [],
+    });
+    await expect(svc.enqueuePublicationExecute({
+      staffId: 7, actor: 'x',
+      body: { item_id: 21, channel_account_id: 1, snapshot_id: 'v12', confirm: true, client_request_id: 'r2' },
+    })).rejects.toMatchObject({ response: { error: 'material_change' } });
+  });
+
+  it('blocks a real-shaped draft that is not ready and does not insert execute', async () => {
+    const insertExecute = jest.fn().mockResolvedValue({ id: 88, client_request_id: 'r1' });
+    const svc = makeExecuteService({
+      item: {
+        id: 21,
+        lifecycle_id: 4,
+        status: 'draft',
+        brief_json: {},
+        body_json: {},
+        version_id: undefined,
+        current_version_id: undefined,
+        brief_ready: undefined,
+      },
+      versions: [],
+      rights: [],
+      insertExecute,
+    });
+    await expect(svc.enqueuePublicationExecute({
+      staffId: 7, actor: 'x',
+      body: { item_id: 21, channel_account_id: 1, snapshot_id: '13', confirm: true, client_request_id: 'r3' },
+    })).rejects.toMatchObject({ response: { error: 'publish_gate_blocked' } });
+    expect(insertExecute).not.toHaveBeenCalled();
   });
 });
 

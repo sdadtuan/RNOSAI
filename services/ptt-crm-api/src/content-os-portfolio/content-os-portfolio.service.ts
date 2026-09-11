@@ -15,6 +15,7 @@ import type {
   CmktCalendarSlotRow,
   CmktIdeaRow,
   CmktItemRow,
+  CmktMediaJson,
   CmktReviewQueueItem,
   CmktSlaAuditRow,
 } from '../content-marketing/content-marketing.types';
@@ -77,11 +78,14 @@ import { parsePageAllowlist } from './fb-page-allowlist.util';
 import { createOauthState } from './oauth-state.util';
 import { buildFacebookAuthUrl, exchangeFacebookCode } from './facebook-oauth.util';
 import { evaluatePublishGate, type PublishGateInput } from './publish-gate.util';
+import { briefReadyForPublish } from './brief-score.util';
+import { evaluateItemRights } from './asset-rights.service';
 import {
   assertExecuteGate,
   assertHumanConfirm,
   lockedItemCopy,
   lockedSnapshotId,
+  snapshotIdMatchesLocked,
   type ExecuteAccepted,
 } from './publication-execute.util';
 import { insertPublicationLogWithRetry, publicationLogFromError } from './publication-log.util';
@@ -930,12 +934,19 @@ export class ContentOsPortfolioService {
       throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
     }
 
-    const locked = lockedSnapshotId(item as { current_version_id?: unknown; version_id?: unknown });
-    if (locked !== snapshotId) {
+    const versions =
+      typeof this.marketingRepo.listItemVersions === 'function'
+        ? await this.marketingRepo.listItemVersions(itemId)
+        : [];
+    const snapshotItem = item as { current_version_id?: unknown; version_id?: unknown };
+    const versionLocked = Boolean(lockedSnapshotId(snapshotItem, versions));
+    if (versionLocked && !snapshotIdMatchesLocked(snapshotId, snapshotItem, versions)) {
       throw new BadRequestException({ error: 'material_change' });
     }
 
-    const gate = evaluatePublishGate(this.publishGateInputFromItem(item as unknown as Record<string, unknown>));
+    const gate = evaluatePublishGate(
+      await this.publishGateInputFromItem(item as unknown as Record<string, unknown>, versionLocked),
+    );
     assertExecuteGate(gate.status);
 
     const inserted = await this.repo.insertPublicationExecute({
@@ -1026,32 +1037,34 @@ export class ContentOsPortfolioService {
     }
   }
 
-  private publishGateInputFromItem(item: Record<string, unknown>): PublishGateInput {
-    const pg =
-      item.publish_gate && typeof item.publish_gate === 'object' && !Array.isArray(item.publish_gate)
-        ? (item.publish_gate as Record<string, unknown>)
+  private async publishGateInputFromItem(
+    item: Record<string, unknown>,
+    versionLocked: boolean,
+  ): Promise<PublishGateInput> {
+    const brief =
+      item.brief_json && typeof item.brief_json === 'object' && !Array.isArray(item.brief_json)
+        ? (item.brief_json as Record<string, unknown>)
         : {};
+    const dest = String(brief.destination_url ?? brief.url ?? item.published_url ?? '').trim();
     const status = String(item.status ?? '');
-    return {
-      briefReady: pg.briefReady === true || item.brief_ready === true || item.briefReady === true,
-      internalApproved:
-        pg.internalApproved === true ||
-        ['approved_internal', 'client_approved', 'pending_client', 'scheduled'].includes(status),
-      legalRequired: pg.legalRequired === true,
-      legalApproved: pg.legalApproved === true,
-      clientApproved: pg.clientApproved !== false && item.clientApproved !== false,
-      urlOk: pg.urlOk !== false && item.urlOk !== false,
-      versionLocked: pg.versionLocked !== false && item.versionLocked !== false,
-      accountHealthy: pg.accountHealthy !== false && item.accountHealthy !== false,
-      rightsValid:
-        typeof pg.rightsValid === 'boolean'
-          ? pg.rightsValid
-          : typeof item.rights_valid === 'boolean'
-            ? item.rights_valid
-            : undefined,
-      altComplete: typeof pg.altComplete === 'boolean' ? pg.altComplete : undefined,
-      paidExpiryWarning: pg.paidExpiryWarning === true || item.paid_expiry_warning === true,
+    const input: PublishGateInput = {
+      briefReady: briefReadyForPublish(item),
+      internalApproved: ['approved_internal', 'client_approved', 'pending_client', 'scheduled'].includes(
+        status,
+      ),
+      legalRequired: false,
+      legalApproved: false,
+      clientApproved: this.config?.contentMarketingClientGate
+        ? ['client_approved', 'scheduled'].includes(status)
+        : true,
+      urlOk: dest ? /^https?:\/\//i.test(dest) : true,
+      versionLocked,
     };
+    if (typeof this.marketingRepo.listAssetRights === 'function') {
+      const rightsRows = await this.marketingRepo.listAssetRights(Number(item.id));
+      Object.assign(input, evaluateItemRights(item.media_json as CmktMediaJson | undefined, rightsRows));
+    }
+    return input;
   }
 
   private async writeExecutePublicationLog(
