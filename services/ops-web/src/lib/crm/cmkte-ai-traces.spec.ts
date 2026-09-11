@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/lib/api';
 import {
   AI_TRACE_EMPTY,
+  AI_TRACE_ERROR,
+  aiTracePanelEmptyCopy,
   fetchPortfolioAiTraces,
   formatAiTraceSources,
   loadAiTracePanel,
@@ -113,17 +115,50 @@ describe('fetchPortfolioAiTraces', () => {
     );
     await expect(fetchPortfolioAiTraces('tok-9', 21)).resolves.toEqual({ items: [], forbidden: false });
   });
+
+  it('marks non-OK (except 403) as a load error, not empty', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: 'server' }),
+      }),
+    );
+    await expect(fetchPortfolioAiTraces('tok-9', 21)).resolves.toEqual({
+      items: [],
+      forbidden: false,
+      error: true,
+    });
+  });
 });
 
-describe('AI_TRACE_EMPTY', () => {
-  it('uses the Copy Studio empty copy', () => {
+describe('AI_TRACE_EMPTY / AI_TRACE_ERROR', () => {
+  it('uses the Copy Studio empty copy only for a successful empty list', () => {
     expect(AI_TRACE_EMPTY).toBe('Chưa có AI trace');
+    expect(aiTracePanelEmptyCopy(false)).toBe(AI_TRACE_EMPTY);
+    expect(aiTracePanelEmptyCopy(undefined)).toBe(AI_TRACE_EMPTY);
+  });
+
+  it('uses distinct load-error copy', () => {
+    expect(AI_TRACE_ERROR).toBe('Không tải được AI trace');
+    expect(aiTracePanelEmptyCopy(true)).toBe(AI_TRACE_ERROR);
+  });
+
+  it('renders load-error copy in the Copy Studio panel when fetch fails', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(
+      new URL('../../components/content-os/cmkte/CmktEAiTracePanel.tsx', import.meta.url),
+      'utf8',
+    );
+    expect(src).toMatch(/aiTracePanelEmptyCopy\(loadError\)/);
+    expect(src).toMatch(/out\.error/);
   });
 });
 
 describe('AI trace panel item change / fetch rejection', () => {
   it('clears traces and forbidden immediately so a previous item is not shown', () => {
-    expect(resetAiTracePanelView()).toEqual({ items: [], forbidden: false });
+    expect(resetAiTracePanelView()).toEqual({ items: [], forbidden: false, error: false });
   });
 
   it('remounts the Copy Studio panel when the item id changes', async () => {
@@ -143,8 +178,12 @@ describe('AI trace panel item change / fetch rejection', () => {
     await expect(loadAiTracePanel('tok-9', 22)).resolves.toEqual({ items: [], forbidden: true });
   });
 
-  it('shows an empty list when fetch rejects for a non-403 error', async () => {
+  it('marks a network throw as a load error (403 still forbidden)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
-    await expect(loadAiTracePanel('tok-9', 22)).resolves.toEqual({ items: [], forbidden: false });
+    await expect(loadAiTracePanel('tok-9', 22)).resolves.toEqual({
+      items: [],
+      forbidden: false,
+      error: true,
+    });
   });
 });

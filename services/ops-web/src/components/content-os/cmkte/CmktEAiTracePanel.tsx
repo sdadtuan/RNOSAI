@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { canGenerateContentOs, getAccessToken, getStoredUser } from '@/lib/auth';
 import {
-  AI_TRACE_EMPTY,
+  aiTracePanelEmptyCopy,
   loadAiTracePanel,
   mapAiTraceDisplay,
   resetAiTracePanelView,
@@ -23,11 +23,13 @@ export function CmktEAiTracePanel({
   const canGenerate = user ? canGenerateContentOs(user) : null;
   const [traces, setTraces] = useState<PortfolioAiTrace[]>([]);
   const [forbidden, setForbidden] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const cleared = resetAiTracePanelView();
     setTraces(cleared.items);
     setForbidden(cleared.forbidden);
+    setLoadError(cleared.error === true);
     if (!shouldFetchAiTraces(canGenerate)) return;
     const token = getAccessToken();
     if (!token || !(itemId > 0)) return;
@@ -36,6 +38,7 @@ export function CmktEAiTracePanel({
       if (cancelled) return;
       setTraces(out.items);
       setForbidden(out.forbidden);
+      setLoadError(out.error === true);
     });
     return () => {
       cancelled = true;
@@ -48,7 +51,7 @@ export function CmktEAiTracePanel({
     <div className="cmkte-ai-trace">
       <h3 className="cmkte-section-title">AI Trace</h3>
       {traces.length === 0 ? (
-        <p className="cmkte-empty">{AI_TRACE_EMPTY}</p>
+        <p className="cmkte-empty">{aiTracePanelEmptyCopy(loadError)}</p>
       ) : (
         <ul className="cmkte-list">
           {traces.map((row) => {

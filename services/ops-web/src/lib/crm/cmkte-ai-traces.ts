@@ -1,6 +1,11 @@
 import { API_BASE } from '@/lib/api';
 
 export const AI_TRACE_EMPTY = 'Chưa có AI trace';
+export const AI_TRACE_ERROR = 'Không tải được AI trace';
+
+export function aiTracePanelEmptyCopy(hasError: boolean | undefined): string {
+  return hasError ? AI_TRACE_ERROR : AI_TRACE_EMPTY;
+}
 
 export type PortfolioAiTraceSource = {
   id?: number;
@@ -19,6 +24,7 @@ export type PortfolioAiTrace = {
 export type PortfolioAiTraceList = {
   items: PortfolioAiTrace[];
   forbidden: boolean;
+  error?: boolean;
 };
 
 export function formatAiTraceSources(sources: PortfolioAiTraceSource[] | undefined): string {
@@ -102,7 +108,7 @@ export async function fetchPortfolioAiTraces(
     headers: { Authorization: `Bearer ${token}` },
   });
   if (res.status === 403) return { items: [], forbidden: true };
-  if (!res.ok) return { items: [], forbidden: false };
+  if (!res.ok) return { items: [], forbidden: false, error: true };
   const body = (await res.json()) as { items?: unknown } | null;
   const items = Array.isArray(body?.items)
     ? body.items.map(asTrace).filter((row): row is PortfolioAiTrace => row != null)
@@ -111,11 +117,12 @@ export async function fetchPortfolioAiTraces(
 }
 
 export function resetAiTracePanelView(): PortfolioAiTraceList {
-  return { items: [], forbidden: false };
+  return { items: [], forbidden: false, error: false };
 }
 
 export function aiTracePanelFromFetchFailure(err: unknown): PortfolioAiTraceList {
-  return { items: [], forbidden: isForbiddenFetchError(err) };
+  if (isForbiddenFetchError(err)) return { items: [], forbidden: true };
+  return { items: [], forbidden: false, error: true };
 }
 
 export async function loadAiTracePanel(
