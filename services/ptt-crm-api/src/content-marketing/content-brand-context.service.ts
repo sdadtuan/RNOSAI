@@ -8,7 +8,11 @@ import {
   sanitizeBrandContextForPrompt,
 } from './content-pii-consent.util';
 import { selectCopilotSources } from '../content-os-portfolio/copilot-insights.util';
-import { resolveGlossaryScope, selectCopilotGlossary } from '../content-os-portfolio/copilot-glossary.util';
+import {
+  mergeGlossaryScope,
+  resolveGlossaryScope,
+  selectCopilotGlossary,
+} from '../content-os-portfolio/copilot-glossary.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 
 @Injectable()
@@ -25,7 +29,10 @@ export class ContentBrandContextService {
   }
 
   /** Merge sealed snapshot brand context + brief fallback for AI prompts (M3). */
-  async resolveForLifecycle(lifecycleId: number): Promise<Record<string, unknown>> {
+  async resolveForLifecycle(
+    lifecycleId: number,
+    item?: Record<string, unknown> | null,
+  ): Promise<Record<string, unknown>> {
     const snapshot = await this.repo.getActiveSnapshotSummary(lifecycleId);
     let merged: Record<string, unknown>;
     if (snapshot?.brand_context_json && Object.keys(snapshot.brand_context_json).length) {
@@ -53,7 +60,18 @@ export class ContentBrandContextService {
       typeof this.repo.listGlossaryForLifecycle === 'function'
         ? await this.repo.listGlossaryForLifecycle(lifecycleId).catch(() => [])
         : [];
-    const copilotGlossary = selectCopilotGlossary(glossary, new Date(), resolveGlossaryScope(sanitized));
-    return { ...sanitized, pii_consent: piiConsent, copilotSources, copilotGlossary };
+    const scope = mergeGlossaryScope(
+      item ? resolveGlossaryScope(item) : { brand_id: '', locale: '' },
+      resolveGlossaryScope(sanitized),
+    );
+    const copilotGlossary = selectCopilotGlossary(glossary, new Date(), scope);
+    return {
+      ...sanitized,
+      ...(scope.brand_id ? { brand_id: scope.brand_id } : {}),
+      ...(scope.locale ? { locale: scope.locale } : {}),
+      pii_consent: piiConsent,
+      copilotSources,
+      copilotGlossary,
+    };
   }
 }

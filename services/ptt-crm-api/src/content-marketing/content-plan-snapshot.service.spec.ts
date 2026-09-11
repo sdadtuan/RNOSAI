@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { ContentPlanSnapshotService } from './content-plan-snapshot.service';
+import { buildBrandContextJson } from './content-plan-snapshot.util';
 
 describe('ContentPlanSnapshotService', () => {
   const core = {
@@ -18,7 +19,7 @@ describe('ContentPlanSnapshotService', () => {
     sealActiveSnapshot: jest.fn(),
   };
   const brandContext = {
-    buildFromBrief: jest.fn().mockReturnValue({ brand_name: 'Acme' }),
+    buildFromBrief: jest.fn((brief: Record<string, unknown>) => buildBrandContextJson(brief)),
   };
 
   let service: ContentPlanSnapshotService;
@@ -60,5 +61,36 @@ describe('ContentPlanSnapshotService', () => {
     expect(out.snapshot_id).toBe(99);
     expect(out.ideas_created).toBe(1);
     expect(out.pillars_upserted).toBe(1);
+  });
+
+  it('ingest persists brief brand_id and locale on snapshot brand context', async () => {
+    repo.loadPlannerSource.mockResolvedValue({
+      marketing_plan_id: 10,
+      brief_json: { brand_name: 'X', brand_id: 'brand-4', locale: 'vi' },
+      content_json: { calendar: [] },
+      campaigns_json: [],
+      strategy_framework_json: {},
+      target_market_prof_json: {},
+    });
+    repo.listIdeaTitleKeys.mockResolvedValue(new Set());
+    repo.upsertActiveSnapshot.mockResolvedValue(99);
+    repo.replacePillarsForSnapshot.mockResolvedValue(0);
+
+    await service.ingestPlanSnapshot(1, { mode: 'merge', import_calendar: false }, 'lead@test.vn');
+
+    expect(brandContext.buildFromBrief).toHaveBeenCalledWith({
+      brand_name: 'X',
+      brand_id: 'brand-4',
+      locale: 'vi',
+    });
+    expect(repo.upsertActiveSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brand_context_json: expect.objectContaining({
+          brand_name: 'X',
+          brand_id: 'brand-4',
+          locale: 'vi',
+        }),
+      }),
+    );
   });
 });

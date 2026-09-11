@@ -125,6 +125,42 @@ describe('ContentJobWorkerService', () => {
     expect(out?.status).toBe('succeeded');
   });
 
+  it('passes the item into resolveForLifecycle so item brand_id/locale can populate glossary scope', async () => {
+    repo.claimContentJob.mockResolvedValue({
+      id: 10,
+      lifecycle_id: 1,
+      item_id: 5,
+      job_type: 'draft_generate',
+      input_json: { tone: 'professional_friendly' },
+      created_by: 'w@test.vn',
+    });
+    const item = {
+      id: 5,
+      channel: 'facebook',
+      format: 'social_post',
+      title: 'Post',
+      funnel_goal: 'engagement',
+      brief_json: { brand_id: 'brand-4', locale: 'vi' },
+      body_json: { markdown: '', variants: [] },
+    };
+    repo.getItemById.mockResolvedValue(item);
+    repo.finishContentJob.mockImplementation((_id, patch) => ({
+      id: 10,
+      status: patch.status,
+      output_json: patch.output_json,
+    }));
+
+    await worker.processJob(10);
+
+    expect(brandContext.resolveForLifecycle).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        id: 5,
+        brief_json: { brand_id: 'brand-4', locale: 'vi' },
+      }),
+    );
+  });
+
   it('does not reject visual_status when social_transcode fails after master exists', async () => {
     repo.claimContentJob.mockResolvedValue({
       id: 20,

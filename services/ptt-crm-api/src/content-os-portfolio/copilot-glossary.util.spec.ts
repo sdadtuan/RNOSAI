@@ -1,6 +1,8 @@
 import {
   formatCopilotGlossaryPromptSection,
   matchGlossaryTerms,
+  mergeGlossaryScope,
+  resolveGlossaryScope,
   selectCopilotGlossary,
   type CmktGlossaryRow,
 } from './copilot-glossary.util';
@@ -145,6 +147,39 @@ describe('formatCopilotGlossaryPromptSection', () => {
 
   it('returns empty string when there are no whitelist terms', () => {
     expect(formatCopilotGlossaryPromptSection([])).toBe('');
+  });
+});
+
+describe('resolveGlossaryScope', () => {
+  it('reads brand_id and locale from item brief', () => {
+    expect(
+      resolveGlossaryScope({ brief_json: { brand_id: 'brand-4', locale: 'vi' } }),
+    ).toEqual({ brand_id: 'brand-4', locale: 'vi' });
+  });
+
+  it('maps brief.language to locale when locale is absent', () => {
+    expect(resolveGlossaryScope({ brief_json: { brand_id: 'brand-4', language: 'en' } })).toEqual({
+      brand_id: 'brand-4',
+      locale: 'en',
+    });
+  });
+});
+
+describe('mergeGlossaryScope', () => {
+  it('lets item brief win and fills missing keys from snapshot', () => {
+    expect(
+      mergeGlossaryScope(
+        { brand_id: 'brand-4', locale: '' },
+        { brand_id: 'brand-9', locale: 'vi' },
+      ),
+    ).toEqual({ brand_id: 'brand-4', locale: 'vi' });
+  });
+
+  it('leaves empty strings when either key is still missing (fail closed)', () => {
+    expect(mergeGlossaryScope({ brand_id: 'brand-4' }, { locale: '' })).toEqual({
+      brand_id: 'brand-4',
+      locale: '',
+    });
   });
 });
 

@@ -36,7 +36,17 @@ export function resolveGlossaryScope(
       : {};
   return {
     brand_id: String(source?.brand_id ?? brief.brand_id ?? '').trim(),
-    locale: String(source?.locale ?? brief.locale ?? '').trim(),
+    locale: String(source?.locale ?? source?.language ?? brief.locale ?? brief.language ?? '').trim(),
+  };
+}
+
+export function mergeGlossaryScope(
+  preferred: CopilotGlossaryScope | null | undefined,
+  fallback: CopilotGlossaryScope | null | undefined,
+): CopilotGlossaryScope {
+  return {
+    brand_id: String(preferred?.brand_id ?? '').trim() || String(fallback?.brand_id ?? '').trim(),
+    locale: String(preferred?.locale ?? '').trim() || String(fallback?.locale ?? '').trim(),
   };
 }
 

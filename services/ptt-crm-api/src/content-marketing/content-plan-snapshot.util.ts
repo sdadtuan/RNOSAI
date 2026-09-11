@@ -239,7 +239,17 @@ export function extractIdeasFromPlanner(
   return ideas;
 }
 
+function pickBriefScopeValue(...candidates: unknown[]): string | undefined {
+  for (const value of candidates) {
+    const text = String(value ?? '').trim();
+    if (text) return text;
+  }
+  return undefined;
+}
+
 export function buildBrandContextJson(brief: Record<string, unknown>): Record<string, unknown> {
+  const brand_id = pickBriefScopeValue(brief.brand_id);
+  const locale = pickBriefScopeValue(brief.locale, brief.language);
   return {
     brand_name: brief.brand_name ?? '',
     industry: brief.industry ?? '',
@@ -248,6 +258,8 @@ export function buildBrandContextJson(brief: Record<string, unknown>): Record<st
     tone: brief.tone ?? 'professional_friendly',
     audience: brief.geo_markets ?? brief.target_audience ?? [],
     website_url: brief.website_url ?? '',
+    ...(brand_id ? { brand_id } : {}),
+    ...(locale ? { locale } : {}),
   };
 }
 

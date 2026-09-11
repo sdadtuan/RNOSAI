@@ -1,4 +1,5 @@
 import {
+  buildBrandContextJson,
   computePlannerSourceHash,
   extractIdeasFromPlanner,
   extractPillarsFromPlanner,
@@ -46,5 +47,31 @@ describe('content-plan-snapshot.util', () => {
       channel: 'facebook',
       format: 'social_post',
     });
+  });
+
+  it('buildBrandContextJson passes through brief brand_id and locale', () => {
+    const ctx = buildBrandContextJson({
+      brand_name: 'Acme',
+      brand_id: 'brand-4',
+      locale: 'vi',
+    });
+    expect(ctx.brand_id).toBe('brand-4');
+    expect(ctx.locale).toBe('vi');
+  });
+
+  it('buildBrandContextJson maps brief.language to locale when locale is absent', () => {
+    const ctx = buildBrandContextJson({
+      brand_name: 'Acme',
+      brand_id: 'brand-4',
+      language: 'en',
+    });
+    expect(ctx.locale).toBe('en');
+    expect(ctx).not.toHaveProperty('language');
+  });
+
+  it('buildBrandContextJson does not invent brand_id or locale when the brief omits them', () => {
+    const ctx = buildBrandContextJson({ brand_name: 'Acme', objective: 'lead' });
+    expect(ctx.brand_id).toBeUndefined();
+    expect(ctx.locale).toBeUndefined();
   });
 });

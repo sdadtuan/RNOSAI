@@ -175,7 +175,10 @@ export class ContentJobWorkerService implements OnModuleInit, OnModuleDestroy {
         return this.processMediaJob(jobId, claimed, item, started);
       }
 
-      const brandRaw = await this.brandContext.resolveForLifecycle(claimed.lifecycle_id);
+      const brandRaw = await this.brandContext.resolveForLifecycle(
+        claimed.lifecycle_id,
+        item as unknown as Record<string, unknown>,
+      );
       const piiConsent = brandRaw.pii_consent === true;
       const brand = brandRaw;
       const promptItem = sanitizeItemForPrompt(item, piiConsent);
