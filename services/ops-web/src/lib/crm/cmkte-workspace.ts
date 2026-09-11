@@ -6,6 +6,10 @@ export function dash(value: string | number | null | undefined): string {
   return String(value);
 }
 
+export function pctLabel(value: number | null): string {
+  return value == null ? '—' : `${value}%`;
+}
+
 export function isBlankRecord(value: unknown): boolean {
   if (value == null) return true;
   if (typeof value === 'string') return !value.trim();

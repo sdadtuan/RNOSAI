@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import type { PortfolioCommandCenter, PortfolioRiskQueueItem } from '@/lib/crm/cmkte-api';
-import { capacityBandLabel } from '@/lib/crm/cmkte-workspace';
+import { capacityBandLabel, pctLabel } from '@/lib/crm/cmkte-workspace';
 import { cmktePath } from '@/lib/crm/cmkte-routes';
 import { CmktERequestModal } from './CmktERequestModal';
 
@@ -12,10 +12,6 @@ const EMPTY_COPY = 'Chưa có throughput tuần này và hàng đợi rủi ro t
 function dash(value: string | number | null | undefined): string {
   if (value == null || value === '') return '—';
   return String(value);
-}
-
-function pctLabel(value: number | null): string {
-  return value == null ? '—' : `${value}%`;
 }
 
 function slaLabel(hours: number | null): string {
