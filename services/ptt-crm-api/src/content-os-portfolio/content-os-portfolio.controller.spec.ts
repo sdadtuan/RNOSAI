@@ -1,4 +1,8 @@
-import { ContentOsPortfolioController } from './content-os-portfolio.controller';
+import {
+  ContentOsPortfolioController,
+  ContentOsPortfolioFacebookOAuthCallbackController,
+} from './content-os-portfolio.controller';
+import { ContentOsPortfolioService } from './content-os-portfolio.service';
 
 describe('ContentOsPortfolioController', () => {
   it('GET command-center delegates to service', async () => {
@@ -199,6 +203,51 @@ describe('ContentOsPortfolioController', () => {
     expect(service.startFacebookOAuth).toHaveBeenCalledWith({ staffId: 7 });
     expect(res.redirect).toHaveBeenCalledWith(expect.stringContaining('facebook.com'));
     expect(String(res.redirect.mock.calls[0][0])).not.toMatch(/access_token/);
+  });
+
+  it('GET oauth/callback stays fb=ok when audit fails after tokens are saved', async () => {
+    const env = {
+      CMKT_FB_APP_ID: process.env.CMKT_FB_APP_ID,
+      CMKT_FB_APP_SECRET: process.env.CMKT_FB_APP_SECRET,
+      CMKT_FB_REDIRECT_URI: process.env.CMKT_FB_REDIRECT_URI,
+      CMKT_FB_PAGE_ALLOWLIST: process.env.CMKT_FB_PAGE_ALLOWLIST,
+      OPS_WEB_ORIGIN: process.env.OPS_WEB_ORIGIN,
+    };
+    process.env.CMKT_FB_APP_ID = 'app-1';
+    process.env.CMKT_FB_APP_SECRET = 'sec';
+    process.env.CMKT_FB_REDIRECT_URI = 'https://api.example/cb';
+    process.env.CMKT_FB_PAGE_ALLOWLIST = '555';
+    process.env.OPS_WEB_ORIGIN = 'https://ops.example';
+    const originalFetch = global.fetch;
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 'USER_TOKEN', expires_in: 3600 }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [{ id: '555', access_token: 'PAGE_TOKEN' }] }),
+      }) as typeof fetch;
+    const repo = {
+      consumeOauthState: jest.fn().mockResolvedValue({ staffId: 7, lifecycleId: 4 }),
+      saveConnectorSecrets: jest.fn().mockResolvedValue(undefined),
+      insertAuditExport: jest.fn().mockRejectedValue(new Error('audit_down')),
+    };
+    const service = new ContentOsPortfolioService(repo as never, {} as never, {} as never, {} as never);
+    const c = new ContentOsPortfolioFacebookOAuthCallbackController(service);
+    const res = { redirect: jest.fn() };
+    try {
+      await c.facebookOAuthCallback('oauth-code', 'oauth-state', res as never);
+      const location = String(res.redirect.mock.calls[0][0]);
+      expect(location).toContain('fb=ok');
+      expect(location).not.toMatch(/fb=error/);
+      expect(location).not.toMatch(/access_token/);
+      expect(repo.saveConnectorSecrets).toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+      for (const [key, value] of Object.entries(env)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
 });

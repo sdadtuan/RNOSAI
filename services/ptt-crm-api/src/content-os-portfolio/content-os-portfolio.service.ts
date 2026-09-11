@@ -796,12 +796,16 @@ export class ContentOsPortfolioService {
         expiresAt: exchanged.expires_at,
         channel: FACEBOOK_PAGE_CHANNEL,
       });
-      if (typeof this.repo.insertAuditExport === 'function') {
-        await this.repo.insertAuditExport({
-          actor: `staff:${consumed.staffId}`,
-          action: OAUTH_CONNECT_ACTION,
-          entity: `${FACEBOOK_PAGE_CHANNEL}:${exchanged.page_id}`,
-        });
+      try {
+        if (typeof this.repo.insertAuditExport === 'function') {
+          await this.repo.insertAuditExport({
+            actor: `staff:${consumed.staffId}`,
+            action: OAUTH_CONNECT_ACTION,
+            entity: `${FACEBOOK_PAGE_CHANNEL}:${exchanged.page_id}`,
+          });
+        }
+      } catch {
+        // Tokens already persisted; audit must not flip the user to ?fb=error.
       }
       return { redirect: facebookSettingsRedirect('ok') };
     } catch {
