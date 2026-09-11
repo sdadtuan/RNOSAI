@@ -127,6 +127,21 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Get('sla-events')
+  listSlaEvents(
+    @Req() req: Request,
+    @Query('item_id') itemId?: string,
+    @Query('am_staff_id') amStaffId?: string,
+  ) {
+    const item = Number(itemId);
+    const am = Number(amStaffId);
+    return this.portfolio.listSlaEvents({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      itemId: Number.isInteger(item) && item > 0 ? item : undefined,
+      amStaffId: Number.isInteger(am) && am > 0 ? am : undefined,
+    });
+  }
+
   @Get('insights')
   listInsights(@Req() req: Request, @Query('lifecycle') lifecycle?: string) {
     const hint = Number(lifecycle);

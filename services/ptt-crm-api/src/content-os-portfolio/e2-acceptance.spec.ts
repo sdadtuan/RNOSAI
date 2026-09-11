@@ -133,4 +133,33 @@ describe('E2 control room acceptance', () => {
     expect(audits.map((row) => row.action)).toEqual(['reminder', 'at_risk', 'breached']);
     expect(audits.every((row) => row.item_id === created.id && row.task_id === 'copy')).toBe(true);
   });
+
+  it('SLA inbox listSlaEvents only returns events for in-scope items', async () => {
+    const { ContentOsPortfolioService } = await import('./content-os-portfolio.service');
+    const inScope = {
+      id: 1,
+      item_id: 21,
+      task_id: 'copy',
+      threshold: 100,
+      action: 'breached',
+      am_staff_id: 11,
+      created_at: '2026-09-11T10:06:00.000Z',
+    };
+    const leaked = { ...inScope, id: 2, item_id: 99, am_staff_id: 22 };
+    const svc = new ContentOsPortfolioService(
+      { listScopedLifecycleIds: jest.fn().mockResolvedValue([4]) } as never,
+      {} as never,
+      {
+        listSlaAudits: jest.fn().mockResolvedValue([inScope, leaked]),
+        findItemById: jest.fn(async (id: number) =>
+          id === 21 ? { id: 21, lifecycle_id: 4 } : { id: 99, lifecycle_id: 88 },
+        ),
+      } as never,
+      {} as never,
+    );
+    const out = await svc.listSlaEvents({ staffId: 9 });
+    expect(out.items).toEqual([inScope]);
+    expect(out.items.map((row) => row.item_id)).not.toContain(99);
+  });
 });
+

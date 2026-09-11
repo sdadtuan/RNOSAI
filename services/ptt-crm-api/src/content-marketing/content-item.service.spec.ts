@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, Logger, NotFoundException } from '@nestjs/common';
 import { ApprovalPackageService } from './approval-package.service';
 import { ContentItemService } from './content-item.service';
 
@@ -375,16 +375,22 @@ describe('ContentItemService publishItem gate', () => {
     expect(repo.nextPublicationRetryN).not.toHaveBeenCalled();
   });
 
-  it('propagates insertPublicationLog errors instead of swallowing them', async () => {
+  it('keeps publish_gate_blocked when insertPublicationLog fails (undefined_table)', async () => {
     repo.getItemById.mockResolvedValue(publishableItem());
     repo.listAssetRights.mockResolvedValue([{ asset_ref: 'https://cdn/blocked.jpg', status: 'Invalid' }]);
-    const insertError = Object.assign(new Error('duplicate key value violates unique constraint'), {
-      code: '23505',
+    const insertError = Object.assign(new Error('relation "cmkt_publication_logs" does not exist'), {
+      code: '42P01',
     });
     repo.insertPublicationLog.mockRejectedValue(insertError);
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
 
-    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toBe(insertError);
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toMatchObject({
+      response: { error: 'publish_gate_blocked' },
+    });
     expect(repo.insertPublicationLog).toHaveBeenCalled();
+    expect(repo.patchItem).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('does not write a publication log when the item is missing', async () => {
@@ -398,7 +404,7 @@ describe('ContentItemService publishItem gate', () => {
     expect(repo.patchItem).not.toHaveBeenCalled();
   });
 
-  it('propagates success-path insertPublicationLog errors without writing a failure row', async () => {
+  it('keeps successful Mark published when insertPublicationLog fails', async () => {
     repo.getItemById.mockResolvedValue(
       publishableItem({
         brief_json: { hook: 'Open', audience: 'CMO', goal: 'Lead' },
@@ -410,8 +416,9 @@ describe('ContentItemService publishItem gate', () => {
     repo.patchItem.mockResolvedValue({ id: 7, status: 'published' });
     const insertError = new Error('success log insert failed');
     repo.insertPublicationLog.mockRejectedValue(insertError);
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
 
-    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toBe(insertError);
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).resolves.toMatchObject({ status: 'published' });
     expect(repo.patchItem).toHaveBeenCalled();
     expect(repo.insertPublicationLog).toHaveBeenCalledTimes(1);
     expect(repo.insertPublicationLog).toHaveBeenCalledWith(
@@ -421,6 +428,8 @@ describe('ContentItemService publishItem gate', () => {
         post_id: null,
       }),
     );
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('throws publish_gate_blocked when rightsValid is false', async () => {

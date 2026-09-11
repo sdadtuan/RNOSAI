@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import type { PortfolioCommandCenter, PortfolioRiskQueueItem } from '@/lib/crm/cmkte-api';
+import type { PortfolioCommandCenter, PortfolioRiskQueueItem, PortfolioSlaEvent } from '@/lib/crm/cmkte-api';
 import { capacityBandLabel, pctLabel } from '@/lib/crm/cmkte-workspace';
 import { cmktePath } from '@/lib/crm/cmkte-routes';
 import { CmktERequestModal } from './CmktERequestModal';
@@ -25,9 +25,11 @@ function riskTitle(row: PortfolioRiskQueueItem): string {
 export function CmktECommandCenter({
   data,
   lifecycleId,
+  slaEvents = [],
 }: {
   data: PortfolioCommandCenter;
   lifecycleId?: number;
+  slaEvents?: PortfolioSlaEvent[];
 }) {
   const [requestOpen, setRequestOpen] = useState(false);
   const [toast, setToast] = useState('');
@@ -160,6 +162,20 @@ export function CmktECommandCenter({
                   }}
                 />
               </div>
+            )}
+          </div>
+          <div className="cmkte-card">
+            <h3>SLA inbox</h3>
+            {slaEvents.length ? (
+              <ul className="cmkte-list">
+                {slaEvents.slice(0, 8).map((row) => (
+                  <li key={row.id}>
+                    #{row.item_id} · {row.task_id} · {row.action} · {row.threshold}%
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="cmkte-desc">Chưa có SLA event trong phạm vi board.</p>
             )}
           </div>
           {approvedInsight ? (

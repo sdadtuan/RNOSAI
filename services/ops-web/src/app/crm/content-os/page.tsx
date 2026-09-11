@@ -15,7 +15,12 @@ import {
 } from '@/lib/auth';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { CmktECommandCenter } from '@/components/content-os/cmkte/CmktECommandCenter';
-import { fetchCommandCenter, type PortfolioCommandCenter } from '@/lib/crm/cmkte-api';
+import {
+  fetchCommandCenter,
+  fetchPortfolioSlaEvents,
+  type PortfolioCommandCenter,
+  type PortfolioSlaEvent,
+} from '@/lib/crm/cmkte-api';
 import { parseLifecycleQuery } from '@/lib/crm/use-cmkte-page';
 import { writeLastLifecycleId } from '@/lib/crm/cmkte-request-form';
 
@@ -33,6 +38,7 @@ function CrmContentOsHubContent() {
   const lifecycleId = parseLifecycleQuery(searchParams.get('lifecycle'));
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [center, setCenter] = useState<PortfolioCommandCenter | null>(null);
+  const [slaEvents, setSlaEvents] = useState<PortfolioSlaEvent[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -94,7 +100,12 @@ function CrmContentOsHubContent() {
       setLoading(true);
       setError('');
       try {
-        setCenter(await fetchCommandCenter(access, lifecycleId));
+        const [command, sla] = await Promise.all([
+          fetchCommandCenter(access, lifecycleId),
+          fetchPortfolioSlaEvents(access),
+        ]);
+        setCenter(command);
+        setSlaEvents(sla.items);
         if (lifecycleId) writeLastLifecycleId(lifecycleId);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Không tải được Command Center');
@@ -116,7 +127,9 @@ function CrmContentOsHubContent() {
     <div>
       {loading ? <p className="cmkte-status">Đang tải…</p> : null}
       {error ? <p className="cmkte-status cmkte-status--error">{error}</p> : null}
-      {!loading && !error && center ? <CmktECommandCenter data={center} lifecycleId={lifecycleId} /> : null}
+      {!loading && !error && center ? (
+        <CmktECommandCenter data={center} lifecycleId={lifecycleId} slaEvents={slaEvents} />
+      ) : null}
     </div>
   );
 }

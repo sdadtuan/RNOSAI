@@ -8,6 +8,7 @@ import {
   fetchPortfolioInsights,
   fetchPortfolioItem,
   fetchPortfolioPublications,
+  fetchPortfolioSlaEvents,
   fetchPortfolioRequests,
   filterCommandCenter,
   mapIntakeRows,
@@ -378,6 +379,17 @@ describe('fetchPortfolioInsights', () => {
     });
     expect(result).toEqual(body);
   });
+
+  it('throws when the insights response is not ok instead of returning an empty list', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ message: 'nope' }),
+      }),
+    );
+    await expect(fetchPortfolioInsights('tok-9', 4)).rejects.toThrow();
+  });
 });
 
 describe('approvePortfolioInsight', () => {
@@ -429,5 +441,35 @@ describe('fetchPortfolioPublications', () => {
     );
 
     await expect(fetchPortfolioPublications('tok-9')).resolves.toEqual({ slots: [] });
+  });
+});
+
+describe('fetchPortfolioSlaEvents', () => {
+  it('GETs portfolio sla-events with optional item_id and am_staff_id', async () => {
+    const body = { items: [{ id: 1, item_id: 21, action: 'breached' }] };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchPortfolioSlaEvents('tok-9', { itemId: 21, amStaffId: 11 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/api/crm/content-os/portfolio/sla-events?item_id=21&am_staff_id=11`,
+      { headers: { Authorization: 'Bearer tok-9' } },
+    );
+    expect(result).toEqual(body);
+  });
+
+  it('returns empty items when none', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ items: [] }),
+      }),
+    );
+    await expect(fetchPortfolioSlaEvents('tok-9')).resolves.toEqual({ items: [] });
   });
 });

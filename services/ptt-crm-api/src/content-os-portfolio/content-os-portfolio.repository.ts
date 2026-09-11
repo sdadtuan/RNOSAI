@@ -357,19 +357,15 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
   ): Promise<CmktInsightRow[]> {
     if (!lifecycleIds.length) return [];
     if (!(await this.ensurePgReady())) return [];
-    try {
-      const res = await this.db.query(
-        `SELECT id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at
+    const res = await this.db.query(
+      `SELECT id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at
          FROM cmkt_insights
          WHERE lifecycle_id = ANY($1::bigint[])
            AND status = ANY($2::text[])
          ORDER BY created_at DESC NULLS LAST, id DESC`,
-        [lifecycleIds, statuses],
-      );
-      return res.rows.map((row) => this.mapInsightRow(row as Record<string, unknown>));
-    } catch {
-      return [];
-    }
+      [lifecycleIds, statuses],
+    );
+    return res.rows.map((row) => this.mapInsightRow(row as Record<string, unknown>));
   }
 
   async listInsightsForLifecycle(lifecycleId: number): Promise<CmktInsightRow[]> {

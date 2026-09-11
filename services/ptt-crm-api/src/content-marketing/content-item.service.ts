@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   DEFAULT_BRIEF_WEIGHTS,
   briefCompleteness,
@@ -30,6 +30,8 @@ import { publicationLogFromError } from '../content-os-portfolio/publication-log
 
 @Injectable()
 export class ContentItemService {
+  private readonly logger = new Logger(ContentItemService.name);
+
   constructor(
     private readonly config: AppConfigService,
     private readonly core: ContentMarketingService,
@@ -409,11 +411,16 @@ export class ContentItemService {
     fields: { error: string | null; http_status: number | null; post_id: string | null },
   ): Promise<void> {
     if (typeof this.repo.insertPublicationLog !== 'function') return;
-    await this.repo.insertPublicationLog({
-      item_id: itemId,
-      error: fields.error,
-      post_id: fields.post_id,
-      http_status: fields.http_status,
-    });
+    try {
+      await this.repo.insertPublicationLog({
+        item_id: itemId,
+        error: fields.error,
+        post_id: fields.post_id,
+        http_status: fields.http_status,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`publication log insert failed for item ${itemId}: ${message}`);
+    }
   }
 }

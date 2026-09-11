@@ -13,6 +13,7 @@ import type {
   CmktIdeaRow,
   CmktItemRow,
   CmktReviewQueueItem,
+  CmktSlaAuditRow,
 } from '../content-marketing/content-marketing.types';
 import {
   resolveChannelHealth,
@@ -391,13 +392,36 @@ export class ContentOsPortfolioService {
     if (!ids.length) return { items: [] };
     const hint = scope.lifecycleHint;
     const scoped = hint && hint > 0 && ids.includes(hint) ? [hint] : ids;
-    let items: CmktInsightRow[] = [];
-    try {
-      items = (await this.repo.listInsights(scoped, ['Draft', 'Approved'])) ?? [];
-    } catch {
-      items = [];
-    }
+    const items = (await this.repo.listInsights(scoped, ['Draft', 'Approved'])) ?? [];
     return { items };
+  }
+
+  async listSlaEvents(scope: {
+    staffId: number;
+    itemId?: number;
+    amStaffId?: number;
+  }): Promise<{ items: CmktSlaAuditRow[] }> {
+    const ids = await this.scopedLifecycleIds(scope.staffId);
+    if (!ids.length) return { items: [] };
+
+    if (scope.itemId != null) {
+      const item = await this.marketingRepo.findItemById(scope.itemId);
+      if (!item || !ids.includes(item.lifecycle_id)) return { items: [] };
+    }
+
+    const rows = await this.marketingRepo.listSlaAudits({
+      item_id: scope.itemId,
+      am_staff_id: scope.amStaffId,
+    });
+    if (!rows.length) return { items: [] };
+
+    const uniqueIds = [...new Set(rows.map((row) => row.item_id))];
+    const allowed = new Set<number>();
+    for (const itemId of uniqueIds) {
+      const found = await this.marketingRepo.findItemById(itemId);
+      if (found && ids.includes(found.lifecycle_id)) allowed.add(itemId);
+    }
+    return { items: rows.filter((row) => allowed.has(row.item_id)) };
   }
 
   async approveInsight(input: { staffId: number; insightId: number }): Promise<CmktInsightRow> {

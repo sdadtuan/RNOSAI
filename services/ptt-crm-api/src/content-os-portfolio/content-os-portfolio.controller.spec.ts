@@ -62,6 +62,14 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual(item);
   });
 
+  it('GET sla-events delegates to listSlaEvents with staffId and optional filters', async () => {
+    const service = { listSlaEvents: jest.fn().mockResolvedValue({ items: [] }) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.listSlaEvents({ staffUser: { sub: '7' } } as never, '21', '11');
+    expect(service.listSlaEvents).toHaveBeenCalledWith({ staffId: 7, itemId: 21, amStaffId: 11 });
+    expect(out).toEqual({ items: [] });
+  });
+
   it('GET insights delegates to listInsights with staffId and lifecycle hint', async () => {
     const service = { listInsights: jest.fn().mockResolvedValue({ items: [] }) };
     const c = new ContentOsPortfolioController(service as never);

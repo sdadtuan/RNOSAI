@@ -21,6 +21,17 @@ function makeRepo(query: jest.Mock) {
   return repo;
 }
 
+describe('ContentOsPortfolioRepository.listInsights', () => {
+  it('does not report a query error as an empty insight list', async () => {
+    const boom = Object.assign(new Error('terminating connection due to administrator command'), {
+      code: '57P01',
+    });
+    const query = jest.fn().mockRejectedValue(boom);
+    const repo = makeRepo(query);
+    await expect(repo.listInsights([4], ['Draft', 'Approved'])).rejects.toBe(boom);
+  });
+});
+
 describe('ContentOsPortfolioRepository.getInsightById', () => {
   it('returns null when the insight row is missing', async () => {
     const query = jest.fn().mockResolvedValue({ rows: [] });

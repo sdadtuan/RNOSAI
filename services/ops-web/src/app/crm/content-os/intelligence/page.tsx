@@ -104,6 +104,7 @@ function CrmContentOsIntelligenceContent() {
           canApprove={canApprove}
           onApprove={onApprove}
           approving={approving}
+          loadError={Boolean(error)}
         />
       ) : null}
     </div>

@@ -6,6 +6,11 @@ import type { PortfolioInsight } from '@/lib/crm/cmkte-api';
 
 export const INTEL_COPILOT_WARNING = 'Copilot không dùng';
 export const INTEL_EMPTY = 'Chưa có insight trong phạm vi lifecycle đã chọn.';
+export const INTEL_LOAD_ERROR = 'Không tải được insight';
+
+export function insightEmptyCopy(hasError: boolean | undefined): string {
+  return hasError ? INTEL_LOAD_ERROR : INTEL_EMPTY;
+}
 
 export function CmktEIntelligence({
   summary,
@@ -14,6 +19,7 @@ export function CmktEIntelligence({
   canApprove = true,
   onApprove,
   approving = false,
+  loadError = false,
 }: {
   summary: ContentOsIntelligence | null;
   scoped: boolean;
@@ -21,6 +27,7 @@ export function CmktEIntelligence({
   canApprove?: boolean;
   onApprove?: (insightId: number) => Promise<void> | void;
   approving?: boolean;
+  loadError?: boolean;
 }) {
   const suggestions = summary?.suggestions ?? [];
   const topItems = summary?.top_items ?? [];
@@ -74,7 +81,7 @@ export function CmktEIntelligence({
           {!scoped ? (
             <p className="cmkte-empty">Chưa chọn lifecycle — không gọi intelligence.</p>
           ) : null}
-          {empty && scoped ? <p className="cmkte-empty">{INTEL_EMPTY}</p> : null}
+          {empty && scoped ? <p className="cmkte-empty">{insightEmptyCopy(loadError)}</p> : null}
           {insights.length ? (
             <ul className="cmkte-list">
               {insights.map((row) => (

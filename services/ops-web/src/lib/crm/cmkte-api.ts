@@ -298,8 +298,38 @@ export async function fetchPortfolioInsights(
   const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/insights${qs}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) return { items: [] };
+  if (!res.ok) throw new Error('Không tải được insight');
   const body = (await res.json()) as PortfolioInsightList | null;
+  return { items: Array.isArray(body?.items) ? body.items : [] };
+}
+
+export type PortfolioSlaEvent = {
+  id: number;
+  item_id: number;
+  task_id: string;
+  threshold: number;
+  action: string;
+  am_staff_id: number | null;
+  created_at: string;
+};
+
+export type PortfolioSlaEventList = {
+  items: PortfolioSlaEvent[];
+};
+
+export async function fetchPortfolioSlaEvents(
+  token: string,
+  filters?: { itemId?: number; amStaffId?: number },
+): Promise<PortfolioSlaEventList> {
+  const params = new URLSearchParams();
+  if (filters?.itemId && filters.itemId > 0) params.set('item_id', String(filters.itemId));
+  if (filters?.amStaffId && filters.amStaffId > 0) params.set('am_staff_id', String(filters.amStaffId));
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/sla-events${qs}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return { items: [] };
+  const body = (await res.json()) as PortfolioSlaEventList | null;
   return { items: Array.isArray(body?.items) ? body.items : [] };
 }
 

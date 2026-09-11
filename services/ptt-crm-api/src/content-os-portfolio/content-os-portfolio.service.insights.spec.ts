@@ -49,6 +49,16 @@ describe('ContentOsPortfolioService.listInsights', () => {
     await expect(svc.listInsights({ staffId: 9 })).resolves.toEqual({ items: [] });
     expect(repo.listInsights).not.toHaveBeenCalled();
   });
+
+  it('does not report a query error as an empty insight list', async () => {
+    const boom = Object.assign(new Error('too many connections'), { code: '53300' });
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listInsights: jest.fn().mockRejectedValue(boom),
+    };
+    const svc = makeSvc(repo);
+    await expect(svc.listInsights({ staffId: 9 })).rejects.toBe(boom);
+  });
 });
 
 describe('ContentOsPortfolioService.approveInsight', () => {
