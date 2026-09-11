@@ -1,4 +1,5 @@
 import {
+  capacityBandFor,
   computeCapacity,
   criticalPathTaskIds,
   hasDelayedCriticalTask,
@@ -40,8 +41,9 @@ describe('computeCapacity', () => {
     ).toEqual({ capacity_pct: 50, capacity_band: 'ok' });
   });
 
-  it('counts unique assignees from item, designer, video, and task ids', () => {
-    const out = computeCapacity([
+  it('uses assignee only as an eligibility gate so 40h is 100 with one or three assignees', () => {
+    const one = computeCapacity([{ assignee_sp: 1, production_json: { effort_h: 40 } }]);
+    const three = computeCapacity([
       {
         assignee_sp: 1,
         production_json: {
@@ -52,8 +54,8 @@ describe('computeCapacity', () => {
         },
       },
     ]);
-    expect(out.capacity_pct).toBe(Math.round((40 / (3 * 40)) * 100));
-    expect(out.capacity_band).toBe('ok');
+    expect(one).toEqual({ capacity_pct: 100, capacity_band: 'overloaded' });
+    expect(three).toEqual({ capacity_pct: 100, capacity_band: 'overloaded' });
   });
 
   it('labels BR-043 bands at 80 / 90 / 100 without inventing a seed percent', () => {
@@ -67,6 +69,24 @@ describe('computeCapacity', () => {
       'overloaded',
     );
     expect(computeCapacity([{ assignee_sp: 1, production_json: { effort_h: 80 } }]).capacity_pct).toBe(200);
+  });
+
+  it('bands the unrounded ratio so 79.5 is not warning and 89.5 is not at_risk', () => {
+    expect(capacityBandFor(79.5)).toBe('ok');
+    expect(capacityBandFor(89.5)).toBe('warning');
+    expect(capacityBandFor(99.5)).toBe('at_risk');
+    expect(computeCapacity([{ assignee_sp: 1, production_json: { effort_h: 31.8125 } }])).toEqual({
+      capacity_pct: 80,
+      capacity_band: 'ok',
+    });
+    expect(computeCapacity([{ assignee_sp: 1, production_json: { effort_h: 35.8125 } }])).toEqual({
+      capacity_pct: 90,
+      capacity_band: 'warning',
+    });
+    expect(computeCapacity([{ assignee_sp: 1, production_json: { effort_h: 39.8125 } }])).toEqual({
+      capacity_pct: 100,
+      capacity_band: 'at_risk',
+    });
   });
 });
 
@@ -95,14 +115,37 @@ describe('criticalPathTaskIds', () => {
     expect(criticalPathTaskIds(tasks)).toEqual(['write', 'qa']);
   });
 
-  it('does not loop forever on a cycle', () => {
+  it('returns one cyclic component in input order without looping', () => {
     expect(
       criticalPathTaskIds([
         task({ id: 'x', effort_h: 2, depends_on: ['y'] }),
         task({ id: 'y', effort_h: 2, depends_on: ['x'] }),
       ]),
-    ).toEqual(expect.arrayContaining(['x', 'y']));
+    ).toEqual(['x', 'y']);
   });
+
+  it('reconstructs one longest path when two remaining-effort totals tie', () => {
+    const tasks = [
+      task({ id: 'a', effort_h: 5 }),
+      task({ id: 'b', effort_h: 5, depends_on: ['a'] }),
+      task({ id: 'c', effort_h: 5, depends_on: ['a'] }),
+    ];
+    expect(criticalPathTaskIds(tasks)).toEqual(['a', 'b']);
+  });
+
+  it('scores a layered DAG in linear time and returns one heavy path', () => {
+    const layers = 20;
+    const tasks: CmktETask[] = [];
+    for (let i = 0; i < layers; i += 1) {
+      const depends_on = i === 0 ? [] : [`L${i - 1}a`, `L${i - 1}b`];
+      tasks.push(task({ id: `L${i}a`, effort_h: i === layers - 1 ? 100 : 1, depends_on }));
+      tasks.push(task({ id: `L${i}b`, effort_h: 1, depends_on }));
+    }
+    const started = Date.now();
+    const path = criticalPathTaskIds(tasks);
+    expect(Date.now() - started).toBeLessThan(250);
+    expect(path).toEqual(Array.from({ length: layers }, (_, i) => `L${i}a`));
+  }, 250);
 });
 
 describe('hasDelayedCriticalTask', () => {

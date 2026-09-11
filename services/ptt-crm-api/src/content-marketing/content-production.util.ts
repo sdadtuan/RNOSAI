@@ -1,5 +1,77 @@
 import { BadRequestException } from '@nestjs/common';
+import type { CmktETask } from '../content-os-portfolio/production-capacity.util';
 import type { CmktItemRow, CmktProductionJson, CmktProductionPhase } from './content-marketing.types';
+
+const TASK_STATUSES = new Set<CmktETask['status']>(['todo', 'doing', 'done', 'blocked']);
+
+function invalidTasks(message: string, extra?: Record<string, unknown>): never {
+  throw new BadRequestException({ error: 'invalid_tasks', message, ...extra });
+}
+
+function parseOptionalRaciNote(value: unknown, field: string, index: number): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') {
+    invalidTasks(`tasks[${index}].raci.${field} must be a string`, { index, field });
+  }
+  return value;
+}
+
+function parseCmktETask(raw: unknown, index: number): CmktETask {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+    invalidTasks(`tasks[${index}] must be an object`, { index });
+  }
+  const row = raw as Record<string, unknown>;
+  if (typeof row.id !== 'string' || !row.id.trim()) {
+    invalidTasks(`tasks[${index}].id must be a non-empty string`, { index });
+  }
+  if (typeof row.title !== 'string') {
+    invalidTasks(`tasks[${index}].title must be a string`, { index });
+  }
+  if (row.assignee_id !== null && (typeof row.assignee_id !== 'number' || !Number.isFinite(row.assignee_id))) {
+    invalidTasks(`tasks[${index}].assignee_id must be a number or null`, { index });
+  }
+  if (row.raci == null || typeof row.raci !== 'object' || Array.isArray(row.raci)) {
+    invalidTasks(`tasks[${index}].raci must be an object`, { index });
+  }
+  const raciRaw = row.raci as Record<string, unknown>;
+  if (typeof raciRaw.r !== 'string' || typeof raciRaw.a !== 'string') {
+    invalidTasks(`tasks[${index}].raci.r and raci.a must be strings`, { index });
+  }
+  if (!Array.isArray(row.depends_on) || row.depends_on.some((dep) => typeof dep !== 'string')) {
+    invalidTasks(`tasks[${index}].depends_on must be a string array`, { index });
+  }
+  if (typeof row.sla_h !== 'number' || !Number.isFinite(row.sla_h)) {
+    invalidTasks(`tasks[${index}].sla_h must be a finite number`, { index });
+  }
+  if (typeof row.effort_h !== 'number' || !Number.isFinite(row.effort_h)) {
+    invalidTasks(`tasks[${index}].effort_h must be a finite number`, { index });
+  }
+  if (typeof row.status !== 'string' || !TASK_STATUSES.has(row.status as CmktETask['status'])) {
+    invalidTasks(`tasks[${index}].status must be todo, doing, done, or blocked`, { index });
+  }
+  return {
+    id: row.id.trim(),
+    title: row.title,
+    assignee_id: row.assignee_id,
+    raci: {
+      r: raciRaw.r,
+      a: raciRaw.a,
+      c: parseOptionalRaciNote(raciRaw.c, 'c', index),
+      i: parseOptionalRaciNote(raciRaw.i, 'i', index),
+    },
+    depends_on: row.depends_on as string[],
+    sla_h: row.sla_h,
+    effort_h: row.effort_h,
+    status: row.status as CmktETask['status'],
+  };
+}
+
+function parseCmktETasks(value: unknown): CmktETask[] {
+  if (!Array.isArray(value)) {
+    invalidTasks('tasks must be an array');
+  }
+  return value.map((row, index) => parseCmktETask(row, index));
+}
 
 export function itemNeedsProduction(item: CmktItemRow): boolean {
   if (item.format === 'carousel') return true;
@@ -59,7 +131,7 @@ export function mergeProductionJson(
     next.effort_h = Number.isFinite(hours) ? hours : undefined;
   }
   if (patch.tasks !== undefined) {
-    next.tasks = Array.isArray(patch.tasks) ? (patch.tasks as CmktProductionJson['tasks']) : undefined;
+    next.tasks = parseCmktETasks(patch.tasks);
   }
   return next;
 }

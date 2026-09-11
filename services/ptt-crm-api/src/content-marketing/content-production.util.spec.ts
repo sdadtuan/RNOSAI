@@ -72,4 +72,48 @@ describe('content-production.util', () => {
     expect(merged.effort_h).toBe(20);
     expect(merged.tasks?.[0]?.id).toBe('a');
   });
+
+  it('persists a valid empty tasks array', () => {
+    expect(mergeProductionJson({ phase: 'none' }, { tasks: [] }).tasks).toEqual([]);
+  });
+
+  it('rejects a non-array tasks value', () => {
+    expect(() => mergeProductionJson({}, { tasks: { id: 'a' } })).toThrow(BadRequestException);
+  });
+
+  it('rejects a task that is missing required CmktETask fields', () => {
+    expect(() => mergeProductionJson({}, { tasks: [{ id: 'a' }] })).toThrow(BadRequestException);
+  });
+
+  it('rejects malformed CmktETask field types', () => {
+    const valid = {
+      id: 'a',
+      title: 'Write',
+      assignee_id: 1,
+      raci: { r: 'sp', a: 'am' },
+      depends_on: [],
+      sla_h: 8,
+      effort_h: 5,
+      status: 'todo' as const,
+    };
+    expect(() => mergeProductionJson({}, { tasks: [{ ...valid, status: 'shipped' }] })).toThrow(
+      BadRequestException,
+    );
+    expect(() => mergeProductionJson({}, { tasks: [{ ...valid, raci: { r: 'sp' } }] })).toThrow(
+      BadRequestException,
+    );
+    expect(() => mergeProductionJson({}, { tasks: [{ ...valid, effort_h: 'x' }] })).toThrow(
+      BadRequestException,
+    );
+    expect(() => mergeProductionJson({}, { tasks: [{ ...valid, sla_h: Number.NaN }] })).toThrow(
+      BadRequestException,
+    );
+    expect(() => mergeProductionJson({}, { tasks: [{ ...valid, depends_on: 'a' }] })).toThrow(
+      BadRequestException,
+    );
+    expect(() => mergeProductionJson({}, { tasks: [{ ...valid, assignee_id: '1' }] })).toThrow(
+      BadRequestException,
+    );
+    expect(() => mergeProductionJson({}, { tasks: [{ ...valid, id: '' }] })).toThrow(BadRequestException);
+  });
 });
