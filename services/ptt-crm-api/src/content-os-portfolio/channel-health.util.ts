@@ -9,10 +9,7 @@ export type ChannelConnectorRow = {
 };
 
 export function isConnectorEnabled(row: { enabled?: unknown; status?: unknown }): boolean {
-  if (row.status != null && String(row.status).trim() !== '') {
-    return row.status === 'on';
-  }
-  return row.enabled === true || row.enabled === 't' || row.enabled === 'on';
+  return row.status === 'on';
 }
 
 export type ChannelHealth = {

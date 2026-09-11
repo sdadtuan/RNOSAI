@@ -455,7 +455,7 @@ describe('ContentOsPortfolioService.getChannelHealth', () => {
   it('marks TokenExpired only for a real expired enabled connector row', async () => {
     const marketingRepo = {
       listChannelConnectors: jest.fn().mockResolvedValue([
-        { channel: 'facebook', enabled: true, expires_at: '2020-01-01T00:00:00.000Z' },
+        { channel: 'facebook', status: 'on', enabled: true, expires_at: '2020-01-01T00:00:00.000Z' },
       ]),
     };
     const svc = makeSvc({ listScopedLifecycleIds: jest.fn() }, undefined, marketingRepo);
@@ -471,9 +471,9 @@ describe('ContentOsPortfolioService.getChannelHealth', () => {
   it('picks one connector per channel using enabled, expiry, then id', async () => {
     const marketingRepo = {
       listChannelConnectors: jest.fn().mockResolvedValue([
-        { id: 12, channel: 'facebook', enabled: true, expires_at: '2026-12-01T00:00:00.000Z' },
-        { id: 3, channel: 'facebook', enabled: true, expires_at: '2020-01-01T00:00:00.000Z' },
-        { id: 8, channel: 'facebook', enabled: true, expires_at: '2026-12-01T00:00:00.000Z' },
+        { id: 12, channel: 'facebook', status: 'on', enabled: true, expires_at: '2026-12-01T00:00:00.000Z' },
+        { id: 3, channel: 'facebook', status: 'on', enabled: true, expires_at: '2020-01-01T00:00:00.000Z' },
+        { id: 8, channel: 'facebook', status: 'on', enabled: true, expires_at: '2026-12-01T00:00:00.000Z' },
         { id: 9, channel: 'facebook', enabled: false, expires_at: '2027-01-01T00:00:00.000Z' },
       ]),
     };
