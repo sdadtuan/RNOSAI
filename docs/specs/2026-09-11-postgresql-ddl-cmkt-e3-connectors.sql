@@ -16,8 +16,8 @@ CREATE INDEX IF NOT EXISTS idx_cmkt_channel_accounts_lifecycle_channel
 
 CREATE TABLE IF NOT EXISTS cmkt_connectors (
     id                 BIGSERIAL PRIMARY KEY,
-    channel_account_id BIGINT REFERENCES cmkt_channel_accounts (id) ON DELETE CASCADE,
-    connector_id       TEXT NOT NULL,
+    channel_account_id BIGINT NOT NULL REFERENCES cmkt_channel_accounts (id) ON DELETE CASCADE,
+    connector_id       TEXT NOT NULL UNIQUE,
     channel            TEXT NOT NULL,
     status             TEXT NOT NULL DEFAULT 'off',
     expires_at         TIMESTAMPTZ,
@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS cmkt_connectors (
     created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS cmkt_connectors_connector_id_key
+    ON cmkt_connectors (connector_id);
+
+ALTER TABLE cmkt_connectors
+    ALTER COLUMN channel_account_id SET NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_cmkt_connectors_channel
     ON cmkt_connectors (channel);

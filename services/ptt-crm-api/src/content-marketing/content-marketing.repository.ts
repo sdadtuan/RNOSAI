@@ -2454,15 +2454,20 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     if (!(await this.ensurePgReady())) return [];
     try {
       const res = await this.db.query(
-        `SELECT channel, expires_at
-           FROM cmkt_connectors`,
+        `SELECT id, channel, expires_at,
+                (status IS DISTINCT FROM 'off') AS enabled
+           FROM cmkt_connectors
+          ORDER BY enabled DESC, expires_at DESC NULLS LAST, id DESC`,
       );
       return res.rows.map((row) => {
         const rec = row as Record<string, unknown>;
         const expires = rec.expires_at != null ? new Date(String(rec.expires_at)) : null;
+        const id = rec.id != null ? Number(rec.id) : undefined;
         return {
+          ...(id != null && Number.isFinite(id) ? { id } : {}),
           channel: String(rec.channel ?? ''),
           expires_at: expires && Number.isFinite(expires.getTime()) ? expires.toISOString() : null,
+          enabled: rec.enabled === true || rec.enabled === 't',
         };
       });
     } catch (err) {

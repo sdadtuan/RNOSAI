@@ -467,6 +467,25 @@ describe('ContentOsPortfolioService.getChannelHealth', () => {
       expect.objectContaining({ status: 'Manual' }),
     );
   });
+
+  it('picks one connector per channel using enabled, expiry, then id', async () => {
+    const marketingRepo = {
+      listChannelConnectors: jest.fn().mockResolvedValue([
+        { id: 12, channel: 'facebook', enabled: true, expires_at: '2026-12-01T00:00:00.000Z' },
+        { id: 3, channel: 'facebook', enabled: true, expires_at: '2020-01-01T00:00:00.000Z' },
+        { id: 8, channel: 'facebook', enabled: true, expires_at: '2026-12-01T00:00:00.000Z' },
+        { id: 9, channel: 'facebook', enabled: false, expires_at: '2027-01-01T00:00:00.000Z' },
+      ]),
+    };
+    const svc = makeSvc({ listScopedLifecycleIds: jest.fn() }, undefined, marketingRepo);
+    const out = await svc.getChannelHealth({ staffId: 1 });
+    expect(out.channels.find((row) => row.channel === 'facebook')).toEqual(
+      expect.objectContaining({
+        status: 'Connected',
+        expires_at: '2026-12-01T00:00:00.000Z',
+      }),
+    );
+  });
 });
 
 describe('ContentOsPortfolioService.batchApprove', () => {

@@ -25,6 +25,27 @@ describe('ContentOsPortfolioRepository settings', () => {
     await expect(repo.getSetting('direct_social_publish')).resolves.toBeNull();
   });
 
+  it('getSetting returns null when a cmkt_settings column is missing', async () => {
+    const query = jest.fn().mockRejectedValue(
+      Object.assign(new Error('column "value_json" of relation "cmkt_settings" does not exist'), {
+        code: '42703',
+        table: 'cmkt_settings',
+      }),
+    );
+    const repo = makeRepo(query);
+    await expect(repo.getSetting('direct_social_publish')).resolves.toBeNull();
+  });
+
+  it('getSetting rethrows a real database error', async () => {
+    const query = jest
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('too many connections'), { code: '53300' }));
+    const repo = makeRepo(query);
+    await expect(repo.getSetting('direct_social_publish')).rejects.toMatchObject({
+      message: 'too many connections',
+    });
+  });
+
   it('upsertSetting persists value_json and getSetting reads it', async () => {
     const query = jest.fn().mockResolvedValue({
       rows: [{ key: 'direct_social_publish', value_json: true, updated_by: 'admin@ptt.vn' }],

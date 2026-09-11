@@ -25,6 +25,7 @@ function CrmContentOsSettingsContent() {
   const [context, setContext] = useState<ContentOsContext | null>(null);
   const [token, setToken] = useState('');
   const [directSocialPublish, setDirectSocialPublish] = useState(DEFAULT_DIRECT_SOCIAL_PUBLISH);
+  const [settingsReady, setSettingsReady] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -40,10 +41,12 @@ function CrmContentOsSettingsContent() {
       if (!access || !isContentMarketingFeEnabled()) return;
       setToken(access);
       setLoading(true);
+      setSettingsReady(false);
       setError('');
       try {
         const settings = await fetchPortfolioSettings(access);
         setDirectSocialPublish(settings.direct_social_publish);
+        setSettingsReady(true);
         if (!lifecycleId) {
           setContext(null);
           return;
@@ -65,7 +68,7 @@ function CrmContentOsSettingsContent() {
     <div>
       {loading ? <p className="cmkte-status">Đang tải…</p> : null}
       {error ? <p className="cmkte-status cmkte-status--error">{error}</p> : null}
-      {!loading ? (
+      {!loading && settingsReady ? (
         <CmktESettings
           context={context}
           directSocialPublish={directSocialPublish}

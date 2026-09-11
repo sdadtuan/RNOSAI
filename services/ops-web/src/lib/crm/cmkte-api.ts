@@ -354,11 +354,13 @@ export type PortfolioSettings = {
 };
 
 export async function fetchPortfolioSettings(token: string): Promise<PortfolioSettings> {
-  const fallback: PortfolioSettings = { direct_social_publish: false };
   const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/settings`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) return fallback;
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+    throw new Error(err?.error ?? err?.message ?? 'settings_fetch_failed');
+  }
   const body = (await res.json().catch(() => null)) as PortfolioSettings | null;
   return { direct_social_publish: readDirectSocialPublish(body) };
 }

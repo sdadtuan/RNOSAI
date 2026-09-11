@@ -20,12 +20,7 @@ import {
 } from './copilot-insights.util';
 import { nextDisplaySeq } from './display-seq';
 import { formatContentItemCode, formatContentRequestCode } from './content-os-portfolio.util';
-import type { CmktSettingRow } from './direct-social-publish.util';
-
-function isUndefinedTableError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  return String((err as { code?: unknown }).code ?? '') === '42P01';
-}
+import { isMissingCmktSettingsSchema, type CmktSettingRow } from './direct-social-publish.util';
 
 function isOptionalAiRunJoinError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
@@ -414,7 +409,7 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
       if (!row) return null;
       return { key: String(row.key ?? key), value_json: row.value_json };
     } catch (err) {
-      if (isUndefinedTableError(err)) return null;
+      if (isMissingCmktSettingsSchema(err)) return null;
       throw err;
     }
   }

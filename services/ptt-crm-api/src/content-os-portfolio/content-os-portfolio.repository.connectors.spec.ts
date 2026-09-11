@@ -30,7 +30,20 @@ describe('ContentMarketingRepository.listChannelConnectors', () => {
     const sql = String(query.mock.calls[0][0]);
     expect(sql).toMatch(/FROM cmkt_connectors/);
     expect(sql).not.toMatch(/access_token|refresh_token|secret_json/i);
-    expect(rows).toEqual([{ channel: 'facebook', expires_at: '2026-12-01T00:00:00.000Z' }]);
+    expect(rows).toEqual([
+      expect.objectContaining({ channel: 'facebook', expires_at: '2026-12-01T00:00:00.000Z' }),
+    ]);
     expect(JSON.stringify(rows)).not.toMatch(/token|secret/i);
+  });
+
+  it('orders connectors by enabled, expiry, then id so health pick is deterministic', async () => {
+    const query = jest.fn().mockResolvedValue({ rows: [] });
+    const repo = makeMarketingRepo(query);
+    await repo.listChannelConnectors();
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toMatch(/ORDER BY/i);
+    expect(sql).toMatch(/enabled/i);
+    expect(sql).toMatch(/expires_at/i);
+    expect(sql).toMatch(/\bid\b/i);
   });
 });

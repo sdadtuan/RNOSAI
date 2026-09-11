@@ -30,6 +30,72 @@ describe('ContentOsPortfolioService settings', () => {
     await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({ direct_social_publish: true });
   });
 
+  it('GET settings defaults false when cmkt_settings is missing (42P01)', async () => {
+    const repo = {
+      getSetting: jest.fn().mockRejectedValue(
+        Object.assign(new Error('relation "cmkt_settings" does not exist'), { code: '42P01' }),
+      ),
+    };
+    const svc = makeSvc(repo);
+    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({ direct_social_publish: false });
+  });
+
+  it('GET settings defaults false when a cmkt_settings column is missing (42703)', async () => {
+    const repo = {
+      getSetting: jest.fn().mockRejectedValue(
+        Object.assign(new Error('column "value_json" of relation "cmkt_settings" does not exist'), {
+          code: '42703',
+          table: 'cmkt_settings',
+        }),
+      ),
+    };
+    const svc = makeSvc(repo);
+    await expect(svc.getSettings({ staffId: 7 })).resolves.toEqual({ direct_social_publish: false });
+  });
+
+  it('GET settings surfaces a real database error instead of a false disabled policy', async () => {
+    const repo = {
+      getSetting: jest.fn().mockRejectedValue(
+        Object.assign(new Error('connection terminated unexpectedly'), { code: '57P01' }),
+      ),
+    };
+    const svc = makeSvc(repo);
+    await expect(svc.getSettings({ staffId: 7 })).rejects.toMatchObject({
+      message: 'connection terminated unexpectedly',
+    });
+  });
+
+  it('PATCH settings rejects a missing or non-boolean direct_social_publish with 400', async () => {
+    const repo = { upsertSetting: jest.fn() };
+    const svc = makeSvc(repo);
+    await expect(
+      svc.patchSettings({ staffId: 7, actor: 'admin@ptt.vn', body: {} }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      svc.patchSettings({
+        staffId: 7,
+        actor: 'admin@ptt.vn',
+        body: { direct_social_publish: 'true' },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(repo.upsertSetting).not.toHaveBeenCalled();
+  });
+
+  it('PATCH settings persists an explicit false boolean', async () => {
+    const repo = {
+      upsertSetting: jest.fn().mockResolvedValue({ key: 'direct_social_publish', value_json: false }),
+    };
+    const svc = makeSvc(repo);
+    await expect(
+      svc.patchSettings({
+        staffId: 7,
+        actor: 'admin@ptt.vn',
+        body: { direct_social_publish: false },
+      }),
+    ).resolves.toEqual({ direct_social_publish: false });
+    expect(repo.upsertSetting).toHaveBeenCalledWith('direct_social_publish', false, 'admin@ptt.vn');
+  });
+
   it('does not publish through the stub when the admin flag is on', async () => {
     const repo = {
       getSetting: jest.fn().mockResolvedValue({ key: 'direct_social_publish', value_json: true }),

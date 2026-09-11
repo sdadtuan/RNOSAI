@@ -16,6 +16,7 @@ import type {
   CmktSlaAuditRow,
 } from '../content-marketing/content-marketing.types';
 import {
+  pickConnectorPerChannel,
   resolveChannelHealth,
   type ChannelConnectorRow,
   type ChannelHealth,
@@ -47,7 +48,11 @@ import { formatContentRequestCode, requestCompleteness } from './content-os-port
 import { toAiTraceRow, type AiTraceRow } from './ai-traces.util';
 import type { CmktInsightRow } from './copilot-insights.util';
 import { computeCapacity, criticalPathTaskIds, hasDelayedCriticalTask } from './production-capacity.util';
-import { DIRECT_SOCIAL_PUBLISH_KEY, resolveDirectSocialPublish } from './direct-social-publish.util';
+import {
+  DIRECT_SOCIAL_PUBLISH_KEY,
+  isMissingCmktSettingsSchema,
+  resolveDirectSocialPublish,
+} from './direct-social-publish.util';
 
 const PORTFOLIO_LIFECYCLE_CAP = 20;
 
@@ -274,7 +279,7 @@ export class ContentOsPortfolioService {
     channels: Array<{ channel: string } & ChannelHealth>;
   }> {
     const connectors = await this.loadChannelConnectors();
-    const byChannel = new Map(connectors.map((row) => [row.channel, row]));
+    const byChannel = pickConnectorPerChannel(connectors);
     return {
       channels: CMKT_CHANNELS.map((channel) => ({
         channel,
@@ -284,15 +289,18 @@ export class ContentOsPortfolioService {
   }
 
   async getSettings(_scope: { staffId: number }): Promise<{ direct_social_publish: boolean }> {
-    let row = null;
-    if (typeof this.repo.getSetting === 'function') {
-      try {
-        row = (await this.repo.getSetting(DIRECT_SOCIAL_PUBLISH_KEY)) ?? null;
-      } catch {
-        row = null;
-      }
+    if (typeof this.repo.getSetting !== 'function') {
+      return { direct_social_publish: false };
     }
-    return { direct_social_publish: resolveDirectSocialPublish(row) };
+    try {
+      const row = (await this.repo.getSetting(DIRECT_SOCIAL_PUBLISH_KEY)) ?? null;
+      return { direct_social_publish: resolveDirectSocialPublish(row) };
+    } catch (err) {
+      if (isMissingCmktSettingsSchema(err)) {
+        return { direct_social_publish: false };
+      }
+      throw err;
+    }
   }
 
   async patchSettings(input: {
@@ -300,7 +308,10 @@ export class ContentOsPortfolioService {
     actor: string;
     body: Record<string, unknown>;
   }): Promise<{ direct_social_publish: boolean }> {
-    const value = input.body?.direct_social_publish === true;
+    const value = input.body?.direct_social_publish;
+    if (typeof value !== 'boolean') {
+      throw new BadRequestException({ error: 'direct_social_publish_invalid' });
+    }
     if (typeof this.repo.upsertSetting === 'function') {
       await this.repo.upsertSetting(DIRECT_SOCIAL_PUBLISH_KEY, value, input.actor);
     }

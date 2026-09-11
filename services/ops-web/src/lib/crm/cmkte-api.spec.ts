@@ -489,9 +489,28 @@ describe('portfolio settings', () => {
     });
   });
 
-  it('defaults missing or failed GET to direct_social_publish false', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
-    await expect(fetchPortfolioSettings('tok-9')).resolves.toEqual({ direct_social_publish: false });
+  it('throws on a failed GET so auth or HTTP errors are not a false disabled policy', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: async () => ({ error: 'settings_unavailable' }),
+      }),
+    );
+    await expect(fetchPortfolioSettings('tok-9')).rejects.toThrow('settings_unavailable');
+  });
+
+  it('throws on 401 instead of returning a false disabled policy', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: 'unauthorized' }),
+      }),
+    );
+    await expect(fetchPortfolioSettings('tok-9')).rejects.toThrow('unauthorized');
   });
 
   it('PATCH settings persists direct_social_publish', async () => {
