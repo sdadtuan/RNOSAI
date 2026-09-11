@@ -244,6 +244,50 @@ export async function fetchPortfolioItem(
   return res.json();
 }
 
+export type PortfolioInsight = {
+  id: number;
+  lifecycle_id: number;
+  pattern: string;
+  evidence: string;
+  confidence: number | null;
+  status: 'Draft' | 'Approved' | 'Rejected' | 'Outdated' | 'Superseded';
+  scope_json?: Record<string, unknown>;
+  expires_at: string | null;
+  created_at?: string;
+};
+
+export type PortfolioInsightList = {
+  items: PortfolioInsight[];
+};
+
+export async function fetchPortfolioInsights(
+  token: string,
+  lifecycleHint?: number,
+): Promise<PortfolioInsightList> {
+  const qs = lifecycleHint && lifecycleHint > 0 ? `?lifecycle=${lifecycleHint}` : '';
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/insights${qs}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return { items: [] };
+  const body = (await res.json()) as PortfolioInsightList | null;
+  return { items: Array.isArray(body?.items) ? body.items : [] };
+}
+
+export async function approvePortfolioInsight(token: string, insightId: number): Promise<PortfolioInsight> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/insights/${insightId}/approve`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? 'insight_approve_failed');
+  }
+  return res.json();
+}
+
 export async function fetchLifecycleIdeas(
   token: string,
   lifecycleId: number,

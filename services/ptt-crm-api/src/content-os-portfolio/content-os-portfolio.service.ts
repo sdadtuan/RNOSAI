@@ -1,4 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ContentItemService } from '../content-marketing/content-item.service';
 import { ContentMarketingRepository } from '../content-marketing/content-marketing.repository';
 import type {
@@ -19,6 +25,7 @@ import {
   type PortfolioProductionItem,
 } from './content-os-portfolio.types';
 import { formatContentRequestCode, requestCompleteness } from './content-os-portfolio.util';
+import type { CmktInsightRow } from './copilot-insights.util';
 import { computeCapacity, criticalPathTaskIds, hasDelayedCriticalTask } from './production-capacity.util';
 
 const PORTFOLIO_LIFECYCLE_CAP = 20;
@@ -197,6 +204,38 @@ export class ContentOsPortfolioService {
         display_code: linked.display_code || item.display_code || '',
       },
     };
+  }
+
+  async listInsights(scope: {
+    staffId: number;
+    lifecycleHint?: number;
+  }): Promise<{ items: CmktInsightRow[] }> {
+    const ids = await this.scopedLifecycleIds(scope.staffId);
+    if (!ids.length) return { items: [] };
+    const hint = scope.lifecycleHint;
+    const scoped = hint && hint > 0 && ids.includes(hint) ? [hint] : ids;
+    let items: CmktInsightRow[] = [];
+    try {
+      items = (await this.repo.listInsights(scoped, ['Draft', 'Approved'])) ?? [];
+    } catch {
+      items = [];
+    }
+    return { items };
+  }
+
+  async approveInsight(input: { staffId: number; insightId: number }): Promise<CmktInsightRow> {
+    const insight = await this.repo.getInsightById(input.insightId);
+    if (!insight) {
+      throw new NotFoundException({ error: 'insight_not_found', id: input.insightId });
+    }
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    if (!scoped.includes(insight.lifecycle_id)) {
+      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
+    }
+    if (insight.status !== 'Draft') {
+      throw new ConflictException({ error: 'insight_not_draft', status: insight.status });
+    }
+    return this.repo.updateInsightStatus(insight.id, 'Approved');
   }
 
   async getPortfolioItem(input: {

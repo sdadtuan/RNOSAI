@@ -7,6 +7,7 @@ import {
   resolvePiiConsent,
   sanitizeBrandContextForPrompt,
 } from './content-pii-consent.util';
+import { selectCopilotSources } from '../content-os-portfolio/copilot-insights.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 
 @Injectable()
@@ -42,6 +43,11 @@ export class ContentBrandContextService {
       resolvePiiConsent(merged, lcCtx) || this.config.contentMarketingPiiConsentDefault;
     const withPii = injectLifecyclePiiIntoBrandContext(merged, lcCtx, piiConsent);
     const sanitized = sanitizeBrandContextForPrompt(withPii, piiConsent);
-    return { ...sanitized, pii_consent: piiConsent };
+    const insights =
+      typeof this.repo.listInsightsForLifecycle === 'function'
+        ? await this.repo.listInsightsForLifecycle(lifecycleId).catch(() => [])
+        : [];
+    const copilotSources = selectCopilotSources(insights);
+    return { ...sanitized, pii_consent: piiConsent, copilotSources };
   }
 }

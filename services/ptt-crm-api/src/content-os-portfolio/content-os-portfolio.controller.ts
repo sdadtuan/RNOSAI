@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import {
+  StaffContentMarketingApproveGuard,
   StaffContentMarketingViewGuard,
   StaffContentMarketingWriteGuard,
 } from '../content-marketing/guards/staff-content-marketing.guard';
@@ -71,6 +72,25 @@ export class ContentOsPortfolioController {
       lifecycleId: Number(body.lifecycle_id),
       actor: actorEmail(req),
       body,
+    });
+  }
+
+  @Get('insights')
+  listInsights(@Req() req: Request, @Query('lifecycle') lifecycle?: string) {
+    const hint = Number(lifecycle);
+    return this.portfolio.listInsights({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      lifecycleHint: Number.isInteger(hint) && hint > 0 ? hint : undefined,
+    });
+  }
+
+  @Post('insights/:id/approve')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingApproveGuard)
+  approveInsight(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
+    return this.portfolio.approveInsight({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      insightId: id,
     });
   }
 

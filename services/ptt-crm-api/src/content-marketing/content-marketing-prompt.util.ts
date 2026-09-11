@@ -1,4 +1,8 @@
 import { createHash } from 'crypto';
+import {
+  copilotSourcesFromContext,
+  formatCopilotSourcesPromptSection,
+} from '../content-os-portfolio/copilot-insights.util';
 import type { CmktItemRow } from './content-marketing.types';
 
 export const CMKT_PROMPT_VERSION = 'cmkt-v1';
@@ -99,6 +103,7 @@ export function buildDraftUserPrompt(
     `Funnel goal: ${goal}`,
     `Tone: ${tone}, Length: ${length}`,
     hook ? `Seed hook: ${hook}` : '',
+    formatCopilotSourcesPromptSection(copilotSourcesFromContext(brandContext)),
     input.include_outline !== false ? 'Include outline sections in markdown.' : '',
   ]
     .filter(Boolean)

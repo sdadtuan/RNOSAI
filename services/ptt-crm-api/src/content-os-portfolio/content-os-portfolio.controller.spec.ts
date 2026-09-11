@@ -51,4 +51,21 @@ describe('ContentOsPortfolioController', () => {
     expect(service.getPortfolioItem).toHaveBeenCalledWith({ staffId: 7, itemId: 21, lifecycleHint: 4 });
     expect(out).toEqual(item);
   });
+
+  it('GET insights delegates to listInsights with staffId and lifecycle hint', async () => {
+    const service = { listInsights: jest.fn().mockResolvedValue({ items: [] }) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.listInsights({ staffUser: { sub: '7' } } as never, '4');
+    expect(service.listInsights).toHaveBeenCalledWith({ staffId: 7, lifecycleHint: 4 });
+    expect(out).toEqual({ items: [] });
+  });
+
+  it('POST insights/:id/approve delegates to approveInsight', async () => {
+    const approved = { id: 11, status: 'Approved' };
+    const service = { approveInsight: jest.fn().mockResolvedValue(approved) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.approveInsight(11, { staffUser: { sub: '7' } } as never);
+    expect(service.approveInsight).toHaveBeenCalledWith({ staffId: 7, insightId: 11 });
+    expect(out).toEqual(approved);
+  });
 });

@@ -34,6 +34,11 @@ import type {
 } from './content-marketing.types';
 import type { PlannerIngestSource, SnapshotPillarDraft } from './content-plan-snapshot.util';
 import type { AssetRightStatus, CmktAssetRightRow, CmktAssetRightWrite } from '../content-os-portfolio/content-os-portfolio.types';
+import {
+  CMKT_INSIGHT_STATUSES,
+  type CmktInsightRow,
+  type CmktInsightStatus,
+} from '../content-os-portfolio/copilot-insights.util';
 
 type MemoryStore = {
   ideas: Map<number, CmktIdeaRow[]>;
@@ -2326,6 +2331,23 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     return [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id);
   }
 
+  async listInsightsForLifecycle(lifecycleId: number): Promise<CmktInsightRow[]> {
+    if (!(lifecycleId > 0)) return [];
+    if (!(await this.ensurePgReady())) return [];
+    try {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at
+         FROM cmkt_insights
+         WHERE lifecycle_id = $1
+         ORDER BY id ASC`,
+        [lifecycleId],
+      );
+      return res.rows.map((row) => mapInsightRow(row as Record<string, unknown>));
+    } catch {
+      return [];
+    }
+  }
+
   async patchSlaFired(itemId: number, slaFired: string[]): Promise<void> {
     if (await this.ensurePgReady()) {
       await this.db.query(
@@ -2384,6 +2406,28 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       created_at: new Date(String(row.created_at)).toISOString(),
     };
   }
+}
+
+function mapInsightRow(row: Record<string, unknown>): CmktInsightRow {
+  const statusRaw = String(row.status ?? 'Draft');
+  const status = (CMKT_INSIGHT_STATUSES as readonly string[]).includes(statusRaw)
+    ? (statusRaw as CmktInsightStatus)
+    : 'Draft';
+  const scope = row.scope_json;
+  return {
+    id: Number(row.id),
+    lifecycle_id: Number(row.lifecycle_id),
+    pattern: String(row.pattern ?? ''),
+    evidence: String(row.evidence ?? ''),
+    confidence: row.confidence != null ? Number(row.confidence) : null,
+    status,
+    scope_json:
+      scope && typeof scope === 'object' && !Array.isArray(scope)
+        ? (scope as Record<string, unknown>)
+        : {},
+    expires_at: row.expires_at != null ? String(row.expires_at) : null,
+    created_at: String(row.created_at ?? ''),
+  };
 }
 
 function mapAssetRightRow(row: Record<string, unknown>): CmktAssetRightRow {

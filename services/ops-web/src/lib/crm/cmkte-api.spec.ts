@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/lib/api';
 import {
+  approvePortfolioInsight,
   convertPortfolioRequest,
   fetchCommandCenter,
   fetchPortfolioApprovals,
+  fetchPortfolioInsights,
   fetchPortfolioItem,
   fetchPortfolioPublications,
   fetchPortfolioRequests,
@@ -333,6 +335,46 @@ describe('fetchPortfolioApprovals', () => {
     );
 
     await expect(fetchPortfolioApprovals('tok-9')).resolves.toEqual({ items: [] });
+  });
+});
+
+describe('fetchPortfolioInsights', () => {
+  it('GETs portfolio insights with optional lifecycle hint', async () => {
+    const body = { items: [{ id: 11, status: 'Draft', pattern: 'hook' }] };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchPortfolioInsights('tok-9', 4);
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/insights?lifecycle=4`, {
+      headers: { Authorization: 'Bearer tok-9' },
+    });
+    expect(result).toEqual(body);
+  });
+});
+
+describe('approvePortfolioInsight', () => {
+  it('POSTs insight approve', async () => {
+    const body = { id: 11, status: 'Approved' };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await approvePortfolioInsight('tok-9', 11);
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/insights/11/approve`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer tok-9',
+        'Content-Type': 'application/json',
+      },
+    });
+    expect(result).toEqual(body);
   });
 });
 

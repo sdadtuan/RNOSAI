@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ContentMarketingModule } from '../content-marketing/content-marketing.module';
 import {
+  StaffContentMarketingApproveGuard,
   StaffContentMarketingViewGuard,
   StaffContentMarketingWriteGuard,
 } from '../content-marketing/guards/staff-content-marketing.guard';
@@ -17,6 +18,7 @@ import { ContentOsPortfolioService } from './content-os-portfolio.service';
     ContentOsPortfolioRepository,
     StaffContentMarketingViewGuard,
     StaffContentMarketingWriteGuard,
+    StaffContentMarketingApproveGuard,
   ],
 })
 export class ContentOsPortfolioModule {}

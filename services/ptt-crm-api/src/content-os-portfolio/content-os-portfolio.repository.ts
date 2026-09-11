@@ -12,6 +12,11 @@ import {
   type PortfolioProductionItem,
   type PortfolioRiskQueueItem,
 } from './content-os-portfolio.types';
+import {
+  CMKT_INSIGHT_STATUSES,
+  type CmktInsightRow,
+  type CmktInsightStatus,
+} from './copilot-insights.util';
 import { nextDisplaySeq } from './display-seq';
 import { formatContentItemCode, formatContentRequestCode } from './content-os-portfolio.util';
 
@@ -302,6 +307,123 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
 
   private async nextDisplaySeq(zeroCode: string, table: 'cmkt_content_requests' | 'cmkt_content_items' = 'cmkt_content_requests'): Promise<number> {
     return nextDisplaySeq((sql, values) => this.db.query(sql, values), zeroCode, table);
+  }
+
+  async listInsights(
+    lifecycleIds: number[],
+    statuses: CmktInsightStatus[] = ['Draft', 'Approved'],
+  ): Promise<CmktInsightRow[]> {
+    if (!lifecycleIds.length) return [];
+    if (!(await this.ensurePgReady())) return [];
+    try {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at
+         FROM cmkt_insights
+         WHERE lifecycle_id = ANY($1::bigint[])
+           AND status = ANY($2::text[])
+         ORDER BY created_at DESC NULLS LAST, id DESC`,
+        [lifecycleIds, statuses],
+      );
+      return res.rows.map((row) => this.mapInsightRow(row as Record<string, unknown>));
+    } catch {
+      return [];
+    }
+  }
+
+  async listInsightsForLifecycle(lifecycleId: number): Promise<CmktInsightRow[]> {
+    if (!(lifecycleId > 0)) return [];
+    if (!(await this.ensurePgReady())) return [];
+    try {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at
+         FROM cmkt_insights
+         WHERE lifecycle_id = $1
+         ORDER BY id ASC`,
+        [lifecycleId],
+      );
+      return res.rows.map((row) => this.mapInsightRow(row as Record<string, unknown>));
+    } catch {
+      return [];
+    }
+  }
+
+  async getInsightById(id: number): Promise<CmktInsightRow | null> {
+    if (!(await this.ensurePgReady())) return null;
+    try {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at
+         FROM cmkt_insights
+         WHERE id = $1`,
+        [id],
+      );
+      const row = res.rows[0];
+      return row ? this.mapInsightRow(row as Record<string, unknown>) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async insertInsight(row: {
+    lifecycle_id: number;
+    pattern: string;
+    evidence?: string;
+    confidence?: number | null;
+    status?: CmktInsightStatus;
+    scope_json?: Record<string, unknown>;
+    expires_at?: string | null;
+  }): Promise<CmktInsightRow> {
+    const res = await this.db.query(
+      `INSERT INTO cmkt_insights (lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+       RETURNING id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at`,
+      [
+        row.lifecycle_id,
+        row.pattern,
+        row.evidence ?? '',
+        row.confidence ?? null,
+        row.status ?? 'Draft',
+        JSON.stringify(row.scope_json ?? {}),
+        row.expires_at ?? null,
+      ],
+    );
+    return this.mapInsightRow(res.rows[0] as Record<string, unknown>);
+  }
+
+  async updateInsightStatus(id: number, status: CmktInsightStatus): Promise<CmktInsightRow> {
+    const res = await this.db.query(
+      `UPDATE cmkt_insights
+       SET status = $2
+       WHERE id = $1
+       RETURNING id, lifecycle_id, pattern, evidence, confidence, status, scope_json, expires_at, created_at`,
+      [id, status],
+    );
+    const row = res.rows[0];
+    if (!row) {
+      throw new Error(`insight_not_found:${id}`);
+    }
+    return this.mapInsightRow(row as Record<string, unknown>);
+  }
+
+  private mapInsightRow(row: Record<string, unknown>): CmktInsightRow {
+    const statusRaw = String(row.status ?? 'Draft');
+    const status = (CMKT_INSIGHT_STATUSES as readonly string[]).includes(statusRaw)
+      ? (statusRaw as CmktInsightStatus)
+      : 'Draft';
+    const scope = row.scope_json;
+    return {
+      id: Number(row.id),
+      lifecycle_id: Number(row.lifecycle_id),
+      pattern: String(row.pattern ?? ''),
+      evidence: String(row.evidence ?? ''),
+      confidence: row.confidence != null ? Number(row.confidence) : null,
+      status,
+      scope_json:
+        scope && typeof scope === 'object' && !Array.isArray(scope)
+          ? (scope as Record<string, unknown>)
+          : {},
+      expires_at: row.expires_at != null ? String(row.expires_at) : null,
+      created_at: String(row.created_at ?? ''),
+    };
   }
 
   private mapRequestRow(row: Record<string, unknown>): ContentRequestRow {
