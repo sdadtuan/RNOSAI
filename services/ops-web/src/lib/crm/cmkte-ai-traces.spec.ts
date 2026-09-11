@@ -4,7 +4,9 @@ import {
   AI_TRACE_EMPTY,
   fetchPortfolioAiTraces,
   formatAiTraceSources,
+  loadAiTracePanel,
   mapAiTraceDisplay,
+  resetAiTracePanelView,
   shouldFetchAiTraces,
   shouldShowAiTracePanel,
 } from './cmkte-ai-traces';
@@ -116,5 +118,24 @@ describe('fetchPortfolioAiTraces', () => {
 describe('AI_TRACE_EMPTY', () => {
   it('uses the Copy Studio empty copy', () => {
     expect(AI_TRACE_EMPTY).toBe('Chưa có AI trace');
+  });
+});
+
+describe('AI trace panel item change / fetch rejection', () => {
+  it('clears traces and forbidden immediately so a previous item is not shown', () => {
+    expect(resetAiTracePanelView()).toEqual({ items: [], forbidden: false });
+  });
+
+  it('hides the panel when fetch rejects with 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(Object.assign(new Error('forbidden'), { status: 403 })),
+    );
+    await expect(loadAiTracePanel('tok-9', 22)).resolves.toEqual({ items: [], forbidden: true });
+  });
+
+  it('shows an empty list when fetch rejects for a non-403 error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+    await expect(loadAiTracePanel('tok-9', 22)).resolves.toEqual({ items: [], forbidden: false });
   });
 });

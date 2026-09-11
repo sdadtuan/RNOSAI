@@ -64,4 +64,40 @@ describe('ContentOsPortfolioRepository.listAiTraceJobs', () => {
     expect(rows[0].id).toBe(9);
     expect(rows[0].run).toBeUndefined();
   });
+
+  it('falls back to job-only rows when the run-id column is missing', async () => {
+    const query = jest
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error('column j.ai_run_id does not exist'), { code: '42703' }),
+      )
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 9,
+            job_type: 'regenerate',
+            status: 'queued',
+            created_at: '2026-09-11T01:00:00.000Z',
+            finished_at: null,
+            ai_run_id: null,
+            input_json: {},
+          },
+        ],
+      });
+    const repo = makeRepo(query);
+    const rows = await repo.listAiTraceJobs(21);
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].run).toBeUndefined();
+  });
+
+  it('does not report a non-optional DB error as an empty trace list', async () => {
+    const boom = Object.assign(new Error('terminating connection due to administrator command'), {
+      code: '57P01',
+    });
+    const query = jest.fn().mockRejectedValue(boom);
+    const repo = makeRepo(query);
+    await expect(repo.listAiTraceJobs(21)).rejects.toBe(boom);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
 });

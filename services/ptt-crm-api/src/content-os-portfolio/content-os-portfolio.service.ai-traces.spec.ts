@@ -94,4 +94,16 @@ describe('ContentOsPortfolioService.listAiTraces', () => {
       },
     ]);
   });
+
+  it('does not report a non-optional DB error as an empty trace list', async () => {
+    const boom = Object.assign(new Error('too many connections'), { code: '53300' });
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listAiTraceJobs: jest.fn().mockRejectedValue(boom),
+    };
+    const marketingRepo = { findItemById: jest.fn().mockResolvedValue(item) };
+    const items = { getItem: jest.fn().mockResolvedValue(item) };
+    const svc = makeSvc(repo, marketingRepo, items);
+    await expect(svc.listAiTraces({ staffId: 1, itemId: 21 })).rejects.toBe(boom);
+  });
 });

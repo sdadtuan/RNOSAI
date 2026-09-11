@@ -256,12 +256,8 @@ export class ContentOsPortfolioService {
     lifecycleHint?: number;
   }): Promise<{ items: AiTraceRow[] }> {
     await this.getPortfolioItem(input);
-    try {
-      const jobs = (await this.repo.listAiTraceJobs(input.itemId)) ?? [];
-      return { items: jobs.map((job) => toAiTraceRow(job, job.run)) };
-    } catch {
-      return { items: [] };
-    }
+    const jobs = (await this.repo.listAiTraceJobs(input.itemId)) ?? [];
+    return { items: jobs.map((job) => toAiTraceRow(job, job.run)) };
   }
 
   async getPortfolioItem(input: {

@@ -109,3 +109,29 @@ export async function fetchPortfolioAiTraces(
     : [];
   return { items, forbidden: false };
 }
+
+export function resetAiTracePanelView(): PortfolioAiTraceList {
+  return { items: [], forbidden: false };
+}
+
+export function aiTracePanelFromFetchFailure(err: unknown): PortfolioAiTraceList {
+  return { items: [], forbidden: isForbiddenFetchError(err) };
+}
+
+export async function loadAiTracePanel(
+  token: string,
+  itemId: number,
+  lifecycleHint?: number,
+): Promise<PortfolioAiTraceList> {
+  try {
+    return await fetchPortfolioAiTraces(token, itemId, lifecycleHint);
+  } catch (err) {
+    return aiTracePanelFromFetchFailure(err);
+  }
+}
+
+function isForbiddenFetchError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const rec = err as { status?: unknown; statusCode?: unknown };
+  return Number(rec.status ?? rec.statusCode) === 403;
+}

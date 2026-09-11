@@ -21,6 +21,19 @@ import {
 import { nextDisplaySeq } from './display-seq';
 import { formatContentItemCode, formatContentRequestCode } from './content-os-portfolio.util';
 
+function isOptionalAiRunJoinError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const code = String((err as { code?: unknown }).code ?? '');
+  const message = err instanceof Error ? err.message : String((err as { message?: unknown }).message ?? '');
+  return (
+    code === '42P01' ||
+    code === '42703' ||
+    code === 'undefined_table' ||
+    code === 'undefined_column' ||
+    /undefined_table|undefined_column/i.test(message)
+  );
+}
+
 @Injectable()
 export class ContentOsPortfolioRepository implements OnModuleDestroy {
   private pool: Pool | null = null;
@@ -326,17 +339,18 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
          FROM cmkt_content_jobs
          WHERE item_id = $1
          ORDER BY COALESCE(finished_at, created_at) DESC NULLS LAST, id DESC`;
+    let rows: Record<string, unknown>[];
+    let skipRun = false;
     try {
       const res = await this.db.query(withJoin, [itemId]);
-      return res.rows.map((row) => this.mapAiTraceJobRow(row as Record<string, unknown>));
-    } catch {
-      try {
-        const res = await this.db.query(jobsOnly, [itemId]);
-        return res.rows.map((row) => this.mapAiTraceJobRow(row as Record<string, unknown>, { skipRun: true }));
-      } catch {
-        return [];
-      }
+      rows = res.rows as Record<string, unknown>[];
+    } catch (err) {
+      if (!isOptionalAiRunJoinError(err)) throw err;
+      const res = await this.db.query(jobsOnly, [itemId]);
+      rows = res.rows as Record<string, unknown>[];
+      skipRun = true;
     }
+    return rows.map((row) => this.mapAiTraceJobRow(row, { skipRun }));
   }
 
   async listInsights(

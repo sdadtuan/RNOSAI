@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { canGenerateContentOs, getAccessToken, getStoredUser } from '@/lib/auth';
 import {
   AI_TRACE_EMPTY,
-  fetchPortfolioAiTraces,
+  loadAiTracePanel,
   mapAiTraceDisplay,
+  resetAiTracePanelView,
   shouldFetchAiTraces,
   shouldShowAiTracePanel,
   type PortfolioAiTrace,
@@ -24,11 +25,14 @@ export function CmktEAiTracePanel({
   const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
+    const cleared = resetAiTracePanelView();
+    setTraces(cleared.items);
+    setForbidden(cleared.forbidden);
     if (!shouldFetchAiTraces(canGenerate)) return;
     const token = getAccessToken();
     if (!token || !(itemId > 0)) return;
     let cancelled = false;
-    void fetchPortfolioAiTraces(token, itemId, lifecycleHint).then((out) => {
+    void loadAiTracePanel(token, itemId, lifecycleHint).then((out) => {
       if (cancelled) return;
       setTraces(out.items);
       setForbidden(out.forbidden);
