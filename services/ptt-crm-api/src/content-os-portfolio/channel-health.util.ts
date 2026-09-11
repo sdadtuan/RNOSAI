@@ -5,7 +5,15 @@ export type ChannelConnectorRow = {
   channel: string;
   expires_at?: string | null;
   enabled?: boolean;
+  status?: string | null;
 };
+
+export function isConnectorEnabled(row: { enabled?: unknown; status?: unknown }): boolean {
+  if (row.status != null && String(row.status).trim() !== '') {
+    return row.status === 'on';
+  }
+  return row.enabled === true || row.enabled === 't' || row.enabled === 'on';
+}
 
 export type ChannelHealth = {
   status: ChannelHealthStatus;
@@ -16,7 +24,7 @@ export function resolveChannelHealth(
   connector: ChannelConnectorRow | null | undefined,
   now: Date = new Date(),
 ): ChannelHealth {
-  if (!connector || connector.enabled !== true) return { status: 'Manual' };
+  if (!connector || !isConnectorEnabled(connector)) return { status: 'Manual' };
   const raw = connector.expires_at;
   if (raw == null || String(raw).trim() === '') {
     return { status: 'Connected' };
@@ -33,7 +41,7 @@ export function resolveChannelHealth(
 }
 
 function connectorRank(row: ChannelConnectorRow): [number, number, number] {
-  const enabled = row.enabled === true ? 1 : 0;
+  const enabled = isConnectorEnabled(row) ? 1 : 0;
   const expiresMs = row.expires_at ? new Date(row.expires_at).getTime() : Number.NEGATIVE_INFINITY;
   const id = typeof row.id === 'number' && Number.isFinite(row.id) ? row.id : Number.NEGATIVE_INFINITY;
   return [enabled, Number.isFinite(expiresMs) ? expiresMs : Number.NEGATIVE_INFINITY, id];
@@ -50,7 +58,7 @@ function isBetterConnector(candidate: ChannelConnectorRow, current: ChannelConne
 export function pickConnectorPerChannel(rows: ChannelConnectorRow[]): Map<string, ChannelConnectorRow> {
   const byChannel = new Map<string, ChannelConnectorRow>();
   for (const row of rows) {
-    if (row.enabled !== true) continue;
+    if (!isConnectorEnabled(row)) continue;
     const channel = String(row.channel ?? '').trim();
     if (!channel) continue;
     const existing = byChannel.get(channel);

@@ -34,7 +34,7 @@ import type {
   CmktPublicationLogRow,
   CmktPublicationLogWrite,
 } from './content-marketing.types';
-import type { ChannelConnectorRow } from '../content-os-portfolio/channel-health.util';
+import { isConnectorEnabled, type ChannelConnectorRow } from '../content-os-portfolio/channel-health.util';
 import {
   PUBLICATION_LOG_INSERT_SQL,
   insertPublicationLogWithRetry,
@@ -2455,7 +2455,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     try {
       const res = await this.db.query(
         `SELECT id, channel, expires_at,
-                (status IS DISTINCT FROM 'off') AS enabled
+                (status = 'on') AS enabled
            FROM cmkt_connectors
           ORDER BY enabled DESC, expires_at DESC NULLS LAST, id DESC`,
       );
@@ -2467,7 +2467,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
           ...(id != null && Number.isFinite(id) ? { id } : {}),
           channel: String(rec.channel ?? ''),
           expires_at: expires && Number.isFinite(expires.getTime()) ? expires.toISOString() : null,
-          enabled: rec.enabled === true || rec.enabled === 't',
+          enabled: isConnectorEnabled(rec),
         };
       });
     } catch (err) {

@@ -1,4 +1,4 @@
-import { pickConnectorPerChannel, resolveChannelHealth } from './channel-health.util';
+import { isConnectorEnabled, pickConnectorPerChannel, resolveChannelHealth } from './channel-health.util';
 
 describe('resolveChannelHealth', () => {
   const now = new Date('2026-09-11T04:00:00.000Z');
@@ -51,6 +51,32 @@ describe('resolveChannelHealth', () => {
         now,
       ),
     ).toEqual({ status: 'Manual' });
+  });
+
+  it("returns Manual when status is 'disabled' even if enabled was denylist-true", () => {
+    expect(
+      resolveChannelHealth(
+        {
+          channel: 'facebook',
+          status: 'disabled',
+          enabled: true,
+          expires_at: '2026-12-01T00:00:00.000Z',
+        },
+        now,
+      ),
+    ).toEqual({ status: 'Manual' });
+  });
+});
+
+describe('isConnectorEnabled', () => {
+  it("treats only status 'on' or explicit true as enabled — 'disabled' is not enabled", () => {
+    expect(isConnectorEnabled({ status: 'on' })).toBe(true);
+    expect(isConnectorEnabled({ enabled: true })).toBe(true);
+    expect(isConnectorEnabled({ status: 'disabled' })).toBe(false);
+    expect(isConnectorEnabled({ status: 'off' })).toBe(false);
+    expect(isConnectorEnabled({ status: null })).toBe(false);
+    expect(isConnectorEnabled({ enabled: false })).toBe(false);
+    expect(isConnectorEnabled({ status: 'disabled', enabled: true })).toBe(false);
   });
 });
 

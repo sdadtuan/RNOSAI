@@ -500,6 +500,26 @@ describe('ContentOsPortfolioService.getChannelHealth', () => {
       status: 'Manual',
     });
   });
+
+  it("returns Manual when connector status is 'disabled' even if enabled was denylist-true", async () => {
+    const marketingRepo = {
+      listChannelConnectors: jest.fn().mockResolvedValue([
+        {
+          id: 9,
+          channel: 'facebook',
+          status: 'disabled',
+          enabled: true,
+          expires_at: '2027-01-01T00:00:00.000Z',
+        },
+      ]),
+    };
+    const svc = makeSvc({ listScopedLifecycleIds: jest.fn() }, undefined, marketingRepo);
+    const out = await svc.getChannelHealth({ staffId: 1 });
+    expect(out.channels.find((row) => row.channel === 'facebook')).toEqual({
+      channel: 'facebook',
+      status: 'Manual',
+    });
+  });
 });
 
 describe('ContentOsPortfolioService.batchApprove', () => {

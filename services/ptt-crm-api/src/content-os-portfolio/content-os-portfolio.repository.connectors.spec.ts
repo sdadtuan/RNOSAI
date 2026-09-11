@@ -46,4 +46,26 @@ describe('ContentMarketingRepository.listChannelConnectors', () => {
     expect(sql).toMatch(/expires_at/i);
     expect(sql).toMatch(/\bid\b/i);
   });
+
+  it("computes enabled as status = 'on' allowlist — status 'disabled' is not enabled", async () => {
+    const query = jest.fn().mockResolvedValue({
+      rows: [
+        {
+          id: 4,
+          channel: 'facebook',
+          status: 'disabled',
+          enabled: true,
+          expires_at: '2026-12-01T00:00:00.000Z',
+        },
+      ],
+    });
+    const repo = makeMarketingRepo(query);
+    const rows = await repo.listChannelConnectors();
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toMatch(/\(status = 'on'\)\s+AS enabled/i);
+    expect(sql).not.toMatch(/IS DISTINCT FROM\s+'off'/i);
+    expect(rows).toEqual([
+      expect.objectContaining({ channel: 'facebook', enabled: false }),
+    ]);
+  });
 });
