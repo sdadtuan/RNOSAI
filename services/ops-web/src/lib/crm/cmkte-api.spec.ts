@@ -10,6 +10,7 @@ import {
   fetchPortfolioPublications,
   fetchPortfolioSlaEvents,
   fetchDamAssets,
+  fetchPortfolioAuditExport,
   fetchPortfolioSettings,
   fetchPortfolioRequests,
   patchPortfolioSettings,
@@ -628,3 +629,32 @@ describe('portfolio settings', () => {
     expect(JSON.stringify(settings)).not.toMatch(/issuer|secret|client_secret|private.?key/i);
   });
 });
+
+describe('portfolio audit export', () => {
+  it('GET audit/export returns the CSV body and does not invent rows', async () => {
+    const csv = 'actor,action,entity,created_at\n';
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => csv,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(fetchPortfolioAuditExport('tok-9')).resolves.toBe(csv);
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/audit/export`, {
+      headers: { Authorization: 'Bearer tok-9' },
+    });
+  });
+
+  it('throws a real error string when the export fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: async () => ({ error: 'missing_cap' }),
+        text: async () => '',
+      }),
+    );
+    await expect(fetchPortfolioAuditExport('tok-9')).rejects.toThrow('missing_cap');
+  });
+});
+

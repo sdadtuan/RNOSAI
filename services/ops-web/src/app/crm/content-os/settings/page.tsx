@@ -6,7 +6,7 @@ import { clearSession } from '@/lib/auth';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { fetchContentOsContext, type ContentOsContext } from '@/lib/content-os-api';
 import { CmktESettings } from '@/components/content-os/cmkte/CmktESettings';
-import { fetchPortfolioSettings, patchPortfolioSettings } from '@/lib/crm/cmkte-api';
+import { fetchPortfolioAuditExport, fetchPortfolioSettings, patchPortfolioSettings } from '@/lib/crm/cmkte-api';
 import { DEFAULT_DIRECT_SOCIAL_PUBLISH, DEFAULT_SSO_ENFORCED } from '@/lib/crm/cmkte-settings';
 import { parseLifecycleQuery, useCmktEPageAuth } from '@/lib/crm/use-cmkte-page';
 
@@ -84,6 +84,7 @@ function CrmContentOsSettingsContent() {
                 }
               : undefined
           }
+          onExportAudit={token ? () => fetchPortfolioAuditExport(token) : undefined}
         />
       ) : null}
     </div>

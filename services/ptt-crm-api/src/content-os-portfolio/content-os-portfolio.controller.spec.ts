@@ -164,4 +164,26 @@ describe('ContentOsPortfolioController', () => {
     expect(service.listAiTraces).toHaveBeenCalledWith({ staffId: 7, itemId: 21, lifecycleHint: 4 });
     expect(out).toEqual(traces);
   });
+
+  it('GET audit/export delegates to exportAuditCsv with staffId and actor', async () => {
+    const csv = 'actor,action,entity,created_at\nadmin@ptt.vn,audit_export,portfolio_audit,2026-09-11T07:47:00.000Z\n';
+    const service = { exportAuditCsv: jest.fn().mockResolvedValue(csv) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.exportAuditCsv({ staffUser: { sub: '7', email: 'admin@ptt.vn' } } as never);
+    expect(service.exportAuditCsv).toHaveBeenCalledWith({ staffId: 7, actor: 'admin@ptt.vn' });
+    expect(out).toBe(csv);
+  });
+
+  it('DELETE items/:itemId delegates to hardDeleteItem with staffId, actor, and id', async () => {
+    const service = { hardDeleteItem: jest.fn().mockResolvedValue({ ok: true, id: 21 }) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.hardDeleteItem(21, { staffUser: { sub: '7', email: 'admin@ptt.vn' } } as never);
+    expect(service.hardDeleteItem).toHaveBeenCalledWith({
+      staffId: 7,
+      itemId: 21,
+      actor: 'admin@ptt.vn',
+    });
+    expect(out).toEqual({ ok: true, id: 21 });
+  });
 });
+

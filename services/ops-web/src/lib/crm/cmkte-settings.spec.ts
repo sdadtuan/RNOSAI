@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AUDIT_RETENTION_COPY,
+  AUDIT_RETENTION_YEARS,
   DEFAULT_DIRECT_SOCIAL_PUBLISH,
   DEFAULT_SSO_ENFORCED,
   readDirectSocialPublish,
@@ -33,6 +35,12 @@ describe('cmkte-settings', () => {
   it('reads the stored switch without inventing true', () => {
     expect(readDirectSocialPublish({ direct_social_publish: true })).toBe(true);
     expect(readDirectSocialPublish({ direct_social_publish: false })).toBe(false);
+  });
+
+  it('states that audit is retained 7 years', () => {
+    expect(AUDIT_RETENTION_YEARS).toBe(7);
+    expect(AUDIT_RETENTION_COPY).toMatch(/7 years|7 năm/i);
+    expect(AUDIT_RETENTION_COPY).toMatch(/audit/i);
   });
 
   it('strips token and secret fields before browser JSON', () => {

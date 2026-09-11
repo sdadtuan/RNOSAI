@@ -3,14 +3,30 @@
 import React, { useEffect, useState } from 'react';
 import type { ContentOsContext } from '@/lib/content-os-api';
 import {
+  AUDIT_EXPORT_EMPTY_TOAST,
+  AUDIT_EXPORT_ERROR_TOAST,
+  AUDIT_RETENTION_COPY,
   DEFAULT_DIRECT_SOCIAL_PUBLISH,
   DEFAULT_SSO_ENFORCED,
   SSO_ENFORCED_LABEL,
+  isAuditExportEmpty,
   ssoEnforcedControl,
 } from '@/lib/crm/cmkte-settings';
 
 export const SETTINGS_SAVE_TOAST = 'Đã lưu policy.';
 export const SETTINGS_SAVE_ERROR_TOAST = 'Không lưu được policy.';
+export const SETTINGS_EXPORT_OK_TOAST = 'Đã xuất audit.';
+
+function downloadAuditCsv(csv: string): void {
+  if (typeof document === 'undefined') return;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'cmkt-audit-export.csv';
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 function flagLabel(value: boolean | undefined): string {
   if (value == null) return '—';
@@ -22,15 +38,18 @@ export function CmktESettings({
   directSocialPublish = DEFAULT_DIRECT_SOCIAL_PUBLISH,
   ssoEnforced = DEFAULT_SSO_ENFORCED,
   onSavePolicy,
+  onExportAudit,
 }: {
   context: ContentOsContext | null;
   directSocialPublish?: boolean;
   ssoEnforced?: boolean;
   onSavePolicy?: (next: boolean) => Promise<void>;
+  onExportAudit?: () => Promise<string>;
 }) {
   const [toast, setToast] = useState('');
   const [enabled, setEnabled] = useState(directSocialPublish);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const approval = context?.flags.approval_required;
   const clientGate = context?.flags.client_gate;
 
@@ -46,7 +65,33 @@ export function CmktESettings({
           <p>Flag, cap, approval template và publish gate — admin only.</p>
         </div>
         <div className="cmkte-actions">
-          <button type="button" className="cmkte-btn" disabled>
+          <button
+            type="button"
+            className="cmkte-btn"
+            disabled={exporting}
+            onClick={() => {
+              void (async () => {
+                if (!onExportAudit) {
+                  setToast(AUDIT_EXPORT_ERROR_TOAST);
+                  return;
+                }
+                setExporting(true);
+                try {
+                  const csv = await onExportAudit();
+                  if (isAuditExportEmpty(csv)) {
+                    setToast(AUDIT_EXPORT_EMPTY_TOAST);
+                    return;
+                  }
+                  downloadAuditCsv(csv);
+                  setToast(SETTINGS_EXPORT_OK_TOAST);
+                } catch {
+                  setToast(AUDIT_EXPORT_ERROR_TOAST);
+                } finally {
+                  setExporting(false);
+                }
+              })();
+            }}
+          >
             Audit export
           </button>
           <button
@@ -106,6 +151,9 @@ export function CmktESettings({
         <div className="cmkte-checkrow">
           <span>Client gate</span>
           <b>{flagLabel(clientGate)}</b>
+        </div>
+        <div className="cmkte-checkrow">
+          <span>{AUDIT_RETENTION_COPY}</span>
         </div>
         {!context ? <p className="cmkte-empty">Chưa chọn lifecycle — flags hiển thị —.</p> : null}
       </div>

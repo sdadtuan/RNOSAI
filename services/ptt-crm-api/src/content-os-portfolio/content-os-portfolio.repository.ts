@@ -20,6 +20,11 @@ import {
 } from './copilot-insights.util';
 import { nextDisplaySeq } from './display-seq';
 import { formatContentItemCode, formatContentRequestCode } from './content-os-portfolio.util';
+import {
+  AUDIT_EXPORT_ACTION,
+  AUDIT_EXPORT_ENTITY,
+  type AuditExportRow,
+} from './audit-export.util';
 import { isMissingCmktSettingsSchema, type CmktSettingRow } from './direct-social-publish.util';
 
 function isOptionalAiRunJoinError(err: unknown): boolean {
@@ -416,6 +421,60 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     }
   }
 
+  async insertAuditExport(input: {
+    actor: string;
+    action?: string;
+    entity?: string;
+  }): Promise<AuditExportRow> {
+    const action = input.action || AUDIT_EXPORT_ACTION;
+    const entity = input.entity || AUDIT_EXPORT_ENTITY;
+    const res = await this.db.query(
+      `INSERT INTO cmkt_audit_exports (actor, action, entity)
+       VALUES ($1, $2, $3)
+       RETURNING actor, action, entity, created_at`,
+      [input.actor, action, entity],
+    );
+    return this.mapAuditExportRow(res.rows[0] as Record<string, unknown>);
+  }
+
+  async listAuditExports(): Promise<AuditExportRow[]> {
+    if (!(await this.ensurePgReady())) {
+      throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
+    }
+    const res = await this.db.query(
+      `SELECT actor, action, entity, created_at
+       FROM cmkt_audit_exports
+       ORDER BY created_at ASC, id ASC`,
+    );
+    return res.rows.map((row) => this.mapAuditExportRow(row as Record<string, unknown>));
+  }
+
+  async getItemLegalHold(
+    itemId: number,
+  ): Promise<{ id: number; lifecycle_id: number; legal_hold: boolean } | null> {
+    if (!(await this.ensurePgReady())) {
+      throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
+    }
+    const res = await this.db.query(
+      `SELECT id, lifecycle_id, COALESCE(legal_hold, FALSE) AS legal_hold
+       FROM cmkt_content_items
+       WHERE id = $1`,
+      [itemId],
+    );
+    const row = res.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      id: Number(row.id),
+      lifecycle_id: Number(row.lifecycle_id),
+      legal_hold: row.legal_hold === true,
+    };
+  }
+
+  async hardDeleteItem(itemId: number): Promise<boolean> {
+    const res = await this.db.query(`DELETE FROM cmkt_content_items WHERE id = $1`, [itemId]);
+    return (res.rowCount ?? 0) > 0;
+  }
+
   async upsertSetting(key: string, value: unknown, updatedBy: string): Promise<CmktSettingRow> {
     const res = await this.db.query(
       `INSERT INTO cmkt_settings (key, value_json, updated_at, updated_by)
@@ -527,6 +586,17 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
           : {},
       expires_at: row.expires_at != null ? String(row.expires_at) : null,
       created_at: String(row.created_at ?? ''),
+    };
+  }
+
+  private mapAuditExportRow(row: Record<string, unknown>): AuditExportRow {
+    const createdAt = row.created_at;
+    return {
+      actor: String(row.actor ?? ''),
+      action: String(row.action ?? AUDIT_EXPORT_ACTION),
+      entity: String(row.entity ?? AUDIT_EXPORT_ENTITY),
+      created_at:
+        createdAt instanceof Date ? createdAt.toISOString() : new Date(String(createdAt ?? '')).toISOString(),
     };
   }
 

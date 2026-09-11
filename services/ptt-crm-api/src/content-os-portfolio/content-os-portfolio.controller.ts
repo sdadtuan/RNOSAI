@@ -1,4 +1,19 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import {
   StaffContentMarketingApproveGuard,
@@ -84,6 +99,28 @@ export class ContentOsPortfolioController {
     return this.portfolio.listDamAssets({
       staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
       collection,
+    });
+  }
+
+  @Get('audit/export')
+  @UseGuards(StaffContentMarketingWriteGuard)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="cmkt-audit-export.csv"')
+  exportAuditCsv(@Req() req: Request) {
+    return this.portfolio.exportAuditCsv({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      actor: actorEmail(req),
+    });
+  }
+
+  @Delete('items/:itemId')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  hardDeleteItem(@Param('itemId', ParseIntPipe) itemId: number, @Req() req: Request) {
+    return this.portfolio.hardDeleteItem({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      itemId,
+      actor: actorEmail(req),
     });
   }
 

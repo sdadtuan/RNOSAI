@@ -371,6 +371,17 @@ export async function fetchDamAssets(token: string, collection?: string): Promis
   }
 }
 
+export async function fetchPortfolioAuditExport(token: string): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/audit/export`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+    throw new Error(err?.error ?? err?.message ?? 'audit_export_failed');
+  }
+  return res.text();
+}
+
 export async function fetchPortfolioSettings(token: string): Promise<PortfolioSettings> {
   const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/settings`, {
     headers: { Authorization: `Bearer ${token}` },

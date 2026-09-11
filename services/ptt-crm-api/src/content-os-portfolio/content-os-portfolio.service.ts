@@ -58,6 +58,13 @@ import {
   resolveDirectSocialPublish,
 } from './direct-social-publish.util';
 import { resolveSsoEnforced, type StaffIdpSnapshot } from './sso-enforced.util';
+import {
+  AUDIT_EXPORT_ACTION,
+  AUDIT_EXPORT_ENTITY,
+  formatAuditExportCsv,
+  isMissingAuditExportSchema,
+} from './audit-export.util';
+import { assertHardDeleteAllowed } from './legal-hold.util';
 
 type PortfolioSettings = {
   direct_social_publish: boolean;
@@ -351,6 +358,52 @@ export class ContentOsPortfolioService {
       await this.repo.upsertSetting(DIRECT_SOCIAL_PUBLISH_KEY, value, input.actor);
     }
     return portfolioSettings(value, this.staffIdpSnapshot());
+  }
+
+  async exportAuditCsv(input: { staffId: number; actor: string }): Promise<string> {
+    void input.staffId;
+    if (typeof this.repo.ensurePgReady === 'function' && !(await this.repo.ensurePgReady())) {
+      throw new ServiceUnavailableException({ error: 'postgres_not_ready' });
+    }
+    try {
+      if (typeof this.repo.insertAuditExport === 'function') {
+        await this.repo.insertAuditExport({
+          actor: input.actor,
+          action: AUDIT_EXPORT_ACTION,
+          entity: AUDIT_EXPORT_ENTITY,
+        });
+      }
+    } catch (err) {
+      if (!isMissingAuditExportSchema(err)) throw err;
+      return formatAuditExportCsv([]);
+    }
+    try {
+      const rows = typeof this.repo.listAuditExports === 'function' ? await this.repo.listAuditExports() : [];
+      return formatAuditExportCsv(rows ?? []);
+    } catch (err) {
+      if (!isMissingAuditExportSchema(err)) throw err;
+      return formatAuditExportCsv([]);
+    }
+  }
+
+  async hardDeleteItem(input: { staffId: number; itemId: number; actor: string }): Promise<{
+    ok: true;
+    id: number;
+  }> {
+    void input.actor;
+    const item =
+      typeof this.repo.getItemLegalHold === 'function'
+        ? await this.repo.getItemLegalHold(input.itemId)
+        : null;
+    assertHardDeleteAllowed(item);
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    if (!scoped.includes(item.lifecycle_id)) {
+      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
+    }
+    if (typeof this.repo.hardDeleteItem === 'function') {
+      await this.repo.hardDeleteItem(input.itemId);
+    }
+    return { ok: true, id: input.itemId };
   }
 
   async listRequests(scope: { staffId: number }): Promise<{ items: ContentRequestRow[] }> {

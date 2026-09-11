@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { AUDIT_RETENTION_COPY } from '@/lib/crm/cmkte-settings';
 import { CmktESettings } from './CmktESettings';
 
 describe('CmktESettings SSO flag', () => {
@@ -22,3 +23,13 @@ describe('CmktESettings SSO flag', () => {
     expect(html).toMatch(/name="sso_enforced"[^>]*checked|checked[^>]*name="sso_enforced"/i);
   });
 });
+
+describe('CmktESettings audit export + retention', () => {
+  it('enables Audit export and shows 7-year retention copy', () => {
+    const html = renderToStaticMarkup(createElement(CmktESettings, { context: null }));
+    expect(html).toMatch(/<button[^>]*>\s*Audit export\s*<\/button>/);
+    expect(html).not.toMatch(/<button[^>]*disabled[^>]*>\s*Audit export/);
+    expect(html).toContain(AUDIT_RETENTION_COPY);
+  });
+});
+
