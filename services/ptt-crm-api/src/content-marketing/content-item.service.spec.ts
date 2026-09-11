@@ -375,16 +375,15 @@ describe('ContentItemService publishItem gate', () => {
     expect(repo.nextPublicationRetryN).not.toHaveBeenCalled();
   });
 
-  it('rethrows the original HttpException after a failed durable log attempt', async () => {
+  it('propagates insertPublicationLog errors instead of swallowing them', async () => {
     repo.getItemById.mockResolvedValue(publishableItem());
     repo.listAssetRights.mockResolvedValue([{ asset_ref: 'https://cdn/blocked.jpg', status: 'Invalid' }]);
-    repo.insertPublicationLog.mockRejectedValue(
-      Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' }),
-    );
-
-    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toMatchObject({
-      response: { error: 'publish_gate_blocked' },
+    const insertError = Object.assign(new Error('duplicate key value violates unique constraint'), {
+      code: '23505',
     });
+    repo.insertPublicationLog.mockRejectedValue(insertError);
+
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toBe(insertError);
     expect(repo.insertPublicationLog).toHaveBeenCalled();
   });
 

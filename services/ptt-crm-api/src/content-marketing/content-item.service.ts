@@ -406,15 +406,11 @@ export class ContentItemService {
     fields: { error: string | null; http_status: number | null; post_id: string | null },
   ): Promise<void> {
     if (typeof this.repo.insertPublicationLog !== 'function') return;
-    try {
-      await this.repo.insertPublicationLog({
-        item_id: itemId,
-        error: fields.error,
-        post_id: fields.post_id,
-        http_status: fields.http_status,
-      });
-    } catch {
-      // Durable log was attempted; keep the original publish 4xx/5xx.
-    }
+    await this.repo.insertPublicationLog({
+      item_id: itemId,
+      error: fields.error,
+      post_id: fields.post_id,
+      http_status: fields.http_status,
+    });
   }
 }
