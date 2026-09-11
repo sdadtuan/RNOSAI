@@ -22,14 +22,38 @@ export type CopilotGlossarySource = {
   expires_at: string | null;
 };
 
+export type CopilotGlossaryScope = {
+  brand_id?: string | null;
+  locale?: string | null;
+};
+
+export function resolveGlossaryScope(
+  source: Record<string, unknown> | null | undefined,
+): CopilotGlossaryScope {
+  const brief =
+    source?.brief_json && typeof source.brief_json === 'object' && !Array.isArray(source.brief_json)
+      ? (source.brief_json as Record<string, unknown>)
+      : {};
+  return {
+    brand_id: String(source?.brand_id ?? brief.brand_id ?? '').trim(),
+    locale: String(source?.locale ?? brief.locale ?? '').trim(),
+  };
+}
+
 export function selectCopilotGlossary(
   rows: CmktGlossaryRow[],
   now = new Date(),
+  scope?: CopilotGlossaryScope | null,
 ): CopilotGlossarySource[] {
+  const brandId = String(scope?.brand_id ?? '').trim();
+  const locale = String(scope?.locale ?? '').trim();
+  if (!brandId || !locale) return [];
   const nowMs = now.getTime();
   return rows
     .filter((row) => {
       if (row.status !== 'Approved') return false;
+      if (String(row.brand_id ?? '').trim() !== brandId) return false;
+      if (String(row.locale ?? '').trim() !== locale) return false;
       if (row.expires_at == null || row.expires_at === '') return true;
       const expiresMs = Date.parse(row.expires_at);
       return Number.isFinite(expiresMs) && expiresMs > nowMs;

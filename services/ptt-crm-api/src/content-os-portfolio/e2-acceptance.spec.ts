@@ -91,7 +91,7 @@ describe('E2 control room acceptance', () => {
       term: 'đăng ký nhận tư vấn',
       status: 'Approved',
     };
-    const sources = selectCopilotGlossary([draft, approved], now);
+    const sources = selectCopilotGlossary([draft, approved], now, { brand_id: 'brand-4', locale: 'vi' });
     expect(sources.map((row) => row.id)).toEqual([2]);
     const section = formatCopilotGlossaryPromptSection(sources);
     expect(section).toContain('Approved glossary (copilot whitelist)');

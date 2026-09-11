@@ -8,7 +8,7 @@ import {
   sanitizeBrandContextForPrompt,
 } from './content-pii-consent.util';
 import { selectCopilotSources } from '../content-os-portfolio/copilot-insights.util';
-import { selectCopilotGlossary } from '../content-os-portfolio/copilot-glossary.util';
+import { resolveGlossaryScope, selectCopilotGlossary } from '../content-os-portfolio/copilot-glossary.util';
 import { ContentMarketingRepository } from './content-marketing.repository';
 
 @Injectable()
@@ -53,7 +53,7 @@ export class ContentBrandContextService {
       typeof this.repo.listGlossaryForLifecycle === 'function'
         ? await this.repo.listGlossaryForLifecycle(lifecycleId).catch(() => [])
         : [];
-    const copilotGlossary = selectCopilotGlossary(glossary);
+    const copilotGlossary = selectCopilotGlossary(glossary, new Date(), resolveGlossaryScope(sanitized));
     return { ...sanitized, pii_consent: piiConsent, copilotSources, copilotGlossary };
   }
 }

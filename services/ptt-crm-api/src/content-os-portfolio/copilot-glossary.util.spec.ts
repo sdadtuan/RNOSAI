@@ -22,11 +22,13 @@ function glossary(
 
 describe('selectCopilotGlossary', () => {
   const now = new Date('2026-09-11T03:00:00.000Z');
+  const scope = { brand_id: 'brand-4', locale: 'vi' };
 
   it('does not include a Draft glossary term in copilotGlossary', () => {
     const sources = selectCopilotGlossary(
       [glossary({ id: 1, status: 'Draft', term: 'draft-secret' })],
       now,
+      scope,
     );
     expect(sources.map((row) => row.id)).not.toContain(1);
     expect(sources).toEqual([]);
@@ -45,6 +47,7 @@ describe('selectCopilotGlossary', () => {
         }),
       ],
       now,
+      scope,
     );
     expect(sources).toEqual([
       {
@@ -59,7 +62,11 @@ describe('selectCopilotGlossary', () => {
   });
 
   it('includes Approved glossary with null expires_at', () => {
-    const sources = selectCopilotGlossary([glossary({ id: 3, status: 'Approved', expires_at: null })], now);
+    const sources = selectCopilotGlossary(
+      [glossary({ id: 3, status: 'Approved', expires_at: null })],
+      now,
+      scope,
+    );
     expect(sources.map((row) => row.id)).toEqual([3]);
   });
 
@@ -67,6 +74,7 @@ describe('selectCopilotGlossary', () => {
     const sources = selectCopilotGlossary(
       [glossary({ id: 4, status: 'Approved', expires_at: '2026-09-10T23:59:59.000Z' })],
       now,
+      scope,
     );
     expect(sources.map((row) => row.id)).not.toContain(4);
     expect(sources).toEqual([]);
@@ -79,8 +87,40 @@ describe('selectCopilotGlossary', () => {
         glossary({ id: 6, status: 'Approved', term: 'keep' }),
       ],
       now,
+      scope,
     );
     expect(sources.map((row) => row.id)).toEqual([6]);
+  });
+
+  it('does not mix another brand or locale when both are known', () => {
+    const sources = selectCopilotGlossary(
+      [
+        glossary({ id: 7, status: 'Approved', term: 'keep-vi', brand_id: 'brand-4', locale: 'vi' }),
+        glossary({ id: 8, status: 'Approved', term: 'other-brand', brand_id: 'brand-9', locale: 'vi' }),
+        glossary({ id: 9, status: 'Approved', term: 'other-locale', brand_id: 'brand-4', locale: 'en' }),
+      ],
+      now,
+      { brand_id: 'brand-4', locale: 'vi' },
+    );
+    expect(sources.map((row) => row.term)).toEqual(['keep-vi']);
+  });
+
+  it('returns no terms when brand_id is missing on the item (fail closed)', () => {
+    const sources = selectCopilotGlossary(
+      [glossary({ id: 10, status: 'Approved', term: 'dump-all-brands' })],
+      now,
+      { locale: 'vi' },
+    );
+    expect(sources).toEqual([]);
+  });
+
+  it('returns no terms when locale is missing on the item (fail closed)', () => {
+    const sources = selectCopilotGlossary(
+      [glossary({ id: 11, status: 'Approved', term: 'dump-all-locales' })],
+      now,
+      { brand_id: 'brand-4' },
+    );
+    expect(sources).toEqual([]);
   });
 });
 

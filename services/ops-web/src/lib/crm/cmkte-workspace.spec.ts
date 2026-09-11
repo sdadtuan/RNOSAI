@@ -266,4 +266,24 @@ describe('glossary highlight FR-COPY-012', () => {
       { text: ' hôm nay', hit: false },
     ]);
   });
+
+  it('does not invent another brand or locale hit on the client', () => {
+    expect(
+      itemGlossaryHits(
+        item({
+          brief_json: { brand_id: 'brand-4', locale: 'vi' },
+          body_json: { markdown: 'CTA: đăng ký nhận tư vấn other-brand' },
+          glossary_hits: ['đăng ký nhận tư vấn'],
+        }),
+      ),
+    ).toEqual(['đăng ký nhận tư vấn']);
+    expect(
+      itemGlossaryHits(
+        item({
+          brief_json: {},
+          body_json: { markdown: 'CTA: đăng ký nhận tư vấn' },
+        }),
+      ),
+    ).toEqual([]);
+  });
 });

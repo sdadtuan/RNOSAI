@@ -129,6 +129,7 @@ export function buildVariantsUserPrompt(
     `Goal: ${input.goal || item.funnel_goal || 'engagement'}`,
     `Generate exactly ${count} distinct hook/headline variants (Vietnamese).`,
     item.body_json?.markdown ? `Current body excerpt: ${String(item.body_json.markdown).slice(0, 280)}` : '',
+    formatCopilotGlossaryPromptSection(copilotGlossaryFromContext(brandContext)),
   ]
     .filter(Boolean)
     .join('\n');
@@ -265,6 +266,7 @@ export function buildRepurposeUserPrompt(
     `Target: ${target.channel} / ${target.format}`,
     `Derived title: ${target.title}`,
     optimizeHooks ? 'Optimize hook/opening for the target channel.' : '',
+    formatCopilotGlossaryPromptSection(copilotGlossaryFromContext(brandContext)),
     'Source markdown:',
     excerpt,
   ]
@@ -309,6 +311,7 @@ export function buildIdeasBulkSystemPrompt(): string {
 export function buildIdeasBulkUserPrompt(
   brand: { brand_name: string; audience: string; pillars: Array<{ name: string; goal: string }> },
   input: { idea_count?: number; month_label?: string },
+  brandContext: Record<string, unknown> = {},
 ): string {
   const count = Math.min(Math.max(Number(input.idea_count ?? 30), 10), 40);
   const pillars = brand.pillars.map((p) => `${p.name}: ${p.goal}`).join('; ') || 'General brand';
@@ -318,7 +321,10 @@ export function buildIdeasBulkUserPrompt(
     `Pillars: ${pillars}`,
     `Month: ${input.month_label ?? 'next month'}`,
     `Generate exactly ${count} distinct ideas.`,
-  ].join('\n');
+    formatCopilotGlossaryPromptSection(copilotGlossaryFromContext(brandContext)),
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 export function buildIdeasBulkStub(

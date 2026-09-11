@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS cmkt_glossary (
     )
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_cmkt_glossary_term_locale_brand
+    ON cmkt_glossary (term, locale, brand_id);
+
 CREATE INDEX IF NOT EXISTS idx_cmkt_glossary_brand_locale
     ON cmkt_glossary (brand_id, locale);
 

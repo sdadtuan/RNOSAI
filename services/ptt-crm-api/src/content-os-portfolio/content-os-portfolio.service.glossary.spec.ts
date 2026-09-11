@@ -120,6 +120,7 @@ describe('ContentOsPortfolioService.getPortfolioItem glossary_hits', () => {
     const item = {
       id: 21,
       lifecycle_id: 4,
+      brief_json: { brand_id: 'brand-4', locale: 'vi' },
       body_json: { markdown: 'CTA: đăng ký nhận tư vấn ngay.' },
     };
     const repo = {
@@ -143,6 +144,48 @@ describe('ContentOsPortfolioService.getPortfolioItem glossary_hits', () => {
     const repo = {
       listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
       listGlossaryForLifecycle: jest.fn().mockResolvedValue([]),
+    };
+    const items = { getItem: jest.fn().mockResolvedValue(item) };
+    const svc = makeSvc(repo, items);
+    const out = await svc.getPortfolioItem({ staffId: 9, itemId: 21, lifecycleHint: 4 });
+    expect(out.glossary_hits ?? []).toEqual([]);
+  });
+
+  it('does not highlight another brand or locale when the item has both', async () => {
+    const item = {
+      id: 21,
+      lifecycle_id: 4,
+      brief_json: { brand_id: 'brand-4', locale: 'vi' },
+      body_json: { markdown: 'CTA: đăng ký nhận tư vấn other-brand other-locale' },
+    };
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listGlossaryForLifecycle: jest.fn().mockResolvedValue([
+        glossary({ id: 2, status: 'Approved', term: 'đăng ký nhận tư vấn', brand_id: 'brand-4', locale: 'vi' }),
+        glossary({ id: 8, status: 'Approved', term: 'other-brand', brand_id: 'brand-9', locale: 'vi' }),
+        glossary({ id: 9, status: 'Approved', term: 'other-locale', brand_id: 'brand-4', locale: 'en' }),
+      ]),
+    };
+    const items = { getItem: jest.fn().mockResolvedValue(item) };
+    const svc = makeSvc(repo, items);
+    const out = await svc.getPortfolioItem({ staffId: 9, itemId: 21, lifecycleHint: 4 });
+    expect(out.glossary_hits).toEqual(['đăng ký nhận tư vấn']);
+    expect(out.glossary_hits).not.toContain('other-brand');
+    expect(out.glossary_hits).not.toContain('other-locale');
+  });
+
+  it('leaves glossary_hits empty when the item is missing brand_id or locale', async () => {
+    const item = {
+      id: 21,
+      lifecycle_id: 4,
+      brief_json: {},
+      body_json: { markdown: 'CTA: đăng ký nhận tư vấn ngay.' },
+    };
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      listGlossaryForLifecycle: jest.fn().mockResolvedValue([
+        glossary({ id: 2, status: 'Approved', term: 'đăng ký nhận tư vấn' }),
+      ]),
     };
     const items = { getItem: jest.fn().mockResolvedValue(item) };
     const svc = makeSvc(repo, items);

@@ -738,13 +738,17 @@ export class ContentJobWorkerService implements OnModuleInit, OnModuleDestroy {
         pillars: pillars.map((p) => ({ name: p.name, goal: p.goal })),
       };
       const systemPrompt = buildIdeasBulkSystemPrompt();
-      const userPrompt = buildIdeasBulkUserPrompt(brand, {
-        idea_count: ideaCount,
-        month_label:
-          claimed.input_json?.month_label != null
-            ? String(claimed.input_json.month_label)
-            : undefined,
-      });
+      const userPrompt = buildIdeasBulkUserPrompt(
+        brand,
+        {
+          idea_count: ideaCount,
+          month_label:
+            claimed.input_json?.month_label != null
+              ? String(claimed.input_json.month_label)
+              : undefined,
+        },
+        brandCtx,
+      );
       const stubJson = () => buildIdeasBulkStub(brand, { idea_count: ideaCount });
       const promptHash = hashPrompt(systemPrompt, userPrompt);
 
