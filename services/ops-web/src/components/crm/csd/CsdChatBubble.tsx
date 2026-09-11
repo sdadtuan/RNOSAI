@@ -3,12 +3,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  downloadCsdFile,
   previewCsdFileObjectUrl,
   type CsdAttachmentRow,
   type CsdChatEmotionId,
   type CsdMessageRow,
 } from '@/lib/crm/csd-api';
+import { openCsdChatFile } from '@/lib/crm/csd-chat-file-local';
+import { CsdChatFileCard } from '@/components/crm/csd/CsdChatFileCard';
 import { CSD_CHAT_EMOTIONS, isCsdChatEmotionMessage, summarizeChatReactions } from '@/lib/crm/csd-chat-emotions';
 import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 import {
@@ -78,7 +79,7 @@ function CsdChatImageThumb({
     <button
       type="button"
       className="csd-chat-thumb-btn"
-      onClick={() => void downloadCsdFile(token, file.id, file.file_name)}
+      onClick={() => void openCsdChatFile(token, file)}
     >
       <img className="csd-chat-thumb" src={src} alt={file.file_name} data-testid="csd-chat-image" />
     </button>
@@ -299,13 +300,7 @@ export function CsdChatBubble({
                     {isCsdChatImageMime(file.mime_type) ? (
                       <CsdChatImageThumb token={token} file={file} />
                     ) : (
-                      <button
-                        type="button"
-                        className="csd-chat-file-chip"
-                        onClick={() => void downloadCsdFile(token, file.id, file.file_name)}
-                      >
-                        {file.file_name}
-                      </button>
+                      <CsdChatFileCard token={token} file={file} />
                     )}
                   </li>
                 ))}

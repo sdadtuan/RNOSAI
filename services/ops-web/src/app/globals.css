@@ -16640,6 +16640,126 @@ body {
   cursor: pointer;
 }
 
+.csd-chat-file-card {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  max-width: min(100%, 420px);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.csd-chat-file-card.is-local {
+  border-color: #bbf7d0;
+}
+
+.csd-chat-file-card__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.csd-chat-file-card__main:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.csd-chat-file-card__icon {
+  flex: 0 0 auto;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: #64748b;
+}
+
+.csd-chat-file-card__icon.is-pdf { background: #dc2626; }
+.csd-chat-file-card__icon.is-doc { background: #2563eb; }
+.csd-chat-file-card__icon.is-xls { background: #16a34a; }
+.csd-chat-file-card__icon.is-ppt { background: #ea580c; }
+.csd-chat-file-card__icon.is-zip { background: #7c3aed; }
+
+.csd-chat-file-card__meta {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.csd-chat-file-card__name {
+  display: block;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.csd-chat-file-card__sub {
+  display: block;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.csd-chat-file-card.is-local .csd-chat-file-card__sub {
+  color: #15803d;
+}
+
+.csd-chat-file-card__actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.35rem 0.45rem 0.35rem 0;
+}
+
+.csd-chat-file-card__action {
+  border: 0;
+  background: #f8fafc;
+  color: #475569;
+  border-radius: 8px;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.csd-chat-file-card__action:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.csd-chat-file-card__action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.csd-chat-file-card__error {
+  margin: 0;
+  padding: 0 0.65rem 0.45rem;
+  font-size: 0.75rem;
+  color: #b91c1c;
+}
+
+.csd-chat-files > li {
+  width: 100%;
+}
+
 .csd-chat-deleted {
   font-style: italic;
   color: #64748b;

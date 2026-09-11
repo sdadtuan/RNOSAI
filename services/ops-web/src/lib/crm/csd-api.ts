@@ -533,7 +533,7 @@ export async function uploadCsdConversationFile(
   });
 }
 
-export async function previewCsdFileObjectUrl(token: string, fileId: string): Promise<string> {
+export async function fetchCsdFileBlob(token: string, fileId: string): Promise<Blob> {
   const res = await fetch(`${API_BASE}/api/crm/csd/files/${fileId}`, {
     headers: authHeaders(token),
     cache: 'no-store',
@@ -542,11 +542,16 @@ export async function previewCsdFileObjectUrl(token: string, fileId: string): Pr
     const body = await parseJson<{ error?: string; message?: string }>(res);
     throw new ApiError(body.error ?? body.message ?? 'Tải file thất bại', res.status);
   }
-  return URL.createObjectURL(await res.blob());
+  return res.blob();
+}
+
+export async function previewCsdFileObjectUrl(token: string, fileId: string): Promise<string> {
+  return URL.createObjectURL(await fetchCsdFileBlob(token, fileId));
 }
 
 export async function downloadCsdFile(token: string, fileId: string, fileName: string): Promise<void> {
-  const url = await previewCsdFileObjectUrl(token, fileId);
+  const blob = await fetchCsdFileBlob(token, fileId);
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = fileName;
