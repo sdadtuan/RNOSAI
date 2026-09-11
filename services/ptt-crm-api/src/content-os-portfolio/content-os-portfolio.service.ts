@@ -38,6 +38,8 @@ import {
   parseDelegateUntil,
 } from './batch-approval.util';
 import { ContentWorkflowService } from '../content-marketing/content-workflow.service';
+import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import type { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { ContentOsPortfolioRepository } from './content-os-portfolio.repository';
 import {
   ASSET_RIGHT_STATUSES,
@@ -96,6 +98,7 @@ import {
   isMissingAuditActivitySchema,
 } from './audit-export.util';
 import { assertHardDeleteOutcome } from './legal-hold.util';
+import { assertCanReleaseHold, parseLegalHoldPatch } from './legal-hold-toggle.util';
 import { parsePageAllowlist } from './fb-page-allowlist.util';
 import { createOauthState } from './oauth-state.util';
 import { buildFacebookAuthUrl, exchangeFacebookCode } from './facebook-oauth.util';
@@ -200,6 +203,7 @@ export class ContentOsPortfolioService {
     private readonly marketingRepo: ContentMarketingRepository,
     private readonly items: ContentItemService,
     @Optional() private readonly config?: AppConfigService,
+    @Optional() private readonly staffAuth?: StaffAuthService,
   ) {}
 
   private staffIdpSnapshot(): StaffIdpSnapshot {
@@ -683,6 +687,66 @@ export class ContentOsPortfolioService {
           })
         : 'missing';
     return assertHardDeleteOutcome(outcome, input.itemId);
+  }
+
+  async patchLegalHold(input: {
+    staffId: number;
+    itemId: number;
+    actor: string;
+    body: Record<string, unknown>;
+    staffUser?: StaffJwtPayload;
+    staffAuthVia?: 'internal' | 'jwt';
+  }): Promise<{ id: number; legal_hold: boolean; legal_hold_set_by: string | null }> {
+    const parsed = parseLegalHoldPatch(input.body);
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    const found =
+      typeof this.marketingRepo.findItemById === 'function'
+        ? await this.marketingRepo.findItemById(input.itemId)
+        : null;
+    if (!found || !scoped.includes(found.lifecycle_id)) {
+      throw new NotFoundException({ error: 'item_not_found', id: input.itemId });
+    }
+    if (!parsed.legal_hold) {
+      const current =
+        typeof this.repo.getItemLegalHold === 'function'
+          ? await this.repo.getItemLegalHold(input.itemId)
+          : null;
+      let canAdmin = input.staffAuthVia === 'internal';
+      let canQa = input.staffAuthVia === 'internal';
+      if (!canAdmin && this.staffAuth && input.staffUser) {
+        const me = await this.staffAuth.me(input.staffUser);
+        canAdmin = this.staffAuth.isSuperAdminPosition(me.position_code);
+        canQa = this.staffAuth.hasCap(me.caps, 'crm_content', 'qa');
+      }
+      assertCanReleaseHold({
+        sodEnabled: isCmktSodEnabled(),
+        actor: input.actor,
+        setBy: current?.legal_hold_set_by ?? null,
+        canAdmin,
+        canQa,
+      });
+    }
+    const updated =
+      typeof this.repo.updateLegalHold === 'function'
+        ? await this.repo.updateLegalHold({
+            itemId: input.itemId,
+            legal_hold: parsed.legal_hold,
+            setBy: parsed.legal_hold ? input.actor : null,
+            reason: parsed.reason,
+            lifecycleIds: scoped,
+          })
+        : null;
+    if (!updated) {
+      throw new NotFoundException({ error: 'item_not_found', id: input.itemId });
+    }
+    if (typeof this.repo.insertAuditExport === 'function') {
+      await this.repo.insertAuditExport({
+        actor: input.actor,
+        action: 'legal_hold',
+        entity: `item:${input.itemId}:${parsed.legal_hold ? 'on' : 'off'}`,
+      });
+    }
+    return updated;
   }
 
   async listRequests(scope: { staffId: number }): Promise<{ items: ContentRequestRow[] }> {

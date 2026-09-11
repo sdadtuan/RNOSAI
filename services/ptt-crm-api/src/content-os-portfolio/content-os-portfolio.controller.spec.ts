@@ -99,6 +99,28 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual(item);
   });
 
+  it('PATCH items/:itemId/legal-hold delegates to patchLegalHold without a writer DELETE', async () => {
+    const held = { id: 21, legal_hold: true, legal_hold_set_by: 'w@ptt.vn' };
+    const service = { patchLegalHold: jest.fn().mockResolvedValue(held) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.patchLegalHold(
+      21,
+      { legal_hold: true, reason: 'tranh chấp hợp đồng Q4' },
+      { staffUser: { sub: '7', email: 'w@ptt.vn' }, staffAuthVia: 'jwt' } as never,
+    );
+    expect(service.patchLegalHold).toHaveBeenCalledWith({
+      staffId: 7,
+      itemId: 21,
+      actor: 'w@ptt.vn',
+      body: { legal_hold: true, reason: 'tranh chấp hợp đồng Q4' },
+      staffUser: { sub: '7', email: 'w@ptt.vn' },
+      staffAuthVia: 'jwt',
+    });
+    expect(out).toEqual(held);
+    expect(c).not.toHaveProperty('deleteItem');
+    expect(c).not.toHaveProperty('hardDeleteItem');
+  });
+
   it('GET sla-events delegates to listSlaEvents with staffId and optional filters', async () => {
     const service = { listSlaEvents: jest.fn().mockResolvedValue({ items: [] }) };
     const c = new ContentOsPortfolioController(service as never);

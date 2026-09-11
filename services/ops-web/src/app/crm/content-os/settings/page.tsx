@@ -10,6 +10,7 @@ import {
   fetchChannelAccounts,
   fetchPortfolioAuditExport,
   fetchPortfolioSettings,
+  patchPortfolioLegalHold,
   patchPortfolioSettings,
   postConnectorDisconnect,
   type ChannelAccountPublic,
@@ -28,6 +29,7 @@ export default function CrmContentOsSettingsPage() {
 function CrmContentOsSettingsContent() {
   const searchParams = useSearchParams();
   const lifecycleId = parseLifecycleQuery(searchParams.get('lifecycle'));
+  const holdItemId = Number(searchParams.get('item') ?? '');
   const { user, error, setError, ensureAuth, router } = useCmktEPageAuth();
   const [context, setContext] = useState<ContentOsContext | null>(null);
   const [token, setToken] = useState('');
@@ -90,6 +92,7 @@ function CrmContentOsSettingsContent() {
           directSocialPublish={directSocialPublish}
           ssoEnforced={ssoEnforced}
           accounts={accounts}
+          holdItemId={Number.isInteger(holdItemId) && holdItemId > 0 ? holdItemId : undefined}
           onSavePolicy={
             token
               ? async (next) => {
@@ -107,6 +110,13 @@ function CrmContentOsSettingsContent() {
                   await postConnectorDisconnect(token, id);
                   const listed = await fetchChannelAccounts(token);
                   setAccounts(listed.items);
+                }
+              : undefined
+          }
+          onApplyHold={
+            token
+              ? async ({ itemId, reason }) => {
+                  await patchPortfolioLegalHold(token, itemId, { legal_hold: true, reason });
                 }
               : undefined
           }

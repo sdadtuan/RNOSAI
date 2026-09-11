@@ -191,6 +191,24 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Patch('items/:itemId/legal-hold')
+  @UseGuards(StaffContentMarketingWriteGuard)
+  patchLegalHold(
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    const staffReq = req as Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
+    return this.portfolio.patchLegalHold({
+      staffId: Number(staffReq.staffUser?.sub ?? 0),
+      itemId,
+      actor: actorEmail(staffReq),
+      body: body ?? {},
+      staffUser: staffReq.staffUser,
+      staffAuthVia: staffReq.staffAuthVia,
+    });
+  }
+
   @Get('items/:itemId')
   getPortfolioItem(
     @Param('itemId', ParseIntPipe) itemId: number,

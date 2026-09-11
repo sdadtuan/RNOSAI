@@ -38,6 +38,11 @@ import { deliverableFormatChannel } from './cmkte-deliverables';
 export const EXECUTE_FAIL_TOAST = 'Không đăng được — xem Publication log';
 export const CONFIRM_CHECKBOX_COPY = 'Tôi xác nhận đăng với tư cách Page này. AI không được xác nhận.';
 
+export function CmktELegalHoldBadge({ legalHold }: { legalHold?: unknown }) {
+  if (legalHold !== true) return null;
+  return <span className="cmkte-status-pill">LEGAL HOLD</span>;
+}
+
 export type PublicationEvidence = {
   post_id?: string | null;
   permalink?: string | null;
@@ -347,7 +352,8 @@ export function CmktEWorkspace({
       <div className="cmkte-head">
         <div>
           <h1>
-            Content Production Workspace <span className="cmkte-status-pill">{item.status}</span>
+            Content Production Workspace <span className="cmkte-status-pill">{item.status}</span>{' '}
+            <CmktELegalHoldBadge legalHold={item.legal_hold} />
           </h1>
           <p>
             {item.title || '—'} · item {item.id}

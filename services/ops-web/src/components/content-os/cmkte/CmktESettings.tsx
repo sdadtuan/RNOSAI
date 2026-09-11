@@ -51,22 +51,29 @@ export function CmktESettings({
   directSocialPublish = DEFAULT_DIRECT_SOCIAL_PUBLISH,
   ssoEnforced = DEFAULT_SSO_ENFORCED,
   accounts = [],
+  holdItemId,
   onSavePolicy,
   onExportAudit,
   onDisconnect,
+  onApplyHold,
 }: {
   context: ContentOsContext | null;
   directSocialPublish?: boolean;
   ssoEnforced?: boolean;
   accounts?: ChannelAccountPublic[];
+  holdItemId?: number;
   onSavePolicy?: (next: boolean) => Promise<void>;
   onExportAudit?: () => Promise<string>;
   onDisconnect?: (id: number) => Promise<void>;
+  onApplyHold?: (input: { itemId: number; reason: string }) => Promise<void>;
 }) {
   const [toast, setToast] = useState('');
   const [enabled, setEnabled] = useState(directSocialPublish);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [holdReason, setHoldReason] = useState('');
+  const [holdItem, setHoldItem] = useState(holdItemId && holdItemId > 0 ? String(holdItemId) : '');
+  const [holding, setHolding] = useState(false);
   const approval = context?.flags.approval_required;
   const clientGate = context?.flags.client_gate;
   const facebookPage = accounts.find((row) => row.channel === 'facebook_page') ?? accounts[0];
@@ -76,6 +83,10 @@ export function CmktESettings({
   useEffect(() => {
     setEnabled(directSocialPublish);
   }, [directSocialPublish]);
+
+  useEffect(() => {
+    if (holdItemId && holdItemId > 0) setHoldItem(String(holdItemId));
+  }, [holdItemId]);
 
   return (
     <div className="cmkte-reqpage">
@@ -207,6 +218,46 @@ export function CmktESettings({
           </button>
         </div>
         {!context ? <p className="cmkte-empty">Chưa chọn lifecycle — flags hiển thị —.</p> : null}
+      </div>
+
+      <div className="cmkte-card">
+        <h3>Retention & legal hold</h3>
+        <p className="cmkte-desc">Legal hold chặn xóa cứng — writer không có nút xóa item.</p>
+        <label className="cmkte-field">
+          <span>Item ID</span>
+          <input
+            value={holdItem}
+            onChange={(event) => setHoldItem(event.target.value)}
+            inputMode="numeric"
+          />
+        </label>
+        <label className="cmkte-field">
+          <span>Lý do hold</span>
+          <input
+            id="hold-reason"
+            name="hold-reason"
+            value={holdReason}
+            onChange={(event) => setHoldReason(event.target.value)}
+            placeholder="Ví dụ: tranh chấp hợp đồng Q4"
+          />
+        </label>
+        <div className="cmkte-actions">
+          <button
+            type="button"
+            className="cmkte-btn"
+            disabled={holding}
+            onClick={() => {
+              const itemId = Number(holdItem);
+              if (!(itemId > 0) || !onApplyHold) return;
+              setHolding(true);
+              void onApplyHold({ itemId, reason: holdReason })
+                .catch(() => undefined)
+                .finally(() => setHolding(false));
+            }}
+          >
+            Áp dụng hold
+          </button>
+        </div>
       </div>
 
       {toast ? (

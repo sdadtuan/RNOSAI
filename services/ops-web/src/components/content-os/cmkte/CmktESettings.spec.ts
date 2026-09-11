@@ -128,6 +128,19 @@ describe('CmktESettings Connect Page', () => {
   });
 });
 
+describe('CmktESettings legal hold', () => {
+  it('shows reason input and Áp dụng hold without a writer delete control', () => {
+    const html = renderToStaticMarkup(
+      createElement(CmktESettings, { context: null, holdItemId: 21 }),
+    );
+    expect(html).toContain('Áp dụng hold');
+    expect(html).toMatch(/Lý do hold/i);
+    expect(html).toMatch(/<input[^>]*(name|id)="hold-reason"/);
+    expect(html).not.toMatch(/>\s*DELETE\s*</i);
+    expect(html).not.toMatch(/>\s*Xóa\s*</);
+  });
+});
+
 describe('CmktESettings direct social publish label', () => {
   it('labels the switch from the current enabled state', () => {
     const off = renderToStaticMarkup(

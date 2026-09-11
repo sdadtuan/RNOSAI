@@ -4,6 +4,7 @@ import {
   approvePortfolioGlossary,
   approvePortfolioInsight,
   convertPortfolioRequest,
+  patchPortfolioLegalHold,
   fetchCommandCenter,
   fetchPortfolioApprovals,
   fetchPortfolioGlossary,
@@ -895,6 +896,28 @@ describe('postPublicationExecute', () => {
         client_request_id: 'r1',
       }),
     ).rejects.toMatchObject({ message: 'missing_cap', status: 403 });
+  });
+});
+
+describe('patchPortfolioLegalHold', () => {
+  it('PATCHes items/:itemId/legal-hold with reason and no DELETE', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 21, legal_hold: true, legal_hold_set_by: 'w@ptt.vn' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(
+      patchPortfolioLegalHold('tok-9', 21, { legal_hold: true, reason: 'tranh chấp hợp đồng Q4' }),
+    ).resolves.toEqual({ id: 21, legal_hold: true, legal_hold_set_by: 'w@ptt.vn' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/api/crm/content-os/portfolio/items/21/legal-hold`,
+      expect.objectContaining({
+        method: 'PATCH',
+        headers: expect.objectContaining({ Authorization: 'Bearer tok-9' }),
+        body: JSON.stringify({ legal_hold: true, reason: 'tranh chấp hợp đồng Q4' }),
+      }),
+    );
+    expect(String(fetchMock.mock.calls[0][0])).not.toMatch(/DELETE/i);
   });
 });
 

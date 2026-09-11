@@ -511,6 +511,26 @@ export async function fetchPortfolioSettings(token: string): Promise<PortfolioSe
   };
 }
 
+export async function patchPortfolioLegalHold(
+  token: string,
+  itemId: number,
+  body: { legal_hold: boolean; reason: string },
+): Promise<{ id: number; legal_hold: boolean; legal_hold_set_by: string | null }> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/items/${itemId}/legal-hold`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ legal_hold: body.legal_hold === true, reason: String(body.reason ?? '') }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(err?.error ?? 'legal_hold_patch_failed');
+  }
+  return res.json();
+}
+
 export async function patchPortfolioSettings(
   token: string,
   body: { direct_social_publish: boolean },

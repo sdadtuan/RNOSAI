@@ -667,6 +667,52 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     return 'missing';
   }
 
+  async getItemLegalHold(itemId: number): Promise<{
+    id: number;
+    legal_hold: boolean;
+    legal_hold_set_by: string | null;
+  } | null> {
+    const res = await this.db.query(
+      `SELECT id, legal_hold, legal_hold_set_by
+         FROM cmkt_content_items
+        WHERE id = $1`,
+      [itemId],
+    );
+    const row = res.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      id: Number(row.id),
+      legal_hold: row.legal_hold === true,
+      legal_hold_set_by: row.legal_hold_set_by != null ? String(row.legal_hold_set_by) : null,
+    };
+  }
+
+  async updateLegalHold(input: {
+    itemId: number;
+    legal_hold: boolean;
+    setBy: string | null;
+    reason: string;
+    lifecycleIds: number[];
+  }): Promise<{ id: number; legal_hold: boolean; legal_hold_set_by: string | null } | null> {
+    void input.reason;
+    const res = await this.db.query(
+      `UPDATE cmkt_content_items
+          SET legal_hold = $2,
+              legal_hold_set_by = $3
+        WHERE id = $1
+          AND lifecycle_id = ANY($4::int[])
+        RETURNING id, legal_hold, legal_hold_set_by`,
+      [input.itemId, input.legal_hold, input.setBy, input.lifecycleIds],
+    );
+    const row = res.rows[0] as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      id: Number(row.id),
+      legal_hold: row.legal_hold === true,
+      legal_hold_set_by: row.legal_hold_set_by != null ? String(row.legal_hold_set_by) : null,
+    };
+  }
+
   async upsertSetting(key: string, value: unknown, updatedBy: string): Promise<CmktSettingRow> {
     const res = await this.db.query(
       `INSERT INTO cmkt_settings (key, value_json, updated_at, updated_by)
