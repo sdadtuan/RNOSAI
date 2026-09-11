@@ -94,14 +94,18 @@ function taskGraph(tasks: CmktETask[] | null | undefined) {
     succs.set(id, []);
     indeg.set(id, 0);
   }
-  const seenEdge = new Set<string>();
+  const seenEdge = new Map<string, Set<string>>();
   for (const id of ids) {
     for (const dep of meta.get(id)!.row.depends_on ?? []) {
       const from = String(dep);
       if (!meta.has(from)) continue;
-      const key = `${from}->${id}`;
-      if (seenEdge.has(key)) continue;
-      seenEdge.add(key);
+      let tos = seenEdge.get(from);
+      if (!tos) {
+        tos = new Set<string>();
+        seenEdge.set(from, tos);
+      }
+      if (tos.has(id)) continue;
+      tos.add(id);
       succs.get(from)!.push(id);
       indeg.set(id, indeg.get(id)! + 1);
     }

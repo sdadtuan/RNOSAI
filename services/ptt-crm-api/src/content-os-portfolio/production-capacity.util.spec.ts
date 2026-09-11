@@ -3,6 +3,7 @@ import {
   computeCapacity,
   criticalPathTaskIds,
   hasDelayedCriticalTask,
+  hasDependsOnCycle,
   type CmktETask,
 } from './production-capacity.util';
 
@@ -123,6 +124,19 @@ describe('criticalPathTaskIds', () => {
       ]),
     ).toEqual([]);
     expect(criticalPathTaskIds([task({ id: 'loop', depends_on: ['loop'] })])).toEqual([]);
+  });
+
+  it('keeps both FS edges when ids contain -> so the cycle they complete is detected', () => {
+    // ("a->b","c") and ("a","b->c") both stringify to "a->b->c" under `${from}->${id}`.
+    // Cycle a → b->c → a->b → c → a exists only when both colliding edges are kept.
+    const tasks = [
+      task({ id: 'a', depends_on: ['c'] }),
+      task({ id: 'a->b', depends_on: ['b->c'] }),
+      task({ id: 'c', depends_on: ['a->b'] }),
+      task({ id: 'b->c', depends_on: ['a'] }),
+    ];
+    expect(hasDependsOnCycle(tasks)).toBe(true);
+    expect(criticalPathTaskIds(tasks)).toEqual([]);
   });
 
   it('reconstructs one longest path when two remaining-effort totals tie', () => {
