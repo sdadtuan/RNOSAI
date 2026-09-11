@@ -35,6 +35,7 @@ import {
 } from './audit-export.util';
 import type { HardDeleteOutcome } from './legal-hold.util';
 import { isMissingCmktSettingsSchema, type CmktSettingRow } from './direct-social-publish.util';
+import { isPgUniqueViolation } from './publication-execute.util';
 
 function isOptionalAiRunJoinError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
@@ -808,22 +809,95 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     channel_account_id: number;
     snapshot_id: string;
     client_request_id: string;
-  }): Promise<{ id: number; client_request_id: string; status: string }> {
+  }): Promise<{
+    id: number;
+    client_request_id: string;
+    status: string;
+    post_id?: string | null;
+    replayed?: true;
+  }> {
+    try {
+      const res = await this.db.query(
+        `INSERT INTO cmkt_publication_executes
+           (item_id, channel_account_id, snapshot_id, client_request_id, status)
+         VALUES ($1, $2, $3, $4, 'queued')
+         RETURNING id, client_request_id, status, post_id`,
+        [input.item_id, input.channel_account_id, input.snapshot_id, input.client_request_id || null],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      if (!row) {
+        throw new Error('publication_execute_insert_empty');
+      }
+      return this.mapPublicationExecuteRow(row, input.client_request_id);
+    } catch (err) {
+      if (!isPgUniqueViolation(err)) throw err;
+      const existing =
+        (input.client_request_id
+          ? await this.findExecuteByClientRequestId(input.client_request_id)
+          : null) ??
+        (await this.findExecuteByUniqueTriple({
+          item_id: input.item_id,
+          channel_account_id: input.channel_account_id,
+          snapshot_id: input.snapshot_id,
+        }));
+      if (!existing) throw err;
+      return { ...existing, replayed: true };
+    }
+  }
+
+  async findExecuteByClientRequestId(clientRequestId: string): Promise<{
+    id: number;
+    client_request_id: string;
+    status: string;
+    post_id: string | null;
+  } | null> {
+    if (!clientRequestId) return null;
     const res = await this.db.query(
-      `INSERT INTO cmkt_publication_executes
-         (item_id, channel_account_id, snapshot_id, client_request_id, status)
-       VALUES ($1, $2, $3, $4, 'queued')
-       RETURNING id, client_request_id, status`,
-      [input.item_id, input.channel_account_id, input.snapshot_id, input.client_request_id || null],
+      `SELECT id, client_request_id, status, post_id
+         FROM cmkt_publication_executes
+        WHERE client_request_id = $1
+        LIMIT 1`,
+      [clientRequestId],
     );
     const row = res.rows[0] as Record<string, unknown> | undefined;
-    if (!row) {
-      throw new Error('publication_execute_insert_empty');
-    }
+    return row ? this.mapPublicationExecuteRow(row, clientRequestId) : null;
+  }
+
+  async findExecuteByUniqueTriple(input: {
+    item_id: number;
+    channel_account_id: number;
+    snapshot_id: string;
+  }): Promise<{
+    id: number;
+    client_request_id: string;
+    status: string;
+    post_id: string | null;
+  } | null> {
+    const res = await this.db.query(
+      `SELECT id, client_request_id, status, post_id
+         FROM cmkt_publication_executes
+        WHERE item_id = $1 AND channel_account_id = $2 AND snapshot_id = $3
+        LIMIT 1`,
+      [input.item_id, input.channel_account_id, input.snapshot_id],
+    );
+    const row = res.rows[0] as Record<string, unknown> | undefined;
+    return row ? this.mapPublicationExecuteRow(row, '') : null;
+  }
+
+  private mapPublicationExecuteRow(
+    row: Record<string, unknown>,
+    fallbackClientRequestId: string,
+  ): {
+    id: number;
+    client_request_id: string;
+    status: string;
+    post_id: string | null;
+  } {
     return {
       id: Number(row.id),
-      client_request_id: String(row.client_request_id ?? input.client_request_id),
+      client_request_id: String(row.client_request_id ?? fallbackClientRequestId),
       status: String(row.status ?? 'queued'),
+      post_id: row.post_id != null && String(row.post_id) !== '' ? String(row.post_id) : null,
     };
   }
 
@@ -832,13 +906,14 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     item_id: number;
     channel_account_id: number;
     snapshot_id: string;
+    post_id: string | null;
     access_token: string | null;
     status: string | null;
     connector_status: string | null;
     page_id: string | null;
   } | null> {
     const res = await this.db.query(
-      `SELECT e.id, e.item_id, e.channel_account_id, e.snapshot_id,
+      `SELECT e.id, e.item_id, e.channel_account_id, e.snapshot_id, e.post_id,
               c.access_token, c.status, a.account_ref AS page_id
          FROM cmkt_publication_executes e
          LEFT JOIN cmkt_connectors c ON c.channel_account_id = e.channel_account_id
@@ -855,6 +930,7 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
       item_id: Number(rec.item_id),
       channel_account_id: Number(rec.channel_account_id),
       snapshot_id: String(rec.snapshot_id ?? ''),
+      post_id: rec.post_id != null && String(rec.post_id) !== '' ? String(rec.post_id) : null,
       access_token: rec.access_token != null ? String(rec.access_token) : null,
       status,
       connector_status: status,

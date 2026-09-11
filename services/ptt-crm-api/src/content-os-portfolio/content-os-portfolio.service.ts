@@ -83,10 +83,12 @@ import { evaluateItemRights } from './asset-rights.service';
 import {
   assertExecuteGate,
   assertHumanConfirm,
+  isPgUniqueViolation,
   lockedItemCopy,
   lockedSnapshotId,
   snapshotIdMatchesLocked,
   type ExecuteAccepted,
+  type PublicationExecuteRow,
 } from './publication-execute.util';
 import { insertPublicationLogWithRetry, publicationLogFromError } from './publication-log.util';
 import { createFacebookPageConnector } from './facebook-page-connector';
@@ -949,12 +951,34 @@ export class ContentOsPortfolioService {
     );
     assertExecuteGate(gate.status);
 
-    const inserted = await this.repo.insertPublicationExecute({
-      item_id: itemId,
-      channel_account_id: channelAccountId,
-      snapshot_id: snapshotId,
-      client_request_id: clientRequestId,
-    });
+    let inserted: PublicationExecuteRow;
+    try {
+      inserted = await this.repo.insertPublicationExecute({
+        item_id: itemId,
+        channel_account_id: channelAccountId,
+        snapshot_id: snapshotId,
+        client_request_id: clientRequestId,
+      });
+    } catch (err) {
+      if (!isPgUniqueViolation(err)) throw err;
+      const existing = await this.lookupExistingExecute({
+        client_request_id: clientRequestId,
+        item_id: itemId,
+        channel_account_id: channelAccountId,
+        snapshot_id: snapshotId,
+      });
+      if (!existing) throw err;
+      inserted = { ...existing, replayed: true };
+    }
+
+    if (inserted.replayed || inserted.post_id) {
+      return {
+        queued: true,
+        execute_id: Number(inserted.id),
+        client_request_id: String(inserted.client_request_id ?? clientRequestId),
+        replayed: true,
+      };
+    }
 
     if (typeof this.repo.insertAuditExport === 'function') {
       try {
@@ -985,6 +1009,7 @@ export class ContentOsPortfolioService {
     try {
       const secret = await this.repo.loadConnectorSecretForExecute(executeId);
       if (!secret) return;
+      if (secret.post_id) return;
       itemId = Number(secret.item_id);
       const settings = await this.getSettings({ staffId: 0 }).catch(() =>
         portfolioSettings(false, this.staffIdpSnapshot()),
@@ -1035,6 +1060,32 @@ export class ContentOsPortfolioService {
       const log = publicationLogFromError(err);
       await this.writeExecutePublicationLog(itemId, { ...log, post_id: null });
     }
+  }
+
+  private async lookupExistingExecute(input: {
+    client_request_id: string;
+    item_id: number;
+    channel_account_id: number;
+    snapshot_id: string;
+  }): Promise<PublicationExecuteRow | null> {
+    const repo = this.repo as ContentOsPortfolioRepository & {
+      findExecuteByClientRequestId?: (
+        clientRequestId: string,
+      ) => Promise<PublicationExecuteRow | null>;
+      findExecuteByUniqueTriple?: (lookup: {
+        item_id: number;
+        channel_account_id: number;
+        snapshot_id: string;
+      }) => Promise<PublicationExecuteRow | null>;
+    };
+    if (typeof repo.findExecuteByClientRequestId === 'function' && input.client_request_id) {
+      const byRequest = await repo.findExecuteByClientRequestId(input.client_request_id);
+      if (byRequest) return byRequest;
+    }
+    if (typeof repo.findExecuteByUniqueTriple === 'function') {
+      return repo.findExecuteByUniqueTriple(input);
+    }
+    return null;
   }
 
   private async publishGateInputFromItem(

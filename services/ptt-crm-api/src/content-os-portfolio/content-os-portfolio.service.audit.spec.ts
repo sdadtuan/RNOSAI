@@ -1,4 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
+import { formatAuditExportCsv } from './audit-export.util';
 import { ContentOsPortfolioService } from './content-os-portfolio.service';
 
 function makeSvc(repo: object) {
@@ -111,5 +112,11 @@ describe('ContentOsPortfolioService audit export', () => {
     });
     expect(repo.insertAuditExport).not.toHaveBeenCalled();
     expect(repo.listAuditActivity).not.toHaveBeenCalled();
+  });
+
+  it('audit CSV lists publication.execute after enqueue', async () => {
+    const rows = [{ action: 'publication.execute', entity: 'item:21', created_at: '2026-09-11T00:00:00.000Z', actor: 's@ptt.vn' }];
+    expect(formatAuditExportCsv(rows)).toMatch(/publication\.execute/);
+    expect(formatAuditExportCsv(rows)).not.toMatch(/access_token/);
   });
 });

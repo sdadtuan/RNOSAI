@@ -19,6 +19,7 @@ function makeExecuteService(opts: {
   insertExecute?: jest.Mock;
   versions?: Array<{ id: number; version_no: number }>;
   rights?: unknown[];
+  repo?: Record<string, unknown>;
 } = {}) {
   const item = {
     id: 21,
@@ -38,6 +39,7 @@ function makeExecuteService(opts: {
     insertAuditExport: jest.fn().mockResolvedValue({}),
     loadConnectorSecretForExecute: jest.fn().mockResolvedValue(null),
     connector: opts.connector,
+    ...opts.repo,
   };
   const workflow = {};
   const marketingRepo = {
@@ -131,6 +133,26 @@ describe('ContentOsPortfolioService enqueuePublicationExecute', () => {
       body: { item_id: 21, channel_account_id: 1, snapshot_id: '13', confirm: true, client_request_id: 'r3' },
     })).rejects.toMatchObject({ response: { error: 'publish_gate_blocked' } });
     expect(insertExecute).not.toHaveBeenCalled();
+  });
+
+  it('replays the same client_request_id without a second publish', async () => {
+    const publish = jest.fn().mockResolvedValue({ post_id: '555_1' });
+    const repo = {
+      insertPublicationExecute: jest
+        .fn()
+        .mockRejectedValueOnce(Object.assign(new Error('dup'), { code: '23505' })),
+      findExecuteByClientRequestId: jest.fn().mockResolvedValue({
+        id: 88, client_request_id: 'r1', post_id: '555_1', status: 'published',
+      }),
+    };
+    const svc = makeExecuteService({ repo, connector: { id: 'fb', publish } });
+    const out = await svc.enqueuePublicationExecute({
+      staffId: 7, actor: 's@ptt.vn',
+      body: { item_id: 21, channel_account_id: 1, snapshot_id: 'v13', confirm: true, client_request_id: 'r1' },
+    });
+    expect(out.execute_id).toBe(88);
+    expect(out.replayed).toBe(true);
+    expect(publish).not.toHaveBeenCalled();
   });
 });
 

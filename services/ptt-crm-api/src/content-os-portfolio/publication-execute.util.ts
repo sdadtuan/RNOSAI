@@ -20,7 +20,24 @@ export type ExecuteBody = {
   client_request_id: string;
 };
 
-export type ExecuteAccepted = { queued: true; client_request_id: string; execute_id: number };
+export type ExecuteAccepted = {
+  queued: true;
+  client_request_id: string;
+  execute_id: number;
+  replayed?: true;
+};
+
+export type PublicationExecuteRow = {
+  id: number;
+  client_request_id: string;
+  status: string;
+  post_id?: string | null;
+  replayed?: true;
+};
+
+export function isPgUniqueViolation(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && (err as { code?: unknown }).code === '23505');
+}
 
 export type ExecuteVersionRow = { id?: unknown; version_no?: unknown };
 
