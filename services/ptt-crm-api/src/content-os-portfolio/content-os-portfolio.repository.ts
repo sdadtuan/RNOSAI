@@ -471,6 +471,48 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     return this.mapGlossaryRow(row as Record<string, unknown>);
   }
 
+  async insertGlossary(row: {
+    lifecycle_id: number;
+    brand_id: string;
+    term: string;
+    locale: string;
+    preferred?: string;
+    status?: CmktGlossaryStatus;
+  }): Promise<CmktGlossaryRow> {
+    const res = await this.db.query(
+      `INSERT INTO cmkt_glossary (lifecycle_id, brand_id, term, locale, preferred, status)
+       VALUES ($1, $2, $3, $4, $5, 'Draft')
+       RETURNING id, lifecycle_id, brand_id, term, locale, preferred, status, expires_at, created_at`,
+      [row.lifecycle_id, row.brand_id, row.term, row.locale, row.preferred ?? ''],
+    );
+    return this.mapGlossaryRow(res.rows[0] as Record<string, unknown>);
+  }
+
+  async updateGlossaryDraft(
+    id: number,
+    patch: { term?: string; locale?: string; brand_id?: string; preferred?: string },
+  ): Promise<CmktGlossaryRow> {
+    const res = await this.db.query(
+      `UPDATE cmkt_glossary
+          SET term = COALESCE($2, term),
+              locale = COALESCE($3, locale),
+              brand_id = COALESCE($4, brand_id),
+              preferred = COALESCE($5, preferred)
+        WHERE id = $1 AND status = 'Draft'
+        RETURNING id, lifecycle_id, brand_id, term, locale, preferred, status, expires_at, created_at`,
+      [id, patch.term ?? null, patch.locale ?? null, patch.brand_id ?? null, patch.preferred ?? null],
+    );
+    const row = res.rows[0];
+    if (!row) {
+      const existing = await this.getGlossaryById(id);
+      if (!existing) {
+        throw new Error(`glossary_not_found:${id}`);
+      }
+      throw new Error(`glossary_not_draft:${id}:${existing.status}`);
+    }
+    return this.mapGlossaryRow(row as Record<string, unknown>);
+  }
+
   async getInsightById(id: number): Promise<CmktInsightRow | null> {
     if (!(await this.ensurePgReady())) return null;
     const res = await this.db.query(

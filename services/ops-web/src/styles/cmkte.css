@@ -748,6 +748,14 @@
   border-radius: 3px;
 }
 
+.cmkte-glossary,
+.mark-gloss {
+  background: #f2efff;
+  color: #5439b8;
+  padding: 0 0.15em;
+  border-radius: 3px;
+}
+
 .cmkte-list {
   margin: 0;
   padding: 0;

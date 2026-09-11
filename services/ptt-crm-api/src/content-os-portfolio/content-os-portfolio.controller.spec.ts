@@ -141,6 +141,35 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual(approved);
   });
 
+  it('POST glossary delegates to createGlossary with write guard path', async () => {
+    const created = { id: 21, status: 'Draft', term: 'sống xanh' };
+    const service = { createGlossary: jest.fn().mockResolvedValue(created) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.createGlossary(
+      { term: 'sống xanh', locale: 'vi-VN', brand_id: 'tiep-thi-noi-dung', lifecycle_id: 4 },
+      { staffUser: { sub: '7', email: 'am@ptt.vn' } } as never,
+    );
+    expect(service.createGlossary).toHaveBeenCalledWith({
+      staffId: 7,
+      actor: 'am@ptt.vn',
+      body: { term: 'sống xanh', locale: 'vi-VN', brand_id: 'tiep-thi-noi-dung', lifecycle_id: 4 },
+    });
+    expect(out).toEqual(created);
+  });
+
+  it('PATCH glossary/:id delegates to patchGlossaryDraft', async () => {
+    const patched = { id: 11, status: 'Draft', preferred: 'Sống xanh' };
+    const service = { patchGlossaryDraft: jest.fn().mockResolvedValue(patched) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.patchGlossary(11, { preferred: 'Sống xanh' }, { staffUser: { sub: '7' } } as never);
+    expect(service.patchGlossaryDraft).toHaveBeenCalledWith({
+      staffId: 7,
+      glossaryId: 11,
+      body: { preferred: 'Sống xanh' },
+    });
+    expect(out).toEqual(patched);
+  });
+
   it('POST approvals/batch delegates to batchApprove with staffId, actor, ids, and step', async () => {
     const service = { batchApprove: jest.fn().mockResolvedValue({ ok: [21], failed: [] }) };
     const c = new ContentOsPortfolioController(service as never);

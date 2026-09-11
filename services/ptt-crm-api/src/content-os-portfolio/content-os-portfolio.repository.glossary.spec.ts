@@ -102,3 +102,37 @@ describe('ContentOsPortfolioRepository.updateGlossaryStatus', () => {
     await expect(repo.updateGlossaryStatus(11, 'Approved')).rejects.toThrow('glossary_not_draft');
   });
 });
+
+describe('ContentOsPortfolioRepository.insertGlossary', () => {
+  it('inserts Draft status and returns the row', async () => {
+    const query = jest.fn().mockResolvedValue({ rows: [glossaryRow({ term: 'sống xanh', locale: 'vi-VN' })] });
+    const repo = makeRepo(query);
+    const out = await repo.insertGlossary({
+      lifecycle_id: 4,
+      brand_id: 'tiep-thi-noi-dung',
+      term: 'sống xanh',
+      locale: 'vi-VN',
+      preferred: '',
+      status: 'Draft',
+    });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringMatching(/INSERT INTO cmkt_glossary/i),
+      [4, 'tiep-thi-noi-dung', 'sống xanh', 'vi-VN', ''],
+    );
+    expect(String(query.mock.calls[0]?.[0] ?? '')).toMatch(/'Draft'/);
+    expect(out.status).toBe('Draft');
+  });
+});
+
+describe('ContentOsPortfolioRepository.updateGlossaryDraft', () => {
+  it('updates preferred only when status is Draft', async () => {
+    const query = jest.fn().mockResolvedValue({ rows: [glossaryRow({ preferred: 'Sống xanh' })] });
+    const repo = makeRepo(query);
+    const out = await repo.updateGlossaryDraft(11, { preferred: 'Sống xanh' });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringMatching(/WHERE id = \$1 AND status = 'Draft'/),
+      [11, null, null, null, 'Sống xanh'],
+    );
+    expect(out.preferred).toBe('Sống xanh');
+  });
+});

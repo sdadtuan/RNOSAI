@@ -103,6 +103,11 @@ import { evaluatePublishGate, type PublishGateInput } from './publish-gate.util'
 import { briefReadyForPublish } from './brief-score.util';
 import { evaluateItemRights } from './asset-rights.service';
 import {
+  parseGlossaryCreate,
+  parseGlossaryDraftPatch,
+  requiredBrandLocale,
+} from './glossary-create.util';
+import {
   assertExecuteGate,
   assertHumanConfirm,
   isPgUniqueViolation,
@@ -710,6 +715,12 @@ export class ContentOsPortfolioService {
     if (!deliverable_ask) {
       throw new BadRequestException({ error: 'deliverable_ask_required' });
     }
+    try {
+      requiredBrandLocale(input.body);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'brand_id_required';
+      throw new BadRequestException({ error: code });
+    }
     const source = this.parseRequestSource(input.body.source);
     const client_label = String(input.body.client_label ?? '').trim();
     const brand_label = String(input.body.brand_label ?? '').trim();
@@ -750,6 +761,13 @@ export class ContentOsPortfolioService {
     actor: string;
     body: Record<string, unknown>;
   }): Promise<{ request: ContentRequestRow; item: CmktItemRow & { request_id: number; display_code: string } }> {
+    let brandScope: { brand_id: string; locale: string };
+    try {
+      brandScope = requiredBrandLocale(input.body);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'brand_id_required';
+      throw new BadRequestException({ error: code });
+    }
     const request = await this.repo.getRequestById(input.requestId);
     if (!request) {
       throw new NotFoundException({ error: 'request_not_found', id: input.requestId });
@@ -765,7 +783,13 @@ export class ContentOsPortfolioService {
     const format = String(input.body.format ?? 'social_post').trim() || 'social_post';
     const item = await this.items.createItem(
       request.lifecycle_id,
-      { title: request.deliverable_ask, channel, format, as_master: true },
+      {
+        title: request.deliverable_ask,
+        channel,
+        format,
+        as_master: true,
+        brief_json: { brand_id: brandScope.brand_id, locale: brandScope.locale },
+      },
       input.actor,
     );
     const linked = await this.repo.updateItemRequestLink(item.id, {
@@ -832,6 +856,87 @@ export class ContentOsPortfolioService {
     const scoped = hint && hint > 0 && ids.includes(hint) ? [hint] : ids;
     const items = (await this.repo.listGlossary(scoped, ['Draft', 'Approved'])) ?? [];
     return { items };
+  }
+
+  async createGlossary(input: {
+    staffId: number;
+    actor: string;
+    body: Record<string, unknown>;
+  }): Promise<CmktGlossaryRow> {
+    let parsed;
+    try {
+      parsed = parseGlossaryCreate(input.body);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'term_required';
+      throw new BadRequestException({ error: code });
+    }
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    if (!scoped.includes(parsed.lifecycle_id)) {
+      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
+    }
+    try {
+      const row = await this.repo.insertGlossary({
+        lifecycle_id: parsed.lifecycle_id,
+        brand_id: parsed.brand_id,
+        term: parsed.term,
+        locale: parsed.locale,
+        preferred: parsed.preferred ?? '',
+        status: 'Draft',
+      });
+      if (typeof this.repo.insertAuditExport === 'function') {
+        await this.repo.insertAuditExport({
+          actor: input.actor,
+          action: 'glossary_create',
+          entity: `glossary:${row.id}`,
+        });
+      }
+      return row;
+    } catch (err) {
+      if (isPgUniqueViolation(err)) {
+        throw new ConflictException({ error: 'glossary_duplicate' });
+      }
+      throw err;
+    }
+  }
+
+  async patchGlossaryDraft(input: {
+    staffId: number;
+    glossaryId: number;
+    body: Record<string, unknown>;
+  }): Promise<CmktGlossaryRow> {
+    const row = await this.repo.getGlossaryById(input.glossaryId);
+    if (!row) {
+      throw new NotFoundException({ error: 'glossary_not_found', id: input.glossaryId });
+    }
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    if (!scoped.includes(row.lifecycle_id)) {
+      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
+    }
+    if (row.status !== 'Draft') {
+      throw new ConflictException({ error: 'glossary_not_draft', status: row.status });
+    }
+    let patch;
+    try {
+      patch = parseGlossaryDraftPatch(input.body);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'term_required';
+      throw new BadRequestException({ error: code });
+    }
+    try {
+      return await this.repo.updateGlossaryDraft(row.id, patch);
+    } catch (err) {
+      if (isPgUniqueViolation(err)) {
+        throw new ConflictException({ error: 'glossary_duplicate' });
+      }
+      const message = err instanceof Error ? err.message : '';
+      if (message.startsWith('glossary_not_found')) {
+        throw new NotFoundException({ error: 'glossary_not_found', id: input.glossaryId });
+      }
+      if (message.startsWith('glossary_not_draft')) {
+        throw new ConflictException({ error: 'glossary_not_draft', status: row.status });
+      }
+      throw err;
+    }
   }
 
   async approveGlossary(input: { staffId: number; glossaryId: number }): Promise<CmktGlossaryRow> {

@@ -276,7 +276,10 @@ describe('convertPortfolioRequest', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await convertPortfolioRequest('tok-9', 9);
+    const result = await convertPortfolioRequest('tok-9', 9, {
+      brand_id: 'tiep-thi-noi-dung',
+      locale: 'vi-VN',
+    });
 
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/requests/9/convert`, {
       method: 'POST',
@@ -284,7 +287,7 @@ describe('convertPortfolioRequest', () => {
         Authorization: 'Bearer tok-9',
         'Content-Type': 'application/json',
       },
-      body: '{}',
+      body: JSON.stringify({ brand_id: 'tiep-thi-noi-dung', locale: 'vi-VN' }),
     });
     expect(result).toEqual(body);
   });

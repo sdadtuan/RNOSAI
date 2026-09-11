@@ -267,6 +267,31 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Post('glossary')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  createGlossary(@Body() body: Record<string, unknown>, @Req() req: Request) {
+    return this.portfolio.createGlossary({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      actor: actorEmail(req),
+      body: body ?? {},
+    });
+  }
+
+  @Patch('glossary/:id')
+  @UseGuards(StaffContentMarketingWriteGuard)
+  patchGlossary(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.portfolio.patchGlossaryDraft({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      glossaryId: id,
+      body: body ?? {},
+    });
+  }
+
   @Post('glossary/:id/approve')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffContentMarketingApproveGuard)

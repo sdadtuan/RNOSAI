@@ -12,6 +12,8 @@ const valid = {
   deliverable: '12 social posts',
   objective: 'Awareness',
   due: '2026-09-20',
+  brand_id: 'tiep-thi-noi-dung',
+  locale: 'vi-VN',
 };
 
 describe('resolveRequestLifecycleId', () => {
@@ -82,6 +84,8 @@ describe('submitRequestForm', () => {
         source: 'account',
         client_label: 'Client A',
         brand_label: 'Brand A',
+        brand_id: 'tiep-thi-noi-dung',
+        locale: 'vi-VN',
         deliverable_ask: '12 social posts',
         objective: 'Awareness',
         due_at: '2026-09-20',

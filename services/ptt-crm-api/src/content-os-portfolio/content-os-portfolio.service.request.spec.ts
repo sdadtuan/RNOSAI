@@ -62,6 +62,8 @@ describe('ContentOsPortfolioService.createRequest', () => {
         source: 'account',
         client_label: 'Client A',
         brand_label: 'Brand A',
+        brand_id: 'tiep-thi-noi-dung',
+        locale: 'vi-VN',
         deliverable_ask: '12 social posts',
         objective: 'Awareness + qualified lead',
         due_at: '2026-09-20',
@@ -100,7 +102,12 @@ describe('ContentOsPortfolioService.createRequest', () => {
       display_code: 'CNT-20260910-021',
     });
 
-    const out = await svc.convertRequest({ staffId: 1, requestId: 9, actor: 'am@ptt.vn', body: {} });
+    const out = await svc.convertRequest({
+      staffId: 1,
+      requestId: 9,
+      actor: 'am@ptt.vn',
+      body: { brand_id: 'tiep-thi-noi-dung', locale: 'vi-VN' },
+    });
 
     expect(out.request.triage_status).toBe('Converted');
     expect(items.createItem).toHaveBeenCalledTimes(1);
@@ -132,9 +139,14 @@ describe('ContentOsPortfolioService.createRequest', () => {
     repo.updateRequestStatus = jest.fn();
     items.createItem.mockRejectedValue(new Error('create failed'));
 
-    await expect(svc.convertRequest({ staffId: 1, requestId: 9, actor: 'am@ptt.vn', body: {} })).rejects.toThrow(
-      'create failed',
-    );
+    await expect(
+      svc.convertRequest({
+        staffId: 1,
+        requestId: 9,
+        actor: 'am@ptt.vn',
+        body: { brand_id: 'tiep-thi-noi-dung', locale: 'vi-VN' },
+      }),
+    ).rejects.toThrow('create failed');
 
     expect(repo.updateRequestStatus).not.toHaveBeenCalled();
   });
@@ -148,10 +160,56 @@ describe('ContentOsPortfolioService.createRequest', () => {
       triage_status: 'Accepted',
     });
     repo.updateRequestStatus = jest.fn();
-    await expect(svc.convertRequest({ staffId: 1, requestId: 9, actor: 'am@ptt.vn', body: {} })).rejects.toMatchObject({
+    await expect(
+      svc.convertRequest({
+        staffId: 1,
+        requestId: 9,
+        actor: 'am@ptt.vn',
+        body: { brand_id: 'tiep-thi-noi-dung', locale: 'vi-VN' },
+      }),
+    ).rejects.toMatchObject({
       status: 403,
     });
     expect(items.createItem).not.toHaveBeenCalled();
     expect(repo.updateRequestStatus).not.toHaveBeenCalled();
+  });
+
+  it('convertRequest rejects missing brand_id', async () => {
+    await expect(svc.convertRequest({
+      staffId: 1, requestId: 9, actor: 'am@ptt.vn', body: { locale: 'vi-VN' },
+    })).rejects.toMatchObject({ response: { error: 'brand_id_required' } });
+  });
+
+  it('convertRequest rejects missing locale', async () => {
+    await expect(
+      svc.convertRequest({
+        staffId: 1,
+        requestId: 9,
+        actor: 'am@ptt.vn',
+        body: { brand_id: 'tiep-thi-noi-dung' },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'locale_required' } });
+  });
+
+  it('createRequest rejects missing brand_id', async () => {
+    await expect(
+      svc.createRequest({
+        staffId: 1,
+        lifecycleId: 1,
+        actor: 'a@b.c',
+        body: { deliverable_ask: 'posts', locale: 'vi-VN' },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'brand_id_required' } });
+  });
+
+  it('createRequest rejects missing locale', async () => {
+    await expect(
+      svc.createRequest({
+        staffId: 1,
+        lifecycleId: 1,
+        actor: 'a@b.c',
+        body: { deliverable_ask: 'posts', brand_id: 'tiep-thi-noi-dung' },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'locale_required' } });
   });
 });

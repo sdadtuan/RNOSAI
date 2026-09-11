@@ -382,6 +382,20 @@ export function CmktEWorkspace({
       {tab === 'brief' ? (
         <section className="cmkte-card">
           <h2 className="cmkte-section-title">Brief & Strategy</h2>
+          <div className="cmkte-grid2">
+            <p className="cmkte-field">
+              <span>
+                Brand ID <span className="cmkte-req">*</span>
+              </span>
+              <b>{dash(typeof item.brief_json?.brand_id === 'string' ? item.brief_json.brand_id : '')}</b>
+            </p>
+            <p className="cmkte-field">
+              <span>
+                Locale <span className="cmkte-req">*</span>
+              </span>
+              <b>{dash(typeof item.brief_json?.locale === 'string' ? item.brief_json.locale : '')}</b>
+            </p>
+          </div>
           <JsonBlock value={item.brief_json} empty="Chưa có brief." />
         </section>
       ) : null}
@@ -446,7 +460,7 @@ export function CmktEWorkspace({
                     key={`${seg.text}-${idx}`}
                     className={
                       glossaryHits.some((term) => term.toLowerCase() === seg.text.toLowerCase())
-                        ? 'cmkte-glossary'
+                        ? 'cmkte-glossary mark-gloss'
                         : 'cmkte-claim'
                     }
                   >

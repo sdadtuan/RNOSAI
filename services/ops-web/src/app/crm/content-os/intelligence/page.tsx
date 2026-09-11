@@ -9,6 +9,7 @@ import { CmktEIntelligence } from '@/components/content-os/cmkte/CmktEIntelligen
 import {
   approvePortfolioGlossary,
   approvePortfolioInsight,
+  createPortfolioGlossary,
   fetchPortfolioGlossary,
   fetchPortfolioInsights,
   type PortfolioGlossary,
@@ -86,6 +87,26 @@ function CrmContentOsIntelligenceContent() {
     })();
   }, [ensureAuth, lifecycleId, router, setError]);
 
+  async function onCreateGlossary(body: {
+    term: string;
+    locale: string;
+    brand_id: string;
+    preferred?: string;
+  }) {
+    const access = await ensureAuth().catch(() => null);
+    if (!access || !lifecycleId) return;
+    setApproving(true);
+    setError('');
+    try {
+      await createPortfolioGlossary(access, { ...body, lifecycle_id: lifecycleId });
+      await loadInsights(access);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không tạo được glossary Draft');
+    } finally {
+      setApproving(false);
+    }
+  }
+
   async function onApproveGlossary(glossaryId: number) {
     const access = await ensureAuth().catch(() => null);
     if (!access) return;
@@ -132,6 +153,7 @@ function CrmContentOsIntelligenceContent() {
           canApprove={canApprove}
           onApprove={onApprove}
           onApproveGlossary={onApproveGlossary}
+          onCreateGlossary={onCreateGlossary}
           approving={approving}
           loadError={Boolean(error)}
         />

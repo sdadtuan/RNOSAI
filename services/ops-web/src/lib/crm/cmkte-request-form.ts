@@ -34,8 +34,12 @@ export function writeLastLifecycleId(id: number): void {
 
 export function validateRequestForm(f: {
   client: string; source: string; deliverable: string; objective: string; due: string;
+  brand_id?: string; locale?: string;
 }): string | null {
   if (!f.client.trim() || !f.source.trim() || !f.deliverable.trim() || !f.objective.trim() || !f.due.trim()) {
+    return 'Thiếu trường bắt buộc — không tạo request.';
+  }
+  if (!String(f.brand_id ?? '').trim() || !String(f.locale ?? '').trim()) {
     return 'Thiếu trường bắt buộc — không tạo request.';
   }
   return null;
@@ -56,6 +60,8 @@ export type RequestFormSubmitInput = {
   due: string;
   priority: string;
   lifecycle_id: number;
+  brand_id: string;
+  locale: string;
   token: string;
 };
 
@@ -88,6 +94,8 @@ export async function submitRequestForm(
       source: f.source,
       client_label,
       brand_label,
+      brand_id: f.brand_id.trim(),
+      locale: f.locale.trim(),
       deliverable_ask: f.deliverable.trim(),
       objective: f.objective.trim(),
       due_at: f.due.trim(),

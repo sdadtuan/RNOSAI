@@ -45,6 +45,8 @@ export function CmktERequests({
   const [badgeExtra, setBadgeExtra] = useState(0);
   const [localItems, setLocalItems] = useState<PortfolioContentRequest[]>(items);
   const [convertingId, setConvertingId] = useState<number | null>(null);
+  const [brandId, setBrandId] = useState('');
+  const [locale, setLocale] = useState('');
 
   useEffect(() => {
     setLocalItems(items);
@@ -73,9 +75,15 @@ export function CmktERequests({
       showToast('Thiếu phiên đăng nhập — không convert.');
       return;
     }
+    const brand_id = brandId.trim();
+    const localeValue = locale.trim();
+    if (!brand_id || !localeValue) {
+      showToast('Thiếu brand_id và locale — không convert.');
+      return;
+    }
     setConvertingId(requestId);
     try {
-      const out = await convertPortfolioRequest(token, requestId);
+      const out = await convertPortfolioRequest(token, requestId, { brand_id, locale: localeValue });
       const itemId = Number(out.item?.id);
       if (!(itemId > 0)) {
         showToast('Convert xong nhưng thiếu item id.');
@@ -110,6 +118,31 @@ export function CmktERequests({
       </div>
 
       <div className="cmkte-card">
+        <div className="cmkte-grid2">
+          <label className="cmkte-field">
+            <span>
+              Brand ID <span className="cmkte-req">*</span>
+            </span>
+            <input
+              className="cmkte-input"
+              value={brandId}
+              onChange={(e) => setBrandId(e.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <label className="cmkte-field">
+            <span>
+              Locale <span className="cmkte-req">*</span>
+            </span>
+            <input
+              className="cmkte-input"
+              value={locale}
+              onChange={(e) => setLocale(e.target.value)}
+              autoComplete="off"
+              placeholder="vi-VN"
+            />
+          </label>
+        </div>
         <div className="cmkte-table-scroll">
           <table className="cmkte-table">
             <thead>

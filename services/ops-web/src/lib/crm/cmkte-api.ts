@@ -203,6 +203,7 @@ export async function fetchPortfolioRequests(token: string): Promise<PortfolioRe
 export async function convertPortfolioRequest(
   token: string,
   requestId: number,
+  body: { brand_id: string; locale: string },
 ): Promise<ConvertedPortfolioRequest> {
   const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/requests/${requestId}/convert`, {
     method: 'POST',
@@ -210,7 +211,10 @@ export async function convertPortfolioRequest(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: '{}',
+    body: JSON.stringify({
+      brand_id: String(body.brand_id ?? '').trim(),
+      locale: String(body.locale ?? '').trim(),
+    }),
   });
   if (!res.ok) throw new Error('Không chuyển được request thành content item.');
   return res.json();
@@ -383,6 +387,25 @@ export async function fetchPortfolioGlossary(
   if (!res.ok) throw new Error('Không tải được glossary');
   const body = (await res.json()) as PortfolioGlossaryList | null;
   return { items: Array.isArray(body?.items) ? body.items : [] };
+}
+
+export async function createPortfolioGlossary(
+  token: string,
+  body: { term: string; locale: string; brand_id: string; lifecycle_id: number; preferred?: string },
+): Promise<PortfolioGlossary> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/glossary`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(err?.error ?? 'glossary_create_failed');
+  }
+  return res.json();
 }
 
 export async function approvePortfolioGlossary(token: string, glossaryId: number): Promise<PortfolioGlossary> {

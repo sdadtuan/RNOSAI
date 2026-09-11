@@ -115,6 +115,96 @@ describe('ContentOsPortfolioService.approveGlossary', () => {
   });
 });
 
+describe('ContentOsPortfolioService.createGlossary', () => {
+  it('inserts Draft only and audits glossary_create', async () => {
+    const created = glossary({ id: 21, status: 'Draft', term: 'sống xanh', locale: 'vi-VN', brand_id: 'tiep-thi-noi-dung' });
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      insertGlossary: jest.fn().mockResolvedValue(created),
+      insertAuditExport: jest.fn().mockResolvedValue({}),
+    };
+    const svc = makeSvc(repo);
+    const out = await svc.createGlossary({
+      staffId: 9,
+      actor: 'am@ptt.vn',
+      body: {
+        term: 'sống xanh',
+        locale: 'vi-VN',
+        brand_id: 'tiep-thi-noi-dung',
+        lifecycle_id: 4,
+      },
+    });
+    expect(repo.insertGlossary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        term: 'sống xanh',
+        locale: 'vi-VN',
+        brand_id: 'tiep-thi-noi-dung',
+        lifecycle_id: 4,
+        status: 'Draft',
+      }),
+    );
+    expect(repo.insertAuditExport).toHaveBeenCalledWith(
+      expect.objectContaining({ actor: 'am@ptt.vn', action: 'glossary_create' }),
+    );
+    expect(out.status).toBe('Draft');
+  });
+
+  it('maps unique violation to 409 glossary_duplicate', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      insertGlossary: jest.fn().mockRejectedValue(Object.assign(new Error('duplicate'), { code: '23505' })),
+      insertAuditExport: jest.fn(),
+    };
+    const svc = makeSvc(repo);
+    await expect(
+      svc.createGlossary({
+        staffId: 9,
+        actor: 'am@ptt.vn',
+        body: {
+          term: 'sống xanh',
+          locale: 'vi-VN',
+          brand_id: 'tiep-thi-noi-dung',
+          lifecycle_id: 4,
+        },
+      }),
+    ).rejects.toMatchObject({ response: { error: 'glossary_duplicate' } });
+    expect(repo.insertAuditExport).not.toHaveBeenCalled();
+  });
+});
+
+describe('ContentOsPortfolioService.patchGlossaryDraft', () => {
+  it('patches Draft preferred wording', async () => {
+    const draft = glossary({ id: 11, status: 'Draft' });
+    const patched = { ...draft, preferred: 'Sống xanh' };
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      getGlossaryById: jest.fn().mockResolvedValue(draft),
+      updateGlossaryDraft: jest.fn().mockResolvedValue(patched),
+    };
+    const svc = makeSvc(repo);
+    const out = await svc.patchGlossaryDraft({
+      staffId: 9,
+      glossaryId: 11,
+      body: { preferred: 'Sống xanh' },
+    });
+    expect(repo.updateGlossaryDraft).toHaveBeenCalledWith(11, { preferred: 'Sống xanh' });
+    expect(out.preferred).toBe('Sống xanh');
+  });
+
+  it('returns 409 glossary_not_draft when Approved', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      getGlossaryById: jest.fn().mockResolvedValue(glossary({ id: 11, status: 'Approved' })),
+      updateGlossaryDraft: jest.fn(),
+    };
+    const svc = makeSvc(repo);
+    await expect(
+      svc.patchGlossaryDraft({ staffId: 9, glossaryId: 11, body: { preferred: 'x' } }),
+    ).rejects.toMatchObject({ response: { error: 'glossary_not_draft' } });
+    expect(repo.updateGlossaryDraft).not.toHaveBeenCalled();
+  });
+});
+
 describe('ContentOsPortfolioService.getPortfolioItem glossary_hits', () => {
   it('attaches only Approved glossary terms found in copy', async () => {
     const item = {

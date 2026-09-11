@@ -30,6 +30,8 @@ const EMPTY = {
   due: '',
   priority: 'Standard',
   lifecycle_id: '',
+  brand_id: '',
+  locale: '',
 };
 
 export function CmktERequestModal({ open, onClose, onCreated, lifecycleId }: Props) {
@@ -73,6 +75,8 @@ export function CmktERequestModal({ open, onClose, onCreated, lifecycleId }: Pro
       due: form.due,
       priority: form.priority,
       lifecycle_id: Number(form.lifecycle_id),
+      brand_id: form.brand_id,
+      locale: form.locale,
       token,
     });
     setBusy(false);
@@ -172,6 +176,31 @@ export function CmktERequestModal({ open, onClose, onCreated, lifecycleId }: Pro
                   </option>
                 ))}
               </select>
+            </label>
+          </div>
+          <div className="cmkte-grid2">
+            <label className="cmkte-field">
+              <span>
+                Brand ID <span className="cmkte-req">*</span>
+              </span>
+              <input
+                className="cmkte-input"
+                value={form.brand_id}
+                onChange={(e) => setForm((f) => ({ ...f, brand_id: e.target.value }))}
+                autoComplete="off"
+              />
+            </label>
+            <label className="cmkte-field">
+              <span>
+                Locale <span className="cmkte-req">*</span>
+              </span>
+              <input
+                className="cmkte-input"
+                value={form.locale}
+                onChange={(e) => setForm((f) => ({ ...f, locale: e.target.value }))}
+                autoComplete="off"
+                placeholder="vi-VN"
+              />
             </label>
           </div>
           <label className="cmkte-field">

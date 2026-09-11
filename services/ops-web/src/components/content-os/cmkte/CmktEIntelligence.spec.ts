@@ -39,6 +39,21 @@ describe('CmktEIntelligence glossary', () => {
     );
     expect(html).not.toContain('Sunlight');
     expect(html).not.toContain('Nova');
+    expect(html).not.toContain('Tâm An');
     expect(html).not.toMatch(/sample term|thuật ngữ mẫu/i);
+  });
+
+  it('renders Glossary studio separate from Insight with ＋ Tạo Draft', () => {
+    const html = renderToStaticMarkup(
+      createElement(CmktEIntelligence, {
+        summary: { suggestions: ['ok'], top_items: [] },
+        scoped: true,
+        glossary: [],
+      }),
+    );
+    expect(html).toContain('Glossary studio');
+    expect(html).toContain('＋ Tạo Draft');
+    expect(html).toContain('Insight draft');
+    expect(html.indexOf('Glossary studio')).toBeGreaterThan(html.indexOf('Insight draft'));
   });
 });
