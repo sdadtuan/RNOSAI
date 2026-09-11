@@ -4,6 +4,9 @@ export const CMKT_BATCH_APPROVE_MAX = 20;
 
 export function parseBatchItemIds(raw: unknown): number[] {
   const list = Array.isArray(raw) ? raw : [];
+  if (list.length > CMKT_BATCH_APPROVE_MAX) {
+    throw new BadRequestException({ error: 'batch_limit', max: CMKT_BATCH_APPROVE_MAX });
+  }
   const seen = new Set<number>();
   const ids: number[] = [];
   for (const value of list) {
@@ -14,9 +17,6 @@ export function parseBatchItemIds(raw: unknown): number[] {
   }
   if (!ids.length) {
     throw new BadRequestException({ error: 'empty_item_ids' });
-  }
-  if (ids.length > CMKT_BATCH_APPROVE_MAX) {
-    throw new BadRequestException({ error: 'batch_limit', max: CMKT_BATCH_APPROVE_MAX });
   }
   return ids;
 }

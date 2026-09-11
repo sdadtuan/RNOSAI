@@ -489,6 +489,13 @@ describe('ContentOsPortfolioService.batchApprove', () => {
         item_ids: Array.from({ length: 21 }, (_, i) => i + 1),
       }),
     ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      svc.batchApprove({
+        staffId: 1,
+        actor: 'am@ptt.vn',
+        item_ids: [1, 1, 1, 0, -4, 'x', '', null, undefined, 2, 2, '2', 3, 0, 'y', false, 4, 4, 5, 6, 7],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 
   it('rejects mixed in-scope statuses with 409 mixed_step', async () => {

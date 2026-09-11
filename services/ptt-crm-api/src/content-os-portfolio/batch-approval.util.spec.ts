@@ -43,6 +43,20 @@ describe('parseBatchItemIds', () => {
     }
   });
 
+  it('rejects 21 submitted entries before dedupe or filter', () => {
+    const ids = [1, 1, 1, 0, -4, 'x', '', null, undefined, 2, 2, '2', 3, 0, 'y', false, 4, 4, 5, 6, 7];
+    expect(ids).toHaveLength(21);
+    try {
+      parseBatchItemIds(ids);
+      throw new Error('expected throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'batch_limit', max: 20 }),
+      );
+    }
+  });
+
   it('returns unique positive integers up to the cap', () => {
     expect(parseBatchItemIds([3, 1, 3, '2', 0, -4, 'x'])).toEqual([3, 1, 2]);
   });
