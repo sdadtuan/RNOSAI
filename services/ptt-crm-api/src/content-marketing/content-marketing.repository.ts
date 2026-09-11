@@ -2454,7 +2454,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     if (!(await this.ensurePgReady())) return [];
     try {
       const res = await this.db.query(
-        `SELECT id, channel, expires_at,
+        `SELECT id, channel, status, expires_at,
                 (status = 'on') AS enabled
            FROM cmkt_connectors
           ORDER BY enabled DESC, expires_at DESC NULLS LAST, id DESC`,
@@ -2467,6 +2467,7 @@ export class ContentMarketingRepository implements OnModuleDestroy {
           ...(id != null && Number.isFinite(id) ? { id } : {}),
           channel: String(rec.channel ?? ''),
           expires_at: expires && Number.isFinite(expires.getTime()) ? expires.toISOString() : null,
+          status: rec.status != null ? String(rec.status) : null,
           enabled: isConnectorEnabled(rec),
         };
       });

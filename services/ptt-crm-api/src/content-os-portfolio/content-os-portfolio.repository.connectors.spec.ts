@@ -1,4 +1,5 @@
 import { ContentMarketingRepository } from '../content-marketing/content-marketing.repository';
+import { isConnectorEnabled } from './channel-health.util';
 
 function makeMarketingRepo(query: jest.Mock) {
   const repo = new ContentMarketingRepository({ databaseUrl: 'postgres://test' } as never);
@@ -67,5 +68,32 @@ describe('ContentMarketingRepository.listChannelConnectors', () => {
     expect(rows).toEqual([
       expect.objectContaining({ channel: 'facebook', enabled: false }),
     ]);
+  });
+
+  it("keeps a database-shaped row with status='on' enabled after mapping", async () => {
+    const query = jest.fn().mockResolvedValue({
+      rows: [
+        {
+          id: 4,
+          channel: 'facebook',
+          status: 'on',
+          enabled: true,
+          expires_at: '2026-12-01T00:00:00.000Z',
+        },
+      ],
+    });
+    const repo = makeMarketingRepo(query);
+    const rows = await repo.listChannelConnectors();
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toMatch(/SELECT[\s\S]*\bstatus\b[\s\S]*\(status = 'on'\)/i);
+    expect(sql).not.toMatch(/access_token|refresh_token|secret_json/i);
+    expect(rows).toEqual([
+      expect.objectContaining({
+        channel: 'facebook',
+        status: 'on',
+        enabled: true,
+      }),
+    ]);
+    expect(isConnectorEnabled(rows[0])).toBe(true);
   });
 });
