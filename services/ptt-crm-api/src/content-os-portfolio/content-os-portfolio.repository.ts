@@ -1013,6 +1013,7 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
       channel: string;
       display_name: string;
       account_ref: string;
+      connector_id: number | null;
       status: string | null;
       expires_at: string | null;
     }>
@@ -1020,7 +1021,7 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     if (!lifecycleIds.length) return [];
     const res = await this.db.query(
       `SELECT a.id, a.channel, a.display_name, a.account_ref,
-              c.status, c.expires_at
+              c.id AS connector_id, c.status, c.expires_at
          FROM cmkt_channel_accounts a
          LEFT JOIN cmkt_connectors c ON c.channel_account_id = a.id
         WHERE a.lifecycle_id = ANY($1::bigint[])
@@ -1029,11 +1030,13 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     );
     return res.rows.map((row) => {
       const rec = row as Record<string, unknown>;
+      const connectorPk = rec.connector_id != null ? Number(rec.connector_id) : NaN;
       return {
         id: Number(rec.id),
         channel: String(rec.channel ?? ''),
         display_name: String(rec.display_name ?? ''),
         account_ref: String(rec.account_ref ?? ''),
+        connector_id: Number.isFinite(connectorPk) && connectorPk > 0 ? connectorPk : null,
         status: rec.status != null ? String(rec.status) : null,
         expires_at: this.isoOrNull(rec.expires_at),
       };

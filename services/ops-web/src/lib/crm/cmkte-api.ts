@@ -471,7 +471,7 @@ export type ChannelAccountPublic = {
   display_name: string;
   account_ref: string;
   health: { status: ChannelHealthStatus; expires_at?: string };
-  connector_id?: number;
+  connector_id?: number | null;
 };
 
 export type ExecuteBody = {

@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AUDIT_RETENTION_COPY } from '@/lib/crm/cmkte-settings';
-import { CmktESettings } from './CmktESettings';
+import { CmktESettings, disconnectConnectorId } from './CmktESettings';
 
 describe('CmktESettings SSO flag', () => {
   it('exposes sso_enforced read-only and false when no IdP is configured', () => {
@@ -31,6 +31,54 @@ describe('CmktESettings audit export + retention', () => {
     expect(html).not.toMatch(/<button[^>]*disabled[^>]*>\s*Audit export/);
     expect(html).toContain(AUDIT_RETENTION_COPY);
     expect(html).toMatch(/Audit lưu 7 năm/);
+  });
+});
+
+describe('CmktESettings Disconnect', () => {
+  it('uses connector_id when present and does not fall back to account id', () => {
+    expect(disconnectConnectorId({ connector_id: 9 })).toBe(9);
+    expect(disconnectConnectorId({ connector_id: 0 })).toBeNull();
+    expect(disconnectConnectorId({ connector_id: null })).toBeNull();
+    expect(disconnectConnectorId({ id: 1 } as { id: number; connector_id?: number | null })).toBeNull();
+
+    const missing = renderToStaticMarkup(
+      createElement(CmktESettings, {
+        context: null,
+        accounts: [
+          {
+            id: 1,
+            channel: 'facebook_page',
+            display_name: 'PTT Ads',
+            account_ref: '555',
+            health: { status: 'Connected' },
+          },
+        ],
+        onDisconnect: async () => undefined,
+      }),
+    );
+    expect(missing).toMatch(/<button[^>]*disabled[^>]*>\s*Disconnect/);
+    expect(missing).not.toContain('access_token');
+
+    const present = renderToStaticMarkup(
+      createElement(CmktESettings, {
+        context: null,
+        accounts: [
+          {
+            id: 1,
+            connector_id: 9,
+            channel: 'facebook_page',
+            display_name: 'PTT Ads',
+            account_ref: '555',
+            health: { status: 'Connected' },
+          },
+        ],
+        onDisconnect: async () => undefined,
+      }),
+    );
+    expect(present).toContain('Disconnect');
+    expect(present).not.toMatch(/<button[^>]*disabled[^>]*>\s*Disconnect/);
+    expect(present).not.toContain('access_token');
+    expect(JSON.stringify({ id: 1, connector_id: 9 })).not.toMatch(/access_token|refresh_token/);
   });
 });
 

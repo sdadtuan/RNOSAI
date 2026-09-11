@@ -19,6 +19,13 @@ export const SETTINGS_SAVE_TOAST = 'Đã lưu policy.';
 export const SETTINGS_SAVE_ERROR_TOAST = 'Không lưu được policy.';
 export const SETTINGS_EXPORT_OK_TOAST = 'Đã xuất audit.';
 
+export function disconnectConnectorId(
+  account?: Pick<ChannelAccountPublic, 'connector_id'> | null,
+): number | null {
+  const id = account?.connector_id;
+  return typeof id === 'number' && Number.isFinite(id) && id > 0 ? id : null;
+}
+
 function downloadAuditCsv(csv: string): void {
   if (typeof document === 'undefined') return;
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -64,7 +71,7 @@ export function CmktESettings({
   const clientGate = context?.flags.client_gate;
   const facebookPage = accounts.find((row) => row.channel === 'facebook_page') ?? accounts[0];
   const health = facebookPageHealth(accounts);
-  const disconnectId = facebookPage?.connector_id ?? facebookPage?.id;
+  const disconnectId = disconnectConnectorId(facebookPage);
 
   useEffect(() => {
     setEnabled(directSocialPublish);

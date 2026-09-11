@@ -366,6 +366,7 @@ export class ContentOsPortfolioService {
       channel: string;
       display_name: string;
       account_ref: string;
+      connector_id: number | null;
       health: ChannelHealth;
     }>;
   }> {
@@ -381,11 +382,14 @@ export class ContentOsPortfolioService {
         channel: string;
         display_name: string;
         account_ref: string;
+        connector_id: number | null;
         connectors: ChannelConnectorRow[];
       }
     >();
     for (const row of rows ?? []) {
       const id = Number(row.id);
+      const connectorPk =
+        row.connector_id != null && Number(row.connector_id) > 0 ? Number(row.connector_id) : null;
       let entry = grouped.get(id);
       if (!entry) {
         entry = {
@@ -393,11 +397,15 @@ export class ContentOsPortfolioService {
           channel: String(row.channel ?? ''),
           display_name: String(row.display_name ?? ''),
           account_ref: String(row.account_ref ?? ''),
+          connector_id: connectorPk,
           connectors: [],
         };
         grouped.set(id, entry);
+      } else if (entry.connector_id == null && connectorPk != null) {
+        entry.connector_id = connectorPk;
       }
       entry.connectors.push({
+        id: connectorPk ?? undefined,
         channel: String(row.channel ?? entry.channel),
         status: row.status != null ? String(row.status) : null,
         expires_at: row.expires_at != null ? String(row.expires_at) : null,
@@ -406,12 +414,15 @@ export class ContentOsPortfolioService {
     return {
       items: [...grouped.values()].map((entry) => {
         const picked = pickConnectorPerChannel(entry.connectors);
+        const pickedRow = picked.get(entry.channel);
+        const pickedId = typeof pickedRow?.id === 'number' && pickedRow.id > 0 ? pickedRow.id : null;
         return {
           id: entry.id,
           channel: entry.channel,
           display_name: entry.display_name,
           account_ref: entry.account_ref,
-          health: resolveChannelHealth(picked.get(entry.channel) ?? null),
+          connector_id: pickedId ?? entry.connector_id,
+          health: resolveChannelHealth(pickedRow ?? null),
         };
       }),
     };

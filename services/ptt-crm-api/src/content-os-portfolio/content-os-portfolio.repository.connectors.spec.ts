@@ -124,6 +124,7 @@ describe('listChannelAccountsPublic SQL', () => {
           channel: 'facebook_page',
           display_name: 'PTT Ads',
           account_ref: '555',
+          connector_id: 9,
           status: 'on',
           expires_at: '2026-12-01T00:00:00.000Z',
         },
@@ -135,6 +136,8 @@ describe('listChannelAccountsPublic SQL', () => {
     expect(sql).toMatch(/cmkt_channel_accounts/i);
     expect(sql).toMatch(/cmkt_connectors/i);
     expect(sql).toMatch(/lifecycle_id/i);
+    expect(sql).toMatch(/c\.id\s+AS\s+connector_id/i);
+    expect(sql).not.toMatch(/access_token|refresh_token/i);
     expect(query).toHaveBeenCalledWith(expect.any(String), [[4]]);
     expect(rows).toEqual([
       expect.objectContaining({
@@ -142,11 +145,34 @@ describe('listChannelAccountsPublic SQL', () => {
         channel: 'facebook_page',
         display_name: 'PTT Ads',
         account_ref: '555',
+        connector_id: 9,
         status: 'on',
         expires_at: '2026-12-01T00:00:00.000Z',
       }),
     ]);
-    expect(JSON.stringify(rows)).not.toMatch(/token/i);
+    expect(JSON.stringify(rows)).not.toMatch(/token|secret/i);
+  });
+
+  it('maps missing connector join to connector_id null without secrets', async () => {
+    const query = jest.fn().mockResolvedValue({
+      rows: [
+        {
+          id: 1,
+          channel: 'facebook_page',
+          display_name: 'PTT Ads',
+          account_ref: '555',
+          connector_id: null,
+          status: null,
+          expires_at: null,
+        },
+      ],
+    });
+    const repo = makePortfolioRepo(query);
+    const rows = await repo.listChannelAccountsPublic([4]);
+    expect(rows[0]).toEqual(
+      expect.objectContaining({ id: 1, connector_id: null }),
+    );
+    expect(JSON.stringify(rows)).not.toMatch(/access_token|refresh_token/i);
   });
 });
 

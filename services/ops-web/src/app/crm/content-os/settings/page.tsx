@@ -103,6 +103,7 @@ function CrmContentOsSettingsContent() {
           onDisconnect={
             token
               ? async (id) => {
+                  if (!(typeof id === 'number' && id > 0)) return;
                   await postConnectorDisconnect(token, id);
                   const listed = await fetchChannelAccounts(token);
                   setAccounts(listed.items);

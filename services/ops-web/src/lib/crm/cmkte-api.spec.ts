@@ -730,6 +730,7 @@ describe('fetchChannelAccounts', () => {
       items: [
         {
           id: 1,
+          connector_id: 9,
           channel: 'facebook_page',
           display_name: 'PTT Ads',
           account_ref: '555',
