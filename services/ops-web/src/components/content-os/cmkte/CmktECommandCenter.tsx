@@ -1,8 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import type { PortfolioCommandCenter, PortfolioRiskQueueItem, PortfolioSlaEvent } from '@/lib/crm/cmkte-api';
+import React, { useState } from 'react';
+import type {
+  PortfolioCommandCenter,
+  PortfolioRiskQueueItem,
+  PortfolioSlaEvent,
+  TodayPublishRow,
+} from '@/lib/crm/cmkte-api';
 import { capacityBandLabel, pctLabel } from '@/lib/crm/cmkte-workspace';
 import { cmktePath } from '@/lib/crm/cmkte-routes';
 import { CmktERequestModal } from './CmktERequestModal';
@@ -36,6 +41,7 @@ export function CmktECommandCenter({
   const empty = data.throughput_week === 0 && data.risk_queue.length === 0;
   const approvedInsight = data.insight?.status === 'Approved' ? data.insight : null;
   const capacityBand = capacityBandLabel(data.capacity_pct, data.capacity_band);
+  const todayPublish: TodayPublishRow[] = data.today_publish ?? [];
 
   return (
     <div className="cmkte-cmd">
@@ -55,6 +61,52 @@ export function CmktECommandCenter({
       </div>
 
       {empty ? <p className="cmkte-empty">{EMPTY_COPY}</p> : null}
+
+      <div className="cmkte-card">
+        <div className="cmkte-queuehead">
+          <div>
+            <h3>Cần đăng hôm nay</h3>
+            <p className="cmkte-desc">
+              Hàng đợi thắng đối thủ: gate PASS + Page Connected → người bấm xác nhận. Không phải lịch N kênh.
+            </p>
+          </div>
+          <Link href={cmktePath('calendar')} className="cmkte-btn cmkte-btn--small">
+            Mở Publication Control
+          </Link>
+        </div>
+        <div className="cmkte-table-scroll">
+          <table className="cmkte-table">
+            <thead>
+              <tr>
+                <th>Item / Page</th>
+                <th>Gate</th>
+                <th>Health</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {todayPublish.map((row) => (
+                <tr key={row.item_id}>
+                  <td>
+                    <span className="cmkte-taskname">{row.display_code}</span>
+                    <span className="cmkte-dep">{row.page_name}</span>
+                  </td>
+                  <td>
+                    {row.gate}
+                    {row.gate === 'Blocked' && row.blockers > 0 ? ` · ${row.blockers} blocker` : ''}
+                  </td>
+                  <td>{row.health}</td>
+                  <td>
+                    <Link href={`/crm/content-os/w/${row.item_id}?tab=publish`} className="cmkte-btn cmkte-btn--small">
+                      Mở Publish Control
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <div className="cmkte-grid3">
         <div className="cmkte-card">

@@ -8,5 +8,6 @@ export function canShowPublicationQueueCta(status: string | null | undefined): b
 export function formatChannelHealthLabel(status: string | null | undefined): string {
   if (status === 'Manual') return 'Manual';
   if (status === 'TokenExpired') return 'Token expiry';
+  if (status === 'Connected') return 'Connected';
   return '—';
 }

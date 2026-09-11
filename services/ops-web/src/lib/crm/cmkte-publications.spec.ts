@@ -21,10 +21,10 @@ describe('publication empty copy', () => {
 });
 
 describe('formatChannelHealthLabel', () => {
-  it('shows Manual and token-expiry from the API, else em dash', () => {
+  it('shows Facebook health from the API and em dash otherwise', () => {
     expect(formatChannelHealthLabel('Manual')).toBe('Manual');
     expect(formatChannelHealthLabel('TokenExpired')).toBe('Token expiry');
-    expect(formatChannelHealthLabel('Connected')).toBe('—');
+    expect(formatChannelHealthLabel('Connected')).toBe('Connected');
     expect(formatChannelHealthLabel(null)).toBe('—');
     expect(formatChannelHealthLabel(undefined)).toBe('—');
     expect(formatChannelHealthLabel('')).toBe('—');

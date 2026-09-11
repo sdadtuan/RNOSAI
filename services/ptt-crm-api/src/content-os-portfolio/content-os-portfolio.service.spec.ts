@@ -24,6 +24,7 @@ describe('ContentOsPortfolioService.getCommandCenter', () => {
     expect(out.throughput_week).toBe(0);
     expect(out.wip).toBe(0);
     expect(out.risk_queue).toEqual([]);
+    expect(out.today_publish).toEqual([]);
     expect(out.capacity_pct).toBeNull();
     expect(repo.aggregateCommand).not.toHaveBeenCalled();
   });
@@ -35,6 +36,7 @@ describe('ContentOsPortfolioService.getCommandCenter', () => {
     expect(out.throughput_week).toBe(0);
     expect(out.wip).toBe(0);
     expect(out.risk_queue).toEqual([]);
+    expect(out.today_publish).toEqual([]);
     expect(out.capacity_pct).toBeNull();
     expect(repo.listScopedLifecycleIds).not.toHaveBeenCalled();
     expect(repo.aggregateCommand).not.toHaveBeenCalled();
@@ -236,6 +238,61 @@ describe('ContentOsPortfolioService.getCommandCenter', () => {
     const svc = makeSvc(repo);
     const out = await svc.getCommandCenter({ staffId: 1 });
     expect(out.risk_queue[0].risk_signal).toBe('CRITICAL_PATH_DELAYED');
+  });
+
+  it('maps items scheduled today and does not seed demo clients', async () => {
+    const repo = {
+      listScopedLifecycleIds: jest.fn().mockResolvedValue([4]),
+      aggregateCommand: jest.fn().mockResolvedValue({
+        throughput_week: 1,
+        completed_week: 0,
+        wip: 1,
+        sla_at_risk: 0,
+        sla_breached: 0,
+        first_pass_pct: null,
+        capacity_pct: null,
+        blocked: 0,
+        risk_queue: [],
+      }),
+      listScopedProductionItems: jest.fn().mockResolvedValue([]),
+      listChannelAccountsPublic: jest.fn().mockResolvedValue([
+        { id: 9, channel: 'facebook_page', display_name: 'PTT Ads', account_ref: '555', status: 'off' },
+      ]),
+    };
+    const marketingRepo = {
+      listCalendarSlots: jest.fn().mockResolvedValue([{ id: 1, item_id: 21, scheduled_at: '2026-09-11T03:00:00.000Z' }]),
+      findItemById: jest.fn().mockResolvedValue({
+        id: 21,
+        lifecycle_id: 4,
+        display_code: 'CNT-1',
+        title: 'Reel',
+        status: 'draft',
+        channel: 'facebook',
+        brief_json: {},
+        body_json: {},
+      }),
+      listItemVersions: jest.fn().mockResolvedValue([]),
+      listAssetRights: jest.fn().mockResolvedValue([]),
+      listChannelConnectors: jest.fn().mockResolvedValue([]),
+    };
+    const svc = makeSvc(repo, undefined, marketingRepo);
+    const out = await svc.getCommandCenter({ staffId: 1 });
+    expect(marketingRepo.listCalendarSlots).toHaveBeenCalled();
+    const range = marketingRepo.listCalendarSlots.mock.calls[0][1] as { from: string; to: string };
+    expect(range.from).toMatch(/\+07:00$/);
+    expect(range.to).toMatch(/\+07:00$/);
+    expect(out.today_publish).toEqual([
+      {
+        item_id: 21,
+        display_code: 'CNT-1',
+        page_name: 'PTT Ads',
+        gate: 'Blocked',
+        blockers: expect.any(Number),
+        health: 'Manual',
+      },
+    ]);
+    expect(out.today_publish?.[0]?.blockers).toBeGreaterThan(0);
+    expect(JSON.stringify(out.today_publish)).not.toMatch(/Sunlight|Nova|Tâm An/i);
   });
 });
 

@@ -47,7 +47,13 @@ import {
   type PortfolioCommandCenter,
   type PortfolioCommandScope,
   type PortfolioProductionItem,
+  type TodayPublishRow,
 } from './content-os-portfolio.types';
+import {
+  isFacebookPublishChannel,
+  mapTodayPublishRow,
+  todayPublishRange,
+} from './content-os-portfolio.today-publish.util';
 import { formatContentRequestCode, requestCompleteness } from './content-os-portfolio.util';
 import { toAiTraceRow, type AiTraceRow } from './ai-traces.util';
 import type { CmktInsightRow } from './copilot-insights.util';
@@ -162,7 +168,8 @@ export class ContentOsPortfolioService {
     const ids = hint && hint > 0 && lifecycleIds.includes(hint) ? [hint] : lifecycleIds;
     const command = await this.repo.aggregateCommand(ids);
     const items = await this.loadProductionItems(ids);
-    return this.withCapacityAndCriticalPath(command, items);
+    const withCapacity = this.withCapacityAndCriticalPath(command, items);
+    return { ...withCapacity, today_publish: await this.loadTodayPublish(ids, staffId) };
   }
 
   async listApprovals(scope: { staffId: number }): Promise<{ items: CmktReviewQueueItem[] }> {
@@ -774,6 +781,73 @@ export class ContentOsPortfolioService {
     return this.withGlossaryHits(
       this.withCriticalPath(await this.items.getItem(found.lifecycle_id, input.itemId)),
     );
+  }
+
+  private async loadTodayPublish(lifecycleIds: number[], staffId: number): Promise<TodayPublishRow[]> {
+    if (!lifecycleIds.length || typeof this.marketingRepo.listCalendarSlots !== 'function') {
+      return [];
+    }
+    const range = todayPublishRange();
+    const slots: CmktCalendarSlotRow[] = [];
+    for (const id of lifecycleIds) {
+      try {
+        slots.push(...((await this.marketingRepo.listCalendarSlots(id, range)) ?? []));
+      } catch {
+        // disabled / missing lifecycle — skip
+      }
+    }
+    if (!slots.length) return [];
+
+    const facebook = await this.facebookTodayContext(staffId);
+    const seen = new Set<number>();
+    const rows: TodayPublishRow[] = [];
+    for (const slot of slots) {
+      const itemId = Number(slot.item_id);
+      if (!(itemId > 0) || seen.has(itemId)) continue;
+      seen.add(itemId);
+      const item =
+        slot.item ??
+        (typeof this.marketingRepo.findItemById === 'function'
+          ? await this.marketingRepo.findItemById(itemId)
+          : null);
+      if (!item) continue;
+      const versions =
+        typeof this.marketingRepo.listItemVersions === 'function'
+          ? await this.marketingRepo.listItemVersions(itemId)
+          : [];
+      const versionLocked = Boolean(
+        lockedSnapshotId(item as { current_version_id?: unknown; version_id?: unknown }, versions),
+      );
+      const gate = evaluatePublishGate(
+        await this.publishGateInputFromItem(item as unknown as Record<string, unknown>, versionLocked),
+      );
+      rows.push(
+        mapTodayPublishRow({
+          item_id: itemId,
+          display_code: String(item.display_code ?? '').trim(),
+          page_name: facebook.page_name,
+          gate: gate.status,
+          blockerCount: gate.blockers.length,
+          health: facebook.health,
+        }),
+      );
+    }
+    return rows;
+  }
+
+  private async facebookTodayContext(staffId: number): Promise<{
+    page_name: string;
+    health: TodayPublishRow['health'];
+  }> {
+    const accounts = await this.listChannelAccounts({ staffId });
+    const fb = accounts.items.find((row) => isFacebookPublishChannel(row.channel));
+    if (fb) {
+      return { page_name: fb.display_name, health: fb.health.status };
+    }
+    const connectors = await this.loadChannelConnectors();
+    const picked = pickConnectorPerChannel(connectors);
+    const health = resolveChannelHealth(picked.get('facebook_page') ?? picked.get('facebook') ?? null);
+    return { page_name: '', health: health.status };
   }
 
   private async loadProductionItems(ids: number[]): Promise<PortfolioProductionItem[]> {

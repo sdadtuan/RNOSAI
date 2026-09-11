@@ -22,6 +22,15 @@ export type PortfolioCommandCenterInsight = {
   body?: string | null;
 };
 
+export type TodayPublishRow = {
+  item_id: number;
+  display_code: string;
+  page_name: string;
+  gate: 'Pass' | 'Warning' | 'Blocked';
+  blockers: number;
+  health: 'Manual' | 'Connected' | 'TokenExpired';
+};
+
 export type PortfolioCommandCenter = {
   throughput_week: number;
   completed_week: number;
@@ -34,6 +43,7 @@ export type PortfolioCommandCenter = {
   blocked: number;
   risk_queue: PortfolioRiskQueueItem[];
   insight?: PortfolioCommandCenterInsight | null;
+  today_publish?: TodayPublishRow[];
 };
 
 export async function fetchCommandCenter(
@@ -251,8 +261,15 @@ export async function postPortfolioApprovalsBatch(
   };
 }
 
+export type PortfolioPublicationHealth = {
+  channel: string;
+  status: string;
+  expires_at?: string;
+};
+
 export type PortfolioPublicationList = {
   slots: ContentOsCalendarSlot[];
+  channel_health?: PortfolioPublicationHealth[];
 };
 
 export async function fetchPortfolioPublications(token: string): Promise<PortfolioPublicationList> {
@@ -261,7 +278,10 @@ export async function fetchPortfolioPublications(token: string): Promise<Portfol
   });
   if (!res.ok) return { slots: [] };
   const body = (await res.json()) as PortfolioPublicationList | null;
-  return { slots: Array.isArray(body?.slots) ? body.slots : [] };
+  return {
+    slots: Array.isArray(body?.slots) ? body.slots : [],
+    ...(Array.isArray(body?.channel_health) ? { channel_health: body.channel_health } : {}),
+  };
 }
 
 export async function fetchPortfolioItem(

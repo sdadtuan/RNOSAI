@@ -5,12 +5,13 @@ import { clearSession } from '@/lib/auth';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import type { ContentOsCalendarSlot } from '@/lib/content-os-api';
 import { CmktECalendar } from '@/components/content-os/cmkte/CmktECalendar';
-import { fetchPortfolioPublications } from '@/lib/crm/cmkte-api';
+import { fetchPortfolioPublications, type PortfolioPublicationHealth } from '@/lib/crm/cmkte-api';
 import { useCmktEPageAuth } from '@/lib/crm/use-cmkte-page';
 
 export default function CrmContentOsCalendarPage() {
   const { user, error, setError, ensureAuth, router } = useCmktEPageAuth();
   const [slots, setSlots] = useState<ContentOsCalendarSlot[] | null>(null);
+  const [channelHealth, setChannelHealth] = useState<PortfolioPublicationHealth[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function CrmContentOsCalendarPage() {
       try {
         const list = await fetchPortfolioPublications(access);
         setSlots(list.slots);
+        setChannelHealth(list.channel_health ?? []);
       } catch (err) {
         setSlots([]);
         setError(err instanceof Error ? err.message : 'Không tải được Publication Control');
@@ -45,7 +47,7 @@ export default function CrmContentOsCalendarPage() {
     <div>
       {loading ? <p className="cmkte-status">Đang tải…</p> : null}
       {error ? <p className="cmkte-status cmkte-status--error">{error}</p> : null}
-      {!loading && slots ? <CmktECalendar slots={slots} /> : null}
+      {!loading && slots ? <CmktECalendar slots={slots} channelHealth={channelHealth} /> : null}
     </div>
   );
 }

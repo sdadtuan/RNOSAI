@@ -10,6 +10,15 @@ export type PortfolioRiskQueueItem = {
   recommended_action: string;
 };
 
+export type TodayPublishRow = {
+  item_id: number;
+  display_code: string;
+  page_name: string;
+  gate: 'Pass' | 'Warning' | 'Blocked';
+  blockers: number;
+  health: 'Manual' | 'Connected' | 'TokenExpired';
+};
+
 export type PortfolioCommandCenter = {
   throughput_week: number;
   completed_week: number;
@@ -21,6 +30,7 @@ export type PortfolioCommandCenter = {
   capacity_band?: 'ok' | 'warning' | 'at_risk' | 'overloaded' | null;
   blocked: number;
   risk_queue: PortfolioRiskQueueItem[];
+  today_publish?: TodayPublishRow[];
 };
 
 export type PortfolioCommandScope = {
@@ -133,5 +143,6 @@ export function emptyPortfolioCommandCenter(): PortfolioCommandCenter {
     capacity_band: null,
     blocked: 0,
     risk_queue: [],
+    today_publish: [],
   };
 }
