@@ -25,6 +25,7 @@ import {
   type PortfolioProductionItem,
 } from './content-os-portfolio.types';
 import { formatContentRequestCode, requestCompleteness } from './content-os-portfolio.util';
+import { toAiTraceRow, type AiTraceRow } from './ai-traces.util';
 import type { CmktInsightRow } from './copilot-insights.util';
 import { computeCapacity, criticalPathTaskIds, hasDelayedCriticalTask } from './production-capacity.util';
 
@@ -246,6 +247,20 @@ export class ContentOsPortfolioService {
         throw new ConflictException({ error: 'insight_not_draft', status: insight.status });
       }
       throw err;
+    }
+  }
+
+  async listAiTraces(input: {
+    staffId: number;
+    itemId: number;
+    lifecycleHint?: number;
+  }): Promise<{ items: AiTraceRow[] }> {
+    await this.getPortfolioItem(input);
+    try {
+      const jobs = (await this.repo.listAiTraceJobs(input.itemId)) ?? [];
+      return { items: jobs.map((job) => toAiTraceRow(job, job.run)) };
+    } catch {
+      return { items: [] };
     }
   }
 

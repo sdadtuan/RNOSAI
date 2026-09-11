@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post,
 import type { Request } from 'express';
 import {
   StaffContentMarketingApproveGuard,
+  StaffContentMarketingGenerateGuard,
   StaffContentMarketingViewGuard,
   StaffContentMarketingWriteGuard,
 } from '../content-marketing/guards/staff-content-marketing.guard';
@@ -39,6 +40,21 @@ export class ContentOsPortfolioController {
       staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
       from,
       to,
+    });
+  }
+
+  @Get('items/:itemId/ai-traces')
+  @UseGuards(StaffContentMarketingGenerateGuard)
+  listAiTraces(
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Req() req: Request,
+    @Query('lifecycle') lifecycle?: string,
+  ) {
+    const hint = Number(lifecycle);
+    return this.portfolio.listAiTraces({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      itemId,
+      lifecycleHint: Number.isInteger(hint) && hint > 0 ? hint : undefined,
     });
   }
 

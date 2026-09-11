@@ -68,4 +68,13 @@ describe('ContentOsPortfolioController', () => {
     expect(service.approveInsight).toHaveBeenCalledWith({ staffId: 7, insightId: 11 });
     expect(out).toEqual(approved);
   });
+
+  it('GET items/:itemId/ai-traces delegates to listAiTraces with staffId and lifecycle hint', async () => {
+    const traces = { items: [{ at: '2026-09-10T08:00:00.000Z', intent: 'Draft generate', sources: [], job_id: 55, status: 'succeeded' }] };
+    const service = { listAiTraces: jest.fn().mockResolvedValue(traces) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.listAiTraces(21, { staffUser: { sub: '7' } } as never, '4');
+    expect(service.listAiTraces).toHaveBeenCalledWith({ staffId: 7, itemId: 21, lifecycleHint: 4 });
+    expect(out).toEqual(traces);
+  });
 });

@@ -27,6 +27,7 @@ import {
   rejectCommentValid,
 } from '@/lib/crm/cmkte-workspace';
 import { useCmktItem } from '@/lib/crm/use-cmkt-item';
+import { CmktEAiTracePanel } from './CmktEAiTracePanel';
 import { deliverableFormatChannel } from './cmkte-deliverables';
 
 function JsonBlock({ value, empty }: { value: unknown; empty: string }) {
@@ -289,6 +290,7 @@ export function CmktEWorkspace({
           ) : (
             <p className="cmkte-empty">Chưa có comment.</p>
           )}
+          <CmktEAiTracePanel itemId={item.id} lifecycleHint={item.lifecycle_id} />
         </section>
       ) : null}
 

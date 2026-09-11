@@ -12,6 +12,7 @@ import {
   type PortfolioProductionItem,
   type PortfolioRiskQueueItem,
 } from './content-os-portfolio.types';
+import type { AiTraceJobRecord } from './ai-traces.util';
 import {
   CMKT_INSIGHT_STATUSES,
   type CmktInsightRow,
@@ -309,6 +310,35 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     return nextDisplaySeq((sql, values) => this.db.query(sql, values), zeroCode, table);
   }
 
+  async listAiTraceJobs(itemId: number): Promise<AiTraceJobRecord[]> {
+    if (!(itemId > 0)) return [];
+    if (!(await this.ensurePgReady())) return [];
+    const withJoin = `
+         SELECT j.id, j.job_type, j.status, j.created_at, j.finished_at, j.ai_run_id::text AS ai_run_id,
+                j.input_json, r.id::text AS run_id, r.input_json AS run_input_json,
+                r.created_at AS run_created_at, r.ended_at AS run_ended_at
+         FROM cmkt_content_jobs j
+         LEFT JOIN ai_agent_runs r ON r.id = j.ai_run_id
+         WHERE j.item_id = $1
+         ORDER BY COALESCE(j.finished_at, j.created_at) DESC NULLS LAST, j.id DESC`;
+    const jobsOnly = `
+         SELECT id, job_type, status, created_at, finished_at, ai_run_id::text AS ai_run_id, input_json
+         FROM cmkt_content_jobs
+         WHERE item_id = $1
+         ORDER BY COALESCE(finished_at, created_at) DESC NULLS LAST, id DESC`;
+    try {
+      const res = await this.db.query(withJoin, [itemId]);
+      return res.rows.map((row) => this.mapAiTraceJobRow(row as Record<string, unknown>));
+    } catch {
+      try {
+        const res = await this.db.query(jobsOnly, [itemId]);
+        return res.rows.map((row) => this.mapAiTraceJobRow(row as Record<string, unknown>, { skipRun: true }));
+      } catch {
+        return [];
+      }
+    }
+  }
+
   async listInsights(
     lifecycleIds: number[],
     statuses: CmktInsightStatus[] = ['Draft', 'Approved'],
@@ -402,6 +432,38 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
       throw new Error(`insight_not_draft:${id}:${existing.status}`);
     }
     return this.mapInsightRow(row as Record<string, unknown>);
+  }
+
+  private mapAiTraceJobRow(
+    row: Record<string, unknown>,
+    opts: { skipRun?: boolean } = {},
+  ): AiTraceJobRecord {
+    const createdAt = row.created_at != null ? new Date(String(row.created_at)).toISOString() : '';
+    const finishedAt = row.finished_at ? new Date(String(row.finished_at)).toISOString() : null;
+    const mapped: AiTraceJobRecord = {
+      id: Number(row.id),
+      job_type: String(row.job_type ?? ''),
+      status: String(row.status ?? ''),
+      created_at: createdAt,
+      finished_at: finishedAt,
+      ai_run_id: row.ai_run_id != null ? String(row.ai_run_id) : null,
+      input_json:
+        row.input_json && typeof row.input_json === 'object' && !Array.isArray(row.input_json)
+          ? (row.input_json as Record<string, unknown>)
+          : {},
+    };
+    if (!opts.skipRun && row.run_id != null) {
+      mapped.run = {
+        id: String(row.run_id),
+        input_json:
+          row.run_input_json && typeof row.run_input_json === 'object' && !Array.isArray(row.run_input_json)
+            ? (row.run_input_json as Record<string, unknown>)
+            : {},
+        created_at: row.run_created_at != null ? String(row.run_created_at) : null,
+        ended_at: row.run_ended_at != null ? String(row.run_ended_at) : null,
+      };
+    }
+    return mapped;
   }
 
   private mapInsightRow(row: Record<string, unknown>): CmktInsightRow {
