@@ -28,6 +28,24 @@ function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof indexedDB !== 'undefined';
 }
 
+type FileSystemAccessWindow = Window & {
+  showSaveFilePicker?: (
+    options?: {
+      suggestedName?: string;
+      startIn?: 'downloads' | FileSystemHandle;
+      types?: Array<{ description?: string; accept: Record<string, string[]> }>;
+    },
+  ) => Promise<FileSystemFileHandle>;
+  showDirectoryPicker?: (
+    options?: { mode?: 'read' | 'readwrite'; startIn?: 'downloads' | FileSystemHandle },
+  ) => Promise<FileSystemDirectoryHandle>;
+};
+
+function fileSystemAccessWindow(): FileSystemAccessWindow | null {
+  if (!isBrowser()) return null;
+  return window as FileSystemAccessWindow;
+}
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -150,9 +168,10 @@ function triggerBrowserDownload(blob: Blob, fileName: string): void {
 }
 
 async function saveWithFilePicker(blob: Blob, fileName: string, mimeType: string): Promise<FileSystemFileHandle | null> {
-  if (typeof window.showSaveFilePicker !== 'function') return null;
+  const fsWindow = fileSystemAccessWindow();
+  if (!fsWindow?.showSaveFilePicker) return null;
   const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() : '';
-  const handle = await window.showSaveFilePicker({
+  const handle = await fsWindow.showSaveFilePicker({
     suggestedName: fileName,
     startIn: 'downloads',
     types: ext ? [{
@@ -208,8 +227,9 @@ async function setSaveDirectoryHandle(handle: FileSystemDirectoryHandle): Promis
 }
 
 async function pickSaveDirectory(): Promise<FileSystemDirectoryHandle | null> {
-  if (typeof window.showDirectoryPicker !== 'function') return null;
-  const handle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
+  const fsWindow = fileSystemAccessWindow();
+  if (!fsWindow?.showDirectoryPicker) return null;
+  const handle = await fsWindow.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
   await setSaveDirectoryHandle(handle);
   return handle;
 }
@@ -251,10 +271,11 @@ export async function revealCsdChatFileInFolder(token: string, file: CsdAttachme
     savedAt: new Date().toISOString(),
   });
 
-  if (typeof window.showDirectoryPicker === 'function') {
+  const fsWindow = fileSystemAccessWindow();
+  if (fsWindow?.showDirectoryPicker) {
     try {
       const sub = await dir.getDirectoryHandle('CSD-Chat');
-      await window.showDirectoryPicker({ startIn: sub, mode: 'read' });
+      await fsWindow.showDirectoryPicker({ startIn: sub, mode: 'read' });
       return;
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
