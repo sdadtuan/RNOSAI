@@ -66,7 +66,8 @@ import {
   type CmktGlossaryRow,
 } from './copilot-glossary.util';
 import { computeCapacity, criticalPathTaskIds, hasDelayedCriticalTask } from './production-capacity.util';
-import { listDamOrEmpty, stubDamAdapter, type DamListResult } from './dam-adapter';
+import { listDamOrEmpty, stubDamAdapter, type DamAdapter, type DamListResult } from './dam-adapter';
+import { assertDamBaseUrl, createHttpJsonDamAdapter } from './http-json-dam.adapter';
 import {
   DIRECT_SOCIAL_PUBLISH_KEY,
   isMissingCmktSettingsSchema,
@@ -460,7 +461,21 @@ export class ContentOsPortfolioService {
   }
 
   async listDamAssets(scope: { staffId: number; collection?: string }): Promise<DamListResult> {
-    return listDamOrEmpty(stubDamAdapter(), { collection: scope.collection });
+    const collection = String(scope.collection ?? '').trim();
+    if (!collection) {
+      throw new BadRequestException({ error: 'collection_required' });
+    }
+    return listDamOrEmpty(this.resolveDamAdapter(), { collection });
+  }
+
+  private resolveDamAdapter(): DamAdapter {
+    const raw = process.env.CMKT_DAM_BASE_URL;
+    try {
+      assertDamBaseUrl(raw);
+      return createHttpJsonDamAdapter({ baseUrl: String(raw) });
+    } catch {
+      return stubDamAdapter();
+    }
   }
 
   async getSettings(_scope: { staffId: number }): Promise<PortfolioSettings> {
