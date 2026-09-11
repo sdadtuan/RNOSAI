@@ -73,6 +73,17 @@ import {
   isMissingAuditActivitySchema,
 } from './audit-export.util';
 import { assertHardDeleteOutcome } from './legal-hold.util';
+import { parsePageAllowlist } from './fb-page-allowlist.util';
+import { createOauthState } from './oauth-state.util';
+import { buildFacebookAuthUrl, exchangeFacebookCode } from './facebook-oauth.util';
+
+const OAUTH_CONNECT_ACTION = 'oauth_connect';
+const FACEBOOK_PAGE_CHANNEL = 'facebook_page';
+
+function facebookSettingsRedirect(status: 'ok' | 'error'): string {
+  const origin = String(process.env.OPS_WEB_ORIGIN ?? '').replace(/\/$/, '');
+  return `${origin}/crm/content-os/settings?fb=${status}`;
+}
 
 type PortfolioSettings = {
   direct_social_publish: boolean;
@@ -725,6 +736,77 @@ export class ContentOsPortfolioService {
       approved.map((row) => row.term),
     );
     return { ...item, glossary_hits };
+  }
+
+  async startFacebookOAuth(input: { staffId: number; lifecycleHint?: number }): Promise<{ redirect: string }> {
+    const appId = String(process.env.CMKT_FB_APP_ID ?? '').trim();
+    const redirectUri = String(process.env.CMKT_FB_REDIRECT_URI ?? '').trim();
+    if (!appId || !redirectUri) {
+      throw new ServiceUnavailableException({ error: 'facebook_oauth_not_configured' });
+    }
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    const hint = input.lifecycleHint;
+    const lifecycleId = hint && hint > 0 && scoped.includes(hint) ? hint : scoped[0];
+    if (!lifecycleId) {
+      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
+    }
+    const state = createOauthState();
+    await this.repo.insertOauthState({
+      state,
+      staffId: input.staffId,
+      lifecycleId,
+    });
+    return {
+      redirect: buildFacebookAuthUrl({ appId, redirectUri, state }),
+    };
+  }
+
+  async facebookOAuthCallback(input: { code?: string; state?: string }): Promise<{ redirect: string }> {
+    try {
+      const code = String(input.code ?? '').trim();
+      const state = String(input.state ?? '').trim();
+      if (!code || !state) {
+        return { redirect: facebookSettingsRedirect('error') };
+      }
+      const consumed =
+        typeof this.repo.consumeOauthState === 'function' ? await this.repo.consumeOauthState(state) : null;
+      if (!consumed) {
+        return { redirect: facebookSettingsRedirect('error') };
+      }
+      const appId = String(process.env.CMKT_FB_APP_ID ?? '').trim();
+      const appSecret = String(process.env.CMKT_FB_APP_SECRET ?? '').trim();
+      const redirectUri = String(process.env.CMKT_FB_REDIRECT_URI ?? '').trim();
+      if (!appId || !appSecret || !redirectUri) {
+        return { redirect: facebookSettingsRedirect('error') };
+      }
+      const exchanged = await exchangeFacebookCode(
+        {
+          code,
+          redirectUri,
+          appId,
+          appSecret,
+          allowlist: parsePageAllowlist(process.env.CMKT_FB_PAGE_ALLOWLIST),
+        },
+        fetch,
+      );
+      await this.repo.saveConnectorSecrets({
+        lifecycleId: consumed.lifecycleId,
+        pageId: exchanged.page_id,
+        accessToken: exchanged.access_token,
+        expiresAt: exchanged.expires_at,
+        channel: FACEBOOK_PAGE_CHANNEL,
+      });
+      if (typeof this.repo.insertAuditExport === 'function') {
+        await this.repo.insertAuditExport({
+          actor: `staff:${consumed.staffId}`,
+          action: OAUTH_CONNECT_ACTION,
+          entity: `${FACEBOOK_PAGE_CHANNEL}:${exchanged.page_id}`,
+        });
+      }
+      return { redirect: facebookSettingsRedirect('ok') };
+    } catch {
+      return { redirect: facebookSettingsRedirect('error') };
+    }
   }
 
   private parseRequestSource(raw: unknown): ContentRequestSource {

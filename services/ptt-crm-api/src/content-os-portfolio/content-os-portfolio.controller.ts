@@ -11,9 +11,10 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import {
   StaffContentMarketingApproveGuard,
   StaffContentMarketingGenerateGuard,
@@ -244,5 +245,31 @@ export class ContentOsPortfolioController {
       actor: actorEmail(req),
       body: body ?? {},
     });
+  }
+
+  @Get('connectors/facebook/oauth/start')
+  @UseGuards(StaffContentMarketingWriteGuard)
+  async startFacebookOAuth(@Req() req: Request, @Res() res: Response) {
+    const out = await this.portfolio.startFacebookOAuth({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+    });
+    return res.redirect(out.redirect);
+  }
+
+}
+
+
+@Controller('api/crm/content-os/portfolio')
+export class ContentOsPortfolioFacebookOAuthCallbackController {
+  constructor(private readonly portfolio: ContentOsPortfolioService) {}
+
+  @Get('connectors/facebook/oauth/callback')
+  async facebookOAuthCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Res() res: Response,
+  ) {
+    const out = await this.portfolio.facebookOAuthCallback({ code, state });
+    return res.redirect(out.redirect);
   }
 }

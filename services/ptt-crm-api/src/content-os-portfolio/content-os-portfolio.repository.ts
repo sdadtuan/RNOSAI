@@ -780,6 +780,77 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     };
   }
 
+  async insertOauthState(input: { state: string; staffId: number; lifecycleId: number }): Promise<void> {
+    await this.db.query(
+      `INSERT INTO cmkt_oauth_states (state, staff_id, lifecycle_id, expires_at)
+       VALUES ($1, $2, $3, NOW() + interval '10 minutes')`,
+      [input.state, input.staffId, input.lifecycleId],
+    );
+  }
+
+  async consumeOauthState(state: string): Promise<{ staffId: number; lifecycleId: number } | null> {
+    const res = await this.db.query(
+      `UPDATE cmkt_oauth_states
+          SET used_at = NOW()
+        WHERE state = $1
+          AND used_at IS NULL
+          AND expires_at > NOW()
+        RETURNING staff_id, lifecycle_id`,
+      [state],
+    );
+    const row = res.rows[0] as { staff_id?: unknown; lifecycle_id?: unknown } | undefined;
+    if (!row) return null;
+    return { staffId: Number(row.staff_id), lifecycleId: Number(row.lifecycle_id) };
+  }
+
+  async saveConnectorSecrets(input: {
+    lifecycleId: number;
+    pageId: string;
+    accessToken: string;
+    refreshToken?: string | null;
+    expiresAt: Date;
+    channel?: string;
+  }): Promise<void> {
+    const channel = input.channel || 'facebook_page';
+    const connectorId = `${channel}:${input.pageId}`;
+    const existing = await this.db.query(
+      `SELECT id FROM cmkt_channel_accounts
+        WHERE channel = $1 AND account_ref = $2
+        LIMIT 1`,
+      [channel, input.pageId],
+    );
+    let accountId = existing.rows[0] ? Number((existing.rows[0] as { id?: unknown }).id) : 0;
+    if (!(accountId > 0)) {
+      const inserted = await this.db.query(
+        `INSERT INTO cmkt_channel_accounts (lifecycle_id, channel, account_ref, display_name)
+         VALUES ($1, $2, $3, $3)
+         RETURNING id`,
+        [input.lifecycleId, channel, input.pageId],
+      );
+      accountId = Number((inserted.rows[0] as { id?: unknown }).id);
+    } else {
+      await this.db.query(
+        `UPDATE cmkt_channel_accounts
+            SET lifecycle_id = $2, updated_at = NOW()
+          WHERE id = $1`,
+        [accountId, input.lifecycleId],
+      );
+    }
+    await this.db.query(
+      `INSERT INTO cmkt_connectors (
+          channel_account_id, connector_id, channel, status, expires_at, access_token, refresh_token
+       ) VALUES ($1, $2, $3, 'on', $4, $5, $6)
+       ON CONFLICT (connector_id) DO UPDATE SET
+          channel_account_id = EXCLUDED.channel_account_id,
+          status = 'on',
+          expires_at = EXCLUDED.expires_at,
+          access_token = EXCLUDED.access_token,
+          refresh_token = EXCLUDED.refresh_token,
+          updated_at = NOW()`,
+      [accountId, connectorId, channel, input.expiresAt, input.accessToken, input.refreshToken ?? null],
+    );
+  }
+
   private mapRequestRow(row: Record<string, unknown>): ContentRequestRow {
     return {
       id: Number(row.id),

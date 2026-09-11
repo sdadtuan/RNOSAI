@@ -191,5 +191,15 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toBe(csv);
   });
 
+  it('GET oauth/start uses write guard path and returns redirect without token', async () => {
+    const service = { startFacebookOAuth: jest.fn().mockResolvedValue({ redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x' }) };
+    const c = new ContentOsPortfolioController(service as never);
+    const res = { redirect: jest.fn() };
+    await c.startFacebookOAuth({ staffUser: { sub: '7' } } as never, res as never);
+    expect(service.startFacebookOAuth).toHaveBeenCalledWith({ staffId: 7 });
+    expect(res.redirect).toHaveBeenCalledWith(expect.stringContaining('facebook.com'));
+    expect(String(res.redirect.mock.calls[0][0])).not.toMatch(/access_token/);
+  });
+
 });
 
