@@ -10,8 +10,12 @@ CREATE TABLE IF NOT EXISTS cmkt_sla_events (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT cmkt_sla_events_action_check CHECK (
         action IN ('reminder', 'at_risk', 'breached')
-    )
+    ),
+    CONSTRAINT cmkt_sla_events_item_task_threshold_uq UNIQUE (item_id, task_id, threshold)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS cmkt_sla_events_item_task_threshold_uq
+    ON cmkt_sla_events (item_id, task_id, threshold);
 
 CREATE INDEX IF NOT EXISTS idx_cmkt_sla_events_item_created
     ON cmkt_sla_events (item_id, created_at ASC, id ASC);

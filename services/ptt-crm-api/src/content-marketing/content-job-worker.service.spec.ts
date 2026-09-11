@@ -1,4 +1,6 @@
+import { CMKT_SLA_TICK_MS } from '../content-os-portfolio/production-sla.util';
 import { ContentJobWorkerService } from './content-job-worker.service';
+import { ContentMarketingRepository } from './content-marketing.repository';
 
 describe('ContentJobWorkerService', () => {
   const config = { mktAiModel: 'gpt-4o-mini', contentMarketingVideoProvider: 'stub' };
@@ -19,7 +21,9 @@ describe('ContentJobWorkerService', () => {
     insertItemVersion: jest.fn().mockResolvedValue(2),
     finishContentJob: jest.fn(),
     listItemsWithProductionTasks: jest.fn(),
-    insertSlaAudit: jest.fn(),
+    insertSlaAudit: jest.fn().mockResolvedValue({ id: 1 }),
+    listSlaAudits: jest.fn().mockResolvedValue([]),
+    patchSlaFired: jest.fn(),
   };
   const brandContext = {
     resolveForLifecycle: jest.fn().mockResolvedValue({ brand_name: 'Acme' }),
@@ -192,13 +196,8 @@ describe('ContentJobWorkerService', () => {
       action: 'reminder',
       am_staff_id: 11,
     });
-    expect(repo.patchItem).toHaveBeenCalledWith(
-      1,
-      5,
-      expect.objectContaining({
-        production_json: expect.objectContaining({ sla_fired: ['copy:75'] }),
-      }),
-    );
+    expect(repo.patchSlaFired).toHaveBeenCalledWith(5, ['copy:75']);
+    expect(repo.patchItem).not.toHaveBeenCalled();
   });
 
   it('tickProductionSla does not re-emit a fired threshold', async () => {
@@ -235,6 +234,126 @@ describe('ContentJobWorkerService', () => {
         am_staff_id: 3,
       }),
     );
+  });
+
+  it('onModuleInit starts a 5-minute SLA timer outside test and onModuleDestroy clears it', () => {
+    const prevNode = process.env.NODE_ENV;
+    const prevJest = process.env.JEST_WORKER_ID;
+    jest.useFakeTimers();
+    const tick = jest.spyOn(worker, 'tickProductionSla').mockResolvedValue({ emitted: 0 });
+    delete process.env.JEST_WORKER_ID;
+    process.env.NODE_ENV = 'development';
+    try {
+      worker.onModuleInit();
+      jest.advanceTimersByTime(CMKT_SLA_TICK_MS);
+      expect(tick).toHaveBeenCalledTimes(1);
+      worker.onModuleDestroy();
+      tick.mockClear();
+      jest.advanceTimersByTime(CMKT_SLA_TICK_MS);
+      expect(tick).not.toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = prevNode;
+      if (prevJest === undefined) delete process.env.JEST_WORKER_ID;
+      else process.env.JEST_WORKER_ID = prevJest;
+      jest.useRealTimers();
+    }
+  });
+
+  it('onModuleInit does not start the SLA timer under Jest or NODE_ENV=test', () => {
+    jest.useFakeTimers();
+    const before = jest.getTimerCount();
+    worker.onModuleInit();
+    expect(jest.getTimerCount()).toBe(before);
+    jest.useRealTimers();
+  });
+
+  it('does not treat a unique-conflict insert as a new emit', async () => {
+    repo.listItemsWithProductionTasks.mockResolvedValue([slaItem()]);
+    repo.insertSlaAudit.mockResolvedValue(null);
+    const out = await worker.tickProductionSla(slaNow);
+    expect(out).toEqual({ emitted: 0 });
+    expect(repo.patchSlaFired).not.toHaveBeenCalled();
+    expect(repo.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('breach → listSlaAudits({ am_staff_id: AM }) returns exactly one breached row', async () => {
+    const slaRepo = new ContentMarketingRepository({ databaseUrl: 'postgres://unused' } as never);
+    jest.spyOn(slaRepo, 'ensurePgReady').mockResolvedValue(false);
+    jest.spyOn(slaRepo, 'listItemsWithProductionTasks').mockResolvedValue([
+      slaItem({
+        assigned_am: 11,
+        production_json: {
+          sla_fired: ['copy:75', 'copy:90'],
+          tasks: [
+            {
+              id: 'copy',
+              sla_h: 10,
+              status: 'doing',
+              started_at: '2026-09-11T00:00:00.000Z',
+            },
+          ],
+        },
+      }),
+    ] as never);
+    const slaWorker = new ContentJobWorkerService(
+      config as never,
+      aiConfig as never,
+      llm as never,
+      agentRuns as never,
+      slaRepo,
+      brandContext as never,
+      mediaImages as never,
+      mediaVideo as never,
+      visualQa as never,
+      social as never,
+    );
+    await slaWorker.tickProductionSla(new Date('2026-09-11T10:06:00.000Z'));
+    const inbox = await slaRepo.listSlaAudits({ am_staff_id: 11 });
+    expect(inbox).toHaveLength(1);
+    expect(inbox[0]).toMatchObject({ action: 'breached', am_staff_id: 11, task_id: 'copy' });
+    expect(await slaRepo.listSlaAudits({ am_staff_id: 99 })).toEqual([]);
+  });
+
+  it('insertSlaAudit throws when PG is ready instead of writing memory', async () => {
+    const slaRepo = new ContentMarketingRepository({ databaseUrl: 'postgres://unused' } as never);
+    jest.spyOn(slaRepo, 'ensurePgReady').mockResolvedValue(true);
+    Object.defineProperty(slaRepo, 'pool', {
+      configurable: true,
+      value: {
+        query: jest
+          .fn()
+          .mockRejectedValue(
+            Object.assign(new Error('relation "cmkt_sla_events" does not exist'), { code: '42P01' }),
+          ),
+      },
+    });
+    await expect(
+      slaRepo.insertSlaAudit({
+        item_id: 5,
+        task_id: 'copy',
+        threshold: 100,
+        action: 'breached',
+        am_staff_id: 11,
+      }),
+    ).rejects.toThrow(/cmkt_sla_events/);
+    jest.spyOn(slaRepo, 'ensurePgReady').mockResolvedValue(false);
+    expect(await slaRepo.listSlaAudits()).toEqual([]);
+  });
+
+  it('insertSlaAudit returns null when ON CONFLICT yields no row', async () => {
+    const slaRepo = new ContentMarketingRepository({ databaseUrl: 'postgres://unused' } as never);
+    jest.spyOn(slaRepo, 'ensurePgReady').mockResolvedValue(true);
+    const query = jest.fn().mockResolvedValue({ rows: [] });
+    Object.defineProperty(slaRepo, 'pool', { configurable: true, value: { query } });
+    const row = await slaRepo.insertSlaAudit({
+      item_id: 5,
+      task_id: 'copy',
+      threshold: 75,
+      action: 'reminder',
+      am_staff_id: 11,
+    });
+    expect(row).toBeNull();
+    expect(String(query.mock.calls[0][0])).toMatch(/ON CONFLICT/i);
   });
 
   it('tickProductionSla skips tasks without started_at', async () => {

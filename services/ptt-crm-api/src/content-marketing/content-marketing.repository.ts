@@ -27,6 +27,7 @@ import type {
   CmktWeeklyMemoPreview,
   CmktApprovalPackageRow,
   CmktApprovalPackageWrite,
+  CmktSlaAuditFilter,
   CmktSlaAuditRow,
   CmktSlaAuditWrite,
   CmktSlaScanItem,
@@ -2284,20 +2285,25 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     return out.sort((a, b) => a.id - b.id);
   }
 
-  async insertSlaAudit(input: CmktSlaAuditWrite): Promise<CmktSlaAuditRow> {
+  async insertSlaAudit(input: CmktSlaAuditWrite): Promise<CmktSlaAuditRow | null> {
     if (await this.ensurePgReady()) {
-      try {
-        const res = await this.db.query(
-          `INSERT INTO cmkt_sla_events (item_id, task_id, threshold, action, am_staff_id)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING id, item_id, task_id, threshold, action, am_staff_id, created_at`,
-          [input.item_id, input.task_id, input.threshold, input.action, input.am_staff_id],
-        );
-        return this.mapSlaAuditRow(res.rows[0] as Record<string, unknown>);
-      } catch {
-        /* fall through to memory so ticks still record without the table */
-      }
+      const res = await this.db.query(
+        `INSERT INTO cmkt_sla_events (item_id, task_id, threshold, action, am_staff_id)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (item_id, task_id, threshold) DO NOTHING
+         RETURNING id, item_id, task_id, threshold, action, am_staff_id, created_at`,
+        [input.item_id, input.task_id, input.threshold, input.action, input.am_staff_id],
+      );
+      const inserted = res.rows[0] as Record<string, unknown> | undefined;
+      return inserted ? this.mapSlaAuditRow(inserted) : null;
     }
+    const dup = this.memory.slaEvents.some(
+      (row) =>
+        row.item_id === input.item_id &&
+        row.task_id === input.task_id &&
+        row.threshold === input.threshold,
+    );
+    if (dup) return null;
     const row: CmktSlaAuditRow = {
       id: this.memory.nextSlaEventId++,
       item_id: input.item_id,
@@ -2311,31 +2317,54 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     return row;
   }
 
-  async listSlaAudits(itemId?: number): Promise<CmktSlaAuditRow[]> {
+  async listSlaAudits(filter?: CmktSlaAuditFilter): Promise<CmktSlaAuditRow[]> {
     if (await this.ensurePgReady()) {
-      try {
-        const res =
-          itemId != null
-            ? await this.db.query(
-                `SELECT id, item_id, task_id, threshold, action, am_staff_id, created_at
-                   FROM cmkt_sla_events
-                  WHERE item_id = $1
-                  ORDER BY created_at ASC, id ASC`,
-                [itemId],
-              )
-            : await this.db.query(
-                `SELECT id, item_id, task_id, threshold, action, am_staff_id, created_at
-                   FROM cmkt_sla_events
-                  ORDER BY created_at ASC, id ASC`,
-              );
-        return res.rows.map((row) => this.mapSlaAuditRow(row as Record<string, unknown>));
-      } catch {
-        /* table missing — use memory */
-      }
+      const res = await this.db.query(
+        `SELECT id, item_id, task_id, threshold, action, am_staff_id, created_at
+           FROM cmkt_sla_events
+          WHERE ($1::bigint IS NULL OR item_id = $1)
+            AND ($2::int IS NULL OR am_staff_id = $2)
+          ORDER BY created_at ASC, id ASC`,
+        [filter?.item_id ?? null, filter?.am_staff_id ?? null],
+      );
+      return res.rows.map((row) => this.mapSlaAuditRow(row as Record<string, unknown>));
     }
-    const rows =
-      itemId != null ? this.memory.slaEvents.filter((row) => row.item_id === itemId) : this.memory.slaEvents;
+    const rows = this.memory.slaEvents.filter((row) => {
+      if (filter?.item_id != null && row.item_id !== filter.item_id) return false;
+      if (filter?.am_staff_id != null && row.am_staff_id !== filter.am_staff_id) return false;
+      return true;
+    });
     return [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id);
+  }
+
+  async patchSlaFired(itemId: number, slaFired: string[]): Promise<void> {
+    if (await this.ensurePgReady()) {
+      await this.db.query(
+        `UPDATE cmkt_content_items
+            SET production_json = jsonb_set(
+                  COALESCE(production_json, '{}'::jsonb),
+                  '{sla_fired}',
+                  $2::jsonb,
+                  true
+                ),
+                updated_at = NOW()
+          WHERE id = $1`,
+        [itemId, JSON.stringify(slaFired)],
+      );
+      return;
+    }
+    for (const items of this.memory.items.values()) {
+      const idx = items.findIndex((item) => item.id === itemId);
+      if (idx < 0) continue;
+      items[idx] = {
+        ...items[idx],
+        production_json: {
+          ...(items[idx].production_json ?? {}),
+          sla_fired: slaFired,
+        },
+      };
+      return;
+    }
   }
 
   private mapSlaScanItem(row: Record<string, unknown>): CmktSlaScanItem {

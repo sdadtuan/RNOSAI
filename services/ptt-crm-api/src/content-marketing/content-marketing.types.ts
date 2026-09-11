@@ -49,6 +49,11 @@ export type CmktSlaAuditWrite = {
   am_staff_id: number | null;
 };
 
+export type CmktSlaAuditFilter = {
+  item_id?: number;
+  am_staff_id?: number;
+};
+
 export type CmktSlaAuditRow = CmktSlaAuditWrite & {
   id: number;
   created_at: string;

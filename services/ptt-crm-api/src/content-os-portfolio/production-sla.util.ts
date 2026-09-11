@@ -1,3 +1,9 @@
+export const CMKT_SLA_TICK_MS = 5 * 60 * 1000;
+
+export function shouldStartSlaCron(env: NodeJS.ProcessEnv = process.env): boolean {
+  return !env.JEST_WORKER_ID && env.NODE_ENV !== 'test';
+}
+
 export type SlaThreshold = 75 | 90 | 100;
 export type SlaAction = 'reminder' | 'at_risk' | 'breached';
 

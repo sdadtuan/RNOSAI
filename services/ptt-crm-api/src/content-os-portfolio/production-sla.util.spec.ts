@@ -1,6 +1,8 @@
 import {
+  CMKT_SLA_TICK_MS,
   evaluateProductionSla,
   resolveAmStaffId,
+  shouldStartSlaCron,
   slaFiredKey,
   type SlaEvalTask,
 } from './production-sla.util';
@@ -112,5 +114,15 @@ describe('resolveAmStaffId', () => {
     expect(resolveAmStaffId({ owner_id: 8, assignee_sp: 3 })).toBe(8);
     expect(resolveAmStaffId({ assignee_sp: 3 })).toBe(3);
     expect(resolveAmStaffId({})).toBeNull();
+  });
+});
+
+describe('shouldStartSlaCron', () => {
+  it('is 5 minutes and starts only outside test/jest', () => {
+    expect(CMKT_SLA_TICK_MS).toBe(5 * 60 * 1000);
+    expect(shouldStartSlaCron({ NODE_ENV: 'production' })).toBe(true);
+    expect(shouldStartSlaCron({ NODE_ENV: 'development' })).toBe(true);
+    expect(shouldStartSlaCron({ NODE_ENV: 'test' })).toBe(false);
+    expect(shouldStartSlaCron({ NODE_ENV: 'production', JEST_WORKER_ID: '1' })).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, forwardRef } from '@nestjs/common';
 import { AiAgentRunsRepository } from '../ai-intelligence/ai-agent-runs.repository';
 import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
 import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
@@ -48,15 +48,18 @@ import { ContentMarketingRepository } from './content-marketing.repository';
 import type { CmktBodyJson, CmktIdeaRow, CmktJobRow, CmktMediaAsset } from './content-marketing.types';
 import { SocialVideoService } from './video-social/social-video.service';
 import {
+  CMKT_SLA_TICK_MS,
   evaluateProductionSla,
   resolveAmStaffId,
+  shouldStartSlaCron,
 } from '../content-os-portfolio/production-sla.util';
 
 @Injectable()
-export class ContentJobWorkerService {
+export class ContentJobWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ContentJobWorkerService.name);
   private readonly inFlight = new Set<number>();
   private slaTickInFlight = false;
+  private slaTickTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private readonly config: AppConfigService,
@@ -76,6 +79,23 @@ export class ContentJobWorkerService {
     return this.config.mktAiModel || this.aiConfig.llmModel || 'gpt-4o-mini';
   }
 
+  onModuleInit(): void {
+    if (!shouldStartSlaCron()) return;
+    this.slaTickTimer = setInterval(() => {
+      void this.tickProductionSla().catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`SLA tick failed: ${message}`);
+      });
+    }, CMKT_SLA_TICK_MS);
+  }
+
+  onModuleDestroy(): void {
+    if (this.slaTickTimer != null) {
+      clearInterval(this.slaTickTimer);
+      this.slaTickTimer = null;
+    }
+  }
+
   async tickProductionSla(now = new Date()): Promise<{ emitted: number }> {
     if (this.slaTickInFlight) return { emitted: 0 };
     this.slaTickInFlight = true;
@@ -86,22 +106,21 @@ export class ContentJobWorkerService {
         const result = evaluateProductionSla(item, now);
         if (!result.events.length) continue;
         const amStaffId = resolveAmStaffId(item);
+        let newlyEmitted = 0;
         for (const ev of result.events) {
-          await this.repo.insertSlaAudit({
+          const row = await this.repo.insertSlaAudit({
             item_id: item.id,
             task_id: ev.task_id,
             threshold: ev.threshold,
             action: ev.action,
             am_staff_id: amStaffId,
           });
-          emitted += 1;
+          if (!row) continue;
+          newlyEmitted += 1;
         }
-        await this.repo.patchItem(item.lifecycle_id, item.id, {
-          production_json: {
-            ...(item.production_json ?? {}),
-            sla_fired: result.sla_fired,
-          },
-        });
+        if (!newlyEmitted) continue;
+        emitted += newlyEmitted;
+        await this.repo.patchSlaFired(item.id, result.sla_fired);
       }
       return { emitted };
     } finally {
