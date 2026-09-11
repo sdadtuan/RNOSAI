@@ -1,5 +1,7 @@
 export type ChannelHealthStatus = 'Manual' | 'Connected' | 'TokenExpired';
 
+export const PUBLISH_CTA_COPY = 'Đăng ký nhận tư vấn';
+
 export function canShowDangLenPage(input: {
   directSocialPublish: boolean;
   health: ChannelHealthStatus;
