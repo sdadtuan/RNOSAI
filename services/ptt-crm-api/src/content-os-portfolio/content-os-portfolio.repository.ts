@@ -781,6 +781,52 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     };
   }
 
+  async insertDamBinding(input: {
+    itemId: number;
+    damId: string;
+    url: string;
+    rightsJson?: unknown;
+  }): Promise<{ id: number; item_id: number; dam_id: string; url: string }> {
+    const res = await this.db.query(
+      `INSERT INTO cmkt_dam_bindings (item_id, dam_id, url, rights_json)
+       VALUES ($1, $2, $3, $4::jsonb)
+       RETURNING id, item_id, dam_id, url`,
+      [input.itemId, input.damId, input.url, input.rightsJson != null ? JSON.stringify(input.rightsJson) : null],
+    );
+    const row = res.rows[0] as Record<string, unknown> | undefined;
+    return {
+      id: Number(row?.id ?? 0),
+      item_id: Number(row?.item_id ?? input.itemId),
+      dam_id: String(row?.dam_id ?? input.damId),
+      url: String(row?.url ?? input.url),
+    };
+  }
+
+  async mergeItemDamMediaRef(input: {
+    itemId: number;
+    dam_id: string;
+    url: string;
+  }): Promise<{ dam_refs: Array<{ dam_id: string; url: string }> }> {
+    const ref = JSON.stringify([{ dam_id: input.dam_id, url: input.url }]);
+    const res = await this.db.query(
+      `UPDATE cmkt_content_items
+          SET media_json = jsonb_set(
+                COALESCE(media_json, '{}'::jsonb),
+                '{dam_refs}',
+                COALESCE(COALESCE(media_json, '{}'::jsonb)->'dam_refs', '[]'::jsonb) || $2::jsonb,
+                true
+              ),
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING media_json`,
+      [input.itemId, ref],
+    );
+    const media = (res.rows[0] as { media_json?: { dam_refs?: Array<{ dam_id: string; url: string }> } } | undefined)
+      ?.media_json;
+    const dam_refs = Array.isArray(media?.dam_refs) ? media.dam_refs : [{ dam_id: input.dam_id, url: input.url }];
+    return { dam_refs };
+  }
+
   async insertOauthState(input: { state: string; staffId: number; lifecycleId: number }): Promise<void> {
     await this.db.query(
       `INSERT INTO cmkt_oauth_states (state, staff_id, lifecycle_id, expires_at)

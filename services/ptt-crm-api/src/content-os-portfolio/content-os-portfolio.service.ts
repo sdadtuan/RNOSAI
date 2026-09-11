@@ -40,8 +40,12 @@ import {
 import { ContentWorkflowService } from '../content-marketing/content-workflow.service';
 import { ContentOsPortfolioRepository } from './content-os-portfolio.repository';
 import {
+  ASSET_RIGHT_STATUSES,
   CONTENT_REQUEST_SOURCES,
   emptyPortfolioCommandCenter,
+  type AssetRightStatus,
+  type CmktAssetRightRow,
+  type CmktAssetRightWrite,
   type ContentRequestRow,
   type ContentRequestSource,
   type PortfolioCommandCenter,
@@ -66,8 +70,19 @@ import {
   type CmktGlossaryRow,
 } from './copilot-glossary.util';
 import { computeCapacity, criticalPathTaskIds, hasDelayedCriticalTask } from './production-capacity.util';
-import { listDamOrEmpty, stubDamAdapter, type DamAdapter, type DamListResult } from './dam-adapter';
+import {
+  listDamOrEmpty,
+  stubDamAdapter,
+  type DamAdapter,
+  type DamListResult,
+  type DamRightsMetadata,
+} from './dam-adapter';
 import { assertDamBaseUrl, createHttpJsonDamAdapter } from './http-json-dam.adapter';
+import {
+  assertBindableDamUrl,
+  parseDamBindBody,
+  sanitizeDamBindAuditEntity,
+} from './dam-bind.util';
 import {
   DIRECT_SOCIAL_PUBLISH_KEY,
   isMissingCmktSettingsSchema,
@@ -104,6 +119,40 @@ import { resolvePublishConnector } from './publish-connector';
 const OAUTH_CONNECT_ACTION = 'oauth_connect';
 const OAUTH_DISCONNECT_ACTION = 'oauth_disconnect';
 const FACEBOOK_PAGE_CHANNEL = 'facebook_page';
+
+function isAssetRightStatus(value: string): value is AssetRightStatus {
+  return (ASSET_RIGHT_STATUSES as readonly string[]).includes(value);
+}
+
+function damRightsToWrite(assetRef: string, rights: DamRightsMetadata | null | undefined): CmktAssetRightWrite {
+  const statusRaw = rights?.status != null ? String(rights.status).trim() : 'Unknown';
+  const status: AssetRightStatus =
+    isAssetRightStatus(statusRaw) && statusRaw !== 'Valid' ? statusRaw : 'Unknown';
+  return {
+    asset_ref: assetRef,
+    license_type: rights?.license_type != null ? String(rights.license_type).trim() || null : null,
+    channels: Array.isArray(rights?.channels)
+      ? rights.channels.map((ch) => String(ch).trim()).filter(Boolean)
+      : [],
+    territory: rights?.territory != null ? String(rights.territory).trim() || null : null,
+    expiry_at: rights?.expiry_at != null ? String(rights.expiry_at).trim() || null : null,
+    status,
+  };
+}
+
+function assetRightRowToWrite(row: CmktAssetRightRow): CmktAssetRightWrite {
+  return {
+    asset_ref: row.asset_ref,
+    license_type: row.license_type,
+    channels: row.channels,
+    territory: row.territory,
+    expiry_at: row.expiry_at,
+    paid_ok: row.paid_ok,
+    releases_ok: row.releases_ok,
+    ai_declaration: row.ai_declaration,
+    status: row.status,
+  };
+}
 
 function facebookSettingsRedirect(status: 'ok' | 'error'): string {
   const origin = String(process.env.OPS_WEB_ORIGIN ?? '').replace(/\/$/, '');
@@ -466,6 +515,82 @@ export class ContentOsPortfolioService {
       throw new BadRequestException({ error: 'collection_required' });
     }
     return listDamOrEmpty(this.resolveDamAdapter(), { collection });
+  }
+
+  async bindDamAsset(input: {
+    staffId: number;
+    itemId: number;
+    actor: string;
+    body: Record<string, unknown>;
+  }): Promise<{
+    binding: { id: number; item_id: number; dam_id: string; url: string };
+    media_json: { dam_refs: Array<{ dam_id: string; url: string }> };
+  }> {
+    let allowedHost: string;
+    try {
+      allowedHost = assertDamBaseUrl(process.env.CMKT_DAM_BASE_URL).hostname;
+    } catch {
+      throw new BadRequestException({ error: 'dam_not_configured' });
+    }
+    let parsed;
+    let url: string;
+    try {
+      parsed = parseDamBindBody(input.body);
+      url = assertBindableDamUrl(parsed.url, allowedHost);
+    } catch {
+      throw new BadRequestException({ error: 'dam_invalid_response' });
+    }
+    const ids = await this.scopedLifecycleIds(input.staffId);
+    const found =
+      typeof this.marketingRepo.findItemById === 'function'
+        ? await this.marketingRepo.findItemById(input.itemId)
+        : null;
+    if (!found || !ids.includes(found.lifecycle_id)) {
+      throw new NotFoundException({ error: 'item_not_found', id: input.itemId });
+    }
+    const rightsJson = parsed.rights ?? null;
+    const binding = await this.repo.insertDamBinding({
+      itemId: input.itemId,
+      damId: parsed.dam_id,
+      url,
+      rightsJson,
+    });
+    const media = await this.repo.mergeItemDamMediaRef({
+      itemId: input.itemId,
+      dam_id: parsed.dam_id,
+      url,
+    });
+    await this.upsertDamAssetRights(input.itemId, url, parsed.rights);
+    if (typeof this.repo.insertAuditExport === 'function') {
+      await this.repo.insertAuditExport({
+        actor: input.actor,
+        action: 'dam_bind',
+        entity: sanitizeDamBindAuditEntity(url),
+      });
+    }
+    return { binding, media_json: { dam_refs: media.dam_refs ?? [] } };
+  }
+
+  private async upsertDamAssetRights(
+    itemId: number,
+    assetRef: string,
+    rights: DamRightsMetadata | null | undefined,
+  ): Promise<void> {
+    if (
+      typeof this.marketingRepo.listAssetRights !== 'function' ||
+      typeof this.marketingRepo.replaceAssetRights !== 'function'
+    ) {
+      return;
+    }
+    const existing = await this.marketingRepo.listAssetRights(itemId);
+    const write = damRightsToWrite(assetRef, rights);
+    const next: CmktAssetRightWrite[] = [
+      ...existing
+        .filter((row) => row.asset_ref !== assetRef)
+        .map((row) => assetRightRowToWrite(row)),
+      write,
+    ];
+    await this.marketingRepo.replaceAssetRights(itemId, next);
   }
 
   private resolveDamAdapter(): DamAdapter {

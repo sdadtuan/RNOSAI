@@ -1,9 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { DAM_PICK_LABEL, readDamListResult } from './cmkte-dam';
+import {
+  DAM_EMPTY_COLLECTION_COPY,
+  DAM_PICK_LABEL,
+  canBindDamUrl,
+  readDamListResult,
+} from './cmkte-dam';
 
 describe('cmkte-dam', () => {
   it('keeps the Library picker label exact', () => {
     expect(DAM_PICK_LABEL).toBe('Chọn từ DAM');
+  });
+
+  it('uses empty-success copy that is not an error', () => {
+    expect(DAM_EMPTY_COLLECTION_COPY).toBe('Chưa có asset trong collection');
+  });
+
+  it('does not bind javascript, data, http, or foreign hosts', () => {
+    expect(canBindDamUrl('javascript:alert(1)', 'dam.example.internal')).toBe(false);
+    expect(canBindDamUrl('data:text/plain,x', 'dam.example.internal')).toBe(false);
+    expect(canBindDamUrl('http://dam.example.internal/a.jpg', 'dam.example.internal')).toBe(false);
+    expect(canBindDamUrl('https://evil.example/a.jpg', 'dam.example.internal')).toBe(false);
+    expect(canBindDamUrl('https://dam.example.internal/a.jpg', 'dam.example.internal')).toBe(true);
   });
 
   it('maps fail to empty list plus a stable code and does not invent Sunlight/Nova assets', () => {

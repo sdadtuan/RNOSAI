@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { clearSession } from '@/lib/auth';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { CmktELibrary } from '@/components/content-os/cmkte/CmktELibrary';
-import { fetchDamAssets, fetchPortfolioItem } from '@/lib/crm/cmkte-api';
+import { bindDamAsset, fetchDamAssets, fetchPortfolioItem } from '@/lib/crm/cmkte-api';
 import { CMKTE_LAST_ITEM_KEY } from '@/lib/crm/cmkte-nav';
-import type { DamUrlMetadata } from '@/lib/crm/cmkte-dam';
+import { canBindDamUrl, inferDamAllowedHost, type DamUrlMetadata } from '@/lib/crm/cmkte-dam';
 import { itemMediaUrls } from '@/lib/crm/cmkte-workspace';
 import { useCmktEPageAuth } from '@/lib/crm/use-cmkte-page';
 
@@ -18,6 +18,8 @@ export default function CrmContentOsLibraryPage() {
   const [damItems, setDamItems] = useState<DamUrlMetadata[]>([]);
   const [damError, setDamError] = useState('');
   const [damLoading, setDamLoading] = useState(false);
+  const [damLoaded, setDamLoaded] = useState(false);
+  const [itemId, setItemId] = useState<number | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -34,8 +36,10 @@ export default function CrmContentOsLibraryPage() {
       const stored = Number(window.localStorage.getItem(CMKTE_LAST_ITEM_KEY));
       if (!(Number.isInteger(stored) && stored > 0)) {
         setAssetUrls([]);
+        setItemId(null);
         return;
       }
+      setItemId(stored);
       setLoading(true);
       setError('');
       try {
@@ -63,15 +67,36 @@ export default function CrmContentOsLibraryPage() {
           damItems={damItems}
           damError={damError}
           damLoading={damLoading}
+          damLoaded={damLoaded}
           onPickFromDam={
             accessToken
-              ? () => {
+              ? (collection) => {
                   void (async () => {
                     setDamLoading(true);
-                    const result = await fetchDamAssets(accessToken);
+                    const result = await fetchDamAssets(accessToken, collection);
                     setDamItems(result.items);
                     setDamError(result.error ?? '');
+                    setDamLoaded(true);
                     setDamLoading(false);
+                  })();
+                }
+              : undefined
+          }
+          onBindDam={
+            accessToken && itemId
+              ? (asset) => {
+                  const host = inferDamAllowedHost(damItems);
+                  if (!canBindDamUrl(asset.url, host)) return;
+                  void (async () => {
+                    try {
+                      await bindDamAsset(accessToken, itemId, {
+                        dam_id: asset.id,
+                        url: asset.url,
+                        rights: asset.rights,
+                      });
+                    } catch (err) {
+                      setDamError(err instanceof Error ? err.message : 'dam_unavailable');
+                    }
                   })();
                 }
               : undefined

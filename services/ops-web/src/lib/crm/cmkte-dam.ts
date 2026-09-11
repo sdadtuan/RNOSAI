@@ -1,4 +1,5 @@
 export const DAM_PICK_LABEL = 'Chọn từ DAM';
+export const DAM_EMPTY_COLLECTION_COPY = 'Chưa có asset trong collection';
 
 const SECRET_KEY = /token|secret/i;
 
@@ -62,6 +63,27 @@ function toOptionalRights(raw: unknown): DamRightsMetadata | undefined {
   if (row.territory != null) rights.territory = String(row.territory).trim() || null;
   if (row.expiry_at != null) rights.expiry_at = String(row.expiry_at).trim() || null;
   return Object.keys(rights).length ? rights : undefined;
+}
+
+export function canBindDamUrl(url: string, allowedHost: string): boolean {
+  try {
+    const parsed = new URL(String(url ?? '').trim());
+    return parsed.protocol === 'https:' && parsed.hostname.toLowerCase() === String(allowedHost ?? '').trim().toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+export function inferDamAllowedHost(items: DamUrlMetadata[]): string {
+  for (const item of items) {
+    try {
+      const parsed = new URL(item.url);
+      if (parsed.protocol === 'https:' && parsed.hostname) return parsed.hostname;
+    } catch {
+      // skip malformed rows
+    }
+  }
+  return '';
 }
 
 export function toDamUrlMetadata(raw: unknown): DamUrlMetadata | null {

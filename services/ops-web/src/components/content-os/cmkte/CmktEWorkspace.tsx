@@ -12,7 +12,8 @@ import {
 } from '@/lib/content-os-api';
 import { evaluatePublishGate } from '@/lib/crm/cmkte-publish-gate';
 import { cmktePath, contentOsPanelHref } from '@/lib/crm/cmkte-routes';
-import type { ExecuteAccepted, ExecuteBody } from '@/lib/crm/cmkte-api';
+import { bindDamAsset, fetchDamAssets, type ExecuteAccepted, type ExecuteBody } from '@/lib/crm/cmkte-api';
+import { canBindDamUrl, DAM_PICK_LABEL, inferDamAllowedHost, type DamUrlMetadata } from '@/lib/crm/cmkte-dam';
 import { canOpenConfirm } from '@/lib/crm/cmkte-win-publish';
 import { CMKTE_EMPTY_ITEM, CMKTE_TABS, nextTabLabel, type CmktETabId } from '@/lib/crm/cmkte-tabs';
 import {
@@ -31,6 +32,7 @@ import {
 } from '@/lib/crm/cmkte-workspace';
 import { useCmktItem } from '@/lib/crm/use-cmkt-item';
 import { CmktEAiTracePanel } from './CmktEAiTracePanel';
+import { CmktEDamDrawer } from './CmktELibrary';
 import { deliverableFormatChannel } from './cmkte-deliverables';
 
 export const EXECUTE_FAIL_TOAST = 'Không đăng được — xem Publication log';
@@ -239,6 +241,12 @@ export function CmktEWorkspace({
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [forbidden, setForbidden] = useState(executeForbidden);
   const [evidence, setEvidence] = useState<PublicationEvidence | undefined>();
+  const [damOpen, setDamOpen] = useState(false);
+  const [damCollection, setDamCollection] = useState('approved');
+  const [damItems, setDamItems] = useState<DamUrlMetadata[]>([]);
+  const [damError, setDamError] = useState('');
+  const [damLoading, setDamLoading] = useState(false);
+  const [damLoaded, setDamLoaded] = useState(false);
 
   useEffect(() => {
     setForbidden(executeForbidden);
@@ -476,6 +484,28 @@ export function CmktEWorkspace({
       {tab === 'assets' ? (
         <section className="cmkte-card">
           <h2 className="cmkte-section-title">Assets, DAM & Rights</h2>
+          <div className="cmkte-actions">
+            <button
+              type="button"
+              className="cmkte-btn"
+              disabled={busy || !token || damLoading}
+              onClick={() => {
+                setDamOpen(true);
+                if (token) {
+                  void (async () => {
+                    setDamLoading(true);
+                    const result = await fetchDamAssets(token, damCollection);
+                    setDamItems(result.items);
+                    setDamError(result.error ?? '');
+                    setDamLoaded(true);
+                    setDamLoading(false);
+                  })();
+                }
+              }}
+            >
+              {DAM_PICK_LABEL}
+            </button>
+          </div>
           {urls.length === 0 ? (
             <p className="cmkte-empty">Chưa có asset.</p>
           ) : (
@@ -489,6 +519,42 @@ export function CmktEWorkspace({
               ))}
             </ul>
           )}
+          <CmktEDamDrawer
+            open={damOpen}
+            collection={damCollection}
+            onCollectionChange={setDamCollection}
+            items={damItems}
+            error={damError}
+            loading={damLoading}
+            loaded={damLoaded}
+            onClose={() => setDamOpen(false)}
+            onLoad={(collection) => {
+              if (!token) return;
+              void (async () => {
+                setDamLoading(true);
+                const result = await fetchDamAssets(token, collection);
+                setDamItems(result.items);
+                setDamError(result.error ?? '');
+                setDamLoaded(true);
+                setDamLoading(false);
+              })();
+            }}
+            onBind={
+              token
+                ? (asset) => {
+                    const host = inferDamAllowedHost(damItems);
+                    if (!canBindDamUrl(asset.url, host)) return;
+                    void runAction(() =>
+                      bindDamAsset(token, item.id, {
+                        dam_id: asset.id,
+                        url: asset.url,
+                        rights: asset.rights,
+                      }),
+                    );
+                  }
+                : undefined
+            }
+          />
         </section>
       ) : null}
 

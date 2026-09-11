@@ -132,6 +132,22 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Post('items/:itemId/dam-bind')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingWriteGuard)
+  bindDamAsset(
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    return this.portfolio.bindDamAsset({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      itemId,
+      actor: actorEmail(req),
+      body: body ?? {},
+    });
+  }
+
   @Get('audit/export')
   @UseGuards(StaffContentMarketingWriteGuard)
   @Header('Content-Type', 'text/csv; charset=utf-8')

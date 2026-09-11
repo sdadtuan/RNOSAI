@@ -167,5 +167,8 @@ export function itemMediaUrls(item: ContentOsItem | null | undefined): string[] 
   ]
     .filter((asset): asset is NonNullable<typeof asset> => Boolean(asset?.url))
     .map((asset) => asset.url);
-  return [...fromProd, ...media];
+  const damRefs = (item.media_json?.dam_refs ?? [])
+    .map((ref) => String(ref?.url ?? '').trim())
+    .filter(Boolean);
+  return [...fromProd, ...media, ...damRefs];
 }

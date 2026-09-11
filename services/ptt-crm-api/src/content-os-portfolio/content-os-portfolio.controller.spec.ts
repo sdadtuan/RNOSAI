@@ -210,6 +210,24 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual(listed);
   });
 
+  it('POST items/:itemId/dam-bind delegates to bindDamAsset with write guard path', async () => {
+    const bound = { media_json: { dam_refs: [{ dam_id: 'a1', url: 'https://dam.example.internal/a.jpg' }] } };
+    const service = { bindDamAsset: jest.fn().mockResolvedValue(bound) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.bindDamAsset(
+      21,
+      { dam_id: 'a1', url: 'https://dam.example.internal/a.jpg' },
+      { staffUser: { sub: '7', email: 'ops@ptt.vn' } } as never,
+    );
+    expect(service.bindDamAsset).toHaveBeenCalledWith({
+      staffId: 7,
+      itemId: 21,
+      actor: 'ops@ptt.vn',
+      body: { dam_id: 'a1', url: 'https://dam.example.internal/a.jpg' },
+    });
+    expect(out).toEqual(bound);
+  });
+
   it('GET items/:itemId/ai-traces delegates to listAiTraces with staffId and lifecycle hint', async () => {
     const traces = { items: [{ at: '2026-09-10T08:00:00.000Z', intent: 'Draft generate', sources: [], job_id: 55, status: 'succeeded' }] };
     const service = { listAiTraces: jest.fn().mockResolvedValue(traces) };

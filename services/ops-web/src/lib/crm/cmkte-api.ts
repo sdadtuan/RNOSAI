@@ -1,6 +1,6 @@
 import { API_BASE, ApiError } from '@/lib/api';
 import type { ContentOsCalendarSlot, ContentOsItem, ContentOsReviewQueueItem } from '@/lib/content-os-api';
-import { readDamListResult, type DamListResult } from './cmkte-dam';
+import { readDamListResult, type DamListResult, type DamRightsMetadata } from './cmkte-dam';
 import { readDirectSocialPublish, readSsoEnforced } from './cmkte-settings';
 import type { ChannelHealthStatus } from './cmkte-win-publish';
 
@@ -434,6 +434,32 @@ export async function fetchDamAssets(token: string, collection?: string): Promis
   } catch {
     return { items: [], error: 'dam_unavailable' };
   }
+}
+
+export type DamBindBody = { dam_id: string; url: string; rights?: DamRightsMetadata | null };
+
+export async function bindDamAsset(
+  token: string,
+  itemId: number,
+  body: DamBindBody,
+): Promise<{ media_json?: { dam_refs?: Array<{ dam_id: string; url: string }> } }> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/items/${itemId}/dam-bind`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      dam_id: body.dam_id,
+      url: body.url,
+      ...(body.rights != null ? { rights: body.rights } : {}),
+    }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(err?.error ?? 'dam_unavailable');
+  }
+  return res.json();
 }
 
 export async function fetchPortfolioAuditExport(token: string): Promise<string> {

@@ -12,6 +12,7 @@ import {
   fetchPortfolioPublications,
   fetchPortfolioSlaEvents,
   fetchDamAssets,
+  bindDamAsset,
   fetchPortfolioAuditExport,
   facebookOAuthStartUrl,
   fetchChannelAccounts,
@@ -592,6 +593,42 @@ describe('fetchDamAssets', () => {
       items: [],
       error: 'dam_invalid_response',
     });
+  });
+});
+
+describe('bindDamAsset', () => {
+  it('POSTs dam-bind ref without hosting a file body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ media_json: { dam_refs: [{ dam_id: 'a1', url: 'https://dam.example.internal/a.jpg' }] } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await bindDamAsset('tok-9', 21, {
+      dam_id: 'a1',
+      url: 'https://dam.example.internal/a.jpg',
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/api/crm/content-os/portfolio/items/21/dam-bind`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer tok-9' }),
+        body: JSON.stringify({ dam_id: 'a1', url: 'https://dam.example.internal/a.jpg' }),
+      }),
+    );
+    expect(JSON.stringify(result)).not.toMatch(/binary|base64/i);
+  });
+
+  it('surfaces a stable error code when bind fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'dam_invalid_response' }),
+      }),
+    );
+    await expect(
+      bindDamAsset('tok-9', 21, { dam_id: 'x', url: 'https://evil.example/a.jpg' }),
+    ).rejects.toThrow('dam_invalid_response');
   });
 });
 

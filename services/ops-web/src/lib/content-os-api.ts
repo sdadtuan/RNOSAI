@@ -920,6 +920,7 @@ export type ContentOsMediaJson = {
   style_preset?: string;
   aspect_ratio?: string;
   selected_asset_id?: string | null;
+  dam_refs?: Array<{ dam_id: string; url: string }>;
 };
 
 export const CONTENT_OS_VIDEO_API_PATHS = {
