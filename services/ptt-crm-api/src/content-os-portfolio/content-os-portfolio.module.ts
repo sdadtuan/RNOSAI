@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ContentMarketingModule } from '../content-marketing/content-marketing.module';
 import {
   StaffContentMarketingApproveGuard,
+  StaffContentMarketingExecuteGuard,
   StaffContentMarketingGenerateGuard,
   StaffContentMarketingViewGuard,
   StaffContentMarketingWriteGuard,
@@ -20,6 +21,7 @@ import { ContentOsPortfolioService } from './content-os-portfolio.service';
     StaffContentMarketingViewGuard,
     StaffContentMarketingWriteGuard,
     StaffContentMarketingApproveGuard,
+    StaffContentMarketingExecuteGuard,
     StaffContentMarketingGenerateGuard,
   ],
 })

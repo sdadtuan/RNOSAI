@@ -803,6 +803,86 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     return { staffId: Number(row.staff_id), lifecycleId: Number(row.lifecycle_id) };
   }
 
+  async insertPublicationExecute(input: {
+    item_id: number;
+    channel_account_id: number;
+    snapshot_id: string;
+    client_request_id: string;
+  }): Promise<{ id: number; client_request_id: string; status: string }> {
+    const res = await this.db.query(
+      `INSERT INTO cmkt_publication_executes
+         (item_id, channel_account_id, snapshot_id, client_request_id, status)
+       VALUES ($1, $2, $3, $4, 'queued')
+       RETURNING id, client_request_id, status`,
+      [input.item_id, input.channel_account_id, input.snapshot_id, input.client_request_id || null],
+    );
+    const row = res.rows[0] as Record<string, unknown> | undefined;
+    if (!row) {
+      throw new Error('publication_execute_insert_empty');
+    }
+    return {
+      id: Number(row.id),
+      client_request_id: String(row.client_request_id ?? input.client_request_id),
+      status: String(row.status ?? 'queued'),
+    };
+  }
+
+  async loadConnectorSecretForExecute(executeId: number): Promise<{
+    id: number;
+    item_id: number;
+    channel_account_id: number;
+    snapshot_id: string;
+    access_token: string | null;
+    status: string | null;
+    connector_status: string | null;
+    page_id: string | null;
+  } | null> {
+    const res = await this.db.query(
+      `SELECT e.id, e.item_id, e.channel_account_id, e.snapshot_id,
+              c.access_token, c.status, a.account_ref AS page_id
+         FROM cmkt_publication_executes e
+         LEFT JOIN cmkt_connectors c ON c.channel_account_id = e.channel_account_id
+         LEFT JOIN cmkt_channel_accounts a ON a.id = e.channel_account_id
+        WHERE e.id = $1
+        LIMIT 1`,
+      [executeId],
+    );
+    const rec = res.rows[0] as Record<string, unknown> | undefined;
+    if (!rec) return null;
+    const status = rec.status != null ? String(rec.status) : null;
+    return {
+      id: Number(rec.id),
+      item_id: Number(rec.item_id),
+      channel_account_id: Number(rec.channel_account_id),
+      snapshot_id: String(rec.snapshot_id ?? ''),
+      access_token: rec.access_token != null ? String(rec.access_token) : null,
+      status,
+      connector_status: status,
+      page_id: rec.page_id != null ? String(rec.page_id) : null,
+    };
+  }
+
+  async updatePublicationExecuteResult(
+    executeId: number,
+    patch: { post_id: string; permalink: string | null; status: string },
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE cmkt_publication_executes
+          SET post_id = $2, permalink = $3, status = $4
+        WHERE id = $1`,
+      [executeId, patch.post_id, patch.permalink, patch.status],
+    );
+  }
+
+  async markItemPublishedFromExecute(itemId: number, publishedUrl: string | null): Promise<void> {
+    await this.db.query(
+      `UPDATE cmkt_content_items
+          SET status = 'published', published_at = NOW(), published_url = $2, updated_at = NOW()
+        WHERE id = $1`,
+      [itemId, publishedUrl],
+    );
+  }
+
   async saveConnectorSecrets(input: {
     lifecycleId: number;
     pageId: string;

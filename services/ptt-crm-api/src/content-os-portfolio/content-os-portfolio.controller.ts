@@ -17,6 +17,7 @@ import {
 import type { Request, Response } from 'express';
 import {
   StaffContentMarketingApproveGuard,
+  StaffContentMarketingExecuteGuard,
   StaffContentMarketingGenerateGuard,
   StaffContentMarketingViewGuard,
   StaffContentMarketingWriteGuard,
@@ -84,6 +85,17 @@ export class ContentOsPortfolioController {
       staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
       from,
       to,
+    });
+  }
+
+  @Post('publications/execute')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingExecuteGuard)
+  enqueuePublicationExecute(@Body() body: Record<string, unknown>, @Req() req: Request) {
+    return this.portfolio.enqueuePublicationExecute({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      actor: actorEmail(req),
+      body: body ?? {},
     });
   }
 

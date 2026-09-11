@@ -76,6 +76,17 @@ import { assertHardDeleteOutcome } from './legal-hold.util';
 import { parsePageAllowlist } from './fb-page-allowlist.util';
 import { createOauthState } from './oauth-state.util';
 import { buildFacebookAuthUrl, exchangeFacebookCode } from './facebook-oauth.util';
+import { evaluatePublishGate, type PublishGateInput } from './publish-gate.util';
+import {
+  assertExecuteGate,
+  assertHumanConfirm,
+  lockedItemCopy,
+  lockedSnapshotId,
+  type ExecuteAccepted,
+} from './publication-execute.util';
+import { insertPublicationLogWithRetry, publicationLogFromError } from './publication-log.util';
+import { createFacebookPageConnector } from './facebook-page-connector';
+import { resolvePublishConnector } from './publish-connector';
 
 const OAUTH_CONNECT_ACTION = 'oauth_connect';
 const OAUTH_DISCONNECT_ACTION = 'oauth_disconnect';
@@ -892,6 +903,173 @@ export class ContentOsPortfolioService {
       return { redirect: facebookSettingsRedirect('ok') };
     } catch {
       return { redirect: facebookSettingsRedirect('error') };
+    }
+  }
+
+
+  async enqueuePublicationExecute(input: {
+    staffId: number;
+    actor: string;
+    body: Record<string, unknown>;
+  }): Promise<ExecuteAccepted> {
+    assertHumanConfirm(input.body?.confirm);
+    const itemId = Number(input.body.item_id);
+    const channelAccountId = Number(input.body.channel_account_id);
+    const snapshotId = String(input.body.snapshot_id ?? '');
+    const clientRequestId = String(input.body.client_request_id ?? '');
+
+    const item =
+      typeof this.marketingRepo.findItemById === 'function'
+        ? await this.marketingRepo.findItemById(itemId)
+        : null;
+    if (!item) {
+      throw new NotFoundException({ error: 'item_not_found', id: itemId });
+    }
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    if (item.lifecycle_id != null && scoped.length && !scoped.includes(item.lifecycle_id)) {
+      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
+    }
+
+    const locked = lockedSnapshotId(item as { current_version_id?: unknown; version_id?: unknown });
+    if (locked !== snapshotId) {
+      throw new BadRequestException({ error: 'material_change' });
+    }
+
+    const gate = evaluatePublishGate(this.publishGateInputFromItem(item as unknown as Record<string, unknown>));
+    assertExecuteGate(gate.status);
+
+    const inserted = await this.repo.insertPublicationExecute({
+      item_id: itemId,
+      channel_account_id: channelAccountId,
+      snapshot_id: snapshotId,
+      client_request_id: clientRequestId,
+    });
+
+    if (typeof this.repo.insertAuditExport === 'function') {
+      try {
+        await this.repo.insertAuditExport({
+          actor: input.actor,
+          action: 'publication.execute',
+          entity: `item:${itemId}`,
+        });
+      } catch {
+        // Execute row is queued; audit must not block accept.
+      }
+    }
+
+    setImmediate(() => {
+      void this.runPublicationExecute(Number(inserted.id));
+    });
+
+    return {
+      queued: true,
+      client_request_id: String(inserted.client_request_id ?? clientRequestId),
+      execute_id: Number(inserted.id),
+    };
+  }
+
+  async runPublicationExecute(executeId: number): Promise<void> {
+    if (typeof this.repo.loadConnectorSecretForExecute !== 'function') return;
+    let itemId: number | null = null;
+    try {
+      const secret = await this.repo.loadConnectorSecretForExecute(executeId);
+      if (!secret) return;
+      itemId = Number(secret.item_id);
+      const settings = await this.getSettings({ staffId: 0 }).catch(() =>
+        portfolioSettings(false, this.staffIdpSnapshot()),
+      );
+      const connectorStatus = secret.connector_status ?? secret.status ?? null;
+      const facebook = createFacebookPageConnector({
+        enabled: settings.direct_social_publish,
+        statusOn: connectorStatus === 'on',
+      });
+      const connector = resolvePublishConnector({
+        direct_social_publish: settings.direct_social_publish,
+        connectorStatus,
+        hasToken: Boolean(secret.access_token),
+        facebook,
+      });
+      const item =
+        typeof this.marketingRepo.findItemById === 'function'
+          ? await this.marketingRepo.findItemById(itemId)
+          : null;
+      const result = await connector.publish({
+        item_id: itemId,
+        channel: 'facebook_page',
+        page_id: String(secret.page_id ?? ''),
+        message: lockedItemCopy((item ?? undefined) as Record<string, unknown> | undefined),
+        access_token: String(secret.access_token ?? ''),
+      });
+      const permalinkRaw =
+        result && typeof result === 'object'
+          ? (result as { permalink_url?: unknown }).permalink_url
+          : undefined;
+      const permalink = typeof permalinkRaw === 'string' && permalinkRaw.trim() ? permalinkRaw : null;
+      if (typeof this.repo.updatePublicationExecuteResult === 'function') {
+        await this.repo.updatePublicationExecuteResult(executeId, {
+          post_id: result.post_id,
+          permalink,
+          status: 'published',
+        });
+      }
+      if (typeof this.repo.markItemPublishedFromExecute === 'function') {
+        await this.repo.markItemPublishedFromExecute(itemId, permalink);
+      }
+      await this.writeExecutePublicationLog(itemId, {
+        error: null,
+        http_status: 200,
+        post_id: result.post_id ?? null,
+      });
+    } catch (err) {
+      const log = publicationLogFromError(err);
+      await this.writeExecutePublicationLog(itemId, { ...log, post_id: null });
+    }
+  }
+
+  private publishGateInputFromItem(item: Record<string, unknown>): PublishGateInput {
+    const pg =
+      item.publish_gate && typeof item.publish_gate === 'object' && !Array.isArray(item.publish_gate)
+        ? (item.publish_gate as Record<string, unknown>)
+        : {};
+    const status = String(item.status ?? '');
+    return {
+      briefReady: pg.briefReady === true || item.brief_ready === true || item.briefReady === true,
+      internalApproved:
+        pg.internalApproved === true ||
+        ['approved_internal', 'client_approved', 'pending_client', 'scheduled'].includes(status),
+      legalRequired: pg.legalRequired === true,
+      legalApproved: pg.legalApproved === true,
+      clientApproved: pg.clientApproved !== false && item.clientApproved !== false,
+      urlOk: pg.urlOk !== false && item.urlOk !== false,
+      versionLocked: pg.versionLocked !== false && item.versionLocked !== false,
+      accountHealthy: pg.accountHealthy !== false && item.accountHealthy !== false,
+      rightsValid:
+        typeof pg.rightsValid === 'boolean'
+          ? pg.rightsValid
+          : typeof item.rights_valid === 'boolean'
+            ? item.rights_valid
+            : undefined,
+      altComplete: typeof pg.altComplete === 'boolean' ? pg.altComplete : undefined,
+      paidExpiryWarning: pg.paidExpiryWarning === true || item.paid_expiry_warning === true,
+    };
+  }
+
+  private async writeExecutePublicationLog(
+    itemId: number | null,
+    fields: { error: string | null; http_status: number | null; post_id: string | null },
+  ): Promise<void> {
+    if (itemId == null || typeof this.marketingRepo.insertPublicationLog !== 'function') return;
+    try {
+      await insertPublicationLogWithRetry(() =>
+        this.marketingRepo.insertPublicationLog({
+          item_id: itemId,
+          error: fields.error,
+          post_id: fields.post_id,
+          http_status: fields.http_status,
+        }),
+      );
+    } catch {
+      // Worker must not throw after Graph; log insert is best-effort.
     }
   }
 

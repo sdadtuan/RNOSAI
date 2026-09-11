@@ -228,6 +228,22 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toBe(csv);
   });
 
+  it('POST publications/execute delegates to enqueuePublicationExecute', async () => {
+    const queued = { queued: true, client_request_id: 'r1', execute_id: 88 };
+    const service = { enqueuePublicationExecute: jest.fn().mockResolvedValue(queued) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.enqueuePublicationExecute(
+      { item_id: 21, channel_account_id: 1, snapshot_id: 'v13', confirm: true, client_request_id: 'r1' },
+      { staffUser: { sub: '7', email: 'social@ptt.vn' } } as never,
+    );
+    expect(service.enqueuePublicationExecute).toHaveBeenCalledWith({
+      staffId: 7,
+      actor: 'social@ptt.vn',
+      body: { item_id: 21, channel_account_id: 1, snapshot_id: 'v13', confirm: true, client_request_id: 'r1' },
+    });
+    expect(out).toEqual(queued);
+  });
+
   it('GET oauth/start uses write guard path and returns redirect without token', async () => {
     const service = { startFacebookOAuth: jest.fn().mockResolvedValue({ redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x' }) };
     const c = new ContentOsPortfolioController(service as never);
