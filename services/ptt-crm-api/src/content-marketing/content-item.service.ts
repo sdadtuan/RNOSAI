@@ -351,18 +351,20 @@ export class ContentItemService {
     body: Record<string, unknown>,
     actorEmail: string,
   ): Promise<CmktItemRow> {
-    try {
-      await this.core.ensureLifecycleEnabled(lifecycleId);
-      const item = await this.repo.getItemById(lifecycleId, itemId);
-      if (!item) {
-        throw new NotFoundException({ error: 'item_not_found', id: itemId });
-      }
+    await this.core.ensureLifecycleEnabled(lifecycleId);
+    const item = await this.repo.getItemById(lifecycleId, itemId);
+    if (!item) {
+      throw new NotFoundException({ error: 'item_not_found', id: itemId });
+    }
 
+    let updated: CmktItemRow;
+    let rightsRows: Awaited<ReturnType<ContentMarketingRepository['listAssetRights']>>;
+    try {
       assertTransition(item.status, publishFromStatuses(this.config.contentMarketingClientGate), 'publish');
       assertProductionGateForPublish(item);
       assertVisualGateForPublish(item, this.config.contentMarketingMediaEnabled);
 
-      const rightsRows = await this.repo.listAssetRights(itemId);
+      rightsRows = await this.repo.listAssetRights(itemId);
       const publishedUrlProvided = body.published_url != null;
       const publishedUrl = publishedUrlProvided ? String(body.published_url).trim() : null;
       const { approval_matrix } = buildApprovalMatrixForItem(item, rightsRows);
@@ -387,18 +389,19 @@ export class ContentItemService {
         });
       }
 
-      const updated = await this.repo.patchItem(lifecycleId, itemId, {
+      updated = await this.repo.patchItem(lifecycleId, itemId, {
         status: 'published',
         published_at: new Date().toISOString(),
         published_url: publishedUrl || item.published_url,
       });
       await this.repo.insertItemVersion(itemId, updated.body_json, actorEmail, 'publish');
-      await this.writePublicationLog(itemId, { error: null, http_status: null, post_id: null });
-      return attachApprovalMatrix(updated, rightsRows);
     } catch (err) {
       await this.writePublicationLog(itemId, { ...publicationLogFromError(err), post_id: null });
       throw err;
     }
+
+    await this.writePublicationLog(itemId, { error: null, http_status: null, post_id: null });
+    return attachApprovalMatrix(updated, rightsRows);
   }
 
   private async writePublicationLog(

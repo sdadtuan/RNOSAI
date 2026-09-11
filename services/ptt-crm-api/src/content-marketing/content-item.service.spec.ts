@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ApprovalPackageService } from './approval-package.service';
 import { ContentItemService } from './content-item.service';
 
@@ -385,6 +385,42 @@ describe('ContentItemService publishItem gate', () => {
 
     await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toBe(insertError);
     expect(repo.insertPublicationLog).toHaveBeenCalled();
+  });
+
+  it('does not write a publication log when the item is missing', async () => {
+    repo.getItemById.mockResolvedValue(null);
+
+    await expect(service.publishItem(1, 99, {}, 'am@ptt.vn')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.publishItem(1, 99, {}, 'am@ptt.vn')).rejects.toMatchObject({
+      response: { error: 'item_not_found', id: 99 },
+    });
+    expect(repo.insertPublicationLog).not.toHaveBeenCalled();
+    expect(repo.patchItem).not.toHaveBeenCalled();
+  });
+
+  it('propagates success-path insertPublicationLog errors without writing a failure row', async () => {
+    repo.getItemById.mockResolvedValue(
+      publishableItem({
+        brief_json: { hook: 'Open', audience: 'CMO', goal: 'Lead' },
+        brief_score: 0,
+        media_json: {},
+      }),
+    );
+    repo.listAssetRights.mockResolvedValue([]);
+    repo.patchItem.mockResolvedValue({ id: 7, status: 'published' });
+    const insertError = new Error('success log insert failed');
+    repo.insertPublicationLog.mockRejectedValue(insertError);
+
+    await expect(service.publishItem(1, 7, {}, 'am@ptt.vn')).rejects.toBe(insertError);
+    expect(repo.patchItem).toHaveBeenCalled();
+    expect(repo.insertPublicationLog).toHaveBeenCalledTimes(1);
+    expect(repo.insertPublicationLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        item_id: 7,
+        error: null,
+        post_id: null,
+      }),
+    );
   });
 
   it('throws publish_gate_blocked when rightsValid is false', async () => {
