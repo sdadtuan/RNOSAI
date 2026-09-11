@@ -16,6 +16,8 @@ import {
   bindDamAsset,
   fetchPortfolioAuditExport,
   facebookOAuthStartUrl,
+  isSafeFacebookDialogRedirect,
+  startFacebookOAuth,
   fetchChannelAccounts,
   fetchPortfolioSettings,
   fetchPortfolioRequests,
@@ -757,11 +759,50 @@ describe('portfolio audit export', () => {
 });
 
 describe('facebookOAuthStartUrl', () => {
-  it('points at the Facebook OAuth start route without a JWT query', () => {
+  it('points at the Facebook OAuth start JSON route without a JWT query', () => {
     const url = facebookOAuthStartUrl();
-    expect(url).toBe(`${API_BASE}/api/crm/content-os/portfolio/connectors/facebook/oauth/start`);
+    expect(url).toBe(`${API_BASE}/api/crm/content-os/portfolio/connectors/facebook/oauth/start.json`);
     expect(url).not.toMatch(/[?&]access_token=/);
     expect(url).not.toMatch(/refresh_token/);
+    expect(url).not.toMatch(/[?&]token=/);
+  });
+});
+
+describe('startFacebookOAuth', () => {
+  it('GETs start.json with Bearer and returns the Facebook dialog redirect', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const out = await startFacebookOAuth('tok-9');
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/api/crm/content-os/portfolio/connectors/facebook/oauth/start.json`,
+      {
+        headers: {
+          Authorization: 'Bearer tok-9',
+          Accept: 'application/json',
+        },
+      },
+    );
+    expect(String(fetchMock.mock.calls[0][0])).not.toMatch(/[?&](access_token|token)=/);
+    expect(out).toEqual({ redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x' });
+    expect(JSON.stringify(out)).not.toMatch(/access_token|Bearer /);
+  });
+});
+
+describe('isSafeFacebookDialogRedirect', () => {
+  it('allows only facebook.com dialog URLs without access_token', () => {
+    expect(isSafeFacebookDialogRedirect('https://www.facebook.com/v21.0/dialog/oauth?state=x')).toBe(true);
+    expect(isSafeFacebookDialogRedirect('https://facebook.com/v21.0/dialog/oauth?state=x')).toBe(true);
+    expect(
+      isSafeFacebookDialogRedirect('https://www.facebook.com/v21.0/dialog/oauth?access_token=SECRET'),
+    ).toBe(false);
+    expect(isSafeFacebookDialogRedirect(`${API_BASE}/api/crm/content-os/portfolio/connectors/facebook/oauth/start`)).toBe(
+      false,
+    );
+    expect(isSafeFacebookDialogRedirect('https://evil.example/dialog/oauth')).toBe(false);
   });
 });
 
@@ -918,6 +959,20 @@ describe('patchPortfolioLegalHold', () => {
       }),
     );
     expect(String(fetchMock.mock.calls[0][0])).not.toMatch(/DELETE/i);
+  });
+
+  it('throws ApiError with status 400/403 so Settings can surface them', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: 'hold_reason_required' }),
+      }),
+    );
+    await expect(
+      patchPortfolioLegalHold('tok-9', 21, { legal_hold: true, reason: 'short' }),
+    ).rejects.toMatchObject({ message: 'hold_reason_required', status: 400 });
   });
 });
 

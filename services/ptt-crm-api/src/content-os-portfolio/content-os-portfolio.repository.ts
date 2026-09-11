@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
+import { ConflictException, Injectable, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { CMKT_REVIEW_SLA_HOURS } from '../content-marketing/content-marketing.constants';
@@ -547,9 +547,13 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     actor: string;
     action?: string;
     entity?: string;
+    detail?: string;
   }): Promise<AuditExportRow> {
     const action = input.action || AUDIT_EXPORT_ACTION;
-    const entity = input.entity || AUDIT_EXPORT_ENTITY;
+    const detail = String(input.detail ?? '').trim();
+    const entity = detail
+      ? `${input.entity || AUDIT_EXPORT_ENTITY}:${detail}`
+      : input.entity || AUDIT_EXPORT_ENTITY;
     const res = await this.db.query(
       `INSERT INTO cmkt_audit_exports (actor, action, entity)
        VALUES ($1, $2, $3)
@@ -693,8 +697,8 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     setBy: string | null;
     reason: string;
     lifecycleIds: number[];
-  }): Promise<{ id: number; legal_hold: boolean; legal_hold_set_by: string | null } | null> {
-    void input.reason;
+  }): Promise<{ id: number; legal_hold: boolean; legal_hold_set_by: string | null; reason: string } | null> {
+    const reason = String(input.reason ?? '').trim();
     const res = await this.db.query(
       `UPDATE cmkt_content_items
           SET legal_hold = $2,
@@ -710,6 +714,7 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
       id: Number(row.id),
       legal_hold: row.legal_hold === true,
       legal_hold_set_by: row.legal_hold_set_by != null ? String(row.legal_hold_set_by) : null,
+      reason,
     };
   }
 
@@ -1103,14 +1108,23 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
   }): Promise<void> {
     const channel = input.channel || 'facebook_page';
     const connectorId = `${channel}:${input.pageId}`;
-    const existing = await this.db.query(
+    const scoped = await this.db.query(
       `SELECT id FROM cmkt_channel_accounts
-        WHERE channel = $1 AND account_ref = $2
+        WHERE channel = $1 AND account_ref = $2 AND lifecycle_id = $3
         LIMIT 1`,
-      [channel, input.pageId],
+      [channel, input.pageId, input.lifecycleId],
     );
-    let accountId = existing.rows[0] ? Number((existing.rows[0] as { id?: unknown }).id) : 0;
+    let accountId = scoped.rows[0] ? Number((scoped.rows[0] as { id?: unknown }).id) : 0;
     if (!(accountId > 0)) {
+      const foreign = await this.db.query(
+        `SELECT id, lifecycle_id FROM cmkt_channel_accounts
+          WHERE channel = $1 AND account_ref = $2
+          LIMIT 1`,
+        [channel, input.pageId],
+      );
+      if (foreign.rows[0]) {
+        throw new ConflictException({ error: 'channel_account_lifecycle_mismatch' });
+      }
       const inserted = await this.db.query(
         `INSERT INTO cmkt_channel_accounts (lifecycle_id, channel, account_ref, display_name)
          VALUES ($1, $2, $3, $3)
@@ -1118,13 +1132,6 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
         [input.lifecycleId, channel, input.pageId],
       );
       accountId = Number((inserted.rows[0] as { id?: unknown }).id);
-    } else {
-      await this.db.query(
-        `UPDATE cmkt_channel_accounts
-            SET lifecycle_id = $2, updated_at = NOW()
-          WHERE id = $1`,
-        [accountId, input.lifecycleId],
-      );
     }
     await this.db.query(
       `INSERT INTO cmkt_connectors (

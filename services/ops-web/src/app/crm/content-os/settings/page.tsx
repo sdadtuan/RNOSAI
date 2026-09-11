@@ -30,6 +30,8 @@ function CrmContentOsSettingsContent() {
   const searchParams = useSearchParams();
   const lifecycleId = parseLifecycleQuery(searchParams.get('lifecycle'));
   const holdItemId = Number(searchParams.get('item') ?? '');
+  const fbRaw = searchParams.get('fb');
+  const fbStatus = fbRaw === 'ok' || fbRaw === 'error' ? fbRaw : undefined;
   const { user, error, setError, ensureAuth, router } = useCmktEPageAuth();
   const [context, setContext] = useState<ContentOsContext | null>(null);
   const [token, setToken] = useState('');
@@ -93,6 +95,8 @@ function CrmContentOsSettingsContent() {
           ssoEnforced={ssoEnforced}
           accounts={accounts}
           holdItemId={Number.isInteger(holdItemId) && holdItemId > 0 ? holdItemId : undefined}
+          oauthToken={token || undefined}
+          fbStatus={fbStatus}
           onSavePolicy={
             token
               ? async (next) => {

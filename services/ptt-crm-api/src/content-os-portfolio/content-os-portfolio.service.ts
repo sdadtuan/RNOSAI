@@ -753,6 +753,7 @@ export class ContentOsPortfolioService {
         actor: input.actor,
         action: 'legal_hold',
         entity: `item:${input.itemId}:${parsed.legal_hold ? 'on' : 'off'}`,
+        detail: parsed.reason,
       });
     }
     return updated;
@@ -1370,10 +1371,11 @@ export class ContentOsPortfolioService {
         snapshot_id: snapshotId,
       });
       if (!existing) throw err;
-      inserted = { ...existing, replayed: true };
+      inserted = existing;
     }
 
-    if (inserted.replayed || inserted.post_id) {
+    const existingPostId = String(inserted.post_id ?? '').trim();
+    if (existingPostId && existingPostId !== 'undefined') {
       return {
         queued: true,
         execute_id: Number(inserted.id),
@@ -1443,9 +1445,13 @@ export class ContentOsPortfolioService {
           ? (result as { permalink_url?: unknown }).permalink_url
           : undefined;
       const permalink = typeof permalinkRaw === 'string' && permalinkRaw.trim() ? permalinkRaw : null;
+      const postId = String(result?.post_id ?? '').trim();
+      if (!postId || postId === 'undefined') {
+        throw new Error('graph_missing_post_id');
+      }
       if (typeof this.repo.updatePublicationExecuteResult === 'function') {
         await this.repo.updatePublicationExecuteResult(executeId, {
-          post_id: result.post_id,
+          post_id: postId,
           permalink,
           status: 'published',
         });
@@ -1456,7 +1462,7 @@ export class ContentOsPortfolioService {
       await this.writeExecutePublicationLog(itemId, {
         error: null,
         http_status: 200,
-        post_id: result.post_id ?? null,
+        post_id: postId,
       });
     } catch (err) {
       const log = publicationLogFromError(err);

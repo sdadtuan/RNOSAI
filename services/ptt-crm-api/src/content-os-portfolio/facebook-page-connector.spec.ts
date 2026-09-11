@@ -48,6 +48,45 @@ describe('FacebookPageConnector', () => {
       item_id: 1, page_id: '555', message: 'x', access_token: 'SECRET',
     } as never)).rejects.toMatchObject({ message: 'TokenExpired' });
   });
+
+  it('maps 403 to TokenExpired and other 4xx to graph_rejected', async () => {
+    const forbidden = jest.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({}) });
+    const rejected = jest.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({}) });
+    await expect(
+      createFacebookPageConnector({ enabled: true, statusOn: true, graphFetch: forbidden }).publish({
+        item_id: 1, page_id: '555', message: 'x', access_token: 'SECRET',
+      } as never),
+    ).rejects.toMatchObject({ message: 'TokenExpired' });
+    await expect(
+      createFacebookPageConnector({ enabled: true, statusOn: true, graphFetch: rejected }).publish({
+        item_id: 1, page_id: '555', message: 'x', access_token: 'SECRET',
+      } as never),
+    ).rejects.toMatchObject({ message: 'graph_rejected' });
+  });
+
+  it('does not retry POST /feed on 5xx', async () => {
+    const graphFetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: { message: 'try again' } }),
+    });
+    const c = createFacebookPageConnector({ enabled: true, statusOn: true, graphFetch });
+    await expect(c.publish({
+      item_id: 1, page_id: '555', message: 'x', access_token: 'SECRET',
+    } as never)).rejects.toMatchObject({ message: 'graph_unavailable' });
+    expect(graphFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws graph_missing_post_id when Graph JSON lacks a non-empty id', async () => {
+    const graphFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    });
+    const c = createFacebookPageConnector({ enabled: true, statusOn: true, graphFetch });
+    await expect(c.publish({
+      item_id: 1, page_id: '555', message: 'x', access_token: 'SECRET',
+    } as never)).rejects.toMatchObject({ message: 'graph_missing_post_id' });
+  });
 });
 
 describe('stub still locked', () => {

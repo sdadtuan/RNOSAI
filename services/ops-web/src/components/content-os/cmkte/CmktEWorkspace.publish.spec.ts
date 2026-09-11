@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CmktEPublishPanel } from './CmktEWorkspace';
+import { CmktEPublishPanel, EXECUTE_QUEUED_TOAST } from './CmktEWorkspace';
 
 describe('CmktEWorkspace publish', () => {
   it('always shows Mark published and hides Đăng lên Page unless showDangLenPage', () => {
@@ -33,6 +33,22 @@ describe('CmktEWorkspace publish', () => {
     expect(shown).toContain('Tôi xác nhận đăng với tư cách Page này. AI không được xác nhận.');
     expect(shown).toContain('PTT Ads');
     expect(shown).toContain('Locked caption');
+  });
+
+  it('shows queued execute_id without inventing post_id or permalink', () => {
+    const html = renderToStaticMarkup(
+      createElement(CmktEPublishPanel, {
+        showDangLenPage: true,
+        gateStatus: 'Pass',
+        pageName: 'PTT Ads',
+        caption: 'Locked caption',
+        queuedExecuteId: 88,
+      }),
+    );
+    expect(html).toContain(EXECUTE_QUEUED_TOAST);
+    expect(html).toContain('88');
+    expect(html).not.toContain('post_id');
+    expect(html).not.toMatch(/permalink|facebook\.com\/fake/);
   });
 
   it('does not invent publication evidence', () => {

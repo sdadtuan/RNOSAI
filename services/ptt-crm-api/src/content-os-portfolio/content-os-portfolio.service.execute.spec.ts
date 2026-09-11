@@ -146,6 +146,7 @@ describe('ContentOsPortfolioService enqueuePublicationExecute', () => {
       }),
     };
     const svc = makeExecuteService({ repo, connector: { id: 'fb', publish } });
+    const run = jest.spyOn(svc, 'runPublicationExecute').mockResolvedValue(undefined);
     const out = await svc.enqueuePublicationExecute({
       staffId: 7, actor: 's@ptt.vn',
       body: { item_id: 21, channel_account_id: 1, snapshot_id: 'v13', confirm: true, client_request_id: 'r1' },
@@ -153,6 +154,37 @@ describe('ContentOsPortfolioService enqueuePublicationExecute', () => {
     expect(out.execute_id).toBe(88);
     expect(out.replayed).toBe(true);
     expect(publish).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('re-kicks the worker when 23505 row has no post_id', async () => {
+    const publish = jest.fn();
+    const repo = {
+      insertPublicationExecute: jest
+        .fn()
+        .mockRejectedValueOnce(Object.assign(new Error('dup'), { code: '23505' })),
+      findExecuteByClientRequestId: jest.fn().mockResolvedValue({
+        id: 88, client_request_id: 'r1', post_id: null, status: 'queued',
+      }),
+    };
+    const svc = makeExecuteService({ repo, connector: { id: 'fb', publish } });
+    const run = jest.spyOn(svc, 'runPublicationExecute').mockResolvedValue(undefined);
+    const immediate = jest.spyOn(global, 'setImmediate').mockImplementation(((fn: () => void) => {
+      fn();
+      return 0 as unknown as NodeJS.Immediate;
+    }) as typeof setImmediate);
+    try {
+      const out = await svc.enqueuePublicationExecute({
+        staffId: 7, actor: 's@ptt.vn',
+        body: { item_id: 21, channel_account_id: 1, snapshot_id: 'v13', confirm: true, client_request_id: 'r1' },
+      });
+      expect(out).toEqual({ queued: true, client_request_id: 'r1', execute_id: 88 });
+      expect(out.replayed).toBeUndefined();
+      expect(run).toHaveBeenCalledWith(88);
+      expect(publish).not.toHaveBeenCalled();
+    } finally {
+      immediate.mockRestore();
+    }
   });
 });
 

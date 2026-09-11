@@ -333,11 +333,61 @@ describe('ContentOsPortfolioController', () => {
   it('GET oauth/start uses write guard path and returns redirect without token', async () => {
     const service = { startFacebookOAuth: jest.fn().mockResolvedValue({ redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x' }) };
     const c = new ContentOsPortfolioController(service as never);
-    const res = { redirect: jest.fn() };
-    await c.startFacebookOAuth({ staffUser: { sub: '7' } } as never, res as never);
+    const res = { redirect: jest.fn(), json: jest.fn() };
+    await c.startFacebookOAuth({ staffUser: { sub: '7' }, headers: {} } as never, res as never);
     expect(service.startFacebookOAuth).toHaveBeenCalledWith({ staffId: 7 });
     expect(res.redirect).toHaveBeenCalledWith(expect.stringContaining('facebook.com'));
+    expect(res.json).not.toHaveBeenCalled();
     expect(String(res.redirect.mock.calls[0][0])).not.toMatch(/access_token/);
+  });
+
+  it('GET oauth/start.json returns JSON { redirect } for the FE without a token', async () => {
+    const service = {
+      startFacebookOAuth: jest.fn().mockResolvedValue({
+        redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x',
+      }),
+    };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.startFacebookOAuthJson({ staffUser: { sub: '7' } } as never);
+    expect(service.startFacebookOAuth).toHaveBeenCalledWith({ staffId: 7 });
+    expect(out).toEqual({ redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x' });
+    expect(JSON.stringify(out)).not.toMatch(/access_token|Bearer /);
+  });
+
+  it('GET oauth/start returns JSON when Accept is application/json', async () => {
+    const service = {
+      startFacebookOAuth: jest.fn().mockResolvedValue({
+        redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x',
+      }),
+    };
+    const c = new ContentOsPortfolioController(service as never);
+    const res = { redirect: jest.fn(), json: jest.fn() };
+    await c.startFacebookOAuth(
+      { staffUser: { sub: '7' }, headers: { accept: 'application/json' } } as never,
+      res as never,
+    );
+    expect(res.json).toHaveBeenCalledWith({
+      redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x',
+    });
+    expect(res.redirect).not.toHaveBeenCalled();
+  });
+
+  it('GET oauth/start returns JSON when ?format=json', async () => {
+    const service = {
+      startFacebookOAuth: jest.fn().mockResolvedValue({
+        redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x',
+      }),
+    };
+    const c = new ContentOsPortfolioController(service as never);
+    const res = { redirect: jest.fn(), json: jest.fn() };
+    await c.startFacebookOAuth(
+      { staffUser: { sub: '7' }, headers: {}, query: { format: 'json' } } as never,
+      res as never,
+    );
+    expect(res.json).toHaveBeenCalledWith({
+      redirect: expect.stringContaining('facebook.com'),
+    });
+    expect(res.redirect).not.toHaveBeenCalled();
   });
 
   it('GET oauth/callback stays fb=ok when audit fails after tokens are saved', async () => {

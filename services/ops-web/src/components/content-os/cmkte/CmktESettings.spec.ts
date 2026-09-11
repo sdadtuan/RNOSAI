@@ -1,8 +1,19 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AUDIT_RETENTION_COPY } from '@/lib/crm/cmkte-settings';
-import { CmktESettings, disconnectConnectorId } from './CmktESettings';
+import {
+  CmktESettings,
+  disconnectConnectorId,
+  facebookConnectStatusCopy,
+  holdErrorToast,
+  FB_CONNECT_ERROR_TOAST,
+  FB_CONNECT_OK_TOAST,
+  HOLD_FORBIDDEN_TOAST,
+  HOLD_REASON_TOAST,
+} from './CmktESettings';
 
 describe('CmktESettings SSO flag', () => {
   it('exposes sso_enforced read-only and false when no IdP is configured', () => {
@@ -83,6 +94,28 @@ describe('CmktESettings Disconnect', () => {
 });
 
 describe('CmktESettings Connect Page', () => {
+  it('does not navigate to the JWT-guarded start route from the button', () => {
+    const src = readFileSync(join(__dirname, 'CmktESettings.tsx'), 'utf8');
+    expect(src).not.toMatch(/window\.location\.assign\(facebookOAuthStartUrl\(\)\)/);
+    expect(src).toMatch(/startFacebookOAuth/);
+    expect(src).toMatch(/isSafeFacebookDialogRedirect/);
+  });
+
+  it('shows Vietnamese OAuth status from ?fb=ok|error without a token', () => {
+    const ok = renderToStaticMarkup(
+      createElement(CmktESettings, { context: null, fbStatus: 'ok' }),
+    );
+    const err = renderToStaticMarkup(
+      createElement(CmktESettings, { context: null, fbStatus: 'error' }),
+    );
+    expect(ok).toContain(FB_CONNECT_OK_TOAST);
+    expect(err).toContain(FB_CONNECT_ERROR_TOAST);
+    expect(ok).not.toContain('access_token');
+    expect(err).not.toContain('access_token');
+    expect(facebookConnectStatusCopy('ok')).toBe(FB_CONNECT_OK_TOAST);
+    expect(facebookConnectStatusCopy('error')).toBe(FB_CONNECT_ERROR_TOAST);
+  });
+
   it('shows Connect Page and Disconnect without access_token', () => {
     const html = renderToStaticMarkup(
       createElement(CmktESettings, {
@@ -138,6 +171,13 @@ describe('CmktESettings legal hold', () => {
     expect(html).toMatch(/<input[^>]*(name|id)="hold-reason"/);
     expect(html).not.toMatch(/>\s*DELETE\s*</i);
     expect(html).not.toMatch(/>\s*Xóa\s*</);
+  });
+
+  it('surfaces 400/403 hold errors instead of swallowing them', () => {
+    const src = readFileSync(join(__dirname, 'CmktESettings.tsx'), 'utf8');
+    expect(src).not.toMatch(/\.catch\(\(\) => undefined\)/);
+    expect(holdErrorToast({ status: 400, message: 'hold_reason_required' })).toBe(HOLD_REASON_TOAST);
+    expect(holdErrorToast({ status: 403, message: 'missing_cap' })).toBe(HOLD_FORBIDDEN_TOAST);
   });
 });
 

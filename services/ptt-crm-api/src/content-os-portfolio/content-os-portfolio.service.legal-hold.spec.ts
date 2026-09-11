@@ -121,6 +121,7 @@ describe('ContentOsPortfolioService legal hold', () => {
       actor: 'w@ptt.vn',
       action: 'legal_hold',
       entity: 'item:21:on',
+      detail: 'tranh chấp hợp đồng Q4',
     });
   });
 
@@ -216,6 +217,7 @@ describe('ContentOsPortfolioService legal hold', () => {
       actor: 'qa@ptt.vn',
       action: 'legal_hold',
       entity: 'item:21:off',
+      detail: 'dispute resolved',
     });
   });
 

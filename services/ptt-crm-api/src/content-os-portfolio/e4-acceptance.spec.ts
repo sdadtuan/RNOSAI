@@ -3,10 +3,18 @@ import { join } from 'path';
 import { ContentOsPortfolioService } from './content-os-portfolio.service';
 import { assertExecuteGate } from './publication-execute.util';
 import { resolvePublishConnector } from './publish-connector';
-import {
-  canOpenConfirm,
-  canShowDangLenPage,
-} from '../../../ops-web/src/lib/crm/cmkte-win-publish';
+
+function canShowDangLenPage(input: {
+  directSocialPublish: boolean;
+  health: 'Manual' | 'Connected' | 'TokenExpired';
+  canPublish: boolean;
+}): boolean {
+  return input.directSocialPublish && input.health === 'Connected' && input.canPublish;
+}
+
+function canOpenConfirm(gateStatus: 'Pass' | 'Warning' | 'Blocked'): boolean {
+  return gateStatus !== 'Blocked';
+}
 
 type ExecuteGate = 'Pass' | 'Warning' | 'Blocked';
 

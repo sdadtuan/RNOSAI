@@ -526,7 +526,7 @@ export async function patchPortfolioLegalHold(
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(err?.error ?? 'legal_hold_patch_failed');
+    throw new ApiError(err?.error ?? 'legal_hold_patch_failed', res.status);
   }
   return res.json();
 }
@@ -596,7 +596,30 @@ async function readPortfolioJson<T>(res: Response): Promise<T> {
 }
 
 export function facebookOAuthStartUrl(): string {
-  return `${API_BASE}/api/crm/content-os/portfolio/connectors/facebook/oauth/start`;
+  return `${API_BASE}/api/crm/content-os/portfolio/connectors/facebook/oauth/start.json`;
+}
+
+export function isSafeFacebookDialogRedirect(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (host !== 'facebook.com' && host !== 'www.facebook.com') return false;
+    if (url.includes('access_token')) return false;
+    return parsed.pathname.includes('/dialog/oauth');
+  } catch {
+    return false;
+  }
+}
+
+export async function startFacebookOAuth(token: string): Promise<{ redirect: string }> {
+  const res = await fetch(facebookOAuthStartUrl(), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  const body = await readPortfolioJson<{ redirect?: string }>(res);
+  return { redirect: String(body.redirect ?? '') };
 }
 
 export async function fetchChannelAccounts(token: string): Promise<{ items: ChannelAccountPublic[] }> {

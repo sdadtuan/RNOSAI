@@ -22,18 +22,20 @@ export function createFacebookPageConnector(opts: {
       const { page_id, message, access_token } = pkg as FacebookPublishPackage;
       const url = `https://graph.facebook.com/v21.0/${page_id}/feed`;
       const body = new URLSearchParams({ message, access_token });
-
-      let consecutive5xx = 0;
-      while (consecutive5xx < 3) {
-        const res = await graphFetch(url, { method: 'POST', body });
-        if (res.ok) {
-          const data = (await res.json()) as { id?: string };
-          return { post_id: String(data.id) };
+      const res = await graphFetch(url, { method: 'POST', body });
+      if (res.ok) {
+        const data = (await res.json()) as { id?: unknown };
+        const postId = data.id == null ? '' : String(data.id).trim();
+        if (!postId || postId === 'undefined') {
+          throw new Error('graph_missing_post_id');
         }
-        if (res.status >= 400 && res.status < 500) {
-          throw new Error('TokenExpired');
-        }
-        consecutive5xx += 1;
+        return { post_id: postId };
+      }
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('TokenExpired');
+      }
+      if (res.status >= 400 && res.status < 500) {
+        throw new Error('graph_rejected');
       }
       throw new Error('graph_unavailable');
     },

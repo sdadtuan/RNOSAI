@@ -12,12 +12,36 @@ import {
   isAuditExportEmpty,
   ssoEnforcedControl,
 } from '@/lib/crm/cmkte-settings';
-import { facebookOAuthStartUrl, type ChannelAccountPublic } from '@/lib/crm/cmkte-api';
+import {
+  isSafeFacebookDialogRedirect,
+  startFacebookOAuth,
+  type ChannelAccountPublic,
+} from '@/lib/crm/cmkte-api';
 import { facebookPageHealth } from '@/lib/crm/cmkte-win-publish';
 
 export const SETTINGS_SAVE_TOAST = 'Đã lưu policy.';
 export const SETTINGS_SAVE_ERROR_TOAST = 'Không lưu được policy.';
 export const SETTINGS_EXPORT_OK_TOAST = 'Đã xuất audit.';
+export const FB_CONNECT_OK_TOAST = 'Đã kết nối Facebook Page.';
+export const FB_CONNECT_ERROR_TOAST = 'Không kết nối được Facebook Page.';
+export const HOLD_OK_TOAST = 'Đã áp dụng hold.';
+export const HOLD_REASON_TOAST = 'Lý do hold không hợp lệ.';
+export const HOLD_FORBIDDEN_TOAST = 'Không có quyền áp dụng hold.';
+export const HOLD_FAILED_TOAST = 'Không áp dụng được hold.';
+
+export function facebookConnectStatusCopy(status: 'ok' | 'error' | null | undefined): string {
+  if (status === 'ok') return FB_CONNECT_OK_TOAST;
+  if (status === 'error') return FB_CONNECT_ERROR_TOAST;
+  return '';
+}
+
+export function holdErrorToast(err: unknown): string {
+  const status =
+    err && typeof err === 'object' && 'status' in err ? Number((err as { status?: unknown }).status) : 0;
+  if (status === 400) return HOLD_REASON_TOAST;
+  if (status === 403) return HOLD_FORBIDDEN_TOAST;
+  return HOLD_FAILED_TOAST;
+}
 
 export function disconnectConnectorId(
   account?: Pick<ChannelAccountPublic, 'connector_id'> | null,
@@ -52,6 +76,8 @@ export function CmktESettings({
   ssoEnforced = DEFAULT_SSO_ENFORCED,
   accounts = [],
   holdItemId,
+  oauthToken,
+  fbStatus,
   onSavePolicy,
   onExportAudit,
   onDisconnect,
@@ -62,12 +88,14 @@ export function CmktESettings({
   ssoEnforced?: boolean;
   accounts?: ChannelAccountPublic[];
   holdItemId?: number;
+  oauthToken?: string;
+  fbStatus?: 'ok' | 'error' | null;
   onSavePolicy?: (next: boolean) => Promise<void>;
   onExportAudit?: () => Promise<string>;
   onDisconnect?: (id: number) => Promise<void>;
   onApplyHold?: (input: { itemId: number; reason: string }) => Promise<void>;
 }) {
-  const [toast, setToast] = useState('');
+  const [toast, setToast] = useState(() => facebookConnectStatusCopy(fbStatus));
   const [enabled, setEnabled] = useState(directSocialPublish);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -87,6 +115,11 @@ export function CmktESettings({
   useEffect(() => {
     if (holdItemId && holdItemId > 0) setHoldItem(String(holdItemId));
   }, [holdItemId]);
+
+  useEffect(() => {
+    const copy = facebookConnectStatusCopy(fbStatus);
+    if (copy) setToast(copy);
+  }, [fbStatus]);
 
   return (
     <div className="cmkte-reqpage">
@@ -200,7 +233,22 @@ export function CmktESettings({
             type="button"
             className="cmkte-btn cmkte-btn--blue"
             onClick={() => {
-              window.location.assign(facebookOAuthStartUrl());
+              if (!oauthToken) {
+                setToast(FB_CONNECT_ERROR_TOAST);
+                return;
+              }
+              void (async () => {
+                try {
+                  const { redirect } = await startFacebookOAuth(oauthToken);
+                  if (!isSafeFacebookDialogRedirect(redirect)) {
+                    setToast(FB_CONNECT_ERROR_TOAST);
+                    return;
+                  }
+                  window.location.assign(redirect);
+                } catch {
+                  setToast(FB_CONNECT_ERROR_TOAST);
+                }
+              })();
             }}
           >
             Connect Page
@@ -251,7 +299,8 @@ export function CmktESettings({
               if (!(itemId > 0) || !onApplyHold) return;
               setHolding(true);
               void onApplyHold({ itemId, reason: holdReason })
-                .catch(() => undefined)
+                .then(() => setToast(HOLD_OK_TOAST))
+                .catch((err) => setToast(holdErrorToast(err)))
                 .finally(() => setHolding(false));
             }}
           >

@@ -335,12 +335,25 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Get('connectors/facebook/oauth/start.json')
+  @UseGuards(StaffContentMarketingWriteGuard)
+  startFacebookOAuthJson(@Req() req: Request) {
+    return this.portfolio.startFacebookOAuth({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+    });
+  }
+
   @Get('connectors/facebook/oauth/start')
   @UseGuards(StaffContentMarketingWriteGuard)
   async startFacebookOAuth(@Req() req: Request, @Res() res: Response) {
     const out = await this.portfolio.startFacebookOAuth({
       staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
     });
+    const accept = String(req.headers?.accept ?? '');
+    const format = String((req.query as { format?: unknown } | undefined)?.format ?? '');
+    if (format === 'json' || accept.includes('application/json')) {
+      return res.json(out);
+    }
     return res.redirect(out.redirect);
   }
 

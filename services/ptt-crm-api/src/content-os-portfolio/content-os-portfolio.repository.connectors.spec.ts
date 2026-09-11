@@ -194,6 +194,45 @@ describe('clearConnectorSecrets SQL', () => {
   });
 });
 
+describe('saveConnectorSecrets lifecycle scope', () => {
+  it('looks up the Page by channel, account_ref, and lifecycle_id', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const repo = makePortfolioRepo(query);
+    await repo.saveConnectorSecrets({
+      lifecycleId: 4,
+      pageId: '555',
+      accessToken: 'PAGE_TOKEN',
+      expiresAt: new Date('2026-12-01T00:00:00.000Z'),
+      channel: 'facebook_page',
+    });
+    expect(query.mock.calls[0][0]).toMatch(/channel = \$1 AND account_ref = \$2 AND lifecycle_id = \$3/);
+    expect(query.mock.calls[0][1]).toEqual(['facebook_page', '555', 4]);
+    expect(query.mock.calls.some(([sql]) => /SET lifecycle_id/.test(String(sql)))).toBe(false);
+  });
+
+  it('refuses to reparent a Page that belongs to another lifecycle', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 9, lifecycle_id: 99 }] });
+    const repo = makePortfolioRepo(query);
+    await expect(
+      repo.saveConnectorSecrets({
+        lifecycleId: 4,
+        pageId: '555',
+        accessToken: 'PAGE_TOKEN',
+        expiresAt: new Date('2026-12-01T00:00:00.000Z'),
+        channel: 'facebook_page',
+      }),
+    ).rejects.toMatchObject({ response: { error: 'channel_account_lifecycle_mismatch' } });
+    expect(query.mock.calls.some(([sql]) => /SET lifecycle_id/.test(String(sql)))).toBe(false);
+    expect(query.mock.calls.some(([sql]) => /INSERT INTO cmkt_channel_accounts/.test(String(sql)))).toBe(false);
+  });
+});
+
 describe('getConnectorById SQL', () => {
   it('scopes to staff lifecycles and never selects token columns', async () => {
     const query = jest.fn().mockResolvedValue({

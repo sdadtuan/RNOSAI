@@ -36,6 +36,7 @@ import { CmktEDamDrawer } from './CmktELibrary';
 import { deliverableFormatChannel } from './cmkte-deliverables';
 
 export const EXECUTE_FAIL_TOAST = 'Không đăng được — xem Publication log';
+export const EXECUTE_QUEUED_TOAST = 'Đã xếp hàng đăng';
 export const CONFIRM_CHECKBOX_COPY = 'Tôi xác nhận đăng với tư cách Page này. AI không được xác nhận.';
 
 export function CmktELegalHoldBadge({ legalHold }: { legalHold?: unknown }) {
@@ -83,6 +84,7 @@ export function CmktEPublishPanel({
   caption,
   sticky,
   evidence,
+  queuedExecuteId,
   markDisabled,
   confirmOpen,
   confirmChecked,
@@ -99,6 +101,7 @@ export function CmktEPublishPanel({
   caption?: string;
   sticky?: boolean;
   evidence?: PublicationEvidence;
+  queuedExecuteId?: number;
   markDisabled?: boolean;
   confirmOpen?: boolean;
   confirmChecked?: boolean;
@@ -133,6 +136,11 @@ export function CmktEPublishPanel({
           </button>
         ) : null}
       </div>
+      {queuedExecuteId ? (
+        <p className="cmkte-desc" role="status">
+          {EXECUTE_QUEUED_TOAST} · execute_id {queuedExecuteId}
+        </p>
+      ) : null}
       {postId || permalink ? (
         <div className="cmkte-card">
           {postId ? <b>post_id {postId}</b> : null}
@@ -246,6 +254,7 @@ export function CmktEWorkspace({
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [forbidden, setForbidden] = useState(executeForbidden);
   const [evidence, setEvidence] = useState<PublicationEvidence | undefined>();
+  const [queuedExecuteId, setQueuedExecuteId] = useState<number | undefined>();
   const [damOpen, setDamOpen] = useState(false);
   const [damCollection, setDamCollection] = useState('approved');
   const [damItems, setDamItems] = useState<DamUrlMetadata[]>([]);
@@ -695,6 +704,7 @@ export function CmktEWorkspace({
             caption={lockedCaption(item)}
             sticky={tab === 'publish' && showDangLenPage && !forbidden}
             evidence={evidence}
+            queuedExecuteId={queuedExecuteId}
             markDisabled={busy || !token || !canMarkPublished(gate.status, item.status)}
             confirmOpen={confirmOpen}
             confirmChecked={confirmChecked}
@@ -725,7 +735,9 @@ export function CmktEWorkspace({
                     confirm: true,
                     client_request_id: `req-${item.id}-${channelAccountId}-${snapshotId}`,
                   });
-                  setEvidence(publicationEvidenceFrom(accepted));
+                  setEvidence(undefined);
+                  setQueuedExecuteId(accepted.execute_id);
+                  showToast(`${EXECUTE_QUEUED_TOAST} · execute_id ${accepted.execute_id}`);
                   setConfirmOpen(false);
                   bundle.reload();
                 } catch (err) {
