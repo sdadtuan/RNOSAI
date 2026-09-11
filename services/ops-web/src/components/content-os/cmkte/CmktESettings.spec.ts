@@ -34,6 +34,52 @@ describe('CmktESettings audit export + retention', () => {
   });
 });
 
+describe('CmktESettings Connect Page', () => {
+  it('shows Connect Page and Disconnect without access_token', () => {
+    const html = renderToStaticMarkup(
+      createElement(CmktESettings, {
+        context: null,
+        accounts: [
+          {
+            id: 1,
+            channel: 'facebook_page',
+            display_name: 'PTT Ads',
+            account_ref: '555',
+            health: { status: 'Connected' },
+          },
+        ],
+      }),
+    );
+    expect(html).toContain('Connect Page');
+    expect(html).toContain('Disconnect');
+    expect(html).toContain('Connected');
+    expect(html).not.toContain('access_token');
+    expect(html).not.toMatch(/WIN · E4/);
+    expect(html).not.toMatch(/Instagram|Website CMS/);
+  });
+
+  it('tags Manual when the Page is not connected', () => {
+    const html = renderToStaticMarkup(
+      createElement(CmktESettings, {
+        context: null,
+        accounts: [
+          {
+            id: 1,
+            channel: 'facebook_page',
+            display_name: 'PTT Ads',
+            account_ref: '555',
+            health: { status: 'Manual' },
+          },
+        ],
+      }),
+    );
+    expect(html).toContain('Manual');
+    expect(html).toContain('Connect Page');
+    expect(html).toContain('Disconnect');
+    expect(html).not.toContain('access_token');
+  });
+});
+
 describe('CmktESettings direct social publish label', () => {
   it('labels the switch from the current enabled state', () => {
     const off = renderToStaticMarkup(

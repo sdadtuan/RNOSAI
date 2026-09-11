@@ -1,7 +1,8 @@
-import { API_BASE } from '@/lib/api';
+import { API_BASE, ApiError } from '@/lib/api';
 import type { ContentOsCalendarSlot, ContentOsItem, ContentOsReviewQueueItem } from '@/lib/content-os-api';
 import { readDamListResult, type DamListResult } from './cmkte-dam';
 import { readDirectSocialPublish, readSsoEnforced } from './cmkte-settings';
+import type { ChannelHealthStatus } from './cmkte-win-publish';
 
 export type PortfolioRiskQueueItem = {
   item_id: number;
@@ -462,6 +463,83 @@ export async function patchPortfolioSettings(
     direct_social_publish: readDirectSocialPublish(saved),
     sso_enforced: readSsoEnforced(saved),
   };
+}
+
+export type ChannelAccountPublic = {
+  id: number;
+  channel: string;
+  display_name: string;
+  account_ref: string;
+  health: { status: ChannelHealthStatus; expires_at?: string };
+  connector_id?: number;
+};
+
+export type ExecuteBody = {
+  item_id: number;
+  channel_account_id: number;
+  snapshot_id: string;
+  confirm: true;
+  client_request_id: string;
+};
+
+export type ExecuteAccepted = {
+  queued: true;
+  client_request_id: string;
+  execute_id: number;
+  replayed?: true;
+  post_id?: string | null;
+  permalink?: string | null;
+};
+
+function assertNoSecretTokens(data: unknown): void {
+  if (/access_token|refresh_token/.test(JSON.stringify(data))) {
+    throw new Error('secret_token_in_payload');
+  }
+}
+
+async function readPortfolioJson<T>(res: Response): Promise<T> {
+  const body = (await res.json().catch(() => null)) as (T & { error?: string; message?: string }) | null;
+  if (!res.ok) {
+    throw new ApiError(body?.error ?? body?.message ?? 'request_failed', res.status);
+  }
+  assertNoSecretTokens(body);
+  return body as T;
+}
+
+export function facebookOAuthStartUrl(): string {
+  return `${API_BASE}/api/crm/content-os/portfolio/connectors/facebook/oauth/start`;
+}
+
+export async function fetchChannelAccounts(token: string): Promise<{ items: ChannelAccountPublic[] }> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/channel-accounts`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await readPortfolioJson<{ items?: ChannelAccountPublic[] }>(res);
+  return { items: Array.isArray(body?.items) ? body.items : [] };
+}
+
+export async function postConnectorDisconnect(token: string, id: number): Promise<{ status: 'off' }> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/connectors/${id}/disconnect`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  await readPortfolioJson<{ status?: 'off' }>(res);
+  return { status: 'off' };
+}
+
+export async function postPublicationExecute(token: string, body: ExecuteBody): Promise<ExecuteAccepted> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/publications/execute`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  return readPortfolioJson<ExecuteAccepted>(res);
 }
 
 export async function fetchLifecycleIdeas(

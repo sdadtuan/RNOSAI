@@ -12,6 +12,8 @@ import {
   isAuditExportEmpty,
   ssoEnforcedControl,
 } from '@/lib/crm/cmkte-settings';
+import { facebookOAuthStartUrl, type ChannelAccountPublic } from '@/lib/crm/cmkte-api';
+import { facebookPageHealth } from '@/lib/crm/cmkte-win-publish';
 
 export const SETTINGS_SAVE_TOAST = 'Đã lưu policy.';
 export const SETTINGS_SAVE_ERROR_TOAST = 'Không lưu được policy.';
@@ -41,14 +43,18 @@ export function CmktESettings({
   context,
   directSocialPublish = DEFAULT_DIRECT_SOCIAL_PUBLISH,
   ssoEnforced = DEFAULT_SSO_ENFORCED,
+  accounts = [],
   onSavePolicy,
   onExportAudit,
+  onDisconnect,
 }: {
   context: ContentOsContext | null;
   directSocialPublish?: boolean;
   ssoEnforced?: boolean;
+  accounts?: ChannelAccountPublic[];
   onSavePolicy?: (next: boolean) => Promise<void>;
   onExportAudit?: () => Promise<string>;
+  onDisconnect?: (id: number) => Promise<void>;
 }) {
   const [toast, setToast] = useState('');
   const [enabled, setEnabled] = useState(directSocialPublish);
@@ -56,6 +62,9 @@ export function CmktESettings({
   const [exporting, setExporting] = useState(false);
   const approval = context?.flags.approval_required;
   const clientGate = context?.flags.client_gate;
+  const facebookPage = accounts.find((row) => row.channel === 'facebook_page') ?? accounts[0];
+  const health = facebookPageHealth(accounts);
+  const disconnectId = facebookPage?.connector_id ?? facebookPage?.id;
 
   useEffect(() => {
     setEnabled(directSocialPublish);
@@ -160,6 +169,35 @@ export function CmktESettings({
         </div>
         <div className="cmkte-checkrow">
           <span>{AUDIT_RETENTION_COPY}</span>
+        </div>
+        <div className="cmkte-checkrow">
+          <div>
+            <b>{facebookPage?.display_name || 'Facebook Page'}</b>
+            <p className="cmkte-desc">OAuth server-side, token không ra browser.</p>
+          </div>
+          <span className="cmkte-tag">{health}</span>
+        </div>
+        <div className="cmkte-actions">
+          <button
+            type="button"
+            className="cmkte-btn cmkte-btn--blue"
+            onClick={() => {
+              window.location.assign(facebookOAuthStartUrl());
+            }}
+          >
+            Connect Page
+          </button>
+          <button
+            type="button"
+            className="cmkte-btn"
+            disabled={disconnectId == null || !onDisconnect}
+            onClick={() => {
+              if (disconnectId == null || !onDisconnect) return;
+              void onDisconnect(disconnectId);
+            }}
+          >
+            Disconnect
+          </button>
         </div>
         {!context ? <p className="cmkte-empty">Chưa chọn lifecycle — flags hiển thị —.</p> : null}
       </div>

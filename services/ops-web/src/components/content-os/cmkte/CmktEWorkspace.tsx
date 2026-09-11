@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
 import {
@@ -12,6 +12,8 @@ import {
 } from '@/lib/content-os-api';
 import { evaluatePublishGate } from '@/lib/crm/cmkte-publish-gate';
 import { cmktePath, contentOsPanelHref } from '@/lib/crm/cmkte-routes';
+import type { ExecuteAccepted, ExecuteBody } from '@/lib/crm/cmkte-api';
+import { canOpenConfirm } from '@/lib/crm/cmkte-win-publish';
 import { CMKTE_EMPTY_ITEM, CMKTE_TABS, nextTabLabel, type CmktETabId } from '@/lib/crm/cmkte-tabs';
 import {
   calendarCollisionNotice,
@@ -30,6 +32,148 @@ import {
 import { useCmktItem } from '@/lib/crm/use-cmkt-item';
 import { CmktEAiTracePanel } from './CmktEAiTracePanel';
 import { deliverableFormatChannel } from './cmkte-deliverables';
+
+export const EXECUTE_FAIL_TOAST = 'Không đăng được — xem Publication log';
+export const CONFIRM_CHECKBOX_COPY = 'Tôi xác nhận đăng với tư cách Page này. AI không được xác nhận.';
+
+export type PublicationEvidence = {
+  post_id?: string | null;
+  permalink?: string | null;
+};
+
+export function publicationEvidenceFrom(
+  data: { post_id?: string | null; permalink?: string | null } | null | undefined,
+): PublicationEvidence | undefined {
+  const post_id = data?.post_id ? String(data.post_id) : '';
+  const permalink = data?.permalink ? String(data.permalink) : '';
+  if (!post_id && !permalink) return undefined;
+  return {
+    ...(post_id ? { post_id } : {}),
+    ...(permalink ? { permalink } : {}),
+  };
+}
+
+function lockedCaption(item: { body_json?: { markdown?: string; variants?: string[] }; selected_variant_idx?: number | null }): string {
+  const markdown = item.body_json?.markdown?.trim();
+  if (markdown) return markdown;
+  const idx = item.selected_variant_idx ?? 0;
+  const variant = item.body_json?.variants?.[idx];
+  return typeof variant === 'string' ? variant : '';
+}
+
+function lockedSnapshotId(versions: Array<{ id?: number; version_no?: number }>): string {
+  const latest = versions[0];
+  if (latest?.version_no != null) return String(latest.version_no);
+  if (latest?.id != null) return String(latest.id);
+  return '';
+}
+
+export function CmktEPublishPanel({
+  showDangLenPage,
+  executeForbidden,
+  gateStatus,
+  pageName,
+  caption,
+  sticky,
+  evidence,
+  markDisabled,
+  confirmOpen,
+  confirmChecked,
+  onMarkPublished,
+  onOpenConfirm,
+  onConfirmChange,
+  onConfirmExecute,
+  onCancelConfirm,
+}: {
+  showDangLenPage?: boolean;
+  executeForbidden?: boolean;
+  gateStatus?: 'Pass' | 'Warning' | 'Blocked';
+  pageName?: string;
+  caption?: string;
+  sticky?: boolean;
+  evidence?: PublicationEvidence;
+  markDisabled?: boolean;
+  confirmOpen?: boolean;
+  confirmChecked?: boolean;
+  onMarkPublished?: () => void;
+  onOpenConfirm?: () => void;
+  onConfirmChange?: (checked: boolean) => void;
+  onConfirmExecute?: () => void;
+  onCancelConfirm?: () => void;
+}) {
+  const showExecute = Boolean(showDangLenPage) && !executeForbidden;
+  const postId = evidence?.post_id ? String(evidence.post_id) : '';
+  const permalink = evidence?.permalink ? String(evidence.permalink) : '';
+  return (
+    <div>
+      <div className="cmkte-tabs" role="tablist">
+        <button type="button">Schedule & channels</button>
+        <button type="button">Publish gate</button>
+        <button type="button">Đăng / Mark published</button>
+      </div>
+      {gateStatus ? (
+        <p className="cmkte-desc">
+          Publish gate: <b>{gateStatus}</b>
+        </p>
+      ) : null}
+      <div className="cmkte-actions">
+        <button type="button" className="cmkte-btn" disabled={markDisabled} onClick={onMarkPublished}>
+          Mark published
+        </button>
+        {showExecute ? (
+          <button type="button" className="cmkte-btn cmkte-btn--blue" onClick={onOpenConfirm}>
+            Đăng lên Page
+          </button>
+        ) : null}
+      </div>
+      {postId || permalink ? (
+        <div className="cmkte-card">
+          {postId ? <b>post_id {postId}</b> : null}
+          {permalink ? (
+            <a href={permalink} target="_blank" rel="noreferrer">
+              {permalink}
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+      {showExecute ? (
+        <div className="cmkte-modalback" hidden={!confirmOpen} role="dialog">
+          <div className="cmkte-modal">
+            <h2>Xác nhận đăng lên Facebook Page</h2>
+            <p className="cmkte-desc">{pageName}</p>
+            <p>{caption}</p>
+            <label className="cmkte-checkrow">
+              <input
+                type="checkbox"
+                checked={confirmChecked === true}
+                onChange={(event) => onConfirmChange?.(event.target.checked)}
+              />
+              <span>{CONFIRM_CHECKBOX_COPY}</span>
+            </label>
+            <div className="cmkte-actions">
+              <button type="button" className="cmkte-btn" onClick={onCancelConfirm}>
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="cmkte-btn cmkte-btn--blue"
+                disabled={confirmChecked !== true}
+                onClick={onConfirmExecute}
+              >
+                Xác nhận và đăng
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {sticky && showExecute ? (
+        <button type="button" className="cmkte-btn cmkte-btn--blue" onClick={onOpenConfirm}>
+          Đăng lên Page
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 function JsonBlock({ value, empty }: { value: unknown; empty: string }) {
   if (isBlankRecord(value)) return <p className="cmkte-empty">{empty}</p>;
@@ -70,10 +214,20 @@ export function CmktEWorkspace({
   itemId,
   lifecycleHint,
   initialTab,
+  showDangLenPage = false,
+  executeForbidden = false,
+  pageName,
+  channelAccountId,
+  onExecute,
 }: {
   itemId: number;
   lifecycleHint?: number;
   initialTab?: CmktETabId;
+  showDangLenPage?: boolean;
+  executeForbidden?: boolean;
+  pageName?: string;
+  channelAccountId?: number;
+  onExecute?: (body: ExecuteBody) => Promise<ExecuteAccepted>;
 }) {
   const router = useRouter();
   const bundle = useCmktItem(itemId, lifecycleHint);
@@ -81,6 +235,14 @@ export function CmktEWorkspace({
   const [toast, setToast] = useState('');
   const [rejectComment, setRejectComment] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmChecked, setConfirmChecked] = useState(false);
+  const [forbidden, setForbidden] = useState(executeForbidden);
+  const [evidence, setEvidence] = useState<PublicationEvidence | undefined>();
+
+  useEffect(() => {
+    setForbidden(executeForbidden);
+  }, [executeForbidden]);
 
   const flags = useMemo(() => publishGateFlagsFromItem(bundle.item), [bundle.item]);
   const gate = useMemo(() => evaluatePublishGate(flags), [flags]);
@@ -429,9 +591,6 @@ export function CmktEWorkspace({
               ))}
             </ul>
           )}
-          <p className="cmkte-desc">
-            Publish gate: <b>{gate.status}</b>
-          </p>
           {gate.blockers.length ? (
             <ul className="cmkte-list">
               {gate.blockers.map((row) => (
@@ -439,17 +598,64 @@ export function CmktEWorkspace({
               ))}
             </ul>
           ) : null}
-          <p className="cmkte-desc">Connector tắt — chỉ đánh dấu published thủ công.</p>
-          <button
-            type="button"
-            className="cmkte-btn"
-            disabled={busy || !token || !canMarkPublished(gate.status, item.status)}
-            onClick={() =>
+          {!showDangLenPage ? (
+            <p className="cmkte-desc">Connector tắt — chỉ đánh dấu published thủ công.</p>
+          ) : null}
+          <CmktEPublishPanel
+            showDangLenPage={showDangLenPage}
+            executeForbidden={forbidden}
+            gateStatus={gate.status}
+            pageName={pageName}
+            caption={lockedCaption(item)}
+            sticky={tab === 'publish' && showDangLenPage && !forbidden}
+            evidence={evidence}
+            markDisabled={busy || !token || !canMarkPublished(gate.status, item.status)}
+            confirmOpen={confirmOpen}
+            confirmChecked={confirmChecked}
+            onMarkPublished={() =>
               void runAction(() => postContentOsPublishItem(token as string, item.lifecycle_id, item.id))
             }
-          >
-            Mark published
-          </button>
+            onOpenConfirm={() => {
+              if (!canOpenConfirm(gate.status)) {
+                showToast(`Publish gate BLOCKED — ${gate.blockers.map((b) => b.message).join(' · ')}`);
+                setConfirmOpen(false);
+                return;
+              }
+              setConfirmChecked(false);
+              setConfirmOpen(true);
+            }}
+            onConfirmChange={setConfirmChecked}
+            onCancelConfirm={() => setConfirmOpen(false)}
+            onConfirmExecute={() => {
+              if (!onExecute || channelAccountId == null || !confirmChecked) return;
+              const snapshotId = lockedSnapshotId(bundle.versions);
+              void (async () => {
+                setBusy(true);
+                try {
+                  const accepted = await onExecute({
+                    item_id: item.id,
+                    channel_account_id: channelAccountId,
+                    snapshot_id: snapshotId,
+                    confirm: true,
+                    client_request_id: `req-${item.id}-${channelAccountId}-${snapshotId}`,
+                  });
+                  setEvidence(publicationEvidenceFrom(accepted));
+                  setConfirmOpen(false);
+                  bundle.reload();
+                } catch (err) {
+                  const status = err && typeof err === 'object' && 'status' in err ? Number(err.status) : 0;
+                  if (status === 403) {
+                    setForbidden(true);
+                    setConfirmOpen(false);
+                    return;
+                  }
+                  showToast(EXECUTE_FAIL_TOAST);
+                } finally {
+                  setBusy(false);
+                }
+              })();
+            }}
+          />
         </section>
       ) : null}
 
@@ -462,6 +668,23 @@ export function CmktEWorkspace({
           <button type="button" className="cmkte-btn" onClick={onSaveValidate}>
             Save & validate
           </button>
+          {lastTab && showDangLenPage && !forbidden ? (
+            <button
+              type="button"
+              className="cmkte-btn cmkte-btn--blue"
+              disabled={busy}
+              onClick={() => {
+                if (!canOpenConfirm(gate.status)) {
+                  showToast(`Publish gate BLOCKED — ${gate.blockers.map((b) => b.message).join(' · ')}`);
+                  return;
+                }
+                setConfirmChecked(false);
+                setConfirmOpen(true);
+              }}
+            >
+              Đăng lên Page
+            </button>
+          ) : null}
           <button type="button" className="cmkte-btn cmkte-btn--blue" disabled={busy} onClick={onNext}>
             {lastTab ? 'Send to approval' : `Next: ${nextTabLabel(tab)} →`}
           </button>

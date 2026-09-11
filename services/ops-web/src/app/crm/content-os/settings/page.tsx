@@ -6,7 +6,14 @@ import { clearSession } from '@/lib/auth';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { fetchContentOsContext, type ContentOsContext } from '@/lib/content-os-api';
 import { CmktESettings } from '@/components/content-os/cmkte/CmktESettings';
-import { fetchPortfolioAuditExport, fetchPortfolioSettings, patchPortfolioSettings } from '@/lib/crm/cmkte-api';
+import {
+  fetchChannelAccounts,
+  fetchPortfolioAuditExport,
+  fetchPortfolioSettings,
+  patchPortfolioSettings,
+  postConnectorDisconnect,
+  type ChannelAccountPublic,
+} from '@/lib/crm/cmkte-api';
 import { DEFAULT_DIRECT_SOCIAL_PUBLISH, DEFAULT_SSO_ENFORCED } from '@/lib/crm/cmkte-settings';
 import { parseLifecycleQuery, useCmktEPageAuth } from '@/lib/crm/use-cmkte-page';
 
@@ -26,6 +33,7 @@ function CrmContentOsSettingsContent() {
   const [token, setToken] = useState('');
   const [directSocialPublish, setDirectSocialPublish] = useState(DEFAULT_DIRECT_SOCIAL_PUBLISH);
   const [ssoEnforced, setSsoEnforced] = useState(DEFAULT_SSO_ENFORCED);
+  const [accounts, setAccounts] = useState<ChannelAccountPublic[]>([]);
   const [settingsReady, setSettingsReady] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -48,6 +56,12 @@ function CrmContentOsSettingsContent() {
         const settings = await fetchPortfolioSettings(access);
         setDirectSocialPublish(settings.direct_social_publish);
         setSsoEnforced(settings.sso_enforced);
+        try {
+          const listed = await fetchChannelAccounts(access);
+          setAccounts(listed.items);
+        } catch {
+          setAccounts([]);
+        }
         setSettingsReady(true);
         if (!lifecycleId) {
           setContext(null);
@@ -75,6 +89,7 @@ function CrmContentOsSettingsContent() {
           context={context}
           directSocialPublish={directSocialPublish}
           ssoEnforced={ssoEnforced}
+          accounts={accounts}
           onSavePolicy={
             token
               ? async (next) => {
@@ -85,6 +100,15 @@ function CrmContentOsSettingsContent() {
               : undefined
           }
           onExportAudit={token ? () => fetchPortfolioAuditExport(token) : undefined}
+          onDisconnect={
+            token
+              ? async (id) => {
+                  await postConnectorDisconnect(token, id);
+                  const listed = await fetchChannelAccounts(token);
+                  setAccounts(listed.items);
+                }
+              : undefined
+          }
         />
       ) : null}
     </div>

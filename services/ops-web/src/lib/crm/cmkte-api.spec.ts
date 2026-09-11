@@ -13,9 +13,13 @@ import {
   fetchPortfolioSlaEvents,
   fetchDamAssets,
   fetchPortfolioAuditExport,
+  facebookOAuthStartUrl,
+  fetchChannelAccounts,
   fetchPortfolioSettings,
   fetchPortfolioRequests,
   patchPortfolioSettings,
+  postConnectorDisconnect,
+  postPublicationExecute,
   filterCommandCenter,
   mapIntakeRows,
   postPortfolioApprovalsBatch,
@@ -710,4 +714,147 @@ describe('portfolio audit export', () => {
     await expect(fetchPortfolioAuditExport('tok-9')).rejects.toThrow('missing_cap');
   });
 });
+
+describe('facebookOAuthStartUrl', () => {
+  it('points at the Facebook OAuth start route without a JWT query', () => {
+    const url = facebookOAuthStartUrl();
+    expect(url).toBe(`${API_BASE}/api/crm/content-os/portfolio/connectors/facebook/oauth/start`);
+    expect(url).not.toMatch(/[?&]access_token=/);
+    expect(url).not.toMatch(/refresh_token/);
+  });
+});
+
+describe('fetchChannelAccounts', () => {
+  it('GETs channel-accounts and rejects secret token fields', async () => {
+    const body = {
+      items: [
+        {
+          id: 1,
+          channel: 'facebook_page',
+          display_name: 'PTT Ads',
+          account_ref: '555',
+          health: { status: 'Connected', expires_at: '2026-12-01T00:00:00.000Z' },
+        },
+      ],
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchChannelAccounts('tok-9');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/api/crm/content-os/portfolio/channel-accounts`,
+      { headers: { Authorization: 'Bearer tok-9' } },
+    );
+    expect(result).toEqual(body);
+    expect(JSON.stringify(result)).not.toMatch(/access_token|refresh_token/);
+  });
+
+  it('throws with status 403 so the execute button can hide', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: async () => ({ error: 'missing_cap' }),
+      }),
+    );
+    await expect(fetchChannelAccounts('tok-9')).rejects.toMatchObject({
+      message: 'missing_cap',
+      status: 403,
+    });
+  });
+});
+
+describe('postConnectorDisconnect', () => {
+  it('POSTs disconnect and returns off without tokens', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'off' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await postConnectorDisconnect('tok-9', 9);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/api/crm/content-os/portfolio/connectors/9/disconnect`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer tok-9',
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+    expect(result).toEqual({ status: 'off' });
+    expect(JSON.stringify(result)).not.toMatch(/access_token|refresh_token/);
+  });
+});
+
+describe('postPublicationExecute', () => {
+  it('POSTs execute confirm body and keeps only public evidence', async () => {
+    const body = {
+      item_id: 21,
+      channel_account_id: 1,
+      snapshot_id: 'v13',
+      confirm: true as const,
+      client_request_id: 'r1',
+    };
+    const accepted = {
+      queued: true as const,
+      client_request_id: 'r1',
+      execute_id: 88,
+      post_id: '1234567890',
+      permalink: 'https://facebook.com/555/posts/1234567890',
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => accepted,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await postPublicationExecute('tok-9', body);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_BASE}/api/crm/content-os/portfolio/publications/execute`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer tok-9',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    expect(result).toEqual(accepted);
+    expect(JSON.stringify(result)).not.toMatch(/access_token|refresh_token/);
+  });
+
+  it('throws with status 403 when execute is forbidden', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: async () => ({ error: 'missing_cap' }),
+      }),
+    );
+    await expect(
+      postPublicationExecute('tok-9', {
+        item_id: 21,
+        channel_account_id: 1,
+        snapshot_id: 'v13',
+        confirm: true,
+        client_request_id: 'r1',
+      }),
+    ).rejects.toMatchObject({ message: 'missing_cap', status: 403 });
+  });
+});
+
 
