@@ -175,6 +175,7 @@ export type ContentOsItem = {
   updated_at: string;
   approval_matrix?: { steps: string[]; gateBlockers: string[] };
   claim_hits?: string[];
+  glossary_hits?: string[];
   rights_valid?: boolean;
   brief_score?: number | null;
   brief_threshold?: number;

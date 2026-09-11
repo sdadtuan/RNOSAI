@@ -9,6 +9,7 @@ import {
   DEFAULT_CLAIM_LEXEMES,
   firstCalendarCollision,
   itemClaimHits,
+  itemGlossaryHits,
   itemMediaUrls,
   publishGateFlagsFromItem,
   rejectCommentValid,
@@ -243,6 +244,25 @@ describe('claim highlight', () => {
     expect(segs).toEqual([
       { text: 'Gói ', hit: false },
       { text: 'giá rẻ', hit: true },
+      { text: ' hôm nay', hit: false },
+    ]);
+  });
+});
+
+describe('glossary highlight FR-COPY-012', () => {
+  it('uses API glossary_hits and invents no sample terms when empty', () => {
+    expect(itemGlossaryHits(item({}))).toEqual([]);
+    expect(itemGlossaryHits(item({ body_json: { markdown: 'CTA đăng ký nhận tư vấn' } }))).toEqual([]);
+    expect(itemGlossaryHits(item({ glossary_hits: ['đăng ký nhận tư vấn'] }))).toEqual([
+      'đăng ký nhận tư vấn',
+    ]);
+  });
+
+  it('highlights glossary terms found in copy', () => {
+    const segs = claimHighlightSegments('CTA: đăng ký nhận tư vấn hôm nay', ['đăng ký nhận tư vấn']);
+    expect(segs).toEqual([
+      { text: 'CTA: ', hit: false },
+      { text: 'đăng ký nhận tư vấn', hit: true },
       { text: ' hôm nay', hit: false },
     ]);
   });

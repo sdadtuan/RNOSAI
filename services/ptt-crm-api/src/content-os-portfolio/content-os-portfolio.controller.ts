@@ -223,6 +223,25 @@ export class ContentOsPortfolioController {
     });
   }
 
+  @Get('glossary')
+  listGlossary(@Req() req: Request, @Query('lifecycle') lifecycle?: string) {
+    const hint = Number(lifecycle);
+    return this.portfolio.listGlossary({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      lifecycleHint: Number.isInteger(hint) && hint > 0 ? hint : undefined,
+    });
+  }
+
+  @Post('glossary/:id/approve')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffContentMarketingApproveGuard)
+  approveGlossary(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
+    return this.portfolio.approveGlossary({
+      staffId: Number((req as { staffUser?: { sub?: string } }).staffUser?.sub ?? 0),
+      glossaryId: id,
+    });
+  }
+
   @Post('requests/:id/convert')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffContentMarketingWriteGuard)

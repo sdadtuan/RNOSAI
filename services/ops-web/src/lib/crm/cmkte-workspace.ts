@@ -89,6 +89,10 @@ export function matchClaimLexemes(
   return lexemes.filter((lexeme) => hay.includes(lexeme.toLowerCase()));
 }
 
+export function itemGlossaryHits(item: ContentOsItem | null | undefined): string[] {
+  return Array.isArray(item?.glossary_hits) ? item.glossary_hits.filter(Boolean) : [];
+}
+
 export function itemClaimHits(item: ContentOsItem | null | undefined): string[] {
   if (item?.claim_hits?.length) return item.claim_hits;
   const restricted = item?.brief_json?.restricted;

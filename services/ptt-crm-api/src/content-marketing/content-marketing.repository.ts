@@ -47,6 +47,11 @@ import {
   type CmktInsightRow,
   type CmktInsightStatus,
 } from '../content-os-portfolio/copilot-insights.util';
+import {
+  CMKT_GLOSSARY_STATUSES,
+  type CmktGlossaryRow,
+  type CmktGlossaryStatus,
+} from '../content-os-portfolio/copilot-glossary.util';
 
 type MemoryStore = {
   ideas: Map<number, CmktIdeaRow[]>;
@@ -2516,6 +2521,23 @@ export class ContentMarketingRepository implements OnModuleDestroy {
     }
   }
 
+  async listGlossaryForLifecycle(lifecycleId: number): Promise<CmktGlossaryRow[]> {
+    if (!(lifecycleId > 0)) return [];
+    if (!(await this.ensurePgReady())) return [];
+    try {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, brand_id, term, locale, preferred, status, expires_at, created_at
+         FROM cmkt_glossary
+         WHERE lifecycle_id = $1
+         ORDER BY id ASC`,
+        [lifecycleId],
+      );
+      return res.rows.map((row) => mapGlossaryRow(row as Record<string, unknown>));
+    } catch {
+      return [];
+    }
+  }
+
   async patchSlaFired(itemId: number, slaFired: string[]): Promise<void> {
     if (await this.ensurePgReady()) {
       await this.db.query(
@@ -2586,6 +2608,24 @@ export class ContentMarketingRepository implements OnModuleDestroy {
       http_status: row.http_status != null ? Number(row.http_status) : null,
     };
   }
+}
+
+function mapGlossaryRow(row: Record<string, unknown>): CmktGlossaryRow {
+  const statusRaw = String(row.status ?? 'Draft');
+  const status = (CMKT_GLOSSARY_STATUSES as readonly string[]).includes(statusRaw)
+    ? (statusRaw as CmktGlossaryStatus)
+    : 'Draft';
+  return {
+    id: Number(row.id),
+    lifecycle_id: Number(row.lifecycle_id),
+    brand_id: String(row.brand_id ?? ''),
+    term: String(row.term ?? ''),
+    locale: String(row.locale ?? 'vi'),
+    preferred: String(row.preferred ?? ''),
+    status,
+    expires_at: row.expires_at != null ? String(row.expires_at) : null,
+    created_at: String(row.created_at ?? ''),
+  };
 }
 
 function mapInsightRow(row: Record<string, unknown>): CmktInsightRow {

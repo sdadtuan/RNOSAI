@@ -1,5 +1,6 @@
 import {
   buildDraftStub,
+  buildDraftUserPrompt,
   buildIdeasBulkStub,
   buildVariantsStub,
   normalizeDraftOutput,
@@ -55,6 +56,34 @@ describe('content-marketing-prompt.util', () => {
     const stub = buildVariantsStub(item, { variant_count: 3 });
     const variants = normalizeVariantsOutput(stub, stub, 3);
     expect(variants.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('includes Approved glossary whitelist in the draft user prompt', () => {
+    const prompt = buildDraftUserPrompt(
+      item,
+      {
+        brand_name: 'Acme',
+        copilotGlossary: [
+          {
+            id: 2,
+            term: 'đăng ký nhận tư vấn',
+            locale: 'vi',
+            brand_id: 'brand-4',
+            preferred: '',
+            expires_at: null,
+          },
+        ],
+      },
+      { tone: 'professional_friendly' },
+    );
+    expect(prompt).toContain('Approved glossary (copilot whitelist)');
+    expect(prompt).toContain('đăng ký nhận tư vấn');
+    expect(prompt).not.toContain('draft-secret');
+  });
+
+  it('omits the glossary section when the whitelist is empty', () => {
+    const prompt = buildDraftUserPrompt(item, { brand_name: 'Acme', copilotGlossary: [] }, {});
+    expect(prompt).not.toContain('Approved glossary');
   });
 
   it('buildIdeasBulkStub returns requested idea count', () => {

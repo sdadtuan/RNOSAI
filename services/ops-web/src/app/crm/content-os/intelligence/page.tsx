@@ -7,8 +7,11 @@ import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { fetchContentOsIntelligenceSummary, type ContentOsIntelligence } from '@/lib/content-os-api';
 import { CmktEIntelligence } from '@/components/content-os/cmkte/CmktEIntelligence';
 import {
+  approvePortfolioGlossary,
   approvePortfolioInsight,
+  fetchPortfolioGlossary,
   fetchPortfolioInsights,
+  type PortfolioGlossary,
   type PortfolioInsight,
 } from '@/lib/crm/cmkte-api';
 import { parseLifecycleQuery, useCmktEPageAuth } from '@/lib/crm/use-cmkte-page';
@@ -27,14 +30,19 @@ function CrmContentOsIntelligenceContent() {
   const { user, error, setError, ensureAuth, router } = useCmktEPageAuth();
   const [summary, setSummary] = useState<ContentOsIntelligence | null>(null);
   const [insights, setInsights] = useState<PortfolioInsight[]>([]);
+  const [glossary, setGlossary] = useState<PortfolioGlossary[]>([]);
   const [loading, setLoading] = useState(false);
   const [approving, setApproving] = useState(false);
   const canApprove = canApproveContentOs(user);
 
   const loadInsights = useCallback(
     async (access: string) => {
-      const list = await fetchPortfolioInsights(access, lifecycleId);
+      const [list, terms] = await Promise.all([
+        fetchPortfolioInsights(access, lifecycleId),
+        fetchPortfolioGlossary(access, lifecycleId),
+      ]);
       setInsights(list.items);
+      setGlossary(terms.items);
     },
     [lifecycleId],
   );
@@ -53,26 +61,45 @@ function CrmContentOsIntelligenceContent() {
       if (!lifecycleId) {
         setSummary(null);
         setInsights([]);
+        setGlossary([]);
         return;
       }
       setLoading(true);
       setError('');
       try {
-        const [intel, list] = await Promise.all([
+        const [intel, list, terms] = await Promise.all([
           fetchContentOsIntelligenceSummary(access, lifecycleId),
           fetchPortfolioInsights(access, lifecycleId),
+          fetchPortfolioGlossary(access, lifecycleId),
         ]);
         setSummary(intel);
         setInsights(list.items);
+        setGlossary(terms.items);
       } catch (err) {
         setSummary(null);
         setInsights([]);
+        setGlossary([]);
         setError(err instanceof Error ? err.message : 'Không tải được Content Intelligence');
       } finally {
         setLoading(false);
       }
     })();
   }, [ensureAuth, lifecycleId, router, setError]);
+
+  async function onApproveGlossary(glossaryId: number) {
+    const access = await ensureAuth().catch(() => null);
+    if (!access) return;
+    setApproving(true);
+    setError('');
+    try {
+      await approvePortfolioGlossary(access, glossaryId);
+      await loadInsights(access);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không duyệt được glossary');
+    } finally {
+      setApproving(false);
+    }
+  }
 
   async function onApprove(insightId: number) {
     const access = await ensureAuth().catch(() => null);
@@ -101,8 +128,10 @@ function CrmContentOsIntelligenceContent() {
           summary={summary}
           scoped={Boolean(lifecycleId)}
           insights={insights}
+          glossary={glossary}
           canApprove={canApprove}
           onApprove={onApprove}
+          onApproveGlossary={onApproveGlossary}
           approving={approving}
           loadError={Boolean(error)}
         />

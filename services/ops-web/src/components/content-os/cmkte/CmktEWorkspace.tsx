@@ -22,6 +22,7 @@ import {
   firstCalendarCollision,
   isBlankRecord,
   itemClaimHits,
+  itemGlossaryHits,
   itemMediaUrls,
   publishGateFlagsFromItem,
   rejectCommentValid,
@@ -165,6 +166,8 @@ export function CmktEWorkspace({
   const slots = contextSlots(bundle);
   const urls = itemMediaUrls(item);
   const claimHits = itemClaimHits(item);
+  const glossaryHits = itemGlossaryHits(item);
+  const copyHighlights = [...new Set([...claimHits, ...glossaryHits])];
   const token = getAccessToken();
   const collisionNotice = calendarCollisionNotice(firstCalendarCollision(bundle.slots));
   const criticalTitles = criticalPathTaskTitles(item);
@@ -258,11 +261,25 @@ export function CmktEWorkspace({
               ))}
             </ul>
           ) : null}
+          {glossaryHits.length ? (
+            <ul className="cmkte-list">
+              {glossaryHits.map((hit) => (
+                <li key={hit}>Glossary: {hit}</li>
+              ))}
+            </ul>
+          ) : null}
           {item.body_json?.markdown ? (
             <pre className="cmkte-json">
-              {claimHighlightSegments(item.body_json.markdown, claimHits).map((seg, idx) =>
+              {claimHighlightSegments(item.body_json.markdown, copyHighlights).map((seg, idx) =>
                 seg.hit ? (
-                  <mark key={`${seg.text}-${idx}`} className="cmkte-claim">
+                  <mark
+                    key={`${seg.text}-${idx}`}
+                    className={
+                      glossaryHits.some((term) => term.toLowerCase() === seg.text.toLowerCase())
+                        ? 'cmkte-glossary'
+                        : 'cmkte-claim'
+                    }
+                  >
                     {seg.text}
                   </mark>
                 ) : (

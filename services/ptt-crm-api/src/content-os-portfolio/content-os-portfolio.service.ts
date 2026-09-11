@@ -50,6 +50,12 @@ import {
 import { formatContentRequestCode, requestCompleteness } from './content-os-portfolio.util';
 import { toAiTraceRow, type AiTraceRow } from './ai-traces.util';
 import type { CmktInsightRow } from './copilot-insights.util';
+import {
+  collectCopyText,
+  matchGlossaryTerms,
+  selectCopilotGlossary,
+  type CmktGlossaryRow,
+} from './copilot-glossary.util';
 import { computeCapacity, criticalPathTaskIds, hasDelayedCriticalTask } from './production-capacity.util';
 import { listDamOrEmpty, stubDamAdapter, type DamListResult } from './dam-adapter';
 import {
@@ -547,6 +553,44 @@ export class ContentOsPortfolioService {
     return { items: rows.filter((row) => allowed.has(row.item_id)) };
   }
 
+  async listGlossary(scope: {
+    staffId: number;
+    lifecycleHint?: number;
+  }): Promise<{ items: CmktGlossaryRow[] }> {
+    const ids = await this.scopedLifecycleIds(scope.staffId);
+    if (!ids.length) return { items: [] };
+    const hint = scope.lifecycleHint;
+    const scoped = hint && hint > 0 && ids.includes(hint) ? [hint] : ids;
+    const items = (await this.repo.listGlossary(scoped, ['Draft', 'Approved'])) ?? [];
+    return { items };
+  }
+
+  async approveGlossary(input: { staffId: number; glossaryId: number }): Promise<CmktGlossaryRow> {
+    const row = await this.repo.getGlossaryById(input.glossaryId);
+    if (!row) {
+      throw new NotFoundException({ error: 'glossary_not_found', id: input.glossaryId });
+    }
+    const scoped = await this.scopedLifecycleIds(input.staffId);
+    if (!scoped.includes(row.lifecycle_id)) {
+      throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
+    }
+    if (row.status !== 'Draft') {
+      throw new ConflictException({ error: 'glossary_not_draft', status: row.status });
+    }
+    try {
+      return await this.repo.updateGlossaryStatus(row.id, 'Approved');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message.startsWith('glossary_not_found')) {
+        throw new NotFoundException({ error: 'glossary_not_found', id: input.glossaryId });
+      }
+      if (message.startsWith('glossary_not_draft')) {
+        throw new ConflictException({ error: 'glossary_not_draft', status: row.status });
+      }
+      throw err;
+    }
+  }
+
   async approveInsight(input: { staffId: number; insightId: number }): Promise<CmktInsightRow> {
     const insight = await this.repo.getInsightById(input.insightId);
     if (!insight) {
@@ -595,7 +639,7 @@ export class ContentOsPortfolioService {
     const hint = input.lifecycleHint;
     if (hint && ids.includes(hint)) {
       try {
-        return this.withCriticalPath(await this.items.getItem(hint, input.itemId));
+        return this.withGlossaryHits(this.withCriticalPath(await this.items.getItem(hint, input.itemId)));
       } catch {
         // hint missed — scan scoped items
       }
@@ -604,7 +648,9 @@ export class ContentOsPortfolioService {
     if (!found || !ids.includes(found.lifecycle_id)) {
       throw new NotFoundException({ error: 'item_not_found', id: input.itemId });
     }
-    return this.withCriticalPath(await this.items.getItem(found.lifecycle_id, input.itemId));
+    return this.withGlossaryHits(
+      this.withCriticalPath(await this.items.getItem(found.lifecycle_id, input.itemId)),
+    );
   }
 
   private async loadProductionItems(ids: number[]): Promise<PortfolioProductionItem[]> {
@@ -649,6 +695,17 @@ export class ContentOsPortfolioService {
   private withCriticalPath(item: CmktItemRow): CmktItemRow {
     const critical_path_task_ids = criticalPathTaskIds(item.production_json?.tasks);
     return critical_path_task_ids.length ? { ...item, critical_path_task_ids } : item;
+  }
+
+  private async withGlossaryHits(item: CmktItemRow): Promise<CmktItemRow> {
+    if (typeof this.repo.listGlossaryForLifecycle !== 'function') return item;
+    const rows = await this.repo.listGlossaryForLifecycle(item.lifecycle_id).catch(() => []);
+    const approved = selectCopilotGlossary(rows);
+    const glossary_hits = matchGlossaryTerms(
+      collectCopyText(item.body_json),
+      approved.map((row) => row.term),
+    );
+    return { ...item, glossary_hits };
   }
 
   private parseRequestSource(raw: unknown): ContentRequestSource {

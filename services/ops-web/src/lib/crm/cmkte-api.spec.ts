@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE } from '@/lib/api';
 import {
+  approvePortfolioGlossary,
   approvePortfolioInsight,
   convertPortfolioRequest,
   fetchCommandCenter,
   fetchPortfolioApprovals,
+  fetchPortfolioGlossary,
   fetchPortfolioInsights,
   fetchPortfolioItem,
   fetchPortfolioPublications,
@@ -408,6 +410,57 @@ describe('approvePortfolioInsight', () => {
     const result = await approvePortfolioInsight('tok-9', 11);
 
     expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/insights/11/approve`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer tok-9',
+        'Content-Type': 'application/json',
+      },
+    });
+    expect(result).toEqual(body);
+  });
+});
+
+describe('fetchPortfolioGlossary', () => {
+  it('GETs portfolio glossary with optional lifecycle hint', async () => {
+    const body = { items: [{ id: 11, status: 'Draft', term: 'đăng ký nhận tư vấn', locale: 'vi', brand_id: 'brand-4' }] };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchPortfolioGlossary('tok-9', 4);
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/glossary?lifecycle=4`, {
+      headers: { Authorization: 'Bearer tok-9' },
+    });
+    expect(result).toEqual(body);
+  });
+
+  it('throws when the glossary response is not ok instead of inventing terms', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ message: 'nope' }),
+      }),
+    );
+    await expect(fetchPortfolioGlossary('tok-9', 4)).rejects.toThrow();
+  });
+});
+
+describe('approvePortfolioGlossary', () => {
+  it('POSTs glossary approve', async () => {
+    const body = { id: 11, status: 'Approved', term: 'đăng ký nhận tư vấn', locale: 'vi', brand_id: 'brand-4' };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => body,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await approvePortfolioGlossary('tok-9', 11);
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/crm/content-os/portfolio/glossary/11/approve`, {
       method: 'POST',
       headers: {
         Authorization: 'Bearer tok-9',

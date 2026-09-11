@@ -335,6 +335,50 @@ export async function fetchPortfolioSlaEvents(
   return { items: Array.isArray(body?.items) ? body.items : [] };
 }
 
+export type PortfolioGlossary = {
+  id: number;
+  lifecycle_id: number;
+  brand_id: string;
+  term: string;
+  locale: string;
+  preferred?: string;
+  status: 'Draft' | 'Approved' | 'Rejected';
+  expires_at: string | null;
+  created_at?: string;
+};
+
+export type PortfolioGlossaryList = {
+  items: PortfolioGlossary[];
+};
+
+export async function fetchPortfolioGlossary(
+  token: string,
+  lifecycleHint?: number,
+): Promise<PortfolioGlossaryList> {
+  const qs = lifecycleHint && lifecycleHint > 0 ? `?lifecycle=${lifecycleHint}` : '';
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/glossary${qs}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Không tải được glossary');
+  const body = (await res.json()) as PortfolioGlossaryList | null;
+  return { items: Array.isArray(body?.items) ? body.items : [] };
+}
+
+export async function approvePortfolioGlossary(token: string, glossaryId: number): Promise<PortfolioGlossary> {
+  const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/glossary/${glossaryId}/approve`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? 'glossary_approve_failed');
+  }
+  return res.json();
+}
+
 export async function approvePortfolioInsight(token: string, insightId: number): Promise<PortfolioInsight> {
   const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/insights/${insightId}/approve`, {
     method: 'POST',

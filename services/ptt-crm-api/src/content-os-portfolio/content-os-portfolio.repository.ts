@@ -18,6 +18,12 @@ import {
   type CmktInsightRow,
   type CmktInsightStatus,
 } from './copilot-insights.util';
+import {
+  CMKT_GLOSSARY_STATUSES,
+  isMissingGlossarySchema,
+  type CmktGlossaryRow,
+  type CmktGlossaryStatus,
+} from './copilot-glossary.util';
 import { nextDisplaySeq } from './display-seq';
 import { formatContentItemCode, formatContentRequestCode } from './content-os-portfolio.util';
 import {
@@ -393,6 +399,76 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
     }
   }
 
+  async listGlossary(
+    lifecycleIds: number[],
+    statuses: CmktGlossaryStatus[] = ['Draft', 'Approved'],
+  ): Promise<CmktGlossaryRow[]> {
+    if (!lifecycleIds.length) return [];
+    if (!(await this.ensurePgReady())) return [];
+    try {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, brand_id, term, locale, preferred, status, expires_at, created_at
+           FROM cmkt_glossary
+           WHERE lifecycle_id = ANY($1::bigint[])
+             AND status = ANY($2::text[])
+           ORDER BY created_at DESC NULLS LAST, id DESC`,
+        [lifecycleIds, statuses],
+      );
+      return res.rows.map((row) => this.mapGlossaryRow(row as Record<string, unknown>));
+    } catch (err) {
+      if (isMissingGlossarySchema(err)) return [];
+      throw err;
+    }
+  }
+
+  async listGlossaryForLifecycle(lifecycleId: number): Promise<CmktGlossaryRow[]> {
+    if (!(lifecycleId > 0)) return [];
+    if (!(await this.ensurePgReady())) return [];
+    try {
+      const res = await this.db.query(
+        `SELECT id, lifecycle_id, brand_id, term, locale, preferred, status, expires_at, created_at
+         FROM cmkt_glossary
+         WHERE lifecycle_id = $1
+         ORDER BY id ASC`,
+        [lifecycleId],
+      );
+      return res.rows.map((row) => this.mapGlossaryRow(row as Record<string, unknown>));
+    } catch {
+      return [];
+    }
+  }
+
+  async getGlossaryById(id: number): Promise<CmktGlossaryRow | null> {
+    if (!(await this.ensurePgReady())) return null;
+    const res = await this.db.query(
+      `SELECT id, lifecycle_id, brand_id, term, locale, preferred, status, expires_at, created_at
+       FROM cmkt_glossary
+       WHERE id = $1`,
+      [id],
+    );
+    const row = res.rows[0];
+    return row ? this.mapGlossaryRow(row as Record<string, unknown>) : null;
+  }
+
+  async updateGlossaryStatus(id: number, status: CmktGlossaryStatus): Promise<CmktGlossaryRow> {
+    const res = await this.db.query(
+      `UPDATE cmkt_glossary
+       SET status = $2
+       WHERE id = $1 AND status = 'Draft'
+       RETURNING id, lifecycle_id, brand_id, term, locale, preferred, status, expires_at, created_at`,
+      [id, status],
+    );
+    const row = res.rows[0];
+    if (!row) {
+      const existing = await this.getGlossaryById(id);
+      if (!existing) {
+        throw new Error(`glossary_not_found:${id}`);
+      }
+      throw new Error(`glossary_not_draft:${id}:${existing.status}`);
+    }
+    return this.mapGlossaryRow(row as Record<string, unknown>);
+  }
+
   async getInsightById(id: number): Promise<CmktInsightRow | null> {
     if (!(await this.ensurePgReady())) return null;
     const res = await this.db.query(
@@ -617,6 +693,24 @@ export class ContentOsPortfolioRepository implements OnModuleDestroy {
       };
     }
     return mapped;
+  }
+
+  private mapGlossaryRow(row: Record<string, unknown>): CmktGlossaryRow {
+    const statusRaw = String(row.status ?? 'Draft');
+    const status = (CMKT_GLOSSARY_STATUSES as readonly string[]).includes(statusRaw)
+      ? (statusRaw as CmktGlossaryStatus)
+      : 'Draft';
+    return {
+      id: Number(row.id),
+      lifecycle_id: Number(row.lifecycle_id),
+      brand_id: String(row.brand_id ?? ''),
+      term: String(row.term ?? ''),
+      locale: String(row.locale ?? 'vi'),
+      preferred: String(row.preferred ?? ''),
+      status,
+      expires_at: row.expires_at != null ? String(row.expires_at) : null,
+      created_at: String(row.created_at ?? ''),
+    };
   }
 
   private mapInsightRow(row: Record<string, unknown>): CmktInsightRow {

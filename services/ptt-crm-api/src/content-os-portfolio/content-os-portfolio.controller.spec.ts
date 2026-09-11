@@ -87,6 +87,23 @@ describe('ContentOsPortfolioController', () => {
     expect(out).toEqual(approved);
   });
 
+  it('GET glossary delegates to listGlossary with staffId and lifecycle hint', async () => {
+    const service = { listGlossary: jest.fn().mockResolvedValue({ items: [] }) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.listGlossary({ staffUser: { sub: '7' } } as never, '4');
+    expect(service.listGlossary).toHaveBeenCalledWith({ staffId: 7, lifecycleHint: 4 });
+    expect(out).toEqual({ items: [] });
+  });
+
+  it('POST glossary/:id/approve delegates to approveGlossary', async () => {
+    const approved = { id: 11, status: 'Approved', term: 'đăng ký nhận tư vấn', locale: 'vi', brand_id: 'brand-4' };
+    const service = { approveGlossary: jest.fn().mockResolvedValue(approved) };
+    const c = new ContentOsPortfolioController(service as never);
+    const out = await c.approveGlossary(11, { staffUser: { sub: '7' } } as never);
+    expect(service.approveGlossary).toHaveBeenCalledWith({ staffId: 7, glossaryId: 11 });
+    expect(out).toEqual(approved);
+  });
+
   it('POST approvals/batch delegates to batchApprove with staffId, actor, ids, and step', async () => {
     const service = { batchApprove: jest.fn().mockResolvedValue({ ok: [21], failed: [] }) };
     const c = new ContentOsPortfolioController(service as never);

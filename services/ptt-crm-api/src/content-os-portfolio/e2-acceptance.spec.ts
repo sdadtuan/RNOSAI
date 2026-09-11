@@ -5,6 +5,11 @@ import {
   selectCopilotSources,
   type CmktInsightRow,
 } from './copilot-insights.util';
+import {
+  formatCopilotGlossaryPromptSection,
+  selectCopilotGlossary,
+  type CmktGlossaryRow,
+} from './copilot-glossary.util';
 import { computeCapacity } from './production-capacity.util';
 import { evaluateProductionSla } from './production-sla.util';
 
@@ -66,6 +71,32 @@ describe('E2 control room acceptance', () => {
     expect(section).toContain('reel-hook');
     expect(section).not.toContain('draft-secret');
     expect(section).not.toContain('should-not-ground');
+  });
+
+  it('does not put a Draft or expired glossary term into copilot generate context', () => {
+    const draft: CmktGlossaryRow = {
+      id: 1,
+      lifecycle_id: 4,
+      brand_id: 'brand-4',
+      term: 'draft-secret',
+      locale: 'vi',
+      preferred: '',
+      status: 'Draft',
+      expires_at: null,
+      created_at: '2026-09-01T00:00:00.000Z',
+    };
+    const approved: CmktGlossaryRow = {
+      ...draft,
+      id: 2,
+      term: 'đăng ký nhận tư vấn',
+      status: 'Approved',
+    };
+    const sources = selectCopilotGlossary([draft, approved], now);
+    expect(sources.map((row) => row.id)).toEqual([2]);
+    const section = formatCopilotGlossaryPromptSection(sources);
+    expect(section).toContain('Approved glossary (copilot whitelist)');
+    expect(section).toContain('đăng ký nhận tư vấn');
+    expect(section).not.toContain('draft-secret');
   });
 
   it('keeps capacity_pct null instead of a fake 78%', () => {
