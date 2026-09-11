@@ -1,4 +1,4 @@
-import { assertBindableDamUrl } from './dam-bind.util';
+import { assertBindableDamUrl, parseDamBindBody } from './dam-bind.util';
 
 describe('assertBindableDamUrl', () => {
   it('allows https on allowlist host and rejects javascript', () => {
@@ -24,5 +24,17 @@ describe('assertBindableDamUrl', () => {
         'dam.example.internal',
       ),
     ).toBe('https://dam.example.internal/a.jpg');
+  });
+});
+
+describe('parseDamBindBody', () => {
+  it('keeps only DamRightsMetadata fields and drops token', () => {
+    const parsed = parseDamBindBody({
+      dam_id: 'a1',
+      url: 'https://dam.example.internal/a.jpg',
+      rights: { status: 'Valid', token: 'x', secret: 'y' },
+    });
+    expect(parsed.rights).toEqual({ status: 'Valid' });
+    expect(JSON.stringify(parsed)).not.toMatch(/token|secret/);
   });
 });

@@ -122,4 +122,40 @@ describe('ContentOsPortfolioService bindDamAsset', () => {
     ).rejects.toMatchObject({ response: { error: 'dam_invalid_response' } });
     expect(repo.insertDamBinding).not.toHaveBeenCalled();
   });
+
+  it('persists DAM Valid rights when asset_rights hook exists', async () => {
+    process.env.CMKT_DAM_BASE_URL = 'https://dam.example.internal/files';
+    const { svc, marketingRepo } = makeBindSvc();
+    await svc.bindDamAsset({
+      staffId: 7,
+      itemId: 21,
+      actor: 'ops@ptt.vn',
+      body: { dam_id: 'a1', url: 'https://dam.example.internal/a.jpg', rights: { status: 'Valid' } },
+    });
+    expect(marketingRepo.replaceAssetRights).toHaveBeenCalledWith(21, [
+      expect.objectContaining({ asset_ref: 'https://dam.example.internal/a.jpg', status: 'Valid' }),
+    ]);
+  });
+
+  it('does not store token from rights in the binding payload', async () => {
+    process.env.CMKT_DAM_BASE_URL = 'https://dam.example.internal/files';
+    const { svc, repo } = makeBindSvc();
+    await svc.bindDamAsset({
+      staffId: 7,
+      itemId: 21,
+      actor: 'ops@ptt.vn',
+      body: {
+        dam_id: 'a1',
+        url: 'https://dam.example.internal/a.jpg',
+        rights: { status: 'Valid', token: 'x' },
+      },
+    });
+    expect(repo.insertDamBinding).toHaveBeenCalledWith({
+      itemId: 21,
+      damId: 'a1',
+      url: 'https://dam.example.internal/a.jpg',
+      rightsJson: { status: 'Valid' },
+    });
+    expect(JSON.stringify(repo.insertDamBinding.mock.calls[0][0])).not.toMatch(/token/);
+  });
 });

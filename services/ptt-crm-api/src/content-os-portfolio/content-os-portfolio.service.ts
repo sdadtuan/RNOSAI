@@ -126,8 +126,7 @@ function isAssetRightStatus(value: string): value is AssetRightStatus {
 
 function damRightsToWrite(assetRef: string, rights: DamRightsMetadata | null | undefined): CmktAssetRightWrite {
   const statusRaw = rights?.status != null ? String(rights.status).trim() : 'Unknown';
-  const status: AssetRightStatus =
-    isAssetRightStatus(statusRaw) && statusRaw !== 'Valid' ? statusRaw : 'Unknown';
+  const status: AssetRightStatus = isAssetRightStatus(statusRaw) ? statusRaw : 'Unknown';
   return {
     asset_ref: assetRef,
     license_type: rights?.license_type != null ? String(rights.license_type).trim() || null : null,
