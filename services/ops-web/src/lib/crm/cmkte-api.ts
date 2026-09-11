@@ -362,12 +362,11 @@ export async function fetchDamAssets(token: string, collection?: string): Promis
     });
     const body = await res.json().catch(() => null);
     if (!res.ok) {
-      return readDamListResult(body, 'dam_list_failed');
+      return readDamListResult(body, 'dam_unavailable');
     }
     return readDamListResult(body);
-  } catch (err) {
-    const message = err instanceof Error && err.message.trim() ? err.message : 'dam_list_failed';
-    return { items: [], error: message };
+  } catch {
+    return { items: [], error: 'dam_unavailable' };
   }
 }
 

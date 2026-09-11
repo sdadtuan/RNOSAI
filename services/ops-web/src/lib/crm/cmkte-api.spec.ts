@@ -510,11 +510,29 @@ describe('fetchDamAssets', () => {
     expect(JSON.stringify(result)).not.toMatch(/Sunlight|Nova/i);
   });
 
-  it('maps network fail to empty list plus error', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Failed to fetch')));
-    await expect(fetchDamAssets('tok-9', 'approved')).resolves.toEqual({
+  it('maps network fail to empty list plus a stable code, not the raw exception', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('Failed to fetch token=sk_live_abc')),
+    );
+    const result = await fetchDamAssets('tok-9', 'approved');
+    expect(result).toEqual({ items: [], error: 'dam_unavailable' });
+    expect(JSON.stringify(result)).not.toMatch(/Failed to fetch|sk_live|token=/i);
+  });
+
+  it('maps HTTP 200 with invalid JSON to empty list plus dam_invalid_response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => {
+          throw new SyntaxError('Unexpected token < in JSON');
+        },
+      }),
+    );
+    await expect(fetchDamAssets('tok-9')).resolves.toEqual({
       items: [],
-      error: 'Failed to fetch',
+      error: 'dam_invalid_response',
     });
   });
 });

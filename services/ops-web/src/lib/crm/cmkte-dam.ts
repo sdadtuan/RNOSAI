@@ -24,6 +24,26 @@ export type DamListResult = {
   error?: string;
 };
 
+export const DAM_PUBLIC_ERROR_CODES = [
+  'dam_not_configured',
+  'dam_unavailable',
+  'dam_invalid_response',
+] as const;
+
+export type DamPublicError = (typeof DAM_PUBLIC_ERROR_CODES)[number];
+
+function isDamPublicError(value: string): value is DamPublicError {
+  return (DAM_PUBLIC_ERROR_CODES as readonly string[]).includes(value);
+}
+
+function toDamPublicError(value: string | undefined, fallback?: string): DamPublicError {
+  const trimmed = value?.trim() ?? '';
+  if (isDamPublicError(trimmed)) return trimmed;
+  const fallbackTrimmed = fallback?.trim() ?? '';
+  if (isDamPublicError(fallbackTrimmed)) return fallbackTrimmed;
+  return 'dam_unavailable';
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -68,11 +88,12 @@ export function toDamUrlMetadata(raw: unknown): DamUrlMetadata | null {
 export function readDamListResult(body: unknown, fallbackError?: string): DamListResult {
   const row = asRecord(body);
   const errorRaw = row && typeof row.error === 'string' ? row.error.trim() : '';
-  const error = errorRaw || fallbackError?.trim() || '';
-  if (error) {
-    return { items: [], error };
+  if (errorRaw || fallbackError) {
+    return { items: [], error: toDamPublicError(errorRaw, fallbackError) };
   }
-  const rawItems = Array.isArray(row?.items) ? row.items : [];
-  const items = rawItems.map(toDamUrlMetadata).filter((item): item is DamUrlMetadata => item != null);
+  if (!Array.isArray(row?.items)) {
+    return { items: [], error: 'dam_invalid_response' };
+  }
+  const items = row.items.map(toDamUrlMetadata).filter((item): item is DamUrlMetadata => item != null);
   return { items };
 }

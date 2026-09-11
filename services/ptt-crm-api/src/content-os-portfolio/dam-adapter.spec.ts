@@ -23,15 +23,40 @@ describe('DamAdapter stub', () => {
     });
   });
 
-  it('turns a network fail into empty list plus error and never seeds Sunlight/Nova', async () => {
+  it('maps adapter throws to a stable public code and never leaks raw messages', async () => {
     const adapter = stubDamAdapter({
       fetchList: async () => {
-        throw new Error('ECONNREFUSED');
+        throw new Error(
+          'ECONNREFUSED vendor dump token=sk_live_abc https://cdn.example/x?X-Amz-Signature=deadbeef',
+        );
       },
     });
-    const result = await listDamOrEmpty(adapter, { collection: 'approved' });
-    expect(result).toEqual({ items: [], error: 'ECONNREFUSED' });
+    const log = jest.fn();
+    const result = await listDamOrEmpty(adapter, { collection: 'approved' }, { log });
+    expect(result).toEqual({ items: [], error: 'dam_unavailable' });
+    expect(JSON.stringify(result)).not.toMatch(/ECONNREFUSED|sk_live|X-Amz-Signature|token=/i);
     expect(JSON.stringify(result)).not.toMatch(/Sunlight|Nova/i);
+    expect(log).toHaveBeenCalled();
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/sk_live|X-Amz-Signature|token=/i);
+  });
+
+  it('treats a non-array adapter payload as dam_invalid_response, not silent empty success', async () => {
+    const adapter = stubDamAdapter({
+      fetchList: async () => ({ vendor: 'dump', signed_url: 'https://cdn.example/x?token=abc' }),
+    });
+    const result = await listDamOrEmpty(adapter, { collection: 'approved' });
+    expect(result).toEqual({ items: [], error: 'dam_invalid_response' });
+    expect(JSON.stringify(result)).not.toMatch(/signed_url|token=|cdn\.example/i);
+  });
+
+  it('treats a non-array list() result as dam_invalid_response', async () => {
+    const adapter: DamAdapter = {
+      list: async () => ({ not: 'an-array' }) as unknown as never,
+    };
+    await expect(listDamOrEmpty(adapter)).resolves.toEqual({
+      items: [],
+      error: 'dam_invalid_response',
+    });
   });
 
   it('returns URL metadata from a stubbed vendor and keeps rights pull optional', async () => {
