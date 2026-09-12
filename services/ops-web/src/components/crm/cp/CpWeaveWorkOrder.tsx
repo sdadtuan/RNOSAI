@@ -84,7 +84,7 @@ export function CpWeaveWorkOrder({
 
   if (!enabled) {
     return (
-      <section className="cp-weave">
+      <section className="cp-weave" data-testid="cp-weave-panel">
         <p className="cp-empty">{dash(null)}</p>
       </section>
     );
@@ -96,7 +96,7 @@ export function CpWeaveWorkOrder({
   const brief = selected?.brief_json ?? {};
 
   return (
-    <section className="cp-weave">
+    <section className="cp-weave" data-testid="cp-weave-panel">
       <header className="cp-weave-head">
         <h2>Weave Work Order</h2>
         <p className="cp-muted">Designer làm trên Weave. CRM chỉ Sync output.</p>
@@ -217,6 +217,7 @@ export function CpWeaveWorkOrder({
             <button
               className="cp-btn cp-btn--primary"
               type="button"
+              data-testid="cp-weave-sync"
               disabled={busy !== ''}
               onClick={() => run('sync', async (token) => {
                 const result = await syncWeaveOutput(token, selected.id);

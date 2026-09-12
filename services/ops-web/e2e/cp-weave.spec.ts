@@ -126,7 +126,7 @@ test.describe('Creative OS Weave pane', () => {
     await mockCpApis(page);
     await injectStaffSession(page);
     await page.goto(`/crm/creative-os/projects/${PROJECT_ID}?tab=ai-ops&pane=weave`);
-    await expect(page.getByRole('button', { name: 'Sync output' })).toBeVisible();
+    await expect(page.getByTestId('cp-weave-sync')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open in Weave' })).toBeVisible();
 
     await page.goto(`/crm/creative-os/projects/${PROJECT_ID}?tab=weave`);
