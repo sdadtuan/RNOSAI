@@ -8,6 +8,7 @@ import {
   formatMagnificConfirmError,
   formatMagnificEstimate,
   getMagnificJob,
+  getProviderHealth,
   magnificCompletionNotice,
   submitMagnificJob,
 } from './cp-ai-ops-api';
@@ -142,5 +143,25 @@ describe('Magnific API source contract', () => {
     const source = readFileSync(new URL('./cp-ai-ops-api.ts', import.meta.url), 'utf8');
     expect(source).not.toMatch(/magnific\.com/i);
     expect(source).not.toMatch(/MAGNIFIC_REST_BASE|api[_-]?key|secret|sk-|Bearer /i);
+  });
+});
+
+describe('Comfy provider health API', () => {
+  it('reads GET /api/crm/cp/provider-health and never invents a host', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({ comfy: { ok: false, reason: 'gpu_building' } }),
+    );
+
+    const health = await getProviderHealth('token');
+    expect(health).toEqual({ comfy: { ok: false, reason: 'gpu_building' } });
+    expect(fetchMock.mock.calls[0]?.[0]).toMatch(/\/api\/crm\/cp\/provider-health$/);
+    expect(JSON.stringify(health)).not.toMatch(/8188|COMFYUI_GATEWAY|localhost|127\.0\.0\.1/i);
+
+    fetchMock.mockRestore();
+  });
+
+  it('does not embed :8188 or the Comfy gateway env in the health client', () => {
+    const source = readFileSync(new URL('./cp-ai-ops-api.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/8188|COMFYUI_GATEWAY/i);
   });
 });

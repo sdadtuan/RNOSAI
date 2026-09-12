@@ -8,7 +8,7 @@ import {
   parseAiOpsPane,
   type CpAiOpsPane,
 } from '@/lib/crm/cp-ai-ops-panes.util';
-import { dash } from '@/lib/crm/cp-format';
+import { CpAiOpsComfyPane } from './CpAiOpsComfyPane';
 import { CpAiOpsMagnificPane } from './CpAiOpsMagnificPane';
 import { CpWeaveWorkOrder } from './CpWeaveWorkOrder';
 
@@ -31,8 +31,6 @@ export function CpAiOpsWorkspace({
     wo: searchParams.get('wo') ?? undefined,
     job: searchParams.get('job') ?? undefined,
   };
-  const comfyHealth = false;
-  const canSubmitComfy = flags.comfy && comfyHealth;
 
   return (
     <section className="cp-ai-ops">
@@ -65,14 +63,7 @@ export function CpAiOpsWorkspace({
 
       {pane === 'comfy' ? (
         <div className="cp-ai-ops-body">
-          <p>Đang xây GPU — chưa nhận job</p>
-          <button
-            className="cp-btn cp-btn--primary"
-            type="button"
-            disabled={!canSubmitComfy}
-          >
-            Submit
-          </button>
+          <CpAiOpsComfyPane projectId={projectId} flags={flags} />
         </div>
       ) : null}
     </section>

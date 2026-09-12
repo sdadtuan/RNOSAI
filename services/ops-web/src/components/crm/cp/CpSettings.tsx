@@ -20,6 +20,10 @@ import {
   type CpSettings as CpSettingsData,
   type CpSettingsPatch,
 } from '@/lib/crm/cp-api';
+import {
+  comfyGatewayInputValue,
+  comfySettingsStatusCopy,
+} from '@/lib/crm/cp-ai-ops-panes.util';
 import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import { dash } from '@/lib/crm/cp-format';
 
@@ -117,6 +121,7 @@ export function CpSettings() {
   const [notice, setNotice] = useState('');
   const [connections, setConnections] = useState<CpProviderConnection[]>([]);
   const [magnificApiKey, setMagnificApiKey] = useState('');
+  const [comfyGateway, setComfyGateway] = useState('');
   const oauthResult = searchParams.get('magnific_oauth');
 
   const tabLinks = useMemo(() => CP_SETTINGS_TABS.map((item) => {
@@ -293,6 +298,13 @@ export function CpSettings() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function saveComfyGateway(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setComfyGateway(comfyGatewayInputValue(comfyGateway));
+    setError('');
+    setNotice('Đã nhận URL gateway — không hiện lại trên giao diện.');
   }
 
   async function disconnectConnection(id: string) {
@@ -506,6 +518,30 @@ export function CpSettings() {
                   Ngắt kết nối REST
                 </button>
               ) : null}
+            </form>
+          </section>
+          <section className="cp-card" data-testid="cp-settings-comfy">
+            <div className="cp-card__head">
+              <div>
+                <h2>Comfy</h2>
+                <p className="cp-muted">{comfySettingsStatusCopy()}</p>
+              </div>
+            </div>
+            <form className="cp-filters" onSubmit={(event) => saveComfyGateway(event)}>
+              <label>
+                <span>URL gateway (nội bộ)</span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  data-testid="cp-settings-comfy-gateway"
+                  value={comfyGateway}
+                  onChange={(event) => setComfyGateway(event.target.value)}
+                  placeholder="Nhập URL — không hiện lại sau khi lưu"
+                />
+              </label>
+              <button className="cp-btn" type="submit" disabled={saving}>
+                Lưu URL gateway
+              </button>
             </form>
           </section>
           <section className="cp-card">

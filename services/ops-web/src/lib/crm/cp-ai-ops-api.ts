@@ -57,6 +57,14 @@ export function getMagnificJob(token: string, jobId: string) {
   return cpFetch<CpMagnificJob>(token, jobPath(jobId));
 }
 
+export type ComfyProviderHealth =
+  | { comfy: { ok: true; vram_mb: number | null; checked_at: string } }
+  | { comfy: { ok: false; reason: 'gpu_building'; checked_at?: string } };
+
+export function getProviderHealth(token: string) {
+  return cpFetch<ComfyProviderHealth>(token, '/provider-health');
+}
+
 function stageLogOf(job: CpMagnificJob): Record<string, unknown> {
   const raw = job.stage_log_json;
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;

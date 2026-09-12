@@ -1,11 +1,17 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CP_PROJECT_TABS } from './cp-project-tabs.util';
 import {
   aiOpsHref,
+  COMFY_LOCKED_COPY,
+  comfyGatewayInputValue,
+  comfySettingsStatusCopy,
+  isComfySubmitEnabled,
   isMagnificComposerDisabled,
   isMagnificTransportEnabled,
   magnificProviderFromTransport,
   parseAiOpsPane,
+  shouldShowComfyLockedCopy,
 } from './cp-ai-ops-panes.util';
 
 describe('parseAiOpsPane', () => {
@@ -63,5 +69,55 @@ describe('Magnific transport disable rules', () => {
     expect(isMagnificTransportEnabled(bothOff, 'api')).toBe(false);
     expect(isMagnificTransportEnabled(bothOff, 'mcp')).toBe(false);
     expect(isMagnificComposerDisabled(bothOff)).toBe(true);
+  });
+});
+
+describe('Comfy GPU health disable rules', () => {
+  const now = Date.parse('2026-09-13T03:00:30.000Z');
+  const freshOk = {
+    ok: true as const,
+    vram_mb: 24576,
+    checked_at: '2026-09-13T03:00:01.000Z',
+  };
+  const building = { ok: false as const, reason: 'gpu_building' as const };
+
+  it('keeps the exact locked copy and shows it unless health ok is true', () => {
+    expect(COMFY_LOCKED_COPY).toBe('Đang xây GPU — chưa nhận job.');
+    expect(shouldShowComfyLockedCopy(undefined)).toBe(true);
+    expect(shouldShowComfyLockedCopy(building)).toBe(true);
+    expect(shouldShowComfyLockedCopy({ ok: false, reason: 'gpu_building' })).toBe(true);
+    expect(shouldShowComfyLockedCopy(freshOk)).toBe(false);
+  });
+
+  it('enables Submit only when the comfy flag is on and heartbeat ok is true and fresh', () => {
+    expect(isComfySubmitEnabled({ comfy: true }, freshOk, now)).toBe(true);
+    expect(isComfySubmitEnabled({ comfy: false }, freshOk, now)).toBe(false);
+    expect(isComfySubmitEnabled({ comfy: true }, building, now)).toBe(false);
+    expect(isComfySubmitEnabled({ comfy: true }, { ok: false, reason: 'gpu_building' }, now)).toBe(false);
+    expect(isComfySubmitEnabled({ comfy: true }, undefined, now)).toBe(false);
+    expect(isComfySubmitEnabled({ comfy: true }, {
+      ok: true,
+      vram_mb: 24576,
+      checked_at: '2026-09-13T02:59:59.000Z',
+    }, now)).toBe(false);
+  });
+
+  it('never echoes a saved gateway URL into Settings or the composer', () => {
+    expect(comfyGatewayInputValue('http://127.0.0.1:8188')).toBe('');
+    expect(comfyGatewayInputValue({ url: 'http://gpu.internal:8188' })).toBe('');
+    expect(comfySettingsStatusCopy(building)).toBe('GPU chưa sẵn sàng');
+    expect(comfySettingsStatusCopy(undefined)).toBe('GPU chưa sẵn sàng');
+    expect(comfySettingsStatusCopy(freshOk)).toBe('GPU chưa sẵn sàng');
+  });
+
+  it('keeps :8188 and gateway env out of the Comfy pane and Settings composer path', () => {
+    const pane = readFileSync(new URL('../../components/crm/cp/CpAiOpsComfyPane.tsx', import.meta.url), 'utf8');
+    const workspace = readFileSync(new URL('../../components/crm/cp/CpAiOpsWorkspace.tsx', import.meta.url), 'utf8');
+    const settings = readFileSync(new URL('../../components/crm/cp/CpSettings.tsx', import.meta.url), 'utf8');
+    expect(`${pane}\n${workspace}`).not.toMatch(/:8188|COMFYUI_GATEWAY|\/crm\/aco/i);
+    expect(pane).not.toContain('comfyGateway');
+    expect(settings).toContain('cp-settings-comfy-gateway');
+    expect(settings).toContain('comfySettingsStatusCopy');
+    expect(workspace).toContain('CpAiOpsComfyPane');
   });
 });
