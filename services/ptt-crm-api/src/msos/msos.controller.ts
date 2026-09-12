@@ -7,6 +7,8 @@ import { RequireMsosAction, StaffMsosGuard } from './guards/staff-msos.guard';
 import { MsosService } from './msos.service';
 import type {
   CapacityBucketInput,
+  CreateEvidenceInput,
+  CreateEvidencePackInput,
   CreateInventoryInput,
   CreateIoInput,
   CreateMediaLineInput,
@@ -214,6 +216,31 @@ export class MsosController {
   @RequireMsosAction('write')
   submitTraffic(@Param('id') id: string) {
     return this.msos.submitTraffic(id);
+  }
+
+  @Post('evidence')
+  @RequireMsosAction('write')
+  async createEvidence(@Req() req: StaffReq, @Body() body: CreateEvidenceInput) {
+    const staffId = await this.resolveStaffId(req);
+    return this.msos.createEvidence({ ...body, staffId });
+  }
+
+  @Post('evidence-packs')
+  @RequireMsosAction('write')
+  createEvidencePack(@Body() body: CreateEvidencePackInput) {
+    return this.msos.createEvidencePack(body);
+  }
+
+  @Post('evidence-packs/:id/items')
+  @RequireMsosAction('write')
+  addEvidencePackItem(@Param('id') id: string, @Body() body: { evidence_id: string }) {
+    return this.msos.addEvidencePackItem(id, body.evidence_id);
+  }
+
+  @Post('evidence-packs/:id/official')
+  @RequireMsosAction('publish')
+  officialEvidencePack(@Param('id') id: string) {
+    return this.msos.officialEvidencePack(id);
   }
 
   private async resolveStaffId(req: StaffReq): Promise<number | null> {

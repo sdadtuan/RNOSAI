@@ -7,9 +7,12 @@ import { MsosRepository } from './msos.repository';
 import { decideReserve, type CapacityDecision } from './msos-capacity.util';
 import { canIssueIo, evaluateLiveGates } from './msos-gates.util';
 import { assertRateBindable } from './msos-rate.util';
+import { canOfficial } from './msos-evidence-pack.util';
 import { evaluateTraffic } from './msos-traffic.util';
 import type {
   CapacityBucketInput,
+  CreateEvidenceInput,
+  CreateEvidencePackInput,
   CreateInventoryInput,
   CreateIoInput,
   CreateMediaLineInput,
@@ -20,6 +23,8 @@ import type {
   CreateRateVersionInput,
   GoLiveInput,
   MsosCalendarDay,
+  MsosEvidencePackRow,
+  MsosEvidenceRow,
   MsosHealthDto,
   MsosInsertionOrderRow,
   MsosInventoryRow,
@@ -631,5 +636,61 @@ export class MsosService {
       backupAttached: traffic.backup_attached,
       status: traffic.status,
     });
+  }
+
+  async createEvidence(input: CreateEvidenceInput): Promise<MsosEvidenceRow> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(input.media_line_id);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    return this.repo.createEvidence(input);
+  }
+
+  async createEvidencePack(input: CreateEvidencePackInput): Promise<MsosEvidencePackRow> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(input.media_line_id);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    return this.repo.createEvidencePack(input);
+  }
+
+  async addEvidencePackItem(packId: string, evidenceId: string): Promise<void> {
+    this.assertEnabled();
+    const pack = await this.repo.getEvidencePack(packId);
+    if (!pack) {
+      throw new UnprocessableEntityException({ error: 'evidence_pack_not_found' });
+    }
+    await this.repo.addEvidencePackItem(packId, evidenceId);
+  }
+
+  async officialEvidencePack(packId: string): Promise<MsosEvidencePackRow> {
+    this.assertEnabled();
+    const pack = await this.repo.getEvidencePack(packId);
+    if (!pack) {
+      throw new UnprocessableEntityException({ error: 'evidence_pack_not_found' });
+    }
+    const items = await this.repo.getEvidencePackItems(packId);
+    const ready = canOfficial(
+      items.map((item) => ({
+        hash: item.hash,
+        source: item.source,
+        capturedAt: new Date(item.captured_at),
+      })),
+      new Date(),
+    );
+    if (!ready) {
+      throw new UnprocessableEntityException({ error: 'evidence_not_official_ready' });
+    }
+    try {
+      return await this.repo.markEvidencePackOfficial(packId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'evidence_pack_not_draft') {
+        throw new UnprocessableEntityException({ error: 'evidence_pack_not_draft' });
+      }
+      throw e;
+    }
   }
 }

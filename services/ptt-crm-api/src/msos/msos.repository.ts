@@ -15,7 +15,11 @@ import type {
   MsosInventoryRow,
   CreateIoInput,
   MsosBrandSafetySnapshotRow,
+  CreateEvidenceInput,
+  CreateEvidencePackInput,
   CreateMediaLineInput,
+  MsosEvidencePackRow,
+  MsosEvidenceRow,
   MsosInsertionOrderRow,
   MsosMediaLineRow,
   MsosPackageRow,
@@ -732,5 +736,83 @@ export class MsosRepository implements OnModuleDestroy {
       [lineId],
     );
     return (result.rows[0] as { backup_required: boolean; max_weight_kb: number | null } | undefined) ?? null;
+  }
+
+  async createEvidence(input: CreateEvidenceInput): Promise<MsosEvidenceRow> {
+    const displayCode = msosDisplayCode('EV');
+    const result = await this.db.query(
+      `INSERT INTO msos_evidence (display_code, media_line_id, source, hash, captured_at, storage_key, created_by)
+       VALUES ($1, $2::uuid, $3, $4, $5::timestamptz, $6, $7)
+       RETURNING id::text, display_code, media_line_id::text, source, hash, captured_at::text,
+                 storage_key, created_by, created_at::text`,
+      [
+        displayCode,
+        input.media_line_id,
+        input.source,
+        input.hash ?? null,
+        input.captured_at,
+        input.storage_key ?? null,
+        input.staffId ?? null,
+      ],
+    );
+    return result.rows[0] as MsosEvidenceRow;
+  }
+
+  async createEvidencePack(input: CreateEvidencePackInput): Promise<MsosEvidencePackRow> {
+    const displayCode = msosDisplayCode('EP');
+    const result = await this.db.query(
+      `INSERT INTO msos_evidence_packs (display_code, media_line_id)
+       VALUES ($1, $2::uuid)
+       RETURNING id::text, display_code, media_line_id::text, status, official_at::text, created_at::text`,
+      [displayCode, input.media_line_id],
+    );
+    return result.rows[0] as MsosEvidencePackRow;
+  }
+
+  async getEvidencePack(packId: string): Promise<MsosEvidencePackRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, media_line_id::text, status, official_at::text, created_at::text
+         FROM msos_evidence_packs
+        WHERE id = $1::uuid
+        LIMIT 1`,
+      [packId],
+    );
+    return (result.rows[0] as MsosEvidencePackRow | undefined) ?? null;
+  }
+
+  async addEvidencePackItem(packId: string, evidenceId: string): Promise<void> {
+    await this.db.query(
+      `INSERT INTO msos_evidence_pack_items (pack_id, evidence_id)
+       VALUES ($1::uuid, $2::uuid)
+       ON CONFLICT DO NOTHING`,
+      [packId, evidenceId],
+    );
+  }
+
+  async getEvidencePackItems(packId: string): Promise<
+    { hash: string | null; source: string; captured_at: string }[]
+  > {
+    const result = await this.db.query(
+      `SELECT e.hash, e.source, e.captured_at::text AS captured_at
+         FROM msos_evidence_pack_items i
+         JOIN msos_evidence e ON e.id = i.evidence_id
+        WHERE i.pack_id = $1::uuid`,
+      [packId],
+    );
+    return result.rows as { hash: string | null; source: string; captured_at: string }[];
+  }
+
+  async markEvidencePackOfficial(packId: string): Promise<MsosEvidencePackRow> {
+    const result = await this.db.query(
+      `UPDATE msos_evidence_packs
+          SET status = 'official', official_at = now()
+        WHERE id = $1::uuid AND status = 'draft'
+        RETURNING id::text, display_code, media_line_id::text, status, official_at::text, created_at::text`,
+      [packId],
+    );
+    if (!result.rows[0]) {
+      throw new Error('evidence_pack_not_draft');
+    }
+    return result.rows[0] as MsosEvidencePackRow;
   }
 }

@@ -261,3 +261,37 @@ export type MsosTrafficPackRow = {
   reject_reason: string | null;
   updated_at: string;
 };
+
+export type CreateEvidenceInput = {
+  media_line_id: string;
+  source: string;
+  hash?: string | null;
+  captured_at: string;
+  storage_key?: string | null;
+  staffId?: number | null;
+};
+
+export type MsosEvidenceRow = {
+  id: string;
+  display_code: string;
+  media_line_id: string;
+  source: string;
+  hash: string | null;
+  captured_at: string;
+  storage_key: string | null;
+  created_by: number | null;
+  created_at: string;
+};
+
+export type CreateEvidencePackInput = {
+  media_line_id: string;
+};
+
+export type MsosEvidencePackRow = {
+  id: string;
+  display_code: string;
+  media_line_id: string;
+  status: 'draft' | 'official';
+  official_at: string | null;
+  created_at: string;
+};
