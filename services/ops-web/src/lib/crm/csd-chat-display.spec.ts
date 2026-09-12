@@ -78,6 +78,39 @@ describe('csd-chat-display', () => {
     expect(groups[1]?.[0]).toBe('Ngày 10 Tháng 9');
   });
 
+  it('groups media by day newest-first across months', () => {
+    const groups = groupCsdMediaItemsByDay([
+      {
+        file: { id: '1', file_name: 'old.png', mime_type: 'image/png', byte_size: 1, visibility: 'internal' },
+        messageId: 'm1',
+        createdAt: '2026-09-05T10:00:00+07:00',
+      },
+      {
+        file: { id: '2', file_name: 'new.png', mime_type: 'image/png', byte_size: 1, visibility: 'internal' },
+        messageId: 'm2',
+        createdAt: '2026-10-02T10:00:00+07:00',
+      },
+    ]);
+    expect(groups.map(([label]) => label)).toEqual(['Ngày 2 Tháng 10', 'Ngày 5 Tháng 9']);
+  });
+
+  it('sorts items within the same day newest-first', () => {
+    const groups = groupCsdMediaItemsByDay([
+      {
+        file: { id: '1', file_name: 'early.png', mime_type: 'image/png', byte_size: 1, visibility: 'internal' },
+        messageId: 'm1',
+        createdAt: '2026-09-12T08:00:00+07:00',
+      },
+      {
+        file: { id: '2', file_name: 'late.png', mime_type: 'image/png', byte_size: 1, visibility: 'internal' },
+        messageId: 'm2',
+        createdAt: '2026-09-12T18:00:00+07:00',
+      },
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.[1].map((item) => item.file.file_name)).toEqual(['late.png', 'early.png']);
+  });
+
   it('splitCsdConversationAttachments groups media and files newest-first', () => {
     expect(isCsdChatMediaMime('video/mp4')).toBe(true);
     const out = splitCsdConversationAttachments([

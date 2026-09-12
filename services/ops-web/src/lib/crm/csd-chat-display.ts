@@ -16,7 +16,7 @@ function vnParts(d: Date): { y: number; m: number; day: number; hh: string; mm: 
 
 function dayKey(d: Date): string {
   const p = vnParts(d);
-  return `${p.y}-${p.m}-${p.day}`;
+  return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
 }
 
 function vnEpochDay(d: Date): number {
@@ -108,19 +108,34 @@ export function formatCsdStorageDayLabel(iso: string | null | undefined): string
   return `Ngày ${a.day} Tháng ${a.m}`;
 }
 
+function sortMediaItemsNewestFirst(items: CsdConversationMediaItem[]): CsdConversationMediaItem[] {
+  return [...items].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
+
 export function groupCsdMediaItemsByDay(
   items: CsdConversationMediaItem[],
 ): Array<[string, CsdConversationMediaItem[]]> {
   const map = new Map<string, CsdConversationMediaItem[]>();
   for (const item of items) {
-    const key = dayKey(new Date(item.createdAt));
+    const d = new Date(item.createdAt);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = dayKey(d);
     const bucket = map.get(key) ?? [];
     bucket.push(item);
     map.set(key, bucket);
   }
   return [...map.entries()]
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([, rows]) => [formatCsdStorageDayLabel(rows[0]?.createdAt), rows] as [string, CsdConversationMediaItem[]]);
+    .sort(([, rowsA], [, rowsB]) => {
+      const dayA = vnEpochDay(new Date(rowsA[0]!.createdAt));
+      const dayB = vnEpochDay(new Date(rowsB[0]!.createdAt));
+      return dayB - dayA;
+    })
+    .map(([, rows]) => {
+      const sorted = sortMediaItemsNewestFirst(rows);
+      return [formatCsdStorageDayLabel(sorted[0]?.createdAt), sorted] as [string, CsdConversationMediaItem[]];
+    });
 }
 
 export function splitCsdConversationAttachments(
