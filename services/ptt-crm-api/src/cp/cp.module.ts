@@ -69,6 +69,11 @@ import { CpWeaveIngestController } from './cp-weave-ingest.controller';
 import { CpWeaveIngestWorker } from './cp-weave-ingest.worker';
 import { CP_WEAVE_QUERY, CpWeaveRepository } from './cp-weave.repository';
 import { CpWeaveService } from './cp-weave.service';
+import {
+  CP_CONNECTIONS_QUERY,
+  CpProviderConnectionsRepository,
+  CpProviderConnectionsService,
+} from './cp-provider-connections.service';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CreativesModule, CampaignWritesModule],
@@ -126,6 +131,9 @@ import { CpWeaveService } from './cp-weave.service';
     { provide: CP_WEAVE_QUERY, useExisting: CpWeaveRepository },
     CpWeaveService,
     CpWeaveIngestWorker,
+    CpProviderConnectionsRepository,
+    { provide: CP_CONNECTIONS_QUERY, useExisting: CpProviderConnectionsRepository },
+    CpProviderConnectionsService,
   ],
   exports: [CpProjectsService, CpLaunchGateService],
 })

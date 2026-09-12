@@ -83,6 +83,10 @@ import {
 import { readAiOpsFlags } from './cp-ai-ops.flags';
 import { CpWeaveCreateInput, CpWeaveService } from './cp-weave.service';
 import {
+  CpProviderConnectionsService,
+  magnificSettingsRedirect,
+} from './cp-provider-connections.service';
+import {
   RequireCpAction,
   RequireCpSection,
   StaffCpGuard,
@@ -130,6 +134,7 @@ export class CpController {
     private readonly reHandoff: CpReHandoffService,
     private readonly sopIngest: CpSopIngestService,
     private readonly weave: CpWeaveService,
+    private readonly connections: CpProviderConnectionsService,
   ) {}
 
   private async assertReportExportCap(req: AuthedReq) {
@@ -269,6 +274,62 @@ export class CpController {
   @RequireCpAction('view')
   flags() {
     return readAiOpsFlags();
+  }
+
+  @Get('provider-connections')
+  @RequireCpAction('view')
+  listProviderConnections() {
+    return this.connections.list();
+  }
+
+  @Post('provider-connections/magnific/oauth/start')
+  @RequireCpAction('manage')
+  async startMagnificOAuth(@Req() req: AuthedReq) {
+    const actor = await this.scope(req);
+    return this.connections.startMagnificOAuth(actor.staffId);
+  }
+
+  @Get('provider-connections/magnific/oauth/callback')
+  @RequireCpAction('manage')
+  async magnificOAuthCallback(
+    @Req() req: AuthedReq,
+    @Res() res: Response,
+    @Query('code') code?: string,
+    @Query('state') state?: string,
+  ) {
+    try {
+      const actor = await this.scope(req);
+      const result = await this.connections.completeMagnificOAuth(
+        { code, state },
+        actor.staffId,
+      );
+      return res.redirect(result.redirect_url);
+    } catch (err) {
+      const reason = err && typeof err === 'object' && 'error' in err
+        ? String((err as { error?: unknown }).error ?? 'oauth_failed')
+        : 'oauth_failed';
+      return res.redirect(magnificSettingsRedirect('error', reason));
+    }
+  }
+
+  @Post('provider-connections/magnific/rest-key')
+  @RequireCpAction('manage')
+  async saveMagnificRestKey(
+    @Req() req: AuthedReq,
+    @Body() body: { api_key?: string },
+  ) {
+    const actor = await this.scope(req);
+    return this.connections.saveRestKey(actor.staffId, body ?? {});
+  }
+
+  @Post('provider-connections/:id/disconnect')
+  @RequireCpAction('manage')
+  async disconnectProviderConnection(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+  ) {
+    await this.scope(req);
+    return this.connections.disconnect(id);
   }
 
   @Patch('settings')

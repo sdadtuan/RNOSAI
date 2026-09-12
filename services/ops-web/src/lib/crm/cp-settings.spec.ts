@@ -2,10 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { CP_SETTINGS_TABS } from '@/components/crm/cp/CpSettings';
 import {
   buildCpSettingsPatch,
+  disconnectCpProviderConnection,
   getCpSettings,
   grantCpCredits,
+  listCpProviderConnections,
   patchCpSettings,
   projectCpSettingsForUi,
+  saveMagnificRestKey,
+  startMagnificOAuth,
 } from './cp-api';
 
 describe('CP settings UI contract', () => {
@@ -106,6 +110,41 @@ describe('CP settings UI contract', () => {
       method: 'POST',
       headers: expect.objectContaining({ 'Idempotency-Key': 'grant-uuid' }),
     }));
+
+    fetchMock.mockRestore();
+  });
+
+  it('binds Magnific connection routes without echoing the API key on GET', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => new Response(JSON.stringify({
+        items: [{
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          provider: 'magnific_rest',
+          status: 'on',
+          account_label: 'PTT',
+          expires_at: null,
+          has_secret: true,
+        }],
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+
+    const listed = await listCpProviderConnections('token');
+    await startMagnificOAuth('token');
+    await saveMagnificRestKey('token', 'sk-must-not-return');
+    await disconnectCpProviderConnection('token', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+    expect(fetchMock.mock.calls[0]?.[0]).toMatch(/\/api\/crm\/cp\/provider-connections$/);
+    expect(JSON.stringify(listed)).not.toMatch(/token|api_key/i);
+    expect(fetchMock.mock.calls[1]?.[0]).toMatch(/\/provider-connections\/magnific\/oauth\/start$/);
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[2]?.[0]).toMatch(/\/provider-connections\/magnific\/rest-key$/);
+    expect(fetchMock.mock.calls[2]?.[1]).toEqual(expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ api_key: 'sk-must-not-return' }),
+    }));
+    expect(fetchMock.mock.calls[3]?.[0]).toMatch(/\/provider-connections\/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\/disconnect$/);
 
     fetchMock.mockRestore();
   });

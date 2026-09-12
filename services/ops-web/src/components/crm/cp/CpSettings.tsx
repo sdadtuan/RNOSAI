@@ -6,12 +6,17 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import {
   CP_MODEL_FIELDS,
+  disconnectCpProviderConnection,
   formatCpApiError,
   getCpSettings,
   grantCpCredits,
+  listCpProviderConnections,
   patchCpSettings,
   projectCpSettingsForUi,
+  saveMagnificRestKey,
+  startMagnificOAuth,
   type CpModelSetting,
+  type CpProviderConnection,
   type CpSettings as CpSettingsData,
   type CpSettingsPatch,
 } from '@/lib/crm/cp-api';
@@ -110,6 +115,9 @@ export function CpSettings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [connections, setConnections] = useState<CpProviderConnection[]>([]);
+  const [magnificApiKey, setMagnificApiKey] = useState('');
+  const oauthResult = searchParams.get('magnific_oauth');
 
   const tabLinks = useMemo(() => CP_SETTINGS_TABS.map((item) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -138,9 +146,29 @@ export function CpSettings() {
     }
   }, []);
 
+  const loadConnections = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) return;
+    try {
+      const result = await listCpProviderConnections(token);
+      setConnections(result.items ?? []);
+    } catch (err) {
+      setError(formatCpApiError(err, 'Không tải được kết nối Magnific'));
+    }
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (tab === 'integrations') void loadConnections();
+  }, [tab, loadConnections]);
+
+  useEffect(() => {
+    if (oauthResult === 'ok') setNotice('Đã kết nối Magnific MCP');
+    if (oauthResult === 'error') setError('Không kết nối được Magnific MCP');
+  }, [oauthResult]);
 
   async function save(input: CpSettingsPatch) {
     const token = getAccessToken();
@@ -214,6 +242,79 @@ export function CpSettings() {
       setSaving(false);
     }
   }
+
+  async function connectMagnificMcp() {
+    const token = getAccessToken();
+    if (!token) {
+      setError('Phiên đăng nhập không hợp lệ');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      const started = await startMagnificOAuth(token);
+      if (!started.authorize_url) {
+        setError('Không tạo được liên kết Magnific MCP');
+        return;
+      }
+      window.location.assign(started.authorize_url);
+    } catch (err) {
+      setError(formatCpApiError(err, 'Không kết nối được Magnific MCP'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveMagnificKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = getAccessToken();
+    if (!token) {
+      setError('Phiên đăng nhập không hợp lệ');
+      return;
+    }
+    const apiKey = magnificApiKey.trim();
+    if (!apiKey) {
+      setError('API key Magnific là bắt buộc');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      await saveMagnificRestKey(token, apiKey);
+      setMagnificApiKey('');
+      await loadConnections();
+      setNotice('Đã lưu API key Magnific');
+    } catch (err) {
+      setError(formatCpApiError(err, 'Không lưu được API key Magnific'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function disconnectConnection(id: string) {
+    const token = getAccessToken();
+    if (!token) {
+      setError('Phiên đăng nhập không hợp lệ');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      await disconnectCpProviderConnection(token, id);
+      await loadConnections();
+      setNotice('Đã ngắt kết nối Magnific');
+    } catch (err) {
+      setError(formatCpApiError(err, 'Không ngắt được kết nối Magnific'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const magnificMcp = connections.find((row) => row.provider === 'magnific_mcp');
+  const magnificRest = connections.find((row) => row.provider === 'magnific_rest');
 
   return (
     <div className="cp-overview">
@@ -337,6 +438,74 @@ export function CpSettings() {
 
       {!loading && tab === 'integrations' ? (
         <>
+          <section className="cp-card">
+            <div className="cp-card__head">
+              <div>
+                <h2>Magnific</h2>
+                <p className="cp-muted">
+                  Kết nối MCP bằng OAuth hoặc lưu API key REST. Key không hiển thị lại sau khi lưu.
+                </p>
+              </div>
+            </div>
+            <div className="cp-filters">
+              <p>
+                MCP:{' '}
+                <span className={`cp-pill${magnificMcp?.status === 'on' ? ' cp-pill--ok' : ''}`}>
+                  {magnificMcp?.status === 'on' ? 'Đã kết nối' : 'Chưa kết nối'}
+                </span>
+                {magnificMcp?.account_label ? ` · ${magnificMcp.account_label}` : ''}
+              </p>
+              <button
+                className="cp-btn cp-btn--primary"
+                type="button"
+                disabled={saving}
+                onClick={() => void connectMagnificMcp()}
+              >
+                Connect Magnific MCP
+              </button>
+              {magnificMcp?.status === 'on' ? (
+                <button
+                  className="cp-btn"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void disconnectConnection(magnificMcp.id)}
+                >
+                  Ngắt kết nối MCP
+                </button>
+              ) : null}
+            </div>
+            <form className="cp-filters" onSubmit={(event) => void saveMagnificKey(event)}>
+              <p>
+                REST:{' '}
+                <span className={`cp-pill${magnificRest?.status === 'on' ? ' cp-pill--ok' : ''}`}>
+                  {magnificRest?.status === 'on' && magnificRest.has_secret ? 'Đã lưu key' : 'Chưa có key'}
+                </span>
+              </p>
+              <label>
+                <span>API key Magnific</span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={magnificApiKey}
+                  onChange={(event) => setMagnificApiKey(event.target.value)}
+                  placeholder="Nhập key — không hiện lại sau khi lưu"
+                />
+              </label>
+              <button className="cp-btn cp-btn--primary" type="submit" disabled={saving}>
+                {saving ? 'Đang lưu…' : 'Lưu API key'}
+              </button>
+              {magnificRest?.status === 'on' ? (
+                <button
+                  className="cp-btn"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void disconnectConnection(magnificRest.id)}
+                >
+                  Ngắt kết nối REST
+                </button>
+              ) : null}
+            </form>
+          </section>
           <section className="cp-card">
             <div className="cp-card__head">
               <h2>Trạng thái tích hợp</h2>

@@ -22,7 +22,7 @@ export const CP_SUBTITLES = {
   rptPerformance: 'RPT-04 · mọi metric có source + freshness · cấm bịa CTR',
   rptGovernance: 'RPT-05 · brand · rights · audit · policy outcome',
   setProfile: 'SET-01 · workspace profile · deep-link Admin identity',
-  setIntegrations: 'SET-06 · webhook CP · Hub · Content OS · Campaign Write',
+  setIntegrations: 'SET-06 · Magnific MCP/REST · webhook CP · Hub · Content OS · Campaign Write',
   setPolicy: 'SET-08 · Block / Review / Allow · không lộ rule nội bộ',
 } as const;
 

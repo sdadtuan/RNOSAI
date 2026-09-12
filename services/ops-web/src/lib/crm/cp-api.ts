@@ -701,6 +701,42 @@ export function getCpSettings(token: string) {
   return cpFetch<CpSettings | null>(token, '/settings');
 }
 
+export type CpProviderConnection = {
+  id: string;
+  provider: string;
+  status: string;
+  account_label: string | null;
+  expires_at: string | null;
+  has_secret: boolean;
+};
+
+export function listCpProviderConnections(token: string) {
+  return cpFetch<{ items: CpProviderConnection[] }>(token, '/provider-connections');
+}
+
+export function startMagnificOAuth(token: string) {
+  return cpFetch<{ authorize_url: string; expires_at: string }>(
+    token,
+    '/provider-connections/magnific/oauth/start',
+    { method: 'POST' },
+  );
+}
+
+export function saveMagnificRestKey(token: string, apiKey: string) {
+  return cpFetch<CpProviderConnection>(token, '/provider-connections/magnific/rest-key', {
+    method: 'POST',
+    body: JSON.stringify({ api_key: apiKey }),
+  });
+}
+
+export function disconnectCpProviderConnection(token: string, id: string) {
+  return cpFetch<CpProviderConnection>(
+    token,
+    `/provider-connections/${encodeURIComponent(id)}/disconnect`,
+    { method: 'POST' },
+  );
+}
+
 export function patchCpSettings(token: string, input: CpSettingsPatch) {
   return cpFetch<CpSettings | null>(token, '/settings', {
     method: 'PATCH',
