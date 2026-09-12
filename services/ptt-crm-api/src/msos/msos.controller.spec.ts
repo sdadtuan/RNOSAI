@@ -4,12 +4,17 @@ import { MSOS_REQUIRED_ACTION_KEY, StaffMsosGuard } from './guards/staff-msos.gu
 import { MsosController } from './msos.controller';
 
 describe('MsosController', () => {
+  const staffAuth = { resolveCrmStaffUserId: jest.fn().mockResolvedValue(9) };
+
+  const makeController = (service: Record<string, unknown>) =>
+    new MsosController(service as never, staffAuth as never);
+
   it('GET health calls assertEnabled before getHealth', () => {
     const service = {
       assertEnabled: jest.fn(),
       getHealth: jest.fn().mockReturnValue({ ok: true, reseller: false, connector_write: false }),
     };
-    const c = new MsosController(service as never);
+    const c = makeController(service);
     const out = c.health();
     expect(service.assertEnabled).toHaveBeenCalled();
     expect(service.getHealth).toHaveBeenCalled();
@@ -23,6 +28,16 @@ describe('MsosController', () => {
 
   it('GET health requires crm_media view cap', () => {
     const action = Reflect.getMetadata(MSOS_REQUIRED_ACTION_KEY, MsosController.prototype.health);
+    expect(action).toBe('view');
+  });
+
+  it('POST partners requires crm_media write cap', () => {
+    const action = Reflect.getMetadata(MSOS_REQUIRED_ACTION_KEY, MsosController.prototype.createPartner);
+    expect(action).toBe('write');
+  });
+
+  it('GET partners requires crm_media view cap', () => {
+    const action = Reflect.getMetadata(MSOS_REQUIRED_ACTION_KEY, MsosController.prototype.listPartners);
     expect(action).toBe('view');
   });
 });
