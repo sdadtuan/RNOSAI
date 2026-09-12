@@ -1,56 +1,48 @@
-# Task 12 Report: Approval Center + Publication + Library/Intelligence/Settings
+# Task 12 Report: Wave D — recommend (no AUTO)
 
-**Date:** 2026-09-10  
-**Branch:** `feat/cmkte-e0`  
+**Date:** 2026-09-13  
+**HEAD before:** `099f90c56da105030df32ff3e8aabe35abf98c66`  
 **Commit:** *(filled after commit)*  
 **Status:** DONE
 
 ## What was implemented
 
-Five COS screens under `/crm/content-os/{approvals,calendar,library,intelligence,settings}` with matching `CmktE*` components. Review opens workspace tab 7 via `?tab=approvaltab`.
+Pure util `recommendProvider` in `cp-ai-ops-route.util.ts` — priority routing with reason codes, no HTTP/submit/AUTO.
 
-| Surface | Behavior |
-|---|---|
-| Approvals | `GET portfolio/approvals`. Empty Vietnamese, no seed. Review → `/crm/content-os/w/{id}?tab=approvaltab`. Escalate / Open portal use spec toasts. Approve/reject reuse lifecycle APIs when lifecycle+item exist; reject ≥ 10 chars |
-| Calendar | `GET portfolio/publications`. Empty when no slots. Gate Blocked row hides “Vào queue” |
-| Library | Brand Kit deep link `/crm/creative-os/brand-kits` only if `canOpenCreativeOsBrandKit` (`crm_cp.view`). Assets from last item media. No DAM clone |
-| Intelligence | Draft + warning `Copilot không dùng`. Approve insight disabled. Summary only when `?lifecycle=` is scoped. No hardcoded CTR |
-| Settings | Display-only `approval_required` / `client_gate` from `GET context` or `—`. Connector switch off + disabled. Save does not persist |
+| Priority | Condition | Result |
+|---|---|---|
+| 1 | `humanCanvas` | `weavy` + `WEAVE_HUMAN_CANVAS` |
+| 2 | `restricted \|\| needsPrivateLora` | `comfyui` + codes; throw `provider_rejected` / `PROVIDER_DOWN` if `!comfyUp` |
+| 3 | `urgentPremium && magnificUp` | `magnific_mcp` + `URGENT_PREMIUM` |
+| 4 | else | `weavy` + `[]` (safe default) |
+
+Optional pane wiring (`provider_mode=recommended`) skipped — not trivial one-liner.
 
 ## TDD Evidence
 
-### RED — brand kit helper missing
+### RED
 
 ```
-cd services/ops-web && ./node_modules/.bin/vitest run src/lib/auth.spec.ts src/lib/crm/cmkte-brand-kit.spec.ts
+cd services/ptt-crm-api && npm test -- src/cp/cp-ai-ops-route.util.spec.ts
 
-FAIL  src/lib/crm/cmkte-brand-kit.spec.ts
-Error: Cannot find module './cmkte-brand-kit'
+FAIL — Cannot find module './cp-ai-ops-route.util'
 ```
-
-`auth.spec.ts` already passed (prefix `/crm/content-os` covers `/approvals`).
 
 ### GREEN
 
 ```
-cd services/ops-web && ./node_modules/.bin/vitest run src/lib/auth.spec.ts src/lib/crm/cmkte-brand-kit.spec.ts
+cd services/ptt-crm-api && npm test -- src/cp/cp-ai-ops-route.util.spec.ts
 
-✓ src/lib/crm/cmkte-brand-kit.spec.ts (2 tests)
-✓ src/lib/auth.spec.ts (24 tests)
+PASS src/cp/cp-ai-ops-route.util.spec.ts
+  9 passed
 ```
-
-Also green: approvals / publications / tabs / workspace / api specs (50 tests / 7 files).
 
 ## Files
 
-- Create: `approvals/calendar/library/intelligence/settings/page.tsx`
-- Create: `CmktEApprovals.tsx` `CmktECalendar.tsx` `CmktELibrary.tsx` `CmktEIntelligence.tsx` `CmktESettings.tsx`
-- Create: `cmkte-brand-kit.ts` + spec, `cmkte-approvals.ts` + spec, `cmkte-publications.ts` + spec, `use-cmkte-page.ts`
-- Modify: `auth.spec.ts`, `cmkte-api.ts` + spec, `cmkte-tabs.ts` + spec, `cmkte-workspace.ts` + spec, workspace page (`?tab=`), `content-os-api.ts` (`/intelligence/summary`), `cmkte.css`
+- Create: `services/ptt-crm-api/src/cp/cp-ai-ops-route.util.ts`
+- Create: `services/ptt-crm-api/src/cp/cp-ai-ops-route.util.spec.ts`
 
 ## Concerns
 
-- Intelligence and Settings call per-lifecycle APIs only when `?lifecycle=` is present; otherwise empty / `—` (no invented scoped lifecycle list).
-- Library assets come from `cmkte-last-item` media only; no portfolio DAM listing.
-- Escalate / Open portal are toast-only in E0 (no escalate/portal APIs).
-- Browser login flow was not exercised.
+- `urgentPremium && !magnificUp` falls through to weavy (no reject) — avoids Magnific burn per spec.
+- No controller wiring yet; util only. Task 13 not started.
