@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 
-export type MsosIdPrefix = 'PTN' | 'INV' | 'RC';
+export type MsosIdPrefix = 'PTN' | 'INV' | 'RC' | 'PKG' | 'IO' | 'ML' | 'TP' | 'EV' | 'EP' | 'DC' | 'MG';
 
 export function msosDateStamp(now = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {

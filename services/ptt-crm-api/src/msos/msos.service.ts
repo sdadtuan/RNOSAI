@@ -1,5 +1,6 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
+import { requireClient } from './msos-crm-ref.util';
 import { throwDisabled } from './msos-errors.util';
 import { assertAllowedMsosName } from './msos-forbidden-seed.util';
 import { MsosRepository } from './msos.repository';
@@ -8,6 +9,7 @@ import { assertRateBindable } from './msos-rate.util';
 import type {
   CapacityBucketInput,
   CreateInventoryInput,
+  CreatePackageInput,
   CreatePartnerInput,
   CreatePlacementInput,
   CreateRateCardInput,
@@ -15,10 +17,13 @@ import type {
   MsosCalendarDay,
   MsosHealthDto,
   MsosInventoryRow,
+  MsosPackageRow,
   MsosPartnerRow,
   MsosPlacementRow,
   MsosRateCardRow,
   MsosRateVersionRow,
+  MsosReservationRow,
+  ReservePackageInput,
 } from './msos.types';
 
 @Injectable()
@@ -266,6 +271,107 @@ export class MsosService {
       placement_id: placementId,
       title: 'Capacity calendar conflict',
       evidence_text: summary,
+    });
+  }
+
+  async listPackages(): Promise<MsosPackageRow[]> {
+    this.assertEnabled();
+    return this.repo.listPackages();
+  }
+
+  async createPackage(input: CreatePackageInput): Promise<MsosPackageRow> {
+    this.assertEnabled();
+    if (!input.lines?.length) {
+      throw new UnprocessableEntityException({ error: 'package_lines_required' });
+    }
+    await requireClient(this.repo.db, input.client_id);
+    let sellVnd = input.sell_vnd ?? 0;
+    for (const line of input.lines) {
+      const rate = await this.repo.getRateVersionById(line.rate_version_id);
+      if (!rate) {
+        throw new UnprocessableEntityException({ error: 'rate_version_not_found' });
+      }
+      assertRateBindable(rate.status);
+      if (!input.sell_vnd) {
+        sellVnd += rate.unit_price_vnd * line.qty;
+      }
+    }
+    const hideBuySide = this.config.mediaOsReseller ? Boolean(input.hide_buy_side) : false;
+    return this.repo.createPackage({
+      ...input,
+      sell_vnd: sellVnd,
+      hide_buy_side: hideBuySide,
+    });
+  }
+
+  async reservePackage(packageId: string, input: ReservePackageInput): Promise<MsosReservationRow> {
+    this.assertEnabled();
+    const pkg = await this.repo.getPackage(packageId);
+    if (!pkg) {
+      throw new UnprocessableEntityException({ error: 'package_not_found' });
+    }
+    const bucket = await this.repo.getCapacityBucket(input.placement_id, input.bucket_date);
+    if (!bucket && input.kind !== 'waitlist') {
+      throw new UnprocessableEntityException({ error: 'capacity_bucket_not_found' });
+    }
+    const total = bucket?.total ?? 0;
+    const reservedHard = bucket?.reserved_hard ?? 0;
+    const reservedSoft = bucket?.reserved_soft ?? 0;
+
+    if (input.kind === 'waitlist') {
+      return this.repo.insertReservation({
+        package_id: packageId,
+        placement_id: input.placement_id,
+        bucket_date: input.bucket_date,
+        kind: 'waitlist',
+        qty: input.qty,
+      });
+    }
+
+    if (input.kind === 'soft') {
+      const decision = await this.evaluateSoftReserve({
+        placementId: input.placement_id,
+        total,
+        reservedHard,
+        reservedSoft,
+        addQty: input.qty,
+      });
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      await this.repo.incrementCapacityReserved(
+        input.placement_id,
+        input.bucket_date,
+        'soft',
+        input.qty,
+      );
+      return this.repo.insertReservation({
+        package_id: packageId,
+        placement_id: input.placement_id,
+        bucket_date: input.bucket_date,
+        kind: 'soft',
+        qty: input.qty,
+        expires_at: expiresAt,
+      });
+    }
+
+    await this.evaluateHardReserve({
+      placementId: input.placement_id,
+      total,
+      reservedHard,
+      reservedSoft,
+      addQty: input.qty,
+    });
+    await this.repo.incrementCapacityReserved(
+      input.placement_id,
+      input.bucket_date,
+      'hard',
+      input.qty,
+    );
+    return this.repo.insertReservation({
+      package_id: packageId,
+      placement_id: input.placement_id,
+      bucket_date: input.bucket_date,
+      kind: 'hard',
+      qty: input.qty,
     });
   }
 }

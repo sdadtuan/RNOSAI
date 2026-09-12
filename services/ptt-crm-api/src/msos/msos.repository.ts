@@ -6,16 +6,19 @@ import { msosDisplayCode } from './msos-ids.util';
 import type {
   CapacityBucketInput,
   CreateInventoryInput,
+  CreatePackageInput,
   CreatePartnerInput,
   CreatePlacementInput,
   CreateRateCardInput,
   CreateRateVersionInput,
   MsosCalendarDay,
   MsosInventoryRow,
+  MsosPackageRow,
   MsosPartnerRow,
   MsosPlacementRow,
   MsosRateCardRow,
   MsosRateVersionRow,
+  MsosReservationRow,
 } from './msos.types';
 
 @Injectable()
@@ -280,13 +283,166 @@ export class MsosRepository implements OnModuleDestroy {
     priority: 'P0' | 'P1' | 'P2';
     kind: string;
     placement_id?: string | null;
+    media_line_id?: string | null;
     title: string;
     evidence_text: string;
   }): Promise<void> {
     await this.db.query(
-      `INSERT INTO msos_exceptions (priority, kind, placement_id, title, evidence_text)
-       VALUES ($1, $2, $3::uuid, $4, $5)`,
-      [input.priority, input.kind, input.placement_id ?? null, input.title, input.evidence_text],
+      `INSERT INTO msos_exceptions (priority, kind, placement_id, media_line_id, title, evidence_text)
+       VALUES ($1, $2, $3::uuid, $4::uuid, $5, $6)`,
+      [
+        input.priority,
+        input.kind,
+        input.placement_id ?? null,
+        input.media_line_id ?? null,
+        input.title,
+        input.evidence_text,
+      ],
     );
+  }
+
+  async listPackages(): Promise<MsosPackageRow[]> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, client_id::text, commercial_ref, sell_vnd,
+              hide_buy_side, created_at::text, created_by
+         FROM msos_packages
+         ORDER BY created_at DESC`,
+    );
+    return result.rows as MsosPackageRow[];
+  }
+
+  async getPackage(packageId: string): Promise<MsosPackageRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, client_id::text, commercial_ref, sell_vnd,
+              hide_buy_side, created_at::text, created_by
+         FROM msos_packages
+        WHERE id = $1::uuid
+        LIMIT 1`,
+      [packageId],
+    );
+    const row = result.rows[0] as MsosPackageRow | undefined;
+    if (!row) return null;
+    const lines = await this.db.query(
+      `SELECT id::text, package_id::text, placement_id::text, rate_version_id::text,
+              qty::bigint AS qty, period_start::text, period_end::text
+         FROM msos_package_lines
+        WHERE package_id = $1::uuid`,
+      [packageId],
+    );
+    return { ...row, lines: lines.rows as MsosPackageRow['lines'] };
+  }
+
+  async getRateVersionById(rateVersionId: string): Promise<MsosRateVersionRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, rate_card_id::text, version, status, published_at::text, published_by,
+              unit_price_vnd, currency
+         FROM msos_rate_versions
+        WHERE id = $1::uuid
+        LIMIT 1`,
+      [rateVersionId],
+    );
+    return (result.rows[0] as MsosRateVersionRow | undefined) ?? null;
+  }
+
+  async createPackage(input: CreatePackageInput): Promise<MsosPackageRow> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const displayCode = msosDisplayCode('PKG');
+      const pkgResult = await client.query(
+        `INSERT INTO msos_packages (display_code, client_id, commercial_ref, sell_vnd, hide_buy_side, created_by)
+         VALUES ($1, $2::uuid, $3, $4, $5, $6)
+         RETURNING id::text, display_code, client_id::text, commercial_ref, sell_vnd,
+                   hide_buy_side, created_at::text, created_by`,
+        [
+          displayCode,
+          input.client_id,
+          input.commercial_ref ?? null,
+          input.sell_vnd ?? 0,
+          input.hide_buy_side ?? false,
+          input.staffId ?? null,
+        ],
+      );
+      const pkg = pkgResult.rows[0] as MsosPackageRow;
+      const lines: MsosPackageRow['lines'] = [];
+      for (const line of input.lines) {
+        const lineResult = await client.query(
+          `INSERT INTO msos_package_lines (package_id, placement_id, rate_version_id, qty, period_start, period_end)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::date, $6::date)
+           RETURNING id::text, package_id::text, placement_id::text, rate_version_id::text,
+                     qty::bigint AS qty, period_start::text, period_end::text`,
+          [pkg.id, line.placement_id, line.rate_version_id, line.qty, line.period_start, line.period_end],
+        );
+        lines.push(lineResult.rows[0] as NonNullable<MsosPackageRow['lines']>[number]);
+      }
+      await client.query('COMMIT');
+      return { ...pkg, lines };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getCapacityBucket(
+    placementId: string,
+    bucketDate: string,
+  ): Promise<{ total: number; reserved_hard: number; reserved_soft: number } | null> {
+    const result = await this.db.query(
+      `SELECT total_qty::bigint AS total, reserved_hard::bigint AS reserved_hard,
+              reserved_soft::bigint AS reserved_soft
+         FROM msos_capacity_buckets
+        WHERE placement_id = $1::uuid AND bucket_date = $2::date
+        LIMIT 1`,
+      [placementId, bucketDate],
+    );
+    if (!result.rows[0]) return null;
+    const row = result.rows[0] as Record<string, unknown>;
+    return {
+      total: Number(row.total ?? 0),
+      reserved_hard: Number(row.reserved_hard ?? 0),
+      reserved_soft: Number(row.reserved_soft ?? 0),
+    };
+  }
+
+  async incrementCapacityReserved(
+    placementId: string,
+    bucketDate: string,
+    kind: 'soft' | 'hard',
+    qty: number,
+  ): Promise<void> {
+    const col = kind === 'hard' ? 'reserved_hard' : 'reserved_soft';
+    await this.db.query(
+      `UPDATE msos_capacity_buckets
+          SET ${col} = ${col} + $3
+        WHERE placement_id = $1::uuid AND bucket_date = $2::date`,
+      [placementId, bucketDate, qty],
+    );
+  }
+
+  async insertReservation(input: {
+    package_id: string;
+    placement_id: string;
+    bucket_date: string;
+    kind: 'soft' | 'hard' | 'waitlist';
+    qty: number;
+    expires_at?: string | null;
+  }): Promise<MsosReservationRow> {
+    const result = await this.db.query(
+      `INSERT INTO msos_reservations (package_id, placement_id, bucket_date, kind, qty, expires_at)
+       VALUES ($1::uuid, $2::uuid, $3::date, $4, $5, $6::timestamptz)
+       RETURNING id::text, package_id::text, placement_id::text, bucket_date::text, kind, qty::bigint AS qty,
+                 expires_at::text, released_at::text, created_at::text`,
+      [
+        input.package_id,
+        input.placement_id,
+        input.bucket_date,
+        input.kind,
+        input.qty,
+        input.expires_at ?? null,
+      ],
+    );
+    return result.rows[0] as MsosReservationRow;
   }
 }

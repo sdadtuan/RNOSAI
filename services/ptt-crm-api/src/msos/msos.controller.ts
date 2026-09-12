@@ -8,10 +8,12 @@ import { MsosService } from './msos.service';
 import type {
   CapacityBucketInput,
   CreateInventoryInput,
+  CreatePackageInput,
   CreatePartnerInput,
   CreatePlacementInput,
   CreateRateCardInput,
   CreateRateVersionInput,
+  ReservePackageInput,
 } from './msos.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
@@ -105,6 +107,25 @@ export class MsosController {
     @Query('to') to: string,
   ) {
     return this.msos.getPlacementCalendar(id, from, to);
+  }
+
+  @Get('packages')
+  @RequireMsosAction('view')
+  listPackages() {
+    return this.msos.listPackages();
+  }
+
+  @Post('packages')
+  @RequireMsosAction('write')
+  async createPackage(@Req() req: StaffReq, @Body() body: CreatePackageInput) {
+    const staffId = await this.resolveStaffId(req);
+    return this.msos.createPackage({ ...body, staffId });
+  }
+
+  @Post('packages/:id/reserve')
+  @RequireMsosAction('write')
+  reservePackage(@Param('id') id: string, @Body() body: ReservePackageInput) {
+    return this.msos.reservePackage(id, body);
   }
 
   private async resolveStaffId(req: StaffReq): Promise<number | null> {

@@ -102,3 +102,61 @@ export type MsosCalendarDay = {
   reserved_soft: number;
   conflict: boolean;
 };
+
+export type MsosPackageLineInput = {
+  placement_id: string;
+  rate_version_id: string;
+  qty: number;
+  period_start: string;
+  period_end: string;
+};
+
+export type CreatePackageInput = {
+  client_id: string;
+  commercial_ref?: string | null;
+  sell_vnd?: number;
+  hide_buy_side?: boolean;
+  lines: MsosPackageLineInput[];
+  staffId?: number | null;
+};
+
+export type MsosPackageLineRow = {
+  id: string;
+  package_id: string;
+  placement_id: string;
+  rate_version_id: string;
+  qty: number;
+  period_start: string;
+  period_end: string;
+};
+
+export type MsosPackageRow = {
+  id: string;
+  display_code: string;
+  client_id: string;
+  commercial_ref: string | null;
+  sell_vnd: number;
+  hide_buy_side: boolean;
+  created_at: string;
+  created_by: number | null;
+  lines?: MsosPackageLineRow[];
+};
+
+export type ReservePackageInput = {
+  placement_id: string;
+  bucket_date: string;
+  kind: 'soft' | 'hard' | 'waitlist';
+  qty: number;
+};
+
+export type MsosReservationRow = {
+  id: string;
+  package_id: string;
+  placement_id: string;
+  bucket_date: string;
+  kind: 'soft' | 'hard' | 'waitlist';
+  qty: number;
+  expires_at: string | null;
+  released_at: string | null;
+  created_at: string;
+};
