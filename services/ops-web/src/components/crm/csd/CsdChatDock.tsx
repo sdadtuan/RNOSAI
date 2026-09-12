@@ -26,7 +26,8 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
 
   const initial = readCsdDockPersist();
   const [open, setOpen] = useState(false);
-  const [focusId, setFocusId] = useState<string | null>(initial.conversationId);
+  const [sessionMounted, setSessionMounted] = useState(false);
+  const [focusConversationId, setFocusConversationId] = useState<string | null>(initial.conversationId);
   const [unread, setUnread] = useState(0);
 
   const persist = useCallback((next: { open?: boolean; conversationId?: string | null }) => {
@@ -99,10 +100,14 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   }, [hidden, open, persist]);
 
   useEffect(() => {
+    if (chatAuthed) setSessionMounted(true);
+  }, [chatAuthed]);
+
+  useEffect(() => {
     function onOpen(ev: Event) {
       const id = (ev as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
       if (!id) return;
-      setFocusId(id);
+      setFocusConversationId(id);
       setOpen(true);
       persist({ open: true, conversationId: id });
       writeCsdDockPersist({
@@ -164,6 +169,63 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
     router.push(id ? `/crm/csd/chat?c=${id}` : '/crm/csd/chat');
   }
 
+  function renderDockWindow(showWorkspace: boolean) {
+    return (
+      <div
+        className="csd-chat-dock csd-chat-dock--window"
+        id="csd-chat-dock"
+        role="dialog"
+        aria-label="Chat Service Desk"
+        data-testid="csd-chat-dock"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="csd-chat-dock__head">
+          <div className="csd-chat-dock__head-brand">
+            <span className="csd-chat-dock__logo" aria-hidden>
+              <span className="csd-chat-tab-ico csd-chat-tab-ico--msg" />
+            </span>
+            <div className="csd-chat-dock__head-copy">
+              <strong>Chat</strong>
+              {headUserName ? (
+                <span className="csd-chat-dock__user" data-testid="csd-chat-dock-user">
+                  {headUserName}
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="csd-chat-dock__head-actions">
+            <button type="button" className="btn btn-sm btn-secondary" onClick={openPage}>
+              Mở trang
+            </button>
+            <button type="button" className="btn btn-sm btn-secondary" aria-label="Thu nhỏ" onClick={minimize}>
+              —
+            </button>
+          </div>
+        </header>
+        <div className="csd-chat-dock__body">
+          {showWorkspace ? (
+            <CsdChatWorkspace
+              token={token}
+              canWrite={canWrite}
+              dockPersist
+              initialConversationId={focusConversationId}
+              onConversationChange={setFocusConversationId}
+            />
+          ) : (
+            <CsdChatLoginForm
+              key={meUsername}
+              compact
+              defaultUsername={meUsername}
+              busy={loginBusy}
+              error={loginError}
+              onSubmit={handleChatLogin}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {!open ? (
@@ -182,60 +244,24 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
             </span>
           ) : null}
         </button>
-      ) : (
-        <div className="csd-chat-dock-backdrop" role="presentation" onClick={minimize}>
-          <div
-            className="csd-chat-dock csd-chat-dock--window"
-            id="csd-chat-dock"
-            role="dialog"
-            aria-label="Chat Service Desk"
-            data-testid="csd-chat-dock"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header className="csd-chat-dock__head">
-              <div className="csd-chat-dock__head-brand">
-                <span className="csd-chat-dock__logo" aria-hidden>
-                  <span className="csd-chat-tab-ico csd-chat-tab-ico--msg" />
-                </span>
-                <div className="csd-chat-dock__head-copy">
-                  <strong>Chat</strong>
-                  {headUserName ? (
-                    <span className="csd-chat-dock__user" data-testid="csd-chat-dock-user">
-                      {headUserName}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-              <div className="csd-chat-dock__head-actions">
-                <button type="button" className="btn btn-sm btn-secondary" onClick={openPage}>
-                  Mở trang
-                </button>
-                <button type="button" className="btn btn-sm btn-secondary" aria-label="Thu nhỏ" onClick={minimize}>
-                  —
-                </button>
-              </div>
-            </header>
-            <div className="csd-chat-dock__body">
-              {!chatAuthed ? (
-                <CsdChatLoginForm
-                  key={meUsername}
-                  compact
-                  defaultUsername={meUsername}
-                  busy={loginBusy}
-                  error={loginError}
-                  onSubmit={handleChatLogin}
-                />
-              ) : (
-                <CsdChatWorkspace
-                  token={token}
-                  canWrite={canWrite}
-                  initialConversationId={focusId}
-                />
-              )}
-            </div>
-          </div>
+      ) : null}
+
+      {open && !chatAuthed ? (
+        <div className="csd-chat-dock-backdrop is-open" role="presentation" onClick={minimize}>
+          {renderDockWindow(false)}
         </div>
-      )}
+      ) : null}
+
+      {sessionMounted ? (
+        <div
+          className={`csd-chat-dock-backdrop${open ? ' is-open' : ''}`}
+          role="presentation"
+          aria-hidden={!open}
+          onClick={open ? minimize : undefined}
+        >
+          {renderDockWindow(true)}
+        </div>
+      ) : null}
     </>
   );
 }

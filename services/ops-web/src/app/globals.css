@@ -15326,11 +15326,18 @@ body {
   --zalo-rail: #a85d08;
   --zalo-blue-hover: #944f07;
   --zalo-active: #fef3e8;
+  --zalo-list-hover: #f5f6f8;
+  --zalo-list-active: #eef0f2;
   --zalo-mine: #fde8d4;
   --zalo-thread: #f5f0eb;
   --zalo-unread: #e54545;
   --zalo-line: #e8dfd4;
   --zalo-muted: #8a7355;
+  --csd-chat-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  font-family: var(--csd-chat-font);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
   display: grid;
   grid-template-columns: 64px 320px minmax(0, 1fr) 280px;
   gap: 0;
@@ -16174,11 +16181,11 @@ body {
 }
 
 .csd-chat-list__item:hover {
-  background: #f7f9fb;
+  background: var(--zalo-list-hover, #f5f6f8);
 }
 
 .csd-chat-list__item.is-active {
-  background: var(--zalo-active, #fef3e8);
+  background: var(--zalo-list-active, #eef0f2);
 }
 
 .csd-chat-list__item.is-risk {
@@ -16197,8 +16204,14 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
   color: #111827;
+  letter-spacing: -0.01em;
+}
+
+.csd-chat-list__item.is-active .csd-chat-list__title strong {
+  color: #0f172a;
 }
 
 .csd-chat-list__meta {
@@ -16213,8 +16226,9 @@ body {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 1;
-  font-size: 0.8rem;
-  color: var(--zalo-muted, #8a7355);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: #667085;
 }
 
 .csd-chat-list__closed {
@@ -16404,6 +16418,9 @@ body {
 .csd-chat-bubble > p,
 .csd-chat-bubble > .csd-chat-emotion-msg {
   margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
 }
 
 .csd-chat-bubble a.csd-chat-link {
@@ -17362,9 +17379,13 @@ body {
   inset: 0;
   z-index: 40;
   background: rgba(15, 23, 42, 0.28);
-  display: grid;
+  display: none;
   place-items: center;
   padding: 1rem;
+}
+
+.csd-chat-dock-backdrop.is-open {
+  display: grid;
 }
 
 .csd-chat-dock {
@@ -17372,11 +17393,18 @@ body {
   --zalo-rail: #a85d08;
   --zalo-blue-hover: #944f07;
   --zalo-active: #fef3e8;
+  --zalo-list-hover: #f5f6f8;
+  --zalo-list-active: #eef0f2;
   --zalo-mine: #fde8d4;
   --zalo-thread: #f5f0eb;
   --zalo-unread: #e54545;
   --zalo-line: #e8dfd4;
   --zalo-muted: #8a7355;
+  --csd-chat-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  font-family: var(--csd-chat-font);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
   position: relative;
   z-index: 41;
   width: min(1180px, calc(100vw - 32px));

@@ -11,18 +11,33 @@ import { CsdChatTabs } from '@/components/crm/csd/CsdChatTabs';
 import { CsdChatThread } from '@/components/crm/csd/CsdChatThread';
 import { useCsdChatSession } from '@/components/crm/csd/useCsdChatSession';
 import { formatCsdWhen, CSD_PRIORITY_LABELS, CSD_TICKET_TYPES, type CsdPriority } from '@/lib/crm/csd-api';
-import type { CsdDockTab } from '@/lib/crm/csd-chat-dock-persist';
+import { readCsdDockPersist, writeCsdDockPersist, type CsdDockTab } from '@/lib/crm/csd-chat-dock-persist';
 
 type CsdChatWorkspaceProps = {
   token: string;
   canWrite: boolean;
   initialConversationId?: string | null;
+  dockPersist?: boolean;
+  onConversationChange?: (conversationId: string | null) => void;
 };
 
-export function CsdChatWorkspace({ token, canWrite, initialConversationId }: CsdChatWorkspaceProps) {
-  const s = useCsdChatSession({ token, canWrite, initialConversationId });
-  const [tab, setTab] = useState<CsdDockTab>('messages');
-  const [contactsView, setContactsView] = useState<CsdChatContactsView>('friends');
+export function CsdChatWorkspace({
+  token,
+  canWrite,
+  initialConversationId,
+  dockPersist = false,
+  onConversationChange,
+}: CsdChatWorkspaceProps) {
+  const dockInitial = dockPersist ? readCsdDockPersist() : null;
+  const s = useCsdChatSession({
+    token,
+    canWrite,
+    initialConversationId: initialConversationId ?? dockInitial?.conversationId ?? null,
+  });
+  const [tab, setTab] = useState<CsdDockTab>(dockInitial?.tab ?? 'messages');
+  const [contactsView, setContactsView] = useState<CsdChatContactsView>(
+    dockInitial?.tab === 'requests' ? 'requests' : 'friends',
+  );
   const [incomingCount, setIncomingCount] = useState(0);
   const [contextOpen, setContextOpen] = useState(false);
 
@@ -30,6 +45,18 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
     if (tab === 'requests') setContactsView('requests');
     else if (tab === 'contacts') setContactsView('friends');
   }, [tab]);
+
+  useEffect(() => {
+    if (s.activeId) onConversationChange?.(s.activeId);
+    if (!dockPersist) return;
+    const current = readCsdDockPersist();
+    writeCsdDockPersist({
+      ...current,
+      conversationId: s.activeId ?? current.conversationId,
+      tab,
+      pane: s.activeId ? 'thread' : current.pane,
+    });
+  }, [dockPersist, onConversationChange, s.activeId, tab]);
   const archived = s.active?.status === 'archived';
   const closed = s.active?.status === 'closed';
   const composerLocked = Boolean(closed || archived);

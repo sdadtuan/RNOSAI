@@ -135,7 +135,7 @@ export function useCsdChatSession({
   const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(initialConversationId ?? null);
   const [messages, setMessages] = useState<CsdMessageRow[]>([]);
   const [meStaffId, setMeStaffId] = useState<number | null>(null);
   const [pendingFiles, setPendingFiles] = useState<CsdAttachmentRow[]>([]);
