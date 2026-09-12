@@ -12,6 +12,8 @@ import { canOfficial } from './msos-evidence-pack.util';
 import { evaluateTraffic } from './msos-traffic.util';
 import { assertMarginSubmit, computeWaterfall } from './msos-margin.util';
 import { computeScorecard, rebuildExceptions } from './msos-exceptions.util';
+import { assertHumanMsosAction } from './msos-ai-lock.util';
+import { buildDraft } from './msos-draft.util';
 import type {
   CapacityBucketInput,
   CreateDiscrepancyInput,
@@ -20,6 +22,7 @@ import type {
   CreateInventoryInput,
   CreateMakeGoodInput,
   CreateOutcomeLinkInput,
+  CreateDraftInput,
   CreateIoInput,
   CreateMediaLineInput,
   CreatePackageInput,
@@ -41,6 +44,7 @@ import type {
   MsosExceptionRow,
   MsosScorecardRow,
   MsosEligibilityDto,
+  MsosDraftDto,
   MsosInsertionOrderRow,
   MsosInventoryRow,
   MsosMediaLineRow,
@@ -570,9 +574,7 @@ export class MsosService {
 
   async goLive(lineId: string, body: GoLiveInput, staffId: number | null): Promise<MsosMediaLineRow> {
     this.assertEnabled();
-    if (body.actor === 'ai') {
-      throw new ForbiddenException({ error: 'ai_action_forbidden' });
-    }
+    assertHumanMsosAction('live', body.actor);
     if (!body.confirm) {
       throw new UnprocessableEntityException({ error: 'human_confirm_required' });
     }
@@ -991,5 +993,15 @@ export class MsosService {
       throw new ForbiddenException({ error: 'reseller_locked' });
     }
     throw new ForbiddenException({ error: 'reseller_locked' });
+  }
+
+  async createDraft(input: CreateDraftInput): Promise<MsosDraftDto> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(input.media_line_id);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    const facts = await this.repo.getDraftFacts(input.media_line_id, input.kind);
+    return buildDraft(input.kind, facts);
   }
 }

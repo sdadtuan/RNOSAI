@@ -1297,6 +1297,51 @@ export class MsosRepository implements OnModuleDestroy {
     return result.rows[0] as MsosEligibilityRow;
   }
 
+  async getDraftFacts(
+    lineId: string,
+    kind: 'io' | 'traffic' | 'discrepancy',
+  ): Promise<Record<string, unknown>> {
+    const line = await this.getMediaLine(lineId);
+    if (!line) return {};
+
+    if (kind === 'traffic') {
+      const traffic = await this.getTrafficPack(lineId);
+      return {
+        display_code: line.display_code,
+        traffic_status: traffic?.status ?? null,
+        click_url: traffic?.click_url ?? null,
+      };
+    }
+
+    const io = line.io_id ? await this.getInsertionOrder(line.io_id) : null;
+    const rate = io ? await this.getRateVersionById(io.rate_version_id) : null;
+    const dcResult = await this.db.query(
+      `SELECT report_qty::bigint AS report_qty, material
+         FROM msos_discrepancy_cases
+        WHERE media_line_id = $1::uuid
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [lineId],
+    );
+    const dc = dcResult.rows[0] as { report_qty: number | null; material: boolean } | undefined;
+
+    if (kind === 'discrepancy') {
+      return {
+        display_code: line.display_code,
+        io_qty: io?.qty ?? null,
+        report_qty: dc?.report_qty ?? null,
+        material: dc?.material ?? false,
+      };
+    }
+
+    return {
+      display_code: line.display_code,
+      io_qty: io?.qty ?? null,
+      rate_version: rate?.version ?? null,
+      report_qty: dc?.report_qty ?? null,
+    };
+  }
+
   async hasPublishedRateForPartner(partnerId: string): Promise<boolean> {
     const result = await this.db.query(
       `SELECT 1

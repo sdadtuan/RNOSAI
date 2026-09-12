@@ -25,6 +25,7 @@ import type {
   CreateInventoryInput,
   CreateMakeGoodInput,
   CreateOutcomeLinkInput,
+  CreateDraftInput,
   CreateIoInput,
   CreateMediaLineInput,
   CreatePackageInput,
@@ -347,6 +348,12 @@ export class MsosController {
   @RequireMsosAction('admin')
   setEligibilityReseller(@Param('id') id: string, @Body() body: { open: boolean }) {
     return this.msos.setEligibilityReseller(id, Boolean(body.open));
+  }
+
+  @Post('drafts')
+  @RequireMsosAction('view')
+  createDraft(@Body() body: CreateDraftInput) {
+    return this.msos.createDraft(body);
   }
 
   private async hasMsosAdmin(req: StaffReq): Promise<boolean> {

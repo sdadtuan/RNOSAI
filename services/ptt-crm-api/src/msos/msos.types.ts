@@ -436,3 +436,14 @@ export type MsosEligibilityRow = {
 export type MsosEligibilityDto = MsosEligibilityRow & {
   locked: boolean;
 };
+
+export type CreateDraftInput = {
+  kind: 'io' | 'traffic' | 'discrepancy';
+  media_line_id: string;
+};
+
+export type MsosDraftDto = {
+  text: string;
+  facts: Record<string, unknown>;
+  actor: 'template_a1';
+};
