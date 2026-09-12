@@ -81,6 +81,7 @@ import {
   CpExperimentsService,
 } from './cp-experiments.service';
 import { readAiOpsFlags } from './cp-ai-ops.flags';
+import { CpWeaveCreateInput, CpWeaveService } from './cp-weave.service';
 import {
   RequireCpAction,
   RequireCpSection,
@@ -128,6 +129,7 @@ export class CpController {
     private readonly playbooks: CpPlaybooksService,
     private readonly reHandoff: CpReHandoffService,
     private readonly sopIngest: CpSopIngestService,
+    private readonly weave: CpWeaveService,
   ) {}
 
   private async assertReportExportCap(req: AuthedReq) {
@@ -1175,6 +1177,47 @@ export class CpController {
     @Query('scope') scope?: CpScope,
   ) {
     return this.experiments.createVariant(id, body ?? {}, await this.scope(req, scope));
+  }
+
+  @Post('weave-orders')
+  @RequireCpAction('edit')
+  async createWeaveOrder(@Req() req: AuthedReq, @Body() body: CpWeaveCreateInput) {
+    const actor = await this.scope(req);
+    return this.weave.create(body ?? {}, actor.staffId);
+  }
+
+  @Get('weave-orders')
+  @RequireCpAction('view')
+  listWeaveOrders(@Query('project_id') projectId: string) {
+    return this.weave.list(projectId);
+  }
+
+  @Get('weave-orders/:id')
+  @RequireCpAction('view')
+  getWeaveOrder(@Param('id') id: string) {
+    return this.weave.get(id);
+  }
+
+  @Post('weave-orders/:id/generate-brief')
+  @RequireCpAction('edit')
+  generateWeaveBrief(@Param('id') id: string) {
+    return this.weave.generateBrief(id);
+  }
+
+  @Post('weave-orders/:id/open')
+  @RequireCpAction('edit')
+  async openWeaveOrder(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.scope(req);
+    return this.weave.open(id, actor.staffId);
+  }
+
+  @Post('weave-orders/:id/assets')
+  @RequireCpAction('edit')
+  addWeaveAsset(
+    @Param('id') id: string,
+    @Body() body: { storage_uri?: string; source?: string },
+  ) {
+    return this.weave.addAsset(id, body ?? {});
   }
 }
 

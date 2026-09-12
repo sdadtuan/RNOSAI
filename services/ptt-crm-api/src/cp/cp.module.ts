@@ -64,6 +64,8 @@ import {
   CpExperimentsService,
 } from './cp-experiments.service';
 import { StaffCpGuard } from './guards/staff-cp.guard';
+import { CP_WEAVE_QUERY, CpWeaveRepository } from './cp-weave.repository';
+import { CpWeaveService } from './cp-weave.service';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CreativesModule],
@@ -117,6 +119,9 @@ import { StaffCpGuard } from './guards/staff-cp.guard';
     { provide: CP_RE_HANDOFF_QUERY, useExisting: CpProjectsRepository },
     CpReHandoffService,
     CpLaunchGateService,
+    CpWeaveRepository,
+    { provide: CP_WEAVE_QUERY, useExisting: CpWeaveRepository },
+    CpWeaveService,
   ],
   exports: [CpProjectsService, CpLaunchGateService],
 })
