@@ -9,6 +9,7 @@ import {
   type CpAiOpsPane,
 } from '@/lib/crm/cp-ai-ops-panes.util';
 import { dash } from '@/lib/crm/cp-format';
+import { CpWeaveWorkOrder } from './CpWeaveWorkOrder';
 
 const PANES: Array<{ id: CpAiOpsPane; label: string }> = [
   { id: 'weave', label: 'Weave' },
@@ -51,7 +52,7 @@ export function CpAiOpsWorkspace({
 
       {pane === 'weave' ? (
         <div className="cp-ai-ops-body">
-          <p className="cp-empty">{dash(null)}</p>
+          <CpWeaveWorkOrder projectId={projectId} enabled={flags.weave} />
         </div>
       ) : null}
 

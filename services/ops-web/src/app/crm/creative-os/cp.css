@@ -1615,3 +1615,62 @@ body:has(.ops-sidebar) .cp-main {
   display: grid;
   gap: 8px;
 }
+
+.cp-weave {
+  display: grid;
+  gap: 12px;
+}
+
+.cp-weave-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.cp-weave-row,
+.cp-weave-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.cp-weave-field {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cp-weave-field select,
+.cp-weave-field input {
+  min-width: 220px;
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.cp-weave-brief {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.cp-weave-brief dt {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.cp-weave-brief dd {
+  margin: 0;
+}
+
+.cp-weave-check {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.cp-weave-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}

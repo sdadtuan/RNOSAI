@@ -6,7 +6,7 @@ export default function CreativeOsProjectDetailPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { tab?: string };
+  searchParams: { tab?: string; pane?: string };
 }) {
   return searchParams.tab === 'timeline'
     ? <CpProjectTimeline projectId={params.id} />
