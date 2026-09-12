@@ -154,6 +154,27 @@ export function canRunLmp(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_lmp', 'run') || hasCap(user, 'crm_leads', 'edit');
 }
 
+export function canViewMediaOs(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_media', 'view') ||
+    hasCap(user, 'crm_media', 'write') ||
+    hasCap(user, 'crm_media', 'publish') ||
+    hasCap(user, 'crm_media', 'admin')
+  );
+}
+
+export function canWriteMediaOs(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_media', 'write') || hasCap(user, 'crm_media', 'admin');
+}
+
+export function canPublishMediaOs(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_media', 'publish') || hasCap(user, 'crm_media', 'admin');
+}
+
+export function canFinanceRequestMediaOs(user: StoredStaffUser | null): boolean {
+  return hasCap(user, 'crm_media', 'finance_request') || hasCap(user, 'crm_media', 'admin');
+}
+
 export function updateStoredUser(user: StoredStaffUser): void {
   if (typeof window === 'undefined') return;
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));

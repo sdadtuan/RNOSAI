@@ -340,6 +340,7 @@
     ],
     "crm_am": ["view", "view_all", "edit", "assign", "manage"],
     "crm_am.finance": ["view"],
+    "crm_media": ["view", "write", "publish", "finance_request", "admin"],
     "crm_cp": ["view", "view_all", "edit", "manage"],
     "crm_cp.render": ["execute"],
     "crm_cp.render_high_cost": ["execute"],
@@ -1215,6 +1216,13 @@
       "group": "CRM",
       "page": "/crm/account-management",
       "description": "Xem snapshot công nợ / invoice AM. Không sửa Paid."
+    },
+    {
+      "id": "crm_media",
+      "label": "Media OS",
+      "group": "CRM",
+      "page": "/crm/media-os",
+      "description": "Media Supply & Outcome OS — inventory, booking, evidence, margin."
     },
     {
       "id": "crm_cp",
@@ -2133,6 +2141,7 @@
     "csd",
     "crm_am",
     "crm_am.finance",
+    "crm_media",
     "crm_cp",
     "crm_cp.render",
     "crm_cp.render_high_cost",
