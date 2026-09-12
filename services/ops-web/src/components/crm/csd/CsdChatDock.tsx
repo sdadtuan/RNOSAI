@@ -18,6 +18,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   const canView = hasCap(user, 'csd', 'view');
   const [meEnabled, setMeEnabled] = useState<boolean | null>(null);
   const [meUsername, setMeUsername] = useState('');
+  const [meDisplayName, setMeDisplayName] = useState('');
   const [chatAuthed, setChatAuthed] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loginBusy, setLoginBusy] = useState(false);
@@ -49,6 +50,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
         if (cancelled) return;
         setMeEnabled(me.enabled === true);
         setMeUsername(me.username ?? '');
+        setMeDisplayName(String(me.display_name_vi ?? '').trim());
         setChatAuthed(Boolean(me.enabled && readCsdChatLogin(me.staff_id)));
       })
       .catch(() => {
@@ -117,6 +119,13 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
 
   if (hidden) return null;
 
+  const headUserName =
+    meDisplayName ||
+    user?.display_name ||
+    meUsername ||
+    user?.email ||
+    '';
+
   async function handleChatLogin(input: { username: string; password: string }) {
     setLoginBusy(true);
     setLoginError('');
@@ -184,7 +193,19 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
             onClick={(e) => e.stopPropagation()}
           >
             <header className="csd-chat-dock__head">
-              <strong>Chat</strong>
+              <div className="csd-chat-dock__head-brand">
+                <span className="csd-chat-dock__logo" aria-hidden>
+                  <span className="csd-chat-tab-ico csd-chat-tab-ico--msg" />
+                </span>
+                <div className="csd-chat-dock__head-copy">
+                  <strong>Chat</strong>
+                  {headUserName ? (
+                    <span className="csd-chat-dock__user" data-testid="csd-chat-dock-user">
+                      {headUserName}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
               <div className="csd-chat-dock__head-actions">
                 <button type="button" className="btn btn-sm btn-secondary" onClick={openPage}>
                   Mở trang

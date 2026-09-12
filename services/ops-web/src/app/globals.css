@@ -17401,19 +17401,59 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.65rem 0.75rem;
-  background: #fff;
+  padding: 0.55rem 0.75rem;
+  background: var(--zalo-thread, #f5f0eb);
   color: #12263a;
   border-bottom: 1px solid var(--zalo-line, #e8dfd4);
 }
 
-.csd-chat-dock__head strong {
-  font-size: 0.95rem;
+.csd-chat-dock__head-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.csd-chat-dock__logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 0.5rem;
+  background: var(--zalo-blue, #c76f0a);
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+}
+
+.csd-chat-dock__logo .csd-chat-tab-ico {
+  width: 18px;
+  height: 18px;
+  color: #fff;
+}
+
+.csd-chat-dock__head-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.csd-chat-dock__head-copy strong {
+  font-size: 0.92rem;
+  line-height: 1.15;
+}
+
+.csd-chat-dock__user {
+  font-size: 0.74rem;
+  color: var(--zalo-muted, #8a7355);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .csd-chat-dock__head-actions {
   display: flex;
   gap: 0.35rem;
+  flex: 0 0 auto;
 }
 
 .csd-chat-dock__body {
