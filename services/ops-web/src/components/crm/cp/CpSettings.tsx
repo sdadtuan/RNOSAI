@@ -167,7 +167,9 @@ export function CpSettings() {
 
   useEffect(() => {
     if (oauthResult === 'ok') setNotice('Đã kết nối Magnific MCP');
-    if (oauthResult === 'error') setError('Không kết nối được Magnific MCP');
+    if (oauthResult === 'error' || oauthResult === 'err') {
+      setError('Không kết nối được Magnific MCP');
+    }
   }, [oauthResult]);
 
   async function save(input: CpSettingsPatch) {

@@ -127,7 +127,6 @@ export class CpProviderConnectionsService {
 
   async completeMagnificOAuth(
     input: { code?: string; state?: string },
-    staffId: number,
   ): Promise<CpRedactedConnection & { redirect_url: string }> {
     const code = String(input.code ?? '').trim();
     const state = String(input.state ?? '').trim();
@@ -138,9 +137,7 @@ export class CpProviderConnectionsService {
     } catch {
       cpThrow(400, { error: 'invalid_oauth_state' });
     }
-    if (verified.staffId !== staffId) {
-      cpThrow(403, { error: 'oauth_staff_mismatch' });
-    }
+    const staffId = verified.staffId;
     const tokens = await this.exchangeCode(code);
     const access = String(tokens.access_token ?? '').trim();
     if (!access) cpThrow(502, { error: 'magnific_oauth_exchange_failed' });
@@ -286,7 +283,7 @@ async function exchangeMagnificAuthorizationCode(code: string): Promise<{
   };
 }
 
-export function magnificSettingsRedirect(status: 'ok' | 'error', reason?: string): string {
+export function magnificSettingsRedirect(status: 'ok' | 'err' | 'error', reason?: string): string {
   const base = (process.env.PTT_OPS_WEB_URL ?? 'http://127.0.0.1:3001').replace(/\/$/, '');
   const params = new URLSearchParams({ tab: 'integrations', magnific_oauth: status });
   if (reason) params.set('reason', reason);

@@ -7,6 +7,7 @@ import { CpAssetsRepository, CpAssetsService } from './cp-assets.service';
 import { CpAuditRepository } from './cp-audit.repository';
 import { CpBrandRepository, CpBrandService } from './cp-brand.service';
 import { CpController } from './cp.controller';
+import { CpMagnificOAuthCallbackController } from './cp-magnific-oauth.controller';
 import {
   CP_LEDGER_QUERY,
   CpLedgerRepository,
@@ -77,7 +78,7 @@ import {
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CreativesModule, CampaignWritesModule],
-  controllers: [CpController, CpWeaveIngestController],
+  controllers: [CpController, CpWeaveIngestController, CpMagnificOAuthCallbackController],
   providers: [
     StaffCpGuard,
     CpAuditRepository,

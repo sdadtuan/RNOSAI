@@ -82,10 +82,7 @@ import {
 } from './cp-experiments.service';
 import { readAiOpsFlags } from './cp-ai-ops.flags';
 import { CpWeaveCreateInput, CpWeaveService } from './cp-weave.service';
-import {
-  CpProviderConnectionsService,
-  magnificSettingsRedirect,
-} from './cp-provider-connections.service';
+import { CpProviderConnectionsService } from './cp-provider-connections.service';
 import {
   RequireCpAction,
   RequireCpSection,
@@ -287,29 +284,6 @@ export class CpController {
   async startMagnificOAuth(@Req() req: AuthedReq) {
     const actor = await this.scope(req);
     return this.connections.startMagnificOAuth(actor.staffId);
-  }
-
-  @Get('provider-connections/magnific/oauth/callback')
-  @RequireCpAction('manage')
-  async magnificOAuthCallback(
-    @Req() req: AuthedReq,
-    @Res() res: Response,
-    @Query('code') code?: string,
-    @Query('state') state?: string,
-  ) {
-    try {
-      const actor = await this.scope(req);
-      const result = await this.connections.completeMagnificOAuth(
-        { code, state },
-        actor.staffId,
-      );
-      return res.redirect(result.redirect_url);
-    } catch (err) {
-      const reason = err && typeof err === 'object' && 'error' in err
-        ? String((err as { error?: unknown }).error ?? 'oauth_failed')
-        : 'oauth_failed';
-      return res.redirect(magnificSettingsRedirect('error', reason));
-    }
   }
 
   @Post('provider-connections/magnific/rest-key')
