@@ -402,3 +402,37 @@ export type MsosFinanceRequestRow = {
   invoice_id: string | null;
   created_at: string;
 };
+
+export type MsosExceptionRow = {
+  id: string;
+  priority: 'P0' | 'P1' | 'P2';
+  kind: string;
+  media_line_id: string | null;
+  placement_id: string | null;
+  title: string;
+  evidence_text: string;
+  open: boolean;
+  created_at: string;
+};
+
+export type MsosScorecardRow = {
+  id: string;
+  partner_id: string;
+  delivery_bps: number | null;
+  discrepancy_bps: number | null;
+  safety_incidents: number;
+  score: number;
+  computed_at: string;
+};
+
+export type MsosEligibilityRow = {
+  partner_id: string;
+  kyc_pass: boolean;
+  scorecard_pass: boolean;
+  rate_published: boolean;
+  reseller_open: boolean;
+};
+
+export type MsosEligibilityDto = MsosEligibilityRow & {
+  locked: boolean;
+};

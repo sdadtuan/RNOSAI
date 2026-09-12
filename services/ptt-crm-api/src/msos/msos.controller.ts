@@ -313,6 +313,42 @@ export class MsosController {
     return this.msos.createFinanceRequest(id, staffId);
   }
 
+  @Get('exceptions')
+  @RequireMsosAction('view')
+  listExceptions() {
+    return this.msos.listExceptions();
+  }
+
+  @Post('exceptions/rebuild')
+  @RequireMsosAction('admin')
+  rebuildExceptions() {
+    return this.msos.rebuildExceptions();
+  }
+
+  @Get('partners/:id/scorecard')
+  @RequireMsosAction('view')
+  getScorecard(@Param('id') id: string) {
+    return this.msos.getScorecard(id);
+  }
+
+  @Post('partners/:id/scorecard/recompute')
+  @RequireMsosAction('admin')
+  recomputeScorecard(@Param('id') id: string) {
+    return this.msos.recomputeScorecard(id);
+  }
+
+  @Get('partners/:id/eligibility')
+  @RequireMsosAction('view')
+  getEligibility(@Param('id') id: string) {
+    return this.msos.getEligibility(id);
+  }
+
+  @Post('partners/:id/eligibility/reseller')
+  @RequireMsosAction('admin')
+  setEligibilityReseller(@Param('id') id: string, @Body() body: { open: boolean }) {
+    return this.msos.setEligibilityReseller(id, Boolean(body.open));
+  }
+
   private async hasMsosAdmin(req: StaffReq): Promise<boolean> {
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) return false;

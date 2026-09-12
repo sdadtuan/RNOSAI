@@ -11,6 +11,7 @@ import { assertNotSilentActual, classifyDiscrepancy } from './msos-discrepancy.u
 import { canOfficial } from './msos-evidence-pack.util';
 import { evaluateTraffic } from './msos-traffic.util';
 import { assertMarginSubmit, computeWaterfall } from './msos-margin.util';
+import { computeScorecard, rebuildExceptions } from './msos-exceptions.util';
 import type {
   CapacityBucketInput,
   CreateDiscrepancyInput,
@@ -37,6 +38,9 @@ import type {
   MsosMarginDto,
   MsosMarginSnapshotRow,
   MsosFinanceRequestRow,
+  MsosExceptionRow,
+  MsosScorecardRow,
+  MsosEligibilityDto,
   MsosInsertionOrderRow,
   MsosInventoryRow,
   MsosMediaLineRow,
@@ -900,5 +904,92 @@ export class MsosService {
       evidence_pack_id: officialPack.id,
       requested_by: staffId,
     });
+  }
+
+  async listExceptions(): Promise<MsosExceptionRow[]> {
+    this.assertEnabled();
+    return this.repo.listOpenExceptions();
+  }
+
+  async rebuildExceptions(): Promise<void> {
+    this.assertEnabled();
+    const sources = await this.repo.getExceptionSources();
+    const derived = rebuildExceptions(sources);
+    await this.repo.syncDerivedExceptions(derived);
+  }
+
+  async getScorecard(partnerId: string): Promise<MsosScorecardRow | null> {
+    this.assertEnabled();
+    const partner = await this.repo.getPartner(partnerId);
+    if (!partner) {
+      throw new UnprocessableEntityException({ error: 'partner_not_found' });
+    }
+    return this.repo.getLatestScorecard(partnerId);
+  }
+
+  async recomputeScorecard(partnerId: string): Promise<MsosScorecardRow | null> {
+    this.assertEnabled();
+    const partner = await this.repo.getPartner(partnerId);
+    if (!partner) {
+      throw new UnprocessableEntityException({ error: 'partner_not_found' });
+    }
+    const inputs = await this.repo.getScorecardInputs(partnerId);
+    if (!inputs) {
+      return null;
+    }
+    const score = computeScorecard(inputs);
+    const row = await this.repo.upsertScorecard({
+      partner_id: partnerId,
+      delivery_bps: inputs.delivery_bps,
+      discrepancy_bps: inputs.discrepancy_bps,
+      safety_incidents: inputs.safety_incidents,
+      score,
+    });
+    const ratePublished = await this.repo.hasPublishedRateForPartner(partnerId);
+    await this.repo.upsertEligibility({
+      partner_id: partnerId,
+      kyc_pass: partner.kyc_pass,
+      scorecard_pass: score >= 70,
+      rate_published: ratePublished,
+      reseller_open: false,
+    });
+    return row;
+  }
+
+  async getEligibility(partnerId: string): Promise<MsosEligibilityDto> {
+    this.assertEnabled();
+    const partner = await this.repo.getPartner(partnerId);
+    if (!partner) {
+      throw new UnprocessableEntityException({ error: 'partner_not_found' });
+    }
+    const existing = await this.repo.getEligibility(partnerId);
+    const ratePublished = await this.repo.hasPublishedRateForPartner(partnerId);
+    const scorecard = await this.repo.getLatestScorecard(partnerId);
+    const row =
+      existing ??
+      (await this.repo.upsertEligibility({
+        partner_id: partnerId,
+        kyc_pass: partner.kyc_pass,
+        scorecard_pass: scorecard ? scorecard.score >= 70 : false,
+        rate_published: ratePublished,
+        reseller_open: false,
+      }));
+    return {
+      ...row,
+      reseller_open: false,
+      locked: true,
+    };
+  }
+
+  async setEligibilityReseller(partnerId: string, open: boolean): Promise<never> {
+    this.assertEnabled();
+    const partner = await this.repo.getPartner(partnerId);
+    if (!partner) {
+      throw new UnprocessableEntityException({ error: 'partner_not_found' });
+    }
+    if (open) {
+      throw new ForbiddenException({ error: 'reseller_locked' });
+    }
+    throw new ForbiddenException({ error: 'reseller_locked' });
   }
 }

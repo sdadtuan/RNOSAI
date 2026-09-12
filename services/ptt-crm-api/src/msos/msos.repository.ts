@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { calendarDayConflict } from './msos-capacity.util';
+import type { DerivedException } from './msos-exceptions.util';
 import { msosDisplayCode } from './msos-ids.util';
 import type {
   CapacityBucketInput,
@@ -31,6 +32,9 @@ import type {
   MsosMarginInputs,
   MsosMarginSnapshotRow,
   MsosFinanceRequestRow,
+  MsosExceptionRow,
+  MsosScorecardRow,
+  MsosEligibilityRow,
   MsosPackageRow,
   MsosTrafficPackRow,
   UpsertTrafficInput,
@@ -1092,5 +1096,216 @@ export class MsosRepository implements OnModuleDestroy {
       [input.media_line_id, input.evidence_pack_id, input.requested_by],
     );
     return result.rows[0] as MsosFinanceRequestRow;
+  }
+
+  async getPartner(partnerId: string): Promise<MsosPartnerRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, legal_name, status, kyc_pass, created_at::text, created_by
+         FROM msos_partners
+        WHERE id = $1::uuid
+        LIMIT 1`,
+      [partnerId],
+    );
+    return (result.rows[0] as MsosPartnerRow | undefined) ?? null;
+  }
+
+  async listOpenExceptions(): Promise<MsosExceptionRow[]> {
+    const result = await this.db.query(
+      `SELECT id::text, priority, kind, media_line_id::text, placement_id::text,
+              title, evidence_text, open, created_at::text
+         FROM msos_exceptions
+        WHERE open = TRUE
+        ORDER BY CASE priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END, created_at DESC`,
+    );
+    return result.rows as MsosExceptionRow[];
+  }
+
+  async getExceptionSources(): Promise<{
+    calendarConflicts: { placement_id: string; date: string }[];
+    liveUnofficial: { media_line_id: string; display_code: string }[];
+    makeGoodUnreserved: { media_line_id: string; display_code: string }[];
+    trafficRejected: { media_line_id: string; display_code: string }[];
+  }> {
+    const calendar = await this.db.query(
+      `SELECT cb.placement_id::text AS placement_id, cb.bucket_date::text AS date
+         FROM msos_capacity_buckets cb
+        WHERE cb.reserved_hard + cb.reserved_soft > cb.total_qty
+           OR cb.reserved_hard > cb.total_qty`,
+    );
+    const liveUnofficial = await this.db.query(
+      `SELECT ml.id::text AS media_line_id, ml.display_code
+         FROM msos_media_lines ml
+        WHERE ml.status = 'live'
+          AND NOT EXISTS (
+            SELECT 1 FROM msos_evidence_packs ep
+             WHERE ep.media_line_id = ml.id AND ep.status = 'official'
+          )`,
+    );
+    const makeGoodUnreserved = await this.db.query(
+      `SELECT mg.media_line_id::text AS media_line_id, mg.display_code
+         FROM msos_make_goods mg
+        WHERE mg.capacity_reserved = FALSE AND mg.closed_at IS NULL`,
+    );
+    const trafficRejected = await this.db.query(
+      `SELECT tp.media_line_id::text AS media_line_id, ml.display_code
+         FROM msos_traffic_packs tp
+         JOIN msos_media_lines ml ON ml.id = tp.media_line_id
+        WHERE tp.status = 'rejected'`,
+    );
+    return {
+      calendarConflicts: calendar.rows as { placement_id: string; date: string }[],
+      liveUnofficial: liveUnofficial.rows as { media_line_id: string; display_code: string }[],
+      makeGoodUnreserved: makeGoodUnreserved.rows as { media_line_id: string; display_code: string }[],
+      trafficRejected: trafficRejected.rows as { media_line_id: string; display_code: string }[],
+    };
+  }
+
+  async syncDerivedExceptions(derived: DerivedException[]): Promise<void> {
+    const kinds = ['capacity_conflict', 'evidence_unofficial', 'make_good_unreserved', 'traffic_rejected'];
+    await this.db.query(
+      `UPDATE msos_exceptions SET open = FALSE
+        WHERE kind = ANY($1::text[]) AND open = TRUE`,
+      [kinds],
+    );
+    for (const ex of derived) {
+      await this.db.query(
+        `INSERT INTO msos_exceptions (priority, kind, placement_id, media_line_id, title, evidence_text)
+         VALUES ($1, $2, $3::uuid, $4::uuid, $5, $6)`,
+        [
+          ex.priority,
+          ex.kind,
+          ex.placement_id ?? null,
+          ex.media_line_id ?? null,
+          ex.title,
+          ex.evidence_text,
+        ],
+      );
+    }
+  }
+
+  async getLatestScorecard(partnerId: string): Promise<MsosScorecardRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, partner_id::text, delivery_bps, discrepancy_bps,
+              safety_incidents, score, computed_at::text
+         FROM msos_partner_scorecards
+        WHERE partner_id = $1::uuid
+        ORDER BY computed_at DESC
+        LIMIT 1`,
+      [partnerId],
+    );
+    return (result.rows[0] as MsosScorecardRow | undefined) ?? null;
+  }
+
+  async getScorecardInputs(partnerId: string): Promise<{
+    delivery_bps: number;
+    discrepancy_bps: number;
+    safety_incidents: number;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT
+         CASE WHEN SUM(io.qty) > 0
+           THEN ROUND(COALESCE(SUM(dc.report_qty), 0)::numeric / SUM(io.qty)::numeric * 10000)::int
+           ELSE NULL END AS delivery_bps,
+         CASE WHEN COUNT(dc.id) > 0
+           THEN ROUND(AVG(
+             CASE WHEN dc.io_qty > 0 AND dc.report_qty IS NOT NULL
+               THEN ABS(dc.io_qty - dc.report_qty)::numeric / dc.io_qty::numeric * 10000
+               ELSE NULL END
+           ))::int
+           ELSE NULL END AS discrepancy_bps,
+         0::int AS safety_incidents
+       FROM msos_partners p
+       LEFT JOIN msos_inventories inv ON inv.partner_id = p.id
+       LEFT JOIN msos_placements pl ON pl.inventory_id = inv.id
+       LEFT JOIN msos_package_lines pln ON pln.placement_id = pl.id
+       LEFT JOIN msos_packages pkg ON pkg.id = pln.package_id
+       LEFT JOIN msos_media_lines ml ON ml.package_id = pkg.id
+       LEFT JOIN msos_insertion_orders io ON io.id = ml.io_id
+       LEFT JOIN msos_discrepancy_cases dc ON dc.media_line_id = ml.id
+      WHERE p.id = $1::uuid
+      GROUP BY p.id`,
+      [partnerId],
+    );
+    const row = result.rows[0] as {
+      delivery_bps: number | null;
+      discrepancy_bps: number | null;
+      safety_incidents: number;
+    } | undefined;
+    if (!row || (row.delivery_bps == null && row.discrepancy_bps == null)) {
+      return null;
+    }
+    return {
+      delivery_bps: row.delivery_bps ?? 0,
+      discrepancy_bps: row.discrepancy_bps ?? 0,
+      safety_incidents: row.safety_incidents ?? 0,
+    };
+  }
+
+  async upsertScorecard(input: {
+    partner_id: string;
+    delivery_bps: number;
+    discrepancy_bps: number;
+    safety_incidents: number;
+    score: number;
+  }): Promise<MsosScorecardRow> {
+    const result = await this.db.query(
+      `INSERT INTO msos_partner_scorecards (
+         partner_id, delivery_bps, discrepancy_bps, safety_incidents, score
+       ) VALUES ($1::uuid, $2, $3, $4, $5)
+       RETURNING id::text, partner_id::text, delivery_bps, discrepancy_bps,
+                 safety_incidents, score, computed_at::text`,
+      [
+        input.partner_id,
+        input.delivery_bps,
+        input.discrepancy_bps,
+        input.safety_incidents,
+        input.score,
+      ],
+    );
+    return result.rows[0] as MsosScorecardRow;
+  }
+
+  async getEligibility(partnerId: string): Promise<MsosEligibilityRow | null> {
+    const result = await this.db.query(
+      `SELECT partner_id::text, kyc_pass, scorecard_pass, rate_published, reseller_open
+         FROM msos_eligibility
+        WHERE partner_id = $1::uuid
+        LIMIT 1`,
+      [partnerId],
+    );
+    return (result.rows[0] as MsosEligibilityRow | undefined) ?? null;
+  }
+
+  async upsertEligibility(input: MsosEligibilityRow): Promise<MsosEligibilityRow> {
+    const result = await this.db.query(
+      `INSERT INTO msos_eligibility (partner_id, kyc_pass, scorecard_pass, rate_published, reseller_open)
+       VALUES ($1::uuid, $2, $3, $4, $5)
+       ON CONFLICT (partner_id) DO UPDATE SET
+         kyc_pass = EXCLUDED.kyc_pass,
+         scorecard_pass = EXCLUDED.scorecard_pass,
+         rate_published = EXCLUDED.rate_published,
+         reseller_open = EXCLUDED.reseller_open
+       RETURNING partner_id::text, kyc_pass, scorecard_pass, rate_published, reseller_open`,
+      [
+        input.partner_id,
+        input.kyc_pass,
+        input.scorecard_pass,
+        input.rate_published,
+        input.reseller_open,
+      ],
+    );
+    return result.rows[0] as MsosEligibilityRow;
+  }
+
+  async hasPublishedRateForPartner(partnerId: string): Promise<boolean> {
+    const result = await this.db.query(
+      `SELECT 1
+         FROM msos_rate_cards rc
+         JOIN msos_rate_versions rv ON rv.rate_card_id = rc.id
+        WHERE rc.partner_id = $1::uuid AND rv.status = 'published'
+        LIMIT 1`,
+      [partnerId],
+    );
+    return Boolean(result.rows[0]);
   }
 }
