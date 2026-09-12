@@ -100,6 +100,29 @@ export type CsdConversationMediaItem = {
   createdAt: string;
 };
 
+export function formatCsdStorageDayLabel(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const a = vnParts(d);
+  return `Ngày ${a.day} Tháng ${a.m}`;
+}
+
+export function groupCsdMediaItemsByDay(
+  items: CsdConversationMediaItem[],
+): Array<[string, CsdConversationMediaItem[]]> {
+  const map = new Map<string, CsdConversationMediaItem[]>();
+  for (const item of items) {
+    const key = dayKey(new Date(item.createdAt));
+    const bucket = map.get(key) ?? [];
+    bucket.push(item);
+    map.set(key, bucket);
+  }
+  return [...map.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([, rows]) => [formatCsdStorageDayLabel(rows[0]?.createdAt), rows] as [string, CsdConversationMediaItem[]]);
+}
+
 export function splitCsdConversationAttachments(
   items: import('@/lib/crm/csd-api').CsdConversationAttachmentItem[],
 ): { images: CsdConversationMediaItem[]; files: CsdConversationMediaItem[] } {

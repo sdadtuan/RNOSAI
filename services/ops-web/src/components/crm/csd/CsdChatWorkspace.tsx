@@ -8,7 +8,9 @@ import { CsdChatList } from '@/components/crm/csd/CsdChatList';
 import { CsdChatCreateGroupModal } from '@/components/crm/csd/CsdChatCreateGroupModal';
 import { CsdChatNewModal } from '@/components/crm/csd/CsdChatNewModal';
 import { CsdChatTabs } from '@/components/crm/csd/CsdChatTabs';
+import { CsdChatStorageVault, type CsdChatStorageTab } from '@/components/crm/csd/CsdChatStorageVault';
 import { CsdChatThread } from '@/components/crm/csd/CsdChatThread';
+import { useCsdChatAttachments } from '@/components/crm/csd/useCsdChatAttachments';
 import { useCsdChatSession } from '@/components/crm/csd/useCsdChatSession';
 import { formatCsdWhen, CSD_PRIORITY_LABELS, CSD_TICKET_TYPES, type CsdPriority } from '@/lib/crm/csd-api';
 import { readCsdDockPersist, writeCsdDockPersist, type CsdDockTab } from '@/lib/crm/csd-chat-dock-persist';
@@ -40,6 +42,12 @@ export function CsdChatWorkspace({
   );
   const [incomingCount, setIncomingCount] = useState(0);
   const [contextOpen, setContextOpen] = useState(false);
+  const [vaultTab, setVaultTab] = useState<CsdChatStorageTab | null>(null);
+  const allAttachments = useCsdChatAttachments(token, {
+    enabled: Boolean(s.activeId),
+    refreshKey: `${s.messages.length}:${s.messages[s.messages.length - 1]?.id ?? ''}`,
+    limit: 500,
+  });
 
   useEffect(() => {
     if (tab === 'requests') setContactsView('requests');
@@ -60,6 +68,25 @@ export function CsdChatWorkspace({
   const archived = s.active?.status === 'archived';
   const closed = s.active?.status === 'closed';
   const composerLocked = Boolean(closed || archived);
+  const showChatPane = tab === 'messages';
+
+  function handleOpenVault(nextTab: CsdChatStorageTab) {
+    setVaultTab(nextTab);
+    if (s.isMobile) s.setMobilePane('thread');
+  }
+
+  function handleTabChange(next: CsdDockTab) {
+    setTab(next);
+    if (next !== 'messages') {
+      setContextOpen(false);
+      setVaultTab(null);
+      s.setMobilePane('list');
+      return;
+    }
+    if (s.isMobile && s.activeId) {
+      s.setMobilePane('thread');
+    }
+  }
 
   const workspaceClass = [
     'csd-chat-workspace',
@@ -76,7 +103,7 @@ export function CsdChatWorkspace({
     <div className={workspaceClass} data-testid="csd-chat-workspace">
       {(!s.isMobile || s.mobilePane === 'list') && (
         <>
-        <CsdChatTabs variant="rail" tab={tab} incomingCount={incomingCount} onChange={setTab} />
+        <CsdChatTabs variant="rail" tab={tab} incomingCount={incomingCount} onChange={handleTabChange} />
         <div className="csd-chat-workspace__list-col">
           {tab === 'messages' ? (
             <CsdChatList
@@ -100,13 +127,13 @@ export function CsdChatWorkspace({
               view={contactsView}
               onViewChange={(next) => {
                 setContactsView(next);
-                if (next === 'requests') setTab('requests');
-                else setTab('contacts');
+                if (next === 'requests') handleTabChange('requests');
+                else handleTabChange('contacts');
               }}
               canWrite={canWrite}
               onIncomingChange={setIncomingCount}
               onOpenDm={(staffId) => {
-                setTab('messages');
+                handleTabChange('messages');
                 void s.handleCreateConversation({ kind: 'direct', name_vi: '', member_staff_ids: [staffId] });
               }}
             />
@@ -115,69 +142,92 @@ export function CsdChatWorkspace({
         </>
       )}
 
-      {(!s.isMobile || s.mobilePane === 'thread') && (
-        <CsdChatThread
-          token={token}
-          active={s.active}
-          messages={s.messages}
-          members={s.members}
-          relatedTickets={s.relatedTickets}
-          draft={s.draft}
-          replyTo={s.replyTo}
-          pendingFiles={s.pendingFiles}
-          meStaffId={s.meStaffId}
-          canWrite={canWrite}
-          busy={s.busy}
-          closed={composerLocked}
-          priorityHint={s.priorityHint}
-          density="page"
-          showMobileBack={s.isMobile}
-          onMobileBack={() => s.setMobilePane('list')}
-          onShowContext={s.isMobile ? () => s.setMobilePane('context') : undefined}
-          onToggleContextPanel={!s.isMobile ? () => setContextOpen((v) => !v) : undefined}
-          contextPanelOpen={contextOpen}
-          onRename={(aliasVi) => s.handleRenameConversation(aliasVi)}
-          onDismissPriorityHint={() => s.setPriorityHint(null)}
-          onApplyPriorityHint={() => {
-            if (!s.priorityHint) return;
-            const hint = s.priorityHint;
-            s.setPriorityHint(null);
-            const last = [...s.messages].reverse().find((m) => !m.is_deleted && m.body_text.trim());
-            if (last) {
-              s.setTicketModal(last);
-              s.setTicketForm((f) => ({
-                ...f,
-                title: last.body_text.slice(0, 80),
-                ticket_type: 'incident',
-                priority: hint,
-              }));
-            }
-          }}
-          onDraftChange={s.setDraft}
-          onSend={() => void s.handleSend()}
-          onSendEmotion={(emoji) => void s.handleSendEmotion(emoji)}
-          onReply={s.setReplyTo}
-          onCancelReply={() => s.setReplyTo(null)}
-          onCreateTicket={(m) => {
-            s.setTicketModal(m);
-            s.setTicketForm((f) => ({ ...f, title: m.body_text.slice(0, 80) }));
-          }}
-          onReopen={() => void s.handleReopen()}
-          onPickFile={(file) => void s.handlePickFile(file)}
-          onRemovePending={s.handleRemovePending}
-          onEditMessage={(m, body) => void s.handleEditMessage(m, body)}
-          onDeleteMessage={(m) => void s.handleDeleteMessage(m)}
-          onCopyLink={s.handleCopyLink}
-          onForward={(m) => s.setForwardMessage(m)}
-          onReact={(m, emotion) => void s.handleReactMessage(m, emotion)}
-        />
+      {showChatPane && (!s.isMobile || s.mobilePane === 'thread') && (
+        <div className="csd-chat-workspace__thread-shell">
+          <CsdChatThread
+            token={token}
+            active={s.active}
+            messages={s.messages}
+            members={s.members}
+            relatedTickets={s.relatedTickets}
+            draft={s.draft}
+            replyTo={s.replyTo}
+            pendingFiles={s.pendingFiles}
+            meStaffId={s.meStaffId}
+            canWrite={canWrite}
+            busy={s.busy}
+            closed={composerLocked}
+            priorityHint={s.priorityHint}
+            density="page"
+            showMobileBack={s.isMobile}
+            onMobileBack={() => {
+              if (vaultTab) {
+                setVaultTab(null);
+                return;
+              }
+              s.setMobilePane('list');
+            }}
+            onShowContext={s.isMobile ? () => s.setMobilePane('context') : undefined}
+            onToggleContextPanel={!s.isMobile ? () => setContextOpen((v) => !v) : undefined}
+            contextPanelOpen={contextOpen}
+            onRename={(aliasVi) => s.handleRenameConversation(aliasVi)}
+            onDismissPriorityHint={() => s.setPriorityHint(null)}
+            onApplyPriorityHint={() => {
+              if (!s.priorityHint) return;
+              const hint = s.priorityHint;
+              s.setPriorityHint(null);
+              const last = [...s.messages].reverse().find((m) => !m.is_deleted && m.body_text.trim());
+              if (last) {
+                s.setTicketModal(last);
+                s.setTicketForm((f) => ({
+                  ...f,
+                  title: last.body_text.slice(0, 80),
+                  ticket_type: 'incident',
+                  priority: hint,
+                }));
+              }
+            }}
+            onDraftChange={s.setDraft}
+            onSend={() => void s.handleSend()}
+            onSendEmotion={(emoji) => void s.handleSendEmotion(emoji)}
+            onReply={s.setReplyTo}
+            onCancelReply={() => s.setReplyTo(null)}
+            onCreateTicket={(m) => {
+              s.setTicketModal(m);
+              s.setTicketForm((f) => ({ ...f, title: m.body_text.slice(0, 80) }));
+            }}
+            onReopen={() => void s.handleReopen()}
+            onPickFile={(file) => void s.handlePickFile(file)}
+            onRemovePending={s.handleRemovePending}
+            onEditMessage={(m, body) => void s.handleEditMessage(m, body)}
+            onDeleteMessage={(m) => void s.handleDeleteMessage(m)}
+            onCopyLink={s.handleCopyLink}
+            onForward={(m) => s.setForwardMessage(m)}
+            onReact={(m, emotion) => void s.handleReactMessage(m, emotion)}
+          />
+          {vaultTab ? (
+            <CsdChatStorageVault
+              token={token}
+              tab={vaultTab}
+              images={allAttachments.images}
+              files={allAttachments.files}
+              loading={allAttachments.loading}
+              error={allAttachments.error}
+              onTabChange={setVaultTab}
+              onClose={() => setVaultTab(null)}
+            />
+          ) : null}
+        </div>
       )}
 
-      {((!s.isMobile && contextOpen) || (s.isMobile && s.mobilePane === 'context')) && (
+      {showChatPane && ((!s.isMobile && contextOpen) || (s.isMobile && s.mobilePane === 'context')) && (
         <CsdChatContext
           token={token}
-          mediaRefreshKey={`${s.messages.length}:${s.messages[s.messages.length - 1]?.id ?? ''}`}
           active={s.active}
+          attachmentImages={allAttachments.images}
+          attachmentFiles={allAttachments.files}
+          attachmentsLoading={allAttachments.loading}
+          attachmentsError={allAttachments.error}
           members={s.members}
           relatedTickets={s.relatedTickets}
           memberStaffId={s.memberStaffId}
@@ -199,10 +249,11 @@ export function CsdChatWorkspace({
           onMobileBack={() => s.setMobilePane('thread')}
           onClosePanel={!s.isMobile ? () => setContextOpen(false) : undefined}
           onRename={(aliasVi) => s.handleRenameConversation(aliasVi)}
+          onOpenVault={handleOpenVault}
         />
       )}
 
-      {s.isMobile && s.mobilePane === 'thread' ? (
+      {showChatPane && s.isMobile && s.mobilePane === 'thread' ? (
         <button
           type="button"
           className="btn btn-sm btn-secondary csd-chat-mobile-info"
@@ -254,7 +305,7 @@ export function CsdChatWorkspace({
                 onClick={() => {
                   s.setFriendRequired(false);
                   s.setShowNewModal(false);
-                  setTab('contacts');
+                  handleTabChange('contacts');
                 }}
               >
                 Mở Danh bạ

@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 import { CsdChatContextMedia } from '@/components/crm/csd/CsdChatContextMedia';
-import { useCsdChatAttachments } from '@/components/crm/csd/useCsdChatAttachments';
+import type { CsdChatStorageTab } from '@/components/crm/csd/CsdChatStorageVault';
 import {
   type CsdConversationMemberRow,
   type CsdConversationRow,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
+import type { CsdConversationMediaItem } from '@/lib/crm/csd-chat-display';
 
 export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
   client: 'Khách hàng',
@@ -20,8 +21,11 @@ export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
 
 type CsdChatContextProps = {
   token: string;
-  mediaRefreshKey?: string;
   active: CsdConversationRow | null;
+  attachmentImages: CsdConversationMediaItem[];
+  attachmentFiles: CsdConversationMediaItem[];
+  attachmentsLoading?: boolean;
+  attachmentsError?: string;
   members: CsdConversationMemberRow[];
   relatedTickets: CsdTicketRow[];
   memberStaffId: string;
@@ -43,6 +47,7 @@ type CsdChatContextProps = {
   onMobileBack?: () => void;
   onClosePanel?: () => void;
   onRename?: (aliasVi: string) => Promise<boolean>;
+  onOpenVault?: (tab: CsdChatStorageTab) => void;
   variant?: 'column' | 'sheet';
 };
 
@@ -88,8 +93,11 @@ function ContextSection({
 
 export function CsdChatContext({
   token,
-  mediaRefreshKey = '',
   active,
+  attachmentImages,
+  attachmentFiles,
+  attachmentsLoading = false,
+  attachmentsError = '',
   members,
   relatedTickets,
   memberStaffId,
@@ -111,6 +119,7 @@ export function CsdChatContext({
   onMobileBack,
   onClosePanel,
   onRename,
+  onOpenVault,
   variant = 'column',
 }: CsdChatContextProps) {
   const isSheet = variant === 'sheet';
@@ -119,11 +128,6 @@ export function CsdChatContext({
   const [membersOpen, setMembersOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [aliasDraft, setAliasDraft] = useState(active?.alias_vi || active?.name_vi || '');
-  const allAttachments = useCsdChatAttachments(token, {
-    enabled: !!active?.id,
-    refreshKey: mediaRefreshKey,
-    limit: 500,
-  });
 
   useEffect(() => {
     setAliasDraft(active?.alias_vi || active?.name_vi || '');
@@ -246,10 +250,11 @@ export function CsdChatContext({
               <h4 className="csd-chat-context-all-media__title">Ảnh &amp; File (tất cả hội thoại)</h4>
               <CsdChatContextMedia
                 token={token}
-                loading={allAttachments.loading}
-                error={allAttachments.error}
-                images={allAttachments.images}
-                files={allAttachments.files}
+                loading={attachmentsLoading}
+                error={attachmentsError}
+                images={attachmentImages}
+                files={attachmentFiles}
+                onOpenVault={(tab) => onOpenVault?.(tab)}
               />
             </section>
 

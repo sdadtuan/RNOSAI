@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import type { CsdAttachmentRow } from '@/lib/crm/csd-api';
 import { previewCsdFileObjectUrl } from '@/lib/crm/csd-api';
 import {
@@ -12,6 +12,7 @@ import {
   formatChatListTime,
   type CsdConversationMediaItem,
 } from '@/lib/crm/csd-chat-display';
+import type { CsdChatStorageTab } from '@/components/crm/csd/CsdChatStorageVault';
 
 const PLACEHOLDER_IMG =
   'data:image/svg+xml;utf8,' +
@@ -87,41 +88,25 @@ function ContextFileRow({
   );
 }
 
-type MediaModalProps = {
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-};
-
-function MediaModal({ title, onClose, children }: MediaModalProps) {
-  return (
-    <div className="csd-chat-context-modal" role="dialog" aria-label={title}>
-      <div className="csd-chat-context-modal__panel">
-        <header className="csd-chat-context-modal__head">
-          <h4>{title}</h4>
-          <button type="button" className="csd-chat-context-modal__close" aria-label="Đóng" onClick={onClose}>
-            ×
-          </button>
-        </header>
-        <div className="csd-chat-context-modal__body">{children}</div>
-      </div>
-    </div>
-  );
-}
-
 type CsdChatContextMediaProps = {
   token: string;
   loading?: boolean;
   error?: string;
   images: CsdConversationMediaItem[];
   files: CsdConversationMediaItem[];
+  onOpenVault: (tab: CsdChatStorageTab) => void;
 };
 
-export function CsdChatContextMedia({ token, loading = false, error = '', images, files }: CsdChatContextMediaProps) {
+export function CsdChatContextMedia({
+  token,
+  loading = false,
+  error = '',
+  images,
+  files,
+  onOpenVault,
+}: CsdChatContextMediaProps) {
   const [mediaOpen, setMediaOpen] = useState(true);
   const [filesOpen, setFilesOpen] = useState(true);
-  const [galleryOpen, setGalleryOpen] = useState(false);
-  const [filesModalOpen, setFilesModalOpen] = useState(false);
   const previewImages = images.slice(0, 8);
   const previewFiles = files.slice(0, 3);
 
@@ -158,7 +143,7 @@ export function CsdChatContextMedia({ token, loading = false, error = '', images
                   type="button"
                   className="csd-chat-context-view-all"
                   data-testid="csd-chat-context-media-all"
-                  onClick={() => setGalleryOpen(true)}
+                  onClick={() => onOpenVault('media')}
                 >
                   Xem tất cả
                 </button>
@@ -199,7 +184,7 @@ export function CsdChatContextMedia({ token, loading = false, error = '', images
                   type="button"
                   className="csd-chat-context-view-all"
                   data-testid="csd-chat-context-files-all"
-                  onClick={() => setFilesModalOpen(true)}
+                  onClick={() => onOpenVault('files')}
                 >
                   Xem tất cả
                 </button>
@@ -208,26 +193,6 @@ export function CsdChatContextMedia({ token, loading = false, error = '', images
           </div>
         ) : null}
       </section>
-
-      {galleryOpen ? (
-        <MediaModal title="Ảnh/Video" onClose={() => setGalleryOpen(false)}>
-          <div className="csd-chat-context-media__grid csd-chat-context-media__grid--modal">
-            {images.map((item) => (
-              <ContextMediaThumb key={item.file.id} token={token} file={item.file} />
-            ))}
-          </div>
-        </MediaModal>
-      ) : null}
-
-      {filesModalOpen ? (
-        <MediaModal title="File" onClose={() => setFilesModalOpen(false)}>
-          <div className="csd-chat-context-files csd-chat-context-files--modal">
-            {files.map((item) => (
-              <ContextFileRow key={item.file.id} token={token} item={item} />
-            ))}
-          </div>
-        </MediaModal>
-      ) : null}
     </>
   );
 }

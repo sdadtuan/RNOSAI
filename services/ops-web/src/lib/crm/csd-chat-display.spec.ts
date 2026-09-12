@@ -4,7 +4,9 @@ import {
   csdChatLetterKey,
   groupCsdChatPeopleByLetter,
   formatChatListTime,
+  formatCsdStorageDayLabel,
   formatDateChip,
+  groupCsdMediaItemsByDay,
   initialsFromName,
   isCsdChatImageMime,
   isCsdChatMediaMime,
@@ -43,6 +45,37 @@ describe('csd-chat-display', () => {
     expect(isCsdChatImageMime('IMAGE/JPEG')).toBe(true);
     expect(isCsdChatImageMime('application/pdf')).toBe(false);
     expect(isCsdChatImageMime(null)).toBe(false);
+  });
+
+  it('groups media items by VN day label', () => {
+    const groups = groupCsdMediaItemsByDay([
+      {
+        file: {
+          id: '1',
+          file_name: 'a.png',
+          mime_type: 'image/png',
+          byte_size: 1,
+          visibility: 'internal',
+        },
+        messageId: 'm1',
+        createdAt: '2026-09-12T10:00:00+07:00',
+      },
+      {
+        file: {
+          id: '2',
+          file_name: 'b.png',
+          mime_type: 'image/png',
+          byte_size: 1,
+          visibility: 'internal',
+        },
+        messageId: 'm2',
+        createdAt: '2026-09-10T10:00:00+07:00',
+      },
+    ]);
+    expect(groups).toHaveLength(2);
+    expect(formatCsdStorageDayLabel('2026-09-12T10:00:00+07:00')).toBe('Ngày 12 Tháng 9');
+    expect(groups[0]?.[0]).toBe('Ngày 12 Tháng 9');
+    expect(groups[1]?.[0]).toBe('Ngày 10 Tháng 9');
   });
 
   it('splitCsdConversationAttachments groups media and files newest-first', () => {
