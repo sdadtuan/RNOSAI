@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 import { CsdChatLoginForm } from '@/components/crm/csd/CsdChatLoginForm';
 import { CsdChatWorkspace } from '@/components/crm/csd/CsdChatWorkspace';
 import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
@@ -17,6 +18,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   const canWrite = hasCap(user, 'csd', 'write');
   const canView = hasCap(user, 'csd', 'view');
   const [meEnabled, setMeEnabled] = useState<boolean | null>(null);
+  const [meStaffId, setMeStaffId] = useState<number | null>(null);
   const [meUsername, setMeUsername] = useState('');
   const [meDisplayName, setMeDisplayName] = useState('');
   const [chatAuthed, setChatAuthed] = useState(false);
@@ -50,6 +52,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
       .then((me) => {
         if (cancelled) return;
         setMeEnabled(me.enabled === true);
+        setMeStaffId(me.staff_id);
         setMeUsername(me.username ?? '');
         setMeDisplayName(String(me.display_name_vi ?? '').trim());
         setChatAuthed(Boolean(me.enabled && readCsdChatLogin(me.staff_id)));
@@ -194,12 +197,35 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
             </div>
           </div>
           <div className="csd-chat-dock__head-actions">
-            <button type="button" className="btn btn-sm btn-secondary" onClick={openPage}>
-              Mở trang
+            <button
+              type="button"
+              className="csd-chat-dock__icon-btn csd-chat-dock__icon-btn--open"
+              aria-label="Mở trang"
+              title="Mở trang"
+              onClick={openPage}
+            >
+              <span className="csd-chat-dock-ico csd-chat-dock-ico--open" aria-hidden />
             </button>
-            <button type="button" className="btn btn-sm btn-secondary" aria-label="Thu nhỏ" onClick={minimize}>
-              —
+            <button
+              type="button"
+              className="csd-chat-dock__icon-btn csd-chat-dock__icon-btn--minimize"
+              aria-label="Thu nhỏ"
+              title="Thu nhỏ"
+              onClick={minimize}
+            >
+              <span className="csd-chat-dock-ico csd-chat-dock-ico--minimize" aria-hidden />
             </button>
+            {headUserName ? (
+              <CsdChatAvatar
+                token={token}
+                name={headUserName}
+                seed={meStaffId ?? user?.id ?? headUserName}
+                staffId={meStaffId ?? (user?.id ? Number(user.id) : null)}
+                hasAvatar={user?.has_avatar}
+                avatarUpdatedAt={user?.avatar_updated_at}
+                className="csd-chat-avatar csd-chat-avatar--dock-head"
+              />
+            ) : null}
           </div>
         </header>
         <div className="csd-chat-dock__body">

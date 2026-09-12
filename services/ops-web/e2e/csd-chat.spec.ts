@@ -604,7 +604,7 @@ test.describe('CSD chat workspace', () => {
     await page.getByTestId('csd-chat-rename-input').fill('Khách Ads nhớ tên');
     await page.getByTestId('csd-chat-rename-save').click();
     await expect(page.getByTestId('csd-chat-list')).toContainText('Khách Ads nhớ tên');
-    await expect(page.locator('.csd-chat-thread-head__name')).toContainText('Khách Ads nhớ tên');
+    await expect(page.locator('.csd-chat-thread-toolbar__name')).toContainText('Khách Ads nhớ tên');
   });
 
   test('C-2: search list and show related tickets plus # suggest', async ({ page }) => {

@@ -116,6 +116,8 @@ export function CsdChatThread({
   const [renaming, setRenaming] = useState(false);
   const [aliasDraft, setAliasDraft] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
+  const [threadSearch, setThreadSearch] = useState('');
   const messagesRef = useRef<HTMLUListElement>(null);
   const bottomRef = useRef<HTMLLIElement>(null);
   const mentionQ = mentionToken(draft);
@@ -148,10 +150,19 @@ export function CsdChatThread({
   useEffect(() => {
     setRenaming(false);
     setEmojiOpen(false);
+    setThreadSearchOpen(false);
+    setThreadSearch('');
     setAliasDraft(active?.alias_vi || active?.name_vi || '');
   }, [active?.id, active?.alias_vi, active?.name_vi]);
 
+  const threadSearchNorm = threadSearch.trim().toLowerCase();
   const lastMessageId = messages[messages.length - 1]?.id ?? null;
+
+  useEffect(() => {
+    if (!threadSearchNorm) return;
+    const first = messagesRef.current?.querySelector('.csd-chat-message-row.is-search-hit');
+    first?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [threadSearchNorm, lastMessageId]);
 
   useLayoutEffect(() => {
     if (!active?.id) return;
@@ -200,107 +211,160 @@ export function CsdChatThread({
 
   const isClient = active.kind === 'client';
   const threadAvatar = resolveCsdConversationAvatar(active);
+  const displayName = (active.alias_vi?.trim() || active.name_vi).trim();
+  const canVoiceCall = active.kind === 'direct';
+  const hasInfoAction = Boolean(onToggleContextPanel || onShowContext);
+
+  function handleInfo() {
+    if (onToggleContextPanel) onToggleContextPanel();
+    else onShowContext?.();
+  }
+
+  function toggleThreadSearch() {
+    setThreadSearchOpen((open) => {
+      if (open) setThreadSearch('');
+      return !open;
+    });
+  }
 
   return (
     <section className="csd-chat-workspace__thread">
-      <div className="csd-chat-thread-head">
+      <div className="csd-chat-thread-toolbar">
         {showMobileBack ? (
           <button type="button" className="csd-chat-icon-btn" onClick={onMobileBack} data-testid="csd-chat-mobile-back">
             ←
           </button>
         ) : null}
-        <CsdChatAvatar
-          token={token}
-          name={active.name_vi}
-          seed={threadAvatar.seed}
-          staffId={threadAvatar.staffId}
-          hasAvatar={threadAvatar.hasAvatar}
-          avatarUpdatedAt={threadAvatar.avatarUpdatedAt}
-          className="csd-chat-avatar csd-chat-avatar--thread"
-        />
-        {renaming && onRename ? (
-          <form
-            className="csd-chat-rename"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void onRename(aliasDraft.trim()).then((ok) => {
-                if (ok) setRenaming(false);
-              });
-            }}
-          >
-            <input
-              className="kpi-input"
-              value={aliasDraft}
-              maxLength={191}
-              onChange={(e) => setAliasDraft(e.target.value)}
-              placeholder="Tên gợi nhớ"
-              aria-label="Tên gợi nhớ"
-              data-testid="csd-chat-rename-input"
-            />
-            <button type="submit" className="btn btn-sm" disabled={busy} data-testid="csd-chat-rename-save">
-              Lưu
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary"
-              onClick={() => setRenaming(false)}
-            >
-              Hủy
-            </button>
-          </form>
-        ) : (
-          <h3 className="csd-chat-thread-head__name">{active.name_vi}</h3>
-        )}
-        <div className="csd-chat-thread-head__actions">
-          {onRename && canWrite && !renaming ? (
-            <button
-              type="button"
-              className="csd-chat-icon-btn"
-              data-testid="csd-chat-rename"
-              aria-label="Đổi tên gợi nhớ"
-              onClick={() => {
-                setAliasDraft(active.alias_vi || active.name_vi);
-                setRenaming(true);
+        <div className="csd-chat-thread-toolbar__peer">
+          <CsdChatAvatar
+            token={token}
+            name={displayName}
+            seed={threadAvatar.seed}
+            staffId={threadAvatar.staffId}
+            hasAvatar={threadAvatar.hasAvatar}
+            avatarUpdatedAt={threadAvatar.avatarUpdatedAt}
+            className="csd-chat-avatar csd-chat-avatar--toolbar"
+          />
+          {renaming && onRename ? (
+            <form
+              className="csd-chat-rename csd-chat-rename--toolbar"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void onRename(aliasDraft.trim()).then((ok) => {
+                  if (ok) setRenaming(false);
+                });
               }}
             >
-              Đổi tên
-            </button>
-          ) : null}
-          {onToggleContextPanel ? (
-            <button
-              type="button"
-              className={`csd-chat-icon-btn${contextPanelOpen ? ' is-active' : ''}`}
-              data-testid="csd-chat-context-panel-toggle"
-              aria-label={contextPanelOpen ? 'Ẩn ngữ cảnh' : 'Mở ngữ cảnh'}
-              aria-expanded={contextPanelOpen}
-              onClick={onToggleContextPanel}
-            >
-              Ngữ cảnh
-            </button>
-          ) : null}
-          {onShowContext ? (
-            <button
-              type="button"
-              className="csd-chat-icon-btn"
-              data-testid="csd-chat-thread-info"
-              aria-label="Thông tin hội thoại"
-              onClick={onShowContext}
-            >
-              i
-            </button>
-          ) : null}
+              <input
+                className="kpi-input"
+                value={aliasDraft}
+                maxLength={191}
+                onChange={(e) => setAliasDraft(e.target.value)}
+                placeholder="Tên gợi nhớ"
+                aria-label="Tên gợi nhớ"
+                data-testid="csd-chat-rename-input"
+              />
+              <button type="submit" className="btn btn-sm" disabled={busy} data-testid="csd-chat-rename-save">
+                Lưu
+              </button>
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setRenaming(false)}>
+                Hủy
+              </button>
+            </form>
+          ) : (
+            <div className="csd-chat-thread-toolbar__meta">
+              <h3 className="csd-chat-thread-toolbar__name">{displayName}</h3>
+              {onRename && canWrite ? (
+                <button
+                  type="button"
+                  className="csd-chat-thread-toolbar__rename"
+                  data-testid="csd-chat-rename"
+                  aria-label="Đổi tên gợi nhớ"
+                  onClick={() => {
+                    setAliasDraft(active.alias_vi || active.name_vi);
+                    setRenaming(true);
+                  }}
+                >
+                  <span className="csd-chat-thread-ico csd-chat-thread-ico--tag" aria-hidden />
+                </button>
+              ) : null}
+            </div>
+          )}
+        </div>
+        <div className="csd-chat-thread-toolbar__actions">
+          <button
+            type="button"
+            className="csd-chat-thread-tool-btn"
+            aria-label="Gọi điện"
+            title={canVoiceCall ? 'Gọi điện' : 'Chỉ hỗ trợ hội thoại DM'}
+            disabled={!canVoiceCall}
+            data-testid="csd-chat-thread-call"
+          >
+            <span className="csd-chat-thread-ico csd-chat-thread-ico--phone" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="csd-chat-thread-tool-btn"
+            aria-label="Gọi video"
+            title={canVoiceCall ? 'Gọi video' : 'Chỉ hỗ trợ hội thoại DM'}
+            disabled={!canVoiceCall}
+            data-testid="csd-chat-thread-video"
+          >
+            <span className="csd-chat-thread-ico csd-chat-thread-ico--video" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className={`csd-chat-thread-tool-btn${threadSearchOpen ? ' is-active' : ''}`}
+            aria-label={threadSearchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm tin nhắn'}
+            aria-pressed={threadSearchOpen}
+            title="Tìm kiếm"
+            data-testid="csd-chat-thread-search-toggle"
+            onClick={toggleThreadSearch}
+          >
+            <span className="csd-chat-thread-ico csd-chat-thread-ico--search" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className={`csd-chat-thread-tool-btn${contextPanelOpen ? ' is-active' : ''}`}
+            aria-label="Thông tin hội thoại"
+            title="Thông tin hội thoại"
+            data-testid={onToggleContextPanel ? 'csd-chat-context-panel-toggle' : 'csd-chat-thread-info'}
+            aria-expanded={contextPanelOpen}
+            disabled={!hasInfoAction}
+            onClick={handleInfo}
+          >
+            <span className="csd-chat-thread-ico csd-chat-thread-ico--info" aria-hidden />
+          </button>
           {onExpand ? (
-            <button type="button" className="csd-chat-icon-btn" onClick={onExpand}>
-              Mở rộng
+            <button type="button" className="csd-chat-thread-tool-btn" aria-label="Mở rộng" onClick={onExpand}>
+              <span className="csd-chat-thread-ico csd-chat-thread-ico--expand" aria-hidden />
             </button>
           ) : null}
           {onMinimize ? (
-            <button type="button" className="csd-chat-icon-btn" aria-label="Thu nhỏ" onClick={onMinimize}>
-              —
+            <button type="button" className="csd-chat-thread-tool-btn" aria-label="Thu nhỏ" onClick={onMinimize}>
+              <span className="csd-chat-thread-ico csd-chat-thread-ico--minimize" aria-hidden />
             </button>
           ) : null}
         </div>
       </div>
+      {threadSearchOpen ? (
+        <div className="csd-chat-thread-search" data-testid="csd-chat-thread-search">
+          <span className="csd-chat-thread-ico csd-chat-thread-ico--search" aria-hidden />
+          <input
+            type="search"
+            value={threadSearch}
+            onChange={(e) => setThreadSearch(e.target.value)}
+            placeholder="Tìm trong hội thoại"
+            aria-label="Tìm trong hội thoại"
+            autoFocus
+          />
+          {threadSearchNorm ? (
+            <span className="csd-chat-thread-search__count">
+              {messages.filter((m) => !m.is_deleted && m.body_text.toLowerCase().includes(threadSearchNorm)).length} kết quả
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       {priorityHint ? (
         <div className="csd-chat-priority-hint" data-testid="csd-chat-priority-hint">
           <span>Gợi ý tạo ticket {priorityHint}</span>
@@ -332,8 +396,12 @@ export function CsdChatThread({
             !isMine &&
             active.kind === 'group' &&
             (index === 0 || messages[index - 1]?.author_staff_id !== m.author_staff_id);
+          const searchHit =
+            Boolean(threadSearchNorm) &&
+            !m.is_deleted &&
+            m.body_text.toLowerCase().includes(threadSearchNorm);
           return (
-            <li key={m.id}>
+            <li key={m.id} className={`csd-chat-message-row${searchHit ? ' is-search-hit' : ''}`}>
               {showChip ? (
                 <div className="csd-chat-date-chip" data-testid="csd-chat-date-chip">
                   {formatDateChip(m.created_at)}
