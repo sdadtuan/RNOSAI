@@ -76,11 +76,10 @@ import {
   CpProviderConnectionsService,
 } from './cp-provider-connections.service';
 import { CP_JOBS_QUERY, CpJobsRepository } from './cp-jobs.repository';
-import {
-  MAGNIFIC_ADAPTER,
-  MagnificAdapterStub,
-  CpJobsService,
-} from './cp-jobs.service';
+import { CpMagnificMcpAdapter } from './cp-magnific-mcp.adapter';
+import { CpMagnificRestAdapter } from './cp-magnific-rest.adapter';
+import { MagnificAdapters } from './cp-magnific.adapters';
+import { MAGNIFIC_ADAPTER, CpJobsService } from './cp-jobs.service';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CreativesModule, CampaignWritesModule],
@@ -143,9 +142,33 @@ import {
     CpProviderConnectionsService,
     { provide: CP_JOBS_QUERY, useExisting: CpRendersRepository },
     CpJobsRepository,
-    { provide: MAGNIFIC_ADAPTER, useClass: MagnificAdapterStub },
+    {
+      provide: CpMagnificMcpAdapter,
+      useFactory: (connections: CpProviderConnectionsService) =>
+        new CpMagnificMcpAdapter({
+          getToken: () => connections.loadDecryptedSecret('magnific_mcp'),
+          waitTimeoutMs: magnificVideoWaitMs(),
+        }),
+      inject: [CpProviderConnectionsService],
+    },
+    {
+      provide: CpMagnificRestAdapter,
+      useFactory: (connections: CpProviderConnectionsService) =>
+        new CpMagnificRestAdapter({
+          getApiKey: () => connections.loadDecryptedSecret('magnific_rest'),
+          waitTimeoutMs: magnificVideoWaitMs(),
+        }),
+      inject: [CpProviderConnectionsService],
+    },
+    MagnificAdapters,
+    { provide: MAGNIFIC_ADAPTER, useExisting: MagnificAdapters },
     CpJobsService,
   ],
   exports: [CpProjectsService, CpLaunchGateService],
 })
 export class CpModule {}
+
+function magnificVideoWaitMs(): number {
+  const sec = Number(process.env.MAGNIFIC_VIDEO_WAIT_SEC ?? 600);
+  return Number.isFinite(sec) && sec > 0 ? sec * 1000 : 600_000;
+}

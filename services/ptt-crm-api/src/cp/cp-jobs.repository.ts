@@ -77,10 +77,19 @@ export class CpJobsRepository implements CpJobsQueryPort {
 
   updateJob(
     id: string,
-    patch: { state?: string; stageLog?: Record<string, unknown> },
+    patch: { state?: string; stageLog?: Record<string, unknown>; errorClass?: string | null },
   ) {
     const state = patch.state;
     const log = patch.stageLog ? JSON.stringify(patch.stageLog) : null;
+    if (state && log && patch.errorClass !== undefined) {
+      return this.query(
+        `UPDATE crm_cp_render_jobs
+            SET state = $1, stage = $1, error_class = $2, stage_log_json = $3::jsonb
+          WHERE id = $4::uuid
+          RETURNING *`,
+        [state, patch.errorClass, log, id],
+      );
+    }
     if (state && log) {
       return this.query(
         `UPDATE crm_cp_render_jobs

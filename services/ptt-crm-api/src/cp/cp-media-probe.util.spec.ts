@@ -3,6 +3,7 @@ import {
   hasFullTechnicalFacts,
   isProbeableOutputUri,
   mapFfprobeOutput,
+  probeIngestBytes,
   probeMediaFile,
   resolveProbePath,
 } from './cp-media-probe.util';
@@ -105,6 +106,14 @@ describe('cp-media-probe.util', () => {
       duration_sec: 15.5,
       has_audio: true,
     });
+  });
+
+  it('probes ingest bytes with null width and duration when facts are missing — never 0', async () => {
+    const facts = await probeIngestBytes(Buffer.from('not-a-media-file'), 'application/octet-stream');
+    expect(facts.width).toBeNull();
+    expect(facts.height).toBeNull();
+    expect(facts.duration_sec).toBeNull();
+    expect(facts).not.toEqual(expect.objectContaining({ width: 0, duration_sec: 0 }));
   });
 
   it('tracks whether technical facts are complete', () => {

@@ -93,4 +93,30 @@ describe('CpRenderWorker', () => {
     expect(versionInsert?.[1]?.[2]).toBe('file:///tmp/the-peak.mp4');
     expect(versionInsert?.[1]?.[3]).toBe('sop-2026-09');
   });
+
+  it('routes magnific_* jobs through ingest instead of the stub renderer', async () => {
+    const ingest = jest.fn(async () => ({ state: 'quality_check' }));
+    const db = {
+      query: jest.fn(async () => ({ rows: [] })),
+    };
+    const worker = new CpRenderWorker(db as never, { ingest } as never);
+
+    await worker.process(
+      {
+        id: '99999999-9999-4999-8999-999999999999',
+        provider: 'magnific_mcp',
+      },
+      {},
+      db,
+    );
+
+    expect(ingest).toHaveBeenCalledWith(
+      expect.any(Number),
+      '99999999-9999-4999-8999-999999999999',
+    );
+    expect(db.query).not.toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO crm_cp_video_versions'),
+      expect.any(Array),
+    );
+  });
 });

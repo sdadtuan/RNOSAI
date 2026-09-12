@@ -109,3 +109,50 @@ export function probeOutputUri(uri: string | null | undefined): ProbedMediaFacts
 export function hasFullTechnicalFacts(facts: QcFacts): boolean {
   return facts.width != null && facts.height != null && facts.duration_sec != null;
 }
+
+export function positiveOrNull(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+export async function probeIngestBytes(
+  bytes: Buffer,
+  mime: string,
+): Promise<{ width: number | null; height: number | null; duration_sec: number | null }> {
+  const kind = String(mime ?? '');
+  if (kind.startsWith('image/')) {
+    try {
+      const sharp = (await import('sharp')).default;
+      const meta = await sharp(bytes, { failOn: 'none' }).metadata();
+      return {
+        width: positiveOrNull(meta.width),
+        height: positiveOrNull(meta.height),
+        duration_sec: null,
+      };
+    } catch {
+      return { width: null, height: null, duration_sec: null };
+    }
+  }
+  if (!kind.startsWith('video/')) {
+    return { width: null, height: null, duration_sec: null };
+  }
+  const { mkdtemp, rm, writeFile } = await import('fs/promises');
+  const { join } = await import('path');
+  const { tmpdir } = await import('os');
+  let dir = '';
+  try {
+    dir = await mkdtemp(join(tmpdir(), 'cp-probe-'));
+    const file = join(dir, 'asset.bin');
+    await writeFile(file, bytes);
+    const facts = probeMediaFile(file);
+    return {
+      width: positiveOrNull(facts?.width),
+      height: positiveOrNull(facts?.height),
+      duration_sec: positiveOrNull(facts?.duration_sec),
+    };
+  } catch {
+    return { width: null, height: null, duration_sec: null };
+  } finally {
+    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}

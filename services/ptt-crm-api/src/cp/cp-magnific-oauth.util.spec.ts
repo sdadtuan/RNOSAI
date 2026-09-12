@@ -1,5 +1,7 @@
 import {
   createMagnificOAuthState,
+  decryptProviderSecret,
+  encryptProviderSecret,
   redactConnectionRow,
   verifyMagnificOAuthState,
 } from './cp-magnific-oauth.util';
@@ -33,6 +35,12 @@ describe('cp-magnific-oauth.util', () => {
   it('throws on an expired oauth state', () => {
     const { state } = createMagnificOAuthState({ staffId: 9, ttlSec: 1 });
     expect(() => verifyMagnificOAuthState(state, new Date(Date.now() + 5_000))).toThrow();
+  });
+
+  it('round-trips an encrypted provider secret', () => {
+    const cipher = encryptProviderSecret('tok_live');
+    expect(cipher).not.toContain('tok_live');
+    expect(decryptProviderSecret(cipher)).toBe('tok_live');
   });
 
   it('strips secrets from a connection row', () => {

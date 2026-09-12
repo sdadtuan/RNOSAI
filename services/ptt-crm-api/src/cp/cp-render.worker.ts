@@ -1,9 +1,12 @@
-import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
+import { CpJobsService } from './cp-jobs.service';
 import {
   pricingVersionForProvider,
   type CpRenderProvider,
 } from './cp-render-mode.util';
 import { resolveSopMasterOutputUri, resolveSopOutputUri } from './cp-sop-output.util';
+
+export const CP_MAGNIFIC_POLL_MS = 10_000;
 
 export const CP_STUB_PRICING_VERSION = 'stub-2026-09';
 export const CP_SOP_PRICING_VERSION = 'sop-2026-09';
@@ -27,19 +30,25 @@ function pricingVersionFromSnapshot(
 @Injectable()
 export class CpRenderWorker implements OnModuleInit, OnModuleDestroy {
   private sopTimer: ReturnType<typeof setInterval> | undefined;
+  private magnificTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(
     @Inject('CP_RENDERS_QUERY') private readonly db: CpRenderWorkerQueryPort,
+    @Optional() private readonly jobs?: Pick<CpJobsService, 'ingest'>,
   ) {}
 
   onModuleInit(): void {
     this.sopTimer = setInterval(() => void this.pollSopWaitJobs(), CP_RENDER_SOP_POLL_MS);
     this.sopTimer.unref?.();
+    this.magnificTimer = setInterval(() => void this.pollMagnificQueuedJobs(), CP_MAGNIFIC_POLL_MS);
+    this.magnificTimer.unref?.();
   }
 
   onModuleDestroy(): void {
     if (this.sopTimer) clearInterval(this.sopTimer);
     this.sopTimer = undefined;
+    if (this.magnificTimer) clearInterval(this.magnificTimer);
+    this.magnificTimer = undefined;
   }
 
   async process(
@@ -47,12 +56,38 @@ export class CpRenderWorker implements OnModuleInit, OnModuleDestroy {
     snapshot: Record<string, unknown>,
     db: CpRenderWorkerQueryPort = this.db,
   ): Promise<void> {
-    const provider = String(job.provider ?? 'stub') as CpRenderProvider;
+    const provider = String(job.provider ?? 'stub');
+    if (provider.startsWith('magnific')) {
+      await this.jobs?.ingest(Number(job.created_by_staff_id ?? 0), String(job.id));
+      return;
+    }
     if (provider === 'video_sop') {
       await this.processSop(job, snapshot, db);
       return;
     }
     await this.processStub(job, snapshot, db);
+  }
+
+  async pollMagnificQueuedJobs(db: CpRenderWorkerQueryPort = this.db): Promise<number> {
+    if (!this.jobs) return 0;
+    const pending = await db.query(
+      `SELECT j.*
+         FROM crm_cp_render_jobs j
+        WHERE j.provider LIKE 'magnific%'
+          AND j.state = 'queued'
+        ORDER BY j.created_at ASC
+        LIMIT 20`,
+    );
+    let completed = 0;
+    for (const job of pending.rows) {
+      try {
+        await this.jobs.ingest(Number(job.created_by_staff_id ?? 0), String(job.id));
+        completed += 1;
+      } catch {
+        // ingest records ASSET_SYNC_FAILED on the job
+      }
+    }
+    return completed;
   }
 
   async pollSopWaitJobs(db: CpRenderWorkerQueryPort = this.db): Promise<number> {

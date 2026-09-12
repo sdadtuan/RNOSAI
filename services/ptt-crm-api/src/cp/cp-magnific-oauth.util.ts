@@ -1,4 +1,4 @@
-import { createCipheriv, createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { HttpException } from '@nestjs/common';
 
 const DEFAULT_TTL_SEC = 600;
@@ -14,6 +14,22 @@ export function requireSecretEncryptKey(): Buffer {
     });
   }
   return key;
+}
+
+export function decryptProviderSecret(ciphertext: string): string {
+  const key = requireSecretEncryptKey();
+  const buf = Buffer.from(String(ciphertext ?? ''), 'base64');
+  if (buf.length <= NONCE_LEN + 16) {
+    throw Object.assign(new HttpException({ error: 'secret_decrypt_failed' }, 503), {
+      error: 'secret_decrypt_failed',
+    });
+  }
+  const nonce = buf.subarray(0, NONCE_LEN);
+  const tag = buf.subarray(buf.length - 16);
+  const enc = buf.subarray(NONCE_LEN, buf.length - 16);
+  const decipher = createDecipheriv('aes-256-gcm', key, nonce);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8');
 }
 
 export function encryptProviderSecret(plaintext: string): string {

@@ -1,8 +1,13 @@
+import { createHash } from 'crypto';
+import { mkdir, writeFile } from 'fs/promises';
+import { dirname, join } from 'path';
 import { HttpException, Inject, Injectable, Optional } from '@nestjs/common';
 import { readAiOpsFlags } from './cp-ai-ops.flags';
+import { CpAssetsService } from './cp-assets.service';
 import { CpJobsRepository } from './cp-jobs.repository';
 import { CpLedgerService } from './cp-ledger.service';
 import { assertMagnificAllowed } from './cp-magnific-policy.util';
+import { probeIngestBytes } from './cp-media-probe.util';
 import { CpSettingsService } from './cp-settings.service';
 
 export const MAGNIFIC_ADAPTER = 'MAGNIFIC_ADAPTER';
@@ -30,14 +35,20 @@ export type CpJobsAuth = {
 };
 
 export interface MagnificAdapterPort {
-  getBalance(): Promise<{ credits: number | null }>;
+  getBalance(transport?: 'mcp' | 'rest'): Promise<{ credits: number | null }>;
   generate(input: {
     transport: 'mcp' | 'rest';
     capability: string;
     inputs: Record<string, unknown>;
   }): Promise<{ externalRunId: string }>;
-  wait(externalRunId: string): Promise<{ outputUrls: string[]; actualCredits: number | null }>;
-  download(url: string): Promise<{ bytes: Buffer; mime: string }>;
+  wait(
+    externalRunId: string,
+    transport?: 'mcp' | 'rest',
+  ): Promise<{ outputUrls: string[]; actualCredits: number | null }>;
+  download(
+    url: string,
+    transport?: 'mcp' | 'rest',
+  ): Promise<{ bytes: Buffer; mime: string }>;
 }
 
 @Injectable()
@@ -66,6 +77,7 @@ export class CpJobsService {
     private readonly ledger: CpLedgerService,
     @Inject(MAGNIFIC_ADAPTER) private readonly adapter: MagnificAdapterPort,
     @Optional() private readonly settings?: CpSettingsService,
+    @Optional() private readonly assets?: CpAssetsService,
   ) {}
 
   async draft(
@@ -168,6 +180,10 @@ export class CpJobsService {
     const inputs = objectValue(log.inputs);
     const capability = String(inputs.capability ?? job.model ?? 'images_generate');
     const transport = provider === 'magnific_rest' ? 'rest' : 'mcp';
+    const balance = await this.adapter.getBalance(transport);
+    if (balance.credits == null) {
+      cpThrow(409, { error: 'POLICY_BLOCKED', gate: 'GT-M02' });
+    }
     try {
       const generated = await this.adapter.generate({
         transport,
@@ -253,6 +269,148 @@ export class CpJobsService {
 
   async get(_staffId: number, jobId: string): Promise<Record<string, unknown>> {
     return this.loadJob(jobId);
+  }
+
+  async ingest(staffId: number, jobId: string): Promise<Record<string, unknown>> {
+    const job = await this.loadJob(jobId);
+    const log = stageLogOf(job);
+    const provider = requiredProvider(job.provider);
+    const transport = provider === 'magnific_rest' ? 'rest' : 'mcp';
+    const actorId = staffId > 0 ? staffId : Number(log.created_by ?? 0) || 0;
+    const capability = String(objectValue(log.inputs).capability ?? job.model ?? 'images_generate');
+    const externalRunId = String(log.external_run_id ?? '').trim();
+    try {
+      if (!externalRunId) {
+        return this.failAssetSync(job, log, provider, 'missing_external_run');
+      }
+      const waited = await this.adapter.wait(externalRunId, transport);
+      const url = waited.outputUrls.find((item) => String(item ?? '').trim()) ?? '';
+      if (!url) {
+        return this.failAssetSync(job, log, provider, 'missing_output_url');
+      }
+      const downloaded = await this.adapter.download(url, transport);
+      if (!downloaded.bytes?.length) {
+        return this.failAssetSync(job, log, provider, 'empty_download');
+      }
+      const checksum = createHash('sha256').update(downloaded.bytes).digest('hex');
+      if (!checksum) {
+        return this.failAssetSync(job, log, provider, 'missing_checksum');
+      }
+      const probed = await probeIngestBytes(downloaded.bytes, downloaded.mime);
+      log.width = probed.width;
+      log.height = probed.height;
+      log.duration_sec = probed.duration_sec;
+      log.checksum = checksum;
+      log.actual_credits = waited.actualCredits;
+      const asset = await this.copyToDam({
+        job,
+        log,
+        provider,
+        actorId,
+        bytes: downloaded.bytes,
+        mime: downloaded.mime,
+        checksum,
+        externalRunId,
+        tool: capability,
+      });
+      log.asset_id = asset.id;
+      const updated = await this.repo.updateJob(String(job.id), {
+        state: 'quality_check',
+        errorClass: null,
+        stageLog: log,
+      });
+      return {
+        job_id: String(job.id),
+        state: 'quality_check',
+        asset_id: asset.id,
+        checksum,
+        ...(updated.rows[0] ?? {}),
+      };
+    } catch (error) {
+      if (isAssetSyncFailure(error)) throw error;
+      return this.failAssetSync(job, log, provider, 'ingest_failed');
+    }
+  }
+
+  private async copyToDam(input: {
+    job: Record<string, unknown>;
+    log: Record<string, unknown>;
+    provider: 'magnific_mcp' | 'magnific_rest';
+    actorId: number;
+    bytes: Buffer;
+    mime: string;
+    checksum: string;
+    externalRunId: string;
+    tool: string;
+  }): Promise<{ id: string }> {
+    if (!this.assets) {
+      return this.failAssetSync(input.job, input.log, input.provider, 'assets_unavailable');
+    }
+    const ext = extForMime(input.mime);
+    const storageKey = `magnific/${input.job.id}/${input.checksum}.${ext}`;
+    const root = (process.env.CP_ASSET_STORAGE ?? process.env.MAGNIFIC_ASSET_PREFIX ?? '').trim();
+    if (root) {
+      const dest = join(root, storageKey);
+      await mkdir(dirname(dest), { recursive: true });
+      await writeFile(dest, input.bytes);
+    }
+    const created = await this.assets.createAsset(
+      {
+        agency_client_id: nullableText(input.log.agency_client_id) ?? undefined,
+        mime: input.mime,
+        filename: `magnific-${input.job.id}.${ext}`,
+        project_id: nullableText(input.job.project_id),
+      },
+      { scope: 'all', staffId: input.actorId },
+    );
+    const assetId = String(created.id ?? '');
+    const provenance = {
+      provider: input.provider,
+      external_run_id: input.externalRunId,
+      tool: input.tool,
+      checksum: input.checksum,
+    };
+    await this.assets.replaceFile(
+      assetId,
+      {
+        mime: input.mime,
+        filename: `magnific-${input.job.id}.${ext}`,
+        storage_key: storageKey,
+        bytes: input.bytes.length,
+        hash: input.checksum,
+        meta_json: { provenance },
+      },
+      { scope: 'all', staffId: input.actorId },
+    );
+    await this.assets.finalizeIngest(
+      assetId,
+      { bytes: input.bytes.length, hash: input.checksum },
+      { scope: 'all', staffId: input.actorId },
+    );
+    return { id: assetId };
+  }
+
+  private async failAssetSync(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    provider: 'magnific_mcp' | 'magnific_rest',
+    reason: string,
+  ): Promise<never> {
+    log.error_class = 'ASSET_SYNC_FAILED';
+    log.sync_fail_reason = reason;
+    await this.releaseCredits(
+      job,
+      log,
+      provider,
+      nullableInteger(log.reserved_amount),
+    );
+    await this.repo.updateJob(String(job.id), {
+      state: 'failed',
+      errorClass: 'ASSET_SYNC_FAILED',
+      stageLog: log,
+    }).catch(() => undefined);
+    const body = { error: 'ASSET_SYNC_FAILED', error_class: 'ASSET_SYNC_FAILED', reason };
+    throw Object.assign(new HttpException(body, 409), body);
   }
 
   private assertConfirmable(
@@ -505,4 +663,22 @@ function objectValue(value: unknown): Record<string, unknown> {
 
 function cpThrow(status: number, body: Record<string, unknown>): never {
   throw Object.assign(new HttpException(body, status), body);
+}
+
+function isAssetSyncFailure(error: unknown): boolean {
+  return Boolean(
+    error
+    && typeof error === 'object'
+    && (error as { error_class?: unknown }).error_class === 'ASSET_SYNC_FAILED',
+  );
+}
+
+function extForMime(mime: string): string {
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/jpeg') return 'jpg';
+  if (mime === 'image/webp') return 'webp';
+  if (mime === 'video/mp4') return 'mp4';
+  if (mime === 'video/webm') return 'webm';
+  if (mime === 'video/quicktime') return 'mov';
+  return 'bin';
 }

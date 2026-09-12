@@ -31,7 +31,10 @@ class ConnectionsMemory {
       return { rows: [current] };
     }
     if (sql.includes('FROM crm_cp_provider_connections')) {
-      return { rows: this.rows.map((row) => ({ ...row })) };
+      const rows = sql.includes('provider =') && params[1]
+        ? this.rows.filter((row) => row.provider === params[1])
+        : this.rows;
+      return { rows: rows.map((row) => ({ ...row })) };
     }
     return { rows: [] };
   }
@@ -109,5 +112,29 @@ describe('CpProviderConnectionsService', () => {
       }],
     });
     expect(withoutHasSecret).not.toMatch(/token|api_key/i);
+  });
+
+  it('decrypts an active Magnific secret server-side and 409s when disconnected', async () => {
+    const { encryptProviderSecret } = require('./cp-magnific-oauth.util') as typeof import('./cp-magnific-oauth.util');
+    const db = new ConnectionsMemory();
+    const service = new CpProviderConnectionsService(db);
+    db.rows = [{
+      id: CONNECTION_ID,
+      provider: 'magnific_mcp',
+      status: 'on',
+      account_label: 'PTT',
+      secret_ref: encryptProviderSecret(JSON.stringify({ access_token: 'tok_live' })),
+      expires_at: null,
+    }];
+
+    await expect(service.loadDecryptedSecret('magnific_mcp')).resolves.toBe('tok_live');
+
+    db.rows[0].status = 'off';
+    db.rows[0].secret_ref = null;
+    await expect(service.loadDecryptedSecret('magnific_mcp')).rejects.toMatchObject({
+      status: 409,
+      error: 'magnific_disconnected',
+      gate: 'GT-M01',
+    });
   });
 });

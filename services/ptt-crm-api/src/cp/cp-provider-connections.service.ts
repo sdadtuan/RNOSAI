@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { CP_TENANT_ID } from './cp-audit.repository';
 import {
   createMagnificOAuthState,
+  decryptProviderSecret,
   encryptProviderSecret,
   redactConnectionRow,
   verifyMagnificOAuthState,
@@ -157,6 +158,41 @@ export class CpProviderConnectionsService {
       staffId,
     });
     return { ...connection, redirect_url: magnificSettingsRedirect('ok') };
+  }
+
+  async loadDecryptedSecret(provider: 'magnific_mcp' | 'magnific_rest'): Promise<string> {
+    const result = await this.db.query(
+      `SELECT secret_ref, status, expires_at
+         FROM crm_cp_provider_connections
+        WHERE tenant_id = $1 AND provider = $2
+        LIMIT 1`,
+      [CP_TENANT_ID, provider],
+    );
+    const row = result.rows[0];
+    if (!row || row.status !== 'on' || !row.secret_ref) {
+      cpThrow(409, { error: 'magnific_disconnected', gate: 'GT-M01' });
+    }
+    if (row.expires_at && new Date(String(row.expires_at)).getTime() <= Date.now()) {
+      cpThrow(409, { error: 'magnific_disconnected', gate: 'GT-M01' });
+    }
+    let plain = '';
+    try {
+      plain = decryptProviderSecret(String(row.secret_ref));
+    } catch {
+      cpThrow(409, { error: 'magnific_disconnected', gate: 'GT-M01' });
+    }
+    if (provider === 'magnific_mcp') {
+      try {
+        const parsed = JSON.parse(plain) as { access_token?: string };
+        const token = String(parsed.access_token ?? '').trim();
+        if (token) return token;
+      } catch {
+        // raw token at rest
+      }
+    }
+    const secret = plain.trim();
+    if (!secret) cpThrow(409, { error: 'magnific_disconnected', gate: 'GT-M01' });
+    return secret;
   }
 
   async disconnect(id: string): Promise<CpRedactedConnection> {
