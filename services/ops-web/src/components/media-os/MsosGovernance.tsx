@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { MSOS_EMPTY } from '@/lib/crm/msos-empty';
-import { msosGet } from '@/lib/crm/msos-client';
+import { msosGet, msosMutate } from '@/lib/crm/msos-client';
 import { formatBps, msosErrorMessage } from '@/lib/crm/msos-format';
 import { isMediaOsFeEnabled } from '@/lib/media-os-flags';
 import { MsosEmpty } from './MsosEmpty';
@@ -82,6 +82,21 @@ export function MsosGovernance() {
   useEffect(() => {
     if (selectedPartner) void loadPartnerMeta(selectedPartner);
   }, [selectedPartner, loadPartnerMeta]);
+
+  async function recomputeScorecard() {
+    if (!selectedPartner) return;
+    try {
+      const sc = await msosMutate<Scorecard | null>(
+        `/partners/${selectedPartner}/scorecard/recompute`,
+        { method: 'POST', body: '{}' },
+      );
+      setScorecard(sc);
+      await loadPartnerMeta(selectedPartner);
+      setToast(sc ? `Scorecard recomputed: ${sc.score}` : 'Chưa đủ data delivery');
+    } catch (e) {
+      setToast(msosErrorMessage(e));
+    }
+  }
 
   if (loading) return <p className="msos-status">Đang tải Governance…</p>;
 
@@ -173,6 +188,9 @@ export function MsosGovernance() {
           ) : (
             <p className="msos-desc">Chưa có scorecard — cần data delivery thật.</p>
           )}
+          <button type="button" className="msos-btn msos-btn--small" onClick={() => void recomputeScorecard()}>
+            Recompute scorecard
+          </button>
         </div>
         <div className="msos-card msos-pad">
           <h3>Reseller Eligibility</h3>

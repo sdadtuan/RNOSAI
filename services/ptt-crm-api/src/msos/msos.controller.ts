@@ -298,6 +298,18 @@ export class MsosController {
     return this.msos.reserveMakeGoodCapacity(id, body);
   }
 
+  @Post('discrepancy/:id/waive')
+  @RequireMsosAction('write')
+  waiveDiscrepancy(@Param('id') id: string) {
+    return this.msos.waiveDiscrepancy(id);
+  }
+
+  @Post('make-goods/:id/close')
+  @RequireMsosAction('write')
+  closeMakeGood(@Param('id') id: string, @Body() body: { actor?: 'human' | 'ai' }) {
+    return this.msos.closeMakeGood(id, body);
+  }
+
   @Get('outcome-links')
   @RequireMsosAction('view')
   listOutcomeLinks() {

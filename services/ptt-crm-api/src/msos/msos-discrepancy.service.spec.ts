@@ -1,4 +1,4 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import { ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { MsosRepository } from './msos.repository';
 import { MsosService } from './msos.service';
@@ -120,5 +120,43 @@ describe('MsosService discrepancy and make-good', () => {
         bucket_date: '2026-09-20',
       }),
     ).rejects.toMatchObject({ response: { error: 'overbook_hard' } });
+  });
+
+  it('waiveDiscrepancy sets status waived', async () => {
+    const waiveDiscrepancyCase = jest.fn().mockResolvedValue({
+      id: dcId,
+      status: 'waived',
+      material: true,
+    });
+    const repo = makeRepo({
+      getDiscrepancyCase: jest.fn().mockResolvedValue({ id: dcId, status: 'open' }),
+      waiveDiscrepancyCase,
+    });
+    const svc = new MsosService(enabledConfig, repo);
+    const out = await svc.waiveDiscrepancy(dcId);
+    expect(out.status).toBe('waived');
+    expect(waiveDiscrepancyCase).toHaveBeenCalledWith(dcId);
+  });
+
+  it('closeMakeGood requires human actor', async () => {
+    const repo = makeRepo({
+      getMakeGood: jest.fn().mockResolvedValue({ id: mgId, closed_at: null }),
+    });
+    const svc = new MsosService(enabledConfig, repo);
+    await expect(svc.closeMakeGood(mgId, { actor: 'ai' })).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('closeMakeGood sets closed_at for human', async () => {
+    const closeMakeGood = jest.fn().mockResolvedValue({
+      id: mgId,
+      closed_at: '2026-09-13T00:00:00Z',
+    });
+    const repo = makeRepo({
+      getMakeGood: jest.fn().mockResolvedValue({ id: mgId, closed_at: null }),
+      closeMakeGood,
+    });
+    const svc = new MsosService(enabledConfig, repo);
+    const out = await svc.closeMakeGood(mgId, { actor: 'human' });
+    expect(out.closed_at).toBeTruthy();
   });
 });

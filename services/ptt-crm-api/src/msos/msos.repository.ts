@@ -981,6 +981,37 @@ export class MsosRepository implements OnModuleDestroy {
     return result.rows[0] as MsosMakeGoodRow;
   }
 
+  async waiveDiscrepancyCase(dcId: string): Promise<MsosDiscrepancyCaseRow> {
+    const result = await this.db.query(
+      `UPDATE msos_discrepancy_cases
+          SET status = 'waived'
+        WHERE id = $1::uuid AND status = 'open'
+        RETURNING id::text, display_code, media_line_id::text, io_qty::bigint AS io_qty,
+                  report_qty::bigint AS report_qty, evidence_qty::bigint AS evidence_qty,
+                  tolerance_bps, material, hypothesis, owner_staff_id, status, created_at::text`,
+      [dcId],
+    );
+    if (!result.rows[0]) {
+      throw new Error('discrepancy_not_waivable');
+    }
+    return result.rows[0] as MsosDiscrepancyCaseRow;
+  }
+
+  async closeMakeGood(mgId: string): Promise<MsosMakeGoodRow> {
+    const result = await this.db.query(
+      `UPDATE msos_make_goods
+          SET closed_at = NOW()
+        WHERE id = $1::uuid AND closed_at IS NULL
+        RETURNING id::text, display_code, discrepancy_id::text, media_line_id::text, qty::bigint AS qty,
+                  value_vnd, capacity_reserved, closed_at::text, created_by, created_at::text`,
+      [mgId],
+    );
+    if (!result.rows[0]) {
+      throw new Error('make_good_not_closable');
+    }
+    return result.rows[0] as MsosMakeGoodRow;
+  }
+
   async listOutcomeLinks(): Promise<MsosOutcomeLinkRow[]> {
     const result = await this.db.query(
       `SELECT id::text, display_code, media_line_id::text, lead_id::text, sale_id::text,

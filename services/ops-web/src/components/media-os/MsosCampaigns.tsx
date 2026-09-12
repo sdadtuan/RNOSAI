@@ -62,6 +62,7 @@ export function MsosCampaigns() {
     backup_attached: false,
   });
   const [lineForm, setLineForm] = useState({ package_id: '', io_id: '' });
+  const [draftText, setDraftText] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -178,6 +179,20 @@ export function MsosCampaigns() {
       await msosMutate(`/media-lines/${selected}/traffic/approve`, { method: 'POST', body: '{}' });
       await loadLineDetail(selected);
       setToast('Traffic approved (GT-P02)');
+    } catch (e) {
+      setToast(msosErrorMessage(e));
+    }
+  }
+
+  async function loadDraft(kind: 'io' | 'traffic' | 'discrepancy') {
+    if (!selected) return;
+    try {
+      const draft = await msosMutate<{ text: string; actor: string }>('/drafts', {
+        method: 'POST',
+        body: JSON.stringify({ kind, media_line_id: selected }),
+      });
+      setDraftText(draft.text);
+      setToast(`A1 draft (${kind}) — template only, không mutate`);
     } catch (e) {
       setToast(msosErrorMessage(e));
     }
@@ -380,6 +395,23 @@ export function MsosCampaigns() {
               ) : (
                 <p className="msos-desc">Chưa có traffic pack.</p>
               )}
+            </div>
+            <div className="msos-card msos-pad" style={{ marginTop: 14 }}>
+              <h3>A1 Draft (template)</h3>
+              <p className="msos-desc">Facts từ DB — không gọi LLM, không mutate.</p>
+              <div className="msos-actions">
+                <button type="button" className="msos-btn msos-btn--small" onClick={() => void loadDraft('io')}>
+                  IO draft
+                </button>
+                <button
+                  type="button"
+                  className="msos-btn msos-btn--small"
+                  onClick={() => void loadDraft('traffic')}
+                >
+                  Traffic draft
+                </button>
+              </div>
+              {draftText ? <pre className="msos-desc" style={{ whiteSpace: 'pre-wrap' }}>{draftText}</pre> : null}
             </div>
           </aside>
         </div>

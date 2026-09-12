@@ -825,6 +825,44 @@ export class MsosService {
     });
   }
 
+  async waiveDiscrepancy(dcId: string): Promise<MsosDiscrepancyCaseRow> {
+    this.assertEnabled();
+    const dc = await this.repo.getDiscrepancyCase(dcId);
+    if (!dc) {
+      throw new UnprocessableEntityException({ error: 'discrepancy_not_found' });
+    }
+    try {
+      return await this.repo.waiveDiscrepancyCase(dcId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'discrepancy_not_waivable') {
+        throw new UnprocessableEntityException({ error: 'discrepancy_not_waivable' });
+      }
+      throw e;
+    }
+  }
+
+  async closeMakeGood(
+    mgId: string,
+    input: { actor?: 'human' | 'ai' },
+  ): Promise<MsosMakeGoodRow> {
+    this.assertEnabled();
+    assertHumanMsosAction('make_good_close', input.actor ?? 'human');
+    const mg = await this.repo.getMakeGood(mgId);
+    if (!mg) {
+      throw new UnprocessableEntityException({ error: 'make_good_not_found' });
+    }
+    try {
+      return await this.repo.closeMakeGood(mgId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'make_good_not_closable') {
+        throw new UnprocessableEntityException({ error: 'make_good_not_closable' });
+      }
+      throw e;
+    }
+  }
+
   async reserveMakeGoodCapacity(
     mgId: string,
     input: ReserveMakeGoodCapacityInput,
