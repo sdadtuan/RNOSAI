@@ -9,7 +9,9 @@ import type {
   CapacityBucketInput,
   CreateInventoryInput,
   CreateIoInput,
+  CreateMediaLineInput,
   CreatePackageInput,
+  GoLiveInput,
   CreatePartnerInput,
   CreatePlacementInput,
   CreateRateCardInput,
@@ -161,6 +163,38 @@ export class MsosController {
   async changeIoSafety(@Req() req: StaffReq, @Param('id') id: string, @Body() body: SafetyChangeInput) {
     const staffId = await this.resolveStaffId(req);
     return this.msos.changeIoSafety(id, { ...body, staffId });
+  }
+
+  @Get('media-lines')
+  @RequireMsosAction('view')
+  listMediaLines() {
+    return this.msos.listMediaLines();
+  }
+
+  @Post('media-lines')
+  @RequireMsosAction('write')
+  createMediaLine(@Body() body: CreateMediaLineInput) {
+    return this.msos.createMediaLine(body);
+  }
+
+  @Get('media-lines/:id/gates')
+  @RequireMsosAction('view')
+  getLiveGates(@Param('id') id: string) {
+    return this.msos.getLiveGates(id);
+  }
+
+  @Post('media-lines/:id/live')
+  @RequireMsosAction('publish')
+  async goLive(@Req() req: StaffReq, @Param('id') id: string, @Body() body: GoLiveInput) {
+    const staffId = await this.resolveStaffId(req);
+    return this.msos.goLive(id, body, staffId);
+  }
+
+  @Post('media-lines/:id/p03-override')
+  @RequireMsosAction('publish')
+  async setP03Override(@Req() req: StaffReq, @Param('id') id: string) {
+    const staffId = await this.resolveStaffId(req);
+    return this.msos.setP03Override(id, staffId);
   }
 
   private async resolveStaffId(req: StaffReq): Promise<number | null> {

@@ -1,25 +1,28 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { requireClient } from './msos-crm-ref.util';
 import { throwDisabled } from './msos-errors.util';
 import { assertAllowedMsosName } from './msos-forbidden-seed.util';
 import { MsosRepository } from './msos.repository';
 import { decideReserve, type CapacityDecision } from './msos-capacity.util';
-import { canIssueIo } from './msos-gates.util';
+import { canIssueIo, evaluateLiveGates } from './msos-gates.util';
 import { assertRateBindable } from './msos-rate.util';
 import type {
   CapacityBucketInput,
   CreateInventoryInput,
   CreateIoInput,
+  CreateMediaLineInput,
   CreatePackageInput,
   CreatePartnerInput,
   CreatePlacementInput,
   CreateRateCardInput,
   CreateRateVersionInput,
+  GoLiveInput,
   MsosCalendarDay,
   MsosHealthDto,
   MsosInsertionOrderRow,
   MsosInventoryRow,
+  MsosMediaLineRow,
   MsosPackageRow,
   MsosPartnerRow,
   MsosPlacementRow,
@@ -467,5 +470,109 @@ export class MsosService {
 
   async exportIo(ioId: string): Promise<MsosInsertionOrderRow> {
     return this.getIo(ioId);
+  }
+
+  async listMediaLines(): Promise<MsosMediaLineRow[]> {
+    this.assertEnabled();
+    return this.repo.listMediaLines();
+  }
+
+  async createMediaLine(input: CreateMediaLineInput): Promise<MsosMediaLineRow> {
+    this.assertEnabled();
+    const pkg = await this.repo.getPackage(input.package_id);
+    if (!pkg) {
+      throw new UnprocessableEntityException({ error: 'package_not_found' });
+    }
+    await requireClient(this.repo.db, pkg.client_id);
+    if (input.io_id) {
+      const io = await this.repo.getInsertionOrder(input.io_id);
+      if (!io || io.package_id !== input.package_id) {
+        throw new UnprocessableEntityException({ error: 'io_not_found' });
+      }
+    }
+    return this.repo.createMediaLine({
+      ...input,
+      client_id: pkg.client_id,
+    });
+  }
+
+  private async buildLiveGateInput(line: MsosMediaLineRow) {
+    const io = line.io_id ? await this.repo.getInsertionOrder(line.io_id) : null;
+    const rate = io ? await this.repo.getRateVersionById(io.rate_version_id) : null;
+    const reserveOk = io ? await this.repo.hasValidReserve(io.package_id) : false;
+    const traffic = await this.repo.getTrafficPack(line.id);
+    const placement = await this.repo.getPlacementForLine(line.id);
+    const trafficReady = this.isTrafficReady(traffic, placement);
+    return {
+      ioIssued: io?.status === 'issued' || io?.status === 'confirmed',
+      ratePublished: rate?.status === 'published',
+      reserveOk,
+      clientOk: Boolean(line.client_id),
+      safetyLocked: Boolean(io?.safety_snapshot_id),
+      trafficReady,
+      partnerConfirmed: Boolean(io?.partner_confirmed_at),
+      p03Override: Boolean(line.p03_override_by),
+      trackingOwner: Boolean(line.tracking_owner_staff_id),
+    };
+  }
+
+  private isTrafficReady(
+    traffic: {
+      status: string;
+      creative_id: string | null;
+      width_px: number | null;
+      height_px: number | null;
+      weight_kb: number | null;
+      click_url: string | null;
+      backup_attached: boolean;
+    } | null,
+    placement: { backup_required: boolean; max_weight_kb: number | null } | null,
+  ): boolean {
+    if (!traffic) return false;
+    if (traffic.status !== 'approved_by_partner') return false;
+    if (!traffic.creative_id) return false;
+    if (!traffic.width_px || !traffic.height_px) return false;
+    if (!traffic.click_url || !/^https:\/\//.test(traffic.click_url)) return false;
+    if (placement?.max_weight_kb && (traffic.weight_kb ?? 0) > placement.max_weight_kb) return false;
+    if (placement?.backup_required && !traffic.backup_attached) return false;
+    return true;
+  }
+
+  async getLiveGates(lineId: string): Promise<{ canLive: boolean; gates: ReturnType<typeof evaluateLiveGates>['gates'] }> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    const input = await this.buildLiveGateInput(line);
+    return evaluateLiveGates(input);
+  }
+
+  async goLive(lineId: string, body: GoLiveInput, staffId: number | null): Promise<MsosMediaLineRow> {
+    this.assertEnabled();
+    if (body.actor === 'ai') {
+      throw new ForbiddenException({ error: 'ai_action_forbidden' });
+    }
+    if (!body.confirm) {
+      throw new UnprocessableEntityException({ error: 'human_confirm_required' });
+    }
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    const gates = await this.getLiveGates(lineId);
+    if (!gates.canLive) {
+      throw new UnprocessableEntityException({ error: 'live_gates_blocked' });
+    }
+    return this.repo.setMediaLineLive(lineId, staffId);
+  }
+
+  async setP03Override(lineId: string, staffId: number | null): Promise<MsosMediaLineRow> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    return this.repo.setP03Override(lineId, staffId);
   }
 }

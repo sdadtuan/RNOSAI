@@ -15,7 +15,9 @@ import type {
   MsosInventoryRow,
   CreateIoInput,
   MsosBrandSafetySnapshotRow,
+  CreateMediaLineInput,
   MsosInsertionOrderRow,
+  MsosMediaLineRow,
   MsosPackageRow,
   MsosPartnerRow,
   MsosPlacementRow,
@@ -562,5 +564,122 @@ export class MsosRepository implements OnModuleDestroy {
       `UPDATE msos_insertion_orders SET safety_snapshot_id = $2::uuid WHERE id = $1::uuid`,
       [ioId, snapshotId],
     );
+  }
+
+  async listMediaLines(): Promise<MsosMediaLineRow[]> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, package_id::text, io_id::text, client_id::text,
+              commercial_ref, connector_external_id, tracking_owner_staff_id, status,
+              live_at::text, live_by, p03_override_by, p03_override_at::text, created_at::text
+         FROM msos_media_lines
+         ORDER BY created_at DESC`,
+    );
+    return result.rows as MsosMediaLineRow[];
+  }
+
+  async getMediaLine(lineId: string): Promise<MsosMediaLineRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, package_id::text, io_id::text, client_id::text,
+              commercial_ref, connector_external_id, tracking_owner_staff_id, status,
+              live_at::text, live_by, p03_override_by, p03_override_at::text, created_at::text
+         FROM msos_media_lines
+        WHERE id = $1::uuid
+        LIMIT 1`,
+      [lineId],
+    );
+    return (result.rows[0] as MsosMediaLineRow | undefined) ?? null;
+  }
+
+  async createMediaLine(input: CreateMediaLineInput & { client_id: string }): Promise<MsosMediaLineRow> {
+    const displayCode = msosDisplayCode('ML');
+    const result = await this.db.query(
+      `INSERT INTO msos_media_lines (
+         display_code, package_id, io_id, client_id, commercial_ref,
+         connector_external_id, tracking_owner_staff_id
+       ) VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7)
+       RETURNING id::text, display_code, package_id::text, io_id::text, client_id::text,
+                 commercial_ref, connector_external_id, tracking_owner_staff_id, status,
+                 live_at::text, live_by, p03_override_by, p03_override_at::text, created_at::text`,
+      [
+        displayCode,
+        input.package_id,
+        input.io_id ?? null,
+        input.client_id,
+        input.commercial_ref ?? null,
+        input.connector_external_id ?? null,
+        input.tracking_owner_staff_id ?? null,
+      ],
+    );
+    return result.rows[0] as MsosMediaLineRow;
+  }
+
+  async setMediaLineLive(lineId: string, staffId: number | null): Promise<MsosMediaLineRow> {
+    const result = await this.db.query(
+      `UPDATE msos_media_lines
+          SET status = 'live', live_at = now(), live_by = $2
+        WHERE id = $1::uuid
+        RETURNING id::text, display_code, package_id::text, io_id::text, client_id::text,
+                  commercial_ref, connector_external_id, tracking_owner_staff_id, status,
+                  live_at::text, live_by, p03_override_by, p03_override_at::text, created_at::text`,
+      [lineId, staffId],
+    );
+    return result.rows[0] as MsosMediaLineRow;
+  }
+
+  async setP03Override(lineId: string, staffId: number | null): Promise<MsosMediaLineRow> {
+    const result = await this.db.query(
+      `UPDATE msos_media_lines
+          SET p03_override_by = $2, p03_override_at = now()
+        WHERE id = $1::uuid
+        RETURNING id::text, display_code, package_id::text, io_id::text, client_id::text,
+                  commercial_ref, connector_external_id, tracking_owner_staff_id, status,
+                  live_at::text, live_by, p03_override_by, p03_override_at::text, created_at::text`,
+      [lineId, staffId],
+    );
+    return result.rows[0] as MsosMediaLineRow;
+  }
+
+  async getTrafficPack(mediaLineId: string): Promise<{
+    status: string;
+    creative_id: string | null;
+    width_px: number | null;
+    height_px: number | null;
+    weight_kb: number | null;
+    click_url: string | null;
+    backup_attached: boolean;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT status, creative_id::text, width_px, height_px, weight_kb, click_url, backup_attached
+         FROM msos_traffic_packs
+        WHERE media_line_id = $1::uuid
+        ORDER BY updated_at DESC
+        LIMIT 1`,
+      [mediaLineId],
+    );
+    return (result.rows[0] as {
+      status: string;
+      creative_id: string | null;
+      width_px: number | null;
+      height_px: number | null;
+      weight_kb: number | null;
+      click_url: string | null;
+      backup_attached: boolean;
+    } | undefined) ?? null;
+  }
+
+  async getPlacementForLine(lineId: string): Promise<{
+    backup_required: boolean;
+    max_weight_kb: number | null;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT pl.backup_required, pl.max_weight_kb
+         FROM msos_media_lines ml
+         JOIN msos_package_lines pln ON pln.package_id = ml.package_id
+         JOIN msos_placements pl ON pl.id = pln.placement_id
+        WHERE ml.id = $1::uuid
+        LIMIT 1`,
+      [lineId],
+    );
+    return (result.rows[0] as { backup_required: boolean; max_weight_kb: number | null } | undefined) ?? null;
   }
 }

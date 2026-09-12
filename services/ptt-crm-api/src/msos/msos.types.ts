@@ -206,3 +206,34 @@ export type SafetyChangeInput = {
   alcohol_pharma_banned?: boolean;
   staffId?: number | null;
 };
+
+export type CreateMediaLineInput = {
+  package_id: string;
+  io_id?: string | null;
+  commercial_ref?: string | null;
+  connector_external_id?: string | null;
+  tracking_owner_staff_id?: number | null;
+  staffId?: number | null;
+};
+
+export type MsosMediaLineRow = {
+  id: string;
+  display_code: string;
+  package_id: string;
+  io_id: string | null;
+  client_id: string;
+  commercial_ref: string | null;
+  connector_external_id: string | null;
+  tracking_owner_staff_id: number | null;
+  status: string;
+  live_at: string | null;
+  live_by: number | null;
+  p03_override_by: number | null;
+  p03_override_at: string | null;
+  created_at: string;
+};
+
+export type GoLiveInput = {
+  confirm: boolean;
+  actor: 'human' | 'ai';
+};
