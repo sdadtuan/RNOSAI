@@ -97,7 +97,7 @@ export function MsosPackages() {
           const rows = await msosGet<Reservation[]>(`/packages/${pkg.id}/reservations`);
           return [pkg.id, rows] as const;
         } catch {
-          return [pkg.id, []] as const;
+          return [pkg.id, [] as Reservation[]] as const;
         }
       }),
     );
