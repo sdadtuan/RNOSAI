@@ -287,6 +287,64 @@ describe('CpJobsService', () => {
     expect(submitted).toMatchObject({ job_id: drafted.job_id });
   });
 
+  it('rejects submit after cancel with 409 even if confirmed stays set', async () => {
+    const { service, adapter } = makeService();
+    const drafted = await service.draft(9, draftInput({ idempotency_key: 'job-cancel' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.cancel(9, drafted.job_id);
+
+    await expect(service.submit(9, drafted.job_id)).rejects.toMatchObject({
+      status: 409,
+      error: 'job_not_submittable',
+    });
+    expect(adapter.generate).not.toHaveBeenCalled();
+  });
+
+  it('re-reserves on retry after submit fail using reserve:{idempotency}:{attempt}', async () => {
+    const generate = jest.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('provider_down'), { status: 502 }))
+      .mockResolvedValueOnce({ externalRunId: 'ext-retry' });
+    const { service, ledgerDb } = makeService({
+      adapter: { generate },
+    });
+    const drafted = await service.draft(9, draftInput({ idempotency_key: 'job-retry' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await expect(service.submit(9, drafted.job_id)).rejects.toBeTruthy();
+
+    expect(ledgerDb.rows.filter((row) => row.kind === 'reserve')).toHaveLength(1);
+    expect(ledgerDb.rows.filter((row) => row.kind === 'release')).toHaveLength(1);
+
+    const retried = await service.retry(9, drafted.job_id);
+
+    expect(retried).toMatchObject({ job_id: drafted.job_id, status: 'queued' });
+    const reserves = ledgerDb.rows.filter((row) => row.kind === 'reserve');
+    expect(reserves).toHaveLength(2);
+    expect(reserves[1]).toMatchObject({
+      amount: 12,
+      provider: 'magnific_mcp',
+      idempotency_key: 'reserve:job-retry:2',
+    });
+    expect(generate).toHaveBeenCalledTimes(2);
+  });
+
+  it('blocks confirm when the durable GT-M05 snapshot is RESTRICTED', async () => {
+    const { service, db } = makeService();
+    const drafted = await service.draft(9, draftInput({ idempotency_key: 'job-snap' }));
+    expect(db.jobs[0]?.stage_log_json).toMatchObject({
+      classification: null,
+      external_prohibited: false,
+    });
+
+    const log = db.jobs[0].stage_log_json as Record<string, unknown>;
+    log.classification = 'RESTRICTED';
+    db.jobs[0].stage_log_json = log;
+
+    await expect(service.confirm(9, drafted.job_id, { confirm: true })).rejects.toMatchObject({
+      status: 409,
+      gate: 'GT-M05',
+    });
+  });
+
   it('does not inject jobs submit into the AI gateway generate-brief path', () => {
     const weave = readFileSync(join(__dirname, 'cp-weave.service.ts'), 'utf8');
     const controller = readFileSync(join(__dirname, 'cp.controller.ts'), 'utf8');

@@ -103,6 +103,9 @@ export class CpJobsService {
       created_by: staffId,
       agency_client_id: nullableText(project.agency_client_id),
       cost_center: nullableText(project.cost_center),
+      classification: policyClassification(project, inputs),
+      external_prohibited: policyExternalProhibited(project, inputs),
+      attempt: 1,
     };
     const inserted = await this.repo.insertJob({
       projectId,
@@ -135,24 +138,13 @@ export class CpJobsService {
     const job = await this.loadJob(jobId);
     const log = stageLogOf(job);
     const provider = requiredProvider(job.provider);
-    this.assertPolicy(provider, {
-      classification: log.classification,
-      external_prohibited: log.external_prohibited,
-    }, objectValue(log.inputs));
+    await this.assertDurablePolicy(provider, job, log);
     const estimate = estimateFromLog(log);
     await this.assertHighCost(estimate.credits, true);
 
+    const attempt = jobAttempt(job, log);
     if (estimate.credits != null) {
-      await this.ledger.reserve({
-        amount: estimate.credits,
-        agencyClientId: nullableText(log.agency_client_id),
-        projectId: nullableText(job.project_id),
-        jobId: String(job.id),
-        costCenter: nullableText(log.cost_center),
-        idempotencyKey: `reserve:${String(job.idempotency_key)}`,
-        provider,
-      });
-      log.reserved_amount = estimate.credits;
+      await this.reserveCredits(job, log, provider, estimate.credits, attempt);
     }
     log.confirmed = true;
     log.confirmed_by = staffId;
@@ -167,15 +159,9 @@ export class CpJobsService {
     const job = await this.loadJob(jobId);
     const log = stageLogOf(job);
     const provider = requiredProvider(job.provider);
-    this.assertPolicy(provider, {
-      classification: log.classification,
-      external_prohibited: log.external_prohibited,
-    }, objectValue(log.inputs));
+    await this.assertDurablePolicy(provider, job, log);
+    this.assertSubmittable(job, log);
     const estimate = estimateFromLog(log);
-    const requiresConfirmation = estimate.credits == null || estimate.credits > 0;
-    if (requiresConfirmation && log.confirmed !== true) {
-      cpThrow(400, { error: 'human_confirm_required' });
-    }
 
     const inputs = objectValue(log.inputs);
     const capability = String(inputs.capability ?? job.model ?? 'images_generate');
@@ -208,20 +194,10 @@ export class CpJobsService {
         ...(updated.rows[0] ?? {}),
       };
     } catch (error) {
-      const reserved = Number(log.reserved_amount ?? estimate.credits);
-      if (Number.isSafeInteger(reserved) && reserved > 0) {
-        await this.ledger.append({
-          kind: 'release',
-          amount: reserved,
-          agencyClientId: nullableText(log.agency_client_id),
-          projectId: nullableText(job.project_id),
-          jobId: String(job.id),
-          costCenter: nullableText(log.cost_center),
-          idempotencyKey: `rel:${String(job.idempotency_key)}`,
-          provider,
-        });
-      }
+      await this.releaseCredits(job, log, provider, estimate.credits);
       log.release_reason = 'submit_failed';
+      log.confirmed = false;
+      log.reserved_amount = null;
       await this.repo.updateJob(String(job.id), { state: 'failed', stageLog: log }).catch(() => undefined);
       throw error;
     }
@@ -233,22 +209,20 @@ export class CpJobsService {
       cpThrow(409, { error: 'job_not_cancellable' });
     }
     const log = stageLogOf(job);
-    const reserved = Number(log.reserved_amount);
-    if (Number.isSafeInteger(reserved) && reserved > 0) {
-      await this.ledger.append({
-        kind: 'release',
-        amount: reserved,
-        agencyClientId: nullableText(log.agency_client_id),
-        projectId: nullableText(job.project_id),
-        jobId: String(job.id),
-        costCenter: nullableText(log.cost_center),
-        idempotencyKey: `rel:${String(job.idempotency_key)}`,
-        provider: requiredProvider(job.provider),
-      });
-    }
+    await this.releaseCredits(
+      job,
+      log,
+      requiredProvider(job.provider),
+      nullableInteger(log.reserved_amount),
+    );
     const updated = await this.repo.updateJob(String(job.id), {
       state: 'cancelled',
-      stageLog: { ...log, cancelled: true },
+      stageLog: {
+        ...log,
+        cancelled: true,
+        confirmed: false,
+        reserved_amount: null,
+      },
     });
     return updated.rows[0] ?? { ...job, state: 'cancelled' };
   }
@@ -259,14 +233,74 @@ export class CpJobsService {
       cpThrow(409, { error: 'job_not_retryable' });
     }
     const log = stageLogOf(job);
-    log.confirmed = true;
-    log.attempt = Number(job.attempt ?? 1) + 1;
+    const provider = requiredProvider(job.provider);
+    await this.assertDurablePolicy(provider, job, log);
+    const attempt = jobAttempt(job, log) + 1;
+    const estimate = estimateFromLog(log);
+    log.attempt = attempt;
+    log.cancelled = false;
+    log.release_reason = null;
+    if (estimate.credits != null) {
+      await this.reserveCredits(job, log, provider, estimate.credits, attempt);
+    } else {
+      log.confirmed = true;
+    }
     await this.repo.updateJob(String(job.id), { state: 'pending_confirm', stageLog: log });
     return this.submit(staffId, jobId);
   }
 
   async get(_staffId: number, jobId: string): Promise<Record<string, unknown>> {
     return this.loadJob(jobId);
+  }
+
+  private assertSubmittable(job: Record<string, unknown>, log: Record<string, unknown>): void {
+    if (String(job.state) !== 'pending_confirm' || log.confirmed !== true) {
+      cpThrow(409, {
+        error: 'job_not_submittable',
+        state: String(job.state ?? ''),
+      });
+    }
+  }
+
+  private async reserveCredits(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    provider: 'magnific_mcp' | 'magnific_rest',
+    amount: number,
+    attempt: number,
+  ): Promise<void> {
+    await this.ledger.reserve({
+      amount,
+      agencyClientId: nullableText(log.agency_client_id),
+      projectId: nullableText(job.project_id),
+      jobId: String(job.id),
+      costCenter: nullableText(log.cost_center),
+      idempotencyKey: reserveLedgerKey(String(job.idempotency_key), attempt),
+      provider,
+    });
+    log.reserved_amount = amount;
+    log.confirmed = true;
+    log.reserve_key = reserveLedgerKey(String(job.idempotency_key), attempt);
+  }
+
+  private async releaseCredits(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    provider: 'magnific_mcp' | 'magnific_rest',
+    fallbackAmount: number | null,
+  ): Promise<void> {
+    const reserved = Number(log.reserved_amount ?? fallbackAmount);
+    if (!Number.isSafeInteger(reserved) || reserved <= 0) return;
+    await this.ledger.append({
+      kind: 'release',
+      amount: reserved,
+      agencyClientId: nullableText(log.agency_client_id),
+      projectId: nullableText(job.project_id),
+      jobId: String(job.id),
+      costCenter: nullableText(log.cost_center),
+      idempotencyKey: releaseLedgerKey(String(job.idempotency_key), jobAttempt(job, log)),
+      provider,
+    });
   }
 
   private assertPolicy(
@@ -277,13 +311,32 @@ export class CpJobsService {
     assertMagnificAllowed({
       provider,
       flags: readAiOpsFlags(),
-      classification:
-        nullableText(project.classification) ?? nullableText(inputs.classification),
-      externalProhibited:
-        project.external_prohibited === true
-        || inputs.external_prohibited === true
-        || inputs.externalProhibited === true,
+      classification: policyClassification(project, inputs),
+      externalProhibited: policyExternalProhibited(project, inputs),
     });
+  }
+
+  private async assertDurablePolicy(
+    provider: 'magnific_mcp' | 'magnific_rest',
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+  ): Promise<void> {
+    const inputs = objectValue(log.inputs);
+    this.assertPolicy(provider, {
+      classification: log.classification,
+      external_prohibited: log.external_prohibited,
+    }, inputs);
+    const projectId = nullableText(job.project_id);
+    if (!projectId) return;
+    const project = (await this.repo.loadProject(projectId)).rows[0];
+    if (!project) return;
+    if (
+      nullableText(project.classification) != null
+      || project.external_prohibited === true
+      || project.external_prohibited === false
+    ) {
+      this.assertPolicy(provider, project, inputs);
+    }
   }
 
   private async assertHighCost(
@@ -324,6 +377,39 @@ function toDraftResult(job: Record<string, unknown>): CpJobDraftResult {
     estimate,
     requires_confirmation: estimate.credits == null || estimate.credits > 0,
   };
+}
+
+function policyClassification(
+  source: Record<string, unknown>,
+  inputs: Record<string, unknown> = {},
+): string | null {
+  return nullableText(source.classification) ?? nullableText(inputs.classification);
+}
+
+function policyExternalProhibited(
+  source: Record<string, unknown>,
+  inputs: Record<string, unknown> = {},
+): boolean {
+  return source.external_prohibited === true
+    || inputs.external_prohibited === true
+    || inputs.externalProhibited === true;
+}
+
+function jobAttempt(job: Record<string, unknown>, log: Record<string, unknown>): number {
+  const fromLog = nullableInteger(log.attempt);
+  const fromJob = nullableInteger(job.attempt);
+  const value = fromLog ?? fromJob ?? 1;
+  return value > 0 ? value : 1;
+}
+
+/** First confirm uses `reserve:{idempotency}`; later attempts use `reserve:{idempotency}:{attempt}`. */
+function reserveLedgerKey(idempotency: string, attempt: number): string {
+  return attempt <= 1 ? `reserve:${idempotency}` : `reserve:${idempotency}:${attempt}`;
+}
+
+/** First release uses `rel:{idempotency}`; later attempts use `rel:{idempotency}:{attempt}`. */
+function releaseLedgerKey(idempotency: string, attempt: number): string {
+  return attempt <= 1 ? `rel:${idempotency}` : `rel:${idempotency}:${attempt}`;
 }
 
 function estimateFromInputs(inputs: Record<string, unknown>): {
