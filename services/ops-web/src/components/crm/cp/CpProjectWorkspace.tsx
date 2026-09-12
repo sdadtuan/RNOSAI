@@ -38,6 +38,7 @@ import {
   CP_PROJECT_TABS,
   type CpProjectTabId,
 } from '@/lib/crm/cp-project-tabs.util';
+import { aiOpsHref } from '@/lib/crm/cp-ai-ops-panes.util';
 import {
   formatCreditPct,
   formatDeliverableCount,
@@ -53,6 +54,7 @@ import {
   daysRemaining,
   deliverableCta,
   deliverableThumb,
+  formatAiOpsCount,
   formatCreditLine,
   formatDaysRemaining,
   formatMemberLine,
@@ -449,6 +451,17 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
             <section className="cp-kpi-tile"><span>Ngày còn</span><strong>{daysLeft}</strong></section>
             <section className="cp-kpi-tile"><span>Credit</span><strong>{creditLine}</strong></section>
           </div>
+          <nav className="cp-chips" aria-label="AI Ops">
+            <Link className="cp-chip" href={aiOpsHref(projectId, 'weave')}>
+              Weave WO {formatAiOpsCount(project?.weave_open_count)}
+            </Link>
+            <Link className="cp-chip" href={aiOpsHref(projectId, 'magnific')}>
+              Magnific {formatAiOpsCount(project?.magnific_job_count)}
+            </Link>
+            <Link className="cp-chip" href={aiOpsHref(projectId, 'comfy')}>
+              Comfy {formatAiOpsCount(project?.comfy_job_count)}
+            </Link>
+          </nav>
           <div className="cp-overview-grid">
             <section className="cp-card">
               <header className="cp-card__head"><h2>Mục tiêu</h2></header>

@@ -261,7 +261,8 @@ export function CpOverview() {
   const criticalActions = data.actions.filter(
     (action) => action.severity === 'critical' || action.severity === 'danger',
   );
-  const provider = data.health?.providers[0] ?? null;
+  const providers = data.health?.providers ?? [];
+  const provider = providers[0] ?? null;
   const showTrend = hasTrendData(data.trend);
 
   return (
@@ -394,7 +395,7 @@ export function CpOverview() {
           <dl className="cp-health">
             <div>
               <dt>Model allowlist</dt>
-              <dd>{dash(provider?.id)}</dd>
+              <dd>{providers.length ? providers.map((item) => item.id).join(' · ') : dash(null)}</dd>
             </div>
             <div>
               <dt>Ingest / queue</dt>
@@ -403,11 +404,27 @@ export function CpOverview() {
             <div>
               <dt>Provider adapter</dt>
               <dd>
-                {provider?.success_pct == null
-                  ? dash(null)
-                  : `${provider.success_pct.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`}
-                {' · p95 '}
-                {provider?.p95_sec == null ? dash(null) : `${Math.round(provider.p95_sec)}s`}
+                {providers.length
+                  ? providers.map((item, index) => (
+                      <span key={item.id}>
+                        {index > 0 ? ' · ' : ''}
+                        {item.id}{' '}
+                        {item.success_pct == null
+                          ? dash(null)
+                          : `${item.success_pct.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`}
+                        {' · p95 '}
+                        {item.p95_sec == null ? dash(null) : `${Math.round(item.p95_sec)}s`}
+                      </span>
+                    ))
+                  : (
+                    <>
+                      {provider?.success_pct == null
+                        ? dash(null)
+                        : `${provider.success_pct.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`}
+                      {' · p95 '}
+                      {provider?.p95_sec == null ? dash(null) : `${Math.round(provider.p95_sec)}s`}
+                    </>
+                  )}
               </dd>
             </div>
             <div>

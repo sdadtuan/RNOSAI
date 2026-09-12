@@ -800,7 +800,7 @@ export class CpProjectsService {
 
   private async decorateWorkspace(project: Record<string, unknown>) {
     const projectId = String(project.id);
-    const [named, members, extra, ledger] = await Promise.all([
+    const [named, members, extra, ledger, aiOps] = await Promise.all([
       this.db.query(
         `${PORTFOLIO_SELECT}
           WHERE p.tenant_id = $1 AND p.id = $2::uuid
@@ -837,6 +837,24 @@ export class CpProjectsService {
           GROUP BY kind, cost_center`,
         [CP_TENANT_ID, projectId],
       ),
+      this.db.query(
+        `SELECT
+           (SELECT COUNT(*)::int
+              FROM crm_cp_weave_work_orders
+             WHERE project_id = $1::uuid
+               AND status NOT IN ('cancelled', 'delivered')) AS weave_open,
+           (SELECT COUNT(*)::int
+              FROM crm_cp_render_jobs j
+              LEFT JOIN crm_cp_video_drafts d ON d.id = j.draft_id
+             WHERE COALESCE(j.project_id, d.project_id) = $1::uuid
+               AND j.provider LIKE 'magnific%') AS magnific_jobs,
+           (SELECT COUNT(*)::int
+              FROM crm_cp_render_jobs j
+              LEFT JOIN crm_cp_video_drafts d ON d.id = j.draft_id
+             WHERE COALESCE(j.project_id, d.project_id) = $1::uuid
+               AND j.provider = 'comfyui') AS comfy_jobs`,
+        [projectId],
+      ),
     ]);
     let creditCharged = 0;
     let creditReserved = 0;
@@ -854,6 +872,7 @@ export class CpProjectsService {
       budgetByCostCenter[bucket] = current;
     }
     const extraRow = extra.rows[0] ?? {};
+    const aiOpsRow = aiOps.rows[0] ?? {};
     return {
       ...project,
       ...(named.rows[0] ?? {}),
@@ -868,6 +887,9 @@ export class CpProjectsService {
       credit_charged: creditCharged,
       credit_reserved: creditReserved,
       budget_by_cost_center: budgetByCostCenter,
+      weave_open_count: countOrNull(aiOpsRow.weave_open),
+      magnific_job_count: countOrNull(aiOpsRow.magnific_jobs),
+      comfy_job_count: countOrNull(aiOpsRow.comfy_jobs),
     };
   }
 
@@ -914,6 +936,11 @@ export class CpProjectsService {
     const creditBudget = Number(budget);
     return projectIsAtRisk(risk, creditBudget);
   }
+}
+
+function countOrNull(value: unknown): number | null {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 export function projectProgressPct(done: unknown, total: unknown): number {

@@ -194,6 +194,10 @@ export function formatMemberLine(members: WorkspaceMember[] | null | undefined):
   return parts.length ? parts.join(' · ') : dash(null);
 }
 
+export function formatAiOpsCount(value: number | null | undefined): string {
+  return value == null || value === 0 ? dash(null) : String(value);
+}
+
 export function videoFinalCount(
   items: Array<{ type?: string | null; status?: string | null }>,
 ): number {

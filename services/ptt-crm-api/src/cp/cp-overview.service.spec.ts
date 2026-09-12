@@ -74,6 +74,7 @@ describe('CpOverviewService', () => {
     expect(slotUsage(['queued', 'preparing', 'rendering', 'completed'])).toBe(2);
     const sql = buildHealthSql();
     expect(sql).toContain("state IN ('preparing','rendering')");
+    expect(sql).not.toContain("provider = 'stub' AND state IN ('completed', 'failed')");
   });
 
   it('scopes health queue and p95 to the last 60 minutes of render jobs', () => {
@@ -81,6 +82,9 @@ describe('CpOverviewService', () => {
     expect(sql).toContain('j.created_at');
     expect(sql).toMatch(/INTERVAL\s+'60 minutes'/);
     expect(sql).not.toMatch(/\b(5|15|30)\s+minutes\b/);
+    expect(sql).toMatch(/COALESCE\(j\.project_id, d\.project_id\)/);
+    expect(sql).toMatch(/GROUP BY 1/);
+    expect(sql).toMatch(/jsonb_agg/);
   });
 
   it('returns null health metrics when the 60-minute window is empty', async () => {
@@ -119,6 +123,44 @@ describe('CpOverviewService', () => {
       success_pct: null,
       p95_sec: null,
     });
+  });
+
+  it('includes weavy and magnific providers from the 60-minute window without inventing success_pct', async () => {
+    const recent = new Date().toISOString();
+    const svc = makeOverview({
+      projects: [{ id: 'p1', owner_staff_id: 1 }],
+      jobs: [
+        { id: 'w1', state: 'queued', provider: 'weavy', created_at: recent },
+        {
+          id: 'm1',
+          state: 'completed',
+          provider: 'magnific_mcp',
+          created_at: recent,
+          stage_log_json: [{ duration_sec: 12 }],
+        },
+        { id: 'm2', state: 'queued', provider: 'magnific_rest', created_at: recent },
+        {
+          id: 'c1',
+          state: 'failed',
+          provider: 'comfyui',
+          created_at: recent,
+          stage_log_json: [{ duration_sec: 4 }],
+        },
+      ],
+      ledger: [],
+      assets: [],
+      tasks: [],
+    });
+
+    const health = await svc.getHealth();
+    const byId = Object.fromEntries(health.providers.map((row) => [row.id, row]));
+
+    expect(byId.weavy).toEqual({ id: 'weavy', success_pct: null, p95_sec: null });
+    expect(byId.magnific_mcp.success_pct).toBe(100);
+    expect(byId.magnific_mcp.p95_sec).toBe(12);
+    expect(byId.magnific_rest).toEqual({ id: 'magnific_rest', success_pct: null, p95_sec: null });
+    expect(byId.comfyui.success_pct).toBe(0);
+    expect(health.providers.some((row) => row.id === 'stub')).toBe(false);
   });
 
   it('computes queue depth and stub p95 only from jobs created in the last 60 minutes', async () => {

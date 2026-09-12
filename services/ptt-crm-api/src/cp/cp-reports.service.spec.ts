@@ -308,3 +308,87 @@ describe('CpReportsService credit pipeline', () => {
     ]);
   });
 });
+
+describe('CpReportsService credit CPA', () => {
+  it('returns cpa null when approved denominator is 0, never 0', async () => {
+    const db = {
+      query: jest.fn().mockImplementation(async (sql: string) => {
+        if (/GROUP BY l\.kind/i.test(sql)) {
+          return { rows: [{ kind: 'charge', amount: 40 }] };
+        }
+        if (/l\.provider/i.test(sql) && /kind = 'charge'/i.test(sql)) {
+          return { rows: [{ provider: 'magnific_mcp', amount: 40 }] };
+        }
+        if (/approval_status = 'final_approved'/i.test(sql)) {
+          return { rows: [{ approved: 0 }] };
+        }
+        return { rows: [] };
+      }),
+    };
+    const { svc } = makeService(db);
+    const out = await svc.get('credit', { scope: 'me', staffId: 1 }) as {
+      cpa: number | null;
+      cpa_numerator: number | null;
+      cpa_denominator: number;
+    };
+
+    expect(out.cpa_denominator).toBe(0);
+    expect(out.cpa).toBeNull();
+    expect(out.cpa).not.toBe(0);
+    expect(out.cpa_numerator).toBe(40);
+  });
+
+  it('divides charged by approved count when the denominator is positive', async () => {
+    const db = {
+      query: jest.fn().mockImplementation(async (sql: string) => {
+        if (/GROUP BY l\.kind/i.test(sql)) {
+          return { rows: [{ kind: 'charge', amount: 100 }] };
+        }
+        if (/approval_status = 'final_approved'/i.test(sql)) {
+          return { rows: [{ approved: 4 }] };
+        }
+        return { rows: [] };
+      }),
+    };
+    const { svc } = makeService(db);
+    const out = await svc.get('credit', { scope: 'me', staffId: 1 }) as {
+      cpa: number | null;
+      cpa_numerator: number | null;
+      cpa_denominator: number;
+    };
+
+    expect(out.cpa_numerator).toBe(100);
+    expect(out.cpa_denominator).toBe(4);
+    expect(out.cpa).toBe(25);
+  });
+
+  it('groups by_provider from charge rows and keeps charged null when a provider has no amount', async () => {
+    const db = {
+      query: jest.fn().mockImplementation(async (sql: string) => {
+        if (/l\.provider/i.test(sql) && /kind = 'charge'/i.test(sql) && /GROUP BY/i.test(sql)) {
+          return {
+            rows: [
+              { provider: 'magnific_mcp', amount: 30 },
+              { provider: 'weavy', amount: null },
+            ],
+          };
+        }
+        if (/approval_status = 'final_approved'/i.test(sql)) {
+          return { rows: [{ approved: 2 }] };
+        }
+        return { rows: [] };
+      }),
+    };
+    const { svc } = makeService(db);
+    const out = await svc.get('credit', { scope: 'me', staffId: 1 }) as {
+      by_provider: Array<{ provider: string; charged: number | null }>;
+    };
+
+    expect(out.by_provider).toEqual([
+      { provider: 'magnific_mcp', charged: 30 },
+      { provider: 'weavy', charged: null },
+    ]);
+    expect(sqlCalls(db)).toMatch(/l\.kind = 'charge'/);
+    expect(sqlCalls(db)).not.toMatch(/kind\s*=\s*'provider_magnific'/);
+  });
+});

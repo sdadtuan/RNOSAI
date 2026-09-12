@@ -105,7 +105,7 @@ describe('report filters and empty sections', () => {
     expect(dash(null)).toBe('—');
     expect(CP_REPORT_SECTIONS.executive).toEqual(['trend', 'top_creative', 'project_health']);
     expect(CP_REPORT_SECTIONS.production).toEqual(['heatmap', 'provider_health']);
-    expect(CP_REPORT_SECTIONS.credit).toEqual(['by_pipeline']);
+    expect(CP_REPORT_SECTIONS.credit).toEqual(['by_pipeline', 'by_provider']);
     expect(CP_REPORT_FILTERS).toEqual(['from', 'to', 'client']);
   });
 

@@ -470,13 +470,21 @@ export function buildHealthSql(): string {
   return `WITH jobs AS (
          SELECT j.*, ${duration} AS duration_sec
            FROM crm_cp_render_jobs j
-           JOIN crm_cp_video_drafts d ON d.id = j.draft_id
-           JOIN crm_cp_projects p ON p.id = d.project_id
+           LEFT JOIN crm_cp_video_drafts d ON d.id = j.draft_id
+           JOIN crm_cp_projects p ON p.id = COALESCE(j.project_id, d.project_id)
           WHERE p.tenant_id = '${TENANT_ID}'
             AND j.created_at >= now() - INTERVAL '60 minutes'
        ),
-       stub_terminal AS (
-         SELECT * FROM jobs WHERE provider = 'stub' AND state IN ('completed', 'failed')
+       provider_rows AS (
+         SELECT COALESCE(NULLIF(j.provider, ''), 'stub') AS id,
+                CASE WHEN COUNT(*) FILTER (WHERE j.state IN ('completed','failed')) = 0 THEN NULL
+                     ELSE (COUNT(*) FILTER (WHERE j.state = 'completed')::numeric
+                           / NULLIF(COUNT(*) FILTER (WHERE j.state IN ('completed','failed')), 0)) * 100
+                END AS success_pct,
+                percentile_cont(0.95) WITHIN GROUP (ORDER BY j.duration_sec)
+                  FILTER (WHERE j.state IN ('completed','failed') AND j.duration_sec IS NOT NULL) AS p95_sec
+           FROM jobs j
+          GROUP BY 1
        )
        SELECT
          CASE WHEN (SELECT COUNT(*) FROM jobs) = 0 THEN NULL
@@ -486,10 +494,39 @@ export function buildHealthSql(): string {
               ELSE (SELECT COUNT(*)::int FROM jobs WHERE state IN ('preparing','rendering'))
           END AS slots_used,
          (SELECT concurrent_slots FROM crm_cp_settings WHERE tenant_id = '${TENANT_ID}') AS slots_max,
-         (SELECT COUNT(*) FILTER (WHERE state = 'completed')::int FROM stub_terminal) AS completed,
-         (SELECT COUNT(*) FILTER (WHERE state = 'failed')::int FROM stub_terminal) AS failed,
-         (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_sec)
-            FROM stub_terminal WHERE duration_sec IS NOT NULL) AS p95_sec`;
+         COALESCE(
+           (SELECT jsonb_agg(
+                     jsonb_build_object('id', id, 'success_pct', success_pct, 'p95_sec', p95_sec)
+                     ORDER BY id
+                   )
+              FROM provider_rows),
+           '[{"id":"stub","success_pct":null,"p95_sec":null}]'::jsonb
+         ) AS providers`;
+}
+
+function mapHealthProviders(value: unknown): CpHealth['providers'] {
+  const rows = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? (() => {
+          try {
+            const parsed = JSON.parse(value) as unknown;
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+  const providers = rows
+    .filter((row): row is Record<string, unknown> => row != null && typeof row === 'object')
+    .map((row) => ({
+      id: String(row.id ?? 'stub'),
+      success_pct: kpiOrNull(finiteNumber(row.success_pct)),
+      p95_sec: kpiOrNull(finiteNumber(row.p95_sec)),
+    }));
+  return providers.length
+    ? providers
+    : [{ id: 'stub', success_pct: null, p95_sec: null }];
 }
 
 @Injectable()
@@ -526,21 +563,10 @@ export class CpOverviewService implements OnModuleDestroy {
   async getHealth(): Promise<CpHealth> {
     const result = await this.db.query<Record<string, unknown>>(buildHealthSql());
     const row = result.rows[0] ?? {};
-    const queueDepth = finiteNumber(row.queue_depth);
-    const successRate = renderSuccessRate({
-      completed: Number(row.completed ?? 0),
-      failed: Number(row.failed ?? 0),
-    });
     return {
-      queue_depth: queueDepth,
+      queue_depth: finiteNumber(row.queue_depth),
       slots: { used: finiteNumber(row.slots_used), max: finiteNumber(row.slots_max) },
-      providers: [
-        {
-          id: 'stub',
-          success_pct: successRate == null ? null : successRate * 100,
-          p95_sec: finiteNumber(row.p95_sec),
-        },
-      ],
+      providers: mapHealthProviders(row.providers),
     };
   }
 
@@ -807,22 +833,46 @@ class FixtureOverview {
       ? jobs.filter((job) => QUEUE_STATES.has(String(job.state))).length
       : null;
     const slotsUsed = jobs.length ? slotUsage(jobs.map((job) => job.state)) : null;
-    const terminal = jobs.filter(
-      (job) => job.provider === 'stub' && TERMINAL_STATES.has(String(job.state)),
-    );
-    const completed = terminal.filter((job) => job.state === 'completed').length;
-    const failed = terminal.filter((job) => job.state === 'failed').length;
-    const durations = terminal
-      .map((job) => durationFromStageLog(job.stage_log_json ?? job.stageLog))
-      .filter((n): n is number => n != null);
-    const rate = renderSuccessRate({ completed, failed });
+    if (!jobs.length) {
+      return {
+        queue_depth: queueDepth,
+        slots: {
+          used: slotsUsed,
+          max: finiteNumber(this.fixtures.settings?.concurrent_slots),
+        },
+        providers: [{ id: 'stub', success_pct: null, p95_sec: null }],
+      };
+    }
+    const grouped = new Map<string, Array<Record<string, unknown>>>();
+    for (const job of jobs) {
+      const id = String(job.provider ?? '').trim() || 'stub';
+      const list = grouped.get(id) ?? [];
+      list.push(job);
+      grouped.set(id, list);
+    }
+    const providers = [...grouped.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([id, group]) => {
+        const terminal = group.filter((job) => TERMINAL_STATES.has(String(job.state)));
+        const completed = terminal.filter((job) => job.state === 'completed').length;
+        const failed = terminal.filter((job) => job.state === 'failed').length;
+        const durations = terminal
+          .map((job) => durationFromStageLog(job.stage_log_json ?? job.stageLog))
+          .filter((n): n is number => n != null);
+        const rate = renderSuccessRate({ completed, failed });
+        return {
+          id,
+          success_pct: rate == null ? null : rate * 100,
+          p95_sec: percentile95(durations),
+        };
+      });
     return {
       queue_depth: queueDepth,
       slots: {
         used: slotsUsed,
         max: finiteNumber(this.fixtures.settings?.concurrent_slots),
       },
-      providers: [{ id: 'stub', success_pct: rate == null ? null : rate * 100, p95_sec: percentile95(durations) }],
+      providers,
     };
   }
 

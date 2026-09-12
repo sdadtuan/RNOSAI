@@ -6,6 +6,7 @@ import {
   budgetLines,
   daysRemaining,
   deliverableCta,
+  formatAiOpsCount,
   formatCreditLine,
   formatMemberLine,
   overviewAlert,
@@ -19,6 +20,12 @@ describe('PRJ-03 workspace helpers', () => {
   it('counts calendar days left and returns null without a due date', () => {
     expect(daysRemaining('2026-09-10', new Date('2026-09-08T00:00:00+07:00'))).toBe(2);
     expect(daysRemaining(null, new Date('2026-09-08'))).toBeNull();
+  });
+
+  it('renders AI Ops chip counts as an em dash when there are 0 rows', () => {
+    expect(formatAiOpsCount(null)).toBe('—');
+    expect(formatAiOpsCount(0)).toBe('—');
+    expect(formatAiOpsCount(3)).toBe('3');
   });
 
   it('formats credit used / budget and never invents a ratio', () => {

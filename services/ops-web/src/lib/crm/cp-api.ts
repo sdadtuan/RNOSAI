@@ -78,6 +78,9 @@ export type CpProjectSummary = {
   credit_reserved?: number | null;
   budget_by_cost_center?: Record<string, { charged: number; reserved: number }>;
   members?: Array<{ staff_id: number; role: string | null; name: string | null }>;
+  weave_open_count?: number | null;
+  magnific_job_count?: number | null;
+  comfy_job_count?: number | null;
 };
 
 export type CpProjectListSummary = {

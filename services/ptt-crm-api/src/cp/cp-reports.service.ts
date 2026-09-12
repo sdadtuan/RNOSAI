@@ -481,6 +481,41 @@ export class CpReportsService {
          ) AS reserved`,
       params,
     );
+    const approved = await this.db.query(
+      `${ledgerScope}
+       SELECT
+         (
+           (
+             SELECT COUNT(*)::int
+               FROM crm_cp_video_versions v
+               JOIN crm_cp_video_drafts d ON d.id = v.draft_id
+               JOIN scoped_projects p ON p.id = d.project_id
+              WHERE v.approval_status = 'final_approved'
+                AND ${ictRangeSql('d')}
+           )
+           +
+           (
+             SELECT COUNT(*)::int
+               FROM crm_cp_weave_assets a
+               JOIN crm_cp_weave_work_orders w ON w.id = a.work_order_id
+               JOIN scoped_projects p ON p.id = w.project_id
+              WHERE a.lane IN ('approved', 'final')
+                AND ${ictRangeSql('a')}
+           )
+         ) AS approved`,
+      params,
+    );
+    const byProvider = await this.db.query(
+      `${ledgerScope}
+       SELECT COALESCE(NULLIF(l.provider, ''), 'unknown') AS provider,
+              SUM(l.amount) AS amount
+         FROM crm_cp_credit_ledger l
+        WHERE l.tenant_id = '${CP_TENANT_ID}' AND l.kind = 'charge'
+          ${ledgerMatch}
+        GROUP BY 1
+        ORDER BY 1`,
+      params,
+    );
     const sums = sumsByKind(ledger.rows);
     const forecastIn = {
       scheduled_batch_credits: finiteNumber(forecastRow.rows[0]?.scheduled_batch_credits),
@@ -488,14 +523,23 @@ export class CpReportsService {
       reserved: finiteNumber(forecastRow.rows[0]?.reserved),
     };
     const forecast = forecastCredits(forecastIn);
+    const charged = kpiOrNull(sums.charge);
+    const approvedCount = finiteNumber(approved.rows[0]?.approved) ?? 0;
     return {
       slug: 'credit' as const,
       used: kpiOrNull(sums.used),
-      charged: kpiOrNull(sums.charge),
+      charged,
       reserved: kpiOrNull(sums.reserve),
       released: kpiOrNull(sums.release),
       refunded: kpiOrNull(sums.refund),
+      cpa: approvedCount === 0 ? null : (charged ?? 0) / approvedCount,
+      cpa_numerator: charged,
+      cpa_denominator: approvedCount,
       by_pipeline: pipeline.rows,
+      by_provider: byProvider.rows.map((item) => ({
+        provider: item.provider == null ? 'unknown' : String(item.provider),
+        charged: kpiOrNull(finiteNumber(item.amount)),
+      })),
       forecast: {
         value: forecast.forecast,
         assumption: forecast.assumption || FORECAST_ASSUMPTION,

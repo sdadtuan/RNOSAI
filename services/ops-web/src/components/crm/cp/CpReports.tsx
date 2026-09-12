@@ -393,6 +393,7 @@ function CpReportsInner() {
         <>
           <AssumptionBanner forecast={report?.forecast ?? null} />
           <div className="cp-kpi-grid cp-kpi-grid--4">
+            <Tile label="CPA" value={formatNumber(asNumber(report?.cpa))} />
             <Tile label="Used" value={formatNumber(asNumber(report?.used))} />
             <Tile label="Charged" value={formatNumber(asNumber(report?.charged))} />
             <Tile label="Reserved" value={formatNumber(asNumber(report?.reserved))} />
@@ -407,6 +408,16 @@ function CpReportsInner() {
               dash(row.pipeline),
               dash(row.kind),
               formatNumber(asNumber(row.amount)),
+            ]}
+          />
+          <SectionTable
+            title="Theo provider"
+            section={CP_REPORT_SECTIONS.credit[1]}
+            columns={['Provider', 'Charged']}
+            rows={asRows(report?.by_provider)}
+            cells={(row) => [
+              dash(row.provider),
+              formatNumber(asNumber(row.charged)),
             ]}
           />
           <section className="cp-card">
