@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
@@ -276,6 +288,36 @@ export class MsosController {
   @RequireMsosAction('write')
   createOutcomeLink(@Body() body: CreateOutcomeLinkInput) {
     return this.msos.createOutcomeLink(body);
+  }
+
+  @Get('media-lines/:id/margin')
+  @RequireMsosAction('view')
+  getMargin(@Param('id') id: string) {
+    return this.msos.getMargin(id);
+  }
+
+  @Post('media-lines/:id/margin/submit')
+  @RequireMsosAction('write')
+  async submitMargin(@Req() req: StaffReq, @Param('id') id: string) {
+    const isAdmin = await this.hasMsosAdmin(req);
+    return this.msos.submitMargin(id, { isAdmin });
+  }
+
+  @Post('media-lines/:id/finance-request')
+  @RequireMsosAction('finance_request')
+  async createFinanceRequest(@Req() req: StaffReq, @Param('id') id: string) {
+    const staffId = await this.resolveStaffId(req);
+    if (staffId == null) {
+      throw new ForbiddenException({ error: 'staff_id_required' });
+    }
+    return this.msos.createFinanceRequest(id, staffId);
+  }
+
+  private async hasMsosAdmin(req: StaffReq): Promise<boolean> {
+    if (req.staffAuthVia === 'internal') return true;
+    if (!req.staffUser) return false;
+    const me = await this.staffAuth.me(req.staffUser);
+    return this.staffAuth.hasCap(me.caps, 'crm_media', 'admin');
   }
 
   private async resolveStaffId(req: StaffReq): Promise<number | null> {

@@ -28,6 +28,9 @@ import type {
   CreateOutcomeLinkInput,
   MsosMediaLineRow,
   MsosOutcomeLinkRow,
+  MsosMarginInputs,
+  MsosMarginSnapshotRow,
+  MsosFinanceRequestRow,
   MsosPackageRow,
   MsosTrafficPackRow,
   UpsertTrafficInput,
@@ -965,5 +968,129 @@ export class MsosRepository implements OnModuleDestroy {
       ],
     );
     return result.rows[0] as MsosOutcomeLinkRow;
+  }
+
+  async getMarginInputs(lineId: string): Promise<MsosMarginInputs> {
+    const result = await this.db.query(
+      `SELECT
+         COALESCE(io.sell_vnd, pkg.sell_vnd, 0)::bigint AS gross_sell_vnd,
+         0::bigint AS discount_vnd,
+         COALESCE(io.buy_vnd, 0)::bigint AS media_cost_vnd,
+         COALESCE(mg.make_good_cost_vnd, 0)::bigint AS make_good_cost_vnd,
+         0::bigint AS rebate_accrued_vnd,
+         0::bigint AS service_cost_vnd
+       FROM msos_media_lines ml
+       JOIN msos_packages pkg ON pkg.id = ml.package_id
+       LEFT JOIN msos_insertion_orders io ON io.id = ml.io_id
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(value_vnd), 0)::bigint AS make_good_cost_vnd
+           FROM msos_make_goods
+          WHERE media_line_id = ml.id
+       ) mg ON TRUE
+      WHERE ml.id = $1::uuid
+      LIMIT 1`,
+      [lineId],
+    );
+    const row = result.rows[0] as MsosMarginInputs | undefined;
+    return (
+      row ?? {
+        gross_sell_vnd: 0,
+        discount_vnd: 0,
+        media_cost_vnd: 0,
+        make_good_cost_vnd: 0,
+        rebate_accrued_vnd: 0,
+        service_cost_vnd: 0,
+      }
+    );
+  }
+
+  async getLatestMarginSnapshot(lineId: string): Promise<MsosMarginSnapshotRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, media_line_id::text, gross_sell_vnd, discount_vnd, media_cost_vnd,
+              make_good_cost_vnd, rebate_accrued_vnd, service_cost_vnd, contribution_vnd,
+              contribution_bps, closed, created_at::text
+         FROM msos_margin_snapshots
+        WHERE media_line_id = $1::uuid
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [lineId],
+    );
+    return (result.rows[0] as MsosMarginSnapshotRow | undefined) ?? null;
+  }
+
+  async getOfficialEvidencePack(lineId: string): Promise<MsosEvidencePackRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, media_line_id::text, status, official_at::text, created_at::text
+         FROM msos_evidence_packs
+        WHERE media_line_id = $1::uuid AND status = 'official'
+        ORDER BY official_at DESC NULLS LAST
+        LIMIT 1`,
+      [lineId],
+    );
+    return (result.rows[0] as MsosEvidencePackRow | undefined) ?? null;
+  }
+
+  async hasOpenMaterialDiscrepancy(lineId: string): Promise<boolean> {
+    const result = await this.db.query(
+      `SELECT 1
+         FROM msos_discrepancy_cases
+        WHERE media_line_id = $1::uuid
+          AND material = TRUE
+          AND status = 'open'
+        LIMIT 1`,
+      [lineId],
+    );
+    return Boolean(result.rows[0]);
+  }
+
+  async insertMarginSnapshot(input: {
+    media_line_id: string;
+    gross_sell_vnd: number;
+    discount_vnd: number;
+    media_cost_vnd: number;
+    make_good_cost_vnd: number;
+    rebate_accrued_vnd: number;
+    service_cost_vnd: number;
+    contribution_vnd: number;
+    contribution_bps: number;
+    closed: boolean;
+  }): Promise<MsosMarginSnapshotRow> {
+    const result = await this.db.query(
+      `INSERT INTO msos_margin_snapshots (
+         media_line_id, gross_sell_vnd, discount_vnd, media_cost_vnd, make_good_cost_vnd,
+         rebate_accrued_vnd, service_cost_vnd, contribution_vnd, contribution_bps, closed
+       ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id::text, media_line_id::text, gross_sell_vnd, discount_vnd, media_cost_vnd,
+                 make_good_cost_vnd, rebate_accrued_vnd, service_cost_vnd, contribution_vnd,
+                 contribution_bps, closed, created_at::text`,
+      [
+        input.media_line_id,
+        input.gross_sell_vnd,
+        input.discount_vnd,
+        input.media_cost_vnd,
+        input.make_good_cost_vnd,
+        input.rebate_accrued_vnd,
+        input.service_cost_vnd,
+        input.contribution_vnd,
+        input.contribution_bps,
+        input.closed,
+      ],
+    );
+    return result.rows[0] as MsosMarginSnapshotRow;
+  }
+
+  async insertFinanceRequest(input: {
+    media_line_id: string;
+    evidence_pack_id: string;
+    requested_by: number;
+  }): Promise<MsosFinanceRequestRow> {
+    const result = await this.db.query(
+      `INSERT INTO msos_finance_requests (media_line_id, evidence_pack_id, requested_by)
+       VALUES ($1::uuid, $2::uuid, $3)
+       RETURNING id::text, media_line_id::text, evidence_pack_id::text, requested_by,
+                 status, invoice_id::text, created_at::text`,
+      [input.media_line_id, input.evidence_pack_id, input.requested_by],
+    );
+    return result.rows[0] as MsosFinanceRequestRow;
   }
 }

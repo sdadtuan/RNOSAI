@@ -361,3 +361,44 @@ export type MsosOutcomeLinkRow = {
   match_status: 'matched' | 'unmatched';
   created_at: string;
 };
+
+export type MsosMarginInputs = {
+  gross_sell_vnd: number;
+  discount_vnd: number;
+  media_cost_vnd: number;
+  make_good_cost_vnd: number;
+  rebate_accrued_vnd: number;
+  service_cost_vnd: number;
+};
+
+export type MsosMarginSnapshotRow = {
+  id: string;
+  media_line_id: string;
+  gross_sell_vnd: number;
+  discount_vnd: number;
+  media_cost_vnd: number;
+  make_good_cost_vnd: number;
+  rebate_accrued_vnd: number;
+  service_cost_vnd: number;
+  contribution_vnd: number;
+  contribution_bps: number;
+  closed: boolean;
+  created_at: string;
+};
+
+export type MsosMarginDto = MsosMarginInputs & {
+  contribution_vnd: number;
+  contribution_bps: number;
+  closed: boolean;
+  snapshot_id: string | null;
+};
+
+export type MsosFinanceRequestRow = {
+  id: string;
+  media_line_id: string;
+  evidence_pack_id: string | null;
+  requested_by: number;
+  status: 'requested' | 'accepted' | 'rejected';
+  invoice_id: string | null;
+  created_at: string;
+};

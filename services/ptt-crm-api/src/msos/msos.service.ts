@@ -10,6 +10,7 @@ import { assertRateBindable } from './msos-rate.util';
 import { assertNotSilentActual, classifyDiscrepancy } from './msos-discrepancy.util';
 import { canOfficial } from './msos-evidence-pack.util';
 import { evaluateTraffic } from './msos-traffic.util';
+import { assertMarginSubmit, computeWaterfall } from './msos-margin.util';
 import type {
   CapacityBucketInput,
   CreateDiscrepancyInput,
@@ -33,6 +34,9 @@ import type {
   MsosHealthDto,
   MsosMakeGoodRow,
   MsosOutcomeLinkRow,
+  MsosMarginDto,
+  MsosMarginSnapshotRow,
+  MsosFinanceRequestRow,
   MsosInsertionOrderRow,
   MsosInventoryRow,
   MsosMediaLineRow,
@@ -808,6 +812,93 @@ export class MsosService {
       ...input,
       lead_id: leadId,
       match_status: matchStatus,
+    });
+  }
+
+  private buildMarginDto(
+    inputs: Awaited<ReturnType<MsosRepository['getMarginInputs']>>,
+    snapshot: MsosMarginSnapshotRow | null,
+  ): MsosMarginDto {
+    const waterfall = computeWaterfall({
+      grossSell: inputs.gross_sell_vnd,
+      discount: inputs.discount_vnd,
+      mediaCost: inputs.media_cost_vnd,
+      makeGoodCost: inputs.make_good_cost_vnd,
+      rebateAccrued: inputs.rebate_accrued_vnd,
+      serviceCost: inputs.service_cost_vnd,
+    });
+    return {
+      ...inputs,
+      contribution_vnd: waterfall.contribution,
+      contribution_bps: waterfall.contributionBps,
+      closed: snapshot?.closed ?? false,
+      snapshot_id: snapshot?.id ?? null,
+    };
+  }
+
+  async getMargin(lineId: string): Promise<MsosMarginDto> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    const inputs = await this.repo.getMarginInputs(lineId);
+    const snapshot = await this.repo.getLatestMarginSnapshot(lineId);
+    return this.buildMarginDto(inputs, snapshot);
+  }
+
+  async submitMargin(
+    lineId: string,
+    opts: { isAdmin: boolean },
+  ): Promise<MsosMarginSnapshotRow> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    const inputs = await this.repo.getMarginInputs(lineId);
+    const waterfall = computeWaterfall({
+      grossSell: inputs.gross_sell_vnd,
+      discount: inputs.discount_vnd,
+      mediaCost: inputs.media_cost_vnd,
+      makeGoodCost: inputs.make_good_cost_vnd,
+      rebateAccrued: inputs.rebate_accrued_vnd,
+      serviceCost: inputs.service_cost_vnd,
+    });
+    assertMarginSubmit(waterfall.contributionBps, opts.isAdmin);
+    const officialPack = await this.repo.getOfficialEvidencePack(lineId);
+    return this.repo.insertMarginSnapshot({
+      media_line_id: lineId,
+      gross_sell_vnd: inputs.gross_sell_vnd,
+      discount_vnd: inputs.discount_vnd,
+      media_cost_vnd: inputs.media_cost_vnd,
+      make_good_cost_vnd: inputs.make_good_cost_vnd,
+      rebate_accrued_vnd: inputs.rebate_accrued_vnd,
+      service_cost_vnd: inputs.service_cost_vnd,
+      contribution_vnd: waterfall.contribution,
+      contribution_bps: waterfall.contributionBps,
+      closed: Boolean(officialPack),
+    });
+  }
+
+  async createFinanceRequest(lineId: string, staffId: number): Promise<MsosFinanceRequestRow> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    const officialPack = await this.repo.getOfficialEvidencePack(lineId);
+    if (!officialPack) {
+      throw new UnprocessableEntityException({ error: 'evidence_not_official' });
+    }
+    const materialOpen = await this.repo.hasOpenMaterialDiscrepancy(lineId);
+    if (materialOpen) {
+      throw new UnprocessableEntityException({ error: 'discrepancy_material_open' });
+    }
+    return this.repo.insertFinanceRequest({
+      media_line_id: lineId,
+      evidence_pack_id: officialPack.id,
+      requested_by: staffId,
     });
   }
 }
