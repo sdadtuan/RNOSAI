@@ -9,6 +9,7 @@ import {
   type CpAiOpsPane,
 } from '@/lib/crm/cp-ai-ops-panes.util';
 import { dash } from '@/lib/crm/cp-format';
+import { CpAiOpsMagnificPane } from './CpAiOpsMagnificPane';
 import { CpWeaveWorkOrder } from './CpWeaveWorkOrder';
 
 const PANES: Array<{ id: CpAiOpsPane; label: string }> = [
@@ -58,8 +59,7 @@ export function CpAiOpsWorkspace({
 
       {pane === 'magnific' ? (
         <div className="cp-ai-ops-body">
-          <p className="cp-muted">Wave B</p>
-          <p className="cp-empty">{dash(null)}</p>
+          <CpAiOpsMagnificPane projectId={projectId} flags={flags} />
         </div>
       ) : null}
 

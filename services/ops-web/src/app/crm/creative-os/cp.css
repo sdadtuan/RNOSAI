@@ -1616,6 +1616,66 @@ body:has(.ops-sidebar) .cp-main {
   gap: 8px;
 }
 
+.cp-ai-ops-composer {
+  display: grid;
+  gap: 12px;
+}
+
+.cp-ai-ops-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.cp-ai-ops-fieldset {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.cp-ai-ops-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.cp-ai-ops-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cp-ai-ops-field {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cp-ai-ops-field textarea {
+  min-width: 220px;
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font: inherit;
+  resize: vertical;
+}
+
+.cp-ai-ops-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cp-ai-ops-meta {
+  margin: 0;
+  font-size: 13px;
+}
+
 .cp-weave {
   display: grid;
   gap: 12px;
