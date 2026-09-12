@@ -132,6 +132,13 @@ export class CsdChatController {
     return this.chat.listRelatedTickets(actor, id);
   }
 
+  @Get('conversations/:id/attachments')
+  @RequireCsdAction('view')
+  async listConversationAttachments(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.listConversationAttachments(actor, id);
+  }
+
   @Post('conversations/:id/messages')
   @RequireCsdAction('write')
   async sendMessage(

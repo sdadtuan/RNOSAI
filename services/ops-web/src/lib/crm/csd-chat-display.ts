@@ -87,11 +87,36 @@ export function isCsdChatImageMime(mime: string | null | undefined): boolean {
     .startsWith('image/');
 }
 
+export function isCsdChatMediaMime(mime: string | null | undefined): boolean {
+  const normalized = String(mime ?? '')
+    .trim()
+    .toLowerCase();
+  return normalized.startsWith('image/') || normalized.startsWith('video/');
+}
+
 export type CsdConversationMediaItem = {
   file: import('@/lib/crm/csd-api').CsdAttachmentRow;
-  messageId: string;
+  messageId: string | null;
   createdAt: string;
 };
+
+export function splitCsdConversationAttachments(
+  items: import('@/lib/crm/csd-api').CsdConversationAttachmentItem[],
+): { images: CsdConversationMediaItem[]; files: CsdConversationMediaItem[] } {
+  const images: CsdConversationMediaItem[] = [];
+  const files: CsdConversationMediaItem[] = [];
+  for (const row of items) {
+    const { message_id, created_at, ...file } = row;
+    const item = {
+      file,
+      messageId: message_id ?? null,
+      createdAt: created_at,
+    };
+    if (isCsdChatMediaMime(file.mime_type)) images.push(item);
+    else files.push(item);
+  }
+  return { images, files };
+}
 
 export function collectCsdConversationMedia(
   messages: Array<{
@@ -101,19 +126,19 @@ export function collectCsdConversationMedia(
     attachments?: import('@/lib/crm/csd-api').CsdAttachmentRow[];
   }>,
 ): { images: CsdConversationMediaItem[]; files: CsdConversationMediaItem[] } {
-  const images: CsdConversationMediaItem[] = [];
-  const files: CsdConversationMediaItem[] = [];
+  const items: import('@/lib/crm/csd-api').CsdConversationAttachmentItem[] = [];
   for (const message of messages) {
     if (message.is_deleted) continue;
     for (const file of message.attachments ?? []) {
-      const item = { file, messageId: message.id, createdAt: message.created_at };
-      if (isCsdChatImageMime(file.mime_type)) images.push(item);
-      else files.push(item);
+      items.push({
+        ...file,
+        message_id: message.id,
+        created_at: message.created_at,
+      });
     }
   }
-  images.reverse();
-  files.reverse();
-  return { images, files };
+  items.reverse();
+  return splitCsdConversationAttachments(items);
 }
 
 export type ChatFrameBox = { left: number; right: number; top: number; bottom: number };

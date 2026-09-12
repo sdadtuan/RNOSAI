@@ -294,6 +294,12 @@ export class CsdChatService {
     return { items: await this.repo.listRelatedTickets(conv.id) };
   }
 
+  async listConversationAttachments(_actor: CsdActor, conversationId: string) {
+    await this.requireConversation(conversationId);
+    const items = await this.repo.listConversationAttachments(conversationId);
+    return { items };
+  }
+
   async createTicketFromMessage(
     actor: CsdActor,
     messageId: string,

@@ -4,6 +4,7 @@ import { AppConfigService } from '../config/app-config.service';
 import {
   CSD_TENANT_ID,
   CsdAttachmentRow,
+  CsdConversationAttachmentItem,
   CsdConversationKind,
   CsdConversationListFilter,
   CsdConversationListItem,
@@ -868,6 +869,42 @@ export class CsdChatRepository implements OnModuleDestroy {
     }
     const grouped = await this.listReactionsByMessages([messageId], staffId);
     return grouped[messageId] ?? [];
+  }
+
+  async listConversationAttachments(conversationId: string): Promise<CsdConversationAttachmentItem[]> {
+    const res = await this.db.query(
+      `SELECT a.id,
+              a.file_name,
+              a.mime_type,
+              a.byte_size,
+              a.visibility,
+              m.id::text AS message_id,
+              COALESCE(m.created_at, a.created_at) AS created_at
+         FROM csd_attachments a
+         LEFT JOIN csd_messages m
+           ON a.entity_type = 'csd_message'
+          AND a.entity_id = m.id::text
+          AND m.tenant_id = $1
+          AND m.conversation_id = $2
+          AND m.is_deleted = FALSE
+        WHERE a.tenant_id = $1
+          AND a.is_deleted = FALSE
+          AND (
+            (a.entity_type = 'csd_message' AND m.id IS NOT NULL)
+            OR (a.entity_type = 'csd_conversation' AND a.entity_id = $2)
+          )
+        ORDER BY COALESCE(m.created_at, a.created_at) DESC`,
+      [CSD_TENANT_ID, conversationId],
+    );
+    return res.rows.map((row: Record<string, unknown>) => ({
+      id: text(row.id),
+      file_name: text(row.file_name),
+      mime_type: text(row.mime_type),
+      byte_size: num(row.byte_size) ?? 0,
+      visibility: text(row.visibility) as CsdConversationAttachmentItem['visibility'],
+      message_id: row.message_id != null ? text(row.message_id) : null,
+      created_at: text(row.created_at),
+    }));
   }
 
   async listAttachmentsByMessages(messageIds: string[]): Promise<Record<string, CsdAttachmentRow[]>> {

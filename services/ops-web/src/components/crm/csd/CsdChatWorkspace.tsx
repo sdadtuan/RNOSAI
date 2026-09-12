@@ -176,7 +176,7 @@ export function CsdChatWorkspace({
       {((!s.isMobile && contextOpen) || (s.isMobile && s.mobilePane === 'context')) && (
         <CsdChatContext
           token={token}
-          messages={s.messages}
+          mediaRefreshKey={`${s.messages.length}:${s.messages[s.messages.length - 1]?.id ?? ''}`}
           active={s.active}
           members={s.members}
           relatedTickets={s.relatedTickets}

@@ -27,6 +27,7 @@ describe('CsdChatService', () => {
     updateMessageBody: jest.fn(),
     softDeleteMessage: jest.fn(),
     listAttachmentsByMessages: jest.fn(),
+    listConversationAttachments: jest.fn(),
     findStaffDisplayName: jest.fn(),
     getConversationForMember: jest.fn(),
     setMemberAlias: jest.fn(),
@@ -375,6 +376,24 @@ describe('CsdChatService', () => {
     });
     repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active' });
     await expect(svc().editMessage(actor, 'm1', { body_text: 'x' })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('lists all conversation attachments from repository', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active' });
+    repo.listConversationAttachments.mockResolvedValue([
+      {
+        id: 'a1',
+        file_name: 'shot.png',
+        mime_type: 'image/png',
+        byte_size: 12,
+        visibility: 'internal',
+        message_id: 'm1',
+        created_at: '2026-09-01T10:00:00.000Z',
+      },
+    ]);
+    const out = await svc().listConversationAttachments(actor, 'c1');
+    expect(out.items).toHaveLength(1);
+    expect(repo.listConversationAttachments).toHaveBeenCalledWith('c1');
   });
 
   it('skips internal files when creating ticket from message', async () => {

@@ -152,6 +152,11 @@ export interface CsdAttachmentRow {
   visibility: 'internal' | 'client' | 'restricted';
 }
 
+export type CsdConversationAttachmentItem = CsdAttachmentRow & {
+  message_id?: string | null;
+  created_at: string;
+};
+
 export type CsdChatEmotionId = 'like' | 'love' | 'haha' | 'wow' | 'sad' | 'angry';
 
 export interface CsdMessageReactionSummary {
@@ -510,6 +515,13 @@ export async function fetchCsdRelatedTickets(
   conversationId: string,
 ): Promise<{ items: CsdTicketRow[] }> {
   return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/related-tickets`);
+}
+
+export async function fetchCsdConversationAttachments(
+  token: string,
+  conversationId: string,
+): Promise<{ items: CsdConversationAttachmentItem[] }> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/attachments`);
 }
 
 export async function sendCsdMessage(

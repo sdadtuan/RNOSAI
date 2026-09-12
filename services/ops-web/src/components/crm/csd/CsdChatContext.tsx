@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CsdChatContextMedia } from '@/components/crm/csd/CsdChatContextMedia';
 import {
+  fetchCsdConversationAttachments,
+  type CsdConversationAttachmentItem,
   type CsdConversationMemberRow,
   type CsdConversationRow,
-  type CsdMessageRow,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
-import { collectCsdConversationMedia } from '@/lib/crm/csd-chat-display';
+import { splitCsdConversationAttachments } from '@/lib/crm/csd-chat-display';
 
 export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
   client: 'Khách hàng',
@@ -21,7 +22,7 @@ export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
 
 type CsdChatContextProps = {
   token: string;
-  messages: CsdMessageRow[];
+  mediaRefreshKey?: string;
   active: CsdConversationRow | null;
   members: CsdConversationMemberRow[];
   relatedTickets: CsdTicketRow[];
@@ -89,7 +90,7 @@ function ContextSection({
 
 export function CsdChatContext({
   token,
-  messages,
+  mediaRefreshKey = '',
   active,
   members,
   relatedTickets,
@@ -120,8 +121,10 @@ export function CsdChatContext({
   const [membersOpen, setMembersOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [aliasDraft, setAliasDraft] = useState(active?.alias_vi || active?.name_vi || '');
+  const [attachments, setAttachments] = useState<CsdConversationAttachmentItem[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
 
-  const media = useMemo(() => collectCsdConversationMedia(messages), [messages]);
+  const media = useMemo(() => splitCsdConversationAttachments(attachments), [attachments]);
 
   useEffect(() => {
     setAliasDraft(active?.alias_vi || active?.name_vi || '');
@@ -130,6 +133,28 @@ export function CsdChatContext({
     setMembersOpen(true);
     setAiOpen(false);
   }, [active?.id, active?.alias_vi, active?.name_vi]);
+
+  useEffect(() => {
+    if (!active?.id) {
+      setAttachments([]);
+      return;
+    }
+    let cancelled = false;
+    setAttachmentsLoading(true);
+    void fetchCsdConversationAttachments(token, active.id)
+      .then((out) => {
+        if (!cancelled) setAttachments(out.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setAttachments([]);
+      })
+      .finally(() => {
+        if (!cancelled) setAttachmentsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active?.id, token, mediaRefreshKey]);
 
   return (
     <aside className={`csd-chat-workspace__context csd-chat-context-panel${isSheet ? ' is-sheet' : ''}`}>
@@ -240,7 +265,12 @@ export function CsdChatContext({
               </div>
             </ContextSection>
 
-            <CsdChatContextMedia token={token} images={media.images} files={media.files} />
+            <CsdChatContextMedia
+              token={token}
+              loading={attachmentsLoading}
+              images={media.images}
+              files={media.files}
+            />
 
             <ContextSection title="Ticket liên quan" open={ticketsOpen} onToggle={() => setTicketsOpen((v) => !v)}>
               <ul className="csd-chat-related" data-testid="csd-chat-related-tickets">

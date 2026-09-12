@@ -243,6 +243,16 @@ export type CsdAttachmentRow = {
   created_at: string;
 };
 
+export type CsdConversationAttachmentItem = {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  byte_size: number;
+  visibility: 'internal' | 'client' | 'restricted';
+  message_id: string | null;
+  created_at: string;
+};
+
 export const CSD_CHAT_EMOTION_IDS = ['like', 'love', 'haha', 'wow', 'sad', 'angry'] as const;
 export type CsdChatEmotionId = (typeof CSD_CHAT_EMOTION_IDS)[number];
 

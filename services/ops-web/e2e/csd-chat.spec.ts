@@ -139,6 +139,21 @@ async function mockCsdChatApis(page: import('@playwright/test').Page) {
       });
       return;
     }
+    if (method === 'GET' && url.includes('/attachments')) {
+      const attachmentItems = (message.attachments ?? []).map(
+        (file: { id: string; file_name: string; mime_type: string; byte_size: number; visibility: string }) => ({
+          ...file,
+          message_id: message.id,
+          created_at: message.created_at,
+        }),
+      );
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: attachmentItems }),
+      });
+      return;
+    }
     if (method === 'GET' && url.includes('/related-tickets')) {
       await route.fulfill({
         status: 200,

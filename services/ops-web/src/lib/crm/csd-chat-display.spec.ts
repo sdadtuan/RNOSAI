@@ -7,6 +7,8 @@ import {
   formatDateChip,
   initialsFromName,
   isCsdChatImageMime,
+  isCsdChatMediaMime,
+  splitCsdConversationAttachments,
   resolveCsdConversationAvatar,
   resolveCsdMessagePeer,
   resolveCsdPersonAvatar,
@@ -41,6 +43,33 @@ describe('csd-chat-display', () => {
     expect(isCsdChatImageMime('IMAGE/JPEG')).toBe(true);
     expect(isCsdChatImageMime('application/pdf')).toBe(false);
     expect(isCsdChatImageMime(null)).toBe(false);
+  });
+
+  it('splitCsdConversationAttachments groups media and files newest-first', () => {
+    expect(isCsdChatMediaMime('video/mp4')).toBe(true);
+    const out = splitCsdConversationAttachments([
+      {
+        id: '1',
+        file_name: 'a.png',
+        mime_type: 'image/png',
+        byte_size: 1,
+        visibility: 'internal',
+        message_id: 'm1',
+        created_at: '2026-09-02T10:00:00.000Z',
+      },
+      {
+        id: '2',
+        file_name: 'b.pdf',
+        mime_type: 'application/pdf',
+        byte_size: 2,
+        visibility: 'internal',
+        message_id: 'm2',
+        created_at: '2026-09-02T11:00:00.000Z',
+      },
+    ]);
+    expect(out.images).toHaveLength(1);
+    expect(out.files).toHaveLength(1);
+    expect(out.files[0]?.file.file_name).toBe('b.pdf');
   });
 
   it('resolveCsdMessagePeer prefers conversation name over Khách', () => {
