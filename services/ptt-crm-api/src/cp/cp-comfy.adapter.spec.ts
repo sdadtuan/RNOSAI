@@ -209,4 +209,72 @@ describe('CpComfyAdapter', () => {
       error: 'OUT_OF_MEMORY',
     });
   });
+
+  it('polls /history until outputs appear instead of failing the first empty snapshot', async () => {
+    const fetchImpl = jest.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href.includes('/history/prm-poll')) {
+        if (fetchImpl.mock.calls.filter(([called]) => String(called).includes('/history/prm-poll')).length < 2) {
+          return jsonResponse(200, {
+            'prm-poll': {
+              outputs: {},
+              status: { completed: false, status_str: 'running' },
+            },
+          });
+        }
+        return jsonResponse(200, {
+          'prm-poll': {
+            outputs: {
+              '9': {
+                images: [{ filename: 'ComfyUI_ready.png', subfolder: '', type: 'output' }],
+              },
+            },
+            status: { completed: true, status_str: 'success' },
+          },
+        });
+      }
+      throw new Error(`unexpected ${href}`);
+    });
+    const adapter = new CpComfyAdapter({
+      fetchImpl,
+      env: enabledEnv(),
+      waitTimeoutMs: 200,
+      pollIntervalMs: 5,
+    });
+
+    await expect(adapter.history('prm-poll')).resolves.toMatchObject({
+      outputFiles: [expect.stringContaining('ComfyUI_ready.png')],
+    });
+    expect(
+      fetchImpl.mock.calls.filter(([called]) => String(called).includes('/history/prm-poll')).length,
+    ).toBeGreaterThan(1);
+  });
+
+  it('times out empty history after multiple GETs instead of failing the first snapshot', async () => {
+    const fetchImpl = jest.fn(async (url: string | URL) => {
+      if (String(url).includes('/history/prm-timeout')) {
+        return jsonResponse(200, {
+          'prm-timeout': {
+            outputs: {},
+            status: { completed: false, status_str: 'running' },
+          },
+        });
+      }
+      throw new Error(`unexpected ${String(url)}`);
+    });
+    const adapter = new CpComfyAdapter({
+      fetchImpl,
+      env: enabledEnv(),
+      waitTimeoutMs: 25,
+      pollIntervalMs: 5,
+    });
+
+    await expect(adapter.history('prm-timeout')).rejects.toMatchObject({
+      error_class: 'ASSET_SYNC_FAILED',
+      reason: 'wait_timeout',
+    });
+    expect(
+      fetchImpl.mock.calls.filter(([called]) => String(called).includes('/history/prm-timeout')).length,
+    ).toBeGreaterThan(1);
+  });
 });

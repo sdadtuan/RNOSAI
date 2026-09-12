@@ -134,6 +134,41 @@ describe('CpRenderWorker', () => {
     expect(ingest).toHaveBeenCalledWith(9, queued.id);
   });
 
+  it('does not mark a running comfy job ASSET_SYNC_FAILED on the first empty history tick', async () => {
+    const ingest = jest.fn(async () => ({ state: 'queued' }));
+    const queued = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      provider: 'comfyui',
+      created_by_staff_id: 9,
+      state: 'queued',
+    };
+    const db = {
+      query: jest.fn(async (sql: string) => {
+        if (sql.includes("provider = 'comfyui'") || sql.includes('comfyui')) {
+          if (sql.includes("state = 'queued'")) return { rows: [{ ...queued }] };
+        }
+        if (sql.includes("provider LIKE 'magnific%'") && sql.includes("state = 'queued'")) {
+          return { rows: [{ ...queued }] };
+        }
+        return { rows: [] };
+      }),
+    };
+    const worker = new CpRenderWorker(db as never, { ingest } as never);
+
+    const completed = await worker.pollMagnificQueuedJobs();
+
+    expect(ingest).toHaveBeenCalledWith(9, queued.id);
+    expect(completed).toBe(1);
+    expect(db.query).not.toHaveBeenCalledWith(
+      expect.stringContaining('ASSET_SYNC_FAILED'),
+      expect.anything(),
+    );
+    expect(db.query).not.toHaveBeenCalledWith(
+      expect.stringContaining('missing_output_url'),
+      expect.anything(),
+    );
+  });
+
   it('routes magnific_* jobs through ingest instead of the stub renderer', async () => {
     const ingest = jest.fn(async () => ({ state: 'quality_check' }));
     const db = {

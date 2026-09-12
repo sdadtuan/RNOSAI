@@ -1,7 +1,12 @@
 import { HttpException, Injectable, Optional } from '@nestjs/common';
 import { readAiOpsFlags } from './cp-ai-ops.flags';
+import { throwMagnificWaitFailed } from './cp-magnific-http.util';
+import { MAGNIFIC_VIDEO_WAIT_DEFAULT_MS } from './cp-magnific-mcp.adapter';
 
 export const COMFY_STATS_TIMEOUT_MS = 5_000;
+export const COMFY_HISTORY_GET_TIMEOUT_MS = 15_000;
+export const COMFY_WAIT_POLL_MS = 3_000;
+export const COMFY_WAIT_DEFAULT_MS = MAGNIFIC_VIDEO_WAIT_DEFAULT_MS;
 
 export type ComfyFetch = (
   url: string | URL,
@@ -12,6 +17,8 @@ export type CpComfyAdapterOptions = {
   fetchImpl?: ComfyFetch;
   env?: NodeJS.ProcessEnv;
   now?: () => number;
+  waitTimeoutMs?: number;
+  pollIntervalMs?: number;
 };
 
 export type ComfyProviderHealth =
@@ -23,11 +30,15 @@ export class CpComfyAdapter {
   private readonly fetchImpl: ComfyFetch;
   private readonly env: NodeJS.ProcessEnv;
   private readonly now: () => number;
+  private readonly waitTimeoutMs: number;
+  private readonly pollIntervalMs: number;
 
   constructor(@Optional() options?: CpComfyAdapterOptions) {
     this.fetchImpl = options?.fetchImpl ?? fetch;
     this.env = options?.env ?? process.env;
     this.now = options?.now ?? Date.now;
+    this.waitTimeoutMs = options?.waitTimeoutMs ?? readWaitMs(this.env);
+    this.pollIntervalMs = options?.pollIntervalMs ?? readPollMs(this.env);
   }
 
   async systemStats(): Promise<{ vram_mb: number | null; ok: boolean }> {
@@ -71,11 +82,25 @@ export class CpComfyAdapter {
 
   async history(promptId: string): Promise<{ outputFiles: string[] }> {
     this.assertWorkerEnabled();
-    const res = await this.gatewayFetch(`/history/${encodeURIComponent(promptId)}`, { method: 'GET' });
-    if (!res.ok) throwWorkerUnavailable();
-    const rec = unwrapHistory(await res.json(), promptId);
-    if (isOomHistory(rec)) throwOom();
-    return { outputFiles: parseOutputFiles(rec) };
+    const deadline = this.now() + this.waitTimeoutMs;
+    while (true) {
+      const remaining = deadline - this.now();
+      if (remaining <= 0) throwMagnificWaitFailed('wait_timeout');
+      const res = await this.gatewayFetch(
+        `/history/${encodeURIComponent(promptId)}`,
+        { method: 'GET' },
+        Math.min(COMFY_HISTORY_GET_TIMEOUT_MS, Math.max(1, remaining)),
+      );
+      if (!res.ok) throwWorkerUnavailable();
+      const rec = unwrapHistory(await res.json(), promptId);
+      if (isOomHistory(rec)) throwOom();
+      if (isFailedHistory(rec)) throwMagnificWaitFailed('vendor_failed');
+      const outputFiles = parseOutputFiles(rec);
+      if (outputFiles.length) return { outputFiles };
+      const sleepMs = Math.min(this.pollIntervalMs, Math.max(0, deadline - this.now()));
+      if (sleepMs <= 0) throwMagnificWaitFailed('wait_timeout');
+      await delay(sleepMs);
+    }
   }
 
   async interrupt(promptId: string): Promise<void> {
@@ -162,6 +187,33 @@ function isOomText(value: unknown): boolean {
 
 function isOomHistory(rec: Record<string, unknown>): boolean {
   return isOomText(JSON.stringify(rec.status ?? rec));
+}
+
+function isFailedHistory(rec: Record<string, unknown>): boolean {
+  if (isOomHistory(rec)) return false;
+  const status = rec.status;
+  if (!status || typeof status !== 'object' || Array.isArray(status)) return false;
+  const recStatus = status as Record<string, unknown>;
+  const str = String(recStatus.status_str ?? recStatus.status ?? '').toLowerCase();
+  return str === 'error' || str === 'failed';
+}
+
+function readWaitMs(env: NodeJS.ProcessEnv): number {
+  const raw = Number(env.COMFY_WAIT_MS ?? '');
+  if (Number.isFinite(raw) && raw > 0) return raw;
+  return COMFY_WAIT_DEFAULT_MS;
+}
+
+function readPollMs(env: NodeJS.ProcessEnv): number {
+  const raw = Number(env.COMFY_POLL_MS ?? '');
+  if (Number.isFinite(raw) && raw > 0) return raw;
+  return COMFY_WAIT_POLL_MS;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function parseVramMb(payload: unknown): number | null {

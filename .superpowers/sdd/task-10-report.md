@@ -1,203 +1,151 @@
-# Task 10 Report: Requests UI + modal
+# Task 10 Report — Comfy adapter + health + job provider=comfyui
 
-**Date:** 2026-09-10  
-**Branch:** `feat/cmkte-e0`  
-**Commit:** `8d3214ea` — `feat(cmkte): operate Content Request intake from COS modal`  
-**Status:** DONE
+**Branch:** `feat/cp-ai-ops`  
+**HEAD before:** `dae8f59110decffb92431a4ae81b6c6ec9965cf3`  
+**Commit:** `69765c04` `feat(cp): ComfyUI gateway adapter and health.`  
+**Status:** DONE_WITH_CONCERNS
 
-## What was implemented
+## Summary
 
-Content Request Intake is a real COS screen. The stub modal is a form. Command Center ＋ opens the same modal.
+`CpComfyAdapter` talks only to `COMFYUI_GATEWAY_URL` (mocked fetch in tests). Flag off or heartbeat failure never POSTs `/prompt` and never reads the public `:8188` path. Jobs now accept `provider=comfyui` on the same draft/confirm/submit gate as Magnific; submit returns `409 WORKER_UNAVAILABLE` (GT-C01) when `readAiOpsFlags().comfy` is false or `systemStats()` is not ok. `GET /api/crm/cp/provider-health` (`@RequireCpAction('view')`) returns `{ comfy: { ok, vram_mb, checked_at } }` or `{ comfy: { ok: false, reason: 'gpu_building' } }` with no host/URL. Ingest reuses the Task 6 DAM/checksum path via `history` + `download`; empty bytes → `failed` + `ASSET_SYNC_FAILED`. OOM retries once (`attempt+1`) then persists `OUT_OF_MEMORY`.
 
-| Surface | Behavior |
+## What shipped
+
+### `CpComfyAdapter` (`cp-comfy.adapter.ts`)
+
+```ts
+export class CpComfyAdapter {
+  systemStats(): Promise<{ vram_mb: number | null; ok: boolean }>;
+  prompt(jobId: string, boundWorkflow: unknown): Promise<{ promptId: string }>;
+  history(promptId: string): Promise<{ outputFiles: string[] }>;
+  interrupt(promptId: string): Promise<void>;
+  download(fileRef: string): Promise<{ bytes: Buffer; mime: string }>;
+  providerHealth(): Promise<ComfyProviderHealth>;
+}
+```
+
+- `client_id` = `ptt-{jobId}` on `POST {gateway}/prompt`.
+- Flag off (`COMFYUI_WORKER_ENABLED` not `1`/`true`) → `systemStats` `{ ok: false }` and `prompt` `409 WORKER_UNAVAILABLE` **without** fetching `COMFYUI_GATEWAY_URL`.
+- Heartbeat fail (`/system_stats` error/non-OK, 5s timeout) → no `/prompt`; health `gpu_building`.
+- `vram_mb` from `devices[0].vram_total` (bytes → MiB when `>= 1_000_000`).
+- History OOM (`CUDA out of memory`) → `409 OUT_OF_MEMORY`.
+- Extra methods: `download` (GT-C04 ingest) and `providerHealth` (route JSON).
+
+### Jobs (`cp-jobs.service.ts`)
+
+- `requiredProvider` / `CpJobDraftInput.provider` now includes `comfyui`.
+- Magnific draft/confirm/submit/getBalance path unchanged.
+- Comfy skips Magnific GT-M05 (RESTRICTED may draft on-prem).
+- Same confirm gate: `confirm !== true` → `400 human_confirm_required`.
+- Submit: flag off → `409 WORKER_UNAVAILABLE` **before** `systemStats`/`prompt`. Heartbeat fail → same, no `prompt`.
+- Submit success: `bindComfyWorkflow` on `inputs.workflow/bindings/values` → `prompt` → run `queued` with `external_run_id = promptId`.
+- Ingest: `history` + `download` + sha256 + `probeIngestBytes` (null, never 0) + DAM prefix `comfyui/{jobId}/{checksum}.ext`.
+- Empty download → `ASSET_SYNC_FAILED` (GT-C04 / GT-M06-style).
+- OOM on first prompt: release, `attempt+1` reserve, prompt once more; second OOM → `failed` + `OUT_OF_MEMORY`.
+- Cancel interrupts the prompt id when present.
+
+### Health route (`cp.controller.ts`)
+
+```
+GET /api/crm/cp/provider-health
+@RequireCpAction('view')
+```
+
+- Flag off or missing adapter → `{ comfy: { ok: false, reason: 'gpu_building' } }` (no `checked_at` required).
+- Live ok → `{ comfy: { ok: true, vram_mb, checked_at } }`.
+- JSON never contains `COMFYUI_GATEWAY_URL`, `:8188`, or a host.
+
+### Worker
+
+`pollMagnificQueuedJobs` / `process` also ingest `provider = 'comfyui'` so queued Comfy jobs follow the Task 6 claim path.
+
+## Tests (TDD)
+
+1. Adapter + jobs + controller specs written first → fail (module missing, `comfyui` rejected, 6th ctor arg).
+2. Implemented adapter / job branch / health → green.
+
+| Suite | Asserts |
 |---|---|
-| Validator | `validateRequestForm` verbatim in `cmkte-request-form.ts` |
-| Submit | Missing required field → message, no POST. `lifecycle_id` must be number > 0 |
-| Create | `POST /api/crm/content-os/portfolio/requests` — toast (not `alert`), local badge +1, stay on Intake |
-| Convert | **Triage & create** only when `triage_status === 'Accepted'` → `POST .../convert` → `cmktePath('workspace', itemId)` |
-| List | `GET /api/crm/content-os/portfolio/requests` → `{ items }` from scoped `cmkt_content_requests`, or `{ items: [] }` if table/PG missing |
-| Ideas | Merge only when `?lifecycle=` is a known id; `status != converted` labeled source `idea`. No lifecycle → skip. No seed |
+| flag off | no fetch; `WORKER_UNAVAILABLE`; health `gpu_building` without URL |
+| bind+prompt | packshot bind → `POST {gateway}/prompt` `client_id=ptt-{jobId}` |
+| heartbeat fail | no `/prompt` |
+| health JSON | omits gateway / `:8188` / host |
+| ingest checksum | empty bytes → `ASSET_SYNC_FAILED`; success → DAM + probe ≠ 0 |
+| OOM | two prompts, reserve `:2`, persist `OUT_OF_MEMORY` |
+| RESTRICTED | comfy draft allowed |
 
-Form required: Client/Brand, Nguồn (`account\|client_portal\|campaign\|api\|idea`), Deliverable, Objective, Due, Priority, Lifecycle ID. No Sunlight/Nova/Tâm An. No “Gọi ngay”. Submitted rows are not converted and are not auto-marked Accepted.
+## Verification
 
-## TDD Evidence
+```bash
+cd services/ptt-crm-api && npx jest --testPathPattern='src/cp/cp-(comfy.adapter|jobs.service|ai-ops.flags)|src/cp/cp.controller' --no-coverage
+# 4 suites, 54 passed
 
-### RED — validator module missing
-
-```
-cd services/ops-web && ./node_modules/.bin/vitest run src/lib/crm/cmkte-request-form.spec.ts
-
-Error: Cannot find module './cmkte-request-form'
-```
-
-Watched fail for missing module — not a typo.
-
-### GREEN — validator + submit helper
-
-```
-cd services/ops-web && ./node_modules/.bin/vitest run src/lib/crm/cmkte-request-form.spec.ts
-
-✓ src/lib/crm/cmkte-request-form.spec.ts (4 tests)
-
-Test Files  1 passed (1)
-     Tests  4 passed (4)
+cd services/ptt-crm-api && npx jest --testPathPattern='src/cp/cp-(comfy-bind|render.worker|provider-runs)' --no-coverage
+# 3 suites, 11 passed
 ```
 
-Cases: missing deliverable → message; valid → null; missing deliverable → no POST; valid → POST body.
-
-### RED — GET list missing
-
-```
-cd services/ptt-crm-api && npx jest src/content-os-portfolio --no-coverage
-
-TS2339: Property 'listRequests' does not exist on type 'ContentOsPortfolioService'.
-TS2339: Property 'listRequests' does not exist on type 'ContentOsPortfolioController'.
-```
-
-### GREEN — list + UI helpers
-
-```
-cd services/ops-web && ./node_modules/.bin/vitest run src/lib/crm/cmkte-request-form.spec.ts src/lib/crm/cmkte-api.spec.ts
-# 2 files, 9 tests passed
-
-cd services/ptt-crm-api && npx jest src/content-os-portfolio --no-coverage
-# 5 suites, 28 tests passed
-```
+Did **not** hit a live ComfyUI gateway or GPU.
 
 ## Files
 
-- Create: `services/ops-web/src/lib/crm/cmkte-request-form.ts` + spec
-- Create: `services/ops-web/src/app/crm/content-os/requests/page.tsx`
-- Create: `services/ops-web/src/components/content-os/cmkte/CmktERequests.tsx`
-- Modify: `services/ops-web/src/components/content-os/cmkte/CmktERequestModal.tsx` — real form
-- Modify: `services/ops-web/src/components/content-os/cmkte/CmktECommandCenter.tsx` — same modal + toast
-- Modify: `services/ops-web/src/lib/crm/cmkte-api.ts` + spec — list + convert
-- Modify: `services/ops-web/src/styles/cmkte.css` — form / toast / tags
-- Modify: portfolio controller / service / repository + specs — `GET .../requests`
+| File | Change |
+|---|---|
+| `services/ptt-crm-api/src/cp/cp-comfy.adapter.ts` | Created — gateway adapter + health |
+| `services/ptt-crm-api/src/cp/cp-comfy.adapter.spec.ts` | Created — mock fetch |
+| `services/ptt-crm-api/src/cp/cp-jobs.service.ts` | `comfyui` draft/confirm/submit/ingest/OOM |
+| `services/ptt-crm-api/src/cp/cp-jobs.service.spec.ts` | Comfy job + ingest + OOM cases |
+| `services/ptt-crm-api/src/cp/cp-jobs.repository.ts` | insert provider includes `comfyui` |
+| `services/ptt-crm-api/src/cp/cp.controller.ts` | `GET provider-health` view |
+| `services/ptt-crm-api/src/cp/cp.controller.spec.ts` | health omits host |
+| `services/ptt-crm-api/src/cp/cp.module.ts` | provide `CpComfyAdapter` |
+| `services/ptt-crm-api/src/cp/cp-render.worker.ts` | poll/ingest `comfyui` |
+
+Dirty tree left unstaged: CSD chat files, `globals.css`, `.DS_Store`, `test-results`, untracked docs.
+
+## Self-review
+
+- Reused `bindComfyWorkflow`; did not rewrite it.
+- Magnific getBalance / generate path untouched.
+- No Task 11 pane or Settings UI.
+- No POST to public `:8188`.
 
 ## Concerns
 
-- Ideas merge only when `?lifecycle=` is present. Portfolio-wide idea union was skipped so we do not invent a client/lifecycle.
-- GET list and POST create are untested against a live `cmkt_content_requests` table (Task 6 DDL apply was skipped). Empty `{ items: [] }` is the fallback.
-- Hub/Intake still duplicate shell auth/refresh (Task 8 leftover).
-- Browser flow (login → modal → toast → convert) was not exercised; no local ops-web server was running.
+1. **Extra adapter methods:** brief listed four methods; `download` and `providerHealth` were added so ingest and the health route do not leak the gateway URL.
+2. **History is a single GET** (no Magnific-style poll loop). Ingest expects outputs already present; worker polls queued jobs every 10s.
+3. **Draft/confirm allowed while flag is off.** Only submit/prompt/health enforce GT-C01.
+4. **No live GPU UAT.** All gateway I/O is mocked fetch.
 
-## Fix
+---
 
-Review: unconverted ideas never appeared on default `/crm/content-os/requests` because merge required `?lifecycle=`.
+## Fix pass — history poll + execution OOM retry
 
-**Covering files**
-- `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.service.ts` — `listRequests` unions `ContentMarketingRepository.listIdeas` on the same staff-scoped lifecycle ids (cap 20). Skip converted/archived; skip a lifecycle if `listIdeas` throws. Empty client/brand — no Sunlight/Nova/Tâm An.
-- `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.service.spec.ts` — merge / empty / skip-throw cases
-- `services/ops-web/src/lib/crm/cmkte-api.ts` — `mapIntakeRows` + `filterPortfolioRequests`
-- `services/ops-web/src/lib/crm/cmkte-api.spec.ts` — GET idea items render without `?lifecycle=`; convert hidden unless real `Accepted` request
-- `services/ops-web/src/components/content-os/cmkte/CmktERequests.tsx` — uses mapper
-- `services/ops-web/src/app/crm/content-os/requests/page.tsx` — default list is GET `{ items }` (ideas included); `?lifecycle=` only filters
+**HEAD before:** `69765c04f120dbd9d1445fd93623d2edda5081ee`  
+**Commit:** `fix(cp): poll Comfy history and retry execution OOM once.`  
+**Status:** DONE_WITH_CONCERNS
 
-Command Center metrics unchanged.
+Critical/Important review findings only. Did not start Task 11. Did not stage CSD chat files.
 
-### RED
+### What changed
 
-```
-cd services/ptt-crm-api && npx jest src/content-os-portfolio --no-coverage
+- `CpComfyAdapter.history()` polls `GET /history/{promptId}` until outputs exist, vendor OOM/fail, or timeout. Default wait `COMFY_WAIT_MS` / `MAGNIFIC_VIDEO_WAIT_DEFAULT_MS` (600s), interval 3s (2–5s), per-GET abort 15s.
+- Empty/running history is not `ASSET_SYNC_FAILED` / `missing_output_url`. Timeout reason is `wait_timeout` after more than one GET.
+- Ingest `pullComfyOutput` also waits on empty mocked snapshots (so claim+wait can last minutes; the 10s worker tick will not see the already-claimed row).
+- History `OUT_OF_MEMORY`: release, `attempt+1` reserve, `prompt` again (same bind), wait history again. Persist `OUT_OF_MEMORY` only after the second failure. Prompt-OOM retry unchanged.
+- Empty download after a completed history with no bytes remains `ASSET_SYNC_FAILED`.
 
-FAIL src/content-os-portfolio/content-os-portfolio.service.spec.ts
-  ● ContentOsPortfolioService.listRequests › merges unconverted ideas from scoped lifecycles without inventing clients
-    Expected length: 2
-    Received length: 1
-  ● ContentOsPortfolioService.listRequests › skips a lifecycle when listIdeas throws
-    Expected length: 2
-    Received length: 1
+### Tests (TDD)
 
-Test Suites: 1 failed, 4 passed, 5 total
-Tests:       2 failed, 29 passed, 31 total
-```
+RED: adapter rejected `waitTimeoutMs`; ingest failed first empty snapshot as `missing_output_url`; first history OOM called `failOom` with one prompt. GREEN after poll + retry.
 
 ```
-cd services/ops-web && npx vitest run src/lib/crm/cmkte-request-form.spec.ts src/lib/crm/cmkte-api.spec.ts
-
- FAIL  src/lib/crm/cmkte-api.spec.ts > mapIntakeRows > shows idea items from GET without a lifecycle query
-TypeError: (0 , mapIntakeRows) is not a function
-
- Test Files  1 failed | 1 passed (2)
-      Tests  1 failed | 9 passed (10)
+cd services/ptt-crm-api && npx jest --testPathPattern='src/cp/cp-(comfy.adapter|jobs.service|render.worker)' --no-coverage
+# 3 suites, 48 passed
 ```
 
-### GREEN
+### Concerns
 
-```
-cd services/ptt-crm-api && npx jest src/content-os-portfolio --no-coverage
-
-PASS src/content-os-portfolio/content-os-portfolio.util.spec.ts
-PASS src/content-os-portfolio/publish-gate.util.spec.ts
-PASS src/content-os-portfolio/content-os-portfolio.controller.spec.ts
-PASS src/content-os-portfolio/content-os-portfolio.service.request.spec.ts
-PASS src/content-os-portfolio/content-os-portfolio.service.spec.ts
-
-Test Suites: 5 passed, 5 total
-Tests:       31 passed, 31 total
-```
-
-```
-cd services/ops-web && npx vitest run src/lib/crm/cmkte-request-form.spec.ts src/lib/crm/cmkte-api.spec.ts
-
- ✓ src/lib/crm/cmkte-request-form.spec.ts (4 tests)
- ✓ src/lib/crm/cmkte-api.spec.ts (6 tests)
-
- Test Files  2 passed (2)
-      Tests  10 passed (10)
-```
-
-## Fix
-
-Review: `mapIntakeRows` treated every `source === 'idea'` as a non-convertible backlog idea, hiding **Triage & create** for Accepted `CR-*` rows created from ideas.
-
-**Covering files**
-- `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.types.ts` — `kind: 'request' | 'idea'` on list items
-- `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.repository.ts` — real rows emit `kind: 'request'`
-- `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.service.ts` — synthetic GET ideas emit `kind: 'idea'`
-- `services/ops-web/src/lib/crm/cmkte-api.ts` — `isSyntheticIdeaRow` discriminates by `kind` / `IDEA-*` prefix; convert keyed to real request ids only
-- `services/ops-web/src/lib/crm/cmkte-api.spec.ts` — `CR-*` + `source: 'idea'` + `Accepted` → `canConvert: true`; `IDEA-*` → `canConvert: false`
-
-### RED
-
-```
-cd services/ops-web && npx vitest run src/lib/crm/cmkte-api.spec.ts
-
- FAIL  src/lib/crm/cmkte-api.spec.ts > mapIntakeRows > allows convert for Accepted CR rows even when source is idea
-AssertionError: expected { key: 'idea-3', kind: 'idea', …(10) } to match object { kind: 'request', …(3) }
-
-- Expected
-+ Received
-
-  {
--   "canConvert": true,
--   "kind": "request",
--   "requestId": 12,
-+   "canConvert": false,
-+   "kind": "idea",
-+   "requestId": null,
-    "source": "idea",
-  }
-
- Test Files  1 failed (1)
-      Tests  1 failed | 7 passed (8)
-```
-
-### GREEN
-
-```
-cd services/ops-web && npx vitest run src/lib/crm/cmkte-api.spec.ts
-
- ✓ src/lib/crm/cmkte-api.spec.ts (8 tests)
-
- Test Files  1 passed (1)
-      Tests  8 passed (8)
-```
-
-```
-cd services/ptt-crm-api && npx jest src/content-os-portfolio --no-coverage
-
-Test Suites: 5 passed, 5 total
-Tests:       31 passed, 31 total
-```
+1. Peek-before-claim “leave queued” is not a separate early return; ingest claims then waits. Worker 10s poll misses the row because it is already `processing`.
+2. Worker first-tick spec mocks `ingest` (worker itself never writes `ASSET_SYNC_FAILED`). Real empty-snapshot coverage is in adapter + jobs specs.
+3. Adapter wait timeout reuses `throwMagnificWaitFailed` for the same `ASSET_SYNC_FAILED` + `wait_timeout` / `vendor_failed` body.
+4. Still no live ComfyUI / GPU UAT.

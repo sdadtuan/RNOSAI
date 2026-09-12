@@ -345,6 +345,7 @@ export class CpJobsService {
       };
     } catch (error) {
       if (isOomError(error)) {
+        if ((error as { persisted?: unknown }).persisted === true) throw error;
         return this.failOom(job, log, provider);
       }
       if (isPersistedAssetSyncFailure(error)) throw error;
@@ -461,15 +462,60 @@ export class CpJobsService {
     if (!this.comfy) {
       return this.failAssetSync(job, log, provider, 'assets_unavailable');
     }
-    const waited = await this.comfy.history(externalRunId);
-    const file = waited.outputFiles.find((item) => String(item ?? '').trim()) ?? '';
-    if (!file) {
-      return this.failAssetSync(job, log, provider, 'missing_output_url');
+    const deadline = Date.now() + comfyWaitMs();
+    const pollMs = comfyPollMs();
+    let runId = externalRunId;
+    let historyOomRetried = false;
+    while (true) {
+      try {
+        const waited = await this.comfy.history(runId);
+        const file = waited.outputFiles.find((item) => String(item ?? '').trim()) ?? '';
+        if (file) {
+          return {
+            downloaded: await this.comfy.download(file),
+            actualCredits: null,
+          };
+        }
+      } catch (error) {
+        if (isOomError(error)) {
+          if (historyOomRetried) return this.failOom(job, log, provider);
+          historyOomRetried = true;
+          runId = await this.retryComfyAfterHistoryOom(job, log, provider);
+          continue;
+        }
+        throw error;
+      }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        return this.failAssetSync(job, log, provider, 'wait_timeout');
+      }
+      await delay(Math.min(pollMs, remaining));
     }
-    return {
-      downloaded: await this.comfy.download(file),
-      actualCredits: null,
-    };
+  }
+
+  private async retryComfyAfterHistoryOom(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    provider: CpJobProvider,
+  ): Promise<string> {
+    const comfy = this.comfy;
+    if (!comfy) return this.failOom(job, log, provider);
+    const estimate = estimateFromLog(log);
+    await this.releaseCredits(job, log, provider, estimate.credits);
+    const nextAttempt = jobAttempt(job, log) + 1;
+    log.attempt = nextAttempt;
+    if (estimate.credits != null) {
+      await this.reserveCredits(job, log, provider, estimate.credits, nextAttempt);
+    }
+    try {
+      const generated = await comfy.prompt(String(job.id), bindWorkflowFromInputs(objectValue(log.inputs)));
+      log.external_run_id = generated.promptId;
+      await this.repo.updateJob(String(job.id), { stageLog: log }).catch(() => undefined);
+      return generated.promptId;
+    } catch (error) {
+      if (isOomError(error)) return this.failOom(job, log, provider);
+      throw error;
+    }
   }
 
   private async copyToDam(input: {
@@ -876,6 +922,26 @@ function ingestFailReason(error: unknown): string {
     return reason;
   }
   return 'ingest_failed';
+}
+
+function comfyWaitMs(): number {
+  const raw = Number(process.env.COMFY_WAIT_MS ?? '');
+  if (Number.isFinite(raw) && raw > 0) return raw;
+  const sec = Number(process.env.MAGNIFIC_VIDEO_WAIT_SEC ?? '');
+  if (Number.isFinite(sec) && sec > 0) return sec * 1000;
+  return 600_000;
+}
+
+function comfyPollMs(): number {
+  const raw = Number(process.env.COMFY_POLL_MS ?? '');
+  if (Number.isFinite(raw) && raw > 0) return raw;
+  return 3_000;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function extForMime(mime: string): string {

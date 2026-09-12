@@ -761,6 +761,132 @@ describe('CpJobsService', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  it('ingests comfy output after the first history snapshot is empty', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    process.env.COMFY_WAIT_MS = '80';
+    process.env.COMFY_POLL_MS = '5';
+    const bytes = Buffer.from('comfy-poll-bytes');
+    const root = mkdtempSync(join(tmpdir(), 'cp-comfy-poll-'));
+    process.env.CP_ASSET_STORAGE = root;
+    const history = jest.fn()
+      .mockResolvedValueOnce({ outputFiles: [] })
+      .mockResolvedValueOnce({ outputFiles: ['ComfyUI_00001_.png'] });
+    const { service, db } = makeService({
+      comfy: {
+        history,
+        download: jest.fn(async () => ({ bytes, mime: 'image/png' })),
+      },
+    });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-hist-poll' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+
+    const ingested = await service.ingest(9, drafted.job_id);
+
+    expect(history.mock.calls.length).toBeGreaterThan(1);
+    expect(ingested).toMatchObject({
+      job_id: drafted.job_id,
+      state: 'quality_check',
+    });
+    expect(db.jobs[0]?.error_class).not.toBe('ASSET_SYNC_FAILED');
+    expect(db.jobs[0]?.state).not.toBe('failed');
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('does not mark ASSET_SYNC_FAILED missing_output_url on the first empty comfy history snapshot', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    process.env.COMFY_WAIT_MS = '40';
+    process.env.COMFY_POLL_MS = '5';
+    const history = jest.fn(async () => ({ outputFiles: [] }));
+    const { service, db } = makeService({ comfy: { history } });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-hist-empty' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+
+    await expect(service.ingest(9, drafted.job_id)).rejects.toMatchObject({
+      error_class: 'ASSET_SYNC_FAILED',
+      reason: 'wait_timeout',
+    });
+    expect(history.mock.calls.length).toBeGreaterThan(1);
+    expect(db.jobs[0]).toMatchObject({
+      state: 'failed',
+      error_class: 'ASSET_SYNC_FAILED',
+    });
+    const log = db.jobs[0]?.stage_log_json as Record<string, unknown>;
+    expect(log.sync_fail_reason).toBe('wait_timeout');
+    expect(log.sync_fail_reason).not.toBe('missing_output_url');
+  });
+
+  it('retries history OOM once with a second prompt then persists OUT_OF_MEMORY', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    const oom = Object.assign(new Error('OUT_OF_MEMORY'), {
+      status: 409,
+      error: 'OUT_OF_MEMORY',
+    });
+    const prompt = jest.fn()
+      .mockResolvedValueOnce({ promptId: 'prm-1' })
+      .mockResolvedValueOnce({ promptId: 'prm-2' });
+    const history = jest.fn().mockRejectedValue(oom);
+    const { service, db, ledgerDb } = makeService({ comfy: { prompt, history } });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-hist-oom' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+
+    await expect(service.ingest(9, drafted.job_id)).rejects.toMatchObject({
+      status: 409,
+      error: 'OUT_OF_MEMORY',
+    });
+    expect(prompt).toHaveBeenCalledTimes(2);
+    expect(history).toHaveBeenCalledTimes(2);
+    expect(db.jobs[0]).toMatchObject({
+      state: 'failed',
+      error_class: 'OUT_OF_MEMORY',
+    });
+    const reserves = ledgerDb.rows.filter((row) => row.kind === 'reserve');
+    expect(reserves.some((row) => row.idempotency_key === 'reserve:job-comfy-hist-oom:2')).toBe(true);
+  });
+
+  it('retries history OOM once then ingests the second execution', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    const oom = Object.assign(new Error('OUT_OF_MEMORY'), {
+      status: 409,
+      error: 'OUT_OF_MEMORY',
+    });
+    const bytes = Buffer.from('comfy-oom-retry-bytes');
+    const root = mkdtempSync(join(tmpdir(), 'cp-comfy-oom-'));
+    process.env.CP_ASSET_STORAGE = root;
+    const prompt = jest.fn()
+      .mockResolvedValueOnce({ promptId: 'prm-1' })
+      .mockResolvedValueOnce({ promptId: 'prm-2' });
+    const history = jest.fn()
+      .mockRejectedValueOnce(oom)
+      .mockResolvedValueOnce({ outputFiles: ['ComfyUI_00002_.png'] });
+    const { service, db, ledgerDb } = makeService({
+      comfy: {
+        prompt,
+        history,
+        download: jest.fn(async () => ({ bytes, mime: 'image/png' })),
+      },
+    });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-hist-oom-ok' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+
+    const ingested = await service.ingest(9, drafted.job_id);
+
+    expect(prompt).toHaveBeenCalledTimes(2);
+    expect(history).toHaveBeenCalledWith('prm-1');
+    expect(history).toHaveBeenCalledWith('prm-2');
+    expect(ingested).toMatchObject({
+      job_id: drafted.job_id,
+      state: 'quality_check',
+    });
+    expect(db.jobs[0]?.error_class).not.toBe('OUT_OF_MEMORY');
+    const reserves = ledgerDb.rows.filter((row) => row.kind === 'reserve');
+    expect(reserves.some((row) => row.idempotency_key === 'reserve:job-comfy-hist-oom-ok:2')).toBe(true);
+    rmSync(root, { recursive: true, force: true });
+  });
+
   it('retries OOM once with attempt+1 then persists OUT_OF_MEMORY', async () => {
     process.env.COMFYUI_WORKER_ENABLED = '1';
     const oom = Object.assign(new Error('OUT_OF_MEMORY'), {
