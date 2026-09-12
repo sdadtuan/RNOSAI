@@ -295,3 +295,51 @@ export type MsosEvidencePackRow = {
   official_at: string | null;
   created_at: string;
 };
+
+export type CreateDiscrepancyInput = {
+  report_qty?: number | null;
+  evidence_qty?: number | null;
+  actual_qty?: number | null;
+  tolerance_bps?: number;
+  hypothesis?: string | null;
+  owner_staff_id?: number | null;
+};
+
+export type MsosDiscrepancyCaseRow = {
+  id: string;
+  display_code: string;
+  media_line_id: string;
+  io_qty: number;
+  report_qty: number | null;
+  evidence_qty: number | null;
+  tolerance_bps: number;
+  material: boolean;
+  hypothesis: string | null;
+  owner_staff_id: number | null;
+  status: string;
+  created_at: string;
+};
+
+export type CreateMakeGoodInput = {
+  qty: number;
+  value_vnd?: number;
+  staffId?: number | null;
+};
+
+export type MsosMakeGoodRow = {
+  id: string;
+  display_code: string;
+  discrepancy_id: string;
+  media_line_id: string;
+  qty: number;
+  value_vnd: number;
+  capacity_reserved: boolean;
+  closed_at: string | null;
+  created_by: number | null;
+  created_at: string;
+};
+
+export type ReserveMakeGoodCapacityInput = {
+  placement_id: string;
+  bucket_date: string;
+};

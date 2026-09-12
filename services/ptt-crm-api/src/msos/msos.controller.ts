@@ -7,9 +7,11 @@ import { RequireMsosAction, StaffMsosGuard } from './guards/staff-msos.guard';
 import { MsosService } from './msos.service';
 import type {
   CapacityBucketInput,
+  CreateDiscrepancyInput,
   CreateEvidenceInput,
   CreateEvidencePackInput,
   CreateInventoryInput,
+  CreateMakeGoodInput,
   CreateIoInput,
   CreateMediaLineInput,
   CreatePackageInput,
@@ -18,6 +20,7 @@ import type {
   CreatePlacementInput,
   CreateRateCardInput,
   CreateRateVersionInput,
+  ReserveMakeGoodCapacityInput,
   ReservePackageInput,
   SafetyChangeInput,
   UpsertTrafficInput,
@@ -241,6 +244,25 @@ export class MsosController {
   @RequireMsosAction('publish')
   officialEvidencePack(@Param('id') id: string) {
     return this.msos.officialEvidencePack(id);
+  }
+
+  @Post('media-lines/:id/discrepancy')
+  @RequireMsosAction('write')
+  createDiscrepancy(@Param('id') id: string, @Body() body: CreateDiscrepancyInput) {
+    return this.msos.createDiscrepancy(id, body);
+  }
+
+  @Post('discrepancy/:id/make-good')
+  @RequireMsosAction('write')
+  async createMakeGood(@Req() req: StaffReq, @Param('id') id: string, @Body() body: CreateMakeGoodInput) {
+    const staffId = await this.resolveStaffId(req);
+    return this.msos.createMakeGood(id, { ...body, staffId });
+  }
+
+  @Post('make-goods/:id/reserve-capacity')
+  @RequireMsosAction('write')
+  reserveMakeGoodCapacity(@Param('id') id: string, @Body() body: ReserveMakeGoodCapacityInput) {
+    return this.msos.reserveMakeGoodCapacity(id, body);
   }
 
   private async resolveStaffId(req: StaffReq): Promise<number | null> {

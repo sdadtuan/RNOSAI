@@ -7,13 +7,16 @@ import { MsosRepository } from './msos.repository';
 import { decideReserve, type CapacityDecision } from './msos-capacity.util';
 import { canIssueIo, evaluateLiveGates } from './msos-gates.util';
 import { assertRateBindable } from './msos-rate.util';
+import { assertNotSilentActual, classifyDiscrepancy } from './msos-discrepancy.util';
 import { canOfficial } from './msos-evidence-pack.util';
 import { evaluateTraffic } from './msos-traffic.util';
 import type {
   CapacityBucketInput,
+  CreateDiscrepancyInput,
   CreateEvidenceInput,
   CreateEvidencePackInput,
   CreateInventoryInput,
+  CreateMakeGoodInput,
   CreateIoInput,
   CreateMediaLineInput,
   CreatePackageInput,
@@ -23,9 +26,11 @@ import type {
   CreateRateVersionInput,
   GoLiveInput,
   MsosCalendarDay,
+  MsosDiscrepancyCaseRow,
   MsosEvidencePackRow,
   MsosEvidenceRow,
   MsosHealthDto,
+  MsosMakeGoodRow,
   MsosInsertionOrderRow,
   MsosInventoryRow,
   MsosMediaLineRow,
@@ -36,6 +41,7 @@ import type {
   MsosRateVersionRow,
   MsosReservationRow,
   MsosTrafficPackRow,
+  ReserveMakeGoodCapacityInput,
   ReservePackageInput,
   SafetyChangeInput,
   UpsertTrafficInput,
@@ -689,6 +695,92 @@ export class MsosService {
       const msg = e instanceof Error ? e.message : '';
       if (msg === 'evidence_pack_not_draft') {
         throw new UnprocessableEntityException({ error: 'evidence_pack_not_draft' });
+      }
+      throw e;
+    }
+  }
+
+  async createDiscrepancy(
+    lineId: string,
+    input: CreateDiscrepancyInput,
+  ): Promise<MsosDiscrepancyCaseRow> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    const io = await this.repo.getInsertionOrderForLine(lineId);
+    const ioQty = io?.qty ?? 0;
+    const toleranceBps = input.tolerance_bps ?? 300;
+    if (input.actual_qty != null) {
+      assertNotSilentActual(ioQty, input.actual_qty, input.report_qty ?? null);
+    }
+    const { material } = classifyDiscrepancy(ioQty, input.report_qty ?? null, toleranceBps);
+    return this.repo.createDiscrepancyCase(lineId, {
+      ...input,
+      io_qty: ioQty,
+      material,
+      tolerance_bps: toleranceBps,
+    });
+  }
+
+  async createMakeGood(dcId: string, input: CreateMakeGoodInput): Promise<MsosMakeGoodRow> {
+    this.assertEnabled();
+    const dc = await this.repo.getDiscrepancyCase(dcId);
+    if (!dc) {
+      throw new UnprocessableEntityException({ error: 'discrepancy_not_found' });
+    }
+    return this.repo.createMakeGood(dcId, {
+      ...input,
+      media_line_id: dc.media_line_id,
+    });
+  }
+
+  async reserveMakeGoodCapacity(
+    mgId: string,
+    input: ReserveMakeGoodCapacityInput,
+  ): Promise<MsosMakeGoodRow> {
+    this.assertEnabled();
+    const mg = await this.repo.getMakeGood(mgId);
+    if (!mg) {
+      throw new UnprocessableEntityException({ error: 'make_good_not_found' });
+    }
+    if (mg.capacity_reserved) {
+      throw new UnprocessableEntityException({ error: 'make_good_already_reserved' });
+    }
+    const line = await this.repo.getMediaLine(mg.media_line_id);
+    const bucket = await this.repo.getCapacityBucket(input.placement_id, input.bucket_date);
+    if (!bucket) {
+      throw new UnprocessableEntityException({ error: 'capacity_bucket_not_found' });
+    }
+    await this.evaluateHardReserve({
+      placementId: input.placement_id,
+      total: bucket.total,
+      reservedHard: bucket.reserved_hard,
+      reservedSoft: bucket.reserved_soft,
+      addQty: mg.qty,
+    });
+    await this.repo.incrementCapacityReserved(
+      input.placement_id,
+      input.bucket_date,
+      'hard',
+      mg.qty,
+    );
+    if (line?.package_id) {
+      await this.repo.insertReservation({
+        package_id: line.package_id,
+        placement_id: input.placement_id,
+        bucket_date: input.bucket_date,
+        kind: 'hard',
+        qty: mg.qty,
+      });
+    }
+    try {
+      return await this.repo.reserveMakeGoodCapacity(mgId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'make_good_not_found_or_reserved') {
+        throw new UnprocessableEntityException({ error: 'make_good_not_found' });
       }
       throw e;
     }

@@ -15,12 +15,16 @@ import type {
   MsosInventoryRow,
   CreateIoInput,
   MsosBrandSafetySnapshotRow,
+  CreateDiscrepancyInput,
   CreateEvidenceInput,
   CreateEvidencePackInput,
+  CreateMakeGoodInput,
   CreateMediaLineInput,
+  MsosDiscrepancyCaseRow,
   MsosEvidencePackRow,
   MsosEvidenceRow,
   MsosInsertionOrderRow,
+  MsosMakeGoodRow,
   MsosMediaLineRow,
   MsosPackageRow,
   MsosTrafficPackRow,
@@ -814,5 +818,119 @@ export class MsosRepository implements OnModuleDestroy {
       throw new Error('evidence_pack_not_draft');
     }
     return result.rows[0] as MsosEvidencePackRow;
+  }
+
+  async getInsertionOrderForLine(lineId: string): Promise<{ qty: number } | null> {
+    const result = await this.db.query(
+      `SELECT io.qty::bigint AS qty
+         FROM msos_media_lines ml
+         JOIN msos_insertion_orders io ON io.id = ml.io_id
+        WHERE ml.id = $1::uuid
+        LIMIT 1`,
+      [lineId],
+    );
+    return (result.rows[0] as { qty: number } | undefined) ?? null;
+  }
+
+  async getPackageLineForLine(lineId: string): Promise<{ placement_id: string; package_id: string } | null> {
+    const result = await this.db.query(
+      `SELECT pln.placement_id::text, pln.package_id::text
+         FROM msos_media_lines ml
+         JOIN msos_package_lines pln ON pln.package_id = ml.package_id
+        WHERE ml.id = $1::uuid
+        LIMIT 1`,
+      [lineId],
+    );
+    return (result.rows[0] as { placement_id: string; package_id: string } | undefined) ?? null;
+  }
+
+  async createDiscrepancyCase(
+    lineId: string,
+    input: CreateDiscrepancyInput & { io_qty: number; material: boolean },
+  ): Promise<MsosDiscrepancyCaseRow> {
+    const displayCode = msosDisplayCode('DC');
+    const result = await this.db.query(
+      `INSERT INTO msos_discrepancy_cases (
+         display_code, media_line_id, io_qty, report_qty, evidence_qty,
+         tolerance_bps, material, hypothesis, owner_staff_id
+       ) VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id::text, display_code, media_line_id::text, io_qty::bigint AS io_qty,
+                 report_qty::bigint AS report_qty, evidence_qty::bigint AS evidence_qty,
+                 tolerance_bps, material, hypothesis, owner_staff_id, status, created_at::text`,
+      [
+        displayCode,
+        lineId,
+        input.io_qty,
+        input.report_qty ?? null,
+        input.evidence_qty ?? null,
+        input.tolerance_bps ?? 300,
+        input.material,
+        input.hypothesis ?? null,
+        input.owner_staff_id ?? null,
+      ],
+    );
+    return result.rows[0] as MsosDiscrepancyCaseRow;
+  }
+
+  async getDiscrepancyCase(dcId: string): Promise<MsosDiscrepancyCaseRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, media_line_id::text, io_qty::bigint AS io_qty,
+              report_qty::bigint AS report_qty, evidence_qty::bigint AS evidence_qty,
+              tolerance_bps, material, hypothesis, owner_staff_id, status, created_at::text
+         FROM msos_discrepancy_cases
+        WHERE id = $1::uuid
+        LIMIT 1`,
+      [dcId],
+    );
+    return (result.rows[0] as MsosDiscrepancyCaseRow | undefined) ?? null;
+  }
+
+  async createMakeGood(
+    dcId: string,
+    input: CreateMakeGoodInput & { media_line_id: string },
+  ): Promise<MsosMakeGoodRow> {
+    const displayCode = msosDisplayCode('MG');
+    const result = await this.db.query(
+      `INSERT INTO msos_make_goods (display_code, discrepancy_id, media_line_id, qty, value_vnd, created_by)
+       VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6)
+       RETURNING id::text, display_code, discrepancy_id::text, media_line_id::text, qty::bigint AS qty,
+                 value_vnd, capacity_reserved, closed_at::text, created_by, created_at::text`,
+      [
+        displayCode,
+        dcId,
+        input.media_line_id,
+        input.qty,
+        input.value_vnd ?? 0,
+        input.staffId ?? null,
+      ],
+    );
+    return result.rows[0] as MsosMakeGoodRow;
+  }
+
+  async getMakeGood(mgId: string): Promise<MsosMakeGoodRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, discrepancy_id::text, media_line_id::text, qty::bigint AS qty,
+              value_vnd, capacity_reserved, closed_at::text, created_by, created_at::text
+         FROM msos_make_goods
+        WHERE id = $1::uuid
+        LIMIT 1`,
+      [mgId],
+    );
+    return (result.rows[0] as MsosMakeGoodRow | undefined) ?? null;
+  }
+
+  async reserveMakeGoodCapacity(mgId: string): Promise<MsosMakeGoodRow> {
+    const result = await this.db.query(
+      `UPDATE msos_make_goods
+          SET capacity_reserved = TRUE
+        WHERE id = $1::uuid AND capacity_reserved = FALSE
+        RETURNING id::text, display_code, discrepancy_id::text, media_line_id::text, qty::bigint AS qty,
+                  value_vnd, capacity_reserved, closed_at::text, created_by, created_at::text`,
+      [mgId],
+    );
+    if (!result.rows[0]) {
+      throw new Error('make_good_not_found_or_reserved');
+    }
+    return result.rows[0] as MsosMakeGoodRow;
   }
 }
