@@ -3,14 +3,19 @@ import { AppConfigService } from '../config/app-config.service';
 import { throwDisabled } from './msos-errors.util';
 import { assertAllowedMsosName } from './msos-forbidden-seed.util';
 import { MsosRepository } from './msos.repository';
+import { assertRateBindable } from './msos-rate.util';
 import type {
   CreateInventoryInput,
   CreatePartnerInput,
   CreatePlacementInput,
+  CreateRateCardInput,
+  CreateRateVersionInput,
   MsosHealthDto,
   MsosInventoryRow,
   MsosPartnerRow,
   MsosPlacementRow,
+  MsosRateCardRow,
+  MsosRateVersionRow,
 } from './msos.types';
 
 @Injectable()
@@ -86,5 +91,66 @@ export class MsosService {
     }
     assertAllowedMsosName(name);
     return this.repo.createPlacement({ ...input, name });
+  }
+
+  async createRateCard(input: CreateRateCardInput): Promise<MsosRateCardRow> {
+    this.assertEnabled();
+    if (input.owner_kind === 'partner' && !input.partner_id) {
+      throw new UnprocessableEntityException({ error: 'partner_id_required' });
+    }
+    if (input.owner_kind === 'ptt' && input.partner_id) {
+      throw new UnprocessableEntityException({ error: 'partner_id_forbidden_for_ptt' });
+    }
+    return this.repo.createRateCard(input);
+  }
+
+  async appendRateVersion(rateCardId: string, input: CreateRateVersionInput): Promise<MsosRateVersionRow> {
+    this.assertEnabled();
+    if (!Number.isFinite(input.unit_price_vnd) || input.unit_price_vnd < 0) {
+      throw new UnprocessableEntityException({ error: 'unit_price_invalid' });
+    }
+    return this.repo.appendRateVersion(rateCardId, input);
+  }
+
+  async publishRateVersion(
+    rateCardId: string,
+    version: number,
+    publishedBy: number | null,
+  ): Promise<MsosRateVersionRow> {
+    this.assertEnabled();
+    try {
+      const row = await this.repo.publishRateVersion(rateCardId, version, publishedBy);
+      assertRateBindable(row.status);
+      return row;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'rate_version_not_found') {
+        throw new UnprocessableEntityException({ error: 'rate_version_not_found' });
+      }
+      if (msg === 'rate_version_immutable') {
+        throw new UnprocessableEntityException({ error: 'rate_version_immutable' });
+      }
+      throw e;
+    }
+  }
+
+  async updateRateVersionPrice(
+    rateCardId: string,
+    version: number,
+    unitPriceVnd: number,
+  ): Promise<MsosRateVersionRow> {
+    this.assertEnabled();
+    try {
+      return await this.repo.updateRateVersionPrice(rateCardId, version, unitPriceVnd);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'rate_version_not_found') {
+        throw new UnprocessableEntityException({ error: 'rate_version_not_found' });
+      }
+      if (msg === 'rate_version_immutable') {
+        throw new UnprocessableEntityException({ error: 'rate_version_immutable' });
+      }
+      throw e;
+    }
   }
 }

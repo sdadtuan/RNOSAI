@@ -1,11 +1,17 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { RequireMsosAction, StaffMsosGuard } from './guards/staff-msos.guard';
 import { MsosService } from './msos.service';
-import type { CreateInventoryInput, CreatePartnerInput, CreatePlacementInput } from './msos.types';
+import type {
+  CreateInventoryInput,
+  CreatePartnerInput,
+  CreatePlacementInput,
+  CreateRateCardInput,
+  CreateRateVersionInput,
+} from './msos.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
@@ -59,6 +65,29 @@ export class MsosController {
   @RequireMsosAction('write')
   createPlacement(@Body() body: CreatePlacementInput) {
     return this.msos.createPlacement(body);
+  }
+
+  @Post('rate-cards')
+  @RequireMsosAction('write')
+  createRateCard(@Body() body: CreateRateCardInput) {
+    return this.msos.createRateCard(body);
+  }
+
+  @Post('rate-cards/:id/versions')
+  @RequireMsosAction('write')
+  appendRateVersion(@Param('id') id: string, @Body() body: CreateRateVersionInput) {
+    return this.msos.appendRateVersion(id, body);
+  }
+
+  @Post('rate-cards/:id/versions/:version/publish')
+  @RequireMsosAction('publish')
+  async publishRateVersion(
+    @Req() req: StaffReq,
+    @Param('id') id: string,
+    @Param('version', ParseIntPipe) version: number,
+  ) {
+    const staffId = await this.resolveStaffId(req);
+    return this.msos.publishRateVersion(id, version, staffId);
   }
 
   private async resolveStaffId(req: StaffReq): Promise<number | null> {

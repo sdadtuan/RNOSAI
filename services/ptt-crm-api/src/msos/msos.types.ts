@@ -61,3 +61,44 @@ export type CreatePlacementInput = {
   device?: string | null;
   geo?: string | null;
 };
+
+export type MsosRateCardRow = {
+  id: string;
+  display_code: string;
+  owner_kind: 'ptt' | 'partner';
+  partner_id: string | null;
+  created_at: string;
+};
+
+export type MsosRateVersionRow = {
+  id: string;
+  rate_card_id: string;
+  version: number;
+  status: 'draft' | 'published' | 'expired';
+  published_at: string | null;
+  published_by: number | null;
+  unit_price_vnd: number;
+  currency: string;
+};
+
+export type CreateRateCardInput = {
+  owner_kind: 'ptt' | 'partner';
+  partner_id?: string | null;
+};
+
+export type CreateRateVersionInput = {
+  unit_price_vnd: number;
+};
+
+export type CapacityBucketInput = {
+  date: string;
+  total_qty: number;
+};
+
+export type MsosCalendarDay = {
+  date: string;
+  total: number;
+  reserved_hard: number;
+  reserved_soft: number;
+  conflict: boolean;
+};
