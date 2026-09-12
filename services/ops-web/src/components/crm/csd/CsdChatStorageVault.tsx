@@ -171,17 +171,28 @@ export function CsdChatStorageVault({
   return (
     <div className="csd-chat-storage-vault" data-testid="csd-chat-storage-vault" role="dialog" aria-label="Kho lưu trữ">
       <header className="csd-chat-storage-vault__head">
-        <button type="button" className="csd-chat-storage-vault__back" aria-label="Quay lại" onClick={onClose}>
-          ‹
-        </button>
-        <h3 className="csd-chat-storage-vault__title">Kho lưu trữ</h3>
         <button
           type="button"
-          className={`csd-chat-storage-vault__select${selecting ? ' is-active' : ''}`}
-          onClick={toggleSelecting}
+          className="csd-chat-storage-vault__back"
+          aria-label="Quay lại Thông tin hội thoại"
+          data-testid="csd-chat-storage-vault-back"
+          onClick={onClose}
         >
-          {selecting ? 'Xong' : 'Chọn'}
+          <span className="csd-chat-storage-vault__back-ico" aria-hidden>
+            ‹
+          </span>
+          <span className="csd-chat-storage-vault__back-label">Thông tin hội thoại</span>
         </button>
+        <div className="csd-chat-storage-vault__head-main">
+          <h3 className="csd-chat-storage-vault__title">Kho lưu trữ</h3>
+          <button
+            type="button"
+            className={`csd-chat-storage-vault__select${selecting ? ' is-active' : ''}`}
+            onClick={toggleSelecting}
+          >
+            {selecting ? 'Xong' : 'Chọn'}
+          </button>
+        </div>
       </header>
 
       <div className="csd-chat-storage-vault__tabs" role="tablist" aria-label="Loại nội dung">

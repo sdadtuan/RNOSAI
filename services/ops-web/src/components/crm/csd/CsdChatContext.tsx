@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 import { CsdChatContextMedia } from '@/components/crm/csd/CsdChatContextMedia';
-import type { CsdChatStorageTab } from '@/components/crm/csd/CsdChatStorageVault';
+import { CsdChatStorageVault, type CsdChatStorageTab } from '@/components/crm/csd/CsdChatStorageVault';
 import {
   type CsdConversationMemberRow,
   type CsdConversationRow,
@@ -47,7 +47,6 @@ type CsdChatContextProps = {
   onMobileBack?: () => void;
   onClosePanel?: () => void;
   onRename?: (aliasVi: string) => Promise<boolean>;
-  onOpenVault?: (tab: CsdChatStorageTab) => void;
   variant?: 'column' | 'sheet';
 };
 
@@ -119,7 +118,6 @@ export function CsdChatContext({
   onMobileBack,
   onClosePanel,
   onRename,
-  onOpenVault,
   variant = 'column',
 }: CsdChatContextProps) {
   const isSheet = variant === 'sheet';
@@ -127,6 +125,7 @@ export function CsdChatContext({
   const [ticketsOpen, setTicketsOpen] = useState(true);
   const [membersOpen, setMembersOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
+  const [vaultTab, setVaultTab] = useState<CsdChatStorageTab | null>(null);
   const [aliasDraft, setAliasDraft] = useState(active?.alias_vi || active?.name_vi || '');
 
   useEffect(() => {
@@ -135,7 +134,25 @@ export function CsdChatContext({
     setTicketsOpen(true);
     setMembersOpen(true);
     setAiOpen(false);
+    setVaultTab(null);
   }, [active?.id, active?.alias_vi, active?.name_vi]);
+
+  if (vaultTab && active) {
+    return (
+      <aside className={`csd-chat-workspace__context csd-chat-context-panel${isSheet ? ' is-sheet' : ''}`}>
+        <CsdChatStorageVault
+          token={token}
+          tab={vaultTab}
+          images={attachmentImages}
+          files={attachmentFiles}
+          loading={attachmentsLoading}
+          error={attachmentsError}
+          onTabChange={setVaultTab}
+          onClose={() => setVaultTab(null)}
+        />
+      </aside>
+    );
+  }
 
   return (
     <aside className={`csd-chat-workspace__context csd-chat-context-panel${isSheet ? ' is-sheet' : ''}`}>
@@ -254,7 +271,7 @@ export function CsdChatContext({
                 error={attachmentsError}
                 images={attachmentImages}
                 files={attachmentFiles}
-                onOpenVault={(tab) => onOpenVault?.(tab)}
+                onOpenVault={setVaultTab}
               />
             </section>
 
