@@ -6,6 +6,7 @@ import {
   Get,
   Header,
   Headers,
+  Optional,
   Param,
   Patch,
   Post,
@@ -83,6 +84,7 @@ import {
 import { readAiOpsFlags } from './cp-ai-ops.flags';
 import { CpWeaveCreateInput, CpWeaveService } from './cp-weave.service';
 import { CpProviderConnectionsService } from './cp-provider-connections.service';
+import { CpJobDraftInput, CpJobsService } from './cp-jobs.service';
 import {
   RequireCpAction,
   RequireCpSection,
@@ -132,6 +134,7 @@ export class CpController {
     private readonly sopIngest: CpSopIngestService,
     private readonly weave: CpWeaveService,
     private readonly connections: CpProviderConnectionsService,
+    @Optional() private readonly jobs?: CpJobsService,
   ) {}
 
   private async assertReportExportCap(req: AuthedReq) {
@@ -163,6 +166,19 @@ export class CpController {
         action: 'execute',
       });
     }
+  }
+
+  private requireJobs(): CpJobsService {
+    if (!this.jobs) {
+      throw new ForbiddenException({ error: 'jobs_unavailable' });
+    }
+    return this.jobs;
+  }
+
+  private async hasHighCostCap(req: AuthedReq): Promise<boolean> {
+    if (req.staffAuthVia === 'internal') return true;
+    const me = req.staffUser ? await this.staffAuth.me(req.staffUser) : null;
+    return Boolean(me && this.staffAuth.hasCap(me.caps, 'crm_cp.render_high_cost', 'execute'));
   }
 
   private async scope(req: AuthedReq, requested?: CpScope) {
@@ -304,6 +320,54 @@ export class CpController {
   ) {
     await this.scope(req);
     return this.connections.disconnect(id);
+  }
+
+  @Post('jobs/draft')
+  @RequireCpAction('edit')
+  async draftJob(@Req() req: AuthedReq, @Body() body: CpJobDraftInput) {
+    const actor = await this.scope(req);
+    return this.requireJobs().draft(actor.staffId, body ?? {}, {
+      hasHighCostCap: await this.hasHighCostCap(req),
+    });
+  }
+
+  @Post('jobs/:id/confirm')
+  @RequireCpSection('crm_cp.render', 'execute')
+  async confirmJob(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { confirm?: boolean },
+  ) {
+    const actor = await this.scope(req);
+    return this.requireJobs().confirm(actor.staffId, id, { confirm: body?.confirm === true });
+  }
+
+  @Post('jobs/:id/submit')
+  @RequireCpSection('crm_cp.render', 'execute')
+  async submitJob(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.scope(req);
+    return this.requireJobs().submit(actor.staffId, id);
+  }
+
+  @Post('jobs/:id/cancel')
+  @RequireCpSection('crm_cp.render', 'execute')
+  async cancelJob(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.scope(req);
+    return this.requireJobs().cancel(actor.staffId, id);
+  }
+
+  @Post('jobs/:id/retry')
+  @RequireCpSection('crm_cp.render', 'execute')
+  async retryJob(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.scope(req);
+    return this.requireJobs().retry(actor.staffId, id);
+  }
+
+  @Get('jobs/:id')
+  @RequireCpAction('view')
+  async getJob(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.scope(req);
+    return this.requireJobs().get(actor.staffId, id);
   }
 
   @Patch('settings')

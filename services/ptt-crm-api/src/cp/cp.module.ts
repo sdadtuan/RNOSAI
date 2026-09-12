@@ -75,6 +75,12 @@ import {
   CpProviderConnectionsRepository,
   CpProviderConnectionsService,
 } from './cp-provider-connections.service';
+import { CP_JOBS_QUERY, CpJobsRepository } from './cp-jobs.repository';
+import {
+  MAGNIFIC_ADAPTER,
+  MagnificAdapterStub,
+  CpJobsService,
+} from './cp-jobs.service';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CreativesModule, CampaignWritesModule],
@@ -135,6 +141,10 @@ import {
     CpProviderConnectionsRepository,
     { provide: CP_CONNECTIONS_QUERY, useExisting: CpProviderConnectionsRepository },
     CpProviderConnectionsService,
+    { provide: CP_JOBS_QUERY, useExisting: CpRendersRepository },
+    CpJobsRepository,
+    { provide: MAGNIFIC_ADAPTER, useClass: MagnificAdapterStub },
+    CpJobsService,
   ],
   exports: [CpProjectsService, CpLaunchGateService],
 })

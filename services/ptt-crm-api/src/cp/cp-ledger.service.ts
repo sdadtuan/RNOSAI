@@ -27,6 +27,7 @@ export type CpLedgerWrite = {
   jobId?: string | null;
   costCenter?: string | null;
   idempotencyKey: string;
+  provider?: string | null;
 };
 
 export type CpLedgerGrantInput = {
@@ -84,8 +85,8 @@ export class CpLedgerService {
     const inserted = await db.query(
       `INSERT INTO crm_cp_credit_ledger (
          tenant_id, kind, amount, agency_client_id, project_id, job_id,
-         cost_center, idempotency_key
-       ) VALUES ($1, $2, $3, $4::uuid, $5::uuid, $6::uuid, $7, $8)
+         cost_center, idempotency_key, provider
+       ) VALUES ($1, $2, $3, $4::uuid, $5::uuid, $6::uuid, $7, $8, $9)
        ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
        RETURNING *`,
       [
@@ -97,6 +98,7 @@ export class CpLedgerService {
         input.jobId ?? null,
         nullableText(input.costCenter),
         key,
+        nullableText(input.provider),
       ],
     );
     if (inserted.rows[0]) return inserted.rows[0];
