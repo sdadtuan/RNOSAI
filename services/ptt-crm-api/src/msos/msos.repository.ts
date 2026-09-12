@@ -25,7 +25,9 @@ import type {
   MsosEvidenceRow,
   MsosInsertionOrderRow,
   MsosMakeGoodRow,
+  CreateOutcomeLinkInput,
   MsosMediaLineRow,
+  MsosOutcomeLinkRow,
   MsosPackageRow,
   MsosTrafficPackRow,
   UpsertTrafficInput,
@@ -932,5 +934,36 @@ export class MsosRepository implements OnModuleDestroy {
       throw new Error('make_good_not_found_or_reserved');
     }
     return result.rows[0] as MsosMakeGoodRow;
+  }
+
+  async listOutcomeLinks(): Promise<MsosOutcomeLinkRow[]> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, media_line_id::text, lead_id::text, sale_id::text,
+              model, match_status, created_at::text
+         FROM msos_outcome_links
+         ORDER BY created_at DESC`,
+    );
+    return result.rows as MsosOutcomeLinkRow[];
+  }
+
+  async createOutcomeLink(
+    input: CreateOutcomeLinkInput & { match_status: 'matched' | 'unmatched' },
+  ): Promise<MsosOutcomeLinkRow> {
+    const displayCode = msosDisplayCode('OL');
+    const result = await this.db.query(
+      `INSERT INTO msos_outcome_links (display_code, media_line_id, lead_id, sale_id, model, match_status)
+       VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6)
+       RETURNING id::text, display_code, media_line_id::text, lead_id::text, sale_id::text,
+                 model, match_status, created_at::text`,
+      [
+        displayCode,
+        input.media_line_id,
+        input.lead_id ?? null,
+        input.sale_id ?? null,
+        input.model ?? null,
+        input.match_status,
+      ],
+    );
+    return result.rows[0] as MsosOutcomeLinkRow;
   }
 }

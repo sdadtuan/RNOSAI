@@ -12,6 +12,7 @@ import type {
   CreateEvidencePackInput,
   CreateInventoryInput,
   CreateMakeGoodInput,
+  CreateOutcomeLinkInput,
   CreateIoInput,
   CreateMediaLineInput,
   CreatePackageInput,
@@ -263,6 +264,18 @@ export class MsosController {
   @RequireMsosAction('write')
   reserveMakeGoodCapacity(@Param('id') id: string, @Body() body: ReserveMakeGoodCapacityInput) {
     return this.msos.reserveMakeGoodCapacity(id, body);
+  }
+
+  @Get('outcome-links')
+  @RequireMsosAction('view')
+  listOutcomeLinks() {
+    return this.msos.listOutcomeLinks();
+  }
+
+  @Post('outcome-links')
+  @RequireMsosAction('write')
+  createOutcomeLink(@Body() body: CreateOutcomeLinkInput) {
+    return this.msos.createOutcomeLink(body);
   }
 
   private async resolveStaffId(req: StaffReq): Promise<number | null> {

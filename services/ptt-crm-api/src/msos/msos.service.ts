@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
-import { requireClient, requireCreative } from './msos-crm-ref.util';
+import { requireClient, requireCreative, requireLead } from './msos-crm-ref.util';
 import { throwDisabled } from './msos-errors.util';
 import { assertAllowedMsosName } from './msos-forbidden-seed.util';
 import { MsosRepository } from './msos.repository';
@@ -17,6 +17,7 @@ import type {
   CreateEvidencePackInput,
   CreateInventoryInput,
   CreateMakeGoodInput,
+  CreateOutcomeLinkInput,
   CreateIoInput,
   CreateMediaLineInput,
   CreatePackageInput,
@@ -31,6 +32,7 @@ import type {
   MsosEvidenceRow,
   MsosHealthDto,
   MsosMakeGoodRow,
+  MsosOutcomeLinkRow,
   MsosInsertionOrderRow,
   MsosInventoryRow,
   MsosMediaLineRow,
@@ -784,5 +786,28 @@ export class MsosService {
       }
       throw e;
     }
+  }
+
+  async listOutcomeLinks(): Promise<MsosOutcomeLinkRow[]> {
+    this.assertEnabled();
+    return this.repo.listOutcomeLinks();
+  }
+
+  async createOutcomeLink(input: CreateOutcomeLinkInput): Promise<MsosOutcomeLinkRow> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(input.media_line_id);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    const leadId = input.lead_id ?? null;
+    if (leadId) {
+      await requireLead(this.repo.db, leadId);
+    }
+    const matchStatus = leadId ? 'matched' : 'unmatched';
+    return this.repo.createOutcomeLink({
+      ...input,
+      lead_id: leadId,
+      match_status: matchStatus,
+    });
   }
 }

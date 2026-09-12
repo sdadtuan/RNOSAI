@@ -343,3 +343,21 @@ export type ReserveMakeGoodCapacityInput = {
   placement_id: string;
   bucket_date: string;
 };
+
+export type CreateOutcomeLinkInput = {
+  media_line_id: string;
+  lead_id?: string | null;
+  sale_id?: string | null;
+  model?: string | null;
+};
+
+export type MsosOutcomeLinkRow = {
+  id: string;
+  display_code: string;
+  media_line_id: string;
+  lead_id: string | null;
+  sale_id: string | null;
+  model: string | null;
+  match_status: 'matched' | 'unmatched';
+  created_at: string;
+};
