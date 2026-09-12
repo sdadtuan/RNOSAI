@@ -123,6 +123,7 @@ export function CsdChatContext({
   const [aliasDraft, setAliasDraft] = useState(active?.alias_vi || active?.name_vi || '');
   const [attachments, setAttachments] = useState<CsdConversationAttachmentItem[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [attachmentsError, setAttachmentsError] = useState('');
 
   const media = useMemo(() => splitCsdConversationAttachments(attachments), [attachments]);
 
@@ -141,12 +142,16 @@ export function CsdChatContext({
     }
     let cancelled = false;
     setAttachmentsLoading(true);
+    setAttachmentsError('');
     void fetchCsdConversationAttachments(token, active.id)
       .then((out) => {
         if (!cancelled) setAttachments(out.items ?? []);
       })
-      .catch(() => {
-        if (!cancelled) setAttachments([]);
+      .catch((err) => {
+        if (!cancelled) {
+          setAttachments([]);
+          setAttachmentsError(err instanceof Error ? err.message : 'Không tải được ảnh/file');
+        }
       })
       .finally(() => {
         if (!cancelled) setAttachmentsLoading(false);
@@ -268,6 +273,7 @@ export function CsdChatContext({
             <CsdChatContextMedia
               token={token}
               loading={attachmentsLoading}
+              error={attachmentsError}
               images={media.images}
               files={media.files}
             />

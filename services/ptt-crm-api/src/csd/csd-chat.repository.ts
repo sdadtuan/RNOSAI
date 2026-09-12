@@ -885,13 +885,13 @@ export class CsdChatRepository implements OnModuleDestroy {
            ON a.entity_type = 'csd_message'
           AND a.entity_id = m.id::text
           AND m.tenant_id = $1
-          AND m.conversation_id = $2
+          AND m.conversation_id = $2::uuid
           AND m.is_deleted = FALSE
         WHERE a.tenant_id = $1
           AND a.is_deleted = FALSE
           AND (
             (a.entity_type = 'csd_message' AND m.id IS NOT NULL)
-            OR (a.entity_type = 'csd_conversation' AND a.entity_id = $2)
+            OR (a.entity_type = 'csd_conversation' AND a.entity_id = $2::text)
           )
         ORDER BY COALESCE(m.created_at, a.created_at) DESC`,
       [CSD_TENANT_ID, conversationId],

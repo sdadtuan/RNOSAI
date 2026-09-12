@@ -112,11 +112,12 @@ function MediaModal({ title, onClose, children }: MediaModalProps) {
 type CsdChatContextMediaProps = {
   token: string;
   loading?: boolean;
+  error?: string;
   images: CsdConversationMediaItem[];
   files: CsdConversationMediaItem[];
 };
 
-export function CsdChatContextMedia({ token, loading = false, images, files }: CsdChatContextMediaProps) {
+export function CsdChatContextMedia({ token, loading = false, error = '', images, files }: CsdChatContextMediaProps) {
   const [mediaOpen, setMediaOpen] = useState(true);
   const [filesOpen, setFilesOpen] = useState(true);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -142,6 +143,8 @@ export function CsdChatContextMedia({ token, loading = false, images, files }: C
           <div className="csd-chat-context-section__body">
             {loading ? (
               <p className="csd-chat-context-empty">Đang tải…</p>
+            ) : error ? (
+              <p className="csd-chat-context-empty">{error}</p>
             ) : images.length === 0 ? (
               <p className="csd-chat-context-empty">Chưa có ảnh hoặc video</p>
             ) : (
@@ -181,6 +184,8 @@ export function CsdChatContextMedia({ token, loading = false, images, files }: C
           <div className="csd-chat-context-section__body">
             {loading ? (
               <p className="csd-chat-context-empty">Đang tải…</p>
+            ) : error ? (
+              <p className="csd-chat-context-empty">{error}</p>
             ) : files.length === 0 ? (
               <p className="csd-chat-context-empty">Chưa có file</p>
             ) : (
