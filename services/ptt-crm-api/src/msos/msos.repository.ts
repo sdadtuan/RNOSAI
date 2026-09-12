@@ -13,6 +13,9 @@ import type {
   CreateRateVersionInput,
   MsosCalendarDay,
   MsosInventoryRow,
+  CreateIoInput,
+  MsosBrandSafetySnapshotRow,
+  MsosInsertionOrderRow,
   MsosPackageRow,
   MsosPartnerRow,
   MsosPlacementRow,
@@ -444,5 +447,120 @@ export class MsosRepository implements OnModuleDestroy {
       ],
     );
     return result.rows[0] as MsosReservationRow;
+  }
+
+  async hasValidReserve(packageId: string): Promise<boolean> {
+    const result = await this.db.query(
+      `SELECT 1
+         FROM msos_reservations
+        WHERE package_id = $1::uuid
+          AND kind IN ('hard', 'soft')
+          AND released_at IS NULL
+          AND (kind = 'hard' OR expires_at IS NULL OR expires_at > now())
+        LIMIT 1`,
+      [packageId],
+    );
+    return Boolean(result.rows[0]);
+  }
+
+  async createBrandSafetySnapshot(input: {
+    tier: string;
+    alcohol_pharma_banned?: boolean;
+    exclusions_json?: unknown[];
+  }): Promise<MsosBrandSafetySnapshotRow> {
+    const result = await this.db.query(
+      `INSERT INTO msos_brand_safety_snapshots (tier, alcohol_pharma_banned, exclusions_json)
+       VALUES ($1, $2, $3::jsonb)
+       RETURNING id::text, tier, alcohol_pharma_banned, exclusions_json, locked_at::text`,
+      [input.tier, input.alcohol_pharma_banned ?? true, JSON.stringify(input.exclusions_json ?? [])],
+    );
+    return result.rows[0] as MsosBrandSafetySnapshotRow;
+  }
+
+  async createInsertionOrder(
+    packageId: string,
+    input: CreateIoInput & { client_id: string; safety_snapshot_id: string; sell_vnd: number; buy_vnd: number },
+  ): Promise<MsosInsertionOrderRow> {
+    const displayCode = msosDisplayCode('IO');
+    const result = await this.db.query(
+      `INSERT INTO msos_insertion_orders (
+         display_code, package_id, client_id, rate_version_id, safety_snapshot_id,
+         period_start, period_end, qty, sell_vnd, buy_vnd
+       ) VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::date, $7::date, $8, $9, $10)
+       RETURNING id::text, display_code, package_id::text, media_line_id::text, client_id::text,
+                 rate_version_id::text, safety_snapshot_id::text, period_start::text, period_end::text,
+                 qty::bigint AS qty, sell_vnd, buy_vnd, partner_confirmed_at::text, partner_confirm_ref,
+                 issued_at::text, issued_by, status`,
+      [
+        displayCode,
+        packageId,
+        input.client_id,
+        input.rate_version_id,
+        input.safety_snapshot_id,
+        input.period_start,
+        input.period_end,
+        input.qty,
+        input.sell_vnd,
+        input.buy_vnd,
+      ],
+    );
+    return result.rows[0] as MsosInsertionOrderRow;
+  }
+
+  async getInsertionOrder(ioId: string): Promise<MsosInsertionOrderRow | null> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, package_id::text, media_line_id::text, client_id::text,
+              rate_version_id::text, safety_snapshot_id::text, period_start::text, period_end::text,
+              qty::bigint AS qty, sell_vnd, buy_vnd, partner_confirmed_at::text, partner_confirm_ref,
+              issued_at::text, issued_by, status
+         FROM msos_insertion_orders
+        WHERE id = $1::uuid
+        LIMIT 1`,
+      [ioId],
+    );
+    return (result.rows[0] as MsosInsertionOrderRow | undefined) ?? null;
+  }
+
+  async issueInsertionOrder(ioId: string, issuedBy: number | null): Promise<MsosInsertionOrderRow> {
+    const result = await this.db.query(
+      `UPDATE msos_insertion_orders
+          SET status = 'issued', issued_at = now(), issued_by = $2
+        WHERE id = $1::uuid AND status = 'draft'
+        RETURNING id::text, display_code, package_id::text, media_line_id::text, client_id::text,
+                  rate_version_id::text, safety_snapshot_id::text, period_start::text, period_end::text,
+                  qty::bigint AS qty, sell_vnd, buy_vnd, partner_confirmed_at::text, partner_confirm_ref,
+                  issued_at::text, issued_by, status`,
+      [ioId, issuedBy],
+    );
+    if (!result.rows[0]) {
+      throw new Error('io_not_found_or_not_draft');
+    }
+    return result.rows[0] as MsosInsertionOrderRow;
+  }
+
+  async appendIoRevision(
+    ioId: string,
+    payload: unknown,
+    createdBy: number | null,
+  ): Promise<void> {
+    const next = await this.db.query(
+      `SELECT COALESCE(MAX(revision), 0) + 1 AS next_revision
+         FROM msos_io_revisions
+        WHERE io_id = $1::uuid`,
+      [ioId],
+    );
+    const revision = Number(next.rows[0]?.next_revision ?? 1);
+    await this.db.query(
+      `INSERT INTO msos_io_revisions (io_id, revision, payload_json, created_by)
+       VALUES ($1::uuid, $2, $3::jsonb, $4)`,
+      [ioId, revision, JSON.stringify(payload), createdBy],
+    );
+  }
+
+  async updateIoSafetySnapshot(ioId: string, snapshotId: string): Promise<void> {
+    await this.db.query(
+      `UPDATE msos_insertion_orders SET safety_snapshot_id = $2::uuid WHERE id = $1::uuid`,
+      [ioId, snapshotId],
+    );
   }
 }

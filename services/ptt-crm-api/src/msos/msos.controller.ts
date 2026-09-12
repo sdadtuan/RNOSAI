@@ -8,12 +8,14 @@ import { MsosService } from './msos.service';
 import type {
   CapacityBucketInput,
   CreateInventoryInput,
+  CreateIoInput,
   CreatePackageInput,
   CreatePartnerInput,
   CreatePlacementInput,
   CreateRateCardInput,
   CreateRateVersionInput,
   ReservePackageInput,
+  SafetyChangeInput,
 } from './msos.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
@@ -126,6 +128,39 @@ export class MsosController {
   @RequireMsosAction('write')
   reservePackage(@Param('id') id: string, @Body() body: ReservePackageInput) {
     return this.msos.reservePackage(id, body);
+  }
+
+  @Post('packages/:id/io')
+  @RequireMsosAction('write')
+  async createIo(@Req() req: StaffReq, @Param('id') id: string, @Body() body: CreateIoInput) {
+    const staffId = await this.resolveStaffId(req);
+    return this.msos.createIo(id, { ...body, staffId });
+  }
+
+  @Get('insertion-orders/:id')
+  @RequireMsosAction('view')
+  getIo(@Param('id') id: string) {
+    return this.msos.getIo(id);
+  }
+
+  @Get('insertion-orders/:id/export')
+  @RequireMsosAction('view')
+  exportIo(@Param('id') id: string) {
+    return this.msos.exportIo(id);
+  }
+
+  @Post('insertion-orders/:id/issue')
+  @RequireMsosAction('publish')
+  async issueIo(@Req() req: StaffReq, @Param('id') id: string) {
+    const staffId = await this.resolveStaffId(req);
+    return this.msos.issueIo(id, staffId);
+  }
+
+  @Post('insertion-orders/:id/safety-change')
+  @RequireMsosAction('write')
+  async changeIoSafety(@Req() req: StaffReq, @Param('id') id: string, @Body() body: SafetyChangeInput) {
+    const staffId = await this.resolveStaffId(req);
+    return this.msos.changeIoSafety(id, { ...body, staffId });
   }
 
   private async resolveStaffId(req: StaffReq): Promise<number | null> {

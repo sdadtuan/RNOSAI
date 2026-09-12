@@ -5,10 +5,12 @@ import { throwDisabled } from './msos-errors.util';
 import { assertAllowedMsosName } from './msos-forbidden-seed.util';
 import { MsosRepository } from './msos.repository';
 import { decideReserve, type CapacityDecision } from './msos-capacity.util';
+import { canIssueIo } from './msos-gates.util';
 import { assertRateBindable } from './msos-rate.util';
 import type {
   CapacityBucketInput,
   CreateInventoryInput,
+  CreateIoInput,
   CreatePackageInput,
   CreatePartnerInput,
   CreatePlacementInput,
@@ -16,6 +18,7 @@ import type {
   CreateRateVersionInput,
   MsosCalendarDay,
   MsosHealthDto,
+  MsosInsertionOrderRow,
   MsosInventoryRow,
   MsosPackageRow,
   MsosPartnerRow,
@@ -24,6 +27,7 @@ import type {
   MsosRateVersionRow,
   MsosReservationRow,
   ReservePackageInput,
+  SafetyChangeInput,
 } from './msos.types';
 
 @Injectable()
@@ -373,5 +377,95 @@ export class MsosService {
       kind: 'hard',
       qty: input.qty,
     });
+  }
+
+  async createIo(packageId: string, input: CreateIoInput): Promise<MsosInsertionOrderRow> {
+    this.assertEnabled();
+    const pkg = await this.repo.getPackage(packageId);
+    if (!pkg) {
+      throw new UnprocessableEntityException({ error: 'package_not_found' });
+    }
+    await requireClient(this.repo.db, pkg.client_id);
+    const rate = await this.repo.getRateVersionById(input.rate_version_id);
+    if (!rate) {
+      throw new UnprocessableEntityException({ error: 'rate_version_not_found' });
+    }
+    assertRateBindable(rate.status);
+    const snapshot = await this.repo.createBrandSafetySnapshot({
+      tier: input.tier ?? 'A',
+    });
+    const sellVnd = input.sell_vnd ?? pkg.sell_vnd;
+    const buyVnd = input.buy_vnd ?? 0;
+    return this.repo.createInsertionOrder(packageId, {
+      ...input,
+      client_id: pkg.client_id,
+      safety_snapshot_id: snapshot.id,
+      sell_vnd: sellVnd,
+      buy_vnd: buyVnd,
+    });
+  }
+
+  async getIo(ioId: string): Promise<MsosInsertionOrderRow> {
+    this.assertEnabled();
+    const io = await this.repo.getInsertionOrder(ioId);
+    if (!io) {
+      throw new UnprocessableEntityException({ error: 'io_not_found' });
+    }
+    return io;
+  }
+
+  async issueIo(ioId: string, staffId: number | null): Promise<MsosInsertionOrderRow> {
+    this.assertEnabled();
+    const io = await this.repo.getInsertionOrder(ioId);
+    if (!io) {
+      throw new UnprocessableEntityException({ error: 'io_not_found' });
+    }
+    const rate = await this.repo.getRateVersionById(io.rate_version_id);
+    const reserveOk = await this.repo.hasValidReserve(io.package_id);
+    const gate = canIssueIo({
+      rateStatus: rate?.status ?? 'draft',
+      clientOk: Boolean(io.client_id),
+      hasSafetySnapshot: Boolean(io.safety_snapshot_id),
+      hardOrValidSoft: reserveOk,
+    });
+    if (!gate.pass) {
+      throw new UnprocessableEntityException({ error: gate.fail ?? 'io_issue_blocked' });
+    }
+    try {
+      const issued = await this.repo.issueInsertionOrder(ioId, staffId);
+      await this.repo.appendIoRevision(ioId, { action: 'issue', io: issued }, staffId);
+      return issued;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'io_not_found_or_not_draft') {
+        throw new UnprocessableEntityException({ error: 'io_not_draft' });
+      }
+      throw e;
+    }
+  }
+
+  async changeIoSafety(ioId: string, input: SafetyChangeInput): Promise<MsosInsertionOrderRow> {
+    this.assertEnabled();
+    const io = await this.repo.getInsertionOrder(ioId);
+    if (!io) {
+      throw new UnprocessableEntityException({ error: 'io_not_found' });
+    }
+    const snapshot = await this.repo.createBrandSafetySnapshot({
+      tier: input.tier,
+      alcohol_pharma_banned: input.alcohol_pharma_banned,
+      exclusions_json: input.exclusions_json,
+    });
+    await this.repo.updateIoSafetySnapshot(ioId, snapshot.id);
+    await this.repo.appendIoRevision(
+      ioId,
+      { action: 'safety_change', previous_snapshot: io.safety_snapshot_id, new_snapshot: snapshot.id },
+      input.staffId ?? null,
+    );
+    const updated = await this.repo.getInsertionOrder(ioId);
+    return updated!;
+  }
+
+  async exportIo(ioId: string): Promise<MsosInsertionOrderRow> {
+    return this.getIo(ioId);
   }
 }

@@ -160,3 +160,49 @@ export type MsosReservationRow = {
   released_at: string | null;
   created_at: string;
 };
+
+export type CreateIoInput = {
+  rate_version_id: string;
+  period_start: string;
+  period_end: string;
+  qty: number;
+  sell_vnd?: number;
+  buy_vnd?: number;
+  tier?: string;
+  staffId?: number | null;
+};
+
+export type MsosBrandSafetySnapshotRow = {
+  id: string;
+  tier: string;
+  alcohol_pharma_banned: boolean;
+  exclusions_json: unknown;
+  locked_at: string;
+};
+
+export type MsosInsertionOrderRow = {
+  id: string;
+  display_code: string;
+  package_id: string;
+  media_line_id: string | null;
+  client_id: string;
+  rate_version_id: string;
+  safety_snapshot_id: string;
+  period_start: string;
+  period_end: string;
+  qty: number;
+  sell_vnd: number;
+  buy_vnd: number;
+  partner_confirmed_at: string | null;
+  partner_confirm_ref: string | null;
+  issued_at: string | null;
+  issued_by: number | null;
+  status: 'draft' | 'issued' | 'confirmed' | 'cancelled';
+};
+
+export type SafetyChangeInput = {
+  tier: string;
+  exclusions_json?: unknown[];
+  alcohol_pharma_banned?: boolean;
+  staffId?: number | null;
+};
