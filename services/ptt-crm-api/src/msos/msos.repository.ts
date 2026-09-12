@@ -19,6 +19,8 @@ import type {
   MsosInsertionOrderRow,
   MsosMediaLineRow,
   MsosPackageRow,
+  MsosTrafficPackRow,
+  UpsertTrafficInput,
   MsosPartnerRow,
   MsosPlacementRow,
   MsosRateCardRow,
@@ -639,32 +641,81 @@ export class MsosRepository implements OnModuleDestroy {
     return result.rows[0] as MsosMediaLineRow;
   }
 
-  async getTrafficPack(mediaLineId: string): Promise<{
-    status: string;
-    creative_id: string | null;
-    width_px: number | null;
-    height_px: number | null;
-    weight_kb: number | null;
-    click_url: string | null;
-    backup_attached: boolean;
-  } | null> {
+  async getTrafficPack(mediaLineId: string): Promise<MsosTrafficPackRow | null> {
     const result = await this.db.query(
-      `SELECT status, creative_id::text, width_px, height_px, weight_kb, click_url, backup_attached
+      `SELECT id::text, display_code, media_line_id::text, creative_id::text, width_px, height_px,
+              weight_kb, click_url, backup_attached, status, reject_reason, updated_at::text
          FROM msos_traffic_packs
         WHERE media_line_id = $1::uuid
         ORDER BY updated_at DESC
         LIMIT 1`,
       [mediaLineId],
     );
-    return (result.rows[0] as {
-      status: string;
-      creative_id: string | null;
-      width_px: number | null;
-      height_px: number | null;
-      weight_kb: number | null;
-      click_url: string | null;
-      backup_attached: boolean;
-    } | undefined) ?? null;
+    return (result.rows[0] as MsosTrafficPackRow | undefined) ?? null;
+  }
+
+  async upsertTrafficPack(mediaLineId: string, input: UpsertTrafficInput): Promise<MsosTrafficPackRow> {
+    const existing = await this.getTrafficPack(mediaLineId);
+    if (existing) {
+      const result = await this.db.query(
+        `UPDATE msos_traffic_packs
+            SET creative_id = COALESCE($2::uuid, creative_id),
+                width_px = COALESCE($3, width_px),
+                height_px = COALESCE($4, height_px),
+                weight_kb = COALESCE($5, weight_kb),
+                click_url = COALESCE($6, click_url),
+                backup_attached = COALESCE($7, backup_attached),
+                updated_at = now()
+          WHERE id = $1::uuid
+          RETURNING id::text, display_code, media_line_id::text, creative_id::text, width_px, height_px,
+                    weight_kb, click_url, backup_attached, status, reject_reason, updated_at::text`,
+        [
+          existing.id,
+          input.creative_id ?? null,
+          input.width_px ?? null,
+          input.height_px ?? null,
+          input.weight_kb ?? null,
+          input.click_url ?? null,
+          input.backup_attached ?? null,
+        ],
+      );
+      return result.rows[0] as MsosTrafficPackRow;
+    }
+    const displayCode = msosDisplayCode('TP');
+    const result = await this.db.query(
+      `INSERT INTO msos_traffic_packs (
+         display_code, media_line_id, creative_id, width_px, height_px, weight_kb, click_url, backup_attached
+       ) VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7, $8)
+       RETURNING id::text, display_code, media_line_id::text, creative_id::text, width_px, height_px,
+                 weight_kb, click_url, backup_attached, status, reject_reason, updated_at::text`,
+      [
+        displayCode,
+        mediaLineId,
+        input.creative_id ?? null,
+        input.width_px ?? null,
+        input.height_px ?? null,
+        input.weight_kb ?? null,
+        input.click_url ?? null,
+        input.backup_attached ?? false,
+      ],
+    );
+    return result.rows[0] as MsosTrafficPackRow;
+  }
+
+  async submitTrafficPack(mediaLineId: string): Promise<MsosTrafficPackRow> {
+    const existing = await this.getTrafficPack(mediaLineId);
+    if (!existing) {
+      throw new Error('traffic_pack_not_found');
+    }
+    const result = await this.db.query(
+      `UPDATE msos_traffic_packs
+          SET status = 'submitted', updated_at = now()
+        WHERE id = $1::uuid
+        RETURNING id::text, display_code, media_line_id::text, creative_id::text, width_px, height_px,
+                  weight_kb, click_url, backup_attached, status, reject_reason, updated_at::text`,
+      [existing.id],
+    );
+    return result.rows[0] as MsosTrafficPackRow;
   }
 
   async getPlacementForLine(lineId: string): Promise<{

@@ -237,3 +237,27 @@ export type GoLiveInput = {
   confirm: boolean;
   actor: 'human' | 'ai';
 };
+
+export type UpsertTrafficInput = {
+  creative_id?: string | null;
+  width_px?: number | null;
+  height_px?: number | null;
+  weight_kb?: number | null;
+  click_url?: string | null;
+  backup_attached?: boolean;
+};
+
+export type MsosTrafficPackRow = {
+  id: string;
+  display_code: string;
+  media_line_id: string;
+  creative_id: string | null;
+  width_px: number | null;
+  height_px: number | null;
+  weight_kb: number | null;
+  click_url: string | null;
+  backup_attached: boolean;
+  status: string;
+  reject_reason: string | null;
+  updated_at: string;
+};

@@ -18,6 +18,7 @@ import type {
   CreateRateVersionInput,
   ReservePackageInput,
   SafetyChangeInput,
+  UpsertTrafficInput,
 } from './msos.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
@@ -195,6 +196,24 @@ export class MsosController {
   async setP03Override(@Req() req: StaffReq, @Param('id') id: string) {
     const staffId = await this.resolveStaffId(req);
     return this.msos.setP03Override(id, staffId);
+  }
+
+  @Get('media-lines/:id/traffic')
+  @RequireMsosAction('view')
+  getTraffic(@Param('id') id: string) {
+    return this.msos.getTraffic(id);
+  }
+
+  @Put('media-lines/:id/traffic')
+  @RequireMsosAction('write')
+  upsertTraffic(@Param('id') id: string, @Body() body: UpsertTrafficInput) {
+    return this.msos.upsertTraffic(id, body);
+  }
+
+  @Post('media-lines/:id/traffic/submit')
+  @RequireMsosAction('write')
+  submitTraffic(@Param('id') id: string) {
+    return this.msos.submitTraffic(id);
   }
 
   private async resolveStaffId(req: StaffReq): Promise<number | null> {

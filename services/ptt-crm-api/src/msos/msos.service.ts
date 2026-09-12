@@ -1,12 +1,13 @@
 import { ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
-import { requireClient } from './msos-crm-ref.util';
+import { requireClient, requireCreative } from './msos-crm-ref.util';
 import { throwDisabled } from './msos-errors.util';
 import { assertAllowedMsosName } from './msos-forbidden-seed.util';
 import { MsosRepository } from './msos.repository';
 import { decideReserve, type CapacityDecision } from './msos-capacity.util';
 import { canIssueIo, evaluateLiveGates } from './msos-gates.util';
 import { assertRateBindable } from './msos-rate.util';
+import { evaluateTraffic } from './msos-traffic.util';
 import type {
   CapacityBucketInput,
   CreateInventoryInput,
@@ -29,8 +30,10 @@ import type {
   MsosRateCardRow,
   MsosRateVersionRow,
   MsosReservationRow,
+  MsosTrafficPackRow,
   ReservePackageInput,
   SafetyChangeInput,
+  UpsertTrafficInput,
 } from './msos.types';
 
 @Injectable()
@@ -517,25 +520,21 @@ export class MsosService {
   }
 
   private isTrafficReady(
-    traffic: {
-      status: string;
-      creative_id: string | null;
-      width_px: number | null;
-      height_px: number | null;
-      weight_kb: number | null;
-      click_url: string | null;
-      backup_attached: boolean;
-    } | null,
+    traffic: MsosTrafficPackRow | null,
     placement: { backup_required: boolean; max_weight_kb: number | null } | null,
   ): boolean {
     if (!traffic) return false;
-    if (traffic.status !== 'approved_by_partner') return false;
-    if (!traffic.creative_id) return false;
-    if (!traffic.width_px || !traffic.height_px) return false;
-    if (!traffic.click_url || !/^https:\/\//.test(traffic.click_url)) return false;
-    if (placement?.max_weight_kb && (traffic.weight_kb ?? 0) > placement.max_weight_kb) return false;
-    if (placement?.backup_required && !traffic.backup_attached) return false;
-    return true;
+    return evaluateTraffic({
+      creativeId: traffic.creative_id,
+      width: traffic.width_px,
+      height: traffic.height_px,
+      weightKb: traffic.weight_kb,
+      maxWeightKb: placement?.max_weight_kb ?? null,
+      clickUrl: traffic.click_url,
+      backupRequired: placement?.backup_required ?? false,
+      backupAttached: traffic.backup_attached,
+      status: traffic.status,
+    }).ready;
   }
 
   async getLiveGates(lineId: string): Promise<{ canLive: boolean; gates: ReturnType<typeof evaluateLiveGates>['gates'] }> {
@@ -574,5 +573,63 @@ export class MsosService {
       throw new UnprocessableEntityException({ error: 'media_line_not_found' });
     }
     return this.repo.setP03Override(lineId, staffId);
+  }
+
+  async getTraffic(lineId: string): Promise<MsosTrafficPackRow | null> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    return this.repo.getTrafficPack(lineId);
+  }
+
+  async upsertTraffic(lineId: string, input: UpsertTrafficInput): Promise<MsosTrafficPackRow> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    if (input.creative_id) {
+      await requireCreative(this.repo.db, input.creative_id);
+    }
+    return this.repo.upsertTrafficPack(lineId, input);
+  }
+
+  async submitTraffic(lineId: string): Promise<MsosTrafficPackRow> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    try {
+      return await this.repo.submitTrafficPack(lineId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'traffic_pack_not_found') {
+        throw new UnprocessableEntityException({ error: 'traffic_pack_not_found' });
+      }
+      throw e;
+    }
+  }
+
+  async evaluateTrafficReady(lineId: string): Promise<{ ready: boolean; reasons: string[] }> {
+    this.assertEnabled();
+    const traffic = await this.repo.getTrafficPack(lineId);
+    const placement = await this.repo.getPlacementForLine(lineId);
+    if (!traffic) {
+      return { ready: false, reasons: ['traffic_pack_missing'] };
+    }
+    return evaluateTraffic({
+      creativeId: traffic.creative_id,
+      width: traffic.width_px,
+      height: traffic.height_px,
+      weightKb: traffic.weight_kb,
+      maxWeightKb: placement?.max_weight_kb ?? null,
+      clickUrl: traffic.click_url,
+      backupRequired: placement?.backup_required ?? false,
+      backupAttached: traffic.backup_attached,
+      status: traffic.status,
+    });
   }
 }
