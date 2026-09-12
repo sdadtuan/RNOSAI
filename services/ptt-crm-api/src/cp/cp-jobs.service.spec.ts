@@ -327,6 +327,32 @@ describe('CpJobsService', () => {
     expect(generate).toHaveBeenCalledTimes(2);
   });
 
+  it('rejects confirm after cancel with 409 job_not_confirmable', async () => {
+    const { service, ledgerDb } = makeService();
+    const drafted = await service.draft(9, draftInput({ idempotency_key: 'job-reconfirm-cancel' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.cancel(9, drafted.job_id);
+
+    await expect(service.confirm(9, drafted.job_id, { confirm: true })).rejects.toMatchObject({
+      status: 409,
+      error: 'job_not_confirmable',
+    });
+    expect(ledgerDb.rows.filter((row) => row.kind === 'reserve')).toHaveLength(1);
+  });
+
+  it('rejects confirm after queued with 409 job_not_confirmable', async () => {
+    const { service, ledgerDb } = makeService();
+    const drafted = await service.draft(9, draftInput({ idempotency_key: 'job-reconfirm-queued' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+
+    await expect(service.confirm(9, drafted.job_id, { confirm: true })).rejects.toMatchObject({
+      status: 409,
+      error: 'job_not_confirmable',
+    });
+    expect(ledgerDb.rows.filter((row) => row.kind === 'reserve')).toHaveLength(1);
+  });
+
   it('blocks confirm when the durable GT-M05 snapshot is RESTRICTED', async () => {
     const { service, db } = makeService();
     const drafted = await service.draft(9, draftInput({ idempotency_key: 'job-snap' }));

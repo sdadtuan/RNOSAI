@@ -137,6 +137,8 @@ export class CpJobsService {
     }
     const job = await this.loadJob(jobId);
     const log = stageLogOf(job);
+    const replay = this.assertConfirmable(job, log);
+    if (replay) return replay;
     const provider = requiredProvider(job.provider);
     await this.assertDurablePolicy(provider, job, log);
     const estimate = estimateFromLog(log);
@@ -251,6 +253,26 @@ export class CpJobsService {
 
   async get(_staffId: number, jobId: string): Promise<Record<string, unknown>> {
     return this.loadJob(jobId);
+  }
+
+  private assertConfirmable(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+  ): Record<string, unknown> | null {
+    const state = String(job.state ?? '');
+    const released = Boolean(log.release_reason) || log.cancelled === true;
+    if (released || !['draft', 'pending_confirm'].includes(state)) {
+      cpThrow(409, { error: 'job_not_confirmable', state });
+    }
+    const holdIntact = log.confirmed === true
+      && (nullableInteger(log.reserved_amount) != null || estimateFromLog(log).credits == null);
+    if (state === 'pending_confirm' && holdIntact) {
+      return job;
+    }
+    if (log.confirmed === true && !holdIntact) {
+      cpThrow(409, { error: 'job_not_confirmable', state });
+    }
+    return null;
   }
 
   private assertSubmittable(job: Record<string, unknown>, log: Record<string, unknown>): void {
