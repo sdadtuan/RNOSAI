@@ -1231,8 +1231,8 @@ export class CpController {
 
   @Post('weave-orders/:id/submit-review')
   @RequireCpAction('edit')
-  submitWeaveReview(@Param('id') id: string) {
-    return this.weave.submitReview(id);
+  async submitWeaveReview(@Req() req: AuthedReq, @Param('id') id: string) {
+    return this.weave.submitReview(id, await this.scope(req));
   }
 
   @Post('weave-orders/:id/deliver')

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CampaignWritesModule } from '../campaign-writes/campaign-writes.module';
 import { ConfigModule } from '../config/config.module';
 import { CreativesModule } from '../creatives/creatives.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
@@ -70,7 +71,7 @@ import { CP_WEAVE_QUERY, CpWeaveRepository } from './cp-weave.repository';
 import { CpWeaveService } from './cp-weave.service';
 
 @Module({
-  imports: [ConfigModule, StaffAuthModule, CreativesModule],
+  imports: [ConfigModule, StaffAuthModule, CreativesModule, CampaignWritesModule],
   controllers: [CpController, CpWeaveIngestController],
   providers: [
     StaffCpGuard,

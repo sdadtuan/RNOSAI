@@ -1,5 +1,6 @@
-import { HttpException, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, HttpException, Inject, Injectable, Optional } from '@nestjs/common';
 import { CP_VIDEOS_QUERY, CpVideosQueryPort, CpVideosService, CpVideoScope } from './cp-videos.service';
+import { CpWeaveService } from './cp-weave.service';
 
 export const APPROVAL_STATES = [
   'internal_review',
@@ -43,6 +44,7 @@ export class CpApprovalsService {
   constructor(
     private readonly videos: CpVideosService,
     @Inject(CP_VIDEOS_QUERY) private readonly db: CpVideosQueryPort,
+    @Optional() @Inject(forwardRef(() => CpWeaveService)) private readonly weave?: CpWeaveService,
   ) {}
 
   async submit(
@@ -83,6 +85,11 @@ export class CpApprovalsService {
         ],
       );
       return { ...row, approval_status: status };
+    }).then(async (row) => {
+      if (status === 'final_approved' && this.weave) {
+        await this.weave.markApprovedFromHub(String(version.id)).catch(() => undefined);
+      }
+      return row;
     });
   }
 

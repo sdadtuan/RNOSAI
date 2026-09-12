@@ -1,3 +1,4 @@
+import { canTransitionWeave } from './cp-weave.types';
 import { CpWeaveService } from './cp-weave.service';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
@@ -194,14 +195,16 @@ describe('CpWeaveService', () => {
     const storage = {
       list: jest.fn(async () => [
         'nova/mid-autumn-2026/CR-2026-0912-028/tmp/x.png',
+        'nova/mid-autumn-2026/CR-2026-0912-028/final/random.png',
         'nova/mid-autumn-2026/CR-2026-0912-028/final/CR-2026-0912-028_v01_9x16.mp4',
       ]),
       read: jest.fn(async () => Buffer.from('video-bytes')),
     };
     const svc = new CpWeaveService({ query } as never, storage);
     const first = await svc.syncOutput(WO_ID);
-    expect(first.skipped).toBeGreaterThanOrEqual(1);
+    expect(first.skipped).toBeGreaterThanOrEqual(2);
     expect(first.warnings.some((w) => w.includes('tmp'))).toBe(true);
+    expect(first.warnings.some((w) => w.includes('random.png'))).toBe(true);
 
     const second = await svc.ingestKey(
       'nova/mid-autumn-2026/CR-2026-0912-028/final/CR-2026-0912-028_v01_9x16.mp4',
@@ -226,20 +229,170 @@ describe('CpWeaveService', () => {
     });
   });
 
-  it('deliver returns 409 when QC is blocked', async () => {
-    const query = makeQuery([
-      { match: 'FROM crm_cp_weave_work_orders', rows: [{
-        id: WO_ID,
-        status: 'approved',
-        project_id: PROJECT_ID,
-        qc_status: 'blocked',
-      }] },
-    ]);
+  it('deliver returns 409 when project version QC is blocked', async () => {
+    const query = jest.fn(async (sql: string) => {
+      if (sql.includes('FROM crm_cp_weave_work_orders')) {
+        return { rows: [{
+          id: WO_ID,
+          status: 'approved',
+          project_id: PROJECT_ID,
+          agency_client_id: CLIENT_ID,
+          campaign_code: 'mid-autumn-2026',
+          lifecycle_id: LIFECYCLE_ID,
+          task_id: 'CR-2026-0912-028',
+          brief_json: { hub_version_id: '55555555-5555-4555-8555-555555555555' },
+        }] };
+      }
+      if (sql.includes('crm_cp_video_versions') && sql.includes('qc_status')) {
+        return { rows: [{ id: '55555555-5555-4555-8555-555555555555', qc_status: 'blocked' }] };
+      }
+      return { rows: [] };
+    });
     const svc = new CpWeaveService({ query } as never);
     await expect(svc.deliver(WO_ID)).rejects.toMatchObject({
       status: 409,
       error: 'qc_blocked',
     });
+  });
+
+  it('generate-brief calls the text adapter when AI is on and does not mark stub JSON as live', async () => {
+    const query = makeQuery([
+      { match: 'FROM crm_cp_weave_work_orders', rows: [{
+        id: WO_ID,
+        status: 'draft',
+        brief_json: {},
+        template_key: 'feed-1x1',
+        project_id: PROJECT_ID,
+      }] },
+      { match: 'FROM crm_cp_projects', rows: [{
+        id: PROJECT_ID,
+        name: 'Nova Mid-autumn',
+        agency_client_id: CLIENT_ID,
+        lifecycle_id: LIFECYCLE_ID,
+      }] },
+      { match: 'UPDATE crm_cp_weave_work_orders', rows: [{ id: WO_ID, status: 'brief_ready' }] },
+    ]);
+    process.env.CP_AI_ENABLED = '1';
+    const complete = jest.fn().mockResolvedValue({
+      creative_brief: 'AI brief',
+      prompt: 'AI lanterns',
+      negative_prompt: 'blur',
+      shot_list: ['hero'],
+      output_format: { kind: 'image', width: 1080, height: 1080 },
+    });
+    const svc = new CpWeaveService({ query } as never, undefined, undefined, {
+      generateBrief: complete,
+    });
+    const live = await svc.generateBrief(WO_ID);
+    expect(complete).toHaveBeenCalled();
+    expect(live.ai_stub).toBe(false);
+    expect(live.brief_json.prompt).toBe('AI lanterns');
+
+    const stubSvc = new CpWeaveService({ query } as never);
+    const stubbed = await stubSvc.generateBrief(WO_ID);
+    expect(stubbed.ai_stub).toBe(true);
+  });
+
+  it('submit-review goes through project submitCreative', async () => {
+    const query = makeQuery([
+      { match: 'FROM crm_cp_weave_work_orders', rows: [{
+        id: WO_ID,
+        status: 'linked',
+        project_id: PROJECT_ID,
+        agency_client_id: CLIENT_ID,
+        task_id: 'CR-2026-0912-028',
+        brief_json: {},
+      }] },
+      { match: 'FROM crm_cp_weave_assets', rows: [{
+        id: 'a1',
+        lane: 'final',
+        storage_uri: 'nova/mid-autumn-2026/CR-2026-0912-028/final/CR-2026-0912-028_v01_9x16.mp4',
+      }] },
+      { match: 'UPDATE crm_cp_weave_work_orders', rows: [{ id: WO_ID, status: 'in_review' }] },
+    ]);
+    const sopIngest = {
+      ingestFromSop: jest.fn().mockResolvedValue({
+        draft_id: 'd1',
+        version_id: '55555555-5555-4555-8555-555555555555',
+        href: '/x',
+      }),
+    };
+    const projects = {
+      submitCreative: jest.fn().mockResolvedValue({ creative_id: 'hub-1' }),
+    };
+    const svc = new CpWeaveService({ query } as never, undefined, undefined, {
+      sopIngest,
+      projects,
+    });
+    const result = await svc.submitReview(WO_ID, { scope: 'all', staffId: 9 });
+    expect(sopIngest.ingestFromSop).toHaveBeenCalled();
+    expect(projects.submitCreative).toHaveBeenCalledWith(
+      PROJECT_ID,
+      '55555555-5555-4555-8555-555555555555',
+      expect.objectContaining({ staffId: 9 }),
+    );
+    expect(result.creative_id).toBe('hub-1');
+  });
+
+  it('marks in_review work orders approved after Hub final_approved', async () => {
+    const query = jest.fn(async (sql: string) => {
+      if (sql.includes('UPDATE crm_cp_weave_work_orders') && sql.includes("'approved'")) {
+        return { rows: [{ id: WO_ID, status: 'approved' }] };
+      }
+      return { rows: [] };
+    });
+    const svc = new CpWeaveService({ query } as never);
+    const result = await svc.markApprovedFromHub('55555555-5555-4555-8555-555555555555');
+    expect(result.updated).toBe(1);
+    expect(canTransitionWeave('in_review', 'approved')).toBe(true);
+    expect(canTransitionWeave('approved', 'delivered')).toBe(true);
+  });
+
+  it('deliver records a Campaign Write handoff before status delivered', async () => {
+    const query = jest.fn(async (sql: string) => {
+      if (sql.includes('FROM crm_cp_weave_work_orders')) {
+        return { rows: [{
+          id: WO_ID,
+          status: 'approved',
+          project_id: PROJECT_ID,
+          agency_client_id: CLIENT_ID,
+          campaign_code: 'mid-autumn-2026',
+          lifecycle_id: LIFECYCLE_ID,
+          task_id: 'CR-2026-0912-028',
+          brief_json: { hub_version_id: '55555555-5555-4555-8555-555555555555' },
+        }] };
+      }
+      if (sql.includes('crm_cp_video_versions')) {
+        return { rows: [{
+          id: '55555555-5555-4555-8555-555555555555',
+          qc_status: 'passed',
+          output_uri: 'file:///tmp/final.mp4',
+        }] };
+      }
+      if (sql.includes('FROM crm_cp_weave_assets')) {
+        return { rows: [{
+          lane: 'final',
+          storage_uri: 'nova/mid-autumn-2026/CR-2026-0912-028/final/CR-2026-0912-028_v01_9x16.mp4',
+        }] };
+      }
+      if (sql.includes('UPDATE crm_cp_weave_work_orders')) {
+        return { rows: [{ id: WO_ID, status: 'delivered' }] };
+      }
+      return { rows: [] };
+    });
+    const campaignWrites = {
+      submit: jest.fn().mockResolvedValue({ ok: true, request: { id: 'cw-1' } }),
+    };
+    const svc = new CpWeaveService({ query } as never, undefined, undefined, {
+      campaignWrites,
+    });
+    const result = await svc.deliver(WO_ID);
+    expect(campaignWrites.submit).toHaveBeenCalledWith(expect.objectContaining({
+      client_id: CLIENT_ID,
+      change_type: 'update_ad_creative',
+    }));
+    expect(result.status).toBe('delivered');
+    expect(result.handoff).toMatchObject({ kind: 'campaign_write', ok: true });
   });
 
   it('hook rejects a bad HMAC', async () => {
