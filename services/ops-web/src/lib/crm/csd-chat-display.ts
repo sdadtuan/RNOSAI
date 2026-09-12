@@ -87,6 +87,35 @@ export function isCsdChatImageMime(mime: string | null | undefined): boolean {
     .startsWith('image/');
 }
 
+export type CsdConversationMediaItem = {
+  file: import('@/lib/crm/csd-api').CsdAttachmentRow;
+  messageId: string;
+  createdAt: string;
+};
+
+export function collectCsdConversationMedia(
+  messages: Array<{
+    id: string;
+    created_at: string;
+    is_deleted?: boolean;
+    attachments?: import('@/lib/crm/csd-api').CsdAttachmentRow[];
+  }>,
+): { images: CsdConversationMediaItem[]; files: CsdConversationMediaItem[] } {
+  const images: CsdConversationMediaItem[] = [];
+  const files: CsdConversationMediaItem[] = [];
+  for (const message of messages) {
+    if (message.is_deleted) continue;
+    for (const file of message.attachments ?? []) {
+      const item = { file, messageId: message.id, createdAt: message.created_at };
+      if (isCsdChatImageMime(file.mime_type)) images.push(item);
+      else files.push(item);
+    }
+  }
+  images.reverse();
+  files.reverse();
+  return { images, files };
+}
+
 export type ChatFrameBox = { left: number; right: number; top: number; bottom: number };
 
 export function shiftBoxIntoFrame(box: ChatFrameBox, frame: ChatFrameBox, pad = 8): { x: number; y: number } {

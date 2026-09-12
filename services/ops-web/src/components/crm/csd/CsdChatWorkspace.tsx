@@ -175,6 +175,8 @@ export function CsdChatWorkspace({
 
       {((!s.isMobile && contextOpen) || (s.isMobile && s.mobilePane === 'context')) && (
         <CsdChatContext
+          token={token}
+          messages={s.messages}
           active={s.active}
           members={s.members}
           relatedTickets={s.relatedTickets}
