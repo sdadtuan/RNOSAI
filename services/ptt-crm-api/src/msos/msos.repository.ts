@@ -40,6 +40,8 @@ import type {
   UpsertTrafficInput,
   MsosPartnerRow,
   MsosPlacementRow,
+  MsosPolicyRow,
+  MsosRateCardListItem,
   MsosRateCardRow,
   MsosRateVersionRow,
   MsosReservationRow,
@@ -1352,5 +1354,92 @@ export class MsosRepository implements OnModuleDestroy {
       [partnerId],
     );
     return Boolean(result.rows[0]);
+  }
+
+  async listPolicies(): Promise<MsosPolicyRow[]> {
+    const result = await this.db.query(
+      `SELECT key, rule_text, enforcement FROM msos_policies ORDER BY key`,
+    );
+    return result.rows as MsosPolicyRow[];
+  }
+
+  async listEvidencePacks(): Promise<MsosEvidencePackRow[]> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, media_line_id::text, status, official_at::text, created_at::text
+         FROM msos_evidence_packs
+         ORDER BY created_at DESC`,
+    );
+    return result.rows as MsosEvidencePackRow[];
+  }
+
+  async listDiscrepancyCases(): Promise<MsosDiscrepancyCaseRow[]> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, media_line_id::text, io_qty::bigint AS io_qty,
+              report_qty::bigint AS report_qty, evidence_qty::bigint AS evidence_qty,
+              tolerance_bps, material, hypothesis, owner_staff_id, status, created_at::text
+         FROM msos_discrepancy_cases
+         ORDER BY created_at DESC`,
+    );
+    return result.rows as MsosDiscrepancyCaseRow[];
+  }
+
+  async listMakeGoods(): Promise<MsosMakeGoodRow[]> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, discrepancy_id::text, media_line_id::text, qty::bigint AS qty,
+              value_vnd, capacity_reserved, closed_at::text, created_by, created_at::text
+         FROM msos_make_goods
+         ORDER BY created_at DESC`,
+    );
+    return result.rows as MsosMakeGoodRow[];
+  }
+
+  async listInsertionOrders(): Promise<MsosInsertionOrderRow[]> {
+    const result = await this.db.query(
+      `SELECT id::text, display_code, package_id::text, media_line_id::text, client_id::text,
+              rate_version_id::text, safety_snapshot_id::text, period_start::text, period_end::text,
+              qty::bigint AS qty, sell_vnd, buy_vnd, partner_confirmed_at::text, partner_confirm_ref,
+              issued_at::text, issued_by, status
+         FROM msos_insertion_orders
+         ORDER BY issued_at DESC NULLS LAST, display_code DESC`,
+    );
+    return result.rows as MsosInsertionOrderRow[];
+  }
+
+  async listRateCards(): Promise<MsosRateCardListItem[]> {
+    const result = await this.db.query(
+      `SELECT rc.id::text, rc.display_code, rc.owner_kind, rc.partner_id::text, rc.created_at::text,
+              pub.version AS published_version,
+              pub.unit_price_vnd AS published_unit_price_vnd,
+              dr.version AS draft_version
+         FROM msos_rate_cards rc
+         LEFT JOIN LATERAL (
+           SELECT version, unit_price_vnd
+             FROM msos_rate_versions
+            WHERE rate_card_id = rc.id AND status = 'published'
+            ORDER BY version DESC
+            LIMIT 1
+         ) pub ON TRUE
+         LEFT JOIN LATERAL (
+           SELECT version
+             FROM msos_rate_versions
+            WHERE rate_card_id = rc.id AND status = 'draft'
+            ORDER BY version DESC
+            LIMIT 1
+         ) dr ON TRUE
+         ORDER BY rc.created_at DESC`,
+    );
+    return result.rows as MsosRateCardListItem[];
+  }
+
+  async listReservationsForPackage(packageId: string): Promise<MsosReservationRow[]> {
+    const result = await this.db.query(
+      `SELECT id::text, package_id::text, placement_id::text, bucket_date::text, kind,
+              qty::bigint AS qty, expires_at::text, released_at::text, created_at::text
+         FROM msos_reservations
+        WHERE package_id = $1::uuid AND released_at IS NULL
+        ORDER BY bucket_date`,
+      [packageId],
+    );
+    return result.rows as MsosReservationRow[];
   }
 }

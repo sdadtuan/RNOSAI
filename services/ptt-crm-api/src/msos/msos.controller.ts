@@ -139,6 +139,12 @@ export class MsosController {
     return this.msos.listPackages();
   }
 
+  @Get('packages/:id')
+  @RequireMsosAction('view')
+  getPackage(@Param('id') id: string) {
+    return this.msos.getPackage(id);
+  }
+
   @Post('packages')
   @RequireMsosAction('write')
   async createPackage(@Req() req: StaffReq, @Body() body: CreatePackageInput) {
@@ -318,6 +324,48 @@ export class MsosController {
   @RequireMsosAction('view')
   listExceptions() {
     return this.msos.listExceptions();
+  }
+
+  @Get('policies')
+  @RequireMsosAction('view')
+  listPolicies() {
+    return this.msos.listPolicies();
+  }
+
+  @Get('evidence-packs')
+  @RequireMsosAction('view')
+  listEvidencePacks() {
+    return this.msos.listEvidencePacks();
+  }
+
+  @Get('discrepancy-cases')
+  @RequireMsosAction('view')
+  listDiscrepancyCases() {
+    return this.msos.listDiscrepancyCases();
+  }
+
+  @Get('make-goods')
+  @RequireMsosAction('view')
+  listMakeGoods() {
+    return this.msos.listMakeGoods();
+  }
+
+  @Get('insertion-orders')
+  @RequireMsosAction('view')
+  listInsertionOrders() {
+    return this.msos.listInsertionOrders();
+  }
+
+  @Get('rate-cards')
+  @RequireMsosAction('view')
+  listRateCards() {
+    return this.msos.listRateCards();
+  }
+
+  @Get('packages/:id/reservations')
+  @RequireMsosAction('view')
+  listPackageReservations(@Param('id') id: string) {
+    return this.msos.listPackageReservations(id);
   }
 
   @Post('exceptions/rebuild')

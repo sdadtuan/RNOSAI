@@ -447,3 +447,15 @@ export type MsosDraftDto = {
   facts: Record<string, unknown>;
   actor: 'template_a1';
 };
+
+export type MsosPolicyRow = {
+  key: string;
+  rule_text: string;
+  enforcement: string;
+};
+
+export type MsosRateCardListItem = MsosRateCardRow & {
+  published_version: number | null;
+  published_unit_price_vnd: number | null;
+  draft_version: number | null;
+};

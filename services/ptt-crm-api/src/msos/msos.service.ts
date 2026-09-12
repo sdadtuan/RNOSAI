@@ -51,6 +51,8 @@ import type {
   MsosPackageRow,
   MsosPartnerRow,
   MsosPlacementRow,
+  MsosPolicyRow,
+  MsosRateCardListItem,
   MsosRateCardRow,
   MsosRateVersionRow,
   MsosReservationRow,
@@ -312,6 +314,15 @@ export class MsosService {
   async listPackages(): Promise<MsosPackageRow[]> {
     this.assertEnabled();
     return this.repo.listPackages();
+  }
+
+  async getPackage(packageId: string): Promise<MsosPackageRow> {
+    this.assertEnabled();
+    const pkg = await this.repo.getPackage(packageId);
+    if (!pkg) {
+      throw new UnprocessableEntityException({ error: 'package_not_found' });
+    }
+    return pkg;
   }
 
   async createPackage(input: CreatePackageInput): Promise<MsosPackageRow> {
@@ -1003,5 +1014,44 @@ export class MsosService {
     }
     const facts = await this.repo.getDraftFacts(input.media_line_id, input.kind);
     return buildDraft(input.kind, facts);
+  }
+
+  async listPolicies(): Promise<MsosPolicyRow[]> {
+    this.assertEnabled();
+    return this.repo.listPolicies();
+  }
+
+  async listEvidencePacks(): Promise<MsosEvidencePackRow[]> {
+    this.assertEnabled();
+    return this.repo.listEvidencePacks();
+  }
+
+  async listDiscrepancyCases(): Promise<MsosDiscrepancyCaseRow[]> {
+    this.assertEnabled();
+    return this.repo.listDiscrepancyCases();
+  }
+
+  async listMakeGoods(): Promise<MsosMakeGoodRow[]> {
+    this.assertEnabled();
+    return this.repo.listMakeGoods();
+  }
+
+  async listInsertionOrders(): Promise<MsosInsertionOrderRow[]> {
+    this.assertEnabled();
+    return this.repo.listInsertionOrders();
+  }
+
+  async listRateCards(): Promise<MsosRateCardListItem[]> {
+    this.assertEnabled();
+    return this.repo.listRateCards();
+  }
+
+  async listPackageReservations(packageId: string): Promise<MsosReservationRow[]> {
+    this.assertEnabled();
+    const pkg = await this.repo.getPackage(packageId);
+    if (!pkg) {
+      throw new UnprocessableEntityException({ error: 'package_not_found' });
+    }
+    return this.repo.listReservationsForPackage(packageId);
   }
 }
