@@ -19,6 +19,7 @@ import {
   isCsdChatImageMime,
   type CsdMessagePeerDisplay,
 } from '@/lib/crm/csd-chat-display';
+import { splitCsdChatMessageText } from '@/lib/crm/csd-chat-linkify';
 
 const EDIT_WINDOW_MS = 15 * 60_000;
 const PLACEHOLDER_IMG =
@@ -35,14 +36,27 @@ function canDeleteOwn(message: CsdMessageRow, meStaffId: number | null): boolean
 }
 
 function renderMessageBody(text: string) {
-  const parts = String(text).split(/(@\d+|#PTT-\d{4}-\d{6})/gi);
-  return parts.map((part, index) =>
-    /^@\d+$/.test(part) || /^#PTT-\d{4}-\d{6}$/i.test(part) ? (
-      <strong key={`${part}-${index}`}>{part}</strong>
-    ) : (
-      part
-    ),
-  );
+  return splitCsdChatMessageText(text).map((segment, index) => {
+    const key = `${segment.type}-${index}-${segment.value.slice(0, 24)}`;
+    if (segment.type === 'mention' || segment.type === 'ticket') {
+      return <strong key={key}>{segment.value}</strong>;
+    }
+    if (segment.type === 'url') {
+      return (
+        <a
+          key={key}
+          href={segment.href}
+          className="csd-chat-link"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {segment.value}
+        </a>
+      );
+    }
+    return segment.value;
+  });
 }
 
 function CsdChatImageThumb({
@@ -248,7 +262,12 @@ export function CsdChatBubble({
           <div className="csd-chat-bubble">
             {quoted ? (
               <p className="csd-chat-quote muted">
-                ↩ {quoted.is_deleted ? 'Đã xóa' : quoted.body_text.slice(0, 120)}
+                ↩{' '}
+                {quoted.is_deleted ? (
+                  'Đã xóa'
+                ) : (
+                  renderMessageBody(quoted.body_text.slice(0, 120))
+                )}
               </p>
             ) : null}
             {message.is_deleted ? (

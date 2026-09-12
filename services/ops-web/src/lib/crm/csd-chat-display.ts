@@ -24,6 +24,24 @@ function vnEpochDay(d: Date): number {
   return Date.UTC(p.y, p.m - 1, p.day) / 86_400_000;
 }
 
+export function csdChatLetterKey(name: string): string {
+  const ch = name.trim().charAt(0).toLocaleUpperCase('vi-VN');
+  return ch || '#';
+}
+
+export function groupCsdChatPeopleByLetter<T extends { display_name_vi: string }>(
+  people: T[],
+): Array<[string, T[]]> {
+  const map = new Map<string, T[]>();
+  for (const person of people) {
+    const letter = csdChatLetterKey(person.display_name_vi);
+    const bucket = map.get(letter) ?? [];
+    bucket.push(person);
+    map.set(letter, bucket);
+  }
+  return [...map.entries()].sort(([a], [b]) => a.localeCompare(b, 'vi'));
+}
+
 export function initialsFromName(name: string | null | undefined, fallback = 'KH'): string {
   const parts = String(name ?? '')
     .trim()
@@ -118,6 +136,41 @@ export type CsdMessagePeerDisplay = {
   hasAvatar: boolean;
   avatarUpdatedAt: string | null;
 };
+
+export type CsdChatAvatarDisplay = {
+  staffId: number | null;
+  hasAvatar: boolean;
+  avatarUpdatedAt: string | null;
+  seed: string | number;
+};
+
+export function resolveCsdConversationAvatar(input: {
+  id: string;
+  avatar_staff_id?: number | null;
+  avatar_has_photo?: boolean;
+  avatar_updated_at?: string | null;
+}): CsdChatAvatarDisplay {
+  const staffId = input.avatar_staff_id ?? null;
+  return {
+    staffId,
+    hasAvatar: Boolean(input.avatar_has_photo),
+    avatarUpdatedAt: input.avatar_updated_at ?? null,
+    seed: staffId ?? input.id,
+  };
+}
+
+export function resolveCsdPersonAvatar(person: {
+  staff_id: number;
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
+}): CsdChatAvatarDisplay {
+  return {
+    staffId: person.staff_id,
+    hasAvatar: Boolean(person.has_avatar),
+    avatarUpdatedAt: person.avatar_updated_at ?? null,
+    seed: person.staff_id,
+  };
+}
 
 type ResolvePeerContext = {
   active: { id: string; kind: string; name_vi: string } | null;

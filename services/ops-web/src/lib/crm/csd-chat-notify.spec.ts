@@ -50,6 +50,9 @@ describe('nextCsdChatIncoming', () => {
         title: 'An',
         preview: 'Ping',
         lastMessageAt: '2026-09-03T10:01:00.000Z',
+        avatarStaffId: null,
+        avatarHasPhoto: false,
+        avatarUpdatedAt: null,
       },
     ]);
   });

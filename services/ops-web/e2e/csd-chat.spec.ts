@@ -761,6 +761,7 @@ test.describe('CSD chat workspace', () => {
     await page.getByTestId('csd-chat-launcher').click();
     await unlockCsdChat(page);
     await page.getByTestId('csd-chat-tab-contacts').click();
+    await page.getByTestId('csd-chat-contacts-nav-discover').click();
     await page.getByTestId('csd-chat-people-q').fill('Bạn');
     await page.getByTestId('csd-chat-friend-request').click();
     await page.getByTestId('csd-chat-tab-requests').click();

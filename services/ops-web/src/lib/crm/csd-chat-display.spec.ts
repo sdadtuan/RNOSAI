@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   avatarHue,
+  csdChatLetterKey,
+  groupCsdChatPeopleByLetter,
   formatChatListTime,
   formatDateChip,
   initialsFromName,
   isCsdChatImageMime,
+  resolveCsdConversationAvatar,
   resolveCsdMessagePeer,
+  resolveCsdPersonAvatar,
   shiftBoxIntoFrame,
   shouldShowDateChip,
 } from './csd-chat-display';
@@ -55,6 +59,48 @@ describe('csd-chat-display', () => {
     );
     expect(peer.name).toBe('Nguyễn Văn B');
     expect(peer.hasAvatar).toBe(true);
+  });
+
+  it('groups friends alphabetically for Zalo-style contacts', () => {
+    expect(csdChatLetterKey('Anh Tuấn')).toBe('A');
+    expect(groupCsdChatPeopleByLetter([
+      { display_name_vi: 'Bình' },
+      { display_name_vi: 'Anh' },
+    ])).toEqual([
+      ['A', [{ display_name_vi: 'Anh' }]],
+      ['B', [{ display_name_vi: 'Bình' }]],
+    ]);
+  });
+
+  it('resolveCsdConversationAvatar maps direct peer photo metadata', () => {
+    expect(
+      resolveCsdConversationAvatar({
+        id: 'conv-1',
+        avatar_staff_id: 8,
+        avatar_has_photo: true,
+        avatar_updated_at: '2026-09-12T00:00:00.000Z',
+      }),
+    ).toEqual({
+      staffId: 8,
+      hasAvatar: true,
+      avatarUpdatedAt: '2026-09-12T00:00:00.000Z',
+      seed: 8,
+    });
+  });
+
+  it('resolveCsdPersonAvatar maps staff avatar metadata', () => {
+    expect(
+      resolveCsdPersonAvatar({
+        staff_id: 12,
+        has_avatar: true,
+        avatar_updated_at: '2026-09-12T01:00:00.000Z',
+      }),
+    ).toEqual({
+      staffId: 12,
+      hasAvatar: true,
+      avatarUpdatedAt: '2026-09-12T01:00:00.000Z',
+      seed: 12,
+    });
   });
 
   it('shiftBoxIntoFrame pushes a clipped popover back inside both edges', () => {

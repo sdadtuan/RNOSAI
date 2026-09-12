@@ -117,13 +117,16 @@ export class CsdChatFriendsRepository implements OnModuleDestroy {
   async listAcceptedPeople(staffId: number): Promise<CsdChatPersonRow[]> {
     const res = await this.db.query(
       `SELECT peer.staff_id,
-              COALESCE(NULLIF(a.display_name_vi, ''), s.name, '') AS display_name_vi
+              COALESCE(NULLIF(a.display_name_vi, ''), s.name, '') AS display_name_vi,
+              (su.avatar_storage_key IS NOT NULL) AS has_avatar,
+              su.avatar_updated_at AS avatar_updated_at
          FROM csd_chat_friendships f
          JOIN LATERAL (
            SELECT CASE WHEN f.staff_lo = $2 THEN f.staff_hi ELSE f.staff_lo END AS staff_id
          ) peer ON TRUE
          JOIN crm_staff s ON s.id = peer.staff_id
          LEFT JOIN csd_chat_accounts a ON a.staff_id = peer.staff_id AND a.tenant_id = $1
+         LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
         WHERE f.tenant_id = $1
           AND f.status = 'accepted'
           AND (f.staff_lo = $2 OR f.staff_hi = $2)
@@ -133,6 +136,8 @@ export class CsdChatFriendsRepository implements OnModuleDestroy {
     return res.rows.map((row) => ({
       staff_id: Number(row.staff_id),
       display_name_vi: text(row.display_name_vi),
+      has_avatar: Boolean(row.has_avatar),
+      avatar_updated_at: row.avatar_updated_at ? text(row.avatar_updated_at) : null,
     }));
   }
 

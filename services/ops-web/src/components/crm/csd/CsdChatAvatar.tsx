@@ -28,7 +28,7 @@ export function CsdChatAvatar({
   const initials = initialsFromName(name);
 
   useEffect(() => {
-    if (!token || !hasAvatar || staffId == null || staffId <= 0) {
+    if (!token || staffId == null || staffId <= 0 || hasAvatar === false) {
       setSrc(null);
       return;
     }

@@ -17,7 +17,7 @@ import {
   showCsdChatDesktopNotify,
   writeCsdChatNotified,
 } from '@/lib/crm/csd-chat-notify-persist';
-import { avatarHue, initialsFromName } from '@/lib/crm/csd-chat-display';
+import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 
 const POLL_MS = 15_000;
 
@@ -138,9 +138,15 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
           data-testid="csd-chat-notify-toast"
           onClick={() => openConversation(row.conversationId)}
         >
-          <span className="csd-chat-notify__avatar" style={{ background: `hsl(${avatarHue(row.conversationId)} 42% 46%)` }}>
-            {initialsFromName(row.title)}
-          </span>
+          <CsdChatAvatar
+            token={token}
+            name={row.title}
+            seed={row.avatarStaffId ?? row.conversationId}
+            staffId={row.avatarStaffId ?? null}
+            hasAvatar={row.avatarHasPhoto}
+            avatarUpdatedAt={row.avatarUpdatedAt}
+            className="csd-chat-notify__avatar csd-chat-avatar"
+          />
           <span className="csd-chat-notify__copy">
             <strong>{row.title}</strong>
             <span>{row.preview}</span>

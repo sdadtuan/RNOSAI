@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CsdChatContacts } from '@/components/crm/csd/CsdChatContacts';
+import { CsdChatContacts, type CsdChatContactsView } from '@/components/crm/csd/CsdChatContacts';
 import { CsdChatContext } from '@/components/crm/csd/CsdChatContext';
 import { CsdChatList } from '@/components/crm/csd/CsdChatList';
 import { CsdChatCreateGroupModal } from '@/components/crm/csd/CsdChatCreateGroupModal';
@@ -22,14 +22,21 @@ type CsdChatWorkspaceProps = {
 export function CsdChatWorkspace({ token, canWrite, initialConversationId }: CsdChatWorkspaceProps) {
   const s = useCsdChatSession({ token, canWrite, initialConversationId });
   const [tab, setTab] = useState<CsdDockTab>('messages');
+  const [contactsView, setContactsView] = useState<CsdChatContactsView>('friends');
   const [incomingCount, setIncomingCount] = useState(0);
   const [contextOpen, setContextOpen] = useState(false);
+
+  useEffect(() => {
+    if (tab === 'requests') setContactsView('requests');
+    else if (tab === 'contacts') setContactsView('friends');
+  }, [tab]);
   const archived = s.active?.status === 'archived';
   const closed = s.active?.status === 'closed';
   const composerLocked = Boolean(closed || archived);
 
   const workspaceClass = [
     'csd-chat-workspace',
+    tab !== 'messages' ? 'is-contacts-tab' : '',
     !s.isMobile && !contextOpen ? 'is-context-hidden' : '',
     s.isMobile && s.mobilePane === 'list' ? 'is-mobile-list' : '',
     s.isMobile && s.mobilePane === 'thread' ? 'is-mobile-thread' : '',
@@ -46,6 +53,7 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
         <div className="csd-chat-workspace__list-col">
           {tab === 'messages' ? (
             <CsdChatList
+              token={token}
               conversations={s.conversations}
               activeId={s.activeId}
               filter={s.filter}
@@ -62,7 +70,12 @@ export function CsdChatWorkspace({ token, canWrite, initialConversationId }: Csd
           ) : (
             <CsdChatContacts
               token={token}
-              mode={tab === 'requests' ? 'requests' : 'directory'}
+              view={contactsView}
+              onViewChange={(next) => {
+                setContactsView(next);
+                if (next === 'requests') setTab('requests');
+                else setTab('contacts');
+              }}
               canWrite={canWrite}
               onIncomingChange={setIncomingCount}
               onOpenDm={(staffId) => {

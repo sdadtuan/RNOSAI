@@ -7,7 +7,8 @@ import {
   type CsdChatPersonRow,
   type CreateCsdConversationInput,
 } from '@/lib/crm/csd-api';
-import { avatarHue, initialsFromName } from '@/lib/crm/csd-chat-display';
+import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
+import { resolveCsdPersonAvatar } from '@/lib/crm/csd-chat-display';
 
 const MAX_MEMBERS = 100;
 
@@ -174,13 +175,12 @@ export function CsdChatCreateGroupModal({
         </header>
 
         <div className="csd-chat-create-group__identity">
-          <span
+          <CsdChatAvatar
+            token={token}
+            name={nameVi || 'Nhóm'}
+            seed={nameVi || 'nhóm'}
             className="csd-chat-avatar csd-chat-avatar--thread"
-            style={{ background: `hsl(${avatarHue(nameVi || 'nhóm')} 55% 42%)` }}
-            aria-hidden
-          >
-            {initialsFromName(nameVi, 'N')}
-          </span>
+          />
           <input
             className="kpi-input"
             value={nameVi}
@@ -251,13 +251,12 @@ export function CsdChatCreateGroupModal({
                             <span className={`csd-chat-create-group__check${checked ? ' is-on' : ''}`} aria-hidden>
                               {checked ? '✓' : ''}
                             </span>
-                            <span
+                            <CsdChatAvatar
+                              token={token}
+                              name={person.display_name_vi}
+                              {...resolveCsdPersonAvatar(person)}
                               className="csd-chat-avatar csd-chat-avatar--list"
-                              style={{ background: `hsl(${avatarHue(person.staff_id)} 55% 42%)` }}
-                              aria-hidden
-                            >
-                              {initialsFromName(person.display_name_vi)}
-                            </span>
+                            />
                             <span>{person.display_name_vi}</span>
                           </button>
                         </li>
@@ -279,13 +278,12 @@ export function CsdChatCreateGroupModal({
               <ul>
                 {selected.map((person) => (
                   <li key={person.staff_id}>
-                    <span
+                    <CsdChatAvatar
+                      token={token}
+                      name={person.display_name_vi}
+                      {...resolveCsdPersonAvatar(person)}
                       className="csd-chat-avatar csd-chat-avatar--list"
-                      style={{ background: `hsl(${avatarHue(person.staff_id)} 55% 42%)` }}
-                      aria-hidden
-                    >
-                      {initialsFromName(person.display_name_vi)}
-                    </span>
+                    />
                     <span className="csd-chat-create-group__chosen-name">{person.display_name_vi}</span>
                     <button
                       type="button"

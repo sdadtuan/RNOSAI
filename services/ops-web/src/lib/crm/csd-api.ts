@@ -121,6 +121,9 @@ export interface CsdConversationRow {
   preview?: string | null;
   unread_count?: number;
   has_p1_or_complaint?: boolean;
+  avatar_staff_id?: number | null;
+  avatar_has_photo?: boolean;
+  avatar_updated_at?: string | null;
 }
 
 export interface CreateCsdConversationInput {
@@ -685,6 +688,8 @@ export type CsdChatFriendshipRow = {
 export type CsdChatPersonRow = {
   staff_id: number;
   display_name_vi: string;
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
 };
 
 export async function fetchCsdChatPeople(

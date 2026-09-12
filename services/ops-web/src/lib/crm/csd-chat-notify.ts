@@ -5,6 +5,9 @@ export type CsdChatIncoming = {
   title: string;
   preview: string;
   lastMessageAt: string | null;
+  avatarStaffId?: number | null;
+  avatarHasPhoto?: boolean;
+  avatarUpdatedAt?: string | null;
 };
 
 export type CsdChatNotifyChannel = 'toast' | 'desktop' | 'none';
@@ -46,6 +49,9 @@ export function nextCsdChatIncoming(input: {
       title: row.name_vi || 'Chat',
       preview: (row.preview ?? '').trim() || 'Tin nhắn mới',
       lastMessageAt: row.last_message_at ?? null,
+      avatarStaffId: row.avatar_staff_id ?? null,
+      avatarHasPhoto: Boolean(row.avatar_has_photo),
+      avatarUpdatedAt: row.avatar_updated_at ?? null,
     });
   }
   return { incoming: incoming.slice(0, 3), notified };

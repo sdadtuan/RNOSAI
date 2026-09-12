@@ -188,9 +188,12 @@ export class CsdChatAccountsRepository implements OnModuleDestroy {
     if (term.length < 2) return [];
     const res = await this.db.query(
       `SELECT a.staff_id,
-              COALESCE(NULLIF(a.display_name_vi, ''), s.name) AS display_name_vi
+              COALESCE(NULLIF(a.display_name_vi, ''), s.name) AS display_name_vi,
+              (su.avatar_storage_key IS NOT NULL) AS has_avatar,
+              su.avatar_updated_at AS avatar_updated_at
          FROM csd_chat_accounts a
          JOIN crm_staff s ON s.id = a.staff_id
+         LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
         WHERE a.tenant_id = $1 AND a.enabled IS TRUE
           AND a.staff_id <> $2
           AND (s.name ILIKE $3 OR COALESCE(s.email, '') ILIKE $3)
@@ -200,6 +203,8 @@ export class CsdChatAccountsRepository implements OnModuleDestroy {
     return res.rows.map((row) => ({
       staff_id: Number(row.staff_id),
       display_name_vi: text(row.display_name_vi),
+      has_avatar: Boolean(row.has_avatar),
+      avatar_updated_at: row.avatar_updated_at ? text(row.avatar_updated_at) : null,
     }));
   }
 }

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 import { type CsdConversationListFilter, type CsdConversationRow } from '@/lib/crm/csd-api';
-import { avatarHue, formatChatListTime, initialsFromName } from '@/lib/crm/csd-chat-display';
+import { formatChatListTime, resolveCsdConversationAvatar } from '@/lib/crm/csd-chat-display';
 
 const PRIMARY_FILTERS: { id: Exclude<CsdConversationListFilter, 'mentions'>; label: string }[] = [
   { id: 'all', label: 'Tất cả' },
@@ -16,6 +17,7 @@ const KIND_FILTERS: { id: Exclude<CsdConversationListFilter, 'mentions'>; label:
 ];
 
 type CsdChatListProps = {
+  token: string;
   conversations: CsdConversationRow[];
   activeId: string | null;
   filter: CsdConversationListFilter;
@@ -31,6 +33,7 @@ type CsdChatListProps = {
 };
 
 export function CsdChatList({
+  token,
   conversations,
   activeId,
   filter,
@@ -129,6 +132,7 @@ export function CsdChatList({
         ) : (
           conversations.map((c) => {
             const unread = c.unread_count ?? 0;
+            const avatar = resolveCsdConversationAvatar(c);
             return (
               <li key={c.id}>
                 <button
@@ -138,13 +142,15 @@ export function CsdChatList({
                   }`}
                   onClick={() => onSelect(c.id)}
                 >
-                  <span
+                  <CsdChatAvatar
+                    token={token}
+                    name={c.name_vi}
+                    seed={avatar.seed}
+                    staffId={avatar.staffId}
+                    hasAvatar={avatar.hasAvatar}
+                    avatarUpdatedAt={avatar.avatarUpdatedAt}
                     className="csd-chat-avatar csd-chat-avatar--list"
-                    style={{ background: `hsl(${avatarHue(c.id)} 55% 42%)` }}
-                    aria-hidden
-                  >
-                    {initialsFromName(c.name_vi)}
-                  </span>
+                  />
                   <span className="csd-chat-list__body">
                     <span className="csd-chat-list__title">
                       <strong>{c.name_vi}</strong>

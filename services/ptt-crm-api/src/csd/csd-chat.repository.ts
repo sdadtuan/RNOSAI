@@ -40,6 +40,7 @@ function mapConversationListItem(row: Record<string, unknown>): CsdConversationL
 }
 
 function mapConversation(row: Record<string, unknown>): CsdConversationRow {
+  const avatarStaffId = num(row.avatar_staff_id);
   return {
     id: text(row.id),
     tenant_id: text(row.tenant_id),
@@ -56,6 +57,10 @@ function mapConversation(row: Record<string, unknown>): CsdConversationRow {
     last_message_at: row.last_message_at ? text(row.last_message_at) : null,
     created_at: text(row.created_at),
     created_by_staff_id: num(row.created_by_staff_id),
+    avatar_staff_id: avatarStaffId,
+    avatar_has_photo: avatarStaffId != null ? Boolean(row.avatar_has_photo) : false,
+    avatar_updated_at:
+      avatarStaffId != null && row.avatar_updated_at ? text(row.avatar_updated_at) : null,
   };
 }
 
@@ -330,7 +335,38 @@ export class CsdChatRepository implements OnModuleDestroy {
                         WHERE m.conversation_id = c.id AND m.ticket_id IS NOT NULL
                      )
                    )
-              ) AS has_p1_or_complaint
+              ) AS has_p1_or_complaint,
+              (
+                SELECT peer.member_staff_id
+                  FROM csd_conversation_members peer
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_staff_id,
+              (
+                SELECT (su.avatar_storage_key IS NOT NULL)
+                  FROM csd_conversation_members peer
+                  JOIN crm_staff s ON s.id = peer.member_staff_id
+                  LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_has_photo,
+              (
+                SELECT su.avatar_updated_at
+                  FROM csd_conversation_members peer
+                  JOIN crm_staff s ON s.id = peer.member_staff_id
+                  LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_updated_at
          FROM csd_conversations c
          JOIN csd_conversation_members me
            ON me.conversation_id = c.id
@@ -422,7 +458,38 @@ export class CsdChatRepository implements OnModuleDestroy {
                 CASE WHEN c.name_vi ~ '^DM [·•] #' THEN NULL ELSE NULLIF(c.name_vi, '') END,
                 'Hội thoại'
               ) AS display_name_vi,
-              me.alias_vi AS alias_vi
+              me.alias_vi AS alias_vi,
+              (
+                SELECT peer.member_staff_id
+                  FROM csd_conversation_members peer
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_staff_id,
+              (
+                SELECT (su.avatar_storage_key IS NOT NULL)
+                  FROM csd_conversation_members peer
+                  JOIN crm_staff s ON s.id = peer.member_staff_id
+                  LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_has_photo,
+              (
+                SELECT su.avatar_updated_at
+                  FROM csd_conversation_members peer
+                  JOIN crm_staff s ON s.id = peer.member_staff_id
+                  LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+                 WHERE peer.conversation_id = c.id
+                   AND peer.member_type = 'staff'
+                   AND peer.member_staff_id IS DISTINCT FROM $2
+                   AND c.kind = 'direct'
+                 LIMIT 1
+              ) AS avatar_updated_at
          FROM csd_conversations c
          JOIN csd_conversation_members me
            ON me.conversation_id = c.id

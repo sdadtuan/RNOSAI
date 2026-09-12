@@ -12,7 +12,13 @@ import {
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
 import { CSD_CHAT_EMOTIONS, CSD_CHAT_INSERT_EMOJIS } from '@/lib/crm/csd-chat-emotions';
-import { formatDateChip, isCsdChatImageMime, resolveCsdMessagePeer, shouldShowDateChip } from '@/lib/crm/csd-chat-display';
+import {
+  formatDateChip,
+  isCsdChatImageMime,
+  resolveCsdConversationAvatar,
+  resolveCsdMessagePeer,
+  shouldShowDateChip,
+} from '@/lib/crm/csd-chat-display';
 import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 
 function mentionToken(draft: string): string | null {
@@ -193,6 +199,7 @@ export function CsdChatThread({
   }
 
   const isClient = active.kind === 'client';
+  const threadAvatar = resolveCsdConversationAvatar(active);
 
   return (
     <section className="csd-chat-workspace__thread">
@@ -205,7 +212,10 @@ export function CsdChatThread({
         <CsdChatAvatar
           token={token}
           name={active.name_vi}
-          seed={active.id}
+          seed={threadAvatar.seed}
+          staffId={threadAvatar.staffId}
+          hasAvatar={threadAvatar.hasAvatar}
+          avatarUpdatedAt={threadAvatar.avatarUpdatedAt}
           className="csd-chat-avatar csd-chat-avatar--thread"
         />
         {renaming && onRename ? (

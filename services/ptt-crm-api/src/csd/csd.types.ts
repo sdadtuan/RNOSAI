@@ -226,6 +226,9 @@ export type CsdConversationRow = {
   last_message_at: string | null;
   created_at: string;
   created_by_staff_id: number | null;
+  avatar_staff_id?: number | null;
+  avatar_has_photo?: boolean;
+  avatar_updated_at?: string | null;
 };
 
 export type CsdAttachmentRow = {
@@ -551,6 +554,8 @@ export type CsdChatMe = {
 export type CsdChatPersonRow = {
   staff_id: number;
   display_name_vi: string;
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
 };
 
 export type CsdChatFriendshipStatus = 'pending' | 'accepted' | 'blocked';
