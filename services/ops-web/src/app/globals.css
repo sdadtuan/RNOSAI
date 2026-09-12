@@ -17402,16 +17402,13 @@ body {
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.65rem 0.75rem;
-  background: var(--zalo-rail, #a85d08);
-  color: #fff;
-  border-bottom: 0;
+  background: #fff;
+  color: #12263a;
+  border-bottom: 1px solid var(--zalo-line, #e8dfd4);
 }
 
-.csd-chat-dock__head .csd-chat-icon-btn,
-.csd-chat-dock__head .btn {
-  color: #fff;
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.28);
+.csd-chat-dock__head strong {
+  font-size: 0.95rem;
 }
 
 .csd-chat-dock__head-actions {
