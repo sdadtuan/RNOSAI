@@ -1,6 +1,6 @@
 'use client';
 
-import { KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { KeyboardEvent, MouseEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CsdChatBubble } from '@/components/crm/csd/CsdChatBubble';
 import {
   fetchCsdTickets,
@@ -67,6 +67,7 @@ type CsdChatThreadProps = {
   onShowContext?: () => void;
   onToggleContextPanel?: () => void;
   contextPanelOpen?: boolean;
+  onPaneClick?: () => void;
   onRename?: (aliasVi: string) => Promise<boolean>;
   onDismissPriorityHint?: () => void;
   onApplyPriorityHint?: () => void;
@@ -103,6 +104,7 @@ export function CsdChatThread({
   onShowContext,
   onToggleContextPanel,
   contextPanelOpen = false,
+  onPaneClick,
   onRename,
   onExpand,
   onMinimize,
@@ -201,7 +203,7 @@ export function CsdChatThread({
 
   if (!active) {
     return (
-      <section className="csd-chat-workspace__thread">
+      <section className="csd-chat-workspace__thread" onClick={onPaneClick}>
         <div className="csd-chat-thread-empty">
           <p>Chọn hội thoại để xem tin nhắn</p>
         </div>
@@ -215,7 +217,8 @@ export function CsdChatThread({
   const canVoiceCall = active.kind === 'direct';
   const hasInfoAction = Boolean(onToggleContextPanel || onShowContext);
 
-  function handleInfo() {
+  function handleInfo(e: MouseEvent) {
+    e.stopPropagation();
     if (onToggleContextPanel) onToggleContextPanel();
     else onShowContext?.();
   }
@@ -228,7 +231,7 @@ export function CsdChatThread({
   }
 
   return (
-    <section className="csd-chat-workspace__thread">
+    <section className="csd-chat-workspace__thread" onClick={onPaneClick}>
       <div className="csd-chat-thread-toolbar">
         {showMobileBack ? (
           <button type="button" className="csd-chat-icon-btn" onClick={onMobileBack} data-testid="csd-chat-mobile-back">

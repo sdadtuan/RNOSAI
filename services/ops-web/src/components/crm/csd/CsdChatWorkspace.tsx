@@ -68,10 +68,22 @@ export function CsdChatWorkspace({
   const composerLocked = Boolean(closed || archived);
   const showChatPane = tab === 'messages';
 
+  function closeContextPanel() {
+    setContextOpen(false);
+    if (s.isMobile && s.mobilePane === 'context') {
+      s.setMobilePane('thread');
+    }
+  }
+
+  function handleChatOutsideContextClick() {
+    if (!contextOpen && s.mobilePane !== 'context') return;
+    closeContextPanel();
+  }
+
   function handleTabChange(next: CsdDockTab) {
     setTab(next);
     if (next !== 'messages') {
-      setContextOpen(false);
+      closeContextPanel();
       s.setMobilePane('list');
       return;
     }
@@ -95,8 +107,10 @@ export function CsdChatWorkspace({
     <div className={workspaceClass} data-testid="csd-chat-workspace">
       {(!s.isMobile || s.mobilePane === 'list') && (
         <>
-        <CsdChatTabs variant="rail" tab={tab} incomingCount={incomingCount} onChange={handleTabChange} />
-        <div className="csd-chat-workspace__list-col">
+        <div className="csd-chat-workspace__rail-hit" onClick={handleChatOutsideContextClick}>
+          <CsdChatTabs variant="rail" tab={tab} incomingCount={incomingCount} onChange={handleTabChange} />
+        </div>
+        <div className="csd-chat-workspace__list-col" onClick={handleChatOutsideContextClick}>
           {tab === 'messages' ? (
             <CsdChatList
               token={token}
@@ -109,7 +123,10 @@ export function CsdChatWorkspace({
               search={s.search}
               onSearch={s.setSearch}
               onFilter={s.setFilter}
-              onSelect={(id) => void s.handleSelectConversation(id)}
+              onSelect={(id) => {
+                closeContextPanel();
+                void s.handleSelectConversation(id);
+              }}
               onNew={() => s.setShowNewModal(true)}
               onCreateGroup={() => s.setShowCreateGroupModal(true)}
             />
@@ -137,6 +154,7 @@ export function CsdChatWorkspace({
       {showChatPane && (!s.isMobile || s.mobilePane === 'thread') && (
         <CsdChatThread
           token={token}
+          onPaneClick={handleChatOutsideContextClick}
           active={s.active}
           messages={s.messages}
           members={s.members}
@@ -219,7 +237,7 @@ export function CsdChatWorkspace({
           onSummarize={() => void s.handleSummarize()}
           showMobileBack={s.isMobile}
           onMobileBack={() => s.setMobilePane('thread')}
-          onClosePanel={!s.isMobile ? () => setContextOpen(false) : undefined}
+          onClosePanel={!s.isMobile ? closeContextPanel : undefined}
           onRename={(aliasVi) => s.handleRenameConversation(aliasVi)}
         />
       )}

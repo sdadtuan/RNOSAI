@@ -15358,6 +15358,13 @@ body {
   grid-template-columns: 64px minmax(0, 1fr);
 }
 
+.csd-chat-workspace__rail-hit {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
 .csd-chat-workspace__list-col {
   display: flex;
   flex-direction: column;
