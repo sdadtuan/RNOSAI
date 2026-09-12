@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PTT Agency — Media Supply & Outcome OS</title>
+<style>
+:root{--nav:#101a30;--nav2:#172642;--ink:#15213a;--muted:#718097;--bg:#f4f6fa;--white:#fff;--line:#e2e7ef;--blue:#3268f6;--blue50:#edf2ff;--purple:#7656e9;--purple50:#f2efff;--green:#139567;--green50:#e5f8ef;--amber:#d88400;--amber50:#fff4dd;--red:#d84951;--red50:#fff0f1;--shadow:0 12px 30px rgba(16,26,48,.08);--r:14px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:13px;line-height:1.45}
+button,input,textarea,select{font:inherit}button{cursor:pointer;border:0}
+.app{display:grid;grid-template-columns:258px 1fr;min-height:100vh}
+.side{position:fixed;width:258px;inset:0 auto 0 0;background:var(--nav);color:#c5d0e6;padding:17px 13px;z-index:20;overflow:auto}
+.brand{height:45px;display:flex;align-items:center;gap:11px;padding:0 8px;color:#fff;font-size:18px;font-weight:800}
+.mark{height:32px;width:32px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,#5c89ff,#7450e7);box-shadow:0 7px 17px #0006}
+.workspace{display:flex;align-items:center;gap:9px;margin:17px 7px 20px;padding:9px;border:1px solid #ffffff1c;border-radius:10px;background:#ffffff09}
+.workspace small{display:block;color:#8293b5;font-size:9px;letter-spacing:.08em}
+.workspace b{display:block;color:#fff;font-size:11px;margin-top:2px}
+.avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;flex:0 0 auto;background:#ffdfca;color:#a54216}
+.label{margin:18px 11px 7px;color:#7889ad;font-size:9px;letter-spacing:.11em;font-weight:800}
+.nav a{display:flex;align-items:center;gap:11px;padding:10px 11px;margin:2px 0;border-radius:8px;text-decoration:none;color:#bfcae0;font-size:12px}
+.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}
+.ic{width:18px;color:#93a4c8;text-align:center}
+.badge{margin-left:auto;background:#e7b54d;color:#4c3500;padding:2px 6px;border-radius:12px;font-size:9px;font-weight:800}
+.help{margin:22px 8px 8px;background:var(--nav2);border-radius:12px;padding:12px}
+.help b{color:#fff;font-size:11px}.help p{font-size:10px;color:#9dacc7;line-height:1.45;margin:5px 0 0}
+.main{grid-column:2;min-width:0}
+.winbar{position:sticky;top:0;z-index:25;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;background:linear-gradient(90deg,#15213a,#1d3a5c);color:#d7e4ff;font-size:11px;border-bottom:1px solid #2a4668}
+.winbar b{color:#fff}.winbar .tag{background:#2a4570;color:#d7e4ff}
+.top{position:sticky;top:34px;z-index:15;height:64px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:13px;padding:0 30px}
+.crumb{color:#728097;font-size:12px}.crumb b{color:#3c4961}
+.search{margin-left:auto;display:flex;align-items:center;gap:7px;width:280px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:#8c97a9}
+.search input{border:0;outline:0;background:transparent;width:100%;font-size:12px}
+.topav{width:32px;height:32px;border-radius:50%;background:#d9e5ff;color:#2853b6;display:grid;place-items:center;font-size:11px;font-weight:800}
+.page{padding:22px 30px 80px}
+.screen{display:none}.screen.active{display:block}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin:5px 0 18px}
+.head h1{margin:0 0 5px;font-size:23px;letter-spacing:-.035em}
+.head p{margin:0;color:var(--muted);font-size:12px}
+.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 12px;color:#3c4961;font-size:11px;font-weight:750}
+.btn.blue{color:#fff;background:var(--blue);border-color:var(--blue);box-shadow:0 5px 12px #3268f63d}
+.btn.danger{color:var(--red);border-color:#f0c4c7}
+.btn.small{padding:6px 8px;font-size:10px}
+.btn[disabled],.btn.off{opacity:.45;cursor:not-allowed}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:0 2px 5px rgba(18,30,53,.02)}
+.pad{padding:18px}
+.card h3{font-size:13px;margin:0 0 12px}
+.desc{margin:0 0 12px;color:var(--muted);font-size:11px;line-height:1.5}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+.kpi5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.kpi{padding:14px 16px}.kpi small{display:block;color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.04em}
+.kpi b{display:block;font-size:22px;margin:6px 0 4px;letter-spacing:-.04em}
+.kpi span{font-size:11px}
+.up{color:var(--green)}.down{color:var(--red)}
+.layout{display:grid;grid-template-columns:minmax(620px,1.4fr) 340px;gap:16px}
+.table-scroll{overflow:auto}
+table.t{width:100%;border-collapse:collapse;font-size:12px;min-width:720px}
+.t th{text-align:left;color:#7d899c;background:#fafbfc;padding:10px 9px;border-bottom:1px solid var(--line);font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.t td{padding:11px 9px;border-bottom:1px solid #edf0f4;vertical-align:top}
+.t .name{font-weight:750;color:#344058}.t .dep{display:block;color:#768399;font-size:10px;margin-top:3px}
+.tag{display:inline-block;padding:3px 7px;border-radius:12px;font-size:9px;font-weight:800}
+.tag.green{background:var(--green50);color:var(--green)}
+.tag.amber{background:var(--amber50);color:#a86600}
+.tag.red{background:var(--red50);color:#c6404a}
+.tag.blue{background:var(--blue50);color:#2d56da}
+.tag.gray{background:#edf0f5;color:#68748b}
+.tag.lock{background:#eef1f6;color:#6a7690;border:1px dashed #c5cdd8}
+.notice{border:1px solid #e3e9fb;background:#f6f8ff;border-radius:8px;color:#5e6c88;font-size:11px;line-height:1.5;padding:10px;margin:10px 0}
+.notice b{color:#3d57bc}
+.notice.warn{border-color:#f1dda9;background:#fffaed;color:#88610b}
+.notice.danger{border-color:#f0c8cb;background:#fff5f5;color:#a9464e}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #edf0f4;font-size:12px}
+.row:last-child{border:0}.row span{color:#66758c;font-size:11px}
+.bar{height:7px;background:#edf0f5;border-radius:8px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--blue)}
+.ai{border:1px solid #ddd7ff;border-radius:12px;padding:13px;background:linear-gradient(150deg,#fbfaff,#f2efff)}
+.ai b{display:block;margin-bottom:6px}.ai p{margin:0 0 8px;color:#5c5680;font-size:11px;line-height:1.5}
+.ai .ev{font-size:10px;color:#746c96}
+.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:750;color:#3e4a61;margin-bottom:6px}
+.input,select,textarea{width:100%;outline:0;border:1px solid #dce3ed;border-radius:8px;background:#fff;padding:9px 10px;color:#2b3750;font-size:12px}
+.spine{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}
+.spine em{font-style:normal;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:10px;font-weight:750;color:#3c4961}
+.spine em.on{background:var(--blue50);border-color:#bcccff;color:#2d56da}
+.spine em.lock{opacity:.55;border-style:dashed}
+.filter{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line)}
+.link{color:#2d56da;font-size:11px;font-weight:750;background:none;border:0;padding:0;text-decoration:underline}
+.toast{position:fixed;right:24px;bottom:24px;z-index:40;background:#15213a;color:#fff;padding:10px 14px;border-radius:8px;font-size:11px;display:none;max-width:380px;box-shadow:var(--shadow)}
+.toast.show{display:block}
+.modalback{position:fixed;inset:0;background:#101a3073;z-index:50;display:none;align-items:center;justify-content:center;padding:20px}
+.modalback.show{display:flex}
+.modal{width:min(560px,92vw);background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:var(--shadow);padding:20px}
+.modal h2{margin:0 0 6px;font-size:16px}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+@media(max-width:1100px){.side{display:none}.app{display:block}.kpi5,.layout,.grid2,.grid3{grid-template-columns:1fr}.page{padding:18px 14px}}
+</style>
+</head>
+<body>
+<div class="winbar">
+  <span class="tag">MSOS · W1</span>
+  <b>Media Supply &amp; Outcome OS</b>
+  — inventory PTT + 1 partner thật · rate → package → line → evidence → CRM outcome → margin.
+  <span class="tag lock">§4 khóa</span>
+  Ghi connector · Cổng C · Recon sâu · Portal partner — không giả lập trên 8 màn này.
+  <span style="margin-left:auto;color:#9db4d4">Dataset minh họa · cấm seed prod</span>
+</div>
+<div class="app">
+<aside class="side">
+  <div class="brand"><div class="mark">P</div>PTT Agency</div>
+  <div class="workspace">
+    <div class="avatar">PT</div>
+    <div><small>WORKSPACE</small><b>PTT Agency Vietnam</b></div>
+  </div>
+  <div class="label">MEDIA OS</div>
+  <nav class="nav">
+    <a href="#command" class="active" data-screen="command"><span class="ic">▦</span>Command Center</a>
+    <a href="#inventory" data-screen="inventory"><span class="ic">▣</span>Inventory &amp; Rate</a>
+    <a href="#packages" data-screen="packages"><span class="ic">◫</span>Packages</a>
+    <a href="#campaigns" data-screen="campaigns"><span class="ic">▶</span>Campaigns</a>
+    <a href="#evidence" data-screen="evidence"><span class="ic">▤</span>Evidence</a>
+    <a href="#outcomes" data-screen="outcomes"><span class="ic">⌁</span>Outcomes</a>
+    <a href="#margin" data-screen="margin"><span class="ic">₫</span>Margin &amp; Deal</a>
+    <a href="#settings" data-screen="settings"><span class="ic">⚙</span>Governance</a>
+  </nav>
+  <div class="label">THAM CHIẾU — KHÔNG SỞ HỮU</div>
+  <nav class="nav">
+    <a href="#" onclick="ext('CRM Core · Client CL-1042','/crm/clients');return false"><span class="ic">◉</span>CRM Client</a>
+    <a href="#" onclick="ext('Finance Core · không phát hành invoice','/crm/financials');return false"><span class="ic">₫</span>Finance</a>
+    <a href="#" onclick="ext('Meta Ads Ops — connector, URL giữ W1','/meta/ads-ops');return false"><span class="ic">◈</span>Meta Ads Ops</a>
+  </nav>
+  <div class="help">
+    <b>Không phải CRM Ad Network</b>
+    <p>MSOS sở hữu inventory, rate, package, line, evidence, outcome link, margin. Client / Lead / Invoice / Agent runtime chỉ deep-link.</p>
+  </div>
+</aside>
+<main class="main">
+  <header class="top">
+    <div class="crumb">Media OS <span>/</span> <b id="crumb">Command Center</b></div>
+    <div class="search">⌕ <input placeholder="Tìm inventory, package, media line, evidence…"/></div>
+    <div class="topav">TT</div>
+  </header>
+  <div class="page">
+
+<section id="command" class="screen active">
+  <div class="head">
+    <div>
+      <h1>Media Command Center</h1>
+      <p>Ngoại lệ, capacity, margin at risk. Client/AR lấy từ CRM/Finance — không clone 360.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="go('settings')">Mở Eligibility (C khóa)</button>
+      <button class="btn blue" onclick="go('packages')">＋ Tạo package</button>
+    </div>
+  </div>
+  <div class="spine">
+    <em class="on">1 Inventory PTT</em><em class="on">2 Rate</em><em class="on">3 Package</em><em class="on">4 Line</em><em class="on">5 Evidence</em><em class="on">6 Outcome link</em><em class="on">7 Margin</em>
+    <em class="lock">§4 Write connector</em><em class="lock">§4 Cổng C</em><em class="lock">§4 Recon sâu</em><em class="lock">§4 Portal</em>
+  </div>
+  <div class="kpi5">
+    <div class="card kpi"><small>MEDIA LINES · PILOT</small><b>6</b><span class="up">4 live · 1 stale connector</span></div>
+    <div class="card kpi"><small>CONTRIBUTION MARGIN</small><b>29,4%</b><span class="up">Floor 24%</span></div>
+    <div class="card kpi"><small>CAPACITY AT RISK</small><b>2</b><span class="down">1 soft reserve hết hạn 14h</span></div>
+    <div class="card kpi"><small>UNLINKED OUTCOMES</small><b>18%</b><span class="down">Unmatched — không tạo lead</span></div>
+    <div class="card kpi"><small>CỔNG C</small><b>Khóa</b><span>Eligibility chưa đạt</span></div>
+  </div>
+  <div class="layout">
+    <div class="card pad">
+      <h3>Exception queue</h3>
+      <p class="desc">Impact × urgency × freshness. Không phải dashboard vanity.</p>
+      <div class="table-scroll">
+        <table class="t">
+          <thead><tr><th>Ưu tiên</th><th>Ngoại lệ</th><th>Evidence</th><th>Hành động</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="tag red">P0</span></td>
+              <td><span class="name">Rate vs delivery lệch</span><span class="dep">ML-2026-0912-001 · PTT Landing + partner</span></td>
+              <td>Buy import +12% · rate v3 published</td>
+              <td><button class="btn small" onclick="go('evidence')">Mở evidence</button></td>
+            </tr>
+            <tr>
+              <td><span class="tag amber">P1</span></td>
+              <td><span class="name">Connector stale</span><span class="dep">Meta · map adset AS-8821</span></td>
+              <td>Freshness 31h · SLA 24h</td>
+              <td><button class="btn small" onclick="ext('Meta Hub — sync T-1','/meta/facebook-ads')">Mở Meta Hub</button></td>
+            </tr>
+            <tr>
+              <td><span class="tag amber">P1</span></td>
+              <td><span class="name">Outcome unmatched</span><span class="dep">UTM null 18% · CL-1042</span></td>
+              <td>Không insert CRM</td>
+              <td><button class="btn small" onclick="go('outcomes')">Mở outcome links</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <aside>
+      <div class="card pad">
+        <h3>Wave sau — cổng khóa</h3>
+        <div class="row"><div><b>§4.1 Ghi connector</b><span>MEDIA_OS_CONNECTOR_WRITE=off</span></div><span class="tag lock">Khóa</span></div>
+        <div class="row"><div><b>§4.2 Reseller C</b><span>Partner pilot chưa đủ scorecard</span></div><span class="tag lock">Khóa</span></div>
+        <div class="row"><div><b>§4.3 Recon / close</b><span>Workbench sâu — chưa mock</span></div><span class="tag lock">Khóa</span></div>
+        <div class="row"><div><b>§4.4 Partner portal</b><span>Tách portal-web</span></div><span class="tag lock">Khóa</span></div>
+        <button class="btn small off" disabled>Không giả lập §4</button>
+      </div>
+      <div class="ai" style="margin-top:14px">
+        <b>✦ Copilot · A0/A1</b>
+        <p>P0: invoice import dùng rate nháp; IO gắn rate v3. Đề xuất dispute draft — không tự gửi Finance.</p>
+        <div class="ev">Trace AIT-MSOS-001 · freshness 2h · nguồn: rate v3, evidence EV-014</div>
+        <button class="btn small" style="margin-top:10px" onclick="toast('AI chỉ draft. Người phải gửi request Finance.')">Xem draft (không gửi)</button>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section id="inventory" class="screen">
+  <div class="head">
+    <div>
+      <h1>Inventory &amp; Rate Card</h1>
+      <p>SoT MSOS: property, placement, capacity, rate version. Partner = một bản ghi thật (pilot), không seed mạng giả.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="openModal('invModal')">＋ Placement PTT</button>
+      <button class="btn blue" onclick="toast('Rate v4 nháp — chưa published, line không được bind.')">Publish rate (cổng GT-01)</button>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="filter">
+      <select><option>Nguồn: PTT + partner pilot</option></select>
+      <select><option>Loại: Service / Placement</option></select>
+      <select><option>Availability: tất cả</option></select>
+    </div>
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Inventory / Placement</th><th>Chủ</th><th>Capacity · Tuần</th><th>Rate published</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">INV-PTT-LAND-01 · Lead Landing Service</span><span class="dep">Format form · Geo VN · Brand-safety A</span></td>
+            <td>PTT</td>
+            <td>2.400 slot · reserved 61%</td>
+            <td>RC-PTT-004 v3 · ₫380K / lead</td>
+            <td><span class="tag green">Available</span></td>
+            <td><button class="btn small" onclick="toast('Mở capacity ledger INV-PTT-LAND-01')">Ledger</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">INV-PTT-NEWS-02 · Newsletter slot</span><span class="dep">Email owned · 1 slot / tuần</span></td>
+            <td>PTT</td>
+            <td>4 slot · reserved 50%</td>
+            <td>RC-PTT-004 v3 · ₫12M / slot</td>
+            <td><span class="tag green">Available</span></td>
+            <td><button class="btn small" onclick="toast('Soft reserve 24h nếu tạo từ Packages')">Reserve từ package</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">INV-PTN-001-NTV · In-feed native</span><span class="dep">PTN-PILOT-001 · HCM · Desktop+Mobile</span></td>
+            <td>Partner thật</td>
+            <td>8,2M imp. · reserved 88%</td>
+            <td>RC-PTN-001 v1 · ₫78K eCPM</td>
+            <td><span class="tag amber">Low capacity</span></td>
+            <td><button class="btn small" onclick="go('packages')">Đưa vào package</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card pad">
+      <h3>Rate Card · RC-PTT-004</h3>
+      <div class="row"><span>v2 (expired)</span><b>Append-only</b></div>
+      <div class="row"><span>v3 published · 01 Sep 2026</span><span class="tag green">Line được bind</span></div>
+      <div class="row"><span>v4 draft</span><span class="tag gray">GT-01 fail nếu bind</span></div>
+    </div>
+    <div class="card pad">
+      <h3>Partner pilot</h3>
+      <p class="desc">PTN-PILOT-001 — KYC checklist nội bộ. Không phải Admicro/Adtima seed.</p>
+      <div class="row"><span>Scorecard</span><b>74 / 100</b></div>
+      <div class="row"><span>Tier</span><span class="tag amber">Approved</span></div>
+      <div class="row"><span>Reseller eligibility</span><span class="tag lock">Chưa đạt · C khóa</span></div>
+      <button class="btn small" onclick="go('settings')">Mở scorecard</button>
+    </div>
+  </div>
+</section>
+
+<section id="packages" class="screen">
+  <div class="head">
+    <div>
+      <h1>Packages &amp; Reservation</h1>
+      <p>Bundle placement PTT ± partner. Soft reserve hết hạn. Cổng C không hiện option che buy-side.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="toast('AI A1: 2 bundle draft theo capacity + floor 24%. Không tự reserve hard.')">✦ Gợi ý bundle</button>
+      <button class="btn blue" onclick="openModal('pkgModal')">＋ Package</button>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Package</th><th>Lines inventory</th><th>Sell (client-facing)</th><th>CM dự kiến</th><th>Reserve</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">PKG-2026-044</span><span class="dep">Lead mix · Client ref CL-1042</span></td>
+            <td>PTT Landing + Partner native</td>
+            <td>₫920M</td>
+            <td><span class="tag green">29,4%</span></td>
+            <td><span class="tag amber">Soft · 14h</span></td>
+            <td><button class="btn small" onclick="go('campaigns')">Tạo media line</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">PKG-2026-041</span><span class="dep">Newsletter only · PTT</span></td>
+            <td>INV-PTT-NEWS-02 × 2</td>
+            <td>₫24M</td>
+            <td><span class="tag green">41,0%</span></td>
+            <td><span class="tag green">Hard</span></td>
+            <td><button class="btn small" onclick="toast('Capacity locked. Release cần approver.')">Release</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card pad">
+      <h3>Che buy-side (Cổng C)</h3>
+      <p class="desc">Option reseller chỉ mở khi Eligibility = đạt và flag on. Wave 1: khóa.</p>
+      <label class="row"><span>Ẩn buy cost khỏi gói client</span><span class="tag lock">Disabled</span></label>
+      <button class="btn off" disabled>Bật white-label</button>
+    </div>
+    <div class="ai">
+      <b>✦ Bundle composer · A1</b>
+      <p>PKG draft: Landing 1.400 slot + 2,1M native HCM. Floor 24% giữ. Partner không Suspended.</p>
+      <div class="ev">Không gồm inventory hết capacity. Confidence medium. Người bấm reserve.</div>
+    </div>
+  </div>
+</section>
+
+<section id="campaigns" class="screen">
+  <div class="head">
+    <div>
+      <h1>Campaign Media Lines</h1>
+      <p>SoT dòng media. Live = GT-03. Launch/edit kênh = deep-link Ads Ops. Write connector = §4.1 khóa.</p>
+    </div>
+    <div class="actions">
+      <button class="btn off" disabled title="MEDIA_OS_CONNECTOR_WRITE=off">Ghi lên Meta (Wave sau)</button>
+      <button class="btn blue" onclick="openModal('lineModal')">＋ Media line từ PKG-044</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="filter">
+      <input class="input" style="max-width:220px" placeholder="ML-… / package / client_id"/>
+      <select><option>Status: all</option><option>Live</option><option>Stale</option></select>
+    </div>
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Media line</th><th>CRM ref</th><th>Connector</th><th>Rate</th><th>Gate Live</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">ML-2026-0912-001</span><span class="dep">Từ PKG-2026-044 · commercial_ref CR-044</span></td>
+            <td><button class="link" onclick="ext('CRM Client CL-1042 / Brand Alpha','/crm/clients')">CL-1042</button></td>
+            <td>Meta adset AS-8821<br><span class="tag amber">Stale 31h</span></td>
+            <td>RC-PTT-004 v3</td>
+            <td><span class="tag green">Passed</span></td>
+            <td>
+              <button class="btn small" onclick="ext('Ads Ops wizard — URL giữ W1','/meta/ads-ops')">Mở Ads Ops</button>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="name">ML-2026-0912-002</span><span class="dep">PTT Newsletter · IO tay</span></td>
+            <td><button class="link" onclick="ext('Opportunity CRM OP-2201','/crm/opportunities')">OP-2201</button></td>
+            <td>Không map · IO-PTT-19</td>
+            <td>RC-PTT-004 v3</td>
+            <td><span class="tag amber">Thiếu tracking owner</span></td>
+            <td><button class="btn small" onclick="toast('AI không được bấm Live. Cổng GT-03.')">Live (người)</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="notice warn">GT-03: PO/ref CRM + rate published + tracking owner + người duyệt. AI Copilot không có nút Live.</div>
+</section>
+
+<section id="evidence" class="screen">
+  <div class="head">
+    <div>
+      <h1>Delivery Evidence</h1>
+      <p>Official chỉ khi freshness + source/hash (GT-04). Recon/close sâu = §4.3 — không mock workbench đủ.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="toast('Upload proof + checksum. Chưa official cho đến QA.')">＋ File proof</button>
+      <button class="btn blue" onclick="toast('Sync đọc connector. Write = off.')">Sync đọc Meta/Google</button>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Evidence</th><th>Line</th><th>Nguồn</th><th>Freshness</th><th>Official</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="name">EV-014</span><span class="dep">Hash sha256:9c1a… · 12 Sep 16:02</span></td>
+            <td>ML-2026-0912-001</td>
+            <td>Connector Meta + IO PDF</td>
+            <td>2h</td>
+            <td><span class="tag green">Yes</span></td>
+            <td><button class="btn small" onclick="toast('Gắn vào waterfall. Không tự invoice.')">Dùng cho margin</button></td>
+          </tr>
+          <tr>
+            <td><span class="name">EV-011</span><span class="dep">Import batch #9081</span></td>
+            <td>ML-2026-0912-001</td>
+            <td>Cost file partner</td>
+            <td>31h</td>
+            <td><span class="tag red">No · stale</span></td>
+            <td><button class="btn small" onclick="toast('Không vào outcome/margin official.')">Giữ draft</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card pad">
+      <h3>P0 · Rate vs import</h3>
+      <p class="desc">Confirmed: IO = rate v3. Import = giá khác. Delivery qty trong ±1,3%.</p>
+      <button class="btn small" onclick="toast('Draft request Finance / dispute. MSOS không issue credit note.')">Tạo request Finance</button>
+      <button class="btn small off" disabled>§4.3 Workbench đầy đủ</button>
+    </div>
+    <div class="card pad">
+      <h3>Nguồn official theo kênh</h3>
+      <div class="row"><span>Meta</span><b>API insights T-1</b></div>
+      <div class="row"><span>Google</span><b>Ads API · deep-link UI cũ</b></div>
+      <div class="row"><span>PTT service</span><b>Evidence file + CRM form</b></div>
+    </div>
+  </div>
+</section>
+
+<section id="outcomes" class="screen">
+  <div class="head">
+    <div>
+      <h1>Outcome Links</h1>
+      <p>Trỏ Lead / MQL / SQL / Sale đã có trong CRM. Unmatched để mở — cấm insert.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="ext('Mở Lead board CRM — không clone','/crm/leads')">Mở CRM Leads</button>
+      <button class="btn blue" onclick="toast('Chỉ link ID tồn tại. 422 nếu lead_id giả.')">＋ Link CRM ID</button>
+    </div>
+  </div>
+  <div class="kpi5">
+    <div class="card kpi"><small>LINKED LEADS</small><b>142</b><span>Ref CRM · không sở hữu</span></div>
+    <div class="card kpi"><small>MQL / SQL</small><b>51 / 18</b><span>Status từ CRM</span></div>
+    <div class="card kpi"><small>WON REVENUE REF</small><b>₫1,12B</b><span>Sale ID CRM</span></div>
+    <div class="card kpi"><small>UNMATCHED</small><b>18%</b><span class="down">UTM null</span></div>
+    <div class="card kpi"><small>CONFIDENCE</small><b>76</b><span>Last-touch 30d · freshness 6h</span></div>
+  </div>
+  <div class="card">
+    <div class="table-scroll">
+      <table class="t">
+        <thead><tr><th>Link</th><th>Media line</th><th>CRM object</th><th>Model</th><th>Match</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>OL-2201</td>
+            <td>ML-2026-0912-001</td>
+            <td><button class="link" onclick="ext('Lead LD-88921','/crm/leads/88921')">LD-88921 · MQL</button></td>
+            <td>Last touch · 30d</td>
+            <td><span class="tag green">Matched</span></td>
+          </tr>
+          <tr>
+            <td>OL-2218</td>
+            <td>ML-2026-0912-001</td>
+            <td>—</td>
+            <td>—</td>
+            <td><span class="tag red">Unmatched · UTM null</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="notice">MSOS không tạo Lead/Sale. Không cộng revenue hai lần khi một conversion gắn nhiều line trừ khi báo cáo allocation.</div>
+</section>
+
+<section id="margin" class="screen">
+  <div class="head">
+    <div>
+      <h1>Margin Waterfall &amp; Deal Wallet</h1>
+      <p>Contribution. Rebate chỉ accrued. Invoice/payment = Finance. Field buy/deal ẩn portal client.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="ext('Finance Core — request draft invoice','/crm/financials')">Request invoice</button>
+      <button class="btn blue" onclick="toast('Submit margin: CM 29,4% ≥ floor 24%.')">Submit (GT-06)</button>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="card pad">
+      <h3>Waterfall · ML-2026-0912-001 · Internal</h3>
+      <div class="row"><span>Client gross sell</span><b>₫920M</b></div>
+      <div class="row"><span>Discount</span><b class="down">− ₫40M</b></div>
+      <div class="row"><span>Net media revenue</span><b>₫880M</b></div>
+      <div class="row"><span>Partner + PTT delivery cost</span><b class="down">− ₫512M</b></div>
+      <div class="row"><span>Rebate accrued (chưa realized)</span><b>₫18M</b></div>
+      <div class="row"><span>Service cost (ref Finance)</span><b class="down">− ₫92M</b></div>
+      <div class="row"><b>Contribution margin</b><b class="up">₫276M · 29,4%</b></div>
+      <p class="desc">Rebate không vào realized cho đến milestone + collection (Finance).</p>
+    </div>
+    <aside>
+      <div class="card pad">
+        <h3>Deal Wallet · PTN-PILOT-001</h3>
+        <div class="row"><span>Commitment</span><b>₫2,0B</b></div>
+        <div class="bar"><i style="width:54%"></i></div>
+        <div class="row"><span>Used 54% · expiry 31 Dec</span><span class="tag green">On track</span></div>
+        <div class="row"><span>Use-or-lose</span><span class="tag gray">Không trong 18 ngày</span></div>
+      </div>
+      <div class="card pad" style="margin-top:14px">
+        <h3>Invoice</h3>
+        <p class="desc">GT-08: chỉ request khi evidence official. MSOS không số invoice.</p>
+        <button class="btn small" onclick="toast('INV request → Finance. 0 invoice MSOS.')">Gửi request</button>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section id="settings" class="screen">
+  <div class="head">
+    <div>
+      <h1>Governance</h1>
+      <p>Scorecard, eligibility, policy, audit. Không màn User/Role (IAM). Không AI runtime. Không knowledge editor.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="ext('IAM / permission sets','/admin/crm/permission-sets')">Mở IAM</button>
+      <button class="btn" onclick="ext('AI Platform traces','/crm/content-os')">Mở AI Platform</button>
+    </div>
+  </div>
+  <div class="grid3" style="margin-bottom:14px">
+    <div class="card pad">
+      <h3>Flags</h3>
+      <div class="row"><span>MEDIA_OS_ENABLED</span><span class="tag green">Pilot on</span></div>
+      <div class="row"><span>MEDIA_OS_RESELLER</span><span class="tag lock">off</span></div>
+      <div class="row"><span>CONNECTOR_WRITE</span><span class="tag lock">off</span></div>
+    </div>
+    <div class="card pad">
+      <h3>Partner scorecard</h3>
+      <div class="row"><span>Delivery reliability</span><b>96,1%</b></div>
+      <div class="row"><span>Discrepancy</span><b>3,8%</b></div>
+      <div class="row"><span>Brand-safety incidents</span><b>0</b></div>
+      <div class="row"><span>Tổng</span><b>74 / ngưỡng C: 85</b></div>
+    </div>
+    <div class="card pad">
+      <h3>Reseller Eligibility</h3>
+      <div class="row"><span>KYC</span><span class="tag green">Pass</span></div>
+      <div class="row"><span>Scorecard ≥ 85</span><span class="tag red">Fail 74</span></div>
+      <div class="row"><span>Rate published</span><span class="tag green">v1</span></div>
+      <div class="row"><span>Cổng C</span><span class="tag lock">Khóa</span></div>
+    </div>
+  </div>
+  <div class="card pad">
+    <h3>Policy registry (MSOS)</h3>
+    <div class="table-scroll">
+      <table class="t" style="min-width:0">
+        <thead><tr><th>Policy</th><th>Rule</th><th>Enforcement</th></tr></thead>
+        <tbody>
+          <tr><td>Margin floor</td><td>CM &lt; 24% → director; &lt; 18% block</td><td>Hard + approval</td></tr>
+          <tr><td>AI action</td><td>A4/A5 cấm tự trị</td><td>Hard block</td></tr>
+          <tr><td>Reseller C</td><td>Eligibility đủ 6 điều kiện §4.2</td><td>Flag + hard</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="notice" style="margin-top:14px"><b>§4 không vào mockup chính:</b> wizard ghi connector, close calendar, partner portal, che buy-side. Chỉ cổng khóa và deep-link.</div>
+</section>
+
+  </div>
+</main>
+</div>
+
+<div class="modalback" id="invModal">
+  <div class="modal">
+    <h2>Placement PTT</h2>
+    <p class="desc">Inventory PTT sở hữu. Không tạo Client.</p>
+    <div class="field"><label>Tên</label><input class="input" value="PTT Lead Landing · extra geo"/></div>
+    <div class="field"><label>Đơn vị capacity</label><select><option>Slot / tuần</option><option>Lead</option><option>Impression</option></select></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('invModal')">Hủy</button>
+      <button class="btn blue" onclick="closeModal('invModal');toast('Draft INV — chờ rate published.')">Lưu draft</button>
+    </div>
+  </div>
+</div>
+<div class="modalback" id="pkgModal">
+  <div class="modal">
+    <h2>Tạo package</h2>
+    <div class="field"><label>Client ref (CRM)</label><input class="input" value="CL-1042" readonly/></div>
+    <div class="field"><label>Inventory</label><select><option>PTT Landing + Partner native</option><option>PTT Newsletter only</option></select></div>
+    <div class="field"><label>Ẩn buy-side</label><select disabled><option>Khóa — Eligibility fail</option></select></div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('pkgModal')">Hủy</button>
+      <button class="btn blue" onclick="closeModal('pkgModal');toast('PKG draft. Soft reserve 24h sau khi duyệt.')">Lưu</button>
+    </div>
+  </div>
+</div>
+<div class="modalback" id="lineModal">
+  <div class="modal">
+    <h2>Media line từ package</h2>
+    <div class="field"><label>Package</label><input class="input" value="PKG-2026-044" readonly/></div>
+    <div class="field"><label>Map connector</label><select><option>Meta AS-8821 (đọc)</option><option>IO tay — chưa map</option></select></div>
+    <p class="desc">Ghi connector = §4.1. Nút Live chỉ sau GT-03, người bấm.</p>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('lineModal')">Hủy</button>
+      <button class="btn blue" onclick="closeModal('lineModal');toast('ML draft. AI không Live.')">Tạo draft line</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script>
+const names={command:'Command Center',inventory:'Inventory & Rate',packages:'Packages',campaigns:'Campaigns',evidence:'Evidence',outcomes:'Outcomes',margin:'Margin & Deal',settings:'Governance'};
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id===id));
+  document.querySelectorAll('.nav a[data-screen]').forEach(a=>a.classList.toggle('active',a.dataset.screen===id));
+  document.getElementById('crumb').textContent=names[id]||id;
+  history.replaceState(null,'','#'+id);
+  window.scrollTo({top:0,behavior:'smooth'});
+  try{localStorage.setItem('msos-ops-v1',JSON.stringify({screen:id,t:Date.now()}))}catch(e){}
+}
+document.querySelectorAll('.nav a[data-screen]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();go(a.dataset.screen)}));
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(window.__t);window.__t=setTimeout(()=>t.classList.remove('show'),3200)}
+function ext(label,href){toast('Deep-link '+label+' → '+href+' (module ngoài MSOS).')}
+function openModal(id){document.getElementById(id).classList.add('show')}
+function closeModal(id){document.getElementById(id).classList.remove('show')}
+document.querySelectorAll('.modalback').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show')}));
+(function(){const h=(location.hash||'#command').slice(1);if(names[h])go(h);
+  try{const s=JSON.parse(localStorage.getItem('msos-ops-v1')||'{}');if(s.screen&&names[s.screen]&&!location.hash)go(s.screen)}catch(e){}})();
+</script>
+</body>
+</html>
