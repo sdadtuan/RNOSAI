@@ -105,6 +105,15 @@ export function magnificDownloadAuthHeaders(
   return { Authorization: `Bearer ${secret}` };
 }
 
+export function assertMagnificDownloadAllowed(
+  url: string,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (shouldAttachMagnificDownloadAuth(url, env)) return;
+  const body = { error: 'magnific_download_host_blocked' };
+  throw Object.assign(new HttpException(body, 409), body);
+}
+
 export function shouldAttachMagnificDownloadAuth(
   url: string,
   env: NodeJS.ProcessEnv = process.env,

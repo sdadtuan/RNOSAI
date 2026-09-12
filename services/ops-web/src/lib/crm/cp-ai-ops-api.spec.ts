@@ -42,7 +42,7 @@ describe('Magnific jobs API helpers', () => {
       if (url.endsWith('/jobs/job-1') && method === 'GET') {
         return jsonResponse({
           id: 'job-1',
-          state: 'quality_check',
+          state: 'qc',
           asset_id: 'asset-9',
           stage_log_json: { asset_id: 'asset-9' },
         });

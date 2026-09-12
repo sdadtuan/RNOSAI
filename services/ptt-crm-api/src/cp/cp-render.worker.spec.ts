@@ -106,7 +106,7 @@ describe('CpRenderWorker', () => {
     const ingest = jest.fn(async () => {
       ingestStarted();
       await ingestGate;
-      return { state: 'quality_check' };
+      return { state: 'qc' };
     });
     const queued = {
       id: '99999999-9999-4999-8999-999999999999',
@@ -170,7 +170,7 @@ describe('CpRenderWorker', () => {
   });
 
   it('routes magnific_* jobs through ingest instead of the stub renderer', async () => {
-    const ingest = jest.fn(async () => ({ state: 'quality_check' }));
+    const ingest = jest.fn(async () => ({ state: 'qc' }));
     const db = {
       query: jest.fn(async () => ({ rows: [] })),
     };

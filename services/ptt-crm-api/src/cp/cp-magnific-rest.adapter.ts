@@ -5,6 +5,7 @@ import {
   logMagnificSafe,
   MAGNIFIC_STATUS_TIMEOUT_MS,
   MAGNIFIC_WAIT_POLL_MS,
+  assertMagnificDownloadAllowed,
   magnificDownloadAuthHeaders,
   parseActualCredits,
   parseCredits,
@@ -132,6 +133,7 @@ export class CpMagnificRestAdapter implements MagnificAdapterPort {
   }
 
   async download(url: string): Promise<{ bytes: Buffer; mime: string }> {
+    assertMagnificDownloadAllowed(url, this.env);
     const key = requireMagnificSecret(await this.getApiKey());
     const res = await this.fetchImpl(url, {
       method: 'GET',

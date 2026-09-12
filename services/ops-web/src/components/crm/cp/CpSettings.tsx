@@ -121,7 +121,7 @@ export function CpSettings() {
   const [notice, setNotice] = useState('');
   const [connections, setConnections] = useState<CpProviderConnection[]>([]);
   const [magnificApiKey, setMagnificApiKey] = useState('');
-  const [comfyGateway, setComfyGateway] = useState('');
+  const comfyGateway = comfyGatewayInputValue();
   const oauthResult = searchParams.get('magnific_oauth');
 
   const tabLinks = useMemo(() => CP_SETTINGS_TABS.map((item) => {
@@ -298,13 +298,6 @@ export function CpSettings() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function saveComfyGateway(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setComfyGateway(comfyGatewayInputValue(comfyGateway));
-    setError('');
-    setNotice('Đã nhận URL gateway — không hiện lại trên giao diện.');
   }
 
   async function disconnectConnection(id: string) {
@@ -527,7 +520,7 @@ export function CpSettings() {
                 <p className="cp-muted">{comfySettingsStatusCopy()}</p>
               </div>
             </div>
-            <form className="cp-filters" onSubmit={(event) => saveComfyGateway(event)}>
+            <div className="cp-filters">
               <label>
                 <span>URL gateway (nội bộ)</span>
                 <input
@@ -535,14 +528,15 @@ export function CpSettings() {
                   autoComplete="off"
                   data-testid="cp-settings-comfy-gateway"
                   value={comfyGateway}
-                  onChange={(event) => setComfyGateway(event.target.value)}
-                  placeholder="Nhập URL — không hiện lại sau khi lưu"
+                  readOnly
+                  disabled
+                  placeholder="Chỉ cấu hình qua COMFYUI_GATEWAY_URL — trường này không lưu"
                 />
               </label>
-              <button className="cp-btn" type="submit" disabled={saving}>
-                Lưu URL gateway
-              </button>
-            </form>
+              <p className="cp-muted">
+                Gateway Comfy chỉ đọc từ biến môi trường COMFYUI_GATEWAY_URL. Trường này không lưu và không hiện URL.
+              </p>
+            </div>
           </section>
           <section className="cp-card">
             <div className="cp-card__head">

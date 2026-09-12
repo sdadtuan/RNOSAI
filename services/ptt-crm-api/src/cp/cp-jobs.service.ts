@@ -192,6 +192,9 @@ export class CpJobsService {
     if (balance.credits == null) {
       cpThrow(409, { error: 'POLICY_BLOCKED', gate: 'GT-M02' });
     }
+    if (estimate.credits != null && balance.credits < estimate.credits) {
+      cpThrow(409, { error: 'POLICY_BLOCKED', gate: 'GT-M02' });
+    }
     try {
       const generated = await this.adapter.generate({
         transport,
@@ -331,14 +334,15 @@ export class CpJobsService {
         tool: capability,
       });
       log.asset_id = asset.id;
+      await this.chargeCredits(job, log, provider, pulled.actualCredits);
       const updated = await this.repo.updateJob(String(job.id), {
-        state: 'quality_check',
+        state: 'qc',
         errorClass: null,
         stageLog: log,
       });
       return {
         job_id: String(job.id),
-        state: 'quality_check',
+        state: 'qc',
         asset_id: asset.id,
         checksum,
         ...(updated.rows[0] ?? {}),
@@ -681,6 +685,26 @@ export class CpJobsService {
     log.reserve_key = reserveLedgerKey(String(job.idempotency_key), attempt);
   }
 
+  private async chargeCredits(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    provider: CpJobProvider,
+    actualCredits: number | null,
+  ): Promise<void> {
+    const amount = actualCredits ?? nullableInteger(log.reserved_amount);
+    if (amount == null || !Number.isFinite(amount) || amount < 0) return;
+    await this.ledger.append({
+      kind: 'charge',
+      amount,
+      agencyClientId: nullableText(log.agency_client_id),
+      projectId: nullableText(job.project_id),
+      jobId: String(job.id),
+      costCenter: nullableText(log.cost_center),
+      idempotencyKey: chargeLedgerKey(String(job.idempotency_key), jobAttempt(job, log)),
+      provider,
+    });
+  }
+
   private async releaseCredits(
     job: Record<string, unknown>,
     log: Record<string, unknown>,
@@ -809,6 +833,10 @@ function reserveLedgerKey(idempotency: string, attempt: number): string {
 /** First release uses `rel:{idempotency}`; later attempts use `rel:{idempotency}:{attempt}`. */
 function releaseLedgerKey(idempotency: string, attempt: number): string {
   return attempt <= 1 ? `rel:${idempotency}` : `rel:${idempotency}:${attempt}`;
+}
+
+function chargeLedgerKey(idempotency: string, attempt: number): string {
+  return `chg:${idempotency}:${attempt}`;
 }
 
 function estimateFromInputs(inputs: Record<string, unknown>): {

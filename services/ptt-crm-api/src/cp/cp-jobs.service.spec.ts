@@ -457,6 +457,33 @@ describe('CpJobsService', () => {
     expect(db.jobs[0]?.state).toBe('pending_confirm');
   });
 
+  it('does not submit when credits are below estimate, including 0 (GT-M02)', async () => {
+    const low = makeService({
+      adapter: { getBalance: jest.fn(async () => ({ credits: 0 })) },
+    });
+    const draftedLow = await low.service.draft(9, draftInput({ idempotency_key: 'job-bal-0' }));
+    await low.service.confirm(9, draftedLow.job_id, { confirm: true });
+    await expect(low.service.submit(9, draftedLow.job_id)).rejects.toMatchObject({
+      status: 409,
+      error: 'POLICY_BLOCKED',
+      gate: 'GT-M02',
+    });
+    expect(low.adapter.generate).not.toHaveBeenCalled();
+    expect(low.db.runs).toHaveLength(0);
+
+    const short = makeService({
+      adapter: { getBalance: jest.fn(async () => ({ credits: 11 })) },
+    });
+    const draftedShort = await short.service.draft(9, draftInput({ idempotency_key: 'job-bal-short' }));
+    await short.service.confirm(9, draftedShort.job_id, { confirm: true });
+    await expect(short.service.submit(9, draftedShort.job_id)).rejects.toMatchObject({
+      status: 409,
+      error: 'POLICY_BLOCKED',
+      gate: 'GT-M02',
+    });
+    expect(short.adapter.generate).not.toHaveBeenCalled();
+  });
+
   it('fails ingest with ASSET_SYNC_FAILED when wait resolves with empty URLs', async () => {
     const { service, db } = makeService({
       adapter: {
@@ -501,12 +528,12 @@ describe('CpJobsService', () => {
 
     expect(download).toHaveBeenCalledTimes(1);
     expect(assets.createAsset).toHaveBeenCalledTimes(1);
-    expect(results.filter((row) => row && (row as { state?: string }).state === 'quality_check')).toHaveLength(1);
+    expect(results.filter((row) => row && (row as { state?: string }).state === 'qc')).toHaveLength(1);
     rmSync(root, { recursive: true, force: true });
   });
 
   it('fails ingest with ASSET_SYNC_FAILED when download has no checksum (GT-M06)', async () => {
-    const { service, db } = makeService({
+    const { service, db, ledgerDb } = makeService({
       adapter: {
         wait: jest.fn(async () => ({ outputUrls: ['https://cdn.example/out.png'], actualCredits: 2 })),
         download: jest.fn(async () => ({ bytes: Buffer.alloc(0), mime: 'image/png' })),
@@ -524,6 +551,7 @@ describe('CpJobsService', () => {
       error_class: 'ASSET_SYNC_FAILED',
     });
     expect(String(db.jobs[0]?.state)).not.toBe('completed');
+    expect(ledgerDb.rows.filter((row) => row.kind === 'charge')).toHaveLength(0);
   });
 
   it('copies bytes into DAM with provenance provider, external_run_id, tool, checksum', async () => {
@@ -572,12 +600,53 @@ describe('CpJobsService', () => {
     );
     expect(ingested).toMatchObject({
       job_id: drafted.job_id,
-      state: 'quality_check',
+      state: 'qc',
     });
-    expect(db.jobs[0]?.state).toBe('quality_check');
+    expect(db.jobs[0]?.state).toBe('qc');
     const log = db.jobs[0]?.stage_log_json as Record<string, unknown>;
     expect(log.width === 0 || log.duration_sec === 0).toBe(false);
     rmSync(root, { recursive: true, force: true });
+  });
+
+  it('charges actual credits after DAM+qc and uses reserved when actual is null', async () => {
+    const bytes = Buffer.from('png-charge-bytes');
+    const root = mkdtempSync(join(tmpdir(), 'cp-magnific-chg-'));
+    process.env.CP_ASSET_STORAGE = root;
+    const actual = makeService({
+      adapter: {
+        wait: jest.fn(async () => ({ outputUrls: ['https://cdn.example/out.png'], actualCredits: 3 })),
+        download: jest.fn(async () => ({ bytes, mime: 'image/png' })),
+      },
+    });
+    const drafted = await actual.service.draft(9, draftInput({ idempotency_key: 'job-chg' }));
+    await actual.service.confirm(9, drafted.job_id, { confirm: true });
+    await actual.service.submit(9, drafted.job_id);
+    await actual.service.ingest(9, drafted.job_id);
+    expect(actual.ledgerDb.rows.find((row) => row.kind === 'charge')).toMatchObject({
+      amount: 3,
+      provider: 'magnific_mcp',
+      idempotency_key: 'chg:job-chg:1',
+    });
+    rmSync(root, { recursive: true, force: true });
+
+    const reservedRoot = mkdtempSync(join(tmpdir(), 'cp-magnific-chg-res-'));
+    process.env.CP_ASSET_STORAGE = reservedRoot;
+    const reserved = makeService({
+      adapter: {
+        wait: jest.fn(async () => ({ outputUrls: ['https://cdn.example/out.png'], actualCredits: null })),
+        download: jest.fn(async () => ({ bytes, mime: 'image/png' })),
+      },
+    });
+    const draftedRes = await reserved.service.draft(9, draftInput({ idempotency_key: 'job-chg-res' }));
+    await reserved.service.confirm(9, draftedRes.job_id, { confirm: true });
+    await reserved.service.submit(9, draftedRes.job_id);
+    await reserved.service.ingest(9, draftedRes.job_id);
+    expect(reserved.ledgerDb.rows.find((row) => row.kind === 'charge')).toMatchObject({
+      amount: 12,
+      provider: 'magnific_mcp',
+      idempotency_key: 'chg:job-chg-res:1',
+    });
+    rmSync(reservedRoot, { recursive: true, force: true });
   });
 
   it('fails ingest with storage_missing when asset storage env is unset', async () => {
@@ -602,7 +671,7 @@ describe('CpJobsService', () => {
       state: 'failed',
       error_class: 'ASSET_SYNC_FAILED',
     });
-    expect(db.jobs[0]?.state).not.toBe('quality_check');
+    expect(db.jobs[0]?.state).not.toBe('qc');
     expect(db.jobs[0]?.state).not.toBe('completed');
     expect(assets.replaceFile).not.toHaveBeenCalled();
   });
@@ -754,7 +823,7 @@ describe('CpJobsService', () => {
     );
     expect(ingested).toMatchObject({
       job_id: drafted.job_id,
-      state: 'quality_check',
+      state: 'qc',
     });
     const log = db.jobs[0]?.stage_log_json as Record<string, unknown>;
     expect(log.width === 0 || log.duration_sec === 0).toBe(false);
@@ -786,7 +855,7 @@ describe('CpJobsService', () => {
     expect(history.mock.calls.length).toBeGreaterThan(1);
     expect(ingested).toMatchObject({
       job_id: drafted.job_id,
-      state: 'quality_check',
+      state: 'qc',
     });
     expect(db.jobs[0]?.error_class).not.toBe('ASSET_SYNC_FAILED');
     expect(db.jobs[0]?.state).not.toBe('failed');
@@ -879,7 +948,7 @@ describe('CpJobsService', () => {
     expect(history).toHaveBeenCalledWith('prm-2');
     expect(ingested).toMatchObject({
       job_id: drafted.job_id,
-      state: 'quality_check',
+      state: 'qc',
     });
     expect(db.jobs[0]?.error_class).not.toBe('OUT_OF_MEMORY');
     const reserves = ledgerDb.rows.filter((row) => row.kind === 'reserve');

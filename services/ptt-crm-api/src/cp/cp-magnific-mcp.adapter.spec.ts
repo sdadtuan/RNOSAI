@@ -127,24 +127,29 @@ describe('CpMagnificMcpAdapter', () => {
       fetchImpl,
     });
 
-    const downloaded = await adapter.download('https://cdn.example/out.png');
+    const downloaded = await adapter.download('https://mcp.magnific.com/out.png');
     expect(downloaded.bytes.equals(bytes)).toBe(true);
     expect(downloaded.mime).toBe('image/png');
   });
 
-  it('does not send Authorization when downloading a CDN URL', async () => {
+  it('refuses download from cdn.example and still downloads same-origin MCP', async () => {
     const fetchImpl = jest.fn(async () => bytesResponse(Buffer.from('png'), 'image/png'));
     const adapter = new CpMagnificMcpAdapter({
       getToken: async () => TOKEN,
       fetchImpl,
     });
 
-    await adapter.download('https://cdn.example/out.png');
+    await expect(adapter.download('https://cdn.example/out.png')).rejects.toMatchObject({
+      error: 'magnific_download_host_blocked',
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
 
-    const firstCall = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
-    const headers = firstCall[1]?.headers as Record<string, string> | undefined;
-    expect(headers?.Authorization).toBeUndefined();
-    expect(JSON.stringify(headers ?? {})).not.toContain(TOKEN);
+    await adapter.download('https://mcp.magnific.com/files/out.png');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const headers = (fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1]?.headers as
+      | Record<string, string>
+      | undefined;
+    expect(headers?.Authorization).toBe(`Bearer ${TOKEN}`);
   });
 
   it('caches tools/list for 15 minutes', async () => {

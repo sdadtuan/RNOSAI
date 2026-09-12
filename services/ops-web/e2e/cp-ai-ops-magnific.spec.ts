@@ -116,7 +116,7 @@ async function mockCpApis(page: Page) {
         contentType: 'application/json',
         body: JSON.stringify({
           id: JOB_ID,
-          state: 'quality_check',
+          state: 'qc',
           asset_id: ASSET_ID,
           ingested: 1,
           stage_log_json: { asset_id: ASSET_ID },

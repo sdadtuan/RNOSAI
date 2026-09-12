@@ -8,7 +8,11 @@ import {
   comfySettingsStatusCopy,
   isComfySubmitEnabled,
   isMagnificComposerDisabled,
+  isMagnificJobTerminal,
   isMagnificTransportEnabled,
+  MAGNIFIC_JOB_POLL_TIMEOUT_MS,
+  MAGNIFIC_JOB_POLL_TIMEOUT_NOTICE,
+  magnificPollTimedOut,
   magnificProviderFromTransport,
   parseAiOpsPane,
   shouldShowComfyLockedCopy,
@@ -118,6 +122,21 @@ describe('Comfy GPU health disable rules', () => {
     expect(pane).not.toContain('comfyGateway');
     expect(settings).toContain('cp-settings-comfy-gateway');
     expect(settings).toContain('comfySettingsStatusCopy');
+    expect(settings).toContain('COMFYUI_GATEWAY_URL');
+    expect(settings).not.toContain('Lưu URL gateway');
+    expect(settings).not.toContain('Đã nhận URL gateway');
     expect(workspace).toContain('CpAiOpsComfyPane');
+  });
+});
+
+describe('Magnific job poll', () => {
+  it('stops on terminal qc|completed|failed|cancelled|expired and times out at 600s', () => {
+    expect(['qc', 'completed', 'failed', 'cancelled', 'expired'].every(isMagnificJobTerminal)).toBe(true);
+    expect(isMagnificJobTerminal('queued')).toBe(false);
+    expect(isMagnificJobTerminal('running')).toBe(false);
+    expect(MAGNIFIC_JOB_POLL_TIMEOUT_MS).toBe(600_000);
+    expect(magnificPollTimedOut(599_999)).toBe(false);
+    expect(magnificPollTimedOut(600_000)).toBe(true);
+    expect(MAGNIFIC_JOB_POLL_TIMEOUT_NOTICE).toMatch(/thời gian|chờ/i);
   });
 });

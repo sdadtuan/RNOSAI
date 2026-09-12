@@ -14,7 +14,12 @@ import {
 } from '@/lib/crm/cp-ai-ops-api';
 import {
   isMagnificComposerDisabled,
+  isMagnificJobTerminal,
   isMagnificTransportEnabled,
+  MAGNIFIC_JOB_POLL_INTERVAL_MS,
+  MAGNIFIC_JOB_POLL_TIMEOUT_MS,
+  MAGNIFIC_JOB_POLL_TIMEOUT_NOTICE,
+  magnificPollTimedOut,
   magnificProviderFromTransport,
   type MagnificTransport,
 } from '@/lib/crm/cp-ai-ops-panes.util';
@@ -27,7 +32,7 @@ const PROGRESS_VI: Record<string, string> = {
   queued: 'Đang xếp hàng',
   running: 'Đang chạy',
   processing: 'Đang chạy',
-  quality_check: 'Kiểm tra chất lượng',
+  qc: 'Kiểm tra chất lượng',
   completed: 'Hoàn tất',
   failed: 'Thất bại',
 };
@@ -72,7 +77,8 @@ export function CpAiOpsMagnificPane({
   );
 
   async function pollJob(token: string, id: string) {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
+    const started = Date.now();
+    while (true) {
       const job = await getMagnificJob(token, id);
       const state = String(job.state ?? job.status ?? '');
       setProgress(state);
@@ -82,11 +88,17 @@ export function CpAiOpsMagnificPane({
         setNotice(magnificCompletionNotice(job));
         return;
       }
-      if (state === 'failed' || state === 'cancelled' || state === 'expired') {
+      if (isMagnificJobTerminal(state)) {
         setNotice(magnificCompletionNotice(job));
         return;
       }
-      await sleep(attempt === 0 ? 0 : 1000);
+      const elapsed = Date.now() - started;
+      if (magnificPollTimedOut(elapsed, MAGNIFIC_JOB_POLL_TIMEOUT_MS)) {
+        setNotice(MAGNIFIC_JOB_POLL_TIMEOUT_NOTICE);
+        return;
+      }
+      const remaining = MAGNIFIC_JOB_POLL_TIMEOUT_MS - elapsed;
+      await sleep(Math.min(MAGNIFIC_JOB_POLL_INTERVAL_MS, Math.max(0, remaining)));
     }
   }
 

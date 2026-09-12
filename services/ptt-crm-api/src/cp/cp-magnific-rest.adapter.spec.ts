@@ -127,33 +127,25 @@ describe('CpMagnificRestAdapter', () => {
       fetchImpl,
     });
 
-    const downloaded = await adapter.download('https://cdn.example/file.png');
+    const downloaded = await adapter.download('https://rest.example.test/file.png');
     expect(downloaded.bytes.equals(bytes)).toBe(true);
     expect(downloaded.mime).toBe('image/png');
   });
 
-  it('does not send Authorization when downloading a CDN URL', async () => {
+  it('refuses download from cdn.example and still downloads same-origin REST', async () => {
     const fetchImpl = jest.fn(async () => bytesResponse(Buffer.from('png'), 'image/png'));
     const adapter = new CpMagnificRestAdapter({
       getApiKey: async () => API_KEY,
       fetchImpl,
     });
 
-    await adapter.download('https://cdn.example/file.png');
+    await expect(adapter.download('https://cdn.example/file.png')).rejects.toMatchObject({
+      error: 'magnific_download_host_blocked',
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
 
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'https://cdn.example/file.png',
-      expect.objectContaining({
-        method: 'GET',
-        headers: expect.not.objectContaining({
-          Authorization: expect.anything(),
-        }),
-      }),
-    );
-    const firstCall = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
-    const headers = firstCall[1]?.headers as Record<string, string> | undefined;
-    expect(JSON.stringify(headers ?? {})).not.toContain(API_KEY);
-    expect(headers?.Authorization).toBeUndefined();
+    await adapter.download('https://rest.example.test/files/out.png');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('sends the API key when downloading from MAGNIFIC_REST_BASE', async () => {

@@ -3,6 +3,7 @@ import type { MagnificAdapterPort } from './cp-jobs.service';
 import {
   assertMagnificHttpStatus,
   logMagnificSafe,
+  assertMagnificDownloadAllowed,
   magnificDownloadAuthHeaders,
   parseActualCredits,
   parseCredits,
@@ -99,6 +100,7 @@ export class CpMagnificMcpAdapter implements MagnificAdapterPort {
   }
 
   async download(url: string): Promise<{ bytes: Buffer; mime: string }> {
+    assertMagnificDownloadAllowed(url, this.env);
     const token = requireMagnificSecret(await this.getToken());
     const res = await this.fetchImpl(url, {
       method: 'GET',

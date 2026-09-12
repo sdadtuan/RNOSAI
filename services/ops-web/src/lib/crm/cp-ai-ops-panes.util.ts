@@ -13,6 +13,21 @@ export type ComfyHealth = ComfyHealthOk | ComfyHealthDown;
 export const COMFY_LOCKED_COPY = 'Đang xây GPU — chưa nhận job.';
 export const COMFY_SETTINGS_STATUS_COPY = 'GPU chưa sẵn sàng';
 export const COMFY_HEARTBEAT_MAX_AGE_MS = 30_000;
+export const MAGNIFIC_JOB_POLL_TIMEOUT_MS = 600_000;
+export const MAGNIFIC_JOB_POLL_INTERVAL_MS = 1_000;
+export const MAGNIFIC_JOB_POLL_TIMEOUT_NOTICE = 'Hết thời gian chờ job. Kiểm tra lại tiến độ.';
+const MAGNIFIC_JOB_TERMINAL_STATES = new Set(['qc', 'completed', 'failed', 'cancelled', 'expired']);
+
+export function isMagnificJobTerminal(state: string | null | undefined): boolean {
+  return MAGNIFIC_JOB_TERMINAL_STATES.has(String(state ?? '').trim());
+}
+
+export function magnificPollTimedOut(
+  elapsedMs: number,
+  timeoutMs = MAGNIFIC_JOB_POLL_TIMEOUT_MS,
+): boolean {
+  return elapsedMs >= timeoutMs;
+}
 
 const PANES: readonly CpAiOpsPane[] = ['weave', 'magnific', 'comfy'];
 
