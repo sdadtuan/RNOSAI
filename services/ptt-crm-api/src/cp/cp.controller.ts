@@ -80,6 +80,7 @@ import {
   CpExperimentVariantInput,
   CpExperimentsService,
 } from './cp-experiments.service';
+import { readAiOpsFlags } from './cp-ai-ops.flags';
 import {
   RequireCpAction,
   RequireCpSection,
@@ -260,6 +261,12 @@ export class CpController {
   @RequireCpAction('view')
   getSettings() {
     return this.settings.get();
+  }
+
+  @Get('ai-ops/flags')
+  @RequireCpAction('view')
+  flags() {
+    return readAiOpsFlags();
   }
 
   @Patch('settings')

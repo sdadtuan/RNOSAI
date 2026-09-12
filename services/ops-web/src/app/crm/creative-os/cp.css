@@ -1565,3 +1565,53 @@ body:has(.ops-sidebar) .cp-main {
     grid-template-columns: 1fr;
   }
 }
+
+.cp-ai-ops {
+  display: grid;
+  gap: 12px;
+}
+
+.cp-ai-ops-panes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cp-ai-ops-pane {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cp-ai-ops-pane.is-on {
+  border-color: var(--cp-navy);
+  background: var(--cp-navy);
+  color: #fff;
+}
+
+.cp-ai-ops-chip {
+  border-radius: 999px;
+  padding: 1px 6px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cp-ai-ops-pane.is-on .cp-ai-ops-chip {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.cp-ai-ops-body {
+  display: grid;
+  gap: 8px;
+}

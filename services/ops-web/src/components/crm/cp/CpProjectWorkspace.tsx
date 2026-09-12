@@ -12,6 +12,7 @@ import {
   createCpProjectTask,
   exportCpReport,
   formatCpApiError,
+  getCpAiOpsFlags,
   getCpProject,
   getCpProjectLookups,
   getCpVideoVersion,
@@ -22,6 +23,7 @@ import {
   listCpProjectTasks,
   patchCpProject,
   submitCpProjectCreative,
+  type CpAiOpsFlags,
   type CpActivity,
   type CpAsset,
   type CpBrief,
@@ -65,8 +67,17 @@ import {
   canSubmitCreativeToHub,
   type QcFetchState,
 } from '@/lib/crm/cp-review.util';
+import { CpAiOpsWorkspace } from './CpAiOpsWorkspace';
 
 const EMPTY_LOOKUPS: CpProjectLookups = { clients: [], staff: [], lifecycles: [] };
+
+const OFF_AI_OPS_FLAGS: CpAiOpsFlags = {
+  weave: false,
+  magnificMcp: false,
+  magnificRest: false,
+  comfy: false,
+  showAiOpsTab: false,
+};
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return dash(null);
@@ -106,6 +117,7 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
   const [notice, setNotice] = useState('');
   const [selectedVersionId, setSelectedVersionId] = useState('');
   const [qcFetch, setQcFetch] = useState<QcFetchState>({ phase: 'idle' });
+  const [aiOpsFlags, setAiOpsFlags] = useState<CpAiOpsFlags>(OFF_AI_OPS_FLAGS);
 
   const href = (tab: string) => `/crm/creative-os/projects/${projectId}?tab=${tab}`;
 
@@ -118,7 +130,7 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
     setLoading(true);
     setError('');
     try {
-      const [projectOut, briefOut, deliverableOut, taskOut, activityOut, assetOut, lookupOut] =
+      const [projectOut, briefOut, deliverableOut, taskOut, activityOut, assetOut, lookupOut, flagsOut] =
         await Promise.all([
           getCpProject(token, projectId),
           listCpProjectBriefs(token, projectId),
@@ -127,6 +139,7 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
           listActivity(token),
           listCpAssets(token),
           getCpProjectLookups(token).catch(() => EMPTY_LOOKUPS),
+          getCpAiOpsFlags(token).catch(() => OFF_AI_OPS_FLAGS),
         ]);
       setProject(projectOut);
       setBriefs(briefOut.items);
@@ -135,6 +148,7 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
       setActivity(activityOut.items.filter((item) => item.resource_id === projectId));
       setAssets(projectAssets(assetOut.items, projectId));
       setLookups(lookupOut);
+      setAiOpsFlags(flagsOut);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không tải được workspace');
     } finally {
@@ -415,7 +429,7 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
       {notice ? <section className="cp-alert"><span>{notice}</span></section> : null}
 
       <nav className="cp-chips" aria-label="Project workspace">
-        {CP_PROJECT_TABS.map((tab) => (
+        {CP_PROJECT_TABS.filter((tab) => tab.id !== 'ai-ops' || aiOpsFlags.showAiOpsTab).map((tab) => (
           <Link
             key={tab.id}
             className={activeTab === tab.id ? 'cp-chip is-on' : 'cp-chip'}
@@ -777,6 +791,17 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
             <p className="cp-empty">{dash(null)}</p>
           )}
         </section>
+      ) : null}
+
+      {activeTab === 'ai-ops' ? (
+        aiOpsFlags.showAiOpsTab ? (
+          <CpAiOpsWorkspace projectId={projectId} flags={aiOpsFlags} />
+        ) : (
+          <section className="cp-card cp-ai-ops">
+            <header className="cp-card__head"><h2>Chưa bật AI Ops</h2></header>
+            <p className="cp-empty">{dash(null)}</p>
+          </section>
+        )
       ) : null}
     </div>
   );

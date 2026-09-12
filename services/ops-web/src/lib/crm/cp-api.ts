@@ -685,6 +685,18 @@ export function getOverviewKpis(token: string, query: CpOverviewQuery = {}) {
   );
 }
 
+export type CpAiOpsFlags = {
+  weave: boolean;
+  magnificMcp: boolean;
+  magnificRest: boolean;
+  comfy: boolean;
+  showAiOpsTab: boolean;
+};
+
+export function getCpAiOpsFlags(token: string) {
+  return cpFetch<CpAiOpsFlags>(token, '/ai-ops/flags');
+}
+
 export function getCpSettings(token: string) {
   return cpFetch<CpSettings | null>(token, '/settings');
 }
