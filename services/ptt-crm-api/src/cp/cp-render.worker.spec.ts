@@ -94,6 +94,46 @@ describe('CpRenderWorker', () => {
     expect(versionInsert?.[1]?.[3]).toBe('sop-2026-09');
   });
 
+  it('does not double-ingest the same queued row when poll ticks overlap', async () => {
+    let releaseIngest: (() => void) | undefined;
+    const ingestGate = new Promise<void>((resolve) => {
+      releaseIngest = resolve;
+    });
+    let ingestStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      ingestStarted = resolve;
+    });
+    const ingest = jest.fn(async () => {
+      ingestStarted();
+      await ingestGate;
+      return { state: 'quality_check' };
+    });
+    const queued = {
+      id: '99999999-9999-4999-8999-999999999999',
+      provider: 'magnific_mcp',
+      created_by_staff_id: 9,
+      state: 'queued',
+    };
+    const db = {
+      query: jest.fn(async (sql: string) => {
+        if (sql.includes("provider LIKE 'magnific%'") && sql.includes("state = 'queued'")) {
+          return { rows: [{ ...queued }] };
+        }
+        return { rows: [] };
+      }),
+    };
+    const worker = new CpRenderWorker(db as never, { ingest } as never);
+
+    const first = worker.pollMagnificQueuedJobs();
+    await started;
+    const second = worker.pollMagnificQueuedJobs();
+    releaseIngest?.();
+    await Promise.all([first, second]);
+
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(ingest).toHaveBeenCalledWith(9, queued.id);
+  });
+
   it('routes magnific_* jobs through ingest instead of the stub renderer', async () => {
     const ingest = jest.fn(async () => ({ state: 'quality_check' }));
     const db = {

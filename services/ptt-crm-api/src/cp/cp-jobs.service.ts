@@ -272,7 +272,13 @@ export class CpJobsService {
   }
 
   async ingest(staffId: number, jobId: string): Promise<Record<string, unknown>> {
-    const job = await this.loadJob(jobId);
+    const id = requiredText(jobId, 'invalid_job_id');
+    const claimed = await this.repo.claimQueuedForIngest(id);
+    if (!claimed.rows[0]) {
+      const existing = await this.repo.findById(id);
+      return existing.rows[0] ?? cpThrow(404, { error: 'job_not_found' });
+    }
+    const job = claimed.rows[0];
     const log = stageLogOf(job);
     const provider = requiredProvider(job.provider);
     const transport = provider === 'magnific_rest' ? 'rest' : 'mcp';
@@ -327,8 +333,8 @@ export class CpJobsService {
         ...(updated.rows[0] ?? {}),
       };
     } catch (error) {
-      if (isAssetSyncFailure(error)) throw error;
-      return this.failAssetSync(job, log, provider, 'ingest_failed');
+      if (isPersistedAssetSyncFailure(error)) throw error;
+      return this.failAssetSync(job, log, provider, ingestFailReason(error));
     }
   }
 
@@ -349,11 +355,12 @@ export class CpJobsService {
     const ext = extForMime(input.mime);
     const storageKey = `magnific/${input.job.id}/${input.checksum}.${ext}`;
     const root = (process.env.CP_ASSET_STORAGE ?? process.env.MAGNIFIC_ASSET_PREFIX ?? '').trim();
-    if (root) {
-      const dest = join(root, storageKey);
-      await mkdir(dirname(dest), { recursive: true });
-      await writeFile(dest, input.bytes);
+    if (!root) {
+      return this.failAssetSync(input.job, input.log, input.provider, 'storage_missing');
     }
+    const dest = join(root, storageKey);
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, input.bytes);
     const created = await this.assets.createAsset(
       {
         agency_client_id: nullableText(input.log.agency_client_id) ?? undefined,
@@ -409,7 +416,12 @@ export class CpJobsService {
       errorClass: 'ASSET_SYNC_FAILED',
       stageLog: log,
     }).catch(() => undefined);
-    const body = { error: 'ASSET_SYNC_FAILED', error_class: 'ASSET_SYNC_FAILED', reason };
+    const body = {
+      error: 'ASSET_SYNC_FAILED',
+      error_class: 'ASSET_SYNC_FAILED',
+      reason,
+      persisted: true,
+    };
     throw Object.assign(new HttpException(body, 409), body);
   }
 
@@ -665,12 +677,23 @@ function cpThrow(status: number, body: Record<string, unknown>): never {
   throw Object.assign(new HttpException(body, status), body);
 }
 
-function isAssetSyncFailure(error: unknown): boolean {
+function isPersistedAssetSyncFailure(error: unknown): boolean {
   return Boolean(
     error
     && typeof error === 'object'
-    && (error as { error_class?: unknown }).error_class === 'ASSET_SYNC_FAILED',
+    && (error as { error_class?: unknown }).error_class === 'ASSET_SYNC_FAILED'
+    && (error as { persisted?: unknown }).persisted === true,
   );
+}
+
+function ingestFailReason(error: unknown): string {
+  const reason = error && typeof error === 'object'
+    ? String((error as { reason?: unknown }).reason ?? '').trim()
+    : '';
+  if (reason === 'wait_timeout' || reason === 'vendor_failed' || reason === 'storage_missing') {
+    return reason;
+  }
+  return 'ingest_failed';
 }
 
 function extForMime(mime: string): string {

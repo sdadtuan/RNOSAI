@@ -1,4 +1,6 @@
-import { readFileSync } from 'fs';
+import { createHash } from 'crypto';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { CpJobsRepository } from './cp-jobs.repository';
 import { CpJobsService, MagnificAdapterPort } from './cp-jobs.service';
@@ -85,7 +87,13 @@ class JobsMemory {
     if (sql.includes('UPDATE crm_cp_render_jobs')) {
       const job = this.jobs.find((item) => item.id === params[params.length - 1]);
       if (!job) return { rows: [] };
+      if (sql.includes("state = 'queued'") && job.state !== 'queued') {
+        return { rows: [] };
+      }
       if (sql.includes('SET state =')) job.state = String(params[0]);
+      if (sql.includes('stage = $2') || sql.includes("stage = 'magnific_wait'")) {
+        job.stage = String(params[1] ?? 'magnific_wait');
+      }
       if (sql.includes('error_class')) {
         job.error_class = params[sql.includes('SET state') ? 1 : 0];
       }
@@ -406,6 +414,54 @@ describe('CpJobsService', () => {
     expect(db.jobs[0]?.state).toBe('pending_confirm');
   });
 
+  it('fails ingest with ASSET_SYNC_FAILED when wait resolves with empty URLs', async () => {
+    const { service, db } = makeService({
+      adapter: {
+        wait: jest.fn(async () => ({ outputUrls: [], actualCredits: null })),
+      },
+    });
+    const drafted = await service.draft(9, draftInput({ idempotency_key: 'job-empty-wait' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+
+    await expect(service.ingest(9, drafted.job_id)).rejects.toMatchObject({
+      error_class: 'ASSET_SYNC_FAILED',
+      reason: 'missing_output_url',
+    });
+    expect(db.jobs[0]).toMatchObject({
+      state: 'failed',
+      error_class: 'ASSET_SYNC_FAILED',
+    });
+  });
+
+  it('lets only one overlapping ingest download and createAsset', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'cp-magnific-claim-'));
+    process.env.CP_ASSET_STORAGE = root;
+    let releaseWait: (() => void) | undefined;
+    const waitGate = new Promise<void>((resolve) => {
+      releaseWait = resolve;
+    });
+    const wait = jest.fn(async () => {
+      await waitGate;
+      return { outputUrls: ['https://cdn.example/out.png'], actualCredits: 1 };
+    });
+    const download = jest.fn(async () => ({ bytes: Buffer.from('png-once'), mime: 'image/png' }));
+    const { service, assets } = makeService({ adapter: { wait, download } });
+    const drafted = await service.draft(9, draftInput({ idempotency_key: 'job-claim' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+
+    const first = service.ingest(9, drafted.job_id);
+    const second = service.ingest(9, drafted.job_id);
+    releaseWait?.();
+    const results = await Promise.all([first, second]);
+
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(assets.createAsset).toHaveBeenCalledTimes(1);
+    expect(results.filter((row) => row && (row as { state?: string }).state === 'quality_check')).toHaveLength(1);
+    rmSync(root, { recursive: true, force: true });
+  });
+
   it('fails ingest with ASSET_SYNC_FAILED when download has no checksum (GT-M06)', async () => {
     const { service, db } = makeService({
       adapter: {
@@ -429,6 +485,8 @@ describe('CpJobsService', () => {
 
   it('copies bytes into DAM with provenance provider, external_run_id, tool, checksum', async () => {
     const bytes = Buffer.from('png-master-bytes');
+    const root = mkdtempSync(join(tmpdir(), 'cp-magnific-dam-'));
+    process.env.CP_ASSET_STORAGE = root;
     const { service, db, assets } = makeService({
       adapter: {
         wait: jest.fn(async () => ({ outputUrls: ['https://cdn.example/out.png'], actualCredits: 3 })),
@@ -440,8 +498,11 @@ describe('CpJobsService', () => {
     await service.submit(9, drafted.job_id);
 
     const ingested = await service.ingest(9, drafted.job_id);
-    const checksum = require('crypto').createHash('sha256').update(bytes).digest('hex');
+    const checksum = createHash('sha256').update(bytes).digest('hex');
+    const dest = join(root, 'magnific', drafted.job_id, `${checksum}.png`);
 
+    expect(existsSync(dest)).toBe(true);
+    expect(readFileSync(dest).equals(bytes)).toBe(true);
     expect(assets.createAsset).toHaveBeenCalled();
     expect(assets.replaceFile).toHaveBeenCalledWith(
       expect.any(String),
@@ -449,6 +510,7 @@ describe('CpJobsService', () => {
         hash: checksum,
         bytes: bytes.length,
         mime: 'image/png',
+        storage_key: `magnific/${drafted.job_id}/${checksum}.png`,
         meta_json: expect.objectContaining({
           provenance: {
             provider: 'magnific_mcp',
@@ -472,6 +534,34 @@ describe('CpJobsService', () => {
     expect(db.jobs[0]?.state).toBe('quality_check');
     const log = db.jobs[0]?.stage_log_json as Record<string, unknown>;
     expect(log.width === 0 || log.duration_sec === 0).toBe(false);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('fails ingest with storage_missing when asset storage env is unset', async () => {
+    delete process.env.CP_ASSET_STORAGE;
+    delete process.env.MAGNIFIC_ASSET_PREFIX;
+    const bytes = Buffer.from('png-no-disk');
+    const { service, db, assets } = makeService({
+      adapter: {
+        wait: jest.fn(async () => ({ outputUrls: ['https://cdn.example/out.png'], actualCredits: 1 })),
+        download: jest.fn(async () => ({ bytes, mime: 'image/png' })),
+      },
+    });
+    const drafted = await service.draft(9, draftInput({ idempotency_key: 'job-nodisk' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+
+    await expect(service.ingest(9, drafted.job_id)).rejects.toMatchObject({
+      error_class: 'ASSET_SYNC_FAILED',
+      reason: 'storage_missing',
+    });
+    expect(db.jobs[0]).toMatchObject({
+      state: 'failed',
+      error_class: 'ASSET_SYNC_FAILED',
+    });
+    expect(db.jobs[0]?.state).not.toBe('quality_check');
+    expect(db.jobs[0]?.state).not.toBe('completed');
+    expect(assets.replaceFile).not.toHaveBeenCalled();
   });
 
   it('does not inject jobs submit into the AI gateway generate-brief path', () => {

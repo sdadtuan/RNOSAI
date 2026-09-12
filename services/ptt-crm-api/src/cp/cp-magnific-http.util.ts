@@ -79,12 +79,64 @@ export function parseActualCredits(payload: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+export const MAGNIFIC_WAIT_POLL_MS = 3_000;
+export const MAGNIFIC_STATUS_TIMEOUT_MS = 15_000;
+
+export function parseMagnificTerminalFailure(payload: unknown): string | null {
+  const rec = unwrapProviderPayload(payload);
+  const status = String(rec.status ?? rec.state ?? '').toLowerCase();
+  if (['failed', 'error', 'cancelled', 'canceled'].includes(status)) {
+    return String(rec.error ?? rec.message ?? status);
+  }
+  return null;
+}
+
+export function throwMagnificWaitFailed(reason: 'wait_timeout' | 'vendor_failed'): never {
+  const body = { error: 'ASSET_SYNC_FAILED', error_class: 'ASSET_SYNC_FAILED', reason };
+  throw Object.assign(new HttpException(body, 409), body);
+}
+
+export function magnificDownloadAuthHeaders(
+  url: string,
+  secret: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, string> {
+  if (!shouldAttachMagnificDownloadAuth(url, env)) return {};
+  return { Authorization: `Bearer ${secret}` };
+}
+
+export function shouldAttachMagnificDownloadAuth(
+  url: string,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const target = originOf(url);
+  if (!target) return false;
+  const extra = String(env.MAGNIFIC_DOWNLOAD_ALLOWLIST ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const allowed = [
+    'https://mcp.magnific.com',
+    String(env.MAGNIFIC_REST_BASE ?? '').trim(),
+    ...extra,
+  ];
+  return allowed.some((base) => originOf(base) === target);
+}
+
 export async function readDownloadBody(res: Response): Promise<{ bytes: Buffer; mime: string }> {
   const mime = String(res.headers.get('content-type') ?? '').split(';')[0].trim()
     || 'application/octet-stream';
   const raw = await res.arrayBuffer();
   const bytes = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
   return { bytes, mime };
+}
+
+function originOf(value: string): string | null {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
 }
 
 function unwrapContent(value: unknown): Record<string, unknown> {

@@ -75,6 +75,16 @@ export class CpJobsRepository implements CpJobsQueryPort {
     );
   }
 
+  claimQueuedForIngest(id: string, stage = 'magnific_wait') {
+    return this.query(
+      `UPDATE crm_cp_render_jobs
+          SET state = $1, stage = $2
+        WHERE id = $3::uuid AND state = 'queued'
+        RETURNING *`,
+      ['processing', stage, id],
+    );
+  }
+
   updateJob(
     id: string,
     patch: { state?: string; stageLog?: Record<string, unknown>; errorClass?: string | null },

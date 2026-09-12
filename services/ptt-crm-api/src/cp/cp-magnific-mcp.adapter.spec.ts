@@ -132,6 +132,21 @@ describe('CpMagnificMcpAdapter', () => {
     expect(downloaded.mime).toBe('image/png');
   });
 
+  it('does not send Authorization when downloading a CDN URL', async () => {
+    const fetchImpl = jest.fn(async () => bytesResponse(Buffer.from('png'), 'image/png'));
+    const adapter = new CpMagnificMcpAdapter({
+      getToken: async () => TOKEN,
+      fetchImpl,
+    });
+
+    await adapter.download('https://cdn.example/out.png');
+
+    const firstCall = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const headers = firstCall[1]?.headers as Record<string, string> | undefined;
+    expect(headers?.Authorization).toBeUndefined();
+    expect(JSON.stringify(headers ?? {})).not.toContain(TOKEN);
+  });
+
   it('caches tools/list for 15 minutes', async () => {
     let now = 1_000;
     const fetchImpl = mcpFetch((body) => {

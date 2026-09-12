@@ -3,12 +3,17 @@ import type { MagnificAdapterPort } from './cp-jobs.service';
 import {
   assertMagnificHttpStatus,
   logMagnificSafe,
+  MAGNIFIC_STATUS_TIMEOUT_MS,
+  MAGNIFIC_WAIT_POLL_MS,
+  magnificDownloadAuthHeaders,
   parseActualCredits,
   parseCredits,
   parseExternalRunId,
+  parseMagnificTerminalFailure,
   parseOutputUrls,
   readDownloadBody,
   requireMagnificSecret,
+  throwMagnificWaitFailed,
 } from './cp-magnific-http.util';
 import {
   MAGNIFIC_SUBMIT_TIMEOUT_MS,
@@ -28,6 +33,8 @@ export type MagnificRestAdapterOptions = {
   fetchImpl?: MagnificFetch;
   log?: (message: string) => void;
   waitTimeoutMs?: number;
+  pollIntervalMs?: number;
+  now?: () => number;
   env?: NodeJS.ProcessEnv;
 };
 
@@ -50,6 +57,8 @@ export class CpMagnificRestAdapter implements MagnificAdapterPort {
   private readonly fetchImpl: MagnificFetch;
   private readonly log?: (message: string) => void;
   private readonly waitTimeoutMs: number;
+  private readonly pollIntervalMs: number;
+  private readonly now: () => number;
   private readonly env: NodeJS.ProcessEnv;
 
   constructor(@Optional() options?: MagnificRestAdapterOptions) {
@@ -57,6 +66,8 @@ export class CpMagnificRestAdapter implements MagnificAdapterPort {
     this.fetchImpl = options?.fetchImpl ?? fetch;
     this.log = options?.log;
     this.waitTimeoutMs = options?.waitTimeoutMs ?? MAGNIFIC_VIDEO_WAIT_DEFAULT_MS;
+    this.pollIntervalMs = options?.pollIntervalMs ?? MAGNIFIC_WAIT_POLL_MS;
+    this.now = options?.now ?? Date.now;
     this.env = options?.env ?? process.env;
   }
 
@@ -93,24 +104,38 @@ export class CpMagnificRestAdapter implements MagnificAdapterPort {
   async wait(externalRunId: string): Promise<{ outputUrls: string[]; actualCredits: number | null }> {
     const key = requireMagnificSecret(await this.getApiKey());
     const routes = this.routes();
-    const payload = await this.json(
-      'GET',
-      routes.status(externalRunId),
-      key,
-      undefined,
-      this.waitTimeoutMs,
-    );
-    return {
-      outputUrls: parseOutputUrls(payload),
-      actualCredits: parseActualCredits(payload),
-    };
+    const deadline = this.now() + this.waitTimeoutMs;
+    while (true) {
+      const remaining = deadline - this.now();
+      if (remaining <= 0) throwMagnificWaitFailed('wait_timeout');
+      const payload = await this.json(
+        'GET',
+        routes.status(externalRunId),
+        key,
+        undefined,
+        Math.min(MAGNIFIC_STATUS_TIMEOUT_MS, Math.max(1, remaining)),
+      );
+      if (parseMagnificTerminalFailure(payload)) {
+        throwMagnificWaitFailed('vendor_failed');
+      }
+      const outputUrls = parseOutputUrls(payload);
+      if (outputUrls.length) {
+        return {
+          outputUrls,
+          actualCredits: parseActualCredits(payload),
+        };
+      }
+      const sleepMs = Math.min(this.pollIntervalMs, Math.max(0, deadline - this.now()));
+      if (sleepMs <= 0) throwMagnificWaitFailed('wait_timeout');
+      await delay(sleepMs);
+    }
   }
 
   async download(url: string): Promise<{ bytes: Buffer; mime: string }> {
     const key = requireMagnificSecret(await this.getApiKey());
     const res = await this.fetchImpl(url, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${key}` },
+      headers: magnificDownloadAuthHeaders(url, key, this.env),
     });
     assertMagnificHttpStatus(res.status);
     if (!res.ok) {
@@ -157,6 +182,12 @@ export class CpMagnificRestAdapter implements MagnificAdapterPort {
     }
     return res.json();
   }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function joinUrl(base: string, path: string): string {

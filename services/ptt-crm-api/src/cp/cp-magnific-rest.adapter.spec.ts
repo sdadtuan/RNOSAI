@@ -132,6 +132,117 @@ describe('CpMagnificRestAdapter', () => {
     expect(downloaded.mime).toBe('image/png');
   });
 
+  it('does not send Authorization when downloading a CDN URL', async () => {
+    const fetchImpl = jest.fn(async () => bytesResponse(Buffer.from('png'), 'image/png'));
+    const adapter = new CpMagnificRestAdapter({
+      getApiKey: async () => API_KEY,
+      fetchImpl,
+    });
+
+    await adapter.download('https://cdn.example/file.png');
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://cdn.example/file.png',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.not.objectContaining({
+          Authorization: expect.anything(),
+        }),
+      }),
+    );
+    const firstCall = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const headers = firstCall[1]?.headers as Record<string, string> | undefined;
+    expect(JSON.stringify(headers ?? {})).not.toContain(API_KEY);
+    expect(headers?.Authorization).toBeUndefined();
+  });
+
+  it('sends the API key when downloading from MAGNIFIC_REST_BASE', async () => {
+    const fetchImpl = jest.fn(async () => bytesResponse(Buffer.from('png'), 'image/png'));
+    const adapter = new CpMagnificRestAdapter({
+      getApiKey: async () => API_KEY,
+      fetchImpl,
+    });
+
+    await adapter.download('https://rest.example.test/files/out.png');
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://rest.example.test/files/out.png',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: `Bearer ${API_KEY}`,
+        }),
+      }),
+    );
+  });
+
+  it('polls status until output_urls appear instead of treating the first empty GET as success', async () => {
+    const fetchImpl = jest.fn(async (url: string | URL) => {
+      if (String(url).includes('/jobs/run-poll')) {
+        if (fetchImpl.mock.calls.filter(([called]) => String(called).includes('/jobs/run-poll')).length < 2) {
+          return jsonResponse(200, { status: 'pending', output_urls: [] });
+        }
+        return jsonResponse(200, { output_urls: ['https://cdn.example/ready.png'], credits_used: 2 });
+      }
+      return jsonResponse(200, {});
+    });
+    const adapter = new CpMagnificRestAdapter({
+      getApiKey: async () => API_KEY,
+      fetchImpl,
+      waitTimeoutMs: 200,
+      pollIntervalMs: 5,
+    });
+
+    await expect(adapter.wait('run-poll')).resolves.toEqual({
+      outputUrls: ['https://cdn.example/ready.png'],
+      actualCredits: 2,
+    });
+    expect(
+      fetchImpl.mock.calls.filter(([called]) => String(called).includes('/jobs/run-poll')).length,
+    ).toBeGreaterThan(1);
+  });
+
+  it('rejects when status stays empty until waitTimeoutMs', async () => {
+    const fetchImpl = jest.fn(async (url: string | URL) => {
+      if (String(url).includes('/jobs/run-timeout')) {
+        return jsonResponse(200, { status: 'pending', output_urls: [] });
+      }
+      return jsonResponse(200, {});
+    });
+    const adapter = new CpMagnificRestAdapter({
+      getApiKey: async () => API_KEY,
+      fetchImpl,
+      waitTimeoutMs: 25,
+      pollIntervalMs: 5,
+    });
+
+    await expect(adapter.wait('run-timeout')).rejects.toMatchObject({
+      error_class: 'ASSET_SYNC_FAILED',
+      reason: 'wait_timeout',
+    });
+    expect(fetchImpl).toHaveBeenCalled();
+  });
+
+  it('throws when the vendor status is a terminal failure', async () => {
+    const fetchImpl = jest.fn(async (url: string | URL) => {
+      if (String(url).includes('/jobs/run-fail')) {
+        return jsonResponse(200, { status: 'failed', error: 'vendor_rejected' });
+      }
+      return jsonResponse(200, {});
+    });
+    const adapter = new CpMagnificRestAdapter({
+      getApiKey: async () => API_KEY,
+      fetchImpl,
+      waitTimeoutMs: 200,
+      pollIntervalMs: 5,
+    });
+
+    await expect(adapter.wait('run-fail')).rejects.toMatchObject({
+      error_class: 'ASSET_SYNC_FAILED',
+      reason: 'vendor_failed',
+    });
+  });
+
   it('redacts the API key from logs', async () => {
     const logs: string[] = [];
     const fetchImpl = jest.fn(async () => jsonResponse(502, { error: 'down' }));

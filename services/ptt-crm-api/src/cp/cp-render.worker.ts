@@ -31,6 +31,8 @@ function pricingVersionFromSnapshot(
 export class CpRenderWorker implements OnModuleInit, OnModuleDestroy {
   private sopTimer: ReturnType<typeof setInterval> | undefined;
   private magnificTimer: ReturnType<typeof setInterval> | undefined;
+  private magnificPollRunning = false;
+  private readonly magnificInFlight = new Set<string>();
 
   constructor(
     @Inject('CP_RENDERS_QUERY') private readonly db: CpRenderWorkerQueryPort,
@@ -70,24 +72,35 @@ export class CpRenderWorker implements OnModuleInit, OnModuleDestroy {
 
   async pollMagnificQueuedJobs(db: CpRenderWorkerQueryPort = this.db): Promise<number> {
     if (!this.jobs) return 0;
-    const pending = await db.query(
-      `SELECT j.*
-         FROM crm_cp_render_jobs j
-        WHERE j.provider LIKE 'magnific%'
-          AND j.state = 'queued'
-        ORDER BY j.created_at ASC
-        LIMIT 20`,
-    );
-    let completed = 0;
-    for (const job of pending.rows) {
-      try {
-        await this.jobs.ingest(Number(job.created_by_staff_id ?? 0), String(job.id));
-        completed += 1;
-      } catch {
-        // ingest records ASSET_SYNC_FAILED on the job
+    if (this.magnificPollRunning) return 0;
+    this.magnificPollRunning = true;
+    try {
+      const pending = await db.query(
+        `SELECT j.*
+           FROM crm_cp_render_jobs j
+          WHERE j.provider LIKE 'magnific%'
+            AND j.state = 'queued'
+          ORDER BY j.created_at ASC
+          LIMIT 20`,
+      );
+      let completed = 0;
+      for (const job of pending.rows) {
+        const id = String(job.id);
+        if (this.magnificInFlight.has(id)) continue;
+        this.magnificInFlight.add(id);
+        try {
+          await this.jobs.ingest(Number(job.created_by_staff_id ?? 0), id);
+          completed += 1;
+        } catch {
+          // ingest records ASSET_SYNC_FAILED on the job
+        } finally {
+          this.magnificInFlight.delete(id);
+        }
       }
+      return completed;
+    } finally {
+      this.magnificPollRunning = false;
     }
-    return completed;
   }
 
   async pollSopWaitJobs(db: CpRenderWorkerQueryPort = this.db): Promise<number> {

@@ -3,6 +3,7 @@ import type { MagnificAdapterPort } from './cp-jobs.service';
 import {
   assertMagnificHttpStatus,
   logMagnificSafe,
+  magnificDownloadAuthHeaders,
   parseActualCredits,
   parseCredits,
   parseExternalRunId,
@@ -28,6 +29,7 @@ export type MagnificMcpAdapterOptions = {
   now?: () => number;
   log?: (message: string) => void;
   waitTimeoutMs?: number;
+  env?: NodeJS.ProcessEnv;
 };
 
 @Injectable()
@@ -37,6 +39,7 @@ export class CpMagnificMcpAdapter implements MagnificAdapterPort {
   private readonly now: () => number;
   private readonly log?: (message: string) => void;
   private readonly waitTimeoutMs: number;
+  private readonly env: NodeJS.ProcessEnv;
   private toolsCache: { names: string[]; expiresAt: number } | null = null;
 
   constructor(@Optional() options?: MagnificMcpAdapterOptions) {
@@ -45,6 +48,7 @@ export class CpMagnificMcpAdapter implements MagnificAdapterPort {
     this.now = options?.now ?? Date.now;
     this.log = options?.log;
     this.waitTimeoutMs = options?.waitTimeoutMs ?? MAGNIFIC_VIDEO_WAIT_DEFAULT_MS;
+    this.env = options?.env ?? process.env;
   }
 
   async getBalance(): Promise<{ credits: number | null }> {
@@ -98,7 +102,7 @@ export class CpMagnificMcpAdapter implements MagnificAdapterPort {
     const token = requireMagnificSecret(await this.getToken());
     const res = await this.fetchImpl(url, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: magnificDownloadAuthHeaders(url, token, this.env),
     });
     assertMagnificHttpStatus(res.status);
     if (!res.ok) {
