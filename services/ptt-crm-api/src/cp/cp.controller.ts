@@ -1228,6 +1228,18 @@ export class CpController {
   ) {
     return this.weave.syncOutput(id, body ?? {});
   }
+
+  @Post('weave-orders/:id/submit-review')
+  @RequireCpAction('edit')
+  submitWeaveReview(@Param('id') id: string) {
+    return this.weave.submitReview(id);
+  }
+
+  @Post('weave-orders/:id/deliver')
+  @RequireCpSection('crm_cp.export_final', 'execute')
+  deliverWeaveOrder(@Param('id') id: string) {
+    return this.weave.deliver(id);
+  }
 }
 
 function qcFactsFrom(body: (QcFacts & { facts?: QcFacts }) | undefined): QcFacts {

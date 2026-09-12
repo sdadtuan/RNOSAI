@@ -209,6 +209,39 @@ describe('CpWeaveService', () => {
     expect(second).toBe('duplicate');
   });
 
+  it('submit-review returns 409 when there is no review or final asset', async () => {
+    const query = makeQuery([
+      { match: 'FROM crm_cp_weave_work_orders', rows: [{
+        id: WO_ID,
+        status: 'linked',
+        project_id: PROJECT_ID,
+        agency_client_id: CLIENT_ID,
+      }] },
+      { match: 'FROM crm_cp_weave_assets', rows: [{ id: 'a1', lane: 'drafts' }] },
+    ]);
+    const svc = new CpWeaveService({ query } as never);
+    await expect(svc.submitReview(WO_ID)).rejects.toMatchObject({
+      status: 409,
+      error: 'weave_review_assets_required',
+    });
+  });
+
+  it('deliver returns 409 when QC is blocked', async () => {
+    const query = makeQuery([
+      { match: 'FROM crm_cp_weave_work_orders', rows: [{
+        id: WO_ID,
+        status: 'approved',
+        project_id: PROJECT_ID,
+        qc_status: 'blocked',
+      }] },
+    ]);
+    const svc = new CpWeaveService({ query } as never);
+    await expect(svc.deliver(WO_ID)).rejects.toMatchObject({
+      status: 409,
+      error: 'qc_blocked',
+    });
+  });
+
   it('hook rejects a bad HMAC', async () => {
     const svc = new CpWeaveService({ query: jest.fn() } as never);
     process.env.PTT_WEAVE_WEBHOOK_SECRET = 'weave-secret';

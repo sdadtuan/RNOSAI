@@ -1,7 +1,9 @@
 import { createHash } from 'crypto';
 import { HttpException, Inject, Injectable, Optional } from '@nestjs/common';
+import { CreativesService } from '../creatives/creatives.service';
 import { insertProviderRun } from './cp-provider-runs.repository';
 import { readAiOpsFlags } from './cp-ai-ops.flags';
+import { assertNotQcBlocked } from './cp-qc.service';
 import { normalizeWeaveBrief } from './cp-weave-brief.util';
 import {
   guessMime,
@@ -41,6 +43,7 @@ export class CpWeaveService {
   constructor(
     @Inject(CP_WEAVE_QUERY) private readonly db: CpWeaveQueryPort,
     @Optional() private readonly storage?: CpWeaveStoragePort,
+    @Optional() private readonly creatives?: CreativesService,
   ) {}
 
   async create(input: CpWeaveCreateInput, staffId: number) {
@@ -236,6 +239,70 @@ export class CpWeaveService {
     if (!key) cpThrow(400, { error: 'key_required' });
     const status = await this.ingestKey(key);
     return { status };
+  }
+
+  async submitReview(id: string) {
+    this.assertEnabled();
+    const wo = await this.loadWorkOrder(id);
+    if (String(wo.status) !== 'linked') {
+      this.assertTransition(wo.status as CpWeaveStatus, 'in_review');
+    }
+    const assets = await this.db.query(
+      `SELECT * FROM crm_cp_weave_assets WHERE work_order_id = $1::uuid`,
+      [wo.id],
+    );
+    const reviewable = assets.rows.filter((row) => {
+      const lane = String(row.lane ?? '');
+      return lane === 'review' || lane === 'final';
+    });
+    if (!reviewable.length) cpThrow(409, { error: 'weave_review_assets_required' });
+
+    let creativeId: string | null = null;
+    if (this.creatives && wo.agency_client_id) {
+      const first = reviewable[0];
+      const submitted = await this.creatives.submit({
+        client_id: String(wo.agency_client_id),
+        title: String(wo.task_id ?? wo.id),
+        description: `weave:${wo.id}`,
+        asset_url: first.storage_uri == null ? undefined : String(first.storage_uri),
+        asset_type: guessMime(String(first.storage_uri ?? '')) === 'video/mp4' ? 'video' : 'image',
+      });
+      creativeId = submitted.creative.id;
+    }
+
+    const updated = await this.db.query(
+      `UPDATE crm_cp_weave_work_orders
+          SET status = 'in_review', updated_at = now()
+        WHERE id = $1::uuid
+        RETURNING *`,
+      [wo.id],
+    );
+    return { ...(updated.rows[0] ?? wo), status: 'in_review', creative_id: creativeId };
+  }
+
+  async deliver(id: string) {
+    this.assertEnabled();
+    const wo = await this.loadWorkOrder(id);
+    assertNotQcBlocked(wo.qc_status == null ? null : String(wo.qc_status));
+    if (String(wo.status) !== 'approved') {
+      this.assertTransition(wo.status as CpWeaveStatus, 'delivered');
+    }
+    const updated = await this.db.query(
+      `UPDATE crm_cp_weave_work_orders
+          SET status = 'delivered', updated_at = now()
+        WHERE id = $1::uuid
+        RETURNING *`,
+      [wo.id],
+    );
+    if (wo.client_code && wo.campaign_code && wo.task_id) {
+      await this.db.query(
+        `INSERT INTO crm_cp_weave_assets (work_order_id, storage_uri, source, lane)
+         VALUES ($1::uuid, $2, 'prefix_sync', 'approved')
+         ON CONFLICT DO NOTHING`,
+        [wo.id, `${wo.client_code}/${wo.campaign_code}/${wo.task_id}/approved/`],
+      ).catch(() => undefined);
+    }
+    return { ...(updated.rows[0] ?? wo), status: 'delivered' };
   }
 
   async addAsset(id: string, input: { storage_uri?: string; source?: string }) {
