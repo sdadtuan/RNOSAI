@@ -54,7 +54,7 @@ import {
   daysRemaining,
   deliverableCta,
   deliverableThumb,
-  formatAiOpsCount,
+  formatAiOpsChipLabel,
   formatCreditLine,
   formatDaysRemaining,
   formatMemberLine,
@@ -453,13 +453,13 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
           </div>
           <nav className="cp-chips" aria-label="AI Ops">
             <Link className="cp-chip" href={aiOpsHref(projectId, 'weave')}>
-              Weave WO {formatAiOpsCount(project?.weave_open_count)}
+              {formatAiOpsChipLabel(project?.weave_open_count, 'weave')}
             </Link>
             <Link className="cp-chip" href={aiOpsHref(projectId, 'magnific')}>
-              Magnific {formatAiOpsCount(project?.magnific_job_count)}
+              {formatAiOpsChipLabel(project?.magnific_job_count, 'magnific')}
             </Link>
             <Link className="cp-chip" href={aiOpsHref(projectId, 'comfy')}>
-              Comfy {formatAiOpsCount(project?.comfy_job_count)}
+              {formatAiOpsChipLabel(project?.comfy_job_count, 'comfy')}
             </Link>
           </nav>
           <div className="cp-overview-grid">

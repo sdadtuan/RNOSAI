@@ -198,6 +198,17 @@ export function formatAiOpsCount(value: number | null | undefined): string {
   return value == null || value === 0 ? dash(null) : String(value);
 }
 
+export function formatAiOpsChipLabel(
+  value: number | null | undefined,
+  kind: 'weave' | 'magnific' | 'comfy',
+): string {
+  const count = formatAiOpsCount(value);
+  if (count === dash(null)) return count;
+  if (kind === 'weave') return `${count} WO mở`;
+  if (kind === 'magnific') return `${count} job Magnific`;
+  return `${count} job Comfy`;
+}
+
 export function videoFinalCount(
   items: Array<{ type?: string | null; status?: string | null }>,
 ): number {

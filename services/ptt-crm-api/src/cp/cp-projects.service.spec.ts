@@ -438,7 +438,10 @@ describe('CpProjectsService', () => {
         return { rows: [{ overdue: false, credit_used: 0 }], rowCount: 1 };
       }
       if (/crm_cp_weave_work_orders/i.test(sql)) {
-        return { rows: [{ weave_open: 2, magnific_jobs: 3, comfy_jobs: 1 }], rowCount: 1 };
+        return { rows: [{ weave_open: 2 }], rowCount: 1 };
+      }
+      if (/provider LIKE 'magnific%'|provider = 'comfyui'/i.test(sql)) {
+        return { rows: [{ magnific_jobs: 3, comfy_jobs: 1 }], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };
     });
@@ -453,6 +456,32 @@ describe('CpProjectsService', () => {
     expect(sql).toMatch(/status NOT IN \('cancelled', 'delivered'\)/);
     expect(sql).toMatch(/provider LIKE 'magnific%'/);
     expect(sql).toMatch(/provider = 'comfyui'/);
+  });
+
+  it('fail-closes weave open count when the work-order table is missing', async () => {
+    repo.query.mockImplementation(async (sql: string) => {
+      if (/SELECT p\.\* FROM crm_cp_projects p/i.test(sql)) {
+        return { rows: [{ id, status: 'active', owner_staff_id: 7, credit_budget: 100 }], rowCount: 1 };
+      }
+      if (/AS overdue/i.test(sql)) {
+        return { rows: [{ overdue: false, credit_used: 0 }], rowCount: 1 };
+      }
+      if (/crm_cp_weave_work_orders/i.test(sql)) {
+        throw Object.assign(new Error('relation "crm_cp_weave_work_orders" does not exist'), {
+          code: '42P01',
+        });
+      }
+      if (/provider LIKE 'magnific%'|provider = 'comfyui'/i.test(sql)) {
+        return { rows: [{ magnific_jobs: 3, comfy_jobs: 1 }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(svc.get(id, scope)).resolves.toMatchObject({
+      weave_open_count: null,
+      magnific_job_count: 3,
+      comfy_job_count: 1,
+    });
   });
 
   it('lists deliverables and tasks with staff names', async () => {

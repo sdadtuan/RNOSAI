@@ -362,6 +362,34 @@ describe('CpReportsService credit CPA', () => {
     expect(out.cpa).toBe(25);
   });
 
+  it('counts CPA from video final_approved only and omits weave tables from credit SQL', async () => {
+    const db = {
+      query: jest.fn().mockImplementation(async (sql: string) => {
+        if (/GROUP BY l\.kind/i.test(sql)) {
+          return { rows: [{ kind: 'charge', amount: 10 }] };
+        }
+        if (/approval_status = 'final_approved'/i.test(sql)) {
+          return { rows: [{ approved: 2 }] };
+        }
+        return { rows: [] };
+      }),
+    };
+    const { svc } = makeService(db);
+    const out = await svc.get('credit', { scope: 'me', staffId: 1 }) as {
+      cpa: number | null;
+      cpa_numerator: number | null;
+      cpa_denominator: number;
+    };
+
+    expect(out.cpa_numerator).toBe(10);
+    expect(out.cpa_denominator).toBe(2);
+    expect(out.cpa).toBe(5);
+    const sql = sqlCalls(db);
+    expect(sql).toMatch(/crm_cp_video_versions/);
+    expect(sql).toMatch(/approval_status = 'final_approved'/);
+    expect(sql).not.toMatch(/crm_cp_weave_/);
+  });
+
   it('groups by_provider from charge rows and keeps charged null when a provider has no amount', async () => {
     const db = {
       query: jest.fn().mockImplementation(async (sql: string) => {

@@ -484,24 +484,12 @@ export class CpReportsService {
     const approved = await this.db.query(
       `${ledgerScope}
        SELECT
-         (
-           (
-             SELECT COUNT(*)::int
-               FROM crm_cp_video_versions v
-               JOIN crm_cp_video_drafts d ON d.id = v.draft_id
-               JOIN scoped_projects p ON p.id = d.project_id
-              WHERE v.approval_status = 'final_approved'
-                AND ${ictRangeSql('d')}
-           )
-           +
-           (
-             SELECT COUNT(*)::int
-               FROM crm_cp_weave_assets a
-               JOIN crm_cp_weave_work_orders w ON w.id = a.work_order_id
-               JOIN scoped_projects p ON p.id = w.project_id
-              WHERE a.lane IN ('approved', 'final')
-                AND ${ictRangeSql('a')}
-           )
+         (SELECT COUNT(*)::int
+            FROM crm_cp_video_versions v
+            JOIN crm_cp_video_drafts d ON d.id = v.draft_id
+            JOIN scoped_projects p ON p.id = d.project_id
+           WHERE v.approval_status = 'final_approved'
+             AND ${ictRangeSql('d')}
          ) AS approved`,
       params,
     );

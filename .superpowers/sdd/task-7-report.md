@@ -1,125 +1,159 @@
-# Task 7 Report: POST request + convert
+# Task 7 Report — CPA report + OVR chips
 
-**Date:** 2026-09-10  
-**Branch:** `feat/cmkte-e0`  
-**Status:** DONE
+**Branch:** `feat/cp-ai-ops`  
+**HEAD before:** `154902497e5f172d69865b72e0b99ddcdd4b7c91`  
+**Commit:** `578b0ec1` `feat(cp): cost per approved asset slice and AI Ops chips.`  
+**Status:** DONE_WITH_CONCERNS
 
-## What was implemented
+## Summary
 
-POST create + convert for Content Requests. No GET insights. No demo brand seed. No DDL apply.
+Credit report now exposes a north-star CPA slice. Denominator 0 yields `cpa === null` (FE `—`), never `0`. Project overview (`?tab=overview`) shows real Weave / Magnific / Comfy count chips linked with `aiOpsHref`. Health `getHealth()` lists `weavy` / `magnific_*` / `comfyui` when those jobs appear in the 60-minute window; an empty window still returns stub.
 
-| Method | Path | Guard |
+## What shipped
+
+### Credit CPA (`cp-reports.service.ts`)
+
+Payload additions (verbatim):
+
+```ts
+cpa: number | null; // null → FE —
+cpa_numerator: number | null;
+cpa_denominator: number; // approved count; 0 → cpa null
+by_provider: Array<{ provider: string; charged: number | null }>;
+```
+
+- **Numerator:** same ledger filter as existing `charged` (`kind = 'charge'`, scoped projects, ICT range). Null when there are no charge rows.
+- **Denominator:** `COUNT` of `crm_cp_video_versions.approval_status = 'final_approved'` (same executive `output_final` join) **plus** Weave assets in `lane IN ('approved', 'final')`. No `approval_status` column was added to `crm_cp_asset_versions`.
+- **CPA:** `null` when `cpa_denominator === 0`; otherwise `(cpa_numerator ?? 0) / cpa_denominator`.
+- **`by_provider`:** `GROUP BY` ledger `provider` for `kind = 'charge'` only. Ledger kinds stay `charge` / `reserve` / `release`. `charged` is null when that grouped row has no amount.
+
+### Credit UI
+
+- `CpReports.tsx` credit tab: CPA tile (`—` when null) + by_provider table.
+- `CP_REPORT_SECTIONS.credit` is now `['by_pipeline', 'by_provider']`.
+
+### PRJ-03 overview chips
+
+`getProject` / `decorateWorkspace` adds:
+
+| Field | Query | 0 rows |
 |---|---|---|
-| POST | `/api/crm/content-os/portfolio/requests` | class view + method `StaffContentMarketingWriteGuard` |
-| POST | `/api/crm/content-os/portfolio/requests/:id/convert` | class view + method write |
+| `weave_open_count` | `crm_cp_weave_work_orders` where `status NOT IN ('cancelled', 'delivered')` | `null` |
+| `magnific_job_count` | `crm_cp_render_jobs` with `provider LIKE 'magnific%'` (via `project_id` or draft) | `null` |
+| `comfy_job_count` | same jobs table, `provider = 'comfyui'` | `null` |
 
-`createRequest({ lifecycleId, actor, body })`:
+Chips on `CpProjectWorkspace` overview link to `aiOpsHref(projectId, 'weave'|'magnific'|'comfy')`. Display uses `formatAiOpsCount` so `null` / `0` render as `—`.
 
-- Missing/blank `deliverable_ask` → `BadRequestException` (`status: 400`)
-- `source` omitted → `account`; otherwise must be `account|client_portal|campaign|api|idea` (400)
-- `triage_status = 'Submitted'`
-- `display_code = formatContentRequestCode(now, repo.nextRequestSeq)`
-- Completeness from `client_label`, `brand_label`, `deliverable_ask`, `objective`, `due_at`, `source`
-- Persist via `repo.insertRequest`
+### Health providers
 
-`convertRequest({ requestId, actor, body })`:
+- Empty 60-minute window: still `[{ id: 'stub', success_pct: null, p95_sec: null }]`.
+- Non-empty: one row per provider that actually appears (including `weavy`, `magnific_mcp`, `magnific_rest`, `comfyui`).
+- `success_pct` is null when that provider has no terminal (`completed`/`failed`) jobs.
+- Health SQL now joins `COALESCE(j.project_id, d.project_id)` so Weave jobs with `draft_id` null still count.
+- `CpOverview.tsx` lists all provider rows on the health card. No new OpsNav item, no `/crm/aco`.
 
-- Load via `repo.getRequestById` — 404 if missing
-- Only `Accepted` may convert (400 otherwise)
-- Mark `Converted`, then `ContentItemService.createItem` with `title = deliverable_ask`, channel/format from body or `facebook` / `social_post`
-- Portfolio-repo UPDATE sets item `request_id` + `display_code` (`formatContentItemCode` + `repo.nextItemSeq`)
-- Returns `{ request, item }`
+## Tests (TDD)
 
-Actor: `req.staffUser?.email ?? 'unknown'` (internal → `'internal'`). Write guard provided on the portfolio module the same way Task 5 provided the view guard.
+1. CPA spec written first; failed with `cpa_denominator` undefined.
+2. Implemented credit CPA; denom-0 test green.
+3. Health + chip specs written next; failed because payload/providers missing.
+4. Implemented health grouping + `getProject` counts; suites green.
 
-Unit tests are mock-based (Task 6 local DDL apply was skipped).
+## Verification
 
-## TDD Evidence
+```bash
+cd services/ptt-crm-api && ./node_modules/.bin/jest --testPathPattern='src/cp/cp-(reports|overview|projects)' --no-coverage
+# 4 suites, 63 passed
 
-### RED — request spec first (feature missing)
-
-```
-FAIL src/content-os-portfolio/content-os-portfolio.service.request.spec.ts
-  ● Test suite failed to run
-
-    TS2554: Expected 3 arguments, but got 4.
-    TS2339: Property 'createRequest' does not exist on type 'ContentOsPortfolioService'.
-    TS2339: Property 'convertRequest' does not exist on type 'ContentOsPortfolioService'.
+cd services/ops-web && ./node_modules/.bin/vitest run \
+  src/lib/crm/cp-reports.spec.ts \
+  src/lib/crm/cp-ai-ops-panes.util.spec.ts \
+  src/lib/crm/cp-project-workspace.util.spec.ts
+# 3 files, 21 passed
 ```
 
-Watched fail for missing methods / constructor arity — not typos.
-
-### GREEN — implement service + repo + controller POSTs
-
-```
-cd services/ptt-crm-api && npx jest src/content-os-portfolio --no-coverage
-
-PASS src/content-os-portfolio/content-os-portfolio.util.spec.ts
-PASS src/content-os-portfolio/publish-gate.util.spec.ts
-PASS src/content-os-portfolio/content-os-portfolio.service.spec.ts
-PASS src/content-os-portfolio/content-os-portfolio.service.request.spec.ts
-PASS src/content-os-portfolio/content-os-portfolio.controller.spec.ts
-
-Test Suites: 5 passed, 5 total
-Tests:       20 passed, 20 total
-```
-
-Request spec cases:
-
-1. `rejects missing deliverable` (brief verbatim)
-2. `creates Submitted with completeness and CR code` (brief verbatim)
-3. `converts Accepted request and creates item with CNT code` (Accepted → Converted + `createItem` called)
+Did **not** exercise the credit tab or PRJ-03 chips in a running browser (no local ops-web session).
 
 ## Files
 
-- Create: `content-os-portfolio.service.request.spec.ts`
-- Modify: `content-os-portfolio.service.ts` — `createRequest`, `convertRequest`, inject `ContentItemService`
-- Modify: `content-os-portfolio.repository.ts` — `nextRequestSeq`, `insertRequest`, `getRequestById`, `updateRequestStatus`, `nextItemSeq`, `updateItemRequestLink`
-- Modify: `content-os-portfolio.controller.ts` — POST routes + write guard
-- Modify: `content-os-portfolio.module.ts` — provide `StaffContentMarketingWriteGuard`
-- Modify: `content-os-portfolio.types.ts` — request row/write types
-- Modify: `content-os-portfolio.service.spec.ts` — unused `createItem` stub for 4-arg constructor
+| File | Change |
+|---|---|
+| `services/ptt-crm-api/src/cp/cp-reports.service.ts` | CPA + by_provider on credit |
+| `services/ptt-crm-api/src/cp/cp-reports.service.spec.ts` | denom 0 → null; ratio; by_provider |
+| `services/ptt-crm-api/src/cp/cp-overview.service.ts` | per-provider health; project_id join |
+| `services/ptt-crm-api/src/cp/cp-overview.service.spec.ts` | weavy/magnific/comfy window |
+| `services/ptt-crm-api/src/cp/cp-projects.service.ts` | AI Ops counts on getProject |
+| `services/ptt-crm-api/src/cp/cp-projects.service.spec.ts` | 0 → null; real query shape |
+| `services/ops-web/src/components/crm/cp/CpReports.tsx` | CPA tile + by_provider table |
+| `services/ops-web/src/components/crm/cp/CpProjectWorkspace.tsx` | overview chips |
+| `services/ops-web/src/components/crm/cp/CpOverview.tsx` | list health providers |
+| `services/ops-web/src/lib/crm/cp-format.ts` + spec | `by_provider` section |
+| `services/ops-web/src/lib/crm/cp-project-workspace.util.ts` + spec | `formatAiOpsCount` |
+| `services/ops-web/src/lib/crm/cp-api.ts` | project count fields |
+
+Dirty tree left unstaged: `CsdChat*`, `csd-chat-display*`, `globals.css`, `.DS_Store`, `test-results`, untracked docs.
+
+## Self-review
+
+- Prefix stays `/api/crm/cp`. No `/api/v1`. Flags untouched. Task 8 Magnific pane not started.
+- Ledger `kind` unchanged; no `kind=provider_magnific`.
+- `crm_cp_asset_versions` has no new column.
 
 ## Concerns
 
-1. **DDL not applied locally** — Task 6 skipped Postgres apply. Repo SQL is untested against a live DB; unit tests mock the repo.
-2. Jest printed a worker teardown warning (`force exited`) after the green run; all 20 tests still passed.
+1. Credit CPA and `getProject` now query `crm_cp_weave_*`. A DB that has not applied the Weave DDL will fail those reads.
+2. Approved count is video `final_approved` + Weave `approved`/`final` lanes. The same creative could theoretically appear in both if ingest also created a video version.
+3. “Open” Weave WOs include `draft` / `brief_ready` (anything except `cancelled` / `delivered`).
+4. When there are approved assets but no charge rows, CPA becomes `0` (`numerator ?? 0`), not `—`. Denominator 0 is still `null`.
+5. No live browser pass on credit tab or overview chips.
 
-## Fix
+## Fix pass — Important findings
 
-Review findings: convert must create+link before marking Converted; reject non-finite/`<= 0` `lifecycleId` on create.
+**HEAD before:** `578b0ec158759c5c9a910c0a28b85d1225b01aa2`  
+**Commit:** `fix(cp): count CPA from final_approved only and label AI Ops chips.`  
+**Status:** DONE
 
-**Covering test file:** `services/ptt-crm-api/src/content-os-portfolio/content-os-portfolio.service.request.spec.ts`
+### Fixes
 
-**Command:**
+1. **CPA denominator = video `final_approved` only.** Credit SQL now uses the same `COUNT` as executive `output_final` (`crm_cp_video_versions.approval_status = 'final_approved'`). Weave `lane IN ('approved','final')` is gone. Credit GET does not `SELECT` `crm_cp_weave_*`. No DDL on `crm_cp_asset_versions`.
+2. **Chip queries stay different; labels match.** Weave still counts open WO (`status NOT IN ('cancelled','delivered')`). Magnific / Comfy still count `crm_cp_render_jobs`. UI copy is `N WO mở` / `N job Magnific` / `N job Comfy`, or `—` when count is 0/`null`. `aiOpsHref` unchanged.
+3. **Weave DDL missing.** `getProject` fail-closes the Weave WO query to `null` (`—`) so a missing `crm_cp_weave_work_orders` table does not 500 the project GET. Magnific / Comfy job counts still load.
 
+### Tests (TDD)
+
+1. CPA SQL-must-not-mention-`crm_cp_weave_` + `approved=2` / charged=10 → `cpa === 5` failed first (weave term still present).
+2. Chip label spec failed (`formatAiOpsChipLabel` missing).
+3. Fail-closed Weave spec failed (`getProject` rejected on missing table).
+4. Implemented; denom-0 → `cpa === null` kept.
+
+### Verification
+
+```bash
+cd services/ptt-crm-api && ./node_modules/.bin/jest --testPathPattern='src/cp/cp-(reports|overview|projects)' --no-coverage
+# 4 suites, 65 passed
+
+cd services/ops-web && ./node_modules/.bin/vitest run \
+  src/lib/crm/cp-reports.spec.ts \
+  src/lib/crm/cp-project-workspace.util.spec.ts
+# 2 files, 20 passed
 ```
-cd services/ptt-crm-api && npx jest src/content-os-portfolio/content-os-portfolio.service.request.spec.ts --no-coverage
-```
 
-### RED
+No browser pass (out of scope). Task 8 not started.
 
-```
-FAIL src/content-os-portfolio/content-os-portfolio.service.request.spec.ts
-  ✕ rejects invalid lifecycleId 0 with 400 and no insert
-  ✕ rejects invalid lifecycleId NaN with 400 and no insert
-  ✕ leaves request Accepted when createItem throws
+### Files
 
-Test Suites: 1 failed, 1 total
-Tests:       3 failed, 3 passed, 6 total
-```
+| File | Change |
+|---|---|
+| `services/ptt-crm-api/src/cp/cp-reports.service.ts` | Drop Weave lanes from CPA denom |
+| `services/ptt-crm-api/src/cp/cp-reports.service.spec.ts` | No `crm_cp_weave_`; 10/2 → 5 |
+| `services/ptt-crm-api/src/cp/cp-projects.service.ts` | Split Weave query; fail closed |
+| `services/ptt-crm-api/src/cp/cp-projects.service.spec.ts` | Missing WO table → `weave_open_count` null |
+| `services/ops-web/src/lib/crm/cp-project-workspace.util.ts` + spec | `formatAiOpsChipLabel` |
+| `services/ops-web/src/components/crm/cp/CpProjectWorkspace.tsx` | Chip labels |
 
-### GREEN
+### Remaining concerns
 
-```
-PASS src/content-os-portfolio/content-os-portfolio.service.request.spec.ts
-  ✓ rejects missing deliverable
-  ✓ rejects invalid lifecycleId 0 with 400 and no insert
-  ✓ rejects invalid lifecycleId NaN with 400 and no insert
-  ✓ creates Submitted with completeness and CR code
-  ✓ converts Accepted request and creates item with CNT code
-  ✓ leaves request Accepted when createItem throws
-
-Test Suites: 1 passed, 1 total
-Tests:       6 passed, 6 total
-```
+1. CPA is still `0` when approved > 0 and there are no charges (`numerator ?? 0`). Out of scope.
+2. Health “Model allowlist” copy (Minor) not touched.
+3. No live browser pass on chips or credit tab.
+4. `getProject` still queries `crm_cp_weave_work_orders` when the table exists.

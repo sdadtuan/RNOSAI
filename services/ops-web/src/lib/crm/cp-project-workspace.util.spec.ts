@@ -6,6 +6,7 @@ import {
   budgetLines,
   daysRemaining,
   deliverableCta,
+  formatAiOpsChipLabel,
   formatAiOpsCount,
   formatCreditLine,
   formatMemberLine,
@@ -26,6 +27,15 @@ describe('PRJ-03 workspace helpers', () => {
     expect(formatAiOpsCount(null)).toBe('—');
     expect(formatAiOpsCount(0)).toBe('—');
     expect(formatAiOpsCount(3)).toBe('3');
+  });
+
+  it('labels Weave as open WO and Magnific/Comfy as job counts', () => {
+    expect(formatAiOpsChipLabel(3, 'weave')).toBe('3 WO mở');
+    expect(formatAiOpsChipLabel(2, 'magnific')).toBe('2 job Magnific');
+    expect(formatAiOpsChipLabel(1, 'comfy')).toBe('1 job Comfy');
+    expect(formatAiOpsChipLabel(null, 'weave')).toBe('—');
+    expect(formatAiOpsChipLabel(0, 'magnific')).toBe('—');
+    expect(formatAiOpsChipLabel(0, 'comfy')).toBe('—');
   });
 
   it('formats credit used / budget and never invents a ratio', () => {
