@@ -105,6 +105,7 @@ export function CsdChatWorkspace({
               }}
               canWrite={canWrite}
               onIncomingChange={setIncomingCount}
+              mediaRefreshKey={`${s.messages.length}:${s.messages[s.messages.length - 1]?.id ?? ''}`}
               onOpenDm={(staffId) => {
                 setTab('messages');
                 void s.handleCreateConversation({ kind: 'direct', name_vi: '', member_staff_ids: [staffId] });

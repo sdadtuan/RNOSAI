@@ -15760,6 +15760,12 @@ body {
   color: #475569;
 }
 
+.csd-chat-contacts-media {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
 .csd-chat-contacts-empty {
   padding: 0.55rem 0.15rem;
 }

@@ -63,6 +63,22 @@ export class CsdChatController {
     return this.chat.unreadConversationCount(actor);
   }
 
+  @Get('chat/attachments')
+  @RequireCsdAction('view')
+  async listChatAttachments(
+    @Req() req: AuthedReq,
+    @Query('conversation_id') conversationId?: string,
+    @Query('peer_staff_id') peerStaffId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.listMemberAttachments(actor, {
+      conversation_id: conversationId,
+      peer_staff_id: peerStaffId ? Number(peerStaffId) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   @Get('conversations')
   @RequireCsdAction('view')
   async listConversations(

@@ -871,31 +871,93 @@ export class CsdChatRepository implements OnModuleDestroy {
     return grouped[messageId] ?? [];
   }
 
-  async listConversationAttachments(conversationId: string): Promise<CsdConversationAttachmentItem[]> {
+  async listMemberAttachments(
+    staffId: number,
+    opts: { conversationId?: string; peerStaffId?: number; limit?: number } = {},
+  ): Promise<CsdConversationAttachmentItem[]> {
+    const limit = Math.min(Math.max(Number(opts.limit ?? 500) || 500, 1), 2000);
+    const params: unknown[] = [CSD_TENANT_ID, staffId];
+    let conversationFilterMsg = '';
+    let conversationFilterPending = '';
+    let peerFilter = '';
+    let pendingPeerFilter = '';
+    let peerParamIdx = 0;
+
+    if (opts.conversationId) {
+      params.push(opts.conversationId);
+      const idx = params.length;
+      conversationFilterMsg = ` AND m.conversation_id = $${idx}::uuid`;
+      conversationFilterPending = ` AND a.entity_id = $${idx}::text`;
+    }
+    if (opts.peerStaffId != null && opts.peerStaffId > 0) {
+      params.push(opts.peerStaffId);
+      peerParamIdx = params.length;
+      peerFilter = ` AND EXISTS (
+        SELECT 1 FROM csd_conversation_members peer
+         WHERE peer.conversation_id = m.conversation_id
+           AND peer.member_staff_id = $${peerParamIdx}
+           AND peer.member_type = 'staff'
+      )`;
+      pendingPeerFilter = ` AND EXISTS (
+        SELECT 1 FROM csd_conversation_members peer
+         WHERE peer.conversation_id = a.entity_id::uuid
+           AND peer.member_staff_id = $${peerParamIdx}
+           AND peer.member_type = 'staff'
+      )`;
+    }
+
+    params.push(limit);
+    const limitIdx = params.length;
+
     const res = await this.db.query(
-      `SELECT a.id,
-              a.file_name,
-              a.mime_type,
-              a.byte_size,
-              a.visibility,
-              m.id::text AS message_id,
-              COALESCE(m.created_at, a.created_at) AS created_at
-         FROM csd_attachments a
-         LEFT JOIN csd_messages m
-           ON a.entity_type = 'csd_message'
-          AND a.entity_id = m.id::text
-          AND m.tenant_id = $1
-          AND m.conversation_id = $2::uuid
-          AND m.is_deleted = FALSE
-        WHERE a.tenant_id = $1
-          AND a.is_deleted = FALSE
-          AND (
-            (a.entity_type = 'csd_message' AND m.id IS NOT NULL)
-            OR (a.entity_type = 'csd_conversation' AND a.entity_id = $2::text)
-          )
-        ORDER BY COALESCE(m.created_at, a.created_at) DESC`,
-      [CSD_TENANT_ID, conversationId],
+      `SELECT * FROM (
+         SELECT a.id,
+                a.file_name,
+                a.mime_type,
+                a.byte_size,
+                a.visibility,
+                m.id::text AS message_id,
+                m.conversation_id::text AS conversation_id,
+                COALESCE(m.created_at, a.created_at) AS created_at
+           FROM csd_attachments a
+           INNER JOIN csd_messages m
+             ON a.entity_type = 'csd_message'
+            AND a.entity_id = m.id::text
+            AND m.tenant_id = $1
+            AND m.is_deleted = FALSE
+           INNER JOIN csd_conversation_members me
+             ON me.conversation_id = m.conversation_id
+            AND me.member_staff_id = $2
+            AND me.member_type = 'staff'
+          WHERE a.tenant_id = $1
+            AND a.is_deleted = FALSE
+            ${conversationFilterMsg}
+            ${peerFilter}
+         UNION ALL
+         SELECT a.id,
+                a.file_name,
+                a.mime_type,
+                a.byte_size,
+                a.visibility,
+                NULL::text AS message_id,
+                a.entity_id AS conversation_id,
+                a.created_at
+           FROM csd_attachments a
+           INNER JOIN csd_conversation_members me
+             ON me.conversation_id = a.entity_id::uuid
+            AND me.member_staff_id = $2
+            AND me.member_type = 'staff'
+          WHERE a.tenant_id = $1
+            AND a.is_deleted = FALSE
+            AND a.entity_type = 'csd_conversation'
+            ${conversationFilterPending}
+            ${pendingPeerFilter}
+       ) items
+       ORDER BY created_at DESC
+       LIMIT $${limitIdx}`,
+      params,
     );
+
     return res.rows.map((row: Record<string, unknown>) => ({
       id: text(row.id),
       file_name: text(row.file_name),
@@ -903,8 +965,13 @@ export class CsdChatRepository implements OnModuleDestroy {
       byte_size: num(row.byte_size) ?? 0,
       visibility: text(row.visibility) as CsdConversationAttachmentItem['visibility'],
       message_id: row.message_id != null ? text(row.message_id) : null,
+      conversation_id: row.conversation_id != null ? text(row.conversation_id) : null,
       created_at: text(row.created_at),
     }));
+  }
+
+  async listConversationAttachments(conversationId: string, staffId: number): Promise<CsdConversationAttachmentItem[]> {
+    return this.listMemberAttachments(staffId, { conversationId, limit: 2000 });
   }
 
   async listAttachmentsByMessages(messageIds: string[]): Promise<Record<string, CsdAttachmentRow[]>> {

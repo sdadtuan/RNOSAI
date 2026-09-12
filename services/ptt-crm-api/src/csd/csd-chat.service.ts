@@ -294,9 +294,22 @@ export class CsdChatService {
     return { items: await this.repo.listRelatedTickets(conv.id) };
   }
 
-  async listConversationAttachments(_actor: CsdActor, conversationId: string) {
+  async listMemberAttachments(
+    actor: CsdActor,
+    query: { conversation_id?: string; peer_staff_id?: number; limit?: number } = {},
+  ) {
+    await this.accounts.assertEnabled(actor);
+    const items = await this.repo.listMemberAttachments(actor.staffId, {
+      conversationId: query.conversation_id,
+      peerStaffId: query.peer_staff_id,
+      limit: query.limit,
+    });
+    return { items };
+  }
+
+  async listConversationAttachments(actor: CsdActor, conversationId: string) {
     await this.requireConversation(conversationId);
-    const items = await this.repo.listConversationAttachments(conversationId);
+    const items = await this.repo.listConversationAttachments(conversationId, actor.staffId);
     return { items };
   }
 

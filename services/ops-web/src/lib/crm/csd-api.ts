@@ -154,6 +154,7 @@ export interface CsdAttachmentRow {
 
 export type CsdConversationAttachmentItem = CsdAttachmentRow & {
   message_id?: string | null;
+  conversation_id?: string | null;
   created_at: string;
 };
 
@@ -522,6 +523,20 @@ export async function fetchCsdConversationAttachments(
   conversationId: string,
 ): Promise<{ items: CsdConversationAttachmentItem[] }> {
   return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/attachments`);
+}
+
+export async function fetchCsdChatAttachments(
+  token: string,
+  query: { conversationId?: string; peerStaffId?: number; limit?: number } = {},
+): Promise<{ items: CsdConversationAttachmentItem[] }> {
+  const params = new URLSearchParams();
+  if (query.conversationId) params.set('conversation_id', query.conversationId);
+  if (query.peerStaffId != null && query.peerStaffId > 0) {
+    params.set('peer_staff_id', String(query.peerStaffId));
+  }
+  if (query.limit != null && query.limit > 0) params.set('limit', String(query.limit));
+  const qs = params.toString();
+  return csdFetch(token, `/api/crm/csd/chat/attachments${qs ? `?${qs}` : ''}`);
 }
 
 export async function sendCsdMessage(

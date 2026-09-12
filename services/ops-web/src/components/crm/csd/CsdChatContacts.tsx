@@ -13,6 +13,8 @@ import {
   type CsdChatFriendshipRow,
   type CsdChatPersonRow,
 } from '@/lib/crm/csd-api';
+import { CsdChatContextMedia } from '@/components/crm/csd/CsdChatContextMedia';
+import { useCsdChatAttachments } from '@/components/crm/csd/useCsdChatAttachments';
 import { groupCsdChatPeopleByLetter, resolveCsdPersonAvatar } from '@/lib/crm/csd-chat-display';
 
 export type CsdChatContactsView = 'friends' | 'requests' | 'discover';
@@ -24,6 +26,7 @@ type CsdChatContactsProps = {
   canWrite: boolean;
   onOpenDm: (staffId: number) => void;
   onIncomingChange?: (count: number) => void;
+  mediaRefreshKey?: string;
 };
 
 const NAV_ITEMS: { id: CsdChatContactsView; label: string; icon: string }[] = [
@@ -45,6 +48,7 @@ export function CsdChatContacts({
   canWrite,
   onOpenDm,
   onIncomingChange,
+  mediaRefreshKey = '',
 }: CsdChatContactsProps) {
   const [friendQuery, setFriendQuery] = useState('');
   const [discoverQuery, setDiscoverQuery] = useState('');
@@ -118,6 +122,11 @@ export function CsdChatContacts({
   }, [friendQuery, friends]);
 
   const groupedFriends = useMemo(() => groupCsdChatPeopleByLetter(filteredFriends), [filteredFriends]);
+  const allAttachments = useCsdChatAttachments(token, {
+    enabled: view === 'friends',
+    refreshKey: mediaRefreshKey,
+    limit: 500,
+  });
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
@@ -247,6 +256,16 @@ export function CsdChatContacts({
                   </section>
                 ))
               )}
+              <section className="csd-chat-contacts-media" data-testid="csd-chat-contacts-media">
+                <h4 className="csd-chat-contacts-subtitle">Ảnh &amp; File (tất cả hội thoại)</h4>
+                <CsdChatContextMedia
+                  token={token}
+                  loading={allAttachments.loading}
+                  error={allAttachments.error}
+                  images={allAttachments.images}
+                  files={allAttachments.files}
+                />
+              </section>
             </div>
           </>
         ) : null}

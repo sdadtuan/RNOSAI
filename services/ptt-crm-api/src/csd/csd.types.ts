@@ -250,6 +250,7 @@ export type CsdConversationAttachmentItem = {
   byte_size: number;
   visibility: 'internal' | 'client' | 'restricted';
   message_id: string | null;
+  conversation_id?: string | null;
   created_at: string;
 };
 

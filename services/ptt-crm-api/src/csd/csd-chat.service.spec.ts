@@ -28,6 +28,7 @@ describe('CsdChatService', () => {
     softDeleteMessage: jest.fn(),
     listAttachmentsByMessages: jest.fn(),
     listConversationAttachments: jest.fn(),
+    listMemberAttachments: jest.fn(),
     findStaffDisplayName: jest.fn(),
     getConversationForMember: jest.fn(),
     setMemberAlias: jest.fn(),
@@ -393,7 +394,29 @@ describe('CsdChatService', () => {
     ]);
     const out = await svc().listConversationAttachments(actor, 'c1');
     expect(out.items).toHaveLength(1);
-    expect(repo.listConversationAttachments).toHaveBeenCalledWith('c1');
+    expect(repo.listConversationAttachments).toHaveBeenCalledWith('c1', 3);
+  });
+
+  it('lists member attachments across conversations', async () => {
+    repo.listMemberAttachments.mockResolvedValue([
+      {
+        id: 'a2',
+        file_name: 'doc.pdf',
+        mime_type: 'application/pdf',
+        byte_size: 100,
+        visibility: 'internal',
+        message_id: 'm2',
+        conversation_id: 'c2',
+        created_at: '2026-09-02T10:00:00.000Z',
+      },
+    ]);
+    const out = await svc().listMemberAttachments(actor, { limit: 100 });
+    expect(out.items).toHaveLength(1);
+    expect(repo.listMemberAttachments).toHaveBeenCalledWith(3, {
+      conversationId: undefined,
+      peerStaffId: undefined,
+      limit: 100,
+    });
   });
 
   it('skips internal files when creating ticket from message', async () => {
