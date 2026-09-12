@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
@@ -6,6 +6,7 @@ import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { RequireMsosAction, StaffMsosGuard } from './guards/staff-msos.guard';
 import { MsosService } from './msos.service';
 import type {
+  CapacityBucketInput,
   CreateInventoryInput,
   CreatePartnerInput,
   CreatePlacementInput,
@@ -88,6 +89,22 @@ export class MsosController {
   ) {
     const staffId = await this.resolveStaffId(req);
     return this.msos.publishRateVersion(id, version, staffId);
+  }
+
+  @Put('placements/:id/capacity')
+  @RequireMsosAction('write')
+  setPlacementCapacity(@Param('id') id: string, @Body() body: { buckets: CapacityBucketInput[] }) {
+    return this.msos.setPlacementCapacity(id, body.buckets ?? []);
+  }
+
+  @Get('placements/:id/calendar')
+  @RequireMsosAction('view')
+  getPlacementCalendar(
+    @Param('id') id: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.msos.getPlacementCalendar(id, from, to);
   }
 
   private async resolveStaffId(req: StaffReq): Promise<number | null> {

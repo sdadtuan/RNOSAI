@@ -3,13 +3,16 @@ import { AppConfigService } from '../config/app-config.service';
 import { throwDisabled } from './msos-errors.util';
 import { assertAllowedMsosName } from './msos-forbidden-seed.util';
 import { MsosRepository } from './msos.repository';
+import { decideReserve, type CapacityDecision } from './msos-capacity.util';
 import { assertRateBindable } from './msos-rate.util';
 import type {
+  CapacityBucketInput,
   CreateInventoryInput,
   CreatePartnerInput,
   CreatePlacementInput,
   CreateRateCardInput,
   CreateRateVersionInput,
+  MsosCalendarDay,
   MsosHealthDto,
   MsosInventoryRow,
   MsosPartnerRow,
@@ -152,5 +155,117 @@ export class MsosService {
       }
       throw e;
     }
+  }
+
+  async setPlacementCapacity(placementId: string, buckets: CapacityBucketInput[]): Promise<void> {
+    this.assertEnabled();
+    if (!buckets.length) {
+      throw new UnprocessableEntityException({ error: 'capacity_buckets_required' });
+    }
+    await this.repo.upsertCapacityBuckets(placementId, buckets);
+    await this.syncCapacityConflictExceptions(placementId);
+  }
+
+  async getPlacementCalendar(placementId: string, from: string, to: string): Promise<MsosCalendarDay[]> {
+    this.assertEnabled();
+    const days = await this.repo.getPlacementCalendar(placementId, from, to);
+    if (days.some((day) => day.conflict)) {
+      await this.insertCapacityConflictException(placementId, days);
+    }
+    return days;
+  }
+
+  async evaluateSoftReserve(input: {
+    placementId: string;
+    total: number;
+    reservedHard: number;
+    reservedSoft: number;
+    addQty: number;
+    partnerStatus?: string | null;
+  }): Promise<CapacityDecision> {
+    this.assertEnabled();
+    const partnerStatus =
+      input.partnerStatus ?? (await this.repo.getPartnerStatusForPlacement(input.placementId)) ?? 'approved';
+    const decision = decideReserve({
+      total: input.total,
+      reservedHard: input.reservedHard,
+      reservedSoft: input.reservedSoft,
+      addQty: input.addQty,
+      kind: 'soft',
+      partnerStatus,
+    });
+    if (!decision.ok) {
+      if (decision.error === 'partner_suspended') {
+        throw new UnprocessableEntityException({ error: 'partner_suspended' });
+      }
+      throw new UnprocessableEntityException({ error: decision.error });
+    }
+    if (decision.conflict) {
+      await this.repo.insertException({
+        priority: 'P0',
+        kind: 'capacity_conflict',
+        placement_id: input.placementId,
+        title: 'Soft reserve capacity conflict',
+        evidence_text: `reserved_hard=${input.reservedHard} reserved_soft=${input.reservedSoft}+${input.addQty} total=${input.total}`,
+      });
+    }
+    return decision;
+  }
+
+  async evaluateHardReserve(input: {
+    placementId: string;
+    total: number;
+    reservedHard: number;
+    reservedSoft: number;
+    addQty: number;
+    partnerStatus?: string | null;
+  }): Promise<CapacityDecision> {
+    this.assertEnabled();
+    const partnerStatus =
+      input.partnerStatus ?? (await this.repo.getPartnerStatusForPlacement(input.placementId)) ?? 'approved';
+    const decision = decideReserve({
+      total: input.total,
+      reservedHard: input.reservedHard,
+      reservedSoft: input.reservedSoft,
+      addQty: input.addQty,
+      kind: 'hard',
+      partnerStatus,
+    });
+    if (!decision.ok) {
+      if (decision.error === 'partner_suspended') {
+        throw new UnprocessableEntityException({ error: 'partner_suspended' });
+      }
+      throw new UnprocessableEntityException({ error: 'overbook_hard' });
+    }
+    return decision;
+  }
+
+  private async syncCapacityConflictExceptions(placementId: string): Promise<void> {
+    const days = await this.repo.getPlacementCalendar(
+      placementId,
+      '1970-01-01',
+      '2099-12-31',
+    );
+    const conflicts = days.filter((day) => day.conflict);
+    if (conflicts.length) {
+      await this.insertCapacityConflictException(placementId, conflicts);
+    }
+  }
+
+  private async insertCapacityConflictException(
+    placementId: string,
+    days: MsosCalendarDay[],
+  ): Promise<void> {
+    const summary = days
+      .slice(0, 5)
+      .map((d) => `${d.date}: hard=${d.reserved_hard} soft=${d.reserved_soft}/${d.total}`)
+      .join('; ');
+    await this.repo.insertException({
+      priority: 'P0',
+      kind: 'capacity_conflict',
+      placement_id: placementId,
+      title: 'Capacity calendar conflict',
+      evidence_text: summary,
+    });
   }
 }

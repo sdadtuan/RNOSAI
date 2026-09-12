@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { calendarDayConflict } from './msos-capacity.util';
 import { msosDisplayCode } from './msos-ids.util';
 import type {
   CapacityBucketInput,
@@ -257,7 +258,7 @@ export class MsosRepository implements OnModuleDestroy {
         total,
         reserved_hard: reservedHard,
         reserved_soft: reservedSoft,
-        conflict: reservedHard + reservedSoft > total || reservedHard > total,
+        conflict: calendarDayConflict(total, reservedHard, reservedSoft),
       };
     });
   }
