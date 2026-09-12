@@ -1,12 +1,24 @@
-import { HttpException, Inject, Injectable } from '@nestjs/common';
+import { createHash } from 'crypto';
+import { HttpException, Inject, Injectable, Optional } from '@nestjs/common';
+import { insertProviderRun } from './cp-provider-runs.repository';
 import { readAiOpsFlags } from './cp-ai-ops.flags';
 import { normalizeWeaveBrief } from './cp-weave-brief.util';
+import {
+  guessMime,
+  shouldIngestLane,
+  verifyWeaveWebhookSign,
+  watermarkForLane,
+  type CpWeaveIngestResult,
+  type CpWeaveStoragePort,
+} from './cp-weave-ingest.util';
+import { createDiskWeaveStorage } from './cp-weave-ingest.util';
 import { buildWeaveOpenUrl } from './cp-weave-open.util';
-import { nextWeaveTaskId } from './cp-weave-path.util';
+import { nextWeaveTaskId, parseWeaveExportKey } from './cp-weave-path.util';
 import { CP_WEAVE_QUERY, CpWeaveQueryPort } from './cp-weave.repository';
 import {
   canTransitionWeave,
   type CpWeaveBrief,
+  type CpWeaveLane,
   type CpWeaveStatus,
 } from './cp-weave.types';
 
@@ -26,7 +38,10 @@ export type CpWeaveCreateInput = {
 
 @Injectable()
 export class CpWeaveService {
-  constructor(@Inject(CP_WEAVE_QUERY) private readonly db: CpWeaveQueryPort) {}
+  constructor(
+    @Inject(CP_WEAVE_QUERY) private readonly db: CpWeaveQueryPort,
+    @Optional() private readonly storage?: CpWeaveStoragePort,
+  ) {}
 
   async create(input: CpWeaveCreateInput, staffId: number) {
     this.assertEnabled();
@@ -141,6 +156,88 @@ export class CpWeaveService {
     return { href: built.href, copied_brief: built.copied_brief, status: 'opened' };
   }
 
+  async syncOutput(
+    workOrderId: string,
+    opts?: { include_drafts?: boolean },
+  ): Promise<CpWeaveIngestResult> {
+    this.assertEnabled();
+    const wo = await this.loadWorkOrder(workOrderId);
+    const prefix = `${wo.client_code}/${wo.campaign_code}/${wo.task_id}/`;
+    const storage = this.resolveStorage();
+    const keys = await storage.list(prefix);
+    const result: CpWeaveIngestResult = {
+      scanned: keys.length,
+      ingested: 0,
+      skipped: 0,
+      warnings: [],
+      assets: [],
+    };
+    for (const key of keys) {
+      const parsed = parseWeaveExportKey(key);
+      if (!parsed) {
+        result.skipped += 1;
+        result.warnings.push(`skip ${key}`);
+        continue;
+      }
+      if (!shouldIngestLane(parsed.lane, opts?.include_drafts === true)) {
+        result.skipped += 1;
+        continue;
+      }
+      const outcome = await this.ingestParsed(wo, parsed, key, storage);
+      if (outcome.status === 'ingested') {
+        result.ingested += 1;
+        if (outcome.asset) result.assets.push(outcome.asset);
+      } else {
+        result.skipped += 1;
+        if (outcome.status === 'duplicate') result.warnings.push(`duplicate ${key}`);
+      }
+    }
+    if (result.ingested > 0) {
+      await this.markLinked(wo);
+      await this.recordProviderRun(String(wo.id), String(wo.project_id ?? ''));
+    }
+    return result;
+  }
+
+  async ingestKey(
+    storageKey: string,
+    storage = this.resolveStorage(),
+  ): Promise<'ingested' | 'duplicate' | 'skipped'> {
+    this.assertEnabled();
+    const parsed = parseWeaveExportKey(storageKey);
+    if (!parsed || !shouldIngestLane(parsed.lane, false)) return 'skipped';
+    const found = await this.db.query(
+      `SELECT * FROM crm_cp_weave_work_orders WHERE task_id = $1 LIMIT 1`,
+      [parsed.taskId],
+    );
+    const wo = found.rows[0];
+    if (!wo) return 'skipped';
+    const outcome = await this.ingestParsed(wo, parsed, storageKey, storage);
+    if (outcome.status === 'ingested') {
+      await this.markLinked(wo);
+      await this.recordProviderRun(String(wo.id), String(wo.project_id ?? ''));
+    }
+    return outcome.status;
+  }
+
+  async ingestHook(rawBody: string, signature: string | undefined) {
+    this.assertEnabled();
+    const secret = process.env.PTT_WEAVE_WEBHOOK_SECRET ?? '';
+    if (!verifyWeaveWebhookSign(rawBody, signature, secret)) {
+      cpThrow(401, { error: 'invalid_weave_signature' });
+    }
+    let key = '';
+    try {
+      const body = JSON.parse(rawBody) as { key?: string };
+      key = String(body.key ?? '').trim();
+    } catch {
+      cpThrow(400, { error: 'invalid_weave_hook_body' });
+    }
+    if (!key) cpThrow(400, { error: 'key_required' });
+    const status = await this.ingestKey(key);
+    return { status };
+  }
+
   async addAsset(id: string, input: { storage_uri?: string; source?: string }) {
     this.assertEnabled();
     const wo = await this.loadWorkOrder(id);
@@ -234,6 +331,126 @@ export class CpWeaveService {
     );
     const n = Number(counted.rows[0]?.n ?? 0);
     return nextWeaveTaskId(ymd, n + 1);
+  }
+
+  private resolveStorage(): CpWeaveStoragePort {
+    if (this.storage) return this.storage;
+    const root = process.env.WEAVE_EXPORT_PREFIX?.trim();
+    if (!root) {
+      return { list: async () => [], read: async () => Buffer.alloc(0) };
+    }
+    return createDiskWeaveStorage(root);
+  }
+
+  private async ingestParsed(
+    wo: Record<string, unknown>,
+    parsed: { taskId: string; lane: CpWeaveLane; fileName: string },
+    storageKey: string,
+    storage: CpWeaveStoragePort,
+  ): Promise<{
+    status: 'ingested' | 'duplicate' | 'skipped';
+    asset?: { id: string; lane: CpWeaveLane; checksum: string };
+  }> {
+    let bytes: Buffer;
+    try {
+      bytes = await storage.read(storageKey);
+    } catch {
+      return { status: 'skipped' };
+    }
+    const checksum = createHash('sha256').update(bytes).digest('hex');
+    const existing = await this.db.query(
+      `SELECT a.id, a.checksum
+         FROM crm_cp_weave_assets a
+         JOIN crm_cp_weave_work_orders w ON w.id = a.work_order_id
+        WHERE w.task_id = $1 AND a.checksum = $2
+        LIMIT 1`,
+      [parsed.taskId, checksum],
+    );
+    if (existing.rows[0]) return { status: 'duplicate' };
+
+    const watermark = watermarkForLane(parsed.lane);
+    const mime = guessMime(parsed.fileName);
+    let assetId: string | null = null;
+    if (wo.agency_client_id) {
+      const asset = await this.db.query(
+        `INSERT INTO crm_cp_assets (
+           tenant_id, agency_client_id, project_id, owner_staff_id, filename, mime, state, bytes, hash
+         ) VALUES ('PTT', $1::uuid, $2::uuid, $3, $4, $5, 'ready', $6, $7)
+         RETURNING id`,
+        [
+          wo.agency_client_id,
+          wo.project_id ?? null,
+          Number(wo.created_by_staff_id ?? 0) || 0,
+          parsed.fileName,
+          mime,
+          bytes.length,
+          checksum,
+        ],
+      );
+      assetId = asset.rows[0]?.id == null ? null : String(asset.rows[0].id);
+    }
+    const inserted = await this.db.query(
+      `INSERT INTO crm_cp_weave_assets (
+         work_order_id, asset_id, storage_uri, source, checksum, lane, width, height, duration_ms, watermark
+       ) VALUES ($1::uuid, $2, $3, 'prefix_sync', $4, $5, NULL, NULL, NULL, $6)
+       RETURNING id, lane, checksum`,
+      [wo.id, assetId, storageKey, checksum, parsed.lane, watermark],
+    );
+    const row = inserted.rows[0];
+    return {
+      status: 'ingested',
+      asset: row
+        ? { id: String(row.id), lane: parsed.lane, checksum }
+        : { id: checksum, lane: parsed.lane, checksum },
+    };
+  }
+
+  private async markLinked(wo: Record<string, unknown>): Promise<void> {
+    const status = String(wo.status ?? 'opened') as CpWeaveStatus;
+    if (canTransitionWeave(status, 'assets_exported')) {
+      await this.db.query(
+        `UPDATE crm_cp_weave_work_orders
+            SET status = 'assets_exported', updated_at = now()
+          WHERE id = $1::uuid`,
+        [wo.id],
+      );
+      wo.status = 'assets_exported';
+    }
+    if (canTransitionWeave(String(wo.status) as CpWeaveStatus, 'linked')) {
+      await this.db.query(
+        `UPDATE crm_cp_weave_work_orders
+            SET status = 'linked', updated_at = now()
+          WHERE id = $1::uuid`,
+        [wo.id],
+      );
+      wo.status = 'linked';
+    }
+  }
+
+  private async recordProviderRun(workOrderId: string, projectId: string): Promise<void> {
+    try {
+      await insertProviderRun(
+        { provider: 'weavy', mode: 'manual', workOrderId, status: 'completed' },
+        this.db,
+      );
+    } catch {
+      // ledger row is best-effort for Wave A
+    }
+    if (!projectId || !UUID_RE.test(projectId)) return;
+    try {
+      await this.db.query(
+        `INSERT INTO crm_cp_render_jobs (
+           draft_id, project_id, state, stage, progress, provider,
+           idempotency_key, correlation_id
+         ) VALUES (
+           NULL, $1::uuid, 'completed', 'weave_sync', 100, 'weavy', $2, $3
+         )
+         ON CONFLICT (idempotency_key) DO NOTHING`,
+        [projectId, `weavy:${workOrderId}:sync`, `weavy:${workOrderId}`],
+      );
+    } catch {
+      // optional completed job — schema may still require draft_id in older DBs
+    }
   }
 
   private stubBrief(wo: Record<string, unknown>): CpWeaveBrief {

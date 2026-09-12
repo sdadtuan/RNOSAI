@@ -1219,6 +1219,15 @@ export class CpController {
   ) {
     return this.weave.addAsset(id, body ?? {});
   }
+
+  @Post('weave-orders/:id/sync-output')
+  @RequireCpAction('edit')
+  syncWeaveOutput(
+    @Param('id') id: string,
+    @Body() body: { include_drafts?: boolean },
+  ) {
+    return this.weave.syncOutput(id, body ?? {});
+  }
 }
 
 function qcFactsFrom(body: (QcFacts & { facts?: QcFacts }) | undefined): QcFacts {

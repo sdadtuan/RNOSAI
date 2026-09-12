@@ -64,12 +64,14 @@ import {
   CpExperimentsService,
 } from './cp-experiments.service';
 import { StaffCpGuard } from './guards/staff-cp.guard';
+import { CpWeaveIngestController } from './cp-weave-ingest.controller';
+import { CpWeaveIngestWorker } from './cp-weave-ingest.worker';
 import { CP_WEAVE_QUERY, CpWeaveRepository } from './cp-weave.repository';
 import { CpWeaveService } from './cp-weave.service';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CreativesModule],
-  controllers: [CpController],
+  controllers: [CpController, CpWeaveIngestController],
   providers: [
     StaffCpGuard,
     CpAuditRepository,
@@ -122,6 +124,7 @@ import { CpWeaveService } from './cp-weave.service';
     CpWeaveRepository,
     { provide: CP_WEAVE_QUERY, useExisting: CpWeaveRepository },
     CpWeaveService,
+    CpWeaveIngestWorker,
   ],
   exports: [CpProjectsService, CpLaunchGateService],
 })

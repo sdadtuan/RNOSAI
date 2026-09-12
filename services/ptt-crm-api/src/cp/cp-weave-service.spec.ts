@@ -157,4 +157,66 @@ describe('CpWeaveService', () => {
       error: 'weave_disabled',
     });
   });
+
+  it('sync-output skips tmp paths and ingesting the same checksum is duplicate', async () => {
+    const wo = {
+      id: WO_ID,
+      status: 'opened',
+      task_id: 'CR-2026-0912-028',
+      client_code: 'nova',
+      campaign_code: 'mid-autumn-2026',
+      project_id: PROJECT_ID,
+    };
+    let checksumSeen = false;
+    const query = jest.fn(async (sql: string) => {
+      if (sql.includes('FROM crm_cp_weave_work_orders')) return { rows: [wo] };
+      if (sql.includes('FROM crm_cp_weave_assets') && sql.includes('checksum')) {
+        return { rows: checksumSeen ? [{ id: 'asset-1', checksum: 'abc' }] : [] };
+      }
+      if (sql.includes('INSERT INTO crm_cp_weave_assets')) {
+        checksumSeen = true;
+        return { rows: [{ id: 'asset-new', lane: 'final', checksum: 'abc' }] };
+      }
+      if (sql.includes('INSERT INTO crm_cp_assets')) {
+        return { rows: [{ id: 'cp-asset-1' }] };
+      }
+      if (sql.includes('INSERT INTO crm_cp_provider_runs')) {
+        return { rows: [{ id: 'run-1' }] };
+      }
+      if (sql.includes('INSERT INTO crm_cp_render_jobs')) {
+        return { rows: [{ id: 'job-1' }] };
+      }
+      if (sql.includes('UPDATE crm_cp_weave_work_orders')) {
+        return { rows: [{ ...wo, status: 'linked' }] };
+      }
+      return { rows: [] };
+    });
+    const storage = {
+      list: jest.fn(async () => [
+        'nova/mid-autumn-2026/CR-2026-0912-028/tmp/x.png',
+        'nova/mid-autumn-2026/CR-2026-0912-028/final/CR-2026-0912-028_v01_9x16.mp4',
+      ]),
+      read: jest.fn(async () => Buffer.from('video-bytes')),
+    };
+    const svc = new CpWeaveService({ query } as never, storage);
+    const first = await svc.syncOutput(WO_ID);
+    expect(first.skipped).toBeGreaterThanOrEqual(1);
+    expect(first.warnings.some((w) => w.includes('tmp'))).toBe(true);
+
+    const second = await svc.ingestKey(
+      'nova/mid-autumn-2026/CR-2026-0912-028/final/CR-2026-0912-028_v01_9x16.mp4',
+    );
+    expect(second).toBe('duplicate');
+  });
+
+  it('hook rejects a bad HMAC', async () => {
+    const svc = new CpWeaveService({ query: jest.fn() } as never);
+    process.env.PTT_WEAVE_WEBHOOK_SECRET = 'weave-secret';
+    await expect(
+      svc.ingestHook(
+        '{"key":"nova/mid-autumn-2026/CR-2026-0912-028/final/CR-2026-0912-028_v01_9x16.mp4"}',
+        'nope',
+      ),
+    ).rejects.toMatchObject({ status: 401, error: 'invalid_weave_signature' });
+  });
 });
