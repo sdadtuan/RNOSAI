@@ -5,6 +5,7 @@ import { join } from 'path';
 import { CpJobsRepository } from './cp-jobs.repository';
 import { CpJobsService, MagnificAdapterPort } from './cp-jobs.service';
 import { CpLedgerService } from './cp-ledger.service';
+import type { CpComfyAdapter } from './cp-comfy.adapter';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const CLIENT_ID = '22222222-2222-4222-8222-222222222222';
@@ -129,10 +130,49 @@ function draftInput(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function comfyDraftInput(overrides: Record<string, unknown> = {}) {
+  return {
+    project_id: PROJECT_ID,
+    provider: 'comfyui' as const,
+    inputs: {
+      estimated_credits: 12,
+      workflow: {
+        '20': {
+          class_type: 'CLIPTextEncode',
+          inputs: { text: 'default packshot prompt', clip: ['19', 0] },
+        },
+        '19': {
+          class_type: 'CheckpointLoaderSimple',
+          inputs: { ckpt_name: 'model.safetensors' },
+        },
+      },
+      bindings: { positivePrompt: { nodeId: '20', inputKey: 'text' } },
+      values: { positivePrompt: 'luxury watch on marble' },
+    },
+    idempotency_key: 'job-comfy-1',
+    ...overrides,
+  };
+}
+
+function makeComfyAdapter(overrides: Partial<CpComfyAdapter> = {}): CpComfyAdapter {
+  return {
+    systemStats: jest.fn(async () => ({ ok: true, vram_mb: 24576 })),
+    prompt: jest.fn(async () => ({ promptId: 'prm-1' })),
+    history: jest.fn(async () => ({ outputFiles: ['ComfyUI_00001_.png'] })),
+    interrupt: jest.fn(async () => undefined),
+    download: jest.fn(async () => ({ bytes: Buffer.from('comfy-png'), mime: 'image/png' })),
+    providerHealth: jest.fn(async () => ({
+      comfy: { ok: true, vram_mb: 24576, checked_at: '2026-09-13T03:00:00.000Z' },
+    })),
+    ...overrides,
+  } as unknown as CpComfyAdapter;
+}
+
 function makeService(opts?: {
   db?: JobsMemory;
   ledgerDb?: LedgerMemory;
   adapter?: Partial<MagnificAdapterPort>;
+  comfy?: Partial<CpComfyAdapter> | CpComfyAdapter;
   settings?: { high_cost_threshold?: number | null; magnific_video_wait_sec?: number | null };
   assets?: {
     createAsset: jest.Mock;
@@ -164,10 +204,13 @@ function makeService(opts?: {
       state: 'ready',
     })),
   };
+  const comfy = opts?.comfy && 'systemStats' in opts.comfy
+    ? opts.comfy as CpComfyAdapter
+    : makeComfyAdapter(opts?.comfy);
   const repo = new CpJobsRepository(db);
   const ledger = new CpLedgerService(ledgerDb);
-  const service = new CpJobsService(repo, ledger, adapter, settings as never, assets as never);
-  return { service, db, ledgerDb, adapter, settings, assets };
+  const service = new CpJobsService(repo, ledger, adapter, settings as never, assets as never, comfy);
+  return { service, db, ledgerDb, adapter, comfy, settings, assets };
 }
 
 describe('CpJobsService', () => {
@@ -570,5 +613,186 @@ describe('CpJobsService', () => {
     expect(weave).not.toMatch(/CpJobsService/);
     expect(controller).toMatch(/generateWeaveBrief[\s\S]{0,180}this\.weave\.generateBrief/);
     expect(controller).not.toMatch(/generateWeaveBrief[\s\S]{0,180}this\.jobs/);
+  });
+
+  it('drafts and confirms a comfyui job with the same confirm gate', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    const { service, db } = makeService();
+    const drafted = await service.draft(9, comfyDraftInput());
+    expect(drafted.status).toBe('pending_confirm');
+    expect(db.jobs[0]?.provider).toBe('comfyui');
+
+    await expect(
+      service.confirm(9, drafted.job_id, { confirm: false }),
+    ).rejects.toMatchObject({
+      status: 400,
+      error: 'human_confirm_required',
+    });
+
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    expect(db.jobs[0]?.state).toBe('pending_confirm');
+  });
+
+  it('returns 409 WORKER_UNAVAILABLE on comfy submit when the flag is off and does not call the adapter', async () => {
+    delete process.env.COMFYUI_WORKER_ENABLED;
+    const prompt = jest.fn(async () => ({ promptId: 'prm-1' }));
+    const systemStats = jest.fn(async () => ({ ok: true, vram_mb: 24576 }));
+    const { service, db } = makeService({ comfy: { prompt, systemStats } });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-off' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+
+    await expect(service.submit(9, drafted.job_id)).rejects.toMatchObject({
+      status: 409,
+      error: 'WORKER_UNAVAILABLE',
+      gate: 'GT-C01',
+    });
+    expect(prompt).not.toHaveBeenCalled();
+    expect(systemStats).not.toHaveBeenCalled();
+    expect(db.runs).toHaveLength(0);
+    expect(db.jobs[0]?.state).toBe('pending_confirm');
+  });
+
+  it('returns 409 WORKER_UNAVAILABLE when heartbeat fails and does not prompt', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    const prompt = jest.fn(async () => ({ promptId: 'prm-1' }));
+    const systemStats = jest.fn(async () => ({ ok: false, vram_mb: null }));
+    const { service } = makeService({ comfy: { prompt, systemStats } });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-hb' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+
+    await expect(service.submit(9, drafted.job_id)).rejects.toMatchObject({
+      status: 409,
+      error: 'WORKER_UNAVAILABLE',
+      gate: 'GT-C01',
+    });
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it('submits a comfyui job through bind+prompt and records the provider run', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    const prompt = jest.fn(async (_jobId: string, bound: Record<string, { inputs: Record<string, unknown> }>) => {
+      expect(bound['20'].inputs.text).toBe('luxury watch on marble');
+      return { promptId: 'prm-1' };
+    });
+    const { service, db, comfy } = makeService({ comfy: { prompt } });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-sub' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    const submitted = await service.submit(9, drafted.job_id);
+
+    expect(comfy.prompt).toHaveBeenCalledWith(drafted.job_id, expect.any(Object));
+    expect(db.runs[0]).toMatchObject({
+      job_id: drafted.job_id,
+      provider: 'comfyui',
+      status: 'queued',
+      external_run_id: 'prm-1',
+    });
+    expect(submitted).toMatchObject({
+      job_id: drafted.job_id,
+      status: 'queued',
+      external_run_id: 'prm-1',
+    });
+    expect(comfy.systemStats).toHaveBeenCalled();
+  });
+
+  it('fails comfy ingest with ASSET_SYNC_FAILED when download has no checksum (GT-C04)', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    const { service, db } = makeService({
+      comfy: {
+        history: jest.fn(async () => ({ outputFiles: ['ComfyUI_00001_.png'] })),
+        download: jest.fn(async () => ({ bytes: Buffer.alloc(0), mime: 'image/png' })),
+      },
+    });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-sync' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+
+    await expect(service.ingest(9, drafted.job_id)).rejects.toMatchObject({
+      error_class: 'ASSET_SYNC_FAILED',
+    });
+    expect(db.jobs[0]).toMatchObject({
+      state: 'failed',
+      error_class: 'ASSET_SYNC_FAILED',
+    });
+    expect(String(db.jobs[0]?.state)).not.toBe('completed');
+  });
+
+  it('ingests comfy output into DAM with checksum and never stores width/duration as 0', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    const bytes = Buffer.from('comfy-master-bytes');
+    const root = mkdtempSync(join(tmpdir(), 'cp-comfy-dam-'));
+    process.env.CP_ASSET_STORAGE = root;
+    const { service, db, assets } = makeService({
+      comfy: {
+        history: jest.fn(async () => ({ outputFiles: ['ComfyUI_00001_.png'] })),
+        download: jest.fn(async () => ({ bytes, mime: 'image/png' })),
+      },
+    });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-ing' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+
+    const ingested = await service.ingest(9, drafted.job_id);
+    const checksum = createHash('sha256').update(bytes).digest('hex');
+    const dest = join(root, 'comfyui', drafted.job_id, `${checksum}.png`);
+
+    expect(existsSync(dest)).toBe(true);
+    expect(readFileSync(dest).equals(bytes)).toBe(true);
+    expect(assets.replaceFile).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        hash: checksum,
+        storage_key: `comfyui/${drafted.job_id}/${checksum}.png`,
+        meta_json: expect.objectContaining({
+          provenance: expect.objectContaining({
+            provider: 'comfyui',
+            external_run_id: 'prm-1',
+            checksum,
+          }),
+        }),
+      }),
+      expect.any(Object),
+    );
+    expect(ingested).toMatchObject({
+      job_id: drafted.job_id,
+      state: 'quality_check',
+    });
+    const log = db.jobs[0]?.stage_log_json as Record<string, unknown>;
+    expect(log.width === 0 || log.duration_sec === 0).toBe(false);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('retries OOM once with attempt+1 then persists OUT_OF_MEMORY', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    const oom = Object.assign(new Error('OUT_OF_MEMORY'), {
+      status: 409,
+      error: 'OUT_OF_MEMORY',
+    });
+    const prompt = jest.fn()
+      .mockRejectedValueOnce(oom)
+      .mockRejectedValueOnce(oom);
+    const { service, db, ledgerDb } = makeService({ comfy: { prompt } });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-oom' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+
+    await expect(service.submit(9, drafted.job_id)).rejects.toMatchObject({
+      status: 409,
+      error: 'OUT_OF_MEMORY',
+    });
+    expect(prompt).toHaveBeenCalledTimes(2);
+    expect(db.jobs[0]).toMatchObject({
+      state: 'failed',
+      error_class: 'OUT_OF_MEMORY',
+    });
+    const reserves = ledgerDb.rows.filter((row) => row.kind === 'reserve');
+    expect(reserves.some((row) => row.idempotency_key === 'reserve:job-comfy-oom:2')).toBe(true);
+  });
+
+  it('allows a RESTRICTED project to draft comfyui', async () => {
+    process.env.COMFYUI_WORKER_ENABLED = '1';
+    const restricted = new JobsMemory();
+    restricted.project.classification = 'RESTRICTED';
+    const { service } = makeService({ db: restricted });
+    const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-restricted' }));
+    expect(drafted.job_id).toBe(JOB_ID);
   });
 });

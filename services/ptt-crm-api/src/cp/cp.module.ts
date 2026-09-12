@@ -80,6 +80,7 @@ import { CpMagnificMcpAdapter } from './cp-magnific-mcp.adapter';
 import { CpMagnificRestAdapter } from './cp-magnific-rest.adapter';
 import { MagnificAdapters } from './cp-magnific.adapters';
 import { MAGNIFIC_ADAPTER, CpJobsService } from './cp-jobs.service';
+import { CpComfyAdapter } from './cp-comfy.adapter';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CreativesModule, CampaignWritesModule],
@@ -162,6 +163,7 @@ import { MAGNIFIC_ADAPTER, CpJobsService } from './cp-jobs.service';
     },
     MagnificAdapters,
     { provide: MAGNIFIC_ADAPTER, useExisting: MagnificAdapters },
+    CpComfyAdapter,
     CpJobsService,
   ],
   exports: [CpProjectsService, CpLaunchGateService],

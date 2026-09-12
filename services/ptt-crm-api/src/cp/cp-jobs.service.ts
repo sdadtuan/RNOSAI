@@ -4,6 +4,8 @@ import { dirname, join } from 'path';
 import { HttpException, Inject, Injectable, Optional } from '@nestjs/common';
 import { readAiOpsFlags } from './cp-ai-ops.flags';
 import { CpAssetsService } from './cp-assets.service';
+import { bindComfyWorkflow } from './cp-comfy-bind.util';
+import { CpComfyAdapter } from './cp-comfy.adapter';
 import { CpJobsRepository } from './cp-jobs.repository';
 import { CpLedgerService } from './cp-ledger.service';
 import { assertMagnificAllowed } from './cp-magnific-policy.util';
@@ -12,11 +14,13 @@ import { CpSettingsService } from './cp-settings.service';
 
 export const MAGNIFIC_ADAPTER = 'MAGNIFIC_ADAPTER';
 
+export type CpJobProvider = 'magnific_mcp' | 'magnific_rest' | 'comfyui';
+
 export type CpJobDraftInput = {
   project_id: string;
   task_id?: string;
   template_id?: string;
-  provider: 'magnific_mcp' | 'magnific_rest';
+  provider: CpJobProvider;
   provider_mode?: 'manual' | 'recommended';
   prompt_package_id?: string | null;
   inputs: Record<string, unknown>;
@@ -78,6 +82,7 @@ export class CpJobsService {
     @Inject(MAGNIFIC_ADAPTER) private readonly adapter: MagnificAdapterPort,
     @Optional() private readonly settings?: CpSettingsService,
     @Optional() private readonly assets?: CpAssetsService,
+    @Optional() private readonly comfy?: CpComfyAdapter,
   ) {}
 
   async draft(
@@ -176,6 +181,9 @@ export class CpJobsService {
     await this.assertDurablePolicy(provider, job, log);
     this.assertSubmittable(job, log);
     const estimate = estimateFromLog(log);
+    if (provider === 'comfyui') {
+      return this.submitComfy(staffId, job, log, estimate);
+    }
 
     const inputs = objectValue(log.inputs);
     const capability = String(inputs.capability ?? job.model ?? 'images_generate');
@@ -227,10 +235,14 @@ export class CpJobsService {
       cpThrow(409, { error: 'job_not_cancellable' });
     }
     const log = stageLogOf(job);
+    const provider = requiredProvider(job.provider);
+    if (provider === 'comfyui' && String(log.external_run_id ?? '').trim()) {
+      await this.comfy?.interrupt(String(log.external_run_id)).catch(() => undefined);
+    }
     await this.releaseCredits(
       job,
       log,
-      requiredProvider(job.provider),
+      provider,
       nullableInteger(log.reserved_amount),
     );
     const updated = await this.repo.updateJob(String(job.id), {
@@ -283,38 +295,37 @@ export class CpJobsService {
     const provider = requiredProvider(job.provider);
     const transport = provider === 'magnific_rest' ? 'rest' : 'mcp';
     const actorId = staffId > 0 ? staffId : Number(log.created_by ?? 0) || 0;
-    const capability = String(objectValue(log.inputs).capability ?? job.model ?? 'images_generate');
+    const capability = provider === 'comfyui'
+      ? String(objectValue(log.inputs).workflow_key ?? 'comfy_prompt')
+      : String(objectValue(log.inputs).capability ?? job.model ?? 'images_generate');
     const externalRunId = String(log.external_run_id ?? '').trim();
     try {
       if (!externalRunId) {
         return this.failAssetSync(job, log, provider, 'missing_external_run');
       }
-      const waited = await this.adapter.wait(externalRunId, transport);
-      const url = waited.outputUrls.find((item) => String(item ?? '').trim()) ?? '';
-      if (!url) {
-        return this.failAssetSync(job, log, provider, 'missing_output_url');
-      }
-      const downloaded = await this.adapter.download(url, transport);
-      if (!downloaded.bytes?.length) {
+      const pulled = provider === 'comfyui'
+        ? await this.pullComfyOutput(job, log, provider, externalRunId)
+        : await this.pullMagnificOutput(job, log, provider, externalRunId, transport);
+      if (!pulled.downloaded.bytes?.length) {
         return this.failAssetSync(job, log, provider, 'empty_download');
       }
-      const checksum = createHash('sha256').update(downloaded.bytes).digest('hex');
+      const checksum = createHash('sha256').update(pulled.downloaded.bytes).digest('hex');
       if (!checksum) {
         return this.failAssetSync(job, log, provider, 'missing_checksum');
       }
-      const probed = await probeIngestBytes(downloaded.bytes, downloaded.mime);
+      const probed = await probeIngestBytes(pulled.downloaded.bytes, pulled.downloaded.mime);
       log.width = probed.width;
       log.height = probed.height;
       log.duration_sec = probed.duration_sec;
       log.checksum = checksum;
-      log.actual_credits = waited.actualCredits;
+      log.actual_credits = pulled.actualCredits;
       const asset = await this.copyToDam({
         job,
         log,
         provider,
         actorId,
-        bytes: downloaded.bytes,
-        mime: downloaded.mime,
+        bytes: pulled.downloaded.bytes,
+        mime: pulled.downloaded.mime,
         checksum,
         externalRunId,
         tool: capability,
@@ -333,15 +344,138 @@ export class CpJobsService {
         ...(updated.rows[0] ?? {}),
       };
     } catch (error) {
+      if (isOomError(error)) {
+        return this.failOom(job, log, provider);
+      }
       if (isPersistedAssetSyncFailure(error)) throw error;
       return this.failAssetSync(job, log, provider, ingestFailReason(error));
     }
   }
 
+  private async submitComfy(
+    staffId: number,
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    estimate: { credits: number | null; duration_sec: number | null },
+  ): Promise<Record<string, unknown>> {
+    if (!readAiOpsFlags().comfy || !this.comfy) {
+      cpThrow(409, { error: 'WORKER_UNAVAILABLE', gate: 'GT-C01' });
+    }
+    const stats = await this.comfy.systemStats();
+    if (!stats.ok) {
+      cpThrow(409, { error: 'WORKER_UNAVAILABLE', gate: 'GT-C01' });
+    }
+    const bound = bindWorkflowFromInputs(objectValue(log.inputs));
+    const provider: CpJobProvider = 'comfyui';
+    try {
+      const generated = await this.promptComfyWithOomRetry(job, log, provider, estimate, bound);
+      log.external_run_id = generated.promptId;
+      log.submitted_by = staffId;
+      await this.repo.insertRun({
+        jobId: String(job.id),
+        provider,
+        mode: log.provider_mode === 'recommended' ? 'auto' : 'manual',
+        externalRunId: generated.promptId,
+        toolOrWorkflow: String(objectValue(log.inputs).workflow_key ?? 'comfy_prompt'),
+        estimateCredits: estimate.credits,
+        status: 'queued',
+      });
+      const updated = await this.repo.updateJob(String(job.id), {
+        state: 'queued',
+        stageLog: log,
+      });
+      return {
+        job_id: String(job.id),
+        status: 'queued',
+        external_run_id: generated.promptId,
+        ...(updated.rows[0] ?? {}),
+      };
+    } catch (error) {
+      if (isOomError(error) && (error as { persisted?: unknown }).persisted === true) {
+        throw error;
+      }
+      await this.releaseCredits(job, log, provider, estimate.credits);
+      log.release_reason = 'submit_failed';
+      log.confirmed = false;
+      log.reserved_amount = null;
+      await this.repo.updateJob(String(job.id), { state: 'failed', stageLog: log }).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private async promptComfyWithOomRetry(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    provider: CpJobProvider,
+    estimate: { credits: number | null },
+    bound: unknown,
+  ): Promise<{ promptId: string }> {
+    const comfy = this.comfy;
+    if (!comfy) cpThrow(409, { error: 'WORKER_UNAVAILABLE', gate: 'GT-C01' });
+    try {
+      return await comfy.prompt(String(job.id), bound);
+    } catch (error) {
+      if (!isOomError(error) || jobAttempt(job, log) > 1) {
+        if (isOomError(error)) return this.failOom(job, log, provider);
+        throw error;
+      }
+      await this.releaseCredits(job, log, provider, estimate.credits);
+      const nextAttempt = jobAttempt(job, log) + 1;
+      log.attempt = nextAttempt;
+      if (estimate.credits != null) {
+        await this.reserveCredits(job, log, provider, estimate.credits, nextAttempt);
+      }
+      try {
+        return await comfy.prompt(String(job.id), bound);
+      } catch (retryError) {
+        if (isOomError(retryError)) return this.failOom(job, log, provider);
+        throw retryError;
+      }
+    }
+  }
+
+  private async pullMagnificOutput(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    provider: CpJobProvider,
+    externalRunId: string,
+    transport: 'mcp' | 'rest',
+  ): Promise<{ downloaded: { bytes: Buffer; mime: string }; actualCredits: number | null }> {
+    const waited = await this.adapter.wait(externalRunId, transport);
+    const url = waited.outputUrls.find((item) => String(item ?? '').trim()) ?? '';
+    if (!url) {
+      return this.failAssetSync(job, log, provider, 'missing_output_url');
+    }
+    return {
+      downloaded: await this.adapter.download(url, transport),
+      actualCredits: waited.actualCredits,
+    };
+  }
+
+  private async pullComfyOutput(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    provider: CpJobProvider,
+    externalRunId: string,
+  ): Promise<{ downloaded: { bytes: Buffer; mime: string }; actualCredits: number | null }> {
+    if (!this.comfy) {
+      return this.failAssetSync(job, log, provider, 'assets_unavailable');
+    }
+    const waited = await this.comfy.history(externalRunId);
+    const file = waited.outputFiles.find((item) => String(item ?? '').trim()) ?? '';
+    if (!file) {
+      return this.failAssetSync(job, log, provider, 'missing_output_url');
+    }
+    return {
+      downloaded: await this.comfy.download(file),
+      actualCredits: null,
+    };
+  }
+
   private async copyToDam(input: {
     job: Record<string, unknown>;
     log: Record<string, unknown>;
-    provider: 'magnific_mcp' | 'magnific_rest';
+    provider: CpJobProvider;
     actorId: number;
     bytes: Buffer;
     mime: string;
@@ -353,7 +487,8 @@ export class CpJobsService {
       return this.failAssetSync(input.job, input.log, input.provider, 'assets_unavailable');
     }
     const ext = extForMime(input.mime);
-    const storageKey = `magnific/${input.job.id}/${input.checksum}.${ext}`;
+    const prefix = input.provider.startsWith('magnific') ? 'magnific' : input.provider;
+    const storageKey = `${prefix}/${input.job.id}/${input.checksum}.${ext}`;
     const root = (process.env.CP_ASSET_STORAGE ?? process.env.MAGNIFIC_ASSET_PREFIX ?? '').trim();
     if (!root) {
       return this.failAssetSync(input.job, input.log, input.provider, 'storage_missing');
@@ -365,7 +500,7 @@ export class CpJobsService {
       {
         agency_client_id: nullableText(input.log.agency_client_id) ?? undefined,
         mime: input.mime,
-        filename: `magnific-${input.job.id}.${ext}`,
+        filename: `${prefix}-${input.job.id}.${ext}`,
         project_id: nullableText(input.job.project_id),
       },
       { scope: 'all', staffId: input.actorId },
@@ -381,7 +516,7 @@ export class CpJobsService {
       assetId,
       {
         mime: input.mime,
-        filename: `magnific-${input.job.id}.${ext}`,
+        filename: `${prefix}-${input.job.id}.${ext}`,
         storage_key: storageKey,
         bytes: input.bytes.length,
         hash: input.checksum,
@@ -400,7 +535,7 @@ export class CpJobsService {
   private async failAssetSync(
     job: Record<string, unknown>,
     log: Record<string, unknown>,
-    provider: 'magnific_mcp' | 'magnific_rest',
+    provider: CpJobProvider,
     reason: string,
   ): Promise<never> {
     log.error_class = 'ASSET_SYNC_FAILED';
@@ -420,6 +555,31 @@ export class CpJobsService {
       error: 'ASSET_SYNC_FAILED',
       error_class: 'ASSET_SYNC_FAILED',
       reason,
+      persisted: true,
+    };
+    throw Object.assign(new HttpException(body, 409), body);
+  }
+
+  private async failOom(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    provider: CpJobProvider,
+  ): Promise<never> {
+    log.error_class = 'OUT_OF_MEMORY';
+    await this.releaseCredits(
+      job,
+      log,
+      provider,
+      nullableInteger(log.reserved_amount),
+    );
+    await this.repo.updateJob(String(job.id), {
+      state: 'failed',
+      errorClass: 'OUT_OF_MEMORY',
+      stageLog: log,
+    }).catch(() => undefined);
+    const body = {
+      error: 'OUT_OF_MEMORY',
+      error_class: 'OUT_OF_MEMORY',
       persisted: true,
     };
     throw Object.assign(new HttpException(body, 409), body);
@@ -457,7 +617,7 @@ export class CpJobsService {
   private async reserveCredits(
     job: Record<string, unknown>,
     log: Record<string, unknown>,
-    provider: 'magnific_mcp' | 'magnific_rest',
+    provider: CpJobProvider,
     amount: number,
     attempt: number,
   ): Promise<void> {
@@ -478,7 +638,7 @@ export class CpJobsService {
   private async releaseCredits(
     job: Record<string, unknown>,
     log: Record<string, unknown>,
-    provider: 'magnific_mcp' | 'magnific_rest',
+    provider: CpJobProvider,
     fallbackAmount: number | null,
   ): Promise<void> {
     const reserved = Number(log.reserved_amount ?? fallbackAmount);
@@ -496,10 +656,11 @@ export class CpJobsService {
   }
 
   private assertPolicy(
-    provider: 'magnific_mcp' | 'magnific_rest',
+    provider: CpJobProvider,
     project: Record<string, unknown>,
     inputs: Record<string, unknown>,
   ): void {
+    if (provider === 'comfyui') return;
     assertMagnificAllowed({
       provider,
       flags: readAiOpsFlags(),
@@ -509,7 +670,7 @@ export class CpJobsService {
   }
 
   private async assertDurablePolicy(
-    provider: 'magnific_mcp' | 'magnific_rest',
+    provider: CpJobProvider,
     job: Record<string, unknown>,
     log: Record<string, unknown>,
   ): Promise<void> {
@@ -643,10 +804,31 @@ function stageLogOf(job: Record<string, unknown>): Record<string, unknown> {
   return {};
 }
 
-function requiredProvider(value: unknown): 'magnific_mcp' | 'magnific_rest' {
+function requiredProvider(value: unknown): CpJobProvider {
   const provider = String(value ?? '').trim();
-  if (provider === 'magnific_mcp' || provider === 'magnific_rest') return provider;
+  if (provider === 'magnific_mcp' || provider === 'magnific_rest' || provider === 'comfyui') {
+    return provider;
+  }
   cpThrow(400, { error: 'invalid_provider' });
+}
+
+function bindWorkflowFromInputs(inputs: Record<string, unknown>) {
+  return bindComfyWorkflow({
+    workflow: objectValue(inputs.workflow) as Record<
+      string,
+      { class_type: string; inputs: Record<string, unknown> }
+    >,
+    bindings: objectValue(inputs.bindings) as Record<string, { nodeId: string; inputKey: string }>,
+    values: objectValue(inputs.values),
+  });
+}
+
+function isOomError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const rec = error as { error?: unknown; error_class?: unknown; message?: unknown };
+  return rec.error === 'OUT_OF_MEMORY'
+    || rec.error_class === 'OUT_OF_MEMORY'
+    || /out of memory/i.test(String(rec.message ?? ''));
 }
 
 function requiredText(value: unknown, error: string): string {

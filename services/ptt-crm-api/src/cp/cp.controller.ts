@@ -84,6 +84,7 @@ import {
 import { readAiOpsFlags } from './cp-ai-ops.flags';
 import { CpWeaveCreateInput, CpWeaveService } from './cp-weave.service';
 import { CpProviderConnectionsService } from './cp-provider-connections.service';
+import { CpComfyAdapter } from './cp-comfy.adapter';
 import { CpJobDraftInput, CpJobsService } from './cp-jobs.service';
 import {
   RequireCpAction,
@@ -135,6 +136,7 @@ export class CpController {
     private readonly weave: CpWeaveService,
     private readonly connections: CpProviderConnectionsService,
     @Optional() private readonly jobs?: CpJobsService,
+    @Optional() private readonly comfy?: CpComfyAdapter,
   ) {}
 
   private async assertReportExportCap(req: AuthedReq) {
@@ -287,6 +289,15 @@ export class CpController {
   @RequireCpAction('view')
   flags() {
     return readAiOpsFlags();
+  }
+
+  @Get('provider-health')
+  @RequireCpAction('view')
+  providerHealth() {
+    if (!this.comfy) {
+      return { comfy: { ok: false, reason: 'gpu_building' as const } };
+    }
+    return this.comfy.providerHealth();
   }
 
   @Get('provider-connections')

@@ -256,6 +256,23 @@ describe('CpController report export cap', () => {
   });
 });
 
+describe('CpController.providerHealth', () => {
+  it('returns gpu_building health without gateway host or :8188', async () => {
+    const { controller } = makeController({});
+    Object.assign(controller, {
+      comfy: {
+        providerHealth: jest.fn(async () => ({
+          comfy: { ok: false, reason: 'gpu_building' },
+        })),
+      },
+    });
+
+    const body = await controller.providerHealth();
+    expect(body).toEqual({ comfy: { ok: false, reason: 'gpu_building' } });
+    expect(JSON.stringify(body)).not.toMatch(/8188|COMFYUI_GATEWAY|localhost|127\.0\.0\.1/i);
+  });
+});
+
 describe('CpController collections list scope', () => {
   it('forwards request scope to collections.list', async () => {
     const collections = { list: jest.fn().mockResolvedValue({ items: [] }) };

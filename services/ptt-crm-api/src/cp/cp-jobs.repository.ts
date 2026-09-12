@@ -14,7 +14,7 @@ export type CpJobInsertInput = {
   projectId: string;
   taskId?: string | null;
   state: 'draft' | 'pending_confirm';
-  provider: 'magnific_mcp' | 'magnific_rest';
+  provider: 'magnific_mcp' | 'magnific_rest' | 'comfyui';
   model?: string | null;
   stageLog: Record<string, unknown>;
   createdByStaffId: number;

@@ -59,7 +59,7 @@ export class CpRenderWorker implements OnModuleInit, OnModuleDestroy {
     db: CpRenderWorkerQueryPort = this.db,
   ): Promise<void> {
     const provider = String(job.provider ?? 'stub');
-    if (provider.startsWith('magnific')) {
+    if (provider.startsWith('magnific') || provider === 'comfyui') {
       await this.jobs?.ingest(Number(job.created_by_staff_id ?? 0), String(job.id));
       return;
     }
@@ -78,7 +78,7 @@ export class CpRenderWorker implements OnModuleInit, OnModuleDestroy {
       const pending = await db.query(
         `SELECT j.*
            FROM crm_cp_render_jobs j
-          WHERE j.provider LIKE 'magnific%'
+          WHERE (j.provider LIKE 'magnific%' OR j.provider = 'comfyui')
             AND j.state = 'queued'
           ORDER BY j.created_at ASC
           LIMIT 20`,
