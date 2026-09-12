@@ -1,16 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { CsdChatContextMedia } from '@/components/crm/csd/CsdChatContextMedia';
+import { useCsdChatAttachments } from '@/components/crm/csd/useCsdChatAttachments';
 import {
-  fetchCsdConversationAttachments,
-  type CsdConversationAttachmentItem,
   type CsdConversationMemberRow,
   type CsdConversationRow,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
-import { splitCsdConversationAttachments } from '@/lib/crm/csd-chat-display';
 
 export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
   client: 'Khách hàng',
@@ -121,11 +119,11 @@ export function CsdChatContext({
   const [membersOpen, setMembersOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [aliasDraft, setAliasDraft] = useState(active?.alias_vi || active?.name_vi || '');
-  const [attachments, setAttachments] = useState<CsdConversationAttachmentItem[]>([]);
-  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
-  const [attachmentsError, setAttachmentsError] = useState('');
-
-  const media = useMemo(() => splitCsdConversationAttachments(attachments), [attachments]);
+  const allAttachments = useCsdChatAttachments(token, {
+    enabled: !!active?.id,
+    refreshKey: mediaRefreshKey,
+    limit: 500,
+  });
 
   useEffect(() => {
     setAliasDraft(active?.alias_vi || active?.name_vi || '');
@@ -134,32 +132,6 @@ export function CsdChatContext({
     setMembersOpen(true);
     setAiOpen(false);
   }, [active?.id, active?.alias_vi, active?.name_vi]);
-
-  useEffect(() => {
-    if (!active?.id) {
-      setAttachments([]);
-      return;
-    }
-    let cancelled = false;
-    setAttachmentsLoading(true);
-    setAttachmentsError('');
-    void fetchCsdConversationAttachments(token, active.id)
-      .then((out) => {
-        if (!cancelled) setAttachments(out.items ?? []);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setAttachments([]);
-          setAttachmentsError(err instanceof Error ? err.message : 'Không tải được ảnh/file');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setAttachmentsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [active?.id, token, mediaRefreshKey]);
 
   return (
     <aside className={`csd-chat-workspace__context csd-chat-context-panel${isSheet ? ' is-sheet' : ''}`}>
@@ -270,13 +242,16 @@ export function CsdChatContext({
               </div>
             </ContextSection>
 
-            <CsdChatContextMedia
-              token={token}
-              loading={attachmentsLoading}
-              error={attachmentsError}
-              images={media.images}
-              files={media.files}
-            />
+            <section className="csd-chat-context-all-media" data-testid="csd-chat-context-all-media">
+              <h4 className="csd-chat-context-all-media__title">Ảnh &amp; File (tất cả hội thoại)</h4>
+              <CsdChatContextMedia
+                token={token}
+                loading={allAttachments.loading}
+                error={allAttachments.error}
+                images={allAttachments.images}
+                files={allAttachments.files}
+              />
+            </section>
 
             <ContextSection title="Ticket liên quan" open={ticketsOpen} onToggle={() => setTicketsOpen((v) => !v)}>
               <ul className="csd-chat-related" data-testid="csd-chat-related-tickets">
