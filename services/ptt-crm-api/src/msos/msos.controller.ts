@@ -34,6 +34,7 @@ import type {
   CreatePlacementInput,
   CreateRateCardInput,
   CreateRateVersionInput,
+  PartnerConfirmIoInput,
   ReserveMakeGoodCapacityInput,
   ReservePackageInput,
   SafetyChangeInput,
@@ -184,6 +185,12 @@ export class MsosController {
     return this.msos.issueIo(id, staffId);
   }
 
+  @Post('insertion-orders/:id/partner-confirm')
+  @RequireMsosAction('publish')
+  confirmPartnerIo(@Param('id') id: string, @Body() body: PartnerConfirmIoInput) {
+    return this.msos.confirmPartnerIo(id, body);
+  }
+
   @Post('insertion-orders/:id/safety-change')
   @RequireMsosAction('write')
   async changeIoSafety(@Req() req: StaffReq, @Param('id') id: string, @Body() body: SafetyChangeInput) {
@@ -239,6 +246,12 @@ export class MsosController {
   @RequireMsosAction('write')
   submitTraffic(@Param('id') id: string) {
     return this.msos.submitTraffic(id);
+  }
+
+  @Post('media-lines/:id/traffic/approve')
+  @RequireMsosAction('publish')
+  approveTraffic(@Param('id') id: string) {
+    return this.msos.approveTraffic(id);
   }
 
   @Post('evidence')

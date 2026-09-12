@@ -21,7 +21,12 @@ type MediaLine = {
   status: string;
 };
 
-type IoRow = { id: string; display_code: string; status: string };
+type IoRow = {
+  id: string;
+  display_code: string;
+  status: string;
+  partner_confirmed_at: string | null;
+};
 
 type Traffic = {
   id: string;
@@ -167,6 +172,33 @@ export function MsosCampaigns() {
     }
   }
 
+  async function approveTraffic() {
+    if (!selected) return;
+    try {
+      await msosMutate(`/media-lines/${selected}/traffic/approve`, { method: 'POST', body: '{}' });
+      await loadLineDetail(selected);
+      setToast('Traffic approved (GT-P02)');
+    } catch (e) {
+      setToast(msosErrorMessage(e));
+    }
+  }
+
+  async function confirmPartnerIo() {
+    const line = lines.find((l) => l.id === selected);
+    if (!line?.io_id) return;
+    try {
+      await msosMutate(`/insertion-orders/${line.io_id}/partner-confirm`, {
+        method: 'POST',
+        body: JSON.stringify({ ref: 'pilot-email-confirm', actor: 'human' }),
+      });
+      await load();
+      await loadLineDetail(selected);
+      setToast('IO partner confirmed (GT-P03)');
+    } catch (e) {
+      setToast(msosErrorMessage(e));
+    }
+  }
+
   if (loading) return <p className="msos-status">Đang tải Campaigns…</p>;
 
   if (lines.length === 0) {
@@ -243,7 +275,9 @@ export function MsosCampaigns() {
                       {line.client_id.slice(0, 8)}…
                     </Link>
                     <br />
-                    <span className="dep">{io?.display_code ?? '—'}</span>
+                    <span className="dep">
+                      {ios.find((i) => i.id === line.io_id)?.display_code ?? '—'}
+                    </span>
                   </td>
                   <td>
                     <span
@@ -303,6 +337,16 @@ export function MsosCampaigns() {
               <button type="button" className="msos-btn" onClick={() => setTrafficModal(true)}>
                 Sửa traffic pack
               </button>
+              {traffic && traffic.status !== 'approved_by_partner' ? (
+                <button type="button" className="msos-btn" onClick={() => void approveTraffic()}>
+                  Approve traffic (partner)
+                </button>
+              ) : null}
+              {io && !io.partner_confirmed_at ? (
+                <button type="button" className="msos-btn" onClick={() => void confirmPartnerIo()}>
+                  Xác nhận IO partner
+                </button>
+              ) : null}
               <button type="button" className="msos-btn" onClick={() => void overrideP03()}>
                 Override GT-P03
               </button>

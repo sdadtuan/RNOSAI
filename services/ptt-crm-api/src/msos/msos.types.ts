@@ -455,7 +455,13 @@ export type MsosPolicyRow = {
 };
 
 export type MsosRateCardListItem = MsosRateCardRow & {
+  published_rate_version_id: string | null;
   published_version: number | null;
   published_unit_price_vnd: number | null;
   draft_version: number | null;
+};
+
+export type PartnerConfirmIoInput = {
+  ref?: string | null;
+  actor?: 'human' | 'ai';
 };

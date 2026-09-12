@@ -164,6 +164,9 @@ export function MsosInventory() {
             <button type="button" className="msos-btn" onClick={() => setModal('partner')}>
               ＋ Partner
             </button>
+            <button type="button" className="msos-btn" onClick={() => setModal('inventory')}>
+              ＋ Inventory
+            </button>
             <button type="button" className="msos-btn msos-btn--blue" onClick={() => setModal('placement')}>
               ＋ Placement
             </button>
@@ -184,6 +187,55 @@ export function MsosInventory() {
                     onChange={(e) => setForm({ legal_name: e.target.value })}
                   />
                 </label>
+              ) : null}
+              {modal === 'inventory' ? (
+                <>
+                  <label className="msos-field">
+                    Tên
+                    <input
+                      className="msos-input"
+                      value={form.name ?? ''}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    />
+                  </label>
+                  <label className="msos-field">
+                    Owner
+                    <select
+                      className="msos-input"
+                      value={form.owner_kind ?? 'ptt'}
+                      onChange={(e) => setForm({ ...form, owner_kind: e.target.value })}
+                    >
+                      <option value="ptt">PTT</option>
+                      <option value="partner">Partner</option>
+                    </select>
+                  </label>
+                  {form.owner_kind === 'partner' ? (
+                    <label className="msos-field">
+                      Partner
+                      <select
+                        className="msos-input"
+                        value={form.partner_id ?? ''}
+                        onChange={(e) => setForm({ ...form, partner_id: e.target.value })}
+                      >
+                        <option value="">Chọn partner</option>
+                        {partners.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.legal_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <label className="msos-field">
+                    Property host
+                    <input
+                      className="msos-input"
+                      value={form.property_host ?? ''}
+                      onChange={(e) => setForm({ ...form, property_host: e.target.value })}
+                      placeholder="example.com"
+                    />
+                  </label>
+                </>
               ) : null}
               {modal === 'placement' ? (
                 <>

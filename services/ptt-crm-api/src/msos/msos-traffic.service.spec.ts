@@ -84,4 +84,43 @@ describe('MsosService traffic pack', () => {
     const out = await svc.evaluateTrafficReady(lineId);
     expect(out.ready).toBe(true);
   });
+
+  it('approveTraffic sets approved_by_partner when spec complete', async () => {
+    const approveTrafficPack = jest.fn().mockResolvedValue({
+      id: 'tp1',
+      status: 'approved_by_partner',
+    });
+    const repo = makeRepo({
+      approveTrafficPack,
+      getTrafficPack: jest.fn().mockResolvedValue({
+        status: 'submitted',
+        creative_id: creativeId,
+        width_px: 300,
+        height_px: 250,
+        weight_kb: 100,
+        click_url: 'https://example.com',
+        backup_attached: false,
+      }),
+    });
+    const svc = new MsosService(enabledConfig, repo);
+    const out = await svc.approveTraffic(lineId);
+    expect(out.status).toBe('approved_by_partner');
+    expect(approveTrafficPack).toHaveBeenCalledWith(lineId);
+  });
+
+  it('approveTraffic 422 when spec incomplete', async () => {
+    const repo = makeRepo({
+      getTrafficPack: jest.fn().mockResolvedValue({
+        status: 'submitted',
+        creative_id: null,
+        width_px: null,
+        height_px: null,
+        weight_kb: null,
+        click_url: null,
+        backup_attached: false,
+      }),
+    });
+    const svc = new MsosService(enabledConfig, repo);
+    await expect(svc.approveTraffic(lineId)).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
 });

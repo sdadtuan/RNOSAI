@@ -737,6 +737,42 @@ export class MsosRepository implements OnModuleDestroy {
     return result.rows[0] as MsosTrafficPackRow;
   }
 
+  async approveTrafficPack(mediaLineId: string): Promise<MsosTrafficPackRow> {
+    const existing = await this.getTrafficPack(mediaLineId);
+    if (!existing) {
+      throw new Error('traffic_pack_not_found');
+    }
+    const result = await this.db.query(
+      `UPDATE msos_traffic_packs
+          SET status = 'approved_by_partner', updated_at = now()
+        WHERE id = $1::uuid AND status IN ('draft', 'submitted')
+        RETURNING id::text, display_code, media_line_id::text, creative_id::text, width_px, height_px,
+                  weight_kb, click_url, backup_attached, status, reject_reason, updated_at::text`,
+      [existing.id],
+    );
+    if (!result.rows[0]) {
+      throw new Error('traffic_not_approvable');
+    }
+    return result.rows[0] as MsosTrafficPackRow;
+  }
+
+  async confirmPartnerIo(ioId: string, ref: string | null): Promise<MsosInsertionOrderRow> {
+    const result = await this.db.query(
+      `UPDATE msos_insertion_orders
+          SET partner_confirmed_at = now(), partner_confirm_ref = $2
+        WHERE id = $1::uuid AND status IN ('issued', 'confirmed')
+        RETURNING id::text, display_code, package_id::text, media_line_id::text, client_id::text,
+                  rate_version_id::text, safety_snapshot_id::text, period_start::text, period_end::text,
+                  qty::bigint AS qty, sell_vnd, buy_vnd, partner_confirmed_at::text, partner_confirm_ref,
+                  issued_at::text, issued_by, status`,
+      [ioId, ref],
+    );
+    if (!result.rows[0]) {
+      throw new Error('io_not_confirmable');
+    }
+    return result.rows[0] as MsosInsertionOrderRow;
+  }
+
   async getPlacementForLine(lineId: string): Promise<{
     backup_required: boolean;
     max_weight_kb: number | null;
@@ -1408,12 +1444,13 @@ export class MsosRepository implements OnModuleDestroy {
   async listRateCards(): Promise<MsosRateCardListItem[]> {
     const result = await this.db.query(
       `SELECT rc.id::text, rc.display_code, rc.owner_kind, rc.partner_id::text, rc.created_at::text,
+              pub.id AS published_rate_version_id,
               pub.version AS published_version,
               pub.unit_price_vnd AS published_unit_price_vnd,
               dr.version AS draft_version
          FROM msos_rate_cards rc
          LEFT JOIN LATERAL (
-           SELECT version, unit_price_vnd
+           SELECT id::text, version, unit_price_vnd
              FROM msos_rate_versions
             WHERE rate_card_id = rc.id AND status = 'published'
             ORDER BY version DESC

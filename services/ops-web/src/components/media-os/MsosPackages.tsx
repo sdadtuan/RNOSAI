@@ -26,6 +26,24 @@ type IoRow = {
 };
 
 type Placement = { id: string; name: string; inventory_id: string };
+
+type RateCard = {
+  id: string;
+  display_code: string;
+  published_rate_version_id: string | null;
+  published_version: number | null;
+  published_unit_price_vnd: number | null;
+};
+
+type Reservation = {
+  id: string;
+  package_id: string;
+  placement_id: string;
+  bucket_date: string;
+  kind: string;
+  qty: number;
+};
+
 type PackageDetail = PackageRow & {
   lines?: Array<{
     placement_id: string;
@@ -40,9 +58,17 @@ export function MsosPackages() {
   const [packages, setPackages] = useState<PackageRow[]>([]);
   const [ios, setIos] = useState<IoRow[]>([]);
   const [placements, setPlacements] = useState<Placement[]>([]);
+  const [rateCards, setRateCards] = useState<RateCard[]>([]);
+  const [reservationsByPkg, setReservationsByPkg] = useState<Map<string, Reservation[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
   const [pkgModal, setPkgModal] = useState(false);
+  const [reserveModal, setReserveModal] = useState<PackageRow | null>(null);
+  const [reserveForm, setReserveForm] = useState({
+    placement_id: '',
+    bucket_date: '',
+    qty: '1',
+  });
   const [form, setForm] = useState({
     client_id: '',
     placement_id: '',
@@ -53,29 +79,51 @@ export function MsosPackages() {
   });
   const [draft, setDraft] = useState<{ text: string } | null>(null);
 
+  const publishedRates = useMemo(
+    () => rateCards.filter((rc) => rc.published_rate_version_id),
+    [rateCards],
+  );
+
   const ioByPackage = useMemo(() => {
     const map = new Map<string, IoRow>();
     for (const io of ios) map.set(io.package_id, io);
     return map;
   }, [ios]);
 
+  const loadReservations = useCallback(async (pkgs: PackageRow[]) => {
+    const entries = await Promise.all(
+      pkgs.map(async (pkg) => {
+        try {
+          const rows = await msosGet<Reservation[]>(`/packages/${pkg.id}/reservations`);
+          return [pkg.id, rows] as const;
+        } catch {
+          return [pkg.id, []] as const;
+        }
+      }),
+    );
+    setReservationsByPkg(new Map(entries));
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [pkgs, ioList, pl] = await Promise.all([
+      const [pkgs, ioList, pl, rc] = await Promise.all([
         msosGet<PackageRow[]>('/packages'),
         msosGet<IoRow[]>('/insertion-orders'),
         msosGet<Placement[]>('/placements'),
+        msosGet<RateCard[]>('/rate-cards'),
       ]);
       setPackages(pkgs);
       setIos(ioList);
       setPlacements(pl);
+      setRateCards(rc);
+      await loadReservations(pkgs);
     } catch (e) {
       setToast(msosErrorMessage(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadReservations]);
 
   useEffect(() => {
     void load();
@@ -106,7 +154,47 @@ export function MsosPackages() {
     }
   }
 
+  async function openReserveModal(pkg: PackageRow) {
+    try {
+      const detail = await msosGet<PackageDetail>(`/packages/${pkg.id}`);
+      const line = detail.lines?.[0];
+      setReserveForm({
+        placement_id: line?.placement_id ?? '',
+        bucket_date: line?.period_start ?? '',
+        qty: '1',
+      });
+      setReserveModal(pkg);
+    } catch (e) {
+      setToast(msosErrorMessage(e));
+    }
+  }
+
+  async function submitReserve() {
+    if (!reserveModal) return;
+    try {
+      await msosMutate(`/packages/${reserveModal.id}/reserve`, {
+        method: 'POST',
+        body: JSON.stringify({
+          placement_id: reserveForm.placement_id,
+          bucket_date: reserveForm.bucket_date,
+          kind: 'hard',
+          qty: Number(reserveForm.qty),
+        }),
+      });
+      setReserveModal(null);
+      await load();
+      setToast('Đã hard reserve');
+    } catch (e) {
+      setToast(msosErrorMessage(e));
+    }
+  }
+
   async function createAndIssueIo(pkgId: string) {
+    const reserves = reservationsByPkg.get(pkgId) ?? [];
+    if (!reserves.some((r) => r.kind === 'hard' || r.kind === 'soft')) {
+      setToast('Cần reserve trước khi tạo IO');
+      return;
+    }
     try {
       const pkg = await msosGet<PackageDetail>(`/packages/${pkgId}`);
       const line = pkg.lines?.[0];
@@ -146,6 +234,18 @@ export function MsosPackages() {
     }
   }
 
+  function reserveLabel(pkgId: string): { text: string; tone: 'green' | 'amber' | 'gray' } {
+    const rows = reservationsByPkg.get(pkgId) ?? [];
+    const hard = rows.filter((r) => r.kind === 'hard');
+    if (hard.length) {
+      const qty = hard.reduce((s, r) => s + Number(r.qty), 0);
+      return { text: `hard ×${qty}`, tone: 'green' };
+    }
+    const soft = rows.filter((r) => r.kind === 'soft');
+    if (soft.length) return { text: 'soft', tone: 'amber' };
+    return { text: 'Chưa reserve', tone: 'gray' };
+  }
+
   if (loading) return <p className="msos-status">Đang tải Packages…</p>;
 
   if (packages.length === 0) {
@@ -167,6 +267,7 @@ export function MsosPackages() {
             form={form}
             setForm={setForm}
             placements={placements}
+            publishedRates={publishedRates}
             onClose={() => setPkgModal(false)}
             onSubmit={() => void createPackage()}
           />
@@ -206,6 +307,7 @@ export function MsosPackages() {
             <tbody>
               {packages.map((pkg) => {
                 const io = ioByPackage.get(pkg.id);
+                const reserve = reserveLabel(pkg.id);
                 return (
                   <tr key={pkg.id}>
                     <td>
@@ -219,7 +321,17 @@ export function MsosPackages() {
                     </td>
                     <td>{formatVnd(pkg.sell_vnd)}</td>
                     <td>
-                      <span className="msos-tag amber">Xem inventory</span>
+                      <span className={`msos-tag ${reserve.tone}`}>{reserve.text}</span>
+                      {!io ? (
+                        <button
+                          type="button"
+                          className="msos-btn msos-btn--small"
+                          style={{ marginLeft: 8 }}
+                          onClick={() => void openReserveModal(pkg)}
+                        >
+                          Reserve
+                        </button>
+                      ) : null}
                     </td>
                     <td>
                       {io ? (
@@ -284,9 +396,60 @@ export function MsosPackages() {
           form={form}
           setForm={setForm}
           placements={placements}
+          publishedRates={publishedRates}
           onClose={() => setPkgModal(false)}
           onSubmit={() => void createPackage()}
         />
+      ) : null}
+      {reserveModal ? (
+        <div className="msos-modalback show">
+          <div className="msos-modal" role="dialog">
+            <h2>Hard reserve · {reserveModal.display_code}</h2>
+            <p className="msos-desc">Qty ≤ capacity/ngày trên calendar Inventory.</p>
+            <label className="msos-field">
+              Placement
+              <select
+                className="msos-input"
+                value={reserveForm.placement_id}
+                onChange={(e) => setReserveForm({ ...reserveForm, placement_id: e.target.value })}
+              >
+                <option value="">Chọn placement</option>
+                {placements.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="msos-field">
+              Bucket date
+              <input
+                className="msos-input"
+                type="date"
+                value={reserveForm.bucket_date}
+                onChange={(e) => setReserveForm({ ...reserveForm, bucket_date: e.target.value })}
+              />
+            </label>
+            <label className="msos-field">
+              Qty (hard)
+              <input
+                className="msos-input"
+                type="number"
+                min={1}
+                value={reserveForm.qty}
+                onChange={(e) => setReserveForm({ ...reserveForm, qty: e.target.value })}
+              />
+            </label>
+            <div className="msos-modal-foot">
+              <button type="button" className="msos-btn" onClick={() => setReserveModal(null)}>
+                Hủy
+              </button>
+              <button type="button" className="msos-btn msos-btn--blue" onClick={() => void submitReserve()}>
+                Reserve
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
       <MsosToast message={toast} onClose={() => setToast('')} />
     </>
@@ -297,6 +460,7 @@ function PackageModal({
   form,
   setForm,
   placements,
+  publishedRates,
   onClose,
   onSubmit,
 }: {
@@ -310,6 +474,7 @@ function PackageModal({
   };
   setForm: (f: typeof form) => void;
   placements: Placement[];
+  publishedRates: RateCard[];
   onClose: () => void;
   onSubmit: () => void;
 }) {
@@ -342,12 +507,23 @@ function PackageModal({
           </select>
         </label>
         <label className="msos-field">
-          Rate version UUID
-          <input
+          Rate published
+          <select
             className="msos-input"
             value={form.rate_version_id}
             onChange={(e) => setForm({ ...form, rate_version_id: e.target.value })}
-          />
+          >
+            <option value="">Chọn rate</option>
+            {publishedRates.map((rc) => (
+              <option key={rc.published_rate_version_id!} value={rc.published_rate_version_id!}>
+                {rc.display_code}
+                {rc.published_version ? ` v${rc.published_version}` : ''}
+                {rc.published_unit_price_vnd != null
+                  ? ` · ${formatVnd(rc.published_unit_price_vnd)}`
+                  : ''}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="msos-field">
           Qty

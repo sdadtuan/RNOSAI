@@ -647,6 +647,72 @@ export class MsosService {
     }
   }
 
+  async approveTraffic(lineId: string): Promise<MsosTrafficPackRow> {
+    this.assertEnabled();
+    const line = await this.repo.getMediaLine(lineId);
+    if (!line) {
+      throw new UnprocessableEntityException({ error: 'media_line_not_found' });
+    }
+    const traffic = await this.repo.getTrafficPack(lineId);
+    if (!traffic) {
+      throw new UnprocessableEntityException({ error: 'traffic_pack_not_found' });
+    }
+    const placement = await this.repo.getPlacementForLine(lineId);
+    const spec = evaluateTraffic({
+      creativeId: traffic.creative_id,
+      width: traffic.width_px,
+      height: traffic.height_px,
+      weightKb: traffic.weight_kb,
+      maxWeightKb: placement?.max_weight_kb ?? null,
+      clickUrl: traffic.click_url,
+      backupRequired: placement?.backup_required ?? false,
+      backupAttached: traffic.backup_attached,
+      status: 'approved_by_partner',
+    });
+    if (!spec.ready) {
+      throw new UnprocessableEntityException({ error: 'traffic_spec_incomplete', reasons: spec.reasons });
+    }
+    try {
+      return await this.repo.approveTrafficPack(lineId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'traffic_pack_not_found') {
+        throw new UnprocessableEntityException({ error: 'traffic_pack_not_found' });
+      }
+      if (msg === 'traffic_not_approvable') {
+        throw new UnprocessableEntityException({ error: 'traffic_not_approvable' });
+      }
+      throw e;
+    }
+  }
+
+  async confirmPartnerIo(
+    ioId: string,
+    input: { ref?: string | null; actor?: 'human' | 'ai' },
+  ): Promise<MsosInsertionOrderRow> {
+    this.assertEnabled();
+    assertHumanMsosAction('partner_confirm', input.actor ?? 'human');
+    const io = await this.repo.getInsertionOrder(ioId);
+    if (!io) {
+      throw new UnprocessableEntityException({ error: 'io_not_found' });
+    }
+    try {
+      const confirmed = await this.repo.confirmPartnerIo(ioId, input.ref?.trim() || null);
+      await this.repo.appendIoRevision(
+        ioId,
+        { action: 'partner_confirm', ref: input.ref ?? null },
+        null,
+      );
+      return confirmed;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg === 'io_not_confirmable') {
+        throw new UnprocessableEntityException({ error: 'io_not_confirmable' });
+      }
+      throw e;
+    }
+  }
+
   async evaluateTrafficReady(lineId: string): Promise<{ ready: boolean; reasons: string[] }> {
     this.assertEnabled();
     const traffic = await this.repo.getTrafficPack(lineId);
