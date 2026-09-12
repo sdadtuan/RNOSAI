@@ -68,6 +68,7 @@ import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
 import { shouldShowTaxonomyNav } from '@/components/research/taxonomy-pane.util';
 import { canViewGtmCms, canViewGtmDemos } from '@/lib/gtm/caps';
 import { shouldShowContentOsNav } from '@/components/ops-nav-content-os';
+import { shouldShowMediaOsNav } from '@/components/ops-nav-media-os';
 import { shouldShowVideoSopNav } from '@/components/ops-nav-video-sop';
 import { nextActionFor } from '@/lib/crm/canopy-next-action';
 
@@ -155,6 +156,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/creatives': 'Creative Hub',
   '/crm/creative-os': 'Sản xuất sáng tạo',
   '/crm/content-os': 'Content Marketing OS',
+  '/crm/media-os': 'Media OS',
   '/crm/campaign-writes': 'Campaign Write',
   '/crm/sales': 'Kinh doanh',
   '/crm/kpi': 'KPI',
@@ -597,6 +599,9 @@ function buildSections(
   }
   if (shouldShowContentOsNav(user)) {
     delivery.push({ href: '/crm/content-os', label: 'Content Marketing OS' });
+  }
+  if (shouldShowMediaOsNav(user)) {
+    delivery.push({ href: '/crm/media-os', label: 'Media OS' });
   }
   if (shouldShowVideoSopNav(user)) {
     delivery.push({ href: '/crm/video', label: 'Video SOP' });

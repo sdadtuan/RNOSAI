@@ -201,6 +201,15 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     ],
   },
   {
+    prefix: '/crm/media-os',
+    anyOf: [
+      { section: 'crm_media', action: 'view' },
+      { section: 'crm_media', action: 'write' },
+      { section: 'crm_media', action: 'publish' },
+      { section: 'crm_media', action: 'admin' },
+    ],
+  },
+  {
     prefix: '/admin/crm/csd',
     anyOf: [{ section: 'csd', action: 'admin' }],
   },

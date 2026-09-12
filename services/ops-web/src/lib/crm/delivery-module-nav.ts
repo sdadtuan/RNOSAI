@@ -1,4 +1,5 @@
 import { canViewContentOs, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { shouldShowMediaOsNav } from '@/components/ops-nav-media-os';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
 
@@ -20,6 +21,9 @@ export function buildCrmDeliveryModuleLinks(user: StoredStaffUser | null): Modul
   ];
   if (isContentMarketingFeEnabled() && canViewContentOs(user)) {
     links.push({ href: '/crm/content-os', label: 'Content Marketing OS' });
+  }
+  if (shouldShowMediaOsNav(user)) {
+    links.push({ href: '/crm/media-os', label: 'Media OS' });
   }
   if (isOpsDvFeEnabled()) {
     links.push(
