@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import { parseMediaOsFlag } from '../msos/msos-flags.util';
 import { parseCinematicDailyCap } from '../video-sop/video-sop-flags';
 
 export type LeadsCreateIdMode = 'staging' | 'prod';
@@ -157,6 +158,9 @@ export class AppConfigService {
   readonly mktAiPilotOnlyEnabled: boolean;
   readonly mktAiPilotServiceSlugs: string[];
   readonly mktAiAutoCustomerEmailEnabled: boolean;
+  readonly mediaOsEnabled: boolean;
+  readonly mediaOsReseller: boolean;
+  readonly mediaOsConnectorWrite: boolean;
   readonly contentMarketingEnabled: boolean;
   readonly contentMarketingFeEnabled: boolean;
   readonly contentMarketingAiEnabled: boolean;
@@ -566,6 +570,9 @@ export class AppConfigService {
     this.mktAiAutoCustomerEmailEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_MKT_AI_AUTO_CUSTOMER_EMAIL ?? '0').trim().toLowerCase(),
     );
+    this.mediaOsEnabled = parseMediaOsFlag(process.env.PTT_MEDIA_OS_ENABLED);
+    this.mediaOsReseller = parseMediaOsFlag(process.env.PTT_MEDIA_OS_RESELLER);
+    this.mediaOsConnectorWrite = parseMediaOsFlag(process.env.PTT_MEDIA_OS_CONNECTOR_WRITE);
     this.contentMarketingEnabled = ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_CONTENT_MARKETING_ENABLED ?? '0').trim().toLowerCase(),
     );
