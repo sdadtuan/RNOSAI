@@ -10,6 +10,7 @@ WorkingDirectory=/var/www/rnosai/services/portal-web
 Environment=NODE_ENV=production
 Environment=PORT=3100
 EnvironmentFile=-/var/www/rnosai/.env
+ExecStartPre=/var/www/rnosai/scripts/portal_web_assert_standalone.sh
 ExecStart=/usr/bin/node .next/standalone/server.js
 Restart=always
 RestartSec=5

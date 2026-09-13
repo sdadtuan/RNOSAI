@@ -6,6 +6,21 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import {
+  assetStreamSecret,
+  assetStreamTtlSec,
+  buildAssetStreamPath,
+  isHttpAssetUrl,
+  mintAssetStreamQuery,
+} from '../cp/cp-asset-signed-url.util';
+import {
+  assertAssetStreamSig,
+  openReadableWeaveFile,
+  resolveReadableWeaveFile,
+  type OpenedAssetStream,
+} from '../cp/cp-asset-stream-file.util';
+import { guessMime } from '../cp/cp-weave-ingest.util';
+import { weaveExportPrefix } from '../cp/cp-weave-stream-path.util';
 import { DomainEventService } from '../events/domain-event.service';
 import {
   creativeApprovedIdempotencyKey,
@@ -115,6 +130,53 @@ export class CreativesService {
     return this.decide(user, creativeId, 'rejected', note?.trim() || null);
   }
 
+  async mintAssetUrl(
+    user: PortalJwtPayload,
+    creativeId: string,
+  ): Promise<{ url: string; mode: 'external' | 'signed'; mime: string }> {
+    const existing = await this.requireCreative(creativeId, user.client_id);
+    const mime = creativeMime(existing);
+    const assetUrl = existing.asset_url?.trim() || '';
+    if (!assetUrl) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    if (isHttpAssetUrl(assetUrl)) {
+      return { url: assetUrl, mode: 'external', mime };
+    }
+    if (!weaveExportPrefix()) {
+      throw new ServiceUnavailableException({ error: 'export_prefix_unavailable' });
+    }
+    if (!resolveReadableWeaveFile(assetUrl, mime)) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    const minted = mintAssetStreamQuery({
+      resource: 'creative',
+      id: existing.id,
+      secret: assetStreamSecret(),
+      ttlSec: assetStreamTtlSec(),
+    });
+    return {
+      url: buildAssetStreamPath(`/api/v1/creatives/${existing.id}/asset`, minted.exp, minted.sig),
+      mode: 'signed',
+      mime,
+    };
+  }
+
+  async openAssetStream(
+    creativeId: string,
+    exp?: string,
+    sig?: string,
+  ): Promise<OpenedAssetStream> {
+    assertAssetStreamSig('creative', creativeId.trim(), exp, sig);
+    const existing = await this.requireCreative(creativeId);
+    const assetUrl = existing.asset_url?.trim() || '';
+    const opened = assetUrl ? openReadableWeaveFile(assetUrl, creativeMime(existing)) : null;
+    if (!opened) {
+      throw new NotFoundException({ error: 'not_found' });
+    }
+    return opened;
+  }
+
   private async decide(
     user: PortalJwtPayload,
     creativeId: string,
@@ -203,9 +265,27 @@ export class CreativesService {
     }
   }
 
+  private async requireCreative(creativeId: string, clientId?: string) {
+    await this.ensureReady();
+    const existing = await this.repo.findById(creativeId.trim());
+    if (!existing) {
+      throw new NotFoundException({ error: 'Not found' });
+    }
+    if (clientId && existing.client_id !== clientId) {
+      throw new ForbiddenException({ error: 'client_id_mismatch' });
+    }
+    return existing;
+  }
+
   private async ensureReady(): Promise<void> {
     if (!(await this.repo.pgCreativesReady())) {
       throw new ServiceUnavailableException({ ok: false, error: 'creatives_tables_not_ready' });
     }
   }
+}
+
+function creativeMime(row: { asset_type: string; asset_url: string | null }): string {
+  if (row.asset_type === 'video') return 'video/mp4';
+  if (row.asset_type === 'image') return 'image/jpeg';
+  return guessMime(row.asset_url ?? '');
 }

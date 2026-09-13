@@ -37,9 +37,8 @@ PTT_CRM_INTERNAL_KEY=<s2s key for Flask → Nest>
 ```bash
 cd services/portal-web
 npm ci && npm run build
-# standalone output: .next/standalone — copy static + public per Next docs
-cp -r .next/static .next/standalone/.next/static
-cp -r public .next/standalone/public 2>/dev/null || true
+# postbuild copies .next/static + public into standalone (scripts/portal_web_sync_static.sh)
+# systemd ExecStartPre fails closed if those files are missing
 ```
 
 Env `/var/www/ptt/.env`:

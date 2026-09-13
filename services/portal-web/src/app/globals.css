@@ -1440,11 +1440,18 @@ body:has(.portal-sidebar) .portal-page {
   font-size: 0.9rem;
 }
 
-.creative-card__asset img {
+.creative-card__asset img,
+.creative-card__asset video {
   max-width: 100%;
-  max-height: 220px;
+  max-height: 420px;
   border-radius: 8px;
   margin-top: 0.75rem;
+}
+
+.creative-card__asset video {
+  display: block;
+  width: 100%;
+  background: #0f172a;
 }
 
 .creative-card__actions {

@@ -452,6 +452,36 @@ export function performanceExportUrl(params?: {
   return `${API_BASE}/api/v1/performance/${ext}${suffix}`;
 }
 
+export async function fetchCreativeAssetUrl(
+  token: string,
+  creativeId: string,
+): Promise<{ url: string; mode: 'external' | 'signed'; mime: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/creatives/${encodeURIComponent(creativeId)}/asset-url`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await parseJson<{
+    url?: string;
+    mode?: 'external' | 'signed';
+    mime?: string;
+    error?: string;
+    message?: string;
+  }>(res);
+  if (!res.ok || !body.url) {
+    throw new ApiError(body.error ?? body.message ?? 'Creative asset URL failed', res.status);
+  }
+  return {
+    url: body.url,
+    mode: body.mode === 'external' ? 'external' : 'signed',
+    mime: body.mime || 'application/octet-stream',
+  };
+}
+
+export function playableAssetSrc(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${API_BASE}${url.startsWith('/') ? url : `/${url}`}`;
+}
+
 export async function fetchPendingCreatives(token: string): Promise<CreativePendingResponse> {
   const res = await fetch(`${API_BASE}/api/v1/creatives/pending`, {
     headers: { Authorization: `Bearer ${token}` },

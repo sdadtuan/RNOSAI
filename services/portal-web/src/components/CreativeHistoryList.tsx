@@ -2,9 +2,11 @@
 
 import type { CreativeRow } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
+import { CreativeSignedAsset } from '@/components/CreativeSignedAsset';
 
 interface CreativeHistoryListProps {
   rows: CreativeRow[];
+  token: string;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -12,7 +14,7 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: 'Từ chối',
 };
 
-export function CreativeHistoryList({ rows }: CreativeHistoryListProps) {
+export function CreativeHistoryList({ rows, token }: CreativeHistoryListProps) {
   if (rows.length === 0) {
     return (
       <div className="card portal-empty-state">
@@ -37,6 +39,7 @@ export function CreativeHistoryList({ rows }: CreativeHistoryListProps) {
                 {row.reviewed_at ? ` · ${fmtDate(row.reviewed_at.slice(0, 10))}` : ''}
               </p>
               {row.review_note ? <p className="creative-card__desc">{row.review_note}</p> : null}
+              <CreativeSignedAsset token={token} row={row} />
             </div>
             <span
               className={`badge${row.status === 'rejected' ? ' badge-warn' : row.status === 'approved' ? ' badge-success' : ''}`}

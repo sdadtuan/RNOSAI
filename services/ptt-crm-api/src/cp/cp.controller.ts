@@ -526,6 +526,16 @@ export class CpController {
     return this.assets.createAsset(body ?? {}, await this.scope(req));
   }
 
+  @Get('assets/:id/stream-url')
+  @RequireCpAction('view')
+  async assetStreamUrl(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.assets.mintStreamUrl(id, await this.scope(req, scope));
+  }
+
   @Get('assets/:id/usage')
   @RequireCpAction('view')
   async assetUsage(

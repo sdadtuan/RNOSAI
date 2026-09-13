@@ -33,6 +33,7 @@ import {
   type CpTask,
 } from '@/lib/crm/cp-api';
 import { dash } from '@/lib/crm/cp-format';
+import { CpSignedAssetPlayer } from './CpSignedAssetPlayer';
 import { formatLifecycleOption } from '@/lib/crm/cp-project-form.util';
 import {
   CP_PROJECT_TABS,
@@ -77,6 +78,7 @@ const OFF_AI_OPS_FLAGS: CpAiOpsFlags = {
   weave: false,
   magnificMcp: false,
   magnificRest: false,
+  magnificFlows: false,
   comfy: false,
   showAiOpsTab: false,
 };
@@ -673,11 +675,13 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
               {assets.map((asset) => {
                 const badge = rightsBadge(asset);
                 return (
-                  <Link key={asset.id} className="cp-media-card" href={`/crm/creative-os/media/${asset.id}`}>
-                    <div className="cp-thumb" />
-                    <b>{asset.filename}</b>
-                    {badge ? <span className="cp-pill cp-pill--warning">{badge}</span> : null}
-                  </Link>
+                  <article key={asset.id} className="cp-media-card">
+                    <CpSignedAssetPlayer assetId={asset.id} mime={asset.mime} compact />
+                    <Link className="cp-media-card__body" href={`/crm/creative-os/media/${asset.id}`}>
+                      <strong>{asset.filename}</strong>
+                      {badge ? <span className="cp-pill cp-pill--warning">{badge}</span> : null}
+                    </Link>
+                  </article>
                 );
               })}
             </div>

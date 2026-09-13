@@ -692,6 +692,7 @@ export type CpAiOpsFlags = {
   weave: boolean;
   magnificMcp: boolean;
   magnificRest: boolean;
+  magnificFlows: boolean;
   comfy: boolean;
   showAiOpsTab: boolean;
 };
@@ -991,6 +992,13 @@ export function getCpAsset(token: string, assetId: string, scope: CpScope = 'me'
   return cpFetch<CpAsset>(
     token,
     cpQueryPath(`/assets/${encodeURIComponent(assetId)}`, { scope }),
+  );
+}
+
+export function getCpAssetStreamUrl(token: string, assetId: string, scope: CpScope = 'me') {
+  return cpFetch<{ url: string; mime: string }>(
+    token,
+    cpQueryPath(`/assets/${encodeURIComponent(assetId)}/stream-url`, { scope }),
   );
 }
 

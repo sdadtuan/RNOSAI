@@ -15,6 +15,7 @@ import {
   type CpScope,
 } from '@/lib/crm/cp-api';
 import { dash, rightsStatus } from '@/lib/crm/cp-format';
+import { CpSignedAssetPlayer } from './CpSignedAssetPlayer';
 
 function scopeFrom(value: string | null): CpScope {
   return value === 'team' || value === 'all' ? value : 'me';
@@ -154,6 +155,13 @@ export function CpAssetDetail() {
         </section>
       ) : null}
       {notice ? <section className="cp-alert"><p>{notice}</p></section> : null}
+
+      {asset ? (
+        <section className="cp-card">
+          <header className="cp-card__head"><h2>Preview</h2></header>
+          <CpSignedAssetPlayer assetId={asset.id} mime={asset.mime} scope={scope} />
+        </section>
+      ) : null}
 
       <div className="cp-overview-grid">
         <section className="cp-card">

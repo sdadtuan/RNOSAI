@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev -p ${PORTAL_PORT:-3100}",
     "build": "next build",
+    "postbuild": "bash ../../scripts/portal_web_sync_static.sh",
     "start": "next start -p ${PORTAL_PORT:-3100}",
     "lint": "next lint",
     "test:unit": "NODE_PATH=../ops-web/node_modules ../ops-web/node_modules/.bin/vitest run",

@@ -4,11 +4,25 @@ import {
   Injectable,
   OnModuleDestroy,
   Optional,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import {
+  assetStreamSecret,
+  assetStreamTtlSec,
+  buildAssetStreamPath,
+  mintAssetStreamQuery,
+} from './cp-asset-signed-url.util';
+import {
+  assertAssetStreamSig,
+  openReadableWeaveFile,
+  resolveReadableWeaveFile,
+  type OpenedAssetStream,
+} from './cp-asset-stream-file.util';
 import { CP_TENANT_ID } from './cp-audit.repository';
 import { CpScope } from './cp-scope.util';
+import { weaveExportPrefix } from './cp-weave-stream-path.util';
 
 export const CP_MIME_ALLOWLIST = [
   'image/jpeg',
@@ -169,6 +183,56 @@ export class CpAssetsService {
   async getAsset(id: string, scope: CpAssetScope) {
     const asset = await this.loadAsset(id, scope);
     return withRightsStatus(asset);
+  }
+
+  async mintStreamUrl(id: string, scope: CpAssetScope): Promise<{ url: string; mime: string }> {
+    const asset = await this.loadAsset(id, scope);
+    if (!weaveExportPrefix()) cpThrow(503, { error: 'export_prefix_unavailable' });
+    const resolved = resolveReadableWeaveFile(
+      await this.weaveStorageUri(String(asset.id)),
+      String(asset.mime ?? ''),
+    );
+    if (!resolved) cpThrow(404, { error: 'not_found' });
+    const minted = mintAssetStreamQuery({
+      resource: 'cp_asset',
+      id: String(asset.id),
+      secret: assetStreamSecret(),
+      ttlSec: assetStreamTtlSec(),
+    });
+    return {
+      url: buildAssetStreamPath(`/api/crm/cp/assets/${asset.id}/file`, minted.exp, minted.sig),
+      mime: resolved.mime,
+    };
+  }
+
+  async openStream(id: string, exp?: string, sig?: string): Promise<OpenedAssetStream> {
+    const assetId = requiredUuid(id, 'invalid_asset_id', 'invalid_asset_id');
+    try {
+      assertAssetStreamSig('cp_asset', assetId, exp, sig);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        const body = error.getResponse();
+        const code = typeof body === 'object' && body && 'error' in body
+          ? String((body as { error?: string }).error)
+          : 'signed_url_invalid';
+        cpThrow(401, { error: code });
+      }
+      throw error;
+    }
+    const opened = openReadableWeaveFile(await this.weaveStorageUri(assetId));
+    return opened ?? cpThrow(404, { error: 'not_found' });
+  }
+
+  private async weaveStorageUri(assetId: string): Promise<string> {
+    const weave = await this.db.query(
+      `SELECT storage_uri
+         FROM crm_cp_weave_assets
+        WHERE asset_id = $1::uuid
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [assetId],
+    );
+    return String(weave.rows[0]?.storage_uri ?? '').trim();
   }
 
   async usageGraph(id: string, scope: CpAssetScope) {

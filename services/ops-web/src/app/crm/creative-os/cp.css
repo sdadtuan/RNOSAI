@@ -1325,6 +1325,22 @@ body:has(.ops-sidebar) .cp-main {
   font-size: 14px;
 }
 
+.cp-asset-player,
+.cp-asset-player--compact {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  background: #0f172a;
+}
+
+.cp-asset-player {
+  max-height: 480px;
+}
+
+.cp-asset-player--compact {
+  max-height: 220px;
+}
+
 .cp-media-card__body {
   display: grid;
   gap: 4px;

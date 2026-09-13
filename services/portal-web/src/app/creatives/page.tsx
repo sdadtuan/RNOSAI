@@ -197,6 +197,7 @@ function CreativesContent(props: {
       ) : tab === 'pending' ? (
         <CreativeInbox
           rows={pendingRows}
+          token={token}
           canApprove={canApprove}
           focusCreativeId={focusCreativeId}
           onApprove={async (id) => {
@@ -211,7 +212,7 @@ function CreativesContent(props: {
           }}
         />
       ) : (
-        <CreativeHistoryList rows={historyRows} />
+        <CreativeHistoryList rows={historyRows} token={token} />
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import { CpAssetsRepository, CpAssetsService } from './cp-assets.service';
 import { CpAuditRepository } from './cp-audit.repository';
 import { CpBrandRepository, CpBrandService } from './cp-brand.service';
 import { CpController } from './cp.controller';
+import { CpAssetStreamController } from './cp-asset-stream.controller';
 import { CpMagnificOAuthCallbackController } from './cp-magnific-oauth.controller';
 import {
   CP_LEDGER_QUERY,
@@ -84,7 +85,12 @@ import { CpComfyAdapter } from './cp-comfy.adapter';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CreativesModule, CampaignWritesModule],
-  controllers: [CpController, CpWeaveIngestController, CpMagnificOAuthCallbackController],
+  controllers: [
+    CpController,
+    CpAssetStreamController,
+    CpWeaveIngestController,
+    CpMagnificOAuthCallbackController,
+  ],
   providers: [
     StaffCpGuard,
     CpAuditRepository,

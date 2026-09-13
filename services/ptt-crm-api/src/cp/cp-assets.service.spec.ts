@@ -1,3 +1,8 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { StreamableFile } from '@nestjs/common';
+import { mintAssetStreamQuery } from './cp-asset-signed-url.util';
 import { CpAssetsService, assertMime, rightsStatus } from './cp-assets.service';
 
 const ASSET_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -189,5 +194,114 @@ describe('CpAssetsService', () => {
         ([sql]) => /UPDATE[\s\S]*crm_cp_asset_usages/i.test(sql) && /video_version/i.test(sql),
       ),
     ).toBe(false);
+  });
+
+  describe('signed weave stream', () => {
+    const KEY = 'nova/mid-autumn-2026/CR-2026-0912-028/review/CR-2026-0912-028_v01_9x16.mp4';
+    const SOURCE_KEY = 'nova/mid-autumn-2026/CR-2026-0912-028/source/CR-2026-0912-028_v01_9x16.mp4';
+    let tmp = '';
+    let prevPrefix: string | undefined;
+    let prevSecret: string | undefined;
+
+    beforeEach(() => {
+      tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-asset-stream-'));
+      fs.mkdirSync(path.dirname(path.join(tmp, KEY)), { recursive: true });
+      fs.writeFileSync(path.join(tmp, KEY), 'fake-mp4');
+      prevPrefix = process.env.WEAVE_EXPORT_PREFIX;
+      prevSecret = process.env.PTT_ASSET_STREAM_SECRET;
+      process.env.WEAVE_EXPORT_PREFIX = tmp;
+      process.env.PTT_ASSET_STREAM_SECRET = 'unit-asset-stream';
+    });
+
+    afterEach(() => {
+      if (prevPrefix == null) delete process.env.WEAVE_EXPORT_PREFIX;
+      else process.env.WEAVE_EXPORT_PREFIX = prevPrefix;
+      if (prevSecret == null) delete process.env.PTT_ASSET_STREAM_SECRET;
+      else process.env.PTT_ASSET_STREAM_SECRET = prevSecret;
+      fs.rmSync(tmp, { recursive: true, force: true });
+    });
+
+    function serviceWith(rows: {
+      asset?: Record<string, unknown>;
+      weave?: Record<string, unknown> | null;
+    }) {
+      const query = jest.fn().mockImplementation(async (sql: string) => {
+        if (/FROM crm_cp_assets/i.test(sql)) {
+          return {
+            rows: rows.asset ? [rows.asset] : [],
+            rowCount: rows.asset ? 1 : 0,
+          };
+        }
+        if (/FROM crm_cp_weave_assets/i.test(sql)) {
+          return {
+            rows: rows.weave ? [rows.weave] : [],
+            rowCount: rows.weave ? 1 : 0,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      });
+      return new CpAssetsService({ query } as never);
+    }
+
+    it('mints a signed file URL for a review weave asset', async () => {
+      const service = serviceWith({
+        asset: { id: ASSET_ID, filename: 'CR-2026-0912-028_v01_9x16.mp4', mime: 'video/mp4' },
+        weave: { storage_uri: KEY },
+      });
+
+      const minted = await service.mintStreamUrl(ASSET_ID, SCOPE);
+
+      expect(minted.mime).toBe('video/mp4');
+      expect(minted.url).toContain(`/api/crm/cp/assets/${ASSET_ID}/file?`);
+      expect(minted.url).toContain('exp=');
+      expect(minted.url).toContain('sig=');
+    });
+
+    it('rejects source lane and missing weave row', async () => {
+      const source = serviceWith({
+        asset: { id: ASSET_ID, filename: 'clip.mp4', mime: 'video/mp4' },
+        weave: { storage_uri: SOURCE_KEY },
+      });
+      await expect(source.mintStreamUrl(ASSET_ID, SCOPE)).rejects.toMatchObject({
+        status: 404,
+        error: 'not_found',
+      });
+
+      const missing = serviceWith({
+        asset: { id: ASSET_ID, filename: 'clip.mp4', mime: 'video/mp4' },
+        weave: null,
+      });
+      await expect(missing.mintStreamUrl(ASSET_ID, SCOPE)).rejects.toMatchObject({
+        status: 404,
+        error: 'not_found',
+      });
+    });
+
+    it('streams the file when the signature is valid and rejects expired sigs', async () => {
+      const service = serviceWith({
+        asset: { id: ASSET_ID, filename: 'CR-2026-0912-028_v01_9x16.mp4', mime: 'video/mp4' },
+        weave: { storage_uri: KEY },
+      });
+      const minted = mintAssetStreamQuery({
+        resource: 'cp_asset',
+        id: ASSET_ID,
+        secret: 'unit-asset-stream',
+        ttlSec: 900,
+      });
+
+      const file = await service.openStream(ASSET_ID, String(minted.exp), minted.sig);
+      expect(file.file).toBeInstanceOf(StreamableFile);
+      expect(file.mime).toBe('video/mp4');
+      expect(file.filename).toBe('CR-2026-0912-028_v01_9x16.mp4');
+      const chunks: Buffer[] = [];
+      for await (const chunk of file.file.getStream()) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      expect(Buffer.concat(chunks).toString()).toBe('fake-mp4');
+
+      await expect(
+        service.openStream(ASSET_ID, String(minted.exp - 10_000), minted.sig),
+      ).rejects.toMatchObject({ status: 401 });
+    });
   });
 });

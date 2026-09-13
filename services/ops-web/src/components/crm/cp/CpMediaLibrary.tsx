@@ -7,6 +7,7 @@ import { getAccessToken } from '@/lib/auth';
 import { listCpAssets, type CpAsset, type CpScope } from '@/lib/crm/cp-api';
 import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import { dash, rightsStatus } from '@/lib/crm/cp-format';
+import { CpSignedAssetPlayer } from './CpSignedAssetPlayer';
 
 const MEDIA_TABS = [
   { label: 'Library', href: '/crm/creative-os/media' },
@@ -154,6 +155,7 @@ export function CpMediaLibrary() {
           {selected ? (
             <>
               <p><b>{dash(selected.filename)}</b></p>
+              <CpSignedAssetPlayer assetId={selected.id} mime={selected.mime} scope={scope} />
               <p>{dash(selected.state)} · {dash(selected.mime)} · {dash(selected.bytes)} bytes</p>
               <p>Project: {dash(selected.project_id)}</p>
               <p>

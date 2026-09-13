@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
 import { InternalKeyGuard } from '../auth/internal-key.guard';
 import { PortalJwtGuard, PortalUser } from '../portal/portal-jwt.guard';
 import { PortalJwtPayload } from '../portal/portal-jwt.util';
@@ -41,6 +42,30 @@ export class CreativesController {
   @UseGuards(PortalJwtGuard)
   async pendingCount(@PortalUser() user: PortalJwtPayload): Promise<{ ok: boolean; count: number }> {
     return this.creatives.pendingCount(user.client_id);
+  }
+
+  @Get(':id/asset-url')
+  @UseGuards(PortalJwtGuard)
+  async assetUrl(
+    @PortalUser() user: PortalJwtPayload,
+    @Param('id') id: string,
+  ): Promise<{ url: string; mode: 'external' | 'signed'; mime: string }> {
+    return this.creatives.mintAssetUrl(user, id.trim());
+  }
+
+  @Get(':id/asset')
+  async asset(
+    @Param('id') id: string,
+    @Query('exp') exp: string | undefined,
+    @Query('sig') sig: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const out = await this.creatives.openAssetStream(id.trim(), exp, sig);
+    const safeName = out.filename.replace(/["\r\n]+/g, '_');
+    res.setHeader('Content-Type', out.mime || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    return out.file;
   }
 
   @Post(':id/approve')

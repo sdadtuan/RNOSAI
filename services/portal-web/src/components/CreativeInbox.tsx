@@ -5,39 +5,18 @@ import type { CreativeRow } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
 import { useToast } from '@/lib/toast';
 import { PortalSwipeActions } from '@/components/mobile/PortalSwipeActions';
+import { CreativeSignedAsset } from '@/components/CreativeSignedAsset';
 
 interface CreativeInboxProps {
   rows: CreativeRow[];
+  token: string;
   canApprove: boolean;
   focusCreativeId?: string | null;
   onApprove: (id: string) => Promise<void>;
   onReject: (id: string, note: string) => Promise<void>;
 }
 
-function CreativeAssetPreview({ row }: { row: CreativeRow }) {
-  if (!row.asset_url) {
-    return null;
-  }
-  const isImage = row.asset_type === 'image' || /\.(png|jpe?g|gif|webp)(\?|$)/i.test(row.asset_url);
-  if (isImage) {
-    return (
-      <div className="creative-card__asset">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={row.asset_url} alt={row.title} />
-      </div>
-    );
-  }
-  return (
-    <p className="muted creative-card__desc">
-      Asset:{' '}
-      <a href={row.asset_url} target="_blank" rel="noreferrer">
-        mở preview ({row.asset_type || 'file'})
-      </a>
-    </p>
-  );
-}
-
-export function CreativeInbox({ rows, canApprove, focusCreativeId, onApprove, onReject }: CreativeInboxProps) {
+export function CreativeInbox({ rows, token, canApprove, focusCreativeId, onApprove, onReject }: CreativeInboxProps) {
   const { push } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
@@ -134,7 +113,7 @@ export function CreativeInbox({ rows, canApprove, focusCreativeId, onApprove, on
                   gửi {fmtDate(row.submitted_at.slice(0, 10))}
                 </p>
                 {row.description ? <p className="creative-card__desc">{row.description}</p> : null}
-                <CreativeAssetPreview row={row} />
+                <CreativeSignedAsset token={token} row={row} />
               </div>
               {canApprove && row.status === 'pending_client' ? (
                 <div className="creative-card__actions">
