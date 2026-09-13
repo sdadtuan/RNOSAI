@@ -4,6 +4,7 @@ export type MagnificProvider = 'magnific_rest' | 'magnific_mcp';
 export type MagnificFlagSlice = {
   magnificRest: boolean;
   magnificMcp: boolean;
+  magnificFlows?: boolean;
 };
 export type ComfyFlagSlice = { comfy: boolean };
 export type ComfyHealthOk = { ok: true; vram_mb: number | null; checked_at: string };
@@ -59,6 +60,10 @@ export function isMagnificTransportEnabled(
 
 export function isMagnificComposerDisabled(flags: MagnificFlagSlice): boolean {
   return !flags.magnificRest && !flags.magnificMcp;
+}
+
+export function isMagnificFlowModeEnabled(flags: MagnificFlagSlice): boolean {
+  return flags.magnificFlows === true && flags.magnificRest === true;
 }
 
 export function shouldShowComfyLockedCopy(health: ComfyHealth | null | undefined): boolean {

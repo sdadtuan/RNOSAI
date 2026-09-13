@@ -86,9 +86,132 @@ export function parseMagnificTerminalFailure(payload: unknown): string | null {
   const rec = unwrapProviderPayload(payload);
   const status = String(rec.status ?? rec.state ?? '').toLowerCase();
   if (['failed', 'error', 'cancelled', 'canceled'].includes(status)) {
-    return String(rec.error ?? rec.message ?? status);
+    return String(rec.error ?? rec.message ?? rec.error_message ?? status);
   }
   return null;
+}
+
+export function parseFlowRunIdentifier(payload: unknown): string {
+  const rec = unwrapProviderPayload(payload);
+  const raw = rec.workflow_run_identifier
+    ?? rec.workflowRunIdentifier
+    ?? rec.run_id
+    ?? rec.id;
+  return String(raw ?? '').trim();
+}
+
+export function parseFlowRunStatus(payload: unknown): string {
+  const rec = unwrapProviderPayload(payload);
+  return String(rec.status ?? rec.state ?? '').trim();
+}
+
+export function parseFlowResultMediaUrls(payload: unknown): string[] {
+  const rec = unwrapProviderPayload(payload);
+  const result = rec.result != null && typeof rec.result === 'object' && !Array.isArray(rec.result)
+    ? rec.result as Record<string, unknown>
+    : rec;
+  const urls = [
+    ...parseUrlList(result.videos),
+    ...parseUrlList(result.images),
+  ];
+  return [...new Set(urls)];
+}
+
+export type MagnificFlowListItem = {
+  sqid: string;
+  name: string;
+  total_cost: number | null;
+};
+
+export type MagnificFlowInputSchema = {
+  api_key: string;
+  type: string;
+  required: boolean;
+};
+
+export type MagnificFlowDetail = {
+  sqid: string;
+  name: string;
+  inputs: MagnificFlowInputSchema[];
+  total_cost: number | null;
+};
+
+export function parseFlowListItems(payload: unknown): MagnificFlowListItem[] {
+  const rec = unwrapProviderPayload(payload);
+  const data = Array.isArray(rec.data)
+    ? rec.data
+    : Array.isArray(rec.items)
+      ? rec.items
+      : Array.isArray(rec.flows)
+        ? rec.flows
+        : [];
+  const items: MagnificFlowListItem[] = [];
+  for (const entry of data) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const row = entry as Record<string, unknown>;
+    const sqid = String(row.sqid ?? row.id ?? row.flow_id ?? '').trim();
+    if (!sqid) continue;
+    const totalRaw = row.total_cost ?? (
+      row.tool_metadata && typeof row.tool_metadata === 'object'
+        ? (row.tool_metadata as Record<string, unknown>).total_cost
+        : undefined
+    );
+    const total = Number(totalRaw);
+    items.push({
+      sqid,
+      name: String(row.name ?? row.title ?? sqid).trim(),
+      total_cost: Number.isFinite(total) ? Math.trunc(total) : null,
+    });
+  }
+  return items;
+}
+
+export function parseFlowDetail(payload: unknown, fallbackSqid = ''): MagnificFlowDetail | null {
+  const rec = unwrapProviderPayload(payload);
+  const sqid = String(rec.sqid ?? rec.id ?? rec.flow_id ?? fallbackSqid).trim();
+  if (!sqid) return null;
+  const inputsRaw = Array.isArray(rec.inputs)
+    ? rec.inputs
+    : Array.isArray(rec.input_schema)
+      ? rec.input_schema
+      : [];
+  const inputs: MagnificFlowInputSchema[] = [];
+  for (const entry of inputsRaw) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const row = entry as Record<string, unknown>;
+    const apiKey = String(row.api_key ?? row.key ?? row.id ?? '').trim();
+    if (!apiKey) continue;
+    inputs.push({
+      api_key: apiKey,
+      type: String(row.type ?? row.input_type ?? 'text').trim(),
+      required: row.required === true || row.required === 'true',
+    });
+  }
+  const totalRaw = rec.total_cost ?? (
+    rec.tool_metadata && typeof rec.tool_metadata === 'object'
+      ? (rec.tool_metadata as Record<string, unknown>).total_cost
+      : undefined
+  );
+  const total = Number(totalRaw);
+  return {
+    sqid,
+    name: String(rec.name ?? rec.title ?? sqid).trim(),
+    inputs,
+    total_cost: Number.isFinite(total) ? Math.trunc(total) : null,
+  };
+}
+
+function parseUrlList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const urls: string[] = [];
+  for (const item of value) {
+    if (typeof item === 'string' && item.trim()) urls.push(item.trim());
+    else if (item && typeof item === 'object') {
+      const url = String((item as Record<string, unknown>).url ?? '').trim();
+      if (url) urls.push(url);
+    }
+  }
+  return urls;
 }
 
 export function throwMagnificWaitFailed(reason: 'wait_timeout' | 'vendor_failed'): never {

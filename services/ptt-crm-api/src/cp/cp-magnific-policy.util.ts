@@ -1,5 +1,5 @@
 import { HttpException } from '@nestjs/common';
-import { readAiOpsFlags } from './cp-ai-ops.flags';
+import { isMagnificFlowsEnabled, readAiOpsFlags } from './cp-ai-ops.flags';
 
 export const MAGNIFIC_PILOT_CAPABILITIES = [
   'account_balance',
@@ -33,6 +33,12 @@ export function mapMagnificTool(
   });
   if (!found) cpThrow(409, { error: 'mcp_tool_unavailable' });
   return found;
+}
+
+export function assertMagnificFlowsAllowed(flags: ReturnType<typeof readAiOpsFlags>): void {
+  if (!isMagnificFlowsEnabled(flags)) {
+    cpThrow(409, { error: 'magnific_flows_disabled', gate: 'GT-MF01' });
+  }
 }
 
 export function assertMagnificAllowed(input: {

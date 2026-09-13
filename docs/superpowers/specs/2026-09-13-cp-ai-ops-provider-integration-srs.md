@@ -282,6 +282,8 @@ Bổ sung so với ACO §3.5 / FR-007:
 
 ## 8. Wave B — Magnific REST API + Magnific MCP (cùng wave)
 
+**Wave B+ (Flows):** pipeline Spaces publish → Flow API — spec riêng [`2026-09-13-cp-magnific-flows-srs.md`](./2026-09-13-cp-magnific-flows-srs.md) · SPEC-CP-MAGNIFIC-FLOWS v1.0. Pilot sau khi B tool mode ổn.
+
 Hai adapter, **một pane** `ai-ops&pane=magnific`. Operator chọn transport trên job (hoặc template map sẵn):
 
 | Transport | `provider` | Auth | Việc đúng |

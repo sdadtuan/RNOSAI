@@ -82,6 +82,16 @@ import { CpMagnificRestAdapter } from './cp-magnific-rest.adapter';
 import { MagnificAdapters } from './cp-magnific.adapters';
 import { MAGNIFIC_ADAPTER, CpJobsService } from './cp-jobs.service';
 import { CpComfyAdapter } from './cp-comfy.adapter';
+import { CpMagnificFlowsAdapter } from './cp-magnific-flows.adapter';
+import {
+  CpMagnificFlowCacheRepository,
+  CpMagnificFlowCacheService,
+  CP_MAGNIFIC_FLOW_CACHE_QUERY,
+} from './cp-magnific-flow-cache.repository';
+import {
+  CpMagnificFlowTemplatesService,
+  CP_FLOW_TEMPLATES_QUERY,
+} from './cp-magnific-flow-templates.service';
 
 @Module({
   imports: [ConfigModule, StaffAuthModule, CreativesModule, CampaignWritesModule],
@@ -169,6 +179,20 @@ import { CpComfyAdapter } from './cp-comfy.adapter';
     },
     MagnificAdapters,
     { provide: MAGNIFIC_ADAPTER, useExisting: MagnificAdapters },
+    {
+      provide: CpMagnificFlowsAdapter,
+      useFactory: (connections: CpProviderConnectionsService) =>
+        new CpMagnificFlowsAdapter({
+          getApiKey: () => connections.loadDecryptedSecret('magnific_rest'),
+          waitTimeoutMs: magnificVideoWaitMs(),
+        }),
+      inject: [CpProviderConnectionsService],
+    },
+    CpMagnificFlowCacheRepository,
+    { provide: CP_MAGNIFIC_FLOW_CACHE_QUERY, useExisting: CpMagnificFlowCacheRepository },
+    CpMagnificFlowCacheService,
+    CpMagnificFlowTemplatesService,
+    { provide: CP_FLOW_TEMPLATES_QUERY, useExisting: CpBatchesRepository },
     CpComfyAdapter,
     CpJobsService,
   ],

@@ -4,6 +4,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  NotFoundException,
   Header,
   Headers,
   Optional,
@@ -81,7 +82,10 @@ import {
   CpExperimentVariantInput,
   CpExperimentsService,
 } from './cp-experiments.service';
-import { readAiOpsFlags } from './cp-ai-ops.flags';
+import { isMagnificFlowsEnabled, readAiOpsFlags } from './cp-ai-ops.flags';
+import { CpMagnificFlowTemplatesService } from './cp-magnific-flow-templates.service';
+import { CpMagnificFlowsAdapter } from './cp-magnific-flows.adapter';
+import { CpMagnificFlowCacheService } from './cp-magnific-flow-cache.repository';
 import {
   buildRecommendPayload,
   parseRecommendSignals,
@@ -142,6 +146,9 @@ export class CpController {
     private readonly connections: CpProviderConnectionsService,
     @Optional() private readonly jobs?: CpJobsService,
     @Optional() private readonly comfy?: CpComfyAdapter,
+    @Optional() private readonly flowTemplates?: CpMagnificFlowTemplatesService,
+    @Optional() private readonly flows?: CpMagnificFlowsAdapter,
+    @Optional() private readonly flowCache?: CpMagnificFlowCacheService,
   ) {}
 
   private async assertReportExportCap(req: AuthedReq) {
@@ -173,6 +180,32 @@ export class CpController {
         action: 'execute',
       });
     }
+  }
+
+  private assertMagnificFlowsRoute(): void {
+    if (!isMagnificFlowsEnabled(readAiOpsFlags())) {
+      throw Object.assign(new NotFoundException({ error: 'magnific_flows_disabled' }), {
+        error: 'magnific_flows_disabled',
+      });
+    }
+  }
+
+  private requireFlowTemplates(): CpMagnificFlowTemplatesService {
+    if (!this.flowTemplates) {
+      throw Object.assign(new NotFoundException({ error: 'magnific_flows_disabled' }), {
+        error: 'magnific_flows_disabled',
+      });
+    }
+    return this.flowTemplates;
+  }
+
+  private requireFlowCache(): CpMagnificFlowCacheService {
+    if (!this.flowCache) {
+      throw Object.assign(new NotFoundException({ error: 'magnific_flows_disabled' }), {
+        error: 'magnific_flows_disabled',
+      });
+    }
+    return this.flowCache;
   }
 
   private requireJobs(): CpJobsService {
@@ -294,6 +327,49 @@ export class CpController {
   @RequireCpAction('view')
   flags() {
     return readAiOpsFlags();
+  }
+
+  @Get('magnific/flows')
+  @RequireCpAction('view')
+  async listMagnificFlows(@Query('search') search?: string) {
+    this.assertMagnificFlowsRoute();
+    const items = await this.requireFlowTemplates().listCatalogFlows();
+    const q = String(search ?? '').trim().toLowerCase();
+    if (!q) return { items };
+    return {
+      items: items.filter((item) =>
+        item.name.toLowerCase().includes(q) || item.sqid.toLowerCase().includes(q),
+      ),
+    };
+  }
+
+  @Get('magnific/flows/:sqid')
+  @RequireCpAction('view')
+  async getMagnificFlow(@Param('sqid') sqid: string) {
+    this.assertMagnificFlowsRoute();
+    const cached = await this.requireFlowCache().getOrFetch(String(sqid ?? '').trim());
+    return {
+      sqid: cached.sqid,
+      name: cached.name,
+      inputs: cached.inputs,
+      total_cost: cached.total_cost,
+    };
+  }
+
+  @Get('magnific/templates')
+  @RequireCpAction('view')
+  async listMagnificFlowTemplates() {
+    this.assertMagnificFlowsRoute();
+    const items = await this.requireFlowTemplates().listForProject();
+    return {
+      items: items.map((item) => ({
+        template_id: item.template_id,
+        name: item.name,
+        flow_sqid: item.flow_sqid,
+        estimate_credits: item.estimate_credits,
+        fields: item.fields,
+      })),
+    };
   }
 
   @Post('ai-ops/recommend')

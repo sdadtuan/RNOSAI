@@ -9,6 +9,7 @@ export type CpJobDraftInput = {
   idempotency_key: string;
   template_id?: string;
   task_id?: string;
+  execution_kind?: 'tool' | 'flow';
 };
 
 export type CpJobDraftResult = {
@@ -37,6 +38,14 @@ export function draftMagnificJob(token: string, input: CpJobDraftInput) {
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export function listMagnificFlowTemplates(token: string) {
+  return cpFetch<{ items: Array<Record<string, unknown>> }>(token, '/magnific/templates');
+}
+
+export function draftMagnificFlowJob(token: string, body: CpJobDraftInput) {
+  return draftMagnificJob(token, { ...body, execution_kind: 'flow', provider: 'magnific_rest' });
 }
 
 export function confirmMagnificJob(token: string, jobId: string, confirm: boolean) {

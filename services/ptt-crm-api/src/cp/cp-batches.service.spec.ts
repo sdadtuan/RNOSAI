@@ -5,8 +5,10 @@ import {
   CP_STUB_BATCH_UNIT_CREDITS,
   CpBatchesService,
   estimateBatchCredits,
+  MAGNIFIC_FLOW_BATCH_MAX,
   validateBatchRow,
 } from './cp-batches.service';
+import type { CpJobsService } from './cp-jobs.service';
 
 const TEMPLATE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const BATCH_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -161,6 +163,7 @@ function makeService(
     retryJob?: jest.Mock;
     replayState?: string;
   } = {},
+  jobs?: CpJobsService,
 ) {
   const charges: string[] = [];
   const submit = opts.submit ?? jest.fn(async (_draftId: string, key: string) => {
@@ -192,6 +195,7 @@ function makeService(
       db,
       { upsertDraft } as never,
       { submit, retryJob } as never,
+      jobs,
     ),
     submit,
     retryJob,
@@ -512,3 +516,75 @@ function objectRow(value: unknown): Record<string, unknown> {
     ? value as Record<string, unknown>
     : {};
 }
+
+describe('enqueueMagnificFlowRows', () => {
+  const envBackup = process.env;
+
+  beforeEach(() => {
+    process.env = {
+      ...envBackup,
+      MAGNIFIC_FLOWS_ENABLED: '1',
+      MAGNIFIC_REST_API_ENABLED: '1',
+    };
+  });
+
+  afterAll(() => {
+    process.env = envBackup;
+  });
+
+  it('creates three draft flow jobs with batch-scoped idempotency keys', async () => {
+    const db = new BatchQuery();
+    const draft = jest.fn(async (_staffId: number, input: { idempotency_key: string }) => ({
+      job_id: `job-${input.idempotency_key}`,
+      status: 'pending_confirm',
+      estimate: { credits: 5, duration_sec: 5 },
+      requires_confirmation: true,
+    }));
+    const jobs = { draft } as unknown as CpJobsService;
+    const { service } = makeService(db, {}, jobs);
+    const created = await service.create({
+      template_id: TEMPLATE_ID,
+      project_id: PROJECT_ID,
+      rows: [sampleRow(1), sampleRow(2), sampleRow(3)],
+      mapping: Object.fromEntries(REQUIRED.map((key) => [key, key])),
+    }, 9, SCOPE);
+
+    const batchId = String((created as Record<string, unknown>).id ?? BATCH_ID);
+    const out = await service.enqueueMagnificFlowRows(
+      batchId,
+      TEMPLATE_ID,
+      [
+        { image_prompt: 'a', motion_prompt: 'b' },
+        { image_prompt: 'c', motion_prompt: 'd' },
+        { image_prompt: 'e', motion_prompt: 'f' },
+      ],
+      9,
+      SCOPE,
+    );
+
+    expect(out.items).toHaveLength(3);
+    expect(draft).toHaveBeenCalledTimes(3);
+    expect(draft.mock.calls[0][1].idempotency_key).toBe(`${batchId}:1`);
+    expect(draft.mock.calls[2][1].idempotency_key).toBe(`${batchId}:3`);
+  });
+
+  it('rejects more than MAGNIFIC_FLOW_BATCH_MAX rows', async () => {
+    const db = new BatchQuery();
+    const jobs = { draft: jest.fn() } as unknown as CpJobsService;
+    const { service } = makeService(db, {}, jobs);
+    const created = await service.create({
+      template_id: TEMPLATE_ID,
+      project_id: PROJECT_ID,
+      rows: [sampleRow(1)],
+      mapping: Object.fromEntries(REQUIRED.map((key) => [key, key])),
+    }, 9, SCOPE);
+    const rows = Array.from({ length: MAGNIFIC_FLOW_BATCH_MAX + 1 }, (_, i) => ({
+      image_prompt: `a${i}`,
+      motion_prompt: `b${i}`,
+    }));
+    const batchId = String((created as Record<string, unknown>).id ?? BATCH_ID);
+    await expect(
+      service.enqueueMagnificFlowRows(batchId, TEMPLATE_ID, rows, 9, SCOPE),
+    ).rejects.toMatchObject({ error: 'magnific_flow_batch_too_large' });
+  });
+});

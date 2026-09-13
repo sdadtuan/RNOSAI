@@ -8,6 +8,7 @@ import {
   comfySettingsStatusCopy,
   isComfySubmitEnabled,
   isMagnificComposerDisabled,
+  isMagnificFlowModeEnabled,
   isMagnificJobTerminal,
   isMagnificTransportEnabled,
   MAGNIFIC_JOB_POLL_TIMEOUT_MS,
@@ -73,6 +74,12 @@ describe('Magnific transport disable rules', () => {
     expect(isMagnificTransportEnabled(bothOff, 'api')).toBe(false);
     expect(isMagnificTransportEnabled(bothOff, 'mcp')).toBe(false);
     expect(isMagnificComposerDisabled(bothOff)).toBe(true);
+  });
+
+  it('enables flow mode only when magnificFlows and magnificRest are on', () => {
+    expect(isMagnificFlowModeEnabled({ magnificRest: true, magnificMcp: false, magnificFlows: true })).toBe(true);
+    expect(isMagnificFlowModeEnabled({ magnificRest: false, magnificMcp: true, magnificFlows: true })).toBe(false);
+    expect(isMagnificFlowModeEnabled({ magnificRest: true, magnificMcp: true, magnificFlows: false })).toBe(false);
   });
 });
 

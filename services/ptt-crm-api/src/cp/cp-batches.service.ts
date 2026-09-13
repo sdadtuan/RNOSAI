@@ -1,4 +1,4 @@
-import { HttpException, Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { HttpException, Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { CP_TENANT_ID } from './cp-audit.repository';
@@ -7,9 +7,12 @@ import { cpScopeSql } from './cp-scope.util';
 import { expandBatchMatrix, type CpBatchMatrix } from './cp-batch-matrix.util';
 import { unitCredits } from './cp-templates.service';
 import { CpVideosService } from './cp-videos.service';
+import { CpJobsService } from './cp-jobs.service';
+import { readAiOpsFlags, isMagnificFlowsEnabled } from './cp-ai-ops.flags';
 
 export const CP_BATCHES_QUERY = 'CP_BATCHES_QUERY';
 export const CP_BATCH_MAX_ROWS = 50;
+export const MAGNIFIC_FLOW_BATCH_MAX = 20;
 /** Stub unit when template.rules_json.unit_credits is absent. Not a SaaS price. */
 export const CP_STUB_BATCH_UNIT_CREDITS = 1;
 
@@ -95,6 +98,7 @@ export class CpBatchesService {
     @Inject(CP_BATCHES_QUERY) private readonly db: CpBatchesQueryPort,
     private readonly videos: CpVideosService,
     private readonly renders: CpRendersService,
+    @Optional() private readonly jobs?: CpJobsService,
   ) {}
 
   async list(scope: CpBatchScope = DEFAULT_SCOPE) {
@@ -352,6 +356,47 @@ export class CpBatchesService {
       ].join(','));
     }
     return `${lines.join('\n')}\n`;
+  }
+
+  async enqueueMagnificFlowRows(
+    batchId: string,
+    templateId: string,
+    rows: unknown[],
+    staffId: number,
+    scope: CpBatchScope = DEFAULT_SCOPE,
+  ): Promise<{ items: Array<{ row_index: number; job_id: string }> }> {
+    if (!isMagnificFlowsEnabled(readAiOpsFlags())) {
+      cpThrow(409, { error: 'magnific_flows_disabled', gate: 'GT-MF01' });
+    }
+    if (!this.jobs) {
+      cpThrow(503, { error: 'magnific_flows_unavailable' });
+    }
+    const batch = await this.loadBatch(batchId, scope);
+    const projectId = requiredUuid(batch.project_id, 'project_id_required');
+    const list = Array.isArray(rows) ? rows : [];
+    const max = magnificFlowBatchMax();
+    if (list.length > max) {
+      cpThrow(400, { error: 'magnific_flow_batch_too_large', max, count: list.length });
+    }
+    const template = requiredUuid(templateId, 'template_id_required');
+    const items: Array<{ row_index: number; job_id: string }> = [];
+    for (const [index, row] of list.entries()) {
+      const rowIndex = index + 1;
+      const drafted = await this.jobs.draft(
+        staffId,
+        {
+          project_id: projectId,
+          provider: 'magnific_rest',
+          execution_kind: 'flow',
+          template_id: template,
+          inputs: objectValue(row),
+          idempotency_key: batchIdempotencyKey(String(batch.id), rowIndex),
+        },
+        { hasHighCostCap: true },
+      );
+      items.push({ row_index: rowIndex, job_id: drafted.job_id });
+    }
+    return { items };
   }
 
   private async renderItem(
@@ -700,4 +745,9 @@ function nullableText(value: unknown): string | null {
 
 function cpThrow(status: number, body: Record<string, unknown>): never {
   throw Object.assign(new HttpException(body, status), body);
+}
+
+function magnificFlowBatchMax(): number {
+  const raw = Number(process.env.MAGNIFIC_FLOW_BATCH_MAX ?? MAGNIFIC_FLOW_BATCH_MAX);
+  return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : MAGNIFIC_FLOW_BATCH_MAX;
 }

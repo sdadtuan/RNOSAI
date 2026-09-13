@@ -6,10 +6,14 @@ import { CpJobsRepository } from './cp-jobs.repository';
 import { CpJobsService, MagnificAdapterPort } from './cp-jobs.service';
 import { CpLedgerService } from './cp-ledger.service';
 import type { CpComfyAdapter } from './cp-comfy.adapter';
+import type { CpMagnificFlowTemplatesService } from './cp-magnific-flow-templates.service';
+import type { CpMagnificFlowsAdapter } from './cp-magnific-flows.adapter';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const CLIENT_ID = '22222222-2222-4222-8222-222222222222';
 const JOB_ID = '33333333-3333-4333-8333-333333333333';
+const TEMPLATE_ID = '55555555-5555-4555-8555-555555555555';
+const FLOW_SQID = 'uqzQLDr2Aw';
 
 class LedgerMemory {
   rows: Array<Record<string, unknown>> = [];
@@ -168,11 +172,59 @@ function makeComfyAdapter(overrides: Partial<CpComfyAdapter> = {}): CpComfyAdapt
   } as unknown as CpComfyAdapter;
 }
 
+function flowDraftInput(overrides: Record<string, unknown> = {}) {
+  return {
+    project_id: PROJECT_ID,
+    provider: 'magnific_rest' as const,
+    execution_kind: 'flow' as const,
+    template_id: TEMPLATE_ID,
+    inputs: {
+      image_prompt: 'Vertical social ad hero',
+      motion_prompt: 'Slow push-in',
+    },
+    idempotency_key: 'job-flow-1',
+    ...overrides,
+  };
+}
+
+function makeFlowTemplates(overrides: Partial<CpMagnificFlowTemplatesService> = {}) {
+  return {
+    validateDraft: jest.fn(async () => ({
+      flow_inputs: {
+        image_prompt: 'Vertical social ad hero',
+        motion_prompt: 'Slow push-in',
+      },
+      estimate: { credits: 5, duration_sec: 5 },
+      bindings: { execution_kind: 'flow', flow_sqid: FLOW_SQID, input_bindings: {} },
+      flow_sqid: FLOW_SQID,
+    })),
+    listForProject: jest.fn(async () => []),
+    listCatalogFlows: jest.fn(async () => []),
+    ...overrides,
+  } as unknown as CpMagnificFlowTemplatesService;
+}
+
+function makeFlowsAdapter(overrides: Partial<CpMagnificFlowsAdapter> = {}) {
+  return {
+    runFlow: jest.fn(async () => ({ workflowRunIdentifier: 'flow-run-1' })),
+    waitForRun: jest.fn(async () => ({
+      outputUrls: ['https://cdn.example/out.mp4'],
+      status: 'completed',
+    })),
+    getFlowRun: jest.fn(),
+    listFlows: jest.fn(async () => []),
+    getFlow: jest.fn(),
+    ...overrides,
+  } as unknown as CpMagnificFlowsAdapter;
+}
+
 function makeService(opts?: {
   db?: JobsMemory;
   ledgerDb?: LedgerMemory;
   adapter?: Partial<MagnificAdapterPort>;
   comfy?: Partial<CpComfyAdapter> | CpComfyAdapter;
+  flowTemplates?: Partial<CpMagnificFlowTemplatesService>;
+  flowsAdapter?: Partial<CpMagnificFlowsAdapter>;
   settings?: { high_cost_threshold?: number | null; magnific_video_wait_sec?: number | null };
   assets?: {
     createAsset: jest.Mock;
@@ -209,8 +261,23 @@ function makeService(opts?: {
     : makeComfyAdapter(opts?.comfy);
   const repo = new CpJobsRepository(db);
   const ledger = new CpLedgerService(ledgerDb);
-  const service = new CpJobsService(repo, ledger, adapter, settings as never, assets as never, comfy);
-  return { service, db, ledgerDb, adapter, comfy, settings, assets };
+  const flowTemplates = opts?.flowTemplates
+    ? makeFlowTemplates(opts.flowTemplates)
+    : undefined;
+  const flowsAdapter = opts?.flowsAdapter
+    ? makeFlowsAdapter(opts.flowsAdapter)
+    : undefined;
+  const service = new CpJobsService(
+    repo,
+    ledger,
+    adapter,
+    settings as never,
+    assets as never,
+    comfy,
+    flowTemplates,
+    flowsAdapter,
+  );
+  return { service, db, ledgerDb, adapter, comfy, settings, assets, flowTemplates, flowsAdapter };
 }
 
 describe('CpJobsService', () => {
@@ -221,6 +288,7 @@ describe('CpJobsService', () => {
       ...envBackup,
       MAGNIFIC_MCP_ENABLED: '1',
       MAGNIFIC_REST_API_ENABLED: '1',
+      MAGNIFIC_FLOWS_ENABLED: '1',
     };
   });
 
@@ -993,5 +1061,106 @@ describe('CpJobsService', () => {
     const { service } = makeService({ db: restricted });
     const drafted = await service.draft(9, comfyDraftInput({ idempotency_key: 'job-comfy-restricted' }));
     expect(drafted.job_id).toBe(JOB_ID);
+  });
+
+  it('rejects flow draft when MAGNIFIC_FLOWS_ENABLED is off', async () => {
+    process.env.MAGNIFIC_FLOWS_ENABLED = '0';
+    const { service } = makeService({ flowTemplates: {}, flowsAdapter: {} });
+    await expect(service.draft(9, flowDraftInput())).rejects.toMatchObject({
+      error: 'magnific_flows_disabled',
+      gate: 'GT-MF01',
+    });
+  });
+
+  it('rejects flow draft missing motion_prompt via template validation', async () => {
+    const validateDraft = jest.fn(async () => {
+      throw Object.assign(new Error('missing'), {
+        status: 422,
+        error: 'flow_input_missing',
+        gate: 'GT-MF03',
+      });
+    });
+    const { service } = makeService({ flowTemplates: { validateDraft } });
+    await expect(
+      service.draft(9, flowDraftInput({ inputs: { image_prompt: 'only image' } })),
+    ).rejects.toMatchObject({ error: 'flow_input_missing', gate: 'GT-MF03' });
+  });
+
+  it('submits a flow job via flows adapter and records external_run_id', async () => {
+    const { service, db, flowsAdapter } = makeService({ flowTemplates: {}, flowsAdapter: {} });
+    const drafted = await service.draft(9, flowDraftInput({ idempotency_key: 'job-flow-sub' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    const submitted = await service.submit(9, drafted.job_id);
+
+    expect(flowsAdapter?.runFlow).toHaveBeenCalledWith(
+      FLOW_SQID,
+      expect.objectContaining({ image_prompt: 'Vertical social ad hero' }),
+    );
+    expect(submitted).toMatchObject({
+      job_id: drafted.job_id,
+      status: 'queued',
+      external_run_id: 'flow-run-1',
+    });
+    expect(db.runs[0]).toMatchObject({
+      external_run_id: 'flow-run-1',
+    });
+  });
+
+  it('does not duplicate runFlow on second submit when already queued (GT-MF06)', async () => {
+    const runFlow = jest.fn(async () => ({ workflowRunIdentifier: 'flow-run-1' }));
+    const { service, flowsAdapter } = makeService({
+      flowTemplates: {},
+      flowsAdapter: { runFlow },
+    });
+    const drafted = await service.draft(9, flowDraftInput({ idempotency_key: 'job-flow-idem' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+    await expect(service.submit(9, drafted.job_id)).rejects.toMatchObject({
+      error: 'job_not_submittable',
+    });
+    expect(runFlow).toHaveBeenCalledTimes(1);
+    expect(flowsAdapter?.runFlow).toHaveBeenCalledTimes(1);
+  });
+
+  it('ingests flow output to qc with asset_id', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'cp-magnific-flow-'));
+    process.env.CP_ASSET_STORAGE = root;
+    const waitForRun = jest.fn(async () => ({
+      outputUrls: ['https://cdn.example/out.mp4'],
+      status: 'completed',
+    }));
+    const download = jest.fn(async () => ({
+      bytes: Buffer.from('mp4-bytes'),
+      mime: 'video/mp4',
+    }));
+    const { service, db } = makeService({
+      flowTemplates: {},
+      flowsAdapter: { waitForRun },
+      adapter: { wait: jest.fn(), download },
+    });
+    const drafted = await service.draft(9, flowDraftInput({ idempotency_key: 'job-flow-ingest' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+    db.jobs[0]!.state = 'queued';
+    db.jobs[0]!.stage_log_json = {
+      ...(db.jobs[0]!.stage_log_json as Record<string, unknown>),
+      external_run_id: 'flow-run-1',
+      execution_kind: 'flow',
+      flow_sqid: FLOW_SQID,
+    };
+
+    const ingested = await service.ingest(9, drafted.job_id);
+    expect(waitForRun).toHaveBeenCalledWith('flow-run-1');
+    expect(download).toHaveBeenCalledWith('https://cdn.example/out.mp4', 'rest');
+    expect(ingested).toMatchObject({ state: 'qc', asset_id: expect.any(String) });
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('keeps tool mode unchanged when execution_kind is absent', async () => {
+    const { service, adapter } = makeService();
+    const drafted = await service.draft(9, draftInput({ idempotency_key: 'job-tool-only' }));
+    await service.confirm(9, drafted.job_id, { confirm: true });
+    await service.submit(9, drafted.job_id);
+    expect(adapter.generate).toHaveBeenCalled();
   });
 });

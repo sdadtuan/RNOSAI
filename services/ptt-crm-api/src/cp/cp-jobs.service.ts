@@ -8,7 +8,9 @@ import { bindComfyWorkflow } from './cp-comfy-bind.util';
 import { CpComfyAdapter } from './cp-comfy.adapter';
 import { CpJobsRepository } from './cp-jobs.repository';
 import { CpLedgerService } from './cp-ledger.service';
-import { assertMagnificAllowed } from './cp-magnific-policy.util';
+import { assertMagnificAllowed, assertMagnificFlowsAllowed } from './cp-magnific-policy.util';
+import { CpMagnificFlowsAdapter } from './cp-magnific-flows.adapter';
+import { CpMagnificFlowTemplatesService } from './cp-magnific-flow-templates.service';
 import { probeIngestBytes } from './cp-media-probe.util';
 import { CpSettingsService } from './cp-settings.service';
 
@@ -16,10 +18,13 @@ export const MAGNIFIC_ADAPTER = 'MAGNIFIC_ADAPTER';
 
 export type CpJobProvider = 'magnific_mcp' | 'magnific_rest' | 'comfyui';
 
+export type CpJobExecutionKind = 'tool' | 'flow';
+
 export type CpJobDraftInput = {
   project_id: string;
   task_id?: string;
   template_id?: string;
+  execution_kind?: CpJobExecutionKind;
   provider: CpJobProvider;
   provider_mode?: 'manual' | 'recommended';
   prompt_package_id?: string | null;
@@ -83,6 +88,8 @@ export class CpJobsService {
     @Optional() private readonly settings?: CpSettingsService,
     @Optional() private readonly assets?: CpAssetsService,
     @Optional() private readonly comfy?: CpComfyAdapter,
+    @Optional() private readonly flowTemplates?: CpMagnificFlowTemplatesService,
+    @Optional() private readonly flowsAdapter?: CpMagnificFlowsAdapter,
   ) {}
 
   async draft(
@@ -97,6 +104,10 @@ export class CpJobsService {
     const inputs = objectValue(input.inputs);
 
     const project = await this.loadProject(projectId);
+    const executionKind = parseExecutionKind(input.execution_kind);
+    if (executionKind === 'flow') {
+      return this.draftFlow(staffId, input, auth, project, provider, key, inputs);
+    }
     this.assertPolicy(provider, project, inputs);
 
     const existing = await this.repo.findByIdempotencyKey(key);
@@ -183,6 +194,9 @@ export class CpJobsService {
     const estimate = estimateFromLog(log);
     if (provider === 'comfyui') {
       return this.submitComfy(staffId, job, log, estimate);
+    }
+    if (log.execution_kind === 'flow') {
+      return this.submitFlow(staffId, job, log, estimate);
     }
 
     const inputs = objectValue(log.inputs);
@@ -300,7 +314,9 @@ export class CpJobsService {
     const actorId = staffId > 0 ? staffId : Number(log.created_by ?? 0) || 0;
     const capability = provider === 'comfyui'
       ? String(objectValue(log.inputs).workflow_key ?? 'comfy_prompt')
-      : String(objectValue(log.inputs).capability ?? job.model ?? 'images_generate');
+      : log.execution_kind === 'flow'
+        ? `flow:${String(log.flow_sqid ?? '').trim()}`
+        : String(objectValue(log.inputs).capability ?? job.model ?? 'images_generate');
     const externalRunId = String(log.external_run_id ?? '').trim();
     try {
       if (!externalRunId) {
@@ -308,7 +324,9 @@ export class CpJobsService {
       }
       const pulled = provider === 'comfyui'
         ? await this.pullComfyOutput(job, log, provider, externalRunId)
-        : await this.pullMagnificOutput(job, log, provider, externalRunId, transport);
+        : log.execution_kind === 'flow'
+          ? await this.pullMagnificFlowOutput(job, log, provider, externalRunId)
+          : await this.pullMagnificOutput(job, log, provider, externalRunId, transport);
       if (!pulled.downloaded.bytes?.length) {
         return this.failAssetSync(job, log, provider, 'empty_download');
       }
@@ -355,6 +373,160 @@ export class CpJobsService {
       if (isPersistedAssetSyncFailure(error)) throw error;
       return this.failAssetSync(job, log, provider, ingestFailReason(error));
     }
+  }
+
+  private async draftFlow(
+    staffId: number,
+    input: CpJobDraftInput,
+    auth: CpJobsAuth,
+    project: Record<string, unknown>,
+    provider: CpJobProvider,
+    key: string,
+    inputs: Record<string, unknown>,
+  ): Promise<CpJobDraftResult> {
+    assertMagnificFlowsAllowed(readAiOpsFlags());
+    if (provider !== 'magnific_rest') {
+      cpThrow(422, { error: 'flow_requires_magnific_rest' });
+    }
+    if (!this.flowTemplates) {
+      cpThrow(503, { error: 'magnific_flows_unavailable' });
+    }
+    const templateId = requiredText(input.template_id, 'template_id_required');
+    this.assertPolicy(provider, project, inputs);
+    const existing = await this.repo.findByIdempotencyKey(key);
+    if (existing.rows[0]) return toDraftResult(existing.rows[0]);
+
+    const validated = await this.flowTemplates.validateDraft({
+      template_id: templateId,
+      inputs,
+    });
+    const estimate = validated.estimate;
+    await this.assertHighCost(estimate.credits, auth.hasHighCostCap !== false);
+
+    const requiresConfirmation = estimate.credits == null || estimate.credits > 0;
+    const status: 'draft' | 'pending_confirm' = requiresConfirmation
+      ? 'pending_confirm'
+      : 'draft';
+    const stageLog = {
+      execution_kind: 'flow',
+      flow_sqid: validated.flow_sqid,
+      flow_inputs: validated.flow_inputs,
+      inputs,
+      estimate,
+      prompt_package_id: input.prompt_package_id ?? null,
+      provider_mode: input.provider_mode ?? 'manual',
+      template_id: templateId,
+      confirmed: false,
+      reserved_amount: null,
+      created_by: staffId,
+      agency_client_id: nullableText(project.agency_client_id),
+      cost_center: nullableText(project.cost_center),
+      classification: policyClassification(project, inputs),
+      external_prohibited: policyExternalProhibited(project, inputs),
+      attempt: 1,
+    };
+    const inserted = await this.repo.insertJob({
+      projectId: String(input.project_id),
+      taskId: nullableText(input.task_id),
+      state: status,
+      provider,
+      model: `flow:${validated.flow_sqid}`,
+      stageLog,
+      createdByStaffId: staffId,
+      idempotencyKey: key,
+      correlationId: `${key}:${Date.now()}`,
+    });
+    const job = inserted.rows[0];
+    if (!job) {
+      const raced = await this.repo.findByIdempotencyKey(key);
+      if (raced.rows[0]) return toDraftResult(raced.rows[0]);
+      cpThrow(500, { error: 'job_insert_failed' });
+    }
+    return toDraftResult(job);
+  }
+
+  private async submitFlow(
+    staffId: number,
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    estimate: { credits: number | null; duration_sec: number | null },
+  ): Promise<Record<string, unknown>> {
+    assertMagnificFlowsAllowed(readAiOpsFlags());
+    if (!this.flowsAdapter) {
+      cpThrow(503, { error: 'magnific_flows_unavailable' });
+    }
+    const provider: CpJobProvider = 'magnific_rest';
+    const sqid = String(log.flow_sqid ?? '').trim();
+    const flowInputs = objectValue(log.flow_inputs);
+    const existingRunId = String(log.external_run_id ?? log.workflow_run_identifier ?? '').trim();
+    if (existingRunId && String(job.state) === 'queued') {
+      return {
+        job_id: String(job.id),
+        status: 'queued',
+        external_run_id: existingRunId,
+      };
+    }
+    const balance = await this.adapter.getBalance('rest');
+    if (balance.credits == null) {
+      cpThrow(409, { error: 'POLICY_BLOCKED', gate: 'GT-M02' });
+    }
+    if (estimate.credits != null && balance.credits < estimate.credits) {
+      cpThrow(409, { error: 'POLICY_BLOCKED', gate: 'GT-M02' });
+    }
+    try {
+      const generated = await this.flowsAdapter.runFlow(sqid, flowInputs);
+      log.external_run_id = generated.workflowRunIdentifier;
+      log.workflow_run_identifier = generated.workflowRunIdentifier;
+      log.submitted_by = staffId;
+      await this.repo.insertRun({
+        jobId: String(job.id),
+        provider,
+        mode: log.provider_mode === 'recommended' ? 'auto' : 'manual',
+        externalRunId: generated.workflowRunIdentifier,
+        toolOrWorkflow: `flow:${sqid}`,
+        estimateCredits: estimate.credits,
+        status: 'queued',
+      });
+      const updated = await this.repo.updateJob(String(job.id), {
+        state: 'queued',
+        stageLog: log,
+      });
+      return {
+        job_id: String(job.id),
+        status: 'queued',
+        external_run_id: generated.workflowRunIdentifier,
+        ...(updated.rows[0] ?? {}),
+      };
+    } catch (error) {
+      await this.releaseCredits(job, log, provider, estimate.credits);
+      log.release_reason = 'submit_failed';
+      log.confirmed = false;
+      log.reserved_amount = null;
+      await this.repo.updateJob(String(job.id), { state: 'failed', stageLog: log }).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private async pullMagnificFlowOutput(
+    job: Record<string, unknown>,
+    log: Record<string, unknown>,
+    provider: CpJobProvider,
+    externalRunId: string,
+  ): Promise<{ downloaded: { bytes: Buffer; mime: string }; actualCredits: number | null }> {
+    if (!this.flowsAdapter) {
+      return this.failAssetSync(job, log, provider, 'flows_unavailable');
+    }
+    const waited = await this.flowsAdapter.waitForRun(externalRunId);
+    const url = waited.outputUrls.find((item) => String(item ?? '').trim()) ?? '';
+    if (!url) {
+      return this.failAssetSync(job, log, provider, 'missing_output_url');
+    }
+    return {
+      downloaded: await this.adapter.download(url, 'rest'),
+      actualCredits: nullableInteger(log.estimate && typeof log.estimate === 'object'
+        ? (log.estimate as Record<string, unknown>).credits
+        : null),
+    };
   }
 
   private async submitComfy(
@@ -877,6 +1049,11 @@ function stageLogOf(job: Record<string, unknown>): Record<string, unknown> {
     }
   }
   return {};
+}
+
+function parseExecutionKind(value: unknown): CpJobExecutionKind {
+  const kind = String(value ?? 'tool').trim();
+  return kind === 'flow' ? 'flow' : 'tool';
 }
 
 function requiredProvider(value: unknown): CpJobProvider {
