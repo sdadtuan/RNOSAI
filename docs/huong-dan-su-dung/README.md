@@ -1,6 +1,6 @@
 # RNOSAI — Hướng dẫn sử dụng theo domain
 
-> **Phiên bản:** 1.5 · **Cập nhật:** 2026-09-10  
+> **Phiên bản:** 1.7 · **Cập nhật:** 2026-09-13  
 > **Đối tượng:** Nhân viên PTT (ops-web) và khách hàng (portal-web)  
 > **URL staff:** https://rs.pttads.vn · **URL portal:** https://portal.pttads.vn
 
@@ -29,6 +29,10 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 34 | **Creative Production OS (Sản xuất sáng tạo — project, video AI, Brand Kit, lịch, credit)** | [34-creative-production-os.md](./34-creative-production-os.md) | AM, Creative, Brand, Legal, Motion, Admin |
 | 35 | **Quotation OS (Báo giá — 7 mục: Tổng quan, list, tạo, catalog, phê duyệt, báo cáo, cấu hình)** | [35-quotation-os.md](./35-quotation-os.md) | AM, Sales, Finance, GDKD |
 | 36 | **PTT Facebook Lead Video (pack 9:16, QC, Instant Form, Ads Ops)** | [36-ptt-fb-lead-video.md](./36-ptt-fb-lead-video.md) | Editor, AM, Buyer, Tracking |
+| 37 | **TVC ngắn — Dual module Creative OS + Video SOP** | [37-cp-tvc-sop-handoff.md](./37-cp-tvc-sop-handoff.md) | AM, Motion, Editor, Legal |
+| 38 | **Figma Weave — SOP Image-to-Video (Import, Prompt, Generative Video, Export)** | [38-figma-weave-i2v-sop.md](./38-figma-weave-i2v-sop.md) | Designer, Producer, Motion |
+| 39 | **Magnific Spaces — SOP Image-to-Video (Upload, Text, Video Generator, Download)** | [39-magnific-i2v-sop.md](./39-magnific-i2v-sop.md) | Designer, Producer, Motion |
+| 40 | **Image SOP Studio (ImageOS) — 11 màn · Intent→Recipe · UAT v2.2** | [40-image-sop-studio.md](./40-image-sop-studio.md) · [SPEC §14](../superpowers/specs/2026-09-13-cp-image-sop-srs.md) · [Mockup](../design/rnosai-cp-os-image-sop-mockup.html) | Art Director, AI Artist, Brand, AM |
 | 21 | **Video SOP — Checklist onboarding (AM / Motion / IT)** | [21-video-sop-onboarding-checklist.md](./21-video-sop-onboarding-checklist.md) | AM, Motion, IT, Admin |
 | 11 | Marketing AI Planner (tóm tắt 5 bước) | [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) | SP, MKT Lead |
 | 26 | **Sales Cockpit — hướng dẫn đầy đủ (env + UI)** | [26-sales-cockpit-huong-dan-day-du.md](./26-sales-cockpit-huong-dan-day-du.md) | AM, Sales, IT |

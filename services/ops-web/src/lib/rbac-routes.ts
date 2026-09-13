@@ -233,6 +233,10 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     anyOf: [...CRM_PREFIX_CAPS, { section: 'crm_am', action: 'view' }],
   },
   {
+    prefix: '/crm/creative-os/image',
+    anyOf: [{ section: 'crm_img', action: 'view' }],
+  },
+  {
     prefix: '/crm/creative-os',
     anyOf: [
       { section: 'crm_cp', action: 'view' },

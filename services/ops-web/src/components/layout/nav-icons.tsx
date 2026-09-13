@@ -493,6 +493,7 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/service-delivery': 'lifecycle',
   '/crm/sop': 'checklist',
   '/crm/video': 'run',
+  '/crm/creative-os/image': 'creative',
   '/crm/content-os': 'board',
   '/crm/launch-qa': 'rocket',
   '/crm/creatives': 'creative',

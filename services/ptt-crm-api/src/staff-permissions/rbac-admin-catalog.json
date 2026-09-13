@@ -351,6 +351,16 @@
     "crm_cp.approve_legal": ["execute"],
     "crm_cp.finance": ["view"],
     "crm_cp.view_audit": ["view"],
+    "crm_img": ["view", "view_all", "edit", "manage"],
+    "crm_img.sop": ["edit"],
+    "crm_img.render": ["execute"],
+    "crm_img.render_high_cost": ["execute"],
+    "crm_img.gate1": ["execute"],
+    "crm_img.gate2": ["execute"],
+    "crm_img.gate3": ["execute"],
+    "crm_img.finance": ["view"],
+    "crm_img.manage": ["manage"],
+    "crm_img.admin": ["manage"],
     "crm_quote": ["view", "view_all", "edit", "manage"],
     "crm_quote.approve": ["execute"],
     "crm_quote.finance": ["view", "edit"],
@@ -1295,6 +1305,76 @@
       "description": "Xem nhật ký kiểm toán."
     },
     {
+      "id": "crm_img",
+      "label": "Image SOP Studio",
+      "group": "CRM",
+      "page": "/crm/creative-os/image",
+      "description": "Truy cập hub Ảnh SOP trong Creative OS."
+    },
+    {
+      "id": "crm_img.sop",
+      "label": "Image SOP — Composer",
+      "group": "CRM",
+      "page": "/crm/creative-os/image/sops",
+      "description": "Soạn và publish SOP ảnh staging."
+    },
+    {
+      "id": "crm_img.render",
+      "label": "Image SOP — Render",
+      "group": "CRM",
+      "page": "/crm/creative-os/image/jobs",
+      "description": "Draft và submit image jobs."
+    },
+    {
+      "id": "crm_img.render_high_cost",
+      "label": "Image SOP — Render chi phí cao",
+      "group": "CRM",
+      "page": "/crm/creative-os/image/jobs",
+      "description": "Render vượt ngưỡng credit."
+    },
+    {
+      "id": "crm_img.gate1",
+      "label": "Image SOP — Gate 1",
+      "group": "CRM",
+      "page": "/crm/creative-os/image/review",
+      "description": "Phê duyệt cổng G1 prompt/genome."
+    },
+    {
+      "id": "crm_img.gate2",
+      "label": "Image SOP — Gate 2",
+      "group": "CRM",
+      "page": "/crm/creative-os/image/review",
+      "description": "Phê duyệt cổng G2 visual master."
+    },
+    {
+      "id": "crm_img.gate3",
+      "label": "Image SOP — Gate 3",
+      "group": "CRM",
+      "page": "/crm/creative-os/image/review",
+      "description": "Phê duyệt cổng G3 legal/rights."
+    },
+    {
+      "id": "crm_img.finance",
+      "label": "Image SOP — FinOps",
+      "group": "CRM",
+      "page": "/crm/creative-os/image/finops",
+      "description": "Xem credit ledger image_sop."
+    },
+    {
+      "id": "crm_img.manage",
+      "label": "Image SOP — Quản trị",
+      "group": "CRM",
+      "page": "/crm/creative-os/image/governance",
+      "description": "Policy, audit export."
+    },
+    {
+      "id": "crm_img.admin",
+      "label": "Image SOP — Admin",
+      "group": "CRM",
+      "page": "/crm/creative-os/image/sops",
+      "description": "Publish SOP production."
+    },
+    {
       "id": "crm_quote",
       "label": "Quotation OS",
       "group": "CRM",
@@ -2152,6 +2232,16 @@
     "crm_cp.approve_legal",
     "crm_cp.finance",
     "crm_cp.view_audit",
+    "crm_img",
+    "crm_img.sop",
+    "crm_img.render",
+    "crm_img.render_high_cost",
+    "crm_img.gate1",
+    "crm_img.gate2",
+    "crm_img.gate3",
+    "crm_img.finance",
+    "crm_img.manage",
+    "crm_img.admin",
     "crm_quote",
     "crm_quote.approve",
     "crm_quote.audit",

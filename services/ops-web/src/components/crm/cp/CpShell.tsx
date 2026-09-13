@@ -10,11 +10,14 @@ import {
   getAccessToken,
   getRefreshToken,
   getStoredUser,
+  hasCap,
   updateAccessToken,
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
 import { CP_CREDIT_FOOTER_LABEL } from '@/lib/crm/cp-copy';
+import { getCpImageFlags } from '@/lib/crm/cp-image-sop-api';
+import { visibleCpNav } from '@/lib/crm/cp-image-sop-nav.util';
 import { CP_NAV, canSeeCpNav } from '@/lib/crm/cp-nav.util';
 import { useCpCreditFooter } from '@/hooks/useCpCreditFooter';
 import { CpScopeBar } from './CpScopeBar';
@@ -39,6 +42,7 @@ function CpShellInner({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const [imageEnabled, setImageEnabled] = useState(false);
   const credit = useCpCreditFooter(scope);
 
   const ensureAuth = useCallback(async () => {
@@ -82,6 +86,26 @@ function CpShellInner({ children }: { children: ReactNode }) {
     void ensureAuth().finally(() => setLoading(false));
   }, [ensureAuth]);
 
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token || !user) {
+      setImageEnabled(false);
+      return;
+    }
+    void getCpImageFlags(token)
+      .then((flags) => setImageEnabled(flags.enabled))
+      .catch(() => setImageEnabled(false));
+  }, [user]);
+
+  const navItems = useMemo(() => {
+    if (!user) return CP_NAV;
+    return visibleCpNav({
+      items: CP_NAV,
+      imageEnabled,
+      canImgView: hasCap(user, 'crm_img', 'view'),
+    });
+  }, [imageEnabled, user]);
+
   const presetDays = useMemo<'30' | 'all'>(() => {
     const from = searchParams.get('from');
     if (!from) return 'all';
@@ -110,7 +134,7 @@ function CpShellInner({ children }: { children: ReactNode }) {
             <aside className="cp-sidebar" aria-label="Creative Production OS">
               <nav className="cp-sidebar__nav">
                 <p className="cp-sidebar__grp">SẢN XUẤT SÁNG TẠO</p>
-                {CP_NAV.map((item) => (
+                {navItems.map((item) => (
                   <Link
                     key={item.id}
                     href={item.href}

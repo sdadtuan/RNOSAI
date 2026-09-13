@@ -76,6 +76,8 @@ Không phải tool text-to-video rời. Không phải app Nova.
 
 **A — `/crm/creative-os*` trong ops-web + `CreativeProductionModule`.** Cấm app tách. Cấm nuốt Content OS.
 
+**Con Image SOP (draft):** [SPEC-CP-IMAGE-SOP v2.2](./2026-09-13-cp-image-sop-srs.md) — studio ảnh tĩnh (`img_*`), Intent→Recipe, plan §14 / [TDD](../plans/2026-09-13-cp-image-sop.md); **không** thay Video SOP keyframe.
+
 ---
 
 ## 2. Quyết định khóa

@@ -8,6 +8,7 @@ export const CP_PROJECT_TABS = [
   { id: 'budget', label: 'Ngân sách' },
   { id: 'activity', label: 'Hoạt động' },
   { id: 'ai-ops', label: 'AI Ops' },
+  { id: 'image-sop', label: 'Ảnh SOP' },
 ] as const;
 
 export type CpProjectTabId = (typeof CP_PROJECT_TABS)[number]['id'];

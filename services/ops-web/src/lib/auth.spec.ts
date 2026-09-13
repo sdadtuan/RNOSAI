@@ -204,6 +204,13 @@ describe('rbac-routes', () => {
     expect(canAccessPath('/crm/creative-os/projects', cpView, 'crm')).toBe(true);
   });
 
+  it('Creative OS image requires crm_img.view — crm_cp.view alone is 403', () => {
+    const cpView = userWith([{ section: 'crm_cp', action: 'view' }]);
+    const imgView = userWith([{ section: 'crm_img', action: 'view' }]);
+    expect(canAccessPath('/crm/creative-os/image', cpView, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/creative-os/image', imgView, 'crm')).toBe(true);
+  });
+
   it('/crm/health admits original CS caps plus crm_am.view without widening /crm', () => {
     const amOnly = user([{ section: 'crm_am', action: 'view' }]);
     const agency = user([{ section: 'crm_agency', action: 'view' }]);

@@ -70,6 +70,8 @@ import { canViewGtmCms, canViewGtmDemos } from '@/lib/gtm/caps';
 import { shouldShowContentOsNav } from '@/components/ops-nav-content-os';
 import { shouldShowMediaOsNav } from '@/components/ops-nav-media-os';
 import { shouldShowVideoSopNav } from '@/components/ops-nav-video-sop';
+import { shouldShowImageSopNav } from '@/components/ops-nav-image-sop';
+import { getCpImageFlags } from '@/lib/crm/cp-image-sop-api';
 import { nextActionFor } from '@/lib/crm/canopy-next-action';
 
 interface OpsNavProps {
@@ -155,6 +157,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/launch-qa': 'Launch QA',
   '/crm/creatives': 'Creative Hub',
   '/crm/creative-os': 'Sản xuất sáng tạo',
+  '/crm/creative-os/image': 'Ảnh SOP',
   '/crm/content-os': 'Content Marketing OS',
   '/crm/media-os': 'Media OS',
   '/crm/campaign-writes': 'Campaign Write',
@@ -301,6 +304,7 @@ function pageTitleFor(pathname: string): string {
   if (pathname.startsWith('/crm/service-delivery/') && pathname !== '/crm/service-delivery') {
     return 'Service lifecycle';
   }
+  if (pathname.startsWith('/crm/creative-os/image')) return PAGE_TITLES['/crm/creative-os/image'];
   if (pathname.startsWith('/crm/account-management')) return PAGE_TITLES['/crm/account-management'];
   if (pathname.startsWith('/crm/revenue-ops')) return PAGE_TITLES['/crm/revenue-ops'];
   if (pathname.startsWith('/crm/staff/') && pathname !== '/crm/staff') return 'Workspace nhân viên';
@@ -360,6 +364,7 @@ function buildSections(
   agencyUnread?: number,
   reviewQueueCount?: number,
   csdChatUnread?: number,
+  imageSopEnabled?: boolean,
 ): NavSection[] {
   const sections: NavSection[] = [];
 
@@ -606,6 +611,9 @@ function buildSections(
   if (shouldShowVideoSopNav(user)) {
     delivery.push({ href: '/crm/video', label: 'Video SOP' });
   }
+  if (shouldShowImageSopNav(user, imageSopEnabled ?? false)) {
+    delivery.push({ href: '/crm/creative-os/image', label: 'Ảnh SOP' });
+  }
   if (delivery.length) sections.push({ label: 'CRM · Triển khai dịch vụ', links: delivery });
 
   const hr: NavLink[] = [];
@@ -829,6 +837,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   const [isMobileNav, setIsMobileNav] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set());
   const [navSectionsReady, setNavSectionsReady] = useState(false);
+  const [imageSopEnabled, setImageSopEnabled] = useState(false);
   const chromeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -891,9 +900,29 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
       .catch(() => setCsdChatUnread(undefined));
   }, [sidebarUser, pathname]);
 
+  useEffect(() => {
+    if (!sidebarUser || !hasCap(sidebarUser, 'crm_img', 'view')) {
+      setImageSopEnabled(false);
+      return;
+    }
+    const token = getAccessToken();
+    if (!token) return;
+    void getCpImageFlags(token)
+      .then((flags) => setImageSopEnabled(flags.enabled))
+      .catch(() => setImageSopEnabled(false));
+  }, [sidebarUser]);
+
   const sections = useMemo(
-    () => buildSections(sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount, csdChatUnread),
-    [sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount, csdChatUnread],
+    () =>
+      buildSections(
+        sidebarUser,
+        emailPendingApprovals,
+        agencyUnread,
+        reviewQueueCount,
+        csdChatUnread,
+        imageSopEnabled,
+      ),
+    [sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount, csdChatUnread, imageSopEnabled],
   );
   const nextAction = nextActionFor(pathname);
 

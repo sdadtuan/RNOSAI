@@ -25,4 +25,4 @@ Phase A **không** wire SOP worker → CP render. Luồng: SOP hoàn thành → 
 - Bridge SOP job complete → auto-ingest version + ffprobe facts.
 - Closed-loop CPL theo `re_project_id` trên RPT.
 
-**Liên quan:** [34-creative-production-os.md](./34-creative-production-os.md) · [36-ptt-fb-lead-video.md](./36-ptt-fb-lead-video.md)
+**Liên quan:** [34-creative-production-os.md](./34-creative-production-os.md) · [36-ptt-fb-lead-video.md](./36-ptt-fb-lead-video.md) · [38-figma-weave-i2v-sop.md](./38-figma-weave-i2v-sop.md) (reel I2V Weave) · [39-magnific-i2v-sop.md](./39-magnific-i2v-sop.md) (reel I2V Magnific)

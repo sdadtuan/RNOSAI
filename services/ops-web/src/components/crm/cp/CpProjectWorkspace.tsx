@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError } from '@/lib/api';
-import { getAccessToken } from '@/lib/auth';
+import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import {
   closeCpProject,
   createCpProjectBrief,
@@ -70,7 +70,10 @@ import {
   canSubmitCreativeToHub,
   type QcFetchState,
 } from '@/lib/crm/cp-review.util';
+import { getCpImageFlags } from '@/lib/crm/cp-image-sop-api';
+import { isCpImageSopVisible, OFF_CP_IMAGE_FLAGS } from '@/lib/crm/cp-image-sop.flags';
 import { CpAiOpsWorkspace } from './CpAiOpsWorkspace';
+import { CpImageOperations } from './CpImageOperations';
 
 const EMPTY_LOOKUPS: CpProjectLookups = { clients: [], staff: [], lifecycles: [] };
 
@@ -122,6 +125,7 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
   const [selectedVersionId, setSelectedVersionId] = useState('');
   const [qcFetch, setQcFetch] = useState<QcFetchState>({ phase: 'idle' });
   const [aiOpsFlags, setAiOpsFlags] = useState<CpAiOpsFlags>(OFF_AI_OPS_FLAGS);
+  const [imageSopVisible, setImageSopVisible] = useState(false);
 
   const href = (tab: string) => `/crm/creative-os/projects/${projectId}?tab=${tab}`;
 
@@ -134,7 +138,8 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
     setLoading(true);
     setError('');
     try {
-      const [projectOut, briefOut, deliverableOut, taskOut, activityOut, assetOut, lookupOut, flagsOut] =
+      const user = getStoredUser();
+      const [projectOut, briefOut, deliverableOut, taskOut, activityOut, assetOut, lookupOut, flagsOut, imageFlagsOut] =
         await Promise.all([
           getCpProject(token, projectId),
           listCpProjectBriefs(token, projectId),
@@ -144,6 +149,7 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
           listCpAssets(token),
           getCpProjectLookups(token).catch(() => EMPTY_LOOKUPS),
           getCpAiOpsFlags(token).catch(() => OFF_AI_OPS_FLAGS),
+          getCpImageFlags(token).catch(() => OFF_CP_IMAGE_FLAGS),
         ]);
       setProject(projectOut);
       setBriefs(briefOut.items);
@@ -153,6 +159,9 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
       setAssets(projectAssets(assetOut.items, projectId));
       setLookups(lookupOut);
       setAiOpsFlags(flagsOut);
+      setImageSopVisible(
+        isCpImageSopVisible(imageFlagsOut, Boolean(user && hasCap(user, 'crm_img', 'view'))),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không tải được workspace');
     } finally {
@@ -433,7 +442,11 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
       {notice ? <section className="cp-alert"><span>{notice}</span></section> : null}
 
       <nav className="cp-chips" aria-label="Project workspace">
-        {CP_PROJECT_TABS.filter((tab) => tab.id !== 'ai-ops' || aiOpsFlags.showAiOpsTab).map((tab) => (
+        {CP_PROJECT_TABS.filter((tab) => {
+          if (tab.id === 'ai-ops') return aiOpsFlags.showAiOpsTab;
+          if (tab.id === 'image-sop') return imageSopVisible;
+          return true;
+        }).map((tab) => (
           <Link
             key={tab.id}
             className={activeTab === tab.id ? 'cp-chip is-on' : 'cp-chip'}
@@ -816,6 +829,17 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
         ) : (
           <section className="cp-card cp-ai-ops">
             <header className="cp-card__head"><h2>Chưa bật AI Ops</h2></header>
+            <p className="cp-empty">{dash(null)}</p>
+          </section>
+        )
+      ) : null}
+
+      {activeTab === 'image-sop' ? (
+        imageSopVisible ? (
+          <CpImageOperations cpProjectId={projectId} />
+        ) : (
+          <section className="cp-card">
+            <header className="cp-card__head"><h2>Chưa bật Ảnh SOP</h2></header>
             <p className="cp-empty">{dash(null)}</p>
           </section>
         )

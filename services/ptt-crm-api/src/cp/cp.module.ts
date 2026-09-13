@@ -66,7 +66,11 @@ import {
   CpExperimentsRepository,
   CpExperimentsService,
 } from './cp-experiments.service';
+import { CpImageController } from './cp-image.controller';
+import { CP_IMAGE_SOP_QUERY, CpImageSopRepository } from './cp-image-sop.repository';
+import { CpImageSopService } from './cp-image-sop.service';
 import { StaffCpGuard } from './guards/staff-cp.guard';
+import { StaffImgGuard } from './guards/staff-img.guard';
 import { CpWeaveIngestController } from './cp-weave-ingest.controller';
 import { CpWeaveIngestWorker } from './cp-weave-ingest.worker';
 import { CP_WEAVE_QUERY, CpWeaveRepository } from './cp-weave.repository';
@@ -97,12 +101,17 @@ import {
   imports: [ConfigModule, StaffAuthModule, CreativesModule, CampaignWritesModule],
   controllers: [
     CpController,
+    CpImageController,
     CpAssetStreamController,
     CpWeaveIngestController,
     CpMagnificOAuthCallbackController,
   ],
   providers: [
     StaffCpGuard,
+    StaffImgGuard,
+    CpImageSopRepository,
+    { provide: CP_IMAGE_SOP_QUERY, useExisting: CpRendersRepository },
+    CpImageSopService,
     CpAuditRepository,
     CpAssetsRepository,
     CpAssetsService,

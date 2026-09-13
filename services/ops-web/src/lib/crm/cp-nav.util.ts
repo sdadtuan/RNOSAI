@@ -7,7 +7,16 @@ export function canSeeCpNav(user: StoredStaffUser | null | undefined): boolean {
 }
 
 export type CpNavItem = {
-  id: 'overview' | 'projects' | 'video' | 'media' | 'brand' | 'calendar' | 'reports' | 'settings';
+  id:
+    | 'overview'
+    | 'projects'
+    | 'video'
+    | 'image'
+    | 'media'
+    | 'brand'
+    | 'calendar'
+    | 'reports'
+    | 'settings';
   href: string;
   label: string;
 };
@@ -16,6 +25,7 @@ export const CP_NAV: CpNavItem[] = [
   { id: 'overview', href: '/crm/creative-os', label: 'Tổng quan' },
   { id: 'projects', href: '/crm/creative-os/projects', label: 'Dự án' },
   { id: 'video', href: '/crm/creative-os/video', label: 'Video AI' },
+  { id: 'image', href: '/crm/creative-os/image', label: 'Ảnh SOP' },
   { id: 'media', href: '/crm/creative-os/media', label: 'Thư viện' },
   { id: 'brand', href: '/crm/creative-os/brand-kits', label: 'Brand Kit' },
   { id: 'calendar', href: '/crm/creative-os/calendar', label: 'Lịch xuất bản' },

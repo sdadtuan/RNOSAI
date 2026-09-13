@@ -41,12 +41,12 @@ Creative Production OS (CP OS) quản lý vòng đời **project → brief → a
 ### 1.1. Vào CP OS
 
 1. Đăng nhập https://rs.pttads.vn/login
-2. Sidebar **CRM · Triển khai dịch vụ** → **Sản xuất sáng tạo**
+2. Sidebar admin **CRM · Triển khai dịch vụ** → **Sản xuất sáng tạo**
 3. Hoặc mở trực tiếp `/crm/creative-os`
 
-Không thấy menu → liên hệ Admin cấp `crm_cp.view` (hoặc `view_all`), rồi **đăng xuất / đăng nhập lại**.
+Không thấy menu admin → liên hệ Admin cấp `crm_cp.view` (hoặc `view_all`), rồi **đăng xuất / đăng nhập lại**. Creative OS **giữ** sidebar OpsNav (cùng chrome với Báo giá / AM).
 
-Bên trong module có **đúng 8 mục** (sidebar trái):
+Bên trong module có **đúng 8 mục** (sidebar navy trái, cạnh menu admin):
 
 | # | Mục | Route |
 |---|-----|-------|
@@ -554,3 +554,5 @@ Dự án → Lấy từ Dự án PTT (hoặc Tạo project + chọn khách + lif
 | Grant credit lỗi | Sai UUID khách hoặc thiếu `crm_cp.finance` | Copy ID khách từ AM 360 |
 
 **Phiên hết hạn:** đăng nhập lại `/login`. Nút **Thử lại** trên banner lỗi tải lại API, không mất filter trên URL.
+
+**Liên quan:** Work Order tab AI Ops → pane Weave — [38-figma-weave-i2v-sop.md](./38-figma-weave-i2v-sop.md). Pane Magnific — [39-magnific-i2v-sop.md](./39-magnific-i2v-sop.md) (Spaces I2V: Upload, Text, Assistant, Video Generator, Download). TVC ngắn — [37-cp-tvc-sop-handoff.md](./37-cp-tvc-sop-handoff.md).

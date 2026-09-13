@@ -110,7 +110,7 @@ Dirty tree left unstaged: `CsdChat*`, `csd-chat-display*`, `globals.css`, `.DS_S
 ## Fix pass — Important findings
 
 **HEAD before:** `578b0ec158759c5c9a910c0a28b85d1225b01aa2`  
-**Commit:** `fix(cp): count CPA from final_approved only and label AI Ops chips.`  
+**Commit:** `93d45923` `fix(cp): count CPA from final_approved only and label AI Ops chips.`  
 **Status:** DONE
 
 ### Fixes

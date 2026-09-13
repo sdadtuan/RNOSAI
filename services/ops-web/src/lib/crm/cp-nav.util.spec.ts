@@ -26,12 +26,13 @@ describe('canSeeCpNav', () => {
 });
 
 describe('CP_NAV', () => {
-  it('has the required eight ids and labels without badges', () => {
-    expect(CP_NAV).toHaveLength(8);
+  it('has the required nine ids and labels without badges', () => {
+    expect(CP_NAV).toHaveLength(9);
     expect(CP_NAV.map((item) => item.id)).toEqual([
       'overview',
       'projects',
       'video',
+      'image',
       'media',
       'brand',
       'calendar',
@@ -42,6 +43,7 @@ describe('CP_NAV', () => {
       'Tổng quan',
       'Dự án',
       'Video AI',
+      'Ảnh SOP',
       'Thư viện',
       'Brand Kit',
       'Lịch xuất bản',
