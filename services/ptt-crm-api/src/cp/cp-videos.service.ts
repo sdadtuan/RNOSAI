@@ -154,6 +154,64 @@ export class CpVideosService {
     };
   }
 
+  async listPreviews(draftId: string, scope: CpVideoScope = DEFAULT_SCOPE) {
+    await this.get(draftId, scope);
+    const allowed = projectScope(scope, 3);
+    const result = await this.db.query(
+      `/* studio_previews */
+       SELECT q.* FROM (
+         SELECT DISTINCT ON (v.id)
+           v.id,
+           'version'::text AS kind,
+           v.version_n,
+           NULL::timestamptz AS created_at,
+           ('v' || lpad(COALESCE(v.version_n, 0)::text, 2, '0')) AS label,
+           v.approval_status AS state,
+           COALESCE(a_usage.id, a_uri.id, a_weave.id) AS asset_id,
+           COALESCE(a_usage.mime, a_uri.mime, a_weave.mime) AS mime,
+           w.duration_ms
+         FROM crm_cp_video_versions v
+         JOIN crm_cp_video_drafts d ON d.id = v.draft_id
+         JOIN crm_cp_projects p ON p.id = d.project_id
+         LEFT JOIN crm_cp_asset_usages u
+           ON (u.object_type = 'video_version' AND u.object_id = v.id)
+           OR (u.object_type = 'video_draft' AND u.object_id = v.draft_id)
+         LEFT JOIN crm_cp_asset_versions av ON av.id = u.asset_version_id
+         LEFT JOIN crm_cp_assets a_usage
+           ON a_usage.id = av.asset_id AND a_usage.mime LIKE 'video/%'
+         LEFT JOIN crm_cp_assets a_uri
+           ON a_uri.id::text = v.output_uri
+         LEFT JOIN crm_cp_weave_assets w
+           ON w.storage_uri = v.output_uri
+         LEFT JOIN crm_cp_assets a_weave
+           ON a_weave.id = w.asset_id
+         WHERE p.tenant_id = $1 AND v.draft_id = $2::uuid AND ${allowed.sql}
+         ORDER BY v.id, COALESCE(a_usage.id, a_uri.id, a_weave.id) NULLS LAST
+       ) q
+       ORDER BY q.version_n DESC NULLS LAST, q.id DESC`,
+      [CP_TENANT_ID, requiredUuid(draftId, 'invalid_video_id'), ...allowed.params],
+    );
+    return {
+      items: result.rows.map((row) => {
+        const assetId = row.asset_id == null ? null : String(row.asset_id);
+        const mime = row.mime == null ? null : String(row.mime);
+        const durationMs = Number(row.duration_ms);
+        return {
+          id: String(row.id),
+          kind: String(row.kind ?? 'version'),
+          version_n: row.version_n ?? null,
+          created_at: row.created_at == null ? null : String(row.created_at),
+          label: String(row.label ?? 'Version'),
+          state: row.state == null ? null : String(row.state),
+          asset_id: assetId,
+          mime,
+          duration_ms: Number.isFinite(durationMs) ? durationMs : null,
+          playable: Boolean(assetId && String(mime ?? '').startsWith('video/')),
+        };
+      }),
+    };
+  }
+
   async getVersion(id: string, scope: CpVideoScope = DEFAULT_SCOPE) {
     const versionId = requiredUuid(id, 'invalid_version_id');
     const allowed = projectScope(scope, 3);

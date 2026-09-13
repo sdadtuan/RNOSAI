@@ -418,6 +418,63 @@ describe('CpVideosService playbook integration', () => {
   });
 });
 
+describe('CpVideosService.listPreviews', () => {
+  it('returns newest playable version first and skips rows without asset', async () => {
+    const draftId = '44444444-4444-4444-8444-444444444444';
+    const db = {
+      lastSql: '',
+      async query(sql: string) {
+        this.lastSql = sql;
+        if (sql.includes('studio_previews')) {
+          return {
+            rows: [
+              {
+                id: 'ver-new',
+                kind: 'version',
+                version_n: 2,
+                created_at: '2026-09-13T10:00:00Z',
+                label: 'v02',
+                state: 'internal_review',
+                asset_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                mime: 'video/mp4',
+                duration_ms: 30000,
+              },
+              {
+                id: 'ver-old',
+                kind: 'version',
+                version_n: 1,
+                created_at: '2026-09-12T10:00:00Z',
+                label: 'v01',
+                state: 'internal_review',
+                asset_id: null,
+                mime: null,
+                duration_ms: null,
+              },
+            ],
+          };
+        }
+        if (sql.includes('FROM crm_cp_video_drafts')) {
+          return { rows: [{ id: draftId, project_id: '33333333-3333-4333-8333-333333333333' }] };
+        }
+        return { rows: [] };
+      },
+    };
+
+    const out = await new CpVideosService(db as never).listPreviews(draftId, {
+      scope: 'all',
+      staffId: 1,
+    });
+    expect(out.items[0]).toMatchObject({
+      id: 'ver-new',
+      playable: true,
+      asset_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
+    expect(out.items[1].playable).toBe(false);
+    expect(db.lastSql).toContain('studio_previews');
+    expect(db.lastSql).toContain('ORDER BY');
+  });
+});
+
 describe('CpVideosService.get VID-01', () => {
   it('returns latest_version_id from the draft versions, or null', async () => {
     const draftId = '44444444-4444-4444-8444-444444444444';

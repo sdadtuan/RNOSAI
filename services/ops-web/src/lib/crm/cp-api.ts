@@ -1212,6 +1212,26 @@ export function getCpVideo(token: string, videoId: string, scope: CpScope = 'me'
   );
 }
 
+export type CpStudioPreview = {
+  id: string;
+  kind: string;
+  version_n: number | null;
+  created_at: string | null;
+  label: string;
+  state: string | null;
+  asset_id: string | null;
+  mime: string | null;
+  duration_ms: number | null;
+  playable: boolean;
+};
+
+export function listCpVideoPreviews(token: string, videoId: string, scope: CpScope = 'me') {
+  return cpFetch<{ items: CpStudioPreview[] }>(
+    token,
+    cpQueryPath(`/videos/${encodeURIComponent(videoId)}/previews`, { scope }),
+  );
+}
+
 export function getCpVideoVersion(
   token: string,
   versionId: string,

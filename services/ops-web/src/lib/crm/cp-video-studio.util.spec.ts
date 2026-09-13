@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   VIDEO_STUDIO_TABS,
@@ -6,9 +8,16 @@ import {
   formatEstimate,
   formatJobStatus,
   formatKitOption,
+  formatModelLabel,
   formatPlayhead,
   liveRenderBlocks,
   modelOptions,
+  defaultPreviewId,
+  formatPreviewMeta,
+  mergeStudioPreviews,
+  studioViewerCommand,
+  previewSceneSlots,
+  studioGateItems,
   promptMaxChars,
   sceneStripLabel,
   studioConfigFrom,
@@ -138,11 +147,46 @@ describe('VID-01 studio helpers', () => {
     expect(sceneStripLabel({ idx: 1, title: 'Lobby', locked: false })).toBe('2 Lobby');
     expect(formatKitOption({ name: 'The Peak', latest_version: 12 })).toBe('The Peak v12');
     expect(formatKitOption({ name: 'The Peak', latest_version: null })).toBe('The Peak');
-    expect(modelOptions([])).toEqual([{ id: 'stub', label: 'stub' }]);
+    expect(formatModelLabel('stub')).toBe('Stub · demo (AI thật chưa bật)');
+    expect(formatModelLabel('stub-pro')).toBe('Stub Pro · pricing 2026-09');
+    expect(modelOptions([])).toEqual([{ id: 'stub', label: 'Stub · demo (AI thật chưa bật)' }]);
     expect(modelOptions([{ id: 'stub-pro', max_res: '1080' }])).toEqual([
-      { id: 'stub-pro', label: 'stub-pro' },
+      { id: 'stub-pro', label: 'Stub Pro · pricing 2026-09' },
     ]);
     expect(modelOptions([{ id: 12 }])).toEqual([{ id: '12', label: '12' }]);
+  });
+
+  it('fills a 3-slot preview strip from live scenes or mockup placeholders', () => {
+    expect(previewSceneSlots([], 30).map((slot) => slot.title)).toEqual([
+      '1 Hook',
+      '2 Body',
+      '3 CTA',
+    ]);
+    expect(previewSceneSlots([], 30)[0]).toMatchObject({
+      hint: '0–4s',
+      placeholder: true,
+    });
+    expect(
+      previewSceneSlots([{ idx: 0, title: 'Hook', locked: true }], 30)[0],
+    ).toMatchObject({ title: '1 Hook', hint: 'lock', placeholder: false });
+  });
+
+  it('turns render blocks into operator gate pills', () => {
+    expect(studioGateItems({ aiEnabled: false, assets: [] }).map((item) => item.id)).toEqual([
+      'ai',
+      'asset',
+      'rights',
+    ]);
+    expect(studioGateItems({ aiEnabled: false, assets: [] })[0]).toMatchObject({
+      ok: false,
+      label: 'AI production',
+    });
+    expect(
+      studioGateItems({
+        aiEnabled: true,
+        assets: [{ state: 'ready', rights_status: 'ok' }],
+      }).every((item) => item.ok),
+    ).toBe(true);
   });
 
   it('lists live render blocks without inventing credit or moderation hits', () => {
@@ -154,5 +198,99 @@ describe('VID-01 studio helpers', () => {
       }),
     ).toEqual(['asset ≠ Ready', 'rights']);
     expect(liveRenderBlocks({ aiEnabled: true, assets: [] })).toEqual([]);
+  });
+
+  it('sorts preview playlist newest first and defaults to the latest playable clip', () => {
+    const items = mergeStudioPreviews({
+      versions: [
+        {
+          id: 'v1',
+          version_n: 1,
+          created_at: '2026-09-12T10:00:00Z',
+          asset_id: 'a1',
+          mime: 'video/mp4',
+          approval_status: 'internal_review',
+        },
+        {
+          id: 'v2',
+          version_n: 2,
+          created_at: '2026-09-13T10:00:00Z',
+          asset_id: 'a2',
+          mime: 'video/mp4',
+          approval_status: 'internal_review',
+        },
+      ],
+      assets: [],
+    });
+    expect(items.map((item) => item.id)).toEqual(['v2', 'v1']);
+    expect(defaultPreviewId(items)).toBe('v2');
+    expect(items[0]).toMatchObject({ playable: true, label: 'v02' });
+  });
+
+  it('maps API preview duration and skips an unplayable newer version', () => {
+    const items = mergeStudioPreviews({
+      versions: [
+        {
+          id: 'v3',
+          version_n: 3,
+          label: 'v03',
+          asset_id: null,
+          mime: null,
+          playable: false,
+          duration_ms: null,
+        },
+        {
+          id: 'v2',
+          version_n: 2,
+          label: 'v02',
+          asset_id: 'a2',
+          mime: 'video/mp4',
+          playable: true,
+          duration_ms: 30000,
+        },
+      ],
+      assets: [],
+    });
+    expect(items.map((item) => item.id)).toEqual(['v3', 'v2']);
+    expect(items[1]).toMatchObject({ playable: true, durationSec: 30 });
+    expect(defaultPreviewId(items)).toBe('v2');
+    expect(formatPreviewMeta(items[0])).toBe('Chưa có file');
+    expect(formatPreviewMeta(items[1])).toBe('00:30');
+  });
+
+  it('maps professional viewer keys without inventing an editor', () => {
+    expect(studioViewerCommand(' ')).toBe('toggle');
+    expect(studioViewerCommand('ArrowLeft')).toBe('back');
+    expect(studioViewerCommand('ArrowRight')).toBe('fwd');
+    expect(studioViewerCommand('m')).toBe('mute');
+    expect(studioViewerCommand('f')).toBe('fullscreen');
+    expect(studioViewerCommand('Escape')).toBe(null);
+  });
+
+  it('keeps VID-01 operator copy free of raw DAM/API jargon', () => {
+    const src = readFileSync(
+      join(__dirname, '../../components/crm/cp/CpVideoStudio.tsx'),
+      'utf8',
+    );
+    expect(src).toContain('Chọn từ thư viện');
+    expect(src).toContain('Prompt chuyển động');
+    expect(src).not.toContain('DAM picker');
+    expect(src).not.toContain('asset_version_id');
+    expect(src).toContain('listCpVideoPreviews');
+    expect(src).toContain('CpStudioPreview');
+    expect(src).not.toContain('formatPlayhead(null');
+  });
+
+  it('uses a professional signed-video viewer with playlist chrome', () => {
+    const src = readFileSync(
+      join(__dirname, '../../components/crm/cp/CpStudioPreview.tsx'),
+      'utf8',
+    );
+    expect(src).toContain('<video');
+    expect(src).toContain('getCpAssetStreamUrl');
+    expect(src).toContain('playbackRate');
+    expect(src).toContain('requestFullscreen');
+    expect(src).toContain('Bản render');
+    expect(src).toContain('Chưa có bản render để xem');
   });
 });

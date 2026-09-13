@@ -905,6 +905,16 @@ export class CpController {
     return this.approvals.compareVersions(id, otherId, await this.scope(req, scope));
   }
 
+  @Get('videos/:id/previews')
+  @RequireCpAction('view')
+  async listVideoPreviews(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Query('scope') scope?: CpScope,
+  ) {
+    return this.videos.listPreviews(id, await this.scope(req, scope));
+  }
+
   @Get('videos/:id/scenes')
   @RequireCpAction('view')
   async listVideoScenes(

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getCpAssetStreamUrl, replaceCpAsset } from './cp-api';
+import { getCpAssetStreamUrl, listCpVideoPreviews, replaceCpAsset } from './cp-api';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -34,6 +34,18 @@ describe('CP asset version API', () => {
     await getCpAssetStreamUrl('token', 'asset-1', 'all');
 
     expect(fetchMock.mock.calls[0][0]).toContain('/api/crm/cp/assets/asset-1/stream-url');
+    expect(fetchMock.mock.calls[0][0]).toContain('scope=all');
+  });
+
+  it('lists studio previews via GET /videos/:id/previews', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ items: [] }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await listCpVideoPreviews('token', 'draft-1', 'all');
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/crm/cp/videos/draft-1/previews');
     expect(fetchMock.mock.calls[0][0]).toContain('scope=all');
   });
 });

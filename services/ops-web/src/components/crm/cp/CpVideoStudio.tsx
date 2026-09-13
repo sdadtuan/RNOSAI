@@ -6,6 +6,7 @@ import { getStoredUser, getAccessToken } from '@/lib/auth';
 import { shouldShowVideoSopNav } from '@/components/ops-nav-video-sop';
 import { videoSopHref } from '@/lib/crm/cp-video-list.util';
 import { CpStoryboard } from './CpStoryboard';
+import { CpStudioPreview } from './CpStudioPreview';
 import { CpTimeline } from './CpTimeline';
 import {
   createCpRender,
@@ -15,6 +16,7 @@ import {
   listCpAssets,
   listCpRenders,
   listCpScenes,
+  listCpVideoPreviews,
   listKits,
   parseCpScriptEditor,
   patchCpVideo,
@@ -31,23 +33,30 @@ import { CP_SUBTITLES } from '@/lib/crm/cp-copy';
 import { autoScriptCpVideo } from '@/lib/crm/cp-playbook-api';
 import { dash, draftLanguageWritable, mergeDraftAfterAutosave } from '@/lib/crm/cp-format';
 import {
+  STUDIO_MUSIC_PRESETS,
+  STUDIO_STYLE_PRESETS,
+  STUDIO_VOICE_PRESETS,
   VIDEO_STUDIO_TABS,
   draftAssets,
   formatCharCount,
   formatEstimate,
   formatJobStatus,
   formatKitOption,
-  formatPlayhead,
-  liveRenderBlocks,
+  defaultPreviewId,
+  mergeStudioPreviews,
   modelOptions,
+  parseVoicePreset,
+  previewSceneSlots,
   promptMaxChars,
-  sceneStripLabel,
   studioConfigFrom,
   studioConfigPayload,
+  studioGateItems,
   studioJobs,
   studioTabHref,
   urlFieldState,
+  voicePresetValue,
   type StudioConfig,
+  type StudioPreviewItem,
   type VideoStudioTabId,
 } from '@/lib/crm/cp-video-studio.util';
 
@@ -95,6 +104,8 @@ export function CpVideoStudio({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [scripting, setScripting] = useState(false);
+  const [previews, setPreviews] = useState<StudioPreviewItem[]>([]);
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   const playbookId = useMemo(() => {
     const cfg = draft?.config_json;
@@ -112,20 +123,32 @@ export function CpVideoStudio({
     setLoading(true);
     setError('');
     try {
-      const [video, kitResult, settingResult, sceneResult, assetResult, jobResult] = await Promise.all([
+      const [video, kitResult, settingResult, sceneResult, assetResult, jobResult, previewResult] = await Promise.all([
         getCpVideo(token, videoId, scope),
         listKits(token, scope),
         getCpSettings(token).catch(() => null),
         listCpScenes(token, videoId, scope).catch(() => ({ items: [] as CpScene[] })),
         listCpAssets(token, scope).catch(() => ({ items: [] as CpAsset[] })),
         listCpRenders(token, scope).catch(() => ({ items: [] as CpRenderJob[] })),
+        listCpVideoPreviews(token, videoId, scope).catch(() => ({ items: [] })),
       ]);
       setDraft(video);
       setKits(kitResult.items);
       setSettings(settingResult);
       setScenes(sceneResult.items);
-      setAssets(draftAssets(assetResult.items, video.project_id));
+      const projectAssets = draftAssets(assetResult.items, video.project_id);
+      setAssets(projectAssets);
       setJobs(studioJobs(jobResult.items, video.id));
+      const nextPreviews = mergeStudioPreviews({
+        versions: previewResult.items,
+        assets: projectAssets,
+      });
+      setPreviews(nextPreviews);
+      setPreviewId((current) => (
+        current && nextPreviews.some((item) => item.id === current)
+          ? current
+          : defaultPreviewId(nextPreviews)
+      ));
       setName(video.name ?? '');
       setMode(video.input_mode ?? 'prompt');
       setScriptValue(video.script_json ?? null);
@@ -216,8 +239,21 @@ export function CpVideoStudio({
       await patchCpVideo(token, draft.id, payload, scope);
       const job = await createCpRender(token, draft.id, crypto.randomUUID(), scope);
       setNotice(`Đã gửi render job ${job.job_id ?? job.id}`);
-      const refreshed = await listCpRenders(token, scope);
+      const [refreshed, previewResult] = await Promise.all([
+        listCpRenders(token, scope),
+        listCpVideoPreviews(token, draft.id, scope).catch(() => ({ items: [] })),
+      ]);
       setJobs(studioJobs(refreshed.items, draft.id));
+      const nextPreviews = mergeStudioPreviews({
+        versions: previewResult.items,
+        assets,
+      });
+      setPreviews(nextPreviews);
+      setPreviewId((current) => (
+        current && nextPreviews.some((item) => item.id === current)
+          ? current
+          : defaultPreviewId(nextPreviews)
+      ));
     } catch (caught) {
       setError(formatCpApiError(caught, 'Không gửi được render'));
     } finally {
@@ -232,15 +268,30 @@ export function CpVideoStudio({
   const urlState = urlFieldState(settings);
   const maxChars = promptMaxChars(settings?.policy_json);
   const models = modelOptions(settings?.models_json);
-  const blocks = liveRenderBlocks({
-    aiEnabled: settings?.ai_enabled === true,
-    assets,
-  });
   const estimate = formatEstimate(
     config.estimated_credits === '' ? null : Number(config.estimated_credits),
     settings?.watermark_draft,
   );
-  const playhead = formatPlayhead(null, config.duration_sec);
+  const sceneSlots = previewSceneSlots(scenes, config.duration_sec);
+  const gates = studioGateItems({
+    aiEnabled: settings?.ai_enabled === true,
+    assets,
+  });
+  const voiceValue = voicePresetValue(config.language, config.voice_id);
+  const voiceOptions = STUDIO_VOICE_PRESETS.some(
+    (item) => voicePresetValue(item.locale, item.voice) === voiceValue,
+  )
+    ? STUDIO_VOICE_PRESETS
+    : [
+        ...STUDIO_VOICE_PRESETS,
+        { locale: config.language, voice: config.voice_id, label: `${config.language} · ${config.voice_id || 'Voice'}` },
+      ];
+  const styleOptions = config.style && !(STUDIO_STYLE_PRESETS as readonly string[]).includes(config.style)
+    ? [config.style, ...STUDIO_STYLE_PRESETS]
+    : [...STUDIO_STYLE_PRESETS];
+  const musicOptions = STUDIO_MUSIC_PRESETS.some((item) => item.id === config.music)
+    ? STUDIO_MUSIC_PRESETS
+    : [{ id: config.music, label: config.music }, ...STUDIO_MUSIC_PRESETS];
   const href = (id: VideoStudioTabId) => studioTabHref(id, {
     videoId,
     scope,
@@ -313,16 +364,17 @@ export function CpVideoStudio({
       {tab === 'review' || tab === 'version' ? (
         <section className="cp-card">
           <header className="cp-card__head"><h2>{tab === 'review' ? 'Review' : 'Version'}</h2></header>
-          <p className="cp-muted">Chưa có version để mở VID-05 / VID-08.</p>
-          <p className="cp-empty">{dash(null)}</p>
+          <p className="cp-muted">
+            Chưa có version. Reserve + render xong mới mở Review / Version (VID-05 / VID-08).
+          </p>
         </section>
       ) : null}
 
       {tab === 'studio' ? (
         <>
           <div className="cp-studio">
-            <section className="cp-card">
-              <div className="cp-chips">
+            <section className="cp-card cp-studio-brief">
+              <div className="cp-chips" aria-label="Nguồn brief">
                 {(['prompt', 'script', 'url'] as CpVideoInputMode[]).map((item) => (
                   <button
                     key={item}
@@ -335,15 +387,22 @@ export function CpVideoStudio({
                 ))}
               </div>
               <label>
-                <span>Tên draft</span>
+                <span>Tên clip</span>
                 <input value={name} onChange={(event) => setName(event.target.value)} />
               </label>
               <label>
-                <span>{mode === 'script' ? 'Kịch bản' : mode === 'url' ? 'URL nguồn' : 'Prompt'}</span>
+                <span>{mode === 'script' ? 'Kịch bản' : mode === 'url' ? 'URL nguồn' : 'Prompt chuyển động'}</span>
                 <textarea
                   rows={8}
                   value={content}
                   disabled={mode === 'url' && urlState.disabled}
+                  placeholder={
+                    mode === 'url'
+                      ? 'Dán URL bài viết / landing (sau khi Legal bật extract)'
+                      : mode === 'script'
+                        ? 'Hook · scene · VO · overlay · CTA'
+                        : 'Ví dụ: Cinematic aerial sunset, lobby sang trọng, CTA đăng ký tour. Không claim giá ảo.'
+                  }
                   onChange={(event) => {
                     const value = event.target.value;
                     setContent(value);
@@ -352,7 +411,7 @@ export function CpVideoStudio({
                 />
               </label>
               <p className="cp-muted">
-                {formatCharCount(content.length, maxChars)} · moderation trước dispatch
+                {formatCharCount(content.length, maxChars)} ký tự · kiểm duyệt trước khi gửi render
               </p>
               {mode === 'url' && urlState.reason ? <p className="cp-muted">{urlState.reason}</p> : null}
               <label className="cp-check">
@@ -363,9 +422,12 @@ export function CpVideoStudio({
                 />
                 Tự tạo kịch bản (hook, scene, VO, overlay, CTA)
               </label>
-              <Link className="cp-btn" href={`/crm/creative-os/media?project=${draft?.project_id ?? ''}`}>
-                DAM picker (asset_version_id)
-              </Link>
+              <div className="cp-studio-dam">
+                <Link className="cp-btn" href={`/crm/creative-os/media?project=${draft?.project_id ?? ''}`}>
+                  Chọn từ thư viện
+                </Link>
+                <p className="cp-muted">Logo, VO, B-roll phải Ready mới reserve được.</p>
+              </div>
               {assets.length ? (
                 <div className="cp-media-grid cp-media-grid--2">
                   {assets.map((asset) => (
@@ -376,32 +438,37 @@ export function CpVideoStudio({
                   ))}
                 </div>
               ) : (
-                <p className="cp-empty">{dash(null)}</p>
+                <p className="cp-muted">Chưa gắn asset. Mở thư viện để chọn logo / VO.</p>
               )}
             </section>
 
-            <section className="cp-card">
-              <div className="cp-preview">
-                Preview {config.aspect_ratio} · {playhead}
+            <section className="cp-card cp-studio-stage">
+              <CpStudioPreview
+                items={previews}
+                selectedId={previewId}
+                onSelect={setPreviewId}
+                onRefresh={() => void load()}
+                aspectRatio={config.aspect_ratio}
+                fallbackDurationSec={config.duration_sec}
+                scope={scope}
+              />
+              <div className="cp-scene-strip">
+                {sceneSlots.map((slot) => (
+                  <article
+                    key={slot.key}
+                    className={`cp-media-card${slot.placeholder ? ' cp-media-card--ghost' : ''}`}
+                  >
+                    <div className="cp-thumb" />
+                    <b>{slot.title}{slot.hint ? ` · ${slot.hint}` : ''}</b>
+                  </article>
+                ))}
               </div>
-              {scenes.length ? (
-                <div className="cp-scene-strip">
-                  {scenes.map((scene) => (
-                    <article key={scene.idx} className="cp-media-card">
-                      <div className="cp-thumb" />
-                      <b>{sceneStripLabel(scene)}</b>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className="cp-empty">{dash(null)}</p>
-              )}
               <Link className="cp-link" href={href('timeline')}>Mở timeline 4 track</Link>
             </section>
 
             <section className="cp-card cp-studio-config">
               <label>
-                <span>Tỉ lệ</span>
+                <span>Tỉ lệ khung</span>
                 <select value={config.aspect_ratio} onChange={(event) => setConfigField('aspect_ratio', event.target.value)}>
                   <option>9:16</option>
                   <option>16:9</option>
@@ -410,39 +477,53 @@ export function CpVideoStudio({
                 </select>
               </label>
               <label>
-                <span>Duration</span>
+                <span>Thời lượng</span>
                 <select
                   value={config.duration_sec}
                   onChange={(event) => setConfigField('duration_sec', Number(event.target.value))}
                 >
-                  <option value={15}>15s</option>
-                  <option value={30}>30s</option>
-                  <option value={60}>60s</option>
+                  <option value={15}>15 giây</option>
+                  <option value={30}>30 giây</option>
+                  <option value={60}>60 giây</option>
                 </select>
               </label>
               <label>
-                <span>Style</span>
-                <input value={config.style} onChange={(event) => setConfigField('style', event.target.value)} />
+                <span>Phong cách</span>
+                <select value={config.style} onChange={(event) => setConfigField('style', event.target.value)}>
+                  <option value="">Chọn style</option>
+                  {styleOptions.map((style) => (
+                    <option key={style} value={style}>{style}</option>
+                  ))}
+                </select>
               </label>
               <label>
-                <span>Locale / Voice</span>
-                <input
-                  value={config.language}
+                <span>Giọng / locale</span>
+                <select
+                  value={voiceValue}
                   disabled={!draftLanguageWritable(draft)}
                   onChange={(event) => {
-                    const value = event.target.value;
-                    setConfig((cur) => ({ ...cur, language: value }));
+                    const next = parseVoicePreset(event.target.value);
+                    setConfig((current) => ({
+                      ...current,
+                      language: next.locale,
+                      voice_id: next.voice,
+                    }));
                   }}
-                />
-                <input
-                  value={config.voice_id}
-                  placeholder="Voice"
-                  onChange={(event) => setConfigField('voice_id', event.target.value)}
-                />
+                >
+                  {voiceOptions.map((item) => (
+                    <option key={voicePresetValue(item.locale, item.voice)} value={voicePresetValue(item.locale, item.voice)}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
-                <span>Music</span>
-                <input value={config.music} onChange={(event) => setConfigField('music', event.target.value)} />
+                <span>Nhạc nền</span>
+                <select value={config.music} onChange={(event) => setConfigField('music', event.target.value)}>
+                  {musicOptions.map((item) => (
+                    <option key={item.id || 'none'} value={item.id}>{item.label}</option>
+                  ))}
+                </select>
               </label>
               <label>
                 <span>Model</span>
@@ -455,33 +536,34 @@ export function CpVideoStudio({
               <label>
                 <span>Brand Kit</span>
                 <select value={kitId} onChange={(event) => setKitId(event.target.value)}>
-                  <option value="">{dash(null)}</option>
+                  <option value="">Chưa chọn kit</option>
                   {kits.map((kit) => (
                     <option key={kit.id} value={kit.id}>{formatKitOption(kit)}</option>
                   ))}
                 </select>
               </label>
-              <label>
-                <span>Ước tính credit</span>
-                <input
-                  min="0"
-                  step="1"
-                  type="number"
-                  value={config.estimated_credits}
-                  onChange={(event) => setConfigField('estimated_credits', event.target.value)}
-                  placeholder="—"
-                />
-              </label>
-              <p><b>{estimate}</b></p>
-              <p className="cp-muted">
-                Block nếu: AI tắt · asset ≠ Ready · rights · credit · moderation
-                {blocks.length ? ` · đang chặn: ${blocks.join(' · ')}` : ''}
-              </p>
+              <div className="cp-studio-estimate">
+                <b>{estimate}</b>
+                <p className="cp-muted">Credit thật ghi sau reserve — không điền số giả.</p>
+              </div>
+              <ul className="cp-studio-gates">
+                {gates.map((gate) => (
+                  <li key={gate.id}>
+                    <span className={gate.ok ? 'cp-pill cp-pill--ok' : 'cp-pill cp-pill--warning'}>
+                      {gate.ok ? 'OK' : 'Chặn'} · {gate.label}
+                    </span>
+                    <span className="cp-muted">{gate.hint}</span>
+                  </li>
+                ))}
+              </ul>
             </section>
           </div>
 
           <section className="cp-card">
-            <header className="cp-card__head"><h2>Queue</h2></header>
+            <header className="cp-card__head">
+              <h2>Hàng đợi render</h2>
+              <Link className="cp-link" href={`/crm/creative-os/video/ops?scope=${scope}`}>Ops</Link>
+            </header>
             <div className="cp-table-wrap">
               <table className="cp-table">
                 <thead>
@@ -507,7 +589,11 @@ export function CpVideoStudio({
                       <td>{dash(job.stage)}</td>
                     </tr>
                   )) : (
-                    <tr><td className="cp-empty" colSpan={3}>{dash(null)}</td></tr>
+                    <tr>
+                      <td className="cp-muted" colSpan={3}>
+                        Chưa có job. Bấm Tạo video (reserve) khi brief + asset sẵn sàng.
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>

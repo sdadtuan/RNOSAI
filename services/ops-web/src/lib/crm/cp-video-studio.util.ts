@@ -182,6 +182,107 @@ export function formatKitOption(kit: { name?: string | null; latest_version?: nu
   return `${name}${version}`;
 }
 
+export function formatModelLabel(id: string): string {
+  if (id === 'stub') return 'Stub · demo (AI thật chưa bật)';
+  if (id === 'stub-pro') return 'Stub Pro · pricing 2026-09';
+  return id;
+}
+
+export const STUDIO_STYLE_PRESETS = [
+  'Cinematic luxury',
+  'Social clean',
+  'UGC handheld',
+  'Documentary',
+] as const;
+
+export const STUDIO_MUSIC_PRESETS = [
+  { id: '', label: 'Không nhạc nền' },
+  { id: 'soft-piano', label: 'Piano nhẹ' },
+  { id: 'upbeat-social', label: 'Social upbeat' },
+  { id: 'ambient-luxury', label: 'Ambient luxury' },
+] as const;
+
+export const STUDIO_VOICE_PRESETS = [
+  { locale: 'vi-VN', voice: 'nu-am', label: 'vi-VN · Nữ ấm' },
+  { locale: 'vi-VN', voice: 'nam-tram', label: 'vi-VN · Nam trầm' },
+  { locale: 'en-US', voice: 'neutral', label: 'en-US · Neutral' },
+] as const;
+
+export function voicePresetValue(locale: string, voice: string): string {
+  return `${locale}|${voice}`;
+}
+
+export function parseVoicePreset(value: string): { locale: string; voice: string } {
+  const [locale, voice] = value.split('|');
+  return { locale: locale || 'vi-VN', voice: voice || '' };
+}
+
+export type PreviewSceneSlot = {
+  key: string;
+  title: string;
+  hint: string;
+  locked: boolean;
+  placeholder: boolean;
+};
+
+export function previewSceneSlots(
+  scenes: Array<{ idx?: number | null; title?: string | null; locked?: boolean | null }>,
+  durationSec: number,
+): PreviewSceneSlot[] {
+  if (scenes.length) {
+    return scenes.slice(0, 6).map((scene, index) => ({
+      key: `scene-${scene.idx ?? index}`,
+      title: sceneStripLabel({ ...scene, locked: false }),
+      hint: scene.locked ? 'lock' : '',
+      locked: scene.locked === true,
+      placeholder: false,
+    }));
+  }
+  const duration = Number(durationSec);
+  const end = Number.isFinite(duration) && duration > 0 ? duration : 30;
+  const hookEnd = end <= 15 ? 3 : end <= 30 ? 4 : 6;
+  const bodyEnd = end <= 15 ? 10 : end <= 30 ? 18 : Math.max(hookEnd + 8, end - 20);
+  return [
+    { key: 'hook', title: '1 Hook', hint: `0–${hookEnd}s`, locked: false, placeholder: true },
+    { key: 'body', title: '2 Body', hint: `${hookEnd}–${bodyEnd}s`, locked: false, placeholder: true },
+    { key: 'cta', title: '3 CTA', hint: `${bodyEnd}–${end}s`, locked: false, placeholder: true },
+  ];
+}
+
+export type StudioGateItem = {
+  id: 'ai' | 'asset' | 'rights';
+  ok: boolean;
+  label: string;
+  hint: string;
+};
+
+export function studioGateItems(input: {
+  aiEnabled: boolean;
+  assets: Array<{ state?: string | null; rights_status?: string | null }>;
+}): StudioGateItem[] {
+  const blocks = liveRenderBlocks(input);
+  return [
+    {
+      id: 'ai',
+      ok: !blocks.includes('AI tắt'),
+      label: 'AI production',
+      hint: input.aiEnabled ? 'Sẵn sàng reserve' : 'Chưa bật — job chạy stub',
+    },
+    {
+      id: 'asset',
+      ok: !blocks.includes('asset ≠ Ready'),
+      label: 'Asset Ready',
+      hint: 'Logo / VO / B-roll phải Ready',
+    },
+    {
+      id: 'rights',
+      ok: !blocks.includes('rights'),
+      label: 'Bản quyền',
+      hint: 'Không render khi rights = block',
+    },
+  ];
+}
+
 export function modelOptions(
   models: Array<{ id?: string | number | null } | null | undefined> | null | undefined,
 ): Array<{
@@ -191,8 +292,8 @@ export function modelOptions(
   const items = (models ?? [])
     .map((model) => String(model?.id ?? '').trim())
     .filter(Boolean)
-    .map((id) => ({ id, label: id }));
-  return items.length ? items : [{ id: 'stub', label: 'stub' }];
+    .map((id) => ({ id, label: formatModelLabel(id) }));
+  return items.length ? items : [{ id: 'stub', label: formatModelLabel('stub') }];
 }
 
 export function liveRenderBlocks(input: {
@@ -208,6 +309,143 @@ export function liveRenderBlocks(input: {
     reasons.push('rights');
   }
   return reasons;
+}
+
+export type StudioPreviewItem = {
+  id: string;
+  kind: 'version' | 'asset' | 'render';
+  label: string;
+  createdAt: string | null;
+  assetId: string | null;
+  mime: string;
+  durationSec: number | null;
+  state: string | null;
+  playable: boolean;
+  versionN: number | null;
+};
+
+export const STUDIO_PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+
+export function mergeStudioPreviews(input: {
+  versions?: Array<{
+    id?: string | null;
+    kind?: string | null;
+    version_n?: number | string | null;
+    created_at?: string | null;
+    label?: string | null;
+    state?: string | null;
+    asset_id?: string | null;
+    mime?: string | null;
+    duration_ms?: number | string | null;
+    duration_sec?: number | string | null;
+    playable?: boolean | null;
+    approval_status?: string | null;
+    output_uri?: string | null;
+  }>;
+  assets?: Array<{
+    id?: string | null;
+    filename?: string | null;
+    mime?: string | null;
+    state?: string | null;
+    created_at?: string | null;
+  }>;
+}): StudioPreviewItem[] {
+  const seen = new Set<string>();
+  const items: StudioPreviewItem[] = [];
+
+  for (const version of input.versions ?? []) {
+    const id = String(version.id ?? '').trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const n = Number(version.version_n);
+    const mime = String(version.mime ?? '');
+    const assetId = version.asset_id ? String(version.asset_id) : null;
+    const playable = typeof version.playable === 'boolean'
+      ? version.playable
+      : Boolean(assetId && (mime || 'video/mp4').startsWith('video/'));
+    items.push({
+      id,
+      kind: version.kind === 'asset' || version.kind === 'render' ? version.kind : 'version',
+      label: String(version.label ?? '').trim()
+        || (Number.isFinite(n) ? `v${String(n).padStart(2, '0')}` : 'Version'),
+      createdAt: version.created_at ?? null,
+      assetId,
+      mime: mime || 'video/mp4',
+      durationSec: previewDurationSec(version),
+      state: version.state ?? version.approval_status ?? null,
+      playable,
+      versionN: Number.isFinite(n) ? n : null,
+    });
+    if (assetId) seen.add(assetId);
+  }
+
+  for (const asset of input.assets ?? []) {
+    const id = String(asset.id ?? '').trim();
+    const mime = String(asset.mime ?? '');
+    if (!id || seen.has(id) || seen.has(`asset:${id}`) || !mime.startsWith('video/')) continue;
+    seen.add(id);
+    items.push({
+      id,
+      kind: 'asset',
+      label: String(asset.filename ?? '').trim() || 'Asset',
+      createdAt: asset.created_at ?? null,
+      assetId: id,
+      mime,
+      durationSec: null,
+      state: asset.state ?? null,
+      playable: asset.state === 'ready',
+      versionN: null,
+    });
+  }
+
+  return items.sort((a, b) => {
+    const na = a.versionN ?? -1;
+    const nb = b.versionN ?? -1;
+    if (na !== nb) return nb - na;
+    const ta = a.createdAt ? Date.parse(a.createdAt) : 0;
+    const tb = b.createdAt ? Date.parse(b.createdAt) : 0;
+    return tb - ta;
+  });
+}
+
+export function defaultPreviewId(items: StudioPreviewItem[]): string | null {
+  const playable = items.find((item) => item.playable);
+  return playable?.id ?? items[0]?.id ?? null;
+}
+
+export function formatPreviewMeta(item: StudioPreviewItem): string {
+  if (!item.playable) return 'Chưa có file';
+  if (item.durationSec != null && Number.isFinite(item.durationSec) && item.durationSec > 0) {
+    return formatClock(item.durationSec);
+  }
+  return 'Sẵn sàng xem';
+}
+
+export function studioViewerCommand(
+  key: string,
+): 'toggle' | 'back' | 'fwd' | 'mute' | 'fullscreen' | null {
+  if (key === ' ' || key === 'k' || key === 'K') return 'toggle';
+  if (key === 'ArrowLeft' || key === 'j' || key === 'J') return 'back';
+  if (key === 'ArrowRight' || key === 'l' || key === 'L') return 'fwd';
+  if (key === 'm' || key === 'M') return 'mute';
+  if (key === 'f' || key === 'F') return 'fullscreen';
+  return null;
+}
+
+export function clampPreviewSeek(current: number, delta: number, duration: number): number {
+  const end = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  return Math.min(Math.max(0, current + delta), end);
+}
+
+function previewDurationSec(input: {
+  duration_ms?: number | string | null;
+  duration_sec?: number | string | null;
+}): number | null {
+  const ms = Number(input.duration_ms);
+  if (Number.isFinite(ms) && ms > 0) return ms / 1000;
+  const sec = Number(input.duration_sec);
+  if (Number.isFinite(sec) && sec > 0) return sec;
+  return null;
 }
 
 export function isStudioTab(value: string | null | undefined): value is VideoStudioTabId {
