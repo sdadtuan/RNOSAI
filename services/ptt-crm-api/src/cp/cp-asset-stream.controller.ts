@@ -1,6 +1,6 @@
-import { Controller, Get, Param, Query, Res } from '@nestjs/common';
+import { Controller, Get, Headers, Param, Query, Res, StreamableFile } from '@nestjs/common';
 import { Response } from 'express';
-import { StreamableFile } from '@nestjs/common';
+import { applyAssetStreamHeaders } from './cp-asset-stream-file.util';
 import { CpAssetsService } from './cp-assets.service';
 
 @Controller('api/crm/cp')
@@ -12,13 +12,11 @@ export class CpAssetStreamController {
     @Param('id') id: string,
     @Query('exp') exp: string | undefined,
     @Query('sig') sig: string | undefined,
+    @Headers('range') range: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const out = await this.assets.openStream(id, exp, sig);
-    const safeName = out.filename.replace(/["\r\n]+/g, '_');
-    res.setHeader('Content-Type', out.mime || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
-    res.setHeader('Cache-Control', 'private, max-age=60');
+    const out = await this.assets.openStream(id, exp, sig, range);
+    applyAssetStreamHeaders(res, out);
     return out.file;
   }
 }

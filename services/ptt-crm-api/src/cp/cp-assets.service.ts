@@ -205,7 +205,12 @@ export class CpAssetsService {
     };
   }
 
-  async openStream(id: string, exp?: string, sig?: string): Promise<OpenedAssetStream> {
+  async openStream(
+    id: string,
+    exp?: string,
+    sig?: string,
+    range?: string,
+  ): Promise<OpenedAssetStream> {
     const assetId = requiredUuid(id, 'invalid_asset_id', 'invalid_asset_id');
     try {
       assertAssetStreamSig('cp_asset', assetId, exp, sig);
@@ -219,7 +224,7 @@ export class CpAssetsService {
       }
       throw error;
     }
-    const opened = openReadableWeaveFile(await this.weaveStorageUri(assetId));
+    const opened = openReadableWeaveFile(await this.weaveStorageUri(assetId), undefined, range);
     return opened ?? cpThrow(404, { error: 'not_found' });
   }
 

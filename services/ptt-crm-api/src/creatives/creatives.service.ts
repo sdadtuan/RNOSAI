@@ -166,11 +166,14 @@ export class CreativesService {
     creativeId: string,
     exp?: string,
     sig?: string,
+    range?: string,
   ): Promise<OpenedAssetStream> {
     assertAssetStreamSig('creative', creativeId.trim(), exp, sig);
     const existing = await this.requireCreative(creativeId);
     const assetUrl = existing.asset_url?.trim() || '';
-    const opened = assetUrl ? openReadableWeaveFile(assetUrl, creativeMime(existing)) : null;
+    const opened = assetUrl
+      ? openReadableWeaveFile(assetUrl, creativeMime(existing), range)
+      : null;
     if (!opened) {
       throw new NotFoundException({ error: 'not_found' });
     }

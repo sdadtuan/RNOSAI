@@ -1335,6 +1335,8 @@ body:has(.ops-sidebar) .cp-main {
 
 .cp-asset-player {
   max-height: 480px;
+  aspect-ratio: 9 / 16;
+  object-fit: contain;
 }
 
 .cp-asset-player--compact {

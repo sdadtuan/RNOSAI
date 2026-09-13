@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { InternalKeyGuard } from '../auth/internal-key.guard';
 import { PortalJwtGuard, PortalUser } from '../portal/portal-jwt.guard';
 import { PortalJwtPayload } from '../portal/portal-jwt.util';
+import { applyAssetStreamHeaders } from '../cp/cp-asset-stream-file.util';
 import { CreativesService } from './creatives.service';
 import {
   CreateCreativeBody,
@@ -58,13 +59,11 @@ export class CreativesController {
     @Param('id') id: string,
     @Query('exp') exp: string | undefined,
     @Query('sig') sig: string | undefined,
+    @Headers('range') range: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    const out = await this.creatives.openAssetStream(id.trim(), exp, sig);
-    const safeName = out.filename.replace(/["\r\n]+/g, '_');
-    res.setHeader('Content-Type', out.mime || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
-    res.setHeader('Cache-Control', 'private, max-age=60');
+    const out = await this.creatives.openAssetStream(id.trim(), exp, sig, range);
+    applyAssetStreamHeaders(res, out);
     return out.file;
   }
 

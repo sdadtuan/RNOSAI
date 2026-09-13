@@ -1450,7 +1450,10 @@ body:has(.portal-sidebar) .portal-page {
 
 .creative-card__asset video {
   display: block;
-  width: 100%;
+  width: min(100%, 240px);
+  aspect-ratio: 9 / 16;
+  max-height: 70vh;
+  object-fit: contain;
   background: #0f172a;
 }
 

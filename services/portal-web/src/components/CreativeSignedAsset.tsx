@@ -43,7 +43,7 @@ export function CreativeSignedAsset({ token, row }: { token: string; row: Creati
   if (isVideoRow(row, mime)) {
     return (
       <div className="creative-card__asset">
-        <video controls playsInline src={src} />
+        <video controls playsInline preload="metadata" src={src} />
       </div>
     );
   }

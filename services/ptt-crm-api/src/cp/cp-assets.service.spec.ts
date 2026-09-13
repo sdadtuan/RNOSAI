@@ -293,6 +293,8 @@ describe('CpAssetsService', () => {
       expect(file.file).toBeInstanceOf(StreamableFile);
       expect(file.mime).toBe('video/mp4');
       expect(file.filename).toBe('CR-2026-0912-028_v01_9x16.mp4');
+      expect(file.status).toBe(200);
+      expect(file.length).toBe(8);
       const chunks: Buffer[] = [];
       for await (const chunk of file.file.getStream()) {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -302,6 +304,16 @@ describe('CpAssetsService', () => {
       await expect(
         service.openStream(ASSET_ID, String(minted.exp - 10_000), minted.sig),
       ).rejects.toMatchObject({ status: 401 });
+
+      const ranged = await service.openStream(ASSET_ID, String(minted.exp), minted.sig, 'bytes=0-1');
+      expect(ranged.status).toBe(206);
+      expect(ranged.length).toBe(2);
+      expect(ranged.contentRange).toBe('bytes 0-1/8');
+      const rangedChunks: Buffer[] = [];
+      for await (const chunk of ranged.file.getStream()) {
+        rangedChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      expect(Buffer.concat(rangedChunks).toString()).toBe('fa');
     });
   });
 });
