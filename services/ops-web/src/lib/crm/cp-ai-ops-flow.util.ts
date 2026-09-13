@@ -1,3 +1,5 @@
+import type { CpJobDraftInput } from './cp-ai-ops-api';
+
 export type FlowField = {
   key: string;
   label: string;
@@ -48,7 +50,7 @@ export function buildFlowDraftBody(input: {
   templateId: string;
   values: Record<string, string>;
   idempotencyKey?: string;
-}) {
+}): CpJobDraftInput {
   return {
     project_id: input.projectId,
     provider: 'magnific_rest',
