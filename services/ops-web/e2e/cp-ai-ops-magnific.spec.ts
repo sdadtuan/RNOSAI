@@ -138,6 +138,8 @@ test.describe('Creative OS Magnific pane', () => {
     await page.goto(`/crm/creative-os/projects/${PROJECT_ID}?tab=ai-ops&pane=magnific`);
 
     await expect(page.getByTestId('cp-magnific-pane')).toBeVisible();
+    await expect(page.getByTestId('cp-magnific-step-context')).toContainText('1. Kết nối');
+    await expect(page.getByTestId('cp-magnific-human-route')).toContainText('Không tự đốt credit');
     await expect(page.getByRole('radio', { name: 'API' })).toBeEnabled();
     await expect(page.getByRole('radio', { name: 'MCP' })).toBeEnabled();
     await page.getByTestId('cp-magnific-prompt').fill('đèn lồng đêm Trung thu');

@@ -1635,6 +1635,24 @@ body:has(.ops-sidebar) .cp-main {
   min-inline-size: 0;
 }
 
+.cp-ai-ops-step {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+.cp-ai-ops-step:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.cp-ai-ops-step-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+
 .cp-ai-ops-radios {
   display: flex;
   flex-wrap: wrap;

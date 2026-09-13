@@ -33,19 +33,28 @@ const WORK_ORDER = {
 };
 
 async function injectStaffSession(page: Page) {
+  const staffUser = {
+    id: 9,
+    email: 'staff@demo.local',
+    name: 'Staff',
+    display_name: 'Staff',
+    position_code: 'AM',
+    caps: [
+      { section: 'crm_cp', action: 'view' },
+      { section: 'crm_cp', action: 'edit' },
+      { section: 'crm_cp', action: 'render' },
+    ],
+  };
   await page.context().addCookies([
     { name: 'ptt_ops_auth', value: '1', url: 'http://127.0.0.1:3200' },
     { name: 'ptt_ops_position_code', value: 'AM', url: 'http://127.0.0.1:3200' },
   ]);
   await page.goto('/login');
-  await page.evaluate(() => {
+  await page.evaluate((user) => {
     sessionStorage.setItem('ptt_ops_access_token', 'weave-e2e-token');
     sessionStorage.setItem('ptt_ops_refresh_token', 'weave-e2e-token');
-    sessionStorage.setItem(
-      'ptt_ops_user',
-      JSON.stringify({ id: 9, email: 'staff@demo.local', name: 'Staff', position_code: 'AM' }),
-    );
-  });
+    sessionStorage.setItem('ptt_ops_user', JSON.stringify(user));
+  }, staffUser);
 }
 
 async function mockCpApis(page: Page) {
@@ -58,6 +67,11 @@ async function mockCpApis(page: Page) {
         email: 'staff@demo.local',
         name: 'Staff',
         access_token: 'weave-e2e-token',
+        caps: [
+          { section: 'crm_cp', action: 'view' },
+          { section: 'crm_cp', action: 'edit' },
+          { section: 'crm_cp', action: 'render' },
+        ],
       }),
     });
   });
@@ -128,9 +142,69 @@ test.describe('Creative OS Weave pane', () => {
     await page.goto(`/crm/creative-os/projects/${PROJECT_ID}?tab=ai-ops&pane=weave`);
     await expect(page.getByTestId('cp-weave-sync')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open in Weave' })).toBeVisible();
+    await expect(page.getByTestId('cp-weave-path')).toContainText(
+      'nova/mid-autumn-2026/CR-2026-0912-028/{lane}/',
+    );
+    await expect(page.getByTestId('cp-weave-hub-rule')).toContainText('source/ không gửi Hub');
 
     await page.goto(`/crm/creative-os/projects/${PROJECT_ID}?tab=weave`);
     await expect(page.getByRole('button', { name: 'Sync output' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: /Tổng quan|Brief|AI Ops/ })).toBeTruthy();
+  });
+
+  test('empty work-order list names the gap and shows the locked path convention', async ({ page }) => {
+    await page.route('**/api/v1/staff/auth/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 9,
+          email: 'staff@demo.local',
+          name: 'Staff',
+          access_token: 'weave-e2e-token',
+          caps: [
+            { section: 'crm_cp', action: 'view' },
+            { section: 'crm_cp', action: 'edit' },
+            { section: 'crm_cp', action: 'render' },
+          ],
+        }),
+      });
+    });
+    await page.route('**/api/crm/cp/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/ai-ops/flags')) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            weave: true,
+            magnificMcp: false,
+            magnificRest: false,
+            comfy: false,
+            showAiOpsTab: true,
+          }),
+        });
+      }
+      if (path.endsWith(`/projects/${PROJECT_ID}`)) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(PROJECT),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [] }),
+      });
+    });
+    await injectStaffSession(page);
+    await page.goto(`/crm/creative-os/projects/${PROJECT_ID}?tab=ai-ops&pane=weave`);
+    await expect(page.getByTestId('cp-weave-empty')).toHaveText('Chưa có Work Order.');
+    await expect(page.getByTestId('cp-weave-path')).toContainText(
+      '{client_code}/{campaign_code}/{task_id}/{lane}/',
+    );
+    await expect(page.getByTestId('cp-weave-hub-rule')).toContainText('source/ không gửi Hub');
+    await expect(page.getByTestId('cp-weave-sync')).toHaveCount(0);
   });
 });

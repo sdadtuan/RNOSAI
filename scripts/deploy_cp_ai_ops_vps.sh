@@ -36,12 +36,12 @@ run_local() {
   npm ci
   export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}"
   npm run build
-  npx jest --config jest.config.js --testPathPattern='src/cp/cp-(ai-ops|jobs|magnific|comfy|overview|reports|projects|render.worker|provider|weave)' --forceExit --no-coverage
+  CP_AI_ENABLED=0 npx jest --config jest.config.js --testPathPattern='src/cp/cp-(ai-ops|jobs|magnific|comfy|overview|reports|projects|render.worker|provider|weave)' --forceExit --no-coverage
 
   echo "== 2/4 ops-web AI Ops unit tests =="
   cd "$ROOT/services/ops-web"
   npm ci
-  npx vitest run src/lib/crm/cp-ai-ops-api.spec.ts src/lib/crm/cp-ai-ops-panes.util.spec.ts src/lib/crm/cp-project-workspace.util.spec.ts src/lib/crm/cp-reports.spec.ts
+  npx vitest run src/lib/crm/cp-ai-ops-api.spec.ts src/lib/crm/cp-ai-ops-panes.util.spec.ts src/lib/crm/cp-ai-ops-composer.util.spec.ts src/lib/crm/cp-weave-composer.util.spec.ts src/lib/crm/cp-project-workspace.util.spec.ts src/lib/crm/cp-reports.spec.ts
 
   echo "== 3/4 ops-web build =="
   cd "$ROOT"

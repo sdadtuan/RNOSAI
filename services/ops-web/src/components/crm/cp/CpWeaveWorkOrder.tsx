@@ -4,6 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import { dash } from '@/lib/crm/cp-format';
 import {
+  WEAVE_HUB_RULE,
+  WEAVE_PATH_PATTERN,
+  weaveEmptyCopy,
+  weaveExportPrefix,
+  weaveSyncNotice,
+} from '@/lib/crm/cp-weave-composer.util';
+import {
   addWeaveAsset,
   buildOpenHref,
   createWeaveOrder,
@@ -82,17 +89,17 @@ export function CpWeaveWorkOrder({
     }
   }
 
+  const emptyCopy = weaveEmptyCopy(enabled, orders.length);
+  const exportPath = weaveExportPrefix(selected);
+
   if (!enabled) {
     return (
       <section className="cp-weave" data-testid="cp-weave-panel">
-        <p className="cp-empty">{dash(null)}</p>
+        <p className="cp-empty" data-testid="cp-weave-empty">{emptyCopy}</p>
       </section>
     );
   }
 
-  const exportPath = selected?.client_code && selected.campaign_code && selected.task_id
-    ? `${selected.client_code}/${selected.campaign_code}/${selected.task_id}/final/`
-    : dash(null);
   const brief = selected?.brief_json ?? {};
 
   return (
@@ -102,7 +109,7 @@ export function CpWeaveWorkOrder({
         <p className="cp-muted">Designer làm trên Weave. CRM chỉ Sync output.</p>
       </header>
       {error ? <p className="cp-card--error">{error}</p> : null}
-      {notice ? <p className="cp-muted">{notice}</p> : null}
+      {notice ? <p className="cp-muted" data-testid="cp-weave-notice">{notice}</p> : null}
 
       <div className="cp-weave-row">
         <label className="cp-weave-field">
@@ -150,8 +157,14 @@ export function CpWeaveWorkOrder({
           </select>
         </label>
       ) : (
-        <p className="cp-empty">{dash(null)}</p>
+        <p className="cp-empty" data-testid="cp-weave-empty">{emptyCopy}</p>
       )}
+
+      <p className="cp-weave-path" data-testid="cp-weave-path">
+        Path export: {exportPath}
+      </p>
+      <p className="cp-muted" data-testid="cp-weave-hub-rule">{WEAVE_HUB_RULE}</p>
+      <p className="cp-muted">Convention: {WEAVE_PATH_PATTERN}</p>
 
       {selected ? (
         <>
@@ -209,9 +222,8 @@ export function CpWeaveWorkOrder({
           <ol className="cp-weave-check">
             <li>Import reference vào Weave</li>
             <li>Chạy flow template</li>
-            <li>Export đúng prefix bên dưới</li>
+            <li>Export đúng prefix convention bên dưới</li>
           </ol>
-          <p className="cp-weave-path">Path export: {exportPath}</p>
 
           <div className="cp-weave-actions">
             <button
@@ -222,7 +234,7 @@ export function CpWeaveWorkOrder({
               onClick={() => run('sync', async (token) => {
                 const result = await syncWeaveOutput(token, selected.id);
                 setSyncResult(result);
-                setNotice(`Sync output: ${result.ingested} file`);
+                setNotice(weaveSyncNotice(result));
               })}
             >
               Sync output
