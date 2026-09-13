@@ -15,6 +15,9 @@ import {
   defaultPreviewId,
   formatPreviewMeta,
   mergeStudioPreviews,
+  studioAssetsFrom,
+  studioRenderRows,
+  studioSceneCards,
   studioViewerCommand,
   previewSceneSlots,
   studioGateItems,
@@ -156,14 +159,15 @@ describe('VID-01 studio helpers', () => {
     expect(modelOptions([{ id: 12 }])).toEqual([{ id: '12', label: '12' }]);
   });
 
-  it('fills a 3-slot preview strip from live scenes or mockup placeholders', () => {
+  it('fills a four-scene preview strip from live scenes or mockup placeholders', () => {
     expect(previewSceneSlots([], 30).map((slot) => slot.title)).toEqual([
-      '1 Hook',
-      '2 Body',
-      '3 CTA',
+      'Cảnh 01 · Hook',
+      'Cảnh 02 · Benefit',
+      'Cảnh 03 · Utility',
+      'Cảnh 04 · CTA',
     ]);
     expect(previewSceneSlots([], 30)[0]).toMatchObject({
-      hint: '0–4s',
+      hint: '00:00–00:05',
       placeholder: true,
     });
     expect(
@@ -272,13 +276,33 @@ describe('VID-01 studio helpers', () => {
       join(__dirname, '../../components/crm/cp/CpVideoStudio.tsx'),
       'utf8',
     );
-    expect(src).toContain('Chọn từ thư viện');
-    expect(src).toContain('Prompt chuyển động');
+    expect(src).toContain('CpStudioBrief');
+    expect(src).toContain('CpStudioStage');
+    expect(src).toContain('CpStudioQueue');
     expect(src).not.toContain('DAM picker');
     expect(src).not.toContain('asset_version_id');
     expect(src).toContain('listCpVideoPreviews');
-    expect(src).toContain('CpStudioPreview');
     expect(src).not.toContain('formatPlayhead(null');
+  });
+
+  it('builds four scene cards and render queue rows from real draft data', () => {
+    const cards = studioSceneCards([], 30);
+    expect(cards).toHaveLength(4);
+    expect(cards[0].title).toContain('Hook');
+    expect(studioRenderRows({
+      jobs: [{ id: 'j1', job_id: 'job_1', state: 'running', progress: 66 }],
+      draftName: 'Video căn hộ The Peak',
+      config: studioConfigFrom({ duration_sec: 30, aspect_ratio: '9:16', model_id: 'stub' }),
+    })[0]).toMatchObject({
+      title: 'Video căn hộ The Peak',
+      progress: 66,
+      statusKind: 'running',
+      cancellable: true,
+    });
+    expect(studioAssetsFrom({ studio_assets: { reference_ids: ['a1'], logo_id: 'logo' } })).toEqual({
+      reference_ids: ['a1'],
+      logo_id: 'logo',
+    });
   });
 
   it('uses a professional signed-video viewer with playlist chrome', () => {

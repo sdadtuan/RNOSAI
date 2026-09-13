@@ -299,11 +299,33 @@ export class CpVideosService {
       ],
     );
     const updated = result.rows[0] ?? cpThrow(404, { error: 'not_found' });
+    await this.syncStudioAssetUsages(String(updated.id), nextConfig);
     await this.invalidateApprovalIfNeeded(updated, scope);
     return {
       ...updated,
       has_completed_version: Boolean(current.has_completed_version),
     };
+  }
+
+  private async syncStudioAssetUsages(draftId: string, config: unknown) {
+    const assetIds = studioAssetIdsFromConfig(config);
+    await this.db.query(
+      `DELETE FROM crm_cp_asset_usages
+        WHERE object_type = 'video_draft' AND object_id = $1::uuid`,
+      [draftId],
+    );
+    for (const assetId of assetIds) {
+      await this.db.query(
+        `INSERT INTO crm_cp_asset_usages (asset_version_id, object_type, object_id)
+         SELECT av.id, 'video_draft', $1::uuid
+           FROM crm_cp_asset_versions av
+          WHERE av.asset_id = $2::uuid
+          ORDER BY av.n DESC
+          LIMIT 1
+         ON CONFLICT DO NOTHING`,
+        [draftId, assetId],
+      );
+    }
   }
 
   async listScenes(id: string, scope: CpVideoScope = DEFAULT_SCOPE) {
@@ -780,4 +802,22 @@ function json(value: unknown, fallback: unknown): string {
 
 function cpThrow(status: number, body: Record<string, unknown>): never {
   throw Object.assign(new HttpException(body, status), body);
+}
+
+function studioAssetIdsFromConfig(config: unknown): string[] {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return [];
+  const row = config as Record<string, unknown>;
+  const raw = row.studio_assets;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+  const assets = raw as Record<string, unknown>;
+  const ids = new Set<string>();
+  if (Array.isArray(assets.reference_ids)) {
+    for (const item of assets.reference_ids) {
+      const id = String(item ?? '').trim();
+      if (id) ids.add(id);
+    }
+  }
+  const logo = assets.logo_id == null ? '' : String(assets.logo_id).trim();
+  if (logo) ids.add(logo);
+  return [...ids];
 }

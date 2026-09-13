@@ -31,6 +31,11 @@ export function CpStudioPreview({
   aspectRatio,
   fallbackDurationSec,
   scope = 'me',
+  layout = 'split',
+  badgeLabel,
+  zoom = 100,
+  seekTo,
+  onTimeUpdate,
 }: {
   items: StudioPreviewItem[];
   selectedId: string | null;
@@ -39,6 +44,11 @@ export function CpStudioPreview({
   aspectRatio: string;
   fallbackDurationSec: number;
   scope?: CpScope;
+  layout?: 'split' | 'stack';
+  badgeLabel?: string;
+  zoom?: number;
+  seekTo?: number | null;
+  onTimeUpdate?: (sec: number) => void;
 }) {
   const selected = items.find((item) => item.id === selectedId) ?? items.find((item) => item.playable) ?? null;
   const viewerRef = useRef<HTMLDivElement | null>(null);
@@ -102,6 +112,12 @@ export function CpStudioPreview({
     };
   }, [playable, scope, selected?.assetId, selected?.durationSec]);
 
+  useEffect(() => {
+    if (seekTo == null || !Number.isFinite(seekTo) || !videoRef.current) return;
+    videoRef.current.currentTime = seekTo;
+    setCurrent(seekTo);
+  }, [seekTo]);
+
   const rates = useMemo(() => (
     STUDIO_PLAYBACK_RATES.includes(rate as typeof STUDIO_PLAYBACK_RATES[number])
       ? STUDIO_PLAYBACK_RATES
@@ -120,7 +136,7 @@ export function CpStudioPreview({
     if (command === 'back' || command === 'fwd') {
       const next = clampPreviewSeek(video?.currentTime ?? current, command === 'back' ? -5 : 5, knownDuration);
       if (video) video.currentTime = next;
-      setCurrent(next);
+      syncTime(next);
       return;
     }
     if (command === 'mute') {
@@ -150,12 +166,18 @@ export function CpStudioPreview({
     }
   }
 
+  function syncTime(next: number) {
+    setCurrent(next);
+    onTimeUpdate?.(next);
+  }
+
   return (
-    <div className="cp-studio-preview">
-      <div className="cp-studio-preview__stage">
+    <div className={`cp-studio-preview${layout === 'stack' ? ' cp-studio-preview--stack' : ''}`}>
+      <div className={`cp-studio-preview__stage${layout === 'stack' ? ' cp-studio-preview__stage--stack' : ''}`}>
         <div
           ref={viewerRef}
           className={`cp-viewer cp-viewer--${ratioClass(aspectRatio)}`}
+          style={{ ['--cp-viewer-zoom' as string]: `${zoom / 100}` }}
           tabIndex={0}
           role="region"
           aria-label="Xem bản render"
@@ -167,7 +189,7 @@ export function CpStudioPreview({
           }}
         >
           <span className="cp-viewer__badge">
-            {selected?.label ?? 'Preview'} · {aspectRatio} · {playhead}
+            {badgeLabel ?? `${selected?.label ?? 'Preview'} · ${aspectRatio} · ${playhead}`}
           </span>
           {playable && src ? (
             <video
@@ -178,10 +200,10 @@ export function CpStudioPreview({
               preload="metadata"
               onPlay={() => setPaused(false)}
               onPause={() => setPaused(true)}
-              onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
+              onTimeUpdate={(event) => syncTime(event.currentTarget.currentTime)}
               onLoadedMetadata={(event) => {
                 setDuration(event.currentTarget.duration);
-                setCurrent(event.currentTarget.currentTime);
+                syncTime(event.currentTarget.currentTime);
                 setReady(true);
               }}
               onVolumeChange={(event) => {
@@ -230,7 +252,7 @@ export function CpStudioPreview({
                 onChange={(event) => {
                   const next = Number(event.target.value);
                   if (videoRef.current) videoRef.current.currentTime = next;
-                  setCurrent(next);
+                  syncTime(next);
                 }}
               />
             </label>
@@ -285,7 +307,7 @@ export function CpStudioPreview({
           </div>
         </div>
 
-        <aside className="cp-preview-list" aria-label="Danh sách bản render">
+        <aside className={`cp-preview-list${layout === 'stack' ? ' cp-preview-list--stack' : ''}`} aria-label="Danh sách bản render">
           <header className="cp-preview-list__head">
             <div>
               <b>Bản render</b>

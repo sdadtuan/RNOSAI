@@ -13,6 +13,11 @@ export const VIDEO_STUDIO_TABS = [
 
 export type VideoStudioTabId = (typeof VIDEO_STUDIO_TABS)[number]['id'];
 
+export type StudioAssets = {
+  reference_ids: string[];
+  logo_id: string | null;
+};
+
 export type StudioConfig = {
   aspect_ratio: string;
   duration_sec: number;
@@ -26,10 +31,40 @@ export type StudioConfig = {
   auto_script: boolean;
   estimated_credits: string;
   source_url: string;
+  brand_colors: string[];
+  studio_assets: StudioAssets;
 };
 
 const RATIOS = ['9:16', '16:9', '1:1', '4:5'] as const;
 const DURATIONS = [15, 30, 60] as const;
+
+export const STUDIO_RATIO_OPTIONS = [
+  { id: '9:16', label: '9:16', hint: 'Reels / TikTok' },
+  { id: '16:9', label: '16:9', hint: 'YouTube / TV' },
+  { id: '1:1', label: '1:1', hint: 'Feed vuông' },
+  { id: '4:5', label: '4:5', hint: 'Feed dọc' },
+] as const;
+
+export const STUDIO_DURATION_OPTIONS = [15, 30, 60] as const;
+
+export const STUDIO_STYLE_CARDS = [
+  { id: 'Cinematic luxury', label: 'Cinematic', hint: 'ánh sáng film' },
+  { id: 'Social clean', label: 'Luxury', hint: 'premium social' },
+  { id: 'UGC handheld', label: 'Motion Graphic', hint: 'dynamic text' },
+] as const;
+
+export const STUDIO_DEFAULT_PROMPT_TAGS = [
+  'Bất động sản',
+  'Spa & làm đẹp',
+  'Tuyển sinh',
+  'Sự kiện',
+] as const;
+
+export const STUDIO_PLAYBOOK_PROMPT_TAGS: Record<string, readonly string[]> = {
+  bds_social_916: ['Bất động sản', 'Căn hộ cao cấp', 'Tour ảo', 'CTA đăng ký'],
+  lead_social_916: ['Lead gen', 'Form CRM', 'UGC', 'Hook mạnh'],
+  tvc_short_169: ['Brand TVC', 'Tagline', 'Legal disclaimer', 'Cinematic'],
+};
 
 export function studioTabHref(
   tab: VideoStudioTabId,
@@ -87,7 +122,91 @@ export function studioConfigFrom(value: unknown): StudioConfig {
     auto_script: config.auto_script === true,
     estimated_credits: config.estimated_credits == null ? '' : String(config.estimated_credits),
     source_url: textOf(config.source_url),
+    brand_colors: studioBrandColorsFrom(config.brand_colors),
+    studio_assets: studioAssetsFrom(config),
   };
+}
+
+export function studioAssetsFrom(value: unknown): StudioAssets {
+  const config = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const raw = config.studio_assets;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { reference_ids: [], logo_id: null };
+  }
+  const assets = raw as Record<string, unknown>;
+  const reference = Array.isArray(assets.reference_ids)
+    ? assets.reference_ids.map((item) => String(item ?? '').trim()).filter(Boolean)
+    : [];
+  const logo = assets.logo_id == null || assets.logo_id === ''
+    ? null
+    : String(assets.logo_id).trim();
+  return { reference_ids: [...new Set(reference)], logo_id: logo || null };
+}
+
+export function studioAssetsPayload(assets: StudioAssets): Record<string, unknown> {
+  return {
+    reference_ids: assets.reference_ids,
+    logo_id: assets.logo_id,
+  };
+}
+
+export function studioAssetIds(assets: StudioAssets): string[] {
+  const ids = [...assets.reference_ids];
+  if (assets.logo_id) ids.push(assets.logo_id);
+  return [...new Set(ids)];
+}
+
+export function addReferenceAsset(assets: StudioAssets, assetId: string): StudioAssets {
+  const id = assetId.trim();
+  if (!id || assets.reference_ids.includes(id) || assets.logo_id === id) return assets;
+  return { ...assets, reference_ids: [...assets.reference_ids, id] };
+}
+
+export function setLogoAsset(assets: StudioAssets, assetId: string | null): StudioAssets {
+  const id = assetId?.trim() || null;
+  return {
+    ...assets,
+    logo_id: id,
+    reference_ids: id ? assets.reference_ids.filter((item) => item !== id) : assets.reference_ids,
+  };
+}
+
+export function removeStudioAsset(assets: StudioAssets, assetId: string): StudioAssets {
+  const id = assetId.trim();
+  return {
+    reference_ids: assets.reference_ids.filter((item) => item !== id),
+    logo_id: assets.logo_id === id ? null : assets.logo_id,
+  };
+}
+
+export function promptSuggestionTags(playbookId: string | null | undefined): string[] {
+  if (playbookId && STUDIO_PLAYBOOK_PROMPT_TAGS[playbookId]) {
+    return [...STUDIO_PLAYBOOK_PROMPT_TAGS[playbookId]];
+  }
+  return [...STUDIO_DEFAULT_PROMPT_TAGS];
+}
+
+export function appendPromptSuggestion(prompt: string, tag: string): string {
+  const trimmed = prompt.trim();
+  const snippet = `${tag}: `;
+  if (!trimmed) return snippet;
+  if (trimmed.includes(tag)) return trimmed;
+  return `${trimmed}\n${snippet}`;
+}
+
+export function mediaLibraryHref(
+  projectId: string | null | undefined,
+  scope: string,
+  kind?: 'image' | 'video' | 'ingest',
+): string {
+  const params = new URLSearchParams();
+  if (scope) params.set('scope', scope);
+  if (projectId) params.set('project', projectId);
+  if (kind === 'ingest') params.set('tab', 'ingest');
+  const qs = params.toString();
+  return `/crm/creative-os/media${qs ? `?${qs}` : ''}`;
 }
 
 export function studioConfigPayload(config: StudioConfig): Record<string, unknown> {
@@ -110,6 +229,8 @@ export function studioConfigPayload(config: StudioConfig): Record<string, unknow
     auto_script: config.auto_script,
     estimated_credits: Number.isFinite(credits) ? credits : null,
     source_url: config.source_url || null,
+    brand_colors: config.brand_colors?.length ? config.brand_colors : null,
+    studio_assets: studioAssetsPayload(config.studio_assets ?? studioAssetsFrom({})),
   };
 }
 
@@ -225,28 +346,200 @@ export type PreviewSceneSlot = {
   placeholder: boolean;
 };
 
+export type StudioSceneCard = PreviewSceneSlot & {
+  idx: number;
+  tStart: number;
+  tEnd: number;
+};
+
+export type StudioRenderRow = {
+  id: string;
+  jobLabel: string;
+  title: string;
+  specs: string;
+  progress: number | null;
+  statusLabel: string;
+  statusKind: 'running' | 'done' | 'failed' | 'queued' | 'cancelled';
+  etaLabel: string | null;
+  cancellable: boolean;
+};
+
 export function previewSceneSlots(
   scenes: Array<{ idx?: number | null; title?: string | null; locked?: boolean | null }>,
   durationSec: number,
 ): PreviewSceneSlot[] {
+  return studioSceneCards(scenes, durationSec).map(({ key, title, hint, locked, placeholder }) => ({
+    key,
+    title,
+    hint,
+    locked,
+    placeholder,
+  }));
+}
+
+export function studioSceneCards(
+  scenes: Array<{
+    idx?: number | null;
+    title?: string | null;
+    locked?: boolean | null;
+    t_start?: number | null;
+    t_end?: number | null;
+  }>,
+  durationSec: number,
+): StudioSceneCard[] {
   if (scenes.length) {
-    return scenes.slice(0, 6).map((scene, index) => ({
-      key: `scene-${scene.idx ?? index}`,
-      title: sceneStripLabel({ ...scene, locked: false }),
-      hint: scene.locked ? 'lock' : '',
-      locked: scene.locked === true,
-      placeholder: false,
-    }));
+    return scenes.slice(0, 6).map((scene, index) => {
+      const idx = Number.isFinite(Number(scene.idx)) ? Number(scene.idx) : index;
+      const tStart = Number(scene.t_start);
+      const tEnd = Number(scene.t_end);
+      const start = Number.isFinite(tStart) ? tStart : null;
+      const end = Number.isFinite(tEnd) ? tEnd : null;
+      return {
+        key: `scene-${scene.idx ?? index}`,
+        idx,
+        title: sceneStripLabel({ ...scene, locked: false }),
+        hint: scene.locked ? 'lock' : formatSceneRange(start, end),
+        tStart: start ?? 0,
+        tEnd: end ?? start ?? 0,
+        locked: scene.locked === true,
+        placeholder: false,
+      };
+    });
   }
   const duration = Number(durationSec);
   const end = Number.isFinite(duration) && duration > 0 ? duration : 30;
-  const hookEnd = end <= 15 ? 3 : end <= 30 ? 4 : 6;
-  const bodyEnd = end <= 15 ? 10 : end <= 30 ? 18 : Math.max(hookEnd + 8, end - 20);
+  const hookEnd = end <= 15 ? 3 : end <= 30 ? 5 : 6;
+  const bodyEnd = end <= 15 ? 10 : end <= 30 ? 15 : Math.max(hookEnd + 8, end - 15);
+  const ctaStart = end <= 15 ? 10 : end <= 30 ? 15 : bodyEnd;
   return [
-    { key: 'hook', title: '1 Hook', hint: `0–${hookEnd}s`, locked: false, placeholder: true },
-    { key: 'body', title: '2 Body', hint: `${hookEnd}–${bodyEnd}s`, locked: false, placeholder: true },
-    { key: 'cta', title: '3 CTA', hint: `${bodyEnd}–${end}s`, locked: false, placeholder: true },
+    {
+      key: 'hook',
+      idx: 0,
+      title: 'Cảnh 01 · Hook',
+      hint: formatSceneRange(0, hookEnd),
+      tStart: 0,
+      tEnd: hookEnd,
+      locked: false,
+      placeholder: true,
+    },
+    {
+      key: 'body',
+      idx: 1,
+      title: 'Cảnh 02 · Benefit',
+      hint: formatSceneRange(hookEnd, bodyEnd),
+      tStart: hookEnd,
+      tEnd: bodyEnd,
+      locked: false,
+      placeholder: true,
+    },
+    {
+      key: 'utility',
+      idx: 2,
+      title: 'Cảnh 03 · Utility',
+      hint: formatSceneRange(bodyEnd, ctaStart),
+      tStart: bodyEnd,
+      tEnd: ctaStart,
+      locked: false,
+      placeholder: true,
+    },
+    {
+      key: 'cta',
+      idx: 3,
+      title: 'Cảnh 04 · CTA',
+      hint: formatSceneRange(ctaStart, end),
+      tStart: ctaStart,
+      tEnd: end,
+      locked: false,
+      placeholder: true,
+    },
   ];
+}
+
+export function timelineMarks(durationSec: number): number[] {
+  const duration = Number(durationSec);
+  const end = Number.isFinite(duration) && duration > 0 ? duration : 30;
+  const step = end <= 15 ? 3 : end <= 30 ? 5 : 10;
+  const marks: number[] = [0];
+  for (let t = step; t < end; t += step) marks.push(t);
+  marks.push(end);
+  return marks;
+}
+
+export function renderJobCancellable(state: string | null | undefined): boolean {
+  const value = String(state ?? '').toLowerCase();
+  return value === 'queued' || value === 'running' || value === 'processing' || value === 'draft';
+}
+
+export function formatRenderRemaining(
+  progress: number | null | undefined,
+  durationSec: number,
+): string | null {
+  const pct = Number(progress);
+  if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) return null;
+  const duration = Number(durationSec);
+  const total = Number.isFinite(duration) && duration > 0 ? duration : 30;
+  const remaining = Math.max(15, Math.round((total * (100 - pct)) / 100));
+  if (remaining >= 60) {
+    const mm = Math.floor(remaining / 60);
+    const ss = remaining % 60;
+    return `Còn ${mm} phút ${ss} giây`;
+  }
+  return `Còn ${remaining} giây`;
+}
+
+export function studioRenderRows(input: {
+  jobs: Array<{
+    id: string;
+    job_id?: string | null;
+    state?: string | null;
+    stage?: string | null;
+    progress?: number | string | null;
+  }>;
+  draftName: string;
+  config: Pick<StudioConfig, 'duration_sec' | 'aspect_ratio' | 'model_id'>;
+}): StudioRenderRow[] {
+  return input.jobs.map((job) => {
+    const progress = Number(job.progress);
+    const pct = Number.isFinite(progress) ? Math.max(0, Math.min(100, Math.round(progress))) : null;
+    const state = String(job.state ?? '').toLowerCase();
+    let statusKind: StudioRenderRow['statusKind'] = 'queued';
+    let statusLabel = formatJobStatus(job);
+    if (state === 'completed') {
+      statusKind = 'done';
+      statusLabel = 'Hoàn tất';
+    } else if (state === 'failed') {
+      statusKind = 'failed';
+      statusLabel = 'Thất bại';
+    } else if (state === 'cancelled') {
+      statusKind = 'cancelled';
+      statusLabel = 'Đã hủy';
+    } else if (state === 'running' || state === 'processing' || pct != null) {
+      statusKind = 'running';
+      statusLabel = 'Đang render';
+    }
+    return {
+      id: job.id,
+      jobLabel: String(job.job_id ?? job.id),
+      title: input.draftName || 'Video draft',
+      specs: `${input.config.duration_sec}s · ${input.config.aspect_ratio} · ${formatModelLabel(input.config.model_id)}`,
+      progress: pct,
+      statusLabel,
+      statusKind,
+      etaLabel: statusKind === 'running' ? formatRenderRemaining(pct, input.config.duration_sec) : null,
+      cancellable: renderJobCancellable(job.state),
+    };
+  });
+}
+
+export function studioBrandPalette(payload: unknown): string[] {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return [];
+  const row = payload as Record<string, unknown>;
+  const palette = row.palette;
+  if (!Array.isArray(palette)) return [];
+  return palette
+    .map((item) => String(item ?? '').trim())
+    .filter((item) => /^#[0-9a-f]{3,8}$/i.test(item))
+    .slice(0, 4);
 }
 
 export type StudioGateItem = {
@@ -470,4 +763,19 @@ function capitalize(value: string): string {
 
 function textOf(value: unknown): string {
   return value == null ? '' : String(value).trim();
+}
+
+function studioBrandColorsFrom(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item ?? '').trim())
+    .filter((item) => /^#[0-9a-f]{3,8}$/i.test(item))
+    .slice(0, 4);
+}
+
+function formatSceneRange(start: number | null, end: number | null): string {
+  if (start == null && end == null) return '';
+  const a = start == null ? 0 : start;
+  const b = end == null ? a : end;
+  return `${formatClock(a)}–${formatClock(b)}`;
 }
