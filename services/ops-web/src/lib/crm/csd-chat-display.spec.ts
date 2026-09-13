@@ -11,6 +11,8 @@ import {
   isCsdChatImageMime,
   isCsdChatMediaMime,
   splitCsdConversationAttachments,
+  collectCsdConversationLinks,
+  groupCsdLinkItemsByDay,
   resolveCsdConversationAvatar,
   resolveCsdMessagePeer,
   resolveCsdPersonAvatar,
@@ -212,5 +214,48 @@ describe('csd-chat-display', () => {
       x: 0,
       y: 0,
     });
+  });
+
+  it('collects http(s) URLs from message body into the Links vault', () => {
+    const href =
+      'https://docs.google.com/document/d/1pTluvjJjhL7kY0gv-1nelZZsF2XnhVfelzwx8dbddiqY/edit?usp=sharing';
+    const links = collectCsdConversationLinks([
+      {
+        id: 'm-docs',
+        created_at: '2026-09-05T10:00:00+07:00',
+        body_text: `Dạ sếp, em gửi sếp báo cáo: ${href}`,
+      },
+      { id: 'm-plain', created_at: '2026-09-05T11:00:00+07:00', body_text: 'Không có link' },
+      { id: 'm-gone', created_at: '2026-09-05T09:00:00+07:00', is_deleted: true, body_text: 'https://gone.example' },
+    ]);
+    expect(links).toEqual([
+      {
+        href,
+        display: href,
+        messageId: 'm-docs',
+        createdAt: '2026-09-05T10:00:00+07:00',
+      },
+    ]);
+  });
+
+  it('groups collected links by VN day newest-first', () => {
+    const groups = groupCsdLinkItemsByDay([
+      {
+        href: 'https://a.example/old',
+        display: 'https://a.example/old',
+        messageId: 'm1',
+        createdAt: '2026-09-04T10:00:00+07:00',
+      },
+      {
+        href: 'https://a.example/new',
+        display: 'https://a.example/new',
+        messageId: 'm2',
+        createdAt: '2026-09-05T10:00:00+07:00',
+      },
+    ]);
+    expect(groups.map(([label, rows]) => [label, rows.map((r) => r.messageId)])).toEqual([
+      ['Ngày 5 Tháng 9', ['m2']],
+      ['Ngày 4 Tháng 9', ['m1']],
+    ]);
   });
 });

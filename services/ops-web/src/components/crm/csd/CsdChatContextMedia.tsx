@@ -10,6 +10,7 @@ import {
 } from '@/lib/crm/csd-chat-file-local';
 import {
   formatChatListTime,
+  type CsdConversationLinkItem,
   type CsdConversationMediaItem,
 } from '@/lib/crm/csd-chat-display';
 import type { CsdChatStorageTab } from '@/components/crm/csd/CsdChatStorageVault';
@@ -94,6 +95,7 @@ type CsdChatContextMediaProps = {
   error?: string;
   images: CsdConversationMediaItem[];
   files: CsdConversationMediaItem[];
+  links?: CsdConversationLinkItem[];
   onOpenVault: (tab: CsdChatStorageTab) => void;
 };
 
@@ -103,12 +105,15 @@ export function CsdChatContextMedia({
   error = '',
   images,
   files,
+  links = [],
   onOpenVault,
 }: CsdChatContextMediaProps) {
   const [mediaOpen, setMediaOpen] = useState(true);
   const [filesOpen, setFilesOpen] = useState(true);
+  const [linksOpen, setLinksOpen] = useState(true);
   const previewImages = images.slice(0, 8);
   const previewFiles = files.slice(0, 3);
+  const previewLinks = links.slice(0, 3);
 
   return (
     <>
@@ -185,6 +190,67 @@ export function CsdChatContextMedia({
                   className="csd-chat-context-view-all"
                   data-testid="csd-chat-context-files-all"
                   onClick={() => onOpenVault('files')}
+                >
+                  Xem tất cả
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="csd-chat-context-section" data-testid="csd-chat-context-links">
+        <button
+          type="button"
+          className="csd-chat-context-section__head"
+          aria-expanded={linksOpen}
+          onClick={() => setLinksOpen((v) => !v)}
+        >
+          <span>Links</span>
+          <span className="csd-chat-context-section__chev" aria-hidden>
+            {linksOpen ? '▾' : '▸'}
+          </span>
+        </button>
+        {linksOpen ? (
+          <div className="csd-chat-context-section__body">
+            {links.length === 0 ? (
+              <p className="csd-chat-context-empty">Chưa có link</p>
+            ) : (
+              <>
+                <div className="csd-chat-context-files">
+                  {previewLinks.map((item) => {
+                    let host = item.display;
+                    try {
+                      host = new URL(item.href).hostname.replace(/^www\./, '');
+                    } catch {
+                      /* keep display */
+                    }
+                    return (
+                      <a
+                        key={`${item.messageId}:${item.href}`}
+                        className="csd-chat-context-file"
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid="csd-chat-context-link-row"
+                      >
+                        <span className="csd-chat-context-file__icon is-link" aria-hidden>
+                          ↗
+                        </span>
+                        <span className="csd-chat-context-file__main">
+                          <span className="csd-chat-context-file__name">{host}</span>
+                          <span className="csd-chat-context-file__meta">{item.display}</span>
+                        </span>
+                        <span className="csd-chat-context-file__when">{formatChatListTime(item.createdAt)}</span>
+                      </a>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className="csd-chat-context-view-all"
+                  data-testid="csd-chat-context-links-all"
+                  onClick={() => onOpenVault('links')}
                 >
                   Xem tất cả
                 </button>

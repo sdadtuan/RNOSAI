@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CsdChatContacts, type CsdChatContactsView } from '@/components/crm/csd/CsdChatContacts';
 import { CsdChatContext } from '@/components/crm/csd/CsdChatContext';
@@ -13,6 +13,7 @@ import { useCsdChatAttachments } from '@/components/crm/csd/useCsdChatAttachment
 import { useCsdChatSession } from '@/components/crm/csd/useCsdChatSession';
 import { formatCsdWhen, CSD_PRIORITY_LABELS, CSD_TICKET_TYPES, type CsdPriority } from '@/lib/crm/csd-api';
 import { readCsdDockPersist, writeCsdDockPersist, type CsdDockTab } from '@/lib/crm/csd-chat-dock-persist';
+import { collectCsdConversationLinks } from '@/lib/crm/csd-chat-display';
 
 type CsdChatWorkspaceProps = {
   token: string;
@@ -46,6 +47,7 @@ export function CsdChatWorkspace({
     refreshKey: `${s.messages.length}:${s.messages[s.messages.length - 1]?.id ?? ''}`,
     limit: 500,
   });
+  const conversationLinks = useMemo(() => collectCsdConversationLinks(s.messages), [s.messages]);
 
   useEffect(() => {
     if (tab === 'requests') setContactsView('requests');
@@ -216,6 +218,7 @@ export function CsdChatWorkspace({
           active={s.active}
           attachmentImages={allAttachments.images}
           attachmentFiles={allAttachments.files}
+          attachmentLinks={conversationLinks}
           attachmentsLoading={allAttachments.loading}
           attachmentsError={allAttachments.error}
           members={s.members}

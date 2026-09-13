@@ -15363,6 +15363,8 @@ body {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  align-self: stretch;
+  background: var(--zalo-rail);
 }
 
 .csd-chat-workspace__list-col {
@@ -16797,6 +16799,8 @@ body {
   text-align: left;
   cursor: pointer;
   font: inherit;
+  color: inherit;
+  text-decoration: none;
 }
 
 .csd-chat-context-file:hover {
@@ -16833,6 +16837,10 @@ body {
 
 .csd-chat-context-file__icon.is-zip {
   background: #7c3aed;
+}
+
+.csd-chat-context-file__icon.is-link {
+  background: var(--zalo-blue, #c76f0a);
 }
 
 .csd-chat-context-file__main {

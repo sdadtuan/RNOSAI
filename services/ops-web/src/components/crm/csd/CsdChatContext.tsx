@@ -9,7 +9,7 @@ import {
   type CsdConversationRow,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
-import type { CsdConversationMediaItem } from '@/lib/crm/csd-chat-display';
+import type { CsdConversationLinkItem, CsdConversationMediaItem } from '@/lib/crm/csd-chat-display';
 
 export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
   client: 'Khách hàng',
@@ -24,6 +24,7 @@ type CsdChatContextProps = {
   active: CsdConversationRow | null;
   attachmentImages: CsdConversationMediaItem[];
   attachmentFiles: CsdConversationMediaItem[];
+  attachmentLinks?: CsdConversationLinkItem[];
   attachmentsLoading?: boolean;
   attachmentsError?: string;
   members: CsdConversationMemberRow[];
@@ -95,6 +96,7 @@ export function CsdChatContext({
   active,
   attachmentImages,
   attachmentFiles,
+  attachmentLinks = [],
   attachmentsLoading = false,
   attachmentsError = '',
   members,
@@ -145,6 +147,7 @@ export function CsdChatContext({
           tab={vaultTab}
           images={attachmentImages}
           files={attachmentFiles}
+          links={attachmentLinks}
           loading={attachmentsLoading}
           error={attachmentsError}
           onTabChange={setVaultTab}
@@ -271,6 +274,7 @@ export function CsdChatContext({
                 error={attachmentsError}
                 images={attachmentImages}
                 files={attachmentFiles}
+                links={attachmentLinks}
                 onOpenVault={setVaultTab}
               />
             </section>

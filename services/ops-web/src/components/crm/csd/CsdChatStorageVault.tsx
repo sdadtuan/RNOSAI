@@ -9,7 +9,9 @@ import {
 } from '@/lib/crm/csd-chat-file-local';
 import {
   formatChatListTime,
+  groupCsdLinkItemsByDay,
   groupCsdMediaItemsByDay,
+  type CsdConversationLinkItem,
   type CsdConversationMediaItem,
 } from '@/lib/crm/csd-chat-display';
 
@@ -130,6 +132,7 @@ type CsdChatStorageVaultProps = {
   tab: CsdChatStorageTab;
   images: CsdConversationMediaItem[];
   files: CsdConversationMediaItem[];
+  links?: CsdConversationLinkItem[];
   loading?: boolean;
   error?: string;
   onTabChange: (tab: CsdChatStorageTab) => void;
@@ -141,6 +144,7 @@ export function CsdChatStorageVault({
   tab,
   images,
   files,
+  links = [],
   loading = false,
   error = '',
   onTabChange,
@@ -151,6 +155,7 @@ export function CsdChatStorageVault({
 
   const mediaGroups = useMemo(() => groupCsdMediaItemsByDay(images), [images]);
   const fileGroups = useMemo(() => groupCsdMediaItemsByDay(files), [files]);
+  const linkGroups = useMemo(() => groupCsdLinkItemsByDay(links), [links]);
 
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
@@ -275,8 +280,43 @@ export function CsdChatStorageVault({
               </section>
             ))
           )
-        ) : (
+        ) : links.length === 0 ? (
           <p className="csd-chat-context-empty">Chưa có link</p>
+        ) : (
+          linkGroups.map(([label, rows]) => (
+            <section key={label} className="csd-chat-storage-vault__day">
+              <h4 className="csd-chat-storage-vault__day-label">{label}</h4>
+              <div className="csd-chat-storage-vault__files">
+                {rows.map((item) => {
+                  let host = item.display;
+                  try {
+                    host = new URL(item.href).hostname.replace(/^www\./, '');
+                  } catch {
+                    /* keep display */
+                  }
+                  return (
+                    <a
+                      key={`${item.messageId}:${item.href}`}
+                      className="csd-chat-context-file csd-chat-storage-vault__link"
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="csd-chat-storage-link"
+                    >
+                      <span className="csd-chat-context-file__icon is-link" aria-hidden>
+                        ↗
+                      </span>
+                      <span className="csd-chat-context-file__main">
+                        <span className="csd-chat-context-file__name">{host}</span>
+                        <span className="csd-chat-context-file__meta">{item.display}</span>
+                      </span>
+                      <span className="csd-chat-context-file__when">{formatChatListTime(item.createdAt)}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </section>
+          ))
         )}
       </div>
     </div>

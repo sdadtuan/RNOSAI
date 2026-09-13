@@ -1,3 +1,5 @@
+import { splitCsdChatMessageText } from './csd-chat-linkify';
+
 const TZ = 'Asia/Ho_Chi_Minh';
 
 function vnParts(d: Date): { y: number; m: number; day: number; hh: string; mm: string } {
@@ -154,6 +156,67 @@ export function splitCsdConversationAttachments(
     else files.push(item);
   }
   return { images, files };
+}
+
+export type CsdConversationLinkItem = {
+  href: string;
+  display: string;
+  messageId: string;
+  createdAt: string;
+};
+
+export function collectCsdConversationLinks(
+  messages: Array<{
+    id: string;
+    created_at: string;
+    is_deleted?: boolean;
+    body_text?: string | null;
+  }>,
+): CsdConversationLinkItem[] {
+  const links: CsdConversationLinkItem[] = [];
+  const seen = new Set<string>();
+  for (const message of messages) {
+    if (message.is_deleted) continue;
+    for (const seg of splitCsdChatMessageText(message.body_text ?? '')) {
+      if (seg.type !== 'url') continue;
+      const key = `${message.id}:${seg.href}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      links.push({
+        href: seg.href,
+        display: seg.value,
+        messageId: message.id,
+        createdAt: message.created_at,
+      });
+    }
+  }
+  return links.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export function groupCsdLinkItemsByDay(
+  items: CsdConversationLinkItem[],
+): Array<[string, CsdConversationLinkItem[]]> {
+  const map = new Map<string, CsdConversationLinkItem[]>();
+  for (const item of items) {
+    const d = new Date(item.createdAt);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = dayKey(d);
+    const bucket = map.get(key) ?? [];
+    bucket.push(item);
+    map.set(key, bucket);
+  }
+  return [...map.entries()]
+    .sort(([, rowsA], [, rowsB]) => {
+      const dayA = vnEpochDay(new Date(rowsA[0]!.createdAt));
+      const dayB = vnEpochDay(new Date(rowsB[0]!.createdAt));
+      return dayB - dayA;
+    })
+    .map(([, rows]) => {
+      const sorted = [...rows].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      return [formatCsdStorageDayLabel(sorted[0]?.createdAt), sorted] as [string, CsdConversationLinkItem[]];
+    });
 }
 
 export function collectCsdConversationMedia(
