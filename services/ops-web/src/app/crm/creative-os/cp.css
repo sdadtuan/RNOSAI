@@ -14,10 +14,12 @@
   --cp-radius: 12px;
 }
 
-.cp-app {
+.cp-app,
+.cp-root {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: calc(100vh - var(--ops-chrome-h, 56px));
+  width: 100%;
   background: var(--cp-bg);
   color: #111827;
   font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
@@ -249,7 +251,7 @@
   border-radius: 10px;
   padding: 8px;
   background: var(--cp-sidebar-hover);
-  color: var(--cp-navy);
+  color: var(--cp-sidebar-text);
   cursor: pointer;
 }
 

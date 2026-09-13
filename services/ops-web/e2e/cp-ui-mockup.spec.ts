@@ -13,6 +13,8 @@ test.describe('Creative OS UI mockup smoke', () => {
   test('shell uses navy sidebar and OVR-01 subtitle', async ({ page }) => {
     await loginAsStaff(page);
     await page.goto('/crm/creative-os');
+    await expect(page.locator('.ops-sidebar')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByLabel('Điều hướng chính')).toBeVisible();
     await expect(page.locator('.cp-sidebar')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('.cp-sidebar')).toHaveCSS('background-color', 'rgb(15, 39, 71)');
     await expect(page.getByText(CP_SUBTITLES.ovrDashboard)).toBeVisible();
