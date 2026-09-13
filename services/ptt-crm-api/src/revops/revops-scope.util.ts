@@ -1,11 +1,19 @@
 import type { RevopsScope } from './revops.types';
+import { hasCapOnParentOrChild, REVOPS_CHILD_SECTIONS } from '../staff-permissions/rbac-cap-bridge.util';
 
 export function hasRevopsCap(
   caps: Array<{ section: string; action: string }> | undefined,
   action: 'view' | 'view_team' | 'view_all' | 'manage',
 ): boolean {
   if (!caps?.length) return false;
-  return caps.some((c) => c.section === 'crm_revops' && c.action === action);
+  if (caps.some((c) => c.section === 'crm_revops' && c.action === action)) return true;
+  if (action === 'view') {
+    return hasCapOnParentOrChild(caps, 'crm_revops', 'view', REVOPS_CHILD_SECTIONS);
+  }
+  if (action === 'manage') {
+    return hasCapOnParentOrChild(caps, 'crm_revops', 'manage', REVOPS_CHILD_SECTIONS);
+  }
+  return false;
 }
 
 export function hasRevopsCommissionCap(

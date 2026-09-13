@@ -72,6 +72,7 @@
     "send",
     "settings",
     "simulate",
+    "submit",
     "view_all",
     "view_all_leads",
     "view_financial",
@@ -118,7 +119,8 @@
     "org": "Phạm vi org",
     "rbac": "Phạm vi RBAC",
     "audit": "Phạm vi audit",
-    "policy": "Phạm vi policy"
+    "policy": "Phạm vi policy",
+    "submit": "Gửi / submit ops"
   },
   "section_actions": {
     "crm_board_funnel": [
@@ -413,8 +415,24 @@
       "admin"
     ],
     "crm_am": ["view", "view_all", "edit", "assign", "manage"],
+    "crm_am.clients": ["view", "edit"],
+    "crm_am.onboarding": ["view", "edit"],
+    "crm_am.work": ["view", "edit"],
+    "crm_am.renewals": ["view", "edit"],
+    "crm_am.health": ["view", "edit"],
+    "crm_am.reports": ["view"],
+    "crm_am.opportunities": ["view", "edit"],
+    "crm_am.feedback": ["view", "edit"],
+    "crm_am.settings": ["view", "manage"],
     "crm_am.finance": ["view"],
     "crm_media": ["view", "write", "publish", "finance_request", "admin"],
+    "crm_media.inventory": ["view", "write"],
+    "crm_media.packages": ["view", "write"],
+    "crm_media.campaigns": ["view", "write", "publish"],
+    "crm_media.evidence": ["view", "write"],
+    "crm_media.outcomes": ["view", "write"],
+    "crm_media.margin": ["view", "finance_request"],
+    "crm_media.settings": ["view", "admin"],
     "crm_cp": ["view", "view_all", "edit", "manage"],
     "crm_cp.render": ["execute"],
     "crm_cp.render_high_cost": ["execute"],
@@ -444,7 +462,16 @@
     "crm_quote.catalog": ["view", "manage"],
     "crm_quote.audit": ["view"],
     "crm_revops": ["view", "view_team", "view_all", "manage"],
+    "crm_revops.pipeline": ["view", "edit"],
+    "crm_revops.sla": ["view", "manage"],
+    "crm_revops.reports": ["view", "export"],
+    "crm_revops.territory": ["view", "manage"],
+    "crm_revops.approvals": ["view", "approve"],
+    "crm_revops.settings": ["view", "manage"],
     "crm_revops.commission": ["view", "manage"],
+    "meta_ads_ops": ["view", "submit"],
+    "meta_campaign_write": ["view", "approve"],
+    "crm_zalo_ads": ["view", "edit", "export"],
     "spc": [
       "edit",
       "publish",
@@ -1346,11 +1373,123 @@
       "description": "Xem snapshot công nợ / invoice AM. Không sửa Paid."
     },
     {
+      "id": "crm_am.clients",
+      "label": "Account Management — Danh sách KH",
+      "group": "CRM",
+      "page": "/crm/account-management/clients",
+      "description": "Xem và chỉnh thông tin khách hàng AM."
+    },
+    {
+      "id": "crm_am.onboarding",
+      "label": "Account Management — Onboarding",
+      "group": "CRM",
+      "page": "/crm/account-management/onboarding",
+      "description": "Handover và checklist onboarding sau ký HĐ."
+    },
+    {
+      "id": "crm_am.work",
+      "label": "Account Management — Work Queue",
+      "group": "CRM",
+      "page": "/crm/account-management/work",
+      "description": "Hàng đợi công việc AM theo client / SLA."
+    },
+    {
+      "id": "crm_am.renewals",
+      "label": "Account Management — Gia hạn",
+      "group": "CRM",
+      "page": "/crm/account-management/renewals",
+      "description": "Renewal pipeline và expand opportunities."
+    },
+    {
+      "id": "crm_am.health",
+      "label": "Account Management — Health & Risk",
+      "group": "CRM",
+      "page": "/crm/account-management/health",
+      "description": "Health score, churn risk, escalation."
+    },
+    {
+      "id": "crm_am.reports",
+      "label": "Account Management — Báo cáo",
+      "group": "CRM",
+      "page": "/crm/account-management/reports",
+      "description": "Báo cáo AM theo client / portfolio."
+    },
+    {
+      "id": "crm_am.opportunities",
+      "label": "Account Management — Upsell / Expand",
+      "group": "CRM",
+      "page": "/crm/account-management/opportunities",
+      "description": "Cơ hội mở rộng hợp đồng / cross-sell."
+    },
+    {
+      "id": "crm_am.feedback",
+      "label": "Account Management — Phản hồi KH",
+      "group": "CRM",
+      "page": "/crm/account-management/feedback",
+      "description": "NPS, CSAT, voice-of-customer AM."
+    },
+    {
+      "id": "crm_am.settings",
+      "label": "Account Management — Cấu hình",
+      "group": "CRM",
+      "page": "/crm/account-management/settings",
+      "description": "Playbook AM, SLA template, audit export."
+    },
+    {
       "id": "crm_media",
       "label": "Media OS",
       "group": "CRM",
       "page": "/crm/media-os",
       "description": "Media Supply & Outcome OS — inventory, booking, evidence, margin."
+    },
+    {
+      "id": "crm_media.inventory",
+      "label": "Media OS — Inventory & Rate",
+      "group": "CRM",
+      "page": "/crm/media-os/inventory",
+      "description": "Kho placement, rate card, availability."
+    },
+    {
+      "id": "crm_media.packages",
+      "label": "Media OS — Packages",
+      "group": "CRM",
+      "page": "/crm/media-os/packages",
+      "description": "Bundle media / combo placement."
+    },
+    {
+      "id": "crm_media.campaigns",
+      "label": "Media OS — Campaigns",
+      "group": "CRM",
+      "page": "/crm/media-os/campaigns",
+      "description": "Booking campaign, flight schedule, publish."
+    },
+    {
+      "id": "crm_media.evidence",
+      "label": "Media OS — Evidence",
+      "group": "CRM",
+      "page": "/crm/media-os/evidence",
+      "description": "Proof-of-play, screenshot, audit trail."
+    },
+    {
+      "id": "crm_media.outcomes",
+      "label": "Media OS — Outcomes",
+      "group": "CRM",
+      "page": "/crm/media-os/outcomes",
+      "description": "KPI outcome vs plan, reconciliation."
+    },
+    {
+      "id": "crm_media.margin",
+      "label": "Media OS — Margin & Deal",
+      "group": "CRM",
+      "page": "/crm/media-os/margin",
+      "description": "Deal margin, finance request, cost bridge."
+    },
+    {
+      "id": "crm_media.settings",
+      "label": "Media OS — Governance",
+      "group": "CRM",
+      "page": "/crm/media-os/settings",
+      "description": "Policy, audit, admin settings Media OS."
     },
     {
       "id": "crm_cp",
@@ -1554,6 +1693,48 @@
       "group": "CRM",
       "page": "/crm/revenue-ops",
       "description": "RevOps shell: command center, SLA, reports, territory, approvals."
+    },
+    {
+      "id": "crm_revops.pipeline",
+      "label": "Revenue Operations — Pipeline",
+      "group": "CRM",
+      "page": "/crm/revenue-ops/pipeline",
+      "description": "Pipeline & deal hygiene, stage governance."
+    },
+    {
+      "id": "crm_revops.sla",
+      "label": "Revenue Operations — SLA",
+      "group": "CRM",
+      "page": "/crm/revenue-ops/sla",
+      "description": "SLA rules, escalation, breach alerts."
+    },
+    {
+      "id": "crm_revops.reports",
+      "label": "Revenue Operations — Báo cáo",
+      "group": "CRM",
+      "page": "/crm/revenue-ops/reports",
+      "description": "Forecast, funnel reports, export."
+    },
+    {
+      "id": "crm_revops.territory",
+      "label": "Revenue Operations — Territory",
+      "group": "CRM",
+      "page": "/crm/revenue-ops/territory",
+      "description": "Territory map, capacity, routing rules."
+    },
+    {
+      "id": "crm_revops.approvals",
+      "label": "Revenue Operations — Phê duyệt",
+      "group": "CRM",
+      "page": "/crm/revenue-ops/approvals",
+      "description": "Discount, exception, handoff approvals."
+    },
+    {
+      "id": "crm_revops.settings",
+      "label": "Revenue Operations — Cấu hình",
+      "group": "CRM",
+      "page": "/crm/revenue-ops/settings",
+      "description": "RevOps config, audit export."
     },
     {
       "id": "crm_revops.commission",
@@ -1969,6 +2150,27 @@
       "description": "Hub Meta/Facebook — token, CPL, map Hub, truy cập nhanh Lead Ads."
     },
     {
+      "id": "meta_ads_ops",
+      "label": "Meta Ads Ops",
+      "group": "CRM · Quảng cáo",
+      "page": "/meta/ads-ops",
+      "description": "Launch pack QA, submit campaign ops, governance Meta."
+    },
+    {
+      "id": "meta_campaign_write",
+      "label": "Meta — Campaign Write Approval",
+      "group": "CRM · Quảng cáo",
+      "page": "/meta/ads-ops",
+      "description": "Submit / approve thay đổi campaign Meta có governance."
+    },
+    {
+      "id": "crm_zalo_ads",
+      "label": "Zalo Ads",
+      "group": "CRM · Quảng cáo",
+      "page": "/zalo/zalo-ads",
+      "description": "Hub Zalo Ads — OAuth, CPL, sync insights, export."
+    },
+    {
       "id": "crm_google_ads",
       "label": "Google Ads",
       "group": "CRM · Quảng cáo",
@@ -2338,8 +2540,24 @@
     "ceo_command",
     "csd",
     "crm_am",
+    "crm_am.clients",
+    "crm_am.onboarding",
+    "crm_am.work",
+    "crm_am.renewals",
+    "crm_am.health",
+    "crm_am.reports",
+    "crm_am.opportunities",
+    "crm_am.feedback",
+    "crm_am.settings",
     "crm_am.finance",
     "crm_media",
+    "crm_media.inventory",
+    "crm_media.packages",
+    "crm_media.campaigns",
+    "crm_media.evidence",
+    "crm_media.outcomes",
+    "crm_media.margin",
+    "crm_media.settings",
     "crm_cp",
     "crm_cp.render",
     "crm_cp.render_high_cost",
@@ -2369,7 +2587,16 @@
     "crm_quote.legal",
     "crm_quote.publish",
     "crm_revops",
+    "crm_revops.pipeline",
+    "crm_revops.sla",
+    "crm_revops.reports",
+    "crm_revops.territory",
+    "crm_revops.approvals",
+    "crm_revops.settings",
     "crm_revops.commission",
+    "meta_ads_ops",
+    "meta_campaign_write",
+    "crm_zalo_ads",
     "spc",
     "crm_ai_insights",
     "crm_hr_leave",

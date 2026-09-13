@@ -1,3 +1,8 @@
+import {
+  hasCapOnParentOrChild,
+  MSOS_CHILD_SECTIONS,
+} from '@/lib/rbac/rbac-cap-bridge.util';
+
 const TOKEN_KEY = 'ptt_ops_access_token';
 const REFRESH_KEY = 'ptt_ops_refresh_token';
 const USER_KEY = 'ptt_ops_user';
@@ -162,7 +167,7 @@ export function canRunLmp(user: StoredStaffUser | null): boolean {
 
 export function canViewMediaOs(user: StoredStaffUser | null): boolean {
   return (
-    hasCap(user, 'crm_media', 'view') ||
+    hasCapOnParentOrChild(user, 'crm_media', 'view', MSOS_CHILD_SECTIONS) ||
     hasCap(user, 'crm_media', 'write') ||
     hasCap(user, 'crm_media', 'publish') ||
     hasCap(user, 'crm_media', 'admin')
@@ -170,15 +175,24 @@ export function canViewMediaOs(user: StoredStaffUser | null): boolean {
 }
 
 export function canWriteMediaOs(user: StoredStaffUser | null): boolean {
-  return hasCap(user, 'crm_media', 'write') || hasCap(user, 'crm_media', 'admin');
+  return (
+    hasCapOnParentOrChild(user, 'crm_media', 'write', MSOS_CHILD_SECTIONS) ||
+    hasCap(user, 'crm_media', 'admin')
+  );
 }
 
 export function canPublishMediaOs(user: StoredStaffUser | null): boolean {
-  return hasCap(user, 'crm_media', 'publish') || hasCap(user, 'crm_media', 'admin');
+  return (
+    hasCapOnParentOrChild(user, 'crm_media', 'publish', MSOS_CHILD_SECTIONS) ||
+    hasCap(user, 'crm_media', 'admin')
+  );
 }
 
 export function canFinanceRequestMediaOs(user: StoredStaffUser | null): boolean {
-  return hasCap(user, 'crm_media', 'finance_request') || hasCap(user, 'crm_media', 'admin');
+  return (
+    hasCapOnParentOrChild(user, 'crm_media', 'finance_request', MSOS_CHILD_SECTIONS) ||
+    hasCap(user, 'crm_media', 'admin')
+  );
 }
 
 export function updateStoredUser(user: StoredStaffUser): void {

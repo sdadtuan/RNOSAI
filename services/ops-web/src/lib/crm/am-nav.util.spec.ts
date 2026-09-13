@@ -29,6 +29,10 @@ describe('canSeeAmNav', () => {
   it('returns true for crm_am.view_all', () => {
     expect(canSeeAmNav(user([{ section: 'crm_am', action: 'view_all' }]))).toBe(true);
   });
+
+  it('returns true for child section crm_am.clients.view', () => {
+    expect(canSeeAmNav(user([{ section: 'crm_am.clients', action: 'view' }]))).toBe(true);
+  });
 });
 
 describe('AM_NAV', () => {

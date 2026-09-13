@@ -49,6 +49,7 @@ export const PERMISSION_MATRIX_ACTIONS = [
   'policy',
   'run',
   'feedback',
+  'submit',
 ] as const;
 
 export type PermissionMatrixAction = (typeof PERMISSION_MATRIX_ACTIONS)[number];
@@ -103,6 +104,7 @@ export const PERMISSION_ACTION_LABELS: Record<string, string> = {
   policy: 'Phạm vi policy',
   run: 'Chạy job (desk/deep)',
   feedback: 'Phản hồi LMP',
+  submit: 'Gửi / submit ops',
 };
 
 export function permissionActionLabel(action: string): string {

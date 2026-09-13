@@ -29,6 +29,7 @@ describe('Media OS auth caps', () => {
     expect(canViewMediaOs(user(['crm_media:publish']))).toBe(true);
     expect(canViewMediaOs(user(['crm_media:admin']))).toBe(true);
     expect(canViewMediaOs(user(['crm_media:finance_request']))).toBe(false);
+    expect(canViewMediaOs(user(['crm_media.inventory:view']))).toBe(true);
   });
 
   it('canWriteMediaOs requires write or admin', () => {

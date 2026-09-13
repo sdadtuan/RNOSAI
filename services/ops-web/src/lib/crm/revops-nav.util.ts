@@ -1,5 +1,6 @@
 import type { StoredStaffUser } from '@/lib/auth';
 import { hasCap } from '@/lib/auth';
+import { hasCapOnParentOrChild, REVOPS_CHILD_SECTIONS } from '@/lib/rbac/rbac-cap-bridge.util';
 
 export function canSeeRevopsNav(user: StoredStaffUser | null | undefined): boolean {
   if (!user) return false;
@@ -7,7 +8,9 @@ export function canSeeRevopsNav(user: StoredStaffUser | null | undefined): boole
     hasCap(user, 'crm_revops', 'view') ||
     hasCap(user, 'crm_revops', 'view_team') ||
     hasCap(user, 'crm_revops', 'view_all') ||
-    hasCap(user, 'crm_revops', 'manage')
+    hasCap(user, 'crm_revops', 'manage') ||
+    hasCapOnParentOrChild(user, 'crm_revops', 'view', REVOPS_CHILD_SECTIONS) ||
+    hasCapOnParentOrChild(user, 'crm_revops', 'manage', REVOPS_CHILD_SECTIONS)
   );
 }
 

@@ -10,6 +10,7 @@ import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
+import { hasCapOnParentOrChild, MSOS_CHILD_SECTIONS } from '../../staff-permissions/rbac-cap-bridge.util';
 
 export type MsosCapAction = 'view' | 'write' | 'publish' | 'finance_request' | 'admin';
 
@@ -40,7 +41,7 @@ export class StaffMsosGuard implements CanActivate {
       this.reflector.get<MsosCapAction | undefined>(MSOS_REQUIRED_ACTION_KEY, context.getHandler()) ?? 'view';
 
     const me = await this.staffAuth.me(req.staffUser);
-    if (!this.staffAuth.hasCap(me.caps, 'crm_media', action)) {
+    if (!hasCapOnParentOrChild(me.caps, 'crm_media', action, MSOS_CHILD_SECTIONS)) {
       throw new ForbiddenException({ error: 'missing_cap', section: 'crm_media', action });
     }
     return true;

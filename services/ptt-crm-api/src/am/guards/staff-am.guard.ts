@@ -11,6 +11,7 @@ import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
+import { AM_CHILD_SECTIONS, hasCapOnParentOrChild } from '../../staff-permissions/rbac-cap-bridge.util';
 
 export type AmCapAction = 'view' | 'view_all' | 'edit' | 'assign' | 'manage';
 export type AmCapSection = 'crm_am' | 'crm_am.finance';
@@ -58,12 +59,21 @@ export class StaffAmGuard implements CanActivate {
       this.reflector.get<AmCapSection | undefined>(AM_REQUIRED_SECTION_KEY, context.getHandler()) ?? 'crm_am';
 
     const me = await this.staffAuth.me(req.staffUser);
-    const satisfies = (wanted: AmCapAction) =>
-      this.staffAuth.hasCap(me.caps, section, wanted) ||
-      (wanted === 'view' && this.staffAuth.hasCap(me.caps, section, 'view_all')) ||
-      (wanted === 'assign' &&
+    const satisfies = (wanted: AmCapAction) => {
+      if (this.staffAuth.hasCap(me.caps, section, wanted)) return true;
+      if (wanted === 'view' && this.staffAuth.hasCap(me.caps, section, 'view_all')) return true;
+      if (
+        wanted === 'assign' &&
         section === 'crm_am' &&
-        this.staffAuth.hasCap(me.caps, section, 'manage'));
+        this.staffAuth.hasCap(me.caps, section, 'manage')
+      ) {
+        return true;
+      }
+      if (section === 'crm_am') {
+        return hasCapOnParentOrChild(me.caps, 'crm_am', wanted, AM_CHILD_SECTIONS);
+      }
+      return false;
+    };
     const allowed = anyActions?.length ? anyActions.some(satisfies) : satisfies(action);
     if (!allowed) {
       throw new ForbiddenException({

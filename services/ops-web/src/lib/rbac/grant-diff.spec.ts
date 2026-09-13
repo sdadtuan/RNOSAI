@@ -39,4 +39,9 @@ describe('grant-diff matrix columns', () => {
     expect(permissionActionLabel('execute')).toBe('Thực thi');
     expect(permissionActionLabel('org')).toBe('Phạm vi org');
   });
+
+  it('includes Meta Ads Ops submit column', () => {
+    expect(PERMISSION_MATRIX_ACTIONS).toContain('submit');
+    expect(permissionActionLabel('submit')).toBe('Gửi / submit ops');
+  });
 });

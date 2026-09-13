@@ -71,10 +71,15 @@ describe('StaffMsosGuard', () => {
     await expect(guard.canActivate(executionContext)).resolves.toBe(true);
   });
 
-  it('defaults action to view', async () => {
+  it('allows view with child section cap crm_media.inventory:view', async () => {
+    const { guard, executionContext } = ctx({ staffId: 3, caps: ['crm_media.inventory:view'] });
+    await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+  });
+
+  it('defaults action to view and resolves caps via parent/child bridge', async () => {
     const { guard, executionContext, staffAuth } = ctx({ staffId: 3, caps: ['crm_media:view'] });
-    await guard.canActivate(executionContext);
-    expect(staffAuth.hasCap).toHaveBeenCalledWith(expect.anything(), 'crm_media', 'view');
+    await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+    expect(staffAuth.me).toHaveBeenCalled();
   });
 
   it('denies write without crm_media:write', async () => {

@@ -47,6 +47,7 @@ export function canEditMetaCreativeRegistry(user: StoredStaffUser | null): boole
 export function canViewMetaAdsOps(user: StoredStaffUser | null): boolean {
   if (!user || !metaAdsOpsEnabled()) return false;
   return (
+    hasCap(user, 'meta_ads_ops', 'view') ||
     hasCap(user, 'crm_facebook_ads', 'view') ||
     hasCap(user, 'crm_agency', 'view') ||
     hasCap(user, 'crm_board', 'edit')

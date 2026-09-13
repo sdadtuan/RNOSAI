@@ -1,9 +1,15 @@
 import type { StoredStaffUser } from '@/lib/auth';
 import { hasCap } from '@/lib/auth';
+import { AM_CHILD_SECTIONS, hasCapOnParentOrChild } from '@/lib/rbac/rbac-cap-bridge.util';
 
 export function canSeeAmNav(user: StoredStaffUser | null | undefined): boolean {
   if (!user) return false;
-  return hasCap(user, 'crm_am', 'view') || hasCap(user, 'crm_am', 'view_all');
+  return (
+    hasCap(user, 'crm_am', 'view') ||
+    hasCap(user, 'crm_am', 'view_all') ||
+    hasCapOnParentOrChild(user, 'crm_am', 'view', AM_CHILD_SECTIONS) ||
+    hasCapOnParentOrChild(user, 'crm_am', 'edit', AM_CHILD_SECTIONS)
+  );
 }
 
 export type AmNavItem = {
