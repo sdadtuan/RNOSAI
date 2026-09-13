@@ -40,22 +40,44 @@
   ],
   "extra_actions": [
     "act",
+    "admin",
+    "approve_internal",
     "assign",
+    "audit",
+    "bcc",
+    "commit",
     "compliance",
     "deliverability",
+    "execute",
+    "executive",
+    "external",
+    "finance_request",
+    "generate",
+    "lists",
+    "manage",
+    "org",
     "override",
+    "policy",
+    "production",
+    "publish",
+    "qa",
+    "query",
+    "rbac",
     "reports",
+    "request",
+    "review",
     "review_queue",
+    "run",
+    "schedule",
+    "send",
     "settings",
+    "simulate",
     "view_all",
     "view_all_leads",
-    "manage",
     "view_financial",
     "view_pii",
-    "write",
-    "generate",
-    "run",
-    "execute"
+    "view_team",
+    "write"
   ],
   "extra_action_labels": {
     "act": "Điều hành (Xác nhận)",
@@ -75,8 +97,28 @@
     "run": "Chạy job (desk/deep)",
     "manage": "Quản lý",
     "publish": "Xuất bản",
+    "approve_internal": "Duyệt nội bộ",
+    "qa": "QA / Legal",
+    "production": "Sản xuất / asset",
+    "admin": "Admin Content OS",
     "send": "Gửi",
-    "execute": "Thực thi"
+    "execute": "Thực thi",
+    "view_team": "Xem team",
+    "finance_request": "Yêu cầu finance",
+    "request": "Tự gửi / yêu cầu",
+    "query": "Truy vấn NL",
+    "commit": "Cam kết forecast",
+    "review": "Review BC",
+    "lists": "DS phân phối",
+    "schedule": "Lịch BC",
+    "executive": "Executive BC",
+    "bcc": "BCC BC",
+    "external": "BC external",
+    "simulate": "Simulate workflow",
+    "org": "Phạm vi org",
+    "rbac": "Phạm vi RBAC",
+    "audit": "Phạm vi audit",
+    "policy": "Phạm vi policy"
   },
   "section_actions": {
     "crm_board_funnel": [
@@ -216,6 +258,38 @@
       "qa",
       "view",
       "write"
+    ],
+    "crm_board": [
+      "view",
+      "edit",
+      "create"
+    ],
+    "iwr": [
+      "view",
+      "write",
+      "review",
+      "lists",
+      "schedule",
+      "export",
+      "manage",
+      "executive",
+      "bcc",
+      "external"
+    ],
+    "crm_b2b_projects": [
+      "view",
+      "manage"
+    ],
+    "playbooks": [
+      "view",
+      "configure"
+    ],
+    "ai_analytics": [
+      "query"
+    ],
+    "ai_forecast": [
+      "view",
+      "commit"
     ],
     "crm_vd.project": [
       "view",
@@ -406,6 +480,7 @@
       "edit",
       "export",
       "release",
+      "simulate",
       "view"
     ],
     "crm_sop_runs": [
@@ -476,6 +551,7 @@
     ],
     "crm_leads": [
       "approve",
+      "assign",
       "claim",
       "configure",
       "create",
@@ -1018,6 +1094,13 @@
       "description": "Hồ sơ khách hàng, timeline chăm sóc và hợp đồng."
     },
     {
+      "id": "crm_board",
+      "label": "Triển khai DV — Workspace CSKH",
+      "group": "CRM — Triển khai dịch vụ",
+      "page": "/crm/service-delivery",
+      "description": "Cap cha: tickets, service-delivery, creatives, campaign-writes, ops, SOP."
+    },
+    {
       "id": "crm_assistant",
       "label": "CSKH — Trợ lý AI",
       "group": "CRM — Bảng CSKH",
@@ -1061,10 +1144,45 @@
     },
     {
       "id": "crm_content",
-      "label": "Triển khai DV — Content Board",
+      "label": "Content Marketing OS",
       "group": "CRM — Triển khai dịch vụ",
-      "page": "/crm/service-delivery",
-      "description": "Tab Content OS: ideas, items, workflow duyệt, calendar, publish."
+      "page": "/crm/content-os",
+      "description": "Hub /crm/content-os: command center, workspace item, calendar, publish, intelligence."
+    },
+    {
+      "id": "iwr",
+      "label": "Báo cáo công việc (IWR)",
+      "group": "CRM — Tổ chức",
+      "page": "/crm/internal-reports",
+      "description": "Inbox BC, builder, schedules, lists, dashboards, risks, templates."
+    },
+    {
+      "id": "crm_b2b_projects",
+      "label": "Dự án PTT (B2B)",
+      "group": "CRM — B2B Sales",
+      "page": "/crm/b2b-projects",
+      "description": "Danh sách và quản lý dự án B2B / lead ingest."
+    },
+    {
+      "id": "playbooks",
+      "label": "Playbook library",
+      "group": "CRM — Automation",
+      "page": "/crm/playbooks",
+      "description": "Thư viện playbook vận hành + intake sales kit."
+    },
+    {
+      "id": "ai_analytics",
+      "label": "AI — NL Analytics",
+      "group": "CRM — AI",
+      "page": "/crm/ai/query",
+      "description": "Truy vấn ngôn ngữ tự nhiên trên dữ liệu CRM."
+    },
+    {
+      "id": "ai_forecast",
+      "label": "AI — Forecast doanh thu",
+      "group": "CRM — AI",
+      "page": "/crm/forecast",
+      "description": "Xem và cam kết forecast GDKD."
     },
     {
       "id": "crm_vd.project",
@@ -2321,6 +2439,15 @@
     "crm_mktplan",
     "crm_mkt_ai",
     "crm_content",
+    "crm_board",
+    "iwr",
+    "crm_b2b_projects",
+    "playbooks",
+    "ai_analytics",
+    "ai_forecast",
+    "admin_scope",
+    "admin_change",
+    "crm_lmp",
     "crm_vd.project",
     "crm_vd.script",
     "crm_vd.bible",

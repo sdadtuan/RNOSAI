@@ -1,5 +1,7 @@
 import { canViewContentOs, hasCap, type StoredStaffUser } from '@/lib/auth';
 import { shouldShowMediaOsNav } from '@/components/ops-nav-media-os';
+import { shouldShowVideoSopNav } from '@/components/ops-nav-video-sop';
+import { shouldShowCpNav } from '@/components/ops-nav-cp';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
 import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
 
@@ -24,6 +26,12 @@ export function buildCrmDeliveryModuleLinks(user: StoredStaffUser | null): Modul
   }
   if (shouldShowMediaOsNav(user)) {
     links.push({ href: '/crm/media-os', label: 'Media OS' });
+  }
+  if (shouldShowCpNav(user)) {
+    links.push({ href: '/crm/creative-os', label: 'Sản xuất sáng tạo' });
+  }
+  if (shouldShowVideoSopNav(user)) {
+    links.push({ href: '/crm/video', label: 'Video SOP' });
   }
   if (isOpsDvFeEnabled()) {
     links.push(

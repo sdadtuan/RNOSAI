@@ -493,8 +493,15 @@ export const LINK_ICONS: Record<string, string> = {
   '/crm/service-delivery': 'lifecycle',
   '/crm/sop': 'checklist',
   '/crm/video': 'run',
+  '/crm/creative-os': 'creative',
   '/crm/creative-os/image': 'creative',
   '/crm/content-os': 'board',
+  '/crm/media-os': 'hub',
+  '/crm/revenue-ops': 'sales',
+  '/crm/kpi-hub/executive': 'dashboard',
+  '/crm/kpi-hub/marketing': 'kpi',
+  '/crm/kpi-hub/sales': 'sales',
+  '/crm/internal-reports/risks': 'health',
   '/crm/launch-qa': 'rocket',
   '/crm/creatives': 'creative',
   '/crm/campaign-writes': 'megaphone',
@@ -615,6 +622,11 @@ export const SECTION_ICONS: Record<string, string> = {
   'KPI Hub': 'kpi',
   'Service Desk': 'ticket',
   'Account Management': 'customers',
+  'Tổ chức': 'report',
+  'Nhân sự & Hiệu suất': 'staff',
+  'Revenue Operations': 'sales',
+  'SERVICE KPI': 'dashboard',
+  'HIỆU SUẤT': 'kpi',
 };
 
 /** Shorter labels for sidebar headers. */
@@ -644,6 +656,11 @@ export const SECTION_LABELS: Record<string, string> = {
   'KPI Hub': 'KPI Hub',
   'Service Desk': 'Service Desk',
   'Account Management': 'Account Management',
+  'Tổ chức': 'Tổ chức',
+  'Nhân sự & Hiệu suất': 'Nhân sự',
+  'Revenue Operations': 'RevOps',
+  'SERVICE KPI': 'Service KPI',
+  'HIỆU SUẤT': 'Hiệu suất',
 };
 
 export function sectionShortLabel(fullLabel: string): string {

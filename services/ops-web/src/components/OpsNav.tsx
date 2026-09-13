@@ -71,6 +71,7 @@ import { shouldShowContentOsNav } from '@/components/ops-nav-content-os';
 import { shouldShowMediaOsNav } from '@/components/ops-nav-media-os';
 import { shouldShowVideoSopNav } from '@/components/ops-nav-video-sop';
 import { shouldShowImageSopNav } from '@/components/ops-nav-image-sop';
+import { shouldShowCpNav } from '@/components/ops-nav-cp';
 import { getCpImageFlags } from '@/lib/crm/cp-image-sop-api';
 import { nextActionFor } from '@/lib/crm/canopy-next-action';
 
@@ -427,10 +428,11 @@ function buildSections(
 
   const prepare: NavLink[] = [];
   if (hasCap(user, 'crm_leads', 'view')) {
-    prepare.push({ href: '/crm/leads', label: 'Lead Intake' });
+    prepare.push({ href: '/crm/intake', label: 'Lead Intake' });
   }
   if (hasCap(user, 'crm_b2b_projects', 'view')) {
-    prepare.push({ href: '/crm/delivery-projects?capability=lead_ingest', label: 'Dự án PTT' });
+    prepare.push({ href: '/crm/b2b-projects', label: 'Dự án PTT' });
+    prepare.push({ href: '/crm/delivery-projects?capability=lead_ingest', label: 'Lead ingest DV' });
     prepare.push({ href: '/crm/b2b-speed', label: 'Speed-to-lead' });
   }
   if (prepare.length) {
@@ -528,7 +530,10 @@ function buildSections(
 
   const kpiHub: NavLink[] = [];
   if (hasCap(user, 'crm_kpi_hub', 'view')) {
-    kpiHub.push({ href: '/crm/kpi-hub', label: 'Dashboard' });
+    kpiHub.push({ href: '/crm/kpi-hub/executive', label: 'Executive Command' });
+    kpiHub.push({ href: '/crm/kpi-hub/marketing', label: 'Marketing Performance' });
+    kpiHub.push({ href: '/crm/kpi-hub/sales', label: 'Sales Command' });
+    kpiHub.push({ href: '/crm/kpi-hub', label: 'KPI Hub home' });
   }
   if (hasCap(user, 'crm_kpi_dictionary', 'view')) {
     kpiHub.push({ href: '/crm/kpi-hub/dictionary', label: 'KPI Dictionary' });
@@ -590,7 +595,7 @@ function buildSections(
     delivery.push({ href: '/crm/launch-qa', label: 'Launch QA' });
     delivery.push({ href: '/crm/creatives', label: 'Creative Hub' });
   }
-  if (hasCap(user, 'crm_cp', 'view') || hasCap(user, 'crm_cp', 'view_all')) {
+  if (shouldShowCpNav(user)) {
     delivery.push({ href: '/crm/creative-os', label: 'Sản xuất sáng tạo' });
   }
   if (hasCap(user, 'crm_board', 'view')) {
@@ -674,6 +679,7 @@ function buildSections(
     if (hasCap(user, 'iwr', 'manage')) {
       toChuc.push({ href: '/crm/internal-reports/templates', label: 'Mẫu BC nội bộ' });
     }
+    toChuc.push({ href: '/crm/internal-reports/risks', label: 'Blocker & Rủi ro' });
   }
   if (toChuc.length) sections.push({ label: 'Tổ chức', links: toChuc, defaultOpen: true });
 

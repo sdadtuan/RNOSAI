@@ -109,11 +109,17 @@ export function canApproveMktAiPlanner(user: StoredStaffUser | null): boolean {
 }
 
 export function canViewContentOs(user: StoredStaffUser | null): boolean {
-  if (!hasCap(user, 'crm_board', 'view')) return false;
+  if (!user) return false;
   return (
     hasCap(user, 'crm_content', 'view') ||
     hasCap(user, 'crm_content', 'write') ||
-    hasCap(user, 'crm_content', 'generate')
+    hasCap(user, 'crm_content', 'generate') ||
+    hasCap(user, 'crm_content', 'approve_internal') ||
+    hasCap(user, 'crm_content', 'qa') ||
+    hasCap(user, 'crm_content', 'publish') ||
+    hasCap(user, 'crm_content', 'production') ||
+    hasCap(user, 'crm_content', 'assign') ||
+    hasCap(user, 'crm_content', 'admin')
   );
 }
 

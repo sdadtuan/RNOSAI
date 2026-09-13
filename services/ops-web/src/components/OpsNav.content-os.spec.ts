@@ -64,4 +64,14 @@ describe('shouldShowContentOsNav', () => {
       restoreFlag(prev);
     }
   });
+
+  it('shows when user has only crm_content view without crm_board', () => {
+    const prev = process.env.NEXT_PUBLIC_CONTENT_MARKETING;
+    try {
+      process.env.NEXT_PUBLIC_CONTENT_MARKETING = '1';
+      expect(shouldShowContentOsNav(user([{ section: 'crm_content', action: 'view' }]))).toBe(true);
+    } finally {
+      restoreFlag(prev);
+    }
+  });
 });

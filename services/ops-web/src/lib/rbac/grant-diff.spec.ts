@@ -23,4 +23,20 @@ describe('grant-diff matrix columns', () => {
     expect(permissionActionLabel('act')).toBe('Điều hành (Xác nhận)');
     expect(permissionActionLabel('review_queue')).toBe('Review queue');
   });
+
+  it('includes Content OS matrix columns', () => {
+    for (const action of ['publish', 'approve_internal', 'qa', 'production', 'admin']) {
+      expect(PERMISSION_MATRIX_ACTIONS).toContain(action);
+    }
+    expect(permissionActionLabel('publish')).toBe('Xuất bản');
+    expect(permissionActionLabel('approve_internal')).toBe('Duyệt nội bộ');
+  });
+
+  it('includes CP/IMG execute and IWR matrix columns', () => {
+    for (const action of ['execute', 'view_team', 'finance_request', 'query', 'commit', 'review', 'simulate']) {
+      expect(PERMISSION_MATRIX_ACTIONS).toContain(action);
+    }
+    expect(permissionActionLabel('execute')).toBe('Thực thi');
+    expect(permissionActionLabel('org')).toBe('Phạm vi org');
+  });
 });
