@@ -176,7 +176,7 @@ export function CpStudioPreview({
       <div className={`cp-studio-preview__stage${layout === 'stack' ? ' cp-studio-preview__stage--stack' : ''}`}>
         <div
           ref={viewerRef}
-          className={`cp-viewer cp-viewer--${ratioClass(aspectRatio)}`}
+          className={`cp-viewer ${layout === 'stack' ? 'cp-viewer--fill' : `cp-viewer--${ratioClass(aspectRatio)}`}`}
           style={{ ['--cp-viewer-zoom' as string]: `${zoom / 100}` }}
           tabIndex={0}
           role="region"

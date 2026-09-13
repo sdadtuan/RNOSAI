@@ -279,6 +279,8 @@ describe('VID-01 studio helpers', () => {
     expect(src).toContain('CpStudioBrief');
     expect(src).toContain('CpStudioStage');
     expect(src).toContain('CpStudioQueue');
+    expect(src).toContain('Mở AI Ops');
+    expect(src).toContain('aiOpsHref');
     expect(src).not.toContain('DAM picker');
     expect(src).not.toContain('asset_version_id');
     expect(src).toContain('listCpVideoPreviews');

@@ -11,11 +11,13 @@ import { CpStudioConfig } from './CpStudioConfig';
 import { CpStudioQueue } from './CpStudioQueue';
 import { CpStudioStage } from './CpStudioStage';
 import { CpTimeline } from './CpTimeline';
+import { aiOpsHref, type CpAiOpsPane } from '@/lib/crm/cp-ai-ops-panes.util';
 import {
   CP_RENDER_POLL_MS,
   cancelCpRender,
   createCpRender,
   formatCpApiError,
+  getCpAiOpsFlags,
   getCpSettings,
   getCpVideo,
   listCpAssets,
@@ -26,6 +28,7 @@ import {
   listVersions,
   parseCpScriptEditor,
   patchCpVideo,
+  type CpAiOpsFlags,
   type CpAsset,
   type CpBrandKit,
   type CpRenderJob,
@@ -59,6 +62,34 @@ import {
 
 function scopeFrom(value?: string): CpScope {
   return value === 'team' || value === 'all' ? value : 'me';
+}
+
+const OFF_AI_OPS_FLAGS: CpAiOpsFlags = {
+  weave: false,
+  magnificMcp: false,
+  magnificRest: false,
+  magnificFlows: false,
+  comfy: false,
+  showAiOpsTab: false,
+};
+
+const AI_OPS_PANE_LINKS: Array<{
+  id: CpAiOpsPane;
+  label: string;
+  enabled: (flags: CpAiOpsFlags) => boolean;
+}> = [
+  { id: 'weave', label: 'Weave', enabled: (flags) => flags.weave },
+  {
+    id: 'magnific',
+    label: 'Magnific',
+    enabled: (flags) => flags.magnificRest || flags.magnificMcp,
+  },
+  { id: 'comfy', label: 'Comfy', enabled: (flags) => flags.comfy },
+];
+
+function defaultAiOpsPane(flags: CpAiOpsFlags): CpAiOpsPane {
+  const match = AI_OPS_PANE_LINKS.find((item) => item.enabled(flags));
+  return match?.id ?? 'weave';
 }
 
 export function CpVideoStudio({
@@ -101,6 +132,7 @@ export function CpVideoStudio({
   const [seekTo, setSeekTo] = useState<number | null>(null);
   const [playheadSec, setPlayheadSec] = useState(0);
   const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
+  const [aiOpsFlags, setAiOpsFlags] = useState<CpAiOpsFlags>(OFF_AI_OPS_FLAGS);
 
   const playbookId = useMemo(() => {
     const cfg = draft?.config_json;
@@ -118,7 +150,7 @@ export function CpVideoStudio({
     setLoading(true);
     setError('');
     try {
-      const [video, kitResult, settingResult, sceneResult, assetResult, jobResult, previewResult] = await Promise.all([
+      const [video, kitResult, settingResult, sceneResult, assetResult, jobResult, previewResult, flagResult] = await Promise.all([
         getCpVideo(token, videoId, scope),
         listKits(token, scope),
         getCpSettings(token).catch(() => null),
@@ -126,7 +158,9 @@ export function CpVideoStudio({
         listCpAssets(token, scope).catch(() => ({ items: [] as CpAsset[] })),
         listCpRenders(token, scope).catch(() => ({ items: [] as CpRenderJob[] })),
         listCpVideoPreviews(token, videoId, scope).catch(() => ({ items: [] })),
+        getCpAiOpsFlags(token).catch(() => OFF_AI_OPS_FLAGS),
       ]);
+      setAiOpsFlags(flagResult);
       setDraft(video);
       setKits(kitResult.items);
       setSettings(settingResult);
@@ -332,6 +366,8 @@ export function CpVideoStudio({
     scope,
     versionId: draft?.latest_version_id,
   });
+  const projectId = draft?.project_id ?? null;
+  const aiOpsPaneLinks = AI_OPS_PANE_LINKS.filter((item) => item.enabled(aiOpsFlags));
 
   return (
     <div className="cp-overview" aria-busy={loading}>
@@ -355,6 +391,14 @@ export function CpVideoStudio({
           ) : null}
         </div>
         <div className="cp-overview__actions">
+          {aiOpsFlags.showAiOpsTab && projectId ? (
+            <Link
+              className="cp-btn"
+              href={aiOpsHref(projectId, defaultAiOpsPane(aiOpsFlags))}
+            >
+              Mở AI Ops
+            </Link>
+          ) : null}
           {shouldShowVideoSopNav(getStoredUser()) ? (
             <Link className="cp-btn" href={videoSopHref(null)}>Mở Video SOP</Link>
           ) : null}
@@ -384,6 +428,24 @@ export function CpVideoStudio({
           </Link>
         ))}
       </nav>
+
+      {aiOpsFlags.showAiOpsTab ? (
+        <nav className="cp-chips cp-chips--ai-ops" aria-label="Mở AI Ops">
+          {projectId ? (
+            aiOpsPaneLinks.map((item) => (
+              <Link
+                key={item.id}
+                className="cp-chip"
+                href={aiOpsHref(projectId, item.id)}
+              >
+                {item.label}
+              </Link>
+            ))
+          ) : (
+            <span className="cp-muted">Gắn project để mở Weave / Magnific / Comfy.</span>
+          )}
+        </nav>
+      ) : null}
 
       {tab === 'storyboard' ? <CpStoryboard videoId={videoId} scope={scope} /> : null}
       {tab === 'timeline' ? <CpTimeline videoId={videoId} scope={scope} /> : null}
