@@ -10,6 +10,7 @@ import {
   getMagnificJob,
   getProviderHealth,
   magnificCompletionNotice,
+  recommendAiOpsProvider,
   submitMagnificJob,
 } from './cp-ai-ops-api';
 
@@ -143,6 +144,30 @@ describe('Magnific API source contract', () => {
     const source = readFileSync(new URL('./cp-ai-ops-api.ts', import.meta.url), 'utf8');
     expect(source).not.toMatch(/magnific\.com/i);
     expect(source).not.toMatch(/MAGNIFIC_REST_BASE|api[_-]?key|secret|sk-|Bearer /i);
+  });
+});
+
+describe('Wave D recommend API', () => {
+  it('POSTs signals to /ai-ops/recommend and never drafts a job', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({
+        provider: 'weavy',
+        reason_codes: ['WEAVE_HUMAN_CANVAS'],
+        provider_mode: 'recommended',
+        submitted: false,
+      }),
+    );
+
+    const out = await recommendAiOpsProvider('token', { human_canvas: true });
+    expect(out.submitted).toBe(false);
+    expect(fetchMock.mock.calls[0]?.[0]).toMatch(/\/api\/crm\/cp\/ai-ops\/recommend$/);
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ human_canvas: true }),
+    }));
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toMatch(/jobs\/draft|jobs\/submit/);
+
+    fetchMock.mockRestore();
   });
 });
 

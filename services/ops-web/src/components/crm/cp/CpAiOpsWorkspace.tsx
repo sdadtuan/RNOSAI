@@ -10,6 +10,7 @@ import {
 } from '@/lib/crm/cp-ai-ops-panes.util';
 import { CpAiOpsComfyPane } from './CpAiOpsComfyPane';
 import { CpAiOpsMagnificPane } from './CpAiOpsMagnificPane';
+import { CpAiOpsRecommend } from './CpAiOpsRecommend';
 import { CpWeaveWorkOrder } from './CpWeaveWorkOrder';
 
 const PANES: Array<{ id: CpAiOpsPane; label: string }> = [
@@ -48,6 +49,8 @@ export function CpAiOpsWorkspace({
           </Link>
         ))}
       </nav>
+
+      <CpAiOpsRecommend projectId={projectId} />
 
       {pane === 'weave' ? (
         <div className="cp-ai-ops-body">

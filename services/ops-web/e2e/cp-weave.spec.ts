@@ -92,6 +92,18 @@ async function mockCpApis(page: Page) {
         }),
       });
     }
+    if (path.endsWith('/ai-ops/recommend') && method === 'POST') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          provider: 'weavy',
+          reason_codes: ['WEAVE_HUMAN_CANVAS'],
+          provider_mode: 'recommended',
+          submitted: false,
+        }),
+      });
+    }
     if (path.endsWith(`/projects/${PROJECT_ID}`)) {
       return route.fulfill({
         status: 200,
@@ -146,6 +158,11 @@ test.describe('Creative OS Weave pane', () => {
       'nova/mid-autumn-2026/CR-2026-0912-028/{lane}/',
     );
     await expect(page.getByTestId('cp-weave-hub-rule')).toContainText('source/ không gửi Hub');
+    await expect(page.getByTestId('cp-ai-ops-recommend-copy')).toContainText('Không tự đốt credit');
+    await page.getByTestId('cp-recommend-human-canvas').check();
+    await page.getByTestId('cp-recommend-submit').click();
+    await expect(page.getByTestId('cp-recommend-provider')).toHaveText('weavy');
+    await expect(page.getByTestId('cp-recommend-reasons')).toContainText('canvas người');
 
     await page.goto(`/crm/creative-os/projects/${PROJECT_ID}?tab=weave`);
     await expect(page.getByRole('button', { name: 'Sync output' })).toHaveCount(0);

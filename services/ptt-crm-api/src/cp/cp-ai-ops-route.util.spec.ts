@@ -1,4 +1,11 @@
-import { recommendProvider } from './cp-ai-ops-route.util';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  buildRecommendPayload,
+  parseRecommendSignals,
+  recommendProvider,
+  recommendProviderUp,
+} from './cp-ai-ops-route.util';
 
 const base = {
   restricted: false,
@@ -78,5 +85,63 @@ describe('recommendProvider', () => {
 
   it('defaults to weavy with no reason codes', () => {
     expect(recommendProvider(base)).toEqual({ provider: 'weavy', reasonCodes: [] });
+  });
+});
+
+describe('parseRecommendSignals', () => {
+  it('reads only human signals and ignores client-supplied up flags or submit', () => {
+    expect(parseRecommendSignals({
+      restricted: true,
+      needs_private_lora: '1',
+      urgent_premium: 'true',
+      human_canvas: false,
+      magnific_up: true,
+      comfy_up: true,
+      submit: true,
+      auto: true,
+    })).toEqual({
+      restricted: true,
+      needsPrivateLora: true,
+      urgentPremium: true,
+      humanCanvas: false,
+    });
+    expect(parseRecommendSignals(null)).toEqual({
+      restricted: false,
+      needsPrivateLora: false,
+      urgentPremium: false,
+      humanCanvas: false,
+    });
+  });
+});
+
+describe('recommendProviderUp', () => {
+  it('derives up-ness from server flags, not the request body', () => {
+    expect(recommendProviderUp({
+      magnificMcp: false,
+      magnificRest: true,
+      comfy: false,
+    })).toEqual({ magnificUp: true, comfyUp: false });
+  });
+});
+
+describe('buildRecommendPayload', () => {
+  it('returns recommended mode and never marks the job submitted', () => {
+    expect(buildRecommendPayload({ ...base, urgentPremium: true })).toEqual({
+      provider: 'magnific_mcp',
+      reason_codes: ['URGENT_PREMIUM'],
+      provider_mode: 'recommended',
+      submitted: false,
+    });
+  });
+});
+
+describe('POST /ai-ops/recommend wiring', () => {
+  it('exposes recommend on the CP controller without jobs/draft or /api/v1', () => {
+    const controller = readFileSync(join(__dirname, 'cp.controller.ts'), 'utf8');
+    expect(controller).toContain("ai-ops/recommend");
+    expect(controller).toContain('buildRecommendPayload');
+    expect(controller).toContain('parseRecommendSignals');
+    expect(controller).not.toMatch(/ai-ops\/recommend[\s\S]{0,400}jobs\/draft/);
+    expect(controller).not.toContain('/api/v1');
   });
 });

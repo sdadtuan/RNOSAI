@@ -61,6 +61,27 @@ export type ComfyProviderHealth =
   | { comfy: { ok: true; vram_mb: number | null; checked_at: string } }
   | { comfy: { ok: false; reason: 'gpu_building'; checked_at?: string } };
 
+export type CpRecommendSignals = {
+  restricted?: boolean;
+  needs_private_lora?: boolean;
+  urgent_premium?: boolean;
+  human_canvas?: boolean;
+};
+
+export type CpRecommendResult = {
+  provider: string;
+  reason_codes: string[];
+  provider_mode: 'recommended';
+  submitted: false;
+};
+
+export function recommendAiOpsProvider(token: string, input: CpRecommendSignals) {
+  return cpFetch<CpRecommendResult>(token, '/ai-ops/recommend', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export function getProviderHealth(token: string) {
   return cpFetch<ComfyProviderHealth>(token, '/provider-health');
 }

@@ -41,7 +41,7 @@ run_local() {
   echo "== 2/4 ops-web AI Ops unit tests =="
   cd "$ROOT/services/ops-web"
   npm ci
-  npx vitest run src/lib/crm/cp-ai-ops-api.spec.ts src/lib/crm/cp-ai-ops-panes.util.spec.ts src/lib/crm/cp-ai-ops-composer.util.spec.ts src/lib/crm/cp-weave-composer.util.spec.ts src/lib/crm/cp-project-workspace.util.spec.ts src/lib/crm/cp-reports.spec.ts
+  npx vitest run src/lib/crm/cp-ai-ops-api.spec.ts src/lib/crm/cp-ai-ops-panes.util.spec.ts src/lib/crm/cp-ai-ops-composer.util.spec.ts src/lib/crm/cp-ai-ops-recommend.util.spec.ts src/lib/crm/cp-weave-composer.util.spec.ts src/lib/crm/cp-project-workspace.util.spec.ts src/lib/crm/cp-reports.spec.ts
 
   echo "== 3/4 ops-web build =="
   cd "$ROOT"

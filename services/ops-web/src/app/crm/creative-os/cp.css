@@ -1653,6 +1653,24 @@ body:has(.ops-sidebar) .cp-main {
   font-weight: 650;
 }
 
+.cp-ai-ops-recommend {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0 4px;
+}
+
+.cp-ai-ops-recommend-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.cp-ai-ops-recommend-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .cp-ai-ops-radios {
   display: flex;
   flex-wrap: wrap;

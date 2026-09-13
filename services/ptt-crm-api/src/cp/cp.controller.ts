@@ -82,6 +82,11 @@ import {
   CpExperimentsService,
 } from './cp-experiments.service';
 import { readAiOpsFlags } from './cp-ai-ops.flags';
+import {
+  buildRecommendPayload,
+  parseRecommendSignals,
+  recommendProviderUp,
+} from './cp-ai-ops-route.util';
 import { CpWeaveCreateInput, CpWeaveService } from './cp-weave.service';
 import { CpProviderConnectionsService } from './cp-provider-connections.service';
 import { CpComfyAdapter } from './cp-comfy.adapter';
@@ -289,6 +294,15 @@ export class CpController {
   @RequireCpAction('view')
   flags() {
     return readAiOpsFlags();
+  }
+
+  @Post('ai-ops/recommend')
+  @RequireCpAction('view')
+  recommend(@Body() body: Record<string, unknown>) {
+    return buildRecommendPayload({
+      ...parseRecommendSignals(body ?? {}),
+      ...recommendProviderUp(readAiOpsFlags()),
+    });
   }
 
   @Get('provider-health')
