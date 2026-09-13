@@ -30,6 +30,22 @@ const TEMPLATES = [
   { key: 'banner-wide', name: 'Banner ngang' },
 ];
 
+function weaveStatusClass(status: string | null | undefined): string {
+  switch (String(status ?? '').toLowerCase()) {
+    case 'delivered':
+    case 'completed':
+      return 'cp-pill cp-pill--ok';
+    case 'failed':
+    case 'cancelled':
+      return 'cp-pill cp-pill--danger';
+    case 'review':
+    case 'in_review':
+      return 'cp-pill cp-pill--warning';
+    default:
+      return 'cp-pill cp-pill--info';
+  }
+}
+
 export function CpWeaveWorkOrder({
   projectId,
   enabled,
@@ -94,7 +110,7 @@ export function CpWeaveWorkOrder({
 
   if (!enabled) {
     return (
-      <section className="cp-weave" data-testid="cp-weave-panel">
+      <section className="cp-card cp-weave" data-testid="cp-weave-panel">
         <p className="cp-empty" data-testid="cp-weave-empty">{emptyCopy}</p>
       </section>
     );
@@ -103,15 +119,21 @@ export function CpWeaveWorkOrder({
   const brief = selected?.brief_json ?? {};
 
   return (
-    <section className="cp-weave" data-testid="cp-weave-panel">
-      <header className="cp-weave-head">
-        <h2>Weave Work Order</h2>
-        <p className="cp-muted">Designer làm trên Weave. CRM chỉ Sync output.</p>
+    <section className="cp-card cp-weave" data-testid="cp-weave-panel">
+      <header className="cp-card__head cp-weave-head">
+        <div>
+          <h2>Weave Work Order</h2>
+          <p className="cp-muted">Designer làm trên Weave. CRM chỉ Sync output.</p>
+        </div>
+        {selected ? (
+          <span className={weaveStatusClass(selected.status)}>{selected.status}</span>
+        ) : null}
       </header>
-      {error ? <p className="cp-card--error">{error}</p> : null}
-      {notice ? <p className="cp-muted" data-testid="cp-weave-notice">{notice}</p> : null}
 
-      <div className="cp-weave-row">
+      {error ? <section className="cp-card cp-card--error"><p>{error}</p></section> : null}
+      {notice ? <p className="cp-alert cp-alert--active" data-testid="cp-weave-notice">{notice}</p> : null}
+
+      <div className="cp-toolbar">
         <label className="cp-weave-field">
           Template
           <select
@@ -124,7 +146,7 @@ export function CpWeaveWorkOrder({
           </select>
         </label>
         <button
-          className="cp-btn"
+          className="cp-btn cp-btn--primary"
           type="button"
           disabled={busy !== ''}
           onClick={() => run('create', async (token) => {
@@ -143,7 +165,7 @@ export function CpWeaveWorkOrder({
       {loading ? <p className="cp-muted">Đang tải…</p> : null}
 
       {orders.length ? (
-        <label className="cp-weave-field">
+        <label className="cp-weave-field cp-weave-field--wide">
           Work Order
           <select
             value={selected?.id ?? ''}
@@ -160,15 +182,18 @@ export function CpWeaveWorkOrder({
         <p className="cp-empty" data-testid="cp-weave-empty">{emptyCopy}</p>
       )}
 
-      <p className="cp-weave-path" data-testid="cp-weave-path">
-        Path export: {exportPath}
-      </p>
-      <p className="cp-muted" data-testid="cp-weave-hub-rule">{WEAVE_HUB_RULE}</p>
-      <p className="cp-muted">Convention: {WEAVE_PATH_PATTERN}</p>
+      <div className="cp-meta-panel">
+        <p className="cp-weave-path" data-testid="cp-weave-path">
+          <span>Path export</span>
+          <code>{exportPath}</code>
+        </p>
+        <p className="cp-muted" data-testid="cp-weave-hub-rule">{WEAVE_HUB_RULE}</p>
+        <p className="cp-muted">Convention: <code>{WEAVE_PATH_PATTERN}</code></p>
+      </div>
 
       {selected ? (
         <>
-          <div className="cp-weave-actions">
+          <div className="cp-weave-actions cp-toolbar">
             <button
               className="cp-btn"
               type="button"
@@ -204,7 +229,7 @@ export function CpWeaveWorkOrder({
             </button>
           </div>
 
-          <dl className="cp-weave-brief">
+          <dl className="cp-weave-brief cp-weave-brief--grid">
             <div><dt>Brief</dt><dd>{dash(brief.creative_brief)}</dd></div>
             <div><dt>Prompt</dt><dd>{dash(brief.prompt)}</dd></div>
             <div><dt>Negative</dt><dd>{dash(brief.negative_prompt)}</dd></div>
@@ -219,13 +244,13 @@ export function CpWeaveWorkOrder({
             </div>
           </dl>
 
-          <ol className="cp-weave-check">
+          <ol className="cp-weave-check cp-step-list">
             <li>Import reference vào Weave</li>
             <li>Chạy flow template</li>
             <li>Export đúng prefix convention bên dưới</li>
           </ol>
 
-          <div className="cp-weave-actions">
+          <div className="cp-weave-actions cp-toolbar cp-toolbar--primary">
             <button
               className="cp-btn cp-btn--primary"
               type="button"

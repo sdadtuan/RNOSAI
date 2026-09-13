@@ -35,40 +35,45 @@ export function CpAiOpsWorkspace({
 
   return (
     <section className="cp-ai-ops">
-      <nav className="cp-ai-ops-panes" aria-label="AI Ops panes">
+      <header className="cp-ai-ops__intro">
+        <h2>AI Ops</h2>
+        <p className="cp-muted">
+          Canvas ngoài (Weave / Magnific / Comfy). CRM giữ Work Order, brief và sync output về DAM.
+        </p>
+      </header>
+
+      <nav className="cp-subtabs" aria-label="AI Ops panes">
         {PANES.map((item) => (
           <Link
             key={item.id}
-            className={pane === item.id ? 'cp-ai-ops-pane is-on' : 'cp-ai-ops-pane'}
+            className={pane === item.id ? 'cp-subtab is-on' : 'cp-subtab'}
             href={aiOpsHref(projectId, item.id, extra)}
           >
             {item.label}
             {item.id === 'magnific' ? (
-              <span className="cp-ai-ops-chip">Wave B</span>
+              <span className="cp-subtab__badge">Wave B</span>
             ) : null}
           </Link>
         ))}
       </nav>
 
-      <CpAiOpsRecommend projectId={projectId} />
+      <div className="cp-ai-ops__grid">
+        <CpAiOpsRecommend projectId={projectId} />
 
-      {pane === 'weave' ? (
-        <div className="cp-ai-ops-body">
-          <CpWeaveWorkOrder projectId={projectId} enabled={flags.weave} />
-        </div>
-      ) : null}
+        <div className="cp-ai-ops__main">
+          {pane === 'weave' ? (
+            <CpWeaveWorkOrder projectId={projectId} enabled={flags.weave} />
+          ) : null}
 
-      {pane === 'magnific' ? (
-        <div className="cp-ai-ops-body">
-          <CpAiOpsMagnificPane projectId={projectId} flags={flags} />
-        </div>
-      ) : null}
+          {pane === 'magnific' ? (
+            <CpAiOpsMagnificPane projectId={projectId} flags={flags} />
+          ) : null}
 
-      {pane === 'comfy' ? (
-        <div className="cp-ai-ops-body">
-          <CpAiOpsComfyPane projectId={projectId} flags={flags} />
+          {pane === 'comfy' ? (
+            <CpAiOpsComfyPane projectId={projectId} flags={flags} />
+          ) : null}
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }

@@ -46,8 +46,10 @@ export function CpAiOpsRecommend({ projectId }: { projectId: string }) {
   }
 
   return (
-    <section className="cp-ai-ops-recommend" data-testid="cp-ai-ops-recommend">
-      <h3 className="cp-ai-ops-recommend-title">Đề xuất provider</h3>
+    <section className="cp-card cp-ai-ops-recommend" data-testid="cp-ai-ops-recommend">
+      <header className="cp-card__head">
+        <h3 className="cp-ai-ops-recommend-title">Đề xuất provider</h3>
+      </header>
       <p className="cp-muted" data-testid="cp-ai-ops-recommend-copy">{CP_RECOMMEND_HUMAN_COPY}</p>
       <div className="cp-ai-ops-recommend-signals">
         <label className="cp-check">
@@ -88,7 +90,7 @@ export function CpAiOpsRecommend({ projectId }: { projectId: string }) {
         </label>
       </div>
       <button
-        className="cp-btn"
+        className="cp-btn cp-btn--primary"
         type="button"
         disabled={busy}
         onClick={() => void onRecommend()}

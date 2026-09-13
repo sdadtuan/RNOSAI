@@ -40,8 +40,8 @@ export function CpAiOpsComfyPane({
   }, []);
 
   return (
-    <section className="cp-ai-ops-composer" data-testid="cp-comfy-pane">
-      <header className="cp-ai-ops-head">
+    <section className="cp-card cp-ai-ops-composer" data-testid="cp-comfy-pane">
+      <header className="cp-card__head cp-ai-ops-head">
         <h2>Comfy</h2>
         <p className="cp-muted">Job GPU nội bộ — không gọi máy từ trình duyệt.</p>
       </header>

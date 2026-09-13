@@ -158,8 +158,8 @@ export function CpAiOpsMagnificPane({
   }
 
   return (
-    <section className="cp-ai-ops-composer" data-testid="cp-magnific-pane">
-      <header className="cp-ai-ops-head">
+    <section className="cp-card cp-ai-ops-composer" data-testid="cp-magnific-pane">
+      <header className="cp-card__head cp-ai-ops-head">
         <h2>Magnific</h2>
         <p className="cp-muted">
           {mode === 'flow'
