@@ -16,7 +16,7 @@ import type {
   ImgQcProfile,
   ImgRecipeStage,
 } from './cp-image-sop.types';
-import type { CpJobsService } from './cp-jobs.service';
+import { CpJobsService } from './cp-jobs.service';
 
 @Injectable()
 export class CpImageSopService {
@@ -25,9 +25,9 @@ export class CpImageSopService {
   constructor(
     private readonly repo: CpImageSopRepository,
     @Optional() private readonly cpJobs?: CpJobsService,
-    env: NodeJS.ProcessEnv = process.env,
+    @Optional() env?: NodeJS.ProcessEnv,
   ) {
-    this.env = env;
+    this.env = env ?? process.env;
   }
 
   assertEnabled(env: NodeJS.ProcessEnv = this.env): void {
