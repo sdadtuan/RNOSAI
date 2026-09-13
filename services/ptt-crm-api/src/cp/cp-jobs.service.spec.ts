@@ -622,6 +622,10 @@ describe('CpJobsService', () => {
     await actual.service.confirm(9, drafted.job_id, { confirm: true });
     await actual.service.submit(9, drafted.job_id);
     await actual.service.ingest(9, drafted.job_id);
+    expect(actual.ledgerDb.rows.find((row) => row.kind === 'release')).toMatchObject({
+      amount: 12,
+      provider: 'magnific_mcp',
+    });
     expect(actual.ledgerDb.rows.find((row) => row.kind === 'charge')).toMatchObject({
       amount: 3,
       provider: 'magnific_mcp',

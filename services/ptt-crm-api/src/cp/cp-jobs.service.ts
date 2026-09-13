@@ -693,6 +693,7 @@ export class CpJobsService {
   ): Promise<void> {
     const amount = actualCredits ?? nullableInteger(log.reserved_amount);
     if (amount == null || !Number.isFinite(amount) || amount < 0) return;
+    await this.releaseCredits(job, log, provider, nullableInteger(log.reserved_amount));
     await this.ledger.append({
       kind: 'charge',
       amount,
