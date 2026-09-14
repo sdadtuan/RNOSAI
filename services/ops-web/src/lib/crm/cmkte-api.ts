@@ -54,7 +54,10 @@ export async function fetchCommandCenter(
   const res = await fetch(`${API_BASE}/api/crm/content-os/portfolio/command-center${qs}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error('Không tải được Command Center');
+  if (!res.ok) {
+    if (res.status === 403) throw new Error('Không có quyền Content Marketing OS');
+    throw new Error('Không tải được Command Center');
+  }
   return res.json();
 }
 

@@ -814,6 +814,56 @@
   }
 }
 
+.cmkte-root {
+  display: flex;
+  min-height: calc(100vh - var(--ops-chrome-h, 56px));
+  width: 100%;
+}
+
+html.ops-shell-bitrix body:has(.cmkte-root) main.bitrix-crm-page,
+html.ops-shell-bitrix body:has(.cmkte-root) main.ops-page--full,
+body:has(.ops-sidebar):has(.cmkte-root) main.ops-page {
+  width: auto !important;
+  max-width: none !important;
+  padding-top: calc(var(--ops-chrome-h, 56px) + 0.25rem) !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 0 !important;
+}
+
+html.ops-shell-bitrix body:has(.cmkte-root) .bitrix-crm-page__inner {
+  width: auto;
+  max-width: none;
+  padding: 0;
+}
+
+.cmkte-root.cmkte-app {
+  display: flex;
+  grid-template-columns: none;
+  min-height: calc(100vh - var(--ops-chrome-h, 56px));
+}
+
+.cmkte-root .cmkte-side {
+  position: sticky;
+  top: var(--ops-chrome-h, 56px);
+  flex: 0 0 var(--cmkte-sidebar);
+  height: calc(100vh - var(--ops-chrome-h, 56px));
+  overflow: auto;
+}
+
+.cmkte-root .cmkte-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.cmkte-root .cmkte-page {
+  padding-top: 18px;
+}
+
+.cmkte-crumb {
+  margin: 0 0 14px;
+}
+
 @media (max-width: 700px) {
   .cmkte-top {
     padding: 0 13px;

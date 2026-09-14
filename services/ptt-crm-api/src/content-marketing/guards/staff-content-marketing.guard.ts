@@ -21,18 +21,21 @@ export class StaffContentMarketingViewGuard implements CanActivate {
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
 
     const me = await this.staffAuth.me(req.staffUser);
-    if (!this.staffAuth.hasCap(me.caps, 'crm_board', 'view')) {
-      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_board', action: 'view' });
-    }
     if (
       !this.staffAuth.hasCap(me.caps, 'crm_content', 'view') &&
       !this.staffAuth.hasCap(me.caps, 'crm_content', 'write') &&
-      !this.staffAuth.hasCap(me.caps, 'crm_content', 'generate')
+      !this.staffAuth.hasCap(me.caps, 'crm_content', 'generate') &&
+      !this.staffAuth.hasCap(me.caps, 'crm_content', 'approve_internal') &&
+      !this.staffAuth.hasCap(me.caps, 'crm_content', 'qa') &&
+      !this.staffAuth.hasCap(me.caps, 'crm_content', 'publish') &&
+      !this.staffAuth.hasCap(me.caps, 'crm_content', 'production') &&
+      !this.staffAuth.hasCap(me.caps, 'crm_content', 'assign') &&
+      !this.staffAuth.hasCap(me.caps, 'crm_content', 'admin')
     ) {
       throw new ForbiddenException({
         error: 'missing_cap',
         section: 'crm_content',
-        action: 'view_or_write_or_generate',
+        action: 'view_or_content_os',
       });
     }
     return true;
