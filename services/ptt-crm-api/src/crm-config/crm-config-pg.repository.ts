@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   OnModuleDestroy,
@@ -253,9 +254,62 @@ export class CrmConfigPgRepository implements OnModuleDestroy, OnModuleInit {
 
   async deleteLeadLookup(id: number): Promise<{ ok: true; id: number }> {
     await this.ensureSchema();
+    const existing = await this.db.query(
+      `SELECT id, kind, option_key FROM crm_lead_lookup_options WHERE id = $1`,
+      [id],
+    );
+    if (!existing.rows[0]) throw new NotFoundException({ error: 'lead_lookup_not_found' });
+    const kind = String(existing.rows[0].kind);
+    const optionKey = String(existing.rows[0].option_key);
+    if (await this.isLeadLookupUsedInHarvestJobs(kind, optionKey)) {
+      throw new ConflictException({ error: 'lead_lookup_in_use_disable_instead' });
+    }
     const result = await this.db.query('DELETE FROM crm_lead_lookup_options WHERE id = $1', [id]);
     if (!result.rowCount) throw new NotFoundException({ error: 'lead_lookup_not_found' });
     return { ok: true, id };
+  }
+
+  /** BR-18 / Task 13 — harvest jobs snapshot industry/job_title/source/channel keys. */
+  private async isLeadLookupUsedInHarvestJobs(
+    kind: string,
+    optionKey: string,
+  ): Promise<boolean> {
+    const exists = await this.db.query(
+      `SELECT to_regclass('public.crm_research_raw_lead_harvest_jobs') AS reg`,
+    );
+    if (!exists.rows[0]?.reg) return false;
+
+    if (kind === 'industry') {
+      const used = await this.db.query(
+        `SELECT 1 FROM crm_research_raw_lead_harvest_jobs WHERE industry_key = $1 LIMIT 1`,
+        [optionKey],
+      );
+      return Boolean(used.rows[0]);
+    }
+    if (kind === 'job_title') {
+      const used = await this.db.query(
+        `SELECT 1 FROM crm_research_raw_lead_harvest_jobs WHERE job_title_key = $1 LIMIT 1`,
+        [optionKey],
+      );
+      return Boolean(used.rows[0]);
+    }
+    if (kind === 'source') {
+      const used = await this.db.query(
+        `SELECT 1 FROM crm_research_raw_lead_harvest_jobs
+         WHERE sources_json @> $1::jsonb LIMIT 1`,
+        [JSON.stringify([{ key: optionKey }])],
+      );
+      return Boolean(used.rows[0]);
+    }
+    if (kind === 'channel') {
+      const used = await this.db.query(
+        `SELECT 1 FROM crm_research_raw_lead_harvest_jobs
+         WHERE channels_json @> $1::jsonb LIMIT 1`,
+        [JSON.stringify([{ key: optionKey }])],
+      );
+      return Boolean(used.rows[0]);
+    }
+    return false;
   }
 
   private mapCustomField(row: Record<string, unknown>): CustomFieldDef {

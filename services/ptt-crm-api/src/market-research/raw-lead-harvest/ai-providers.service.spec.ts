@@ -48,4 +48,17 @@ describe('ResearchAiProvidersService credential privacy', () => {
     const out = await svc.testProvider(1);
     expect(out).toEqual({ ok: false, error: 'provider_not_configured' });
   });
+
+  it('deleteProvider / deleteModel / deleteCredential delegate (409 surfaced by repo)', async () => {
+    const repo = {
+      deleteProvider: jest.fn().mockRejectedValue({ status: 409, response: { error: 'provider_in_use_disable_instead' } }),
+      deleteModel: jest.fn().mockResolvedValue({ ok: true, id: 2 }),
+      deleteCredential: jest.fn().mockResolvedValue({ ok: true, id: 3 }),
+    };
+    const svc = new ResearchAiProvidersService(repo as never);
+    await expect(svc.deleteProvider(1)).rejects.toMatchObject({ status: 409 });
+    await expect(svc.deleteModel(2)).resolves.toEqual({ ok: true, id: 2 });
+    await expect(svc.deleteCredential(3, 9)).resolves.toEqual({ ok: true, id: 3 });
+    expect(repo.deleteCredential).toHaveBeenCalledWith(3, 9);
+  });
 });

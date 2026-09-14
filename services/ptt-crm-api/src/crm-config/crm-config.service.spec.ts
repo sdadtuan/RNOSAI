@@ -46,4 +46,12 @@ describe('CrmConfigService', () => {
     await expect(service.patchSalesPipelineStage('sql', { label: 'SQL qualified' })).resolves.toEqual(stage);
     expect(repo.patchPipelineStage).toHaveBeenCalledWith('sales', 'sql', { label: 'SQL qualified' });
   });
+
+  it('deleteLeadLookup surfaces conflict when lookup is in use', async () => {
+    const { ConflictException } = await import('@nestjs/common');
+    (repo.deleteLeadLookup as jest.Mock).mockRejectedValue(
+      new ConflictException({ error: 'lead_lookup_in_use_disable_instead' }),
+    );
+    await expect(service.deleteLeadLookup(12)).rejects.toBeInstanceOf(ConflictException);
+  });
 });

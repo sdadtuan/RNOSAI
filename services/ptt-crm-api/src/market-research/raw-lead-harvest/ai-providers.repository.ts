@@ -569,7 +569,7 @@ export class ResearchAiProvidersRepository implements OnModuleDestroy {
     );
   }
 
-  /** Stub until harvest jobs table exists (Task 4). */
+  /** BR-18 — block hard-delete when harvest jobs snapshot this provider code. */
   private async isProviderUsedInHarvestJobs(_providerId: number): Promise<boolean> {
     await this.ensureSchema();
     const exists = await this.db.query(`
