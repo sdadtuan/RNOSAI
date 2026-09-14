@@ -68,12 +68,18 @@ ops_web_verify_static() {
 
 ops_web_build() {
   local app_dir root api_url pwa_enabled mkt_ai_planner lmp_enabled
-  local lead_pipeline_tab revops_shell revops_route_catalog
+  local lead_pipeline_tab revops_shell revops_route_catalog cp_image_sop
   root="$(ops_web_root)"
   app_dir="$(ops_web_dir)"
   api_url="${NEXT_PUBLIC_PTT_API_URL:-https://rs.pttads.vn}"
   pwa_enabled="${NEXT_PUBLIC_PWA_ENABLED:-1}"
 
+  if [[ -f "$root/.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$root/.env"
+    set +a
+  fi
   if [[ -f "$root/deploy/runtime.env" ]]; then
     set -a
     # shellcheck disable=SC1091
@@ -85,6 +91,7 @@ ops_web_build() {
   lead_pipeline_tab="${NEXT_PUBLIC_LEAD_PIPELINE_TAB:-0}"
   revops_shell="${NEXT_PUBLIC_REVOPS_SHELL:-0}"
   revops_route_catalog="${NEXT_PUBLIC_REVOPS_ROUTE_CATALOG:-0}"
+  cp_image_sop="${NEXT_PUBLIC_CP_IMAGE_SOP:-${CP_IMAGE_SOP_ENABLED:-0}}"
 
   cd "$app_dir"
   echo "== ops-web build =="
@@ -95,6 +102,7 @@ ops_web_build() {
   echo "NEXT_PUBLIC_LEAD_PIPELINE_TAB=$lead_pipeline_tab"
   echo "NEXT_PUBLIC_REVOPS_SHELL=$revops_shell"
   echo "NEXT_PUBLIC_REVOPS_ROUTE_CATALOG=$revops_route_catalog"
+  echo "NEXT_PUBLIC_CP_IMAGE_SOP=$cp_image_sop"
   git -C "$root" log -1 --oneline
 
   npm ci
@@ -105,6 +113,7 @@ ops_web_build() {
   export NEXT_PUBLIC_LEAD_PIPELINE_TAB="$lead_pipeline_tab"
   export NEXT_PUBLIC_REVOPS_SHELL="$revops_shell"
   export NEXT_PUBLIC_REVOPS_ROUTE_CATALOG="$revops_route_catalog"
+  export NEXT_PUBLIC_CP_IMAGE_SOP="$cp_image_sop"
   npm run build
   ops_web_sync_static
 }

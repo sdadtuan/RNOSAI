@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isCpImageSopVisible, OFF_CP_IMAGE_FLAGS } from './cp-image-sop.flags';
+import {
+  isCpImageSopFeEnabled,
+  isCpImageSopNavEnabled,
+  isCpImageSopVisible,
+  OFF_CP_IMAGE_FLAGS,
+} from './cp-image-sop.flags';
 
 describe('cp-image-sop.flags', () => {
   it('defaults off when flag disabled', () => {
@@ -16,5 +21,13 @@ describe('cp-image-sop.flags', () => {
 
   it('hides when cap missing', () => {
     expect(isCpImageSopVisible({ enabled: true, router: 'recommended' }, false)).toBe(false);
+  });
+
+  it('nav enabled when FE flag is on even if API flag is off', () => {
+    const prev = process.env.NEXT_PUBLIC_CP_IMAGE_SOP;
+    process.env.NEXT_PUBLIC_CP_IMAGE_SOP = '1';
+    expect(isCpImageSopFeEnabled()).toBe(true);
+    expect(isCpImageSopNavEnabled(OFF_CP_IMAGE_FLAGS)).toBe(true);
+    process.env.NEXT_PUBLIC_CP_IMAGE_SOP = prev;
   });
 });

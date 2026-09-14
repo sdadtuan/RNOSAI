@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canAccessPath, hasAnyCap, resolvePathCapRequirements } from '@/lib/rbac-routes';
-import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { canViewImageSop, hasCap, type StoredStaffUser } from '@/lib/auth';
 
 function user(caps: Array<{ section: string; action: string }>): StoredStaffUser {
   return {
@@ -209,6 +209,12 @@ describe('rbac-routes', () => {
     const imgView = userWith([{ section: 'crm_img', action: 'view' }]);
     expect(canAccessPath('/crm/creative-os/image', cpView, 'crm')).toBe(false);
     expect(canAccessPath('/crm/creative-os/image', imgView, 'crm')).toBe(true);
+  });
+
+  it('canViewImageSop accepts view_all and edit on crm_img', () => {
+    expect(canViewImageSop(userWith([{ section: 'crm_img', action: 'view_all' }]))).toBe(true);
+    expect(canViewImageSop(userWith([{ section: 'crm_img', action: 'edit' }]))).toBe(true);
+    expect(canViewImageSop(userWith([{ section: 'crm_cp', action: 'view' }]))).toBe(false);
   });
 
   it('/crm/health admits original CS caps plus crm_am.view without widening /crm', () => {

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError } from '@/lib/api';
-import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
+import { canViewImageSop, getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
 import {
   closeCpProject,
   createCpProjectBrief,
@@ -160,7 +160,7 @@ export function CpProjectWorkspace({ projectId }: { projectId: string }) {
       setLookups(lookupOut);
       setAiOpsFlags(flagsOut);
       setImageSopVisible(
-        isCpImageSopVisible(imageFlagsOut, Boolean(user && hasCap(user, 'crm_img', 'view'))),
+        isCpImageSopVisible(imageFlagsOut, Boolean(user && canViewImageSop(user))),
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không tải được workspace');

@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { getAccessToken, getStoredUser, hasCap } from '@/lib/auth';
+import { canViewImageSop, getAccessToken, getStoredUser } from '@/lib/auth';
 import { getCpImageFlags } from '@/lib/crm/cp-image-sop-api';
+import { isCpImageSopNavEnabled } from '@/lib/crm/cp-image-sop.flags';
 import {
   CP_IMAGE_NAV,
   cpImageActiveNavId,
@@ -21,14 +22,14 @@ export function CpImageShell({ children }: { children: ReactNode }) {
   const checkAccess = useCallback(async () => {
     const user = getStoredUser();
     const token = getAccessToken();
-    if (!user || !token || !hasCap(user, 'crm_img', 'view')) {
+    if (!user || !token || !canViewImageSop(user)) {
       setAllowed(false);
       setReady(true);
       router.replace(`/403?from=${encodeURIComponent(pathname)}`);
       return;
     }
     const flags = await getCpImageFlags(token).catch(() => ({ enabled: false, router: 'manual' as const }));
-    if (!flags.enabled) {
+    if (!isCpImageSopNavEnabled(flags)) {
       setAllowed(false);
       setReady(true);
       router.replace('/crm/creative-os');

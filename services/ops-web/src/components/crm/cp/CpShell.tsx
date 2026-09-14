@@ -6,11 +6,11 @@ import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } f
 import { StaffPageShell } from '@/components/layout';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
+  canViewImageSop,
   clearSession,
   getAccessToken,
   getRefreshToken,
   getStoredUser,
-  hasCap,
   updateAccessToken,
   updateStoredUser,
   type StoredStaffUser,
@@ -102,7 +102,7 @@ function CpShellInner({ children }: { children: ReactNode }) {
     return visibleCpNav({
       items: CP_NAV,
       imageEnabled,
-      canImgView: hasCap(user, 'crm_img', 'view'),
+      canImgView: canViewImageSop(user),
     });
   }, [imageEnabled, user]);
 

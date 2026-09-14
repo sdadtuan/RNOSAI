@@ -7,7 +7,14 @@ import { iconForHref, NavIcon, sectionIcon, sectionShortLabel } from '@/componen
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
-import { getAccessToken, hasCap, canGenerateMktAiPlanner, canApproveMktAiPlanner, updateStoredUser } from '@/lib/auth';
+import {
+  getAccessToken,
+  hasCap,
+  canGenerateMktAiPlanner,
+  canApproveMktAiPlanner,
+  canViewImageSop,
+  updateStoredUser,
+} from '@/lib/auth';
 import { staffMe } from '@/lib/api';
 import { fetchReviewQueueCount } from '@/lib/api';
 import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
@@ -158,7 +165,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/launch-qa': 'Launch QA',
   '/crm/creatives': 'Creative Hub',
   '/crm/creative-os': 'Sản xuất sáng tạo',
-  '/crm/creative-os/image': 'Ảnh SOP',
+  '/crm/creative-os/image': 'Image SOP',
   '/crm/content-os': 'Content Marketing OS',
   '/crm/media-os': 'Media OS',
   '/crm/campaign-writes': 'Campaign Write',
@@ -617,7 +624,7 @@ function buildSections(
     delivery.push({ href: '/crm/video', label: 'Video SOP' });
   }
   if (shouldShowImageSopNav(user, imageSopEnabled ?? false)) {
-    delivery.push({ href: '/crm/creative-os/image', label: 'Ảnh SOP' });
+    delivery.push({ href: '/crm/creative-os/image', label: 'Image SOP' });
   }
   if (delivery.length) sections.push({ label: 'CRM · Triển khai dịch vụ', links: delivery });
 
@@ -907,7 +914,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   }, [sidebarUser, pathname]);
 
   useEffect(() => {
-    if (!sidebarUser || !hasCap(sidebarUser, 'crm_img', 'view')) {
+    if (!sidebarUser || !canViewImageSop(sidebarUser)) {
       setImageSopEnabled(false);
       return;
     }

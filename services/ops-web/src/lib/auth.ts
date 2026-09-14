@@ -128,6 +128,17 @@ export function canViewContentOs(user: StoredStaffUser | null): boolean {
   );
 }
 
+/** Image SOP hub — mirrors StaffImgGuard view checks (view_all counts as view). */
+export function canViewImageSop(user: StoredStaffUser | null): boolean {
+  if (!user) return false;
+  return (
+    hasCap(user, 'crm_img', 'view') ||
+    hasCap(user, 'crm_img', 'view_all') ||
+    hasCap(user, 'crm_img', 'edit') ||
+    hasCap(user, 'crm_img', 'manage')
+  );
+}
+
 export function canWriteContentOs(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_board', 'edit') && hasCap(user, 'crm_content', 'write');
 }
