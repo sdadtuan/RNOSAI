@@ -69,10 +69,10 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
   useEffect(() => {
     if (!enabled || !token) return;
     let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: number | null = null;
 
     const schedule = () => {
-      if (timer) window.clearInterval(timer);
+      if (timer != null) window.clearInterval(timer);
       const ms =
         typeof document !== 'undefined' && document.visibilityState === 'hidden'
           ? POLL_MS_HIDDEN
@@ -140,7 +140,7 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
     document.addEventListener('visibilitychange', onVis);
     return () => {
       cancelled = true;
-      if (timer) window.clearInterval(timer);
+      if (timer != null) window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVis);
     };
   }, [enabled, token, openConversation]);
