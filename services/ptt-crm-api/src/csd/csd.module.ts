@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { B2bProjectsModule } from '../b2b-projects/b2b-projects.module';
 import { ConfigModule } from '../config/config.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { CsdAiController } from './csd-ai.controller';
@@ -11,6 +12,7 @@ import { CsdChatAccountsService } from './csd-chat-accounts.service';
 import { CsdChatFriendsController } from './csd-chat-friends.controller';
 import { CsdChatFriendsRepository } from './csd-chat-friends.repository';
 import { CsdChatFriendsService } from './csd-chat-friends.service';
+import { CsdChatCallsService } from './csd-chat-calls.service';
 import { CsdChatController } from './csd-chat.controller';
 import { CsdChatFilesController } from './csd-chat-files.controller';
 import { CsdChatFilesService } from './csd-chat-files.service';
@@ -36,7 +38,7 @@ import { CsdTicketsService } from './csd-tickets.service';
 import { StaffCsdGuard } from './guards/staff-csd.guard';
 
 @Module({
-  imports: [ConfigModule, StaffAuthModule],
+  imports: [ConfigModule, StaffAuthModule, B2bProjectsModule],
   controllers: [
     CsdTicketsController,
     CsdChatController,
@@ -62,6 +64,7 @@ import { StaffCsdGuard } from './guards/staff-csd.guard';
     CsdChatFriendsService,
     CsdChatFilesService,
     CsdChatService,
+    CsdChatCallsService,
     CsdNotificationsRepository,
     CsdNotificationsService,
     CsdEmailRepository,

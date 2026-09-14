@@ -18,6 +18,7 @@ import { StaffAccountService } from '../staff-auth/staff-account.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
+import { CsdChatCallsService } from './csd-chat-calls.service';
 import { CsdChatService } from './csd-chat.service';
 import type {
   CsdActor,
@@ -39,6 +40,7 @@ type AuthedReq = Request & {
 export class CsdChatController {
   constructor(
     private readonly chat: CsdChatService,
+    private readonly chatCalls: CsdChatCallsService,
     private readonly staffAuth: StaffAuthService,
     private readonly staffAccount: StaffAccountService,
   ) {}
@@ -272,5 +274,17 @@ export class CsdChatController {
   async reopenConversation(@Req() req: AuthedReq, @Param('id') id: string) {
     const actor = await this.actor(req);
     return this.chat.reopenConversation(actor, id);
+  }
+
+  @Post('conversations/:id/calls/token')
+  @RequireCsdAction('view')
+  async directCallToken(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { mode?: 'voice' | 'video' },
+  ) {
+    const actor = await this.actor(req);
+    const mode = body.mode === 'video' ? 'video' : 'voice';
+    return this.chatCalls.prepareDirectCall(actor, id, mode);
   }
 }

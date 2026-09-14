@@ -71,6 +71,9 @@ type CsdChatThreadProps = {
   onRename?: (aliasVi: string) => Promise<boolean>;
   onDismissPriorityHint?: () => void;
   onApplyPriorityHint?: () => void;
+  onStartVoiceCall?: () => void;
+  onStartVideoCall?: () => void;
+  callBusy?: boolean;
 };
 
 export function CsdChatThread({
@@ -110,6 +113,9 @@ export function CsdChatThread({
   onMinimize,
   onDismissPriorityHint,
   onApplyPriorityHint,
+  onStartVoiceCall,
+  onStartVideoCall,
+  callBusy = false,
   priorityHint,
   density = 'page',
   showMobileBack,
@@ -300,8 +306,9 @@ export function CsdChatThread({
             className="csd-chat-thread-tool-btn"
             aria-label="Gọi điện"
             title={canVoiceCall ? 'Gọi điện' : 'Chỉ hỗ trợ hội thoại DM'}
-            disabled={!canVoiceCall}
+            disabled={!canVoiceCall || callBusy || closed}
             data-testid="csd-chat-thread-call"
+            onClick={() => onStartVoiceCall?.()}
           >
             <span className="csd-chat-thread-ico csd-chat-thread-ico--phone" aria-hidden />
           </button>
@@ -310,8 +317,9 @@ export function CsdChatThread({
             className="csd-chat-thread-tool-btn"
             aria-label="Gọi video"
             title={canVoiceCall ? 'Gọi video' : 'Chỉ hỗ trợ hội thoại DM'}
-            disabled={!canVoiceCall}
+            disabled={!canVoiceCall || callBusy || closed}
             data-testid="csd-chat-thread-video"
+            onClick={() => onStartVideoCall?.()}
           >
             <span className="csd-chat-thread-ico csd-chat-thread-ico--video" aria-hidden />
           </button>

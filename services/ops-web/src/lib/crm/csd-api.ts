@@ -640,6 +640,29 @@ export type CsdChatMe = {
   has_password: boolean;
 };
 
+export type CsdChatCallMode = 'voice' | 'video';
+
+export type CsdChatCallToken = {
+  mode: CsdChatCallMode;
+  provider: 'stringee' | 'unavailable';
+  access_token?: string;
+  from_user_id: string;
+  to_user_id: string;
+  peer_staff_id: number;
+  peer_name: string;
+};
+
+export async function fetchCsdChatCallToken(
+  token: string,
+  conversationId: string,
+  mode: CsdChatCallMode,
+): Promise<CsdChatCallToken> {
+  return csdFetch(token, `/api/crm/csd/conversations/${encodeURIComponent(conversationId)}/calls/token`, {
+    method: 'POST',
+    body: JSON.stringify({ mode }),
+  });
+}
+
 export type CsdChatAccountAdminRow = {
   staff_id: number;
   enabled: boolean;

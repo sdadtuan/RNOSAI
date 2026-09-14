@@ -16,6 +16,7 @@ declare global {
 interface StringeeClientInstance {
   connect(accessToken: string): void;
   on(event: string, handler: (...args: unknown[]) => void): void;
+  disconnect?: () => void;
 }
 
 interface StringeeCallInstance {
@@ -23,6 +24,10 @@ interface StringeeCallInstance {
   on(event: string, handler: (...args: unknown[]) => void): void;
   hangup(callback?: () => void): void;
 }
+
+export type StringeeCallSession = {
+  hangup: () => void;
+};
 
 let sdkPromise: Promise<void> | null = null;
 
@@ -52,11 +57,13 @@ export function loadStringeeWebSdk(): Promise<void> {
   return sdkPromise;
 }
 
-export async function placeStringeeWebCall(input: {
+export async function startStringeeWebCall(input: {
   accessToken: string;
-  fromNumber: string;
-  toNumber: string;
-}): Promise<void> {
+  fromUserId: string;
+  toUserId: string;
+  isVideoCall?: boolean;
+  onSignal?: (event: string) => void;
+}): Promise<StringeeCallSession> {
   await loadStringeeWebSdk();
   const Client = window.StringeeClient;
   const Call = window.StringeeCall;
@@ -76,17 +83,43 @@ export async function placeStringeeWebCall(input: {
       if (payload.r === 0) resolve();
       else reject(new Error(payload.message ?? 'stringee_authen_failed'));
     });
-    client.on('disconnect', () => {
-      clearTimeout(timer);
-    });
     client.connect(input.accessToken);
   });
 
-  const call = new Call(client, input.fromNumber, input.toNumber, false);
+  const call = new Call(client, input.fromUserId, input.toUserId, Boolean(input.isVideoCall));
+  const notify = (event: string) => input.onSignal?.(event);
+  for (const event of ['ringing', 'answered', 'ended']) {
+    call.on(event, () => notify(event));
+  }
+
   await new Promise<void>((resolve, reject) => {
     call.makeCall((res) => {
       if (res.r === 0) resolve();
       else reject(new Error(res.message ?? 'stringee_make_call_failed'));
     });
   });
+
+  return {
+    hangup: () => {
+      try {
+        call.hangup();
+      } finally {
+        client.disconnect?.();
+      }
+    },
+  };
+}
+
+export async function placeStringeeWebCall(input: {
+  accessToken: string;
+  fromNumber: string;
+  toNumber: string;
+}): Promise<void> {
+  const session = await startStringeeWebCall({
+    accessToken: input.accessToken,
+    fromUserId: input.fromNumber,
+    toUserId: input.toNumber,
+    isVideoCall: false,
+  });
+  void session;
 }

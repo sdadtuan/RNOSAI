@@ -581,3 +581,15 @@ export type CsdChatFriendshipRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type CsdChatCallMode = 'voice' | 'video';
+
+export type CsdChatCallTokenResult = {
+  mode: CsdChatCallMode;
+  provider: 'stringee' | 'unavailable';
+  access_token?: string;
+  from_user_id: string;
+  to_user_id: string;
+  peer_staff_id: number;
+  peer_name: string;
+};

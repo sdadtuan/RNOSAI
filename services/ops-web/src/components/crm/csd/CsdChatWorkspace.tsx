@@ -8,7 +8,9 @@ import { CsdChatList } from '@/components/crm/csd/CsdChatList';
 import { CsdChatCreateGroupModal } from '@/components/crm/csd/CsdChatCreateGroupModal';
 import { CsdChatNewModal } from '@/components/crm/csd/CsdChatNewModal';
 import { CsdChatTabs } from '@/components/crm/csd/CsdChatTabs';
+import { CsdChatCallBar } from '@/components/crm/csd/CsdChatCallBar';
 import { CsdChatThread } from '@/components/crm/csd/CsdChatThread';
+import { useCsdChatCall } from '@/components/crm/csd/useCsdChatCall';
 import { useCsdChatAttachments } from '@/components/crm/csd/useCsdChatAttachments';
 import { useCsdChatSession } from '@/components/crm/csd/useCsdChatSession';
 import { formatCsdWhen, CSD_PRIORITY_LABELS, CSD_TICKET_TYPES, type CsdPriority } from '@/lib/crm/csd-api';
@@ -48,6 +50,7 @@ export function CsdChatWorkspace({
     limit: 500,
   });
   const conversationLinks = useMemo(() => collectCsdConversationLinks(s.messages), [s.messages]);
+  const chatCall = useCsdChatCall(token);
 
   useEffect(() => {
     if (tab === 'requests') setContactsView('requests');
@@ -154,10 +157,23 @@ export function CsdChatWorkspace({
       )}
 
       {showChatPane && (!s.isMobile || s.mobilePane === 'thread') && (
+        <div className="csd-chat-workspace__thread">
+        <CsdChatCallBar
+          state={chatCall.callState}
+          onHangup={chatCall.hangup}
+          onDismissError={() => chatCall.hangup()}
+        />
         <CsdChatThread
           token={token}
           onPaneClick={handleChatOutsideContextClick}
           active={s.active}
+          callBusy={chatCall.callBusy}
+          onStartVoiceCall={() => {
+            if (s.activeId) void chatCall.startCall(s.activeId, 'voice');
+          }}
+          onStartVideoCall={() => {
+            if (s.activeId) void chatCall.startCall(s.activeId, 'video');
+          }}
           messages={s.messages}
           members={s.members}
           relatedTickets={s.relatedTickets}
@@ -210,6 +226,7 @@ export function CsdChatWorkspace({
           onForward={(m) => s.setForwardMessage(m)}
           onReact={(m, emotion) => void s.handleReactMessage(m, emotion)}
         />
+        </div>
       )}
 
       {showChatPane && ((!s.isMobile && contextOpen) || (s.isMobile && s.mobilePane === 'context')) && (
