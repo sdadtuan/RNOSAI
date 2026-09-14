@@ -137,8 +137,11 @@ export class CrmConfigController {
 
   @Put('lead-classification')
   @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigConfigureGuard)
-  updateLeadClassification(@Req() req: { user?: StaffJwtPayload }, @Body() body: UpdateLeadClassificationBody) {
-    const updatedBy = String(req.user?.sub ?? req.user?.staff_id ?? 'staff');
+  updateLeadClassification(
+    @Req() req: { staffUser?: StaffJwtPayload },
+    @Body() body: UpdateLeadClassificationBody,
+  ) {
+    const updatedBy = String(req.staffUser?.sub ?? req.staffUser?.email ?? 'staff');
     return this.crmConfig.updateLeadClassificationConfig(body, updatedBy);
   }
 }
