@@ -276,6 +276,13 @@ export class CsdChatController {
     return this.chat.reopenConversation(actor, id);
   }
 
+  @Post('calls/presence-token')
+  @RequireCsdAction('view')
+  async callPresenceToken(@Req() req: AuthedReq) {
+    const actor = await this.actor(req);
+    return this.chatCalls.preparePresenceToken(actor);
+  }
+
   @Post('conversations/:id/calls/token')
   @RequireCsdAction('view')
   async directCallToken(

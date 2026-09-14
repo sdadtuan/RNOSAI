@@ -17969,6 +17969,32 @@ body {
   color: #991b1b;
 }
 
+.csd-chat-call-bar--incoming {
+  background: #eff6ff;
+  border-bottom-color: #bfdbfe;
+  color: #1e3a8a;
+}
+
+.csd-chat-call-bar--ringing {
+  animation: csd-chat-call-pulse 1.2s ease-in-out infinite;
+}
+
+.csd-chat-call-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+@keyframes csd-chat-call-pulse {
+  0%,
+  100% {
+    background: #ecfdf5;
+  }
+  50% {
+    background: #d1fae5;
+  }
+}
+
 .csd-chat-thread-toolbar__actions {
   margin-left: auto;
   display: flex;

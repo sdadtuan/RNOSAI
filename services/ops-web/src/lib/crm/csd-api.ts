@@ -652,6 +652,12 @@ export type CsdChatCallToken = {
   peer_name: string;
 };
 
+export type CsdChatCallPresenceToken = {
+  provider: 'stringee' | 'unavailable';
+  access_token?: string;
+  user_id: string;
+};
+
 export async function fetchCsdChatCallToken(
   token: string,
   conversationId: string,
@@ -660,6 +666,13 @@ export async function fetchCsdChatCallToken(
   return csdFetch(token, `/api/crm/csd/conversations/${encodeURIComponent(conversationId)}/calls/token`, {
     method: 'POST',
     body: JSON.stringify({ mode }),
+  });
+}
+
+export async function fetchCsdChatCallPresenceToken(token: string): Promise<CsdChatCallPresenceToken> {
+  return csdFetch(token, '/api/crm/csd/calls/presence-token', {
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 

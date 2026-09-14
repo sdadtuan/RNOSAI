@@ -5,7 +5,12 @@ import {
 } from '@nestjs/common';
 import { B2bStringeeTokenService } from '../b2b-projects/b2b-stringee-token.service';
 import { CsdChatRepository } from './csd-chat.repository';
-import type { CsdActor, CsdChatCallMode, CsdChatCallTokenResult } from './csd.types';
+import type {
+  CsdActor,
+  CsdChatCallMode,
+  CsdChatCallPresenceTokenResult,
+  CsdChatCallTokenResult,
+} from './csd.types';
 
 @Injectable()
 export class CsdChatCallsService {
@@ -13,6 +18,22 @@ export class CsdChatCallsService {
     private readonly repo: CsdChatRepository,
     private readonly stringee: B2bStringeeTokenService,
   ) {}
+
+  preparePresenceToken(actor: CsdActor): CsdChatCallPresenceTokenResult {
+    if (actor.staffId <= 0) {
+      throw new BadRequestException({ error: 'staff_required' });
+    }
+    const userId = `staff_${actor.staffId}`;
+    const token = this.stringee.createStaffUserToken(actor.staffId);
+    if (!token || !this.stringee.isConfigured()) {
+      return { provider: 'unavailable', user_id: userId };
+    }
+    return {
+      provider: 'stringee',
+      access_token: token.access_token,
+      user_id: token.user_id,
+    };
+  }
 
   async prepareDirectCall(
     actor: CsdActor,

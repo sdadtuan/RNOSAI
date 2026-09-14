@@ -27,6 +27,14 @@ describe('CsdChatCallsService', () => {
     });
   });
 
+  it('returns presence token for current staff', () => {
+    const svc = new CsdChatCallsService(repo as never, stringee as never);
+    const out = svc.preparePresenceToken({ staffId: 3, staffLabel: 'A', caps: [] });
+    expect(out.provider).toBe('stringee');
+    expect(out.user_id).toBe('staff_3');
+    expect(out.access_token).toBe('tok');
+  });
+
   it('returns stringee token for direct conversation peer', async () => {
     const svc = new CsdChatCallsService(repo as never, stringee as never);
     const out = await svc.prepareDirectCall({ staffId: 3, staffLabel: 'A', caps: [] }, 'c1', 'video');

@@ -161,7 +161,9 @@ export function CsdChatWorkspace({
         <CsdChatCallBar
           state={chatCall.callState}
           onHangup={chatCall.hangup}
-          onDismissError={() => chatCall.hangup()}
+          onDismissError={chatCall.dismissError}
+          onAnswer={() => void chatCall.answerIncoming()}
+          onReject={chatCall.rejectIncoming}
         />
         <CsdChatThread
           token={token}

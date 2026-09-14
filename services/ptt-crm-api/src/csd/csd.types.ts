@@ -593,3 +593,9 @@ export type CsdChatCallTokenResult = {
   peer_staff_id: number;
   peer_name: string;
 };
+
+export type CsdChatCallPresenceTokenResult = {
+  provider: 'stringee' | 'unavailable';
+  access_token?: string;
+  user_id: string;
+};
