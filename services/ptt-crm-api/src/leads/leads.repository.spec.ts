@@ -21,7 +21,7 @@ describe('LeadsRepository', () => {
     await repository.listLeads({ limit: 25 });
     await repository.getLeadById(42);
 
-    expect(pgRepo.listLeads).toHaveBeenCalledWith({ limit: 25 });
-    expect(pgRepo.getLeadById).toHaveBeenCalledWith(42);
+    expect(pgRepo.listLeads).toHaveBeenCalledWith({ limit: 25 }, undefined);
+    expect(pgRepo.getLeadById).toHaveBeenCalledWith(42, undefined);
   });
 });

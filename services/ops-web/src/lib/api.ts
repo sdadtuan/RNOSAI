@@ -8485,6 +8485,58 @@ export async function deleteCrmLeadLookup(
   return crmFetch(token, `/api/crm/config/lead-lookups/${id}`, { method: 'DELETE' });
 }
 
+export type LeadFlowKindConfig = 'spa_operational' | 'b2b_prospect';
+
+export type LeadLevelTierConfig = {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  sla_label: string;
+  min_score: number;
+  max_score: number;
+  enabled: boolean;
+  sort_order: number;
+};
+
+export type LeadRoutingRuleConfig = {
+  id: string;
+  label: string;
+  channel: string;
+  source: string;
+  requires_client: boolean | null;
+  flow_kind: LeadFlowKindConfig;
+  priority: number;
+  enabled: boolean;
+};
+
+export type LeadClassificationConfig = {
+  default_flow_kind: LeadFlowKindConfig;
+  flows: Record<
+    LeadFlowKindConfig,
+    {
+      level_tiers: LeadLevelTierConfig[];
+      default_inbound_score: number;
+    }
+  >;
+  routing_rules: LeadRoutingRuleConfig[];
+};
+
+export async function fetchLeadClassificationConfig(token: string): Promise<LeadClassificationConfig> {
+  return crmFetch(token, '/api/crm/config/lead-classification');
+}
+
+export async function saveLeadClassificationConfig(
+  token: string,
+  body: Partial<LeadClassificationConfig>,
+): Promise<LeadClassificationConfig> {
+  return crmFetch(token, '/api/crm/config/lead-classification', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export interface CrmTicketRow {
   id: number;
   customer_id: number;

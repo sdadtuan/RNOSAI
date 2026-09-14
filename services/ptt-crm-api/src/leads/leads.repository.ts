@@ -1,4 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
+import type { LeadClassificationConfig } from '../crm-config/lead-classification.types';
 import { AppConfigService } from '../config/app-config.service';
 import { LeadsFunnelPgRepository } from '../leads-funnel/leads-funnel-pg.repository';
 import { PgLeadsRepository } from './pg-leads.repository';
@@ -12,13 +13,19 @@ export class LeadsRepository {
     @Optional() private readonly funnelPgRepo?: LeadsFunnelPgRepository,
   ) {}
 
-  async listLeads(query: ListLeadsQuery): Promise<{ leads: LeadV1[]; total: number }> {
+  async listLeads(
+    query: ListLeadsQuery,
+    classification?: LeadClassificationConfig | null,
+  ): Promise<{ leads: LeadV1[]; total: number }> {
     const enriched = await this.withReviewQueueFilter(query);
-    return this.pgRepo.listLeads(enriched);
+    return this.pgRepo.listLeads(enriched, classification);
   }
 
-  getLeadById(leadId: number): Promise<LeadV1 | null> {
-    return this.pgRepo.getLeadById(leadId);
+  getLeadById(
+    leadId: number,
+    classification?: LeadClassificationConfig | null,
+  ): Promise<LeadV1 | null> {
+    return this.pgRepo.getLeadById(leadId, classification);
   }
 
   private async withReviewQueueFilter(query: ListLeadsQuery): Promise<ListLeadsQuery> {

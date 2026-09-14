@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { CrmConfigService } from '../crm-config/crm-config.service';
 import { AppConfigService } from '../config/app-config.service';
 import { LeadV1, ListLeadsQuery, ReviewQueueListFilter } from './leads.types';
 import { LeadsRepository } from './leads.repository';
@@ -8,18 +9,24 @@ export class LeadsService {
   constructor(
     private readonly repo: LeadsRepository,
     private readonly config: AppConfigService,
+    private readonly crmConfig: CrmConfigService,
   ) {}
 
   async listLeads(query: ListLeadsQuery): Promise<{ leads: LeadV1[]; total: number; limit: number; offset: number }> {
     const limit = Math.max(1, Math.min(Number(query.limit ?? 50), 200));
     const offset = Math.max(0, Number(query.offset ?? 0));
     const reviewQueueFilter = this.resolveReviewQueueFilter(query);
-    const result = await this.repo.listLeads({ ...query, limit, offset, review_queue_filter: reviewQueueFilter });
+    const classification = await this.crmConfig.getLeadClassificationConfig();
+    const result = await this.repo.listLeads(
+      { ...query, limit, offset, review_queue_filter: reviewQueueFilter },
+      classification,
+    );
     return { ...result, limit, offset };
   }
 
   async getLead(id: number): Promise<LeadV1 | null> {
-    return this.repo.getLeadById(id);
+    const classification = await this.crmConfig.getLeadClassificationConfig();
+    return this.repo.getLeadById(id, classification);
   }
 
   private resolveReviewQueueFilter(query: ListLeadsQuery): ReviewQueueListFilter | undefined {

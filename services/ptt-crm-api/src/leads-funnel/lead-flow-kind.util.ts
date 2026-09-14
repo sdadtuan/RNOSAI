@@ -1,3 +1,5 @@
+import { matchLeadRoutingRule } from '../crm-config/lead-classification.util';
+import type { LeadRoutingRule } from '../crm-config/lead-classification.types';
 import { parseLeadMeta } from './care-pipeline.util';
 import type { LeadFunnelRow } from './leads-funnel.types';
 
@@ -10,6 +12,8 @@ export interface LeadFlowKindInput {
   status?: string | null;
   metaJson?: string | Record<string, unknown> | null;
   hasPresales?: boolean;
+  routingRules?: LeadRoutingRule[];
+  defaultFlowKind?: LeadFlowKind;
 }
 
 const META_INGEST = new Set(['meta', 'facebook']);
@@ -44,6 +48,17 @@ export function resolveLeadFlowKind(input: LeadFlowKindInput): LeadFlowKind {
   const channel = norm(input.channel);
   const source = norm(input.source);
   const metaLead = isMetaIngest(channel, source, meta);
+
+  if (input.routingRules?.length) {
+    const matched = matchLeadRoutingRule({
+      channel,
+      source,
+      clientId: clientId || null,
+      rules: input.routingRules,
+    });
+    if (matched) return matched.flow_kind;
+    if (input.defaultFlowKind) return input.defaultFlowKind;
+  }
 
   if (clientId && metaLead) return 'spa_operational';
   if (clientId && !metaLead) return 'spa_operational';

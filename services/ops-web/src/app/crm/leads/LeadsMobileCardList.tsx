@@ -3,7 +3,9 @@ import type { ReactNode } from 'react';
 import type { LeadRow } from '@/lib/api';
 import type { LeadScoreSummary } from '@/lib/ai-api';
 import { LeadScoreBadge } from '@/components/ai/LeadScoreBadge';
+import { LeadFlowKindTag } from '@/components/crm/LeadFlowKindTag';
 import { LeadReviewQueueTag } from '@/components/crm/LeadReviewQueueTag';
+import { resolveLeadFlowKindFromLead } from '@/lib/crm/lead-flow-kind';
 import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { WinEmptyState } from '@/components/win';
 import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
@@ -90,6 +92,12 @@ export function LeadsMobileCardList({
                   <WinScopeBadge clientId={lead.client_id} />
                   {showScores ? (
                     <LeadScoreBadge score={scoreMap[String(lead.id)]} pending={scoresPending} />
+                  ) : null}
+                  {showLeadKindTags ? (
+                    <LeadFlowKindTag
+                      kind={lead.lead_flow_kind ?? resolveLeadFlowKindFromLead(lead)}
+                      compact
+                    />
                   ) : null}
                   {showLeadKindTags && lead.review_queue?.active ? (
                     <LeadReviewQueueTag lead={lead} compact />

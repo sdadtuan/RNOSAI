@@ -10,6 +10,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
@@ -23,6 +24,8 @@ import type {
   UpdateLeadLookupBody,
   UpdatePipelineStagesBody,
 } from './crm-config.types';
+import type { UpdateLeadClassificationBody } from './lead-classification.types';
+import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import {
   StaffCrmConfigConfigureGuard,
   StaffCrmConfigViewGuard,
@@ -124,5 +127,18 @@ export class CrmConfigController {
   @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigConfigureGuard)
   deleteLeadLookup(@Param('id') id: string) {
     return this.crmConfig.deleteLeadLookup(Number(id));
+  }
+
+  @Get('lead-classification')
+  @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigViewGuard)
+  getLeadClassification() {
+    return this.crmConfig.getLeadClassificationConfig();
+  }
+
+  @Put('lead-classification')
+  @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigConfigureGuard)
+  updateLeadClassification(@Req() req: { user?: StaffJwtPayload }, @Body() body: UpdateLeadClassificationBody) {
+    const updatedBy = String(req.user?.sub ?? req.user?.staff_id ?? 'staff');
+    return this.crmConfig.updateLeadClassificationConfig(body, updatedBy);
   }
 }

@@ -6,6 +6,7 @@ import {
   buildB2bListScopeClause,
   buildLeadFlowKindListFilter,
 } from '../leads-funnel/lead-flow-list-filter.util';
+import type { LeadClassificationConfig } from '../crm-config/lead-classification.types';
 import { LeadV1, ListLeadsQuery, PgLeadRow } from './leads.types';
 
 interface PgWhereClause {
@@ -66,7 +67,10 @@ export class PgLeadsRepository implements OnModuleDestroy {
     this.pool = null;
   }
 
-  async listLeads(query: ListLeadsQuery): Promise<{ leads: LeadV1[]; total: number }> {
+  async listLeads(
+    query: ListLeadsQuery,
+    classification?: LeadClassificationConfig | null,
+  ): Promise<{ leads: LeadV1[]; total: number }> {
     const limit = Math.max(1, Math.min(Number(query.limit ?? 50), 200));
     const offset = Math.max(0, Number(query.offset ?? 0));
     const where = this.buildWhere(query);
@@ -99,12 +103,17 @@ export class PgLeadsRepository implements OnModuleDestroy {
     );
 
     return {
-      leads: listResult.rows.map((row) => pgRowToV1(row as PgLeadRow)),
+      leads: listResult.rows.map((row) =>
+        pgRowToV1(row as PgLeadRow, { classification: classification ?? null }),
+      ),
       total,
     };
   }
 
-  async getLeadById(leadId: number): Promise<LeadV1 | null> {
+  async getLeadById(
+    leadId: number,
+    classification?: LeadClassificationConfig | null,
+  ): Promise<LeadV1 | null> {
     const result = await this.db.query(
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
               l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,
@@ -122,7 +131,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
       [leadId],
     );
     const row = result.rows[0] as PgLeadRow | undefined;
-    return row ? pgRowToV1(row) : null;
+    return row ? pgRowToV1(row, { classification: classification ?? null }) : null;
   }
 
   private buildWhere(query: ListLeadsQuery): PgWhereClause {

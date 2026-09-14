@@ -138,6 +138,28 @@ describe('pgRowToV1', () => {
     expect(out.full_name).toBe('Tuan Truong');
   });
 
+  it('defaults fresh Meta leads without score to hot ai_band', () => {
+    const row: PgLeadRow = {
+      sqlite_lead_id: 900000000,
+      full_name: 'Nguyễn Quốc Khánh',
+      phone: '090',
+      email: '',
+      status: 'moi',
+      source: 'facebook',
+      owner_id: null,
+      is_duplicate: false,
+      agency_client_id: null,
+      channel: 'meta',
+      external_lead_id: 'fb-new',
+      campaign_id: null,
+      received_at: new Date('2026-09-14T00:00:00.000Z'),
+      created_at: new Date('2026-09-14T00:00:00.000Z'),
+    };
+    const out = pgRowToV1(row);
+    expect(out.lead_flow_kind).toBe('b2b_prospect');
+    expect(out.ai_band).toBe('hot');
+  });
+
   it('sets in_call when human session is ringing', () => {
     const row: PgLeadRow = {
       sqlite_lead_id: 2,

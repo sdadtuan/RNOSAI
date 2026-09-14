@@ -7,8 +7,14 @@ import {
   computeB2bSlaState,
   isB2bInHoursNow,
   isB2bLeadInCall,
+  resolveLeadScoreForBand,
 } from '../b2b-projects/b2b-lead-list.util';
 import { prefillCompanyName } from './lead-party.util';
+import type { LeadClassificationConfig } from '../crm-config/lead-classification.types';
+
+export type LeadV1MapperOptions = {
+  classification?: LeadClassificationConfig | null;
+};
 
 function parseMeta(raw: string | null | undefined): Record<string, unknown> {
   if (!raw) {
@@ -103,7 +109,7 @@ export function leadRowToV1(row: LeadRow): LeadV1 {
 }
 
 /** Map PG crm_leads read replica row → LeadV1 (Bước 7). */
-export function pgRowToV1(row: PgLeadRow): LeadV1 {
+export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1 {
   const meta =
     typeof row.meta_json === 'string'
       ? parseMeta(row.meta_json)
@@ -115,22 +121,32 @@ export function pgRowToV1(row: PgLeadRow): LeadV1 {
       ? formatLeadTs(row.first_assigned_at)
       : String(metaString(meta, 'assigned_at') || '');
 
+  const classification = options?.classification ?? null;
   const flowKind = resolveLeadFlowKind({
     clientId: row.agency_client_id,
     channel: row.channel,
     source: row.source,
     status: row.status,
     metaJson: meta,
+    routingRules: classification?.routing_rules,
+    defaultFlowKind: classification?.default_flow_kind,
   });
 
-  const score =
+  const scoreRaw =
     row.lead_score != null
       ? Number(row.lead_score)
       : metaNumber(meta, 'lead_score');
+  const score = resolveLeadScoreForBand({
+    score: scoreRaw,
+    status: row.status,
+    channel: row.channel,
+    source: row.source,
+    defaultInboundScore: classification?.flows[flowKind]?.default_inbound_score ?? null,
+  });
   const assignConfidenceRaw = row.assign_confidence ?? metaNumber(meta, 'assign_confidence');
 
   const b2bExtras =
-    row.b2b_project_id || flowKind === 'b2b_prospect'
+    row.b2b_project_id || flowKind === 'b2b_prospect' || score != null
       ? buildB2bListExtras(row, meta, score)
       : {};
 

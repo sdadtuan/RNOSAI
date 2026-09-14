@@ -16,9 +16,13 @@ import type {
   UpdatePipelineStagesBody,
 } from './crm-config.types';
 import { DEFAULT_SALES_PIPELINE_KEY } from './crm-config.defaults';
+import type { LeadClassificationConfig, UpdateLeadClassificationBody } from './lead-classification.types';
+import { mergeLeadClassificationConfig } from './lead-classification.util';
 
 @Injectable()
 export class CrmConfigService {
+  private leadClassificationCache: LeadClassificationConfig | null = null;
+
   constructor(private readonly repo: CrmConfigPgRepository) {}
 
   async listCustomFields(entityType?: string): Promise<{ fields: CustomFieldDef[] }> {
@@ -98,5 +102,31 @@ export class CrmConfigService {
 
   deleteLeadLookup(id: number): Promise<{ ok: true; id: number }> {
     return this.repo.deleteLeadLookup(id);
+  }
+
+  async getLeadClassificationConfig(force = false): Promise<LeadClassificationConfig> {
+    if (!force && this.leadClassificationCache) return this.leadClassificationCache;
+    const cfg = await this.repo.fetchLeadClassificationConfig();
+    this.leadClassificationCache = cfg;
+    return cfg;
+  }
+
+  async updateLeadClassificationConfig(
+    body: UpdateLeadClassificationBody,
+    updatedBy: string,
+  ): Promise<LeadClassificationConfig> {
+    const current = await this.getLeadClassificationConfig(true);
+    const merged = mergeLeadClassificationConfig({
+      ...current,
+      ...body,
+      flows: {
+        b2b_prospect: { ...current.flows.b2b_prospect, ...(body.flows?.b2b_prospect ?? {}) },
+        spa_operational: { ...current.flows.spa_operational, ...(body.flows?.spa_operational ?? {}) },
+      },
+      routing_rules: body.routing_rules ?? current.routing_rules,
+    });
+    const saved = await this.repo.saveLeadClassificationConfig(merged, updatedBy);
+    this.leadClassificationCache = saved;
+    return saved;
   }
 }

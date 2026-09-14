@@ -20,6 +20,8 @@ import {
   DEFAULT_SALES_PIPELINE_KEY,
   defaultSalesPipelineStages,
 } from './crm-config.defaults';
+import { mergeLeadClassificationConfig } from './lead-classification.util';
+import type { LeadClassificationConfig } from './lead-classification.types';
 import type {
   CreateCustomFieldBody,
   CreateLeadLookupBody,
@@ -562,6 +564,38 @@ export class CrmConfigPgRepository implements OnModuleDestroy, OnModuleInit {
   private async refreshPipelineConfig(): Promise<void> {
     const stages = await this.listPipelineStages(DEFAULT_SALES_PIPELINE_KEY);
     this.pipelineConfig = this.buildPipelineConfig(stages);
+  }
+
+  async fetchLeadClassificationConfig(): Promise<LeadClassificationConfig> {
+    const result = await this.db.query(
+      `SELECT config_json FROM crm_lead_settings WHERE config_key = 'global' LIMIT 1`,
+    );
+    const row = result.rows[0] as { config_json?: Record<string, unknown> } | undefined;
+    const cfg = row?.config_json ?? {};
+    return mergeLeadClassificationConfig(cfg.flow_classification);
+  }
+
+  async saveLeadClassificationConfig(
+    config: LeadClassificationConfig,
+    updatedBy: string,
+  ): Promise<LeadClassificationConfig> {
+    const merged = mergeLeadClassificationConfig(config);
+    const existing = await this.db.query(
+      `SELECT config_json FROM crm_lead_settings WHERE config_key = 'global' LIMIT 1`,
+    );
+    const prior =
+      (existing.rows[0] as { config_json?: Record<string, unknown> } | undefined)?.config_json ?? {};
+    const next = { ...prior, flow_classification: merged };
+    await this.db.query(
+      `INSERT INTO crm_lead_settings (config_key, config_json, updated_at, updated_by)
+       VALUES ('global', $1::jsonb, NOW(), $2)
+       ON CONFLICT (config_key) DO UPDATE SET
+         config_json = EXCLUDED.config_json,
+         updated_at = EXCLUDED.updated_at,
+         updated_by = EXCLUDED.updated_by`,
+      [JSON.stringify(next), updatedBy.slice(0, 120)],
+    );
+    return merged;
   }
 
   private buildPipelineConfig(stages: PipelineStageDef[]): SalesPipelineConfig {

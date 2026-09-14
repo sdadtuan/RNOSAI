@@ -7,6 +7,34 @@ export function computeB2bAiBand(score: number | null): B2bAiBand {
   return slaBand(score);
 }
 
+const AD_INGEST_CHANNELS = new Set(['meta', 'facebook', 'zalo', 'google', 'google_ads']);
+
+/** Fresh paid-media leads without an explicit score default to hot band (≥70). */
+export function resolveLeadScoreForBand(input: {
+  score: number | null;
+  status?: string | null;
+  channel?: string | null;
+  source?: string | null;
+  defaultInboundScore?: number | null;
+}): number | null {
+  if (input.score != null && Number.isFinite(input.score)) return input.score;
+  const status = String(input.status ?? '')
+    .trim()
+    .toLowerCase();
+  if (status !== 'moi' && status !== 'first_contact') return null;
+  const channel = String(input.channel ?? '')
+    .trim()
+    .toLowerCase();
+  const source = String(input.source ?? '')
+    .trim()
+    .toLowerCase();
+  const configured = input.defaultInboundScore;
+  const fallback =
+    configured != null && Number.isFinite(Number(configured)) ? Number(configured) : 75;
+  if (AD_INGEST_CHANNELS.has(channel) || AD_INGEST_CHANNELS.has(source)) return fallback;
+  return null;
+}
+
 export function computeB2bSlaState(input: {
   score: number | null;
   elapsedMin: number;

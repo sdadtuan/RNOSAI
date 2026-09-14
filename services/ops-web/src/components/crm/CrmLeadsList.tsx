@@ -5,7 +5,9 @@ import type { ReactNode } from 'react';
 import type { LeadRow } from '@/lib/api';
 import type { LeadScoreSummary } from '@/lib/ai-api';
 import { LeadScoreBadge } from '@/components/ai/LeadScoreBadge';
+import { LeadFlowKindTag } from '@/components/crm/LeadFlowKindTag';
 import { LeadReviewQueueTag } from '@/components/crm/LeadReviewQueueTag';
+import { resolveLeadFlowKindFromLead } from '@/lib/crm/lead-flow-kind';
 import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { LeadsMobileCardList } from '@/app/crm/leads/LeadsMobileCardList';
 import { WinEmptyState } from '@/components/win';
@@ -178,7 +180,19 @@ export function CrmLeadsList({
                   {visibleColumns.has('phone') ? <td>{lead.phone || '—'}</td> : null}
                   {visibleColumns.has('status') ? <td>{lead.status}</td> : null}
                   {showLeadKindTags && visibleColumns.has('kind') ? (
-                    <td>{lead.review_queue?.active ? <LeadReviewQueueTag lead={lead} /> : '—'}</td>
+                    <td>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          flexWrap: 'wrap',
+                          gap: '0.35rem',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <LeadFlowKindTag kind={lead.lead_flow_kind ?? resolveLeadFlowKindFromLead(lead)} />
+                        {lead.review_queue?.active ? <LeadReviewQueueTag lead={lead} /> : null}
+                      </span>
+                    </td>
                   ) : null}
                   {visibleColumns.has('project') ? (
                     <td>
