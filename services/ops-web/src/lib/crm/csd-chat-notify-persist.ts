@@ -68,8 +68,9 @@ export async function requestCsdChatNotifyPermission(): Promise<NotificationPerm
   }
 }
 
-export function csdChatMessageNotifyTag(conversationId: string): string {
-  return `csd-chat:${conversationId}`;
+export function csdChatMessageNotifyTag(conversationId: string, lastMessageAt?: string | null): string {
+  const stamp = (lastMessageAt ?? '').trim() || String(Date.now());
+  return `csd-chat:${conversationId}:${stamp}`;
 }
 
 export function csdChatCallNotifyTag(fromUserId: string): string {
@@ -83,6 +84,7 @@ export function showCsdChatDesktopNotify(input: {
   onOpen: (conversationId: string) => void;
   kind?: 'message' | 'call';
   requireInteraction?: boolean;
+  lastMessageAt?: string | null;
 }): void {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   try {
@@ -90,12 +92,13 @@ export function showCsdChatDesktopNotify(input: {
     const tag =
       kind === 'call'
         ? csdChatCallNotifyTag(input.conversationId)
-        : csdChatMessageNotifyTag(input.conversationId);
+        : csdChatMessageNotifyTag(input.conversationId, input.lastMessageAt);
     const note = new Notification(input.title, {
       body: input.preview,
       tag,
+      renotify: true,
       requireInteraction: input.requireInteraction ?? kind === 'call',
-    });
+    } as NotificationOptions);
     note.onclick = () => {
       window.focus();
       input.onOpen(input.conversationId);

@@ -12,8 +12,13 @@ export type CsdChatIncoming = {
 
 export type CsdChatNotifyChannel = 'toast' | 'desktop' | 'none';
 
-export function csdChatNotifyKey(row: Pick<CsdConversationRow, 'id' | 'last_message_at'>): string {
-  return `${row.id}:${row.last_message_at ?? ''}`;
+export function csdChatNotifyKey(
+  row: Pick<CsdConversationRow, 'id' | 'last_message_at' | 'unread_count'> & {
+    preview?: string | null;
+  },
+): string {
+  const preview = (row.preview ?? '').trim().slice(0, 40);
+  return `${row.id}:${row.last_message_at ?? ''}:${Number(row.unread_count ?? 0)}:${preview}`;
 }
 
 export function csdChatNotifyChannel(
@@ -29,6 +34,8 @@ export function nextCsdChatIncoming(input: {
   previousNotified: Set<string> | null;
   items: CsdConversationRow[];
   viewingId?: string | null;
+  /** When CRM tab is hidden, still alert even if a thread is "selected" in the dock. */
+  tabHidden?: boolean;
 }): { incoming: CsdChatIncoming[]; notified: Set<string> } {
   const viewingId = input.viewingId ?? null;
   const unread = input.items.filter((row) => Number(row.unread_count ?? 0) > 0);
@@ -42,7 +49,7 @@ export function nextCsdChatIncoming(input: {
   const incoming: CsdChatIncoming[] = [];
   for (const row of unread) {
     const key = csdChatNotifyKey(row);
-    if (row.id === viewingId) continue;
+    if (!input.tabHidden && row.id === viewingId) continue;
     if (input.previousNotified.has(key)) continue;
     incoming.push({
       conversationId: row.id,

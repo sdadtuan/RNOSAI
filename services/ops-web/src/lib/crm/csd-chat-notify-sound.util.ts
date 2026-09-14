@@ -22,25 +22,38 @@ function playBurstTone(input: {
 }): void {
   const Ctx = resolveAudioContextCtor();
   if (!Ctx) return;
-  const ctx = new Ctx();
-  const master = ctx.createGain();
-  master.gain.value = input.gain ?? 0.22;
-  master.connect(ctx.destination);
-  const osc = ctx.createOscillator();
-  osc.type = 'sine';
-  osc.frequency.value = input.frequency;
-  osc.connect(master);
-  void ctx.resume().then(() => {
-    osc.start();
-    window.setTimeout(() => {
+  try {
+    const ctx = new Ctx();
+    const master = ctx.createGain();
+    master.gain.value = input.gain ?? 0.22;
+    master.connect(ctx.destination);
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = input.frequency;
+    osc.connect(master);
+    const start = () => {
       try {
-        osc.stop();
+        osc.start();
+        window.setTimeout(() => {
+          try {
+            osc.stop();
+          } catch {
+            /* noop */
+          }
+          void ctx.close().catch(() => undefined);
+        }, input.durationMs);
       } catch {
-        /* noop */
+        void ctx.close().catch(() => undefined);
       }
-      void ctx.close().catch(() => undefined);
-    }, input.durationMs);
-  });
+    };
+    if (ctx.state === 'suspended') {
+      void ctx.resume().then(start).catch(() => undefined);
+    } else {
+      start();
+    }
+  } catch {
+    /* autoplay / AudioContext blocked */
+  }
 }
 
 /** One-shot “ting” for new chat messages. */

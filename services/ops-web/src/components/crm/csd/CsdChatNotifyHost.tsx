@@ -20,7 +20,8 @@ import {
 import { playCsdChatMessageTone } from '@/lib/crm/csd-chat-notify-sound.util';
 import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 
-const POLL_MS = 15_000;
+const POLL_MS = 8_000;
+const POLL_MS_HIDDEN = 5_000;
 
 type CsdChatNotifyHostProps = {
   user: StoredStaffUser | null;
@@ -68,31 +69,49 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
   useEffect(() => {
     if (!enabled || !token) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const schedule = () => {
+      if (timer) window.clearInterval(timer);
+      const ms =
+        typeof document !== 'undefined' && document.visibilityState === 'hidden'
+          ? POLL_MS_HIDDEN
+          : POLL_MS;
+      timer = window.setInterval(load, ms);
+    };
 
     const load = () => {
       if (cancelled) return;
       void fetchCsdConversations(token, { filter: 'unread' })
         .then((out) => {
           if (cancelled) return;
+          const tabHidden =
+            typeof document !== 'undefined' && document.visibilityState === 'hidden';
           const viewingId = readCsdChatViewing();
           const next = nextCsdChatIncoming({
             previousNotified: notifiedRef.current,
             items: out.items ?? [],
             viewingId,
+            tabHidden,
           });
-          notifiedRef.current = next.notified;
-          writeCsdChatNotified(next.notified);
-          if (!next.incoming.length) return;
+          if (!next.incoming.length) {
+            notifiedRef.current = next.notified;
+            writeCsdChatNotified(next.notified);
+            return;
+          }
           const channel = csdChatNotifyChannel(
-            typeof document !== 'undefined' ? document.visibilityState : 'visible',
+            tabHidden ? 'hidden' : 'visible',
             notificationPermission(),
           );
+          // Do not mark delivered when we cannot show/play — retry next poll.
           if (channel === 'none') return;
+
           playCsdChatMessageTone();
           if (channel === 'toast') {
             setToasts((prev) => {
-              const seen = new Set(prev.map((t) => t.conversationId));
-              return [...next.incoming.filter((row) => !seen.has(row.conversationId)), ...prev].slice(0, 3);
+              const incomingIds = new Set(next.incoming.map((row) => row.conversationId));
+              const rest = prev.filter((t) => !incomingIds.has(t.conversationId));
+              return [...next.incoming, ...rest].slice(0, 3);
             });
           } else if (channel === 'desktop') {
             for (const row of next.incoming) {
@@ -100,24 +119,28 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
                 title: row.title,
                 preview: row.preview,
                 conversationId: row.conversationId,
+                lastMessageAt: row.lastMessageAt,
                 kind: 'message',
                 onOpen: openConversation,
               });
             }
           }
+          notifiedRef.current = next.notified;
+          writeCsdChatNotified(next.notified);
         })
         .catch(() => undefined);
     };
 
     load();
-    const timer = window.setInterval(load, POLL_MS);
+    schedule();
     const onVis = () => {
       if (document.visibilityState === 'visible') load();
+      schedule();
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      if (timer) window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVis);
     };
   }, [enabled, token, openConversation]);

@@ -8,7 +8,7 @@ import {
 
 describe('csd-chat-call-notify.util', () => {
   it('builds distinct tags for message vs call', () => {
-    expect(csdChatMessageNotifyTag('c1')).toBe('csd-chat:c1');
+    expect(csdChatMessageNotifyTag('c1', 't1')).toBe('csd-chat:c1:t1');
     expect(csdChatCallNotifyTag('staff_9')).toBe('csd-call:staff_9');
   });
 
