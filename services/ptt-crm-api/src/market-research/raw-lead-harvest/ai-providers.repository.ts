@@ -494,6 +494,7 @@ export class ResearchAiProvidersRepository implements OnModuleDestroy {
     apiToken: string;
     authHeaderName: string;
     authType: ResearchAiAuthType;
+    credentialId: number;
   } | null> {
     await this.ensureSchema();
     const providers = await this.db.query(
@@ -515,6 +516,7 @@ export class ResearchAiProvidersRepository implements OnModuleDestroy {
       apiToken: decryptProviderSecret(String(c.secret_cipher)),
       authHeaderName: String(p.auth_header_name || 'Authorization'),
       authType: String(p.auth_type) as ResearchAiAuthType,
+      credentialId: Number(c.id),
     };
   }
 

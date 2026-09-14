@@ -7,6 +7,7 @@ import {
 import { CrmConfigService } from '../../crm-config/crm-config.service';
 import { VnAdminGeoRepository } from '../../vn-admin-geo/vn-admin-geo.repository';
 import { ResearchAiProvidersRepository } from './ai-providers.repository';
+import { HarvestWorkerService } from './harvest-worker.service';
 import { RawLeadHarvestRepository } from './raw-lead-harvest.repository';
 import type {
   CreateRawLeadHarvestBody,
@@ -33,6 +34,7 @@ export class RawLeadHarvestService {
     private readonly aiProviders: ResearchAiProvidersRepository,
     private readonly crmConfig: CrmConfigService,
     private readonly vnGeo: VnAdminGeoRepository,
+    private readonly worker: HarvestWorkerService,
   ) {}
 
   assertEnabled() {
@@ -123,7 +125,7 @@ export class RawLeadHarvestService {
       provider: body.provider,
       model: body.model,
       provider_base_url: adminProvider?.base_url ?? null,
-      credential_id: null,
+      credential_id: runtime?.credentialId ?? null,
       mode,
       cross_check: Boolean(body.cross_check),
       target_count: Number(body.target_count),
@@ -132,7 +134,7 @@ export class RawLeadHarvestService {
     });
 
     // Fire-and-forget mock/real worker
-    void this.runJob(job.id, projectId, runtime?.provider.base_url ?? null).catch(() => undefined);
+    void this.runJob(job.id, projectId, runtime).catch(() => undefined);
 
     return { job_id: job.id, status: job.status };
   }
@@ -180,7 +182,7 @@ export class RawLeadHarvestService {
   private async runJob(
     jobId: number,
     projectId: number,
-    _baseUrl: string | null,
+    runtime: Awaited<ReturnType<ResearchAiProvidersRepository['resolveRuntimeCredential']>>,
   ): Promise<void> {
     await this.repo.markJobRunning(jobId);
     try {
@@ -188,13 +190,30 @@ export class RawLeadHarvestService {
       if (!job) return;
 
       if (!harvestMock()) {
-        // Real AI arrives in Wave C — fail closed for now if mock off
+        if (!runtime) {
+          await this.repo.markJobFinished(
+            jobId,
+            'failed',
+            0,
+            0,
+            'harvest_provider_not_configured',
+          );
+          return;
+        }
+        const result = await this.worker.runRealHarvest(job, {
+          baseUrl: runtime.provider.base_url,
+          model: job.model,
+          apiToken: runtime.apiToken,
+          authType: runtime.authType,
+          authHeaderName: runtime.authHeaderName,
+          credentialId: runtime.credentialId,
+        });
         await this.repo.markJobFinished(
           jobId,
-          'failed',
-          0,
-          0,
-          'real_ai_not_implemented_enable_mock',
+          'succeeded',
+          result.inserted,
+          result.rejected,
+          null,
         );
         return;
       }
@@ -209,6 +228,7 @@ export class RawLeadHarvestService {
           company_name: company,
           address: `${job.province_name}, Việt Nam`,
           phone: `09010000${10 + i}`,
+          phone_norm: `09010000${10 + i}`,
           email: `contact${i + 1}@example-mock.vn`,
           contact_title: job.job_title_label,
           website: `https://example-mock.vn/co-${i + 1}`,

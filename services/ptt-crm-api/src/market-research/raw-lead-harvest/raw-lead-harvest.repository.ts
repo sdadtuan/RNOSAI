@@ -299,12 +299,56 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     );
   }
 
+  async setJobCredentialId(jobId: number, credentialId: number): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_research_raw_lead_harvest_jobs SET credential_id = $2 WHERE id = $1`,
+      [jobId, credentialId],
+    );
+  }
+
+  async listDedupeKeys(projectId: number): Promise<
+    Array<{ company_key: string; phone_norm: string | null; email_norm: string | null }>
+  > {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT company_name_norm, phone_norm, lower(nullif(trim(email), '')) AS email_norm
+       FROM crm_research_raw_leads
+       WHERE project_id = $1
+       LIMIT 2000`,
+      [projectId],
+    );
+    return r.rows.map((row) => ({
+      company_key: String(row.company_name_norm ?? ''),
+      phone_norm: row.phone_norm == null ? null : String(row.phone_norm),
+      email_norm: row.email_norm == null ? null : String(row.email_norm),
+    }));
+  }
+
+  /** Soft flag: phone already on an existing CRM lead (digits-only match). */
+  async findAlreadyCustomerByPhone(phoneNorm: string): Promise<boolean> {
+    const digits = String(phoneNorm ?? '').replace(/\D+/g, '');
+    if (digits.length < 9) return false;
+    try {
+      const r = await this.db.query(
+        `SELECT 1 FROM crm_leads
+         WHERE regexp_replace(coalesce(phone, ''), '\\D', '', 'g') IN ($1, $2)
+         LIMIT 1`,
+        [digits, digits.startsWith('0') ? digits.slice(1) : `0${digits}`],
+      );
+      return Boolean(r.rows[0]);
+    } catch {
+      return false;
+    }
+  }
+
   async insertLead(input: {
     project_id: number;
     job_id: number;
     company_name: string;
+    company_name_norm?: string | null;
     address: string | null;
     phone: string | null;
+    phone_norm?: string | null;
     email: string | null;
     contact_title: string | null;
     website: string | null;
@@ -314,9 +358,12 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     source_model: string;
     search_source_keys: string[];
     search_channel_keys: string[];
+    discovered_via_source_key?: string | null;
+    confidence?: number | null;
     quality_score: number;
     icp_fit_score: number;
     contactable: boolean;
+    phone_kind?: string | null;
     status: string;
     verify_json: Record<string, unknown>;
     raw_json?: Record<string, unknown>;
@@ -324,19 +371,22 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     await this.ensureSchema();
     const r = await this.db.query(
       `INSERT INTO crm_research_raw_leads (
-         project_id, job_id, company_name, company_name_norm, address, phone, email,
+         project_id, job_id, company_name, company_name_norm, address, phone, phone_norm, email,
          contact_title, website, evidence_url, evidence_snippet,
          source_provider, source_model, search_source_keys, search_channel_keys,
-         quality_score, icp_fit_score, contactable, status, verify_json, raw_json
+         discovered_via_source_key, confidence,
+         quality_score, icp_fit_score, contactable, phone_kind, status, verify_json, raw_json
        ) VALUES (
-         $1,$2,$3,lower($3),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb
+         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24::jsonb,$25::jsonb
        ) RETURNING *`,
       [
         input.project_id,
         input.job_id,
         input.company_name,
+        input.company_name_norm ?? null,
         input.address,
         input.phone,
+        input.phone_norm ?? null,
         input.email,
         input.contact_title,
         input.website,
@@ -346,9 +396,12 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         input.source_model,
         input.search_source_keys,
         input.search_channel_keys,
+        input.discovered_via_source_key ?? null,
+        input.confidence ?? null,
         input.quality_score,
         input.icp_fit_score,
         input.contactable,
+        input.phone_kind ?? null,
         input.status,
         JSON.stringify(input.verify_json),
         JSON.stringify(input.raw_json ?? {}),

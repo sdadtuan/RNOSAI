@@ -34,6 +34,7 @@ import {
 } from './raw-lead-harvest/ai-providers.controller';
 import { ResearchAiProvidersRepository } from './raw-lead-harvest/ai-providers.repository';
 import { ResearchAiProvidersService } from './raw-lead-harvest/ai-providers.service';
+import { HarvestWorkerService } from './raw-lead-harvest/harvest-worker.service';
 import { RawLeadHarvestController } from './raw-lead-harvest/raw-lead-harvest.controller';
 import { RawLeadHarvestRepository } from './raw-lead-harvest/raw-lead-harvest.repository';
 import { RawLeadHarvestService } from './raw-lead-harvest/raw-lead-harvest.service';
@@ -75,6 +76,7 @@ import { RawLeadHarvestService } from './raw-lead-harvest/raw-lead-harvest.servi
     ResearchAiProvidersRepository,
     ResearchAiProvidersService,
     RawLeadHarvestRepository,
+    HarvestWorkerService,
     RawLeadHarvestService,
   ],
   exports: [ResearchAiProvidersService, ResearchAiProvidersRepository, RawLeadHarvestService],
