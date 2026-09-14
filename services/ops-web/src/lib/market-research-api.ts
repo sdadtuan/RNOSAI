@@ -1799,6 +1799,7 @@ export type RawLeadHarvestJob = {
   provider: string;
   model: string;
   mode: string;
+  cross_check?: boolean;
   target_count: number;
   result_count: number;
   rejected_by_gate_count: number;

@@ -364,6 +364,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     icp_fit_score: number;
     contactable: boolean;
     phone_kind?: string | null;
+    legal_status?: string | null;
     status: string;
     verify_json: Record<string, unknown>;
     raw_json?: Record<string, unknown>;
@@ -375,9 +376,9 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
          contact_title, website, evidence_url, evidence_snippet,
          source_provider, source_model, search_source_keys, search_channel_keys,
          discovered_via_source_key, confidence,
-         quality_score, icp_fit_score, contactable, phone_kind, status, verify_json, raw_json
+         quality_score, icp_fit_score, contactable, phone_kind, legal_status, status, verify_json, raw_json
        ) VALUES (
-         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24::jsonb,$25::jsonb
+         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25::jsonb,$26::jsonb
        ) RETURNING *`,
       [
         input.project_id,
@@ -402,6 +403,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         input.icp_fit_score,
         input.contactable,
         input.phone_kind ?? null,
+        input.legal_status ?? null,
         input.status,
         JSON.stringify(input.verify_json),
         JSON.stringify(input.raw_json ?? {}),

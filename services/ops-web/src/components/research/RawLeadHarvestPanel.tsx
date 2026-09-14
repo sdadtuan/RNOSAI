@@ -55,6 +55,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const [mode, setMode] = useState<'quality' | 'volume'>('quality');
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
+  const [crossCheck, setCrossCheck] = useState(false);
   const [targetCount, setTargetCount] = useState(10);
   const [notes, setNotes] = useState('');
 
@@ -67,6 +68,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     () => providers.find((p) => p.code === provider) ?? null,
     [providers, provider],
   );
+  const canCrossCheck = providers.filter((p) => p.configured).length >= 2;
 
   const reloadMeta = useCallback(async () => {
     const [ind, tit, src, ch, prov, harvestProv] = await Promise.all([
@@ -191,6 +193,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     provider,
                     model,
                     mode,
+                    cross_check: canCrossCheck && crossCheck,
                     target_count: targetCount,
                     notes: notes || undefined,
                   });
@@ -350,6 +353,20 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 Chế độ Volume tăng nguy cơ lead yếu/ảo — khuyến nghị chỉ dùng để thăm dò.
               </p>
             ) : null}
+            {canCrossCheck ? (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={crossCheck}
+                  onChange={(e) => setCrossCheck(e.target.checked)}
+                />{' '}
+                Cross-check 2 provider (top N, tốn thêm API)
+              </label>
+            ) : (
+              <p className="muted">
+                Cross-check cần ≥2 Research AI provider đã cấu hình token.
+              </p>
+            )}
             <label>
               Ghi chú ICP
               <textarea

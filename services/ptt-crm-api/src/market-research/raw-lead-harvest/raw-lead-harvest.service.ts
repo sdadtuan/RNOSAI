@@ -200,14 +200,51 @@ export class RawLeadHarvestService {
           );
           return;
         }
-        const result = await this.worker.runRealHarvest(job, {
-          baseUrl: runtime.provider.base_url,
-          model: job.model,
-          apiToken: runtime.apiToken,
-          authType: runtime.authType,
-          authHeaderName: runtime.authHeaderName,
-          credentialId: runtime.credentialId,
-        });
+
+        let crossCheckRuntime: {
+          baseUrl: string;
+          model: string;
+          apiToken: string;
+          authType: typeof runtime.authType;
+          authHeaderName: string;
+          credentialId: number | null;
+          providerCode: string;
+        } | null = null;
+
+        if (job.cross_check) {
+          const harvestProviders = await this.aiProviders.listHarvestProviders();
+          const other = harvestProviders.find(
+            (p) => p.configured && p.code !== job.provider,
+          );
+          if (other) {
+            const otherCred = await this.aiProviders.resolveRuntimeCredential(other.code);
+            if (otherCred) {
+              crossCheckRuntime = {
+                baseUrl: otherCred.provider.base_url,
+                model: other.default_model ?? other.models[0]?.id ?? job.model,
+                apiToken: otherCred.apiToken,
+                authType: otherCred.authType,
+                authHeaderName: otherCred.authHeaderName,
+                credentialId: otherCred.credentialId,
+                providerCode: other.code,
+              };
+            }
+          }
+        }
+
+        const result = await this.worker.runRealHarvest(
+          job,
+          {
+            baseUrl: runtime.provider.base_url,
+            model: job.model,
+            apiToken: runtime.apiToken,
+            authType: runtime.authType,
+            authHeaderName: runtime.authHeaderName,
+            credentialId: runtime.credentialId,
+            providerCode: job.provider,
+          },
+          { crossCheckRuntime },
+        );
         await this.repo.markJobFinished(
           jobId,
           'succeeded',

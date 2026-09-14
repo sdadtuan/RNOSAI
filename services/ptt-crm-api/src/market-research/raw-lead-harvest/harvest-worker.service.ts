@@ -1,5 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { ResearchAiAuthType } from './ai-providers.types';
+import {
+  applyCrossCheckToScore,
+  buildCrossCheckPrompt,
+  parseCrossCheckResponse,
+  type ParsedCrossCheck,
+} from './cross-check.util';
+import {
+  applyLegalStatusScoreBoost,
+  enrichLegalStatus,
+  legalEnrichEnabled,
+  type LegalStatus,
+} from './enrich/legal-status.util';
 import { callHarvestChatCompletion } from './harvest-llm.client';
 import { parseHarvestAiLeads, type HarvestAiLead } from './harvest-parse.util';
 import {
@@ -16,7 +28,7 @@ import {
 import { fetchEvidenceText } from './quality/evidence-fetch.util';
 import { applyQualityGate } from './quality/quality-gate.util';
 import { computeQualityScore } from './quality/quality-score.util';
-import { verifyCandidate } from './quality/verify-contact.util';
+import { verifyCandidate, type VerifyResult } from './quality/verify-contact.util';
 import { RawLeadHarvestRepository } from './raw-lead-harvest.repository';
 import type { RawLeadHarvestJobRow } from './raw-lead-harvest.types';
 
@@ -27,6 +39,17 @@ export type HarvestRuntimeCred = {
   authType: ResearchAiAuthType;
   authHeaderName: string;
   credentialId: number | null;
+  providerCode?: string;
+};
+
+type ScoredRow = {
+  ai: HarvestAiLead;
+  verified: VerifyResult;
+  score: number;
+  crossCheck: (ParsedCrossCheck & { provider: string; model: string }) | null;
+  forceReject: boolean;
+  legalStatus: LegalStatus | null;
+  legalDetail: string | null;
 };
 
 @Injectable()
@@ -38,6 +61,7 @@ export class HarvestWorkerService {
   async runRealHarvest(
     job: RawLeadHarvestJobRow,
     runtime: HarvestRuntimeCred,
+    opts?: { crossCheckRuntime?: HarvestRuntimeCred | null },
   ): Promise<{ inserted: number; rejected: number }> {
     if (!runtime.apiToken || !runtime.baseUrl) {
       throw new Error('harvest_provider_not_configured');
@@ -67,7 +91,7 @@ export class HarvestWorkerService {
       sourceKeys,
     }).slice(0, Math.max(job.target_count * 2, job.target_count));
 
-    // Pass A2 — Extract per URL (refine contact fields)
+    // Pass A2 — Extract per URL
     const refined: HarvestAiLead[] = [];
     for (const c of candidates.slice(0, Math.min(candidates.length, job.target_count + 5))) {
       try {
@@ -108,7 +132,7 @@ export class HarvestWorkerService {
     }
     candidates = refined.length ? refined : candidates;
 
-    // Pass C — Critic (optional drop)
+    // Pass C — Critic
     try {
       const critic = await callHarvestChatCompletion({
         ...llmBase,
@@ -125,15 +149,9 @@ export class HarvestWorkerService {
       );
     }
 
-    const existingKeys = await this.repo.listDedupeKeys(job.project_id);
-    const batchKeys: DedupeKey[] = [...existingKeys];
-    let inserted = 0;
-    let rejected = 0;
-
+    // Pass B + interim score for all candidates
+    const scored: ScoredRow[] = [];
     for (const c of candidates) {
-      if (inserted >= job.target_count) break;
-
-      // Pass B — fetch evidence HTML
       const fetch = await fetchEvidenceText(c.evidence_url, { timeoutMs: 8000 });
       const verified = verifyCandidate(
         {
@@ -151,18 +169,110 @@ export class HarvestWorkerService {
         fetch,
         { expectedProvinceHint: job.province_name },
       );
+      scored.push({
+        ai: c,
+        verified,
+        score: computeQualityScore(verified, c.confidence),
+        crossCheck: null,
+        forceReject: false,
+        legalStatus: null,
+        legalDetail: null,
+      });
+    }
 
-      const score = computeQualityScore(verified, c.confidence);
-      const gate = applyQualityGate(job.mode, score, verified);
-      const contactable = Boolean(verified.phone_ok || verified.email_ok);
+    // H3b — Cross-check top N with provider B
+    const crossRuntime = opts?.crossCheckRuntime ?? null;
+    if (job.cross_check && crossRuntime?.apiToken && crossRuntime.baseUrl) {
+      const topN = Math.min(10, job.target_count, scored.length);
+      const ranked = [...scored].sort((a, b) => b.score - a.score).slice(0, topN);
+      for (const row of ranked) {
+        try {
+          const cc = await callHarvestChatCompletion({
+            baseUrl: crossRuntime.baseUrl,
+            model: crossRuntime.model,
+            apiToken: crossRuntime.apiToken,
+            authType: crossRuntime.authType,
+            authHeaderName: crossRuntime.authHeaderName,
+            user: buildCrossCheckPrompt({
+              company_name: row.ai.company_name,
+              address: row.ai.address,
+              phone: row.verified.phone_out,
+              email: row.verified.email_out,
+              website: row.ai.website,
+              evidence_url: row.ai.evidence_url,
+              province_name: job.province_name,
+            }),
+            temperature: 0,
+          });
+          const parsed = parseCrossCheckResponse(cc.content);
+          const applied = applyCrossCheckToScore(row.score, parsed);
+          row.score = applied.score;
+          row.forceReject = applied.forceReject;
+          row.crossCheck = {
+            ...parsed,
+            provider: crossRuntime.providerCode ?? 'provider_b',
+            model: crossRuntime.model,
+          };
+        } catch (err) {
+          this.logger.warn(
+            `cross_check_failed job=${job.id} company=${row.ai.company_name}: ${
+              err instanceof Error ? err.message : 'error'
+            }`,
+          );
+          row.crossCheck = {
+            verdict: 'uncertain',
+            confidence: 0,
+            reason: err instanceof Error ? err.message : 'cross_check_failed',
+            provider: crossRuntime.providerCode ?? 'provider_b',
+            model: crossRuntime.model,
+          };
+        }
+      }
+    }
 
+    // H3c — optional legal / Places enrich (score boost only)
+    if (legalEnrichEnabled()) {
+      for (const row of scored) {
+        try {
+          const legal = await enrichLegalStatus({
+            company_name: row.ai.company_name,
+            address: row.ai.address,
+            province_name: job.province_name,
+            phone: row.verified.phone_out,
+            website: row.ai.website,
+          });
+          row.legalStatus = legal.status;
+          row.legalDetail = legal.detail;
+          row.score = applyLegalStatusScoreBoost(row.score, legal.status);
+        } catch (err) {
+          this.logger.warn(
+            `legal_enrich_failed job=${job.id}: ${
+              err instanceof Error ? err.message : 'error'
+            }`,
+          );
+          row.legalStatus = 'unverified';
+          row.legalDetail = 'enrich_error';
+        }
+      }
+    }
+
+    // Persist (highest score first)
+    scored.sort((a, b) => b.score - a.score);
+    const existingKeys = await this.repo.listDedupeKeys(job.project_id);
+    const batchKeys: DedupeKey[] = [...existingKeys];
+    let inserted = 0;
+    let rejected = 0;
+
+    for (const row of scored) {
+      if (inserted >= job.target_count) break;
+
+      const { ai: c, verified } = row;
       const dedupe = buildDedupeKey({
         company_name: c.company_name,
         phone_norm: verified.phone_norm,
         email: verified.email_out,
       });
-      const isDup = isDuplicateAgainst(dedupe, batchKeys);
-      if (isDup) {
+      if (isDuplicateAgainst(dedupe, batchKeys)) {
         rejected += 1;
         continue;
       }
@@ -171,6 +281,10 @@ export class HarvestWorkerService {
         ? await this.repo.findAlreadyCustomerByPhone(verified.phone_norm)
         : false;
 
+      let gate = applyQualityGate(job.mode, row.score, verified);
+      if (row.forceReject) gate = 'auto_rejected';
+
+      const contactable = Boolean(verified.phone_ok || verified.email_ok);
       const status = gate === 'pending' ? 'pending' : 'auto_rejected';
       if (status === 'auto_rejected') rejected += 1;
 
@@ -193,10 +307,11 @@ export class HarvestWorkerService {
         search_channel_keys: job.channels_json.map((s) => s.key),
         discovered_via_source_key: c.discovered_via_source_key,
         confidence: c.confidence,
-        quality_score: score,
-        icp_fit_score: Math.min(100, Math.round(score * 0.9)),
+        quality_score: row.score,
+        icp_fit_score: Math.min(100, Math.round(row.score * 0.9)),
         contactable: contactable && status === 'pending',
         phone_kind: verified.phone_kind ?? null,
+        legal_status: row.legalStatus,
         status,
         verify_json: {
           evidence_ok: verified.evidence_ok,
@@ -211,10 +326,17 @@ export class HarvestWorkerService {
           already_customer: alreadyCustomer,
           field_sources: c.field_sources,
           gate,
+          cross_check: row.crossCheck,
+          legal_status: row.legalStatus,
+          legal_detail: row.legalDetail,
         },
         raw_json: {
           ai: c,
           discover_model: discover.model,
+          cross_check: row.crossCheck,
+          legal: row.legalStatus
+            ? { status: row.legalStatus, detail: row.legalDetail }
+            : null,
         },
       });
 

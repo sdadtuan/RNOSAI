@@ -5,7 +5,8 @@
 # Flags (build + runtime):
 #   NEXT_PUBLIC_RESEARCH_RAW_LEAD_HARVEST=1  (ops-web tab)
 #   PTT_RESEARCH_RAW_LEAD_HARVEST=1          (api gate)
-#   PTT_RESEARCH_HARVEST_MOCK=1              (mock worker until Wave C)
+#   PTT_RESEARCH_HARVEST_MOCK=0              (real AI worker; 1 = mock)
+#   PTT_RESEARCH_HARVEST_LEGAL_ENRICH=1      (optional H3c MST/Places score boost)
 #   PTT_SECRET_ENCRYPT_KEY                  (32-byte; reuse CP encrypt key)
 #
 # From laptop:
