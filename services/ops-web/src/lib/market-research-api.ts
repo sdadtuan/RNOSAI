@@ -1817,6 +1817,7 @@ export type RawLead = {
   company_name: string;
   address: string | null;
   phone: string | null;
+  phone_norm?: string | null;
   email: string | null;
   contact_title: string | null;
   website: string | null;
@@ -1824,10 +1825,17 @@ export type RawLead = {
   evidence_snippet: string | null;
   source_provider: string | null;
   source_model: string | null;
+  search_source_keys?: string[];
   quality_score: number;
   icp_fit_score: number;
   contactable: boolean;
   status: string;
+  feedback_code?: string | null;
+  feedback_note?: string | null;
+  dial_outcome?: string | null;
+  dial_outcome_at?: string | null;
+  legal_status?: string | null;
+  crm_lead_id?: number | null;
   verify_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -1907,6 +1915,15 @@ export function patchRawLead(
     email?: string | null;
     contact_title?: string | null;
     accepted_checklist_json?: Record<string, unknown>;
+    feedback_code?: 'bad_phone' | 'bad_email' | 'fake_company' | 'wrong_geo' | 'other';
+    feedback_note?: string;
+    dial_outcome?:
+      | 'connected'
+      | 'wrong_number'
+      | 'no_answer'
+      | 'gatekeeper'
+      | 'email_bounced'
+      | 'out_of_business';
   },
 ) {
   return researchFetch<RawLead>(
@@ -1914,4 +1931,26 @@ export function patchRawLead(
     `/api/v1/research/projects/${projectId}/raw-leads/${leadId}`,
     { method: 'PATCH', body: JSON.stringify(body) },
   );
+}
+
+export function exportRawLeads(
+  token: string,
+  projectId: number,
+  body?: { lead_ids?: number[]; status?: string },
+) {
+  return researchFetch<{ csv: string; count: number }>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-leads/export`,
+    { method: 'POST', body: JSON.stringify(body ?? {}) },
+  );
+}
+
+export function pushRawLeadsToCrm(token: string, projectId: number, leadIds: number[]) {
+  return researchFetch<{
+    pushed: Array<{ raw_lead_id: number; crm_lead_id: number }>;
+    errors: Array<{ raw_lead_id: number; error: string }>;
+  }>(token, `/api/v1/research/projects/${projectId}/raw-leads/push-crm`, {
+    method: 'POST',
+    body: JSON.stringify({ lead_ids: leadIds }),
+  });
 }

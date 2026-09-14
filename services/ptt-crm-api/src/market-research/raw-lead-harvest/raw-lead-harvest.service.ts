@@ -5,13 +5,23 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { CrmConfigService } from '../../crm-config/crm-config.service';
+import { LeadsWriteService } from '../../leads/leads-write.service';
 import { VnAdminGeoRepository } from '../../vn-admin-geo/vn-admin-geo.repository';
 import { ResearchAiProvidersRepository } from './ai-providers.repository';
+import {
+  blacklistEntriesFromFeedback,
+  isDialOutcome,
+  isFeedbackCode,
+} from './blacklist.util';
+import { buildRawLeadsCsv } from './export-csv.util';
 import { HarvestWorkerService } from './harvest-worker.service';
+import { assertRawLeadPushable } from './push-crm.util';
 import { RawLeadHarvestRepository } from './raw-lead-harvest.repository';
 import type {
   CreateRawLeadHarvestBody,
+  ExportRawLeadsBody,
   PatchRawLeadBody,
+  PushRawLeadsBody,
 } from './raw-lead-harvest.types';
 import {
   normalizeHarvestMode,
@@ -35,6 +45,7 @@ export class RawLeadHarvestService {
     private readonly crmConfig: CrmConfigService,
     private readonly vnGeo: VnAdminGeoRepository,
     private readonly worker: HarvestWorkerService,
+    private readonly leadsWrite: LeadsWriteService,
   ) {}
 
   assertEnabled() {
@@ -164,8 +175,23 @@ export class RawLeadHarvestService {
     return { leads };
   }
 
-  async patchLead(projectId: number, leadId: number, body: PatchRawLeadBody) {
+  async patchLead(
+    projectId: number,
+    leadId: number,
+    body: PatchRawLeadBody,
+    staffId: number | null = null,
+  ) {
     this.assertEnabled();
+    if (body.feedback_code != null && !isFeedbackCode(body.feedback_code)) {
+      throw new BadRequestException({ error: 'invalid_feedback_code' });
+    }
+    if (body.dial_outcome != null && !isDialOutcome(body.dial_outcome)) {
+      throw new BadRequestException({ error: 'invalid_dial_outcome' });
+    }
+
+    const before = await this.repo.getLead(projectId, leadId);
+    if (!before) throw new NotFoundException({ error: 'raw_lead_not_found' });
+
     const lead = await this.repo.patchLead(projectId, leadId, {
       status: body.status,
       company_name: body.company_name,
@@ -174,9 +200,96 @@ export class RawLeadHarvestService {
       email: body.email,
       contact_title: body.contact_title,
       accepted_checklist_json: body.accepted_checklist_json,
+      feedback_code: body.feedback_code,
+      feedback_note: body.feedback_note ? String(body.feedback_note).slice(0, 500) : undefined,
+      feedback_by_staff_id: body.feedback_code || body.dial_outcome ? staffId : undefined,
+      dial_outcome: body.dial_outcome,
     });
     if (!lead) throw new NotFoundException({ error: 'raw_lead_not_found' });
+
+    const bl = blacklistEntriesFromFeedback({
+      feedback_code: body.feedback_code ?? null,
+      dial_outcome: body.dial_outcome ?? null,
+      phone: lead.phone ?? before.phone,
+      email: lead.email ?? before.email,
+      company_name: lead.company_name,
+      website: lead.website,
+    });
+    if (bl.length) {
+      await this.repo.upsertBlacklistEntries(bl, staffId);
+    }
     return lead;
+  }
+
+  async exportLeads(projectId: number, body: ExportRawLeadsBody = {}) {
+    this.assertEnabled();
+    const leads = await this.repo.listLeadsForExport(projectId, {
+      lead_ids: body.lead_ids,
+      status: body.status,
+      contactableOnly: body.lead_ids?.length ? false : true,
+    });
+    const csv = buildRawLeadsCsv(leads);
+    return { csv, count: leads.length };
+  }
+
+  async pushToCrm(projectId: number, body: PushRawLeadsBody) {
+    this.assertEnabled();
+    const ids = Array.isArray(body.lead_ids) ? body.lead_ids.map(Number).filter(Number.isFinite) : [];
+    if (!ids.length) throw new BadRequestException({ error: 'lead_ids_required' });
+
+    const pushed: Array<{ raw_lead_id: number; crm_lead_id: number }> = [];
+    const errors: Array<{ raw_lead_id: number; error: string }> = [];
+
+    for (const leadId of ids) {
+      const lead = await this.repo.getLead(projectId, leadId);
+      if (!lead) {
+        errors.push({ raw_lead_id: leadId, error: 'raw_lead_not_found' });
+        continue;
+      }
+      const gate = assertRawLeadPushable(lead);
+      if (!gate.ok) {
+        errors.push({ raw_lead_id: leadId, error: gate.error });
+        continue;
+      }
+
+      const job = await this.repo.getJobById(lead.job_id);
+      const source = job?.sources_json?.[0]?.key ?? 'research_harvest';
+      const channel = job?.channels_json?.[0]?.key ?? '';
+
+      try {
+        const fullName =
+          lead.contact_title && lead.contact_title.trim()
+            ? `${lead.contact_title.trim()} — ${lead.company_name}`
+            : lead.company_name;
+        const crmLead = await this.leadsWrite.createLead({
+          full_name: fullName,
+          phone: lead.phone ?? undefined,
+          email: lead.email ?? undefined,
+          source,
+          channel,
+          lead_flow_kind: 'b2b_prospect',
+          status: 'new',
+          external_lead_id: `raw-harvest-${lead.id}`,
+        });
+        try {
+          await this.leadsWrite.patchLead(crmLead.id, {
+            company_name: lead.company_name,
+            company_address: lead.address ?? undefined,
+          });
+        } catch {
+          /* company fields optional */
+        }
+        await this.repo.markLeadPushed(projectId, leadId, crmLead.id);
+        pushed.push({ raw_lead_id: leadId, crm_lead_id: crmLead.id });
+      } catch (err) {
+        errors.push({
+          raw_lead_id: leadId,
+          error: err instanceof Error ? err.message : 'push_failed',
+        });
+      }
+    }
+
+    return { pushed, errors };
   }
 
   private async runJob(

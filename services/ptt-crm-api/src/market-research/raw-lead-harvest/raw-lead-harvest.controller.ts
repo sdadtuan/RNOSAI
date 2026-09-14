@@ -19,7 +19,12 @@ import {
 } from '../guards/staff-market-research.guard';
 import { MarketResearchEnabledGuard } from '../guards/market-research-enabled.guard';
 import { RawLeadHarvestService } from './raw-lead-harvest.service';
-import type { CreateRawLeadHarvestBody, PatchRawLeadBody } from './raw-lead-harvest.types';
+import type {
+  CreateRawLeadHarvestBody,
+  ExportRawLeadsBody,
+  PatchRawLeadBody,
+  PushRawLeadsBody,
+} from './raw-lead-harvest.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload };
 
@@ -76,10 +81,29 @@ export class RawLeadHarvestController {
   @Patch('projects/:id/raw-leads/:leadId')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
   patchLead(
+    @Req() req: StaffReq,
     @Param('id', ParseIntPipe) id: number,
     @Param('leadId', ParseIntPipe) leadId: number,
     @Body() body: PatchRawLeadBody,
   ) {
-    return this.harvest.patchLead(id, leadId, body);
+    return this.harvest.patchLead(id, leadId, body, staffId(req));
+  }
+
+  @Post('projects/:id/raw-leads/export')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  exportLeads(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: ExportRawLeadsBody,
+  ) {
+    return this.harvest.exportLeads(id, body ?? {});
+  }
+
+  @Post('projects/:id/raw-leads/push-crm')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  pushCrm(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PushRawLeadsBody,
+  ) {
+    return this.harvest.pushToCrm(id, body);
   }
 }

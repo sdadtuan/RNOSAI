@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { ResearchAiAuthType } from './ai-providers.types';
+import { candidateHitsBlacklist } from './blacklist.util';
 import {
   applyCrossCheckToScore,
   buildCrossCheckPrompt,
@@ -260,6 +261,7 @@ export class HarvestWorkerService {
     scored.sort((a, b) => b.score - a.score);
     const existingKeys = await this.repo.listDedupeKeys(job.project_id);
     const batchKeys: DedupeKey[] = [...existingKeys];
+    const blacklist = await this.repo.listBlacklistEntries();
     let inserted = 0;
     let rejected = 0;
 
@@ -267,6 +269,21 @@ export class HarvestWorkerService {
       if (inserted >= job.target_count) break;
 
       const { ai: c, verified } = row;
+      if (
+        candidateHitsBlacklist(
+          {
+            phone_norm: verified.phone_norm,
+            email: verified.email_out,
+            company_name: c.company_name,
+            website: c.website,
+          },
+          blacklist,
+        )
+      ) {
+        rejected += 1;
+        continue;
+      }
+
       const dedupe = buildDedupeKey({
         company_name: c.company_name,
         phone_norm: verified.phone_norm,

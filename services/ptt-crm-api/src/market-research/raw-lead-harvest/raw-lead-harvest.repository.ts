@@ -116,6 +116,19 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       CREATE INDEX IF NOT EXISTS idx_raw_leads_project_status
         ON crm_research_raw_leads (project_id, status);
       CREATE INDEX IF NOT EXISTS idx_raw_leads_job ON crm_research_raw_leads (job_id);
+
+      CREATE TABLE IF NOT EXISTS crm_research_raw_lead_blacklist (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id TEXT NOT NULL DEFAULT 'default',
+        kind TEXT NOT NULL,
+        value_norm TEXT NOT NULL,
+        reason TEXT,
+        created_by_staff_id INT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (tenant_id, kind, value_norm)
+      );
+      CREATE INDEX IF NOT EXISTS idx_raw_lead_blacklist_kind_value
+        ON crm_research_raw_lead_blacklist (kind, value_norm);
     `);
   }
 
@@ -164,6 +177,12 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       typeof row.verify_json === 'string'
         ? JSON.parse(row.verify_json)
         : row.verify_json ?? {};
+    const sourceKeys = Array.isArray(row.search_source_keys)
+      ? row.search_source_keys.map(String)
+      : [];
+    const channelKeys = Array.isArray(row.search_channel_keys)
+      ? row.search_channel_keys.map(String)
+      : [];
     return {
       id: Number(row.id),
       project_id: Number(row.project_id),
@@ -171,6 +190,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       company_name: String(row.company_name),
       address: row.address == null ? null : String(row.address),
       phone: row.phone == null ? null : String(row.phone),
+      phone_norm: row.phone_norm == null ? null : String(row.phone_norm),
       email: row.email == null ? null : String(row.email),
       contact_title: row.contact_title == null ? null : String(row.contact_title),
       website: row.website == null ? null : String(row.website),
@@ -178,10 +198,18 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       evidence_snippet: row.evidence_snippet == null ? null : String(row.evidence_snippet),
       source_provider: row.source_provider == null ? null : String(row.source_provider),
       source_model: row.source_model == null ? null : String(row.source_model),
+      search_source_keys: sourceKeys,
+      search_channel_keys: channelKeys,
       quality_score: Number(row.quality_score ?? 0),
       icp_fit_score: Number(row.icp_fit_score ?? 0),
       contactable: Boolean(row.contactable),
       status: String(row.status),
+      feedback_code: row.feedback_code == null ? null : String(row.feedback_code),
+      feedback_note: row.feedback_note == null ? null : String(row.feedback_note),
+      dial_outcome: row.dial_outcome == null ? null : String(row.dial_outcome),
+      dial_outcome_at: iso(row.dial_outcome_at),
+      legal_status: row.legal_status == null ? null : String(row.legal_status),
+      crm_lead_id: row.crm_lead_id == null ? null : Number(row.crm_lead_id),
       verify_json: verify as Record<string, unknown>,
       created_at: iso(row.created_at) ?? '',
       updated_at: iso(row.updated_at) ?? '',
@@ -456,6 +484,10 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     await this.ensureSchema();
     const existing = await this.getLead(projectId, leadId);
     if (!existing) return null;
+    const dialAt =
+      patch.dial_outcome !== undefined && patch.dial_outcome != null
+        ? new Date().toISOString()
+        : null;
     const r = await this.db.query(
       `UPDATE crm_research_raw_leads SET
          status = COALESCE($3, status),
@@ -465,6 +497,11 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
          email = COALESCE($7, email),
          contact_title = COALESCE($8, contact_title),
          accepted_checklist_json = COALESCE($9::jsonb, accepted_checklist_json),
+         feedback_code = COALESCE($10, feedback_code),
+         feedback_note = COALESCE($11, feedback_note),
+         feedback_by_staff_id = COALESCE($12, feedback_by_staff_id),
+         dial_outcome = COALESCE($13, dial_outcome),
+         dial_outcome_at = COALESCE($14::timestamptz, dial_outcome_at),
          updated_at = NOW()
        WHERE project_id = $1 AND id = $2
        RETURNING *`,
@@ -480,8 +517,102 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         patch.accepted_checklist_json
           ? JSON.stringify(patch.accepted_checklist_json)
           : null,
+        patch.feedback_code ?? null,
+        patch.feedback_note ?? null,
+        patch.feedback_by_staff_id ?? null,
+        patch.dial_outcome ?? null,
+        dialAt,
       ],
     );
     return r.rows[0] ? this.mapLead(r.rows[0]) : null;
+  }
+
+  async upsertBlacklistEntries(
+    entries: Array<{ kind: string; value_norm: string; reason: string }>,
+    staffId: number | null,
+  ): Promise<number> {
+    await this.ensureSchema();
+    let n = 0;
+    for (const e of entries) {
+      if (!e.value_norm) continue;
+      await this.db.query(
+        `INSERT INTO crm_research_raw_lead_blacklist
+           (kind, value_norm, reason, created_by_staff_id)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (tenant_id, kind, value_norm) DO UPDATE
+           SET reason = EXCLUDED.reason`,
+        [e.kind, e.value_norm, e.reason, staffId],
+      );
+      n += 1;
+    }
+    return n;
+  }
+
+  async listBlacklistEntries(limit = 5000): Promise<
+    Array<{ kind: 'phone' | 'email' | 'company_norm' | 'domain'; value_norm: string }>
+  > {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT kind, value_norm FROM crm_research_raw_lead_blacklist
+       ORDER BY id DESC LIMIT $1`,
+      [limit],
+    );
+    return r.rows.map((row) => ({
+      kind: String(row.kind) as 'phone' | 'email' | 'company_norm' | 'domain',
+      value_norm: String(row.value_norm),
+    }));
+  }
+
+  async listLeadsForExport(
+    projectId: number,
+    opts: { lead_ids?: number[]; status?: string; contactableOnly?: boolean },
+  ): Promise<RawLeadRow[]> {
+    await this.ensureSchema();
+    const clauses = ['project_id = $1'];
+    const params: unknown[] = [projectId];
+    if (opts.lead_ids?.length) {
+      params.push(opts.lead_ids);
+      clauses.push(`id = ANY($${params.length}::bigint[])`);
+    } else {
+      const status = opts.status ?? 'accepted';
+      params.push(status);
+      clauses.push(`status = $${params.length}`);
+      if (opts.contactableOnly !== false) {
+        clauses.push(`contactable IS TRUE`);
+      }
+    }
+    const r = await this.db.query(
+      `SELECT * FROM crm_research_raw_leads
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY quality_score DESC, id DESC
+       LIMIT 2000`,
+      params,
+    );
+    return r.rows.map((row) => this.mapLead(row));
+  }
+
+  async markLeadPushed(
+    projectId: number,
+    leadId: number,
+    crmLeadId: number,
+  ): Promise<RawLeadRow | null> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `UPDATE crm_research_raw_leads
+       SET status = 'pushed', crm_lead_id = $3, updated_at = NOW()
+       WHERE project_id = $1 AND id = $2
+       RETURNING *`,
+      [projectId, leadId, crmLeadId],
+    );
+    return r.rows[0] ? this.mapLead(r.rows[0]) : null;
+  }
+
+  async getJobById(jobId: number): Promise<RawLeadHarvestJobRow | null> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT * FROM crm_research_raw_lead_harvest_jobs WHERE id = $1`,
+      [jobId],
+    );
+    return r.rows[0] ? this.mapJob(r.rows[0]) : null;
   }
 }

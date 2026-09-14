@@ -5,11 +5,13 @@ import { fetchCrmLeadLookups, type CrmLeadLookupOption } from '@/lib/api';
 import { fetchVnProvinces, fetchVnWards, type VnProvinceOption, type VnWardOption } from '@/lib/vn-geo-api';
 import {
   createRawLeadHarvest,
+  exportRawLeads,
   fetchRawLeadHarvestProviders,
   getRawLeadHarvest,
   listRawLeadHarvests,
   listRawLeads,
   patchRawLead,
+  pushRawLeadsToCrm,
   type HarvestProviderOption,
   type RawLead,
   type RawLeadHarvestJob,
@@ -19,6 +21,23 @@ import { RawLeadAcceptModal } from './RawLeadAcceptModal';
 
 const FLAG_ON =
   String(process.env.NEXT_PUBLIC_RESEARCH_RAW_LEAD_HARVEST ?? '').trim() === '1';
+
+const FEEDBACK_OPTS = [
+  { value: 'bad_phone', label: 'Sai SĐT' },
+  { value: 'bad_email', label: 'Sai email' },
+  { value: 'fake_company', label: 'Công ty ảo' },
+  { value: 'wrong_geo', label: 'Sai địa bàn' },
+  { value: 'other', label: 'Khác' },
+] as const;
+
+const DIAL_OPTS = [
+  { value: 'connected', label: 'Connected' },
+  { value: 'wrong_number', label: 'Wrong number' },
+  { value: 'no_answer', label: 'No answer' },
+  { value: 'gatekeeper', label: 'Gatekeeper' },
+  { value: 'email_bounced', label: 'Email bounced' },
+  { value: 'out_of_business', label: 'Out of business' },
+] as const;
 
 type Props = {
   projectId: number;
@@ -34,6 +53,7 @@ function scoreBadge(score: number): string {
 
 export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const canRun = hasCap(user, 'crm_research', 'run');
+  const canExport = hasCap(user, 'crm_research', 'export') || canRun;
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -61,6 +81,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
 
   const [jobs, setJobs] = useState<RawLeadHarvestJob[]>([]);
   const [leads, setLeads] = useState<RawLead[]>([]);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [acceptLead, setAcceptLead] = useState<RawLead | null>(null);
 
@@ -417,21 +438,102 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
 
       <section className="kpi-card">
         <h3 className="kpi-section-title">Lead thô</h3>
+        <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          {canExport ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void (async () => {
+                  setBusy(true);
+                  setError('');
+                  try {
+                    const out = await exportRawLeads(
+                      token,
+                      projectId,
+                      selectedIds.length ? { lead_ids: selectedIds } : {},
+                    );
+                    const blob = new Blob([out.csv], { type: 'text/csv;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `raw-leads-${projectId}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setMsg(`Đã export ${out.count} dòng`);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Export thất bại');
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+            >
+              Export CSV
+            </button>
+          ) : null}
+          {canRun ? (
+            <button
+              type="button"
+              disabled={busy || selectedIds.length === 0}
+              onClick={() => {
+                void (async () => {
+                  setBusy(true);
+                  setError('');
+                  try {
+                    const out = await pushRawLeadsToCrm(token, projectId, selectedIds);
+                    setMsg(
+                      `Push CRM: ${out.pushed.length} OK` +
+                        (out.errors.length ? `, ${out.errors.length} lỗi` : ''),
+                    );
+                    if (out.errors[0]) {
+                      setError(`${out.errors[0].raw_lead_id}: ${out.errors[0].error}`);
+                    }
+                    setSelectedIds([]);
+                    await reloadJobsAndLeads();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Push CRM thất bại');
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+            >
+              Push CRM ({selectedIds.length})
+            </button>
+          ) : null}
+        </div>
         <table className="data-table">
           <thead>
             <tr>
+              <th></th>
               <th>Score</th>
               <th>ICP</th>
               <th>Công ty</th>
               <th>SĐT</th>
               <th>Email</th>
               <th>Status</th>
+              <th>Dial</th>
+              <th>Feedback</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {leads.map((lead) => (
               <tr key={lead.id}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(lead.id)}
+                    onChange={(e) =>
+                      setSelectedIds((prev) =>
+                        e.target.checked
+                          ? [...prev, lead.id]
+                          : prev.filter((id) => id !== lead.id),
+                      )
+                    }
+                  />
+                </td>
                 <td>
                   <span className={`badge ${scoreBadge(lead.quality_score)}`}>
                     {lead.quality_score}
@@ -450,7 +552,60 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 </td>
                 <td>{lead.phone ?? '—'}</td>
                 <td>{lead.email ?? '—'}</td>
-                <td>{lead.status}</td>
+                <td>
+                  {lead.status}
+                  {lead.crm_lead_id ? (
+                    <div className="muted">CRM #{lead.crm_lead_id}</div>
+                  ) : null}
+                </td>
+                <td>
+                  {canRun ? (
+                    <select
+                      value={lead.dial_outcome ?? ''}
+                      disabled={busy}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!v) return;
+                        void patchRawLead(token, projectId, lead.id, {
+                          dial_outcome: v as (typeof DIAL_OPTS)[number]['value'],
+                        }).then(reloadJobsAndLeads);
+                      }}
+                    >
+                      <option value="">—</option>
+                      {DIAL_OPTS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    lead.dial_outcome ?? '—'
+                  )}
+                </td>
+                <td>
+                  {canRun ? (
+                    <select
+                      value={lead.feedback_code ?? ''}
+                      disabled={busy}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!v) return;
+                        void patchRawLead(token, projectId, lead.id, {
+                          feedback_code: v as (typeof FEEDBACK_OPTS)[number]['value'],
+                        }).then(reloadJobsAndLeads);
+                      }}
+                    >
+                      <option value="">—</option>
+                      {FEEDBACK_OPTS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    lead.feedback_code ?? '—'
+                  )}
+                </td>
                 <td>
                   {canRun && lead.status === 'pending' ? (
                     <div className="row" style={{ gap: 6 }}>

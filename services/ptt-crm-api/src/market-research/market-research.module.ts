@@ -5,6 +5,7 @@ import {
   StaffCrmConfigConfigureGuard,
   StaffCrmConfigViewGuard,
 } from '../crm-config/guards/staff-crm-config.guard';
+import { LeadsModule } from '../leads/leads.module';
 import { MarketingPlansModule } from '../marketing-plans/marketing-plans.module';
 import { OpsModule } from '../ops/ops.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
@@ -49,6 +50,7 @@ import { RawLeadHarvestService } from './raw-lead-harvest/raw-lead-harvest.servi
     ContentMarketingModule,
     CrmConfigModule,
     VnAdminGeoModule,
+    LeadsModule,
   ],
   controllers: [
     MarketResearchController,

@@ -1,5 +1,20 @@
 export type RawLeadHarvestMode = 'quality' | 'volume';
 
+export type FeedbackCode =
+  | 'bad_phone'
+  | 'bad_email'
+  | 'fake_company'
+  | 'wrong_geo'
+  | 'other';
+
+export type DialOutcome =
+  | 'connected'
+  | 'wrong_number'
+  | 'no_answer'
+  | 'gatekeeper'
+  | 'email_bounced'
+  | 'out_of_business';
+
 export type CreateRawLeadHarvestBody = {
   industry_key: string;
   job_title_key: string;
@@ -51,6 +66,7 @@ export type RawLeadRow = {
   company_name: string;
   address: string | null;
   phone: string | null;
+  phone_norm: string | null;
   email: string | null;
   contact_title: string | null;
   website: string | null;
@@ -58,10 +74,18 @@ export type RawLeadRow = {
   evidence_snippet: string | null;
   source_provider: string | null;
   source_model: string | null;
+  search_source_keys: string[];
+  search_channel_keys: string[];
   quality_score: number;
   icp_fit_score: number;
   contactable: boolean;
   status: string;
+  feedback_code: string | null;
+  feedback_note: string | null;
+  dial_outcome: string | null;
+  dial_outcome_at: string | null;
+  legal_status: string | null;
+  crm_lead_id: number | null;
   verify_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -75,4 +99,18 @@ export type PatchRawLeadBody = {
   email?: string | null;
   contact_title?: string | null;
   accepted_checklist_json?: Record<string, unknown>;
+  feedback_code?: FeedbackCode;
+  feedback_note?: string;
+  dial_outcome?: DialOutcome;
+};
+
+export type ExportRawLeadsBody = {
+  lead_ids?: number[];
+  include_auto_rejected?: boolean;
+  /** default: accepted + contactable only */
+  status?: string;
+};
+
+export type PushRawLeadsBody = {
+  lead_ids: number[];
 };
