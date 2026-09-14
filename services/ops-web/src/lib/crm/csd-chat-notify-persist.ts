@@ -68,17 +68,33 @@ export async function requestCsdChatNotifyPermission(): Promise<NotificationPerm
   }
 }
 
+export function csdChatMessageNotifyTag(conversationId: string): string {
+  return `csd-chat:${conversationId}`;
+}
+
+export function csdChatCallNotifyTag(fromUserId: string): string {
+  return `csd-call:${fromUserId || 'unknown'}`;
+}
+
 export function showCsdChatDesktopNotify(input: {
   title: string;
   preview: string;
   conversationId: string;
   onOpen: (conversationId: string) => void;
+  kind?: 'message' | 'call';
+  requireInteraction?: boolean;
 }): void {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   try {
+    const kind = input.kind ?? 'message';
+    const tag =
+      kind === 'call'
+        ? csdChatCallNotifyTag(input.conversationId)
+        : csdChatMessageNotifyTag(input.conversationId);
     const note = new Notification(input.title, {
       body: input.preview,
-      tag: `csd-chat:${input.conversationId}`,
+      tag,
+      requireInteraction: input.requireInteraction ?? kind === 'call',
     });
     note.onclick = () => {
       window.focus();
@@ -88,4 +104,16 @@ export function showCsdChatDesktopNotify(input: {
   } catch {
     /* ignore missing ServiceWorker / denied after check */
   }
+}
+
+/** Best-effort close of an earlier notification by tag (Chrome supports this). */
+export function closeCsdChatDesktopNotifyByTag(tag: string): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  void navigator.serviceWorker?.getRegistrations?.().then((regs) => {
+    for (const reg of regs) {
+      void reg.getNotifications?.({ tag }).then((notes) => {
+        for (const n of notes) n.close();
+      });
+    }
+  });
 }

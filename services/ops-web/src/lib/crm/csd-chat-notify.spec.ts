@@ -28,6 +28,14 @@ describe('csdChatNotifyChannel', () => {
   });
 });
 
+describe('notify tags', () => {
+  it('keeps message and call tags stable', async () => {
+    const { csdChatCallNotifyTag, csdChatMessageNotifyTag } = await import('./csd-chat-notify-persist');
+    expect(csdChatMessageNotifyTag('abc')).toBe('csd-chat:abc');
+    expect(csdChatCallNotifyTag('staff_1')).toBe('csd-call:staff_1');
+  });
+});
+
 describe('nextCsdChatIncoming', () => {
   it('baselines the first poll so login does not toast existing unread', () => {
     const first = nextCsdChatIncoming({

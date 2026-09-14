@@ -10,6 +10,21 @@ import {
   startCsdChatDirectCall,
   type CsdChatCallState,
 } from '@/lib/crm/csd-chat-call.util';
+import {
+  csdChatCallNotifyTag,
+  csdIncomingCallNotifyCopy,
+  shouldAlertIncomingCsdCall,
+} from '@/lib/crm/csd-chat-call-notify.util';
+import {
+  closeCsdChatDesktopNotifyByTag,
+  notificationPermission,
+  requestCsdChatNotifyPermission,
+  showCsdChatDesktopNotify,
+} from '@/lib/crm/csd-chat-notify-persist';
+import {
+  startCsdChatIncomingCallRing,
+  stopCsdChatIncomingCallRing,
+} from '@/lib/crm/csd-chat-notify-sound.util';
 import type {
   StringeeCallSession,
   StringeeIncomingCall,
@@ -22,13 +37,23 @@ export function useCsdChatCall(token: string) {
   const presenceRef = useRef<StringeePresenceSession | null>(null);
   const incomingRef = useRef<StringeeIncomingCall | null>(null);
   const busyRef = useRef(false);
+  const callNotifyTagRef = useRef<string | null>(null);
+
+  const stopIncomingAlerts = useCallback(() => {
+    stopCsdChatIncomingCallRing();
+    if (callNotifyTagRef.current) {
+      closeCsdChatDesktopNotifyByTag(callNotifyTagRef.current);
+      callNotifyTagRef.current = null;
+    }
+  }, []);
 
   const clearActiveSession = useCallback(() => {
+    stopIncomingAlerts();
     sessionRef.current?.hangup();
     sessionRef.current = null;
     incomingRef.current = null;
     busyRef.current = false;
-  }, []);
+  }, [stopIncomingAlerts]);
 
   const hangup = useCallback(() => {
     if (incomingRef.current && state.phase === 'incoming') {
@@ -56,13 +81,48 @@ export function useCsdChatCall(token: string) {
             }
             busyRef.current = true;
             incomingRef.current = incoming;
+            const peerName = peerLabelFromStringeeUserId(incoming.fromUserId);
             setState({
               phase: 'incoming',
               mode: incoming.isVideoCall ? 'video' : 'voice',
-              peerName: peerLabelFromStringeeUserId(incoming.fromUserId),
+              peerName,
               error: '',
               direction: 'inbound',
             });
+
+            void (async () => {
+              let permission = notificationPermission();
+              if (permission === 'default') {
+                permission = await requestCsdChatNotifyPermission();
+              }
+              if (cancelled) return;
+              startCsdChatIncomingCallRing();
+              if (permission !== 'granted') return;
+              if (
+                !shouldAlertIncomingCsdCall({
+                  permission,
+                  alreadyBusy: false,
+                })
+              ) {
+                return;
+              }
+              const copy = csdIncomingCallNotifyCopy({
+                peerName,
+                isVideo: incoming.isVideoCall,
+              });
+              const tagKey = incoming.fromUserId || 'unknown';
+              callNotifyTagRef.current = csdChatCallNotifyTag(tagKey);
+              showCsdChatDesktopNotify({
+                title: copy.title,
+                preview: copy.preview,
+                conversationId: tagKey,
+                kind: 'call',
+                requireInteraction: true,
+                onOpen: () => {
+                  window.focus();
+                },
+              });
+            })();
           },
         });
         if (cancelled) {
@@ -113,7 +173,6 @@ export function useCsdChatCall(token: string) {
           },
         });
         sessionRef.current = session;
-        // Do not force in_call — wait for Stringee signalingstate (ringing → connected).
       } catch (err) {
         busyRef.current = false;
         sessionRef.current = null;
@@ -132,6 +191,7 @@ export function useCsdChatCall(token: string) {
   const answerIncoming = useCallback(async () => {
     const incoming = incomingRef.current;
     if (!incoming) return;
+    stopIncomingAlerts();
     setState((prev) => ({ ...prev, phase: 'connecting' }));
     try {
       const session = await incoming.answer((phase) => {
@@ -158,7 +218,7 @@ export function useCsdChatCall(token: string) {
         direction: 'inbound',
       });
     }
-  }, [clearActiveSession]);
+  }, [clearActiveSession, stopIncomingAlerts]);
 
   const rejectIncoming = useCallback(() => {
     incomingRef.current?.reject();

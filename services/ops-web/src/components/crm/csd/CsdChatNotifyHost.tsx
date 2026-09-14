@@ -17,6 +17,7 @@ import {
   showCsdChatDesktopNotify,
   writeCsdChatNotified,
 } from '@/lib/crm/csd-chat-notify-persist';
+import { playCsdChatMessageTone } from '@/lib/crm/csd-chat-notify-sound.util';
 import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 
 const POLL_MS = 15_000;
@@ -86,6 +87,8 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
             typeof document !== 'undefined' ? document.visibilityState : 'visible',
             notificationPermission(),
           );
+          if (channel === 'none') return;
+          playCsdChatMessageTone();
           if (channel === 'toast') {
             setToasts((prev) => {
               const seen = new Set(prev.map((t) => t.conversationId));
@@ -97,6 +100,7 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
                 title: row.title,
                 preview: row.preview,
                 conversationId: row.conversationId,
+                kind: 'message',
                 onOpen: openConversation,
               });
             }
