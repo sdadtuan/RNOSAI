@@ -43,7 +43,7 @@
   color: var(--muted);
 }
 
-.cmkte-side {
+.cmkte-app .cmkte-side {
   position: fixed;
   width: 258px;
   inset: 0 auto 0 0;
@@ -180,7 +180,7 @@
   font: inherit;
 }
 
-.cmkte-main {
+.cmkte-app .cmkte-main {
   grid-column: 2;
   min-width: 0;
 }
@@ -767,7 +767,7 @@
   border-bottom: 1px solid #edf0f4;
 }
 
-.cmkte-sticky {
+.cmkte-app .cmkte-sticky {
   position: fixed;
   z-index: 16;
   right: 0;
@@ -789,26 +789,23 @@
 }
 
 @media (max-width: 1100px) {
-  .cmkte-app:not(.cmkte-root) .cmkte-side {
+  .cmkte-app .cmkte-side {
     display: none;
   }
 
-  .cmkte-app:not(.cmkte-root) {
+  .cmkte-app {
     display: block;
   }
 
-  .cmkte-root {
-    flex-direction: column;
+  .cmkte-shell {
+    grid-template-columns: 1fr;
   }
 
-  .cmkte-root .cmkte-side {
-    flex: none;
-    width: 100%;
-    max-width: none;
+  .cmkte-sidebar {
     min-height: 0;
   }
 
-  .cmkte-app:not(.cmkte-root) .cmkte-main {
+  .cmkte-app .cmkte-main {
     grid-column: auto;
   }
 
@@ -816,7 +813,7 @@
     grid-template-columns: 1fr;
   }
 
-  .cmkte-sticky {
+  .cmkte-app .cmkte-sticky {
     left: 0;
   }
 
@@ -825,7 +822,7 @@
   }
 }
 
-.cmkte-root {
+.cmkte-shell {
   --nav: #101a30;
   --nav2: #172642;
   --ink: #15213a;
@@ -845,13 +842,10 @@
   --red50: #fff0f1;
   --shadow: 0 12px 30px rgba(16, 26, 48, 0.08);
   --r: 14px;
-  --cmkte-sidebar: 258px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr);
+  min-height: 100vh;
   width: 100%;
-  min-height: calc(100vh - var(--ops-chrome-h, 56px));
   background: var(--bg);
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
@@ -860,15 +854,15 @@
   line-height: 1.45;
 }
 
-.cmkte-root *,
-.cmkte-root *::before,
-.cmkte-root *::after {
+.cmkte-shell *,
+.cmkte-shell *::before,
+.cmkte-shell *::after {
   box-sizing: border-box;
 }
 
-html.ops-shell-bitrix body:has(.cmkte-root) main.bitrix-crm-page,
-html.ops-shell-bitrix body:has(.cmkte-root) main.ops-page--full,
-body:has(.ops-sidebar):has(.cmkte-root) main.ops-page {
+html.ops-shell-bitrix body:has(.cmkte-shell) main.bitrix-crm-page,
+html.ops-shell-bitrix body:has(.cmkte-shell) main.ops-page--full,
+body:has(.ops-sidebar):has(.cmkte-shell) main.ops-page {
   width: auto !important;
   max-width: none !important;
   padding-top: calc(var(--ops-chrome-h, 56px) + 0.25rem) !important;
@@ -877,39 +871,116 @@ body:has(.ops-sidebar):has(.cmkte-root) main.ops-page {
   padding-left: 0 !important;
 }
 
-html.ops-shell-bitrix body:has(.cmkte-root) .bitrix-crm-page__inner {
+html.ops-shell-bitrix body:has(.cmkte-shell) .bitrix-crm-page__inner {
   width: auto;
   max-width: none;
   padding: 0;
 }
 
-.cmkte-root .cmkte-side {
-  position: relative;
-  inset: auto;
-  top: auto;
-  left: auto;
-  flex: 0 0 var(--cmkte-sidebar);
-  width: var(--cmkte-sidebar);
-  min-width: var(--cmkte-sidebar);
-  max-width: var(--cmkte-sidebar);
+.cmkte-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 17px 13px;
+  background: var(--nav);
+  color: #c5d0e6;
+}
+
+.cmkte-sidebar .cmkte-brand {
   height: auto;
-  min-height: calc(100vh - var(--ops-chrome-h, 56px));
-  overflow: auto;
-  z-index: 1;
+  min-height: 45px;
+  padding: 0 8px 12px;
+  border-bottom: 1px solid #1e293b;
 }
 
-.cmkte-root .cmkte-main {
-  flex: 1 1 0;
+.cmkte-brand__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cmkte-brand__text strong {
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.cmkte-brand__text small {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.cmkte-sidebar .cmkte-nav {
+  flex: 0 0 auto;
+}
+
+.cmkte-sidebar .cmkte-help {
+  position: static;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  margin-top: auto;
+}
+
+.cmkte-column {
   min-width: 0;
-  grid-column: auto;
+  display: flex;
+  flex-direction: column;
 }
 
-.cmkte-root .cmkte-page {
-  padding: 18px 30px 105px;
+.cmkte-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 72px;
+  padding: 0 28px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
 }
 
-.cmkte-root .cmkte-crumb {
-  margin: 0 0 14px;
+.cmkte-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cmkte-search-input {
+  width: min(320px, 42vw);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: 0;
+  font: inherit;
+  font-size: 12px;
+}
+
+.cmkte-shell .cmkte-page {
+  flex: 1;
+  min-width: 0;
+  padding: 22px 28px 105px;
+}
+
+.cmkte-shell .cmkte-crumb {
+  margin: 0;
+  font-size: 13px;
+}
+
+.cmkte-shell .cmkte-sticky {
+  position: sticky;
+  left: auto;
+  right: auto;
+  bottom: 0;
+  z-index: 16;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 66px;
+  padding: 12px 30px;
+  background: #ffffffed;
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(12px);
 }
 
 @media (max-width: 700px) {

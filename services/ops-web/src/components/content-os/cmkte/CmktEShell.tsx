@@ -35,6 +35,13 @@ function currentNavLabel(pathname: string): string {
   return active?.label ?? 'Command Center';
 }
 
+function initials(user: StoredStaffUser): string {
+  const name = user.display_name || user.email || 'CM';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
 function CmktEShellInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname() ?? '';
@@ -104,16 +111,19 @@ function CmktEShellInner({ children }: { children: ReactNode }) {
         flagOff ? (
           <p className="cmkte-status">Module tắt</p>
         ) : (
-          <div className="cmkte-root">
-            <aside className="cmkte-side" aria-label="Content Marketing OS">
+          <div className="cmkte-shell">
+            <aside className="cmkte-sidebar" aria-label="Content Marketing OS">
               <Link className="cmkte-brand" href="/crm/content-os">
                 <span className="cmkte-mark" aria-hidden>
                   C
                 </span>
-                Content Marketing OS
+                <span className="cmkte-brand__text">
+                  <strong>Content Marketing OS</strong>
+                  <small>Content Operations</small>
+                </span>
               </Link>
               <div className="cmkte-workspace">
-                <div className="cmkte-avatar">{user.display_name?.slice(0, 2).toUpperCase() || 'CM'}</div>
+                <div className="cmkte-avatar">{initials(user)}</div>
                 <div>
                   <small>WORKSPACE</small>
                   <b>Content Operations</b>
@@ -162,14 +172,22 @@ function CmktEShellInner({ children }: { children: ReactNode }) {
                 <button type="button">Mở trợ lý →</button>
               </div>
             </aside>
-            <main className="cmkte-main">
-              <div className="cmkte-page">
-                <p className="cmkte-crumb">
-                  Content Marketing OS <span>/</span> <b>{crumb}</b>
-                </p>
-                {children}
-              </div>
-            </main>
+            <div className="cmkte-column">
+              <header className="cmkte-topbar">
+                <div className="cmkte-crumb">
+                  Content Marketing OS / <b>{crumb}</b>
+                </div>
+                <div className="cmkte-top-actions">
+                  <input
+                    className="cmkte-search-input"
+                    type="search"
+                    placeholder="Tìm content ID, client, campaign, asset..."
+                    aria-label="Tìm content ID, client, campaign, asset"
+                  />
+                </div>
+              </header>
+              <div className="cmkte-page">{children}</div>
+            </div>
           </div>
         )
       ) : null}

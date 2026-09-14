@@ -5,15 +5,17 @@ import { describe, expect, it } from 'vitest';
 const src = readFileSync(join(__dirname, 'CmktEShell.tsx'), 'utf8');
 
 describe('CmktEShell admin chrome', () => {
-  it('mounts StaffPageShell so OpsNav stays on /crm/content-os', () => {
+  it('mounts StaffPageShell and revops-style cmkte-shell grid', () => {
     expect(src).toContain('StaffPageShell');
     expect(src).toMatch(/width=["']full["']/);
-    expect(src).toContain('className="cmkte-root"');
-    expect(src).not.toContain('cmkte-app cmkte-root');
+    expect(src).toContain('className="cmkte-shell"');
+    expect(src).toContain('className="cmkte-sidebar"');
+    expect(src).toContain('className="cmkte-column"');
   });
 
-  it('does not use standalone full-page topbar logout', () => {
-    expect(src).not.toContain('cmkte-top');
-    expect(src).not.toContain('cmkte-topav');
+  it('does not use legacy standalone fixed sidebar wrapper', () => {
+    expect(src).not.toContain('cmkte-root');
+    expect(src).not.toMatch(/className="cmkte-side"/);
+    expect(src).not.toMatch(/className="cmkte-main"/);
   });
 });
