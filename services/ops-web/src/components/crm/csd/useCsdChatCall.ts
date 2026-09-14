@@ -21,6 +21,7 @@ import {
   requestCsdChatNotifyPermission,
   showCsdChatDesktopNotify,
 } from '@/lib/crm/csd-chat-notify-persist';
+import { dispatchCsdNeedNotifyPermission } from '@/lib/crm/csd-chat-notify-permission.util';
 import {
   startCsdChatIncomingCallRing,
   stopCsdChatIncomingCallRing,
@@ -93,11 +94,15 @@ export function useCsdChatCall(token: string) {
             void (async () => {
               let permission = notificationPermission();
               if (permission === 'default') {
+                dispatchCsdNeedNotifyPermission();
                 permission = await requestCsdChatNotifyPermission();
               }
               if (cancelled) return;
               startCsdChatIncomingCallRing();
-              if (permission !== 'granted') return;
+              if (permission !== 'granted') {
+                dispatchCsdNeedNotifyPermission();
+                return;
+              }
               if (
                 !shouldAlertIncomingCsdCall({
                   permission,

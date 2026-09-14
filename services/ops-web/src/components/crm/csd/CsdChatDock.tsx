@@ -9,7 +9,12 @@ import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
 import { fetchCsdChatMe, fetchCsdChatUnreadCount, loginCsdChat } from '@/lib/crm/csd-api';
 import { readCsdDockPersist, writeCsdDockPersist } from '@/lib/crm/csd-chat-dock-persist';
 import { readCsdChatLogin, writeCsdChatLogin } from '@/lib/crm/csd-chat-login-persist';
-import { CSD_CHAT_OPEN_EVENT, requestCsdChatNotifyPermission } from '@/lib/crm/csd-chat-notify-persist';
+import {
+  CSD_CHAT_OPEN_EVENT,
+  notificationPermission,
+  requestCsdChatNotifyPermission,
+} from '@/lib/crm/csd-chat-notify-persist';
+import { dispatchCsdNeedNotifyPermission } from '@/lib/crm/csd-chat-notify-permission.util';
 
 export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   const pathname = usePathname();
@@ -162,6 +167,9 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   function openDialog() {
     setOpen(true);
     persist({ open: true, conversationId: readCsdDockPersist().conversationId });
+    if (notificationPermission() !== 'granted') {
+      dispatchCsdNeedNotifyPermission();
+    }
     void requestCsdChatNotifyPermission();
   }
 

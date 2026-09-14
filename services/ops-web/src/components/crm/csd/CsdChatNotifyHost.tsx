@@ -18,7 +18,9 @@ import {
   writeCsdChatNotified,
 } from '@/lib/crm/csd-chat-notify-persist';
 import { playCsdChatMessageTone } from '@/lib/crm/csd-chat-notify-sound.util';
+import { dispatchCsdNeedNotifyPermission } from '@/lib/crm/csd-chat-notify-permission.util';
 import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
+import { CsdChatNotifyPermissionPrompt } from '@/components/crm/csd/CsdChatNotifyPermissionPrompt';
 
 const POLL_MS = 8_000;
 const POLL_MS_HIDDEN = 5_000;
@@ -104,10 +106,17 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
             notificationPermission(),
           );
           // Do not mark delivered when we cannot show/play — retry next poll.
-          if (channel === 'none') return;
+          if (channel === 'none') {
+            dispatchCsdNeedNotifyPermission();
+            return;
+          }
 
           playCsdChatMessageTone();
           if (channel === 'toast') {
+            // Still remind if permission not granted — toast only works while CRM tab is focused.
+            if (notificationPermission() !== 'granted') {
+              dispatchCsdNeedNotifyPermission();
+            }
             setToasts((prev) => {
               const incomingIds = new Set(next.incoming.map((row) => row.conversationId));
               const rest = prev.filter((t) => !incomingIds.has(t.conversationId));
@@ -153,33 +162,38 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
     return () => window.clearTimeout(timer);
   }, [toasts]);
 
-  if (toasts.length === 0) return null;
+  if (!enabled) return null;
 
   return (
-    <div className="csd-chat-notify" data-testid="csd-chat-notify" aria-live="polite">
-      {toasts.map((row) => (
-        <button
-          key={`${row.conversationId}:${row.lastMessageAt ?? ''}`}
-          type="button"
-          className="csd-chat-notify__toast"
-          data-testid="csd-chat-notify-toast"
-          onClick={() => openConversation(row.conversationId)}
-        >
-          <CsdChatAvatar
-            token={token}
-            name={row.title}
-            seed={row.avatarStaffId ?? row.conversationId}
-            staffId={row.avatarStaffId ?? null}
-            hasAvatar={row.avatarHasPhoto}
-            avatarUpdatedAt={row.avatarUpdatedAt}
-            className="csd-chat-notify__avatar csd-chat-avatar"
-          />
-          <span className="csd-chat-notify__copy">
-            <strong>{row.title}</strong>
-            <span>{row.preview}</span>
-          </span>
-        </button>
-      ))}
-    </div>
+    <>
+      <CsdChatNotifyPermissionPrompt enabled={enabled} />
+      {toasts.length > 0 ? (
+        <div className="csd-chat-notify" data-testid="csd-chat-notify" aria-live="polite">
+          {toasts.map((row) => (
+            <button
+              key={`${row.conversationId}:${row.lastMessageAt ?? ''}`}
+              type="button"
+              className="csd-chat-notify__toast"
+              data-testid="csd-chat-notify-toast"
+              onClick={() => openConversation(row.conversationId)}
+            >
+              <CsdChatAvatar
+                token={token}
+                name={row.title}
+                seed={row.avatarStaffId ?? row.conversationId}
+                staffId={row.avatarStaffId ?? null}
+                hasAvatar={row.avatarHasPhoto}
+                avatarUpdatedAt={row.avatarUpdatedAt}
+                className="csd-chat-notify__avatar csd-chat-avatar"
+              />
+              <span className="csd-chat-notify__copy">
+                <strong>{row.title}</strong>
+                <span>{row.preview}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </>
   );
 }
