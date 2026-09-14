@@ -89,7 +89,7 @@ export interface SalesPipelineConfig {
   terminal_stages: Set<string>;
 }
 
-export type LeadLookupKind = 'source' | 'channel';
+export type LeadLookupKind = 'source' | 'channel' | 'industry' | 'job_title';
 
 export interface LeadLookupOption {
   id: number;

@@ -16,7 +16,10 @@ import {
 import { AppConfigService } from '../config/app-config.service';
 import {
   DEFAULT_LEAD_CHANNELS,
+  DEFAULT_LEAD_INDUSTRIES,
+  DEFAULT_LEAD_JOB_TITLES,
   DEFAULT_LEAD_SOURCES,
+  DEFAULT_HARVEST_SOURCES,
   DEFAULT_SALES_PIPELINE_KEY,
   defaultSalesPipelineStages,
 } from './crm-config.defaults';
@@ -41,7 +44,7 @@ import type {
 
 const ENTITY_TYPES = new Set<CustomFieldEntityType>(['lead', 'customer', 'case']);
 const FIELD_TYPES = new Set<CustomFieldType>(['text', 'number', 'select', 'date', 'boolean']);
-const LEAD_LOOKUP_KINDS = new Set<LeadLookupKind>(['source', 'channel']);
+const LEAD_LOOKUP_KINDS = new Set<LeadLookupKind>(['source', 'channel', 'industry', 'job_title']);
 
 function slugKey(raw: string): string {
   return raw.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 64);
@@ -151,7 +154,14 @@ export class CrmConfigPgRepository implements OnModuleDestroy, OnModuleInit {
 
     const lookups = [
       ...DEFAULT_LEAD_SOURCES.map((item, sortOrder) => ({ kind: 'source', ...item, sortOrder })),
+      ...DEFAULT_HARVEST_SOURCES.map((item, sortOrder) => ({
+        kind: 'source',
+        ...item,
+        sortOrder: DEFAULT_LEAD_SOURCES.length + sortOrder,
+      })),
       ...DEFAULT_LEAD_CHANNELS.map((item, sortOrder) => ({ kind: 'channel', ...item, sortOrder })),
+      ...DEFAULT_LEAD_INDUSTRIES.map((item, sortOrder) => ({ kind: 'industry', ...item, sortOrder })),
+      ...DEFAULT_LEAD_JOB_TITLES.map((item, sortOrder) => ({ kind: 'job_title', ...item, sortOrder })),
     ];
     const lookupValues = lookups.map((_, i) => {
       const n = i * 4;

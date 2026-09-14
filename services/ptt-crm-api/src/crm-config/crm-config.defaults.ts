@@ -53,3 +53,28 @@ export const DEFAULT_LEAD_CHANNELS: Array<{ option_key: string; label: string }>
   { option_key: 'partner', label: 'Đối tác' },
   { option_key: 'other', label: 'Khác' },
 ];
+
+/** Harvest-oriented sources (upsert alongside CRM attribution sources). */
+export const DEFAULT_HARVEST_SOURCES: Array<{ option_key: string; label: string }> = [
+  { option_key: 'google_maps', label: 'Google Maps' },
+  { option_key: 'company_website', label: 'Website doanh nghiệp' },
+  { option_key: 'yellow_pages', label: 'Trang vàng / directory' },
+  { option_key: 'industry_directory', label: 'Directory ngành' },
+  { option_key: 'news', label: 'Báo chí / tin tức' },
+];
+
+export const DEFAULT_LEAD_INDUSTRIES: Array<{ option_key: string; label: string }> = [
+  { option_key: 'spa', label: 'Spa / Làm đẹp' },
+  { option_key: 'bds', label: 'Bất động sản' },
+  { option_key: 'edu', label: 'Giáo dục' },
+  { option_key: 'healthcare', label: 'Y tế / Healthcare' },
+  { option_key: 'fnb', label: 'F&B / Nhà hàng' },
+  { option_key: 'agency', label: 'Agency / Marketing' },
+];
+
+export const DEFAULT_LEAD_JOB_TITLES: Array<{ option_key: string; label: string }> = [
+  { option_key: 'owner', label: 'Chủ DN / Owner' },
+  { option_key: 'mkt_director', label: 'Giám đốc Marketing' },
+  { option_key: 'hr_manager', label: 'Trưởng phòng Nhân sự' },
+  { option_key: 'sales_director', label: 'Giám đốc Kinh doanh' },
+];

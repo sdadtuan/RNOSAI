@@ -28,7 +28,16 @@ import {
 const KIND_TABS: { id: CrmLeadLookupKind; label: string }[] = [
   { id: 'source', label: 'Nguồn lead' },
   { id: 'channel', label: 'Kênh lead' },
+  { id: 'industry', label: 'Ngành nghề' },
+  { id: 'job_title', label: 'Chức danh' },
 ];
+
+const KIND_LABEL: Record<CrmLeadLookupKind, string> = {
+  source: 'nguồn',
+  channel: 'kênh',
+  industry: 'ngành nghề',
+  job_title: 'chức danh',
+};
 
 export default function AdminCrmLeadLookupsPage() {
   const router = useRouter();
@@ -116,7 +125,7 @@ export default function AdminCrmLeadLookupsPage() {
       });
       setForm({ option_key: '', label: '' });
       await reload(access);
-      setMsg(`Đã thêm ${kind === 'source' ? 'nguồn' : 'kênh'}`);
+      setMsg(`Đã thêm ${KIND_LABEL[kind]}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Thêm thất bại');
     } finally {
@@ -209,7 +218,7 @@ export default function AdminCrmLeadLookupsPage() {
 
         {canConfigure ? (
           <form onSubmit={(e) => void handleCreate(e)} className="admin-crm-form">
-            <h3 className="kpi-section-title">Thêm {kind === 'source' ? 'nguồn' : 'kênh'}</h3>
+            <h3 className="kpi-section-title">Thêm {KIND_LABEL[kind]}</h3>
             <div className="admin-crm-form__grid">
               <input
                 className="kpi-input"

@@ -70,6 +70,67 @@ describe('CrmConfigPgRepository', () => {
     });
   });
 
+  it('creates industry lookups and lists them by kind', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] }) // ensureSchema CREATE
+      .mockResolvedValueOnce({ rows: [] }) // pipeline seed
+      .mockResolvedValueOnce({ rows: [] }) // lookup seed
+      .mockResolvedValueOnce({
+        rows: [{
+          id: '11',
+          kind: 'industry',
+          option_key: 'spa',
+          label: 'Spa / Làm đẹp',
+          sort_order: 0,
+          active: true,
+          created_at: new Date('2026-09-14T08:00:00.000Z'),
+          updated_at: new Date('2026-09-14T08:00:00.000Z'),
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: '11',
+          kind: 'industry',
+          option_key: 'spa',
+          label: 'Spa / Làm đẹp',
+          sort_order: 0,
+          active: true,
+          created_at: new Date('2026-09-14T08:00:00.000Z'),
+          updated_at: new Date('2026-09-14T08:00:00.000Z'),
+        }],
+      });
+
+    const created = await repo.createLeadLookup({
+      kind: 'industry',
+      option_key: 'spa',
+      label: 'Spa / Làm đẹp',
+      sort_order: 0,
+    });
+    expect(created.kind).toBe('industry');
+    expect(created.option_key).toBe('spa');
+
+    const rows = await repo.listLeadLookups('industry', true);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe('industry');
+  });
+
+  it('seeds industry, job_title, and harvest sources in ensureSchema lookup insert', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await repo.listLeadLookups('industry');
+
+    const seedSql = String(query.mock.calls[2][0]);
+    const seedParams = query.mock.calls[2][1] as unknown[];
+    expect(seedSql).toContain('INSERT INTO crm_lead_lookup_options');
+    expect(seedParams).toEqual(expect.arrayContaining(['industry', 'spa', 'Spa / Làm đẹp', 0]));
+    expect(seedParams).toEqual(expect.arrayContaining(['job_title', 'owner', 'Chủ DN / Owner', 0]));
+    expect(seedParams).toEqual(expect.arrayContaining(['source', 'google_maps', 'Google Maps', expect.any(Number)]));
+  });
+
   it('stores custom-field options as JSONB and returns the unchanged API shape', async () => {
     query
       .mockResolvedValueOnce({ rows: [] })

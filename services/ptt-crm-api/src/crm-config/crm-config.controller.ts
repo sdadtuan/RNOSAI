@@ -106,7 +106,13 @@ export class CrmConfigController {
   @Get('lead-lookups')
   @UseGuards(StaffOrInternalKeyGuard, StaffCrmConfigViewGuard)
   listLeadLookups(@Query('kind') kind?: string, @Query('active_only') activeOnly?: string) {
-    const normalizedKind = kind === 'source' || kind === 'channel' ? kind : undefined;
+    const normalizedKind =
+      kind === 'source' ||
+      kind === 'channel' ||
+      kind === 'industry' ||
+      kind === 'job_title'
+        ? kind
+        : undefined;
     return this.crmConfig.listLeadLookups(normalizedKind, activeOnly === '1' || activeOnly === 'true');
   }
 

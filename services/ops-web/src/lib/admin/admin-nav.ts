@@ -102,6 +102,7 @@ function buildDataLinks(user: StoredStaffUser): AdminNavLink[] {
     { href: '/admin/crm/lead-lookups', label: 'Nguồn & Kênh' },
     { href: '/admin/crm/lead-classification', label: 'Phân loại Lead' },
     { href: '/admin/crm/vn-geo', label: 'Tỉnh/TP & Phường/Xã' },
+    { href: '/admin/crm/research-ai-providers', label: 'Research AI Providers' },
   ];
 }
 

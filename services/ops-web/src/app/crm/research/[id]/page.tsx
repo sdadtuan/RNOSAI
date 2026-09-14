@@ -20,6 +20,7 @@ import { WavesPane } from '@/components/research/WavesPane';
 import { VwPane } from '@/components/research/VwPane';
 import { ConjointPane } from '@/components/research/ConjointPane';
 import { ResearchIsoGapPanel } from '@/components/research/ResearchIsoGapPanel';
+import { RawLeadHarvestPanel } from '@/components/research/RawLeadHarvestPanel';
 import { shouldShowVwTab } from '@/components/research/vw-pane.util';
 import { shouldShowConjointTab } from '@/components/research/conjoint-pane.util';
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
@@ -135,6 +136,7 @@ const TABS = [
   { id: 'report', label: 'Báo cáo' },
   { id: 'decisions', label: 'Quyết định' },
   { id: 'governance', label: 'ISO gap' },
+  { id: 'raw_leads', label: 'Lead thô' },
   { id: 'activity', label: 'Nhật ký' },
 ] as const;
 
@@ -1320,6 +1322,12 @@ function CrmResearchWorkspaceContent() {
               />
             ) : tab === 'governance' ? (
               <ResearchIsoGapPanel projectId={project.id} />
+            ) : tab === 'raw_leads' ? (
+              <RawLeadHarvestPanel
+                projectId={project.id}
+                token={getAccessToken() ?? ''}
+                user={user}
+              />
             ) : (
               <p className="muted">P0: dùng tab Brief / Nguồn / Evidence / Insight. Tab {TABS.find((t) => t.id === tab)?.label} sẽ có ở milestone sau.</p>
             )}

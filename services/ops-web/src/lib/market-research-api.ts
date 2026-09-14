@@ -1781,3 +1781,136 @@ export async function copilotResearchReport(
     body: JSON.stringify({ insight_ids: insightIds }),
   });
 }
+
+/* —— Raw Lead Harvest (Wave A+B) —— */
+
+export type HarvestProviderOption = {
+  code: string;
+  display_name: string;
+  configured: boolean;
+  default_model: string | null;
+  models: Array<{ id: string; label: string; recommended_for?: string }>;
+};
+
+export type RawLeadHarvestJob = {
+  id: number;
+  project_id: number;
+  status: string;
+  provider: string;
+  model: string;
+  mode: string;
+  target_count: number;
+  result_count: number;
+  rejected_by_gate_count: number;
+  error_message: string | null;
+  industry_label: string;
+  job_title_label: string;
+  province_name: string;
+  created_at: string;
+};
+
+export type RawLead = {
+  id: number;
+  project_id: number;
+  job_id: number;
+  company_name: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  contact_title: string | null;
+  website: string | null;
+  evidence_url: string | null;
+  evidence_snippet: string | null;
+  source_provider: string | null;
+  source_model: string | null;
+  quality_score: number;
+  icp_fit_score: number;
+  contactable: boolean;
+  status: string;
+  verify_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export function fetchRawLeadHarvestProviders(token: string) {
+  return researchFetch<{ providers: HarvestProviderOption[] }>(
+    token,
+    '/api/v1/research/raw-lead-harvest/providers',
+  );
+}
+
+export function createRawLeadHarvest(
+  token: string,
+  projectId: number,
+  body: {
+    industry_key: string;
+    job_title_key: string;
+    province_code: string;
+    ward_code?: string | null;
+    source_keys: string[];
+    channel_keys?: string[];
+    provider: string;
+    model: string;
+    mode?: 'quality' | 'volume';
+    cross_check?: boolean;
+    target_count: number;
+    notes?: string;
+  },
+) {
+  return researchFetch<{ job_id: number; status: string }>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-lead-harvests`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export function listRawLeadHarvests(token: string, projectId: number) {
+  return researchFetch<{ jobs: RawLeadHarvestJob[] }>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-lead-harvests`,
+  );
+}
+
+export function getRawLeadHarvest(token: string, projectId: number, jobId: number) {
+  return researchFetch<RawLeadHarvestJob>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-lead-harvests/${jobId}`,
+  );
+}
+
+export function listRawLeads(
+  token: string,
+  projectId: number,
+  params?: { status?: string; job_id?: number; include_auto_rejected?: boolean },
+) {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.job_id) qs.set('job_id', String(params.job_id));
+  if (params?.include_auto_rejected) qs.set('include_auto_rejected', '1');
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return researchFetch<{ leads: RawLead[] }>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-leads${suffix}`,
+  );
+}
+
+export function patchRawLead(
+  token: string,
+  projectId: number,
+  leadId: number,
+  body: {
+    status?: 'pending' | 'accepted' | 'rejected';
+    company_name?: string;
+    address?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    contact_title?: string | null;
+    accepted_checklist_json?: Record<string, unknown>;
+  },
+) {
+  return researchFetch<RawLead>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-leads/${leadId}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+  );
+}

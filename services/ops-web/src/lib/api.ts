@@ -8417,7 +8417,7 @@ export async function saveCrmSalesPipelineStages(
   });
 }
 
-export type CrmLeadLookupKind = 'source' | 'channel';
+export type CrmLeadLookupKind = 'source' | 'channel' | 'industry' | 'job_title';
 
 export interface CrmLeadLookupOption {
   id: number;
