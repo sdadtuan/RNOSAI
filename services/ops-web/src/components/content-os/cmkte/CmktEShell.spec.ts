@@ -8,7 +8,8 @@ describe('CmktEShell admin chrome', () => {
   it('mounts StaffPageShell so OpsNav stays on /crm/content-os', () => {
     expect(src).toContain('StaffPageShell');
     expect(src).toMatch(/width=["']full["']/);
-    expect(src).toContain('className="cmkte-app cmkte-root"');
+    expect(src).toContain('className="cmkte-root"');
+    expect(src).not.toContain('cmkte-app cmkte-root');
   });
 
   it('does not use standalone full-page topbar logout', () => {

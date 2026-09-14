@@ -789,15 +789,26 @@
 }
 
 @media (max-width: 1100px) {
-  .cmkte-side {
+  .cmkte-app:not(.cmkte-root) .cmkte-side {
     display: none;
   }
 
-  .cmkte-app {
+  .cmkte-app:not(.cmkte-root) {
     display: block;
   }
 
-  .cmkte-main {
+  .cmkte-root {
+    flex-direction: column;
+  }
+
+  .cmkte-root .cmkte-side {
+    flex: none;
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+  }
+
+  .cmkte-app:not(.cmkte-root) .cmkte-main {
     grid-column: auto;
   }
 
@@ -815,9 +826,44 @@
 }
 
 .cmkte-root {
+  --nav: #101a30;
+  --nav2: #172642;
+  --ink: #15213a;
+  --muted: #718097;
+  --bg: #f4f6fa;
+  --white: #fff;
+  --line: #e2e7ef;
+  --blue: #3268f6;
+  --blue50: #edf2ff;
+  --purple: #7656e9;
+  --purple50: #f2efff;
+  --green: #139567;
+  --green50: #e5f8ef;
+  --amber: #d88400;
+  --amber50: #fff4dd;
+  --red: #d84951;
+  --red50: #fff0f1;
+  --shadow: 0 12px 30px rgba(16, 26, 48, 0.08);
+  --r: 14px;
+  --cmkte-sidebar: 258px;
+  box-sizing: border-box;
   display: flex;
-  min-height: calc(100vh - var(--ops-chrome-h, 56px));
+  flex-direction: row;
+  align-items: stretch;
   width: 100%;
+  min-height: calc(100vh - var(--ops-chrome-h, 56px));
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.cmkte-root *,
+.cmkte-root *::before,
+.cmkte-root *::after {
+  box-sizing: border-box;
 }
 
 html.ops-shell-bitrix body:has(.cmkte-root) main.bitrix-crm-page,
@@ -837,30 +883,32 @@ html.ops-shell-bitrix body:has(.cmkte-root) .bitrix-crm-page__inner {
   padding: 0;
 }
 
-.cmkte-root.cmkte-app {
-  display: flex;
-  grid-template-columns: none;
-  min-height: calc(100vh - var(--ops-chrome-h, 56px));
-}
-
 .cmkte-root .cmkte-side {
-  position: sticky;
-  top: var(--ops-chrome-h, 56px);
+  position: relative;
+  inset: auto;
+  top: auto;
+  left: auto;
   flex: 0 0 var(--cmkte-sidebar);
-  height: calc(100vh - var(--ops-chrome-h, 56px));
+  width: var(--cmkte-sidebar);
+  min-width: var(--cmkte-sidebar);
+  max-width: var(--cmkte-sidebar);
+  height: auto;
+  min-height: calc(100vh - var(--ops-chrome-h, 56px));
   overflow: auto;
+  z-index: 1;
 }
 
 .cmkte-root .cmkte-main {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
+  grid-column: auto;
 }
 
 .cmkte-root .cmkte-page {
-  padding-top: 18px;
+  padding: 18px 30px 105px;
 }
 
-.cmkte-crumb {
+.cmkte-root .cmkte-crumb {
   margin: 0 0 14px;
 }
 

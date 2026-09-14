@@ -104,7 +104,7 @@ function CmktEShellInner({ children }: { children: ReactNode }) {
         flagOff ? (
           <p className="cmkte-status">Module tắt</p>
         ) : (
-          <div className="cmkte-app cmkte-root">
+          <div className="cmkte-root">
             <aside className="cmkte-side" aria-label="Content Marketing OS">
               <Link className="cmkte-brand" href="/crm/content-os">
                 <span className="cmkte-mark" aria-hidden>
