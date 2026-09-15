@@ -19,9 +19,11 @@ export function RawLeadAcceptModal({ open, companyName, busy, onCancel, onConfir
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal-card" style={{ maxWidth: 420 }}>
-        <h3>Accept lead thô</h3>
-        <p className="muted">{companyName}</p>
+      <div className="modal-card" style={{ maxWidth: 440 }}>
+        <h3 style={{ marginTop: 0 }}>Accept lead thô</h3>
+        <p className="muted" style={{ marginTop: 0 }}>
+          {companyName}
+        </p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -31,16 +33,19 @@ export function RawLeadAcceptModal({ open, companyName, busy, onCancel, onConfir
             onConfirm(checklist);
           }}
         >
-          {items.map((item) => (
-            <label key={item.key} style={{ display: 'block', marginBottom: 8 }}>
-              <input type="checkbox" name={item.key} required /> {item.label}
-            </label>
-          ))}
-          <div className="row" style={{ gap: 8, marginTop: 12 }}>
-            <button type="submit" disabled={busy}>
+          <div className="rlh-accept-list">
+            {items.map((item) => (
+              <label key={item.key} className="form-check">
+                <input type="checkbox" name={item.key} required />
+                {item.label}
+              </label>
+            ))}
+          </div>
+          <div className="form-footer">
+            <button type="submit" className="btn" disabled={busy}>
               Confirm accept
             </button>
-            <button type="button" onClick={onCancel} disabled={busy}>
+            <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={busy}>
               Hủy
             </button>
           </div>

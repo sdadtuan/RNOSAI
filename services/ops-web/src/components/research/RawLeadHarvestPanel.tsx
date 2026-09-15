@@ -39,6 +39,17 @@ const DIAL_OPTS = [
   { value: 'out_of_business', label: 'Out of business' },
 ] as const;
 
+/** Prefer harvest-oriented sources at the front of the chip grid. */
+const HARVEST_SOURCE_PRIORITY = [
+  'google_maps',
+  'company_website',
+  'yellow_pages',
+  'industry_directory',
+  'news',
+  'website',
+  'landing',
+];
+
 type Props = {
   projectId: number;
   token: string;
@@ -49,6 +60,68 @@ function scoreBadge(score: number): string {
   if (score >= 70) return 'ok';
   if (score >= 50) return 'warn';
   return 'bad';
+}
+
+function jobStatusClass(status: string): string {
+  if (status === 'succeeded') return 'job-status-done';
+  if (status === 'failed') return 'job-status-dead';
+  if (status === 'running' || status === 'queued') return 'job-status-pending';
+  return 'job-status-running';
+}
+
+function leadStatusClass(status: string): string {
+  if (status === 'accepted' || status === 'pushed') return 'rlh-status--ok';
+  if (status === 'rejected' || status === 'auto_rejected') return 'rlh-status--bad';
+  if (status === 'pending') return 'rlh-status--pending';
+  return 'rlh-status--muted';
+}
+
+function sortLookups(options: CrmLeadLookupOption[], priority: string[]): CrmLeadLookupOption[] {
+  const rank = new Map(priority.map((k, i) => [k, i]));
+  return [...options].sort((a, b) => {
+    const ra = rank.has(a.option_key) ? (rank.get(a.option_key) as number) : 1000;
+    const rb = rank.has(b.option_key) ? (rank.get(b.option_key) as number) : 1000;
+    if (ra !== rb) return ra - rb;
+    return a.label.localeCompare(b.label, 'vi');
+  });
+}
+
+function ChipMultiSelect({
+  options,
+  selected,
+  onChange,
+  emptyHint,
+}: {
+  options: CrmLeadLookupOption[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  emptyHint?: string;
+}) {
+  if (!options.length) {
+    return <p className="form-hint">{emptyHint ?? 'Chưa có option Admin.'}</p>;
+  }
+  return (
+    <div className="rlh-chip-grid" role="group">
+      {options.map((o) => {
+        const on = selected.includes(o.option_key);
+        return (
+          <button
+            key={o.option_key}
+            type="button"
+            className={`rlh-chip${on ? ' is-selected' : ''}`}
+            aria-pressed={on}
+            onClick={() =>
+              onChange(
+                on ? selected.filter((k) => k !== o.option_key) : [...selected, o.option_key],
+              )
+            }
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
@@ -90,6 +163,19 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     [providers, provider],
   );
   const canCrossCheck = providers.filter((p) => p.configured).length >= 2;
+  const sortedSources = useMemo(
+    () => sortLookups(sources, HARVEST_SOURCE_PRIORITY),
+    [sources],
+  );
+
+  const pendingCount = useMemo(
+    () => leads.filter((l) => l.status === 'pending').length,
+    [leads],
+  );
+  const acceptedCount = useMemo(
+    () => leads.filter((l) => l.status === 'accepted' || l.status === 'pushed').length,
+    [leads],
+  );
 
   const reloadMeta = useCallback(async () => {
     const [ind, tit, src, ch, prov, harvestProv] = await Promise.all([
@@ -169,11 +255,6 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     return () => clearInterval(timer);
   }, [activeJobId, token, projectId, reloadJobsAndLeads]);
 
-  function toggleKey(list: string[], key: string, on: boolean): string[] {
-    if (on) return list.includes(key) ? list : [...list, key];
-    return list.filter((k) => k !== key);
-  }
-
   if (!FLAG_ON) {
     return (
       <p className="muted">
@@ -183,20 +264,31 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   }
 
   return (
-    <div className="stack" style={{ gap: 16 }}>
-      <div className="banner warn">
-        Đây là lead thô đã qua cửa chất lượng — vẫn cần AM xác minh trước khi hứa với khách.
+    <div className="rlh-panel">
+      <div className="rlh-callout">
+        <strong>Lead thô đã qua cửa chất lượng</strong>
+        <span>AM vẫn cần xác minh evidence / liên hệ trước khi hứa với khách.</span>
       </div>
+
       {error ? <p className="error">{error}</p> : null}
       {msg ? <p className="ok">{msg}</p> : null}
 
-      <section className="kpi-card">
-        <h3 className="kpi-section-title">Tạo job thu thập</h3>
+      <section className="kpi-card rlh-card">
+        <div className="rlh-card__head">
+          <div>
+            <h3 className="kpi-section-title">Tạo job thu thập</h3>
+            <p className="form-hint">ICP → nguồn search → AI provider → chạy async.</p>
+          </div>
+          {activeJobId ? (
+            <span className="job-status-pill job-status-pending">Đang chạy #{activeJobId}</span>
+          ) : null}
+        </div>
+
         {!canRun ? (
-          <p className="muted">Cần quyền crm_research.run</p>
+          <p className="muted">Cần quyền <code>crm_research.run</code></p>
         ) : (
           <form
-            className="stack"
+            className="rlh-form"
             onSubmit={(e) => {
               e.preventDefault();
               void (async () => {
@@ -229,406 +321,485 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
               })();
             }}
           >
-            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              <label>
-                Ngành
-                <select
-                  value={industryKey}
-                  onChange={(e) => setIndustryKey(e.target.value)}
-                  required
-                >
-                  <option value="">—</option>
-                  {industries.map((o) => (
-                    <option key={o.option_key} value={o.option_key}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Chức danh
-                <select value={titleKey} onChange={(e) => setTitleKey(e.target.value)} required>
-                  <option value="">—</option>
-                  {titles.map((o) => (
-                    <option key={o.option_key} value={o.option_key}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Tỉnh/TP
-                <select
-                  value={provinceCode}
-                  onChange={(e) => setProvinceCode(e.target.value)}
-                  required
-                >
-                  <option value="">—</option>
-                  {provinces.map((p) => (
-                    <option key={p.code} value={p.code}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Phường/Xã
-                <select value={wardCode} onChange={(e) => setWardCode(e.target.value)}>
-                  <option value="">(không chọn)</option>
-                  {wards.map((w) => (
-                    <option key={w.code} value={w.code}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div className="rlh-section">
+              <h4 className="rlh-section__title">1. ICP & địa bàn</h4>
+              <div className="form-grid form-grid--2">
+                <label className="form-field">
+                  <span className="form-label">
+                    Ngành <span className="form-required">*</span>
+                  </span>
+                  <select
+                    value={industryKey}
+                    onChange={(e) => setIndustryKey(e.target.value)}
+                    required
+                  >
+                    <option value="">Chọn ngành…</option>
+                    {industries.map((o) => (
+                      <option key={o.option_key} value={o.option_key}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field">
+                  <span className="form-label">
+                    Chức danh <span className="form-required">*</span>
+                  </span>
+                  <select
+                    value={titleKey}
+                    onChange={(e) => setTitleKey(e.target.value)}
+                    required
+                  >
+                    <option value="">Chọn chức danh…</option>
+                    {titles.map((o) => (
+                      <option key={o.option_key} value={o.option_key}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field">
+                  <span className="form-label">
+                    Tỉnh/TP <span className="form-required">*</span>
+                  </span>
+                  <select
+                    value={provinceCode}
+                    onChange={(e) => setProvinceCode(e.target.value)}
+                    required
+                  >
+                    <option value="">Chọn tỉnh/TP…</option>
+                    {provinces.map((p) => (
+                      <option key={p.code} value={p.code}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field">
+                  <span className="form-label">Phường/Xã</span>
+                  <select value={wardCode} onChange={(e) => setWardCode(e.target.value)}>
+                    <option value="">Không chọn</option>
+                    {wards.map((w) => (
+                      <option key={w.code} value={w.code}>
+                        {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             </div>
 
-            <fieldset>
-              <legend>Nguồn search (≥1)</legend>
-              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                {sources.map((o) => (
-                  <label key={o.option_key}>
-                    <input
-                      type="checkbox"
-                      checked={sourceKeys.includes(o.option_key)}
-                      onChange={(e) =>
-                        setSourceKeys(toggleKey(sourceKeys, o.option_key, e.target.checked))
-                      }
-                    />{' '}
-                    {o.label}
-                  </label>
-                ))}
+            <div className="rlh-section">
+              <div className="rlh-section__head">
+                <h4 className="rlh-section__title">
+                  2. Nguồn search <span className="form-required">*</span>
+                </h4>
+                <span className="rlh-count">{sourceKeys.length} đã chọn</span>
               </div>
-            </fieldset>
-
-            <fieldset>
-              <legend>Kênh (optional)</legend>
-              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                {channels.map((o) => (
-                  <label key={o.option_key}>
-                    <input
-                      type="checkbox"
-                      checked={channelKeys.includes(o.option_key)}
-                      onChange={(e) =>
-                        setChannelKeys(toggleKey(channelKeys, o.option_key, e.target.checked))
-                      }
-                    />{' '}
-                    {o.label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              <label>
-                Chế độ
-                <select
-                  value={mode}
-                  onChange={(e) => setMode(e.target.value as 'quality' | 'volume')}
-                >
-                  <option value="quality">Quality</option>
-                  <option value="volume">Volume</option>
-                </select>
-              </label>
-              <label>
-                Provider
-                <select
-                  value={provider}
-                  onChange={(e) => setProvider(e.target.value)}
-                  required
-                >
-                  <option value="">—</option>
-                  {providers.map((p) => (
-                    <option key={p.code} value={p.code}>
-                      {p.display_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Model
-                <select value={model} onChange={(e) => setModel(e.target.value)} required>
-                  <option value="">—</option>
-                  {(selectedProvider?.models ?? []).map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Số lượng
-                <input
-                  type="number"
-                  min={5}
-                  max={mode === 'quality' ? 25 : 50}
-                  value={targetCount}
-                  onChange={(e) => setTargetCount(Number(e.target.value))}
-                  required
-                />
-              </label>
-            </div>
-            {mode === 'volume' ? (
-              <p className="warn">
-                Chế độ Volume tăng nguy cơ lead yếu/ảo — khuyến nghị chỉ dùng để thăm dò.
-              </p>
-            ) : null}
-            {canCrossCheck ? (
-              <label>
-                <input
-                  type="checkbox"
-                  checked={crossCheck}
-                  onChange={(e) => setCrossCheck(e.target.checked)}
-                />{' '}
-                Cross-check 2 provider (top N, tốn thêm API)
-              </label>
-            ) : (
-              <p className="muted">
-                Cross-check cần ≥2 Research AI provider đã cấu hình token.
-              </p>
-            )}
-            <label>
-              Ghi chú ICP
-              <textarea
-                value={notes}
-                maxLength={500}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={2}
+              <p className="form-hint">Ưu tiên Maps / website / directory — chọn ≥1.</p>
+              <ChipMultiSelect
+                options={sortedSources}
+                selected={sourceKeys}
+                onChange={setSourceKeys}
               />
-            </label>
-            <button type="submit" disabled={busy || Boolean(activeJobId)}>
-              {activeJobId ? `Đang chạy job #${activeJobId}…` : 'Chạy thu thập'}
-            </button>
+            </div>
+
+            <div className="rlh-section">
+              <div className="rlh-section__head">
+                <h4 className="rlh-section__title">3. Kênh (tuỳ chọn)</h4>
+                <span className="rlh-count">{channelKeys.length} đã chọn</span>
+              </div>
+              <ChipMultiSelect options={channels} selected={channelKeys} onChange={setChannelKeys} />
+            </div>
+
+            <div className="rlh-section">
+              <h4 className="rlh-section__title">4. AI & chế độ</h4>
+              <div className="form-grid form-grid--2">
+                <label className="form-field">
+                  <span className="form-label">Chế độ</span>
+                  <select
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value as 'quality' | 'volume')}
+                  >
+                    <option value="quality">Quality — ít lead, chặt hơn</option>
+                    <option value="volume">Volume — nhiều hơn, rủi ro ảo</option>
+                  </select>
+                </label>
+                <label className="form-field">
+                  <span className="form-label">Số lượng</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={mode === 'quality' ? 25 : 50}
+                    value={targetCount}
+                    onChange={(e) => setTargetCount(Number(e.target.value))}
+                    required
+                  />
+                </label>
+                <label className="form-field">
+                  <span className="form-label">
+                    Provider <span className="form-required">*</span>
+                  </span>
+                  <select
+                    value={provider}
+                    onChange={(e) => setProvider(e.target.value)}
+                    required
+                  >
+                    <option value="">Chọn provider…</option>
+                    {providers.map((p) => (
+                      <option key={p.code} value={p.code}>
+                        {p.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field">
+                  <span className="form-label">
+                    Model <span className="form-required">*</span>
+                  </span>
+                  <select value={model} onChange={(e) => setModel(e.target.value)} required>
+                    <option value="">Chọn model…</option>
+                    {(selectedProvider?.models ?? []).map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field form-field--full">
+                  <span className="form-label">Ghi chú ICP</span>
+                  <textarea
+                    value={notes}
+                    maxLength={500}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={2}
+                    placeholder="VD: spa cao cấp Quận 1–3, chủ hoặc marketing director…"
+                  />
+                </label>
+              </div>
+
+              {mode === 'volume' ? (
+                <p className="rlh-inline-warn">
+                  Volume tăng nguy cơ lead yếu/ảo — chỉ dùng để thăm dò.
+                </p>
+              ) : null}
+
+              {canCrossCheck ? (
+                <label className="form-check rlh-crosscheck">
+                  <input
+                    type="checkbox"
+                    checked={crossCheck}
+                    onChange={(e) => setCrossCheck(e.target.checked)}
+                  />
+                  Cross-check 2 provider (top N — tốn thêm API)
+                </label>
+              ) : (
+                <p className="form-hint">
+                  Cross-check cần ≥2 Research AI provider đã cấu hình token.
+                </p>
+              )}
+            </div>
+
+            <div className="rlh-form__footer">
+              <button
+                type="submit"
+                className="btn"
+                disabled={busy || Boolean(activeJobId) || sourceKeys.length < 1}
+              >
+                {activeJobId ? `Đang chạy job #${activeJobId}…` : 'Chạy thu thập'}
+              </button>
+              {sourceKeys.length < 1 ? (
+                <span className="form-hint">Chọn ít nhất 1 nguồn search.</span>
+              ) : null}
+            </div>
           </form>
         )}
       </section>
 
-      <section className="kpi-card">
-        <h3 className="kpi-section-title">Jobs gần đây</h3>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Status</th>
-              <th>Filter</th>
-              <th>Provider/Model</th>
-              <th>Results</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.map((j) => (
-              <tr key={j.id}>
-                <td>{j.id}</td>
-                <td>{j.status}</td>
-                <td>
-                  {j.industry_label} · {j.job_title_label} · {j.province_name}
-                </td>
-                <td>
-                  {j.provider}/{j.model}
-                </td>
-                <td>
-                  {j.result_count} (gate reject {j.rejected_by_gate_count})
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <section className="kpi-card rlh-card">
+        <div className="rlh-card__head">
+          <h3 className="kpi-section-title">Jobs gần đây</h3>
+          <span className="rlh-count">{jobs.length}</span>
+        </div>
+        {jobs.length === 0 ? (
+          <div className="rlh-empty">Chưa có job — tạo job phía trên để bắt đầu.</div>
+        ) : (
+          <div className="data-table-wrap">
+            <table className="data-table data-table--dense">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Status</th>
+                  <th>Filter</th>
+                  <th>Provider / Model</th>
+                  <th>Kết quả</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((j) => (
+                  <tr key={j.id}>
+                    <td>#{j.id}</td>
+                    <td>
+                      <span className={`job-status-pill ${jobStatusClass(j.status)}`}>
+                        {j.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="rlh-filter-cell">
+                        <strong>
+                          {j.industry_label} · {j.job_title_label}
+                        </strong>
+                        <span className="muted">{j.province_name}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <code className="rlh-mono">
+                        {j.provider}/{j.model}
+                      </code>
+                    </td>
+                    <td>
+                      <strong>{j.result_count}</strong>
+                      <span className="muted"> · gate {j.rejected_by_gate_count}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
-      <section className="kpi-card">
-        <h3 className="kpi-section-title">Lead thô</h3>
-        <div className="row" style={{ gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-          {canExport ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                void (async () => {
-                  setBusy(true);
-                  setError('');
-                  try {
-                    const out = await exportRawLeads(
-                      token,
-                      projectId,
-                      selectedIds.length ? { lead_ids: selectedIds } : {},
-                    );
-                    const blob = new Blob([out.csv], { type: 'text/csv;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `raw-leads-${projectId}.csv`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    setMsg(`Đã export ${out.count} dòng`);
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : 'Export thất bại');
-                  } finally {
-                    setBusy(false);
-                  }
-                })();
-              }}
-            >
-              Export CSV
-            </button>
-          ) : null}
-          {canRun ? (
-            <button
-              type="button"
-              disabled={busy || selectedIds.length === 0}
-              onClick={() => {
-                void (async () => {
-                  setBusy(true);
-                  setError('');
-                  try {
-                    const out = await pushRawLeadsToCrm(token, projectId, selectedIds);
-                    setMsg(
-                      `Push CRM: ${out.pushed.length} OK` +
-                        (out.errors.length ? `, ${out.errors.length} lỗi` : ''),
-                    );
-                    if (out.errors[0]) {
-                      setError(`${out.errors[0].raw_lead_id}: ${out.errors[0].error}`);
+      <section className="kpi-card rlh-card">
+        <div className="rlh-card__head">
+          <div>
+            <h3 className="kpi-section-title">Lead thô</h3>
+            <p className="form-hint">
+              {leads.length} dòng · {pendingCount} pending · {acceptedCount} accepted/pushed
+              {selectedIds.length ? ` · ${selectedIds.length} đang chọn` : ''}
+            </p>
+          </div>
+          <div className="rlh-toolbar">
+            {canExport ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true);
+                    setError('');
+                    try {
+                      const out = await exportRawLeads(
+                        token,
+                        projectId,
+                        selectedIds.length ? { lead_ids: selectedIds } : {},
+                      );
+                      const blob = new Blob([out.csv], { type: 'text/csv;charset=utf-8' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `raw-leads-${projectId}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      setMsg(`Đã export ${out.count} dòng`);
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Export thất bại');
+                    } finally {
+                      setBusy(false);
                     }
-                    setSelectedIds([]);
-                    await reloadJobsAndLeads();
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : 'Push CRM thất bại');
-                  } finally {
-                    setBusy(false);
-                  }
-                })();
-              }}
-            >
-              Push CRM ({selectedIds.length})
-            </button>
-          ) : null}
+                  })();
+                }}
+              >
+                Export CSV
+              </button>
+            ) : null}
+            {canRun ? (
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={busy || selectedIds.length === 0}
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true);
+                    setError('');
+                    try {
+                      const out = await pushRawLeadsToCrm(token, projectId, selectedIds);
+                      setMsg(
+                        `Push CRM: ${out.pushed.length} OK` +
+                          (out.errors.length ? `, ${out.errors.length} lỗi` : ''),
+                      );
+                      if (out.errors[0]) {
+                        setError(`${out.errors[0].raw_lead_id}: ${out.errors[0].error}`);
+                      }
+                      setSelectedIds([]);
+                      await reloadJobsAndLeads();
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Push CRM thất bại');
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
+                }}
+              >
+                Push CRM ({selectedIds.length})
+              </button>
+            ) : null}
+          </div>
         </div>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th>Score</th>
-              <th>ICP</th>
-              <th>Công ty</th>
-              <th>SĐT</th>
-              <th>Email</th>
-              <th>Status</th>
-              <th>Dial</th>
-              <th>Feedback</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {leads.map((lead) => (
-              <tr key={lead.id}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(lead.id)}
-                    onChange={(e) =>
-                      setSelectedIds((prev) =>
-                        e.target.checked
-                          ? [...prev, lead.id]
-                          : prev.filter((id) => id !== lead.id),
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  <span className={`badge ${scoreBadge(lead.quality_score)}`}>
-                    {lead.quality_score}
-                  </span>
-                </td>
-                <td>{lead.icp_fit_score}</td>
-                <td>
-                  {lead.evidence_url ? (
-                    <a href={lead.evidence_url} target="_blank" rel="noreferrer">
-                      {lead.company_name}
-                    </a>
-                  ) : (
-                    lead.company_name
-                  )}
-                  <div className="muted">{lead.address}</div>
-                </td>
-                <td>{lead.phone ?? '—'}</td>
-                <td>{lead.email ?? '—'}</td>
-                <td>
-                  {lead.status}
-                  {lead.crm_lead_id ? (
-                    <div className="muted">CRM #{lead.crm_lead_id}</div>
-                  ) : null}
-                </td>
-                <td>
-                  {canRun ? (
-                    <select
-                      value={lead.dial_outcome ?? ''}
-                      disabled={busy}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!v) return;
-                        void patchRawLead(token, projectId, lead.id, {
-                          dial_outcome: v as (typeof DIAL_OPTS)[number]['value'],
-                        }).then(reloadJobsAndLeads);
-                      }}
-                    >
-                      <option value="">—</option>
-                      {DIAL_OPTS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    lead.dial_outcome ?? '—'
-                  )}
-                </td>
-                <td>
-                  {canRun ? (
-                    <select
-                      value={lead.feedback_code ?? ''}
-                      disabled={busy}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!v) return;
-                        void patchRawLead(token, projectId, lead.id, {
-                          feedback_code: v as (typeof FEEDBACK_OPTS)[number]['value'],
-                        }).then(reloadJobsAndLeads);
-                      }}
-                    >
-                      <option value="">—</option>
-                      {FEEDBACK_OPTS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    lead.feedback_code ?? '—'
-                  )}
-                </td>
-                <td>
-                  {canRun && lead.status === 'pending' ? (
-                    <div className="row" style={{ gap: 6 }}>
-                      <button type="button" onClick={() => setAcceptLead(lead)}>
-                        Accept
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void patchRawLead(token, projectId, lead.id, {
-                            status: 'rejected',
-                          }).then(reloadJobsAndLeads)
+
+        {leads.length === 0 ? (
+          <div className="rlh-empty">Chưa có lead — chạy job quality để thu thập.</div>
+        ) : (
+          <div className="data-table-wrap rlh-leads-wrap">
+            <table className="data-table data-table--dense">
+              <thead>
+                <tr>
+                  <th className="rlh-col-check">
+                    <input
+                      type="checkbox"
+                      aria-label="Chọn tất cả"
+                      checked={
+                        leads.length > 0 && selectedIds.length === leads.length
+                      }
+                      onChange={(e) =>
+                        setSelectedIds(e.target.checked ? leads.map((l) => l.id) : [])
+                      }
+                    />
+                  </th>
+                  <th>Score</th>
+                  <th>ICP</th>
+                  <th>Công ty</th>
+                  <th>Liên hệ</th>
+                  <th>Status</th>
+                  <th>Dial</th>
+                  <th>Feedback</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {leads.map((lead) => (
+                  <tr key={lead.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(lead.id)}
+                        onChange={(e) =>
+                          setSelectedIds((prev) =>
+                            e.target.checked
+                              ? [...prev, lead.id]
+                              : prev.filter((id) => id !== lead.id),
+                          )
                         }
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      />
+                    </td>
+                    <td>
+                      <span className={`badge ${scoreBadge(lead.quality_score)}`}>
+                        {Math.round(lead.quality_score)}
+                      </span>
+                    </td>
+                    <td className="muted">{Math.round(lead.icp_fit_score)}</td>
+                    <td>
+                      {lead.evidence_url ? (
+                        <a href={lead.evidence_url} target="_blank" rel="noreferrer">
+                          {lead.company_name}
+                        </a>
+                      ) : (
+                        <strong>{lead.company_name}</strong>
+                      )}
+                      {lead.address ? <div className="muted rlh-sub">{lead.address}</div> : null}
+                    </td>
+                    <td>
+                      <div>{lead.phone ?? '—'}</div>
+                      <div className="muted rlh-sub">{lead.email ?? '—'}</div>
+                    </td>
+                    <td>
+                      <span className={`rlh-status ${leadStatusClass(lead.status)}`}>
+                        {lead.status}
+                      </span>
+                      {lead.crm_lead_id ? (
+                        <div className="muted rlh-sub">CRM #{lead.crm_lead_id}</div>
+                      ) : null}
+                    </td>
+                    <td>
+                      {canRun ? (
+                        <select
+                          className="rlh-select-sm"
+                          value={lead.dial_outcome ?? ''}
+                          disabled={busy}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (!v) return;
+                            void patchRawLead(token, projectId, lead.id, {
+                              dial_outcome: v as (typeof DIAL_OPTS)[number]['value'],
+                            }).then(reloadJobsAndLeads);
+                          }}
+                        >
+                          <option value="">—</option>
+                          {DIAL_OPTS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        lead.dial_outcome ?? '—'
+                      )}
+                    </td>
+                    <td>
+                      {canRun ? (
+                        <select
+                          className="rlh-select-sm"
+                          value={lead.feedback_code ?? ''}
+                          disabled={busy}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (!v) return;
+                            void patchRawLead(token, projectId, lead.id, {
+                              feedback_code: v as (typeof FEEDBACK_OPTS)[number]['value'],
+                            }).then(reloadJobsAndLeads);
+                          }}
+                        >
+                          <option value="">—</option>
+                          {FEEDBACK_OPTS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        lead.feedback_code ?? '—'
+                      )}
+                    </td>
+                    <td>
+                      {canRun && lead.status === 'pending' ? (
+                        <div className="rlh-row-actions">
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => setAcceptLead(lead)}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() =>
+                              void patchRawLead(token, projectId, lead.id, {
+                                status: 'rejected',
+                              }).then(reloadJobsAndLeads)
+                            }
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <RawLeadAcceptModal
