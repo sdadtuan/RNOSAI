@@ -6,12 +6,20 @@ export function buildDiscoverPrompt(job: RawLeadHarvestJobRow): string {
     job.channels_json.length > 0
       ? job.channels_json.map((s) => `${s.label} (${s.key})`).join(', ')
       : '(không thu hẹp kênh)';
+  const titleLine =
+    !job.job_title_key || job.job_title_key === 'all'
+      ? '- Chức danh đối tượng: Tất cả (không giới hạn)'
+      : `- Chức danh đối tượng: ${job.job_title_label}`;
+  const geoLine =
+    !job.province_code || job.province_code === 'all'
+      ? '- Địa bàn: Tất cả (toàn quốc / không giới hạn tỉnh)'
+      : `- Địa bàn: ${job.province_name}${job.ward_name ? `, ${job.ward_name}` : ''}`;
   return [
     'Bạn là trợ lý nghiên cứu thị trường Việt Nam.',
     `Tìm tối đa ${job.target_count} doanh nghiệp khớp ICP:`,
     `- Ngành: ${job.industry_label}`,
-    `- Chức danh đối tượng: ${job.job_title_label}`,
-    `- Địa bàn: ${job.province_name}${job.ward_name ? `, ${job.ward_name}` : ''}`,
+    titleLine,
+    geoLine,
     `- Nguồn được phép/ưu tiên: ${sources}`,
     `- Kênh: ${channels}`,
     job.notes ? `- Ghi chú ICP: ${job.notes}` : '',
@@ -47,12 +55,20 @@ export function buildExtractPrompt(input: {
   evidence_url: string;
   job: RawLeadHarvestJobRow;
 }): string {
+  const geo =
+    !input.job.province_code || input.job.province_code === 'all'
+      ? 'Tất cả (không giới hạn tỉnh)'
+      : input.job.province_name;
+  const title =
+    !input.job.job_title_key || input.job.job_title_key === 'all'
+      ? 'Tất cả'
+      : input.job.job_title_label;
   return [
     'Chỉ extract thông tin liên hệ CÓ MẶT trên trang/nguồn đã cho. Không bịa.',
     `Công ty: ${input.company_name}`,
     `Evidence URL: ${input.evidence_url}`,
-    `Địa bàn filter: ${input.job.province_name}`,
-    `Chức danh ưu tiên: ${input.job.job_title_label}`,
+    `Địa bàn filter: ${geo}`,
+    `Chức danh ưu tiên: ${title}`,
     'Trả JSON array 1 phần tử cùng schema harvest (company_name, address, phone, email, contact_title, website, evidence_url, evidence_snippet, confidence, field_sources).',
     'Nếu không thấy SĐT/email trên nguồn → null.',
   ].join('\n');

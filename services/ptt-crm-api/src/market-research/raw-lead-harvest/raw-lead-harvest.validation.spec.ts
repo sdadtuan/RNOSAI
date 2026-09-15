@@ -34,4 +34,15 @@ describe('validateCreateRawLeadHarvest', () => {
   it('accepts valid quality body', () => {
     expect(validateCreateRawLeadHarvest(base)).toBeNull();
   });
+
+  it('allows empty job_title and province (Tất cả)', () => {
+    expect(
+      validateCreateRawLeadHarvest({
+        ...base,
+        job_title_key: '',
+        province_code: '',
+        ward_code: null,
+      }),
+    ).toBeNull();
+  });
 });

@@ -298,9 +298,9 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 try {
                   const out = await createRawLeadHarvest(token, projectId, {
                     industry_key: industryKey,
-                    job_title_key: titleKey,
-                    province_code: provinceCode,
-                    ward_code: wardCode || null,
+                    job_title_key: titleKey || null,
+                    province_code: provinceCode || null,
+                    ward_code: provinceCode && wardCode ? wardCode : null,
                     source_keys: sourceKeys,
                     channel_keys: channelKeys,
                     provider,
@@ -342,15 +342,12 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   </select>
                 </label>
                 <label className="form-field">
-                  <span className="form-label">
-                    Chức danh <span className="form-required">*</span>
-                  </span>
+                  <span className="form-label">Chức danh</span>
                   <select
                     value={titleKey}
                     onChange={(e) => setTitleKey(e.target.value)}
-                    required
                   >
-                    <option value="">Chọn chức danh…</option>
+                    <option value="">Tất cả</option>
                     {titles.map((o) => (
                       <option key={o.option_key} value={o.option_key}>
                         {o.label}
@@ -359,15 +356,15 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   </select>
                 </label>
                 <label className="form-field">
-                  <span className="form-label">
-                    Tỉnh/TP <span className="form-required">*</span>
-                  </span>
+                  <span className="form-label">Tỉnh/TP</span>
                   <select
                     value={provinceCode}
-                    onChange={(e) => setProvinceCode(e.target.value)}
-                    required
+                    onChange={(e) => {
+                      setProvinceCode(e.target.value);
+                      setWardCode('');
+                    }}
                   >
-                    <option value="">Chọn tỉnh/TP…</option>
+                    <option value="">Tất cả</option>
                     {provinces.map((p) => (
                       <option key={p.code} value={p.code}>
                         {p.name}
@@ -377,8 +374,12 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 </label>
                 <label className="form-field">
                   <span className="form-label">Phường/Xã</span>
-                  <select value={wardCode} onChange={(e) => setWardCode(e.target.value)}>
-                    <option value="">Không chọn</option>
+                  <select
+                    value={wardCode}
+                    onChange={(e) => setWardCode(e.target.value)}
+                    disabled={!provinceCode}
+                  >
+                    <option value="">Tất cả</option>
                     {wards.map((w) => (
                       <option key={w.code} value={w.code}>
                         {w.name}

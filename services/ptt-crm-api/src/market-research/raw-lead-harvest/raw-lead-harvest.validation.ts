@@ -10,8 +10,7 @@ export function validateCreateRawLeadHarvest(
   body: CreateRawLeadHarvestBody,
 ): HarvestValidationError | null {
   if (!String(body.industry_key ?? '').trim()) return { error: 'industry_key_required' };
-  if (!String(body.job_title_key ?? '').trim()) return { error: 'job_title_key_required' };
-  if (!String(body.province_code ?? '').trim()) return { error: 'province_code_required' };
+  // job_title_key / province_code / ward_code are optional ("Tất cả")
   if (!String(body.provider ?? '').trim()) return { error: 'provider_required' };
   if (!String(body.model ?? '').trim()) return { error: 'model_required' };
 

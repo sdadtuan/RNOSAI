@@ -17,8 +17,8 @@ export type DialOutcome =
 
 export type CreateRawLeadHarvestBody = {
   industry_key: string;
-  job_title_key: string;
-  province_code: string;
+  job_title_key?: string | null;
+  province_code?: string | null;
   ward_code?: string | null;
   source_keys: string[];
   channel_keys?: string[];

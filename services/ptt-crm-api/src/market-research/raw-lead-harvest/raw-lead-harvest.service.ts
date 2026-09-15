@@ -78,9 +78,15 @@ export class RawLeadHarvestService {
     const channels = await this.crmConfig.listLeadLookups('channel', true);
 
     const industry = industries.options.find((o) => o.option_key === body.industry_key);
-    const title = titles.options.find((o) => o.option_key === body.job_title_key);
     if (!industry) throw new BadRequestException({ error: 'invalid_industry' });
-    if (!title) throw new BadRequestException({ error: 'invalid_job_title' });
+
+    const jobTitleKey = String(body.job_title_key ?? '').trim();
+    let jobTitleLabel = 'Tất cả';
+    if (jobTitleKey && jobTitleKey !== 'all') {
+      const title = titles.options.find((o) => o.option_key === jobTitleKey);
+      if (!title) throw new BadRequestException({ error: 'invalid_job_title' });
+      jobTitleLabel = title.label;
+    }
 
     const sourceKeys = body.source_keys.map(String);
     const channelKeys = (body.channel_keys ?? []).map(String);
@@ -95,17 +101,22 @@ export class RawLeadHarvestService {
       return { key, label: row.label };
     });
 
-    const provinces = await this.vnGeo.listProvinces(false);
-    const province = provinces.find((p) => p.code === body.province_code);
-    if (!province) throw new BadRequestException({ error: 'invalid_province' });
-
+    const provinceCode = String(body.province_code ?? '').trim();
+    let provinceName = 'Tất cả';
+    let wardCode: string | null = null;
     let wardName: string | null = null;
-    const wardCode = body.ward_code ? String(body.ward_code) : null;
-    if (wardCode) {
-      const wards = await this.vnGeo.listWards(body.province_code, false);
-      const ward = wards.find((w) => w.code === wardCode);
-      if (!ward) throw new BadRequestException({ error: 'invalid_ward' });
-      wardName = ward.name;
+    if (provinceCode && provinceCode !== 'all') {
+      const provinces = await this.vnGeo.listProvinces(false);
+      const province = provinces.find((p) => p.code === provinceCode);
+      if (!province) throw new BadRequestException({ error: 'invalid_province' });
+      provinceName = province.name;
+      wardCode = body.ward_code ? String(body.ward_code).trim() || null : null;
+      if (wardCode) {
+        const wards = await this.vnGeo.listWards(provinceCode, false);
+        const ward = wards.find((w) => w.code === wardCode);
+        if (!ward) throw new BadRequestException({ error: 'invalid_ward' });
+        wardName = ward.name;
+      }
     }
 
     const harvestProviders = await this.aiProviders.listHarvestProviders();
@@ -125,10 +136,10 @@ export class RawLeadHarvestService {
       project_id: projectId,
       industry_key: industry.option_key,
       industry_label: industry.label,
-      job_title_key: title.option_key,
-      job_title_label: title.label,
-      province_code: province.code,
-      province_name: province.name,
+      job_title_key: jobTitleKey && jobTitleKey !== 'all' ? jobTitleKey : 'all',
+      job_title_label: jobTitleLabel,
+      province_code: provinceCode && provinceCode !== 'all' ? provinceCode : 'all',
+      province_name: provinceName,
       ward_code: wardCode,
       ward_name: wardName,
       sources_json: sourceSnap,
@@ -376,11 +387,15 @@ export class RawLeadHarvestService {
           project_id: projectId,
           job_id: jobId,
           company_name: company,
-          address: `${job.province_name}, Việt Nam`,
+          address:
+            job.province_code === 'all'
+              ? 'Việt Nam'
+              : `${job.province_name}, Việt Nam`,
           phone: `09010000${10 + i}`,
           phone_norm: `09010000${10 + i}`,
           email: `contact${i + 1}@example-mock.vn`,
-          contact_title: job.job_title_label,
+          contact_title:
+            job.job_title_key === 'all' ? null : job.job_title_label,
           website: `https://example-mock.vn/co-${i + 1}`,
           evidence_url: `https://example-mock.vn/co-${i + 1}`,
           evidence_snippet: `${company} — ${job.province_name}`,

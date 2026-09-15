@@ -168,7 +168,7 @@ export class HarvestWorkerService {
           confidence: c.confidence,
         },
         fetch,
-        { expectedProvinceHint: job.province_name },
+        { expectedProvinceHint: job.province_code === 'all' ? null : job.province_name },
       );
       scored.push({
         ai: c,
@@ -201,7 +201,8 @@ export class HarvestWorkerService {
               email: row.verified.email_out,
               website: row.ai.website,
               evidence_url: row.ai.evidence_url,
-              province_name: job.province_name,
+              province_name:
+                job.province_code === 'all' ? 'Việt Nam' : job.province_name,
             }),
             temperature: 0,
           });
@@ -238,7 +239,8 @@ export class HarvestWorkerService {
           const legal = await enrichLegalStatus({
             company_name: row.ai.company_name,
             address: row.ai.address,
-            province_name: job.province_name,
+            province_name:
+              job.province_code === 'all' ? 'Việt Nam' : job.province_name,
             phone: row.verified.phone_out,
             website: row.ai.website,
           });
