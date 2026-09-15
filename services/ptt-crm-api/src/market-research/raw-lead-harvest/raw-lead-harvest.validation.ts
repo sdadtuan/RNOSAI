@@ -3,7 +3,9 @@ import type { CreateRawLeadHarvestBody, RawLeadHarvestMode } from './raw-lead-ha
 export type HarvestValidationError = { error: string; detail?: string };
 
 export function normalizeHarvestMode(raw: unknown): RawLeadHarvestMode {
-  return raw === 'volume' ? 'volume' : 'quality';
+  if (raw === 'volume') return 'volume';
+  if (raw === 'marketing') return 'marketing';
+  return 'quality';
 }
 
 export function validateCreateRawLeadHarvest(

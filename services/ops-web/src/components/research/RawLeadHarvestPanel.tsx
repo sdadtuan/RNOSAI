@@ -76,6 +76,25 @@ function leadStatusClass(status: string): string {
   return 'rlh-status--muted';
 }
 
+function classificationLabel(code: string | null | undefined): string {
+  switch (code) {
+    case 'pass':
+      return 'Pass';
+    case 'needs_review':
+      return 'Cần review';
+    case 'rejected_critic':
+      return 'Critic reject';
+    case 'rejected_gate':
+      return 'Gate reject';
+    case 'rejected_blacklist':
+      return 'Blacklist';
+    case 'rejected_dedupe':
+      return 'Trùng';
+    default:
+      return code?.trim() ? code : '—';
+  }
+}
+
 function sortLookups(options: CrmLeadLookupOption[], priority: string[]): CrmLeadLookupOption[] {
   const rank = new Map(priority.map((k, i) => [k, i]));
   return [...options].sort((a, b) => {
@@ -145,7 +164,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const [wardCode, setWardCode] = useState('');
   const [sourceKeys, setSourceKeys] = useState<string[]>([]);
   const [channelKeys, setChannelKeys] = useState<string[]>([]);
-  const [mode, setMode] = useState<'quality' | 'volume'>('quality');
+  const [mode, setMode] = useState<'quality' | 'volume' | 'marketing'>('quality');
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
   const [crossCheck, setCrossCheck] = useState(false);
@@ -197,7 +216,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const reloadJobsAndLeads = useCallback(async () => {
     const [j, l] = await Promise.all([
       listRawLeadHarvests(token, projectId),
-      listRawLeads(token, projectId),
+      listRawLeads(token, projectId, { include_auto_rejected: true }),
     ]);
     setJobs(j.jobs);
     setLeads(l.leads);
@@ -429,10 +448,15 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   <span className="form-label">Chế độ</span>
                   <select
                     value={mode}
-                    onChange={(e) => setMode(e.target.value as 'quality' | 'volume')}
+                    onChange={(e) =>
+                      setMode(e.target.value as 'quality' | 'volume' | 'marketing')
+                    }
                   >
                     <option value="quality">Quality — ít lead, chặt hơn</option>
                     <option value="volume">Volume — nhiều hơn, rủi ro ảo</option>
+                    <option value="marketing">
+                      Marketing — web/FB lấy SĐT + email (AM gửi MKT, không verify email)
+                    </option>
                   </select>
                 </label>
                 <label className="form-field">
@@ -501,6 +525,12 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
               {mode === 'volume' ? (
                 <p className="rlh-inline-warn">
                   Volume tăng nguy cơ lead yếu/ảo — chỉ dùng để thăm dò.
+                </p>
+              ) : null}
+              {mode === 'marketing' ? (
+                <p className="rlh-inline-warn">
+                  Marketing ưu tiên website/Facebook: lấy SĐT (di động/bàn) và email công khai
+                  cho AM gửi marketing — email không bắt verify literal trước.
                 </p>
               ) : null}
 
@@ -690,6 +720,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   <th>ICP</th>
                   <th>Công ty</th>
                   <th>Liên hệ</th>
+                  <th>Phân loại</th>
                   <th>Status</th>
                   <th>Dial</th>
                   <th>Feedback</th>
@@ -731,6 +762,15 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     <td>
                       <div>{lead.phone ?? '—'}</div>
                       <div className="muted rlh-sub">{lead.email ?? '—'}</div>
+                    </td>
+                    <td>
+                      <span className="rlh-class">{classificationLabel(lead.classification)}</span>
+                      {typeof lead.verify_json?.critic_reason === 'string' &&
+                      lead.verify_json.critic_reason ? (
+                        <div className="muted rlh-sub" title={String(lead.verify_json.critic_reason)}>
+                          {String(lead.verify_json.critic_reason).slice(0, 48)}
+                        </div>
+                      ) : null}
                     </td>
                     <td>
                       <span className={`rlh-status ${leadStatusClass(lead.status)}`}>

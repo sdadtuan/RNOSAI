@@ -28,4 +28,17 @@ describe('applyQualityGate', () => {
     expect(applyQualityGate('quality', 55, v())).toBe('pending');
     expect(applyQualityGate('quality', 45, v())).toBe('auto_rejected');
   });
+
+  it('marketing accepts phone or email at score>=35 (AM marketing)', () => {
+    expect(
+      applyQualityGate('marketing', 40, v({ phone_ok: true, email_ok: false })),
+    ).toBe('pending');
+    expect(
+      applyQualityGate('marketing', 40, v({ phone_ok: false, email_ok: true, phone_out: null, phone_norm: null })),
+    ).toBe('pending');
+    expect(
+      applyQualityGate('marketing', 40, v({ phone_ok: false, email_ok: false, phone_out: null, phone_norm: null })),
+    ).toBe('auto_rejected');
+    expect(applyQualityGate('marketing', 30, v())).toBe('auto_rejected');
+  });
 });

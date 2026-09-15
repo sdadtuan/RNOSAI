@@ -44,4 +44,26 @@ describe('verifyCandidate', () => {
     expect(v.email_ok).toBe(true);
     expect(v.fetch).toBe('ok');
   });
+
+  it('keeps format-valid email without literal check when relaxEmailLiteral', () => {
+    const v = verifyCandidate(
+      {
+        company_name: 'Spa Anh Duong',
+        address: 'Ha Noi',
+        phone: null,
+        email: 'mkt@spa.vn',
+        contact_title: null,
+        website: 'https://spa.vn',
+        evidence_url: 'https://spa.vn/lien-he',
+        evidence_snippet: 'Spa Anh Duong welcome',
+        discovered_via_source_key: null,
+        confidence: 0.8,
+      },
+      { ok: true, text: 'Spa Anh Duong welcome — no email here' },
+      { relaxEmailLiteral: true },
+    );
+    expect(v.email_ok).toBe(true);
+    expect(v.email_out).toBe('mkt@spa.vn');
+    expect(v.reasons).not.toContain('brq7_email_not_literal');
+  });
 });

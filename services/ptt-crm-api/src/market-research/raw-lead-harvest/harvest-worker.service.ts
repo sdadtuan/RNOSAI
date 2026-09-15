@@ -13,6 +13,12 @@ import {
   legalEnrichEnabled,
   type LegalStatus,
 } from './enrich/legal-status.util';
+import {
+  applyCriticFlagToLead,
+  parseCriticClassifications,
+  resolveLeadClassification,
+  type CriticFlag,
+} from './harvest-critic.util';
 import { callHarvestChatCompletion } from './harvest-llm.client';
 import { parseHarvestAiLeads, type HarvestAiLead } from './harvest-parse.util';
 import {
@@ -49,6 +55,8 @@ type ScoredRow = {
   score: number;
   crossCheck: (ParsedCrossCheck & { provider: string; model: string }) | null;
   forceReject: boolean;
+  criticFlag: CriticFlag;
+  criticReason: string | null;
   legalStatus: LegalStatus | null;
   legalDetail: string | null;
 };
@@ -133,16 +141,20 @@ export class HarvestWorkerService {
     }
     candidates = refined.length ? refined : candidates;
 
-    // Pass C — Critic
+    // Pass C — Critic (soft): classify / forceReject, NEVER silent-drop candidates.
+    const criticByIndex = new Map<
+      number,
+      { flag: CriticFlag; reason: string | null }
+    >();
     try {
       const critic = await callHarvestChatCompletion({
         ...llmBase,
         user: buildCriticPrompt(JSON.stringify(candidates)),
         temperature: 0,
       });
-      const dropIdx = parseCriticDropIndexes(critic.content, candidates.length);
-      if (dropIdx.size > 0) {
-        candidates = candidates.filter((_, i) => !dropIdx.has(i));
+      const parsed = parseCriticClassifications(critic.content, candidates.length);
+      for (const [idx, verdict] of parsed) {
+        criticByIndex.set(idx, verdict);
       }
     } catch (err) {
       this.logger.warn(
@@ -152,7 +164,10 @@ export class HarvestWorkerService {
 
     // Pass B + interim score for all candidates
     const scored: ScoredRow[] = [];
-    for (const c of candidates) {
+    for (let i = 0; i < candidates.length; i += 1) {
+      const c = candidates[i]!;
+      const critic = criticByIndex.get(i) ?? { flag: 'keep' as CriticFlag, reason: null };
+      const criticApplied = applyCriticFlagToLead(critic.flag);
       const fetch = await fetchEvidenceText(c.evidence_url, { timeoutMs: 8000 });
       const verified = verifyCandidate(
         {
@@ -168,14 +183,16 @@ export class HarvestWorkerService {
           confidence: c.confidence,
         },
         fetch,
-        { expectedProvinceHint: job.province_code === 'all' ? null : job.province_name },
+        { expectedProvinceHint: job.province_code === 'all' ? null : job.province_name, relaxEmailLiteral: job.mode === 'marketing' },
       );
       scored.push({
         ai: c,
         verified,
         score: computeQualityScore(verified, c.confidence),
         crossCheck: null,
-        forceReject: false,
+        forceReject: criticApplied.forceReject,
+        criticFlag: critic.flag,
+        criticReason: critic.reason,
         legalStatus: null,
         legalDetail: null,
       });
@@ -271,17 +288,16 @@ export class HarvestWorkerService {
       if (inserted >= job.target_count) break;
 
       const { ai: c, verified } = row;
-      if (
-        candidateHitsBlacklist(
-          {
-            phone_norm: verified.phone_norm,
-            email: verified.email_out,
-            company_name: c.company_name,
-            website: c.website,
-          },
-          blacklist,
-        )
-      ) {
+      const blacklistHit = candidateHitsBlacklist(
+        {
+          phone_norm: verified.phone_norm,
+          email: verified.email_out,
+          company_name: c.company_name,
+          website: c.website,
+        },
+        blacklist,
+      );
+      if (blacklistHit) {
         rejected += 1;
         continue;
       }
@@ -291,7 +307,8 @@ export class HarvestWorkerService {
         phone_norm: verified.phone_norm,
         email: verified.email_out,
       });
-      if (isDuplicateAgainst(dedupe, batchKeys)) {
+      const dedupeHit = isDuplicateAgainst(dedupe, batchKeys);
+      if (dedupeHit) {
         rejected += 1;
         continue;
       }
@@ -306,6 +323,12 @@ export class HarvestWorkerService {
       const contactable = Boolean(verified.phone_ok || verified.email_ok);
       const status = gate === 'pending' ? 'pending' : 'auto_rejected';
       if (status === 'auto_rejected') rejected += 1;
+
+      const classification = resolveLeadClassification({
+        criticFlag: row.criticFlag,
+        forceReject: row.forceReject,
+        status,
+      });
 
       await this.repo.insertLead({
         project_id: job.project_id,
@@ -332,6 +355,7 @@ export class HarvestWorkerService {
         phone_kind: verified.phone_kind ?? null,
         legal_status: row.legalStatus,
         status,
+        classification,
         verify_json: {
           evidence_ok: verified.evidence_ok,
           phone_ok: verified.phone_ok,
@@ -345,6 +369,9 @@ export class HarvestWorkerService {
           already_customer: alreadyCustomer,
           field_sources: c.field_sources,
           gate,
+          critic_flag: row.criticFlag,
+          critic_reason: row.criticReason,
+          classification,
           cross_check: row.crossCheck,
           legal_status: row.legalStatus,
           legal_detail: row.legalDetail,
@@ -352,6 +379,7 @@ export class HarvestWorkerService {
         raw_json: {
           ai: c,
           discover_model: discover.model,
+          critic: { flag: row.criticFlag, reason: row.criticReason },
           cross_check: row.crossCheck,
           legal: row.legalStatus
             ? { status: row.legalStatus, detail: row.legalDetail }
@@ -364,23 +392,5 @@ export class HarvestWorkerService {
     }
 
     return { inserted, rejected };
-  }
-}
-
-function parseCriticDropIndexes(raw: string, len: number): Set<number> {
-  const text = String(raw ?? '').trim();
-  const start = text.indexOf('[');
-  const end = text.lastIndexOf(']');
-  if (start < 0 || end <= start) return new Set();
-  try {
-    const arr = JSON.parse(text.slice(start, end + 1)) as unknown;
-    if (!Array.isArray(arr)) return new Set();
-    return new Set(
-      arr
-        .map((n) => Number(n))
-        .filter((n) => Number.isInteger(n) && n >= 0 && n < len),
-    );
-  } catch {
-    return new Set();
   }
 }

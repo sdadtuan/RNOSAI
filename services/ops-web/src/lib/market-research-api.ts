@@ -1835,6 +1835,7 @@ export type RawLead = {
   dial_outcome?: string | null;
   dial_outcome_at?: string | null;
   legal_status?: string | null;
+  classification?: string | null;
   crm_lead_id?: number | null;
   verify_json: Record<string, unknown>;
   created_at: string;
@@ -1860,7 +1861,7 @@ export function createRawLeadHarvest(
     channel_keys?: string[];
     provider: string;
     model: string;
-    mode?: 'quality' | 'volume';
+    mode?: 'quality' | 'volume' | 'marketing';
     cross_check?: boolean;
     target_count: number;
     notes?: string;

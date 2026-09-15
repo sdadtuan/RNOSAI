@@ -23488,6 +23488,13 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   color: #5c6f63;
 }
 
+.rlh-class {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: #334155;
+}
+
 .rlh-accept-list {
   display: flex;
   flex-direction: column;

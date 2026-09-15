@@ -130,6 +130,10 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       CREATE INDEX IF NOT EXISTS idx_raw_lead_blacklist_kind_value
         ON crm_research_raw_lead_blacklist (kind, value_norm);
     `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS classification TEXT
+    `);
   }
 
   private mapJob(row: Record<string, unknown>): RawLeadHarvestJobRow {
@@ -156,7 +160,11 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       channels_json: channels as Array<{ key: string; label: string }>,
       provider: String(row.provider),
       model: String(row.model),
-      mode: (row.mode === 'volume' ? 'volume' : 'quality') as RawLeadHarvestMode,
+      mode: (row.mode === 'volume'
+        ? 'volume'
+        : row.mode === 'marketing'
+          ? 'marketing'
+          : 'quality') as RawLeadHarvestMode,
       cross_check: Boolean(row.cross_check),
       target_count: Number(row.target_count),
       notes: row.notes == null ? null : String(row.notes),
@@ -209,6 +217,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       dial_outcome: row.dial_outcome == null ? null : String(row.dial_outcome),
       dial_outcome_at: iso(row.dial_outcome_at),
       legal_status: row.legal_status == null ? null : String(row.legal_status),
+      classification: row.classification == null ? null : String(row.classification),
       crm_lead_id: row.crm_lead_id == null ? null : Number(row.crm_lead_id),
       verify_json: verify as Record<string, unknown>,
       created_at: iso(row.created_at) ?? '',
@@ -394,6 +403,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     phone_kind?: string | null;
     legal_status?: string | null;
     status: string;
+    classification?: string | null;
     verify_json: Record<string, unknown>;
     raw_json?: Record<string, unknown>;
   }): Promise<RawLeadRow> {
@@ -404,9 +414,10 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
          contact_title, website, evidence_url, evidence_snippet,
          source_provider, source_model, search_source_keys, search_channel_keys,
          discovered_via_source_key, confidence,
-         quality_score, icp_fit_score, contactable, phone_kind, legal_status, status, verify_json, raw_json
+         quality_score, icp_fit_score, contactable, phone_kind, legal_status, status,
+         classification, verify_json, raw_json
        ) VALUES (
-         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25::jsonb,$26::jsonb
+         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27::jsonb
        ) RETURNING *`,
       [
         input.project_id,
@@ -433,6 +444,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         input.phone_kind ?? null,
         input.legal_status ?? null,
         input.status,
+        input.classification ?? null,
         JSON.stringify(input.verify_json),
         JSON.stringify(input.raw_json ?? {}),
       ],

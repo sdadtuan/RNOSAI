@@ -1,4 +1,4 @@
-export type RawLeadHarvestMode = 'quality' | 'volume';
+export type RawLeadHarvestMode = 'quality' | 'volume' | 'marketing';
 
 export type FeedbackCode =
   | 'bad_phone'
@@ -85,6 +85,7 @@ export type RawLeadRow = {
   dial_outcome: string | null;
   dial_outcome_at: string | null;
   legal_status: string | null;
+  classification: string | null;
   crm_lead_id: number | null;
   verify_json: Record<string, unknown>;
   created_at: string;

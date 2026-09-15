@@ -14,6 +14,17 @@ export function buildDiscoverPrompt(job: RawLeadHarvestJobRow): string {
     !job.province_code || job.province_code === 'all'
       ? '- Địa bàn: Tất cả (toàn quốc / không giới hạn tỉnh)'
       : `- Địa bàn: ${job.province_name}${job.ward_name ? `, ${job.ward_name}` : ''}`;
+  const marketingLines =
+    job.mode === 'marketing'
+      ? [
+          '',
+          'CHẾ ĐỘ MARKETING (ưu tiên liên hệ AM):',
+          '- Ưu tiên evidence từ website doanh nghiệp / Facebook page khớp ngành.',
+          '- Lấy SĐT liên hệ: di động (09x/03x/…) hoặc bàn (cố định) nếu có trên nguồn.',
+          '- Lấy email công khai nếu có — AM dùng gửi marketing, không cần verify trước.',
+          '- Vẫn cấm bịa SĐT/email; không có trên nguồn thì null.',
+        ]
+      : [];
   return [
     'Bạn là trợ lý nghiên cứu thị trường Việt Nam.',
     `Tìm tối đa ${job.target_count} doanh nghiệp khớp ICP:`,
@@ -23,10 +34,11 @@ export function buildDiscoverPrompt(job: RawLeadHarvestJobRow): string {
     `- Nguồn được phép/ưu tiên: ${sources}`,
     `- Kênh: ${channels}`,
     job.notes ? `- Ghi chú ICP: ${job.notes}` : '',
+    ...marketingLines,
     '',
     'QUY TẮC CỨNG:',
     '- Cấm bịa SĐT/email/MST. Không có trên nguồn thì để null.',
-    '- Mỗi công ty phải có evidence_url thật (website / Google Maps / trang vàng / directory).',
+    '- Mỗi công ty phải có evidence_url thật (website / Google Maps / Facebook / trang vàng / directory).',
     '- Không dùng URL trang tìm kiếm (google.com/search...).',
     '- evidence_snippet phải chứa tên công ty hoặc contact đã trích.',
     '- discovered_via_source_key phải là một trong các source key đã cho (hoặc null).',
@@ -63,12 +75,20 @@ export function buildExtractPrompt(input: {
     !input.job.job_title_key || input.job.job_title_key === 'all'
       ? 'Tất cả'
       : input.job.job_title_label;
+  const marketingExtra =
+    input.job.mode === 'marketing'
+      ? [
+          'Ưu tiên trích: SĐT di động hoặc bàn; email công khai (AM marketing — không bịa).',
+          'Nếu trang là website/Facebook của DN trong ngành → lấy mọi hotline/liên hệ hiện trên trang.',
+        ]
+      : [];
   return [
     'Chỉ extract thông tin liên hệ CÓ MẶT trên trang/nguồn đã cho. Không bịa.',
     `Công ty: ${input.company_name}`,
     `Evidence URL: ${input.evidence_url}`,
     `Địa bàn filter: ${geo}`,
     `Chức danh ưu tiên: ${title}`,
+    ...marketingExtra,
     'Trả JSON array 1 phần tử cùng schema harvest (company_name, address, phone, email, contact_title, website, evidence_url, evidence_snippet, confidence, field_sources).',
     'Nếu không thấy SĐT/email trên nguồn → null.',
   ].join('\n');
@@ -76,9 +96,24 @@ export function buildExtractPrompt(input: {
 
 export function buildCriticPrompt(leadsJson: string): string {
   return [
-    'Bạn là critic. Đánh dấu dòng thiếu căn cứ (thiếu evidence, SĐT/email khả năng bịa, tên generic).',
-    'Input JSON array:',
+    'Bạn là critic quality cho raw lead harvest Việt Nam.',
+    'Input JSON array (index = vị trí phần tử):',
     leadsJson,
-    'Trả JSON array các index (0-based) cần DROP, ví dụ [0,2]. Chỉ JSON array số.',
+    '',
+    'QUY TẮC NỚI (quan trọng):',
+    '- Có company_name rõ + evidence_url thật (website/Maps/directory) → KHÔNG reject chỉ vì thiếu SĐT/email.',
+    '  Thiếu contact → class=weak_contact (giữ lại để staff review).',
+    '- Chỉ dùng likely_fabricated khi SĐT/email trông bịa hoặc không khớp evidence.',
+    '- generic_name khi tên công ty quá generic (vd. "Công ty TNHH", "Spa gần đây").',
+    '- weak_evidence khi URL là trang tìm kiếm / không phải trang DN.',
+    '- keep khi ổn hoặc chỉ thiếu vài field không nghiêm trọng.',
+    '',
+    'Trả ĐÚNG một JSON array object (không markdown), mỗi phần tử:',
+    JSON.stringify({
+      index: 0,
+      class: 'keep|weak_contact|weak_evidence|generic_name|likely_fabricated|other',
+      reason: 'short vi/en',
+    }),
+    'Phải cover đủ mọi index 0..n-1. Không trả array số thuần [0,2].',
   ].join('\n');
 }

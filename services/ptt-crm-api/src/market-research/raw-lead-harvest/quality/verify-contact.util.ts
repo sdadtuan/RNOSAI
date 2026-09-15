@@ -51,7 +51,7 @@ function classifyPhone(digits: string): 'mobile' | 'landline' | 'unknown' {
 export function verifyCandidate(
   c: HarvestCandidate,
   fetch: EvidenceFetchResult | null,
-  opts?: { expectedProvinceHint?: string | null },
+  opts?: { expectedProvinceHint?: string | null; relaxEmailLiteral?: boolean },
 ): VerifyResult {
   const reasons: string[] = [];
   let phone_out = c.phone?.trim() || null;
@@ -107,12 +107,15 @@ export function verifyCandidate(
       if (['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com'].includes(domain)) {
         reasons.push('brq2_gmail_hotline');
       }
-      if (fetchStatus === 'ok' && !emailAppearsInText(email_out, combined)) {
-        reasons.push('brq7_email_not_literal');
-        email_out = null;
-      } else if (fetchStatus !== 'ok' && !emailAppearsInText(email_out, snippet)) {
-        reasons.push('brq7_email_not_literal');
-        email_out = null;
+      // Marketing mode: keep format-valid email for AM outbound — no literal pre-check.
+      if (!opts?.relaxEmailLiteral) {
+        if (fetchStatus === 'ok' && !emailAppearsInText(email_out, combined)) {
+          reasons.push('brq7_email_not_literal');
+          email_out = null;
+        } else if (fetchStatus !== 'ok' && !emailAppearsInText(email_out, snippet)) {
+          reasons.push('brq7_email_not_literal');
+          email_out = null;
+        }
       }
     }
   }

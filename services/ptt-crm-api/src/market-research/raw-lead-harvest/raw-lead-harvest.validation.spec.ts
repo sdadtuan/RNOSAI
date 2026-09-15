@@ -35,6 +35,7 @@ describe('validateCreateRawLeadHarvest', () => {
   it('defaults mode to quality', () => {
     expect(normalizeHarvestMode(undefined)).toBe('quality');
     expect(normalizeHarvestMode('volume')).toBe('volume');
+    expect(normalizeHarvestMode('marketing')).toBe('marketing');
   });
 
   it('accepts valid quality body', () => {
