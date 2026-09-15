@@ -149,7 +149,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
   const [crossCheck, setCrossCheck] = useState(false);
-  const [targetCount, setTargetCount] = useState(10);
+  const [targetCount, setTargetCount] = useState<number | ''>(10);
   const [notes, setNotes] = useState('');
 
   const [jobs, setJobs] = useState<RawLeadHarvestJob[]>([]);
@@ -296,6 +296,18 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 setError('');
                 setMsg('');
                 try {
+                  const maxCount = mode === 'quality' ? 25 : 50;
+                  const count =
+                    typeof targetCount === 'number' && Number.isFinite(targetCount)
+                      ? targetCount
+                      : NaN;
+                  if (!Number.isFinite(count) || count < 5 || count > maxCount) {
+                    setError(
+                      `Số lượng phải từ 5–${maxCount}${mode === 'quality' ? ' (Quality)' : ' (Volume)'}`,
+                    );
+                    setBusy(false);
+                    return;
+                  }
                   const out = await createRawLeadHarvest(token, projectId, {
                     industry_key: industryKey,
                     job_title_key: titleKey || null,
@@ -307,7 +319,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     model,
                     mode,
                     cross_check: canCrossCheck && crossCheck,
-                    target_count: targetCount,
+                    target_count: count,
                     notes: notes || undefined,
                   });
                   setActiveJobId(out.job_id);
@@ -432,8 +444,18 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     type="number"
                     min={5}
                     max={mode === 'quality' ? 25 : 50}
+                    inputMode="numeric"
                     value={targetCount}
-                    onChange={(e) => setTargetCount(Number(e.target.value))}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      // Allow empty while editing — Number('') === 0 would trap the digit 0.
+                      if (raw === '') {
+                        setTargetCount('');
+                        return;
+                      }
+                      const n = Number(raw);
+                      if (Number.isFinite(n)) setTargetCount(n);
+                    }}
                     required
                   />
                 </label>
