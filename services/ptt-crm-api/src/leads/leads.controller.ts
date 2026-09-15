@@ -39,6 +39,7 @@ import { B2bCpaasDownError, B2bDncBlockedError } from '../b2b-projects/b2b-calls
 import { B2bStringeeTokenService } from '../b2b-projects/b2b-stringee-token.service';
 import { B2bIntelligenceService } from '../b2b-projects/b2b-intelligence.service';
 import { B2bConversationsService } from '../b2b-projects/b2b-conversations.service';
+import { B2bProjectsService } from '../b2b-projects/b2b-projects.service';
 import {
   assertLeadPatchFieldsAllowed,
   serializeLeadForCaps,
@@ -94,6 +95,7 @@ export class LeadsController {
     private readonly piiAudit: PiiAccessAuditService,
     private readonly appConfig: AppConfigService,
     private readonly b2bLeadScope: B2bLeadScopeService,
+    private readonly b2bProjects: B2bProjectsService,
     private readonly b2bCalls: B2bCallsService,
     private readonly b2bStringeeToken: B2bStringeeTokenService,
     private readonly b2bIntelligence: B2bIntelligenceService,
@@ -115,6 +117,24 @@ export class LeadsController {
   listLookupOptions(@Query('kind') kind?: string) {
     const normalizedKind = kind === 'source' || kind === 'channel' ? kind : undefined;
     return this.crmConfig.listLeadLookups(normalizedKind, true);
+  }
+
+  /** Active PTT projects for B2B lead create — crm_leads.view (not crm_b2b_projects.view). */
+  @Get('b2b-project-options')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async listB2bProjectOptions(@Query('status') status?: string) {
+    if (!this.appConfig.b2bProjectOs) {
+      return { projects: [] as Array<{ id: string; code: string; name: string; status: string }> };
+    }
+    const rows = await this.b2bProjects.list(status?.trim() || 'active');
+    return {
+      projects: rows.map((p) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        status: p.status,
+      })),
+    };
   }
 
   @Get('import/template.xlsx')

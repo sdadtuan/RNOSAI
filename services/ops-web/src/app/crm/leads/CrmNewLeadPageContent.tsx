@@ -9,6 +9,7 @@ import {
   createLead,
   fetchAgencyClients,
   fetchCrmStaffList,
+  fetchLeadB2bProjectOptions,
   fetchLeadLookupOptions,
   staffMe,
   staffRefresh,
@@ -31,7 +32,6 @@ import {
   type CrmLeadsFlowScope,
 } from '@/lib/crm/lead-flow-routes';
 import { statusOptionsForFlowKind } from '@/lib/crm/lead-flow-kind';
-import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
 
 const SPA_STATUS_OPTIONS = [
   { value: 'moi', label: 'Mới' },
@@ -92,7 +92,10 @@ export function CrmNewLeadPageContent({
   const [status, setStatus] = useState('moi');
   const [ownerId, setOwnerId] = useState('');
   const [b2bProjectId, setB2bProjectId] = useState('');
-  const [b2bProjects, setB2bProjects] = useState<B2bProjectListItem[]>([]);
+  const [b2bProjects, setB2bProjects] = useState<
+    Array<{ id: string; code: string; name: string; status: string }>
+  >([]);
+  const [b2bProjectsHint, setB2bProjectsHint] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -161,13 +164,19 @@ export function CrmNewLeadPageContent({
       if (presetClientId) {
         setClientId(presetClientId);
       }
-      if (isB2bFlow && hasCap(getStoredUser(), 'crm_b2b_projects', 'view')) {
+      if (isB2bFlow) {
         try {
-          const projects = await fetchB2bProjects(currentToken, 'active');
+          const projects = await fetchLeadB2bProjectOptions(currentToken, 'active');
           setB2bProjects(projects);
+          setB2bProjectsHint(
+            projects.length === 0
+              ? 'Chưa có dự án PTT active — tạo tại /crm/b2b-projects trước khi nhập lead B2B.'
+              : '',
+          );
           if (projects.length === 1) setB2bProjectId(projects[0].id);
         } catch {
           setB2bProjects([]);
+          setB2bProjectsHint('Không tải được danh sách dự án PTT. Thử lại hoặc liên hệ admin.');
         }
       }
     })();
@@ -185,8 +194,12 @@ export function CrmNewLeadPageContent({
       setError('Chọn khách hàng agency (client) — bắt buộc với lead CSKH vận hành');
       return;
     }
-    if (isB2bFlow && b2bProjects.length > 0 && !b2bProjectId) {
-      setError('Chọn dự án PTT — bắt buộc với lead B2B');
+    if (isB2bFlow && !b2bProjectId.trim()) {
+      setError(
+        b2bProjects.length === 0
+          ? b2bProjectsHint || 'Thiếu dự án PTT — bắt buộc với lead B2B'
+          : 'Chọn dự án PTT — bắt buộc với lead B2B',
+      );
       return;
     }
     setSaving(true);
@@ -210,6 +223,11 @@ export function CrmNewLeadPageContent({
         setError(
           'Không ghi được lead — kiểm tra PTT_LEADS_WRITE_ENABLED=1 trên API (ptt-crm-api).',
         );
+      } else if (
+        err instanceof ApiError &&
+        (err.message === 'b2b_project_required' || String(err.message).includes('b2b_project_required'))
+      ) {
+        setError('Thiếu dự án PTT — chọn Dự án PTT trước khi tạo lead B2B.');
       } else {
         setError(err instanceof Error ? err.message : 'Tạo lead thất bại');
       }
@@ -299,7 +317,7 @@ export function CrmNewLeadPageContent({
               </select>
             </label>
 
-            {isB2bFlow && b2bProjects.length > 0 ? (
+            {isB2bFlow ? (
               <label style={{ display: 'grid', gap: '0.35rem' }}>
                 <span>Dự án PTT *</span>
                 <select
@@ -307,14 +325,18 @@ export function CrmNewLeadPageContent({
                   value={b2bProjectId}
                   onChange={(e) => setB2bProjectId(e.target.value)}
                   required
+                  disabled={b2bProjects.length === 0}
                 >
-                  <option value="">— Chọn dự án —</option>
+                  <option value="">
+                    {b2bProjects.length === 0 ? '— Chưa có dự án —' : '— Chọn dự án —'}
+                  </option>
                   {b2bProjects.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name} ({p.code})
                     </option>
                   ))}
                 </select>
+                {b2bProjectsHint ? <span className="muted">{b2bProjectsHint}</span> : null}
               </label>
             ) : null}
 

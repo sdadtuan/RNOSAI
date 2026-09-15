@@ -468,6 +468,17 @@ export async function createLead(token: string, body: CreateLeadBody): Promise<L
   });
 }
 
+export async function fetchLeadB2bProjectOptions(
+  token: string,
+  status = 'active',
+): Promise<Array<{ id: string; code: string; name: string; status: string }>> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  const out = await crmFetch<{
+    projects: Array<{ id: string; code: string; name: string; status: string }>;
+  }>(token, `/api/v1/leads/b2b-project-options${qs}`);
+  return out.projects ?? [];
+}
+
 export interface LeadImportResult {
   ok: boolean;
   created: number;
