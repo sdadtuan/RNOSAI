@@ -77,7 +77,16 @@ export function csdChatCallNotifyTag(fromUserId: string): string {
   return `csd-call:${fromUserId || 'unknown'}`;
 }
 
-export function showCsdChatDesktopNotify(input: {
+function csdChatNotifyTargetUrl(kind: 'message' | 'call', conversationId: string): string {
+  if (kind === 'call') return '/crm/csd/chat';
+  return `/crm/csd/chat?c=${encodeURIComponent(conversationId)}`;
+}
+
+/**
+ * Shows an OS / PWA notification. Returns false when nothing was shown so callers
+ * can keep an in-app toast fallback (sound-only is not enough).
+ */
+export async function showCsdChatDesktopNotify(input: {
   title: string;
   preview: string;
   conversationId: string;
@@ -85,27 +94,61 @@ export function showCsdChatDesktopNotify(input: {
   kind?: 'message' | 'call';
   requireInteraction?: boolean;
   lastMessageAt?: string | null;
-}): void {
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+}): Promise<boolean> {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+  const kind = input.kind ?? 'message';
+  const tag =
+    kind === 'call'
+      ? csdChatCallNotifyTag(input.conversationId)
+      : csdChatMessageNotifyTag(input.conversationId, input.lastMessageAt);
+  const targetUrl = csdChatNotifyTargetUrl(kind, input.conversationId);
+  const baseOptions: NotificationOptions = {
+    body: input.preview,
+    tag,
+    data: { url: targetUrl },
+    requireInteraction: input.requireInteraction ?? kind === 'call',
+  };
+
+  // Prefer Service Worker when registered — more reliable while the CRM tab is backgrounded (PWA).
   try {
-    const kind = input.kind ?? 'message';
-    const tag =
-      kind === 'call'
-        ? csdChatCallNotifyTag(input.conversationId)
-        : csdChatMessageNotifyTag(input.conversationId, input.lastMessageAt);
-    const note = new Notification(input.title, {
-      body: input.preview,
-      tag,
-      renotify: true,
-      requireInteraction: input.requireInteraction ?? kind === 'call',
-    } as NotificationOptions);
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg?.showNotification) {
+        await reg.showNotification(input.title, {
+          ...baseOptions,
+          renotify: true,
+        } as NotificationOptions);
+        return true;
+      }
+    }
+  } catch {
+    /* fall through to Notification constructor */
+  }
+
+  const bindClick = (note: Notification) => {
     note.onclick = () => {
       window.focus();
       input.onOpen(input.conversationId);
       note.close();
     };
+  };
+
+  try {
+    const note = new Notification(input.title, {
+      ...baseOptions,
+      renotify: true,
+    } as NotificationOptions);
+    bindClick(note);
+    return true;
   } catch {
-    /* ignore missing ServiceWorker / denied after check */
+    try {
+      // Some browsers reject non-standard options (e.g. renotify).
+      const note = new Notification(input.title, baseOptions);
+      bindClick(note);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 

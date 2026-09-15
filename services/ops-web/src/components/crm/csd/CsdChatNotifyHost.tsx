@@ -36,6 +36,7 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
   const canView = hasCap(user, 'csd', 'view');
   const [enabled, setEnabled] = useState(false);
   const [toasts, setToasts] = useState<CsdChatIncoming[]>([]);
+  const [visTick, setVisTick] = useState(0);
   const notifiedRef = useRef<Set<string> | null>(readCsdChatNotified());
 
   const openConversation = useCallback(
@@ -49,6 +50,14 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
     },
     [pathname, router],
   );
+
+  const queueToasts = useCallback((incoming: CsdChatIncoming[]) => {
+    setToasts((prev) => {
+      const incomingIds = new Set(incoming.map((row) => row.conversationId));
+      const rest = prev.filter((t) => !incomingIds.has(t.conversationId));
+      return [...incoming, ...rest].slice(0, 3);
+    });
+  }, []);
 
   useEffect(() => {
     if (!user || !canView || !token) {
@@ -112,30 +121,31 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
           }
 
           playCsdChatMessageTone();
-          if (channel === 'toast') {
-            // Still remind if permission not granted — toast only works while CRM tab is focused.
-            if (notificationPermission() !== 'granted') {
-              dispatchCsdNeedNotifyPermission();
-            }
-            setToasts((prev) => {
-              const incomingIds = new Set(next.incoming.map((row) => row.conversationId));
-              const rest = prev.filter((t) => !incomingIds.has(t.conversationId));
-              return [...next.incoming, ...rest].slice(0, 3);
-            });
-          } else if (channel === 'desktop') {
-            for (const row of next.incoming) {
-              showCsdChatDesktopNotify({
-                title: row.title,
-                preview: row.preview,
-                conversationId: row.conversationId,
-                lastMessageAt: row.lastMessageAt,
-                kind: 'message',
-                onOpen: openConversation,
-              });
-            }
+          // Always queue in-app toast — desktop/OS notify can fail silently (Focus, PWA, option support).
+          queueToasts(next.incoming);
+          if (notificationPermission() !== 'granted') {
+            dispatchCsdNeedNotifyPermission();
           }
+
           notifiedRef.current = next.notified;
           writeCsdChatNotified(next.notified);
+
+          const wantDesktop =
+            channel === 'desktop' || notificationPermission() === 'granted';
+          if (wantDesktop) {
+            void (async () => {
+              for (const row of next.incoming) {
+                await showCsdChatDesktopNotify({
+                  title: row.title,
+                  preview: row.preview,
+                  conversationId: row.conversationId,
+                  lastMessageAt: row.lastMessageAt,
+                  kind: 'message',
+                  onOpen: openConversation,
+                });
+              }
+            })();
+          }
         })
         .catch(() => undefined);
     };
@@ -143,6 +153,7 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
     load();
     schedule();
     const onVis = () => {
+      setVisTick((n) => n + 1);
       if (document.visibilityState === 'visible') load();
       schedule();
     };
@@ -152,15 +163,17 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
       if (timer != null) window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [enabled, token, openConversation]);
+  }, [enabled, token, openConversation, queueToasts]);
 
   useEffect(() => {
     if (toasts.length === 0) return;
+    // Keep toast while CRM tab is backgrounded so user still sees it on return.
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     const timer = window.setTimeout(() => {
       setToasts((prev) => prev.slice(0, -1));
-    }, 6000);
+    }, 10_000);
     return () => window.clearTimeout(timer);
-  }, [toasts]);
+  }, [toasts, visTick]);
 
   if (!enabled) return null;
 

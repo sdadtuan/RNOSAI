@@ -126,7 +126,7 @@ export function useCsdChatCall(token: string) {
                 onOpen: () => {
                   window.focus();
                 },
-              });
+              }).catch(() => undefined);
             })();
           },
         });

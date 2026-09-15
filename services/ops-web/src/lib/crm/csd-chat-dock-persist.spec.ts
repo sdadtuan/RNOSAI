@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CSD_DOCK_STORAGE_KEY,
   readCsdDockPersist,
@@ -42,6 +42,68 @@ describe('csd-chat-notify-persist', () => {
     expect(readCsdChatNotified()).toBeNull();
     writeCsdChatNotified(new Set(['c1:a']));
     expect([...readCsdChatNotified() ?? []]).toEqual(['c1:a']);
+  });
+
+  it('showCsdChatDesktopNotify returns false without permission', async () => {
+    const { showCsdChatDesktopNotify } = await import('./csd-chat-notify-persist');
+    const prev = globalThis.Notification;
+    Object.defineProperty(globalThis, 'Notification', {
+      configurable: true,
+      value: { permission: 'denied' },
+    });
+    try {
+      await expect(
+        showCsdChatDesktopNotify({
+          title: 'An',
+          preview: 'Hi',
+          conversationId: 'c1',
+          onOpen: () => undefined,
+        }),
+      ).resolves.toBe(false);
+    } finally {
+      Object.defineProperty(globalThis, 'Notification', { configurable: true, value: prev });
+    }
+  });
+
+  it('showCsdChatDesktopNotify uses service worker when registered', async () => {
+    const { showCsdChatDesktopNotify } = await import('./csd-chat-notify-persist');
+    const showNotification = vi.fn(async () => undefined);
+    const prevNotification = globalThis.Notification;
+    const prevNavigator = globalThis.navigator;
+    Object.defineProperty(globalThis, 'Notification', {
+      configurable: true,
+      value: { permission: 'granted' },
+    });
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: {
+        serviceWorker: {
+          getRegistration: async () => ({ showNotification }),
+        },
+      },
+    });
+    try {
+      await expect(
+        showCsdChatDesktopNotify({
+          title: 'An',
+          preview: 'Hi',
+          conversationId: 'c1',
+          lastMessageAt: 't1',
+          onOpen: () => undefined,
+        }),
+      ).resolves.toBe(true);
+      expect(showNotification).toHaveBeenCalledWith(
+        'An',
+        expect.objectContaining({
+          body: 'Hi',
+          tag: 'csd-chat:c1:t1',
+          data: { url: '/crm/csd/chat?c=c1' },
+        }),
+      );
+    } finally {
+      Object.defineProperty(globalThis, 'Notification', { configurable: true, value: prevNotification });
+      Object.defineProperty(globalThis, 'navigator', { configurable: true, value: prevNavigator });
+    }
   });
 });
 

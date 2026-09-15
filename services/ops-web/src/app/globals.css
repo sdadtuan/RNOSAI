@@ -18191,11 +18191,17 @@ body {
 .csd-chat-notify {
   position: fixed;
   right: 20px;
-  bottom: 220px;
-  z-index: 43;
+  top: calc(var(--topbar-height, 56px) + 12px);
+  bottom: auto;
+  z-index: 10050;
   display: grid;
   gap: 0.5rem;
-  width: min(320px, calc(100vw - 40px));
+  width: min(340px, calc(100vw - 40px));
+  pointer-events: none;
+}
+
+.csd-chat-notify > * {
+  pointer-events: auto;
 }
 
 .csd-chat-notify-permission {
@@ -18240,11 +18246,12 @@ body {
   align-items: center;
   gap: 0.7rem;
   width: 100%;
-  padding: 0.7rem 0.8rem;
-  border: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #fcd34d;
+  border-left: 4px solid #c76f0a;
   border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  background: #fffbeb;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.22);
   cursor: pointer;
   text-align: left;
 }
