@@ -6,6 +6,7 @@ export function normalizeHarvestMode(raw: unknown): RawLeadHarvestMode {
   if (raw === 'volume') return 'volume';
   if (raw === 'marketing') return 'marketing';
   if (raw === 'intent') return 'intent';
+  if (raw === 'market_graph') return 'market_graph';
   return 'quality';
 }
 
@@ -16,10 +17,15 @@ export function validateCreateRawLeadHarvest(
 
   const mode = normalizeHarvestMode(body.mode);
 
-  if (mode === 'intent') {
+  if (mode === 'intent' || mode === 'market_graph') {
     const province = String(body.province_code ?? '').trim();
     if (!province || province === 'all') {
-      return { error: 'intent_province_required' };
+      return {
+        error:
+          mode === 'market_graph'
+            ? 'market_graph_province_required'
+            : 'intent_province_required',
+      };
     }
   } else {
     if (!String(body.provider ?? '').trim()) return { error: 'provider_required' };

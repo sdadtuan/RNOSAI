@@ -53,4 +53,10 @@ describe('applyQualityGate', () => {
       applyQualityGate('intent', 40, v({ phone_ok: false, email_ok: false, phone_out: null, phone_norm: null })),
     ).toBe('pending');
   });
+
+  it('market_graph uses the same soft gate as marketing', () => {
+    expect(
+      applyQualityGate('market_graph', 40, v({ phone_ok: true, email_ok: false })),
+    ).toBe('pending');
+  });
 });

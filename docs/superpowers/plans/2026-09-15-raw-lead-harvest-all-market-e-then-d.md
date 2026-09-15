@@ -348,7 +348,7 @@ listSummary(industry_key: string, province_code: string): Promise<{ total: numbe
 
 `content_hash = sha256(phone_norm|website|company_name_norm|address)`.
 
-- [ ] **Step 1–4:** TDD upsert new → updated → unchanged; commit when asked
+- [x] **Step 1–4:** TDD upsert new → updated → unchanged; commit when asked
 
 ---
 
@@ -367,9 +367,9 @@ listSummary(industry_key: string, province_code: string): Promise<{ total: numbe
 3. Only `new` \| `updated` (phone/website change) **and** white-space → verify/scrape → insert raw lead with `market_entity_id`  
 4. Cap inserts by `target_count`
 
-- [ ] **Step 1:** Validation `market_graph` requires province  
-- [ ] **Step 2:** Worker spec with mock upsert changes  
-- [ ] **Step 3:** Wire + tests PASS  
+- [x] **Step 1:** Validation `market_graph` requires province  
+- [x] **Step 2:** Worker spec with mock upsert changes  
+- [x] **Step 3:** Wire + tests PASS  
 - [ ] **Step 4:** Commit when asked
 
 ---
@@ -380,8 +380,8 @@ listSummary(industry_key: string, province_code: string): Promise<{ total: numbe
 - Modify: `raw-lead-harvest.controller.ts` — `GET …/market-entities/summary?industry_key=&province_code=`
 - Modify: `RawLeadHarvestPanel.tsx` — mode option + cover line “Census: N DN · M có SĐT · last_seen …”
 
-- [ ] **Step 1:** API returns summary from repo  
-- [ ] **Step 2:** FE shows summary when mode market_graph selected / after job  
+- [x] **Step 1:** API returns summary from repo  
+- [x] **Step 2:** FE shows summary when mode market_graph selected / after job  
 - [ ] **Step 3:** UAT D2 — re-run job → mostly unchanged, few new leads  
 - [ ] **Step 4:** Commit + deploy when asked
 

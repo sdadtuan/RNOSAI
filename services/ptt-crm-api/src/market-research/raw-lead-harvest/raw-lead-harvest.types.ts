@@ -1,4 +1,9 @@
-export type RawLeadHarvestMode = 'quality' | 'volume' | 'marketing' | 'intent';
+export type RawLeadHarvestMode =
+  | 'quality'
+  | 'volume'
+  | 'marketing'
+  | 'intent'
+  | 'market_graph';
 
 export type FeedbackCode =
   | 'bad_phone'
@@ -22,7 +27,7 @@ export type CreateRawLeadHarvestBody = {
   ward_code?: string | null;
   source_keys: string[];
   channel_keys?: string[];
-  /** Required for LLM modes; optional for Places-backed `intent`. */
+  /** Required for LLM modes; optional for Places-backed `intent` / `market_graph`. */
   provider?: string;
   model?: string;
   mode?: RawLeadHarvestMode;
@@ -82,6 +87,7 @@ export type RawLeadRow = {
   search_channel_keys: string[];
   place_id: string | null;
   intent_score: number | null;
+  market_entity_id: string | null;
   quality_score: number;
   icp_fit_score: number;
   contactable: boolean;

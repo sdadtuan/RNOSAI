@@ -37,6 +37,7 @@ describe('validateCreateRawLeadHarvest', () => {
     expect(normalizeHarvestMode('volume')).toBe('volume');
     expect(normalizeHarvestMode('marketing')).toBe('marketing');
     expect(normalizeHarvestMode('intent')).toBe('intent');
+    expect(normalizeHarvestMode('market_graph')).toBe('market_graph');
   });
 
   it('intent requires a concrete province (not all)', () => {
@@ -58,6 +59,28 @@ describe('validateCreateRawLeadHarvest', () => {
         target_count: 50,
         provider: undefined,
         model: undefined,
+      }),
+    ).toBeNull();
+  });
+
+  it('market_graph requires a concrete province (not all)', () => {
+    expect(
+      validateCreateRawLeadHarvest({
+        ...base,
+        mode: 'market_graph',
+        province_code: 'all',
+        target_count: 50,
+        provider: undefined,
+        model: undefined,
+      })?.error,
+    ).toBe('market_graph_province_required');
+    expect(
+      validateCreateRawLeadHarvest({
+        industry_key: 'spa',
+        province_code: '79',
+        source_keys: ['google_maps'],
+        mode: 'market_graph',
+        target_count: 100,
       }),
     ).toBeNull();
   });

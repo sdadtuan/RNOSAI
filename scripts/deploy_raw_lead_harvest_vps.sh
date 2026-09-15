@@ -7,7 +7,8 @@
 #   PTT_RESEARCH_RAW_LEAD_HARVEST=1          (api gate)
 #   PTT_RESEARCH_HARVEST_MOCK=0              (real AI worker; 1 = mock)
 #   PTT_RESEARCH_HARVEST_INTENT=1            (Places white-space Intent mode)
-#   PTT_GOOGLE_PLACES_API_KEY                (required when INTENT=1)
+#   PTT_RESEARCH_HARVEST_MARKET_GRAPH=1      (Places census + diff Market Graph)
+#   PTT_GOOGLE_PLACES_API_KEY                (required when INTENT=1 or MARKET_GRAPH=1)
 #   PTT_RESEARCH_HARVEST_LEGAL_ENRICH=1      (optional H3c MST/Places score boost)
 #   PTT_SECRET_ENCRYPT_KEY                  (32-byte; reuse CP encrypt key)
 #
@@ -86,6 +87,7 @@ run_local() {
   ensure_runtime_flag PTT_RESEARCH_HARVEST_MOCK 1
   ensure_runtime_flag NEXT_PUBLIC_RESEARCH_RAW_LEAD_HARVEST 1
   ensure_runtime_flag PTT_RESEARCH_HARVEST_INTENT 0
+  ensure_runtime_flag PTT_RESEARCH_HARVEST_MARKET_GRAPH 0
   if ! grep -qE '^PTT_SECRET_ENCRYPT_KEY=.{16,}' "$ROOT/deploy/runtime.env" 2>/dev/null \
     && [[ -z "${PTT_SECRET_ENCRYPT_KEY:-}" ]]; then
     echo "WARN  PTT_SECRET_ENCRYPT_KEY missing — Admin token encrypt/test will 503 until set (32 utf8 bytes)"
@@ -94,9 +96,9 @@ run_local() {
   fi
   if grep -qE '^PTT_GOOGLE_PLACES_API_KEY=.+' "$ROOT/deploy/runtime.env" 2>/dev/null \
     || [[ -n "${PTT_GOOGLE_PLACES_API_KEY:-}" ]]; then
-    echo " OK   PTT_GOOGLE_PLACES_API_KEY present (needed when INTENT=1)"
+    echo " OK   PTT_GOOGLE_PLACES_API_KEY present (needed when INTENT=1 or MARKET_GRAPH=1)"
   else
-    echo "WARN  PTT_GOOGLE_PLACES_API_KEY missing — Intent mode will fail until set"
+    echo "WARN  PTT_GOOGLE_PLACES_API_KEY missing — Intent/Market Graph will fail until set"
   fi
 
   echo "== 1/4 ptt-crm-api build + harvest tests =="

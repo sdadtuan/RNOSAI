@@ -1863,7 +1863,7 @@ export function createRawLeadHarvest(
     channel_keys?: string[];
     provider?: string;
     model?: string;
-    mode?: 'quality' | 'volume' | 'marketing' | 'intent';
+    mode?: 'quality' | 'volume' | 'marketing' | 'intent' | 'market_graph';
     cross_check?: boolean;
     target_count: number;
     scan_cap?: number;
@@ -1874,6 +1874,26 @@ export function createRawLeadHarvest(
     token,
     `/api/v1/research/projects/${projectId}/raw-lead-harvests`,
     { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export type MarketEntitiesSummary = {
+  total: number;
+  with_phone: number;
+  last_seen_at: string | null;
+};
+
+export function fetchMarketEntitiesSummary(
+  token: string,
+  params: { industry_key: string; province_code: string },
+) {
+  const qs = new URLSearchParams({
+    industry_key: params.industry_key,
+    province_code: params.province_code,
+  });
+  return researchFetch<MarketEntitiesSummary>(
+    token,
+    `/api/v1/research/market-entities/summary?${qs.toString()}`,
   );
 }
 

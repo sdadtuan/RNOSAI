@@ -150,6 +150,10 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       ALTER TABLE crm_research_raw_leads
         ADD COLUMN IF NOT EXISTS intent_score INT
     `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS market_entity_id UUID
+    `);
   }
 
   private mapJob(row: Record<string, unknown>): RawLeadHarvestJobRow {
@@ -173,7 +177,9 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
           ? 'marketing'
           : modeRaw === 'intent'
             ? 'intent'
-            : 'quality';
+            : modeRaw === 'market_graph'
+              ? 'market_graph'
+              : 'quality';
     return {
       id: Number(row.id),
       project_id: Number(row.project_id),
@@ -240,6 +246,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       search_channel_keys: channelKeys,
       place_id: row.place_id == null ? null : String(row.place_id),
       intent_score: row.intent_score == null ? null : Number(row.intent_score),
+      market_entity_id:
+        row.market_entity_id == null ? null : String(row.market_entity_id),
       quality_score: Number(row.quality_score ?? 0),
       icp_fit_score: Number(row.icp_fit_score ?? 0),
       contactable: Boolean(row.contactable),
@@ -478,6 +486,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     classification?: string | null;
     place_id?: string | null;
     intent_score?: number | null;
+    market_entity_id?: string | null;
     verify_json: Record<string, unknown>;
     raw_json?: Record<string, unknown>;
   }): Promise<RawLeadRow> {
@@ -489,9 +498,9 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
          source_provider, source_model, search_source_keys, search_channel_keys,
          discovered_via_source_key, confidence,
          quality_score, icp_fit_score, contactable, phone_kind, legal_status, status,
-         classification, place_id, intent_score, verify_json, raw_json
+         classification, place_id, intent_score, market_entity_id, verify_json, raw_json
        ) VALUES (
-         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28::jsonb,$29::jsonb
+         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28::uuid,$29::jsonb,$30::jsonb
        ) RETURNING *`,
       [
         input.project_id,
@@ -521,6 +530,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         input.classification ?? null,
         input.place_id ?? null,
         input.intent_score ?? null,
+        input.market_entity_id ?? null,
         JSON.stringify(input.verify_json),
         JSON.stringify(input.raw_json ?? {}),
       ],

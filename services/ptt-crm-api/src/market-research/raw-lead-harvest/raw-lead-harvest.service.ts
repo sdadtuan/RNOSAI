@@ -16,6 +16,8 @@ import {
 import { buildRawLeadsCsv } from './export-csv.util';
 import { HarvestWorkerService } from './harvest-worker.service';
 import { IntentHarvestWorker } from './intent/intent-harvest.worker';
+import { MarketEntitiesRepository } from './market-graph/market-entities.repository';
+import { MarketGraphWorker } from './market-graph/market-graph.worker';
 import { PlacesClient } from './places/places.client';
 import { assertRawLeadPushable } from './push-crm.util';
 import { RawLeadHarvestRepository } from './raw-lead-harvest.repository';
@@ -45,8 +47,18 @@ function intentHarvestEnabled(): boolean {
   );
 }
 
+function marketGraphHarvestEnabled(): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(
+    String(process.env.PTT_RESEARCH_HARVEST_MARKET_GRAPH ?? '').trim().toLowerCase(),
+  );
+}
+
 function googlePlacesApiKey(): string {
   return String(process.env.PTT_GOOGLE_PLACES_API_KEY ?? '').trim();
+}
+
+function isPlacesMode(mode: string): boolean {
+  return mode === 'intent' || mode === 'market_graph';
 }
 
 @Injectable()
@@ -58,6 +70,8 @@ export class RawLeadHarvestService {
     private readonly vnGeo: VnAdminGeoRepository,
     private readonly worker: HarvestWorkerService,
     private readonly intentWorker: IntentHarvestWorker,
+    private readonly marketGraphWorker: MarketGraphWorker,
+    private readonly marketEntities: MarketEntitiesRepository,
     private readonly leadsWrite: LeadsWriteService,
   ) {}
 
@@ -70,6 +84,17 @@ export class RawLeadHarvestService {
   async listHarvestProviders() {
     this.assertEnabled();
     return this.aiProviders.listHarvestProviders();
+  }
+
+  async getMarketEntitiesSummary(industryKey: string, provinceCode: string) {
+    this.assertEnabled();
+    const industry = String(industryKey ?? '').trim();
+    const province = String(provinceCode ?? '').trim();
+    if (!industry) throw new BadRequestException({ error: 'industry_key_required' });
+    if (!province || province === 'all') {
+      throw new BadRequestException({ error: 'province_code_required' });
+    }
+    return this.marketEntities.listSummary(industry, province);
   }
 
   async createJob(
@@ -88,6 +113,14 @@ export class RawLeadHarvestService {
     if (mode === 'intent') {
       if (!intentHarvestEnabled()) {
         throw new BadRequestException({ error: 'intent_disabled' });
+      }
+      if (!googlePlacesApiKey()) {
+        throw new BadRequestException({ error: 'places_not_configured' });
+      }
+    }
+    if (mode === 'market_graph') {
+      if (!marketGraphHarvestEnabled()) {
+        throw new BadRequestException({ error: 'market_graph_disabled' });
       }
       if (!googlePlacesApiKey()) {
         throw new BadRequestException({ error: 'places_not_configured' });
@@ -149,7 +182,7 @@ export class RawLeadHarvestService {
       ReturnType<ResearchAiProvidersRepository['resolveRuntimeCredential']>
     > = null;
 
-    if (mode !== 'intent') {
+    if (!isPlacesMode(mode)) {
       const harvestProviders = await this.aiProviders.listHarvestProviders();
       const provider = harvestProviders.find((p) => p.code === body.provider);
       if (!provider || !provider.configured) {
@@ -172,7 +205,9 @@ export class RawLeadHarvestService {
         ? Math.max(1, Math.floor(Number(body.scan_cap)))
         : mode === 'intent'
           ? Math.max(Number(body.target_count) * 5, 200)
-          : null;
+          : mode === 'market_graph'
+            ? Math.max(Number(body.target_count) * 10, 2000)
+            : null;
 
     const job = await this.repo.createJob({
       project_id: projectId,
@@ -368,6 +403,30 @@ export class RawLeadHarvestService {
         }
         const places = new PlacesClient(key);
         const result = await this.intentWorker.run(job, places);
+        await this.repo.markJobFinished(
+          jobId,
+          'succeeded',
+          result.inserted,
+          result.rejected,
+          null,
+          result.stats as unknown as Record<string, unknown>,
+        );
+        return;
+      }
+
+      if (job.mode === 'market_graph') {
+        if (!marketGraphHarvestEnabled()) {
+          await this.repo.markJobFinished(jobId, 'failed', 0, 0, 'market_graph_disabled');
+          return;
+        }
+        const key = googlePlacesApiKey();
+        if (!key) {
+          await this.repo.markJobFinished(jobId, 'failed', 0, 0, 'places_not_configured');
+          return;
+        }
+        await this.marketEntities.ensureSchema();
+        const places = new PlacesClient(key);
+        const result = await this.marketGraphWorker.run(job, places);
         await this.repo.markJobFinished(
           jobId,
           'succeeded',

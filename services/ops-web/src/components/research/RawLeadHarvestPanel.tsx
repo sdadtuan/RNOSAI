@@ -6,6 +6,7 @@ import { fetchVnProvinces, fetchVnWards, type VnProvinceOption, type VnWardOptio
 import {
   createRawLeadHarvest,
   exportRawLeads,
+  fetchMarketEntitiesSummary,
   fetchRawLeadHarvestProviders,
   getRawLeadHarvest,
   listRawLeadHarvests,
@@ -13,6 +14,7 @@ import {
   patchRawLead,
   pushRawLeadsToCrm,
   type HarvestProviderOption,
+  type MarketEntitiesSummary,
   type RawLead,
   type RawLeadHarvestJob,
 } from '@/lib/market-research-api';
@@ -164,13 +166,17 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const [wardCode, setWardCode] = useState('');
   const [sourceKeys, setSourceKeys] = useState<string[]>([]);
   const [channelKeys, setChannelKeys] = useState<string[]>([]);
-  const [mode, setMode] = useState<'quality' | 'volume' | 'marketing' | 'intent'>('quality');
+  const [mode, setMode] = useState<
+    'quality' | 'volume' | 'marketing' | 'intent' | 'market_graph'
+  >('quality');
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
   const [crossCheck, setCrossCheck] = useState(false);
   const [targetCount, setTargetCount] = useState<number | ''>(10);
   const [notes, setNotes] = useState('');
-  const isIntent = mode === 'intent';
+  const [census, setCensus] = useState<MarketEntitiesSummary | null>(null);
+  const isPlacesMode = mode === 'intent' || mode === 'market_graph';
+  const isMarketGraph = mode === 'market_graph';
 
   const [jobs, setJobs] = useState<RawLeadHarvestJob[]>([]);
   const [leads, setLeads] = useState<RawLead[]>([]);
@@ -253,6 +259,27 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   }, [selectedProvider]);
 
   useEffect(() => {
+    if (!isMarketGraph || !industryKey || !provinceCode || provinceCode === 'all') {
+      setCensus(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchMarketEntitiesSummary(token, {
+      industry_key: industryKey,
+      province_code: provinceCode,
+    })
+      .then((row) => {
+        if (!cancelled) setCensus(row);
+      })
+      .catch(() => {
+        if (!cancelled) setCensus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isMarketGraph, industryKey, provinceCode, token, jobs]);
+
+  useEffect(() => {
     if (!activeJobId) return;
     const timer = setInterval(() => {
       void (async () => {
@@ -325,9 +352,13 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     setBusy(false);
                     return;
                   }
-                  if (mode === 'intent') {
+                  if (mode === 'intent' || mode === 'market_graph') {
                     if (!provinceCode || provinceCode === 'all') {
-                      setError('Mode Intent bắt buộc chọn Tỉnh/TP cụ thể (không chọn Tất cả)');
+                      setError(
+                        mode === 'market_graph'
+                          ? 'Mode Market Graph bắt buộc chọn Tỉnh/TP cụ thể (không chọn Tất cả)'
+                          : 'Mode Intent bắt buộc chọn Tỉnh/TP cụ thể (không chọn Tất cả)',
+                      );
                       setBusy(false);
                       return;
                     }
@@ -337,7 +368,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     return;
                   }
                   let keys = sourceKeys;
-                  if (mode === 'intent' && keys.length === 0) {
+                  if (isPlacesMode && keys.length === 0) {
                     const gm = sources.find((s) => s.option_key === 'google_maps');
                     if (gm) keys = ['google_maps'];
                   }
@@ -353,10 +384,10 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     ward_code: provinceCode && wardCode ? wardCode : null,
                     source_keys: keys,
                     channel_keys: channelKeys,
-                    provider: mode === 'intent' ? undefined : provider,
-                    model: mode === 'intent' ? undefined : model,
+                    provider: isPlacesMode ? undefined : provider,
+                    model: isPlacesMode ? undefined : model,
                     mode,
-                    cross_check: mode !== 'intent' && canCrossCheck && crossCheck,
+                    cross_check: !isPlacesMode && canCrossCheck && crossCheck,
                     target_count: count,
                     notes: notes || undefined,
                   });
@@ -475,9 +506,13 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                         | 'quality'
                         | 'volume'
                         | 'marketing'
-                        | 'intent';
+                        | 'intent'
+                        | 'market_graph';
                       setMode(next);
-                      if (next === 'intent' && (!targetCount || targetCount < 50)) {
+                      if (
+                        (next === 'intent' || next === 'market_graph') &&
+                        (!targetCount || targetCount < 50)
+                      ) {
                         setTargetCount(100);
                       }
                     }}
@@ -489,6 +524,9 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     </option>
                     <option value="intent">
                       Intent — white space (Places + lọc CRM)
+                    </option>
+                    <option value="market_graph">
+                      All thị trường — census + diff (Places grid)
                     </option>
                   </select>
                 </label>
@@ -513,7 +551,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     required
                   />
                 </label>
-                {!isIntent ? (
+                {!isPlacesMode ? (
                   <>
                     <label className="form-field">
                       <span className="form-label">
@@ -548,8 +586,18 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   </>
                 ) : (
                   <p className="muted form-field form-field--full" style={{ margin: 0 }}>
-                    Intent dùng <strong>Google Places API</strong> — không cần Provider/Model AI.
-                    Bắt buộc chọn Tỉnh/TP cụ thể.
+                    {isMarketGraph ? (
+                      <>
+                        Market Graph dùng <strong>Google Places</strong> (grid quận HCM) + census
+                        diff — không cần Provider/Model AI. Chỉ tạo lead từ DN <em>mới / đổi
+                        SĐT·web</em>.
+                      </>
+                    ) : (
+                      <>
+                        Intent dùng <strong>Google Places API</strong> — không cần Provider/Model
+                        AI. Bắt buộc chọn Tỉnh/TP cụ thể.
+                      </>
+                    )}
                   </p>
                 )}
                 <label className="form-field form-field--full">
@@ -581,8 +629,29 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   scrape contact. Cần flag PTT_RESEARCH_HARVEST_INTENT=1 và PTT_GOOGLE_PLACES_API_KEY.
                 </p>
               ) : null}
+              {mode === 'market_graph' ? (
+                <>
+                  <p className="rlh-inline-warn">
+                    Market Graph: census Places (grid quận) → upsert → chỉ lead từ new/updated +
+                    white-space. Flag PTT_RESEARCH_HARVEST_MARKET_GRAPH=1 + Places key.
+                  </p>
+                  {census ? (
+                    <p className="form-hint" style={{ marginTop: '0.35rem' }}>
+                      Census: <strong>{census.total}</strong> DN ·{' '}
+                      <strong>{census.with_phone}</strong> có SĐT · last_seen{' '}
+                      {census.last_seen_at
+                        ? new Date(census.last_seen_at).toLocaleString('vi-VN')
+                        : '—'}
+                    </p>
+                  ) : industryKey && provinceCode && provinceCode !== 'all' ? (
+                    <p className="form-hint" style={{ marginTop: '0.35rem' }}>
+                      Census: chưa có dữ liệu — chạy job lần đầu để dựng.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
 
-              {canCrossCheck && !isIntent ? (
+              {canCrossCheck && !isPlacesMode ? (
                 <label className="form-check rlh-crosscheck">
                   <input
                     type="checkbox"
@@ -591,7 +660,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   />
                   Cross-check 2 provider (top N — tốn thêm API)
                 </label>
-              ) : !isIntent ? (
+              ) : !isPlacesMode ? (
                 <p className="form-hint">
                   Cross-check cần ≥2 Research AI provider đã cấu hình token.
                 </p>
@@ -605,12 +674,12 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 disabled={
                   busy ||
                   Boolean(activeJobId) ||
-                  (!isIntent && sourceKeys.length < 1)
+                  (!isPlacesMode && sourceKeys.length < 1)
                 }
               >
                 {activeJobId ? `Đang chạy job #${activeJobId}…` : 'Chạy thu thập'}
               </button>
-              {!isIntent && sourceKeys.length < 1 ? (
+              {!isPlacesMode && sourceKeys.length < 1 ? (
                 <span className="form-hint">Chọn ít nhất 1 nguồn search.</span>
               ) : null}
             </div>
@@ -656,7 +725,11 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     </td>
                     <td>
                       <code className="rlh-mono">
-                        {j.mode === 'intent' ? 'places/intent' : `${j.provider}/${j.model}`}
+                        {j.mode === 'intent'
+                          ? 'places/intent'
+                          : j.mode === 'market_graph'
+                            ? 'places/market_graph'
+                            : `${j.provider}/${j.model}`}
                       </code>
                       <div className="muted rlh-sub">{j.mode}</div>
                     </td>

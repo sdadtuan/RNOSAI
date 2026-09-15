@@ -44,6 +44,17 @@ export class RawLeadHarvestController {
     return this.harvest.listHarvestProviders().then((providers) => ({ providers }));
   }
 
+  @Get('market-entities/summary')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  marketEntitiesSummary(
+    @Query() query: { industry_key?: string; province_code?: string },
+  ) {
+    return this.harvest.getMarketEntitiesSummary(
+      String(query.industry_key ?? ''),
+      String(query.province_code ?? ''),
+    );
+  }
+
   @Post('projects/:id/raw-lead-harvests')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
   create(

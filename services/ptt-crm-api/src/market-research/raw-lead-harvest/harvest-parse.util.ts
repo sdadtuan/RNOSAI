@@ -58,7 +58,10 @@ function extractJsonArray(raw: string): unknown[] {
 
 export function parseHarvestAiLeads(
   raw: string,
-  opts: { mode: 'quality' | 'volume' | 'marketing' | 'intent'; sourceKeys: string[] },
+  opts: {
+    mode: 'quality' | 'volume' | 'marketing' | 'intent' | 'market_graph';
+    sourceKeys: string[];
+  },
 ): HarvestAiLead[] {
   const rows = extractJsonArray(raw);
   const allowed = new Set(opts.sourceKeys.map(String));
@@ -71,7 +74,10 @@ export function parseHarvestAiLeads(
     const evidenceUrl = asNullableString(r.evidence_url);
     if (!company) continue;
     if (
-      (opts.mode === 'quality' || opts.mode === 'marketing' || opts.mode === 'intent') &&
+      (opts.mode === 'quality' ||
+        opts.mode === 'marketing' ||
+        opts.mode === 'intent' ||
+        opts.mode === 'market_graph') &&
       !evidenceUrl
     ) {
       continue;
