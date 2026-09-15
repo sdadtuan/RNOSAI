@@ -20,10 +20,16 @@ describe('validateCreateRawLeadHarvest', () => {
     );
   });
 
-  it('caps quality target_count at 25', () => {
+  it('requires a positive integer target_count', () => {
     expect(
-      validateCreateRawLeadHarvest({ ...base, mode: 'quality', target_count: 30 })?.error,
-    ).toBe('target_count_quality_max_25');
+      validateCreateRawLeadHarvest({ ...base, mode: 'quality', target_count: 0 })?.error,
+    ).toBe('target_count_invalid');
+    expect(
+      validateCreateRawLeadHarvest({ ...base, mode: 'quality', target_count: 30 }),
+    ).toBeNull();
+    expect(
+      validateCreateRawLeadHarvest({ ...base, mode: 'volume', target_count: 80 }),
+    ).toBeNull();
   });
 
   it('defaults mode to quality', () => {

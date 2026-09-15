@@ -296,15 +296,12 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 setError('');
                 setMsg('');
                 try {
-                  const maxCount = mode === 'quality' ? 25 : 50;
                   const count =
                     typeof targetCount === 'number' && Number.isFinite(targetCount)
                       ? targetCount
                       : NaN;
-                  if (!Number.isFinite(count) || count < 5 || count > maxCount) {
-                    setError(
-                      `Số lượng phải từ 5–${maxCount}${mode === 'quality' ? ' (Quality)' : ' (Volume)'}`,
-                    );
+                  if (!Number.isInteger(count) || count < 1) {
+                    setError('Số lượng phải là số nguyên ≥ 1');
                     setBusy(false);
                     return;
                   }
@@ -442,8 +439,8 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   <span className="form-label">Số lượng</span>
                   <input
                     type="number"
-                    min={5}
-                    max={mode === 'quality' ? 25 : 50}
+                    min={1}
+                    step={1}
                     inputMode="numeric"
                     value={targetCount}
                     onChange={(e) => {

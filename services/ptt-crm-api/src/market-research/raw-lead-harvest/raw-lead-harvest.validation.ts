@@ -17,11 +17,11 @@ export function validateCreateRawLeadHarvest(
   const sources = Array.isArray(body.source_keys) ? body.source_keys.filter(Boolean) : [];
   if (sources.length < 1) return { error: 'source_keys_required' };
 
-  const mode = normalizeHarvestMode(body.mode);
   const count = Number(body.target_count);
-  if (!Number.isFinite(count) || count < 5) return { error: 'target_count_min_5' };
-  if (mode === 'quality' && count > 25) return { error: 'target_count_quality_max_25' };
-  if (mode === 'volume' && count > 50) return { error: 'target_count_volume_max_50' };
+  // Positive integer only — no Quality 5–25 / Volume 5–50 caps.
+  if (!Number.isFinite(count) || !Number.isInteger(count) || count < 1) {
+    return { error: 'target_count_invalid' };
+  }
 
   return null;
 }
