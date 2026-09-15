@@ -14,7 +14,10 @@ import {
   shouldShowPipelineTab,
   type LeadWorkspaceDesktopTab,
 } from '@/lib/crm/lead-pipeline-tab.util';
-import type { PresalesFunnelStepKey } from '@/lib/crm/funnel-stepper.types';
+import type {
+  FunnelPrimaryAction,
+  PresalesFunnelStepKey,
+} from '@/lib/crm/funnel-stepper.types';
 import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
@@ -83,6 +86,9 @@ import {
   fetchLeadStatusOptions,
   handoffLeadToSolution,
   advanceLeadPresales,
+  claimLeadSolution,
+  ensureLeadPresales,
+  releaseLeadToSales,
   patchLead,
   staffMe,
   staffRefresh,
@@ -602,6 +608,73 @@ export default function CrmLeadDetailPage() {
     prep,
     router,
   ]);
+
+  const onPipelineFunnelPrimaryAction = useCallback(
+    async (action: FunnelPrimaryAction) => {
+      const token = getAccessToken();
+      if (!token) return;
+
+      if (action.kind === 'ensure_presales') {
+        setNbaBusy(true);
+        setError('');
+        try {
+          const slug =
+            presetServiceSlug?.trim() ||
+            catalogServices[0]?.slug ||
+            'dich-vu-seo-tong-the';
+          const out = await ensureLeadPresales(token, leadId, slug);
+          setFunnelSnap(out.funnel);
+          setMessage('Đã bắt đầu pre-sales');
+          setPipelineStep('intake_bant');
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Bắt đầu pre-sales thất bại');
+        } finally {
+          setNbaBusy(false);
+        }
+        return;
+      }
+
+      if (action.kind === 'handoff_solution') {
+        await onNbaAction('handoff_solution');
+        return;
+      }
+
+      if (action.kind === 'advance_presales') {
+        await onNbaAction('advance_presales');
+        return;
+      }
+
+      if (action.kind === 'claim_solution') {
+        setNbaBusy(true);
+        setError('');
+        try {
+          const out = await claimLeadSolution(token, leadId);
+          setFunnelSnap(out.funnel);
+          setMessage('Đã claim Solution');
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Claim Solution thất bại');
+        } finally {
+          setNbaBusy(false);
+        }
+        return;
+      }
+
+      if (action.kind === 'release_to_sales') {
+        setNbaBusy(true);
+        setError('');
+        try {
+          const out = await releaseLeadToSales(token, leadId);
+          setFunnelSnap(out.funnel);
+          setMessage('Đã trả Sales');
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Trả Sales thất bại');
+        } finally {
+          setNbaBusy(false);
+        }
+      }
+    },
+    [catalogServices, leadId, onNbaAction, presetServiceSlug],
+  );
 
   const reloadStatusOptions = useCallback(async (access: string) => {
     setStatusOptionsLoading(true);
@@ -1354,6 +1427,8 @@ export default function CrmLeadDetailPage() {
                 }}
                 activeStepKey={pipelineStep}
                 onStepChange={setPipelineStep}
+                onFunnelPrimaryAction={(action) => void onPipelineFunnelPrimaryAction(action)}
+                actionBusy={nbaBusy}
                 serviceSlug={presetServiceSlug}
                 syncFunnel={funnelSnap}
                 fetchOnMount={funnelSnap == null}

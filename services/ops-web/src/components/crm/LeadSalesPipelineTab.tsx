@@ -22,6 +22,7 @@ export function LeadSalesPipelineTab({
   activeStepKey,
   onStepChange,
   onFunnelPrimaryAction,
+  actionBusy,
   serviceSlug,
   serviceOptions,
   syncFunnel,
@@ -48,6 +49,7 @@ export function LeadSalesPipelineTab({
   activeStepKey: PresalesFunnelStepKey;
   onStepChange: (key: PresalesFunnelStepKey) => void;
   onFunnelPrimaryAction?: (action: FunnelPrimaryAction) => void | Promise<void>;
+  actionBusy?: boolean;
   serviceSlug?: string;
   serviceOptions?: Array<{ slug: string; name: string }>;
   syncFunnel?: LeadFunnelSnapshot | null;
@@ -88,6 +90,7 @@ export function LeadSalesPipelineTab({
           {...stepperInput}
           viewModel={viewModel}
           showTitle={false}
+          actionBusy={actionBusy}
           onPrimaryAction={readOnly ? undefined : onFunnelPrimaryAction}
         />
       </div>
