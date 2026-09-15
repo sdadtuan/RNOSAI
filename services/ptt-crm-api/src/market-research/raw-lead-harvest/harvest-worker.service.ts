@@ -35,6 +35,11 @@ import {
 import { fetchEvidenceText } from './quality/evidence-fetch.util';
 import { applyQualityGate } from './quality/quality-gate.util';
 import { computeQualityScore } from './quality/quality-score.util';
+import {
+  contactPageUrls,
+  mergeScrapedContacts,
+  scrapeContactsFromText,
+} from './quality/scrape-contact.util';
 import { verifyCandidate, type VerifyResult } from './quality/verify-contact.util';
 import { RawLeadHarvestRepository } from './raw-lead-harvest.repository';
 import type { RawLeadHarvestJobRow } from './raw-lead-harvest.types';
@@ -60,6 +65,38 @@ type ScoredRow = {
   legalStatus: LegalStatus | null;
   legalDetail: string | null;
 };
+
+async function fetchEvidenceBundle(evidenceUrl: string): Promise<{
+  fetch: Awaited<ReturnType<typeof fetchEvidenceText>>;
+  combinedText: string;
+}> {
+  const primary = await fetchEvidenceText(evidenceUrl, { timeoutMs: 8000 });
+  let combined = primary.text || '';
+  const early = scrapeContactsFromText(`${combined}`);
+  if (early.phone || early.email) {
+    return { fetch: primary, combinedText: combined };
+  }
+  for (const alt of contactPageUrls(evidenceUrl).slice(0, 2)) {
+    try {
+      const altFetch = await fetchEvidenceText(alt, { timeoutMs: 6000 });
+      if (altFetch.ok && altFetch.text) {
+        combined = `${combined}\n${altFetch.text}`.slice(0, 500_000);
+        const scraped = scrapeContactsFromText(altFetch.text);
+        if (scraped.phone || scraped.email) break;
+      }
+    } catch {
+      // ignore secondary contact-page failures
+    }
+  }
+  return {
+    fetch: {
+      ...primary,
+      ok: primary.ok || combined.trim().length > 0,
+      text: combined,
+    },
+    combinedText: combined,
+  };
+}
 
 @Injectable()
 export class HarvestWorkerService {
@@ -168,27 +205,53 @@ export class HarvestWorkerService {
       const c = candidates[i]!;
       const critic = criticByIndex.get(i) ?? { flag: 'keep' as CriticFlag, reason: null };
       const criticApplied = applyCriticFlagToLead(critic.flag);
-      const fetch = await fetchEvidenceText(c.evidence_url, { timeoutMs: 8000 });
+      const { fetch, combinedText } = await fetchEvidenceBundle(c.evidence_url);
+      const scraped = scrapeContactsFromText(
+        `${combinedText}\n${c.evidence_snippet ?? ''}`,
+      );
+      const merged = mergeScrapedContacts(
+        { phone: c.phone, email: c.email },
+        scraped,
+      );
+      const enriched: HarvestAiLead = {
+        ...c,
+        phone: merged.phone,
+        email: merged.email,
+          field_sources: {
+            phone:
+              merged.scraped && !c.phone?.trim() && scraped.phone
+                ? c.evidence_url
+                : c.field_sources.phone,
+            email:
+              merged.scraped && !c.email?.trim() && scraped.email
+                ? c.evidence_url
+                : c.field_sources.email,
+            address: c.field_sources.address,
+          },
+        };
       const verified = verifyCandidate(
         {
-          company_name: c.company_name,
-          address: c.address,
-          phone: c.phone,
-          email: c.email,
-          contact_title: c.contact_title,
-          website: c.website,
-          evidence_url: c.evidence_url,
-          evidence_snippet: c.evidence_snippet,
-          discovered_via_source_key: c.discovered_via_source_key,
-          confidence: c.confidence,
+          company_name: enriched.company_name,
+          address: enriched.address,
+          phone: enriched.phone,
+          email: enriched.email,
+          contact_title: enriched.contact_title,
+          website: enriched.website,
+          evidence_url: enriched.evidence_url,
+          evidence_snippet: enriched.evidence_snippet,
+          discovered_via_source_key: enriched.discovered_via_source_key,
+          confidence: enriched.confidence,
         },
         fetch,
-        { expectedProvinceHint: job.province_code === 'all' ? null : job.province_name, relaxEmailLiteral: job.mode === 'marketing' },
+        {
+          expectedProvinceHint: job.province_code === 'all' ? null : job.province_name,
+          relaxEmailLiteral: job.mode === 'marketing',
+        },
       );
       scored.push({
-        ai: c,
+        ai: enriched,
         verified,
-        score: computeQualityScore(verified, c.confidence),
+        score: computeQualityScore(verified, enriched.confidence),
         crossCheck: null,
         forceReject: criticApplied.forceReject,
         criticFlag: critic.flag,

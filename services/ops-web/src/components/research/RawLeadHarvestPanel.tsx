@@ -529,8 +529,8 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
               ) : null}
               {mode === 'marketing' ? (
                 <p className="rlh-inline-warn">
-                  Marketing ưu tiên website/Facebook: lấy SĐT (di động/bàn) và email công khai
-                  cho AM gửi marketing — email không bắt verify literal trước.
+                  Marketing: scrape SĐT/email từ website + /lien-he; ưu tiên SME địa phương.
+                  Thiếu contact vẫn giữ pending để review — AM gửi MKT khi có email/SĐT.
                 </p>
               ) : null}
 

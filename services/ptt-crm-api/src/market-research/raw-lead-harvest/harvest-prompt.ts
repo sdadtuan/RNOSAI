@@ -19,10 +19,10 @@ export function buildDiscoverPrompt(job: RawLeadHarvestJobRow): string {
       ? [
           '',
           'CHẾ ĐỘ MARKETING (ưu tiên liên hệ AM):',
-          '- Ưu tiên evidence từ website doanh nghiệp / Facebook page khớp ngành.',
-          '- Lấy SĐT liên hệ: di động (09x/03x/…) hoặc bàn (cố định) nếu có trên nguồn.',
-          '- Lấy email công khai nếu có — AM dùng gửi marketing, không cần verify trước.',
-          '- Vẫn cấm bịa SĐT/email; không có trên nguồn thì null.',
+          '- Ưu tiên evidence từ website doanh nghiệp / Facebook page / Google Maps khớp ngành.',
+          '- BẮT BUỘC cố lấy ít nhất 1 trong: SĐT (di động 09x/03x… hoặc bàn) HOẶC email công khai trên nguồn.',
+          '- Ưu tiên trang /lien-he, /contact, Google Maps (số điện thoại hiện rõ), fanpage có "Gọi điện".',
+          '- Email công khai AM dùng gửi marketing — không cần verify trước; vẫn cấm bịa.',
         ]
       : [];
   return [
@@ -38,9 +38,11 @@ export function buildDiscoverPrompt(job: RawLeadHarvestJobRow): string {
     '',
     'QUY TẮC CỨNG:',
     '- Cấm bịa SĐT/email/MST. Không có trên nguồn thì để null.',
+    '- Ưu tiên SME / cơ sở độc lập địa phương. Tránh chuỗi quốc gia / bệnh viện thẩm mỹ lớn / brand marketplace (vd. Hasaki, Kangnam, DIVA chain) trừ khi ICP ghi rõ.',
     '- Mỗi công ty phải có evidence_url thật (website / Google Maps / Facebook / trang vàng / directory).',
     '- Không dùng URL trang tìm kiếm (google.com/search...).',
     '- evidence_snippet phải chứa tên công ty hoặc contact đã trích.',
+    '- Ưu tiên lead CÓ SĐT hoặc email trên nguồn; thiếu cả hai chỉ trả khi không còn ứng viên tốt hơn.',
     '- discovered_via_source_key phải là một trong các source key đã cho (hoặc null).',
     '',
     'Trả về ĐÚNG một JSON array (không markdown), mỗi phần tử:',
@@ -79,9 +81,12 @@ export function buildExtractPrompt(input: {
     input.job.mode === 'marketing'
       ? [
           'Ưu tiên trích: SĐT di động hoặc bàn; email công khai (AM marketing — không bịa).',
+          'Nếu trang chủ không có SĐT/email, ưu tiên trích từ /lien-he hoặc /contact nếu URL đó là evidence_url.',
           'Nếu trang là website/Facebook của DN trong ngành → lấy mọi hotline/liên hệ hiện trên trang.',
         ]
-      : [];
+      : [
+          'Nếu trang chủ không có SĐT/email nhưng evidence là website DN, ghi rõ trong evidence_snippet những gì nhìn thấy.',
+        ];
   return [
     'Chỉ extract thông tin liên hệ CÓ MẶT trên trang/nguồn đã cho. Không bịa.',
     `Công ty: ${input.company_name}`,

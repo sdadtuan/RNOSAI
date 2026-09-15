@@ -38,6 +38,9 @@ describe('applyQualityGate', () => {
     ).toBe('pending');
     expect(
       applyQualityGate('marketing', 40, v({ phone_ok: false, email_ok: false, phone_out: null, phone_norm: null })),
+    ).toBe('pending');
+    expect(
+      applyQualityGate('marketing', 20, v({ phone_ok: false, email_ok: false, phone_out: null, phone_norm: null })),
     ).toBe('auto_rejected');
     expect(applyQualityGate('marketing', 30, v())).toBe('auto_rejected');
   });
