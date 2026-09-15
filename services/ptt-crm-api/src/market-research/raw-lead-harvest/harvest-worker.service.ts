@@ -404,6 +404,8 @@ export class HarvestWorkerService {
         email: verified.email_out,
         contact_title: c.contact_title,
         website: c.website,
+        fanpage_url: c.fanpage_url,
+        zalo_url: c.zalo_url,
         evidence_url: c.evidence_url,
         evidence_snippet: c.evidence_snippet,
         source_provider: job.provider,

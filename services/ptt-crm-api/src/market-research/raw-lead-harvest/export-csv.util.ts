@@ -3,6 +3,9 @@ export type RawLeadCsvRow = {
   address: string | null;
   phone: string | null;
   email: string | null;
+  website?: string | null;
+  fanpage_url?: string | null;
+  zalo_url?: string | null;
   contact_title: string | null;
   evidence_url: string | null;
   quality_score: number;
@@ -18,6 +21,9 @@ const HEADERS = [
   'address',
   'phone',
   'email',
+  'website',
+  'fanpage_url',
+  'zalo_url',
   'contact_title',
   'evidence_url',
   'quality_score',
@@ -44,6 +50,9 @@ export function buildRawLeadsCsv(rows: RawLeadCsvRow[]): string {
         r.address,
         r.phone,
         r.email,
+        r.website ?? null,
+        r.fanpage_url ?? null,
+        r.zalo_url ?? null,
         r.contact_title,
         r.evidence_url,
         r.quality_score,

@@ -79,6 +79,8 @@ export type RawLeadRow = {
   email: string | null;
   contact_title: string | null;
   website: string | null;
+  fanpage_url: string | null;
+  zalo_url: string | null;
   evidence_url: string | null;
   evidence_snippet: string | null;
   source_provider: string | null;
@@ -110,6 +112,9 @@ export type PatchRawLeadBody = {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  website?: string | null;
+  fanpage_url?: string | null;
+  zalo_url?: string | null;
   contact_title?: string | null;
   accepted_checklist_json?: Record<string, unknown>;
   feedback_code?: FeedbackCode;

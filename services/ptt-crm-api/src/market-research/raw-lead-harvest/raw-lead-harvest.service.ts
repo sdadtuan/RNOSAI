@@ -31,6 +31,10 @@ import {
   normalizeHarvestMode,
   validateCreateRawLeadHarvest,
 } from './raw-lead-harvest.validation';
+import {
+  parseRawLeadListQuery,
+  totalPages,
+} from './raw-lead-list-query.util';
 
 function harvestEnabled(): boolean {
   return String(process.env.PTT_RESEARCH_RAW_LEAD_HARVEST ?? '').trim() === '1';
@@ -253,15 +257,18 @@ export class RawLeadHarvestService {
 
   async listLeads(
     projectId: number,
-    query: { status?: string; job_id?: string; include_auto_rejected?: string },
+    query: Record<string, string | undefined>,
   ) {
     this.assertEnabled();
-    const leads = await this.repo.listLeads(projectId, {
-      status: query.status,
-      job_id: query.job_id ? Number(query.job_id) : undefined,
-      include_auto_rejected: query.include_auto_rejected === '1',
-    });
-    return { leads };
+    const parsed = parseRawLeadListQuery(query);
+    const { leads, total } = await this.repo.listLeadsPage(projectId, parsed);
+    return {
+      leads,
+      page: parsed.page,
+      page_size: parsed.page_size,
+      total,
+      total_pages: totalPages(total, parsed.page_size),
+    };
   }
 
   async patchLead(
@@ -287,6 +294,9 @@ export class RawLeadHarvestService {
       address: body.address,
       phone: body.phone,
       email: body.email,
+      website: body.website,
+      fanpage_url: body.fanpage_url,
+      zalo_url: body.zalo_url,
       contact_title: body.contact_title,
       accepted_checklist_json: body.accepted_checklist_json,
       feedback_code: body.feedback_code,

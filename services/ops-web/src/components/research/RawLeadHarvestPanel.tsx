@@ -97,6 +97,26 @@ function classificationLabel(code: string | null | undefined): string {
   }
 }
 
+function externalLink(url: string | null | undefined, label?: string) {
+  const href = String(url ?? '').trim();
+  if (!href) return <span className="muted">—</span>;
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="rlh-link">
+      {label ?? href.replace(/^https?:\/\//i, '').slice(0, 36)}
+    </a>
+  );
+}
+
+function phoneLink(phone: string | null | undefined) {
+  const p = String(phone ?? '').trim();
+  if (!p) return <span className="muted">—</span>;
+  return (
+    <a href={`tel:${p.replace(/\s+/g, '')}`} className="rlh-link">
+      {p}
+    </a>
+  );
+}
+
 function sortLookups(options: CrmLeadLookupOption[], priority: string[]): CrmLeadLookupOption[] {
   const rank = new Map(priority.map((k, i) => [k, i]));
   return [...options].sort((a, b) => {
@@ -180,6 +200,15 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
 
   const [jobs, setJobs] = useState<RawLeadHarvestJob[]>([]);
   const [leads, setLeads] = useState<RawLead[]>([]);
+  const [leadsTotal, setLeadsTotal] = useState(0);
+  const [leadsTotalPages, setLeadsTotalPages] = useState(0);
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [jobFilter, setJobFilter] = useState<number | ''>('');
+  const [qFilter, setQFilter] = useState('');
+  const [qDraft, setQDraft] = useState('');
+  const [hasPhoneOnly, setHasPhoneOnly] = useState(false);
+  const [hasContactOnly, setHasContactOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [acceptLead, setAcceptLead] = useState<RawLead | null>(null);
@@ -223,11 +252,31 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const reloadJobsAndLeads = useCallback(async () => {
     const [j, l] = await Promise.all([
       listRawLeadHarvests(token, projectId),
-      listRawLeads(token, projectId, { include_auto_rejected: true }),
+      listRawLeads(token, projectId, {
+        page: leadsPage,
+        page_size: 50,
+        status: statusFilter || undefined,
+        job_id: jobFilter === '' ? undefined : Number(jobFilter),
+        q: qFilter || undefined,
+        has_phone: hasPhoneOnly || undefined,
+        has_contact: hasContactOnly || undefined,
+        include_auto_rejected: !statusFilter,
+      }),
     ]);
     setJobs(j.jobs);
     setLeads(l.leads);
-  }, [token, projectId]);
+    setLeadsTotal(l.total);
+    setLeadsTotalPages(l.total_pages);
+  }, [
+    token,
+    projectId,
+    leadsPage,
+    statusFilter,
+    jobFilter,
+    qFilter,
+    hasPhoneOnly,
+    hasContactOnly,
+  ]);
 
   useEffect(() => {
     if (!FLAG_ON) return;
@@ -756,7 +805,8 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
           <div>
             <h3 className="kpi-section-title">Lead thô</h3>
             <p className="form-hint">
-              {leads.length} dòng · {pendingCount} pending · {acceptedCount} accepted/pushed
+              {leadsTotal} lead · trang {leadsPage}/{leadsTotalPages || 0} ·{' '}
+              {pendingCount} pending (trang) · {acceptedCount} accepted/pushed (trang)
               {selectedIds.length ? ` · ${selectedIds.length} đang chọn` : ''}
             </p>
           </div>
@@ -829,9 +879,92 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
           </div>
         </div>
 
+        <div className="form-grid form-grid--2 rlh-lead-filters" style={{ marginBottom: '0.75rem' }}>
+          <label className="form-field">
+            <span className="form-label">Status</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setLeadsPage(1);
+                setSelectedIds([]);
+              }}
+            >
+              <option value="">Tất cả (kèm auto_rejected)</option>
+              <option value="pending">pending</option>
+              <option value="accepted">accepted</option>
+              <option value="rejected">rejected</option>
+              <option value="auto_rejected">auto_rejected</option>
+              <option value="pushed">pushed</option>
+            </select>
+          </label>
+          <label className="form-field">
+            <span className="form-label">Job</span>
+            <select
+              value={jobFilter === '' ? '' : String(jobFilter)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setJobFilter(v ? Number(v) : '');
+                setLeadsPage(1);
+                setSelectedIds([]);
+              }}
+            >
+              <option value="">Tất cả job</option>
+              {jobs.map((j) => (
+                <option key={j.id} value={j.id}>
+                  #{j.id} · {j.mode} · {j.status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span className="form-label">Tìm (tên / SĐT / email)</span>
+            <input
+              value={qDraft}
+              onChange={(e) => setQDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  setQFilter(qDraft.trim());
+                  setLeadsPage(1);
+                  setSelectedIds([]);
+                }
+              }}
+              placeholder="Nhập rồi Enter…"
+            />
+          </label>
+          <div className="form-field" style={{ display: 'flex', gap: '1rem', alignItems: 'end' }}>
+            <label className="form-check">
+              <input
+                type="checkbox"
+                checked={hasPhoneOnly}
+                onChange={(e) => {
+                  setHasPhoneOnly(e.target.checked);
+                  setLeadsPage(1);
+                  setSelectedIds([]);
+                }}
+              />
+              Có SĐT
+            </label>
+            <label className="form-check">
+              <input
+                type="checkbox"
+                checked={hasContactOnly}
+                onChange={(e) => {
+                  setHasContactOnly(e.target.checked);
+                  setLeadsPage(1);
+                  setSelectedIds([]);
+                }}
+              />
+              Có contact
+            </label>
+          </div>
+        </div>
+
         {leads.length === 0 ? (
-          <div className="rlh-empty">Chưa có lead — chạy job quality để thu thập.</div>
+          <div className="rlh-empty">Chưa có lead khớp filter — chạy job hoặc nới bộ lọc.</div>
         ) : (
+          <>
           <div className="data-table-wrap rlh-leads-wrap">
             <table className="data-table data-table--dense">
               <thead>
@@ -839,7 +972,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   <th className="rlh-col-check">
                     <input
                       type="checkbox"
-                      aria-label="Chọn tất cả"
+                      aria-label="Chọn tất cả trang"
                       checked={
                         leads.length > 0 && selectedIds.length === leads.length
                       }
@@ -851,7 +984,12 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   <th>Score</th>
                   <th>ICP</th>
                   <th>Công ty</th>
-                  <th>Liên hệ</th>
+                  <th>SĐT</th>
+                  <th>Email</th>
+                  <th>Website</th>
+                  <th>Fanpage</th>
+                  <th>Zalo</th>
+                  <th>Địa chỉ</th>
                   <th>Phân loại</th>
                   <th>Status</th>
                   <th>Dial</th>
@@ -889,11 +1027,22 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                       ) : (
                         <strong>{lead.company_name}</strong>
                       )}
-                      {lead.address ? <div className="muted rlh-sub">{lead.address}</div> : null}
                     </td>
+                    <td>{phoneLink(lead.phone)}</td>
                     <td>
-                      <div>{lead.phone ?? '—'}</div>
-                      <div className="muted rlh-sub">{lead.email ?? '—'}</div>
+                      {lead.email ? (
+                        <a href={`mailto:${lead.email}`} className="rlh-link">
+                          {lead.email}
+                        </a>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td>{externalLink(lead.website)}</td>
+                    <td>{externalLink(lead.fanpage_url)}</td>
+                    <td>{externalLink(lead.zalo_url)}</td>
+                    <td>
+                      <span className="muted rlh-sub">{lead.address ?? '—'}</span>
                     </td>
                     <td>
                       <span className="rlh-class">{classificationLabel(lead.classification)}</span>
@@ -991,6 +1140,43 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
               </tbody>
             </table>
           </div>
+          <div
+            className="rlh-pager"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              marginTop: '0.75rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            <span className="form-hint" style={{ margin: 0 }}>
+              Trang {leadsPage}/{leadsTotalPages || 0} · {leadsTotal} lead · 50/trang
+            </span>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy || leadsPage <= 1}
+              onClick={() => {
+                setLeadsPage((p) => Math.max(1, p - 1));
+                setSelectedIds([]);
+              }}
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy || leadsTotalPages === 0 || leadsPage >= leadsTotalPages}
+              onClick={() => {
+                setLeadsPage((p) => p + 1);
+                setSelectedIds([]);
+              }}
+            >
+              Next
+            </button>
+          </div>
+          </>
         )}
       </section>
 

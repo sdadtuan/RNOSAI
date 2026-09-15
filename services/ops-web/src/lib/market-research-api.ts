@@ -1823,6 +1823,8 @@ export type RawLead = {
   email: string | null;
   contact_title: string | null;
   website: string | null;
+  fanpage_url?: string | null;
+  zalo_url?: string | null;
   evidence_url: string | null;
   evidence_snippet: string | null;
   source_provider: string | null;
@@ -1914,17 +1916,34 @@ export function getRawLeadHarvest(token: string, projectId: number, jobId: numbe
 export function listRawLeads(
   token: string,
   projectId: number,
-  params?: { status?: string; job_id?: number; include_auto_rejected?: boolean },
+  params?: {
+    status?: string;
+    job_id?: number;
+    include_auto_rejected?: boolean;
+    page?: number;
+    page_size?: number;
+    q?: string;
+    has_phone?: boolean;
+    has_contact?: boolean;
+  },
 ) {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
   if (params?.job_id) qs.set('job_id', String(params.job_id));
   if (params?.include_auto_rejected) qs.set('include_auto_rejected', '1');
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.page_size) qs.set('page_size', String(params.page_size));
+  if (params?.q) qs.set('q', params.q);
+  if (params?.has_phone) qs.set('has_phone', '1');
+  if (params?.has_contact) qs.set('has_contact', '1');
   const suffix = qs.toString() ? `?${qs}` : '';
-  return researchFetch<{ leads: RawLead[] }>(
-    token,
-    `/api/v1/research/projects/${projectId}/raw-leads${suffix}`,
-  );
+  return researchFetch<{
+    leads: RawLead[];
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+  }>(token, `/api/v1/research/projects/${projectId}/raw-leads${suffix}`);
 }
 
 export function patchRawLead(
@@ -1937,6 +1956,9 @@ export function patchRawLead(
     address?: string | null;
     phone?: string | null;
     email?: string | null;
+    website?: string | null;
+    fanpage_url?: string | null;
+    zalo_url?: string | null;
     contact_title?: string | null;
     accepted_checklist_json?: Record<string, unknown>;
     feedback_code?: 'bad_phone' | 'bad_email' | 'fake_company' | 'wrong_geo' | 'other';

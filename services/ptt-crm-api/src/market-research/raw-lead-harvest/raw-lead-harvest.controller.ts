@@ -84,7 +84,7 @@ export class RawLeadHarvestController {
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   listLeads(
     @Param('id', ParseIntPipe) id: number,
-    @Query() query: { status?: string; job_id?: string; include_auto_rejected?: string },
+    @Query() query: Record<string, string | undefined>,
   ) {
     return this.harvest.listLeads(id, query);
   }

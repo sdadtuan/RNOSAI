@@ -5,6 +5,8 @@ export type HarvestAiLead = {
   email: string | null;
   contact_title: string | null;
   website: string | null;
+  fanpage_url: string | null;
+  zalo_url: string | null;
   evidence_url: string;
   evidence_snippet: string;
   discovered_via_source_key: string | null;
@@ -20,6 +22,31 @@ function asNullableString(v: unknown): string | null {
   if (v == null) return null;
   const s = String(v).trim();
   return s ? s : null;
+}
+
+/** Accept http(s) URLs or bare facebook/zalo hosts; else null. */
+export function normalizeChannelUrl(
+  raw: unknown,
+  kind: 'fanpage' | 'zalo' | 'any',
+): string | null {
+  const s = asNullableString(raw);
+  if (!s) return null;
+  const withScheme = /^https?:\/\//i.test(s) ? s : `https://${s}`;
+  try {
+    const u = new URL(withScheme);
+    const host = u.hostname.toLowerCase();
+    if (kind === 'fanpage') {
+      if (!/(^|\.)facebook\.com$|(^|\.)fb\.com$|(^|\.)m\.facebook\.com$/.test(host)) {
+        return null;
+      }
+    }
+    if (kind === 'zalo') {
+      if (!/(^|\.)zalo\.me$|(^|\.)zaloapp\.com$/.test(host)) return null;
+    }
+    return u.toString();
+  } catch {
+    return null;
+  }
 }
 
 function extractJsonArray(raw: string): unknown[] {
@@ -100,6 +127,10 @@ export function parseHarvestAiLeads(
       email: asNullableString(r.email),
       contact_title: asNullableString(r.contact_title),
       website: asNullableString(r.website),
+      fanpage_url:
+        normalizeChannelUrl(r.fanpage_url ?? r.fanpage, 'fanpage') ??
+        normalizeChannelUrl(r.evidence_url, 'fanpage'),
+      zalo_url: normalizeChannelUrl(r.zalo_url ?? r.zalo, 'zalo'),
       evidence_url: evidenceUrl,
       evidence_snippet: asNullableString(r.evidence_snippet) ?? company,
       discovered_via_source_key: via,

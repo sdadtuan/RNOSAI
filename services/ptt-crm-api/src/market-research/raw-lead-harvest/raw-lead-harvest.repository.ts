@@ -6,6 +6,10 @@ import type {
   RawLeadHarvestMode,
   RawLeadRow,
 } from './raw-lead-harvest.types';
+import {
+  offsetForPage,
+  type RawLeadListQuery,
+} from './raw-lead-list-query.util';
 
 function iso(value: unknown): string | null {
   if (value == null) return null;
@@ -154,6 +158,14 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       ALTER TABLE crm_research_raw_leads
         ADD COLUMN IF NOT EXISTS market_entity_id UUID
     `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS fanpage_url TEXT
+    `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS zalo_url TEXT
+    `);
   }
 
   private mapJob(row: Record<string, unknown>): RawLeadHarvestJobRow {
@@ -238,6 +250,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       email: row.email == null ? null : String(row.email),
       contact_title: row.contact_title == null ? null : String(row.contact_title),
       website: row.website == null ? null : String(row.website),
+      fanpage_url: row.fanpage_url == null ? null : String(row.fanpage_url),
+      zalo_url: row.zalo_url == null ? null : String(row.zalo_url),
       evidence_url: row.evidence_url == null ? null : String(row.evidence_url),
       evidence_snippet: row.evidence_snippet == null ? null : String(row.evidence_snippet),
       source_provider: row.source_provider == null ? null : String(row.source_provider),
@@ -469,6 +483,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     email: string | null;
     contact_title: string | null;
     website: string | null;
+    fanpage_url?: string | null;
+    zalo_url?: string | null;
     evidence_url: string | null;
     evidence_snippet: string | null;
     source_provider: string;
@@ -494,13 +510,13 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     const r = await this.db.query(
       `INSERT INTO crm_research_raw_leads (
          project_id, job_id, company_name, company_name_norm, address, phone, phone_norm, email,
-         contact_title, website, evidence_url, evidence_snippet,
+         contact_title, website, fanpage_url, zalo_url, evidence_url, evidence_snippet,
          source_provider, source_model, search_source_keys, search_channel_keys,
          discovered_via_source_key, confidence,
          quality_score, icp_fit_score, contactable, phone_kind, legal_status, status,
          classification, place_id, intent_score, market_entity_id, verify_json, raw_json
        ) VALUES (
-         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28::uuid,$29::jsonb,$30::jsonb
+         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::uuid,$31::jsonb,$32::jsonb
        ) RETURNING *`,
       [
         input.project_id,
@@ -513,6 +529,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         input.email,
         input.contact_title,
         input.website,
+        input.fanpage_url ?? null,
+        input.zalo_url ?? null,
         input.evidence_url,
         input.evidence_snippet,
         input.source_provider,
@@ -536,6 +554,67 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       ],
     );
     return this.mapLead(r.rows[0]);
+  }
+
+  async listLeadsPage(
+    projectId: number,
+    opts: RawLeadListQuery,
+  ): Promise<{ leads: RawLeadRow[]; total: number }> {
+    await this.ensureSchema();
+    const clauses = ['project_id = $1'];
+    const params: unknown[] = [projectId];
+
+    if (opts.status?.length) {
+      params.push(opts.status);
+      clauses.push(`status = ANY($${params.length}::text[])`);
+    } else if (!opts.include_auto_rejected) {
+      clauses.push(`status <> 'auto_rejected'`);
+    }
+
+    if (opts.job_id) {
+      params.push(opts.job_id);
+      clauses.push(`job_id = $${params.length}`);
+    }
+
+    if (opts.q) {
+      params.push(`%${opts.q}%`);
+      const i = params.length;
+      clauses.push(
+        `(company_name ILIKE $${i} OR COALESCE(phone, '') ILIKE $${i} OR COALESCE(email, '') ILIKE $${i} OR COALESCE(address, '') ILIKE $${i})`,
+      );
+    }
+
+    if (opts.has_phone) {
+      clauses.push(`phone_norm IS NOT NULL AND phone_norm <> ''`);
+    }
+
+    if (opts.has_contact) {
+      clauses.push(
+        `((phone_norm IS NOT NULL AND phone_norm <> '') OR (email IS NOT NULL AND btrim(email) <> ''))`,
+      );
+    }
+
+    const where = clauses.join(' AND ');
+    const countR = await this.db.query(
+      `SELECT COUNT(*)::int AS n FROM crm_research_raw_leads WHERE ${where}`,
+      params,
+    );
+    const total = Number(countR.rows[0]?.n ?? 0);
+
+    const offset = offsetForPage(opts.page, opts.page_size);
+    params.push(opts.page_size);
+    const limitIdx = params.length;
+    params.push(offset);
+    const offsetIdx = params.length;
+
+    const r = await this.db.query(
+      `SELECT * FROM crm_research_raw_leads
+       WHERE ${where}
+       ORDER BY quality_score DESC, id DESC
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      params,
+    );
+    return { leads: r.rows.map((row) => this.mapLead(row)), total };
   }
 
   async listLeads(
@@ -594,12 +673,15 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
          phone = COALESCE($6, phone),
          email = COALESCE($7, email),
          contact_title = COALESCE($8, contact_title),
-         accepted_checklist_json = COALESCE($9::jsonb, accepted_checklist_json),
-         feedback_code = COALESCE($10, feedback_code),
-         feedback_note = COALESCE($11, feedback_note),
-         feedback_by_staff_id = COALESCE($12, feedback_by_staff_id),
-         dial_outcome = COALESCE($13, dial_outcome),
-         dial_outcome_at = COALESCE($14::timestamptz, dial_outcome_at),
+         website = COALESCE($9, website),
+         fanpage_url = COALESCE($10, fanpage_url),
+         zalo_url = COALESCE($11, zalo_url),
+         accepted_checklist_json = COALESCE($12::jsonb, accepted_checklist_json),
+         feedback_code = COALESCE($13, feedback_code),
+         feedback_note = COALESCE($14, feedback_note),
+         feedback_by_staff_id = COALESCE($15, feedback_by_staff_id),
+         dial_outcome = COALESCE($16, dial_outcome),
+         dial_outcome_at = COALESCE($17::timestamptz, dial_outcome_at),
          updated_at = NOW()
        WHERE project_id = $1 AND id = $2
        RETURNING *`,
@@ -612,6 +694,9 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         patch.phone !== undefined ? patch.phone : null,
         patch.email !== undefined ? patch.email : null,
         patch.contact_title !== undefined ? patch.contact_title : null,
+        patch.website !== undefined ? patch.website : null,
+        patch.fanpage_url !== undefined ? patch.fanpage_url : null,
+        patch.zalo_url !== undefined ? patch.zalo_url : null,
         patch.accepted_checklist_json
           ? JSON.stringify(patch.accepted_checklist_json)
           : null,
