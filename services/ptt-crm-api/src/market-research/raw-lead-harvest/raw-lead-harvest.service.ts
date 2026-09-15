@@ -15,6 +15,8 @@ import {
 } from './blacklist.util';
 import { buildRawLeadsCsv } from './export-csv.util';
 import { HarvestWorkerService } from './harvest-worker.service';
+import { IntentHarvestWorker } from './intent/intent-harvest.worker';
+import { PlacesClient } from './places/places.client';
 import { assertRawLeadPushable } from './push-crm.util';
 import { RawLeadHarvestRepository } from './raw-lead-harvest.repository';
 import type {
@@ -37,6 +39,16 @@ function harvestMock(): boolean {
   return raw !== '0' && raw.toLowerCase() !== 'false';
 }
 
+function intentHarvestEnabled(): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(
+    String(process.env.PTT_RESEARCH_HARVEST_INTENT ?? '').trim().toLowerCase(),
+  );
+}
+
+function googlePlacesApiKey(): string {
+  return String(process.env.PTT_GOOGLE_PLACES_API_KEY ?? '').trim();
+}
+
 @Injectable()
 export class RawLeadHarvestService {
   constructor(
@@ -45,6 +57,7 @@ export class RawLeadHarvestService {
     private readonly crmConfig: CrmConfigService,
     private readonly vnGeo: VnAdminGeoRepository,
     private readonly worker: HarvestWorkerService,
+    private readonly intentWorker: IntentHarvestWorker,
     private readonly leadsWrite: LeadsWriteService,
   ) {}
 
@@ -72,6 +85,15 @@ export class RawLeadHarvestService {
     if (running > 0) throw new BadRequestException({ error: 'harvest_job_already_running' });
 
     const mode = normalizeHarvestMode(body.mode);
+    if (mode === 'intent') {
+      if (!intentHarvestEnabled()) {
+        throw new BadRequestException({ error: 'intent_disabled' });
+      }
+      if (!googlePlacesApiKey()) {
+        throw new BadRequestException({ error: 'places_not_configured' });
+      }
+    }
+
     const industries = await this.crmConfig.listLeadLookups('industry', true);
     const titles = await this.crmConfig.listLeadLookups('job_title', true);
     const sources = await this.crmConfig.listLeadLookups('source', true);
@@ -119,18 +141,38 @@ export class RawLeadHarvestService {
       }
     }
 
-    const harvestProviders = await this.aiProviders.listHarvestProviders();
-    const provider = harvestProviders.find((p) => p.code === body.provider);
-    if (!provider || !provider.configured) {
-      throw new BadRequestException({ error: 'provider_not_configured' });
-    }
-    if (!provider.models.some((m) => m.id === body.model)) {
-      throw new BadRequestException({ error: 'model_not_allowed' });
+    let providerCode = String(body.provider ?? '').trim() || 'google_places';
+    let modelId = String(body.model ?? '').trim() || '';
+    let providerBaseUrl: string | null = null;
+    let credentialId: number | null = null;
+    let runtime: Awaited<
+      ReturnType<ResearchAiProvidersRepository['resolveRuntimeCredential']>
+    > = null;
+
+    if (mode !== 'intent') {
+      const harvestProviders = await this.aiProviders.listHarvestProviders();
+      const provider = harvestProviders.find((p) => p.code === body.provider);
+      if (!provider || !provider.configured) {
+        throw new BadRequestException({ error: 'provider_not_configured' });
+      }
+      if (!provider.models.some((m) => m.id === body.model)) {
+        throw new BadRequestException({ error: 'model_not_allowed' });
+      }
+      runtime = await this.aiProviders.resolveRuntimeCredential(body.provider!);
+      const adminProviders = await this.aiProviders.listProviders();
+      const adminProvider = adminProviders.find((p) => p.code === body.provider);
+      providerCode = body.provider!;
+      modelId = body.model!;
+      providerBaseUrl = adminProvider?.base_url ?? null;
+      credentialId = runtime?.credentialId ?? null;
     }
 
-    const runtime = await this.aiProviders.resolveRuntimeCredential(body.provider);
-    const adminProviders = await this.aiProviders.listProviders();
-    const adminProvider = adminProviders.find((p) => p.code === body.provider);
+    const scanCap =
+      body.scan_cap != null && Number.isFinite(Number(body.scan_cap))
+        ? Math.max(1, Math.floor(Number(body.scan_cap)))
+        : mode === 'intent'
+          ? Math.max(Number(body.target_count) * 5, 200)
+          : null;
 
     const job = await this.repo.createJob({
       project_id: projectId,
@@ -144,13 +186,14 @@ export class RawLeadHarvestService {
       ward_name: wardName,
       sources_json: sourceSnap,
       channels_json: channelSnap,
-      provider: body.provider,
-      model: body.model,
-      provider_base_url: adminProvider?.base_url ?? null,
-      credential_id: runtime?.credentialId ?? null,
+      provider: providerCode,
+      model: modelId,
+      provider_base_url: providerBaseUrl,
+      credential_id: credentialId,
       mode,
       cross_check: Boolean(body.cross_check),
       target_count: Number(body.target_count),
+      scan_cap: scanCap,
       notes: body.notes ? String(body.notes).slice(0, 500) : null,
       created_by_staff_id: staffId,
     });
@@ -312,6 +355,29 @@ export class RawLeadHarvestService {
     try {
       const job = await this.repo.getJob(projectId, jobId);
       if (!job) return;
+
+      if (job.mode === 'intent') {
+        if (!intentHarvestEnabled()) {
+          await this.repo.markJobFinished(jobId, 'failed', 0, 0, 'intent_disabled');
+          return;
+        }
+        const key = googlePlacesApiKey();
+        if (!key) {
+          await this.repo.markJobFinished(jobId, 'failed', 0, 0, 'places_not_configured');
+          return;
+        }
+        const places = new PlacesClient(key);
+        const result = await this.intentWorker.run(job, places);
+        await this.repo.markJobFinished(
+          jobId,
+          'succeeded',
+          result.inserted,
+          result.rejected,
+          null,
+          result.stats as unknown as Record<string, unknown>,
+        );
+        return;
+      }
 
       if (!harvestMock()) {
         if (!runtime) {

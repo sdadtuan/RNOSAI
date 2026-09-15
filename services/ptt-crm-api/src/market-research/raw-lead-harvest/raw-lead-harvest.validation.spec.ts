@@ -36,6 +36,42 @@ describe('validateCreateRawLeadHarvest', () => {
     expect(normalizeHarvestMode(undefined)).toBe('quality');
     expect(normalizeHarvestMode('volume')).toBe('volume');
     expect(normalizeHarvestMode('marketing')).toBe('marketing');
+    expect(normalizeHarvestMode('intent')).toBe('intent');
+  });
+
+  it('intent requires a concrete province (not all)', () => {
+    expect(
+      validateCreateRawLeadHarvest({
+        ...base,
+        mode: 'intent',
+        province_code: 'all',
+        target_count: 50,
+        provider: undefined,
+        model: undefined,
+      })?.error,
+    ).toBe('intent_province_required');
+    expect(
+      validateCreateRawLeadHarvest({
+        ...base,
+        mode: 'intent',
+        province_code: '79',
+        target_count: 50,
+        provider: undefined,
+        model: undefined,
+      }),
+    ).toBeNull();
+  });
+
+  it('intent does not require AI provider/model', () => {
+    expect(
+      validateCreateRawLeadHarvest({
+        industry_key: 'spa',
+        province_code: '79',
+        source_keys: ['google_maps'],
+        mode: 'intent',
+        target_count: 50,
+      }),
+    ).toBeNull();
   });
 
   it('accepts valid quality body', () => {

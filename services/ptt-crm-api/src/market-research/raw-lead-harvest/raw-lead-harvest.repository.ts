@@ -134,6 +134,22 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       ALTER TABLE crm_research_raw_leads
         ADD COLUMN IF NOT EXISTS classification TEXT
     `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_lead_harvest_jobs
+        ADD COLUMN IF NOT EXISTS scan_cap INT
+    `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_lead_harvest_jobs
+        ADD COLUMN IF NOT EXISTS stats_json JSONB
+    `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS place_id TEXT
+    `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS intent_score INT
+    `);
   }
 
   private mapJob(row: Record<string, unknown>): RawLeadHarvestJobRow {
@@ -145,6 +161,19 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       typeof row.channels_json === 'string'
         ? JSON.parse(row.channels_json)
         : row.channels_json ?? [];
+    const stats =
+      typeof row.stats_json === 'string'
+        ? JSON.parse(row.stats_json)
+        : row.stats_json ?? null;
+    const modeRaw = String(row.mode ?? 'quality');
+    const mode: RawLeadHarvestMode =
+      modeRaw === 'volume'
+        ? 'volume'
+        : modeRaw === 'marketing'
+          ? 'marketing'
+          : modeRaw === 'intent'
+            ? 'intent'
+            : 'quality';
     return {
       id: Number(row.id),
       project_id: Number(row.project_id),
@@ -160,18 +189,19 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       channels_json: channels as Array<{ key: string; label: string }>,
       provider: String(row.provider),
       model: String(row.model),
-      mode: (row.mode === 'volume'
-        ? 'volume'
-        : row.mode === 'marketing'
-          ? 'marketing'
-          : 'quality') as RawLeadHarvestMode,
+      mode,
       cross_check: Boolean(row.cross_check),
       target_count: Number(row.target_count),
+      scan_cap: row.scan_cap == null ? null : Number(row.scan_cap),
       notes: row.notes == null ? null : String(row.notes),
       status: String(row.status),
       error_message: row.error_message == null ? null : String(row.error_message),
       result_count: Number(row.result_count ?? 0),
       rejected_by_gate_count: Number(row.rejected_by_gate_count ?? 0),
+      stats_json: (stats && typeof stats === 'object' ? stats : null) as Record<
+        string,
+        unknown
+      > | null,
       created_by_staff_id:
         row.created_by_staff_id == null ? null : Number(row.created_by_staff_id),
       created_at: iso(row.created_at) ?? '',
@@ -208,6 +238,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       source_model: row.source_model == null ? null : String(row.source_model),
       search_source_keys: sourceKeys,
       search_channel_keys: channelKeys,
+      place_id: row.place_id == null ? null : String(row.place_id),
+      intent_score: row.intent_score == null ? null : Number(row.intent_score),
       quality_score: Number(row.quality_score ?? 0),
       icp_fit_score: Number(row.icp_fit_score ?? 0),
       contactable: Boolean(row.contactable),
@@ -254,6 +286,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     mode: RawLeadHarvestMode;
     cross_check: boolean;
     target_count: number;
+    scan_cap?: number | null;
     notes: string | null;
     created_by_staff_id: number | null;
   }): Promise<RawLeadHarvestJobRow> {
@@ -263,9 +296,9 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
          project_id, industry_key, industry_label, job_title_key, job_title_label,
          province_code, province_name, ward_code, ward_name,
          sources_json, channels_json, provider, model, provider_base_url, credential_id,
-         mode, cross_check, target_count, notes, status, created_by_staff_id
+         mode, cross_check, target_count, scan_cap, notes, status, created_by_staff_id
        ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13,$14,$15,$16,$17,$18,$19,'queued',$20
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13,$14,$15,$16,$17,$18,$19,$20,'queued',$21
        ) RETURNING *`,
       [
         input.project_id,
@@ -286,6 +319,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         input.mode,
         input.cross_check,
         input.target_count,
+        input.scan_cap ?? null,
         input.notes,
         input.created_by_staff_id,
       ],
@@ -326,14 +360,52 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     resultCount: number,
     rejectedCount: number,
     errorMessage?: string | null,
+    statsJson?: Record<string, unknown> | null,
   ): Promise<void> {
     await this.db.query(
       `UPDATE crm_research_raw_lead_harvest_jobs
        SET status = $2, result_count = $3, rejected_by_gate_count = $4,
-           error_message = $5, finished_at = NOW()
+           error_message = $5, stats_json = COALESCE($6::jsonb, stats_json), finished_at = NOW()
        WHERE id = $1`,
-      [jobId, status, resultCount, rejectedCount, errorMessage ?? null],
+      [
+        jobId,
+        status,
+        resultCount,
+        rejectedCount,
+        errorMessage ?? null,
+        statsJson ? JSON.stringify(statsJson) : null,
+      ],
     );
+  }
+
+  async hasRecentAcceptedOrPushed(
+    projectId: number,
+    opts: { phone_norm?: string | null; company_name_norm?: string | null; days?: number },
+  ): Promise<boolean> {
+    await this.ensureSchema();
+    const days = opts.days ?? 90;
+    const clauses: string[] = [
+      'project_id = $1',
+      `status IN ('accepted','pushed')`,
+      `created_at > NOW() - ($2::text || ' days')::interval`,
+    ];
+    const params: unknown[] = [projectId, String(days)];
+    const orParts: string[] = [];
+    if (opts.phone_norm) {
+      params.push(opts.phone_norm);
+      orParts.push(`phone_norm = $${params.length}`);
+    }
+    if (opts.company_name_norm) {
+      params.push(opts.company_name_norm);
+      orParts.push(`company_name_norm = $${params.length}`);
+    }
+    if (!orParts.length) return false;
+    clauses.push(`(${orParts.join(' OR ')})`);
+    const r = await this.db.query(
+      `SELECT 1 FROM crm_research_raw_leads WHERE ${clauses.join(' AND ')} LIMIT 1`,
+      params,
+    );
+    return Boolean(r.rows[0]);
   }
 
   async setJobCredentialId(jobId: number, credentialId: number): Promise<void> {
@@ -404,6 +476,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     legal_status?: string | null;
     status: string;
     classification?: string | null;
+    place_id?: string | null;
+    intent_score?: number | null;
     verify_json: Record<string, unknown>;
     raw_json?: Record<string, unknown>;
   }): Promise<RawLeadRow> {
@@ -415,9 +489,9 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
          source_provider, source_model, search_source_keys, search_channel_keys,
          discovered_via_source_key, confidence,
          quality_score, icp_fit_score, contactable, phone_kind, legal_status, status,
-         classification, verify_json, raw_json
+         classification, place_id, intent_score, verify_json, raw_json
        ) VALUES (
-         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27::jsonb
+         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28::jsonb,$29::jsonb
        ) RETURNING *`,
       [
         input.project_id,
@@ -445,6 +519,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         input.legal_status ?? null,
         input.status,
         input.classification ?? null,
+        input.place_id ?? null,
+        input.intent_score ?? null,
         JSON.stringify(input.verify_json),
         JSON.stringify(input.raw_json ?? {}),
       ],

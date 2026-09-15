@@ -164,12 +164,13 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const [wardCode, setWardCode] = useState('');
   const [sourceKeys, setSourceKeys] = useState<string[]>([]);
   const [channelKeys, setChannelKeys] = useState<string[]>([]);
-  const [mode, setMode] = useState<'quality' | 'volume' | 'marketing'>('quality');
+  const [mode, setMode] = useState<'quality' | 'volume' | 'marketing' | 'intent'>('quality');
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('');
   const [crossCheck, setCrossCheck] = useState(false);
   const [targetCount, setTargetCount] = useState<number | ''>(10);
   const [notes, setNotes] = useState('');
+  const isIntent = mode === 'intent';
 
   const [jobs, setJobs] = useState<RawLeadHarvestJob[]>([]);
   const [leads, setLeads] = useState<RawLead[]>([]);
@@ -324,17 +325,38 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     setBusy(false);
                     return;
                   }
+                  if (mode === 'intent') {
+                    if (!provinceCode || provinceCode === 'all') {
+                      setError('Mode Intent bắt buộc chọn Tỉnh/TP cụ thể (không chọn Tất cả)');
+                      setBusy(false);
+                      return;
+                    }
+                  } else if (!provider || !model) {
+                    setError('Chọn Provider và Model AI');
+                    setBusy(false);
+                    return;
+                  }
+                  let keys = sourceKeys;
+                  if (mode === 'intent' && keys.length === 0) {
+                    const gm = sources.find((s) => s.option_key === 'google_maps');
+                    if (gm) keys = ['google_maps'];
+                  }
+                  if (keys.length === 0) {
+                    setError('Chọn ít nhất 1 nguồn');
+                    setBusy(false);
+                    return;
+                  }
                   const out = await createRawLeadHarvest(token, projectId, {
                     industry_key: industryKey,
                     job_title_key: titleKey || null,
                     province_code: provinceCode || null,
                     ward_code: provinceCode && wardCode ? wardCode : null,
-                    source_keys: sourceKeys,
+                    source_keys: keys,
                     channel_keys: channelKeys,
-                    provider,
-                    model,
+                    provider: mode === 'intent' ? undefined : provider,
+                    model: mode === 'intent' ? undefined : model,
                     mode,
-                    cross_check: canCrossCheck && crossCheck,
+                    cross_check: mode !== 'intent' && canCrossCheck && crossCheck,
                     target_count: count,
                     notes: notes || undefined,
                   });
@@ -448,14 +470,25 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   <span className="form-label">Chế độ</span>
                   <select
                     value={mode}
-                    onChange={(e) =>
-                      setMode(e.target.value as 'quality' | 'volume' | 'marketing')
-                    }
+                    onChange={(e) => {
+                      const next = e.target.value as
+                        | 'quality'
+                        | 'volume'
+                        | 'marketing'
+                        | 'intent';
+                      setMode(next);
+                      if (next === 'intent' && (!targetCount || targetCount < 50)) {
+                        setTargetCount(100);
+                      }
+                    }}
                   >
                     <option value="quality">Quality — ít lead, chặt hơn</option>
                     <option value="volume">Volume — nhiều hơn, rủi ro ảo</option>
                     <option value="marketing">
                       Marketing — web/FB lấy SĐT + email (AM gửi MKT, không verify email)
+                    </option>
+                    <option value="intent">
+                      Intent — white space (Places + lọc CRM)
                     </option>
                   </select>
                 </label>
@@ -480,36 +513,45 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     required
                   />
                 </label>
-                <label className="form-field">
-                  <span className="form-label">
-                    Provider <span className="form-required">*</span>
-                  </span>
-                  <select
-                    value={provider}
-                    onChange={(e) => setProvider(e.target.value)}
-                    required
-                  >
-                    <option value="">Chọn provider…</option>
-                    {providers.map((p) => (
-                      <option key={p.code} value={p.code}>
-                        {p.display_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="form-field">
-                  <span className="form-label">
-                    Model <span className="form-required">*</span>
-                  </span>
-                  <select value={model} onChange={(e) => setModel(e.target.value)} required>
-                    <option value="">Chọn model…</option>
-                    {(selectedProvider?.models ?? []).map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {!isIntent ? (
+                  <>
+                    <label className="form-field">
+                      <span className="form-label">
+                        Provider <span className="form-required">*</span>
+                      </span>
+                      <select
+                        value={provider}
+                        onChange={(e) => setProvider(e.target.value)}
+                        required
+                      >
+                        <option value="">Chọn provider…</option>
+                        {providers.map((p) => (
+                          <option key={p.code} value={p.code}>
+                            {p.display_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="form-field">
+                      <span className="form-label">
+                        Model <span className="form-required">*</span>
+                      </span>
+                      <select value={model} onChange={(e) => setModel(e.target.value)} required>
+                        <option value="">Chọn model…</option>
+                        {(selectedProvider?.models ?? []).map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                ) : (
+                  <p className="muted form-field form-field--full" style={{ margin: 0 }}>
+                    Intent dùng <strong>Google Places API</strong> — không cần Provider/Model AI.
+                    Bắt buộc chọn Tỉnh/TP cụ thể.
+                  </p>
+                )}
                 <label className="form-field form-field--full">
                   <span className="form-label">Ghi chú ICP</span>
                   <textarea
@@ -533,8 +575,14 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   Thiếu contact vẫn giữ pending để review — AM gửi MKT khi có email/SĐT.
                 </p>
               ) : null}
+              {mode === 'intent' ? (
+                <p className="rlh-inline-warn">
+                  Intent: Places Text Search theo ngành × tỉnh → lọc chưa có CRM / chuỗi lớn →
+                  scrape contact. Cần flag PTT_RESEARCH_HARVEST_INTENT=1 và PTT_GOOGLE_PLACES_API_KEY.
+                </p>
+              ) : null}
 
-              {canCrossCheck ? (
+              {canCrossCheck && !isIntent ? (
                 <label className="form-check rlh-crosscheck">
                   <input
                     type="checkbox"
@@ -543,22 +591,26 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   />
                   Cross-check 2 provider (top N — tốn thêm API)
                 </label>
-              ) : (
+              ) : !isIntent ? (
                 <p className="form-hint">
                   Cross-check cần ≥2 Research AI provider đã cấu hình token.
                 </p>
-              )}
+              ) : null}
             </div>
 
             <div className="rlh-form__footer">
               <button
                 type="submit"
                 className="btn"
-                disabled={busy || Boolean(activeJobId) || sourceKeys.length < 1}
+                disabled={
+                  busy ||
+                  Boolean(activeJobId) ||
+                  (!isIntent && sourceKeys.length < 1)
+                }
               >
                 {activeJobId ? `Đang chạy job #${activeJobId}…` : 'Chạy thu thập'}
               </button>
-              {sourceKeys.length < 1 ? (
+              {!isIntent && sourceKeys.length < 1 ? (
                 <span className="form-hint">Chọn ít nhất 1 nguồn search.</span>
               ) : null}
             </div>
@@ -604,12 +656,19 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     </td>
                     <td>
                       <code className="rlh-mono">
-                        {j.provider}/{j.model}
+                        {j.mode === 'intent' ? 'places/intent' : `${j.provider}/${j.model}`}
                       </code>
+                      <div className="muted rlh-sub">{j.mode}</div>
                     </td>
                     <td>
                       <strong>{j.result_count}</strong>
                       <span className="muted"> · gate {j.rejected_by_gate_count}</span>
+                      {j.stats_json && typeof j.stats_json.discovered === 'number' ? (
+                        <div className="muted rlh-sub">
+                          scan {String(j.stats_json.discovered)} · pending{' '}
+                          {String(j.stats_json.pending ?? '—')}
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

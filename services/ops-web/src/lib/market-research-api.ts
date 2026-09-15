@@ -1801,12 +1801,14 @@ export type RawLeadHarvestJob = {
   mode: string;
   cross_check?: boolean;
   target_count: number;
+  scan_cap?: number | null;
   result_count: number;
   rejected_by_gate_count: number;
   error_message: string | null;
   industry_label: string;
   job_title_label: string;
   province_name: string;
+  stats_json?: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -1859,11 +1861,12 @@ export function createRawLeadHarvest(
     ward_code?: string | null;
     source_keys: string[];
     channel_keys?: string[];
-    provider: string;
-    model: string;
-    mode?: 'quality' | 'volume' | 'marketing';
+    provider?: string;
+    model?: string;
+    mode?: 'quality' | 'volume' | 'marketing' | 'intent';
     cross_check?: boolean;
     target_count: number;
+    scan_cap?: number;
     notes?: string;
   },
 ) {

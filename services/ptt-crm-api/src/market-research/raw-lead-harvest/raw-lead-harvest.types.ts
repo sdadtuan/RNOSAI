@@ -1,4 +1,4 @@
-export type RawLeadHarvestMode = 'quality' | 'volume' | 'marketing';
+export type RawLeadHarvestMode = 'quality' | 'volume' | 'marketing' | 'intent';
 
 export type FeedbackCode =
   | 'bad_phone'
@@ -22,12 +22,14 @@ export type CreateRawLeadHarvestBody = {
   ward_code?: string | null;
   source_keys: string[];
   channel_keys?: string[];
-  provider: string;
-  model: string;
+  /** Required for LLM modes; optional for Places-backed `intent`. */
+  provider?: string;
+  model?: string;
   mode?: RawLeadHarvestMode;
   cross_check?: boolean;
   target_count: number;
   notes?: string;
+  scan_cap?: number;
 };
 
 export type RawLeadHarvestJobRow = {
@@ -48,11 +50,13 @@ export type RawLeadHarvestJobRow = {
   mode: RawLeadHarvestMode;
   cross_check: boolean;
   target_count: number;
+  scan_cap: number | null;
   notes: string | null;
   status: string;
   error_message: string | null;
   result_count: number;
   rejected_by_gate_count: number;
+  stats_json: Record<string, unknown> | null;
   created_by_staff_id: number | null;
   created_at: string;
   started_at: string | null;
@@ -76,6 +80,8 @@ export type RawLeadRow = {
   source_model: string | null;
   search_source_keys: string[];
   search_channel_keys: string[];
+  place_id: string | null;
+  intent_score: number | null;
   quality_score: number;
   icp_fit_score: number;
   contactable: boolean;

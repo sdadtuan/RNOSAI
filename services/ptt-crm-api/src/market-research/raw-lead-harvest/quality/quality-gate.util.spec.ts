@@ -44,4 +44,13 @@ describe('applyQualityGate', () => {
     ).toBe('auto_rejected');
     expect(applyQualityGate('marketing', 30, v())).toBe('auto_rejected');
   });
+
+  it('intent uses the same soft gate as marketing', () => {
+    expect(
+      applyQualityGate('intent', 40, v({ phone_ok: true, email_ok: false })),
+    ).toBe('pending');
+    expect(
+      applyQualityGate('intent', 40, v({ phone_ok: false, email_ok: false, phone_out: null, phone_norm: null })),
+    ).toBe('pending');
+  });
 });
