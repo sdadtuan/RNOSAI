@@ -822,6 +822,139 @@ export async function upsertCsdChatAccount(
   });
 }
 
+export type CsdGroupAdminListItem = {
+  id: string;
+  name_vi: string;
+  status: string;
+  owner_staff_id: number | null;
+  owner_name: string | null;
+  member_count: number;
+  join_approval_required: boolean;
+  members_can_send: boolean;
+  created_at: string;
+  last_message_at: string | null;
+};
+
+export type CsdGroupAdminDetail = {
+  conversation: CsdConversationRow;
+  members: CsdConversationMemberRow[];
+  join_requests: CsdGroupJoinRequestRow[];
+};
+
+export async function fetchCsdAdminGroups(
+  token: string,
+  q?: string,
+): Promise<{ items: CsdGroupAdminListItem[] }> {
+  const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
+  return csdFetch(token, `/api/crm/csd/admin/chat-accounts/groups${suffix}`);
+}
+
+export async function fetchCsdAdminGroup(
+  token: string,
+  conversationId: string,
+): Promise<CsdGroupAdminDetail> {
+  return csdFetch(token, `/api/crm/csd/admin/chat-accounts/groups/${encodeURIComponent(conversationId)}`);
+}
+
+export async function patchCsdAdminGroup(
+  token: string,
+  conversationId: string,
+  body: {
+    name_vi?: string;
+    description?: string;
+    clear_avatar?: boolean;
+    join_approval_required?: boolean;
+    members_can_send?: boolean;
+  },
+): Promise<CsdConversationRow> {
+  return csdFetch(token, `/api/crm/csd/admin/chat-accounts/groups/${encodeURIComponent(conversationId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function addCsdAdminGroupMember(
+  token: string,
+  conversationId: string,
+  body: { member_staff_id: number },
+): Promise<CsdConversationMemberRow | { pending: true; request: CsdGroupJoinRequestRow }> {
+  return csdFetch(
+    token,
+    `/api/crm/csd/admin/chat-accounts/groups/${encodeURIComponent(conversationId)}/members`,
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function setCsdAdminGroupMemberRole(
+  token: string,
+  conversationId: string,
+  staffId: number,
+  role: 'admin' | 'member',
+): Promise<CsdConversationMemberRow> {
+  return csdFetch(
+    token,
+    `/api/crm/csd/admin/chat-accounts/groups/${encodeURIComponent(conversationId)}/members/${staffId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    },
+  );
+}
+
+export async function removeCsdAdminGroupMember(
+  token: string,
+  conversationId: string,
+  staffId: number,
+): Promise<{ removed: true }> {
+  return csdFetch(
+    token,
+    `/api/crm/csd/admin/chat-accounts/groups/${encodeURIComponent(conversationId)}/members/${staffId}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function transferCsdAdminGroupOwner(
+  token: string,
+  conversationId: string,
+  newOwnerStaffId: number,
+): Promise<CsdConversationRow> {
+  return csdFetch(
+    token,
+    `/api/crm/csd/admin/chat-accounts/groups/${encodeURIComponent(conversationId)}/transfer-owner`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ new_owner_staff_id: newOwnerStaffId }),
+    },
+  );
+}
+
+export async function approveCsdAdminGroupJoinRequest(
+  token: string,
+  conversationId: string,
+  requestId: string,
+): Promise<{ member: CsdConversationMemberRow; request: CsdGroupJoinRequestRow }> {
+  return csdFetch(
+    token,
+    `/api/crm/csd/admin/chat-accounts/groups/${encodeURIComponent(conversationId)}/join-requests/${encodeURIComponent(requestId)}/approve`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
+export async function rejectCsdAdminGroupJoinRequest(
+  token: string,
+  conversationId: string,
+  requestId: string,
+): Promise<{ request: CsdGroupJoinRequestRow }> {
+  return csdFetch(
+    token,
+    `/api/crm/csd/admin/chat-accounts/groups/${encodeURIComponent(conversationId)}/join-requests/${encodeURIComponent(requestId)}/reject`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
 export type CsdChatFriendshipStatus = 'pending' | 'accepted' | 'blocked';
 
 export type CsdChatFriendshipRow = {

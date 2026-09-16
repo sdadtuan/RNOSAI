@@ -6,6 +6,7 @@ import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { CsdChatLoginForm } from '@/components/crm/csd/CsdChatLoginForm';
 import { CsdChatWorkspace } from '@/components/crm/csd/CsdChatWorkspace';
 import { useCsdPageAuth } from '@/components/crm/csd/useCsdPageAuth';
+import { hasCap } from '@/lib/auth';
 import { fetchCsdChatMe, loginCsdChat } from '@/lib/crm/csd-api';
 import { readCsdChatLogin, writeCsdChatLogin } from '@/lib/crm/csd-chat-login-persist';
 
@@ -13,6 +14,9 @@ function CsdChatPageInner() {
   const searchParams = useSearchParams();
   const initialConversationId = searchParams.get('c');
   const { user, token, error, logout, canWrite } = useCsdPageAuth('view');
+  const canPlatformManage = Boolean(
+    user && (hasCap(user, 'csd', 'admin') || hasCap(user, 'csd', 'manage')),
+  );
   const [chatEnabled, setChatEnabled] = useState<boolean | null>(null);
   const [meUsername, setMeUsername] = useState('');
   const [chatAuthed, setChatAuthed] = useState(false);
@@ -102,7 +106,12 @@ function CsdChatPageInner() {
           />
         ) : null}
         {token && chatEnabled && chatAuthed ? (
-          <CsdChatWorkspace token={token} canWrite={canWrite} initialConversationId={initialConversationId} />
+          <CsdChatWorkspace
+            token={token}
+            canWrite={canWrite}
+            canPlatformManage={canPlatformManage}
+            initialConversationId={initialConversationId}
+          />
         ) : null}
       </div>
     </StaffPageShell>

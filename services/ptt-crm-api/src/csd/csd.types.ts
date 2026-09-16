@@ -346,6 +346,25 @@ export type CsdConversationListItem = CsdConversationRow & {
   has_p1_or_complaint: boolean;
 };
 
+export type CsdGroupAdminListItem = {
+  id: string;
+  name_vi: string;
+  status: string;
+  owner_staff_id: number | null;
+  owner_name: string | null;
+  member_count: number;
+  join_approval_required: boolean;
+  members_can_send: boolean;
+  created_at: string;
+  last_message_at: string | null;
+};
+
+export type CsdGroupAdminDetail = {
+  conversation: CsdConversationRow;
+  members: CsdConversationMemberRow[];
+  join_requests: CsdGroupJoinRequestRow[];
+};
+
 export type SendCsdMessageInput = {
   body_text: string;
   reply_to_id?: string;

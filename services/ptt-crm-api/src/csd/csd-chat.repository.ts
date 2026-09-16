@@ -13,6 +13,7 @@ import {
   CsdGroupAvatarMemberPreview,
   CsdChatEmotionId,
   CsdConversationStatus,
+  CsdGroupAdminListItem,
   CsdGroupJoinRequestRow,
   CsdMessageReactionSummary,
   CsdMessageRow,
@@ -543,6 +544,64 @@ export class CsdChatRepository implements OnModuleInit, OnModuleDestroy {
       return items.filter((row) => row.unread_count > 0);
     }
     return items;
+  }
+
+  async listGroupsAdmin(query: { q?: string; limit?: number } = {}): Promise<CsdGroupAdminListItem[]> {
+    const params: unknown[] = [CSD_TENANT_ID];
+    const q = String(query.q ?? '').trim();
+    params.push(q ? `%${q}%` : null);
+    const limit = Math.min(Math.max(Number(query.limit ?? 100) || 100, 1), 200);
+    params.push(limit);
+
+    const res = await this.db.query(
+      `SELECT c.id,
+              c.name_vi,
+              c.status,
+              c.owner_staff_id,
+              c.join_approval_required,
+              c.members_can_send,
+              c.created_at,
+              c.last_message_at,
+              (
+                SELECT COUNT(*)::int
+                  FROM csd_conversation_members m
+                 WHERE m.conversation_id = c.id
+                   AND m.member_type = 'staff'
+              ) AS member_count,
+              (
+                SELECT COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '')
+                  FROM crm_staff s
+                  LEFT JOIN csd_chat_accounts a
+                    ON a.staff_id = s.id AND a.tenant_id = c.tenant_id
+                 WHERE s.id = c.owner_staff_id
+              ) AS owner_name
+         FROM csd_conversations c
+        WHERE c.tenant_id = $1
+          AND c.kind = 'group'
+          AND c.is_deleted = FALSE
+          AND (
+            $2::text IS NULL
+            OR c.name_vi ILIKE $2
+            OR c.id::text ILIKE $2
+            OR CAST(c.owner_staff_id AS text) ILIKE $2
+          )
+        ORDER BY COALESCE(c.last_message_at, c.created_at) DESC
+        LIMIT $3`,
+      params,
+    );
+
+    return res.rows.map((row) => ({
+      id: text(row.id),
+      name_vi: text(row.name_vi),
+      status: text(row.status),
+      owner_staff_id: num(row.owner_staff_id),
+      owner_name: row.owner_name != null && text(row.owner_name) ? text(row.owner_name) : null,
+      member_count: num(row.member_count) ?? 0,
+      join_approval_required: Boolean(row.join_approval_required),
+      members_can_send: row.members_can_send == null ? true : Boolean(row.members_can_send),
+      created_at: text(row.created_at),
+      last_message_at: row.last_message_at ? text(row.last_message_at) : null,
+    }));
   }
 
   async listConversations(query: {

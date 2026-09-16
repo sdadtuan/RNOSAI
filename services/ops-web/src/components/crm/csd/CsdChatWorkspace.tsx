@@ -20,6 +20,7 @@ import { collectCsdConversationLinks } from '@/lib/crm/csd-chat-display';
 type CsdChatWorkspaceProps = {
   token: string;
   canWrite: boolean;
+  canPlatformManage?: boolean;
   initialConversationId?: string | null;
   dockPersist?: boolean;
   onConversationChange?: (conversationId: string | null) => void;
@@ -28,6 +29,7 @@ type CsdChatWorkspaceProps = {
 export function CsdChatWorkspace({
   token,
   canWrite,
+  canPlatformManage = false,
   initialConversationId,
   dockPersist = false,
   onConversationChange,
@@ -83,13 +85,14 @@ export function CsdChatWorkspace({
   const sendLocked =
     s.active?.kind === 'group' &&
     s.active.members_can_send === false &&
+    !canPlatformManage &&
     myRole !== 'owner' &&
     myRole !== 'admin';
   const composerLocked = Boolean(closed || archived || sendLocked);
   const canPin =
     Boolean(canWrite) &&
     s.active?.kind === 'group' &&
-    (myRole === 'owner' || myRole === 'admin') &&
+    (canPlatformManage || myRole === 'owner' || myRole === 'admin') &&
     !closed &&
     !archived;
   const showChatPane = tab === 'messages';
@@ -274,6 +277,7 @@ export function CsdChatWorkspace({
           aiPeriod={s.aiPeriod}
           aiSummary={s.aiSummary}
           canWrite={canWrite}
+          canPlatformManage={canPlatformManage}
           busy={s.busy}
           closed={composerLocked}
           archived={Boolean(archived)}

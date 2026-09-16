@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminPageShell } from '@/components/admin';
+import { CsdChatGroupsAdminPanel } from '@/components/crm/csd/CsdChatGroupsAdminPanel';
 import { useAdminCrmAuth } from '@/lib/admin/use-admin-crm-auth';
 import { hasCap } from '@/lib/auth';
 import {
@@ -29,8 +30,11 @@ function generateLoginPassword(): string {
   return out;
 }
 
+type AdminTab = 'accounts' | 'groups';
+
 export default function AdminCsdChatAccountsPage() {
   const { user, token, error, loading, logout } = useAdminCrmAuth((u) => hasCap(u, 'csd', 'admin'));
+  const [tab, setTab] = useState<AdminTab>('accounts');
   const [rows, setRows] = useState<CsdChatAccountAdminRow[]>([]);
   const [directory, setDirectory] = useState<CsdChatStaffDirectoryRow[]>([]);
   const [q, setQ] = useState('');
@@ -130,13 +134,44 @@ export default function AdminCsdChatAccountsPage() {
       onLogout={logout}
       section="crm-config"
       title="Tài khoản Chat"
-      subtitle="Chọn NV có sẵn. Tên đăng nhập + mật khẩu chỉ để mở hộp thoại Chat — không phải /login hệ thống."
+      subtitle={
+        tab === 'accounts'
+          ? 'Chọn NV có sẵn. Tên đăng nhập + mật khẩu chỉ để mở hộp thoại Chat — không phải /login hệ thống.'
+          : 'Quản trị viên CSD can thiệp vai trò, thành viên và cài đặt nhóm — không cần là thành viên nhóm.'
+      }
       loading={loading}
     >
       {error ? <p className="error">{error}</p> : null}
       {msg ? <p className="muted">{msg}</p> : null}
       {formError ? <p className="error">{formError}</p> : null}
 
+      <div className="csd-chat-create-group__chips" role="tablist" aria-label="Quản trị chat" style={{ marginBottom: '1rem' }}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'accounts'}
+          className={tab === 'accounts' ? 'is-active' : ''}
+          data-testid="csd-chat-admin-tab-accounts"
+          onClick={() => setTab('accounts')}
+        >
+          Tài khoản
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'groups'}
+          className={tab === 'groups' ? 'is-active' : ''}
+          data-testid="csd-chat-admin-tab-groups"
+          onClick={() => setTab('groups')}
+        >
+          Quản lý nhóm
+        </button>
+      </div>
+
+      {tab === 'groups' && token ? <CsdChatGroupsAdminPanel token={token} /> : null}
+
+      {tab === 'accounts' ? (
+      <>
       <form className="csd-chat-account-form" onSubmit={(e) => void enableNew(e)}>
         <select
           className="kpi-input"
@@ -254,6 +289,8 @@ export default function AdminCsdChatAccountsPage() {
           )}
         </tbody>
       </table>
+      </>
+      ) : null}
     </AdminPageShell>
   );
 }

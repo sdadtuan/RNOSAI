@@ -16983,6 +16983,44 @@ body {
   background: #fff3e3;
 }
 
+.csd-chat-groups-admin__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.csd-chat-groups-admin__pick {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.csd-chat-groups-admin__pick:hover {
+  text-decoration: underline;
+}
+
+.csd-chat-groups-admin tr.is-selected {
+  background: #fff8ef;
+}
+
+.csd-chat-groups-admin__detail {
+  border: 1px solid var(--zalo-line, #e8dfd4);
+  border-radius: 0.65rem;
+  padding: 1rem;
+  background: #fff;
+}
+
+@media (max-width: 960px) {
+  .csd-chat-groups-admin__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .csd-chat-zalo-toggles {
   display: grid;
   gap: 0.45rem;

@@ -46,6 +46,7 @@ type CsdChatContextProps = {
   aiPeriod: '24h' | '7d' | 'all';
   aiSummary: AiSummary | null;
   canWrite: boolean;
+  canPlatformManage?: boolean;
   busy: boolean;
   closed: boolean;
   archived: boolean;
@@ -135,6 +136,7 @@ export function CsdChatContext({
   aiPeriod,
   aiSummary,
   canWrite,
+  canPlatformManage = false,
   busy,
   closed,
   archived,
@@ -182,9 +184,15 @@ export function CsdChatContext({
   }, [members, meStaffId]);
 
   const canManageGroup = Boolean(
-    canWrite && isGroup && (myRole === 'owner' || myRole === 'admin') && !closed && !archived,
+    canWrite &&
+      isGroup &&
+      !closed &&
+      !archived &&
+      (canPlatformManage || myRole === 'owner' || myRole === 'admin'),
   );
-  const canSetAdmin = Boolean(canWrite && isGroup && myRole === 'owner' && !closed && !archived);
+  const canSetAdmin = Boolean(
+    canWrite && isGroup && !closed && !archived && (canPlatformManage || myRole === 'owner'),
+  );
   const canManageMembersUi = canManageGroup;
 
   useEffect(() => {
@@ -586,7 +594,10 @@ export function CsdChatContext({
                     const canRemove =
                       canManageMembersUi &&
                       m.role !== 'owner' &&
-                      (myRole === 'owner' || m.role === 'member' || m.role === 'viewer');
+                      (canPlatformManage ||
+                        myRole === 'owner' ||
+                        m.role === 'member' ||
+                        m.role === 'viewer');
                     return (
                       <li key={`${m.conversation_id}-${m.member_staff_id}`}>
                         <span className="csd-chat-members__name">

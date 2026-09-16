@@ -22,6 +22,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   const token = getAccessToken() ?? '';
   const canWrite = hasCap(user, 'csd', 'write');
   const canView = hasCap(user, 'csd', 'view');
+  const canPlatformManage = hasCap(user, 'csd', 'admin') || hasCap(user, 'csd', 'manage');
   const [meEnabled, setMeEnabled] = useState<boolean | null>(null);
   const [meStaffId, setMeStaffId] = useState<number | null>(null);
   const [meUsername, setMeUsername] = useState('');
@@ -241,6 +242,7 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
             <CsdChatWorkspace
               token={token}
               canWrite={canWrite}
+              canPlatformManage={canPlatformManage}
               dockPersist
               initialConversationId={focusConversationId}
               onConversationChange={setFocusConversationId}

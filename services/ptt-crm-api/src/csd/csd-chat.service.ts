@@ -40,6 +40,8 @@ import {
   CsdConversationMemberRow,
   CsdChatEmotionId,
   CsdConversationRow,
+  CsdGroupAdminDetail,
+  CsdGroupAdminListItem,
   CsdGroupJoinRequestRow,
   CsdMessageReactionSummary,
   CsdMessageRow,
@@ -75,6 +77,12 @@ function canManageConversation(actor: CsdActor, ownerStaffId: number | null): bo
 
 function hasPlatformManage(actor: CsdActor): boolean {
   return hasCsdCap(actor, 'manage') || hasCsdCap(actor, 'admin');
+}
+
+function assertPlatformManage(actor: CsdActor): void {
+  if (!hasPlatformManage(actor)) {
+    throw new ForbiddenException({ error: 'csd_admin_forbidden' });
+  }
 }
 
 @Injectable()
@@ -445,6 +453,27 @@ export class CsdChatService {
     return this.repo.softDeleteMessage(messageId);
   }
 
+  async listGroupsForAdmin(
+    actor: CsdActor,
+    query: { q?: string; limit?: number } = {},
+  ): Promise<{ items: CsdGroupAdminListItem[] }> {
+    assertPlatformManage(actor);
+    return { items: await this.repo.listGroupsAdmin(query) };
+  }
+
+  async getGroupForAdmin(actor: CsdActor, conversationId: string): Promise<CsdGroupAdminDetail> {
+    assertPlatformManage(actor);
+    const conv = await this.repo.getConversation(conversationId);
+    if (!conv || conv.kind !== 'group') {
+      throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    }
+    const [members, join_requests] = await Promise.all([
+      this.repo.listMembers(conversationId),
+      this.repo.listPendingJoinRequests(conversationId),
+    ]);
+    return { conversation: conv, members, join_requests };
+  }
+
   async listMembers(
     _actor: CsdActor,
     conversationId: string,
@@ -466,11 +495,14 @@ export class CsdChatService {
       throw new BadRequestException({ error: 'member_staff_id_required' });
     }
     if (conv.kind === 'group') {
-      const ok = await this.friends.isAccepted(actor.staffId, staffId);
-      if (!ok) throw new ConflictException({ error: 'not_friends' });
+      const platform = hasPlatformManage(actor);
+      if (!platform) {
+        const ok = await this.friends.isAccepted(actor.staffId, staffId);
+        if (!ok) throw new ConflictException({ error: 'not_friends' });
+      }
       const already = await this.repo.getMember(conversationId, staffId);
       if (already) return already;
-      if (conv.join_approval_required) {
+      if (conv.join_approval_required && !platform) {
         const request = await this.repo.insertJoinRequest({
           conversation_id: conversationId,
           requester_staff_id: staffId,
@@ -557,7 +589,7 @@ export class CsdChatService {
       throw new ForbiddenException({ error: 'csd_pin_forbidden' });
     }
     const row = await this.repo.setPinnedMessage(conv.id, messageId, actor.staffId);
-    return (await this.repo.getConversationForMember(conv.id, actor.staffId)) ?? row;
+    return this.conversationView(actor, conv.id, row);
   }
 
   async unpinConversation(actor: CsdActor, conversationId: string): Promise<CsdConversationRow> {
@@ -568,7 +600,7 @@ export class CsdChatService {
       throw new ForbiddenException({ error: 'csd_pin_forbidden' });
     }
     const row = await this.repo.setPinnedMessage(conversationId, null, actor.staffId);
-    return (await this.repo.getConversationForMember(conversationId, actor.staffId)) ?? row;
+    return this.conversationView(actor, conversationId, row);
   }
 
   async transferOwner(
@@ -594,7 +626,7 @@ export class CsdChatService {
       throw new BadRequestException({ error: 'cannot_transfer_to_self' });
     }
     const row = await this.repo.transferOwner(conversationId, fromId, toId);
-    return (await this.repo.getConversationForMember(conversationId, actor.staffId)) ?? row;
+    return this.conversationView(actor, conversationId, row);
   }
 
   async removeMember(
@@ -705,7 +737,7 @@ export class CsdChatService {
     if (input.clear_avatar) {
       row = await this.clearGroupAvatar(actor, conversationId);
     }
-    return (await this.repo.getConversationForMember(conversationId, actor.staffId)) ?? row;
+    return this.conversationView(actor, conversationId, row);
   }
 
   async uploadGroupAvatar(
@@ -738,7 +770,7 @@ export class CsdChatService {
     if (oldKey && oldKey !== storageKey) {
       this.avatarStorage.remove(oldKey);
     }
-    return (await this.repo.getConversationForMember(conversationId, actor.staffId)) ?? row;
+    return this.conversationView(actor, conversationId, row);
   }
 
   async clearGroupAvatar(actor: CsdActor, conversationId: string): Promise<CsdConversationRow> {
@@ -750,7 +782,7 @@ export class CsdChatService {
     const oldKey = await this.repo.getGroupAvatarStorageKey(conversationId);
     const row = await this.repo.setGroupAvatarStorageKey(conversationId, null, actor.staffId);
     if (oldKey) this.avatarStorage.remove(oldKey);
-    return (await this.repo.getConversationForMember(conversationId, actor.staffId)) ?? row;
+    return this.conversationView(actor, conversationId, row);
   }
 
   async readGroupAvatar(
@@ -794,6 +826,18 @@ export class CsdChatService {
   ): Promise<CsdGroupMemberRole | null> {
     const member = await this.repo.getMember(conversationId, actor.staffId);
     return (member?.role as CsdGroupMemberRole | undefined) ?? null;
+  }
+
+  private async conversationView(
+    actor: CsdActor,
+    conversationId: string,
+    fallback: CsdConversationRow,
+  ): Promise<CsdConversationRow> {
+    return (
+      (await this.repo.getConversationForMember(conversationId, actor.staffId)) ??
+      (await this.repo.getConversation(conversationId)) ??
+      fallback
+    );
   }
 
   private async assertCanManageMembers(actor: CsdActor, conv: CsdConversationRow): Promise<void> {
