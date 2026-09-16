@@ -1046,12 +1046,6 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     </td>
                     <td>
                       <span className="rlh-class">{classificationLabel(lead.classification)}</span>
-                      {typeof lead.verify_json?.critic_reason === 'string' &&
-                      lead.verify_json.critic_reason ? (
-                        <div className="muted rlh-sub" title={String(lead.verify_json.critic_reason)}>
-                          {String(lead.verify_json.critic_reason).slice(0, 48)}
-                        </div>
-                      ) : null}
                     </td>
                     <td>
                       <span className={`rlh-status ${leadStatusClass(lead.status)}`}>
