@@ -1,22 +1,23 @@
 .cmkte-app {
-  --nav: #101a30;
-  --nav2: #172642;
-  --ink: #15213a;
-  --muted: #718097;
-  --bg: #f4f6fa;
-  --white: #fff;
-  --line: #e2e7ef;
-  --blue: #3268f6;
-  --blue50: #edf2ff;
-  --purple: #7656e9;
-  --purple50: #f2efff;
-  --green: #139567;
-  --green50: #e5f8ef;
-  --amber: #d88400;
-  --amber50: #fff4dd;
-  --red: #d84951;
+  /* Canopy / RNOSAI — align with ops Bitrix shell */
+  --nav: #4a7c5c;
+  --nav2: #3d6a4e;
+  --ink: #1c221d;
+  --muted: #4a544c;
+  --bg: #f3efe6;
+  --white: #fffdf8;
+  --line: #d8d2c6;
+  --blue: #17692f;
+  --blue50: #e7f0e8;
+  --purple: #114d24;
+  --purple50: #e7f0e8;
+  --green: #17692f;
+  --green50: #e7f0e8;
+  --amber: #ca8a04;
+  --amber50: #fef9c3;
+  --red: #e11d48;
   --red50: #fff0f1;
-  --shadow: 0 12px 30px rgba(16, 26, 48, 0.08);
+  --shadow: 0 8px 24px rgba(13, 58, 34, 0.08);
   --r: 14px;
   --cmkte-sidebar: 258px;
   --cmkte-top: 67px;
@@ -50,7 +51,8 @@
   z-index: 20;
   padding: 17px 13px;
   background: var(--nav);
-  color: #c5d0e6;
+  color: rgba(246, 243, 236, 0.88);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .cmkte-brand {
@@ -59,7 +61,7 @@
   gap: 11px;
   height: 45px;
   padding: 0 8px;
-  color: #fff;
+  color: #f6f3ec;
   font-size: 18px;
   font-weight: 800;
   text-decoration: none;
@@ -71,9 +73,10 @@
   height: 32px;
   width: 32px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #5c89ff, #7450e7);
-  box-shadow: 0 7px 17px #0006;
+  background: linear-gradient(135deg, #17692f, #0d3a22);
+  box-shadow: 0 4px 12px rgba(13, 58, 34, 0.28);
   font-size: 13px;
+  color: #fff;
 }
 
 .cmkte-workspace {
@@ -82,14 +85,14 @@
   gap: 9px;
   margin: 17px 7px 20px;
   padding: 9px;
-  border: 1px solid #ffffff1c;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
-  background: #ffffff09;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .cmkte-workspace small {
   display: block;
-  color: #8293b5;
+  color: rgba(246, 243, 236, 0.65);
   font-size: 9px;
   letter-spacing: 0.08em;
 }
@@ -108,15 +111,15 @@
   height: 30px;
   border-radius: 50%;
   flex: 0 0 auto;
-  background: #ffdfca;
-  color: #a54216;
+  background: #e7f0e8;
+  color: #0d3a22;
   font-size: 10px;
   font-weight: 800;
 }
 
 .cmkte-label {
   margin: 18px 11px 7px;
-  color: #7889ad;
+  color: rgba(246, 243, 236, 0.55);
   font-size: 9px;
   letter-spacing: 0.11em;
   font-weight: 800;
@@ -128,22 +131,28 @@
   gap: 11px;
   padding: 10px 11px;
   margin: 2px 0;
-  border-radius: 8px;
+  border-radius: 10px;
   text-decoration: none;
-  color: #bfcae0;
+  color: rgba(246, 243, 236, 0.88);
   font-size: 12px;
 }
 
-.cmkte-nav a:hover,
-.cmkte-nav a.cmkte-nav__link--active {
-  background: #ffffff14;
+.cmkte-nav a:hover {
+  background: rgba(255, 255, 255, 0.1);
   color: #fff;
+}
+
+.cmkte-nav a.cmkte-nav__link--active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .cmkte-ic {
   width: 18px;
-  color: #93a4c8;
+  color: inherit;
   text-align: center;
+  opacity: 0.9;
 }
 
 .cmkte-help {
@@ -151,7 +160,8 @@
   left: 20px;
   right: 20px;
   bottom: 17px;
-  background: var(--nav2);
+  background: rgba(13, 58, 34, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   padding: 12px;
 }
@@ -163,21 +173,25 @@
 
 .cmkte-help p {
   font-size: 10px;
-  color: #9dacc7;
+  color: rgba(246, 243, 236, 0.72);
   line-height: 1.45;
   margin: 5px 0 10px;
 }
 
 .cmkte-help button {
   width: 100%;
-  background: #ffffff16;
-  color: #d9e3fa;
+  background: #17692f;
+  color: #fff;
   border: 0;
   border-radius: 6px;
   padding: 7px;
   font-size: 10px;
   cursor: pointer;
   font: inherit;
+}
+
+.cmkte-help button:hover {
+  background: #114d24;
 }
 
 .cmkte-app .cmkte-main {
@@ -315,7 +329,7 @@
   color: #fff;
   background: var(--blue);
   border-color: var(--blue);
-  box-shadow: 0 5px 12px #3268f63d;
+  box-shadow: 0 5px 12px rgba(23, 105, 47, 0.28);
 }
 
 .cmkte-btn--small {
@@ -513,7 +527,7 @@
 .cmkte-modalback {
   position: fixed;
   inset: 0;
-  background: #101a3073;
+  background: rgba(13, 58, 34, 0.45);
   z-index: 50;
   display: flex;
   align-items: center;
@@ -578,7 +592,7 @@
 
 .cmkte-input:focus {
   border-color: #7c9aff;
-  box-shadow: 0 0 0 3px #3268f614;
+  box-shadow: 0 0 0 3px rgba(23, 105, 47, 0.14);
 }
 
 .cmkte-form-error {
@@ -823,24 +837,24 @@
 }
 
 .cmkte-shell {
-  --nav: #101a30;
-  --nav2: #172642;
-  --ink: #15213a;
-  --muted: #718097;
-  --bg: #f4f6fa;
-  --white: #fff;
-  --line: #e2e7ef;
-  --blue: #3268f6;
-  --blue50: #edf2ff;
-  --purple: #7656e9;
-  --purple50: #f2efff;
-  --green: #139567;
-  --green50: #e5f8ef;
-  --amber: #d88400;
-  --amber50: #fff4dd;
-  --red: #d84951;
+  --nav: #4a7c5c;
+  --nav2: #3d6a4e;
+  --ink: #1c221d;
+  --muted: #4a544c;
+  --bg: #f3efe6;
+  --white: #fffdf8;
+  --line: #d8d2c6;
+  --blue: #17692f;
+  --blue50: #e7f0e8;
+  --purple: #114d24;
+  --purple50: #e7f0e8;
+  --green: #17692f;
+  --green50: #e7f0e8;
+  --amber: #ca8a04;
+  --amber50: #fef9c3;
+  --red: #e11d48;
   --red50: #fff0f1;
-  --shadow: 0 12px 30px rgba(16, 26, 48, 0.08);
+  --shadow: 0 8px 24px rgba(13, 58, 34, 0.08);
   --r: 14px;
   display: grid;
   grid-template-columns: 256px minmax(0, 1fr);
@@ -883,14 +897,15 @@ html.ops-shell-bitrix body:has(.cmkte-shell) .bitrix-crm-page__inner {
   min-height: 100%;
   padding: 17px 13px;
   background: var(--nav);
-  color: #c5d0e6;
+  color: rgba(246, 243, 236, 0.88);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .cmkte-sidebar .cmkte-brand {
   height: auto;
   min-height: 45px;
   padding: 0 8px 12px;
-  border-bottom: 1px solid #1e293b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
 }
 
 .cmkte-brand__text {
@@ -900,13 +915,13 @@ html.ops-shell-bitrix body:has(.cmkte-shell) .bitrix-crm-page__inner {
 }
 
 .cmkte-brand__text strong {
-  color: #fff;
+  color: #f6f3ec;
   font-size: 15px;
   line-height: 1.2;
 }
 
 .cmkte-brand__text small {
-  color: #94a3b8;
+  color: rgba(246, 243, 236, 0.65);
   font-size: 11px;
   font-weight: 500;
 }
