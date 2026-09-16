@@ -261,6 +261,7 @@ export function CsdChatThread({
             name={displayName}
             seed={threadAvatar.seed}
             staffId={threadAvatar.staffId}
+            conversationId={threadAvatar.conversationId}
             hasAvatar={threadAvatar.hasAvatar}
             avatarUpdatedAt={threadAvatar.avatarUpdatedAt}
             className="csd-chat-avatar csd-chat-avatar--toolbar"
@@ -345,11 +346,21 @@ export function CsdChatThread({
           >
             <span className="csd-chat-thread-ico csd-chat-thread-ico--search" aria-hidden />
           </button>
+          {active.kind === 'group' && onToggleContextPanel && !contextPanelOpen ? (
+            <button
+              type="button"
+              className="csd-chat-thread-group-admin-btn"
+              data-testid="csd-chat-group-admin-open"
+              onClick={handleInfo}
+            >
+              Quản lý nhóm
+            </button>
+          ) : null}
           <button
             type="button"
             className={`csd-chat-thread-tool-btn${contextPanelOpen ? ' is-active' : ''}`}
-            aria-label="Thông tin hội thoại"
-            title="Thông tin hội thoại"
+            aria-label={active.kind === 'group' ? 'Quản lý nhóm' : 'Thông tin hội thoại'}
+            title={active.kind === 'group' ? 'Quản lý nhóm' : 'Thông tin hội thoại'}
             data-testid={onToggleContextPanel ? 'csd-chat-context-panel-toggle' : 'csd-chat-thread-info'}
             aria-expanded={contextPanelOpen}
             disabled={!hasInfoAction}

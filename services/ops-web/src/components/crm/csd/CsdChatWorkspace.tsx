@@ -44,6 +44,12 @@ export function CsdChatWorkspace({
   );
   const [incomingCount, setIncomingCount] = useState(0);
   const [contextOpen, setContextOpen] = useState(false);
+
+  useEffect(() => {
+    if (s.isMobile) return;
+    if (s.active?.kind === 'group') setContextOpen(true);
+  }, [s.active?.id, s.active?.kind, s.isMobile]);
+
   const allAttachments = useCsdChatAttachments(token, {
     enabled: Boolean(s.activeId),
     refreshKey: `${s.messages.length}:${s.messages[s.messages.length - 1]?.id ?? ''}`,
@@ -144,7 +150,9 @@ export function CsdChatWorkspace({
               onSearch={s.setSearch}
               onFilter={s.setFilter}
               onSelect={(id) => {
-                closeContextPanel();
+                const next = s.conversations.find((c) => c.id === id);
+                if (s.isMobile || next?.kind !== 'group') closeContextPanel();
+                else setContextOpen(true);
                 void s.handleSelectConversation(id);
               }}
               onNew={() => s.setShowNewModal(true)}
@@ -182,7 +190,6 @@ export function CsdChatWorkspace({
         />
         <CsdChatThread
           token={token}
-          onPaneClick={handleChatOutsideContextClick}
           active={s.active}
           callBusy={chatCall.callBusy}
           onStartVoiceCall={() => {

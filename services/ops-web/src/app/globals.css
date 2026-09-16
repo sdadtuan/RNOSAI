@@ -16967,6 +16967,22 @@ body {
   flex-wrap: wrap;
 }
 
+.csd-chat-thread-group-admin-btn {
+  border: 1px solid var(--zalo-line, #e8dfd4);
+  background: #fff8ef;
+  color: var(--zalo-blue, #c76f0a);
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.csd-chat-thread-group-admin-btn:hover {
+  background: #fff3e3;
+}
+
 .csd-chat-zalo-toggles {
   display: grid;
   gap: 0.45rem;
