@@ -16954,6 +16954,19 @@ body {
   color: #0f172a;
 }
 
+.csd-chat-members__actions {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.csd-chat-group-info__avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
 .csd-chat-thread-head__actions .csd-chat-icon-btn.is-active {
   background: var(--zalo-active, #fef3e8);
   color: var(--zalo-blue, #c76f0a);

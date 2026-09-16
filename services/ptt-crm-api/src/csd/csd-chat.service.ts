@@ -8,11 +8,24 @@ import {
 import { CsdAuditRepository } from './csd-audit.repository';
 import { CsdChatAccountsService } from './csd-chat-accounts.service';
 import { CsdChatFriendsService } from './csd-chat-friends.service';
+import {
+  canManageGroupInfo,
+  canManageGroupMembers,
+  canRemoveGroupMember,
+  canSetGroupAdminRole,
+  isAssignableGroupRole,
+  type CsdGroupMemberRole,
+} from './csd-chat-group-admin.util';
 import { parseMentions } from './csd-chat-search.util';
 import { suggestPriorityFromText } from './csd-chat-keyword.util';
 import { CsdChatFilesService } from './csd-chat-files.service';
 import { CsdChatRepository } from './csd-chat.repository';
 import { CsdTicketsService } from './csd-tickets.service';
+import {
+  assertStaffAvatarUpload,
+  contentTypeForAvatarExt,
+} from '../staff-auth/staff-avatar-image.util';
+import { StaffAvatarStorage } from '../staff-auth/staff-avatar.storage';
 import {
   CreateCsdConversationInput,
   CreateCsdTicketInput,
@@ -55,6 +68,10 @@ function canManageConversation(actor: CsdActor, ownerStaffId: number | null): bo
   return hasCsdCap(actor, 'manage') || hasCsdCap(actor, 'admin');
 }
 
+function hasPlatformManage(actor: CsdActor): boolean {
+  return hasCsdCap(actor, 'manage') || hasCsdCap(actor, 'admin');
+}
+
 @Injectable()
 export class CsdChatService {
   constructor(
@@ -64,6 +81,7 @@ export class CsdChatService {
     private readonly audit: CsdAuditRepository,
     private readonly accounts: CsdChatAccountsService,
     private readonly friends: CsdChatFriendsService,
+    private readonly avatarStorage: StaffAvatarStorage,
   ) {}
 
   async createConversation(
@@ -431,12 +449,14 @@ export class CsdChatService {
     input: { member_staff_id: number; role?: CsdConversationMemberRow['role'] },
   ): Promise<CsdConversationMemberRow> {
     const conv = await this.requireWritableConversation(conversationId);
-    if (!canManageConversation(actor, conv.owner_staff_id)) {
-      throw new ForbiddenException({ error: 'csd_member_forbidden' });
-    }
+    await this.assertCanManageMembers(actor, conv);
     const staffId = Number(input.member_staff_id);
     if (!Number.isInteger(staffId) || staffId <= 0) {
       throw new BadRequestException({ error: 'member_staff_id_required' });
+    }
+    if (conv.kind === 'group') {
+      const ok = await this.friends.isAccepted(actor.staffId, staffId);
+      if (!ok) throw new ConflictException({ error: 'not_friends' });
     }
     return this.repo.insertMember({
       conversation_id: conversationId,
@@ -451,15 +471,143 @@ export class CsdChatService {
     memberStaffId: number,
   ): Promise<{ removed: true }> {
     const conv = await this.requireWritableConversation(conversationId);
-    if (!canManageConversation(actor, conv.owner_staff_id)) {
-      throw new ForbiddenException({ error: 'csd_member_forbidden' });
-    }
-    if (conv.owner_staff_id === memberStaffId) {
-      throw new BadRequestException({ error: 'cannot_remove_owner' });
+    if (conv.kind === 'group') {
+      const actorRole = await this.actorGroupRole(actor, conversationId);
+      const target = await this.repo.getMember(conversationId, memberStaffId);
+      if (!target) throw new NotFoundException({ error: 'csd_member_not_found' });
+      if (
+        !canRemoveGroupMember(
+          actorRole,
+          target.role as CsdGroupMemberRole,
+          hasPlatformManage(actor),
+        )
+      ) {
+        throw new ForbiddenException({ error: 'csd_member_forbidden' });
+      }
+    } else {
+      if (!canManageConversation(actor, conv.owner_staff_id)) {
+        throw new ForbiddenException({ error: 'csd_member_forbidden' });
+      }
+      if (conv.owner_staff_id === memberStaffId) {
+        throw new BadRequestException({ error: 'cannot_remove_owner' });
+      }
     }
     const removed = await this.repo.deleteMember(conversationId, memberStaffId);
     if (!removed) throw new NotFoundException({ error: 'csd_member_not_found' });
     return { removed: true };
+  }
+
+  async setMemberRole(
+    actor: CsdActor,
+    conversationId: string,
+    memberStaffId: number,
+    roleRaw: string,
+  ): Promise<CsdConversationMemberRow> {
+    const conv = await this.requireWritableConversation(conversationId);
+    if (conv.kind !== 'group') {
+      throw new BadRequestException({ error: 'group_only' });
+    }
+    if (!isAssignableGroupRole(roleRaw)) {
+      throw new BadRequestException({ error: 'invalid_role' });
+    }
+    const actorRole = await this.actorGroupRole(actor, conversationId);
+    if (!canSetGroupAdminRole(actorRole, hasPlatformManage(actor))) {
+      throw new ForbiddenException({ error: 'csd_role_forbidden' });
+    }
+    const target = await this.repo.getMember(conversationId, memberStaffId);
+    if (!target) throw new NotFoundException({ error: 'csd_member_not_found' });
+    if (target.role === 'owner') {
+      throw new BadRequestException({ error: 'cannot_change_owner_role' });
+    }
+    return this.repo.updateMemberRole(conversationId, memberStaffId, roleRaw);
+  }
+
+  async patchConversation(
+    actor: CsdActor,
+    conversationId: string,
+    input: { name_vi?: string; description?: string; clear_avatar?: boolean },
+  ): Promise<CsdConversationRow> {
+    const conv = await this.requireWritableConversation(conversationId);
+    if (conv.kind !== 'group') {
+      throw new BadRequestException({ error: 'group_only' });
+    }
+    await this.assertCanManageGroupInfo(actor, conv);
+
+    const patch: { name_vi?: string; description?: string } = {};
+    if (input.name_vi != null) {
+      const name = String(input.name_vi).trim();
+      if (!name) throw new BadRequestException({ error: 'name_required' });
+      if (name.length > 191) throw new BadRequestException({ error: 'name_too_long' });
+      patch.name_vi = name;
+    }
+    if (input.description != null) {
+      patch.description = String(input.description);
+    }
+
+    let row = conv;
+    if (patch.name_vi != null || patch.description != null) {
+      row = await this.repo.updateConversationInfo(conversationId, patch, actor.staffId);
+    }
+    if (input.clear_avatar) {
+      row = await this.clearGroupAvatar(actor, conversationId);
+    }
+    return (await this.repo.getConversationForMember(conversationId, actor.staffId)) ?? row;
+  }
+
+  async uploadGroupAvatar(
+    actor: CsdActor,
+    conversationId: string,
+    file?: Express.Multer.File,
+  ): Promise<CsdConversationRow> {
+    const conv = await this.requireWritableConversation(conversationId);
+    if (conv.kind !== 'group') {
+      throw new BadRequestException({ error: 'group_only' });
+    }
+    await this.assertCanManageGroupInfo(actor, conv);
+    if (!file?.buffer?.length) {
+      throw new BadRequestException({ error: 'file_required' });
+    }
+    try {
+      assertStaffAvatarUpload({
+        buffer: file.buffer,
+        mimetype: file.mimetype,
+        size: file.size,
+      });
+    } catch (err) {
+      const code = err instanceof Error ? err.message : 'invalid_image';
+      throw new BadRequestException({ error: code });
+    }
+
+    const oldKey = await this.repo.getGroupAvatarStorageKey(conversationId);
+    const { storageKey } = this.avatarStorage.save(`group-${conversationId}`, file.buffer, file.mimetype);
+    const row = await this.repo.setGroupAvatarStorageKey(conversationId, storageKey, actor.staffId);
+    if (oldKey && oldKey !== storageKey) {
+      this.avatarStorage.remove(oldKey);
+    }
+    return (await this.repo.getConversationForMember(conversationId, actor.staffId)) ?? row;
+  }
+
+  async clearGroupAvatar(actor: CsdActor, conversationId: string): Promise<CsdConversationRow> {
+    const conv = await this.requireWritableConversation(conversationId);
+    if (conv.kind !== 'group') {
+      throw new BadRequestException({ error: 'group_only' });
+    }
+    await this.assertCanManageGroupInfo(actor, conv);
+    const oldKey = await this.repo.getGroupAvatarStorageKey(conversationId);
+    const row = await this.repo.setGroupAvatarStorageKey(conversationId, null, actor.staffId);
+    if (oldKey) this.avatarStorage.remove(oldKey);
+    return (await this.repo.getConversationForMember(conversationId, actor.staffId)) ?? row;
+  }
+
+  async readGroupAvatar(
+    conversationId: string,
+  ): Promise<{ buffer: Buffer; contentType: string } | null> {
+    const key = await this.repo.getGroupAvatarStorageKey(conversationId);
+    if (!key) return null;
+    const buffer = this.avatarStorage.read(key);
+    if (!buffer) return null;
+    const ext = String(key).split('.').pop() ?? 'jpg';
+    return { buffer, contentType: contentTypeForAvatarExt(ext) };
   }
 
   async closeConversation(actor: CsdActor, conversationId: string): Promise<CsdConversationRow> {
@@ -484,6 +632,34 @@ export class CsdChatService {
       throw new ForbiddenException({ error: 'csd_reopen_forbidden' });
     }
     return this.repo.updateStatus(conversationId, 'reopened', actor.staffId);
+  }
+
+  private async actorGroupRole(
+    actor: CsdActor,
+    conversationId: string,
+  ): Promise<CsdGroupMemberRole | null> {
+    const member = await this.repo.getMember(conversationId, actor.staffId);
+    return (member?.role as CsdGroupMemberRole | undefined) ?? null;
+  }
+
+  private async assertCanManageMembers(actor: CsdActor, conv: CsdConversationRow): Promise<void> {
+    if (conv.kind === 'group') {
+      const role = await this.actorGroupRole(actor, conv.id);
+      if (!canManageGroupMembers(role, hasPlatformManage(actor))) {
+        throw new ForbiddenException({ error: 'csd_member_forbidden' });
+      }
+      return;
+    }
+    if (!canManageConversation(actor, conv.owner_staff_id)) {
+      throw new ForbiddenException({ error: 'csd_member_forbidden' });
+    }
+  }
+
+  private async assertCanManageGroupInfo(actor: CsdActor, conv: CsdConversationRow): Promise<void> {
+    const role = await this.actorGroupRole(actor, conv.id);
+    if (!canManageGroupInfo(role, hasPlatformManage(actor))) {
+      throw new ForbiddenException({ error: 'csd_group_forbidden' });
+    }
   }
 
   private async requireConversation(conversationId: string): Promise<CsdConversationRow> {

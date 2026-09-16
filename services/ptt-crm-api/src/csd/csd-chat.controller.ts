@@ -11,8 +11,12 @@ import {
   Query,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Request, Response } from 'express';
 import { StaffAccountService } from '../staff-auth/staff-account.service';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
@@ -119,6 +123,53 @@ export class CsdChatController {
     return this.chat.setConversationAlias(actor, id, body.alias_vi ?? '');
   }
 
+  @Patch('conversations/:id')
+  @RequireCsdAction('write')
+  async patchConversation(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { name_vi?: string; description?: string; clear_avatar?: boolean },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.patchConversation(actor, id, body ?? {});
+  }
+
+  @Post('conversations/:id/avatar')
+  @RequireCsdAction('write')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 1_000_000 },
+    }),
+  )
+  async uploadGroupAvatar(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.uploadGroupAvatar(actor, id, file);
+  }
+
+  @Delete('conversations/:id/avatar')
+  @RequireCsdAction('write')
+  async deleteGroupAvatar(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.clearGroupAvatar(actor, id);
+  }
+
+  @Get('conversations/:id/avatar')
+  @RequireCsdAction('view')
+  async groupAvatar(@Param('id') id: string, @Res() res: Response) {
+    const out = await this.chat.readGroupAvatar(id);
+    if (!out) {
+      throw new NotFoundException({ error: 'avatar_not_found' });
+    }
+    res.setHeader('Content-Type', out.contentType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(out.buffer);
+  }
+
   @Get('staff/:staffId/avatar')
   @RequireCsdAction('view')
   async staffAvatar(@Param('staffId') staffId: string, @Res() res: Response) {
@@ -220,10 +271,22 @@ export class CsdChatController {
   async addMember(
     @Req() req: AuthedReq,
     @Param('id') id: string,
-    @Body() body: { member_staff_id: number; role?: 'owner' | 'member' | 'viewer' },
+    @Body() body: { member_staff_id: number; role?: 'owner' | 'admin' | 'member' | 'viewer' },
   ) {
     const actor = await this.actor(req);
     return this.chat.addMember(actor, id, body);
+  }
+
+  @Patch('conversations/:id/members/:staffId')
+  @RequireCsdAction('write')
+  async setMemberRole(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('staffId') staffId: string,
+    @Body() body: { role?: string },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.setMemberRole(actor, id, Number(staffId), String(body?.role ?? ''));
   }
 
   @Delete('conversations/:id/members/:staffId')

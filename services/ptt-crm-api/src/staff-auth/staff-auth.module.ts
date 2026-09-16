@@ -32,6 +32,12 @@ import { StaffOrInternalKeyGuard } from './staff-or-internal-key.guard';
     StaffJwtGuard,
     StaffOrInternalKeyGuard,
   ],
-  exports: [StaffAuthService, StaffAccountService, StaffJwtGuard, StaffOrInternalKeyGuard],
+  exports: [
+    StaffAuthService,
+    StaffAccountService,
+    StaffAvatarStorage,
+    StaffJwtGuard,
+    StaffOrInternalKeyGuard,
+  ],
 })
 export class StaffAuthModule {}

@@ -235,8 +235,14 @@ CREATE TABLE IF NOT EXISTS csd_conversation_members (
   last_read_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT csd_conv_member_type_chk CHECK (member_type IN ('staff', 'client_contact')),
-  CONSTRAINT csd_conv_member_role_chk CHECK (role IN ('owner', 'member', 'viewer'))
+  CONSTRAINT csd_conv_member_role_chk CHECK (role IN ('owner', 'admin', 'member', 'viewer'))
 );
+-- Wave A: allow phó nhóm (admin) + group avatar columns (idempotent on live DBs)
+ALTER TABLE csd_conversation_members DROP CONSTRAINT IF EXISTS csd_conv_member_role_chk;
+ALTER TABLE csd_conversation_members
+  ADD CONSTRAINT csd_conv_member_role_chk CHECK (role IN ('owner', 'admin', 'member', 'viewer'));
+ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS group_avatar_storage_key TEXT;
+ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS group_avatar_updated_at TIMESTAMPTZ;
 CREATE UNIQUE INDEX IF NOT EXISTS csd_conv_members_staff_uidx
   ON csd_conversation_members (conversation_id, member_staff_id)
   WHERE member_staff_id IS NOT NULL;

@@ -19,6 +19,11 @@ describe('CsdChatService', () => {
     listMembers: jest.fn(),
     insertMember: jest.fn(),
     deleteMember: jest.fn(),
+    getMember: jest.fn(),
+    updateMemberRole: jest.fn(),
+    updateConversationInfo: jest.fn(),
+    getGroupAvatarStorageKey: jest.fn(),
+    setGroupAvatarStorageKey: jest.fn(),
     updateStatus: jest.fn(),
     insertMentionNotifications: jest.fn(),
     insertClientChatNotifications: jest.fn(),
@@ -59,6 +64,12 @@ describe('CsdChatService', () => {
     isAccepted: jest.fn(),
   };
 
+  const avatarStorage = {
+    save: jest.fn(),
+    read: jest.fn(),
+    remove: jest.fn(),
+  };
+
   function svc() {
     return new CsdChatService(
       repo as never,
@@ -67,11 +78,12 @@ describe('CsdChatService', () => {
       audit as never,
       accounts as never,
       friends as never,
+      avatarStorage as never,
     );
   }
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     files.listForMessage.mockResolvedValue([]);
     files.attachToMessage.mockResolvedValue(undefined);
     files.copyClientFilesToTicket.mockResolvedValue([]);
@@ -354,7 +366,7 @@ describe('CsdChatService', () => {
   });
 
   it('adds staff member and rejects owner remove', async () => {
-    repo.getConversation.mockResolvedValue({ id: 'c1', status: 'active', owner_staff_id: 3 });
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'client', status: 'active', owner_staff_id: 3 });
     repo.insertMember.mockResolvedValue({
       conversation_id: 'c1',
       member_staff_id: 8,
@@ -366,6 +378,108 @@ describe('CsdChatService', () => {
     );
     await expect(svc().removeMember(actor, 'c1', 3)).rejects.toMatchObject({ status: 400 });
     expect(repo.deleteMember).not.toHaveBeenCalled();
+  });
+
+  it('owner promotes member to admin; admin cannot set admin role', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+    });
+    repo.getMember.mockImplementation(async (_cid: string, staffId: number) => {
+      if (staffId === 3) return { member_staff_id: 3, role: 'owner' };
+      if (staffId === 8) return { member_staff_id: 8, role: 'admin' };
+      if (staffId === 9) return { member_staff_id: 9, role: 'member' };
+      return null;
+    });
+    repo.updateMemberRole.mockResolvedValue({ member_staff_id: 8, role: 'admin' });
+
+    // First call: owner promoting 8 — treat 8 as member for the target lookup
+    repo.getMember.mockImplementation(async (_cid: string, staffId: number) => {
+      if (staffId === 3) return { member_staff_id: 3, role: 'owner' };
+      if (staffId === 8) return { member_staff_id: 8, role: 'member' };
+      return null;
+    });
+    await svc().setMemberRole(actor, 'g1', 8, 'admin');
+    expect(repo.updateMemberRole).toHaveBeenCalledWith('g1', 8, 'admin');
+
+    const adminActor: CsdActor = {
+      staffId: 8,
+      staffLabel: 'admin@test.vn',
+      caps: [{ section: 'csd', action: 'write' }],
+    };
+    repo.getMember.mockImplementation(async (_cid: string, staffId: number) => {
+      if (staffId === 8) return { member_staff_id: 8, role: 'admin' };
+      if (staffId === 9) return { member_staff_id: 9, role: 'member' };
+      return null;
+    });
+    await expect(svc().setMemberRole(adminActor, 'g1', 9, 'admin')).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it('admin can remove member but not owner or other admin', async () => {
+    const adminActor: CsdActor = {
+      staffId: 8,
+      staffLabel: 'admin@test.vn',
+      caps: [{ section: 'csd', action: 'write' }],
+    };
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+    });
+    repo.getMember.mockImplementation(async (_cid: string, staffId: number) => {
+      if (staffId === 8) return { member_staff_id: 8, role: 'admin' };
+      if (staffId === 9) return { member_staff_id: 9, role: 'member' };
+      if (staffId === 3) return { member_staff_id: 3, role: 'owner' };
+      if (staffId === 10) return { member_staff_id: 10, role: 'admin' };
+      return null;
+    });
+    repo.deleteMember.mockResolvedValue(true);
+
+    await svc().removeMember(adminActor, 'g1', 9);
+    expect(repo.deleteMember).toHaveBeenCalledWith('g1', 9);
+
+    await expect(svc().removeMember(adminActor, 'g1', 3)).rejects.toMatchObject({ status: 403 });
+    await expect(svc().removeMember(adminActor, 'g1', 10)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('owner/admin can patch group name and description', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+      name_vi: 'Old',
+      description: '',
+    });
+    repo.getMember.mockImplementation(async () => ({ member_staff_id: 3, role: 'owner' }));
+    repo.updateConversationInfo.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      name_vi: 'Nhóm A',
+      description: 'mô tả',
+    });
+    repo.getConversationForMember.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      name_vi: 'Nhóm A',
+      description: 'mô tả',
+    });
+
+    const out = await svc().patchConversation(actor, 'g1', {
+      name_vi: 'Nhóm A',
+      description: 'mô tả',
+    });
+    expect(repo.updateConversationInfo).toHaveBeenCalledWith(
+      'g1',
+      { name_vi: 'Nhóm A', description: 'mô tả' },
+      3,
+    );
+    expect(out.name_vi).toBe('Nhóm A');
   });
 
   it('rejects edit after 15 minutes', async () => {

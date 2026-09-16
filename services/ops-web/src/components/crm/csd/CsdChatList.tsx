@@ -147,6 +147,7 @@ export function CsdChatList({
                     name={c.name_vi}
                     seed={avatar.seed}
                     staffId={avatar.staffId}
+                    conversationId={avatar.conversationId}
                     hasAvatar={avatar.hasAvatar}
                     avatarUpdatedAt={avatar.avatarUpdatedAt}
                     className="csd-chat-avatar csd-chat-avatar--list"

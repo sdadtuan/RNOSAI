@@ -38,6 +38,14 @@ const VIEW_HEADINGS: Record<CsdChatContactsView, string> = {
   discover: 'Tìm người mới',
 };
 
+function friendshipPeerLabel(
+  preferred: string | null | undefined,
+  staffId: number,
+): string {
+  const name = String(preferred ?? '').trim();
+  return name || `Staff #${staffId}`;
+}
+
 export function CsdChatContacts({
   token,
   view,
@@ -314,17 +322,22 @@ export function CsdChatContacts({
               {incoming.length === 0 ? (
                 <li className="muted csd-chat-contacts-empty">Không có lời mời đến</li>
               ) : (
-                incoming.map((row) => (
+                incoming.map((row) => {
+                  const name = friendshipPeerLabel(
+                    row.requester_display_name_vi,
+                    row.requester_staff_id,
+                  );
+                  return (
                   <li key={row.id} className="csd-chat-contacts-friend" data-testid="csd-chat-friend-incoming">
                     <div className="csd-chat-contacts-friend__main csd-chat-contacts-friend__main--static">
                       <CsdChatAvatar
                         token={token}
-                        name={`Staff #${row.requester_staff_id}`}
+                        name={name}
                         seed={row.requester_staff_id}
                         staffId={row.requester_staff_id}
                         className="csd-chat-avatar csd-chat-avatar--contacts"
                       />
-                      <span className="csd-chat-contacts-friend__name">Staff #{row.requester_staff_id}</span>
+                      <span className="csd-chat-contacts-friend__name">{name}</span>
                     </div>
                     {canWrite ? (
                       <span className="csd-chat-contacts__actions">
@@ -347,7 +360,8 @@ export function CsdChatContacts({
                       </span>
                     ) : null}
                   </li>
-                ))
+                  );
+                })
               )}
             </ul>
             <h4 className="csd-chat-contacts-subtitle">Đã gửi</h4>
@@ -355,17 +369,22 @@ export function CsdChatContacts({
               {outgoing.length === 0 ? (
                 <li className="muted csd-chat-contacts-empty">Chưa gửi lời mời</li>
               ) : (
-                outgoing.map((row) => (
+                outgoing.map((row) => {
+                  const name = friendshipPeerLabel(
+                    row.addressee_display_name_vi,
+                    row.addressee_staff_id,
+                  );
+                  return (
                   <li key={row.id} className="csd-chat-contacts-friend">
                     <div className="csd-chat-contacts-friend__main csd-chat-contacts-friend__main--static">
                       <CsdChatAvatar
                         token={token}
-                        name={`Staff #${row.addressee_staff_id}`}
+                        name={name}
                         seed={row.addressee_staff_id}
                         staffId={row.addressee_staff_id}
                         className="csd-chat-avatar csd-chat-avatar--contacts"
                       />
-                      <span className="csd-chat-contacts-friend__name">Staff #{row.addressee_staff_id}</span>
+                      <span className="csd-chat-contacts-friend__name">{name}</span>
                     </div>
                     {canWrite ? (
                       <button
@@ -378,7 +397,8 @@ export function CsdChatContacts({
                       </button>
                     ) : null}
                   </li>
-                ))
+                  );
+                })
               )}
             </ul>
           </div>

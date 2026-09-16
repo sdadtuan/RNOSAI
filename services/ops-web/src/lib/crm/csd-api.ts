@@ -124,6 +124,8 @@ export interface CsdConversationRow {
   avatar_staff_id?: number | null;
   avatar_has_photo?: boolean;
   avatar_updated_at?: string | null;
+  group_has_avatar?: boolean;
+  group_avatar_updated_at?: string | null;
 }
 
 export interface CreateCsdConversationInput {
@@ -139,7 +141,7 @@ export interface CsdConversationMemberRow {
   conversation_id: string;
   member_type: 'staff';
   member_staff_id: number;
-  role: 'owner' | 'member' | 'viewer';
+  role: 'owner' | 'admin' | 'member' | 'viewer';
   created_at: string;
   display_name_vi?: string | null;
 }
@@ -475,6 +477,51 @@ export async function patchCsdConversationAlias(
   });
 }
 
+export async function patchCsdConversation(
+  token: string,
+  conversationId: string,
+  body: { name_vi?: string; description?: string; clear_avatar?: boolean },
+): Promise<CsdConversationRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function setCsdConversationMemberRole(
+  token: string,
+  conversationId: string,
+  staffId: number,
+  role: 'admin' | 'member',
+): Promise<CsdConversationMemberRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/members/${staffId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function uploadCsdGroupAvatar(
+  token: string,
+  conversationId: string,
+  file: Blob,
+): Promise<CsdConversationRow> {
+  const form = new FormData();
+  form.append('file', file, 'avatar.jpg');
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/avatar`, {
+    method: 'POST',
+    body: form,
+  });
+}
+
+export async function deleteCsdGroupAvatar(
+  token: string,
+  conversationId: string,
+): Promise<CsdConversationRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/avatar`, {
+    method: 'DELETE',
+  });
+}
+
 export async function markCsdConversationRead(
   token: string,
   conversationId: string,
@@ -507,6 +554,22 @@ export async function fetchCsdStaffAvatarBlob(token: string, staffId: number): P
   if (!res.ok) {
     const body = await parseJson<{ error?: string }>(res);
     throw new ApiError(body.error ?? 'Không tải ảnh', res.status);
+  }
+  return res.blob();
+}
+
+export async function fetchCsdGroupAvatarBlob(
+  token: string,
+  conversationId: string,
+): Promise<Blob | null> {
+  const res = await fetch(`${API_BASE}/api/crm/csd/conversations/${conversationId}/avatar`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string }>(res);
+    throw new ApiError(body.error ?? 'Không tải ảnh nhóm', res.status);
   }
   return res.blob();
 }
@@ -746,6 +809,8 @@ export type CsdChatFriendshipRow = {
   requester_staff_id: number;
   addressee_staff_id: number;
   status: CsdChatFriendshipStatus;
+  requester_display_name_vi?: string | null;
+  addressee_display_name_vi?: string | null;
 };
 
 export type CsdChatPersonRow = {

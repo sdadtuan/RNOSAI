@@ -243,6 +243,8 @@ export function CsdChatWorkspace({
           members={s.members}
           relatedTickets={s.relatedTickets}
           memberStaffId={s.memberStaffId}
+          meStaffId={s.meStaffId}
+          friendInviteOptions={s.friendInviteOptions}
           aiPeriod={s.aiPeriod}
           aiSummary={s.aiSummary}
           canWrite={canWrite}
@@ -252,6 +254,11 @@ export function CsdChatWorkspace({
           onMemberStaffId={s.setMemberStaffId}
           onAddMember={() => void s.handleAddMember()}
           onRemoveMember={(staffId) => void s.handleRemoveMember(staffId)}
+          onLoadFriendInvites={() => void s.loadFriendInviteOptions()}
+          onPatchGroupInfo={(patch) => s.handlePatchGroupInfo(patch)}
+          onSetMemberRole={(staffId, role) => void s.handleSetMemberRole(staffId, role)}
+          onUploadGroupAvatar={(file) => void s.handleUploadGroupAvatar(file)}
+          onClearGroupAvatar={() => void s.handleClearGroupAvatar()}
           onClose={() => void s.handleClose()}
           onArchive={() => void s.handleArchive()}
           onCreateAiActionTicket={(index, title) => void s.handleCreateAiActionTicket(index, title)}

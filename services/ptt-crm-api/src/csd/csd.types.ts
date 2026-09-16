@@ -201,11 +201,13 @@ export type CsdConversationKind =
 
 export type CsdConversationStatus = 'active' | 'archived' | 'closed' | 'reopened';
 
+export type CsdConversationMemberRole = 'owner' | 'admin' | 'member' | 'viewer';
+
 export type CsdConversationMemberRow = {
   conversation_id: string;
   member_type: 'staff';
   member_staff_id: number;
-  role: 'owner' | 'member' | 'viewer';
+  role: CsdConversationMemberRole;
   created_at: string;
   display_name_vi?: string | null;
 };
@@ -229,6 +231,8 @@ export type CsdConversationRow = {
   avatar_staff_id?: number | null;
   avatar_has_photo?: boolean;
   avatar_updated_at?: string | null;
+  group_has_avatar?: boolean;
+  group_avatar_updated_at?: string | null;
 };
 
 export type CsdAttachmentRow = {
@@ -580,6 +584,10 @@ export type CsdChatFriendshipRow = {
   status: CsdChatFriendshipStatus;
   created_at: string;
   updated_at: string;
+  /** Populated on list requests — display name of requester */
+  requester_display_name_vi?: string | null;
+  /** Populated on list requests — display name of addressee */
+  addressee_display_name_vi?: string | null;
 };
 
 export type CsdChatCallMode = 'voice' | 'video';

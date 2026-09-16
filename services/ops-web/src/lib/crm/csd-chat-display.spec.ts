@@ -179,9 +179,27 @@ describe('csd-chat-display', () => {
       }),
     ).toEqual({
       staffId: 8,
+      conversationId: null,
       hasAvatar: true,
       avatarUpdatedAt: '2026-09-12T00:00:00.000Z',
       seed: 8,
+    });
+  });
+
+  it('resolveCsdConversationAvatar maps group avatar metadata', () => {
+    expect(
+      resolveCsdConversationAvatar({
+        id: 'g-1',
+        kind: 'group',
+        group_has_avatar: true,
+        group_avatar_updated_at: '2026-09-16T00:00:00.000Z',
+      }),
+    ).toEqual({
+      staffId: null,
+      conversationId: 'g-1',
+      hasAvatar: true,
+      avatarUpdatedAt: '2026-09-16T00:00:00.000Z',
+      seed: 'g-1',
     });
   });
 

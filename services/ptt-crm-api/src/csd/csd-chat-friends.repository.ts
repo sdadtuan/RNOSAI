@@ -24,6 +24,14 @@ function mapFriendship(row: Record<string, unknown>): CsdChatFriendshipRow {
     status: text(row.status) as CsdChatFriendshipStatus,
     created_at: text(row.created_at),
     updated_at: text(row.updated_at),
+    requester_display_name_vi:
+      row.requester_display_name_vi == null
+        ? null
+        : text(row.requester_display_name_vi).trim() || null,
+    addressee_display_name_vi:
+      row.addressee_display_name_vi == null
+        ? null
+        : text(row.addressee_display_name_vi).trim() || null,
   };
 }
 
@@ -143,9 +151,18 @@ export class CsdChatFriendsRepository implements OnModuleDestroy {
 
   async listPendingIncoming(staffId: number): Promise<CsdChatFriendshipRow[]> {
     const res = await this.db.query(
-      `SELECT * FROM csd_chat_friendships
-        WHERE tenant_id = $1 AND addressee_staff_id = $2 AND status = 'pending'
-        ORDER BY created_at DESC`,
+      `SELECT f.*,
+              COALESCE(NULLIF(ar.display_name_vi, ''), sr.name, '') AS requester_display_name_vi,
+              COALESCE(NULLIF(aa.display_name_vi, ''), sa.name, '') AS addressee_display_name_vi
+         FROM csd_chat_friendships f
+         JOIN crm_staff sr ON sr.id = f.requester_staff_id
+         JOIN crm_staff sa ON sa.id = f.addressee_staff_id
+         LEFT JOIN csd_chat_accounts ar
+           ON ar.staff_id = f.requester_staff_id AND ar.tenant_id = f.tenant_id
+         LEFT JOIN csd_chat_accounts aa
+           ON aa.staff_id = f.addressee_staff_id AND aa.tenant_id = f.tenant_id
+        WHERE f.tenant_id = $1 AND f.addressee_staff_id = $2 AND f.status = 'pending'
+        ORDER BY f.created_at DESC`,
       [CSD_TENANT_ID, staffId],
     );
     return res.rows.map((row) => mapFriendship(row as Record<string, unknown>));
@@ -153,9 +170,18 @@ export class CsdChatFriendsRepository implements OnModuleDestroy {
 
   async listPendingOutgoing(staffId: number): Promise<CsdChatFriendshipRow[]> {
     const res = await this.db.query(
-      `SELECT * FROM csd_chat_friendships
-        WHERE tenant_id = $1 AND requester_staff_id = $2 AND status = 'pending'
-        ORDER BY created_at DESC`,
+      `SELECT f.*,
+              COALESCE(NULLIF(ar.display_name_vi, ''), sr.name, '') AS requester_display_name_vi,
+              COALESCE(NULLIF(aa.display_name_vi, ''), sa.name, '') AS addressee_display_name_vi
+         FROM csd_chat_friendships f
+         JOIN crm_staff sr ON sr.id = f.requester_staff_id
+         JOIN crm_staff sa ON sa.id = f.addressee_staff_id
+         LEFT JOIN csd_chat_accounts ar
+           ON ar.staff_id = f.requester_staff_id AND ar.tenant_id = f.tenant_id
+         LEFT JOIN csd_chat_accounts aa
+           ON aa.staff_id = f.addressee_staff_id AND aa.tenant_id = f.tenant_id
+        WHERE f.tenant_id = $1 AND f.requester_staff_id = $2 AND f.status = 'pending'
+        ORDER BY f.created_at DESC`,
       [CSD_TENANT_ID, staffId],
     );
     return res.rows.map((row) => mapFriendship(row as Record<string, unknown>));

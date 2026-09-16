@@ -72,6 +72,8 @@ git commit -m "feat(csd): add chat message tone and incoming call ring helpers."
 
 ### Task 2: Desktop notify helpers for calls + sound hooks for messages
 
+**Status:** ✅ Done in `43677b0c` (bundled with Task 1+3 deploy)
+
 **Files:**
 - Modify: `services/ops-web/src/lib/crm/csd-chat-notify-persist.ts`
 - Modify: `services/ops-web/src/lib/crm/csd-chat-notify.ts` (if adding `csdChatCallNotifyTag` / payload builder)
@@ -85,21 +87,17 @@ git commit -m "feat(csd): add chat message tone and incoming call ring helpers."
   - Tag: `csd-chat:${conversationId}` (message), `csd-call:${fromUserId}` (call)
   - Host plays `playCsdChatMessageTone()` once per incoming batch when channel is `toast` or `desktop`
 
-- [ ] **Step 1: Extend unit tests** in `csd-chat-notify.spec.ts` for channel behavior unchanged; add test for tag helper if extracted.
+- [x] **Step 1: Extend unit tests** in `csd-chat-notify.spec.ts` for channel behavior unchanged; add test for tag helper if extracted.
 
-- [ ] **Step 2: Implement persist/notify helpers + wire Host to play ting** when `next.incoming.length > 0` and channel ≠ `none`.
+- [x] **Step 2: Implement persist/notify helpers + wire Host to play ting** when `next.incoming.length > 0` and channel ≠ `none`.
 
-- [ ] **Step 3: Run**
+- [x] **Step 3: Run**
 
 ```bash
 cd services/ops-web && npx vitest run src/lib/crm/csd-chat-notify.spec.ts src/lib/crm/csd-chat-notify-sound.util.spec.ts
 ```
 
-- [ ] **Step 4: Commit**
-
-```bash
-git commit -m "feat(csd): play message tone with toast and desktop chat notifies."
-```
+- [x] **Step 4: Commit** (included in `43677b0c feat(csd): notify + sound for chat messages and incoming calls.`)
 
 ---
 

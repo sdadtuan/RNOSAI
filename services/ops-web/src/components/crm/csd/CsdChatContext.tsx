@@ -1,15 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 import { CsdChatContextMedia } from '@/components/crm/csd/CsdChatContextMedia';
 import { CsdChatStorageVault, type CsdChatStorageTab } from '@/components/crm/csd/CsdChatStorageVault';
 import {
+  type CsdChatPersonRow,
   type CsdConversationMemberRow,
   type CsdConversationRow,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
 import type { CsdConversationLinkItem, CsdConversationMediaItem } from '@/lib/crm/csd-chat-display';
+import { resolveCsdConversationAvatar } from '@/lib/crm/csd-chat-display';
 
 export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
   client: 'Khách hàng',
@@ -18,6 +21,13 @@ export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
   project: 'Dự án',
   announcement: 'Thông báo',
 };
+
+function roleBadgeVi(role: CsdConversationMemberRow['role']): string {
+  if (role === 'owner') return 'Chủ';
+  if (role === 'admin') return 'Phó';
+  if (role === 'viewer') return 'Xem';
+  return 'TV';
+}
 
 type CsdChatContextProps = {
   token: string;
@@ -30,6 +40,8 @@ type CsdChatContextProps = {
   members: CsdConversationMemberRow[];
   relatedTickets: CsdTicketRow[];
   memberStaffId: string;
+  meStaffId?: number | null;
+  friendInviteOptions?: CsdChatPersonRow[];
   aiPeriod: '24h' | '7d' | 'all';
   aiSummary: AiSummary | null;
   canWrite: boolean;
@@ -39,6 +51,11 @@ type CsdChatContextProps = {
   onMemberStaffId: (value: string) => void;
   onAddMember: () => void;
   onRemoveMember: (staffId: number) => void;
+  onLoadFriendInvites?: () => void;
+  onPatchGroupInfo?: (patch: { name_vi?: string; description?: string }) => Promise<boolean>;
+  onSetMemberRole?: (staffId: number, role: 'admin' | 'member') => void;
+  onUploadGroupAvatar?: (file: File) => void;
+  onClearGroupAvatar?: () => void;
   onClose: () => void;
   onArchive: () => void;
   onCreateAiActionTicket: (index: number, title: string) => void;
@@ -102,6 +119,8 @@ export function CsdChatContext({
   members,
   relatedTickets,
   memberStaffId,
+  meStaffId = null,
+  friendInviteOptions = [],
   aiPeriod,
   aiSummary,
   canWrite,
@@ -111,6 +130,11 @@ export function CsdChatContext({
   onMemberStaffId,
   onAddMember,
   onRemoveMember,
+  onLoadFriendInvites,
+  onPatchGroupInfo,
+  onSetMemberRole,
+  onUploadGroupAvatar,
+  onClearGroupAvatar,
   onClose,
   onArchive,
   onCreateAiActionTicket,
@@ -123,21 +147,52 @@ export function CsdChatContext({
   variant = 'column',
 }: CsdChatContextProps) {
   const isSheet = variant === 'sheet';
+  const isGroup = active?.kind === 'group';
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [groupInfoOpen, setGroupInfoOpen] = useState(true);
+  const [rolesOpen, setRolesOpen] = useState(true);
   const [ticketsOpen, setTicketsOpen] = useState(true);
   const [membersOpen, setMembersOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [vaultTab, setVaultTab] = useState<CsdChatStorageTab | null>(null);
   const [aliasDraft, setAliasDraft] = useState(active?.alias_vi || active?.name_vi || '');
+  const [groupNameDraft, setGroupNameDraft] = useState(active?.name_vi || '');
+  const [groupDescDraft, setGroupDescDraft] = useState(active?.description || '');
+
+  const myRole = useMemo(() => {
+    if (meStaffId == null) return null;
+    return members.find((m) => m.member_staff_id === meStaffId)?.role ?? null;
+  }, [members, meStaffId]);
+
+  const canManageGroup = Boolean(
+    canWrite && isGroup && (myRole === 'owner' || myRole === 'admin') && !closed && !archived,
+  );
+  const canSetAdmin = Boolean(canWrite && isGroup && myRole === 'owner' && !closed && !archived);
+  const canManageMembersUi = canManageGroup;
 
   useEffect(() => {
     setAliasDraft(active?.alias_vi || active?.name_vi || '');
+    setGroupNameDraft(active?.name_vi || '');
+    setGroupDescDraft(active?.description || '');
     setDetailsOpen(false);
+    setGroupInfoOpen(true);
+    setRolesOpen(true);
     setTicketsOpen(true);
     setMembersOpen(true);
     setAiOpen(false);
     setVaultTab(null);
-  }, [active?.id, active?.alias_vi, active?.name_vi]);
+  }, [active?.id, active?.alias_vi, active?.name_vi, active?.description]);
+
+  useEffect(() => {
+    if (isGroup && canManageMembersUi) onLoadFriendInvites?.();
+    // intentionally only when conversation / manage ability changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid re-fetch from unstable callback identity
+  }, [isGroup, canManageMembersUi, active?.id]);
+
+  const memberIds = useMemo(() => new Set(members.map((m) => m.member_staff_id)), [members]);
+  const inviteCandidates = friendInviteOptions.filter((p) => !memberIds.has(p.staff_id));
+  const leaders = members.filter((m) => m.role === 'owner' || m.role === 'admin');
+  const groupAvatar = active ? resolveCsdConversationAvatar(active) : null;
 
   if (vaultTab && active) {
     return (
@@ -186,6 +241,110 @@ export function CsdChatContext({
           ) : null}
 
           <div className="csd-chat-context-scroll stack-gap">
+            {isGroup ? (
+              <ContextSection
+                title="Thông tin nhóm"
+                open={groupInfoOpen}
+                onToggle={() => setGroupInfoOpen((v) => !v)}
+                testId="csd-chat-group-info-toggle"
+              >
+                <div className="csd-chat-group-info stack-gap" data-testid="csd-chat-group-info">
+                  <div className="csd-chat-group-info__avatar-row">
+                    <CsdChatAvatar
+                      token={token}
+                      name={active.name_vi}
+                      seed={groupAvatar?.seed ?? active.id}
+                      staffId={groupAvatar?.staffId}
+                      conversationId={groupAvatar?.conversationId}
+                      hasAvatar={groupAvatar?.hasAvatar}
+                      avatarUpdatedAt={groupAvatar?.avatarUpdatedAt}
+                      className="csd-chat-avatar csd-chat-avatar--thread"
+                    />
+                    {canManageGroup && onUploadGroupAvatar ? (
+                      <label className="csd-chat-context-link-btn">
+                        Đổi ảnh
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          hidden
+                          data-testid="csd-chat-group-avatar-input"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = '';
+                            if (file) onUploadGroupAvatar(file);
+                          }}
+                        />
+                      </label>
+                    ) : null}
+                    {canManageGroup && active.group_has_avatar && onClearGroupAvatar ? (
+                      <button
+                        type="button"
+                        className="csd-chat-context-link-btn"
+                        disabled={busy}
+                        onClick={onClearGroupAvatar}
+                      >
+                        Xóa ảnh
+                      </button>
+                    ) : null}
+                  </div>
+                  {canManageGroup && onPatchGroupInfo ? (
+                    <form
+                      className="csd-chat-rename csd-chat-rename--stack"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void onPatchGroupInfo({
+                          name_vi: groupNameDraft.trim(),
+                          description: groupDescDraft,
+                        });
+                      }}
+                    >
+                      <label className="csd-chat-context-label" htmlFor="csd-chat-group-name">
+                        Tên nhóm
+                      </label>
+                      <input
+                        id="csd-chat-group-name"
+                        className="csd-chat-context-input"
+                        value={groupNameDraft}
+                        maxLength={191}
+                        onChange={(e) => setGroupNameDraft(e.target.value)}
+                        data-testid="csd-chat-group-name-input"
+                      />
+                      <label className="csd-chat-context-label" htmlFor="csd-chat-group-desc">
+                        Mô tả
+                      </label>
+                      <textarea
+                        id="csd-chat-group-desc"
+                        className="csd-chat-context-input"
+                        rows={3}
+                        value={groupDescDraft}
+                        onChange={(e) => setGroupDescDraft(e.target.value)}
+                        data-testid="csd-chat-group-desc-input"
+                      />
+                      <button
+                        type="submit"
+                        className="csd-chat-context-btn"
+                        disabled={busy || !groupNameDraft.trim()}
+                        data-testid="csd-chat-group-info-save"
+                      >
+                        Lưu thông tin
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <p className="csd-chat-context-line">
+                        <span>Tên nhóm</span>
+                        <strong>{active.name_vi}</strong>
+                      </p>
+                      <p className="csd-chat-context-line">
+                        <span>Mô tả</span>
+                        <strong>{active.description?.trim() || '—'}</strong>
+                      </p>
+                    </>
+                  )}
+                </div>
+              </ContextSection>
+            ) : null}
+
             <ContextSection
               title="Chi tiết hội thoại"
               open={detailsOpen}
@@ -296,54 +455,135 @@ export function CsdChatContext({
               </ul>
             </ContextSection>
 
+            {isGroup ? (
+              <ContextSection
+                title="Vai trò"
+                open={rolesOpen}
+                onToggle={() => setRolesOpen((v) => !v)}
+                testId="csd-chat-group-roles-toggle"
+              >
+                <ul className="csd-chat-members" data-testid="csd-chat-group-roles">
+                  {leaders.length === 0 ? (
+                    <li className="csd-chat-context-empty">Chưa có</li>
+                  ) : (
+                    leaders.map((m) => (
+                      <li key={`role-${m.member_staff_id}`}>
+                        <span className="csd-chat-members__name">
+                          {m.display_name_vi || 'Thành viên'} · {roleBadgeVi(m.role)}
+                        </span>
+                        {canSetAdmin && m.role === 'admin' && onSetMemberRole ? (
+                          <button
+                            type="button"
+                            className="csd-chat-context-link-btn"
+                            disabled={busy}
+                            onClick={() => onSetMemberRole(m.member_staff_id, 'member')}
+                          >
+                            Gỡ phó
+                          </button>
+                        ) : null}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </ContextSection>
+            ) : null}
+
             <ContextSection title="Thành viên" open={membersOpen} onToggle={() => setMembersOpen((v) => !v)}>
               <ul className="csd-chat-members" data-testid="csd-chat-members">
                 {members.length === 0 ? (
                   <li className="csd-chat-context-empty">Chưa có thành viên</li>
                 ) : (
-                  members.map((m) => (
-                    <li key={`${m.conversation_id}-${m.member_staff_id}`}>
-                      <span className="csd-chat-members__name">
-                        {m.display_name_vi || 'Thành viên'} · {m.role === 'owner' ? 'Chủ' : m.role}
-                      </span>
-                      {canWrite && m.role !== 'owner' ? (
-                        <button
-                          type="button"
-                          className="csd-chat-context-link-btn"
-                          disabled={busy}
-                          onClick={() => onRemoveMember(m.member_staff_id)}
-                        >
-                          Xóa
-                        </button>
-                      ) : null}
-                    </li>
-                  ))
+                  members.map((m) => {
+                    const canRemove =
+                      canManageMembersUi &&
+                      m.role !== 'owner' &&
+                      (myRole === 'owner' || m.role === 'member' || m.role === 'viewer');
+                    return (
+                      <li key={`${m.conversation_id}-${m.member_staff_id}`}>
+                        <span className="csd-chat-members__name">
+                          {m.display_name_vi || 'Thành viên'} · {roleBadgeVi(m.role)}
+                        </span>
+                        <span className="csd-chat-members__actions">
+                          {canSetAdmin && (m.role === 'member' || m.role === 'viewer') && onSetMemberRole ? (
+                            <button
+                              type="button"
+                              className="csd-chat-context-link-btn"
+                              disabled={busy}
+                              onClick={() => onSetMemberRole(m.member_staff_id, 'admin')}
+                            >
+                              Đặt phó
+                            </button>
+                          ) : null}
+                          {canRemove ? (
+                            <button
+                              type="button"
+                              className="csd-chat-context-link-btn"
+                              disabled={busy}
+                              onClick={() => onRemoveMember(m.member_staff_id)}
+                            >
+                              Xóa
+                            </button>
+                          ) : null}
+                        </span>
+                      </li>
+                    );
+                  })
                 )}
               </ul>
-              {!isSheet && canWrite && !closed && !archived ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    onAddMember();
-                  }}
-                  className="csd-chat-member-form"
-                >
-                  <input
-                    className="csd-chat-context-input"
-                    inputMode="numeric"
-                    placeholder="Staff id"
-                    value={memberStaffId}
-                    onChange={(e) => onMemberStaffId(e.target.value)}
-                    data-testid="csd-chat-member-id"
-                  />
-                  <button
-                    type="submit"
-                    className="csd-chat-context-btn csd-chat-context-btn--soft"
-                    disabled={busy || !memberStaffId.trim()}
+              {!isSheet && canManageMembersUi ? (
+                isGroup ? (
+                  <div className="csd-chat-member-form stack-gap" data-testid="csd-chat-group-invite">
+                    <label className="csd-chat-context-label" htmlFor="csd-chat-member-friend">
+                      Mời bạn bè vào nhóm
+                    </label>
+                    <select
+                      id="csd-chat-member-friend"
+                      className="csd-chat-context-input"
+                      value={memberStaffId}
+                      onChange={(e) => onMemberStaffId(e.target.value)}
+                      data-testid="csd-chat-member-friend"
+                    >
+                      <option value="">Chọn bạn bè…</option>
+                      {inviteCandidates.map((p) => (
+                        <option key={p.staff_id} value={String(p.staff_id)}>
+                          {p.display_name_vi || `Staff #${p.staff_id}`}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="csd-chat-context-btn csd-chat-context-btn--soft"
+                      disabled={busy || !memberStaffId.trim()}
+                      onClick={onAddMember}
+                    >
+                      Mời vào nhóm
+                    </button>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      onAddMember();
+                    }}
+                    className="csd-chat-member-form"
                   >
-                    Thêm
-                  </button>
-                </form>
+                    <input
+                      className="csd-chat-context-input"
+                      inputMode="numeric"
+                      placeholder="Staff id"
+                      value={memberStaffId}
+                      onChange={(e) => onMemberStaffId(e.target.value)}
+                      data-testid="csd-chat-member-id"
+                    />
+                    <button
+                      type="submit"
+                      className="csd-chat-context-btn csd-chat-context-btn--soft"
+                      disabled={busy || !memberStaffId.trim()}
+                    >
+                      Thêm
+                    </button>
+                  </form>
+                )
               ) : null}
             </ContextSection>
 

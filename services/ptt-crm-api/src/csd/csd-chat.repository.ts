@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import {
@@ -42,6 +42,9 @@ function mapConversationListItem(row: Record<string, unknown>): CsdConversationL
 
 function mapConversation(row: Record<string, unknown>): CsdConversationRow {
   const avatarStaffId = num(row.avatar_staff_id);
+  const groupHasAvatar =
+    Boolean(row.group_has_avatar) ||
+    (row.group_avatar_storage_key != null && text(row.group_avatar_storage_key).length > 0);
   return {
     id: text(row.id),
     tenant_id: text(row.tenant_id),
@@ -62,6 +65,8 @@ function mapConversation(row: Record<string, unknown>): CsdConversationRow {
     avatar_has_photo: avatarStaffId != null ? Boolean(row.avatar_has_photo) : false,
     avatar_updated_at:
       avatarStaffId != null && row.avatar_updated_at ? text(row.avatar_updated_at) : null,
+    group_has_avatar: groupHasAvatar,
+    group_avatar_updated_at: row.group_avatar_updated_at ? text(row.group_avatar_updated_at) : null,
   };
 }
 
@@ -116,8 +121,9 @@ function mapMessage(row: Record<string, unknown>): CsdMessageRow {
 }
 
 @Injectable()
-export class CsdChatRepository implements OnModuleDestroy {
+export class CsdChatRepository implements OnModuleInit, OnModuleDestroy {
   private pool: Pool | null = null;
+  private schemaReady: Promise<void> | null = null;
 
   constructor(private readonly config: AppConfigService) {}
 
@@ -128,9 +134,36 @@ export class CsdChatRepository implements OnModuleDestroy {
     return this.pool;
   }
 
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.ensureGroupAdminSchema();
+    } catch {
+      // Schema may be unavailable during unit tests without DB; writes re-try ensure.
+    }
+  }
+
   onModuleDestroy(): void {
     void this.pool?.end();
     this.pool = null;
+  }
+
+  private async ensureGroupAdminSchema(): Promise<void> {
+    if (!this.schemaReady) {
+      this.schemaReady = (async () => {
+        await this.db.query(`
+          ALTER TABLE csd_conversation_members DROP CONSTRAINT IF EXISTS csd_conv_member_role_chk;
+          ALTER TABLE csd_conversation_members
+            ADD CONSTRAINT csd_conv_member_role_chk
+            CHECK (role IN ('owner', 'admin', 'member', 'viewer'));
+          ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS group_avatar_storage_key TEXT;
+          ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS group_avatar_updated_at TIMESTAMPTZ;
+        `);
+      })().catch((err) => {
+        this.schemaReady = null;
+        throw err;
+      });
+    }
+    await this.schemaReady;
   }
 
   async insertConversation(input: {
@@ -367,7 +400,9 @@ export class CsdChatRepository implements OnModuleDestroy {
                    AND peer.member_staff_id IS DISTINCT FROM $2
                    AND c.kind = 'direct'
                  LIMIT 1
-              ) AS avatar_updated_at
+              ) AS avatar_updated_at,
+              (c.group_avatar_storage_key IS NOT NULL) AS group_has_avatar,
+              c.group_avatar_updated_at AS group_avatar_updated_at
          FROM csd_conversations c
          JOIN csd_conversation_members me
            ON me.conversation_id = c.id
@@ -490,7 +525,9 @@ export class CsdChatRepository implements OnModuleDestroy {
                    AND peer.member_staff_id IS DISTINCT FROM $2
                    AND c.kind = 'direct'
                  LIMIT 1
-              ) AS avatar_updated_at
+              ) AS avatar_updated_at,
+              (c.group_avatar_storage_key IS NOT NULL) AS group_has_avatar,
+              c.group_avatar_updated_at AS group_avatar_updated_at
          FROM csd_conversations c
          JOIN csd_conversation_members me
            ON me.conversation_id = c.id
@@ -1061,6 +1098,105 @@ export class CsdChatRepository implements OnModuleDestroy {
       [conversationId, memberStaffId],
     );
     return (res.rowCount ?? 0) > 0;
+  }
+
+  async getMember(
+    conversationId: string,
+    memberStaffId: number,
+  ): Promise<CsdConversationMemberRow | null> {
+    const res = await this.db.query(
+      `SELECT m.*,
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS display_name_vi
+         FROM csd_conversation_members m
+         LEFT JOIN crm_staff s ON s.id = m.member_staff_id
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = m.member_staff_id AND a.tenant_id = $3
+        WHERE m.conversation_id = $1
+          AND m.member_staff_id = $2
+          AND m.member_type = 'staff'
+        LIMIT 1`,
+      [conversationId, memberStaffId, CSD_TENANT_ID],
+    );
+    return res.rows[0] ? mapMember(res.rows[0]) : null;
+  }
+
+  async updateMemberRole(
+    conversationId: string,
+    memberStaffId: number,
+    role: 'admin' | 'member',
+  ): Promise<CsdConversationMemberRow> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `UPDATE csd_conversation_members
+          SET role = $3
+        WHERE conversation_id = $1
+          AND member_staff_id = $2
+          AND member_type = 'staff'
+          AND role <> 'owner'
+        RETURNING *`,
+      [conversationId, memberStaffId, role],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_member_not_found' });
+    return mapMember(res.rows[0]);
+  }
+
+  async updateConversationInfo(
+    conversationId: string,
+    patch: { name_vi?: string; description?: string },
+    actorStaffId: number,
+  ): Promise<CsdConversationRow> {
+    await this.ensureGroupAdminSchema();
+    const sets: string[] = ['updated_at = NOW()', 'updated_by_staff_id = $3'];
+    const params: unknown[] = [CSD_TENANT_ID, conversationId, actorStaffId];
+    if (patch.name_vi != null) {
+      params.push(patch.name_vi);
+      sets.push(`name_vi = $${params.length}`);
+    }
+    if (patch.description != null) {
+      params.push(patch.description);
+      sets.push(`description = $${params.length}`);
+    }
+    const res = await this.db.query(
+      `UPDATE csd_conversations
+          SET ${sets.join(', ')}
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+        RETURNING *`,
+      params,
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    return mapConversation(res.rows[0]);
+  }
+
+  async getGroupAvatarStorageKey(conversationId: string): Promise<string | null> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query<{ group_avatar_storage_key: string | null }>(
+      `SELECT group_avatar_storage_key
+         FROM csd_conversations
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE`,
+      [CSD_TENANT_ID, conversationId],
+    );
+    const key = res.rows[0]?.group_avatar_storage_key;
+    return key ? String(key) : null;
+  }
+
+  async setGroupAvatarStorageKey(
+    conversationId: string,
+    storageKey: string | null,
+    actorStaffId: number,
+  ): Promise<CsdConversationRow> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `UPDATE csd_conversations
+          SET group_avatar_storage_key = $3,
+              group_avatar_updated_at = CASE WHEN $3::text IS NULL THEN NULL ELSE NOW() END,
+              updated_at = NOW(),
+              updated_by_staff_id = $4
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+        RETURNING *`,
+      [CSD_TENANT_ID, conversationId, storageKey, actorStaffId],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    return mapConversation(res.rows[0]);
   }
 
   async updateStatus(

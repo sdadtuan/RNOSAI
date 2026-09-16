@@ -294,6 +294,7 @@ export type CsdMessagePeerDisplay = {
 
 export type CsdChatAvatarDisplay = {
   staffId: number | null;
+  conversationId?: string | null;
   hasAvatar: boolean;
   avatarUpdatedAt: string | null;
   seed: string | number;
@@ -301,13 +302,26 @@ export type CsdChatAvatarDisplay = {
 
 export function resolveCsdConversationAvatar(input: {
   id: string;
+  kind?: string;
   avatar_staff_id?: number | null;
   avatar_has_photo?: boolean;
   avatar_updated_at?: string | null;
+  group_has_avatar?: boolean;
+  group_avatar_updated_at?: string | null;
 }): CsdChatAvatarDisplay {
+  if (input.kind === 'group' && input.group_has_avatar) {
+    return {
+      staffId: null,
+      conversationId: input.id,
+      hasAvatar: true,
+      avatarUpdatedAt: input.group_avatar_updated_at ?? null,
+      seed: input.id,
+    };
+  }
   const staffId = input.avatar_staff_id ?? null;
   return {
     staffId,
+    conversationId: null,
     hasAvatar: Boolean(input.avatar_has_photo),
     avatarUpdatedAt: input.avatar_updated_at ?? null,
     seed: staffId ?? input.id,

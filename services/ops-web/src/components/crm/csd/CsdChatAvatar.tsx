@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { fetchCsdStaffAvatarBlob } from '@/lib/crm/csd-api';
+import { fetchCsdGroupAvatarBlob, fetchCsdStaffAvatarBlob } from '@/lib/crm/csd-api';
 import { avatarHue, initialsFromName } from '@/lib/crm/csd-chat-display';
 
 type CsdChatAvatarProps = {
@@ -9,6 +9,7 @@ type CsdChatAvatarProps = {
   name: string;
   seed: string | number;
   staffId?: number | null;
+  conversationId?: string | null;
   hasAvatar?: boolean;
   avatarUpdatedAt?: string | null;
   className?: string;
@@ -19,6 +20,7 @@ export function CsdChatAvatar({
   name,
   seed,
   staffId,
+  conversationId,
   hasAvatar,
   avatarUpdatedAt,
   className = 'csd-chat-avatar',
@@ -28,13 +30,22 @@ export function CsdChatAvatar({
   const initials = initialsFromName(name);
 
   useEffect(() => {
-    if (!token || staffId == null || staffId <= 0 || hasAvatar === false) {
+    if (!token || hasAvatar === false) {
+      setSrc(null);
+      return;
+    }
+    const useGroup = Boolean(conversationId);
+    const useStaff = staffId != null && staffId > 0;
+    if (!useGroup && !useStaff) {
       setSrc(null);
       return;
     }
     let revoked = false;
     let objectUrl: string | null = null;
-    void fetchCsdStaffAvatarBlob(token, staffId)
+    const load = useGroup
+      ? fetchCsdGroupAvatarBlob(token, String(conversationId))
+      : fetchCsdStaffAvatarBlob(token, Number(staffId));
+    void load
       .then((blob) => {
         if (revoked || !blob) return;
         objectUrl = URL.createObjectURL(blob);
@@ -45,7 +56,7 @@ export function CsdChatAvatar({
       revoked = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [token, hasAvatar, staffId, avatarUpdatedAt]);
+  }, [token, hasAvatar, staffId, conversationId, avatarUpdatedAt]);
 
   if (src) {
     return (

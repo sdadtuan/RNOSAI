@@ -9,26 +9,32 @@ import {
   createCsdConversation,
   createCsdTicketFromAiAction,
   createCsdTicketFromMessage,
+  deleteCsdGroupAvatar,
   deleteCsdMessage,
   draftCsdChatSummary,
   editCsdMessage,
+  fetchCsdChatFriends,
   fetchCsdConversationMembers,
   fetchCsdConversations,
   fetchCsdMessages,
   fetchCsdRelatedTickets,
   forwardCsdMessage,
   markCsdConversationRead,
+  patchCsdConversation,
   patchCsdConversationAlias,
   reactCsdMessage,
   reopenCsdConversation,
   removeCsdConversationMember,
   sendCsdMessage,
+  setCsdConversationMemberRole,
   uploadCsdConversationFile,
+  uploadCsdGroupAvatar,
   type CreateCsdConversationInput,
   type CsdConversationListFilter,
   type CsdConversationMemberRow,
   type CsdAttachmentRow,
   type CsdChatEmotionId,
+  type CsdChatPersonRow,
   type CsdConversationRow,
   type CsdMessageRow,
   type CsdPriority,
@@ -109,6 +115,15 @@ export type CsdChatSession = {
   handleCreateTicket: (e: FormEvent) => Promise<void>;
   handleAddMember: () => Promise<void>;
   handleRemoveMember: (staffId: number) => Promise<void>;
+  handlePatchGroupInfo: (patch: {
+    name_vi?: string;
+    description?: string;
+  }) => Promise<boolean>;
+  handleSetMemberRole: (staffId: number, role: 'admin' | 'member') => Promise<void>;
+  handleUploadGroupAvatar: (file: File) => Promise<void>;
+  handleClearGroupAvatar: () => Promise<void>;
+  friendInviteOptions: CsdChatPersonRow[];
+  loadFriendInviteOptions: () => Promise<void>;
   handleClose: () => Promise<void>;
   handleReopen: () => Promise<void>;
   handleArchive: () => Promise<void>;
@@ -144,6 +159,7 @@ export function useCsdChatSession({
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<CsdMessageRow | null>(null);
   const [memberStaffId, setMemberStaffId] = useState('');
+  const [friendInviteOptions, setFriendInviteOptions] = useState<CsdChatPersonRow[]>([]);
   const [aiPeriod, setAiPeriod] = useState<'24h' | '7d' | 'all'>('24h');
   const [aiSummary, setAiSummary] = useState<CsdChatAiSummary | null>(null);
   const [error, setError] = useState('');
@@ -431,6 +447,72 @@ export function useCsdChatSession({
     }
   }
 
+  async function loadFriendInviteOptions() {
+    try {
+      const out = await fetchCsdChatFriends(token);
+      setFriendInviteOptions(out.items ?? []);
+    } catch {
+      setFriendInviteOptions([]);
+    }
+  }
+
+  async function handlePatchGroupInfo(patch: {
+    name_vi?: string;
+    description?: string;
+  }): Promise<boolean> {
+    if (!activeId) return false;
+    setBusy(true);
+    try {
+      const row = await patchCsdConversation(token, activeId, patch);
+      patchConversation(row);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cập nhật nhóm thất bại');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSetMemberRole(staffId: number, role: 'admin' | 'member') {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      await setCsdConversationMemberRole(token, activeId, staffId, role);
+      await loadMembers(activeId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Đổi vai trò thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUploadGroupAvatar(file: File) {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      const row = await uploadCsdGroupAvatar(token, activeId, file);
+      patchConversation(row);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tải ảnh nhóm thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClearGroupAvatar() {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      const row = await deleteCsdGroupAvatar(token, activeId);
+      patchConversation(row);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xóa ảnh nhóm thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleClose() {
     if (!activeId) return;
     setBusy(true);
@@ -633,6 +715,12 @@ export function useCsdChatSession({
     handleCreateTicket,
     handleAddMember,
     handleRemoveMember,
+    handlePatchGroupInfo,
+    handleSetMemberRole,
+    handleUploadGroupAvatar,
+    handleClearGroupAvatar,
+    friendInviteOptions,
+    loadFriendInviteOptions,
     handleClose,
     handleReopen,
     handleArchive,

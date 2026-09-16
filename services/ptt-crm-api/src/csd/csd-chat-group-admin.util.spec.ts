@@ -1,0 +1,43 @@
+import {
+  canManageGroupInfo,
+  canManageGroupMembers,
+  canRemoveGroupMember,
+  canSetGroupAdminRole,
+  isAssignableGroupRole,
+} from './csd-chat-group-admin.util';
+
+describe('csd-chat-group-admin.util', () => {
+  it('lets owner and admin edit group info; members cannot', () => {
+    expect(canManageGroupInfo('owner', false)).toBe(true);
+    expect(canManageGroupInfo('admin', false)).toBe(true);
+    expect(canManageGroupInfo('member', false)).toBe(false);
+    expect(canManageGroupInfo('viewer', false)).toBe(false);
+    expect(canManageGroupInfo(null, true)).toBe(true);
+  });
+
+  it('lets owner and admin manage members', () => {
+    expect(canManageGroupMembers('admin', false)).toBe(true);
+    expect(canManageGroupMembers('member', false)).toBe(false);
+  });
+
+  it('only owner (or platform manage) can set admin role', () => {
+    expect(canSetGroupAdminRole('owner', false)).toBe(true);
+    expect(canSetGroupAdminRole('admin', false)).toBe(false);
+    expect(canSetGroupAdminRole('admin', true)).toBe(true);
+  });
+
+  it('enforces remove matrix: cannot remove owner; admin cannot remove admin', () => {
+    expect(canRemoveGroupMember('owner', 'owner', false)).toBe(false);
+    expect(canRemoveGroupMember('owner', 'admin', false)).toBe(true);
+    expect(canRemoveGroupMember('admin', 'member', false)).toBe(true);
+    expect(canRemoveGroupMember('admin', 'admin', false)).toBe(false);
+    expect(canRemoveGroupMember('member', 'member', false)).toBe(false);
+  });
+
+  it('only allows promote/demote to admin|member', () => {
+    expect(isAssignableGroupRole('admin')).toBe(true);
+    expect(isAssignableGroupRole('member')).toBe(true);
+    expect(isAssignableGroupRole('owner')).toBe(false);
+    expect(isAssignableGroupRole('viewer')).toBe(false);
+  });
+});
