@@ -2,7 +2,7 @@
 
 > **Document ID:** RNOSAI-UI-20260916  
 > **Version:** 1.0 · **Date:** 2026-09-16  
-> **Status:** Draft — chờ PO review spec  
+> **Status:** Implemented Wave 0–2 locally — Wave 3 backlog  
 > **App:** `packages/rnosai-ui` (mới) + consumer `services/ops-web`  
 > **Visual SoT:** Lead B2B Sales (ops-web) — cream page, PTT green controls, tab underline, be table header, colored-top stat cards  
 > **Related:** `services/ops-web/src/app/bitrix-theme.css` (Canopy tokens / shell), `docs/superpowers/specs/2026-09-16-ops-sidebar-accordion-design.md`
@@ -175,3 +175,16 @@ Root repo: npm workspaces gồm `packages/*` và `services/ops-web`.
 2. Wave 2 modules nhìn cùng hệ Canopy với Lead B2B (tokens + controls).  
 3. CSD Chat + KPI Hub không bị ép restyle.  
 4. Sidebar/topbar Bitrix không regress.
+
+---
+
+## 11. Wave 3 backlog (chưa làm)
+
+Các cụm còn lại trong ops-web — ticket riêng, không nằm Wave 0–2:
+
+- SEO / Meta / Zalo channel hubs  
+- Creative OS / Content OS / Media OS  
+- RevOps / Revenue Ops shells  
+- Lead B2B deep surfaces chưa dùng `@rnosai/ui` (nếu còn class ad-hoc)  
+- Agency hub pages ngoài shell đã Canopy qua `PageToolbar`  
+- Dọn CSS trùng trên màn đã migrate (tuỳ chọn)

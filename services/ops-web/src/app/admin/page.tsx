@@ -119,7 +119,7 @@ export default function AdminControlPlaneHubPage() {
 
         <div className="admin-cp-workspace-grid">
           {workspaces.map((ws) => (
-            <Link key={ws.id} href={ws.href} className="admin-cp-workspace-card">
+            <Link key={ws.id} href={ws.href} className="rn-card admin-cp-workspace-card">
               <span className="admin-cp-workspace-card__icon" aria-hidden>
                 {WORKSPACE_ICONS[ws.id] ?? '•'}
               </span>
@@ -137,7 +137,7 @@ export default function AdminControlPlaneHubPage() {
             <h2 className="section-title">{group.label}</h2>
             <div className="hub-module-grid">
               {group.links.map((link) => (
-                <Link key={link.href} href={link.href} className="summary-card hub-module-card">
+                <Link key={link.href} href={link.href} className="rn-card summary-card hub-module-card">
                   <span className="muted">{group.description}</span>
                   <strong>{link.label}</strong>
                 </Link>

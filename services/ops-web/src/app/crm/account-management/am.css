@@ -1,11 +1,11 @@
 :root {
-  --am-navy: #0f2747;
-  --am-accent: #2563eb;
-  --am-ok: #16a34a;
-  --am-warn: #d97706;
-  --am-danger: #dc2626;
-  --am-info: #0891b2;
-  --am-bg: #f7f8fa;
+  --am-navy: var(--forest, #0d3a22);
+  --am-accent: var(--ptt, #17692f);
+  --am-ok: var(--won, #059669);
+  --am-warn: var(--warm, #ea580c);
+  --am-danger: var(--hot, #e11d48);
+  --am-info: var(--sky, #0284c7);
+  --am-bg: var(--cream, #f3efe6);
   --am-radius: 12px;
 }
 
@@ -327,9 +327,10 @@
 .am-btn {
   height: 34px;
   padding: 0 11px;
-  border-radius: 10px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border, #d8d2c6);
+  background: var(--paper, #fffdf8);
+  color: var(--text, #1c221d);
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;

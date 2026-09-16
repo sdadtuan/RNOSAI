@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Button } from '@rnosai/ui';
 import { dashboardViewQuery, isAmDashboardLoading, shouldShowEmptyWidget } from '@/lib/crm/am-dashboard.util';
 import { acceptAmTask, createAmView, fetchAmViews, type AmSavedView } from '@/lib/crm/am-api';
 import { canShareAmView } from '@/lib/crm/am-accounts-views.util';
@@ -75,9 +76,9 @@ function Widget({
       {error ? (
         <div className="am-widget__error">
           <p>Không tải được khối này.</p>
-          <button type="button" className="am-btn" onClick={onRetry}>
+          <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
             Retry
-          </button>
+          </Button>
         </div>
       ) : (
         children
@@ -499,13 +500,9 @@ export function AmDashboard() {
           <div className="am-empty-book">
             <p className="am-empty">Chưa có khách trong sổ.</p>
             {canEdit ? (
-              <button
-                type="button"
-                className="am-btn am-btn--primary"
-                onClick={() => openCreate('client')}
-              >
+              <Button type="button" size="sm" onClick={() => openCreate('client')}>
                 Tạo khách
-              </button>
+              </Button>
             ) : null}
           </div>
         ) : (

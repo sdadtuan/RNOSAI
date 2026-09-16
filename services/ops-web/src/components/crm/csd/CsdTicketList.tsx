@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Table } from '@rnosai/ui';
 import {
   CSD_PRIORITY_LABELS,
   CSD_SLA_LABELS,
@@ -22,7 +23,7 @@ function slaClass(status: string): string {
 export function CsdTicketList({ items, activeId, onSelect }: CsdTicketListProps) {
   return (
     <div className="data-table-wrap" data-testid="csd-ticket-list">
-      <table className="data-table csd-ticket-table">
+      <Table className="csd-ticket-table">
         <thead>
           <tr>
             <th>Mã</th>
@@ -69,7 +70,7 @@ export function CsdTicketList({ items, activeId, onSelect }: CsdTicketListProps)
             ))
           )}
         </tbody>
-      </table>
+      </Table>
     </div>
   );
 }

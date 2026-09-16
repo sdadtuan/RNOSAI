@@ -121,7 +121,7 @@ export default function CrmBoardPage() {
                   ? reviewQueueBadge
                   : null;
             return (
-              <Link key={mod.id} href={mod.href} className="summary-card hub-module-card">
+              <Link key={mod.id} href={mod.href} className="rn-card summary-card hub-module-card">
                 <span className="muted">{mod.description}</span>
                 <strong>
                   {mod.label}

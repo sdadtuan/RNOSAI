@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Button, Input, Select } from '@rnosai/ui';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { CsdTicketList } from '@/components/crm/csd/CsdTicketList';
 import { useCsdPageAuth } from '@/components/crm/csd/useCsdPageAuth';
@@ -84,31 +85,28 @@ export default function CsdTicketsPage() {
         {error ? <p className="error">{error}</p> : null}
 
         <div className="kpi-page__filters">
-          <input
-            className="kpi-input"
+          <Input
             placeholder="Tìm mã / tiêu đề"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             data-testid="csd-ticket-search"
           />
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void reload()}>
+          <Button type="button" variant="secondary" size="sm" onClick={() => void reload()}>
             Lọc
-          </button>
+          </Button>
         </div>
 
         {canWrite ? (
           <form onSubmit={(e) => void handleCreate(e)} className="admin-crm-form" data-testid="csd-ticket-create">
             <h3 className="kpi-section-title">Tạo ticket mới</h3>
             <div className="admin-crm-form__grid">
-              <input
-                className="kpi-input"
+              <Input
                 placeholder="Tiêu đề"
                 required
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
-              <select
-                className="kpi-select"
+              <Select
                 value={form.ticket_type}
                 onChange={(e) => setForm({ ...form, ticket_type: e.target.value })}
               >
@@ -117,9 +115,8 @@ export default function CsdTicketsPage() {
                     {t.label}
                   </option>
                 ))}
-              </select>
-              <select
-                className="kpi-select"
+              </Select>
+              <Select
                 value={form.priority}
                 onChange={(e) => setForm({ ...form, priority: e.target.value as CsdPriority })}
               >
@@ -128,19 +125,19 @@ export default function CsdTicketsPage() {
                     {CSD_PRIORITY_LABELS[p]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <textarea
-              className="kpi-input"
+              className="rn-input"
               rows={3}
               placeholder="Mô tả"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               style={{ width: '100%', marginBottom: '0.75rem' }}
             />
-            <button type="submit" className="btn btn-sm" disabled={busy}>
+            <Button type="submit" size="sm" disabled={busy}>
               {busy ? 'Đang tạo…' : 'Tạo ticket'}
-            </button>
+            </Button>
           </form>
         ) : (
           <p className="muted">Chế độ chỉ xem — cần quyền csd:write để tạo ticket.</p>
