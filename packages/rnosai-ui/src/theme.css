@@ -1,0 +1,62 @@
+@import './tokens.css';
+
+.rn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: var(--radius-sm, 6px);
+  min-height: 40px;
+  padding: 0 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: var(--ptt);
+  color: #fff;
+}
+.rn-btn--sm {
+  min-height: 32px;
+  padding: 0 0.75rem;
+  font-size: 0.75rem;
+}
+.rn-btn--md {
+  min-height: 40px;
+}
+.rn-btn--primary {
+  background: var(--ptt);
+  color: #fff;
+}
+.rn-btn--primary:hover {
+  background: var(--ptt-deep);
+}
+.rn-btn--secondary {
+  background: var(--paper);
+  color: var(--text);
+  border-color: var(--border);
+}
+.rn-btn--secondary:hover {
+  background: var(--mist, #e7f0e8);
+  border-color: var(--ptt);
+  color: var(--forest);
+}
+.rn-btn--ghost {
+  background: transparent;
+  color: var(--ptt);
+}
+.rn-btn--ghost:hover {
+  background: var(--mist, #e7f0e8);
+}
+.rn-btn--danger {
+  background: var(--paper);
+  color: #b42318;
+  border-color: #f0c4c0;
+}
+.rn-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.rn-btn:focus-visible {
+  outline: 2px solid var(--ptt);
+  outline-offset: 2px;
+}
