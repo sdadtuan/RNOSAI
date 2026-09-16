@@ -12,6 +12,7 @@ import {
   CsdConversationRow,
   CsdChatEmotionId,
   CsdConversationStatus,
+  CsdGroupJoinRequestRow,
   CsdMessageReactionSummary,
   CsdMessageRow,
   CsdPriority,
@@ -67,6 +68,10 @@ function mapConversation(row: Record<string, unknown>): CsdConversationRow {
       avatarStaffId != null && row.avatar_updated_at ? text(row.avatar_updated_at) : null,
     group_has_avatar: groupHasAvatar,
     group_avatar_updated_at: row.group_avatar_updated_at ? text(row.group_avatar_updated_at) : null,
+    join_approval_required:
+      row.join_approval_required == null ? false : Boolean(row.join_approval_required),
+    members_can_send: row.members_can_send == null ? true : Boolean(row.members_can_send),
+    pinned_message_id: row.pinned_message_id != null ? text(row.pinned_message_id) : null,
   };
 }
 
@@ -78,6 +83,23 @@ function mapMember(row: Record<string, unknown>): CsdConversationMemberRow {
     role: text(row.role) as CsdConversationMemberRow['role'],
     created_at: text(row.created_at),
     display_name_vi: row.display_name_vi != null && text(row.display_name_vi) ? text(row.display_name_vi) : null,
+  };
+}
+
+function mapJoinRequest(row: Record<string, unknown>): CsdGroupJoinRequestRow {
+  return {
+    id: text(row.id),
+    conversation_id: text(row.conversation_id),
+    requester_staff_id: num(row.requester_staff_id) ?? 0,
+    invited_by_staff_id: num(row.invited_by_staff_id) ?? 0,
+    status: text(row.status) as CsdGroupJoinRequestRow['status'],
+    created_at: text(row.created_at),
+    resolved_at: row.resolved_at ? text(row.resolved_at) : null,
+    resolved_by_staff_id: num(row.resolved_by_staff_id),
+    requester_display_name_vi:
+      row.requester_display_name_vi != null && text(row.requester_display_name_vi)
+        ? text(row.requester_display_name_vi)
+        : null,
   };
 }
 
@@ -157,7 +179,37 @@ export class CsdChatRepository implements OnModuleInit, OnModuleDestroy {
             CHECK (role IN ('owner', 'admin', 'member', 'viewer'));
           ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS group_avatar_storage_key TEXT;
           ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS group_avatar_updated_at TIMESTAMPTZ;
+          ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS join_approval_required BOOLEAN NOT NULL DEFAULT FALSE;
+          ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS members_can_send BOOLEAN NOT NULL DEFAULT TRUE;
+          ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS pinned_message_id UUID;
+          CREATE TABLE IF NOT EXISTS csd_group_join_requests (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tenant_id VARCHAR(32) NOT NULL REFERENCES csd_tenants (id),
+            conversation_id UUID NOT NULL REFERENCES csd_conversations (id) ON DELETE CASCADE,
+            requester_staff_id INTEGER NOT NULL,
+            invited_by_staff_id INTEGER NOT NULL,
+            status VARCHAR(16) NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            resolved_at TIMESTAMPTZ,
+            resolved_by_staff_id INTEGER,
+            CONSTRAINT csd_group_join_status_chk CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled'))
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS csd_group_join_pending_uidx
+            ON csd_group_join_requests (conversation_id, requester_staff_id)
+            WHERE status = 'pending';
+          CREATE INDEX IF NOT EXISTS csd_group_join_conv_idx
+            ON csd_group_join_requests (conversation_id, status, created_at DESC);
         `);
+        try {
+          await this.db.query(`
+            ALTER TABLE csd_conversations DROP CONSTRAINT IF EXISTS csd_conversations_pinned_message_fk;
+            ALTER TABLE csd_conversations
+              ADD CONSTRAINT csd_conversations_pinned_message_fk
+              FOREIGN KEY (pinned_message_id) REFERENCES csd_messages (id) ON DELETE SET NULL;
+          `);
+        } catch {
+          // FK may fail if messages table missing in exotic envs; column still usable.
+        }
       })().catch((err) => {
         this.schemaReady = null;
         throw err;
@@ -1142,7 +1194,12 @@ export class CsdChatRepository implements OnModuleInit, OnModuleDestroy {
 
   async updateConversationInfo(
     conversationId: string,
-    patch: { name_vi?: string; description?: string },
+    patch: {
+      name_vi?: string;
+      description?: string;
+      join_approval_required?: boolean;
+      members_can_send?: boolean;
+    },
     actorStaffId: number,
   ): Promise<CsdConversationRow> {
     await this.ensureGroupAdminSchema();
@@ -1155,6 +1212,14 @@ export class CsdChatRepository implements OnModuleInit, OnModuleDestroy {
     if (patch.description != null) {
       params.push(patch.description);
       sets.push(`description = $${params.length}`);
+    }
+    if (patch.join_approval_required != null) {
+      params.push(Boolean(patch.join_approval_required));
+      sets.push(`join_approval_required = $${params.length}`);
+    }
+    if (patch.members_can_send != null) {
+      params.push(Boolean(patch.members_can_send));
+      sets.push(`members_can_send = $${params.length}`);
     }
     const res = await this.db.query(
       `UPDATE csd_conversations
@@ -1197,6 +1262,159 @@ export class CsdChatRepository implements OnModuleInit, OnModuleDestroy {
     );
     if (!res.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
     return mapConversation(res.rows[0]);
+  }
+
+  async listPendingJoinRequests(conversationId: string): Promise<CsdGroupJoinRequestRow[]> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `SELECT r.*,
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS requester_display_name_vi
+         FROM csd_group_join_requests r
+         LEFT JOIN crm_staff s ON s.id = r.requester_staff_id
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = r.requester_staff_id AND a.tenant_id = r.tenant_id
+        WHERE r.tenant_id = $1
+          AND r.conversation_id = $2
+          AND r.status = 'pending'
+        ORDER BY r.created_at ASC`,
+      [CSD_TENANT_ID, conversationId],
+    );
+    return res.rows.map(mapJoinRequest);
+  }
+
+  async getJoinRequest(
+    conversationId: string,
+    requestId: string,
+  ): Promise<CsdGroupJoinRequestRow | null> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `SELECT r.*,
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS requester_display_name_vi
+         FROM csd_group_join_requests r
+         LEFT JOIN crm_staff s ON s.id = r.requester_staff_id
+         LEFT JOIN csd_chat_accounts a
+           ON a.staff_id = r.requester_staff_id AND a.tenant_id = r.tenant_id
+        WHERE r.tenant_id = $1
+          AND r.conversation_id = $2
+          AND r.id = $3
+        LIMIT 1`,
+      [CSD_TENANT_ID, conversationId, requestId],
+    );
+    return res.rows[0] ? mapJoinRequest(res.rows[0]) : null;
+  }
+
+  async insertJoinRequest(input: {
+    conversation_id: string;
+    requester_staff_id: number;
+    invited_by_staff_id: number;
+  }): Promise<CsdGroupJoinRequestRow> {
+    await this.ensureGroupAdminSchema();
+    const existing = await this.db.query(
+      `SELECT * FROM csd_group_join_requests
+        WHERE conversation_id = $1 AND requester_staff_id = $2 AND status = 'pending'
+        LIMIT 1`,
+      [input.conversation_id, input.requester_staff_id],
+    );
+    if (existing.rows[0]) return mapJoinRequest(existing.rows[0]);
+    const res = await this.db.query(
+      `INSERT INTO csd_group_join_requests (
+         tenant_id, conversation_id, requester_staff_id, invited_by_staff_id, status
+       ) VALUES ($1, $2, $3, $4, 'pending')
+       RETURNING *`,
+      [CSD_TENANT_ID, input.conversation_id, input.requester_staff_id, input.invited_by_staff_id],
+    );
+    return mapJoinRequest(res.rows[0]);
+  }
+
+  async resolveJoinRequest(
+    conversationId: string,
+    requestId: string,
+    status: 'approved' | 'rejected' | 'cancelled',
+    resolvedByStaffId: number,
+  ): Promise<CsdGroupJoinRequestRow> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `UPDATE csd_group_join_requests
+          SET status = $4,
+              resolved_at = NOW(),
+              resolved_by_staff_id = $5
+        WHERE tenant_id = $1
+          AND conversation_id = $2
+          AND id = $3
+          AND status = 'pending'
+        RETURNING *`,
+      [CSD_TENANT_ID, conversationId, requestId, status, resolvedByStaffId],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_join_request_not_found' });
+    return mapJoinRequest(res.rows[0]);
+  }
+
+  async setPinnedMessage(
+    conversationId: string,
+    messageId: string | null,
+    actorStaffId: number,
+  ): Promise<CsdConversationRow> {
+    await this.ensureGroupAdminSchema();
+    const res = await this.db.query(
+      `UPDATE csd_conversations
+          SET pinned_message_id = $3,
+              updated_at = NOW(),
+              updated_by_staff_id = $4
+        WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+        RETURNING *`,
+      [CSD_TENANT_ID, conversationId, messageId, actorStaffId],
+    );
+    if (!res.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+    return mapConversation(res.rows[0]);
+  }
+
+  async transferOwner(
+    conversationId: string,
+    fromStaffId: number,
+    toStaffId: number,
+  ): Promise<CsdConversationRow> {
+    await this.ensureGroupAdminSchema();
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      const conv = await client.query(
+        `SELECT * FROM csd_conversations
+          WHERE tenant_id = $1 AND id = $2 AND is_deleted = FALSE
+          FOR UPDATE`,
+        [CSD_TENANT_ID, conversationId],
+      );
+      if (!conv.rows[0]) throw new NotFoundException({ error: 'csd_conversation_not_found' });
+      const target = await client.query(
+        `SELECT * FROM csd_conversation_members
+          WHERE conversation_id = $1 AND member_staff_id = $2 AND member_type = 'staff'`,
+        [conversationId, toStaffId],
+      );
+      if (!target.rows[0]) throw new NotFoundException({ error: 'csd_member_not_found' });
+      await client.query(
+        `UPDATE csd_conversation_members SET role = 'member'
+          WHERE conversation_id = $1 AND member_staff_id = $2 AND role = 'owner'`,
+        [conversationId, fromStaffId],
+      );
+      await client.query(
+        `UPDATE csd_conversation_members SET role = 'owner'
+          WHERE conversation_id = $1 AND member_staff_id = $2`,
+        [conversationId, toStaffId],
+      );
+      const updated = await client.query(
+        `UPDATE csd_conversations
+            SET owner_staff_id = $3, updated_at = NOW(), updated_by_staff_id = $4
+          WHERE tenant_id = $1 AND id = $2
+          RETURNING *`,
+        [CSD_TENANT_ID, conversationId, toStaffId, fromStaffId],
+      );
+      await client.query('COMMIT');
+      return mapConversation(updated.rows[0]);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async updateStatus(

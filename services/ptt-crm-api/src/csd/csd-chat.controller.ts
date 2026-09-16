@@ -128,7 +128,14 @@ export class CsdChatController {
   async patchConversation(
     @Req() req: AuthedReq,
     @Param('id') id: string,
-    @Body() body: { name_vi?: string; description?: string; clear_avatar?: boolean },
+    @Body()
+    body: {
+      name_vi?: string;
+      description?: string;
+      clear_avatar?: boolean;
+      join_approval_required?: boolean;
+      members_can_send?: boolean;
+    },
   ) {
     const actor = await this.actor(req);
     return this.chat.patchConversation(actor, id, body ?? {});
@@ -298,6 +305,60 @@ export class CsdChatController {
   ) {
     const actor = await this.actor(req);
     return this.chat.removeMember(actor, id, Number(staffId));
+  }
+
+  @Get('conversations/:id/join-requests')
+  @RequireCsdAction('view')
+  async listJoinRequests(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.listJoinRequests(actor, id);
+  }
+
+  @Post('conversations/:id/join-requests/:requestId/approve')
+  @RequireCsdAction('write')
+  async approveJoinRequest(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('requestId') requestId: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.approveJoinRequest(actor, id, requestId);
+  }
+
+  @Post('conversations/:id/join-requests/:requestId/reject')
+  @RequireCsdAction('write')
+  async rejectJoinRequest(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Param('requestId') requestId: string,
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.rejectJoinRequest(actor, id, requestId);
+  }
+
+  @Post('conversations/:id/transfer-owner')
+  @RequireCsdAction('write')
+  async transferOwner(
+    @Req() req: AuthedReq,
+    @Param('id') id: string,
+    @Body() body: { new_owner_staff_id?: number },
+  ) {
+    const actor = await this.actor(req);
+    return this.chat.transferOwner(actor, id, Number(body?.new_owner_staff_id));
+  }
+
+  @Delete('conversations/:id/pin')
+  @RequireCsdAction('write')
+  async unpinConversation(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.unpinConversation(actor, id);
+  }
+
+  @Post('messages/:id/pin')
+  @RequireCsdAction('write')
+  async pinMessage(@Req() req: AuthedReq, @Param('id') id: string) {
+    const actor = await this.actor(req);
+    return this.chat.pinMessage(actor, id);
   }
 
   @Post('conversations/:id/read')

@@ -9,6 +9,7 @@ import {
   type CsdChatPersonRow,
   type CsdConversationMemberRow,
   type CsdConversationRow,
+  type CsdGroupJoinRequestRow,
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
 import type { CsdConversationLinkItem, CsdConversationMediaItem } from '@/lib/crm/csd-chat-display';
@@ -52,10 +53,20 @@ type CsdChatContextProps = {
   onAddMember: () => void;
   onRemoveMember: (staffId: number) => void;
   onLoadFriendInvites?: () => void;
-  onPatchGroupInfo?: (patch: { name_vi?: string; description?: string }) => Promise<boolean>;
+  onPatchGroupInfo?: (patch: {
+    name_vi?: string;
+    description?: string;
+    join_approval_required?: boolean;
+    members_can_send?: boolean;
+  }) => Promise<boolean>;
   onSetMemberRole?: (staffId: number, role: 'admin' | 'member') => void;
   onUploadGroupAvatar?: (file: File) => void;
   onClearGroupAvatar?: () => void;
+  joinRequests?: CsdGroupJoinRequestRow[];
+  onLoadJoinRequests?: () => void;
+  onApproveJoin?: (requestId: string) => void;
+  onRejectJoin?: (requestId: string) => void;
+  onTransferOwner?: (staffId: number) => void;
   onClose: () => void;
   onArchive: () => void;
   onCreateAiActionTicket: (index: number, title: string) => void;
@@ -135,6 +146,11 @@ export function CsdChatContext({
   onSetMemberRole,
   onUploadGroupAvatar,
   onClearGroupAvatar,
+  joinRequests = [],
+  onLoadJoinRequests,
+  onApproveJoin,
+  onRejectJoin,
+  onTransferOwner,
   onClose,
   onArchive,
   onCreateAiActionTicket,
@@ -151,6 +167,7 @@ export function CsdChatContext({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [groupInfoOpen, setGroupInfoOpen] = useState(true);
   const [rolesOpen, setRolesOpen] = useState(true);
+  const [joinOpen, setJoinOpen] = useState(true);
   const [ticketsOpen, setTicketsOpen] = useState(true);
   const [membersOpen, setMembersOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
@@ -184,9 +201,11 @@ export function CsdChatContext({
   }, [active?.id, active?.alias_vi, active?.name_vi, active?.description]);
 
   useEffect(() => {
-    if (isGroup && canManageMembersUi) onLoadFriendInvites?.();
-    // intentionally only when conversation / manage ability changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid re-fetch from unstable callback identity
+    if (isGroup && canManageMembersUi) {
+      onLoadFriendInvites?.();
+      onLoadJoinRequests?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unstable callback identity
   }, [isGroup, canManageMembersUi, active?.id]);
 
   const memberIds = useMemo(() => new Set(members.map((m) => m.member_staff_id)), [members]);
@@ -341,6 +360,34 @@ export function CsdChatContext({
                       </p>
                     </>
                   )}
+                  {canManageGroup && onPatchGroupInfo ? (
+                    <div className="csd-chat-zalo-toggles" data-testid="csd-chat-group-moderation">
+                      <label className="csd-chat-zalo-toggle">
+                        <span>Cần duyệt khi mời</span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(active.join_approval_required)}
+                          disabled={busy}
+                          onChange={(e) => {
+                            void onPatchGroupInfo({ join_approval_required: e.target.checked });
+                          }}
+                          data-testid="csd-chat-join-approval-toggle"
+                        />
+                      </label>
+                      <label className="csd-chat-zalo-toggle">
+                        <span>Chỉ Chủ/Phó được gửi</span>
+                        <input
+                          type="checkbox"
+                          checked={active.members_can_send === false}
+                          disabled={busy}
+                          onChange={(e) => {
+                            void onPatchGroupInfo({ members_can_send: !e.target.checked });
+                          }}
+                          data-testid="csd-chat-send-lock-toggle"
+                        />
+                      </label>
+                    </div>
+                  ) : null}
                 </div>
               </ContextSection>
             ) : null}
@@ -457,6 +504,49 @@ export function CsdChatContext({
 
             {isGroup ? (
               <ContextSection
+                title="Yêu cầu vào nhóm"
+                open={joinOpen}
+                onToggle={() => setJoinOpen((v) => !v)}
+                testId="csd-chat-join-requests-toggle"
+              >
+                <ul className="csd-chat-members" data-testid="csd-chat-join-requests">
+                  {joinRequests.length === 0 ? (
+                    <li className="csd-chat-context-empty">Không có yêu cầu chờ duyệt</li>
+                  ) : (
+                    joinRequests.map((r) => (
+                      <li key={r.id}>
+                        <span className="csd-chat-members__name">
+                          {r.requester_display_name_vi || `Staff #${r.requester_staff_id}`}
+                        </span>
+                        {canManageMembersUi ? (
+                          <span className="csd-chat-members__actions">
+                            <button
+                              type="button"
+                              className="csd-chat-context-link-btn"
+                              disabled={busy}
+                              onClick={() => onApproveJoin?.(r.id)}
+                            >
+                              Duyệt
+                            </button>
+                            <button
+                              type="button"
+                              className="csd-chat-context-link-btn"
+                              disabled={busy}
+                              onClick={() => onRejectJoin?.(r.id)}
+                            >
+                              Từ chối
+                            </button>
+                          </span>
+                        ) : null}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </ContextSection>
+            ) : null}
+
+            {isGroup ? (
+              <ContextSection
                 title="Vai trò"
                 open={rolesOpen}
                 onToggle={() => setRolesOpen((v) => !v)}
@@ -512,6 +602,16 @@ export function CsdChatContext({
                               onClick={() => onSetMemberRole(m.member_staff_id, 'admin')}
                             >
                               Đặt phó
+                            </button>
+                          ) : null}
+                          {canSetAdmin && m.role !== 'owner' && onTransferOwner ? (
+                            <button
+                              type="button"
+                              className="csd-chat-context-link-btn"
+                              disabled={busy}
+                              onClick={() => onTransferOwner(m.member_staff_id)}
+                            >
+                              Chuyển chủ
                             </button>
                           ) : null}
                           {canRemove ? (

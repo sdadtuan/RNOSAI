@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Dispatch
 import { ApiError } from '@/lib/api';
 import {
   addCsdConversationMember,
+  approveCsdGroupJoinRequest,
   archiveCsdConversation,
   closeCsdConversation,
   createCsdConversation,
@@ -16,17 +17,22 @@ import {
   fetchCsdChatFriends,
   fetchCsdConversationMembers,
   fetchCsdConversations,
+  fetchCsdGroupJoinRequests,
   fetchCsdMessages,
   fetchCsdRelatedTickets,
   forwardCsdMessage,
   markCsdConversationRead,
   patchCsdConversation,
   patchCsdConversationAlias,
+  pinCsdMessage,
   reactCsdMessage,
+  rejectCsdGroupJoinRequest,
   reopenCsdConversation,
   removeCsdConversationMember,
   sendCsdMessage,
   setCsdConversationMemberRole,
+  transferCsdGroupOwner,
+  unpinCsdConversation,
   uploadCsdConversationFile,
   uploadCsdGroupAvatar,
   type CreateCsdConversationInput,
@@ -36,6 +42,7 @@ import {
   type CsdChatEmotionId,
   type CsdChatPersonRow,
   type CsdConversationRow,
+  type CsdGroupJoinRequestRow,
   type CsdMessageRow,
   type CsdPriority,
   type CsdTicketRow,
@@ -124,6 +131,13 @@ export type CsdChatSession = {
   handleClearGroupAvatar: () => Promise<void>;
   friendInviteOptions: CsdChatPersonRow[];
   loadFriendInviteOptions: () => Promise<void>;
+  joinRequests: CsdGroupJoinRequestRow[];
+  loadJoinRequests: () => Promise<void>;
+  handleApproveJoin: (requestId: string) => Promise<void>;
+  handleRejectJoin: (requestId: string) => Promise<void>;
+  handleTransferOwner: (staffId: number) => Promise<void>;
+  handlePinMessage: (messageId: string) => Promise<void>;
+  handleUnpin: () => Promise<void>;
   handleClose: () => Promise<void>;
   handleReopen: () => Promise<void>;
   handleArchive: () => Promise<void>;
@@ -160,6 +174,7 @@ export function useCsdChatSession({
   const [replyTo, setReplyTo] = useState<CsdMessageRow | null>(null);
   const [memberStaffId, setMemberStaffId] = useState('');
   const [friendInviteOptions, setFriendInviteOptions] = useState<CsdChatPersonRow[]>([]);
+  const [joinRequests, setJoinRequests] = useState<CsdGroupJoinRequestRow[]>([]);
   const [aiPeriod, setAiPeriod] = useState<'24h' | '7d' | 'all'>('24h');
   const [aiSummary, setAiSummary] = useState<CsdChatAiSummary | null>(null);
   const [error, setError] = useState('');
@@ -424,9 +439,15 @@ export function useCsdChatSession({
     if (!Number.isInteger(staffId) || staffId <= 0) return;
     setBusy(true);
     try {
-      await addCsdConversationMember(token, activeId, { member_staff_id: staffId });
+      const out = (await addCsdConversationMember(token, activeId, {
+        member_staff_id: staffId,
+      })) as CsdConversationMemberRow | { pending?: boolean };
       setMemberStaffId('');
-      await loadMembers(activeId);
+      if (out && typeof out === 'object' && 'pending' in out && out.pending) {
+        await loadJoinRequests();
+      } else {
+        await loadMembers(activeId);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Thêm thành viên thất bại');
     } finally {
@@ -459,6 +480,8 @@ export function useCsdChatSession({
   async function handlePatchGroupInfo(patch: {
     name_vi?: string;
     description?: string;
+    join_approval_required?: boolean;
+    members_can_send?: boolean;
   }): Promise<boolean> {
     if (!activeId) return false;
     setBusy(true);
@@ -508,6 +531,84 @@ export function useCsdChatSession({
       patchConversation(row);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xóa ảnh nhóm thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadJoinRequests() {
+    if (!activeId) return;
+    try {
+      const out = await fetchCsdGroupJoinRequests(token, activeId);
+      setJoinRequests(out.items ?? []);
+    } catch {
+      setJoinRequests([]);
+    }
+  }
+
+  async function handleApproveJoin(requestId: string) {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      await approveCsdGroupJoinRequest(token, activeId, requestId);
+      await loadJoinRequests();
+      await loadMembers(activeId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Duyệt thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRejectJoin(requestId: string) {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      await rejectCsdGroupJoinRequest(token, activeId, requestId);
+      await loadJoinRequests();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Từ chối thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTransferOwner(staffId: number) {
+    if (!activeId) return;
+    if (!window.confirm('Chuyển quyền chủ nhóm cho thành viên này?')) return;
+    setBusy(true);
+    try {
+      const row = await transferCsdGroupOwner(token, activeId, staffId);
+      patchConversation(row);
+      await loadMembers(activeId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chuyển chủ thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePinMessage(messageId: string) {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      const row = await pinCsdMessage(token, messageId);
+      patchConversation(row);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ghim thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUnpin() {
+    if (!activeId) return;
+    setBusy(true);
+    try {
+      const row = await unpinCsdConversation(token, activeId);
+      patchConversation(row);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bỏ ghim thất bại');
     } finally {
       setBusy(false);
     }
@@ -721,6 +822,13 @@ export function useCsdChatSession({
     handleClearGroupAvatar,
     friendInviteOptions,
     loadFriendInviteOptions,
+    joinRequests,
+    loadJoinRequests,
+    handleApproveJoin,
+    handleRejectJoin,
+    handleTransferOwner,
+    handlePinMessage,
+    handleUnpin,
     handleClose,
     handleReopen,
     handleArchive,

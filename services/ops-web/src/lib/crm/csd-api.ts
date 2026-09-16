@@ -127,6 +127,9 @@ export interface CsdConversationRow {
   avatar_updated_at?: string | null;
   group_has_avatar?: boolean;
   group_avatar_updated_at?: string | null;
+  join_approval_required?: boolean;
+  members_can_send?: boolean;
+  pinned_message_id?: string | null;
 }
 
 export interface CreateCsdConversationInput {
@@ -481,7 +484,13 @@ export async function patchCsdConversationAlias(
 export async function patchCsdConversation(
   token: string,
   conversationId: string,
-  body: { name_vi?: string; description?: string; clear_avatar?: boolean },
+  body: {
+    name_vi?: string;
+    description?: string;
+    clear_avatar?: boolean;
+    join_approval_required?: boolean;
+    members_can_send?: boolean;
+  },
 ): Promise<CsdConversationRow> {
   return csdFetch(token, `/api/crm/csd/conversations/${conversationId}`, {
     method: 'PATCH',
@@ -943,6 +952,74 @@ export async function removeCsdConversationMember(
   staffId: number,
 ): Promise<void> {
   await csdFetch(token, `/api/crm/csd/conversations/${conversationId}/members/${staffId}`, {
+    method: 'DELETE',
+  });
+}
+
+export type CsdGroupJoinRequestRow = {
+  id: string;
+  conversation_id: string;
+  requester_staff_id: number;
+  invited_by_staff_id: number;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  created_at: string;
+  requester_display_name_vi?: string | null;
+};
+
+export async function fetchCsdGroupJoinRequests(
+  token: string,
+  conversationId: string,
+): Promise<{ items: CsdGroupJoinRequestRow[] }> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/join-requests`);
+}
+
+export async function approveCsdGroupJoinRequest(
+  token: string,
+  conversationId: string,
+  requestId: string,
+): Promise<unknown> {
+  return csdFetch(
+    token,
+    `/api/crm/csd/conversations/${conversationId}/join-requests/${requestId}/approve`,
+    { method: 'POST', body: '{}' },
+  );
+}
+
+export async function rejectCsdGroupJoinRequest(
+  token: string,
+  conversationId: string,
+  requestId: string,
+): Promise<unknown> {
+  return csdFetch(
+    token,
+    `/api/crm/csd/conversations/${conversationId}/join-requests/${requestId}/reject`,
+    { method: 'POST', body: '{}' },
+  );
+}
+
+export async function transferCsdGroupOwner(
+  token: string,
+  conversationId: string,
+  newOwnerStaffId: number,
+): Promise<CsdConversationRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/transfer-owner`, {
+    method: 'POST',
+    body: JSON.stringify({ new_owner_staff_id: newOwnerStaffId }),
+  });
+}
+
+export async function pinCsdMessage(token: string, messageId: string): Promise<CsdConversationRow> {
+  return csdFetch(token, `/api/crm/csd/messages/${messageId}/pin`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+export async function unpinCsdConversation(
+  token: string,
+  conversationId: string,
+): Promise<CsdConversationRow> {
+  return csdFetch(token, `/api/crm/csd/conversations/${conversationId}/pin`, {
     method: 'DELETE',
   });
 }

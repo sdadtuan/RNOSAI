@@ -16967,6 +16967,54 @@ body {
   flex-wrap: wrap;
 }
 
+.csd-chat-zalo-toggles {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.csd-chat-zalo-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+  color: #0f172a;
+  padding: 0.45rem 0;
+  border-top: 1px solid #eef2f7;
+}
+
+.csd-chat-zalo-toggle input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.csd-chat-pin-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0.85rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 0.8125rem;
+}
+
+.csd-chat-pin-banner__body {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.csd-chat-pin-banner__body span {
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .csd-chat-thread-head__actions .csd-chat-icon-btn.is-active {
   background: var(--zalo-active, #fef3e8);
   color: var(--zalo-blue, #c76f0a);

@@ -44,6 +44,10 @@ type CsdChatThreadProps = {
   canWrite: boolean;
   busy: boolean;
   closed: boolean;
+  sendLockHint?: string;
+  canPin?: boolean;
+  onPinMessage?: (message: CsdMessageRow) => void;
+  onUnpin?: () => void;
   priorityHint?: 'P1' | 'P2' | null;
   density?: 'page' | 'dock';
   showMobileBack?: boolean;
@@ -89,6 +93,10 @@ export function CsdChatThread({
   canWrite,
   busy,
   closed,
+  sendLockHint,
+  canPin = false,
+  onPinMessage,
+  onUnpin,
   onDraftChange,
   onSend,
   onSendEmotion,
@@ -131,6 +139,9 @@ export function CsdChatThread({
   const mentionQ = mentionToken(draft);
   const hashQ = ticketToken(draft);
   const relatedById = new Map(relatedTickets.map((t) => [t.id, t]));
+  const pinnedMessage = active?.pinned_message_id
+    ? messages.find((m) => m.id === active.pinned_message_id) ?? null
+    : null;
 
   useEffect(() => {
     if (hashQ == null) {
@@ -392,6 +403,23 @@ export function CsdChatThread({
           Bạn đang gửi cho khách hàng
         </p>
       ) : null}
+      {active?.pinned_message_id ? (
+        <div className="csd-chat-pin-banner" data-testid="csd-chat-pin-banner">
+          <div className="csd-chat-pin-banner__body">
+            <strong>Tin đã ghim</strong>
+            <span>
+              {pinnedMessage?.body_text?.trim()
+                ? pinnedMessage.body_text.slice(0, 120)
+                : 'Tin nhắn đã được ghim'}
+            </span>
+          </div>
+          {canPin && onUnpin ? (
+            <button type="button" className="csd-chat-context-link-btn" disabled={busy} onClick={onUnpin}>
+              Bỏ ghim
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <ul ref={messagesRef} className="csd-chat-messages" data-testid="csd-chat-messages">
         {messages.map((m, index) => {
           const quoted = m.reply_to_id ? messages.find((q) => q.id === m.reply_to_id) : null;
@@ -440,6 +468,10 @@ export function CsdChatThread({
                 onCopyLink={onCopyLink}
                 onForward={onForward}
                 onReact={onReact}
+                canPin={canPin}
+                isPinned={active?.pinned_message_id === m.id}
+                onPin={onPinMessage}
+                onUnpin={onUnpin}
               />
             </li>
           );
@@ -448,8 +480,10 @@ export function CsdChatThread({
       </ul>
       {closed ? (
         <div className="csd-chat-closed">
-          <p className="muted">Hội thoại đã đóng hoặc lưu trữ. Composer bị khóa.</p>
-          {canWrite ? (
+          <p className="muted">
+            {sendLockHint || 'Hội thoại đã đóng hoặc lưu trữ. Composer bị khóa.'}
+          </p>
+          {!sendLockHint && canWrite ? (
             <button type="button" className="btn btn-sm" disabled={busy} onClick={onReopen}>
               Mở lại
             </button>

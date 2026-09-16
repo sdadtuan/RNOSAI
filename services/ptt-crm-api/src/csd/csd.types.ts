@@ -233,6 +233,23 @@ export type CsdConversationRow = {
   avatar_updated_at?: string | null;
   group_has_avatar?: boolean;
   group_avatar_updated_at?: string | null;
+  join_approval_required?: boolean;
+  members_can_send?: boolean;
+  pinned_message_id?: string | null;
+};
+
+export type CsdGroupJoinRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export type CsdGroupJoinRequestRow = {
+  id: string;
+  conversation_id: string;
+  requester_staff_id: number;
+  invited_by_staff_id: number;
+  status: CsdGroupJoinRequestStatus;
+  created_at: string;
+  resolved_at?: string | null;
+  resolved_by_staff_id?: number | null;
+  requester_display_name_vi?: string | null;
 };
 
 export type CsdAttachmentRow = {

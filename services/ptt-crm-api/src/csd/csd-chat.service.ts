@@ -11,8 +11,12 @@ import { CsdChatFriendsService } from './csd-chat-friends.service';
 import {
   canManageGroupInfo,
   canManageGroupMembers,
+  canPinGroupMessage,
   canRemoveGroupMember,
+  canResolveJoinRequest,
+  canSendInGroup,
   canSetGroupAdminRole,
+  canTransferGroupOwner,
   isAssignableGroupRole,
   type CsdGroupMemberRole,
 } from './csd-chat-group-admin.util';
@@ -36,6 +40,7 @@ import {
   CsdConversationMemberRow,
   CsdChatEmotionId,
   CsdConversationRow,
+  CsdGroupJoinRequestRow,
   CsdMessageReactionSummary,
   CsdMessageRow,
   CSD_CHAT_EMOTION_IDS,
@@ -202,6 +207,12 @@ export class CsdChatService {
     }
     if (conv.kind === 'announcement' && conv.owner_staff_id !== actor.staffId) {
       throw new ForbiddenException({ error: 'announcement_owner_only' });
+    }
+    if (conv.kind === 'group' && conv.members_can_send === false) {
+      const role = await this.actorGroupRole(actor, conversationId);
+      if (!canSendInGroup(role, false, hasPlatformManage(actor))) {
+        throw new ForbiddenException({ error: 'members_cannot_send' });
+      }
     }
 
     const body = String(input.body_text ?? '').trim();
@@ -447,7 +458,7 @@ export class CsdChatService {
     actor: CsdActor,
     conversationId: string,
     input: { member_staff_id: number; role?: CsdConversationMemberRow['role'] },
-  ): Promise<CsdConversationMemberRow> {
+  ): Promise<CsdConversationMemberRow | { pending: true; request: CsdGroupJoinRequestRow }> {
     const conv = await this.requireWritableConversation(conversationId);
     await this.assertCanManageMembers(actor, conv);
     const staffId = Number(input.member_staff_id);
@@ -457,12 +468,133 @@ export class CsdChatService {
     if (conv.kind === 'group') {
       const ok = await this.friends.isAccepted(actor.staffId, staffId);
       if (!ok) throw new ConflictException({ error: 'not_friends' });
+      const already = await this.repo.getMember(conversationId, staffId);
+      if (already) return already;
+      if (conv.join_approval_required) {
+        const request = await this.repo.insertJoinRequest({
+          conversation_id: conversationId,
+          requester_staff_id: staffId,
+          invited_by_staff_id: actor.staffId,
+        });
+        return { pending: true, request };
+      }
     }
     return this.repo.insertMember({
       conversation_id: conversationId,
       member_staff_id: staffId,
       role: input.role === 'viewer' ? 'viewer' : 'member',
     });
+  }
+
+  async listJoinRequests(
+    actor: CsdActor,
+    conversationId: string,
+  ): Promise<{ items: CsdGroupJoinRequestRow[] }> {
+    const conv = await this.requireConversation(conversationId);
+    if (conv.kind !== 'group') throw new BadRequestException({ error: 'group_only' });
+    await this.assertCanManageMembers(actor, conv);
+    return { items: await this.repo.listPendingJoinRequests(conversationId) };
+  }
+
+  async approveJoinRequest(
+    actor: CsdActor,
+    conversationId: string,
+    requestId: string,
+  ): Promise<{ member: CsdConversationMemberRow; request: CsdGroupJoinRequestRow }> {
+    const conv = await this.requireWritableConversation(conversationId);
+    if (conv.kind !== 'group') throw new BadRequestException({ error: 'group_only' });
+    const actorRole = await this.actorGroupRole(actor, conversationId);
+    if (!canResolveJoinRequest(actorRole, hasPlatformManage(actor))) {
+      throw new ForbiddenException({ error: 'csd_join_forbidden' });
+    }
+    const pending = await this.repo.getJoinRequest(conversationId, requestId);
+    if (!pending || pending.status !== 'pending') {
+      throw new NotFoundException({ error: 'csd_join_request_not_found' });
+    }
+    const member = await this.repo.insertMember({
+      conversation_id: conversationId,
+      member_staff_id: pending.requester_staff_id,
+      role: 'member',
+    });
+    const request = await this.repo.resolveJoinRequest(
+      conversationId,
+      requestId,
+      'approved',
+      actor.staffId,
+    );
+    return { member, request };
+  }
+
+  async rejectJoinRequest(
+    actor: CsdActor,
+    conversationId: string,
+    requestId: string,
+  ): Promise<{ request: CsdGroupJoinRequestRow }> {
+    const conv = await this.requireWritableConversation(conversationId);
+    if (conv.kind !== 'group') throw new BadRequestException({ error: 'group_only' });
+    const actorRole = await this.actorGroupRole(actor, conversationId);
+    if (!canResolveJoinRequest(actorRole, hasPlatformManage(actor))) {
+      throw new ForbiddenException({ error: 'csd_join_forbidden' });
+    }
+    const request = await this.repo.resolveJoinRequest(
+      conversationId,
+      requestId,
+      'rejected',
+      actor.staffId,
+    );
+    return { request };
+  }
+
+  async pinMessage(actor: CsdActor, messageId: string): Promise<CsdConversationRow> {
+    const message = await this.repo.getMessage(messageId);
+    if (!message || message.is_deleted) {
+      throw new NotFoundException({ error: 'csd_message_not_found' });
+    }
+    const conv = await this.requireWritableConversation(message.conversation_id);
+    if (conv.kind !== 'group') throw new BadRequestException({ error: 'group_only' });
+    const actorRole = await this.actorGroupRole(actor, conv.id);
+    if (!canPinGroupMessage(actorRole, hasPlatformManage(actor))) {
+      throw new ForbiddenException({ error: 'csd_pin_forbidden' });
+    }
+    const row = await this.repo.setPinnedMessage(conv.id, messageId, actor.staffId);
+    return (await this.repo.getConversationForMember(conv.id, actor.staffId)) ?? row;
+  }
+
+  async unpinConversation(actor: CsdActor, conversationId: string): Promise<CsdConversationRow> {
+    const conv = await this.requireWritableConversation(conversationId);
+    if (conv.kind !== 'group') throw new BadRequestException({ error: 'group_only' });
+    const actorRole = await this.actorGroupRole(actor, conversationId);
+    if (!canPinGroupMessage(actorRole, hasPlatformManage(actor))) {
+      throw new ForbiddenException({ error: 'csd_pin_forbidden' });
+    }
+    const row = await this.repo.setPinnedMessage(conversationId, null, actor.staffId);
+    return (await this.repo.getConversationForMember(conversationId, actor.staffId)) ?? row;
+  }
+
+  async transferOwner(
+    actor: CsdActor,
+    conversationId: string,
+    newOwnerStaffId: number,
+  ): Promise<CsdConversationRow> {
+    const conv = await this.requireWritableConversation(conversationId);
+    if (conv.kind !== 'group') throw new BadRequestException({ error: 'group_only' });
+    const actorRole = await this.actorGroupRole(actor, conversationId);
+    if (!canTransferGroupOwner(actorRole, hasPlatformManage(actor))) {
+      throw new ForbiddenException({ error: 'csd_transfer_forbidden' });
+    }
+    const toId = Number(newOwnerStaffId);
+    if (!Number.isInteger(toId) || toId <= 0) {
+      throw new BadRequestException({ error: 'new_owner_staff_id_required' });
+    }
+    if (toId === actor.staffId && actorRole === 'owner') {
+      throw new BadRequestException({ error: 'cannot_transfer_to_self' });
+    }
+    const fromId = conv.owner_staff_id ?? actor.staffId;
+    if (toId === fromId) {
+      throw new BadRequestException({ error: 'cannot_transfer_to_self' });
+    }
+    const row = await this.repo.transferOwner(conversationId, fromId, toId);
+    return (await this.repo.getConversationForMember(conversationId, actor.staffId)) ?? row;
   }
 
   async removeMember(
@@ -525,7 +657,13 @@ export class CsdChatService {
   async patchConversation(
     actor: CsdActor,
     conversationId: string,
-    input: { name_vi?: string; description?: string; clear_avatar?: boolean },
+    input: {
+      name_vi?: string;
+      description?: string;
+      clear_avatar?: boolean;
+      join_approval_required?: boolean;
+      members_can_send?: boolean;
+    },
   ): Promise<CsdConversationRow> {
     const conv = await this.requireWritableConversation(conversationId);
     if (conv.kind !== 'group') {
@@ -533,7 +671,12 @@ export class CsdChatService {
     }
     await this.assertCanManageGroupInfo(actor, conv);
 
-    const patch: { name_vi?: string; description?: string } = {};
+    const patch: {
+      name_vi?: string;
+      description?: string;
+      join_approval_required?: boolean;
+      members_can_send?: boolean;
+    } = {};
     if (input.name_vi != null) {
       const name = String(input.name_vi).trim();
       if (!name) throw new BadRequestException({ error: 'name_required' });
@@ -543,9 +686,20 @@ export class CsdChatService {
     if (input.description != null) {
       patch.description = String(input.description);
     }
+    if (input.join_approval_required != null) {
+      patch.join_approval_required = Boolean(input.join_approval_required);
+    }
+    if (input.members_can_send != null) {
+      patch.members_can_send = Boolean(input.members_can_send);
+    }
 
     let row = conv;
-    if (patch.name_vi != null || patch.description != null) {
+    if (
+      patch.name_vi != null ||
+      patch.description != null ||
+      patch.join_approval_required != null ||
+      patch.members_can_send != null
+    ) {
       row = await this.repo.updateConversationInfo(conversationId, patch, actor.staffId);
     }
     if (input.clear_avatar) {

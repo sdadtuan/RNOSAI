@@ -243,6 +243,27 @@ ALTER TABLE csd_conversation_members
   ADD CONSTRAINT csd_conv_member_role_chk CHECK (role IN ('owner', 'admin', 'member', 'viewer'));
 ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS group_avatar_storage_key TEXT;
 ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS group_avatar_updated_at TIMESTAMPTZ;
+-- Wave B: moderation + pin
+ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS join_approval_required BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS members_can_send BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE csd_conversations ADD COLUMN IF NOT EXISTS pinned_message_id UUID;
+CREATE TABLE IF NOT EXISTS csd_group_join_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id VARCHAR(32) NOT NULL REFERENCES csd_tenants (id),
+  conversation_id UUID NOT NULL REFERENCES csd_conversations (id) ON DELETE CASCADE,
+  requester_staff_id INTEGER NOT NULL,
+  invited_by_staff_id INTEGER NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  resolved_by_staff_id INTEGER,
+  CONSTRAINT csd_group_join_status_chk CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS csd_group_join_pending_uidx
+  ON csd_group_join_requests (conversation_id, requester_staff_id)
+  WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS csd_group_join_conv_idx
+  ON csd_group_join_requests (conversation_id, status, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS csd_conv_members_staff_uidx
   ON csd_conversation_members (conversation_id, member_staff_id)
   WHERE member_staff_id IS NOT NULL;
@@ -277,6 +298,11 @@ CREATE INDEX IF NOT EXISTS csd_messages_conv_idx
 CREATE INDEX IF NOT EXISTS csd_messages_ticket_idx
   ON csd_messages (ticket_id)
   WHERE ticket_id IS NOT NULL;
+-- Wave B: pin FK after messages exist
+ALTER TABLE csd_conversations DROP CONSTRAINT IF EXISTS csd_conversations_pinned_message_fk;
+ALTER TABLE csd_conversations
+  ADD CONSTRAINT csd_conversations_pinned_message_fk
+  FOREIGN KEY (pinned_message_id) REFERENCES csd_messages (id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS csd_message_reactions (
   message_id UUID NOT NULL REFERENCES csd_messages (id) ON DELETE CASCADE,

@@ -24,6 +24,12 @@ describe('CsdChatService', () => {
     updateConversationInfo: jest.fn(),
     getGroupAvatarStorageKey: jest.fn(),
     setGroupAvatarStorageKey: jest.fn(),
+    listPendingJoinRequests: jest.fn(),
+    getJoinRequest: jest.fn(),
+    insertJoinRequest: jest.fn(),
+    resolveJoinRequest: jest.fn(),
+    setPinnedMessage: jest.fn(),
+    transferOwner: jest.fn(),
     updateStatus: jest.fn(),
     insertMentionNotifications: jest.fn(),
     insertClientChatNotifications: jest.fn(),
@@ -480,6 +486,57 @@ describe('CsdChatService', () => {
       3,
     );
     expect(out.name_vi).toBe('Nhóm A');
+  });
+
+  it('Wave B: invite creates pending when join_approval_required', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+      join_approval_required: true,
+    });
+    repo.getMember
+      .mockResolvedValueOnce({ member_staff_id: 3, role: 'owner' })
+      .mockResolvedValueOnce(null);
+    friends.isAccepted.mockResolvedValue(true);
+    repo.insertJoinRequest.mockResolvedValue({
+      id: 'jr1',
+      requester_staff_id: 8,
+      status: 'pending',
+    });
+    const out = await svc().addMember(actor, 'g1', { member_staff_id: 8 });
+    expect(out).toMatchObject({ pending: true, request: { id: 'jr1' } });
+    expect(repo.insertMember).not.toHaveBeenCalled();
+  });
+
+  it('Wave B: send lock blocks members', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      members_can_send: false,
+    });
+    repo.getMember.mockResolvedValue({ member_staff_id: 3, role: 'member' });
+    await expect(svc().sendMessage(actor, 'g1', { body_text: 'hi' })).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(repo.insertMessage).not.toHaveBeenCalled();
+  });
+
+  it('Wave B: transfer owner updates roles', async () => {
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+    });
+    repo.getMember.mockResolvedValue({ member_staff_id: 3, role: 'owner' });
+    repo.transferOwner.mockResolvedValue({ id: 'g1', owner_staff_id: 8 });
+    repo.getConversationForMember.mockResolvedValue({ id: 'g1', owner_staff_id: 8 });
+    const out = await svc().transferOwner(actor, 'g1', 8);
+    expect(repo.transferOwner).toHaveBeenCalledWith('g1', 3, 8);
+    expect(out.owner_staff_id).toBe(8);
   });
 
   it('rejects edit after 15 minutes', async () => {

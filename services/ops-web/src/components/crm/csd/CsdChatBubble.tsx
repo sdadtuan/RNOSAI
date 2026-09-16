@@ -122,6 +122,10 @@ export type CsdChatBubbleProps = {
   onCopyLink: (m: CsdMessageRow) => void;
   onForward: (m: CsdMessageRow) => void;
   onReact?: (m: CsdMessageRow, emotion: CsdChatEmotionId) => void;
+  canPin?: boolean;
+  isPinned?: boolean;
+  onPin?: (m: CsdMessageRow) => void;
+  onUnpin?: () => void;
 };
 
 export function CsdChatBubble({
@@ -146,6 +150,10 @@ export function CsdChatBubble({
   onCopyLink,
   onForward,
   onReact,
+  canPin = false,
+  isPinned = false,
+  onPin,
+  onUnpin,
 }: CsdChatBubbleProps) {
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState(message.body_text);
@@ -454,6 +462,20 @@ export function CsdChatBubble({
                       }}
                     >
                       Xóa
+                    </button>
+                  ) : null}
+                  {canPin && !message.is_deleted ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-testid="csd-chat-pin"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        if (isPinned) onUnpin?.();
+                        else onPin?.(message);
+                      }}
+                    >
+                      {isPinned ? 'Bỏ ghim' : 'Ghim'}
                     </button>
                   ) : null}
                   <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onCopyLink(message); }}>

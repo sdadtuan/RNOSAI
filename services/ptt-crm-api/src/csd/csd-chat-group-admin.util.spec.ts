@@ -1,8 +1,13 @@
 import {
   canManageGroupInfo,
   canManageGroupMembers,
+  canPinGroupMessage,
   canRemoveGroupMember,
+  canResolveJoinRequest,
+  canSendInGroup,
   canSetGroupAdminRole,
+  canToggleGroupModeration,
+  canTransferGroupOwner,
   isAssignableGroupRole,
 } from './csd-chat-group-admin.util';
 
@@ -39,5 +44,28 @@ describe('csd-chat-group-admin.util', () => {
     expect(isAssignableGroupRole('member')).toBe(true);
     expect(isAssignableGroupRole('owner')).toBe(false);
     expect(isAssignableGroupRole('viewer')).toBe(false);
+  });
+
+  it('Wave B: moderation toggles and join resolve for owner/admin', () => {
+    expect(canToggleGroupModeration('admin', false)).toBe(true);
+    expect(canToggleGroupModeration('member', false)).toBe(false);
+    expect(canResolveJoinRequest('owner', false)).toBe(true);
+    expect(canResolveJoinRequest('member', false)).toBe(false);
+  });
+
+  it('Wave B: send lock blocks members when members_can_send=false', () => {
+    expect(canSendInGroup('member', true, false)).toBe(true);
+    expect(canSendInGroup('member', false, false)).toBe(false);
+    expect(canSendInGroup('admin', false, false)).toBe(true);
+    expect(canSendInGroup('owner', false, false)).toBe(true);
+    expect(canSendInGroup('viewer', false, true)).toBe(true);
+  });
+
+  it('Wave B: pin for owner/admin; transfer only owner', () => {
+    expect(canPinGroupMessage('admin', false)).toBe(true);
+    expect(canPinGroupMessage('member', false)).toBe(false);
+    expect(canTransferGroupOwner('owner', false)).toBe(true);
+    expect(canTransferGroupOwner('admin', false)).toBe(false);
+    expect(canTransferGroupOwner('admin', true)).toBe(true);
   });
 });

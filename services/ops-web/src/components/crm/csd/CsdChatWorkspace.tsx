@@ -70,7 +70,22 @@ export function CsdChatWorkspace({
   }, [dockPersist, onConversationChange, s.activeId, tab]);
   const archived = s.active?.status === 'archived';
   const closed = s.active?.status === 'closed';
-  const composerLocked = Boolean(closed || archived);
+  const myRole =
+    s.meStaffId == null
+      ? null
+      : s.members.find((m) => m.member_staff_id === s.meStaffId)?.role ?? null;
+  const sendLocked =
+    s.active?.kind === 'group' &&
+    s.active.members_can_send === false &&
+    myRole !== 'owner' &&
+    myRole !== 'admin';
+  const composerLocked = Boolean(closed || archived || sendLocked);
+  const canPin =
+    Boolean(canWrite) &&
+    s.active?.kind === 'group' &&
+    (myRole === 'owner' || myRole === 'admin') &&
+    !closed &&
+    !archived;
   const showChatPane = tab === 'messages';
 
   function closeContextPanel() {
@@ -186,6 +201,10 @@ export function CsdChatWorkspace({
           canWrite={canWrite}
           busy={s.busy}
           closed={composerLocked}
+          sendLockHint={sendLocked ? 'Chỉ Chủ/Phó được gửi tin trong nhóm này' : undefined}
+          canPin={canPin}
+          onPinMessage={(m) => void s.handlePinMessage(m.id)}
+          onUnpin={() => void s.handleUnpin()}
           priorityHint={s.priorityHint}
           density="page"
           showMobileBack={s.isMobile}
@@ -259,6 +278,11 @@ export function CsdChatWorkspace({
           onSetMemberRole={(staffId, role) => void s.handleSetMemberRole(staffId, role)}
           onUploadGroupAvatar={(file) => void s.handleUploadGroupAvatar(file)}
           onClearGroupAvatar={() => void s.handleClearGroupAvatar()}
+          joinRequests={s.joinRequests}
+          onLoadJoinRequests={() => void s.loadJoinRequests()}
+          onApproveJoin={(id) => void s.handleApproveJoin(id)}
+          onRejectJoin={(id) => void s.handleRejectJoin(id)}
+          onTransferOwner={(staffId) => void s.handleTransferOwner(staffId)}
           onClose={() => void s.handleClose()}
           onArchive={() => void s.handleArchive()}
           onCreateAiActionTicket={(index, title) => void s.handleCreateAiActionTicket(index, title)}
