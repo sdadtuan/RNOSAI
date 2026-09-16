@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { PageHeader } from '@rnosai/ui';
 
 type PageToolbarProps = {
   title: string;
@@ -7,13 +8,5 @@ type PageToolbarProps = {
 };
 
 export function PageToolbar({ title, subtitle, actions }: PageToolbarProps) {
-  return (
-    <div className="page-toolbar">
-      <div className="page-toolbar__main">
-        <h2 className="page-toolbar__title">{title}</h2>
-        {subtitle ? <p className="page-toolbar__subtitle muted">{subtitle}</p> : null}
-      </div>
-      {actions ? <div className="page-toolbar__actions">{actions}</div> : null}
-    </div>
-  );
+  return <PageHeader title={title} subtitle={subtitle} actions={actions} />;
 }
