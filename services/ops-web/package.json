@@ -5,6 +5,7 @@
   "description": "PTT Internal Ops — Next.js (Phase 0 migration)",
   "scripts": {
     "dev": "next dev -p ${OPS_PORT:-3200}",
+    "prebuild": "npm install --prefix ../../packages/rnosai-ui --no-fund --no-audit",
     "build": "next build",
     "start": "next start -p ${OPS_PORT:-3200}",
     "lint": "next lint",
