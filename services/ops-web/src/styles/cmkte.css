@@ -1,7 +1,7 @@
 .cmkte-app {
-  /* Canopy / RNOSAI — align with ops Bitrix shell */
-  --nav: #4a7c5c;
-  --nav2: #3d6a4e;
+  /* Canopy / RNOSAI — white sidebar + green accents */
+  --nav: #ffffff;
+  --nav2: #f3efe6;
   --ink: #1c221d;
   --muted: #4a544c;
   --bg: #f3efe6;
@@ -51,8 +51,8 @@
   z-index: 20;
   padding: 17px 13px;
   background: var(--nav);
-  color: rgba(246, 243, 236, 0.88);
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--ink);
+  border-right: 1px solid var(--line);
 }
 
 .cmkte-brand {
@@ -61,7 +61,7 @@
   gap: 11px;
   height: 45px;
   padding: 0 8px;
-  color: #f6f3ec;
+  color: var(--ink);
   font-size: 18px;
   font-weight: 800;
   text-decoration: none;
@@ -74,7 +74,7 @@
   width: 32px;
   border-radius: 9px;
   background: linear-gradient(135deg, #17692f, #0d3a22);
-  box-shadow: 0 4px 12px rgba(13, 58, 34, 0.28);
+  box-shadow: 0 4px 12px rgba(13, 58, 34, 0.2);
   font-size: 13px;
   color: #fff;
 }
@@ -85,21 +85,21 @@
   gap: 9px;
   margin: 17px 7px 20px;
   padding: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--nav2);
 }
 
 .cmkte-workspace small {
   display: block;
-  color: rgba(246, 243, 236, 0.65);
+  color: var(--muted);
   font-size: 9px;
   letter-spacing: 0.08em;
 }
 
 .cmkte-workspace b {
   display: block;
-  color: #fff;
+  color: var(--ink);
   font-size: 11px;
   margin-top: 2px;
 }
@@ -119,7 +119,7 @@
 
 .cmkte-label {
   margin: 18px 11px 7px;
-  color: rgba(246, 243, 236, 0.55);
+  color: var(--muted);
   font-size: 9px;
   letter-spacing: 0.11em;
   font-weight: 800;
@@ -133,26 +133,27 @@
   margin: 2px 0;
   border-radius: 10px;
   text-decoration: none;
-  color: rgba(246, 243, 236, 0.88);
+  color: var(--ink);
   font-size: 12px;
 }
 
 .cmkte-nav a:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--blue50);
+  color: var(--blue);
 }
 
 .cmkte-nav a.cmkte-nav__link--active {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  background: var(--blue50);
+  color: var(--blue);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(23, 105, 47, 0.18);
 }
 
 .cmkte-ic {
   width: 18px;
   color: inherit;
   text-align: center;
-  opacity: 0.9;
+  opacity: 0.85;
 }
 
 .cmkte-help {
@@ -160,20 +161,20 @@
   left: 20px;
   right: 20px;
   bottom: 17px;
-  background: rgba(13, 58, 34, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--nav2);
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px;
 }
 
 .cmkte-help b {
-  color: #fff;
+  color: var(--ink);
   font-size: 11px;
 }
 
 .cmkte-help p {
   font-size: 10px;
-  color: rgba(246, 243, 236, 0.72);
+  color: var(--muted);
   line-height: 1.45;
   margin: 5px 0 10px;
 }
@@ -837,8 +838,8 @@
 }
 
 .cmkte-shell {
-  --nav: #4a7c5c;
-  --nav2: #3d6a4e;
+  --nav: #ffffff;
+  --nav2: #f3efe6;
   --ink: #1c221d;
   --muted: #4a544c;
   --bg: #f3efe6;
@@ -897,15 +898,15 @@ html.ops-shell-bitrix body:has(.cmkte-shell) .bitrix-crm-page__inner {
   min-height: 100%;
   padding: 17px 13px;
   background: var(--nav);
-  color: rgba(246, 243, 236, 0.88);
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--ink);
+  border-right: 1px solid var(--line);
 }
 
 .cmkte-sidebar .cmkte-brand {
   height: auto;
   min-height: 45px;
   padding: 0 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  border-bottom: 1px solid var(--line);
 }
 
 .cmkte-brand__text {
@@ -915,13 +916,13 @@ html.ops-shell-bitrix body:has(.cmkte-shell) .bitrix-crm-page__inner {
 }
 
 .cmkte-brand__text strong {
-  color: #f6f3ec;
+  color: var(--ink);
   font-size: 15px;
   line-height: 1.2;
 }
 
 .cmkte-brand__text small {
-  color: rgba(246, 243, 236, 0.65);
+  color: var(--muted);
   font-size: 11px;
   font-weight: 500;
 }
