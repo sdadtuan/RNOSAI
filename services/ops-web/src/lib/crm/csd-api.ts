@@ -113,6 +113,7 @@ export interface CsdConversationRow {
   status?: 'active' | 'archived' | 'closed' | 'reopened';
   name_vi: string;
   alias_vi?: string | null;
+  description?: string;
   client_account_id?: string | null;
   project_ref_kind?: string | null;
   project_ref_id?: string | null;
