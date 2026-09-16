@@ -368,20 +368,24 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   const nextAction = nextActionFor(pathname);
 
   useEffect(() => {
+    if (navReady) return;
     const stored = readOpenIds();
     const base = stored ?? [];
     setOpenIds(ensureActiveParentOpen(base, items, pathname));
     setNavReady(true);
-  }, [items]);
+    // Init once from storage + active route; badge-driven `items` changes must not re-open parents.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot hydrate
+  }, [navReady]);
 
   useEffect(() => {
+    if (!navReady) return;
     setOpenIds((prev) => {
       const next = ensureActiveParentOpen(prev, items, pathname);
       if (next.length === prev.length && next.every((id, i) => id === prev[i])) return prev;
       writeOpenIds(next);
       return next;
     });
-  }, [pathname, items]);
+  }, [pathname, navReady]);
 
   useLayoutEffect(() => {
     const el = chromeRef.current;

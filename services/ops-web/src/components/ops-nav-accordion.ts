@@ -7,7 +7,8 @@ export const NAV_ACCORDION_STORAGE_KEY = 'ops-nav-accordion-v2';
 /** Same semantics as OpsNav.isActive */
 export function isActiveHref(pathname: string, href: string): boolean {
   if (pathname === href) return true;
-  if (href === '/') return false;
+  // Hub roots: exact only — prefix would swallow every nested module under them.
+  if (href === '/' || href === '/crm') return false;
   if (href === '/crm/leads') {
     return (
       pathname === '/crm/leads' ||
@@ -38,22 +39,20 @@ export function nextOpenIdsAfterToggle(args: {
   items: NavItem[];
   pathname: string;
 }): string[] {
-  const { openIds, toggledId, items, pathname } = args;
+  const { openIds, toggledId, items } = args;
   const parentIds = new Set(
     items.filter((i): i is NavParent => i.kind === 'parent').map((i) => i.id),
   );
   if (!parentIds.has(toggledId)) return [...openIds];
 
-  const keepActive = parentIdsContainingPath(items, pathname);
   const currentlyOpen = openIds.includes(toggledId);
 
   if (currentlyOpen) {
     return openIds.filter((id) => id !== toggledId);
   }
 
-  const next = new Set<string>([toggledId]);
-  for (const id of keepActive) next.add(id);
-  return [...next];
+  // Accordion: opening one parent closes the others (active route parent re-opens on navigate).
+  return [toggledId];
 }
 
 export function ensureActiveParentOpen(

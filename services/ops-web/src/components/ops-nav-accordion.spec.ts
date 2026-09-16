@@ -37,17 +37,58 @@ describe('isActiveHref', () => {
     expect(isActiveHref('/crm/b2b/leads/123', '/crm/b2b/leads')).toBe(true);
     expect(isActiveHref('/crm', '/')).toBe(false);
   });
+
+  it('treats /crm hub as exact-only so other /crm/* sections do not keep CRM open', () => {
+    expect(isActiveHref('/crm', '/crm')).toBe(true);
+    expect(isActiveHref('/crm/csd/chat', '/crm')).toBe(false);
+    expect(isActiveHref('/crm/customers', '/crm')).toBe(false);
+    expect(isActiveHref('/crm/tickets', '/crm')).toBe(false);
+  });
+});
+
+describe('itemContainsPath / ensureActiveParentOpen with CRM hub', () => {
+  const crmItems: NavItem[] = [
+    {
+      kind: 'parent',
+      id: 'crm',
+      label: 'CRM',
+      icon: 'board',
+      children: [
+        { id: 'crm-board', label: 'Bảng CSKH', href: '/crm', icon: 'board' },
+        { id: 'crm-customers', label: 'Khách hàng', href: '/crm/customers', icon: 'customers' },
+      ],
+    },
+    {
+      kind: 'parent',
+      id: 'csd',
+      label: 'Service Desk',
+      icon: 'ticket',
+      children: [
+        { id: 'csd-home', label: 'Tổng quan', href: '/crm/csd', icon: 'hub' },
+        { id: 'chat', label: 'Chat nội bộ', href: '/crm/csd/chat', icon: 'chat' },
+      ],
+    },
+  ];
+
+  it('does not force CRM open on Service Desk routes', () => {
+    expect(ensureActiveParentOpen([], crmItems, '/crm/csd/chat')).toEqual(['csd']);
+  });
+
+  it('opens CRM only for exact /crm or true CRM children', () => {
+    expect(ensureActiveParentOpen([], crmItems, '/crm')).toEqual(['crm']);
+    expect(ensureActiveParentOpen([], crmItems, '/crm/customers')).toEqual(['crm']);
+  });
 });
 
 describe('nextOpenIdsAfterToggle', () => {
-  it('opens one parent and closes others except active pathname parent', () => {
+  it('opens one parent and closes others (does not keep active pathname parent)', () => {
     const open = nextOpenIdsAfterToggle({
       openIds: ['csd'],
       toggledId: 'sales',
       items,
       pathname: '/crm/csd/chat',
     });
-    expect(open.sort()).toEqual(['csd', 'sales'].sort());
+    expect(open).toEqual(['sales']);
   });
 
   it('closes parent when toggled while open', () => {
