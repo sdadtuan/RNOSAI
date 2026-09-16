@@ -123,6 +123,19 @@ html.ops-shell-bitrix .ops-nav-group + .ops-nav-group {
   border-top: 0;
 }
 
+/* Khối cha + con khi mở / đang làm việc */
+html.ops-shell-bitrix .ops-nav-group {
+  border-radius: 14px;
+  padding: 0.15rem;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+html.ops-shell-bitrix .ops-nav-group.is-open,
+html.ops-shell-bitrix .ops-nav-group.has-active {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
 html.ops-shell-bitrix .ops-nav-group-header {
   display: flex;
   align-items: center;
@@ -132,17 +145,27 @@ html.ops-shell-bitrix .ops-nav-group-header {
   border: 0;
   border-radius: 10px;
   background: transparent;
-  color: rgba(246, 243, 236, 0.88);
-  font-size: 0.8rem;
+  color: rgba(246, 243, 236, 0.92);
+  font-size: 0.84rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   text-transform: none;
   cursor: pointer;
 }
 
-html.ops-shell-bitrix .ops-nav-group-header:hover,
+html.ops-shell-bitrix .ops-nav-group-header:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html.ops-shell-bitrix .ops-nav-group.is-open .ops-nav-group-header,
 html.ops-shell-bitrix .ops-nav-group.has-active .ops-nav-group-header {
   color: #fff;
+  background: transparent;
+}
+
+html.ops-shell-bitrix .ops-nav-group.is-open .ops-nav-group-header:hover,
+html.ops-shell-bitrix .ops-nav-group.has-active .ops-nav-group-header:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -154,19 +177,25 @@ html.ops-shell-bitrix .ops-nav-group-toggle {
   transform: none;
 }
 
+html.ops-shell-bitrix .ops-nav-group.is-open .ops-nav-group-toggle {
+  transform: rotate(180deg);
+}
+
 html.ops-shell-bitrix .ops-nav-group-links {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  padding: 0.1rem 0 0.35rem 0.35rem;
+  padding: 0.05rem 0.15rem 0.3rem;
 }
 
 html.ops-shell-bitrix .ops-nav-group-links.is-collapsed {
-  display: none;
+  /* accordion dùng grid panel — không ẩn bằng display:none */
+  display: flex;
 }
 
 html.ops-shell-bitrix .ops-nav-group-icon,
 html.ops-shell-bitrix .ops-nav-link-icon,
+html.ops-shell-bitrix .ops-nav-link-icon-wrap,
 html.ops-shell-bitrix .ops-nav-rail-btn,
 html.ops-shell-bitrix .ops-sidebar-toggle {
   color: #fff;
@@ -186,37 +215,66 @@ html.ops-shell-bitrix .ops-sidebar-brand-text span {
 }
 
 html.ops-shell-bitrix .ops-nav-link--text {
-  padding-left: 1.85rem;
+  padding-left: 0.7rem;
 }
 
+/* Leaf (không cha) + child: cùng font / màu / icon trắng */
 html.ops-shell-bitrix .ops-nav-link,
-html.ops-shell-bitrix .ops-nav-link--text {
+html.ops-shell-bitrix .ops-nav-link--text,
+html.ops-shell-bitrix .ops-nav-link--child,
+html.ops-shell-bitrix .ops-nav-item--leaf {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  width: 100%;
   border-radius: 12px;
   border: 0;
   padding: 0.5rem 0.7rem;
   font-size: 0.84rem;
+  font-weight: 500;
   color: #f6f3ec;
   background: transparent;
+  text-align: left;
+  cursor: pointer;
 }
 
-html.ops-shell-bitrix .ops-nav-link:hover {
+html.ops-shell-bitrix .ops-nav-item--leaf {
+  margin-bottom: 0.15rem;
+}
+
+html.ops-shell-bitrix .ops-nav-link--child {
+  padding-left: 1.85rem;
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+html.ops-shell-bitrix .ops-nav-link:hover,
+html.ops-shell-bitrix .ops-nav-link--child:hover,
+html.ops-shell-bitrix .ops-nav-item--leaf:hover {
   background: rgba(255, 255, 255, 0.14);
   border-color: transparent;
+  color: #fff;
   transform: none;
 }
 
-html.ops-shell-bitrix .ops-nav-link.is-active {
-  background: rgba(255, 255, 255, 0.24);
+html.ops-shell-bitrix .ops-nav-link.is-active,
+html.ops-shell-bitrix .ops-nav-link--child.is-active,
+html.ops-shell-bitrix .ops-nav-item--leaf.is-active {
+  background: rgba(255, 255, 255, 0.22);
   border-color: transparent;
   color: #fff;
   font-weight: 600;
 }
 
-html.ops-shell-bitrix .ops-nav-link.is-active .ops-nav-link-icon {
+html.ops-shell-bitrix .ops-nav-link.is-active .ops-nav-link-icon,
+html.ops-shell-bitrix .ops-nav-link.is-active .ops-nav-link-icon-wrap,
+html.ops-shell-bitrix .ops-nav-item--leaf.is-active .ops-nav-link-icon-wrap {
   color: #fff;
+}
+
+html.ops-shell-bitrix .ops-nav-item--leaf svg {
+  color: #fff;
+  stroke: currentColor;
 }
 
 html.ops-shell-bitrix .ops-sidebar-footer {

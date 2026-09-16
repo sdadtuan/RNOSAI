@@ -7807,8 +7807,8 @@ html.ops-shell-collapsed .ops-nav-link {
 
 .ops-nav-group.is-open,
 .ops-nav-group.has-active {
-  background: color-mix(in srgb, var(--primary-700) 8%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-700) 18%, transparent);
+  background: color-mix(in srgb, var(--primary-700) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-700) 22%, transparent);
 }
 
 .ops-nav-group-panel {
@@ -7835,8 +7835,11 @@ html.ops-shell-collapsed .ops-nav-link {
 
 .ops-nav-link--child {
   padding-left: 0.85rem;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
+/* Leaf = cùng kiểu mục con (không bold như header cha) */
 .ops-nav-item--leaf {
   display: flex;
   align-items: center;

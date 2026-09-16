@@ -472,11 +472,15 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
                   <button
                     key={item.id}
                     type="button"
-                    className={`ops-nav-item--leaf${isActiveHref(pathname, item.href) ? ' is-active' : ''}`}
+                    className={`ops-nav-link ops-nav-link--button ops-nav-item--leaf${
+                      isActiveHref(pathname, item.href) ? ' is-active' : ''
+                    }`}
                     onClick={() => navigateTo(item.href)}
                   >
                     <span className="ops-nav-link-icon-wrap">
-                      <NavIcon name={item.icon !== 'dot' ? item.icon : iconForHref(item.href)} />
+                      <span className="ops-nav-link-icon">
+                        <NavIcon name={item.icon !== 'dot' ? item.icon : iconForHref(item.href)} />
+                      </span>
                       {renderBadge(item.badge)}
                     </span>
                     <span>{item.label}</span>
