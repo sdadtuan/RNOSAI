@@ -1,0 +1,3441 @@
+{
+  "meta": {
+    "version": "1.0",
+    "date": "2026-09-16",
+    "source": "docs/exports/ma-tran-phan-quyen-RNOSAI-ban-giao-2026-09-16.md",
+    "catalog_version": "rbac-admin-catalog-r1-s3",
+    "notes": "Portal Client is not a staff position — skipped. SUPER-ADMIN uses full catalog sync separately.",
+    "position_codes": [
+      "ACM",
+      "AE",
+      "CE",
+      "CEO",
+      "GD",
+      "KD-01",
+      "MEP",
+      "MKL",
+      "MKT-01",
+      "MKT-02",
+      "PD"
+    ]
+  },
+  "grants_by_position": {
+    "CEO": {
+      "ai_analytics": [
+        "query"
+      ],
+      "ai_forecast": [
+        "view"
+      ],
+      "automation_workflows": [
+        "view"
+      ],
+      "ceo_command": [
+        "act",
+        "configure",
+        "view"
+      ],
+      "crm_agency": [
+        "view"
+      ],
+      "crm_am": [
+        "view"
+      ],
+      "crm_am.clients": [
+        "view"
+      ],
+      "crm_am.finance": [
+        "view"
+      ],
+      "crm_am.health": [
+        "view"
+      ],
+      "crm_am.reports": [
+        "view"
+      ],
+      "crm_assistant": [
+        "view"
+      ],
+      "crm_b2b_projects": [
+        "view"
+      ],
+      "crm_board": [
+        "view"
+      ],
+      "crm_board_customers": [
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "view"
+      ],
+      "crm_business_dashboard": [
+        "configure",
+        "export",
+        "view"
+      ],
+      "crm_content": [
+        "view"
+      ],
+      "crm_delivery_budget": [
+        "view"
+      ],
+      "crm_delivery_projects": [
+        "view"
+      ],
+      "crm_email_mkt": [
+        "reports",
+        "view"
+      ],
+      "crm_facebook_ads": [
+        "view"
+      ],
+      "crm_gdkd": [
+        "assign",
+        "review_queue",
+        "view_all_leads"
+      ],
+      "crm_google_ads": [
+        "view"
+      ],
+      "crm_hdsd": [
+        "view"
+      ],
+      "crm_hr_leave": [
+        "view"
+      ],
+      "crm_hub_campaigns": [
+        "view"
+      ],
+      "crm_hub_contracts": [
+        "view"
+      ],
+      "crm_hub_reminders": [
+        "view"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_leads": [
+        "view"
+      ],
+      "crm_lmp": [
+        "view"
+      ],
+      "crm_media": [
+        "view"
+      ],
+      "crm_media.campaigns": [
+        "view"
+      ],
+      "crm_media.evidence": [
+        "view"
+      ],
+      "crm_media.inventory": [
+        "view"
+      ],
+      "crm_media.margin": [
+        "view"
+      ],
+      "crm_media.outcomes": [
+        "view"
+      ],
+      "crm_media.packages": [
+        "view"
+      ],
+      "crm_media.settings": [
+        "view"
+      ],
+      "crm_mktplan": [
+        "view"
+      ],
+      "crm_owner_weekly_dashboard": [
+        "configure",
+        "export",
+        "view"
+      ],
+      "crm_presales_solution": [
+        "view"
+      ],
+      "crm_quote": [
+        "view"
+      ],
+      "crm_quote.catalog": [
+        "view"
+      ],
+      "crm_quote.finance": [
+        "view"
+      ],
+      "crm_research": [
+        "view"
+      ],
+      "crm_revops": [
+        "view",
+        "view_all"
+      ],
+      "crm_revops.pipeline": [
+        "view"
+      ],
+      "crm_revops.reports": [
+        "view"
+      ],
+      "crm_revops.sla": [
+        "view"
+      ],
+      "crm_revops.territory": [
+        "view"
+      ],
+      "crm_sales_deals": [
+        "view"
+      ],
+      "crm_sales_funnel": [
+        "view"
+      ],
+      "crm_sales_overview": [
+        "view"
+      ],
+      "crm_sales_prospects": [
+        "view"
+      ],
+      "crm_sales_reports": [
+        "view"
+      ],
+      "crm_seo_aeo": [
+        "view"
+      ],
+      "crm_seo_aeo_reports": [
+        "view"
+      ],
+      "crm_seo_aeo_technical": [
+        "view"
+      ],
+      "crm_sop_runs": [
+        "view"
+      ],
+      "crm_staff_departments": [
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "crm_staff_positions": [
+        "view"
+      ],
+      "crm_staff_roster": [
+        "view"
+      ],
+      "crm_zalo_ads": [
+        "view"
+      ],
+      "csd": [
+        "admin",
+        "assign",
+        "manage",
+        "view",
+        "write"
+      ],
+      "iwr": [
+        "executive",
+        "export",
+        "lists",
+        "manage",
+        "review",
+        "schedule",
+        "view",
+        "write"
+      ],
+      "meta_ads_ops": [
+        "view"
+      ],
+      "playbooks": [
+        "view"
+      ],
+      "crm_leads__btn_ai_search": [
+        "view"
+      ],
+      "crm_leads__btn_ai_summary": [
+        "view"
+      ],
+      "crm_leads__btn_ai_recommend": [
+        "view"
+      ]
+    },
+    "AE": {
+      "crm_agency": [
+        "view"
+      ],
+      "crm_am": [
+        "view"
+      ],
+      "crm_am.clients": [
+        "view"
+      ],
+      "crm_am.health": [
+        "view"
+      ],
+      "crm_am.reports": [
+        "view"
+      ],
+      "crm_assistant": [
+        "view"
+      ],
+      "crm_b2b_projects": [
+        "view"
+      ],
+      "crm_board": [
+        "view"
+      ],
+      "crm_board_customers": [
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "view"
+      ],
+      "crm_facebook_ads": [
+        "view"
+      ],
+      "crm_google_ads": [
+        "view"
+      ],
+      "crm_hdsd": [
+        "export",
+        "view"
+      ],
+      "crm_hub_campaigns": [
+        "view"
+      ],
+      "crm_hub_contracts": [
+        "view"
+      ],
+      "crm_hub_reminders": [
+        "view"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_leads": [
+        "assign",
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_lmp": [
+        "view"
+      ],
+      "crm_presales_solution": [
+        "view"
+      ],
+      "crm_quote": [
+        "edit",
+        "view"
+      ],
+      "crm_quote.catalog": [
+        "view"
+      ],
+      "crm_revops": [
+        "view",
+        "view_team"
+      ],
+      "crm_revops.pipeline": [
+        "view"
+      ],
+      "crm_revops.reports": [
+        "view"
+      ],
+      "crm_sales_deals": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sales_funnel": [
+        "export",
+        "view"
+      ],
+      "crm_sales_market": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sales_overview": [
+        "export",
+        "view"
+      ],
+      "crm_sales_prospects": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sales_reports": [
+        "export",
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "crm_zalo_ads": [
+        "view"
+      ],
+      "csd": [
+        "view",
+        "write"
+      ],
+      "iwr": [
+        "view",
+        "write"
+      ],
+      "meta_ads_ops": [
+        "view"
+      ],
+      "crm_leads__btn_create": [
+        "create"
+      ],
+      "crm_leads__btn_export_xlsx": [
+        "export"
+      ],
+      "crm_leads__btn_export_pdf": [
+        "export"
+      ],
+      "crm_leads__btn_import": [
+        "create"
+      ],
+      "crm_leads__btn_fb_sync": [
+        "create"
+      ],
+      "crm_leads__btn_ai_search": [
+        "view"
+      ],
+      "crm_leads__btn_convert": [
+        "create"
+      ],
+      "crm_leads__btn_assign": [
+        "edit"
+      ],
+      "crm_leads__btn_merge": [
+        "edit"
+      ],
+      "crm_leads__btn_ai_summary": [
+        "view"
+      ],
+      "crm_leads__btn_ai_classify": [
+        "edit"
+      ],
+      "crm_leads__btn_ai_recommend": [
+        "view"
+      ],
+      "crm_leads__btn_edit": [
+        "edit"
+      ],
+      "crm_leads__btn_rescore": [
+        "edit"
+      ],
+      "crm_leads__btn_activity": [
+        "create"
+      ],
+      "crm_leads__btn_save": [
+        "edit"
+      ]
+    },
+    "ACM": {
+      "automation_workflows": [
+        "view"
+      ],
+      "crm_agency": [
+        "approve",
+        "configure",
+        "create",
+        "edit",
+        "export",
+        "view",
+        "view_pii"
+      ],
+      "crm_am": [
+        "assign",
+        "edit",
+        "manage",
+        "view",
+        "view_all"
+      ],
+      "crm_am.clients": [
+        "edit",
+        "view"
+      ],
+      "crm_am.feedback": [
+        "edit",
+        "view"
+      ],
+      "crm_am.finance": [
+        "view"
+      ],
+      "crm_am.health": [
+        "edit",
+        "view"
+      ],
+      "crm_am.onboarding": [
+        "edit",
+        "view"
+      ],
+      "crm_am.opportunities": [
+        "edit",
+        "view"
+      ],
+      "crm_am.renewals": [
+        "edit",
+        "view"
+      ],
+      "crm_am.reports": [
+        "view"
+      ],
+      "crm_am.settings": [
+        "manage",
+        "view"
+      ],
+      "crm_am.work": [
+        "edit",
+        "view"
+      ],
+      "crm_assistant": [
+        "create",
+        "export",
+        "view"
+      ],
+      "crm_b2b_projects": [
+        "view"
+      ],
+      "crm_board": [
+        "edit",
+        "view"
+      ],
+      "crm_board_create": [
+        "create",
+        "view"
+      ],
+      "crm_board_customers": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "edit",
+        "view"
+      ],
+      "crm_content": [
+        "view"
+      ],
+      "crm_daily_work_report": [
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_delivery_budget": [
+        "edit",
+        "view"
+      ],
+      "crm_delivery_projects": [
+        "edit",
+        "manage",
+        "view"
+      ],
+      "crm_email_mkt": [
+        "reports",
+        "view"
+      ],
+      "crm_facebook_ads": [
+        "configure",
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_google_ads": [
+        "export",
+        "view"
+      ],
+      "crm_hdsd": [
+        "export",
+        "view"
+      ],
+      "crm_hub_campaigns": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_hub_contracts": [
+        "edit",
+        "view"
+      ],
+      "crm_hub_reminders": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "send",
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "manage",
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_leads": [
+        "assign",
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_lmp": [
+        "view"
+      ],
+      "crm_media": [
+        "view"
+      ],
+      "crm_media.campaigns": [
+        "view"
+      ],
+      "crm_media.evidence": [
+        "view"
+      ],
+      "crm_media.inventory": [
+        "view"
+      ],
+      "crm_media.margin": [
+        "view"
+      ],
+      "crm_media.outcomes": [
+        "view"
+      ],
+      "crm_media.packages": [
+        "view"
+      ],
+      "crm_media.settings": [
+        "view"
+      ],
+      "crm_mktplan": [
+        "view"
+      ],
+      "crm_payroll_attendance": [
+        "view"
+      ],
+      "crm_presales_solution": [
+        "view"
+      ],
+      "crm_quote": [
+        "edit",
+        "view"
+      ],
+      "crm_quote.catalog": [
+        "view"
+      ],
+      "crm_quote.finance": [
+        "view"
+      ],
+      "crm_research": [
+        "create",
+        "edit",
+        "export",
+        "run",
+        "view"
+      ],
+      "crm_revops": [
+        "view",
+        "view_team"
+      ],
+      "crm_revops.pipeline": [
+        "view"
+      ],
+      "crm_revops.reports": [
+        "view"
+      ],
+      "crm_sales_deals": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sales_funnel": [
+        "export",
+        "view"
+      ],
+      "crm_sales_market": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sales_overview": [
+        "export",
+        "view"
+      ],
+      "crm_sales_prospects": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sales_reports": [
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo": [
+        "view"
+      ],
+      "crm_seo_aeo_reports": [
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo_settings": [
+        "configure",
+        "edit",
+        "view"
+      ],
+      "crm_seo_aeo_technical": [
+        "view"
+      ],
+      "crm_sop_overdue": [
+        "view"
+      ],
+      "crm_sop_runs": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sop_templates": [
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "crm_zalo_ads": [
+        "edit",
+        "view"
+      ],
+      "csd": [
+        "view",
+        "write"
+      ],
+      "iwr": [
+        "export",
+        "review",
+        "view",
+        "write"
+      ],
+      "meta_ads_ops": [
+        "view"
+      ],
+      "meta_campaign_write": [
+        "view"
+      ],
+      "playbooks": [
+        "view"
+      ],
+      "crm_board_create__btn_new_case": [
+        "create"
+      ],
+      "crm_leads__btn_create": [
+        "create"
+      ],
+      "crm_leads__btn_export_xlsx": [
+        "export"
+      ],
+      "crm_leads__btn_export_pdf": [
+        "export"
+      ],
+      "crm_leads__btn_import": [
+        "create"
+      ],
+      "crm_leads__btn_fb_sync": [
+        "create"
+      ],
+      "crm_leads__btn_ai_search": [
+        "view"
+      ],
+      "crm_leads__btn_convert": [
+        "create"
+      ],
+      "crm_leads__btn_assign": [
+        "edit"
+      ],
+      "crm_leads__btn_merge": [
+        "edit"
+      ],
+      "crm_leads__btn_ai_summary": [
+        "view"
+      ],
+      "crm_leads__btn_ai_classify": [
+        "edit"
+      ],
+      "crm_leads__btn_ai_recommend": [
+        "view"
+      ],
+      "crm_leads__btn_edit": [
+        "edit"
+      ],
+      "crm_leads__btn_rescore": [
+        "edit"
+      ],
+      "crm_leads__btn_activity": [
+        "create"
+      ],
+      "crm_leads__btn_save": [
+        "edit"
+      ],
+      "crm_board_customers__btn_create": [
+        "create"
+      ],
+      "crm_hub_campaigns__btn_create": [
+        "create"
+      ],
+      "crm_hub_reminders__btn_create": [
+        "create"
+      ],
+      "crm_kpi_records__btn_save": [
+        "edit"
+      ]
+    },
+    "CE": {
+      "crm_agency": [
+        "view"
+      ],
+      "crm_assistant": [
+        "view"
+      ],
+      "crm_board": [
+        "view"
+      ],
+      "crm_board_customers": [
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "view"
+      ],
+      "crm_content": [
+        "assign",
+        "generate",
+        "production",
+        "publish",
+        "qa",
+        "view",
+        "write"
+      ],
+      "crm_cp": [
+        "view"
+      ],
+      "crm_email_mkt": [
+        "reports",
+        "settings",
+        "view",
+        "write"
+      ],
+      "crm_facebook_ads": [
+        "view"
+      ],
+      "crm_hdsd": [
+        "export",
+        "view"
+      ],
+      "crm_hub_campaigns": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_hub_contracts": [
+        "edit",
+        "view"
+      ],
+      "crm_hub_reminders": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_mkt_ai": [
+        "view"
+      ],
+      "crm_mktplan": [
+        "view"
+      ],
+      "crm_research": [
+        "view"
+      ],
+      "crm_seo_aeo": [
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo_reports": [
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo_settings": [
+        "configure",
+        "edit",
+        "view"
+      ],
+      "crm_seo_aeo_technical": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_seo_aeo_write": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sop_runs": [
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "csd": [
+        "view",
+        "write"
+      ],
+      "gtm.cms": [
+        "view"
+      ],
+      "gtm_demos": [
+        "view"
+      ],
+      "iwr": [
+        "view",
+        "write"
+      ],
+      "crm_hub_campaigns__btn_create": [
+        "create"
+      ],
+      "crm_hub_reminders__btn_create": [
+        "create"
+      ]
+    },
+    "MEP": {
+      "crm_agency": [
+        "view"
+      ],
+      "crm_assistant": [
+        "view"
+      ],
+      "crm_board": [
+        "view"
+      ],
+      "crm_board_customers": [
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "view"
+      ],
+      "crm_content": [
+        "assign",
+        "generate",
+        "production",
+        "publish",
+        "qa",
+        "view",
+        "write"
+      ],
+      "crm_cp": [
+        "edit",
+        "view"
+      ],
+      "crm_cp.brand": [
+        "edit"
+      ],
+      "crm_cp.finance": [
+        "view"
+      ],
+      "crm_cp.view_audit": [
+        "view"
+      ],
+      "crm_delivery_budget": [
+        "view"
+      ],
+      "crm_delivery_projects": [
+        "view"
+      ],
+      "crm_facebook_ads": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_google_ads": [
+        "view"
+      ],
+      "crm_hdsd": [
+        "export",
+        "view"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_media": [
+        "publish",
+        "view",
+        "write"
+      ],
+      "crm_media.campaigns": [
+        "publish",
+        "view",
+        "write"
+      ],
+      "crm_media.evidence": [
+        "view",
+        "write"
+      ],
+      "crm_media.inventory": [
+        "view",
+        "write"
+      ],
+      "crm_media.margin": [
+        "view"
+      ],
+      "crm_media.outcomes": [
+        "view",
+        "write"
+      ],
+      "crm_media.packages": [
+        "view",
+        "write"
+      ],
+      "crm_media.settings": [
+        "view"
+      ],
+      "crm_sop_runs": [
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "crm_vd.admin": [
+        "create",
+        "view"
+      ],
+      "crm_vd.bible": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.budget": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.delivery": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.gate1": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.gate2": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.gate3": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.keyframe": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.motion": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.post": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.project": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_vd.qc": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.report": [
+        "view"
+      ],
+      "crm_vd.script": [
+        "edit",
+        "view"
+      ],
+      "crm_zalo_ads": [
+        "view"
+      ],
+      "csd": [
+        "view",
+        "write"
+      ],
+      "iwr": [
+        "view",
+        "write"
+      ],
+      "meta_ads_ops": [
+        "view"
+      ],
+      "meta_campaign_write": [
+        "view"
+      ]
+    },
+    "GD": {
+      "crm_agency": [
+        "view"
+      ],
+      "crm_assistant": [
+        "view"
+      ],
+      "crm_board": [
+        "view"
+      ],
+      "crm_board_customers": [
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "view"
+      ],
+      "crm_content": [
+        "view"
+      ],
+      "crm_cp": [
+        "edit",
+        "manage",
+        "view",
+        "view_all"
+      ],
+      "crm_cp.approve_legal": [
+        "execute"
+      ],
+      "crm_cp.brand": [
+        "edit"
+      ],
+      "crm_cp.export_final": [
+        "execute"
+      ],
+      "crm_cp.finance": [
+        "view"
+      ],
+      "crm_cp.manage_brand_rule": [
+        "manage"
+      ],
+      "crm_cp.publish": [
+        "execute"
+      ],
+      "crm_cp.render": [
+        "execute"
+      ],
+      "crm_cp.render_high_cost": [
+        "execute"
+      ],
+      "crm_cp.view_audit": [
+        "view"
+      ],
+      "crm_facebook_ads": [
+        "edit",
+        "view"
+      ],
+      "crm_hdsd": [
+        "export",
+        "view"
+      ],
+      "crm_img": [
+        "edit",
+        "manage",
+        "view",
+        "view_all"
+      ],
+      "crm_img.admin": [
+        "manage"
+      ],
+      "crm_img.finance": [
+        "view"
+      ],
+      "crm_img.gate1": [
+        "execute"
+      ],
+      "crm_img.gate2": [
+        "execute"
+      ],
+      "crm_img.gate3": [
+        "execute"
+      ],
+      "crm_img.manage": [
+        "manage"
+      ],
+      "crm_img.render": [
+        "execute"
+      ],
+      "crm_img.render_high_cost": [
+        "execute"
+      ],
+      "crm_img.sop": [
+        "edit"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_media": [
+        "view"
+      ],
+      "crm_media.campaigns": [
+        "view"
+      ],
+      "crm_media.evidence": [
+        "view"
+      ],
+      "crm_media.inventory": [
+        "view"
+      ],
+      "crm_media.margin": [
+        "view"
+      ],
+      "crm_media.outcomes": [
+        "view"
+      ],
+      "crm_media.packages": [
+        "view"
+      ],
+      "crm_media.settings": [
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "crm_vd.admin": [
+        "view"
+      ],
+      "crm_vd.bible": [
+        "view"
+      ],
+      "crm_vd.budget": [
+        "view"
+      ],
+      "crm_vd.delivery": [
+        "view"
+      ],
+      "crm_vd.gate1": [
+        "view"
+      ],
+      "crm_vd.gate2": [
+        "view"
+      ],
+      "crm_vd.gate3": [
+        "view"
+      ],
+      "crm_vd.keyframe": [
+        "view"
+      ],
+      "crm_vd.motion": [
+        "view"
+      ],
+      "crm_vd.post": [
+        "view"
+      ],
+      "crm_vd.project": [
+        "view"
+      ],
+      "crm_vd.qc": [
+        "view"
+      ],
+      "crm_vd.report": [
+        "view"
+      ],
+      "crm_vd.script": [
+        "view"
+      ],
+      "csd": [
+        "view",
+        "write"
+      ],
+      "iwr": [
+        "view",
+        "write"
+      ],
+      "meta_ads_ops": [
+        "view"
+      ],
+      "meta_campaign_write": [
+        "view"
+      ]
+    },
+    "MKL": {
+      "automation_workflows": [
+        "configure",
+        "create",
+        "edit",
+        "simulate",
+        "view"
+      ],
+      "crm_agency": [
+        "configure",
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_assistant": [
+        "view"
+      ],
+      "crm_b2b_projects": [
+        "view"
+      ],
+      "crm_board": [
+        "edit",
+        "view"
+      ],
+      "crm_board_customers": [
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "view"
+      ],
+      "crm_business_dashboard": [
+        "view"
+      ],
+      "crm_content": [
+        "admin",
+        "approve_internal",
+        "assign",
+        "generate",
+        "production",
+        "publish",
+        "qa",
+        "view",
+        "write"
+      ],
+      "crm_cp": [
+        "edit",
+        "manage",
+        "view",
+        "view_all"
+      ],
+      "crm_cp.approve_legal": [
+        "execute"
+      ],
+      "crm_cp.brand": [
+        "edit"
+      ],
+      "crm_cp.export_final": [
+        "execute"
+      ],
+      "crm_cp.finance": [
+        "view"
+      ],
+      "crm_cp.manage_brand_rule": [
+        "manage"
+      ],
+      "crm_cp.publish": [
+        "execute"
+      ],
+      "crm_cp.render": [
+        "execute"
+      ],
+      "crm_cp.render_high_cost": [
+        "execute"
+      ],
+      "crm_cp.view_audit": [
+        "view"
+      ],
+      "crm_daily_work_report": [
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_delivery_budget": [
+        "edit",
+        "view"
+      ],
+      "crm_delivery_projects": [
+        "edit",
+        "manage",
+        "view"
+      ],
+      "crm_email_mkt": [
+        "approve",
+        "compliance",
+        "deliverability",
+        "reports",
+        "settings",
+        "view",
+        "write"
+      ],
+      "crm_facebook_ads": [
+        "configure",
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_google_ads": [
+        "export",
+        "view"
+      ],
+      "crm_hdsd": [
+        "export",
+        "view"
+      ],
+      "crm_hub_campaigns": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_hub_contracts": [
+        "edit",
+        "view"
+      ],
+      "crm_hub_reminders": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_img": [
+        "edit",
+        "manage",
+        "view",
+        "view_all"
+      ],
+      "crm_img.admin": [
+        "manage"
+      ],
+      "crm_img.finance": [
+        "view"
+      ],
+      "crm_img.gate1": [
+        "execute"
+      ],
+      "crm_img.gate2": [
+        "execute"
+      ],
+      "crm_img.gate3": [
+        "execute"
+      ],
+      "crm_img.manage": [
+        "manage"
+      ],
+      "crm_img.render": [
+        "execute"
+      ],
+      "crm_img.render_high_cost": [
+        "execute"
+      ],
+      "crm_img.sop": [
+        "edit"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "send",
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "manage",
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_leads": [
+        "view"
+      ],
+      "crm_lmp": [
+        "view"
+      ],
+      "crm_media": [
+        "publish",
+        "view",
+        "write"
+      ],
+      "crm_media.campaigns": [
+        "publish",
+        "view",
+        "write"
+      ],
+      "crm_media.evidence": [
+        "view",
+        "write"
+      ],
+      "crm_media.inventory": [
+        "view",
+        "write"
+      ],
+      "crm_media.margin": [
+        "view"
+      ],
+      "crm_media.outcomes": [
+        "view",
+        "write"
+      ],
+      "crm_media.packages": [
+        "view",
+        "write"
+      ],
+      "crm_media.settings": [
+        "view"
+      ],
+      "crm_mkt_ai": [
+        "approve",
+        "view"
+      ],
+      "crm_mktplan": [
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_owner_weekly_dashboard": [
+        "view"
+      ],
+      "crm_payroll_attendance": [
+        "view"
+      ],
+      "crm_presales_solution": [
+        "claim",
+        "edit",
+        "release",
+        "view"
+      ],
+      "crm_quote": [
+        "view"
+      ],
+      "crm_quote.catalog": [
+        "view"
+      ],
+      "crm_research": [
+        "approve",
+        "create",
+        "edit",
+        "export",
+        "run",
+        "view"
+      ],
+      "crm_revops": [
+        "view",
+        "view_team"
+      ],
+      "crm_revops.pipeline": [
+        "view"
+      ],
+      "crm_revops.reports": [
+        "view"
+      ],
+      "crm_sales_deals": [
+        "view"
+      ],
+      "crm_sales_funnel": [
+        "view"
+      ],
+      "crm_sales_overview": [
+        "view"
+      ],
+      "crm_sales_prospects": [
+        "view"
+      ],
+      "crm_sales_reports": [
+        "view"
+      ],
+      "crm_seo_aeo": [
+        "approve",
+        "configure",
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo_approve": [
+        "approve"
+      ],
+      "crm_seo_aeo_reports": [
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo_settings": [
+        "configure",
+        "edit",
+        "view"
+      ],
+      "crm_seo_aeo_technical": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_seo_aeo_write": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sop_overdue": [
+        "view"
+      ],
+      "crm_sop_runs": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sop_templates": [
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "crm_vd.admin": [
+        "create",
+        "view"
+      ],
+      "crm_vd.bible": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.budget": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.delivery": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.gate1": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.gate2": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.gate3": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.keyframe": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.motion": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.post": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.project": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_vd.qc": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.report": [
+        "view"
+      ],
+      "crm_vd.script": [
+        "edit",
+        "view"
+      ],
+      "crm_zalo_ads": [
+        "edit",
+        "view"
+      ],
+      "csd": [
+        "assign",
+        "manage",
+        "view",
+        "write"
+      ],
+      "gtm.cms": [
+        "view"
+      ],
+      "gtm_demos": [
+        "view"
+      ],
+      "iwr": [
+        "export",
+        "review",
+        "view",
+        "write"
+      ],
+      "meta_ads_ops": [
+        "view"
+      ],
+      "meta_campaign_write": [
+        "view"
+      ],
+      "playbooks": [
+        "view"
+      ],
+      "crm_leads__btn_ai_search": [
+        "view"
+      ],
+      "crm_leads__btn_ai_summary": [
+        "view"
+      ],
+      "crm_leads__btn_ai_recommend": [
+        "view"
+      ],
+      "crm_hub_campaigns__btn_create": [
+        "create"
+      ],
+      "crm_hub_reminders__btn_create": [
+        "create"
+      ],
+      "crm_kpi_records__btn_save": [
+        "edit"
+      ]
+    },
+    "PD": {
+      "automation_workflows": [
+        "configure",
+        "create",
+        "edit",
+        "simulate",
+        "view"
+      ],
+      "ceo_command": [
+        "view"
+      ],
+      "crm_agency": [
+        "view"
+      ],
+      "crm_am": [
+        "view"
+      ],
+      "crm_am.clients": [
+        "view"
+      ],
+      "crm_am.health": [
+        "view"
+      ],
+      "crm_am.reports": [
+        "view"
+      ],
+      "crm_assistant": [
+        "view"
+      ],
+      "crm_b2b_projects": [
+        "view"
+      ],
+      "crm_board": [
+        "edit",
+        "view"
+      ],
+      "crm_board_customers": [
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "view"
+      ],
+      "crm_business_dashboard": [
+        "view"
+      ],
+      "crm_content": [
+        "view"
+      ],
+      "crm_daily_work_report": [
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_delivery_budget": [
+        "edit",
+        "view"
+      ],
+      "crm_delivery_projects": [
+        "edit",
+        "manage",
+        "view"
+      ],
+      "crm_email_mkt": [
+        "reports",
+        "view"
+      ],
+      "crm_facebook_ads": [
+        "view"
+      ],
+      "crm_google_ads": [
+        "view"
+      ],
+      "crm_hdsd": [
+        "export",
+        "view"
+      ],
+      "crm_hr_leave": [
+        "view"
+      ],
+      "crm_hub_campaigns": [
+        "view"
+      ],
+      "crm_hub_contracts": [
+        "view"
+      ],
+      "crm_hub_reminders": [
+        "view"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "send",
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "manage",
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_media": [
+        "view"
+      ],
+      "crm_media.campaigns": [
+        "view"
+      ],
+      "crm_media.evidence": [
+        "view"
+      ],
+      "crm_media.inventory": [
+        "view"
+      ],
+      "crm_media.margin": [
+        "view"
+      ],
+      "crm_media.outcomes": [
+        "view"
+      ],
+      "crm_media.packages": [
+        "view"
+      ],
+      "crm_media.settings": [
+        "view"
+      ],
+      "crm_mkt_ai": [
+        "view"
+      ],
+      "crm_mktplan": [
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_owner_weekly_dashboard": [
+        "view"
+      ],
+      "crm_payroll_attendance": [
+        "view"
+      ],
+      "crm_presales_solution": [
+        "claim",
+        "edit",
+        "release",
+        "view"
+      ],
+      "crm_quote": [
+        "edit",
+        "view"
+      ],
+      "crm_quote.catalog": [
+        "view"
+      ],
+      "crm_research": [
+        "create",
+        "edit",
+        "export",
+        "run",
+        "view"
+      ],
+      "crm_revops": [
+        "view",
+        "view_all"
+      ],
+      "crm_revops.pipeline": [
+        "view"
+      ],
+      "crm_revops.reports": [
+        "view"
+      ],
+      "crm_revops.sla": [
+        "view"
+      ],
+      "crm_revops.territory": [
+        "view"
+      ],
+      "crm_sales_deals": [
+        "view"
+      ],
+      "crm_sales_funnel": [
+        "view"
+      ],
+      "crm_sales_overview": [
+        "view"
+      ],
+      "crm_sales_prospects": [
+        "view"
+      ],
+      "crm_sales_reports": [
+        "view"
+      ],
+      "crm_seo_aeo": [
+        "view"
+      ],
+      "crm_seo_aeo_reports": [
+        "view"
+      ],
+      "crm_seo_aeo_technical": [
+        "view"
+      ],
+      "crm_sop_overdue": [
+        "view"
+      ],
+      "crm_sop_runs": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sop_templates": [
+        "view"
+      ],
+      "crm_staff_departments": [
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "crm_staff_positions": [
+        "view"
+      ],
+      "crm_staff_roster": [
+        "view"
+      ],
+      "crm_vd.admin": [
+        "view"
+      ],
+      "crm_vd.bible": [
+        "view"
+      ],
+      "crm_vd.budget": [
+        "view"
+      ],
+      "crm_vd.delivery": [
+        "view"
+      ],
+      "crm_vd.gate1": [
+        "view"
+      ],
+      "crm_vd.gate2": [
+        "view"
+      ],
+      "crm_vd.gate3": [
+        "view"
+      ],
+      "crm_vd.keyframe": [
+        "view"
+      ],
+      "crm_vd.motion": [
+        "view"
+      ],
+      "crm_vd.post": [
+        "view"
+      ],
+      "crm_vd.project": [
+        "view"
+      ],
+      "crm_vd.qc": [
+        "view"
+      ],
+      "crm_vd.report": [
+        "view"
+      ],
+      "crm_vd.script": [
+        "view"
+      ],
+      "crm_zalo_ads": [
+        "view"
+      ],
+      "csd": [
+        "assign",
+        "manage",
+        "view",
+        "write"
+      ],
+      "iwr": [
+        "export",
+        "review",
+        "view",
+        "write"
+      ],
+      "meta_ads_ops": [
+        "view"
+      ],
+      "playbooks": [
+        "view"
+      ],
+      "crm_kpi_records__btn_save": [
+        "edit"
+      ]
+    },
+    "KD-01": {
+      "automation_workflows": [
+        "view"
+      ],
+      "crm_agency": [
+        "approve",
+        "configure",
+        "create",
+        "edit",
+        "export",
+        "view",
+        "view_pii"
+      ],
+      "crm_am": [
+        "assign",
+        "edit",
+        "manage",
+        "view",
+        "view_all"
+      ],
+      "crm_am.clients": [
+        "edit",
+        "view"
+      ],
+      "crm_am.feedback": [
+        "edit",
+        "view"
+      ],
+      "crm_am.finance": [
+        "view"
+      ],
+      "crm_am.health": [
+        "edit",
+        "view"
+      ],
+      "crm_am.onboarding": [
+        "edit",
+        "view"
+      ],
+      "crm_am.opportunities": [
+        "edit",
+        "view"
+      ],
+      "crm_am.renewals": [
+        "edit",
+        "view"
+      ],
+      "crm_am.reports": [
+        "view"
+      ],
+      "crm_am.settings": [
+        "manage",
+        "view"
+      ],
+      "crm_am.work": [
+        "edit",
+        "view"
+      ],
+      "crm_assistant": [
+        "create",
+        "export",
+        "view"
+      ],
+      "crm_b2b_projects": [
+        "view"
+      ],
+      "crm_board": [
+        "edit",
+        "view"
+      ],
+      "crm_board_create": [
+        "create",
+        "view"
+      ],
+      "crm_board_customers": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "edit",
+        "view"
+      ],
+      "crm_content": [
+        "view"
+      ],
+      "crm_daily_work_report": [
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_delivery_budget": [
+        "edit",
+        "view"
+      ],
+      "crm_delivery_projects": [
+        "edit",
+        "manage",
+        "view"
+      ],
+      "crm_email_mkt": [
+        "reports",
+        "view"
+      ],
+      "crm_facebook_ads": [
+        "configure",
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_google_ads": [
+        "export",
+        "view"
+      ],
+      "crm_hdsd": [
+        "export",
+        "view"
+      ],
+      "crm_hub_campaigns": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_hub_contracts": [
+        "edit",
+        "view"
+      ],
+      "crm_hub_reminders": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "send",
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "manage",
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_leads": [
+        "assign",
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_lmp": [
+        "view"
+      ],
+      "crm_media": [
+        "view"
+      ],
+      "crm_media.campaigns": [
+        "view"
+      ],
+      "crm_media.evidence": [
+        "view"
+      ],
+      "crm_media.inventory": [
+        "view"
+      ],
+      "crm_media.margin": [
+        "view"
+      ],
+      "crm_media.outcomes": [
+        "view"
+      ],
+      "crm_media.packages": [
+        "view"
+      ],
+      "crm_media.settings": [
+        "view"
+      ],
+      "crm_mktplan": [
+        "view"
+      ],
+      "crm_payroll_attendance": [
+        "view"
+      ],
+      "crm_presales_solution": [
+        "view"
+      ],
+      "crm_quote": [
+        "edit",
+        "view"
+      ],
+      "crm_quote.catalog": [
+        "view"
+      ],
+      "crm_quote.finance": [
+        "view"
+      ],
+      "crm_research": [
+        "create",
+        "edit",
+        "export",
+        "run",
+        "view"
+      ],
+      "crm_revops": [
+        "view",
+        "view_team"
+      ],
+      "crm_revops.pipeline": [
+        "view"
+      ],
+      "crm_revops.reports": [
+        "view"
+      ],
+      "crm_sales_deals": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sales_funnel": [
+        "export",
+        "view"
+      ],
+      "crm_sales_market": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sales_overview": [
+        "export",
+        "view"
+      ],
+      "crm_sales_prospects": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sales_reports": [
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo": [
+        "view"
+      ],
+      "crm_seo_aeo_reports": [
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo_settings": [
+        "configure",
+        "edit",
+        "view"
+      ],
+      "crm_seo_aeo_technical": [
+        "view"
+      ],
+      "crm_sop_overdue": [
+        "view"
+      ],
+      "crm_sop_runs": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sop_templates": [
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "crm_zalo_ads": [
+        "edit",
+        "view"
+      ],
+      "csd": [
+        "view",
+        "write"
+      ],
+      "iwr": [
+        "export",
+        "review",
+        "view",
+        "write"
+      ],
+      "meta_ads_ops": [
+        "view"
+      ],
+      "meta_campaign_write": [
+        "view"
+      ],
+      "playbooks": [
+        "view"
+      ],
+      "crm_board_create__btn_new_case": [
+        "create"
+      ],
+      "crm_leads__btn_create": [
+        "create"
+      ],
+      "crm_leads__btn_export_xlsx": [
+        "export"
+      ],
+      "crm_leads__btn_export_pdf": [
+        "export"
+      ],
+      "crm_leads__btn_import": [
+        "create"
+      ],
+      "crm_leads__btn_fb_sync": [
+        "create"
+      ],
+      "crm_leads__btn_ai_search": [
+        "view"
+      ],
+      "crm_leads__btn_convert": [
+        "create"
+      ],
+      "crm_leads__btn_assign": [
+        "edit"
+      ],
+      "crm_leads__btn_merge": [
+        "edit"
+      ],
+      "crm_leads__btn_ai_summary": [
+        "view"
+      ],
+      "crm_leads__btn_ai_classify": [
+        "edit"
+      ],
+      "crm_leads__btn_ai_recommend": [
+        "view"
+      ],
+      "crm_leads__btn_edit": [
+        "edit"
+      ],
+      "crm_leads__btn_rescore": [
+        "edit"
+      ],
+      "crm_leads__btn_activity": [
+        "create"
+      ],
+      "crm_leads__btn_save": [
+        "edit"
+      ],
+      "crm_board_customers__btn_create": [
+        "create"
+      ],
+      "crm_hub_campaigns__btn_create": [
+        "create"
+      ],
+      "crm_hub_reminders__btn_create": [
+        "create"
+      ],
+      "crm_kpi_records__btn_save": [
+        "edit"
+      ]
+    },
+    "MKT-01": {
+      "automation_workflows": [
+        "configure",
+        "create",
+        "edit",
+        "simulate",
+        "view"
+      ],
+      "crm_agency": [
+        "configure",
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_assistant": [
+        "view"
+      ],
+      "crm_b2b_projects": [
+        "view"
+      ],
+      "crm_board": [
+        "edit",
+        "view"
+      ],
+      "crm_board_customers": [
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "view"
+      ],
+      "crm_business_dashboard": [
+        "view"
+      ],
+      "crm_content": [
+        "admin",
+        "approve_internal",
+        "assign",
+        "generate",
+        "production",
+        "publish",
+        "qa",
+        "view",
+        "write"
+      ],
+      "crm_cp": [
+        "edit",
+        "manage",
+        "view",
+        "view_all"
+      ],
+      "crm_cp.approve_legal": [
+        "execute"
+      ],
+      "crm_cp.brand": [
+        "edit"
+      ],
+      "crm_cp.export_final": [
+        "execute"
+      ],
+      "crm_cp.finance": [
+        "view"
+      ],
+      "crm_cp.manage_brand_rule": [
+        "manage"
+      ],
+      "crm_cp.publish": [
+        "execute"
+      ],
+      "crm_cp.render": [
+        "execute"
+      ],
+      "crm_cp.render_high_cost": [
+        "execute"
+      ],
+      "crm_cp.view_audit": [
+        "view"
+      ],
+      "crm_daily_work_report": [
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_delivery_budget": [
+        "edit",
+        "view"
+      ],
+      "crm_delivery_projects": [
+        "edit",
+        "manage",
+        "view"
+      ],
+      "crm_email_mkt": [
+        "approve",
+        "compliance",
+        "deliverability",
+        "reports",
+        "settings",
+        "view",
+        "write"
+      ],
+      "crm_facebook_ads": [
+        "configure",
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_google_ads": [
+        "export",
+        "view"
+      ],
+      "crm_hdsd": [
+        "export",
+        "view"
+      ],
+      "crm_hub_campaigns": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_hub_contracts": [
+        "edit",
+        "view"
+      ],
+      "crm_hub_reminders": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_img": [
+        "edit",
+        "manage",
+        "view",
+        "view_all"
+      ],
+      "crm_img.admin": [
+        "manage"
+      ],
+      "crm_img.finance": [
+        "view"
+      ],
+      "crm_img.gate1": [
+        "execute"
+      ],
+      "crm_img.gate2": [
+        "execute"
+      ],
+      "crm_img.gate3": [
+        "execute"
+      ],
+      "crm_img.manage": [
+        "manage"
+      ],
+      "crm_img.render": [
+        "execute"
+      ],
+      "crm_img.render_high_cost": [
+        "execute"
+      ],
+      "crm_img.sop": [
+        "edit"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "send",
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "manage",
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_leads": [
+        "view"
+      ],
+      "crm_lmp": [
+        "view"
+      ],
+      "crm_media": [
+        "publish",
+        "view",
+        "write"
+      ],
+      "crm_media.campaigns": [
+        "publish",
+        "view",
+        "write"
+      ],
+      "crm_media.evidence": [
+        "view",
+        "write"
+      ],
+      "crm_media.inventory": [
+        "view",
+        "write"
+      ],
+      "crm_media.margin": [
+        "view"
+      ],
+      "crm_media.outcomes": [
+        "view",
+        "write"
+      ],
+      "crm_media.packages": [
+        "view",
+        "write"
+      ],
+      "crm_media.settings": [
+        "view"
+      ],
+      "crm_mkt_ai": [
+        "approve",
+        "view"
+      ],
+      "crm_mktplan": [
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_owner_weekly_dashboard": [
+        "view"
+      ],
+      "crm_payroll_attendance": [
+        "view"
+      ],
+      "crm_presales_solution": [
+        "claim",
+        "edit",
+        "release",
+        "view"
+      ],
+      "crm_quote": [
+        "view"
+      ],
+      "crm_quote.catalog": [
+        "view"
+      ],
+      "crm_research": [
+        "approve",
+        "create",
+        "edit",
+        "export",
+        "run",
+        "view"
+      ],
+      "crm_revops": [
+        "view",
+        "view_team"
+      ],
+      "crm_revops.pipeline": [
+        "view"
+      ],
+      "crm_revops.reports": [
+        "view"
+      ],
+      "crm_sales_deals": [
+        "view"
+      ],
+      "crm_sales_funnel": [
+        "view"
+      ],
+      "crm_sales_overview": [
+        "view"
+      ],
+      "crm_sales_prospects": [
+        "view"
+      ],
+      "crm_sales_reports": [
+        "view"
+      ],
+      "crm_seo_aeo": [
+        "approve",
+        "configure",
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo_approve": [
+        "approve"
+      ],
+      "crm_seo_aeo_reports": [
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo_settings": [
+        "configure",
+        "edit",
+        "view"
+      ],
+      "crm_seo_aeo_technical": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_seo_aeo_write": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sop_overdue": [
+        "view"
+      ],
+      "crm_sop_runs": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sop_templates": [
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "crm_vd.admin": [
+        "create",
+        "view"
+      ],
+      "crm_vd.bible": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.budget": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.delivery": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.gate1": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.gate2": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.gate3": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.keyframe": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.motion": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.post": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.project": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_vd.qc": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.report": [
+        "view"
+      ],
+      "crm_vd.script": [
+        "edit",
+        "view"
+      ],
+      "crm_zalo_ads": [
+        "edit",
+        "view"
+      ],
+      "csd": [
+        "assign",
+        "manage",
+        "view",
+        "write"
+      ],
+      "gtm.cms": [
+        "view"
+      ],
+      "gtm_demos": [
+        "view"
+      ],
+      "iwr": [
+        "export",
+        "review",
+        "view",
+        "write"
+      ],
+      "meta_ads_ops": [
+        "view"
+      ],
+      "meta_campaign_write": [
+        "view"
+      ],
+      "playbooks": [
+        "view"
+      ],
+      "crm_leads__btn_ai_search": [
+        "view"
+      ],
+      "crm_leads__btn_ai_summary": [
+        "view"
+      ],
+      "crm_leads__btn_ai_recommend": [
+        "view"
+      ],
+      "crm_hub_campaigns__btn_create": [
+        "create"
+      ],
+      "crm_hub_reminders__btn_create": [
+        "create"
+      ],
+      "crm_kpi_records__btn_save": [
+        "edit"
+      ]
+    },
+    "MKT-02": {
+      "crm_agency": [
+        "view"
+      ],
+      "crm_assistant": [
+        "view"
+      ],
+      "crm_board": [
+        "view"
+      ],
+      "crm_board_customers": [
+        "view"
+      ],
+      "crm_board_funnel": [
+        "view"
+      ],
+      "crm_board_kanban": [
+        "view"
+      ],
+      "crm_board_playbook": [
+        "view"
+      ],
+      "crm_board_workspace": [
+        "view"
+      ],
+      "crm_content": [
+        "assign",
+        "generate",
+        "production",
+        "publish",
+        "qa",
+        "view",
+        "write"
+      ],
+      "crm_cp": [
+        "edit",
+        "view"
+      ],
+      "crm_cp.brand": [
+        "edit"
+      ],
+      "crm_cp.finance": [
+        "view"
+      ],
+      "crm_cp.view_audit": [
+        "view"
+      ],
+      "crm_delivery_budget": [
+        "view"
+      ],
+      "crm_delivery_projects": [
+        "view"
+      ],
+      "crm_email_mkt": [
+        "reports",
+        "settings",
+        "view",
+        "write"
+      ],
+      "crm_facebook_ads": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_google_ads": [
+        "view"
+      ],
+      "crm_hdsd": [
+        "export",
+        "view"
+      ],
+      "crm_hub_campaigns": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_hub_contracts": [
+        "edit",
+        "view"
+      ],
+      "crm_hub_reminders": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_kpi_alerts": [
+        "view"
+      ],
+      "crm_kpi_chart": [
+        "view"
+      ],
+      "crm_kpi_dictionary": [
+        "view"
+      ],
+      "crm_kpi_groups": [
+        "view"
+      ],
+      "crm_kpi_hub": [
+        "view"
+      ],
+      "crm_kpi_hub_reports": [
+        "view"
+      ],
+      "crm_kpi_hub_sources": [
+        "view"
+      ],
+      "crm_kpi_hub_targets": [
+        "view"
+      ],
+      "crm_kpi_metrics": [
+        "view"
+      ],
+      "crm_kpi_quality": [
+        "view"
+      ],
+      "crm_kpi_records": [
+        "view"
+      ],
+      "crm_kpi_types": [
+        "view"
+      ],
+      "crm_media": [
+        "publish",
+        "view",
+        "write"
+      ],
+      "crm_media.campaigns": [
+        "publish",
+        "view",
+        "write"
+      ],
+      "crm_media.evidence": [
+        "view",
+        "write"
+      ],
+      "crm_media.inventory": [
+        "view",
+        "write"
+      ],
+      "crm_media.margin": [
+        "view"
+      ],
+      "crm_media.outcomes": [
+        "view",
+        "write"
+      ],
+      "crm_media.packages": [
+        "view",
+        "write"
+      ],
+      "crm_media.settings": [
+        "view"
+      ],
+      "crm_mkt_ai": [
+        "view"
+      ],
+      "crm_mktplan": [
+        "view"
+      ],
+      "crm_research": [
+        "view"
+      ],
+      "crm_seo_aeo": [
+        "create",
+        "edit",
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo_reports": [
+        "export",
+        "view"
+      ],
+      "crm_seo_aeo_settings": [
+        "configure",
+        "edit",
+        "view"
+      ],
+      "crm_seo_aeo_technical": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_seo_aeo_write": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_sop_runs": [
+        "view"
+      ],
+      "crm_staff_kpi_am_sp": [
+        "view"
+      ],
+      "crm_vd.admin": [
+        "create",
+        "view"
+      ],
+      "crm_vd.bible": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.budget": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.delivery": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.gate1": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.gate2": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.gate3": [
+        "approve",
+        "view"
+      ],
+      "crm_vd.keyframe": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.motion": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.post": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.project": [
+        "create",
+        "edit",
+        "view"
+      ],
+      "crm_vd.qc": [
+        "edit",
+        "view"
+      ],
+      "crm_vd.report": [
+        "view"
+      ],
+      "crm_vd.script": [
+        "edit",
+        "view"
+      ],
+      "crm_zalo_ads": [
+        "view"
+      ],
+      "csd": [
+        "view",
+        "write"
+      ],
+      "gtm.cms": [
+        "view"
+      ],
+      "gtm_demos": [
+        "view"
+      ],
+      "iwr": [
+        "view",
+        "write"
+      ],
+      "meta_ads_ops": [
+        "view"
+      ],
+      "meta_campaign_write": [
+        "view"
+      ],
+      "crm_hub_campaigns__btn_create": [
+        "create"
+      ],
+      "crm_hub_reminders__btn_create": [
+        "create"
+      ]
+    }
+  }
+}

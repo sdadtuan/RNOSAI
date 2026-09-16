@@ -166,4 +166,14 @@ export class StaffPermissionsController {
   listAccessReviewActions(@Query('quarter') quarter?: string) {
     return this.accessReview.listAppliedActions(quarter ?? '');
   }
+
+  /** Seed ma trận bàn giao (docs/exports/ma-tran-phan-quyen-RNOSAI-ban-giao-*.md) lên PG. */
+  @Post('seed-handover')
+  @UseGuards(StaffOrInternalKeyGuard, StaffPermissionsConfigureGuard)
+  seedHandover(
+    @Body() body: { codes?: string[]; include_super_admin?: boolean },
+    @StaffUser() staffUser?: StaffJwtPayload,
+  ) {
+    return this.permissions.seedHandoverMatrix(staffUser?.email ?? '', body ?? {});
+  }
 }

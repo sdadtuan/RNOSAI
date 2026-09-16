@@ -16,6 +16,12 @@ import type {
 } from './staff-permissions.types';
 import { StaffJobFunctionsRepository } from './staff-job-functions.repository';
 import { listFieldRegistryEntries, loadFieldRegistry } from './field-level.registry';
+import {
+  HANDOVER_POSITION_CODES,
+  buildFullCatalogGrants,
+  handoverGrantsForCode,
+  loadHandoverRbacDoc,
+} from './handover-rbac-defaults';
 
 @Injectable()
 export class StaffPermissionsService {
@@ -189,6 +195,94 @@ export class StaffPermissionsService {
       markdown: lines.join('\n'),
       grants: detail.grants,
       matrix: detail.matrix,
+    };
+  }
+
+  /**
+   * Seed bàn giao matrix onto existing crm_positions (Admin UI + CLI parity).
+   * Replaces grants for matched codes; SUPER-ADMIN gets full catalog.
+   */
+  async seedHandoverMatrix(
+    actorEmail: string,
+    body?: { codes?: string[]; include_super_admin?: boolean },
+  ) {
+    const doc = loadHandoverRbacDoc();
+    const requested = (body?.codes ?? [...HANDOVER_POSITION_CODES])
+      .map((c) => String(c || '').trim())
+      .filter(Boolean);
+    const includeSuperAdmin = body?.include_super_admin !== false;
+    const positions = await this.repo.listPositions();
+    const byCode = new Map(positions.map((p) => [p.code.toUpperCase(), p]));
+
+    const results: Array<{
+      code: string;
+      position_id: number | null;
+      status: 'ok' | 'skipped' | 'missing';
+      added?: number;
+      removed?: number;
+      reason?: string;
+    }> = [];
+
+    if (includeSuperAdmin) {
+      const superPos =
+        byCode.get('SUPER-ADMIN') || positions.find((p) => p.id === 1) || null;
+      if (superPos) {
+        const grants = buildFullCatalogGrants();
+        const result = await this.repo.replaceCaps(superPos.id, grants, actorEmail || 'handover-seed');
+        results.push({
+          code: 'SUPER-ADMIN',
+          position_id: superPos.id,
+          status: 'ok',
+          added: result.added,
+          removed: result.removed,
+        });
+      } else {
+        results.push({
+          code: 'SUPER-ADMIN',
+          position_id: null,
+          status: 'missing',
+          reason: 'position_not_found',
+        });
+      }
+    }
+
+    for (const code of requested) {
+      if (code.toUpperCase() === 'SUPER-ADMIN') continue;
+      const grants = handoverGrantsForCode(code);
+      if (!grants) {
+        results.push({
+          code,
+          position_id: null,
+          status: 'skipped',
+          reason: 'not_in_handover_matrix',
+        });
+        continue;
+      }
+      const pos = byCode.get(code.toUpperCase());
+      if (!pos) {
+        results.push({
+          code,
+          position_id: null,
+          status: 'missing',
+          reason: 'position_not_found',
+        });
+        continue;
+      }
+      const result = await this.repo.replaceCaps(pos.id, grants, actorEmail || 'handover-seed');
+      results.push({
+        code: pos.code,
+        position_id: pos.id,
+        status: 'ok',
+        added: result.added,
+        removed: result.removed,
+      });
+    }
+
+    return {
+      ok: true,
+      source: doc.meta?.source ?? 'rnosai_handover_rbac_grants.json',
+      version: doc.meta?.version ?? '1.0',
+      results,
     };
   }
 }

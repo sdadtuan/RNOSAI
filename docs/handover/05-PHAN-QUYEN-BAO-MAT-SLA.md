@@ -65,6 +65,9 @@ Seed prod: `python3 scripts/seed_staff_email_mkt_permissions.py`
 | Compliance | consent/compliance + approve |
 | CSKH | crm + leads |
 
+**Ma trận bàn giao đầy đủ (10 vai trò × mọi module):**  
+[`docs/exports/ma-tran-phan-quyen-RNOSAI-ban-giao-2026-09-16.md`](../exports/ma-tran-phan-quyen-RNOSAI-ban-giao-2026-09-16.md) · entry [`07-MA-TRAN-PHAN-QUYEN-TOAN-HE-THONG.md`](07-MA-TRAN-PHAN-QUYEN-TOAN-HE-THONG.md)
+
 ---
 
 ## 3. Portal RBAC

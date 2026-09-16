@@ -1,6 +1,8 @@
 # Service Desk (CSD) — Hướng dẫn nhanh AM/PM
 
-**Đường dẫn:** `/crm/csd` · **Quyền:** `csd:view` (xem) · `csd:write` (phản hồi/tạo) · `csd:assign` · `csd:manage`
+**Đường dẫn:** `/crm/csd` · **Quyền:** `csd:view` (xem) · `csd:write` (phản hồi/tạo) · `csd:assign` · `csd:manage` · `csd:admin` (tài khoản chat)
+
+**Ma trận theo chức vụ + vai trò nhóm:** [`docs/exports/ma-tran-phan-quyen-csd-chat-2026-09-16.md`](../exports/ma-tran-phan-quyen-csd-chat-2026-09-16.md) · SoT: [`docs/superpowers/specs/2026-09-16-csd-chat-permission-matrix.md`](../superpowers/specs/2026-09-16-csd-chat-permission-matrix.md)
 
 Service Desk là kênh ticket **agency** (PTT-2026-xxxxx), tách biệt **Ticket CS** tại `/crm/tickets`.
 

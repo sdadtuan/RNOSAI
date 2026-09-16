@@ -6,6 +6,7 @@
     "deleteOutDir": true,
     "assets": [
       { "include": "staff-permissions/rbac-admin-catalog.json", "watchAssets": true },
+      { "include": "staff-permissions/data/**/*.json", "watchAssets": true },
       { "include": "leads-funnel/**/*.json", "watchAssets": true },
       { "include": "marketing-ai-planner/playbooks/**/*.json", "watchAssets": true },
       { "include": "deal-room/**/*.json", "watchAssets": true }

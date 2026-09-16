@@ -8762,6 +8762,32 @@ export async function exportStaffPermissionPosition(
   return crmFetch(token, `/api/v1/staff/permissions/positions/${positionId}/export`);
 }
 
+export type SeedHandoverPermissionsResult = {
+  ok: boolean;
+  source?: string;
+  version?: string;
+  results: Array<{
+    code: string;
+    position_id: number | null;
+    status: 'ok' | 'skipped' | 'missing';
+    added?: number;
+    removed?: number;
+    reason?: string;
+  }>;
+};
+
+/** Seed ma trận bàn giao lên PostgreSQL (Admin → Phân quyền). */
+export async function seedHandoverStaffPermissions(
+  token: string,
+  body?: { codes?: string[]; include_super_admin?: boolean },
+): Promise<SeedHandoverPermissionsResult> {
+  return crmFetch(token, '/api/v1/staff/permissions/seed-handover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
 export interface StaffJobFunctionSummary {
   code: string;
   label: string;

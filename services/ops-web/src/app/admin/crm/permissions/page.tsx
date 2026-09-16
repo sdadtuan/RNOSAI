@@ -15,6 +15,7 @@ import {
   fetchStaffPermissionPosition,
   fetchStaffPermissionPositions,
   patchStaffPermissionPosition,
+  seedHandoverStaffPermissions,
   signAdminConfigSnapshot,
   staffMe,
   staffRefresh,
@@ -239,6 +240,42 @@ export default function AdminCrmPermissionsPage() {
     }
   }
 
+  async function handleSeedHandover() {
+    const access = getAccessToken();
+    if (!access || !canConfigure) return;
+    const ok = window.confirm(
+      'Seed ma trận bàn giao (CEO, AE, ACM, CE, MEP, GD, MKL, PD + SUPER-ADMIN) lên PostgreSQL?\n\n' +
+        'Thao tác này GHI ĐÈ grants hiện tại của các chức vụ đó. User cần đăng xuất/đăng nhập sau khi seed.',
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError('');
+    try {
+      const data = await seedHandoverStaffPermissions(access, { include_super_admin: true });
+      const list = await fetchStaffPermissionPositions(access);
+      setPositions(list);
+      const keepId =
+        selectedId != null && list.some((p) => p.id === selectedId)
+          ? selectedId
+          : list[0]?.id ?? null;
+      if (keepId != null) {
+        setSelectedId(keepId);
+        await loadPosition(access, keepId);
+      }
+      const okRows = (data.results ?? []).filter((r) => r.status === 'ok');
+      const miss = (data.results ?? []).filter((r) => r.status === 'missing').map((r) => r.code);
+      window.alert(
+        `Đã seed ${okRows.length} chức vụ.` +
+          (miss.length ? `\nThiếu trên DB: ${miss.join(', ')}` : '') +
+          '\nĐăng xuất / đăng nhập để menu cập nhật.',
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Seed bàn giao thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!user) {
     return (
       <AdminPageShell
@@ -268,6 +305,17 @@ export default function AdminCrmPermissionsPage() {
           {winBreakGlassEnabled() ? (
             <button type="button" className="btn btn--secondary" onClick={() => setBreakGlassOpen(true)}>
               Break-glass
+            </button>
+          ) : null}
+          {canConfigure ? (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy}
+              onClick={() => void handleSeedHandover()}
+              title="Seed theo docs/exports/ma-tran-phan-quyen-RNOSAI-ban-giao-2026-09-16.md"
+            >
+              Seed bàn giao
             </button>
           ) : null}
           <button type="button" className="btn btn--secondary" disabled={busy || selectedId == null} onClick={() => void handleExport()}>
@@ -301,6 +349,8 @@ export default function AdminCrmPermissionsPage() {
 
         <div className="win-info-callout">
           Caps <strong>base</strong> theo chức vụ. Job function add-on cấu hình ở tab Job function.
+          Dùng nút <strong>Seed bàn giao</strong> để ghi ma trận 8 vai trò vận hành (+ SUPER-ADMIN)
+          từ file bàn giao lên DB — sau đó chỉnh tay nếu cần.
         </div>
 
         <div className="kpi-page__filters">
