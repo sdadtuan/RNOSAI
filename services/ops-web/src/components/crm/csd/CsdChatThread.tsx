@@ -20,7 +20,9 @@ import {
   shouldShowDateChip,
 } from '@/lib/crm/csd-chat-display';
 import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
+import { CsdChatAddMembersModal } from '@/components/crm/csd/CsdChatAddMembersModal';
 import { CsdChatGroupAvatar } from '@/components/crm/csd/CsdChatGroupAvatar';
+import { CsdChatGroupMembersPanel } from '@/components/crm/csd/CsdChatGroupMembersPanel';
 
 function mentionToken(draft: string): string | null {
   const match = draft.match(/(^|[\s])@(\d*)$/);
@@ -79,6 +81,10 @@ type CsdChatThreadProps = {
   onStartVoiceCall?: () => void;
   onStartVideoCall?: () => void;
   callBusy?: boolean;
+  canInviteMembers?: boolean;
+  canLeaveGroup?: boolean;
+  onInviteMembers?: (staffIds: number[]) => Promise<boolean>;
+  onLeaveGroup?: () => void;
 };
 
 export function CsdChatThread({
@@ -128,6 +134,10 @@ export function CsdChatThread({
   priorityHint,
   density = 'page',
   showMobileBack,
+  canInviteMembers = false,
+  canLeaveGroup = false,
+  onInviteMembers,
+  onLeaveGroup,
 }: CsdChatThreadProps) {
   const [ticketSuggest, setTicketSuggest] = useState<CsdTicketRow[]>([]);
   const [renaming, setRenaming] = useState(false);
@@ -135,6 +145,8 @@ export function CsdChatThread({
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [threadSearchOpen, setThreadSearchOpen] = useState(false);
   const [threadSearch, setThreadSearch] = useState('');
+  const [membersPanelOpen, setMembersPanelOpen] = useState(false);
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
   const messagesRef = useRef<HTMLUListElement>(null);
   const bottomRef = useRef<HTMLLIElement>(null);
   const mentionQ = mentionToken(draft);
@@ -143,6 +155,11 @@ export function CsdChatThread({
   const pinnedMessage = active?.pinned_message_id
     ? messages.find((m) => m.id === active.pinned_message_id) ?? null
     : null;
+
+  useEffect(() => {
+    setMembersPanelOpen(false);
+    setAddMembersOpen(false);
+  }, [active?.id]);
 
   useEffect(() => {
     if (hashQ == null) {
@@ -309,24 +326,61 @@ export function CsdChatThread({
           ) : (
             <div className="csd-chat-thread-toolbar__meta">
               <h3 className="csd-chat-thread-toolbar__name">{displayName}</h3>
-              {onRename && canWrite ? (
-                <button
-                  type="button"
-                  className="csd-chat-thread-toolbar__rename"
-                  data-testid="csd-chat-rename"
-                  aria-label="Đổi tên gợi nhớ"
-                  onClick={() => {
-                    setAliasDraft(active.alias_vi || active.name_vi);
-                    setRenaming(true);
-                  }}
-                >
-                  <span className="csd-chat-thread-ico csd-chat-thread-ico--tag" aria-hidden />
-                </button>
-              ) : null}
+              <div className="csd-chat-thread-toolbar__sub">
+                {active.kind === 'group' ? (
+                  <button
+                    type="button"
+                    className="csd-chat-thread-toolbar__members"
+                    data-testid="csd-chat-thread-member-count"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMembersPanelOpen(true);
+                    }}
+                  >
+                    <span className="csd-chat-thread-ico csd-chat-thread-ico--person" aria-hidden />
+                    {members.length} thành viên
+                  </button>
+                ) : null}
+                {active.kind === 'group' && onRename && canWrite ? (
+                  <span className="csd-chat-thread-toolbar__sep" aria-hidden>
+                    |
+                  </span>
+                ) : null}
+                {onRename && canWrite ? (
+                  <button
+                    type="button"
+                    className="csd-chat-thread-toolbar__rename"
+                    data-testid="csd-chat-rename"
+                    aria-label="Đổi tên gợi nhớ"
+                    onClick={() => {
+                      setAliasDraft(active.alias_vi || active.name_vi);
+                      setRenaming(true);
+                    }}
+                  >
+                    <span className="csd-chat-thread-ico csd-chat-thread-ico--tag" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
             </div>
           )}
         </div>
         <div className="csd-chat-thread-toolbar__actions">
+          {active.kind === 'group' && canInviteMembers ? (
+            <button
+              type="button"
+              className="csd-chat-thread-tool-btn"
+              aria-label="Thêm thành viên"
+              title="Thêm thành viên"
+              data-testid="csd-chat-thread-add-member"
+              disabled={closed}
+              onClick={(e) => {
+                e.stopPropagation();
+                setAddMembersOpen(true);
+              }}
+            >
+              <span className="csd-chat-thread-ico csd-chat-thread-ico--add-member" aria-hidden />
+            </button>
+          ) : null}
           <button
             type="button"
             className="csd-chat-thread-tool-btn"
@@ -611,6 +665,19 @@ export function CsdChatThread({
               </svg>
               <span className="sr-only">Đính file</span>
             </label>
+            {active.kind === 'group' && canInviteMembers ? (
+              <button
+                type="button"
+                className="csd-chat-tool-btn"
+                title="Thêm thành viên"
+                aria-label="Thêm thành viên"
+                data-testid="csd-chat-compose-add-member"
+                disabled={closed}
+                onClick={() => setAddMembersOpen(true)}
+              >
+                <span className="csd-chat-thread-ico csd-chat-thread-ico--add-member" aria-hidden />
+              </button>
+            ) : null}
           </div>
           {emojiOpen ? (
             <div className="csd-chat-emoji-panel" data-testid="csd-chat-emoji-panel">
@@ -706,6 +773,43 @@ export function CsdChatThread({
             )}
           </div>
         </form>
+      ) : null}
+      {membersPanelOpen && active.kind === 'group' ? (
+        <CsdChatGroupMembersPanel
+          token={token}
+          members={members}
+          meStaffId={meStaffId}
+          canInvite={canInviteMembers}
+          canLeave={canLeaveGroup}
+          busy={busy}
+          onClose={() => setMembersPanelOpen(false)}
+          onAddMembers={() => {
+            setMembersPanelOpen(false);
+            setAddMembersOpen(true);
+          }}
+          onLeaveGroup={
+            onLeaveGroup
+              ? () => {
+                  setMembersPanelOpen(false);
+                  onLeaveGroup();
+                }
+              : undefined
+          }
+        />
+      ) : null}
+      {active.kind === 'group' && onInviteMembers ? (
+        <CsdChatAddMembersModal
+          token={token}
+          open={addMembersOpen}
+          busy={busy}
+          members={members}
+          onClose={() => setAddMembersOpen(false)}
+          onConfirm={async (staffIds) => {
+            const ok = await onInviteMembers(staffIds);
+            if (ok) setAddMembersOpen(false);
+            return ok;
+          }}
+        />
       ) : null}
     </section>
   );

@@ -83,3 +83,8 @@ export function canTransferGroupOwner(
   if (hasPlatformManage) return true;
   return actorRole === 'owner';
 }
+
+/** Any non-owner member may leave the group voluntarily. */
+export function canLeaveGroup(actorRole: CsdGroupMemberRole | null): boolean {
+  return actorRole != null && actorRole !== 'owner';
+}

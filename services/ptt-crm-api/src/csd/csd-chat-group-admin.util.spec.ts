@@ -1,5 +1,6 @@
 import {
   canManageGroupInfo,
+  canLeaveGroup,
   canManageGroupMembers,
   canPinGroupMessage,
   canRemoveGroupMember,
@@ -59,6 +60,14 @@ describe('csd-chat-group-admin.util', () => {
     expect(canSendInGroup('admin', false, false)).toBe(true);
     expect(canSendInGroup('owner', false, false)).toBe(true);
     expect(canSendInGroup('viewer', false, true)).toBe(true);
+  });
+
+  it('non-owner members may leave; owner cannot', () => {
+    expect(canLeaveGroup('owner')).toBe(false);
+    expect(canLeaveGroup('admin')).toBe(true);
+    expect(canLeaveGroup('member')).toBe(true);
+    expect(canLeaveGroup('viewer')).toBe(true);
+    expect(canLeaveGroup(null)).toBe(false);
   });
 
   it('Wave B: pin for owner/admin; transfer only owner', () => {

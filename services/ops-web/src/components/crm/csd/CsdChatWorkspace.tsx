@@ -95,6 +95,19 @@ export function CsdChatWorkspace({
     (canPlatformManage || myRole === 'owner' || myRole === 'admin') &&
     !closed &&
     !archived;
+  const canInviteMembers =
+    Boolean(canWrite) &&
+    s.active?.kind === 'group' &&
+    (canPlatformManage || myRole === 'owner' || myRole === 'admin') &&
+    !closed &&
+    !archived;
+  const canLeaveGroup =
+    Boolean(canWrite) &&
+    s.active?.kind === 'group' &&
+    myRole != null &&
+    myRole !== 'owner' &&
+    !closed &&
+    !archived;
   const showChatPane = tab === 'messages';
 
   function closeContextPanel() {
@@ -213,6 +226,10 @@ export function CsdChatWorkspace({
           closed={composerLocked}
           sendLockHint={sendLocked ? 'Chỉ Chủ/Phó được gửi tin trong nhóm này' : undefined}
           canPin={canPin}
+          canInviteMembers={canInviteMembers}
+          canLeaveGroup={canLeaveGroup}
+          onInviteMembers={(staffIds) => s.handleInviteMembers(staffIds)}
+          onLeaveGroup={() => void s.handleLeaveGroup()}
           onPinMessage={(m) => void s.handlePinMessage(m.id)}
           onUnpin={() => void s.handleUnpin()}
           priorityHint={s.priorityHint}
@@ -284,6 +301,7 @@ export function CsdChatWorkspace({
           onMemberStaffId={s.setMemberStaffId}
           onAddMember={() => void s.handleAddMember()}
           onRemoveMember={(staffId) => void s.handleRemoveMember(staffId)}
+          onLeaveGroup={() => void s.handleLeaveGroup()}
           onLoadFriendInvites={() => void s.loadFriendInviteOptions()}
           onPatchGroupInfo={(patch) => s.handlePatchGroupInfo(patch)}
           onSetMemberRole={(staffId, role) => void s.handleSetMemberRole(staffId, role)}

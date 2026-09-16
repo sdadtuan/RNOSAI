@@ -48,18 +48,21 @@ run_local() {
       systemctl is-active ptt-crm-api ptt-ops-web
     else
       echo "WARN  sudo systemctl restart skipped"
-      if systemctl is-active --quiet ptt-ops-web 2>/dev/null; then
-        pid="$(systemctl show ptt-ops-web -p MainPID --value 2>/dev/null || true)"
-        if [[ -n "$pid" && "$pid" != "0" ]] && kill -HUP "$pid" 2>/dev/null; then
-          sleep 3
-          systemctl is-active ptt-ops-web && echo "OK  ptt-ops-web restarted via HUP (deploy user)"
-        else
-          echo "      Run: sudo systemctl restart ptt-crm-api ptt-ops-web"
+      for unit in ptt-crm-api ptt-ops-web; do
+        if ! systemctl is-active --quiet "$unit" 2>/dev/null; then
+          continue
         fi
-      else
-        echo "      Run: sudo systemctl restart ptt-crm-api ptt-ops-web"
-      fi
-      echo "      Without restart, ops-web may serve stale sidebar until restarted."
+        pid="$(systemctl show "$unit" -p MainPID --value 2>/dev/null || true)"
+        [[ -z "$pid" || "$pid" == "0" ]] && continue
+        if [[ "$unit" == "ptt-ops-web" ]]; then
+          kill -HUP "$pid" 2>/dev/null && echo "OK  $unit reloaded via HUP (deploy user)"
+        else
+          kill -TERM "$pid" 2>/dev/null && echo "OK  $unit restarted via SIGTERM (deploy user)"
+        fi
+        sleep 2
+        systemctl is-active "$unit" || echo "WARN  $unit not active after reload"
+      done
+      echo "      If API routes still 404, run: sudo systemctl restart ptt-crm-api ptt-ops-web"
     fi
   fi
 

@@ -10,6 +10,7 @@ import { CsdChatAccountsService } from './csd-chat-accounts.service';
 import { CsdChatFriendsService } from './csd-chat-friends.service';
 import {
   canManageGroupInfo,
+  canLeaveGroup,
   canManageGroupMembers,
   canPinGroupMessage,
   canRemoveGroupMember,
@@ -639,7 +640,11 @@ export class CsdChatService {
       const actorRole = await this.actorGroupRole(actor, conversationId);
       const target = await this.repo.getMember(conversationId, memberStaffId);
       if (!target) throw new NotFoundException({ error: 'csd_member_not_found' });
-      if (
+      if (memberStaffId === actor.staffId) {
+        if (!canLeaveGroup(actorRole)) {
+          throw new ForbiddenException({ error: 'csd_leave_forbidden' });
+        }
+      } else if (
         !canRemoveGroupMember(
           actorRole,
           target.role as CsdGroupMemberRole,

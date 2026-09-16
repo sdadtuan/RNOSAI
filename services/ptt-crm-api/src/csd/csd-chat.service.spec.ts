@@ -453,6 +453,33 @@ describe('CsdChatService', () => {
     await expect(svc().removeMember(adminActor, 'g1', 10)).rejects.toMatchObject({ status: 403 });
   });
 
+  it('member can leave group by removing self; owner cannot leave', async () => {
+    const memberActor: CsdActor = {
+      staffId: 9,
+      staffLabel: 'member@test.vn',
+      caps: [{ section: 'csd', action: 'write' }],
+    };
+    repo.getConversation.mockResolvedValue({
+      id: 'g1',
+      kind: 'group',
+      status: 'active',
+      owner_staff_id: 3,
+    });
+    repo.getMember.mockImplementation(async (_cid: string, staffId: number) => {
+      if (staffId === 9) return { member_staff_id: 9, role: 'member' };
+      if (staffId === 3) return { member_staff_id: 3, role: 'owner' };
+      return null;
+    });
+    repo.deleteMember.mockResolvedValue(true);
+
+    await svc().removeMember(memberActor, 'g1', 9);
+    expect(repo.deleteMember).toHaveBeenCalledWith('g1', 9);
+
+    await expect(svc().removeMember(actor, 'g1', 3)).rejects.toMatchObject({
+      response: { error: 'csd_leave_forbidden' },
+    });
+  });
+
   it('owner/admin can patch group name and description', async () => {
     repo.getConversation.mockResolvedValue({
       id: 'g1',

@@ -27,6 +27,9 @@ function roleLabel(role: string): string {
 function adminErrorMessage(err: unknown): string {
   const code = err instanceof Error ? err.message : '';
   if (code === 'csd_admin_forbidden') return 'Không có quyền quản trị CSD';
+  if (code === 'Not Found' || code.includes('404')) {
+    return 'API quản lý nhóm chưa sẵn sàng — thử hard refresh hoặc liên hệ IT restart ptt-crm-api.';
+  }
   if (code === 'csd_member_forbidden') return 'Không được phép thao tác thành viên';
   if (code === 'csd_role_forbidden') return 'Không được phép đổi vai trò';
   if (code === 'cannot_remove_owner') return 'Không thể xóa Chủ nhóm';

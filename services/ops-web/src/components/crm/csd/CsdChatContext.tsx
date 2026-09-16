@@ -53,6 +53,7 @@ type CsdChatContextProps = {
   onMemberStaffId: (value: string) => void;
   onAddMember: () => void;
   onRemoveMember: (staffId: number) => void;
+  onLeaveGroup?: () => void;
   onLoadFriendInvites?: () => void;
   onPatchGroupInfo?: (patch: {
     name_vi?: string;
@@ -143,6 +144,7 @@ export function CsdChatContext({
   onMemberStaffId,
   onAddMember,
   onRemoveMember,
+  onLeaveGroup,
   onLoadFriendInvites,
   onPatchGroupInfo,
   onSetMemberRole,
@@ -190,8 +192,10 @@ export function CsdChatContext({
       !archived &&
       (canPlatformManage || myRole === 'owner' || myRole === 'admin'),
   );
-  const canSetAdmin = Boolean(
-    canWrite && isGroup && !closed && !archived && (canPlatformManage || myRole === 'owner'),
+  const isGroupOwner = myRole === 'owner';
+  const canSetAdmin = Boolean(canWrite && isGroup && !closed && !archived && isGroupOwner);
+  const canLeaveGroup = Boolean(
+    canWrite && isGroup && !closed && !archived && myRole != null && myRole !== 'owner',
   );
   const canManageMembersUi = canManageGroup;
 
@@ -591,13 +595,7 @@ export function CsdChatContext({
                   <li className="csd-chat-context-empty">Chưa có thành viên</li>
                 ) : (
                   members.map((m) => {
-                    const canRemove =
-                      canManageMembersUi &&
-                      m.role !== 'owner' &&
-                      (canPlatformManage ||
-                        myRole === 'owner' ||
-                        m.role === 'member' ||
-                        m.role === 'viewer');
+                    const canRemove = canSetAdmin && m.role !== 'owner';
                     return (
                       <li key={`${m.conversation_id}-${m.member_staff_id}`}>
                         <span className="csd-chat-members__name">
@@ -694,6 +692,18 @@ export function CsdChatContext({
                     </button>
                   </form>
                 )
+              ) : null}
+              {!isSheet && canLeaveGroup && onLeaveGroup ? (
+                <div className="csd-chat-leave-group" data-testid="csd-chat-leave-group">
+                  <button
+                    type="button"
+                    className="csd-chat-context-btn csd-chat-context-btn--ghost csd-chat-context-btn--wide"
+                    disabled={busy}
+                    onClick={onLeaveGroup}
+                  >
+                    Rời nhóm
+                  </button>
+                </div>
               ) : null}
             </ContextSection>
 

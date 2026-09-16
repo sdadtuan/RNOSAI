@@ -121,7 +121,9 @@ export type CsdChatSession = {
   handleReactMessage: (message: CsdMessageRow, emotion: CsdChatEmotionId) => Promise<void>;
   handleCreateTicket: (e: FormEvent) => Promise<void>;
   handleAddMember: () => Promise<void>;
+  handleInviteMembers: (staffIds: number[]) => Promise<boolean>;
   handleRemoveMember: (staffId: number) => Promise<void>;
+  handleLeaveGroup: () => Promise<void>;
   handlePatchGroupInfo: (patch: {
     name_vi?: string;
     description?: string;
@@ -455,6 +457,29 @@ export function useCsdChatSession({
     }
   }
 
+  async function handleInviteMembers(staffIds: number[]): Promise<boolean> {
+    if (!activeId || staffIds.length === 0) return false;
+    setBusy(true);
+    setError('');
+    try {
+      let pending = false;
+      for (const staffId of staffIds) {
+        const out = (await addCsdConversationMember(token, activeId, {
+          member_staff_id: staffId,
+        })) as CsdConversationMemberRow | { pending?: boolean };
+        if (out && typeof out === 'object' && 'pending' in out && out.pending) pending = true;
+      }
+      if (pending) await loadJoinRequests();
+      await loadMembers(activeId);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Thêm thành viên thất bại');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRemoveMember(staffId: number) {
     if (!activeId) return;
     setBusy(true);
@@ -463,6 +488,30 @@ export function useCsdChatSession({
       await loadMembers(activeId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xóa thành viên thất bại');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleLeaveGroup() {
+    if (!activeId || meStaffId == null) return;
+    setBusy(true);
+    setError('');
+    try {
+      await removeCsdConversationMember(token, activeId, meStaffId);
+      setActiveId(null);
+      setMessages([]);
+      setMembers([]);
+      await loadConversations();
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      setError(
+        code === 'csd_leave_forbidden'
+          ? 'Chủ nhóm cần chuyển quyền trước khi rời nhóm'
+          : err instanceof Error
+            ? err.message
+            : 'Rời nhóm thất bại',
+      );
     } finally {
       setBusy(false);
     }
@@ -815,7 +864,9 @@ export function useCsdChatSession({
     handleReactMessage,
     handleCreateTicket,
     handleAddMember,
+    handleInviteMembers,
     handleRemoveMember,
+    handleLeaveGroup,
     handlePatchGroupInfo,
     handleSetMemberRole,
     handleUploadGroupAvatar,
