@@ -8,7 +8,8 @@ import {
   type CreateCsdConversationInput,
 } from '@/lib/crm/csd-api';
 import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
-import { resolveCsdPersonAvatar } from '@/lib/crm/csd-chat-display';
+import { CsdChatGroupAvatar } from '@/components/crm/csd/CsdChatGroupAvatar';
+import { pickGroupAvatarMembers, resolveCsdPersonAvatar } from '@/lib/crm/csd-chat-display';
 
 const MAX_MEMBERS = 100;
 
@@ -175,10 +176,18 @@ export function CsdChatCreateGroupModal({
         </header>
 
         <div className="csd-chat-create-group__identity">
-          <CsdChatAvatar
+          <CsdChatGroupAvatar
             token={token}
             name={nameVi || 'Nhóm'}
-            seed={nameVi || 'nhóm'}
+            conversationId={nameVi.trim() || 'preview-group'}
+            groupAvatarPreview={pickGroupAvatarMembers(
+              selected.map((person) => ({
+                member_staff_id: person.staff_id,
+                display_name_vi: person.display_name_vi,
+                has_avatar: person.has_avatar,
+                avatar_updated_at: person.avatar_updated_at,
+              })),
+            )}
             className="csd-chat-avatar csd-chat-avatar--thread"
           />
           <input

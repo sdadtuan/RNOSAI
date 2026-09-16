@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
+import { CsdChatGroupAvatar } from '@/components/crm/csd/CsdChatGroupAvatar';
 import { CsdChatContextMedia } from '@/components/crm/csd/CsdChatContextMedia';
 import { CsdChatStorageVault, type CsdChatStorageTab } from '@/components/crm/csd/CsdChatStorageVault';
 import {
@@ -13,7 +14,6 @@ import {
   type CsdTicketRow,
 } from '@/lib/crm/csd-api';
 import type { CsdConversationLinkItem, CsdConversationMediaItem } from '@/lib/crm/csd-chat-display';
-import { resolveCsdConversationAvatar } from '@/lib/crm/csd-chat-display';
 
 export const CSD_CHAT_KIND_LABELS: Record<string, string> = {
   client: 'Khách hàng',
@@ -211,7 +211,6 @@ export function CsdChatContext({
   const memberIds = useMemo(() => new Set(members.map((m) => m.member_staff_id)), [members]);
   const inviteCandidates = friendInviteOptions.filter((p) => !memberIds.has(p.staff_id));
   const leaders = members.filter((m) => m.role === 'owner' || m.role === 'admin');
-  const groupAvatar = active ? resolveCsdConversationAvatar(active) : null;
 
   if (vaultTab && active) {
     return (
@@ -269,14 +268,14 @@ export function CsdChatContext({
               >
                 <div className="csd-chat-group-info stack-gap" data-testid="csd-chat-group-info">
                   <div className="csd-chat-group-info__avatar-row">
-                    <CsdChatAvatar
+                    <CsdChatGroupAvatar
                       token={token}
                       name={active.name_vi}
-                      seed={groupAvatar?.seed ?? active.id}
-                      staffId={groupAvatar?.staffId}
-                      conversationId={groupAvatar?.conversationId}
-                      hasAvatar={groupAvatar?.hasAvatar}
-                      avatarUpdatedAt={groupAvatar?.avatarUpdatedAt}
+                      conversationId={active.id}
+                      groupHasAvatar={active.group_has_avatar}
+                      groupAvatarUpdatedAt={active.group_avatar_updated_at}
+                      groupAvatarPreview={active.group_avatar_preview}
+                      members={members}
                       className="csd-chat-avatar csd-chat-avatar--thread"
                     />
                     {canManageGroup && onUploadGroupAvatar ? (

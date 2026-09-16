@@ -300,6 +300,61 @@ export type CsdChatAvatarDisplay = {
   seed: string | number;
 };
 
+export type CsdGroupAvatarMemberPreview = {
+  member_staff_id: number;
+  display_name_vi?: string | null;
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
+};
+
+const GROUP_AVATAR_ROLE_ORDER: Record<string, number> = {
+  owner: 0,
+  admin: 1,
+  member: 2,
+  viewer: 3,
+};
+
+export function pickGroupAvatarMembers(
+  members: Array<
+    CsdGroupAvatarMemberPreview & {
+      role?: string;
+      created_at?: string;
+    }
+  >,
+  limit = 3,
+): CsdGroupAvatarMemberPreview[] {
+  return [...members]
+    .sort((a, b) => {
+      const roleA = GROUP_AVATAR_ROLE_ORDER[a.role ?? ''] ?? 9;
+      const roleB = GROUP_AVATAR_ROLE_ORDER[b.role ?? ''] ?? 9;
+      if (roleA !== roleB) return roleA - roleB;
+      if (a.created_at && b.created_at) return a.created_at.localeCompare(b.created_at);
+      return a.member_staff_id - b.member_staff_id;
+    })
+    .slice(0, limit)
+    .map(({ member_staff_id, display_name_vi, has_avatar, avatar_updated_at }) => ({
+      member_staff_id,
+      display_name_vi,
+      has_avatar,
+      avatar_updated_at,
+    }));
+}
+
+export function resolveGroupAvatarMembers(input: {
+  group_avatar_preview?: CsdGroupAvatarMemberPreview[] | null;
+  members?: Array<
+    CsdGroupAvatarMemberPreview & {
+      role?: string;
+      created_at?: string;
+    }
+  > | null;
+}): CsdGroupAvatarMemberPreview[] {
+  if (input.members && input.members.length > 0) {
+    return pickGroupAvatarMembers(input.members);
+  }
+  return input.group_avatar_preview ?? [];
+}
+
 export function resolveCsdConversationAvatar(input: {
   id: string;
   kind?: string;

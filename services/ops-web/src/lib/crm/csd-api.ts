@@ -127,6 +127,7 @@ export interface CsdConversationRow {
   avatar_updated_at?: string | null;
   group_has_avatar?: boolean;
   group_avatar_updated_at?: string | null;
+  group_avatar_preview?: CsdGroupAvatarMemberPreview[];
   join_approval_required?: boolean;
   members_can_send?: boolean;
   pinned_message_id?: string | null;
@@ -141,6 +142,13 @@ export interface CreateCsdConversationInput {
   member_staff_ids?: number[];
 }
 
+export interface CsdGroupAvatarMemberPreview {
+  member_staff_id: number;
+  display_name_vi?: string | null;
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
+}
+
 export interface CsdConversationMemberRow {
   conversation_id: string;
   member_type: 'staff';
@@ -148,6 +156,8 @@ export interface CsdConversationMemberRow {
   role: 'owner' | 'admin' | 'member' | 'viewer';
   created_at: string;
   display_name_vi?: string | null;
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
 }
 
 export interface CsdAttachmentRow {

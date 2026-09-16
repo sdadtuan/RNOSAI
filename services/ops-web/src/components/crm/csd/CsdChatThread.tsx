@@ -20,6 +20,7 @@ import {
   shouldShowDateChip,
 } from '@/lib/crm/csd-chat-display';
 import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
+import { CsdChatGroupAvatar } from '@/components/crm/csd/CsdChatGroupAvatar';
 
 function mentionToken(draft: string): string | null {
   const match = draft.match(/(^|[\s])@(\d*)$/);
@@ -256,16 +257,29 @@ export function CsdChatThread({
           </button>
         ) : null}
         <div className="csd-chat-thread-toolbar__peer">
-          <CsdChatAvatar
-            token={token}
-            name={displayName}
-            seed={threadAvatar.seed}
-            staffId={threadAvatar.staffId}
-            conversationId={threadAvatar.conversationId}
-            hasAvatar={threadAvatar.hasAvatar}
-            avatarUpdatedAt={threadAvatar.avatarUpdatedAt}
-            className="csd-chat-avatar csd-chat-avatar--toolbar"
-          />
+          {active.kind === 'group' ? (
+            <CsdChatGroupAvatar
+              token={token}
+              name={displayName}
+              conversationId={active.id}
+              groupHasAvatar={active.group_has_avatar}
+              groupAvatarUpdatedAt={active.group_avatar_updated_at}
+              groupAvatarPreview={active.group_avatar_preview}
+              members={members}
+              className="csd-chat-avatar csd-chat-avatar--toolbar"
+            />
+          ) : (
+            <CsdChatAvatar
+              token={token}
+              name={displayName}
+              seed={threadAvatar.seed}
+              staffId={threadAvatar.staffId}
+              conversationId={threadAvatar.conversationId}
+              hasAvatar={threadAvatar.hasAvatar}
+              avatarUpdatedAt={threadAvatar.avatarUpdatedAt}
+              className="csd-chat-avatar csd-chat-avatar--toolbar"
+            />
+          )}
           {renaming && onRename ? (
             <form
               className="csd-chat-rename csd-chat-rename--toolbar"

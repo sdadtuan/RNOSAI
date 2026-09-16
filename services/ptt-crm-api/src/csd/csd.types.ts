@@ -203,6 +203,13 @@ export type CsdConversationStatus = 'active' | 'archived' | 'closed' | 'reopened
 
 export type CsdConversationMemberRole = 'owner' | 'admin' | 'member' | 'viewer';
 
+export type CsdGroupAvatarMemberPreview = {
+  member_staff_id: number;
+  display_name_vi?: string | null;
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
+};
+
 export type CsdConversationMemberRow = {
   conversation_id: string;
   member_type: 'staff';
@@ -210,6 +217,8 @@ export type CsdConversationMemberRow = {
   role: CsdConversationMemberRole;
   created_at: string;
   display_name_vi?: string | null;
+  has_avatar?: boolean;
+  avatar_updated_at?: string | null;
 };
 
 export type CsdConversationRow = {
@@ -233,6 +242,7 @@ export type CsdConversationRow = {
   avatar_updated_at?: string | null;
   group_has_avatar?: boolean;
   group_avatar_updated_at?: string | null;
+  group_avatar_preview?: CsdGroupAvatarMemberPreview[];
   join_approval_required?: boolean;
   members_can_send?: boolean;
   pinned_message_id?: string | null;

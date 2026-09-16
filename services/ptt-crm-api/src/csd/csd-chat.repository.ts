@@ -10,6 +10,7 @@ import {
   CsdConversationListItem,
   CsdConversationMemberRow,
   CsdConversationRow,
+  CsdGroupAvatarMemberPreview,
   CsdChatEmotionId,
   CsdConversationStatus,
   CsdGroupJoinRequestRow,
@@ -30,6 +31,73 @@ function num(value: unknown): number | null {
   if (value == null) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+const GROUP_AVATAR_PREVIEW_SQL = `
+(
+  SELECT COALESCE(
+    json_agg(
+      json_build_object(
+        'member_staff_id', preview.member_staff_id,
+        'display_name_vi', preview.display_name_vi,
+        'has_avatar', preview.has_avatar,
+        'avatar_updated_at', preview.avatar_updated_at
+      ) ORDER BY preview.sort_ord, preview.created_at
+    ),
+    '[]'::json
+  )
+  FROM (
+    SELECT m.member_staff_id,
+           COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS display_name_vi,
+           (su.avatar_storage_key IS NOT NULL) AS has_avatar,
+           su.avatar_updated_at AS avatar_updated_at,
+           m.created_at,
+           CASE m.role
+             WHEN 'owner' THEN 0
+             WHEN 'admin' THEN 1
+             ELSE 2
+           END AS sort_ord
+      FROM csd_conversation_members m
+      JOIN crm_staff s ON s.id = m.member_staff_id
+      LEFT JOIN csd_chat_accounts a ON a.staff_id = m.member_staff_id AND a.tenant_id = c.tenant_id
+      LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
+     WHERE m.conversation_id = c.id
+       AND m.member_type = 'staff'
+       AND c.kind = 'group'
+       AND c.group_avatar_storage_key IS NULL
+     ORDER BY sort_ord, m.created_at ASC
+     LIMIT 3
+  ) preview
+) AS group_avatar_preview`;
+
+function mapGroupAvatarPreview(value: unknown): CsdGroupAvatarMemberPreview[] {
+  if (value == null) return [];
+  let parsed: unknown = value;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  const out: CsdGroupAvatarMemberPreview[] = [];
+  for (const row of parsed) {
+    if (!row || typeof row !== 'object') continue;
+    const item = row as Record<string, unknown>;
+    const memberStaffId = num(item.member_staff_id);
+    if (memberStaffId == null || memberStaffId <= 0) continue;
+    out.push({
+      member_staff_id: memberStaffId,
+      display_name_vi:
+        item.display_name_vi != null && text(item.display_name_vi)
+          ? text(item.display_name_vi)
+          : null,
+      has_avatar: Boolean(item.has_avatar),
+      avatar_updated_at: item.avatar_updated_at != null ? text(item.avatar_updated_at) : null,
+    });
+  }
+  return out;
 }
 
 function mapConversationListItem(row: Record<string, unknown>): CsdConversationListItem {
@@ -68,6 +136,7 @@ function mapConversation(row: Record<string, unknown>): CsdConversationRow {
       avatarStaffId != null && row.avatar_updated_at ? text(row.avatar_updated_at) : null,
     group_has_avatar: groupHasAvatar,
     group_avatar_updated_at: row.group_avatar_updated_at ? text(row.group_avatar_updated_at) : null,
+    group_avatar_preview: groupHasAvatar ? [] : mapGroupAvatarPreview(row.group_avatar_preview),
     join_approval_required:
       row.join_approval_required == null ? false : Boolean(row.join_approval_required),
     members_can_send: row.members_can_send == null ? true : Boolean(row.members_can_send),
@@ -83,6 +152,8 @@ function mapMember(row: Record<string, unknown>): CsdConversationMemberRow {
     role: text(row.role) as CsdConversationMemberRow['role'],
     created_at: text(row.created_at),
     display_name_vi: row.display_name_vi != null && text(row.display_name_vi) ? text(row.display_name_vi) : null,
+    has_avatar: Boolean(row.has_avatar),
+    avatar_updated_at: row.avatar_updated_at != null ? text(row.avatar_updated_at) : null,
   };
 }
 
@@ -454,7 +525,8 @@ export class CsdChatRepository implements OnModuleInit, OnModuleDestroy {
                  LIMIT 1
               ) AS avatar_updated_at,
               (c.group_avatar_storage_key IS NOT NULL) AS group_has_avatar,
-              c.group_avatar_updated_at AS group_avatar_updated_at
+              c.group_avatar_updated_at AS group_avatar_updated_at,
+              ${GROUP_AVATAR_PREVIEW_SQL}
          FROM csd_conversations c
          JOIN csd_conversation_members me
            ON me.conversation_id = c.id
@@ -579,7 +651,8 @@ export class CsdChatRepository implements OnModuleInit, OnModuleDestroy {
                  LIMIT 1
               ) AS avatar_updated_at,
               (c.group_avatar_storage_key IS NOT NULL) AS group_has_avatar,
-              c.group_avatar_updated_at AS group_avatar_updated_at
+              c.group_avatar_updated_at AS group_avatar_updated_at,
+              ${GROUP_AVATAR_PREVIEW_SQL}
          FROM csd_conversations c
          JOIN csd_conversation_members me
            ON me.conversation_id = c.id
@@ -1108,11 +1181,14 @@ export class CsdChatRepository implements OnModuleInit, OnModuleDestroy {
   async listMembers(conversationId: string): Promise<CsdConversationMemberRow[]> {
     const res = await this.db.query(
       `SELECT m.*,
-              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS display_name_vi
+              COALESCE(NULLIF(a.display_name_vi, ''), NULLIF(s.name, ''), '') AS display_name_vi,
+              (su.avatar_storage_key IS NOT NULL) AS has_avatar,
+              su.avatar_updated_at AS avatar_updated_at
          FROM csd_conversation_members m
          LEFT JOIN crm_staff s ON s.id = m.member_staff_id
          LEFT JOIN csd_chat_accounts a
            ON a.staff_id = m.member_staff_id AND a.tenant_id = $2
+         LEFT JOIN staff_users su ON lower(trim(su.email)) = lower(trim(s.email))
         WHERE m.conversation_id = $1
           AND m.member_type = 'staff'
           AND m.member_staff_id IS NOT NULL

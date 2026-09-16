@@ -17128,6 +17128,62 @@ body {
   display: block;
 }
 
+.csd-chat-group-avatar {
+  overflow: hidden;
+  padding: 0;
+  background: #e8dfd4;
+  display: block;
+}
+
+.csd-chat-group-avatar__grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  gap: 1px;
+  background: #fff;
+}
+
+.csd-chat-group-avatar__grid--1 {
+  grid-template: 1fr / 1fr;
+}
+
+.csd-chat-group-avatar__grid--2 {
+  grid-template: 1fr / 1fr 1fr;
+}
+
+.csd-chat-group-avatar__grid--3 {
+  grid-template: 1fr 1fr / 1fr 1fr;
+  grid-template-areas:
+    'a b'
+    'a c';
+}
+
+.csd-chat-group-avatar__grid--3 .csd-chat-group-avatar__cell:nth-child(1) {
+  grid-area: a;
+}
+
+.csd-chat-group-avatar__grid--3 .csd-chat-group-avatar__cell:nth-child(2) {
+  grid-area: b;
+}
+
+.csd-chat-group-avatar__grid--3 .csd-chat-group-avatar__cell:nth-child(3) {
+  grid-area: c;
+}
+
+.csd-chat-group-avatar__cell {
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  background: #e8dfd4;
+}
+
+.csd-chat-avatar--tile {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  font-size: 0.55rem;
+}
+
 .csd-chat-bubble {
   padding: 0.5rem 0.75rem;
   border-radius: 0.55rem;

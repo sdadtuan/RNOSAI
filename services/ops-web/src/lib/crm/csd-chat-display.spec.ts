@@ -13,6 +13,7 @@ import {
   splitCsdConversationAttachments,
   collectCsdConversationLinks,
   groupCsdLinkItemsByDay,
+  pickGroupAvatarMembers,
   resolveCsdConversationAvatar,
   resolveCsdMessagePeer,
   resolveCsdPersonAvatar,
@@ -201,6 +202,21 @@ describe('csd-chat-display', () => {
       avatarUpdatedAt: '2026-09-16T00:00:00.000Z',
       seed: 'g-1',
     });
+  });
+
+  it('pickGroupAvatarMembers prefers owner/admin then join order', () => {
+    expect(
+      pickGroupAvatarMembers([
+        { member_staff_id: 3, role: 'member', created_at: '2026-09-01T00:00:00.000Z' },
+        { member_staff_id: 1, role: 'owner', created_at: '2026-09-03T00:00:00.000Z' },
+        { member_staff_id: 2, role: 'admin', created_at: '2026-09-02T00:00:00.000Z' },
+        { member_staff_id: 4, role: 'member', created_at: '2026-09-04T00:00:00.000Z' },
+      ]),
+    ).toEqual([
+      { member_staff_id: 1, display_name_vi: undefined, has_avatar: undefined, avatar_updated_at: undefined },
+      { member_staff_id: 2, display_name_vi: undefined, has_avatar: undefined, avatar_updated_at: undefined },
+      { member_staff_id: 3, display_name_vi: undefined, has_avatar: undefined, avatar_updated_at: undefined },
+    ]);
   });
 
   it('resolveCsdPersonAvatar maps staff avatar metadata', () => {
