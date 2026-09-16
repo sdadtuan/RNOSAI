@@ -1,6 +1,6 @@
 'use client';
 
-import { buildAdminSidebarLinks, canViewAdminSection } from '@/lib/admin/admin-nav';
+import { canViewAdminSection } from '@/lib/admin/admin-nav';
 import { GlobalSearchBar } from '@/components/search/GlobalSearchBar';
 import { WinRbacBadge } from '@/components/win';
 import { iconForHref, NavIcon, sectionIcon, sectionShortLabel } from '@/components/layout/nav-icons';
@@ -10,77 +10,29 @@ import type { StoredStaffUser } from '@/lib/auth';
 import {
   getAccessToken,
   hasCap,
-  canGenerateMktAiPlanner,
-  canApproveMktAiPlanner,
   canViewImageSop,
   updateStoredUser,
 } from '@/lib/auth';
 import { staffMe } from '@/lib/api';
 import { fetchReviewQueueCount } from '@/lib/api';
-import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
-import { emailGateAEnabled, emailJourneysEnabled, emailModuleEnabled } from '@/lib/email-flags';
-import { winKpiSolutionEnabled, winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
 import { StaffNotificationBell } from '@/components/staff/StaffNotificationBell';
 import { StaffAvatarMenu } from '@/components/account/StaffAvatarMenu';
 import { BrandLogo } from '@/components/brand/BrandLogo';
-import { canViewEmailGateA } from '@/lib/email/caps';
-import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
-import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
-import { canSeeAmNav } from '@/lib/crm/am-nav.util';
-import { canSeeQtNav } from '@/lib/crm/qt-nav.util';
-import { canSeeRevopsNav } from '@/lib/crm/revops-nav.util';
-import { isRevopsShellEnabled } from '@/lib/crm/revops-flags';
 import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
-import { canSeeIwrNav } from '@/lib/crm/iwr-nav.util';
 import { fetchCsdChatUnreadCount } from '@/lib/crm/csd-api';
-import { canSeeCeoNav } from '@/lib/crm/ceo-command-thread.util';
-import {
-  canViewSeoAeo,
-  canViewSeoAuthority,
-  canViewSeoAutomations,
-  canViewSeoContent,
-  canViewSeoBi,
-  canViewSeoCms,
-  canViewSeoGateA,
-  canViewSeoExperiments,
-  canViewSeoFreshness,
-  canViewSeoGovernance,
-  canViewSeoHub,
-  canViewSeoRanks,
-  canViewSeoReports,
-  canViewSeoResearch,
-  canViewSeoStrategy,
-  canViewSeoTechnical,
-} from '@/lib/seo/caps';
-import {
-  seoAeoEnabled,
-  seoAuthorityEnabled,
-  seoAutomationsEnabled,
-  seoBiEnabled,
-  seoCmsEnabled,
-  seoGateAEnabled,
-  seoContentEnabled,
-  seoExperimentsEnabled,
-  seoFreshnessEnabled,
-  seoGovernanceEnabled,
-  seoHubEnabled,
-  seoRanksEnabled,
-  seoReportsEnabled,
-  seoResearchEnabled,
-  seoStrategyEnabled,
-  seoTechnicalEnabled,
-} from '@/lib/seo/flags';
-import { metaAdsOpsEnabled, metaIntelligenceEnabled, metaTrackingEnabled } from '@/lib/meta/flags';
-import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
-import { shouldShowTaxonomyNav } from '@/components/research/taxonomy-pane.util';
-import { canViewGtmCms, canViewGtmDemos } from '@/lib/gtm/caps';
-import { shouldShowContentOsNav } from '@/components/ops-nav-content-os';
-import { shouldShowMediaOsNav } from '@/components/ops-nav-media-os';
-import { shouldShowVideoSopNav } from '@/components/ops-nav-video-sop';
-import { shouldShowImageSopNav } from '@/components/ops-nav-image-sop';
-import { shouldShowCpNav } from '@/components/ops-nav-cp';
 import { getCpImageFlags } from '@/lib/crm/cp-image-sop-api';
 import { nextActionFor } from '@/lib/crm/canopy-next-action';
+import { winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
+import {
+  ensureActiveParentOpen,
+  isActiveHref,
+  itemContainsPath,
+  nextOpenIdsAfterToggle,
+  readOpenIds,
+  writeOpenIds,
+} from '@/components/ops-nav-accordion';
+import { buildNavTree } from '@/components/ops-nav-tree';
+import type { NavItem } from '@/components/ops-nav-tree.types';
 
 interface OpsNavProps {
   user: StoredStaffUser | null;
@@ -89,27 +41,7 @@ interface OpsNavProps {
   agencyUnread?: number;
 }
 
-type NavLink = { href: string; label: string };
-type NavSection = { label: string; links: NavLink[]; defaultOpen?: boolean };
-
 const SIDEBAR_STORAGE_KEY = 'ops-sidebar-expanded';
-const NAV_SECTIONS_COLLAPSED_KEY = 'ops-nav-sections-collapsed';
-
-function readCollapsedNavSections(): Set<string> | null {
-  if (typeof window === 'undefined') return null;
-  const raw = window.localStorage.getItem(NAV_SECTIONS_COLLAPSED_KEY);
-  if (!raw) return null;
-  try {
-    return new Set(JSON.parse(raw) as string[]);
-  } catch {
-    return null;
-  }
-}
-
-function writeCollapsedNavSections(collapsed: Set<string>) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(NAV_SECTIONS_COLLAPSED_KEY, JSON.stringify([...collapsed]));
-}
 
 function readSidebarExpanded(): boolean {
   if (typeof window === 'undefined') return false;
@@ -328,509 +260,6 @@ function pageTitleFor(pathname: string): string {
   return PAGE_TITLES[pathname] ?? 'PTT CRM';
 }
 
-function navBadge(count: number | undefined): string {
-  if (!count || count <= 0) return '';
-  return count > 99 ? ' (99+)' : ` (${count})`;
-}
-
-function isActive(pathname: string, href: string): boolean {
-  if (pathname === href) return true;
-  if (href === '/') return false;
-  if (href === '/crm/leads') {
-    return pathname === '/crm/leads' || (pathname.startsWith('/crm/leads/') && !pathname.startsWith('/crm/leads/review-queue'));
-  }
-  return pathname.startsWith(`${href}/`);
-}
-
-function buildSeoLinks(user: StoredStaffUser | null): NavLink[] {
-  if (!seoHubEnabled() || !canViewSeoHub(user)) return [];
-  const links: NavLink[] = [
-    { href: '/seo/hub', label: 'SEO/AEO Hub' },
-    { href: '/seo/clients', label: 'SEO Clients' },
-  ];
-  if (seoResearchEnabled() && canViewSeoResearch(user)) links.push({ href: '/seo/research', label: 'SEO Research' });
-  if (seoContentEnabled() && canViewSeoContent(user)) links.push({ href: '/seo/content', label: 'SEO Content' });
-  if (seoTechnicalEnabled() && canViewSeoTechnical(user)) links.push({ href: '/seo/technical', label: 'SEO Technical' });
-  if (seoReportsEnabled() && canViewSeoReports(user)) links.push({ href: '/seo/reports', label: 'SEO Reports' });
-  if (seoStrategyEnabled() && canViewSeoStrategy(user)) links.push({ href: '/seo/strategy', label: 'SEO Strategy' });
-  if (seoGovernanceEnabled() && canViewSeoGovernance(user)) links.push({ href: '/seo/governance', label: 'SEO Governance' });
-  if (seoAeoEnabled() && canViewSeoAeo(user)) links.push({ href: '/seo/aeo', label: 'AEO Console' });
-  if (seoAuthorityEnabled() && canViewSeoAuthority(user)) links.push({ href: '/seo/authority', label: 'Authority' });
-  if (seoRanksEnabled() && canViewSeoRanks(user)) links.push({ href: '/seo/ranks', label: 'Rank Tracker' });
-  if (seoAutomationsEnabled() && canViewSeoAutomations(user)) links.push({ href: '/seo/automations', label: 'Automations' });
-  if (seoFreshnessEnabled() && canViewSeoFreshness(user)) links.push({ href: '/seo/freshness', label: 'Freshness' });
-  if (seoExperimentsEnabled() && canViewSeoExperiments(user)) links.push({ href: '/seo/experiments', label: 'Experiments' });
-  if (seoBiEnabled() && canViewSeoBi(user)) links.push({ href: '/seo/bi', label: 'SEO BI' });
-  if (seoCmsEnabled() && canViewSeoCms(user)) links.push({ href: '/seo/cms', label: 'CMS Pilot' });
-  if (seoGateAEnabled() && canViewSeoGateA(user)) links.push({ href: '/seo/gate-a', label: 'Gate A Go-live' });
-  return links;
-}
-
-function buildSections(
-  user: StoredStaffUser | null,
-  emailPendingApprovals?: number,
-  agencyUnread?: number,
-  reviewQueueCount?: number,
-  csdChatUnread?: number,
-  imageSopEnabled?: boolean,
-): NavSection[] {
-  const sections: NavSection[] = [];
-
-  const overview: NavLink[] = [{ href: '/', label: 'Bảng điều khiển' }];
-  if (hasCap(user, 'crm_board', 'view')) {
-    overview.push({ href: '/crm', label: 'Bảng CSKH' });
-  }
-  if (overview.length) sections.push({ label: 'Tổng quan', links: overview, defaultOpen: true });
-
-  const operationalCskh: NavLink[] = [];
-  if (hasCap(user, 'crm_leads', 'view')) {
-    operationalCskh.push({ href: '/crm/operational/leads', label: 'Lead CSKH vận hành' });
-    operationalCskh.push({ href: '/crm/cskh-board', label: 'Bảng CSKH SLA' });
-    if (hasCap(user, 'crm_leads', 'assign')) {
-      operationalCskh.push({
-        href: '/crm/leads/review-queue',
-        label: `Phải tra soát (B2)${navBadge(reviewQueueCount)}`,
-      });
-    }
-    if (hasCap(user, 'crm_kpi_records', 'view') || hasCap(user, 'crm_business_dashboard', 'view')) {
-      operationalCskh.push({ href: '/crm/gdkd-enterprise', label: 'KPI GDKD Enterprise' });
-    }
-    if (hasCap(user, 'crm_leads', 'edit')) {
-      operationalCskh.push({ href: '/crm/operational/leads/new', label: 'Tạo lead vận hành' });
-    }
-  }
-
-  const b2bSales: NavLink[] = [];
-  if (hasCap(user, 'crm_leads', 'view')) {
-    b2bSales.push({ href: '/crm/b2b/leads', label: 'Lead B2B' });
-    b2bSales.push({ href: '/crm/b2b-inbox', label: 'Inbox B2B' });
-    if (hasCap(user, 'crm_presales_solution', 'view') || hasCap(user, 'crm_leads', 'view')) {
-      b2bSales.push({ href: '/crm/solution/queue', label: 'Solution queue' });
-    }
-    if (hasCap(user, 'crm_leads', 'edit')) {
-      b2bSales.push({ href: '/crm/b2b/leads/new', label: 'Tạo lead B2B' });
-    }
-  }
-  if (hasCap(user, 'crm_sales_overview', 'view') || hasCap(user, 'crm_sales_plans', 'view')) {
-    b2bSales.push({ href: '/crm/sales', label: 'Kinh doanh' });
-  }
-  if (canSeeQtNav(user)) {
-    b2bSales.push({ href: '/crm/proposals', label: 'Báo giá' });
-  }
-  if (hasCap(user, 'crm_board', 'view')) {
-    if (isOpsDvFeEnabled()) {
-      b2bSales.push({ href: '/crm/sales/services', label: 'Tra cứu dịch vụ' });
-    }
-  }
-  if (hasCap(user, 'crm_agency', 'view')) {
-    b2bSales.push({ href: '/crm/hub', label: 'Hub · Hợp đồng' });
-  }
-  if (b2bSales.length) {
-    sections.push({ label: 'Bán hàng', links: b2bSales, defaultOpen: true });
-  }
-
-  if (operationalCskh.length) {
-    sections.push({ label: 'Vận hành CSKH', links: operationalCskh, defaultOpen: true });
-  }
-
-  const prepare: NavLink[] = [];
-  if (hasCap(user, 'crm_leads', 'view')) {
-    prepare.push({ href: '/crm/intake', label: 'Lead Intake' });
-  }
-  if (hasCap(user, 'crm_b2b_projects', 'view')) {
-    prepare.push({ href: '/crm/b2b-projects', label: 'Dự án PTT' });
-    prepare.push({ href: '/crm/delivery-projects?capability=lead_ingest', label: 'Lead ingest DV' });
-    prepare.push({ href: '/crm/b2b-speed', label: 'Speed-to-lead' });
-  }
-  if (prepare.length) {
-    sections.push({ label: 'Chuẩn bị', links: prepare });
-  }
-
-  const sharedCrm: NavLink[] = [];
-  if (hasCap(user, 'crm_leads', 'view')) {
-    sharedCrm.push({ href: '/crm/leads', label: 'Tất cả leads' });
-    sharedCrm.push({ href: '/crm/catalog', label: 'Catalog' });
-  }
-  if (hasCap(user, 'crm_board', 'view')) {
-    sharedCrm.push({ href: '/crm/tickets', label: 'Ticket CS' });
-  }
-  if (hasCap(user, 'crm_board_customers', 'view')) {
-    sharedCrm.push({ href: '/crm/customers', label: 'Khách hàng' });
-  }
-  if (sharedCrm.length) {
-    sections.push({ label: 'CRM · Lead chung', links: sharedCrm });
-  }
-
-  const serviceDesk: NavLink[] = [];
-  if (canSeeCsdNav(user)) {
-    serviceDesk.push({ href: '/crm/csd', label: 'Tổng quan SD' });
-    serviceDesk.push({ href: '/crm/csd/tickets', label: 'Ticket SD' });
-    serviceDesk.push({ href: '/crm/csd/chat', label: `Chat${navBadge(csdChatUnread)}` });
-    serviceDesk.push({ href: '/crm/csd/email', label: 'Email' });
-    serviceDesk.push({ href: '/crm/csd/reports', label: 'Báo cáo' });
-    if (hasCap(user, 'csd', 'manage')) {
-      serviceDesk.push({ href: '/crm/csd/reports/templates', label: 'Mẫu báo cáo' });
-    }
-  }
-  if (serviceDesk.length) {
-    sections.push({ label: 'Service Desk', links: serviceDesk, defaultOpen: true });
-  }
-
-  if (isRevopsShellEnabled() && canSeeRevopsNav(user)) {
-    sections.push({
-      label: 'Revenue Operations',
-      links: [{ href: '/crm/revenue-ops', label: 'Command Center' }],
-      defaultOpen: true,
-    });
-  }
-
-  if (canSeeAmNav(user)) {
-    sections.push({
-      label: 'Account Management',
-      links: [{ href: '/crm/account-management', label: 'Account Management' }],
-      defaultOpen: true,
-    });
-  }
-
-  const salesContract: NavLink[] = [];
-  if (hasCap(user, 'crm_board', 'view')) {
-    salesContract.push({ href: '/crm/orders', label: 'Đơn hàng' });
-  }
-  if (hasCap(user, 'crm_re_projects', 'view') || hasCap(user, 'crm_re_projects_products', 'view')) {
-    salesContract.push({ href: '/crm/re-projects', label: 'Dự án BĐS' });
-  }
-  if (hasCap(user, 'crm_b2b_projects', 'view')) {
-    salesContract.push({ href: '/crm/b2b-gdkd', label: 'GDKD command center' });
-  }
-  if (hasCap(user, 'crm_b2b_projects', 'manage')) {
-    salesContract.push({ href: '/crm/b2b-unmatched', label: 'Ingress chưa map' });
-  }
-  if (salesContract.length) {
-    sections.push({ label: 'CRM · Bán hàng & Hợp đồng', links: salesContract });
-  }
-
-  const plan: NavLink[] = [];
-  if (isMarketResearchFeEnabled() && hasCap(user, 'crm_research', 'view')) {
-    plan.push({ href: '/crm/research', label: 'Nghiên cứu thị trường' });
-    plan.push({ href: '/crm/research/analytics', label: 'Phân tích nghiên cứu' });
-    if (shouldShowTaxonomyNav(hasCap(user, 'crm_research', 'configure'))) {
-      plan.push({ href: '/crm/research/taxonomy', label: 'Taxonomy' });
-    }
-  }
-  if (hasCap(user, 'crm_board', 'view')) {
-    plan.push({ href: '/crm/marketing-plan', label: 'Kế hoạch marketing' });
-  }
-  if (plan.length) {
-    sections.push({ label: 'Lên kế hoạch', links: plan });
-  }
-
-  const gtm: NavLink[] = [];
-  if (canViewGtmDemos(user)) {
-    gtm.push({ href: '/crm/gtm/demos', label: 'Demo PTTCRM' });
-  }
-  if (canViewGtmCms(user)) {
-    gtm.push({ href: '/crm/gtm/cms', label: 'CMS marketing' });
-  }
-  if (gtm.length) {
-    sections.push({ label: 'GTM', links: gtm });
-  }
-
-  const kpiHub: NavLink[] = [];
-  if (hasCap(user, 'crm_kpi_hub', 'view')) {
-    kpiHub.push({ href: '/crm/kpi-hub/executive', label: 'Executive Command' });
-    kpiHub.push({ href: '/crm/kpi-hub/marketing', label: 'Marketing Performance' });
-    kpiHub.push({ href: '/crm/kpi-hub/sales', label: 'Sales Command' });
-    kpiHub.push({ href: '/crm/kpi-hub', label: 'KPI Hub home' });
-  }
-  if (hasCap(user, 'crm_kpi_dictionary', 'view')) {
-    kpiHub.push({ href: '/crm/kpi-hub/dictionary', label: 'KPI Dictionary' });
-  }
-  if (hasCap(user, 'crm_kpi_hub_targets', 'view')) {
-    kpiHub.push({ href: '/crm/kpi-hub/targets', label: 'Target & Cảnh báo' });
-  }
-  if (hasCap(user, 'crm_kpi_hub_sources', 'view')) {
-    kpiHub.push({ href: '/crm/kpi-hub/sources', label: 'Nguồn dữ liệu' });
-  }
-  if (hasCap(user, 'crm_kpi_quality', 'view')) {
-    kpiHub.push({ href: '/crm/kpi-hub/quality', label: 'Data Quality' });
-  }
-  if (hasCap(user, 'crm_kpi_hub_reports', 'view')) {
-    kpiHub.push({ href: '/crm/kpi-hub/reports', label: 'Báo cáo' });
-  }
-  if (hasCap(user, 'crm_kpi_hub_settings', 'view')) {
-    kpiHub.push({ href: '/crm/kpi-hub/settings', label: 'Cài đặt' });
-  }
-  if (kpiHub.length) {
-    sections.push({ label: 'KPI Hub', links: kpiHub, defaultOpen: true });
-  }
-
-  const serviceKpi: NavLink[] = [];
-  if (hasCap(user, 'crm_kpi_hub', 'view')) {
-    serviceKpi.push({ href: '/crm/kpi-hub/service-kpi', label: 'War Room' });
-    serviceKpi.push({ href: '/crm/kpi-hub/service-templates', label: 'Service KPI Template' });
-    serviceKpi.push({ href: '/crm/kpi-hub/instances', label: 'KPI Instances' });
-    serviceKpi.push({ href: '/crm/kpi-hub/measurement', label: 'Measurement Plan' });
-    serviceKpi.push({ href: '/crm/kpi-hub/tracking', label: 'Actual Tracking' });
-    serviceKpi.push({ href: '/crm/kpi-hub/kpi-contracts', label: 'KPI Contract & Risk' });
-    serviceKpi.push({ href: '/crm/kpi-hub/reconcile', label: 'Quoted vs Actual' });
-    serviceKpi.push({ href: '/crm/kpi-hub/policy-packs', label: 'Policy Pack' });
-  }
-  if (serviceKpi.length) {
-    sections.push({ label: 'SERVICE KPI', links: serviceKpi, defaultOpen: true });
-  }
-
-  const performance: NavLink[] = [];
-  if (hasCap(user, 'crm_kpi_hub', 'view')) {
-    performance.push({ href: '/crm/kpi-hub/performance', label: 'Operating Dashboard' });
-    performance.push({ href: '/crm/kpi-hub/performance/assignments', label: 'Assignment Registry' });
-    performance.push({ href: '/crm/kpi-hub/performance/scorecards', label: 'Scorecard Builder' });
-    performance.push({ href: '/crm/kpi-hub/performance/check-ins', label: 'Check-in Ritual' });
-    performance.push({ href: '/crm/kpi-hub/performance/marketing', label: 'Marketing OS' });
-    performance.push({ href: '/crm/kpi-hub/performance/campaigns', label: 'Campaign Control' });
-    performance.push({ href: '/crm/kpi-hub/performance/crm-source', label: 'CRM Source Map' });
-    performance.push({ href: '/crm/kpi-hub/performance/reports', label: 'Snapshot Report' });
-    performance.push({ href: '/crm/kpi-hub/performance/settings', label: 'Policy' });
-  }
-  if (performance.length) {
-    sections.push({ label: 'HIỆU SUẤT', links: performance, defaultOpen: true });
-  }
-
-  const delivery: NavLink[] = [];
-  if (hasCap(user, 'crm_board', 'view')) {
-    delivery.push({ href: '/crm/service-delivery', label: 'Triển khai DV' });
-    delivery.push({ href: '/crm/sop', label: 'Quy trình SOP' });
-    delivery.push({ href: '/crm/launch-qa', label: 'Launch QA' });
-    delivery.push({ href: '/crm/creatives', label: 'Creative Hub' });
-  }
-  if (shouldShowCpNav(user)) {
-    delivery.push({ href: '/crm/creative-os', label: 'Sản xuất sáng tạo' });
-  }
-  if (hasCap(user, 'crm_board', 'view')) {
-    delivery.push({ href: '/crm/campaign-writes', label: 'Campaign Write' });
-    if (isOpsDvFeEnabled()) {
-      delivery.push({ href: '/crm/ops/catalog', label: 'Catalog DV21' });
-      delivery.push({ href: '/crm/ops/dashboard', label: 'Ops Dashboard' });
-      delivery.push({ href: '/crm/ops/my-tasks', label: 'Ops tasks' });
-      delivery.push({ href: '/crm/ops/alerts', label: 'Ops alerts' });
-    }
-  }
-  if (shouldShowContentOsNav(user)) {
-    delivery.push({ href: '/crm/content-os', label: 'Content Marketing OS' });
-  }
-  if (shouldShowMediaOsNav(user)) {
-    delivery.push({ href: '/crm/media-os', label: 'Media OS' });
-  }
-  if (shouldShowVideoSopNav(user)) {
-    delivery.push({ href: '/crm/video', label: 'Video SOP' });
-  }
-  if (shouldShowImageSopNav(user, imageSopEnabled ?? false)) {
-    delivery.push({ href: '/crm/creative-os/image', label: 'Image SOP' });
-  }
-  if (delivery.length) sections.push({ label: 'CRM · Triển khai dịch vụ', links: delivery });
-
-  const hr: NavLink[] = [];
-  const canHrHub =
-    hasCap(user, 'crm_staff_roster', 'view') ||
-    hasCap(user, 'crm_payroll_salary', 'view') ||
-    hasCap(user, 'crm_payroll_attendance', 'view') ||
-    hasCap(user, 'crm_kpi_records', 'view') ||
-    hasCap(user, 'crm_staff_kpi_am_sp', 'view') ||
-    hasCap(user, 'crm_data_config', 'view');
-  if (canHrHub) {
-    hr.push({ href: '/crm/hr', label: 'HR Hub' });
-  }
-  if (hasCap(user, 'crm_staff_roster', 'view')) {
-    hr.push({ href: '/crm/staff', label: 'Nhân viên' });
-  }
-  if (hasCap(user, 'crm_kpi_records', 'view')) {
-    hr.push({ href: '/crm/kpi', label: 'KPI' });
-    if (hasCap(user, 'crm_kpi_groups', 'view')) {
-      hr.push({ href: '/crm/kpi/groups', label: 'Nhóm KPI' });
-    }
-    if (hasCap(user, 'crm_kpi_types', 'view')) {
-      hr.push({ href: '/crm/kpi/types', label: 'KPI Type' });
-    }
-    if (winKpiSolutionEnabled()) {
-      hr.push({ href: '/crm/kpi/solution', label: 'KPI Solution' });
-    }
-    hr.push({ href: '/crm/ai/insights', label: 'AI Insights' });
-    hr.push({ href: '/crm/ai/coach', label: 'Coach digest' });
-  } else if (hasCap(user, 'crm_business_dashboard', 'view')) {
-    hr.push({ href: '/crm/ai/coach', label: 'Coach digest' });
-  }
-  if (hasCap(user, 'crm_staff_kpi_am_sp', 'view')) {
-    hr.push({ href: '/crm/staff-kpi', label: 'KPI AM/SP' });
-  }
-  if (
-    hasCap(user, 'crm_payroll_salary', 'view') ||
-    hasCap(user, 'crm_payroll_attendance', 'view') ||
-    hasCap(user, 'crm_staff_roster', 'view')
-  ) {
-    hr.push({ href: '/crm/payroll', label: 'Chấm công & lương' });
-  }
-  if (hr.length) sections.push({ label: 'Nhân sự & Hiệu suất', links: hr });
-
-  const toChuc: NavLink[] = [];
-  if (canSeeIwrNav(user)) {
-    toChuc.push({ href: '/crm/internal-reports', label: 'BC công việc' });
-    toChuc.push({ href: '/crm/internal-reports/inbox', label: 'Hộp thư BC' });
-    toChuc.push({ href: '/crm/internal-reports/dashboards', label: 'Dashboard BC' });
-    toChuc.push({ href: '/crm/internal-reports/team', label: 'Cây kỳ' });
-    if (hasCap(user, 'iwr', 'schedule') || hasCap(user, 'iwr', 'manage')) {
-      toChuc.push({ href: '/crm/internal-reports/schedules', label: 'Lịch BC' });
-    }
-    if (hasCap(user, 'iwr', 'lists') || hasCap(user, 'iwr', 'manage')) {
-      toChuc.push({ href: '/crm/internal-reports/lists', label: 'DS phân phối' });
-    }
-    toChuc.push({ href: '/crm/internal-reports/builder', label: 'Report builder' });
-    if (hasCap(user, 'iwr', 'manage')) {
-      toChuc.push({ href: '/crm/internal-reports/templates', label: 'Mẫu BC nội bộ' });
-    }
-    toChuc.push({ href: '/crm/internal-reports/risks', label: 'Blocker & Rủi ro' });
-  }
-  if (toChuc.length) sections.push({ label: 'Tổ chức', links: toChuc, defaultOpen: true });
-
-  const finance: NavLink[] = [];
-  if (ceoCommandEnabled() && canSeeCeoNav(user)) {
-    finance.push({ href: '/crm/ceo', label: 'Điều hành CEO' });
-  }
-  if (hasCap(user, 'crm_business_dashboard', 'view')) {
-    finance.push({ href: '/crm/business-dashboard', label: 'Dashboard KD' });
-    finance.push({ href: '/crm/forecast', label: 'Forecast' });
-    finance.push({ href: '/crm/financials', label: 'Tài chính' });
-    finance.push({ href: '/crm/invoices', label: 'Hóa đơn' });
-    finance.push({ href: '/crm/ai/query', label: 'NL Analytics' });
-  } else if (hasCap(user, 'ai_analytics', 'query')) {
-    finance.push({ href: '/crm/ai/query', label: 'NL Analytics' });
-  }
-  if (hasCap(user, 'crm_agency', 'view') || hasCap(user, 'crm_board', 'view') || hasCap(user, 'ai_admin', 'view')) {
-    finance.push({ href: '/crm/health', label: 'CS Health' });
-  }
-  if (hasCap(user, 'crm_owner_weekly_dashboard', 'view')) {
-    finance.push({ href: '/crm/owner-weekly', label: 'BC tuần chủ DN' });
-  }
-  if (finance.length) sections.push({ label: 'Quản trị & Tài chính', links: finance });
-
-  const agencyClient: NavLink[] = [];
-  if (hasCap(user, 'crm_agency', 'view')) {
-    agencyClient.push({ href: '/agency', label: 'Agency' });
-    agencyClient.push({ href: '/agency/ingest', label: 'Ingest' });
-    agencyClient.push({
-      href: '/agency/notifications',
-      label: `Thông báo${navBadge(agencyUnread)}`,
-    });
-    agencyClient.push({ href: '/agency/kpi-definitions', label: 'KPI definitions' });
-  }
-  if (agencyClient.length) sections.push({ label: 'Agency & Client', links: agencyClient });
-
-  const ads: NavLink[] = [];
-  const canMetaAds =
-    hasCap(user, 'crm_facebook_ads', 'view') ||
-    hasCap(user, 'crm_facebook_ads', 'edit') ||
-    hasCap(user, 'crm_agency', 'view');
-  if (canMetaAds) {
-    ads.push({ href: '/meta/facebook-ads', label: 'Meta Ads' });
-    if (metaAdsOpsEnabled() && canViewMetaAdsOps(user)) {
-      ads.push({ href: '/meta/ads-ops', label: 'Meta Ads Ops' });
-    }
-    if (metaTrackingEnabled() && canViewMetaTracking(user)) {
-      ads.push({ href: '/meta/tracking', label: 'Meta Tracking' });
-    }
-    if (metaIntelligenceEnabled() && canViewMetaIntelligence(user)) {
-      ads.push({ href: '/meta/intelligence', label: 'Meta Intelligence' });
-    }
-    ads.push({ href: '/meta/migration', label: 'Meta Migration' });
-  }
-  if (hasCap(user, 'crm_google_ads', 'view') || hasCap(user, 'crm_agency', 'view')) {
-    ads.push({ href: '/google/google-ads', label: 'Google Ads' });
-    ads.push({ href: '/meta/ads-combined', label: 'Ads CPL' });
-  }
-  if (hasCap(user, 'crm_zalo_ads', 'view') || hasCap(user, 'crm_agency', 'view')) {
-    ads.push({ href: '/zalo/zalo-ads', label: 'Zalo Ads' });
-    ads.push({ href: '/zalo/leads', label: 'Zalo Leads' });
-  }
-  if (ads.length) sections.push({ label: 'Kênh quảng cáo', links: ads });
-
-  const seoLinks = buildSeoLinks(user);
-  if (seoLinks.length) sections.push({ label: 'SEO / AEO', links: seoLinks });
-
-  const emailView = hasCap(user, 'crm_email_mkt', 'view') || hasCap(user, 'crm_agency', 'view');
-  const emailWrite = hasCap(user, 'crm_email_mkt', 'write') || hasCap(user, 'crm_agency', 'create');
-  const emailDeliverability =
-    hasCap(user, 'crm_email_mkt', 'deliverability') ||
-    hasCap(user, 'crm_email_mkt', 'settings') ||
-    hasCap(user, 'crm_agency', 'create');
-  const emailReports =
-    hasCap(user, 'crm_email_mkt', 'reports') ||
-    hasCap(user, 'crm_email_mkt', 'write') ||
-    hasCap(user, 'crm_agency', 'view');
-
-  if (emailView && emailModuleEnabled()) {
-    const email: NavLink[] = [
-      { href: '/email/hub', label: `Email Hub${navBadge(emailPendingApprovals)}` },
-      { href: '/email/clients', label: 'Email Clients' },
-      { href: '/email/contacts', label: 'Contacts' },
-      { href: '/email/consent', label: 'Consent' },
-      { href: '/email/suppression', label: 'Suppression' },
-      { href: '/email/governance', label: 'Governance' },
-    ];
-    if (emailWrite) {
-      email.push({ href: '/email/segments', label: 'Segments' });
-      email.push({ href: '/email/templates', label: 'Templates' });
-      email.push({ href: '/email/campaigns', label: `Campaigns${navBadge(emailPendingApprovals)}` });
-    }
-    if (emailJourneysEnabled() && emailWrite) {
-      email.push({ href: '/email/journeys', label: 'Journeys' });
-    }
-    if (emailDeliverability) {
-      email.push({ href: '/email/deliverability', label: 'Deliverability' });
-    }
-    if (emailReports) {
-      email.push({ href: '/email/reports', label: 'Reports' });
-    }
-    if (emailGateAEnabled() && canViewEmailGateA(user)) {
-      email.push({ href: '/email/gate-a', label: 'Gate A Prod pilot' });
-    }
-    sections.push({ label: 'Email Marketing', links: email });
-  }
-
-  const aiAutomation: NavLink[] = [];
-  if (hasCap(user, 'automation_workflows', 'view')) {
-    aiAutomation.push({ href: '/crm/automation', label: 'Workflows' });
-  }
-  if (hasCap(user, 'playbooks', 'view')) {
-    aiAutomation.push({ href: '/crm/playbooks', label: 'Playbooks' });
-  }
-  if (canGenerateMktAiPlanner(user) || canApproveMktAiPlanner(user)) {
-    aiAutomation.push({ href: '/crm/admin/mkt-ai/playbooks', label: 'Playbook DV' });
-  }
-  if (aiAutomation.length) sections.push({ label: 'AI & Automation', links: aiAutomation });
-
-  const adminLinks = buildAdminSidebarLinks(user);
-  if (adminLinks.length) {
-    sections.push({
-      label: 'Quản trị hệ thống',
-      links: adminLinks.map((l) => ({ href: l.href, label: l.label })),
-      defaultOpen: false,
-    });
-  }
-
-  return sections;
-}
-
-function sectionHasActive(pathname: string, section: NavSection): boolean {
-  return section.links.some((link) => isActive(pathname, link.href));
-}
-
-function initialCollapsedSections(sections: NavSection[], pathname: string): Set<string> {
-  const collapsed = new Set<string>();
-  for (const section of sections) {
-    if (section.defaultOpen || sectionHasActive(pathname, section)) continue;
-    collapsed.add(section.label);
-  }
-  return collapsed;
-}
-
 function userInitials(user: StoredStaffUser | null): string {
   const name = user?.display_name?.trim() || user?.email?.trim() || '?';
   const parts = name.split(/\s+/).filter(Boolean);
@@ -846,10 +275,10 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   const [reviewQueueCount, setReviewQueueCount] = useState<number | undefined>();
   const [csdChatUnread, setCsdChatUnread] = useState<number | undefined>();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [flyoutSection, setFlyoutSection] = useState<string | null>(null);
+  const [flyoutId, setFlyoutId] = useState<string | null>(null);
   const [isMobileNav, setIsMobileNav] = useState(false);
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set());
-  const [navSectionsReady, setNavSectionsReady] = useState(false);
+  const [openIds, setOpenIds] = useState<string[]>([]);
+  const [navReady, setNavReady] = useState(false);
   const [imageSopEnabled, setImageSopEnabled] = useState(false);
   const chromeRef = useRef<HTMLDivElement>(null);
 
@@ -892,7 +321,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   }, []);
 
   useEffect(() => {
-    setFlyoutSection(null);
+    setFlyoutId(null);
   }, [pathname]);
 
   useEffect(() => {
@@ -925,44 +354,34 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
       .catch(() => setImageSopEnabled(false));
   }, [sidebarUser]);
 
-  const sections = useMemo(
+  const items = useMemo(
     () =>
-      buildSections(
-        sidebarUser,
+      buildNavTree(sidebarUser, {
         emailPendingApprovals,
         agencyUnread,
         reviewQueueCount,
         csdChatUnread,
         imageSopEnabled,
-      ),
+      }),
     [sidebarUser, emailPendingApprovals, agencyUnread, reviewQueueCount, csdChatUnread, imageSopEnabled],
   );
   const nextAction = nextActionFor(pathname);
 
   useEffect(() => {
-    const stored = readCollapsedNavSections();
-    if (stored) {
-      setCollapsedSections(stored);
-    } else {
-      setCollapsedSections(initialCollapsedSections(sections, pathname));
-    }
-    setNavSectionsReady(true);
-  }, [sections]);
+    const stored = readOpenIds();
+    const base = stored ?? [];
+    setOpenIds(ensureActiveParentOpen(base, items, pathname));
+    setNavReady(true);
+  }, [items]);
 
   useEffect(() => {
-    setCollapsedSections((prev) => {
-      let changed = false;
-      const next = new Set(prev);
-      for (const section of sections) {
-        if (sectionHasActive(pathname, section) && next.has(section.label)) {
-          next.delete(section.label);
-          changed = true;
-        }
-      }
-      if (changed) writeCollapsedNavSections(next);
-      return changed ? next : prev;
+    setOpenIds((prev) => {
+      const next = ensureActiveParentOpen(prev, items, pathname);
+      if (next.length === prev.length && next.every((id, i) => id === prev[i])) return prev;
+      writeOpenIds(next);
+      return next;
     });
-  }, [pathname, sections]);
+  }, [pathname, items]);
 
   useLayoutEffect(() => {
     const el = chromeRef.current;
@@ -988,35 +407,39 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
         window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? '1' : '0');
       }
       applyShellClasses(next);
-      if (!next) setFlyoutSection(null);
+      if (!next) setFlyoutId(null);
       return next;
     });
   }
 
   function navigateTo(href: string) {
-    setFlyoutSection(null);
-    if (!isActive(pathname, href)) {
+    setFlyoutId(null);
+    if (!isActiveHref(pathname, href)) {
       router.push(href);
     }
   }
 
-  function toggleNavSection(label: string) {
-    setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      writeCollapsedNavSections(next);
+  function toggleParent(id: string) {
+    setOpenIds((prev) => {
+      const next = nextOpenIdsAfterToggle({
+        openIds: prev,
+        toggledId: id,
+        items,
+        pathname,
+      });
+      writeOpenIds(next);
       return next;
     });
   }
 
-  function isNavSectionOpen(label: string): boolean {
-    return !collapsedSections.has(label);
-  }
-
-  const drawerSection = flyoutSection
-    ? sections.find((section) => section.label === flyoutSection) ?? null
+  const drawerItem: NavItem | null = flyoutId
+    ? items.find((item) => item.id === flyoutId) ?? null
     : null;
+
+  function renderBadge(badge?: number) {
+    if (!badge || badge <= 0) return null;
+    return <span className="ops-nav-badge">{badge > 99 ? '99+' : badge}</span>;
+  }
 
   return (
     <>
@@ -1043,55 +466,78 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
         </div>
         <nav className={`ops-sidebar-nav${showExpandedNav ? ' is-expanded' : ' is-collapsed-rail'}`}>
           {showExpandedNav ? (
-            sections.map((section) => {
-              const shortLabel = sectionShortLabel(section.label);
-              const open = navSectionsReady ? isNavSectionOpen(section.label) : section.defaultOpen !== false;
+            items.map((item) => {
+              if (item.kind === 'leaf') {
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`ops-nav-item--leaf${isActiveHref(pathname, item.href) ? ' is-active' : ''}`}
+                    onClick={() => navigateTo(item.href)}
+                  >
+                    <span className="ops-nav-link-icon-wrap">
+                      <NavIcon name={item.icon !== 'dot' ? item.icon : iconForHref(item.href)} />
+                      {renderBadge(item.badge)}
+                    </span>
+                    <span>{item.label}</span>
+                  </button>
+                );
+              }
+              const open = navReady ? openIds.includes(item.id) : itemContainsPath(item, pathname);
+              const active = itemContainsPath(item, pathname);
               return (
                 <div
-                  key={section.label}
-                  className={`ops-nav-group${open ? ' is-open' : ''}${sectionHasActive(pathname, section) ? ' has-active' : ''}`}
+                  key={item.id}
+                  className={`ops-nav-group${open ? ' is-open' : ''}${active ? ' has-active' : ''}`}
                 >
                   <button
                     type="button"
                     className="ops-nav-group-header"
                     aria-expanded={open}
-                    onClick={() => toggleNavSection(section.label)}
+                    onClick={() => toggleParent(item.id)}
                   >
                     <span className="ops-nav-group-icon">
-                      <NavIcon name={sectionIcon(section.label)} />
+                      <NavIcon name={item.icon || sectionIcon(item.label)} />
                     </span>
-                    <span className="ops-nav-group-label">{shortLabel}</span>
+                    <span className="ops-nav-group-label">{sectionShortLabel(item.label)}</span>
                     <span className="ops-nav-group-toggle" aria-hidden="true">
-                      {open ? '▲' : '▼'}
+                      ▾
                     </span>
                   </button>
-                  <div className={`ops-nav-group-links${open ? '' : ' is-collapsed'}`}>
-                    {section.links.map((link) => (
-                      <button
-                        key={link.href}
-                        type="button"
-                        className={`ops-nav-link ops-nav-link--text ops-nav-link--button${isActive(pathname, link.href) ? ' is-active' : ''}`}
-                        onClick={() => navigateTo(link.href)}
-                      >
-                        <span className="ops-nav-link-icon">
-                          <NavIcon name={iconForHref(link.href)} />
-                        </span>
-                        <span>{link.label}</span>
-                      </button>
-                    ))}
+                  <div className="ops-nav-group-panel">
+                    <div className="ops-nav-group-panel-inner">
+                      <div className="ops-nav-group-links">
+                        {item.children.map((child) => (
+                          <button
+                            key={child.href}
+                            type="button"
+                            className={`ops-nav-link ops-nav-link--child ops-nav-link--button${
+                              isActiveHref(pathname, child.href) ? ' is-active' : ''
+                            }`}
+                            onClick={() => navigateTo(child.href)}
+                          >
+                            <span className="ops-nav-link-icon-wrap">
+                              <NavIcon name={iconForHref(child.href.split('?')[0] || child.href)} />
+                              {renderBadge(child.badge)}
+                            </span>
+                            <span>{child.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
             })
           ) : (
             <div className="ops-nav-rail">
-              {sections.map((section) => {
-                const shortLabel = sectionShortLabel(section.label);
-                const active = sectionHasActive(pathname, section);
-                const open = flyoutSection === section.label;
+              {items.map((item) => {
+                const shortLabel = sectionShortLabel(item.label);
+                const active = itemContainsPath(item, pathname);
+                const open = flyoutId === item.id;
                 return (
                   <div
-                    key={section.label}
+                    key={item.id}
                     className={`ops-nav-rail-item${active ? ' is-active' : ''}${open ? ' is-open' : ''}`}
                   >
                     <button
@@ -1099,10 +545,16 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
                       className="ops-nav-rail-btn"
                       title={shortLabel}
                       aria-label={shortLabel}
-                      aria-expanded={open}
-                      onClick={() => setFlyoutSection((prev) => (prev === section.label ? null : section.label))}
+                      aria-expanded={item.kind === 'parent' ? open : undefined}
+                      onClick={() => {
+                        if (item.kind === 'leaf') {
+                          navigateTo(item.href);
+                          return;
+                        }
+                        setFlyoutId((prev) => (prev === item.id ? null : item.id));
+                      }}
                     >
-                      <NavIcon name={sectionIcon(section.label)} />
+                      <NavIcon name={item.icon || sectionIcon(item.label)} />
                     </button>
                   </div>
                 );
@@ -1114,7 +566,9 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           {sidebarExpanded && canViewAdminSection(user) ? (
             <button
               type="button"
-              className={`ops-nav-link ops-nav-link--text ops-nav-link--button${isActive(pathname, '/admin') ? ' is-active' : ''}`}
+              className={`ops-nav-link ops-nav-link--text ops-nav-link--button${
+                isActiveHref(pathname, '/admin') ? ' is-active' : ''
+              }`}
               onClick={() => navigateTo('/admin')}
             >
               <span className="ops-nav-link-icon">
@@ -1135,33 +589,34 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
         </div>
       </aside>
 
-      {!showExpandedNav && drawerSection ? (
+      {!showExpandedNav && drawerItem && drawerItem.kind === 'parent' ? (
         <>
           <button
             type="button"
             className="ops-nav-drawer-backdrop"
             aria-label="Đóng menu"
-            onClick={() => setFlyoutSection(null)}
+            onClick={() => setFlyoutId(null)}
           />
-          <nav className="ops-nav-drawer" aria-label={sectionShortLabel(drawerSection.label)}>
+          <nav className="ops-nav-drawer" aria-label={sectionShortLabel(drawerItem.label)}>
             <div className="ops-nav-drawer-head">
-              <strong>{sectionShortLabel(drawerSection.label)}</strong>
-              <button type="button" className="ops-nav-drawer-close" onClick={() => setFlyoutSection(null)}>
+              <strong>{sectionShortLabel(drawerItem.label)}</strong>
+              <button type="button" className="ops-nav-drawer-close" onClick={() => setFlyoutId(null)}>
                 ×
               </button>
             </div>
             <div className="ops-nav-drawer-links">
-              {drawerSection.links.map((link) => (
+              {drawerItem.children.map((link) => (
                 <button
                   key={link.href}
                   type="button"
-                  className={`ops-nav-drawer-link${isActive(pathname, link.href) ? ' is-active' : ''}`}
+                  className={`ops-nav-drawer-link${isActiveHref(pathname, link.href) ? ' is-active' : ''}`}
                   onClick={() => navigateTo(link.href)}
                 >
                   <span className="ops-nav-drawer-link-icon">
-                    <NavIcon name={iconForHref(link.href)} />
+                    <NavIcon name={iconForHref(link.href.split('?')[0] || link.href)} />
                   </span>
                   <span>{link.label}</span>
+                  {renderBadge(link.badge)}
                 </button>
               ))}
             </div>

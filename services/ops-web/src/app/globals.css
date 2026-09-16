@@ -7789,14 +7789,115 @@ html.ops-shell-collapsed .ops-nav-link {
 }
 
 .ops-nav-group + .ops-nav-group {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid rgba(23, 105, 47, 0.08);
+  margin-top: 0.35rem;
+  padding-top: 0;
+  border-top: none;
 }
 
 .ops-nav-group:first-child {
   border-top: none;
   padding-top: 0;
+}
+
+.ops-nav-group {
+  border-radius: 12px;
+  padding: 0.15rem;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ops-nav-group.is-open,
+.ops-nav-group.has-active {
+  background: color-mix(in srgb, var(--primary-700) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-700) 18%, transparent);
+}
+
+.ops-nav-group-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.ops-nav-group.is-open .ops-nav-group-panel {
+  grid-template-rows: 1fr;
+}
+
+.ops-nav-group-panel-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.ops-nav-group-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.15rem 0 0.35rem 0.15rem;
+}
+
+.ops-nav-link--child {
+  padding-left: 0.85rem;
+}
+
+.ops-nav-item--leaf {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin-bottom: 0.2rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ops-nav-item--leaf:hover {
+  background: var(--accent-hover);
+  border-color: rgba(23, 105, 47, 0.2);
+}
+
+.ops-nav-item--leaf.is-active {
+  background: color-mix(in srgb, var(--primary-700) 12%, transparent);
+  border-color: color-mix(in srgb, var(--primary-700) 25%, transparent);
+  color: var(--primary-700);
+  font-weight: 600;
+}
+
+.ops-nav-badge {
+  margin-left: auto;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #e11d48;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
+}
+
+.ops-nav-link-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.ops-nav-link-icon-wrap .ops-nav-badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.45rem;
+  margin-left: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ops-nav-group-panel {
+    transition: none;
+  }
 }
 
 html.ops-shell-collapsed .ops-nav-group-links {
@@ -7832,21 +7933,23 @@ html.ops-shell-collapsed .ops-nav-group-links {
 .ops-nav-group-header {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
   width: 100%;
-  padding: 0.35rem 0.55rem;
+  padding: 0.5rem 0.55rem;
   border: none;
   background: transparent;
-  color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   cursor: pointer;
+  border-radius: 10px;
 }
 
 .ops-nav-group-header:hover {
   color: var(--primary-700);
+  background: color-mix(in srgb, var(--primary-700) 6%, transparent);
 }
 
 .ops-nav-group-icon {
@@ -7857,18 +7960,19 @@ html.ops-shell-collapsed .ops-nav-group-links {
 
 .ops-nav-group-toggle {
   margin-left: auto;
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   line-height: 1;
   opacity: 0.75;
   flex-shrink: 0;
+  transition: transform 0.22s ease;
 }
 
 .ops-nav-group.is-open .ops-nav-group-toggle {
-  transform: none;
+  transform: rotate(180deg);
 }
 
 .ops-nav-group-links.is-collapsed {
-  display: none;
+  /* kept for rail legacy; accordion uses grid panel instead */
 }
 
 .ops-nav-link {
