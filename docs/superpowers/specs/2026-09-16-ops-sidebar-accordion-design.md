@@ -2,9 +2,9 @@
 
 > **Document ID:** OPS-NAV-20260916  
 > **Version:** 1.0 · **Date:** 2026-09-16  
-> **Status:** Draft — chờ PO / user sign-off trước implementation  
+> **Status:** Implemented locally (ops-web) — 2026-09-16 · chờ deploy VPS / PO smoke test  
 > **App:** `services/ops-web` — `OpsNav` + `globals.css`  
-> **Related:** `components/layout/nav-icons.tsx`, RBAC caps / feature flags hiện có
+> **Related:** `components/layout/nav-icons.tsx`, `ops-nav-tree.ts`, `ops-nav-accordion.ts`, RBAC caps / feature flags hiện có
 
 ---
 
