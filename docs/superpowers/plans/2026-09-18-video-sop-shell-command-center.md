@@ -430,21 +430,20 @@ describe('summarizeVdCommandCenter', () => {
       project_count: 0,
       metrics: [
         {
-          id: 'keyframe_pass_rate',
-          label: 'Keyframe pass rate',
+          metric: 'keyframe_pass_rate',
           value: 0,
           target: { label: '≥60%', direction: 'min', threshold: 60 },
           on_track: false,
         },
       ],
     });
-    expect(out.metricTiles[0]?.label).toMatch(/Keyframe/i);
+    expect(out.metricTiles[0]?.label).toMatch(/keyframe/i);
     expect(out.metricTiles[0]?.valueLabel).toBe('0%');
   });
 });
 ```
 
-(Adjust metric shape to match exact `VdProductionMetricRow` in `video-sop-api.ts` — read file before coding.)
+(`VdProductionMetricRow`: `metric`, `value`, `target`, `on_track` — no separate `id`/`label` fields.)
 
 - [ ] **Step 2: Run util test — FAIL then implement util — PASS**
 
