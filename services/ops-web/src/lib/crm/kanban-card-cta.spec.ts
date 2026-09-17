@@ -16,6 +16,18 @@ describe('kanbanCardCta', () => {
     expect(cta.label).toBe('Gọi');
   });
 
+  it('treats funnel first_contact like moi for early CTA', () => {
+    const cta = kanbanCardCta({
+      id: 11,
+      phone: '0901111222',
+      status: 'first_contact',
+      ai_band: 'hot',
+      sla_state: 'ok',
+    });
+    expect(cta.kind).toBe('call');
+    expect(cta.href).toBe('tel:0901111222');
+  });
+
   it('sends consult leads to intake', () => {
     expect(kanbanCardCta({ id: 3, phone: '', status: 'dang_tu_van' }).href).toBe(
       '/crm/intake?lead_id=3',

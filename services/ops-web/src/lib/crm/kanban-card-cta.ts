@@ -1,5 +1,6 @@
 import type { LeadRow } from '@/lib/api';
 import { WORK_SIGNALS } from './work-signals';
+import { normalizeLeadStatus } from './lead-status';
 
 export type KanbanCardCta = {
   href: string;
@@ -34,7 +35,7 @@ function digitsPhone(phone: string | undefined): string {
 export function kanbanCardCta(
   lead: Pick<LeadRow, 'id' | 'phone' | 'status' | 'ai_band' | 'sla_state'>,
 ): KanbanCardCta {
-  const status = String(lead.status ?? 'moi');
+  const status = normalizeLeadStatus(lead.status);
   const phone = digitsPhone(lead.phone);
   const urgent =
     lead.ai_band === 'hot' || lead.sla_state === 'warning' || lead.sla_state === 'breach';

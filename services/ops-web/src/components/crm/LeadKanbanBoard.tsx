@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { LeadRow } from '@/lib/api';
 import { kanbanCardCta, kanbanStageAccent } from '@/lib/crm/kanban-card-cta';
-import { leadStatusLabel } from '@/lib/crm/lead-status';
+import { bucketLeadsByKanbanStage, leadStatusLabel } from '@/lib/crm/lead-status';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 
 function formatWhen(iso: string): string {
@@ -33,17 +33,11 @@ export function LeadKanbanBoard({
   flowKind?: LeadFlowKind;
 }) {
   const stages = statusOptionsForFlowKind(flowKind);
-  const byStage: Record<string, LeadRow[]> = {};
-  for (const st of stages) byStage[st] = [];
-  for (const row of rows) {
-    const st = String(row.status ?? 'moi');
-    if (!byStage[st]) byStage[st] = [];
-    byStage[st].push(row);
-  }
+  const { stageKeys, byStage } = bucketLeadsByKanbanStage(rows, stages);
 
   return (
     <div className="crm-kanban" data-testid="crm-leads-kanban">
-      {stages.map((stage) => {
+      {stageKeys.map((stage) => {
         const items = byStage[stage] ?? [];
         return (
           <div
