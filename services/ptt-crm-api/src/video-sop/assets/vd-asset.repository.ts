@@ -38,6 +38,13 @@ export type VdAssetLineageRow = {
   created_at: string;
 };
 
+export type VdAssetSearchOpts = {
+  projectIds: number[];
+  kind?: VdAssetKind;
+  q?: string;
+  limit?: number;
+};
+
 type MemoryStore = {
   assets: VdAssetRow[];
   lineage: VdAssetLineageRow[];
@@ -196,6 +203,54 @@ export class VdAssetRepository implements OnModuleDestroy {
     }
     return this.memory.assets
       .filter((row) => row.project_id === projectId && row.kind === 'keyframe')
+      .slice()
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, cap);
+  }
+
+  async searchByProjectIds(opts: VdAssetSearchOpts): Promise<VdAssetRow[]> {
+    const ids = (opts.projectIds ?? []).filter((id) => Number.isInteger(id) && id > 0);
+    if (ids.length === 0) return [];
+    const cap = Math.max(1, Math.min(opts.limit ?? 50, 100));
+    const kind = opts.kind;
+    const q = opts.q?.trim() ?? '';
+
+    if (await this.ensurePgReady()) {
+      const params: unknown[] = [ids];
+      let sql = `
+      SELECT id, project_id, job_id, kind, storage_key, url, sha256, width, height, duration_ms, created_at
+      FROM vd_assets
+      WHERE project_id = ANY($1::int[])`;
+      if (kind) {
+        params.push(kind);
+        sql += ` AND kind = $${params.length}`;
+      }
+      if (q) {
+        params.push(q);
+        const qi = params.length;
+        params.push(`${q}%`);
+        const qp = params.length;
+        params.push(`%${q}%`);
+        const qs = params.length;
+        sql += ` AND (id::text = $${qi} OR sha256 ILIKE $${qp} OR storage_key ILIKE $${qs})`;
+      }
+      params.push(cap);
+      sql += ` ORDER BY created_at DESC LIMIT $${params.length}`;
+      const res = await this.db.query(sql, params);
+      return (res.rows as Record<string, unknown>[]).map((row) => this.mapRow(row));
+    }
+
+    const qLower = q.toLowerCase();
+    return this.memory.assets
+      .filter((row) => ids.includes(row.project_id))
+      .filter((row) => (kind ? row.kind === kind : true))
+      .filter((row) => {
+        if (!q) return true;
+        if (String(row.id) === q) return true;
+        if (row.sha256 && row.sha256.toLowerCase().startsWith(qLower)) return true;
+        if (row.storage_key.toLowerCase().includes(qLower)) return true;
+        return false;
+      })
       .slice()
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .slice(0, cap);
