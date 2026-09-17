@@ -84,4 +84,20 @@ describe('CsdTicketsService', () => {
     expect(repo.insertActivity).toHaveBeenCalledWith(expect.objectContaining({ event_key: 'created' }));
     expect(audit.insert).toHaveBeenCalledWith(expect.objectContaining({ action: 'ticket.create' }));
   });
+
+  it('creates unassigned ticket (null assignee) without requiring assignee_staff_id', async () => {
+    await svc.create(5, {
+      title: 'Unassigned',
+      ticket_type: 'request',
+      priority: 'P3',
+    });
+    expect(repo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assignee_staff_id: null,
+        status: 'new',
+        created_by_staff_id: 5,
+      }),
+      undefined,
+    );
+  });
 });

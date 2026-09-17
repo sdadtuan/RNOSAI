@@ -191,6 +191,8 @@ export class CsdTicketsRepository implements OnModuleDestroy {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
+      // Cast $12::$13: node-pg sends JS null without type; bare `CASE WHEN $12 IS NOT NULL`
+      // makes Postgres raise "could not determine data type of parameter $12".
       const res = await client.query(
         `INSERT INTO csd_tickets (
            tenant_id, code, title, description, ticket_type, priority, status,
@@ -199,9 +201,10 @@ export class CsdTicketsRepository implements OnModuleDestroy {
            created_by_staff_id, updated_by_staff_id, assigned_at
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7,
-           $8, $9, $10, $11, $12,
-           $13, $14, $15,
-           $16, $16, CASE WHEN $12 IS NOT NULL THEN NOW() ELSE NULL END
+           $8, $9, $10, $11, $12::integer,
+           $13, $14::timestamptz, $15::timestamptz,
+           $16::integer, $16::integer,
+           CASE WHEN $12::integer IS NOT NULL THEN NOW() ELSE NULL END
          )
          RETURNING *`,
         [
