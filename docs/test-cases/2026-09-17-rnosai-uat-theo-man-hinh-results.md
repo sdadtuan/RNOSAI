@@ -9,8 +9,8 @@
 
 | Trạng thái | Số (ước lượng) |
 |------------|---------------:|
-| Pass | ~70 |
-| Fail | 2 (+1 UI note) |
+| Pass | ~72 |
+| Fail | 0 (+1 UI note) |
 | Blocked / partial | ~10 |
 | Not Run (còn lại ~207 − đã chạy) | ~125+ |
 
@@ -18,7 +18,7 @@
 
 ---
 
-## FAIL — cần hỏi trước khi fix
+## FAIL — đã fix / còn lại
 
 ### FAIL-1 · TC-SCR-CSD-02 (P0) — Tạo ticket CSD → **FIXED 2026-09-17**
 
@@ -27,22 +27,24 @@
 | Root cause | PG `could not determine data type of parameter $12` khi `assignee_staff_id` = null trong `CASE WHEN $12 IS NOT NULL` |
 | Fix | Cast `$12::integer` trong `csd-tickets.repository.ts` insert SQL |
 | Verify | Tạo ticket OK → `/crm/csd/tickets/b6e0c303-cf8b-4a09-a20d-9f90db1a2284` · title `UAT fix verify CSD create 2026-09-17` |
-| Deploy | VPS `ptt-crm-api` rebuilt + restarted (file patch; chưa commit git trừ khi PO yêu cầu) |
+| Deploy | Commit `bba5462b` · VPS `ptt-crm-api` rebuilt + restarted |
 
-### FAIL-2 · TC-SCR-B2B-01 (P0, phần Kanban)
+### FAIL-2 · TC-SCR-B2B-01 (P0, phần Kanban) → **FIXED 2026-09-17**
 
 | Mục | Chi tiết |
 |-----|----------|
-| URL | `/crm/b2b/leads` |
-| Bước | Tab **Kanban** với filter Tất cả |
-| Thực tế | Header `3 leads` nhưng mọi cột Kanban hiện **Trống**; status lead = `first_contact` không nằm trong options filter (`moi`, `da_lien_he`, …) |
-| List view | **Pass** — 3 leads hiện + mở chi tiết OK |
+| Root cause | Status funnel `first_contact` không map vào cột CRM (`moi`…); Kanban bucket miss → mọi cột **Trống** |
+| Fix | `normalizeLeadStatus` alias `first_contact`→`moi` + `bucketLeadsByKanbanStage` / `__other__` · commit `c1ce1667` |
+| Verify | `/crm/b2b/leads` tab Kanban · cột **Mới** = **4** (UAT Browser Lead 0917, A Hưng 360, Chi UYÊN BĐS, Tuan Truong) |
+| Deploy | VPS ops-web release `ops-web-c1ce1667-*` |
 
-**→ Bạn có muốn fix mapping Kanban / status `first_contact` không?**
+### NOTE-UI · Topbar overlap → **FIXED (local, chờ deploy)**
 
-### NOTE-UI · Topbar overlap (không chặn nghiệp vụ)
-
-Trên nhiều màn, filter pills global-search (`Tất cả / Lead / Deal…`) chồng lên avatar/thông báo. Có sửa layout không?
+| Mục | Chi tiết |
+|-----|----------|
+| Root cause | Filter pills global-search luôn in-flow dưới input → topbar cao/co hẹp, pills chồng avatar/bell |
+| Fix | Chips chuyển vào overlay panel khi focus; `flex-shrink:0` cho app/user; search `min-width: 12rem` |
+| Files | `GlobalSearchBar.tsx`, `globals.css` |
 
 ---
 
@@ -66,7 +68,7 @@ Trên nhiều màn, filter pills global-search (`Tất cả / Lead / Deal…`) c
 |-------|---------|---------|
 | TC-SCR-CRM-01 | Pass | `/crm` hub cards (Leads badge 1, CSKH SLA 4…) |
 | TC-SCR-CRM-03 | Pass | `/crm/cskh-board` SLA dashboard + Lọc/Bulk UI |
-| TC-SCR-B2B-01 | Pass (list) / Fail (kanban) | Xem FAIL-2 |
+| TC-SCR-B2B-01 | **Pass** (list + kanban) | Retest sau `c1ce1667`: Mới · 4 |
 | TC-SCR-B2B-02 | Pass | Tạo lead → `/crm/leads/900000004` |
 | TC-SCR-B2B-09/11 | Pass | List + detail `#900000003` pipeline/tabs |
 
@@ -75,7 +77,7 @@ Trên nhiều màn, filter pills global-search (`Tất cả / Lead / Deal…`) c
 | TC-ID | Kết quả | Ghi chú |
 |-------|---------|---------|
 | TC-SCR-CSD-01 | Pass | `/crm/csd` tiles + Ticket ưu tiên |
-| TC-SCR-CSD-02 | **Fail** | Internal server error |
+| TC-SCR-CSD-02 | **Pass** (retest) | FIXED — tạo ticket OK |
 | TC-SCR-CSD-04 | Blocked | Chat yêu cầu mật khẩu chat riêng («Đăng nhập Chat») |
 
 ### AM / Content / Admin

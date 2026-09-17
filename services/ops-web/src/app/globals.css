@@ -380,7 +380,8 @@ input {
 }
 
 .ops-topbar-inner .global-search-bar {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 12rem;
   max-width: 520px;
   margin: 0 auto;
 }
@@ -6628,6 +6629,8 @@ body:has(.ops-sidebar) main {
 /* RNOS-11 / UI-R2-07 — Global CRM search bar */
 .global-search-bar {
   position: relative;
+  z-index: 1;
+  min-width: 0;
 }
 
 .global-search-input-wrap {
@@ -6651,11 +6654,51 @@ body:has(.ops-sidebar) main {
   transform: translateY(-50%);
 }
 
+.global-search-active-filter {
+  position: absolute;
+  right: 2.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 5.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--primary-700);
+  background: color-mix(in srgb, var(--primary) 12%, white);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, white);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  pointer-events: none;
+}
+
+/* Overlay under the input — keeps topbar single-row; avoids pill/avatar collision */
+.global-search-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: min(100%, 280px);
+}
+
 .global-search-filters {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.35rem;
-  margin-top: 0.35rem;
+  margin-top: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
 }
 
 .global-search-filter {
@@ -6666,6 +6709,8 @@ body:has(.ops-sidebar) main {
   padding: 0.15rem 0.55rem;
   font-size: 0.72rem;
   cursor: pointer;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .global-search-filter.is-active {
@@ -6675,11 +6720,11 @@ body:has(.ops-sidebar) main {
 }
 
 .global-search-dropdown {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  left: 0;
-  right: 0;
-  z-index: 40;
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -8009,6 +8054,7 @@ html.ops-shell-collapsed .ops-nav-group-links {
   align-items: center;
   gap: 0.65rem;
   min-width: 0;
+  flex-shrink: 0;
 }
 
 .ops-topbar-app-name {
@@ -8023,6 +8069,9 @@ html.ops-shell-collapsed .ops-nav-group-links {
   align-items: center;
   gap: 0.65rem;
   min-width: 0;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .ops-topbar-user-meta {
