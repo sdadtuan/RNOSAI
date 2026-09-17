@@ -9,7 +9,7 @@ import type {
   TodayPublishRow,
 } from '@/lib/crm/cmkte-api';
 import { capacityBandLabel, pctLabel } from '@/lib/crm/cmkte-workspace';
-import { cmktePath } from '@/lib/crm/cmkte-routes';
+import { cmktePath, withLifecycleQuery } from '@/lib/crm/cmkte-routes';
 import { CmktERequestModal } from './CmktERequestModal';
 
 const EMPTY_COPY = 'Chưa có throughput tuần này và hàng đợi rủi ro trống.';
@@ -51,7 +51,7 @@ export function CmktECommandCenter({
           <p>Kiểm soát throughput, SLA, rủi ro và năng lực sản xuất trên toàn bộ client portfolio.</p>
         </div>
         <div className="cmkte-actions">
-          <Link href={cmktePath('calendar')} className="cmkte-btn">
+          <Link href={cmktePath('calendar', { lifecycleId })} className="cmkte-btn">
             Mở Publication Control
           </Link>
           <button type="button" className="cmkte-btn cmkte-btn--blue" onClick={() => setRequestOpen(true)}>
@@ -70,7 +70,7 @@ export function CmktECommandCenter({
               Hàng đợi thắng đối thủ: gate PASS + Page Connected → người bấm xác nhận. Không phải lịch N kênh.
             </p>
           </div>
-          <Link href={cmktePath('calendar')} className="cmkte-btn cmkte-btn--small">
+          <Link href={cmktePath('calendar', { lifecycleId })} className="cmkte-btn cmkte-btn--small">
             Mở Publication Control
           </Link>
         </div>
@@ -97,7 +97,13 @@ export function CmktECommandCenter({
                   </td>
                   <td>{row.health}</td>
                   <td>
-                    <Link href={`/crm/content-os/w/${row.item_id}?tab=publish`} className="cmkte-btn cmkte-btn--small">
+                    <Link
+                      href={withLifecycleQuery(
+                        `/crm/content-os/w/${row.item_id}?tab=publish`,
+                        lifecycleId,
+                      )}
+                      className="cmkte-btn cmkte-btn--small"
+                    >
                       Mở Publish Control
                     </Link>
                   </td>
@@ -155,7 +161,7 @@ export function CmktECommandCenter({
               <h3>Operational risk queue</h3>
               <p className="cmkte-desc">Ưu tiên theo SLA, risk level và critical path dependency.</p>
             </div>
-            <Link href={cmktePath('approvals')} className="cmkte-btn cmkte-btn--small">
+            <Link href={cmktePath('approvals', { lifecycleId })} className="cmkte-btn cmkte-btn--small">
               Mở Approval Center
             </Link>
           </div>
@@ -172,7 +178,10 @@ export function CmktECommandCenter({
               </thead>
               <tbody>
                 {data.risk_queue.map((row) => {
-                  const href = cmktePath('workspace', row.item_id);
+                  const href = cmktePath('workspace', {
+                    itemId: row.item_id,
+                    lifecycleId: lifecycleId ?? row.lifecycle_id,
+                  });
                   return (
                     <tr key={row.item_id}>
                       <td>

@@ -89,7 +89,7 @@ export function CmktERequests({
         showToast('Convert xong nhưng thiếu item id.');
         return;
       }
-      router.push(cmktePath('workspace', itemId));
+      router.push(cmktePath('workspace', { itemId, lifecycleId }));
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Không chuyển được request thành content item.');
     } finally {

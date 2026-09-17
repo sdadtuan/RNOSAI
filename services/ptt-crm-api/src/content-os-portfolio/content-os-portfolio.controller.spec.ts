@@ -9,24 +9,50 @@ import {
 } from './content-os-portfolio.controller';
 import { ContentOsPortfolioService } from './content-os-portfolio.service';
 
+
+function staffAuthMock(resolvedId?: number) {
+  return {
+    resolveCrmStaffUserId: jest.fn(async (user?: { sub?: string; email?: string }) => {
+      if (resolvedId != null) return resolvedId;
+      const n = Number(user?.sub);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }),
+  };
+}
+
 describe('ContentOsPortfolioController', () => {
+
+  it('resolves UUID JWT sub via resolveCrmStaffUserId for createRequest', async () => {
+    const service = { createRequest: jest.fn().mockResolvedValue({ id: 9, display_code: 'CR-1' }) };
+    const staffAuth = staffAuthMock(5);
+    const c = new ContentOsPortfolioController(service as never, staffAuth as never);
+    await c.createRequest(
+      { lifecycle_id: 4, deliverable_ask: 'posts', brand_id: 'b', locale: 'vi-VN' },
+      { staffUser: { sub: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', email: 'admin@pttads.vn' } } as never,
+    );
+    expect(staffAuth.resolveCrmStaffUserId).toHaveBeenCalled();
+    expect(service.createRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ staffId: 5, lifecycleId: 4 }),
+    );
+  });
+
   it('GET command-center delegates to service', async () => {
     const service = { getCommandCenter: jest.fn().mockResolvedValue({ throughput_week: 0, risk_queue: [] }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     await c.commandCenter({ staffUser: { sub: '1' } } as never);
     expect(service.getCommandCenter).toHaveBeenCalled();
   });
 
   it('GET command-center passes ?lifecycle= as a hint', async () => {
     const service = { getCommandCenter: jest.fn().mockResolvedValue({ throughput_week: 0, risk_queue: [] }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     await c.commandCenter({ staffUser: { sub: '7' } } as never, '4');
     expect(service.getCommandCenter).toHaveBeenCalledWith({ staffId: 7, lifecycleHint: 4 });
   });
 
   it('GET approvals delegates to listApprovals with staffId', async () => {
     const service = { listApprovals: jest.fn().mockResolvedValue({ items: [] }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.approvals({ staffUser: { sub: '7' } } as never);
     expect(service.listApprovals).toHaveBeenCalledWith({ staffId: 7 });
     expect(out).toEqual({ items: [] });
@@ -34,7 +60,7 @@ describe('ContentOsPortfolioController', () => {
 
   it('GET publications delegates to listPublications with staffId and range', async () => {
     const service = { listPublications: jest.fn().mockResolvedValue({ slots: [] }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.publications({ staffUser: { sub: '7' } } as never, '2026-09-07', '2026-09-13');
     expect(service.listPublications).toHaveBeenCalledWith({
       staffId: 7,
@@ -48,7 +74,7 @@ describe('ContentOsPortfolioController', () => {
     const service = {
       getChannelHealth: jest.fn().mockResolvedValue({ channels: [{ channel: 'facebook', status: 'Manual' }] }),
     };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.channelHealth({ staffUser: { sub: '7' } } as never);
     expect(service.getChannelHealth).toHaveBeenCalledWith({ staffId: 7 });
     expect(out).toEqual({ channels: [{ channel: 'facebook', status: 'Manual' }] });
@@ -67,7 +93,7 @@ describe('ContentOsPortfolioController', () => {
       ],
     };
     const service = { listChannelAccounts: jest.fn().mockResolvedValue(listed) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.listChannelAccounts({ staffUser: { sub: '7' } } as never);
     expect(service.listChannelAccounts).toHaveBeenCalledWith({ staffId: 7 });
     expect(out).toEqual(listed);
@@ -76,7 +102,7 @@ describe('ContentOsPortfolioController', () => {
 
   it('POST connectors/:id/disconnect uses write guard path and returns off without token', async () => {
     const service = { disconnectConnector: jest.fn().mockResolvedValue({ status: 'off' }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.disconnectConnector(9, { staffUser: { sub: '7', email: 'ops@ptt.vn' } } as never);
     expect(service.disconnectConnector).toHaveBeenCalledWith({
       staffId: 7,
@@ -89,7 +115,7 @@ describe('ContentOsPortfolioController', () => {
 
   it('GET requests delegates to listRequests with staffId', async () => {
     const service = { listRequests: jest.fn().mockResolvedValue({ items: [] }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.listRequests({ staffUser: { sub: '7' } } as never);
     expect(service.listRequests).toHaveBeenCalledWith({ staffId: 7 });
     expect(out).toEqual({ items: [] });
@@ -98,7 +124,7 @@ describe('ContentOsPortfolioController', () => {
   it('GET items/:itemId delegates to getPortfolioItem with staffId and lifecycle hint', async () => {
     const item = { id: 21, lifecycle_id: 4 };
     const service = { getPortfolioItem: jest.fn().mockResolvedValue(item) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.getPortfolioItem(21, { staffUser: { sub: '7' } } as never, '4');
     expect(service.getPortfolioItem).toHaveBeenCalledWith({ staffId: 7, itemId: 21, lifecycleHint: 4 });
     expect(out).toEqual(item);
@@ -107,7 +133,7 @@ describe('ContentOsPortfolioController', () => {
   it('PATCH items/:itemId/legal-hold delegates to patchLegalHold without a writer DELETE', async () => {
     const held = { id: 21, legal_hold: true, legal_hold_set_by: 'w@ptt.vn' };
     const service = { patchLegalHold: jest.fn().mockResolvedValue(held) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.patchLegalHold(
       21,
       { legal_hold: true, reason: 'tranh chấp hợp đồng Q4' },
@@ -140,7 +166,7 @@ describe('ContentOsPortfolioController', () => {
 
   it('GET sla-events delegates to listSlaEvents with staffId and optional filters', async () => {
     const service = { listSlaEvents: jest.fn().mockResolvedValue({ items: [] }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.listSlaEvents({ staffUser: { sub: '7' } } as never, '21', '11');
     expect(service.listSlaEvents).toHaveBeenCalledWith({ staffId: 7, itemId: 21, amStaffId: 11 });
     expect(out).toEqual({ items: [] });
@@ -148,7 +174,7 @@ describe('ContentOsPortfolioController', () => {
 
   it('GET insights delegates to listInsights with staffId and lifecycle hint', async () => {
     const service = { listInsights: jest.fn().mockResolvedValue({ items: [] }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.listInsights({ staffUser: { sub: '7' } } as never, '4');
     expect(service.listInsights).toHaveBeenCalledWith({ staffId: 7, lifecycleHint: 4 });
     expect(out).toEqual({ items: [] });
@@ -157,7 +183,7 @@ describe('ContentOsPortfolioController', () => {
   it('POST insights/:id/approve delegates to approveInsight', async () => {
     const approved = { id: 11, status: 'Approved' };
     const service = { approveInsight: jest.fn().mockResolvedValue(approved) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.approveInsight(11, { staffUser: { sub: '7' } } as never);
     expect(service.approveInsight).toHaveBeenCalledWith({ staffId: 7, insightId: 11 });
     expect(out).toEqual(approved);
@@ -165,7 +191,7 @@ describe('ContentOsPortfolioController', () => {
 
   it('GET glossary delegates to listGlossary with staffId and lifecycle hint', async () => {
     const service = { listGlossary: jest.fn().mockResolvedValue({ items: [] }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.listGlossary({ staffUser: { sub: '7' } } as never, '4');
     expect(service.listGlossary).toHaveBeenCalledWith({ staffId: 7, lifecycleHint: 4 });
     expect(out).toEqual({ items: [] });
@@ -174,7 +200,7 @@ describe('ContentOsPortfolioController', () => {
   it('POST glossary/:id/approve delegates to approveGlossary', async () => {
     const approved = { id: 11, status: 'Approved', term: 'đăng ký nhận tư vấn', locale: 'vi', brand_id: 'brand-4' };
     const service = { approveGlossary: jest.fn().mockResolvedValue(approved) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.approveGlossary(11, { staffUser: { sub: '7' } } as never);
     expect(service.approveGlossary).toHaveBeenCalledWith({ staffId: 7, glossaryId: 11 });
     expect(out).toEqual(approved);
@@ -183,7 +209,7 @@ describe('ContentOsPortfolioController', () => {
   it('POST glossary delegates to createGlossary with write guard path', async () => {
     const created = { id: 21, status: 'Draft', term: 'sống xanh' };
     const service = { createGlossary: jest.fn().mockResolvedValue(created) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.createGlossary(
       { term: 'sống xanh', locale: 'vi-VN', brand_id: 'tiep-thi-noi-dung', lifecycle_id: 4 },
       { staffUser: { sub: '7', email: 'am@ptt.vn' } } as never,
@@ -199,7 +225,7 @@ describe('ContentOsPortfolioController', () => {
   it('PATCH glossary/:id delegates to patchGlossaryDraft', async () => {
     const patched = { id: 11, status: 'Draft', preferred: 'Sống xanh' };
     const service = { patchGlossaryDraft: jest.fn().mockResolvedValue(patched) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.patchGlossary(11, { preferred: 'Sống xanh' }, { staffUser: { sub: '7' } } as never);
     expect(service.patchGlossaryDraft).toHaveBeenCalledWith({
       staffId: 7,
@@ -211,7 +237,7 @@ describe('ContentOsPortfolioController', () => {
 
   it('POST approvals/batch delegates to batchApprove with staffId, actor, ids, and step', async () => {
     const service = { batchApprove: jest.fn().mockResolvedValue({ ok: [21], failed: [] }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.batchApprove(
       { item_ids: [21, 22], step: 'in_review' },
       { staffUser: { sub: '7', email: 'am@ptt.vn' } } as never,
@@ -228,7 +254,7 @@ describe('ContentOsPortfolioController', () => {
   it('POST approvals/:packageId/delegate delegates to delegateApproval', async () => {
     const pkg = { id: 9, delegate_until: '2026-09-12T00:00:00.000Z', delegate_expired: false };
     const service = { delegateApproval: jest.fn().mockResolvedValue(pkg) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.delegateApproval(
       9,
       { delegate_until: '2026-09-12T00:00:00.000Z', delegate_to: 'qa@ptt.vn' },
@@ -248,7 +274,7 @@ describe('ContentOsPortfolioController', () => {
     const service = {
       getSettings: jest.fn().mockResolvedValue({ direct_social_publish: false, sso_enforced: false }),
     };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.getSettings({ staffUser: { sub: '7' } } as never);
     expect(service.getSettings).toHaveBeenCalledWith({ staffId: 7 });
     expect(out).toEqual({ direct_social_publish: false, sso_enforced: false });
@@ -256,7 +282,7 @@ describe('ContentOsPortfolioController', () => {
 
   it('PATCH settings delegates to patchSettings with staffId, actor, and body', async () => {
     const service = { patchSettings: jest.fn().mockResolvedValue({ direct_social_publish: true }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.patchSettings(
       { direct_social_publish: true },
       { staffUser: { sub: '7', email: 'admin@ptt.vn' } } as never,
@@ -272,7 +298,7 @@ describe('ContentOsPortfolioController', () => {
   it('GET dam delegates to listDamAssets with staffId and collection', async () => {
     const listed = { items: [], error: 'dam_not_configured' };
     const service = { listDamAssets: jest.fn().mockResolvedValue(listed) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.listDamAssets({ staffUser: { sub: '7' } } as never, 'approved');
     expect(service.listDamAssets).toHaveBeenCalledWith({ staffId: 7, collection: 'approved' });
     expect(out).toEqual(listed);
@@ -281,7 +307,7 @@ describe('ContentOsPortfolioController', () => {
   it('POST items/:itemId/dam-bind delegates to bindDamAsset with write guard path', async () => {
     const bound = { media_json: { dam_refs: [{ dam_id: 'a1', url: 'https://dam.example.internal/a.jpg' }] } };
     const service = { bindDamAsset: jest.fn().mockResolvedValue(bound) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.bindDamAsset(
       21,
       { dam_id: 'a1', url: 'https://dam.example.internal/a.jpg' },
@@ -299,7 +325,7 @@ describe('ContentOsPortfolioController', () => {
   it('GET items/:itemId/ai-traces delegates to listAiTraces with staffId and lifecycle hint', async () => {
     const traces = { items: [{ at: '2026-09-10T08:00:00.000Z', intent: 'Draft generate', sources: [], job_id: 55, status: 'succeeded' }] };
     const service = { listAiTraces: jest.fn().mockResolvedValue(traces) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.listAiTraces(21, { staffUser: { sub: '7' } } as never, '4');
     expect(service.listAiTraces).toHaveBeenCalledWith({ staffId: 7, itemId: 21, lifecycleHint: 4 });
     expect(out).toEqual(traces);
@@ -308,7 +334,7 @@ describe('ContentOsPortfolioController', () => {
   it('GET audit/export delegates to exportAuditCsv with staffId and actor', async () => {
     const csv = 'actor,action,entity,created_at\nadmin@ptt.vn,audit_export,portfolio_audit,2026-09-11T07:47:00.000Z\n';
     const service = { exportAuditCsv: jest.fn().mockResolvedValue(csv) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.exportAuditCsv({ staffUser: { sub: '7', email: 'admin@ptt.vn' } } as never);
     expect(service.exportAuditCsv).toHaveBeenCalledWith({ staffId: 7, actor: 'admin@ptt.vn' });
     expect(out).toBe(csv);
@@ -317,7 +343,7 @@ describe('ContentOsPortfolioController', () => {
   it('POST publications/execute delegates to enqueuePublicationExecute', async () => {
     const queued = { queued: true, client_request_id: 'r1', execute_id: 88 };
     const service = { enqueuePublicationExecute: jest.fn().mockResolvedValue(queued) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.enqueuePublicationExecute(
       { item_id: 21, channel_account_id: 1, snapshot_id: 'v13', confirm: true, client_request_id: 'r1' },
       { staffUser: { sub: '7', email: 'social@ptt.vn' } } as never,
@@ -332,7 +358,7 @@ describe('ContentOsPortfolioController', () => {
 
   it('GET oauth/start uses write guard path and returns redirect without token', async () => {
     const service = { startFacebookOAuth: jest.fn().mockResolvedValue({ redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x' }) };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const res = { redirect: jest.fn(), json: jest.fn() };
     await c.startFacebookOAuth({ staffUser: { sub: '7' }, headers: {} } as never, res as never);
     expect(service.startFacebookOAuth).toHaveBeenCalledWith({ staffId: 7 });
@@ -347,7 +373,7 @@ describe('ContentOsPortfolioController', () => {
         redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x',
       }),
     };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const out = await c.startFacebookOAuthJson({ staffUser: { sub: '7' } } as never);
     expect(service.startFacebookOAuth).toHaveBeenCalledWith({ staffId: 7 });
     expect(out).toEqual({ redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x' });
@@ -360,7 +386,7 @@ describe('ContentOsPortfolioController', () => {
         redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x',
       }),
     };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const res = { redirect: jest.fn(), json: jest.fn() };
     await c.startFacebookOAuth(
       { staffUser: { sub: '7' }, headers: { accept: 'application/json' } } as never,
@@ -378,7 +404,7 @@ describe('ContentOsPortfolioController', () => {
         redirect: 'https://www.facebook.com/v21.0/dialog/oauth?state=x',
       }),
     };
-    const c = new ContentOsPortfolioController(service as never);
+    const c = new ContentOsPortfolioController(service as never, staffAuthMock() as never);
     const res = { redirect: jest.fn(), json: jest.fn() };
     await c.startFacebookOAuth(
       { staffUser: { sub: '7' }, headers: {}, query: { format: 'json' } } as never,

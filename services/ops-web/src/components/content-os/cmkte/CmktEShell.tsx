@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { StaffPageShell } from '@/components/layout';
 import { staffMe, staffRefresh } from '@/lib/api';
@@ -21,6 +21,8 @@ import {
   CMKTE_NAV,
   resolveCmktEWorkspaceHref,
 } from '@/lib/crm/cmkte-nav';
+import { withLifecycleQuery } from '@/lib/crm/cmkte-routes';
+import { parseLifecycleQuery } from '@/lib/crm/use-cmkte-page';
 
 const OPS_SCREENS = new Set(['command', 'requests', 'workspace', 'approvals', 'calendar']);
 
@@ -45,6 +47,8 @@ function initials(user: StoredStaffUser): string {
 function CmktEShellInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname() ?? '';
+  const searchParams = useSearchParams();
+  const lifecycleId = parseLifecycleQuery(searchParams.get('lifecycle'));
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [workspaceHref, setWorkspaceHref] = useState('/crm/content-os/w/0');
@@ -91,11 +95,16 @@ function CmktEShellInner({ children }: { children: ReactNode }) {
     const routeId = match?.[1];
     if (routeId && Number(routeId) > 0) {
       window.localStorage.setItem(CMKTE_LAST_ITEM_KEY, routeId);
-      setWorkspaceHref(`/crm/content-os/w/${routeId}`);
+      setWorkspaceHref(withLifecycleQuery(`/crm/content-os/w/${routeId}`, lifecycleId));
       return;
     }
-    setWorkspaceHref(resolveCmktEWorkspaceHref(window.localStorage.getItem(CMKTE_LAST_ITEM_KEY)));
-  }, [pathname]);
+    setWorkspaceHref(
+      withLifecycleQuery(
+        resolveCmktEWorkspaceHref(window.localStorage.getItem(CMKTE_LAST_ITEM_KEY)),
+        lifecycleId,
+      ),
+    );
+  }, [pathname, lifecycleId]);
 
   function logout() {
     clearSession();
@@ -104,6 +113,7 @@ function CmktEShellInner({ children }: { children: ReactNode }) {
 
   const crumb = currentNavLabel(pathname);
   const flagOff = !isContentMarketingFeEnabled();
+  const scopedHref = (href: string) => withLifecycleQuery(href, lifecycleId);
 
   return (
     <StaffPageShell user={user} onLogout={logout} loading={loading && !user} width="full">
@@ -113,7 +123,7 @@ function CmktEShellInner({ children }: { children: ReactNode }) {
         ) : (
           <div className="cmkte-shell">
             <aside className="cmkte-sidebar" aria-label="Content Marketing OS">
-              <Link className="cmkte-brand" href="/crm/content-os">
+              <Link className="cmkte-brand" href={scopedHref('/crm/content-os')}>
                 <span className="cmkte-mark" aria-hidden>
                   C
                 </span>
@@ -132,7 +142,8 @@ function CmktEShellInner({ children }: { children: ReactNode }) {
               <div className="cmkte-label">CONTENT OPERATIONS</div>
               <nav className="cmkte-nav">
                 {CMKTE_NAV.filter((item) => OPS_SCREENS.has(item.screen)).map((item) => {
-                  const href = item.screen === 'workspace' ? workspaceHref : item.href;
+                  const href =
+                    item.screen === 'workspace' ? workspaceHref : scopedHref(item.href);
                   const active = cmkteNavIsActive(pathname, item.href, item.screen);
                   return (
                     <Link
@@ -155,7 +166,7 @@ function CmktEShellInner({ children }: { children: ReactNode }) {
                   return (
                     <Link
                       key={item.screen}
-                      href={item.href}
+                      href={scopedHref(item.href)}
                       className={active ? 'cmkte-nav__link--active' : undefined}
                     >
                       <span className="cmkte-ic" aria-hidden>

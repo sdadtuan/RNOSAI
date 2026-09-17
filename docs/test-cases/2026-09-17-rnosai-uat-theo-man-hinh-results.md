@@ -9,16 +9,31 @@
 
 | Trạng thái | Số (ước lượng) |
 |------------|---------------:|
-| Pass | ~72 |
-| Fail | 0 (+1 UI note) |
-| Blocked / partial | ~10 |
-| Not Run (còn lại ~207 − đã chạy) | ~125+ |
+| Pass | ~143+ |
+| Fail | 0 |
+| Blocked / partial | ~12 |
+| Not Run (CRUD sâu / role khác / chat pwd) | ~55+ |
 
-**HTTP smoke:** 55 route P0 chính → **200** tất cả.
+**HTTP smoke:** 55+ route P0 → **200**. **Wave-2 client render:** ~95 màn load heading đúng, không Application error.
+
+**Cập nhật wave-2:** 2026-09-17 chiều — interactive/load các màn còn lại (CRM→Admin).  
+**Cập nhật CRUD write:** QT + AM + Content Request **Pass**.
 
 ---
 
 ## FAIL — đã fix / còn lại
+
+### FAIL-3 · TC-SCR-CMKTE-02 (P0) — Tạo Content Request → **FIXED 2026-09-17**
+
+| Mục | Chi tiết |
+|-----|----------|
+| URL | `/crm/content-os/requests` |
+| Seed | POST `/api/crm/service-lifecycle` → lifecycle **#4** · lead `#900000004` · slug `tiep-thi-noi-dung` · stage `lead` / status `draft` |
+| AM | Gán AM = `admin@pttads.vn` (crm_staff id 5) trên `/crm/service-delivery/4` (scope Content OS) |
+| Root cause (2 lớp) | (1) Thiếu lifecycle seed; (2) Portfolio controller dùng `Number(JWT.sub)` — UUID → NaN → `lifecycle_out_of_scope` |
+| Fix API | `content-os-portfolio.controller.ts` resolve staff via `StaffAuthService.resolveCrmStaffUserId` (như CSD/AM) |
+| Verify | Request **CR-20260917-001** · lifecycle_id **4** · triage `Submitted` · hiện list Intake |
+| Deploy | VPS `ptt-crm-api` — commit + deploy cùng đợt lifecycle-nav fix |
 
 ### FAIL-1 · TC-SCR-CSD-02 (P0) — Tạo ticket CSD → **FIXED 2026-09-17**
 
@@ -60,7 +75,7 @@
 | TC-SCR-COMMON-02 | Pass | Deep-link → `/login?next=` |
 | TC-SCR-HOME-01 | Pass | `/` widgets + chào Quản trị hệ thống |
 | TC-SCR-HOME-02 | Pass | `/crm/csd`: Service Desk `aria-expanded=true`, CRM `false` |
-| TC-SCR-HOME-03 | Pass partial | Search nhận input; panel kết quả chưa thấy rõ |
+| TC-SCR-HOME-03 | **Pass** (retest) | Focus search → overlay 7 chips; topbar 56px |
 | TC-SCR-HOME-04 | Pass | Bell → panel «Không có thông báo» + Đóng |
 
 ### CRM / CSKH / B2B
@@ -69,9 +84,28 @@
 |-------|---------|---------|
 | TC-SCR-CRM-01 | Pass | `/crm` hub cards (Leads badge 1, CSKH SLA 4…) |
 | TC-SCR-CRM-03 | Pass | `/crm/cskh-board` SLA dashboard + Lọc/Bulk UI |
+| TC-SCR-CRM-04 | Pass | `/crm/customers` — empty «0 khách hàng» + search |
+| TC-SCR-CRM-06 | Pass | `/crm/tickets` — «Ticket CS lite» · 0 ticket |
+| TC-SCR-CRM-07 | Pass | `/crm/operational/leads` load 200 |
+| TC-SCR-CRM-08 | Pass | `/crm/health` — CS Health score |
+| TC-SCR-CRM-09..12 | Pass | hub/orders/catalog/sales load |
 | TC-SCR-B2B-01 | **Pass** (list + kanban) | Retest sau `c1ce1667`: Mới · 4 |
 | TC-SCR-B2B-02 | Pass | Tạo lead → `/crm/leads/900000004` |
+| TC-SCR-B2B-03 | Pass | Inbox B2B |
+| TC-SCR-B2B-05 | Pass | Speed-to-lead |
+| TC-SCR-B2B-06..08 | Pass | unmatched / gdkd / projects load |
 | TC-SCR-B2B-09/11 | Pass | List + detail `#900000003` pipeline/tabs |
+| TC-SCR-B2B-12 | Pass | Deal room `#900000004` |
+| TC-SCR-B2B-13..18 | Pass | review-queue, handover, spa, solution, intake, sales-kit |
+
+### QT / Proposals
+
+| TC-ID | Kết quả | Ghi chú |
+|-------|---------|---------|
+| TC-SCR-QT-01 | Pass | Tổng quan Báo giá |
+| TC-SCR-QT-02 | Pass | Danh sách báo giá |
+| TC-SCR-QT-03 | **Pass** (write) | Tạo nháp OK → `/crm/proposals/7` · `QT-PTT-2026-000007` · «UAT QT draft CRUD 2026-09-17» |
+| TC-SCR-QT-07..09 | Pass | catalog / approvals / reports / settings |
 
 ### CSD
 
@@ -79,19 +113,58 @@
 |-------|---------|---------|
 | TC-SCR-CSD-01 | Pass | `/crm/csd` tiles + Ticket ưu tiên |
 | TC-SCR-CSD-02 | **Pass** (retest) | FIXED — tạo ticket OK |
-| TC-SCR-CSD-04 | Blocked | Chat yêu cầu mật khẩu chat riêng («Đăng nhập Chat») |
+| TC-SCR-CSD-03 | Pass partial | List tickets OK (PTT-2026-000007…); assign/comment chưa chạy |
+| TC-SCR-CSD-04 | Blocked | Chat yêu cầu mật khẩu chat riêng |
+| TC-SCR-CSD-06 | Pass | Hộp thư dùng chung |
+| TC-SCR-CSD-07 | Pass | email/unmatched load |
+| TC-SCR-CSD-08 | Pass | Báo cáo khách hàng |
+| TC-SCR-CSD-10 | Pass | templates load |
+| TC-SCR-CSD-11 | Pass | `/admin/crm/csd/chat-accounts` |
 
-### AM / Content / Admin
+### AM / Agency / Content / Media / Creative
 
 | TC-ID | Kết quả | Ghi chú |
 |-------|---------|---------|
-| TC-SCR-AM-01 | Pass | KPI tiles, queue, «Nhận xử lý», sidebar AM |
-| TC-SCR-CMKTE-01 | Pass | `cmkte-sidebar` bg `rgb(255,255,255)` |
-| TC-SCR-ADM-01 | Pass | Admin hub đầy đủ workspace cards |
+| TC-SCR-AM-01 | Pass | KPI tiles, queue, sidebar AM |
+| TC-SCR-AM-02 | Pass | Clients list + AM shell |
+| TC-SCR-AM-03 | **Pass** (write) | Tạo KH → `/crm/account-management/clients/22097a9e-816a-4b5a-a29f-a2f9b9531ccb` · mã `UATAMCLI55` |
+| TC-SCR-AM-06..14 | Pass | onboarding/work/renewals/opps/feedback/health/reports/settings |
+| TC-SCR-AGY-01..03 | Pass | Agency hub + ingest + jobs (DLQ badge 9) |
+| TC-SCR-CMKTE-01 | Pass | sidebar trắng |
+| TC-SCR-CMKTE-03..08 | Pass | approvals/calendar/library/intel/settings (load) |
+| TC-SCR-CMKTE-02 | **Pass** (write) | Lifecycle **#4** + AM admin · Request **CR-20260917-001** · fix UUID staffId resolve trên portfolio API |
+| TC-SCR-MSOS-01..07 | Pass | Media OS command + 6 màn |
+| TC-SCR-CP-01 | Pass | Creative OS tổng quan |
+| TC-SCR-CP-02 | Pass | projects |
+| TC-SCR-CP-04/05 | Pass | ImageOS command + jobs |
+| TC-SCR-VD-01 | Pass | Video SOP |
 
-### HTTP 200 smoke (không interactive sâu)
+### Delivery / RevOps / CEO / Finance / KPI / IWR / HR
 
-`/crm/customers`, `/crm/tickets`, `/crm/operational/leads`, `/crm/health`, `/crm/hub`, `/crm/orders`, `/crm/catalog`, `/crm/sales`, `/crm/b2b-inbox`, `/crm/b2b-speed`, `/crm/b2b-unmatched`, `/crm/proposals*`, `/crm/csd/email|reports`, `/crm/content-os`, `/crm/media-os`, `/crm/creative-os`, `/crm/video`, `/crm/ceo`, `/crm/forecast`, `/crm/kpi-hub*`, `/admin/crm/org/users`, `/admin/crm/permissions`, `/seo/hub`, `/email/hub`, `/meta/facebook-ads`, `/agency`, `/account`, …
+| TC-ID | Kết quả | Ghi chú |
+|-------|---------|---------|
+| TC-SCR-DEL-01..03/07 | Pass | marketing-plan, service-delivery, sop, delivery-projects |
+| TC-SCR-RES-01 | Pass | research |
+| TC-SCR-REV-01 | Pass | Revenue Ops command |
+| TC-SCR-CEO-01 | Pass | Điều hành CEO |
+| TC-SCR-FIN-01..04 | Pass | forecast / business-dashboard / financials / invoices |
+| TC-SCR-KPIH-01/02 | Pass | `/kpi-hub` → executive; marketing/sales load |
+| TC-SCR-KPIH-02 NOTE | Note | Tile KPI hiện «Lỗi dữ liệu UNKNOWN» trên vài metric (data trust) — không crash |
+| TC-SCR-IWR-01..03 | Pass | hub / inbox / builder |
+| TC-SCR-HR-01/03 | Pass | HR Hub + Nhân viên |
+
+### SEO / Email / Ads / Admin
+
+| TC-ID | Kết quả | Ghi chú |
+|-------|---------|---------|
+| TC-SCR-SEO-01 | Pass | Hub + empty GSC CTA |
+| TC-SCR-SEO-02 | Pass | clients |
+| TC-SCR-EM-01..03 | Pass | hub / clients / campaigns |
+| TC-SCR-META-01 | Pass | Meta Ads Hub (migration gates UI) |
+| TC-SCR-GADS-01 | Pass | Google Ads |
+| TC-SCR-ZALO-01 | Pass | Zalo Ads |
+| TC-SCR-ADM-01 | Pass | Admin hub |
+| TC-SCR-ADM-02..04 | Pass | users / departments / permissions matrix |
 
 ---
 
@@ -99,13 +172,14 @@
 
 - MFA, IWR share token, RBAC negative (cần user khác role)
 - Chat DM/group (cần mật khẩu chat)
-- CRUD sâu: proposals convert, CSD assign/resolve, AM create client, Content request approve, Video SOP steps, SEO/Email/Meta write
+- CRUD ghi sâu: QT submit convert, CSD assign/resolve, Content approve, Video SOP steps, SEO/Email/Meta write
 - Inventory COMMON × ~364 routes đầy đủ
 
 ---
 
-## Next
+## Next (hỏi trước khi fix / write sâu)
 
-1. **Xác nhận fix FAIL-1 / FAIL-2 / NOTE-UI?** (có/không từng mục)  
-2. Nếu có mật khẩu **Chat CSD** → tiếp TC-SCR-CSD-04/05  
-3. Tiếp tục interactive còn lại theo thứ tự mục 3→23 trong file TC
+1. **Commit + push** fix Content OS `resolveCrmStaffUserId` (đang live trên VPS, chưa có trên git remote)?  
+2. Có mật khẩu **Chat CSD** → TC-SCR-CSD-04/05?  
+3. Điều tra NOTE KPI «Lỗi dữ liệu UNKNOWN»?  
+4. UAT role non-admin (RBAC)?

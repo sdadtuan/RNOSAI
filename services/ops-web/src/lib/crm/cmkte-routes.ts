@@ -8,11 +8,29 @@ export type CmktEScreen =
   | 'intelligence'
   | 'settings';
 
-export function cmktePath(screen: CmktEScreen, itemId?: number): string {
+export type CmktPathOpts = {
+  itemId?: number;
+  lifecycleId?: number;
+};
+
+export function withLifecycleQuery(href: string, lifecycleId?: number): string {
+  if (!(lifecycleId && lifecycleId > 0)) return href;
+  const hashIdx = href.indexOf('#');
+  const withoutHash = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
+  const hash = hashIdx >= 0 ? href.slice(hashIdx) : '';
+  const sep = withoutHash.includes('?') ? '&' : '?';
+  return `${withoutHash}${sep}lifecycle=${lifecycleId}${hash}`;
+}
+
+export function cmktePath(screen: CmktEScreen, arg?: number | CmktPathOpts): string {
+  const itemId = typeof arg === 'number' ? arg : arg?.itemId;
+  const lifecycleId = typeof arg === 'number' ? undefined : arg?.lifecycleId;
   const root = '/crm/content-os';
-  if (screen === 'command') return root;
-  if (screen === 'workspace') return `${root}/w/${itemId}`;
-  return `${root}/${screen}`;
+  let path: string;
+  if (screen === 'command') path = root;
+  else if (screen === 'workspace') path = `${root}/w/${itemId}`;
+  else path = `${root}/${screen}`;
+  return withLifecycleQuery(path, lifecycleId);
 }
 
 export function legacyContentOsRedirect(lifecycleId: number): string {

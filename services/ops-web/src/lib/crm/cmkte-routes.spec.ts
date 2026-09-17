@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { cmktePath, contentOsPanelHref, legacyContentOsRedirect, resolveServiceDeliveryContentOsTab } from './cmkte-routes';
+import {
+  cmktePath,
+  contentOsPanelHref,
+  legacyContentOsRedirect,
+  resolveServiceDeliveryContentOsTab,
+  withLifecycleQuery,
+} from './cmkte-routes';
 
 describe('cmktePath', () => {
   it('builds COS routes', () => {
@@ -11,6 +17,28 @@ describe('cmktePath', () => {
     expect(cmktePath('library')).toBe('/crm/content-os/library');
     expect(cmktePath('intelligence')).toBe('/crm/content-os/intelligence');
     expect(cmktePath('settings')).toBe('/crm/content-os/settings');
+  });
+
+  it('preserves lifecycle query when scoped', () => {
+    expect(cmktePath('calendar', { lifecycleId: 4 })).toBe('/crm/content-os/calendar?lifecycle=4');
+    expect(cmktePath('approvals', { lifecycleId: 4 })).toBe('/crm/content-os/approvals?lifecycle=4');
+    expect(cmktePath('command', { lifecycleId: 4 })).toBe('/crm/content-os?lifecycle=4');
+    expect(cmktePath('workspace', { itemId: 21, lifecycleId: 4 })).toBe(
+      '/crm/content-os/w/21?lifecycle=4',
+    );
+    expect(cmktePath('calendar', { lifecycleId: 0 })).toBe('/crm/content-os/calendar');
+  });
+});
+
+describe('withLifecycleQuery', () => {
+  it('appends lifecycle only for positive ids', () => {
+    expect(withLifecycleQuery('/crm/content-os/approvals', 4)).toBe(
+      '/crm/content-os/approvals?lifecycle=4',
+    );
+    expect(withLifecycleQuery('/crm/content-os/w/21?tab=publish', 4)).toBe(
+      '/crm/content-os/w/21?tab=publish&lifecycle=4',
+    );
+    expect(withLifecycleQuery('/crm/content-os', undefined)).toBe('/crm/content-os');
   });
 });
 

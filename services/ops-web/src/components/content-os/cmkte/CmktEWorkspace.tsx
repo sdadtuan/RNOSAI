@@ -310,7 +310,7 @@ export function CmktEWorkspace({
     setBusy(true);
     try {
       await postContentOsSubmitReview(token, bundle.item.lifecycle_id, bundle.item.id);
-      router.push(cmktePath('approvals'));
+      router.push(cmktePath('approvals', { lifecycleId: bundle.item.lifecycle_id }));
     } catch (err) {
       showToast(parseCmktGateError(err));
     } finally {
