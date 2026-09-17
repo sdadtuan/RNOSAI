@@ -201,6 +201,30 @@ export function vdProjectKeyframesPath(projectId: number | string): string {
   return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/keyframes`;
 }
 
+export function vdAssetsSearchPath(opts: {
+  lifecycleId: number;
+  projectId?: number;
+  kind?: string;
+  q?: string;
+  limit?: number;
+}): string {
+  const params = new URLSearchParams();
+  params.set('lifecycle_id', String(opts.lifecycleId));
+  if (opts.projectId != null && opts.projectId > 0) {
+    params.set('project_id', String(opts.projectId));
+  }
+  if (opts.kind != null && opts.kind.trim() !== '') {
+    params.set('kind', opts.kind.trim());
+  }
+  if (opts.q != null && opts.q.trim() !== '') {
+    params.set('q', opts.q.trim());
+  }
+  if (opts.limit != null && Number.isFinite(opts.limit)) {
+    params.set('limit', String(opts.limit));
+  }
+  return `/api/v1/vd/assets/search?${params.toString()}`;
+}
+
 export function vdProjectGatePath(projectId: number | string, gateNo: number | string): string {
   return `/api/v1/vd/projects/${encodeURIComponent(String(projectId))}/gates/${encodeURIComponent(String(gateNo))}`;
 }
@@ -406,6 +430,10 @@ export type VdKeyframeAssetRow = {
   height: number | null;
   duration_ms: number | null;
   created_at: string;
+};
+
+export type VdLibraryAssetRow = VdKeyframeAssetRow & {
+  project_title: string;
 };
 
 export type VdGateChecklistItem = {
@@ -994,6 +1022,23 @@ export async function getVdProductionReport(
   return vdFetch<VdProductionReport>(token, vdProductionReportPath(lifecycleId));
 }
 
+export async function searchVdAssets(
+  token: string,
+  opts: {
+    lifecycleId: number;
+    projectId?: number;
+    kind?: string;
+    q?: string;
+    limit?: number;
+  },
+): Promise<{ items: VdLibraryAssetRow[] }> {
+  const body = await vdFetch<VdLibraryAssetRow[] | { items?: VdLibraryAssetRow[] }>(
+    token,
+    vdAssetsSearchPath(opts),
+  );
+  return { items: asItems(body) };
+}
+
 export async function enqueueVdJob(
   token: string,
   projectId: number | string,
@@ -1146,6 +1191,7 @@ export const VIDEO_SOP_API = {
   createDeliveryPackage: createVdDeliveryPackage,
   createReviewLink: createVdReviewLink,
   getProductionReport: getVdProductionReport,
+  searchAssets: searchVdAssets,
   listPromptTemplates: listVdPromptTemplates,
   listJobs: listVdJobs,
   enqueueJob: enqueueVdJob,
