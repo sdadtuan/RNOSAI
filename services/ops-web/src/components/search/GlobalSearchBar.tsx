@@ -124,11 +124,12 @@ export function GlobalSearchBar() {
       hits.length > 0 ||
       error ||
       query.trim().length >= 2);
-  // Keep topbar single-row: entity chips live in the overlay panel, not under the input in-flow.
-  const showPanel = focused || open;
 
   return (
-    <div className="global-search-bar" ref={wrapRef}>
+    <div
+      className={`global-search-bar${open || focused ? ' is-open' : ''}`}
+      ref={wrapRef}
+    >
       <div className="global-search-input-wrap">
         <input
           className="global-search-input"
@@ -147,83 +148,85 @@ export function GlobalSearchBar() {
             }, 0);
           }}
           aria-label="Tìm kiếm CRM và Quản trị"
-          aria-expanded={showPanel}
+          aria-expanded={focused || open}
+          aria-controls="global-search-panel"
         />
         {busy ? <span className="global-search-spinner muted">…</span> : null}
-        {entityType !== '' && !showPanel ? (
+        {entityType !== '' && !(focused || open) ? (
           <span className="global-search-active-filter" aria-hidden="true">
             {ENTITY_FILTERS.find((f) => f.value === entityType)?.label ?? entityType}
           </span>
         ) : null}
       </div>
-      {showPanel ? (
-        <div className="global-search-panel">
-          <div className="global-search-filters" role="tablist" aria-label="Lọc loại thực thể">
-            {ENTITY_FILTERS.map((f) => (
-              <button
-                key={f.value || 'all'}
-                type="button"
-                className={`global-search-filter${entityType === f.value ? ' is-active' : ''}`}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setEntityType(f.value);
-                  setFocused(true);
-                  setOpen(true);
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          {showDropdown ? (
-            <div className="global-search-dropdown" role="listbox" aria-label="Kết quả tìm kiếm">
-              {error ? <p className="global-search-empty error">{error}</p> : null}
-              {adminHits.length > 0 ? (
-                <div className="global-search-section">
-                  <span className="global-search-section-label">Quản trị hệ thống</span>
-                  {adminHits.map((hit) => (
-                    <Link
-                      key={`admin:${hit.href}`}
-                      href={hit.href}
-                      className="global-search-hit global-search-hit--admin"
-                      onClick={() => setOpen(false)}
-                    >
-                      <span className="global-search-hit-type">{hit.groupLabel}</span>
-                      <strong>{hit.label}</strong>
-                    </Link>
-                  ))}
-                </div>
-              ) : null}
-              {!error && entityType === 'admin' && adminHits.length === 0 && query.trim().length >= 2 ? (
-                <p className="global-search-empty muted">Không có route quản trị phù hợp</p>
-              ) : null}
-              {!error && entityType !== 'admin' && hits.length === 0 && adminHits.length === 0 && query.trim().length >= 2 ? (
-                <p className="global-search-empty muted">Không có kết quả CRM</p>
-              ) : null}
-              {entityType !== 'admin'
-                ? hits.map((hit) => (
-                    <Link
-                      key={`${hit.entity_type}:${hit.entity_id}`}
-                      href={hit.route_path ?? '/crm'}
-                      className="global-search-hit"
-                      onClick={() => setOpen(false)}
-                    >
-                      <span className="global-search-hit-type">{SEARCH_ENTITY_LABELS[hit.entity_type]}</span>
-                      <strong>{hit.title}</strong>
-                      {hit.subtitle ? <span className="muted">{hit.subtitle}</span> : null}
-                      {hit.snippet ? <span className="global-search-hit-snippet">{hit.snippet}</span> : null}
-                    </Link>
-                  ))
-                : null}
-              {engine && entityType !== 'admin' ? (
-                <p className="global-search-meta muted">
-                  Engine: {engine} · {hits.length} kết quả CRM
-                </p>
-              ) : null}
-            </div>
-          ) : null}
+      <div
+        id="global-search-panel"
+        className="global-search-panel"
+      >
+        <div className="global-search-filters" role="tablist" aria-label="Lọc loại thực thể">
+          {ENTITY_FILTERS.map((f) => (
+            <button
+              key={f.value || 'all'}
+              type="button"
+              className={`global-search-filter${entityType === f.value ? ' is-active' : ''}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setEntityType(f.value);
+                setFocused(true);
+                setOpen(true);
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
-      ) : null}
+        {showDropdown ? (
+          <div className="global-search-dropdown" role="listbox" aria-label="Kết quả tìm kiếm">
+            {error ? <p className="global-search-empty error">{error}</p> : null}
+            {adminHits.length > 0 ? (
+              <div className="global-search-section">
+                <span className="global-search-section-label">Quản trị hệ thống</span>
+                {adminHits.map((hit) => (
+                  <Link
+                    key={`admin:${hit.href}`}
+                    href={hit.href}
+                    className="global-search-hit global-search-hit--admin"
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="global-search-hit-type">{hit.groupLabel}</span>
+                    <strong>{hit.label}</strong>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+            {!error && entityType === 'admin' && adminHits.length === 0 && query.trim().length >= 2 ? (
+              <p className="global-search-empty muted">Không có route quản trị phù hợp</p>
+            ) : null}
+            {!error && entityType !== 'admin' && hits.length === 0 && adminHits.length === 0 && query.trim().length >= 2 ? (
+              <p className="global-search-empty muted">Không có kết quả CRM</p>
+            ) : null}
+            {entityType !== 'admin'
+              ? hits.map((hit) => (
+                  <Link
+                    key={`${hit.entity_type}:${hit.entity_id}`}
+                    href={hit.route_path ?? '/crm'}
+                    className="global-search-hit"
+                    onClick={() => setOpen(false)}
+                  >
+                    <span className="global-search-hit-type">{SEARCH_ENTITY_LABELS[hit.entity_type]}</span>
+                    <strong>{hit.title}</strong>
+                    {hit.subtitle ? <span className="muted">{hit.subtitle}</span> : null}
+                    {hit.snippet ? <span className="global-search-hit-snippet">{hit.snippet}</span> : null}
+                  </Link>
+                ))
+              : null}
+            {engine && entityType !== 'admin' ? (
+              <p className="global-search-meta muted">
+                Engine: {engine} · {hits.length} kết quả CRM
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

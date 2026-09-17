@@ -6680,10 +6680,15 @@ body:has(.ops-sidebar) main {
   left: 0;
   right: 0;
   z-index: 40;
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 0.35rem;
   min-width: min(100%, 280px);
+}
+
+.global-search-bar:focus-within .global-search-panel,
+.global-search-bar.is-open .global-search-panel {
+  display: flex;
 }
 
 .global-search-filters {
