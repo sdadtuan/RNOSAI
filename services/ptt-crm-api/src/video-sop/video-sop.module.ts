@@ -16,6 +16,8 @@ import {
   StaffVdShotJobEnqueueGuard,
 } from './guards/staff-vd-project.guard';
 import { VdAssetRepository } from './assets/vd-asset.repository';
+import { VdAssetController } from './assets/vd-asset.controller';
+import { VdAssetSearchService } from './assets/vd-asset-search.service';
 import { VdBibleController } from './bible/vd-bible.controller';
 import { VdBibleRepository } from './bible/vd-bible.repository';
 import { VdBibleService } from './bible/vd-bible.service';
@@ -72,6 +74,7 @@ import { VdShotRepository } from './script/vd-shot.repository';
     VdBriefController,
     VdScriptController,
     VdJobController,
+    VdAssetController,
     VdAdminController,
     VdBibleController,
     VdPromptController,
@@ -95,6 +98,7 @@ import { VdShotRepository } from './script/vd-shot.repository';
     VdScriptService,
     VdJobRepository,
     VdAssetRepository,
+    VdAssetSearchService,
     VdBibleRepository,
     VdBibleService,
     VdPromptRepository,
