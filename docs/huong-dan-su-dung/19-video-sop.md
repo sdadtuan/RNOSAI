@@ -2,8 +2,8 @@
 
 > **Module:** MOD-VD · S4 (Brief + Script + Bible + Keyframes)  
 > **Đối tượng:** AM, Copy, Art, Motion, Editor  
-> **Hub:** `/crm/video` · **Overview:** `/crm/video/[id]`  
-> **Spec:** [`2026-08-20-video-sop-module-7-design.md`](../superpowers/specs/2026-08-20-video-sop-module-7-design.md)  
+> **Hub:** `/crm/video` (Command Center) · **Overview:** `/crm/video/[id]`  
+> **Spec:** [`2026-08-20-video-sop-module-7-design.md`](../superpowers/specs/2026-08-20-video-sop-module-7-design.md) · Shell: [`2026-09-18-video-sop-shell-command-center-design.md`](../superpowers/specs/2026-09-18-video-sop-shell-command-center-design.md)  
 > **Flags:** `PTT_CMKT_VIDEO_CINEMATIC=1`, `NEXT_PUBLIC_CMKT_VIDEO_CINEMATIC=1`
 
 Studio **Video chiến dịch (SOP)** — brief 8 nhóm → ý tưởng / script → shotlist → bible → keyframe thử. **S4 chưa có Gate 2** (duyệt keyframe thuộc S5).
@@ -27,11 +27,13 @@ Hub trống: *Chọn Video chiến dịch từ Content Board*.
 
 ## 2. Hub & overview
 
-1. Mở `/crm/video?lifecycle_id=…` — danh sách project SOP.
-2. Click project → `/crm/video/[id]` (SC-02). Banner: *S4 — Bible + Keyframes. Gate 2 vẫn S5.*
-3. Link **Brief (SC-03)** · **Script (SC-04)** · **Bible (SC-05)** · **Keyframes (SC-06)**.
+1. Mở `/crm/video?lifecycle_id=…` — **Video Operations Command Center**: KPI, “Cần xử lý hôm nay”, bảng Projects (`#projects`). Sidebar **Video SOP** luôn hiện (Command Center · Workspace · Gates · Dashboard · Asset Library · Admin).
+2. Không có `lifecycle_id` → empty state *Chọn Video chiến dịch từ Content Board* + CTA mở Content Board (`/crm/content-os`).
+3. Click project → `/crm/video/[id]` (SC-02 / Production Workspace). Banner: *S4 — Bible + Keyframes. Gate 2 vẫn S5.*
+4. Link **Brief (SC-03)** · **Script (SC-04)** · **Bible (SC-05)** · **Keyframes (SC-06)**. Asset Library (`/crm/video/[id]/library`) là stub SC-12 — dùng asset qua Keyframes / Delivery.
+5. Query lifecycle luôn là **`lifecycle_id`** (khác Content OS dùng `lifecycle`).
 
-Cần cap `crm_vd.project` view/edit (hoặc `crm_content.view` để thấy menu). Flag tắt → hub ẩn / *Module tắt*.
+Cần cap `crm_vd.project` view/edit (hoặc `crm_content.view` để thấy menu). Flag tắt → *Module tắt*.
 
 ---
 
