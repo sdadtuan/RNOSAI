@@ -38,13 +38,14 @@
 | Verify | `/crm/b2b/leads` tab Kanban · cột **Mới** = **4** (UAT Browser Lead 0917, A Hưng 360, Chi UYÊN BĐS, Tuan Truong) |
 | Deploy | VPS ops-web release `ops-web-c1ce1667-*` |
 
-### NOTE-UI · Topbar overlap → **FIXED (local, chờ deploy)**
+### NOTE-UI · Topbar overlap → **FIXED 2026-09-17**
 
 | Mục | Chi tiết |
 |-----|----------|
 | Root cause | Filter pills global-search luôn in-flow dưới input → topbar cao/co hẹp, pills chồng avatar/bell |
-| Fix | Chips chuyển vào overlay panel khi focus; `flex-shrink:0` cho app/user; search `min-width: 12rem` |
-| Files | `GlobalSearchBar.tsx`, `globals.css` |
+| Fix | Chips overlay dưới input (`:focus-within`); idle topbar 1 hàng; `flex-shrink:0` app/user |
+| Verify | Idle topbar **56px**, 0 pills; focus → 7 chips, overlap avatar **0** |
+| Deploy | `a8a4b7af` + `0e21e015` · ops-web `ops-web-0e21e015-*` |
 
 ---
 
