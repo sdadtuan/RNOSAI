@@ -30,7 +30,7 @@ Hub trống: *Chọn Video chiến dịch từ Content Board*.
 1. Mở `/crm/video?lifecycle_id=…` — **Video Operations Command Center**: KPI, “Cần xử lý hôm nay”, bảng Projects (`#projects`). Sidebar **Video SOP** luôn hiện (Command Center · Workspace · Gates · Dashboard · Asset Library · Admin).
 2. Không có `lifecycle_id` → empty state *Chọn Video chiến dịch từ Content Board* + CTA mở Content Board (`/crm/content-os`).
 3. Click project → `/crm/video/[id]` (SC-02 / Production Workspace). Banner: *S4 — Bible + Keyframes. Gate 2 vẫn S5.*
-4. Link **Brief (SC-03)** · **Script (SC-04)** · **Bible (SC-05)** · **Keyframes (SC-06)**. Asset Library (`/crm/video/[id]/library`) là stub SC-12 — dùng asset qua Keyframes / Delivery.
+4. Link **Brief (SC-03)** · **Script (SC-04)** · **Bible (SC-05)** · **Keyframes (SC-06)**. **Asset Library (SC-12)** tại `/crm/video/[id]/library` — lọc scope Project / cả lifecycle, kind, ô tìm (id / sha / storage_key); API `GET /api/v1/vd/assets/search?lifecycle_id=…`.
 5. Query lifecycle luôn là **`lifecycle_id`** (khác Content OS dùng `lifecycle`).
 
 Cần cap `crm_vd.project` view/edit (hoặc `crm_content.view` để thấy menu). Flag tắt → *Module tắt*.
