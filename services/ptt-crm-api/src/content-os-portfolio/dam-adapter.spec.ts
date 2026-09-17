@@ -1,5 +1,7 @@
 import {
   DamNotConfiguredError,
+  createFixtureDamAdapter,
+  isDamFixturesEnabled,
   listDamOrEmpty,
   stubDamAdapter,
   toDamUrlMetadata,
@@ -137,5 +139,29 @@ describe('toDamUrlMetadata', () => {
       id: 'https://cdn.example/ok.jpg',
       url: 'https://cdn.example/ok.jpg',
     });
+  });
+});
+
+describe('createFixtureDamAdapter', () => {
+  it('lists approved UAT fixtures without Sunlight/Nova names', async () => {
+    const adapter = createFixtureDamAdapter();
+    const items = await adapter.list({ collection: 'approved' });
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((row) => row.url.startsWith('https://dam.uat.internal/'))).toBe(true);
+    expect(JSON.stringify(items)).not.toMatch(/Sunlight|Nova/i);
+  });
+
+  it('returns empty success for unknown collection', async () => {
+    const adapter = createFixtureDamAdapter();
+    await expect(listDamOrEmpty(adapter, { collection: 'missing' })).resolves.toEqual({ items: [] });
+  });
+});
+
+describe('isDamFixturesEnabled', () => {
+  it('accepts 1/true/yes/on', () => {
+    expect(isDamFixturesEnabled('1')).toBe(true);
+    expect(isDamFixturesEnabled('true')).toBe(true);
+    expect(isDamFixturesEnabled('')).toBe(false);
+    expect(isDamFixturesEnabled(undefined)).toBe(false);
   });
 });

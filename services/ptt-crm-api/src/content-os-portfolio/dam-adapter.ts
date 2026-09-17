@@ -138,6 +138,49 @@ export function stubDamAdapter(opts?: {
   };
 }
 
+/** In-process UAT fixtures when `CMKT_DAM_FIXTURES=1` and no live `CMKT_DAM_BASE_URL`. */
+export const DAM_FIXTURE_HOST = 'dam.uat.internal';
+
+export function isDamFixturesEnabled(raw: string | undefined = process.env.CMKT_DAM_FIXTURES): boolean {
+  const v = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+export function createFixtureDamAdapter(opts?: { host?: string }): DamAdapter {
+  const host = String(opts?.host ?? DAM_FIXTURE_HOST)
+    .trim()
+    .toLowerCase() || DAM_FIXTURE_HOST;
+  const catalog: DamUrlMetadata[] = [
+    {
+      id: 'uat-approved-1',
+      url: `https://${host}/fixtures/approved/hero.jpg`,
+      collection: 'approved',
+      filename: 'hero.jpg',
+      mime_type: 'image/jpeg',
+      rights: { status: 'Valid', license_type: 'owned', territory: 'VN' },
+    },
+    {
+      id: 'uat-approved-2',
+      url: `https://${host}/fixtures/approved/square.png`,
+      collection: 'approved',
+      filename: 'square.png',
+      mime_type: 'image/png',
+      rights: { status: 'Valid', license_type: 'owned', territory: 'VN' },
+    },
+  ];
+  return {
+    async list(query: DamListQuery): Promise<DamUrlMetadata[]> {
+      const collection = String(query.collection ?? '').trim();
+      if (!collection) {
+        throw new DamInvalidResponseError();
+      }
+      return catalog.filter((row) => row.collection === collection);
+    },
+  };
+}
+
 export async function listDamOrEmpty(
   adapter: DamAdapter,
   query: DamListQuery = {},

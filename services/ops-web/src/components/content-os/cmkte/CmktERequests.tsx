@@ -191,7 +191,7 @@ export function CmktERequests({
                           disabled={convertingId === row.requestId}
                           onClick={() => void onConvert(row.requestId as number)}
                         >
-                          Triage & create
+                          Accept & create
                         </button>
                       ) : (
                         <span className="cmkte-dep">{row.kind === 'idea' ? 'idea' : dash(row.triageStatus)}</span>

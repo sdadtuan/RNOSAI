@@ -209,9 +209,24 @@ export function canFinanceRequestMediaOs(user: StoredStaffUser | null): boolean 
 export function updateStoredUser(user: StoredStaffUser): void {
   if (typeof window === 'undefined') return;
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  syncAuthCookie(user);
 }
 
 export function updateAccessToken(token: string): void {
   if (typeof window === 'undefined') return;
   sessionStorage.setItem(TOKEN_KEY, token);
+  syncAuthCookie(getStoredUser());
+}
+
+/** Persist full refresh/login payload — access alone is not enough when refresh tokens rotate. */
+export function applyStaffLoginResponse(out: {
+  access_token: string;
+  refresh_token: string;
+  user: StoredStaffUser;
+}): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(TOKEN_KEY, out.access_token);
+  sessionStorage.setItem(REFRESH_KEY, out.refresh_token);
+  sessionStorage.setItem(USER_KEY, JSON.stringify(out.user));
+  syncAuthCookie(out.user);
 }

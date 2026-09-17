@@ -4,15 +4,10 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { StaffPageShell } from '@/components/layout';
-import { staffMe, staffRefresh } from '@/lib/api';
 import {
   canViewContentOs,
   clearSession,
-  getAccessToken,
-  getRefreshToken,
   getStoredUser,
-  updateAccessToken,
-  updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
 import { isContentMarketingFeEnabled } from '@/lib/content-marketing-flags';
@@ -22,6 +17,7 @@ import {
   resolveCmktEWorkspaceHref,
 } from '@/lib/crm/cmkte-nav';
 import { withLifecycleQuery } from '@/lib/crm/cmkte-routes';
+import { ensureStaffAccessToken } from '@/lib/crm/staff-session';
 import { parseLifecycleQuery } from '@/lib/crm/use-cmkte-page';
 
 const OPS_SCREENS = new Set(['command', 'requests', 'workspace', 'approvals', 'calendar']);
@@ -54,35 +50,16 @@ function CmktEShellInner({ children }: { children: ReactNode }) {
   const [workspaceHref, setWorkspaceHref] = useState('/crm/content-os/w/0');
 
   const ensureAuth = useCallback(async () => {
-    let access = getAccessToken();
-    if (!access) {
+    const cached = getStoredUser();
+    if (cached) setUser(cached);
+    const out = await ensureStaffAccessToken();
+    if (out.cleared || !out.token || !out.user) {
       router.replace('/login');
       return;
     }
-    const cached = getStoredUser();
-    if (cached) setUser(cached);
-
-    async function finish(me: StoredStaffUser) {
-      setUser(me);
-      updateStoredUser(me);
-      if (!canViewContentOs(me)) {
-        router.replace(`/403?from=${encodeURIComponent(window.location.pathname)}`);
-      }
-    }
-
-    try {
-      await finish(await staffMe(access));
-    } catch {
-      const refresh = getRefreshToken();
-      if (!refresh) {
-        clearSession();
-        router.replace('/login');
-        return;
-      }
-      const out = await staffRefresh(refresh);
-      updateAccessToken(out.access_token);
-      access = out.access_token;
-      await finish(await staffMe(access));
+    setUser(out.user);
+    if (!canViewContentOs(out.user)) {
+      router.replace(`/403?from=${encodeURIComponent(window.location.pathname)}`);
     }
   }, [router]);
 

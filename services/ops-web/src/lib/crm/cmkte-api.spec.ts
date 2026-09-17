@@ -226,6 +226,22 @@ describe('mapIntakeRows', () => {
     expect(rows.find((row) => row.source === 'account')?.canConvert).toBe(true);
   });
 
+  it('allows convert for Submitted CR rows (triage + create)', () => {
+    const submitted = {
+      ...request,
+      id: 14,
+      display_code: 'CR-20260910-014',
+      triage_status: 'Submitted',
+    };
+    const rows = mapIntakeRows([submitted]);
+    expect(rows[0]).toMatchObject({
+      kind: 'request',
+      canConvert: true,
+      triageStatus: 'Submitted',
+      requestId: 14,
+    });
+  });
+
   it('allows convert for Accepted CR rows even when source is idea', () => {
     const ideaSourcedRequest = {
       ...request,

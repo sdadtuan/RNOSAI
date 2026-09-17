@@ -160,7 +160,8 @@ export function mapIntakeRows(
       risk: isIdea ? '—' : row.risk_level || '—',
       source: row.source,
       triageStatus: row.triage_status,
-      canConvert: !isIdea && row.triage_status === 'Accepted',
+      canConvert:
+        !isIdea && (row.triage_status === 'Accepted' || row.triage_status === 'Submitted'),
     };
   });
   const seenIdeaIds = new Set(

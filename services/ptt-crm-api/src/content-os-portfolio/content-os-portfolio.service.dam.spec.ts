@@ -7,17 +7,32 @@ function makeSvc() {
 
 describe('ContentOsPortfolioService listDamAssets', () => {
   const prevDamBase = process.env.CMKT_DAM_BASE_URL;
+  const prevFixtures = process.env.CMKT_DAM_FIXTURES;
 
   afterEach(() => {
     if (prevDamBase === undefined) delete process.env.CMKT_DAM_BASE_URL;
     else process.env.CMKT_DAM_BASE_URL = prevDamBase;
+    if (prevFixtures === undefined) delete process.env.CMKT_DAM_FIXTURES;
+    else process.env.CMKT_DAM_FIXTURES = prevFixtures;
   });
 
   it('returns empty list plus error from the stub adapter and does not invent DAM assets', async () => {
     delete process.env.CMKT_DAM_BASE_URL;
+    delete process.env.CMKT_DAM_FIXTURES;
     const svc = makeSvc();
     const result = await svc.listDamAssets({ staffId: 7, collection: 'approved' });
     expect(result).toEqual({ items: [], error: 'dam_not_configured' });
+    expect(JSON.stringify(result)).not.toMatch(/Sunlight|Nova/i);
+  });
+
+  it('serves in-process fixtures when CMKT_DAM_FIXTURES=1 and no base URL', async () => {
+    delete process.env.CMKT_DAM_BASE_URL;
+    process.env.CMKT_DAM_FIXTURES = '1';
+    const svc = makeSvc();
+    const result = await svc.listDamAssets({ staffId: 7, collection: 'approved' });
+    expect(result.error).toBeUndefined();
+    expect(result.items.length).toBeGreaterThan(0);
+    expect(result.items[0]?.url).toMatch(/^https:\/\/dam\.uat\.internal\//);
     expect(JSON.stringify(result)).not.toMatch(/Sunlight|Nova/i);
   });
 
@@ -36,11 +51,14 @@ describe('ContentOsPortfolioService listDamAssets', () => {
 
 describe('ContentOsPortfolioService bindDamAsset', () => {
   const prevDamBase = process.env.CMKT_DAM_BASE_URL;
+  const prevFixtures = process.env.CMKT_DAM_FIXTURES;
   const item = { id: 21, lifecycle_id: 4, media_json: {}, production_json: {}, body_json: {} };
 
   afterEach(() => {
     if (prevDamBase === undefined) delete process.env.CMKT_DAM_BASE_URL;
     else process.env.CMKT_DAM_BASE_URL = prevDamBase;
+    if (prevFixtures === undefined) delete process.env.CMKT_DAM_FIXTURES;
+    else process.env.CMKT_DAM_FIXTURES = prevFixtures;
   });
 
   function makeBindSvc() {
@@ -99,6 +117,38 @@ describe('ContentOsPortfolioService bindDamAsset', () => {
     expect(repo.insertAuditExport).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'dam_bind', entity: 'dam:dam.example.internal/a.jpg' }),
     );
+  });
+
+  it('binds fixture host when CMKT_DAM_FIXTURES=1 and no base URL', async () => {
+    delete process.env.CMKT_DAM_BASE_URL;
+    process.env.CMKT_DAM_FIXTURES = '1';
+    const { svc, repo } = makeBindSvc();
+    repo.insertDamBinding.mockResolvedValue({
+      id: 2,
+      item_id: 21,
+      dam_id: 'uat-approved-1',
+      url: 'https://dam.uat.internal/fixtures/approved/hero.jpg',
+    });
+    repo.mergeItemDamMediaRef.mockResolvedValue({
+      dam_refs: [{ dam_id: 'uat-approved-1', url: 'https://dam.uat.internal/fixtures/approved/hero.jpg' }],
+    });
+    const out = await svc.bindDamAsset({
+      staffId: 7,
+      itemId: 21,
+      actor: 'ops@ptt.vn',
+      body: {
+        dam_id: 'uat-approved-1',
+        url: 'https://dam.uat.internal/fixtures/approved/hero.jpg',
+        rights: { status: 'Valid' },
+      },
+    });
+    expect(repo.insertDamBinding).toHaveBeenCalledWith({
+      itemId: 21,
+      damId: 'uat-approved-1',
+      url: 'https://dam.uat.internal/fixtures/approved/hero.jpg',
+      rightsJson: { status: 'Valid' },
+    });
+    expect(out.binding.dam_id).toBe('uat-approved-1');
   });
 
   it('rejects javascript and foreign hosts as dam_invalid_response', async () => {

@@ -75,6 +75,45 @@ describe('ContentOsPortfolioService.createRequest', () => {
     expect(out.triage_status).toBe('Submitted');
   });
 
+  it('auto-accepts Submitted request then converts', async () => {
+    const submitted = {
+      id: 9,
+      lifecycle_id: 1,
+      deliverable_ask: '12 social posts',
+      triage_status: 'Submitted',
+    };
+    repo.getRequestById = jest.fn().mockResolvedValue(submitted);
+    repo.updateRequestStatus = jest.fn().mockImplementation(async (_id: number, status: string) => ({
+      ...submitted,
+      triage_status: status,
+    }));
+    repo.updateItemRequestLink = jest.fn().mockImplementation(async (itemId: number, patch: object) => ({
+      id: itemId,
+      title: '12 social posts',
+      ...patch,
+    }));
+    items.createItem.mockResolvedValue({
+      id: 55,
+      title: '12 social posts',
+      channel: 'facebook',
+      format: 'social_post',
+      master_id: null,
+      display_code: 'CNT-20260910-021',
+    });
+
+    const out = await svc.convertRequest({
+      staffId: 1,
+      requestId: 9,
+      actor: 'am@ptt.vn',
+      body: { brand_id: 'tiep-thi-noi-dung', locale: 'vi-VN' },
+    });
+
+    expect(repo.updateRequestStatus).toHaveBeenCalledWith(9, 'Accepted');
+    expect(repo.updateRequestStatus).toHaveBeenCalledWith(9, 'Converted');
+    expect(out.request.triage_status).toBe('Converted');
+    expect(items.createItem).toHaveBeenCalledTimes(1);
+  });
+
   it('converts Accepted request and creates item with CNT code', async () => {
     const accepted = {
       id: 9,

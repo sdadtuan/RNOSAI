@@ -73,6 +73,10 @@ import {
 } from './copilot-glossary.util';
 import { computeCapacity, criticalPathTaskIds, hasDelayedCriticalTask } from './production-capacity.util';
 import {
+  createFixtureDamAdapter,
+  DAM_FIXTURE_HOST,
+  DamNotConfiguredError,
+  isDamFixturesEnabled,
   listDamOrEmpty,
   stubDamAdapter,
   type DamAdapter,
@@ -536,7 +540,7 @@ export class ContentOsPortfolioService {
   }> {
     let allowedHost: string;
     try {
-      allowedHost = assertDamBaseUrl(process.env.CMKT_DAM_BASE_URL).hostname;
+      allowedHost = this.resolveDamAllowedHost();
     } catch {
       throw new BadRequestException({ error: 'dam_not_configured' });
     }
@@ -601,12 +605,26 @@ export class ContentOsPortfolioService {
     await this.marketingRepo.replaceAssetRights(itemId, next);
   }
 
+  private resolveDamAllowedHost(): string {
+    try {
+      return assertDamBaseUrl(process.env.CMKT_DAM_BASE_URL).hostname;
+    } catch {
+      if (isDamFixturesEnabled()) {
+        return DAM_FIXTURE_HOST;
+      }
+      throw new DamNotConfiguredError();
+    }
+  }
+
   private resolveDamAdapter(): DamAdapter {
     const raw = process.env.CMKT_DAM_BASE_URL;
     try {
       assertDamBaseUrl(raw);
       return createHttpJsonDamAdapter({ baseUrl: String(raw) });
     } catch {
+      if (isDamFixturesEnabled()) {
+        return createFixtureDamAdapter({ host: DAM_FIXTURE_HOST });
+      }
       return stubDamAdapter();
     }
   }
@@ -842,13 +860,16 @@ export class ContentOsPortfolioService {
       const code = err instanceof Error ? err.message : 'brand_id_required';
       throw new BadRequestException({ error: code });
     }
-    const request = await this.repo.getRequestById(input.requestId);
+    let request = await this.repo.getRequestById(input.requestId);
     if (!request) {
       throw new NotFoundException({ error: 'request_not_found', id: input.requestId });
     }
     const scoped = await this.scopedLifecycleIds(input.staffId);
     if (!scoped.includes(request.lifecycle_id)) {
       throw new ForbiddenException({ error: 'lifecycle_out_of_scope' });
+    }
+    if (request.triage_status === 'Submitted') {
+      request = await this.repo.updateRequestStatus(request.id, 'Accepted');
     }
     if (request.triage_status !== 'Accepted') {
       throw new BadRequestException({ error: 'request_not_accepted', status: request.triage_status });
