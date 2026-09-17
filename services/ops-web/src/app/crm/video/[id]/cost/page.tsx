@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { VideoSopPageChrome } from '@/components/video-sop/VideoSopPageChrome';
 import { API_BASE, staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -178,19 +178,17 @@ export default function CrmVideoSopCostPage() {
 
   if (!user) {
     return (
-      <CrmDeliveryPageShell user={null} onLogout={logout} title="Cost Ledger (SC-11)" loading>
-        <span />
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Cost Ledger (SC-11)">
+        <p className="vd-status">Đang tải…</p>
+      </VideoSopPageChrome>
     );
   }
 
   if (!isVideoSopEnabled()) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Cost Ledger (SC-11)">
-        <div className="page-card">
-          <p>Module tắt</p>
-        </div>
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Cost Ledger (SC-11)">
+        <p className="vd-empty">Module tắt</p>
+      </VideoSopPageChrome>
     );
   }
 
@@ -198,17 +196,7 @@ export default function CrmVideoSopCostPage() {
   const canEdit = canEditVdBudget(user);
 
   return (
-    <CrmDeliveryPageShell
-      user={user}
-      onLogout={logout}
-      title="Cost Ledger (SC-11)"
-      breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
-        { label: 'Video SOP', href: '/crm/video' },
-        { label: `#${projectId}`, href: `/crm/video/${projectId}` },
-        { label: 'Cost (SC-11)' },
-      ]}
-    >
+    <VideoSopPageChrome title="Cost Ledger (SC-11)">
       <div className="page-card stack-gap">
         <p
           style={{
@@ -350,6 +338,6 @@ export default function CrmVideoSopCostPage() {
           </button>
         </section>
       </div>
-    </CrmDeliveryPageShell>
+    </VideoSopPageChrome>
   );
 }

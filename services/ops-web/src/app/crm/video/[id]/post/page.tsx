@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { VideoSopPageChrome } from '@/components/video-sop/VideoSopPageChrome';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -144,36 +144,24 @@ export default function CrmVideoSopPostPage() {
 
   if (!user) {
     return (
-      <CrmDeliveryPageShell user={null} onLogout={logout} title="Post Pipeline (SC-09)" loading>
-        <span />
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Post Pipeline (SC-09)">
+        <p className="vd-status">Đang tải…</p>
+      </VideoSopPageChrome>
     );
   }
 
   if (!isVideoSopEnabled()) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Post Pipeline (SC-09)">
-        <div className="page-card">
-          <p>Module tắt</p>
-        </div>
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Post Pipeline (SC-09)">
+        <p className="vd-empty">Module tắt</p>
+      </VideoSopPageChrome>
     );
   }
 
   const canEdit = canEditVdPost(user);
 
   return (
-    <CrmDeliveryPageShell
-      user={user}
-      onLogout={logout}
-      title="Post Pipeline (SC-09)"
-      breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
-        { label: 'Video SOP', href: '/crm/video' },
-        { label: `#${projectId}`, href: `/crm/video/${projectId}` },
-        { label: 'Post (SC-09)' },
-      ]}
-    >
+    <VideoSopPageChrome title="Post Pipeline (SC-09)">
       <div className="page-card stack-gap">
         <p
           style={{
@@ -250,6 +238,6 @@ export default function CrmVideoSopPostPage() {
           </button>
         ) : null}
       </div>
-    </CrmDeliveryPageShell>
+    </VideoSopPageChrome>
   );
 }

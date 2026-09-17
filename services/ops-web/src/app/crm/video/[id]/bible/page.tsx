@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { VideoSopPageChrome } from '@/components/video-sop/VideoSopPageChrome';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -194,36 +194,24 @@ export default function CrmVideoSopBiblePage() {
 
   if (!user) {
     return (
-      <CrmDeliveryPageShell user={null} onLogout={logout} title="Bible (SC-05)" loading>
-        <span />
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Bible (SC-05)">
+        <p className="vd-status">Đang tải…</p>
+      </VideoSopPageChrome>
     );
   }
 
   if (!isVideoSopEnabled()) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Bible (SC-05)">
-        <div className="page-card">
-          <p>Module tắt</p>
-        </div>
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Bible (SC-05)">
+        <p className="vd-empty">Module tắt</p>
+      </VideoSopPageChrome>
     );
   }
 
   const canEdit = canEditVdBible(user);
 
   return (
-    <CrmDeliveryPageShell
-      user={user}
-      onLogout={logout}
-      title="Bible (SC-05)"
-      breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
-        { label: 'Video SOP', href: '/crm/video' },
-        { label: `#${projectId}`, href: `/crm/video/${projectId}` },
-        { label: 'Bible (SC-05)' },
-      ]}
-    >
+    <VideoSopPageChrome title="Bible (SC-05)">
       <div className="page-card stack-gap">
         <p
           style={{
@@ -330,6 +318,6 @@ export default function CrmVideoSopBiblePage() {
           ) : null}
         </fieldset>
       </div>
-    </CrmDeliveryPageShell>
+    </VideoSopPageChrome>
   );
 }

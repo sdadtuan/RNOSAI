@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { VideoSopPageChrome } from '@/components/video-sop/VideoSopPageChrome';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -15,6 +15,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { VD_SOP_LAST_PROJECT_KEY } from '@/lib/crm/video-sop-nav';
 import { canEnqueueVdJob, VIDEO_SOP_API, type VdJobRow, type VdProjectRow } from '@/lib/video-sop-api';
 
 const S9_BANNER = 'S9 — Delivery SC-13 + Gate 4 live. Post · Cost · Portal review.';
@@ -48,6 +49,12 @@ export default function CrmVideoSopDetailPage() {
   const [jobs, setJobs] = useState<VdJobRow[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (projectId && Number(projectId) > 0) {
+      window.localStorage.setItem(VD_SOP_LAST_PROJECT_KEY, String(projectId));
+    }
+  }, [projectId]);
   const [enqueueing, setEnqueueing] = useState(false);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
@@ -163,34 +170,22 @@ export default function CrmVideoSopDetailPage() {
 
   if (!user) {
     return (
-      <CrmDeliveryPageShell user={null} onLogout={logout} title="Video SOP" loading>
-        <span />
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Video SOP">
+        <p className="vd-status">Đang tải…</p>
+      </VideoSopPageChrome>
     );
   }
 
   if (!isVideoSopEnabled()) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Video SOP">
-        <div className="page-card">
-          <p>Module tắt</p>
-        </div>
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Video SOP">
+        <p className="vd-empty">Module tắt</p>
+      </VideoSopPageChrome>
     );
   }
 
   return (
-    <CrmDeliveryPageShell
-      user={user}
-      onLogout={logout}
-      title={project?.title || (projectId ? `Video #${projectId}` : 'Video SOP')}
-      subtitle="Tổng quan dự án (SC-02)"
-      breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
-        { label: 'Video SOP', href: '/crm/video' },
-        { label: project?.title || `#${projectId}` },
-      ]}
-    >
+    <VideoSopPageChrome title={project?.title || (projectId ? `Video #${projectId}` : 'Video SOP')} subtitle="Tổng quan dự án (SC-02)">
       <div className="page-card stack-gap">
         <p
           style={{
@@ -349,6 +344,6 @@ export default function CrmVideoSopDetailPage() {
 
         {hasAuthFail ? <p className="muted">{AUTH_FAIL_NOTE}</p> : null}
       </div>
-    </CrmDeliveryPageShell>
+    </VideoSopPageChrome>
   );
 }

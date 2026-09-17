@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { VideoSopPageChrome } from '@/components/video-sop/VideoSopPageChrome';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -295,36 +295,24 @@ export default function CrmVideoSopScriptPage() {
 
   if (!user) {
     return (
-      <CrmDeliveryPageShell user={null} onLogout={logout} title="Script Studio (SC-04)" loading>
-        <span />
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Script Studio (SC-04)">
+        <p className="vd-status">Đang tải…</p>
+      </VideoSopPageChrome>
     );
   }
 
   if (!isVideoSopEnabled()) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Script Studio (SC-04)">
-        <div className="page-card">
-          <p>Module tắt</p>
-        </div>
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Script Studio (SC-04)">
+        <p className="vd-empty">Module tắt</p>
+      </VideoSopPageChrome>
     );
   }
 
   const canEdit = canEditVdScript(user);
 
   return (
-    <CrmDeliveryPageShell
-      user={user}
-      onLogout={logout}
-      title="Script Studio (SC-04)"
-      breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
-        { label: 'Video SOP', href: '/crm/video' },
-        { label: `#${projectId}`, href: `/crm/video/${projectId}` },
-        { label: 'Script Studio (SC-04)' },
-      ]}
-    >
+    <VideoSopPageChrome title="Script Studio (SC-04)">
       <div className="page-card stack-gap">
         <p
           style={{
@@ -487,6 +475,6 @@ export default function CrmVideoSopScriptPage() {
           </section>
         </div>
       </div>
-    </CrmDeliveryPageShell>
+    </VideoSopPageChrome>
   );
 }

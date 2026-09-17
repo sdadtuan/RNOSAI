@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { VideoSopPageChrome } from '@/components/video-sop/VideoSopPageChrome';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -174,36 +174,24 @@ export default function CrmVideoSopDeliveryPage() {
 
   if (!user) {
     return (
-      <CrmDeliveryPageShell user={null} onLogout={logout} title="Delivery (SC-13)" loading>
-        <span />
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Delivery (SC-13)">
+        <p className="vd-status">Đang tải…</p>
+      </VideoSopPageChrome>
     );
   }
 
   if (!isVideoSopEnabled()) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Delivery (SC-13)">
-        <div className="page-card">
-          <p>Module tắt</p>
-        </div>
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Delivery (SC-13)">
+        <p className="vd-empty">Module tắt</p>
+      </VideoSopPageChrome>
     );
   }
 
   const pkg = delivery?.package;
 
   return (
-    <CrmDeliveryPageShell
-      user={user}
-      onLogout={logout}
-      title="Delivery (SC-13)"
-      breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
-        { label: 'Video SOP', href: '/crm/video' },
-        { label: `#${projectId}`, href: `/crm/video/${projectId}` },
-        { label: 'Delivery (SC-13)' },
-      ]}
-    >
+    <VideoSopPageChrome title="Delivery (SC-13)">
       <div className="page-card stack-gap">
         <p
           style={{
@@ -308,6 +296,6 @@ export default function CrmVideoSopDeliveryPage() {
           </>
         ) : null}
       </div>
-    </CrmDeliveryPageShell>
+    </VideoSopPageChrome>
   );
 }

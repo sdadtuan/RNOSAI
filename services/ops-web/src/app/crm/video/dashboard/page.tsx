@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { VideoSopPageChrome } from '@/components/video-sop/VideoSopPageChrome';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -137,33 +137,24 @@ function CrmVideoSopDashboardContent() {
 
   if (!user) {
     return (
-      <CrmDeliveryPageShell user={null} onLogout={logout} title="Production Dashboard (SC-16)" loading>
-        <span />
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Production Dashboard (SC-16)">
+        <p className="vd-status">Đang tải…</p>
+      </VideoSopPageChrome>
     );
   }
 
   if (!isVideoSopEnabled()) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Production Dashboard (SC-16)">
-        <div className="page-card">
-          <p>Module tắt</p>
-        </div>
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Production Dashboard (SC-16)">
+        <p className="vd-empty">Module tắt</p>
+      </VideoSopPageChrome>
     );
   }
 
   return (
-    <CrmDeliveryPageShell
-      user={user}
-      onLogout={logout}
+    <VideoSopPageChrome
       title="Production Dashboard (SC-16)"
       subtitle={`Lifecycle #${lifecycleId}`}
-      breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
-        { label: 'Video SOP', href: '/crm/video' },
-        { label: 'Dashboard (SC-16)' },
-      ]}
     >
       <div className="page-card stack-gap">
         <p
@@ -220,7 +211,7 @@ function CrmVideoSopDashboardContent() {
           </>
         ) : null}
       </div>
-    </CrmDeliveryPageShell>
+    </VideoSopPageChrome>
   );
 }
 
@@ -228,9 +219,9 @@ export default function CrmVideoSopDashboardPage() {
   return (
     <Suspense
       fallback={
-        <CrmDeliveryPageShell user={null} onLogout={() => undefined} title="Production Dashboard" loading>
-          <span />
-        </CrmDeliveryPageShell>
+        <VideoSopPageChrome title="Production Dashboard">
+        <p className="vd-status">Đang tải…</p>
+      </VideoSopPageChrome>
       }
     >
       <CrmVideoSopDashboardContent />

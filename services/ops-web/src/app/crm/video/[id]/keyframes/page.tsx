@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { VideoSopPageChrome } from '@/components/video-sop/VideoSopPageChrome';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -185,36 +185,24 @@ export default function CrmVideoSopKeyframesPage() {
 
   if (!user) {
     return (
-      <CrmDeliveryPageShell user={null} onLogout={logout} title="Keyframe Workbench (SC-06)" loading>
-        <span />
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Keyframe Workbench (SC-06)">
+        <p className="vd-status">Đang tải…</p>
+      </VideoSopPageChrome>
     );
   }
 
   if (!isVideoSopEnabled()) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Keyframe Workbench (SC-06)">
-        <div className="page-card">
-          <p>Module tắt</p>
-        </div>
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Keyframe Workbench (SC-06)">
+        <p className="vd-empty">Module tắt</p>
+      </VideoSopPageChrome>
     );
   }
 
   const canEdit = canEditVdKeyframe(user);
 
   return (
-    <CrmDeliveryPageShell
-      user={user}
-      onLogout={logout}
-      title="Keyframe Workbench (SC-06)"
-      breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
-        { label: 'Video SOP', href: '/crm/video' },
-        { label: `#${projectId}`, href: `/crm/video/${projectId}` },
-        { label: 'Keyframes (SC-06)' },
-      ]}
-    >
+    <VideoSopPageChrome title="Keyframe Workbench (SC-06)">
       <div className="page-card stack-gap">
         <p
           style={{
@@ -322,6 +310,6 @@ export default function CrmVideoSopKeyframesPage() {
           </section>
         </div>
       </div>
-    </CrmDeliveryPageShell>
+    </VideoSopPageChrome>
   );
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
+import { VideoSopPageChrome } from '@/components/video-sop/VideoSopPageChrome';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
   clearSession,
@@ -209,50 +209,37 @@ export default function CrmVideoSopGateReviewPage() {
 
   if (!user) {
     return (
-      <CrmDeliveryPageShell user={null} onLogout={logout} title="Gate Review (SC-10)" loading>
-        <span />
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Gate Review (SC-10)">
+        <p className="vd-status">Đang tải…</p>
+      </VideoSopPageChrome>
     );
   }
 
   if (!isVideoSopEnabled()) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Gate Review (SC-10)">
-        <div className="page-card">
-          <p>Module tắt</p>
-        </div>
-      </CrmDeliveryPageShell>
+      <VideoSopPageChrome title="Gate Review (SC-10)">
+        <p className="vd-empty">Module tắt</p>
+      </VideoSopPageChrome>
     );
   }
 
   if (gateNo == null) {
     return (
-      <CrmDeliveryPageShell user={user} onLogout={logout} title="Gate Review (SC-10)">
+      <VideoSopPageChrome title="Gate Review (SC-10)">
         <div className="page-card">
           <p className="error">Gate không hợp lệ — chỉ hỗ trợ Gate 1 hoặc 2 (S5).</p>
           <Link href={`/crm/video/${projectId}`} className="nav-link">
             ← Video #{projectId}
           </Link>
         </div>
-      </CrmDeliveryPageShell>
+      </VideoSopPageChrome>
     );
   }
 
   const gateLabel = `Gate ${gateNo}`;
 
   return (
-    <CrmDeliveryPageShell
-      user={user}
-      onLogout={logout}
-      title="Gate Review (SC-10)"
-      subtitle={gateLabel}
-      breadcrumb={[
-        { label: 'CRM', href: '/crm/leads' },
-        { label: 'Video SOP', href: '/crm/video' },
-        { label: `#${projectId}`, href: `/crm/video/${projectId}` },
-        { label: gateLabel },
-      ]}
-    >
+    <VideoSopPageChrome title="Gate Review (SC-10)" subtitle={gateLabel}>
       <div className="page-card stack-gap">
         <p
           style={{
@@ -389,6 +376,6 @@ export default function CrmVideoSopGateReviewPage() {
           <p className="muted">Gate rejected — xem rework và sửa trước khi approve lại.</p>
         ) : null}
       </div>
-    </CrmDeliveryPageShell>
+    </VideoSopPageChrome>
   );
 }
