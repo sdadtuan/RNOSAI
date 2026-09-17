@@ -67,6 +67,7 @@ export default function CrmVideoSopBriefPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [marking, setMarking] = useState(false);
+  const [message, setMessage] = useState('');
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -176,9 +177,11 @@ export default function CrmVideoSopBriefPage() {
     if (!access || !canEditVdBrief(user)) return;
     setSaving(true);
     setError('');
+    setMessage('');
     try {
       const row = await VIDEO_SOP_API.saveBrief(access, projectId, briefBody());
       setStage(row.stage);
+      setMessage('Đã lưu brief');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu brief thất bại');
     } finally {
@@ -198,9 +201,14 @@ export default function CrmVideoSopBriefPage() {
     if (!access || !canEditVdBrief(user)) return;
     setMarking(true);
     setError('');
+    setMessage('');
     try {
+      // Persist insight_ids: [] when none selected before advancing stage.
+      const saved = await VIDEO_SOP_API.saveBrief(access, projectId, briefBody());
+      setStage(saved.stage);
       const row = await VIDEO_SOP_API.markBriefReady(access, projectId);
       setStage(row.stage);
+      setMessage('Đã đánh dấu brief sẵn sàng');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đánh dấu brief thất bại');
     } finally {
@@ -272,6 +280,7 @@ export default function CrmVideoSopBriefPage() {
         ) : null}
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
+        {message ? <p className="muted" role="status">{message}</p> : null}
 
         <label>
           Mục tiêu

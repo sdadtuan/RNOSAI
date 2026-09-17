@@ -139,9 +139,14 @@ export class VdGateService {
     const drafts = shotRows.map((row) => shotDraftFromRow(row));
     const feasibility = evaluateFeasibility(projectFromBrief(brief), drafts);
     const feasibilityOk = feasibility.every((row) => row.ok);
+    const failedFr = feasibility.filter((row) => !row.ok).map((row) => row.id);
+    const feasibilityLabel =
+      feasibilityOk || failedFr.length === 0
+        ? 'Feasibility FR-R01…10 pass'
+        : `Feasibility FR-R01…10 pass (fail: ${failedFr.join(', ')})`;
     return [
       { id: 'brief_complete', label: 'Brief 8 nhóm đủ', ok: briefOk },
-      { id: 'feasibility_pass', label: 'Feasibility FR-R01…10 pass', ok: feasibilityOk },
+      { id: 'feasibility_pass', label: feasibilityLabel, ok: feasibilityOk },
       { id: 'shots_min_1', label: 'Có ít nhất 1 shot', ok: shotRows.length >= 1 },
     ];
   }

@@ -133,7 +133,15 @@ export class VdShotRepository implements OnModuleDestroy {
          INNER JOIN vd_scripts sc ON sc.id = s.script_id
          WHERE sc.project_id = $1
            AND sc.version = (
-             SELECT MAX(version) FROM vd_scripts WHERE project_id = $1
+             SELECT COALESCE(
+               (
+                 SELECT MAX(sc2.version)
+                 FROM vd_scripts sc2
+                 INNER JOIN vd_shots sh ON sh.script_id = sc2.id
+                 WHERE sc2.project_id = $1
+               ),
+               (SELECT MAX(version) FROM vd_scripts WHERE project_id = $1)
+             )
            )
          ORDER BY s.ordinal ASC`,
         [projectId],

@@ -211,7 +211,25 @@ export class VdScriptService {
     }
     const existing = await this.projects.listScripts(projectId);
     const version = existing.length === 0 ? 1 : Math.max(...existing.map((s) => s.version)) + 1;
-    return this.projects.insertScriptRow(projectId, version, markdown);
+    const row = await this.projects.insertScriptRow(projectId, version, markdown);
+    if (existing.length > 0) {
+      const previous = existing.reduce((acc, cur) => (cur.version > acc.version ? cur : acc));
+      const prevShots = await this.shots.listByScriptId(previous.id);
+      for (const shot of prevShots) {
+        await this.shots.insert({
+          script_id: row.id,
+          duration_ms: shot.duration_ms,
+          camera: shot.camera,
+          action: shot.action,
+          aspect: shot.aspect,
+          contains_human: shot.contains_human,
+          text_in_frame: shot.text_in_frame,
+          logo_in_ai_frame: shot.logo_in_ai_frame,
+          seed: shot.seed,
+        });
+      }
+    }
+    return row;
   }
 
   async saveScript(projectId: number, body: Record<string, unknown>): Promise<VdScriptRow> {

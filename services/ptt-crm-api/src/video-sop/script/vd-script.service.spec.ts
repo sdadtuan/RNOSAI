@@ -119,7 +119,7 @@ describe('VdScriptService', () => {
     });
     jest.spyOn(shots, 'insert').mockImplementation(async (input) => {
       const row = {
-        id: 1,
+        id: shotRows.length + 1,
         script_id: input.script_id,
         ordinal: 1,
         status: 'draft',
@@ -151,5 +151,62 @@ describe('VdScriptService', () => {
     expect(insert).not.toHaveBeenCalled();
     expect(shotRows[0]?.script_id).toBe(10);
     expect(shotRows[0]?.script_id).toBe(second.id);
+  });
+
+  it('createScript copies shots from previous latest version', async () => {
+    const { service, projects, shots } = makeScriptService({ cinematic: true });
+    const scripts = [{ id: 10, project_id: 1, version: 1, markdown: 'v1' }];
+    const shotRows: VdShotRow[] = [
+      {
+        id: 1,
+        script_id: 10,
+        ordinal: 1,
+        status: 'draft',
+        duration_ms: 3000,
+        camera: 'push in',
+        action: 'walk left',
+        aspect: '9:16',
+        contains_human: false,
+        text_in_frame: false,
+        logo_in_ai_frame: false,
+        seed: null,
+        take_fail_count: 0,
+      },
+    ];
+    jest.spyOn(projects, 'getById').mockResolvedValue(scriptingProject);
+    jest.spyOn(projects, 'listScripts').mockImplementation(async () => scripts.map((row) => ({ ...row })));
+    jest.spyOn(projects, 'insertScriptRow').mockImplementation(async (projectId, version, markdown) => {
+      const row = { id: 20, project_id: projectId, version, markdown };
+      scripts.push(row);
+      return row;
+    });
+    jest.spyOn(shots, 'listByScriptId').mockImplementation(async (scriptId) =>
+      shotRows.filter((row) => row.script_id === scriptId).map((row) => ({ ...row })),
+    );
+    jest.spyOn(shots, 'insert').mockImplementation(async (input) => {
+      const row = {
+        id: shotRows.length + 1,
+        script_id: input.script_id,
+        ordinal: shotRows.filter((s) => s.script_id === input.script_id).length + 1,
+        status: 'draft',
+        duration_ms: input.duration_ms,
+        camera: input.camera ?? '',
+        action: input.action ?? '',
+        aspect: input.aspect ?? '9:16',
+        contains_human: Boolean(input.contains_human),
+        text_in_frame: Boolean(input.text_in_frame),
+        logo_in_ai_frame: Boolean(input.logo_in_ai_frame),
+        seed: input.seed ?? null,
+        take_fail_count: 0,
+      };
+      shotRows.push(row);
+      return row;
+    });
+
+    const created = await service.createScript(1, { markdown: 'v2' });
+    expect(created.id).toBe(20);
+    expect(created.version).toBe(2);
+    expect(shotRows.filter((s) => s.script_id === 20)).toHaveLength(1);
+    expect(shotRows.find((s) => s.script_id === 20)?.camera).toBe('push in');
   });
 });

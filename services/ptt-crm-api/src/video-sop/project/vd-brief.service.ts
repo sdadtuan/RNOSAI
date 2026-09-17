@@ -39,6 +39,11 @@ export function assertBriefComplete(body: Record<string, unknown>): void {
   }
 }
 
+function normalizeInsightIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((id): id is number => typeof id === 'number' && Number.isFinite(id));
+}
+
 function pickBriefBody(body: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const key of BRIEF_KEYS) {
@@ -46,6 +51,8 @@ function pickBriefBody(body: Record<string, unknown>): Record<string, unknown> {
       out[key] = body[key];
     }
   }
+  // Empty insights are allowed (M6 optional) — always persist insight_ids as a number[].
+  out.insight_ids = normalizeInsightIds(out.insight_ids);
   return out;
 }
 
@@ -82,9 +89,11 @@ export class VdBriefService {
   async markReady(id: number): Promise<VdBriefResponse> {
     assertCinematicEnabled(this.config);
     const project = await this.requireProject(id);
-    const body_json = (await this.repo.getBrief(id)) ?? {};
+    const stored = (await this.repo.getBrief(id)) ?? {};
+    const body_json = pickBriefBody(stored);
     assertBriefComplete(body_json);
     assertStageTransition(project.stage, 'brief_ready');
+    await this.repo.upsertBrief(id, body_json);
     await this.repo.updateStage(id, 'brief_ready');
     return { project_id: project.id, body_json, stage: 'brief_ready' };
   }

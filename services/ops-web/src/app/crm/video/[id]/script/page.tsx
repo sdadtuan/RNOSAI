@@ -80,6 +80,7 @@ export default function CrmVideoSopScriptPage() {
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [addingShot, setAddingShot] = useState(false);
+  const [message, setMessage] = useState('');
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -137,7 +138,12 @@ export default function CrmVideoSopScriptPage() {
     const current = latestScript(scriptRows);
     if (current) {
       setMarkdown(current.markdown);
-      setShots(await VIDEO_SOP_API.listShots(access, current.id));
+      let shotRows = await VIDEO_SOP_API.listShots(access, current.id);
+      // Prefer project shotlist when latest script version is empty (orphan version).
+      if (shotRows.length === 0) {
+        shotRows = await VIDEO_SOP_API.listProjectShots(access, projectId);
+      }
+      setShots(shotRows);
     } else {
       setShots([]);
     }
@@ -224,11 +230,13 @@ export default function CrmVideoSopScriptPage() {
     if (!access || !canEditVdScript(user)) return;
     setSaving(true);
     setError('');
+    setMessage('');
     try {
       const row = await VIDEO_SOP_API.saveScript(access, projectId, markdown);
       const next = [...scripts.filter((s) => s.id !== row.id), row];
       setScripts(next);
       setShots(await VIDEO_SOP_API.listShots(access, row.id));
+      setMessage('Đã lưu script');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu script thất bại');
     } finally {
@@ -335,6 +343,7 @@ export default function CrmVideoSopScriptPage() {
         </p>
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
+        {message ? <p className="muted" role="status">{message}</p> : null}
 
         <style>{`
           @media (max-width: 900px) {

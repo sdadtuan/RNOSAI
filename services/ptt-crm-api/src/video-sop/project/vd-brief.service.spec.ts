@@ -104,6 +104,16 @@ describe('VdBriefService', () => {
     expect(row.stage).toBe('brief_draft');
   });
 
+  it('save defaults missing insight_ids to empty array', async () => {
+    const svc = makeSvc({ brief: {} });
+    const row = await svc.save(7, { objective: 'tăng nhận biết brand' });
+    expect(svc.repo.upsertBrief).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ objective: 'tăng nhận biết brand', insight_ids: [] }),
+    );
+    expect(row.body_json.insight_ids).toEqual([]);
+  });
+
   it('save rejects when cinematic flag off', async () => {
     const svc = makeSvc({ enabled: false });
     await expect(svc.save(7, completeBody)).rejects.toThrow(/cmkt_cinematic_disabled/);
@@ -113,6 +123,19 @@ describe('VdBriefService', () => {
     const svc = makeSvc({ brief: completeBody });
     const row = await svc.markReady(7);
     expect(svc.repo.updateStage).toHaveBeenCalledWith(7, 'brief_ready');
+    expect(row.stage).toBe('brief_ready');
+  });
+
+  it('markReady defaults missing insight_ids to [] then sets brief_ready', async () => {
+    const { insight_ids: _omit, ...withoutInsights } = completeBody;
+    const svc = makeSvc({ brief: withoutInsights });
+    const row = await svc.markReady(7);
+    expect(svc.repo.upsertBrief).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ ...withoutInsights, insight_ids: [] }),
+    );
+    expect(svc.repo.updateStage).toHaveBeenCalledWith(7, 'brief_ready');
+    expect(row.body_json.insight_ids).toEqual([]);
     expect(row.stage).toBe('brief_ready');
   });
 

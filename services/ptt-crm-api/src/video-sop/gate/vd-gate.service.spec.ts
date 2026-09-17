@@ -137,4 +137,18 @@ describe('VdGateService', () => {
       service.approve(7, 4, { override: false }, 'u@pttads.vn'),
     ).rejects.toThrow('gate4_blocked');
   });
+
+  it('gate1 feasibility label lists failed FR ids when shot count < 3', async () => {
+    projects.getById.mockResolvedValue({ id: 7, stage: 'scripting' });
+    gates.getStatusMap.mockResolvedValue({
+      1: 'pending',
+      2: 'pending',
+      3: 'pending',
+      4: 'pending',
+    });
+    const view = await service.getGate(7, 1);
+    const feas = view.checklist.find((item) => item.id === 'feasibility_pass');
+    expect(feas?.ok).toBe(false);
+    expect(feas?.label).toMatch(/FR-R05/);
+  });
 });
