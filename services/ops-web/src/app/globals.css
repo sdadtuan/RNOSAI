@@ -23975,6 +23975,65 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   color: #94a3b8;
 }
 
+.rlh-bc-modal {
+  max-width: 560px;
+  max-height: min(90vh, 720px);
+  overflow: auto;
+}
+
+.rlh-bc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.rlh-bc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.rlh-bc-body h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.rlh-bc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.8125rem;
+  color: #475569;
+}
+
+.rlh-bc-contact {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.rlh-bc-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.rlh-bc-list--ordered {
+  padding-left: 1.25rem;
+}
+
+.rlh-bc-snippet {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
 .rlh-panel {
   display: flex;
   flex-direction: column;

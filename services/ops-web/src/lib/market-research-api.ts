@@ -2043,6 +2043,58 @@ export function enrichRawLeadContacts(
   });
 }
 
+export function fetchRawLeadBattlecard(
+  token: string,
+  projectId: number,
+  leadId: number,
+) {
+  return researchFetch<RawLeadBattlecard>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-leads/${leadId}/battlecard`,
+  );
+}
+
+export type RawLeadBattlecard = {
+  version: 1;
+  lead_id: number;
+  generated_at: string;
+  headline: string;
+  priority_tier: string | null;
+  readiness_status: string | null;
+  classification: string | null;
+  scores: { quality: number; icp: number; intent: number | null };
+  why_call_now: string[];
+  contact: {
+    phone: string | null;
+    email: string | null;
+    website: string | null;
+    fanpage_url: string | null;
+    zalo_url: string | null;
+    address: string | null;
+    contact_title: string | null;
+  };
+  evidence: {
+    url: string | null;
+    snippet: string | null;
+    place_id: string | null;
+  };
+  talking_points: string[];
+  risks: string[];
+  next_actions: string[];
+  cluster: {
+    key: string | null;
+    mates: Array<{
+      id: number;
+      company_name: string;
+      priority_tier?: string | null;
+      phone?: string | null;
+      readiness_status?: string | null;
+    }>;
+  };
+  dial_outcome: string | null;
+  feedback_code: string | null;
+};
+
 export function bulkAcceptRawLeads(
   token: string,
   projectId: number,

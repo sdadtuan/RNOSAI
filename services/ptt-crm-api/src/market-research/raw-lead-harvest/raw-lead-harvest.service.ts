@@ -35,6 +35,8 @@ import {
   buildAccountClusterKey,
   computePriorityTier,
 } from './quality/priority-cluster.util';
+import { buildRawLeadBattlecard } from './quality/battlecard.util';
+import type { RawLeadBattlecard } from './quality/battlecard.util';
 import type {
   BulkAcceptRawLeadsBody,
   CreateRawLeadHarvestBody,
@@ -304,6 +306,21 @@ export class RawLeadHarvestService {
   async priorityCounts(projectId: number) {
     this.assertEnabled();
     return { counts: await this.repo.countByPriority(projectId) };
+  }
+
+  async getBattlecard(projectId: number, leadId: number): Promise<RawLeadBattlecard> {
+    this.assertEnabled();
+    const lead = await this.repo.getLead(projectId, leadId);
+    if (!lead) throw new NotFoundException({ error: 'raw_lead_not_found' });
+    const mates = lead.account_cluster_key
+      ? await this.repo.listClusterMates(
+          projectId,
+          lead.account_cluster_key,
+          lead.id,
+          8,
+        )
+      : [];
+    return buildRawLeadBattlecard({ lead, clusterMates: mates });
   }
 
   async recomputePriority(projectId: number, body: RecomputePriorityBody = {}) {

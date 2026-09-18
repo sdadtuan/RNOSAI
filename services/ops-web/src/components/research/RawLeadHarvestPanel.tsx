@@ -19,15 +19,18 @@ import {
   recomputeRawLeadPriority,
   enrichRawLeadContacts,
   bulkAcceptRawLeads,
+  fetchRawLeadBattlecard,
   type HarvestProviderOption,
   type MarketEntitiesSummary,
   type RawLead,
+  type RawLeadBattlecard,
   type RawLeadHarvestJob,
   type RawLeadPriorityTier,
   type RawLeadReadinessStatus,
 } from '@/lib/market-research-api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import { RawLeadAcceptModal } from './RawLeadAcceptModal';
+import { RawLeadBattlecardModal } from './RawLeadBattlecardModal';
 
 const FLAG_ON =
   String(process.env.NEXT_PUBLIC_RESEARCH_RAW_LEAD_HARVEST ?? '').trim() === '1';
@@ -331,6 +334,30 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [acceptLead, setAcceptLead] = useState<RawLead | null>(null);
   const [acceptBulkIds, setAcceptBulkIds] = useState<number[] | null>(null);
+  const [battlecard, setBattlecard] = useState<RawLeadBattlecard | null>(null);
+  const [battlecardOpen, setBattlecardOpen] = useState(false);
+  const [battlecardLoading, setBattlecardLoading] = useState(false);
+  const [battlecardError, setBattlecardError] = useState('');
+
+  const openBattlecard = useCallback(
+    async (leadId: number) => {
+      setBattlecardOpen(true);
+      setBattlecard(null);
+      setBattlecardError('');
+      setBattlecardLoading(true);
+      try {
+        const card = await fetchRawLeadBattlecard(token, projectId, leadId);
+        setBattlecard(card);
+      } catch (err) {
+        setBattlecardError(
+          err instanceof Error ? err.message : 'Không tải được battlecard',
+        );
+      } finally {
+        setBattlecardLoading(false);
+      }
+    },
+    [token, projectId],
+  );
 
   const selectedProvider = useMemo(
     () => providers.find((p) => p.code === provider) ?? null,
@@ -1609,28 +1636,38 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                       )}
                     </td>
                     <td>
-                      {canRun && lead.status === 'pending' ? (
-                        <div className="rlh-row-actions">
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => setAcceptLead(lead)}
-                          >
-                            Accept
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() =>
-                              void patchRawLead(token, projectId, lead.id, {
-                                status: 'rejected',
-                              }).then(reloadJobsAndLeads)
-                            }
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : null}
+                      <div className="rlh-row-actions">
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          disabled={busy}
+                          onClick={() => void openBattlecard(lead.id)}
+                        >
+                          Battlecard
+                        </button>
+                        {canRun && lead.status === 'pending' ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => setAcceptLead(lead)}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() =>
+                                void patchRawLead(token, projectId, lead.id, {
+                                  status: 'rejected',
+                                }).then(reloadJobsAndLeads)
+                              }
+                            >
+                              Reject
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1676,6 +1713,18 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
           </>
         )}
       </section>
+
+      <RawLeadBattlecardModal
+        open={battlecardOpen}
+        card={battlecard}
+        loading={battlecardLoading}
+        error={battlecardError}
+        onClose={() => {
+          setBattlecardOpen(false);
+          setBattlecard(null);
+          setBattlecardError('');
+        }}
+      />
 
       <RawLeadAcceptModal
         open={Boolean(acceptLead) || Boolean(acceptBulkIds?.length)}

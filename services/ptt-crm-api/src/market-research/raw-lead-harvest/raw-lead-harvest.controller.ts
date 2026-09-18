@@ -105,6 +105,15 @@ export class RawLeadHarvestController {
     return this.harvest.priorityCounts(id);
   }
 
+  @Get('projects/:id/raw-leads/:leadId/battlecard')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  battlecard(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('leadId', ParseIntPipe) leadId: number,
+  ) {
+    return this.harvest.getBattlecard(id, leadId);
+  }
+
   @Post('projects/:id/raw-leads/recompute-priority')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
   recomputePriority(

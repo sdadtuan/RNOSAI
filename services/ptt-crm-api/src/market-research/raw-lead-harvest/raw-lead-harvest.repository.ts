@@ -1015,6 +1015,47 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     return r.rows[0] ? this.mapLead(r.rows[0]) : null;
   }
 
+  async listClusterMates(
+    projectId: number,
+    clusterKey: string,
+    excludeLeadId: number,
+    limit = 8,
+  ): Promise<
+    Array<{
+      id: number;
+      company_name: string;
+      priority_tier: string | null;
+      phone: string | null;
+      readiness_status: string | null;
+    }>
+  > {
+    await this.ensureSchema();
+    const key = String(clusterKey ?? '').trim();
+    if (!key) return [];
+    const lim = Math.min(20, Math.max(1, Math.floor(Number(limit) || 8)));
+    const r = await this.db.query(
+      `SELECT id, company_name, priority_tier, phone, readiness_status
+       FROM crm_research_raw_leads
+       WHERE project_id = $1
+         AND account_cluster_key = $2
+         AND id <> $3
+       ORDER BY
+         CASE priority_tier WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
+         quality_score DESC,
+         id ASC
+       LIMIT $4`,
+      [projectId, key, excludeLeadId, lim],
+    );
+    return r.rows.map((row) => ({
+      id: Number(row.id),
+      company_name: String(row.company_name ?? ''),
+      priority_tier: row.priority_tier == null ? null : String(row.priority_tier),
+      phone: row.phone == null ? null : String(row.phone),
+      readiness_status:
+        row.readiness_status == null ? null : String(row.readiness_status),
+    }));
+  }
+
   async patchLead(
     projectId: number,
     leadId: number,
