@@ -151,3 +151,17 @@ export type ReclassifyRawLeadsBody = {
   job_id?: number;
   lead_ids?: number[];
 };
+
+export type EnrichRawLeadsContactsBody = {
+  lead_ids?: number[];
+  /** Default true when lead_ids omitted. */
+  only_missing_contact?: boolean;
+  job_id?: number;
+  /** Cap Places/scrape work (default 50, max 50). */
+  limit?: number;
+};
+
+export type BulkAcceptRawLeadsBody = {
+  lead_ids: number[];
+  accepted_checklist_json?: Record<string, unknown>;
+};

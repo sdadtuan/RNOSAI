@@ -15,6 +15,8 @@ import {
   patchRawLead,
   pushRawLeadsToCrm,
   reclassifyRawLeadReadiness,
+  enrichRawLeadContacts,
+  bulkAcceptRawLeads,
   type HarvestProviderOption,
   type MarketEntitiesSummary,
   type RawLead,
@@ -93,6 +95,19 @@ function leadStatusClass(status: string): string {
   if (status === 'rejected' || status === 'auto_rejected') return 'rlh-status--bad';
   if (status === 'pending') return 'rlh-status--pending';
   return 'rlh-status--muted';
+}
+
+function selectPageIdsByReadiness(
+  leads: RawLead[],
+  readiness: RawLeadReadinessStatus,
+): number[] {
+  return leads
+    .filter(
+      (l) =>
+        l.status !== 'pushed' &&
+        String(l.readiness_status ?? '').toUpperCase() === readiness,
+    )
+    .map((l) => l.id);
 }
 
 function classificationLabel(code: string | null | undefined): string {
@@ -275,6 +290,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [activeJobId, setActiveJobId] = useState<number | null>(null);
   const [acceptLead, setAcceptLead] = useState<RawLead | null>(null);
+  const [acceptBulkIds, setAcceptBulkIds] = useState<number[] | null>(null);
 
   const selectedProvider = useMemo(
     () => providers.find((p) => p.code === provider) ?? null,
@@ -938,10 +954,63 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
               {selectedIds.length ? ` · ${selectedIds.length} đang chọn` : ''}
               {readinessFilter === 'NEEDS_REVIEW'
                 ? ' · Accept để chuyển Sẵn sàng push'
-                : ''}
+                : readinessFilter === 'MISSING_CONTACT'
+                  ? ' · Bổ sung contact (Places + scrape) rồi phân loại lại'
+                  : ''}
             </p>
           </div>
           <div className="rlh-toolbar">
+            {canRun ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                title={
+                  selectedIds.length
+                    ? 'Bổ sung SĐT/email cho lead đang chọn (Places + scrape)'
+                    : 'Bổ sung contact cho tab Thiếu contact (tối đa 50)'
+                }
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true);
+                    setError('');
+                    try {
+                      const out = await enrichRawLeadContacts(token, projectId, {
+                        lead_ids: selectedIds.length ? selectedIds : undefined,
+                        only_missing_contact:
+                          selectedIds.length > 0
+                            ? false
+                            : readinessFilter === 'MISSING_CONTACT' || !readinessFilter,
+                        job_id: jobFilter === '' ? undefined : Number(jobFilter),
+                        limit: 50,
+                      });
+                      setMsg(
+                        `Bổ sung contact: ${out.enriched} cập nhật` +
+                          `, ${out.unchanged} giữ nguyên` +
+                          (out.failed ? `, ${out.failed} lỗi` : '') +
+                          ` · ready ${out.counts.READY_TO_PUSH ?? 0}` +
+                          ` · review ${out.counts.NEEDS_REVIEW ?? 0}` +
+                          ` · thiếu ${out.counts.MISSING_CONTACT ?? 0}`,
+                      );
+                      if (out.readiness_counts) {
+                        setReadinessCounts((prev) => ({ ...prev, ...out.readiness_counts }));
+                      }
+                      setSelectedIds([]);
+                      await reloadJobsAndLeads();
+                    } catch (err) {
+                      setError(
+                        err instanceof Error ? err.message : 'Bổ sung contact thất bại',
+                      );
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
+                }}
+              >
+                Bổ sung contact
+                {selectedIds.length ? ` (${selectedIds.length})` : ''}
+              </button>
+            ) : null}
             {canRun ? (
               <button
                 type="button"
@@ -1073,6 +1142,41 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 }}
               >
                 Push CRM ({selectedIds.length})
+              </button>
+            ) : null}
+            {canRun ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy || selectedIds.length === 0}
+                title="Accept hàng loạt (NEEDS_REVIEW → READY)"
+                onClick={() => setAcceptBulkIds(selectedIds)}
+              >
+                Accept đã chọn ({selectedIds.length})
+              </button>
+            ) : null}
+            {canRun ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy || leads.length === 0}
+                onClick={() =>
+                  setSelectedIds(selectPageIdsByReadiness(leads, 'READY_TO_PUSH'))
+                }
+              >
+                Chọn Ready (trang)
+              </button>
+            ) : null}
+            {canRun ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy || leads.length === 0}
+                onClick={() =>
+                  setSelectedIds(selectPageIdsByReadiness(leads, 'NEEDS_REVIEW'))
+                }
+              >
+                Chọn Review (trang)
               </button>
             ) : null}
           </div>
@@ -1448,12 +1552,48 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
       </section>
 
       <RawLeadAcceptModal
-        open={Boolean(acceptLead)}
+        open={Boolean(acceptLead) || Boolean(acceptBulkIds?.length)}
         companyName={acceptLead?.company_name ?? ''}
         readinessStatus={acceptLead?.readiness_status}
+        bulkCount={acceptBulkIds?.length}
         busy={busy}
-        onCancel={() => setAcceptLead(null)}
+        onCancel={() => {
+          setAcceptLead(null);
+          setAcceptBulkIds(null);
+        }}
         onConfirm={(checklist) => {
+          if (acceptBulkIds?.length) {
+            const ids = acceptBulkIds;
+            void (async () => {
+              setBusy(true);
+              try {
+                const out = await bulkAcceptRawLeads(token, projectId, {
+                  lead_ids: ids,
+                  accepted_checklist_json: checklist,
+                });
+                setAcceptBulkIds(null);
+                setSelectedIds([]);
+                setMsg(
+                  `Accept hàng loạt: ${out.accepted} OK` +
+                    (out.promoted_ready ? `, ${out.promoted_ready} → Ready` : '') +
+                    (out.skipped ? `, ${out.skipped} bỏ qua` : '') +
+                    (out.errors.length ? `, ${out.errors.length} lỗi` : ''),
+                );
+                if (out.errors[0]) {
+                  setError(`${out.errors[0].raw_lead_id}: ${out.errors[0].error}`);
+                }
+                if (out.readiness_counts) {
+                  setReadinessCounts((prev) => ({ ...prev, ...out.readiness_counts }));
+                }
+                await reloadJobsAndLeads();
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Accept hàng loạt thất bại');
+              } finally {
+                setBusy(false);
+              }
+            })();
+            return;
+          }
           if (!acceptLead) return;
           const beforeReady = acceptLead.readiness_status;
           void (async () => {

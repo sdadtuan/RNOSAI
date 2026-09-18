@@ -596,6 +596,88 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     return r.rows.map((row) => this.mapLead(row));
   }
 
+  async listLeadsForContactEnrich(
+    projectId: number,
+    opts: {
+      only_missing_contact?: boolean;
+      job_id?: number;
+      lead_ids?: number[];
+      limit?: number;
+    } = {},
+  ): Promise<RawLeadRow[]> {
+    await this.ensureSchema();
+    const clauses = ['project_id = $1', `status <> 'pushed'`];
+    const params: unknown[] = [projectId];
+
+    if (opts.lead_ids?.length) {
+      params.push(opts.lead_ids);
+      clauses.push(`id = ANY($${params.length}::bigint[])`);
+    } else if (opts.only_missing_contact !== false) {
+      clauses.push(`readiness_status = 'MISSING_CONTACT'`);
+    }
+
+    if (opts.job_id) {
+      params.push(opts.job_id);
+      clauses.push(`job_id = $${params.length}`);
+    }
+
+    const limit = Math.min(50, Math.max(1, Math.floor(Number(opts.limit) || 50)));
+    params.push(limit);
+
+    const r = await this.db.query(
+      `SELECT * FROM crm_research_raw_leads
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY id ASC
+       LIMIT $${params.length}`,
+      params,
+    );
+    return r.rows.map((row) => this.mapLead(row));
+  }
+
+  async updateLeadContact(
+    projectId: number,
+    leadId: number,
+    input: {
+      phone: string | null;
+      phone_norm: string | null;
+      email: string | null;
+      website: string | null;
+      fanpage_url: string | null;
+      contactable: boolean;
+      quality_score?: number;
+      verify_json?: Record<string, unknown>;
+    },
+  ): Promise<RawLeadRow | null> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `UPDATE crm_research_raw_leads SET
+         phone = $3,
+         phone_norm = $4,
+         email = $5,
+         website = $6,
+         fanpage_url = $7,
+         contactable = $8,
+         quality_score = COALESCE($9, quality_score),
+         verify_json = COALESCE($10::jsonb, verify_json),
+         updated_at = NOW()
+       WHERE project_id = $1 AND id = $2
+       RETURNING *`,
+      [
+        projectId,
+        leadId,
+        input.phone,
+        input.phone_norm,
+        input.email,
+        input.website,
+        input.fanpage_url,
+        input.contactable,
+        input.quality_score ?? null,
+        input.verify_json ? JSON.stringify(input.verify_json) : null,
+      ],
+    );
+    return r.rows[0] ? this.mapLead(r.rows[0]) : null;
+  }
+
   async updateLeadReadiness(
     projectId: number,
     leadId: number,

@@ -20,7 +20,9 @@ import {
 import { MarketResearchEnabledGuard } from '../guards/market-research-enabled.guard';
 import { RawLeadHarvestService } from './raw-lead-harvest.service';
 import type {
+  BulkAcceptRawLeadsBody,
   CreateRawLeadHarvestBody,
+  EnrichRawLeadsContactsBody,
   ExportRawLeadsBody,
   PatchRawLeadBody,
   PushRawLeadsBody,
@@ -103,6 +105,25 @@ export class RawLeadHarvestController {
     @Body() body: ReclassifyRawLeadsBody,
   ) {
     return this.harvest.reclassifyReadiness(id, body ?? {});
+  }
+
+  @Post('projects/:id/raw-leads/enrich-contacts')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  enrichContacts(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: EnrichRawLeadsContactsBody,
+  ) {
+    return this.harvest.enrichContacts(id, body ?? {});
+  }
+
+  @Post('projects/:id/raw-leads/bulk-accept')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  bulkAccept(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: BulkAcceptRawLeadsBody,
+  ) {
+    return this.harvest.bulkAccept(id, body ?? { lead_ids: [] }, staffId(req));
   }
 
   @Patch('projects/:id/raw-leads/:leadId')

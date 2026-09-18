@@ -21,6 +21,7 @@ import { MarketEntitiesRepository } from './market-graph/market-entities.reposit
 import { MarketGraphWorker } from './market-graph/market-graph.worker';
 import { PlacesClient } from './places/places.client';
 import { readinessAfterAccept } from './accept-readiness.util';
+import { filterBulkAcceptCandidates } from './bulk-accept.util';
 import { assertRawLeadPushable } from './push-crm.util';
 import { classifyRawLeadReadiness } from './quality/readiness-classify.util';
 import { buildReadinessInputFromRawLead } from './quality/readiness-from-row.util';
@@ -31,12 +32,21 @@ import {
 } from './readiness-patch.util';
 import { RawLeadHarvestRepository } from './raw-lead-harvest.repository';
 import type {
+  BulkAcceptRawLeadsBody,
   CreateRawLeadHarvestBody,
+  EnrichRawLeadsContactsBody,
   ExportRawLeadsBody,
   PatchRawLeadBody,
   PushRawLeadsBody,
   ReclassifyRawLeadsBody,
+  RawLeadRow,
 } from './raw-lead-harvest.types';
+import {
+  mergeContactEnrichment,
+  scrapeFromFetchedText,
+} from './quality/contact-enrich.util';
+import { fetchEvidenceText } from './quality/evidence-fetch.util';
+import { contactPageUrls } from './quality/scrape-contact.util';
 import {
   normalizeHarvestMode,
   validateCreateRawLeadHarvest,
@@ -378,6 +388,268 @@ export class RawLeadHarvestService {
       skipped,
       scanned: leads.length,
       counts,
+      readiness_counts: await this.repo.countByReadiness(projectId),
+    };
+  }
+
+  async enrichContacts(projectId: number, body: EnrichRawLeadsContactsBody = {}) {
+    this.assertEnabled();
+    const leadIds = Array.isArray(body.lead_ids)
+      ? body.lead_ids.map(Number).filter(Number.isFinite)
+      : undefined;
+    const jobId =
+      body.job_id != null && Number.isFinite(Number(body.job_id))
+        ? Math.floor(Number(body.job_id))
+        : undefined;
+    const onlyMissing =
+      leadIds?.length ? body.only_missing_contact === true : body.only_missing_contact !== false;
+    const limit = Math.min(50, Math.max(1, Math.floor(Number(body.limit) || 50)));
+
+    const leads = await this.repo.listLeadsForContactEnrich(projectId, {
+      only_missing_contact: onlyMissing,
+      job_id: jobId,
+      lead_ids: leadIds?.length ? leadIds : undefined,
+      limit,
+    });
+
+    const placesKey = googlePlacesApiKey();
+    const places = placesKey ? new PlacesClient(placesKey) : null;
+    const blacklist = await this.repo.listBlacklistEntries();
+    const jobCache = new Map<number, Awaited<ReturnType<RawLeadHarvestRepository['getJobById']>>>();
+    const seenPhones = new Set<string>();
+
+    let enriched = 0;
+    let unchanged = 0;
+    let failed = 0;
+    const counts: Record<string, number> = {
+      READY_TO_PUSH: 0,
+      NEEDS_REVIEW: 0,
+      MISSING_CONTACT: 0,
+      DUPLICATE_OR_BLACKLIST: 0,
+    };
+
+    for (const lead of leads) {
+      try {
+        let placesHint: { phone?: string | null; website?: string | null } | null = null;
+        if (places && lead.place_id) {
+          try {
+            await new Promise((r) => setTimeout(r, 250));
+            const detailed = await places.placeDetails(lead.place_id);
+            if (detailed) {
+              placesHint = { phone: detailed.phone, website: detailed.website };
+            }
+          } catch {
+            /* continue with scrape */
+          }
+        }
+
+        let scrapedText = '';
+        const urls = [
+          lead.website,
+          lead.evidence_url,
+          lead.fanpage_url,
+          placesHint?.website,
+        ]
+          .map((u) => String(u ?? '').trim())
+          .filter(Boolean);
+        const uniqueUrls = [...new Set(urls)].slice(0, 3);
+        for (const url of uniqueUrls) {
+          const primary = await fetchEvidenceText(url, { timeoutMs: 7000 });
+          if (primary.ok && primary.text) {
+            scrapedText += `\n${primary.text}`;
+            for (const alt of contactPageUrls(url).slice(0, 2)) {
+              const altFetch = await fetchEvidenceText(alt, { timeoutMs: 5000 });
+              if (altFetch.ok && altFetch.text) scrapedText += `\n${altFetch.text}`;
+            }
+            break;
+          }
+        }
+
+        const patch = mergeContactEnrichment({
+          lead,
+          places: placesHint,
+          scraped: scrapedText ? scrapeFromFetchedText(scrapedText) : null,
+        });
+
+        let working: RawLeadRow = lead;
+        if (patch.changed) {
+          const hadPhone = Boolean(lead.phone_norm || lead.phone);
+          const qualityBoost =
+            !hadPhone && patch.phone_norm
+              ? Math.min(100, Number(lead.quality_score ?? 0) + 15)
+              : undefined;
+          const verify = {
+            ...(lead.verify_json ?? {}),
+            enrich: {
+              at: new Date().toISOString(),
+              sources: patch.sources,
+              places: Boolean(placesHint?.phone || placesHint?.website),
+            },
+            phone_ok: Boolean(patch.phone_norm),
+            email_ok: Boolean(patch.email && String(patch.email).includes('@')),
+          };
+          const updated = await this.repo.updateLeadContact(projectId, lead.id, {
+            phone: patch.phone,
+            phone_norm: patch.phone_norm,
+            email: patch.email,
+            website: patch.website,
+            fanpage_url: patch.fanpage_url,
+            contactable: patch.contactable,
+            quality_score: qualityBoost,
+            verify_json: verify,
+          });
+          if (updated) working = updated;
+          enriched += 1;
+        } else {
+          unchanged += 1;
+        }
+
+        let job = jobCache.get(working.job_id);
+        if (job === undefined) {
+          job = await this.repo.getJobById(working.job_id);
+          jobCache.set(working.job_id, job);
+        }
+
+        const phoneNorm =
+          String(working.phone_norm ?? '').replace(/\D+/g, '') ||
+          (working.phone ? normalizePhoneDigits(working.phone) : '');
+        const existingCrm = phoneNorm
+          ? await this.repo.findAlreadyCustomerByPhone(phoneNorm)
+          : false;
+        const blacklistHit = candidateHitsBlacklist(
+          {
+            phone_norm: phoneNorm || null,
+            email: working.email,
+            company_name: working.company_name,
+            website: working.website || working.fanpage_url,
+          },
+          blacklist,
+        );
+        const dupPhone =
+          Boolean(phoneNorm) &&
+          (seenPhones.has(phoneNorm) ||
+            (await this.repo.hasDuplicatePhoneInProjectExcept(
+              projectId,
+              phoneNorm,
+              working.id,
+            )));
+
+        const readiness = classifyRawLeadReadiness(
+          buildReadinessInputFromRawLead(working, {
+            blacklist_hit: blacklistHit,
+            existing_crm_customer: existingCrm,
+            duplicate_phone_in_project: dupPhone,
+            vertical_ok: Boolean(job?.industry_key),
+            territory_ok: Boolean(job?.province_code || job?.province_name),
+          }),
+        );
+        await this.repo.updateLeadReadiness(projectId, working.id, {
+          readiness_status: readiness.readiness_status,
+          readiness_reason_codes: readiness.readiness_reason_codes,
+          classification: readiness.classification,
+        });
+        counts[readiness.readiness_status] =
+          (counts[readiness.readiness_status] ?? 0) + 1;
+        if (phoneNorm) seenPhones.add(phoneNorm);
+      } catch {
+        failed += 1;
+      }
+    }
+
+    return {
+      enriched,
+      unchanged,
+      failed,
+      scanned: leads.length,
+      counts,
+      readiness_counts: await this.repo.countByReadiness(projectId),
+    };
+  }
+
+  async bulkAccept(
+    projectId: number,
+    body: BulkAcceptRawLeadsBody,
+    staffId: number | null = null,
+  ) {
+    this.assertEnabled();
+    const ids = Array.isArray(body.lead_ids)
+      ? [...new Set(body.lead_ids.map(Number).filter(Number.isFinite))].slice(0, 100)
+      : [];
+    if (!ids.length) throw new BadRequestException({ error: 'lead_ids_required' });
+
+    const checklist =
+      body.accepted_checklist_json && typeof body.accepted_checklist_json === 'object'
+        ? body.accepted_checklist_json
+        : {};
+
+    let accepted = 0;
+    let skipped = 0;
+    let promoted_ready = 0;
+    const errors: Array<{ raw_lead_id: number; error: string }> = [];
+
+    const loaded: Array<{ id: number; status: string; readiness_status: string | null }> =
+      [];
+    for (const id of ids) {
+      const lead = await this.repo.getLead(projectId, id);
+      if (!lead) {
+        errors.push({ raw_lead_id: id, error: 'raw_lead_not_found' });
+        continue;
+      }
+      loaded.push({
+        id: lead.id,
+        status: lead.status,
+        readiness_status: lead.readiness_status,
+      });
+    }
+
+    const eligibleIds = new Set(
+      filterBulkAcceptCandidates(loaded).map((l) => l.id),
+    );
+
+    for (const id of ids) {
+      if (!eligibleIds.has(id)) {
+        if (!errors.some((e) => e.raw_lead_id === id)) {
+          skipped += 1;
+        }
+        continue;
+      }
+      try {
+        const before = await this.repo.getLead(projectId, id);
+        if (!before) {
+          errors.push({ raw_lead_id: id, error: 'raw_lead_not_found' });
+          continue;
+        }
+        const promote = readinessAfterAccept({
+          readiness_status: before.readiness_status,
+          contactable: before.contactable,
+        });
+        if (promote.promote) {
+          await this.repo.updateLeadReadiness(projectId, id, {
+            readiness_status: promote.readiness_status,
+            readiness_reason_codes: promote.readiness_reason_codes,
+            classification: promote.classification,
+          });
+          if (promote.readiness_status === 'READY_TO_PUSH') promoted_ready += 1;
+        }
+        await this.repo.patchLead(projectId, id, {
+          status: 'accepted',
+          accepted_checklist_json: checklist,
+          feedback_by_staff_id: staffId,
+        });
+        accepted += 1;
+      } catch (err) {
+        errors.push({
+          raw_lead_id: id,
+          error: err instanceof Error ? err.message : 'accept_failed',
+        });
+      }
+    }
+
+    return {
+      accepted,
+      skipped,
+      promoted_ready,
+      errors,
       readiness_counts: await this.repo.countByReadiness(projectId),
     };
   }

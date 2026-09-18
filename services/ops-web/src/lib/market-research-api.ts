@@ -1985,6 +1985,49 @@ export function reclassifyRawLeadReadiness(
   });
 }
 
+export function enrichRawLeadContacts(
+  token: string,
+  projectId: number,
+  body?: {
+    lead_ids?: number[];
+    only_missing_contact?: boolean;
+    job_id?: number;
+    limit?: number;
+  },
+) {
+  return researchFetch<{
+    enriched: number;
+    unchanged: number;
+    failed: number;
+    scanned: number;
+    counts: Record<string, number>;
+    readiness_counts: Record<string, number>;
+  }>(token, `/api/v1/research/projects/${projectId}/raw-leads/enrich-contacts`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function bulkAcceptRawLeads(
+  token: string,
+  projectId: number,
+  body: {
+    lead_ids: number[];
+    accepted_checklist_json?: Record<string, unknown>;
+  },
+) {
+  return researchFetch<{
+    accepted: number;
+    skipped: number;
+    promoted_ready: number;
+    errors: Array<{ raw_lead_id: number; error: string }>;
+    readiness_counts: Record<string, number>;
+  }>(token, `/api/v1/research/projects/${projectId}/raw-leads/bulk-accept`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export function patchRawLead(
   token: string,
   projectId: number,

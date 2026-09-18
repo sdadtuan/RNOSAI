@@ -4,6 +4,7 @@ type Props = {
   open: boolean;
   companyName: string;
   readinessStatus?: string | null;
+  bulkCount?: number;
   busy?: boolean;
   onCancel: () => void;
   onConfirm: (checklist: Record<string, boolean>) => void;
@@ -13,6 +14,7 @@ export function RawLeadAcceptModal({
   open,
   companyName,
   readinessStatus,
+  bulkCount,
   busy,
   onCancel,
   onConfirm,
@@ -26,8 +28,10 @@ export function RawLeadAcceptModal({
   ];
 
   const readiness = String(readinessStatus ?? '').toUpperCase();
-  const promoteHint =
-    readiness === 'NEEDS_REVIEW' || !readiness
+  const isBulk = (bulkCount ?? 0) > 1;
+  const promoteHint = isBulk
+    ? `Accept ${bulkCount} lead đã chọn. NEEDS_REVIEW / unclassified contactable → Sẵn sàng push.`
+    : readiness === 'NEEDS_REVIEW' || !readiness
       ? 'Accept sẽ chuyển lead sang tab Sẵn sàng push (READY_TO_PUSH) nếu đủ điều kiện.'
       : readiness === 'MISSING_CONTACT'
         ? 'Lead đang thiếu contact — Accept không tự chuyển READY. Bổ sung SĐT/email trước.'
@@ -38,9 +42,11 @@ export function RawLeadAcceptModal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal-card" style={{ maxWidth: 440 }}>
-        <h3 style={{ marginTop: 0 }}>Accept lead thô</h3>
+        <h3 style={{ marginTop: 0 }}>
+          {isBulk ? `Accept ${bulkCount} lead thô` : 'Accept lead thô'}
+        </h3>
         <p className="muted" style={{ marginTop: 0 }}>
-          {companyName}
+          {isBulk ? 'Checklist áp dụng chung cho mọi lead đã chọn.' : companyName}
         </p>
         {promoteHint ? (
           <p className="rlh-inline-warn" style={{ marginTop: 0 }}>
