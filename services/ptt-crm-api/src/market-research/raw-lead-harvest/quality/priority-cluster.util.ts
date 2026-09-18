@@ -52,6 +52,22 @@ export function buildAccountClusterKey(lead: PriorityClusterLead): string {
   return `id:${lead.id}`;
 }
 
+/** Strong signals only — null when only name/id would match (too weak cross-project). */
+export function buildGlobalAccountKey(lead: PriorityClusterLead): string | null {
+  const placeId = String(lead.place_id ?? '').trim();
+  if (placeId) return `place:${placeId}`;
+
+  const phoneNorm =
+    String(lead.phone_norm ?? '').replace(/\D+/g, '') ||
+    (lead.phone ? normalizePhoneDigits(lead.phone) : '');
+  if (phoneNorm.length >= 9) return `phone:${phoneNorm}`;
+
+  const domain = extractRegistrableDomain(lead.website);
+  if (domain) return `domain:${domain}`;
+
+  return null;
+}
+
 export function computePriorityTier(input: {
   readiness_status?: string | null;
   quality_score?: number | null;

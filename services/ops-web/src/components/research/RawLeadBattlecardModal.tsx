@@ -148,6 +148,27 @@ export function RawLeadBattlecardModal({
                 </ul>
               </section>
             ) : null}
+
+            {card.cross_project?.mates?.length ? (
+              <section>
+                <h4>Cross-project ({card.cross_project.mates.length})</h4>
+                {card.cross_project.key ? (
+                  <p className="muted rlh-bc-snippet">{card.cross_project.key}</p>
+                ) : null}
+                <ul className="rlh-bc-list">
+                  {card.cross_project.mates.map((m) => (
+                    <li key={`${m.project_id}-${m.id}`}>
+                      Project #{m.project_id}
+                      {m.project_name ? ` · ${m.project_name}` : ''}
+                      {' — '}
+                      #{m.id} {m.company_name}
+                      {m.priority_tier ? ` · ${m.priority_tier}` : ''}
+                      {m.phone ? ` · ${m.phone}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </div>
         ) : null}
       </div>

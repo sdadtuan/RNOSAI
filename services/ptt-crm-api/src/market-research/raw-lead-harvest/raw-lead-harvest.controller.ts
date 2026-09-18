@@ -115,6 +115,15 @@ export class RawLeadHarvestController {
     return this.harvest.getBattlecard(id, leadId);
   }
 
+  @Get('projects/:id/raw-leads/:leadId/cross-project-mates')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  crossProjectMates(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('leadId', ParseIntPipe) leadId: number,
+  ) {
+    return this.harvest.crossProjectMates(id, leadId);
+  }
+
   @Post('projects/:id/raw-leads/recompute-priority')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
   recomputePriority(

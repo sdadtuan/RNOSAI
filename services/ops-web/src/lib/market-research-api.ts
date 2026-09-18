@@ -1852,6 +1852,7 @@ export type RawLead = {
   readiness_reason_codes?: string[];
   account_cluster_key?: string | null;
   priority_tier?: RawLeadPriorityTier | string | null;
+  global_account_key?: string | null;
   learning_delta?: number | null;
   learning_reasons?: string[];
   learning_applied_at?: string | null;
@@ -2113,6 +2114,19 @@ export type RawLeadBattlecard = {
       priority_tier?: string | null;
       phone?: string | null;
       readiness_status?: string | null;
+    }>;
+  };
+  cross_project?: {
+    key: string | null;
+    mates: Array<{
+      id: number;
+      project_id: number;
+      project_name?: string | null;
+      company_name: string;
+      priority_tier?: string | null;
+      readiness_status?: string | null;
+      phone?: string | null;
+      status?: string;
     }>;
   };
   dial_outcome: string | null;

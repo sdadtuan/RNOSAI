@@ -195,6 +195,10 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         ADD COLUMN IF NOT EXISTS learning_applied_at TIMESTAMPTZ
     `);
     await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS global_account_key TEXT
+    `);
+    await this.db.query(`
       CREATE INDEX IF NOT EXISTS idx_raw_leads_project_readiness
         ON crm_research_raw_leads (project_id, readiness_status)
     `);
@@ -205,6 +209,11 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     await this.db.query(`
       CREATE INDEX IF NOT EXISTS idx_raw_leads_project_priority
         ON crm_research_raw_leads (project_id, priority_tier)
+    `);
+    await this.db.query(`
+      CREATE INDEX IF NOT EXISTS idx_raw_leads_global_account
+        ON crm_research_raw_leads (global_account_key)
+        WHERE global_account_key IS NOT NULL AND btrim(global_account_key) <> ''
     `);
     await this.db.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_leads_project_place
@@ -334,6 +343,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       account_cluster_key:
         row.account_cluster_key == null ? null : String(row.account_cluster_key),
       priority_tier: row.priority_tier == null ? null : String(row.priority_tier),
+      global_account_key:
+        row.global_account_key == null ? null : String(row.global_account_key),
       learning_delta: Number(row.learning_delta ?? 0) || 0,
       learning_reasons: Array.isArray(row.learning_reasons)
         ? row.learning_reasons.map(String)
@@ -755,17 +766,28 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
   async updateLeadPriorityCluster(
     projectId: number,
     leadId: number,
-    input: { account_cluster_key: string; priority_tier: string },
+    input: {
+      account_cluster_key: string;
+      priority_tier: string;
+      global_account_key?: string | null;
+    },
   ): Promise<RawLeadRow | null> {
     await this.ensureSchema();
     const r = await this.db.query(
       `UPDATE crm_research_raw_leads SET
          account_cluster_key = $3,
          priority_tier = $4,
+         global_account_key = $5,
          updated_at = NOW()
        WHERE project_id = $1 AND id = $2
        RETURNING *`,
-      [projectId, leadId, input.account_cluster_key, input.priority_tier],
+      [
+        projectId,
+        leadId,
+        input.account_cluster_key,
+        input.priority_tier,
+        input.global_account_key ?? null,
+      ],
     );
     return r.rows[0] ? this.mapLead(r.rows[0]) : null;
   }
@@ -1143,6 +1165,53 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       phone: row.phone == null ? null : String(row.phone),
       readiness_status:
         row.readiness_status == null ? null : String(row.readiness_status),
+    }));
+  }
+
+  async listCrossProjectMates(
+    globalKey: string,
+    excludeProjectId: number,
+    limit = 12,
+  ): Promise<
+    Array<{
+      id: number;
+      project_id: number;
+      project_name: string | null;
+      company_name: string;
+      priority_tier: string | null;
+      readiness_status: string | null;
+      phone: string | null;
+      status: string;
+    }>
+  > {
+    await this.ensureSchema();
+    const key = String(globalKey ?? '').trim();
+    if (!key) return [];
+    const lim = Math.min(24, Math.max(1, Math.floor(Number(limit) || 12)));
+    const r = await this.db.query(
+      `SELECT l.id, l.project_id, p.title AS project_name, l.company_name,
+              l.priority_tier, l.readiness_status, l.phone, l.status
+       FROM crm_research_raw_leads l
+       LEFT JOIN crm_research_projects p ON p.id = l.project_id
+       WHERE l.global_account_key = $1
+         AND l.project_id <> $2
+       ORDER BY
+         CASE l.priority_tier WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
+         l.quality_score DESC,
+         l.id ASC
+       LIMIT $3`,
+      [key, excludeProjectId, lim],
+    );
+    return r.rows.map((row) => ({
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      project_name: row.project_name == null ? null : String(row.project_name),
+      company_name: String(row.company_name ?? ''),
+      priority_tier: row.priority_tier == null ? null : String(row.priority_tier),
+      readiness_status:
+        row.readiness_status == null ? null : String(row.readiness_status),
+      phone: row.phone == null ? null : String(row.phone),
+      status: String(row.status ?? ''),
     }));
   }
 

@@ -104,6 +104,7 @@ export type RawLeadRow = {
   readiness_reason_codes: string[];
   account_cluster_key: string | null;
   priority_tier: string | null;
+  global_account_key: string | null;
   learning_delta: number;
   learning_reasons: string[];
   learning_applied_at: string | null;

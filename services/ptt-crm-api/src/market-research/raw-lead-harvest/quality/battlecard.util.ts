@@ -6,6 +6,17 @@ export type BattlecardClusterMate = {
   readiness_status?: string | null;
 };
 
+export type BattlecardCrossProjectMate = {
+  id: number;
+  project_id: number;
+  project_name?: string | null;
+  company_name: string;
+  priority_tier?: string | null;
+  readiness_status?: string | null;
+  phone?: string | null;
+  status?: string;
+};
+
 export type BattlecardLeadInput = {
   id: number;
   company_name: string;
@@ -28,6 +39,7 @@ export type BattlecardLeadInput = {
   classification?: string | null;
   priority_tier?: string | null;
   account_cluster_key?: string | null;
+  global_account_key?: string | null;
   dial_outcome?: string | null;
   feedback_code?: string | null;
 };
@@ -62,6 +74,10 @@ export type RawLeadBattlecard = {
   cluster: {
     key: string | null;
     mates: BattlecardClusterMate[];
+  };
+  cross_project: {
+    key: string | null;
+    mates: BattlecardCrossProjectMate[];
   };
   dial_outcome: string | null;
   feedback_code: string | null;
@@ -126,6 +142,7 @@ function buildTalkingPoints(lead: BattlecardLeadInput): string[] {
 function buildRisks(
   lead: BattlecardLeadInput,
   mates: BattlecardClusterMate[],
+  crossMates: BattlecardCrossProjectMate[],
 ): string[] {
   const risks: string[] = [];
   const ready = String(lead.readiness_status ?? '').toUpperCase();
@@ -156,6 +173,9 @@ function buildRisks(
   if (mates.length > 0) {
     risks.push('Cùng account cluster — tránh gọi trùng chi nhánh.');
   }
+  if (crossMates.length > 0) {
+    risks.push('Có lead cùng account ở project khác — kiểm tra lịch sử trước khi gọi.');
+  }
   return risks;
 }
 
@@ -182,10 +202,12 @@ function buildNextActions(lead: BattlecardLeadInput): string[] {
 export function buildRawLeadBattlecard(input: {
   lead: BattlecardLeadInput;
   clusterMates?: BattlecardClusterMate[];
+  crossProjectMates?: BattlecardCrossProjectMate[];
   now?: Date;
 }): RawLeadBattlecard {
   const lead = input.lead;
   const mates = (input.clusterMates ?? []).slice(0, 8);
+  const crossMates = (input.crossProjectMates ?? []).slice(0, 12);
   const tier = nz(lead.priority_tier);
   const company = nz(lead.company_name) ?? `Lead #${lead.id}`;
   const headline = tier ? `${company} · ${tier}` : company;
@@ -219,11 +241,15 @@ export function buildRawLeadBattlecard(input: {
       place_id: nz(lead.place_id),
     },
     talking_points: buildTalkingPoints(lead),
-    risks: buildRisks(lead, mates),
+    risks: buildRisks(lead, mates, crossMates),
     next_actions: buildNextActions(lead),
     cluster: {
       key: nz(lead.account_cluster_key),
       mates,
+    },
+    cross_project: {
+      key: nz(lead.global_account_key),
+      mates: crossMates,
     },
     dial_outcome: nz(lead.dial_outcome),
     feedback_code: nz(lead.feedback_code),

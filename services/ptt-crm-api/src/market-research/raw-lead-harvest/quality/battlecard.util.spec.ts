@@ -66,6 +66,7 @@ describe('buildRawLeadBattlecard', () => {
         feedback_code: 'wrong_geo',
         readiness_status: 'NEEDS_REVIEW',
         priority_tier: 'P2',
+        global_account_key: 'phone:0909479018',
       },
       clusterMates: [
         {
@@ -76,12 +77,24 @@ describe('buildRawLeadBattlecard', () => {
           readiness_status: 'READY_TO_PUSH',
         },
       ],
+      crossProjectMates: [
+        {
+          id: 7,
+          project_id: 3,
+          project_name: 'Spa HCM',
+          company_name: 'Spa Hoa Mi',
+          priority_tier: 'P1',
+          phone: '0909479018',
+        },
+      ],
     });
     expect(card.risks.some((r) => /lễ tân|gatekeeper/i.test(r))).toBe(true);
     expect(card.risks.some((r) => /địa bàn|geo|feedback/i.test(r))).toBe(true);
     expect(card.risks.some((r) => /cluster/i.test(r))).toBe(true);
+    expect(card.risks.some((r) => /project khác/i.test(r))).toBe(true);
     expect(card.cluster.mates).toHaveLength(1);
-    expect(card.cluster.mates[0].id).toBe(99);
+    expect(card.cross_project.mates).toHaveLength(1);
+    expect(card.cross_project.key).toBe('phone:0909479018');
     expect(card.next_actions[0]).toMatch(/Review|Accept/i);
   });
 

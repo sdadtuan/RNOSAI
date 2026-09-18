@@ -33,6 +33,7 @@ import {
 import { RawLeadHarvestRepository } from './raw-lead-harvest.repository';
 import {
   buildAccountClusterKey,
+  buildGlobalAccountKey,
   computePriorityTier,
 } from './quality/priority-cluster.util';
 import { buildRawLeadBattlecard } from './quality/battlecard.util';
@@ -322,7 +323,27 @@ export class RawLeadHarvestService {
           8,
         )
       : [];
-    return buildRawLeadBattlecard({ lead, clusterMates: mates });
+    const globalKey = lead.global_account_key || buildGlobalAccountKey(lead);
+    const crossMates = globalKey
+      ? await this.repo.listCrossProjectMates(globalKey, projectId, 12)
+      : [];
+    return buildRawLeadBattlecard({
+      lead: { ...lead, global_account_key: globalKey },
+      clusterMates: mates,
+      crossProjectMates: crossMates,
+    });
+  }
+
+  async crossProjectMates(projectId: number, leadId: number) {
+    this.assertEnabled();
+    const lead = await this.repo.getLead(projectId, leadId);
+    if (!lead) throw new NotFoundException({ error: 'raw_lead_not_found' });
+    const global_account_key =
+      lead.global_account_key || buildGlobalAccountKey(lead);
+    const mates = global_account_key
+      ? await this.repo.listCrossProjectMates(global_account_key, projectId, 12)
+      : [];
+    return { global_account_key, mates };
   }
 
   async applyLearning(projectId: number, body: ApplyLearningBody = {}) {
@@ -402,6 +423,7 @@ export class RawLeadHarvestService {
 
     for (const lead of leads) {
       const account_cluster_key = buildAccountClusterKey(lead);
+      const global_account_key = buildGlobalAccountKey(lead);
       const priority_tier = computePriorityTier({
         readiness_status: lead.readiness_status,
         quality_score: lead.quality_score,
@@ -412,6 +434,7 @@ export class RawLeadHarvestService {
       await this.repo.updateLeadPriorityCluster(projectId, lead.id, {
         account_cluster_key,
         priority_tier,
+        global_account_key,
       });
       updated += 1;
       counts[priority_tier] = (counts[priority_tier] ?? 0) + 1;

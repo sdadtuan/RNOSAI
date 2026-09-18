@@ -1553,6 +1553,14 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                           {shortClusterKey(lead.account_cluster_key)}
                         </div>
                       ) : null}
+                      {lead.global_account_key ? (
+                        <div
+                          className="muted rlh-sub"
+                          title={`global ${lead.global_account_key}`}
+                        >
+                          g:{shortClusterKey(lead.global_account_key)}
+                        </div>
+                      ) : null}
                     </td>
                     <td>
                       {lead.evidence_url ? (
