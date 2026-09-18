@@ -39,17 +39,24 @@ import {
 import { buildRawLeadBattlecard } from './quality/battlecard.util';
 import type { RawLeadBattlecard } from './quality/battlecard.util';
 import { computeLearningAdjustment } from './quality/learning-loop.util';
+import {
+  parseGlobalAccountKey,
+  pickDisplayName,
+  resolveGlobalKeyForMerge,
+} from './quality/research-account-merge.util';
 import type {
   ApplyLearningBody,
   BulkAcceptRawLeadsBody,
   CreateRawLeadHarvestBody,
   EnrichRawLeadsContactsBody,
   ExportRawLeadsBody,
+  MergeAccountsBody,
   PatchRawLeadBody,
   PushRawLeadsBody,
   ReclassifyRawLeadsBody,
   RecomputePriorityBody,
   RawLeadRow,
+  ResearchAccountRow,
 } from './raw-lead-harvest.types';
 import {
   mergeContactEnrichment,
@@ -327,10 +334,17 @@ export class RawLeadHarvestService {
     const crossMates = globalKey
       ? await this.repo.listCrossProjectMates(globalKey, projectId, 12)
       : [];
+    let researchAccount: ResearchAccountRow | null = null;
+    if (lead.research_account_id) {
+      researchAccount = await this.repo.getResearchAccount(lead.research_account_id);
+    } else if (globalKey) {
+      researchAccount = await this.repo.getResearchAccountByKey(globalKey);
+    }
     return buildRawLeadBattlecard({
       lead: { ...lead, global_account_key: globalKey },
       clusterMates: mates,
       crossProjectMates: crossMates,
+      researchAccount,
     });
   }
 
@@ -344,6 +358,86 @@ export class RawLeadHarvestService {
       ? await this.repo.listCrossProjectMates(global_account_key, projectId, 12)
       : [];
     return { global_account_key, mates };
+  }
+
+  private async mergeLeadIntoResearchAccount(
+    lead: RawLeadRow,
+  ): Promise<ResearchAccountRow | null> {
+    const globalKey = resolveGlobalKeyForMerge(lead);
+    if (!globalKey) return null;
+    const parts = parseGlobalAccountKey(globalKey);
+    const existing = await this.repo.getResearchAccountByKey(globalKey);
+    const account = await this.repo.upsertResearchAccount({
+      global_account_key: globalKey,
+      display_name: pickDisplayName(existing?.display_name, lead.company_name),
+      phone_norm: parts.phone_norm || lead.phone_norm,
+      domain: parts.domain,
+      place_id: parts.place_id || lead.place_id,
+      best_priority_tier: lead.priority_tier,
+      crm_lead_id: lead.crm_lead_id,
+    });
+    await this.repo.linkLeadToResearchAccount(
+      lead.project_id,
+      lead.id,
+      account.id,
+      globalKey,
+    );
+    return this.repo.refreshResearchAccountAggregates(account.id);
+  }
+
+  async mergeAccounts(projectId: number, body: MergeAccountsBody = {}) {
+    this.assertEnabled();
+    const leadIds = Array.isArray(body.lead_ids)
+      ? body.lead_ids.map(Number).filter(Number.isFinite)
+      : undefined;
+    const jobId =
+      body.job_id != null && Number.isFinite(Number(body.job_id))
+        ? Math.floor(Number(body.job_id))
+        : undefined;
+    const leads = await this.repo.listLeadsForAccountMerge(projectId, {
+      job_id: jobId,
+      lead_ids: leadIds?.length ? leadIds : undefined,
+      limit: body.limit,
+    });
+
+    let updated = 0;
+    let skipped = 0;
+    const accountIds = new Set<number>();
+
+    for (const lead of leads) {
+      const account = await this.mergeLeadIntoResearchAccount(lead);
+      if (!account) {
+        skipped += 1;
+        continue;
+      }
+      updated += 1;
+      accountIds.add(account.id);
+    }
+
+    return {
+      updated,
+      skipped,
+      scanned: leads.length,
+      accounts: accountIds.size,
+    };
+  }
+
+  async getResearchAccountForLead(projectId: number, leadId: number) {
+    this.assertEnabled();
+    const lead = await this.repo.getLead(projectId, leadId);
+    if (!lead) throw new NotFoundException({ error: 'raw_lead_not_found' });
+    let account: ResearchAccountRow | null = null;
+    if (lead.research_account_id) {
+      account = await this.repo.getResearchAccount(lead.research_account_id);
+    }
+    if (!account) {
+      const key = resolveGlobalKeyForMerge(lead);
+      if (key) account = await this.repo.getResearchAccountByKey(key);
+    }
+    const linked_leads = account
+      ? await this.repo.listLeadsByResearchAccount(account.id, 20)
+      : [];
+    return { account, linked_leads };
   }
 
   async applyLearning(projectId: number, body: ApplyLearningBody = {}) {
@@ -436,6 +530,14 @@ export class RawLeadHarvestService {
         priority_tier,
         global_account_key,
       });
+      if (global_account_key) {
+        await this.mergeLeadIntoResearchAccount({
+          ...lead,
+          account_cluster_key,
+          priority_tier,
+          global_account_key,
+        });
+      }
       updated += 1;
       counts[priority_tier] = (counts[priority_tier] ?? 0) + 1;
       clusterSizes.set(
@@ -997,6 +1099,16 @@ export class RawLeadHarvestService {
           /* company fields optional */
         }
         await this.repo.markLeadPushed(projectId, leadId, crmLead.id);
+        const refreshed = await this.repo.getLead(projectId, leadId);
+        if (refreshed) {
+          const account = await this.mergeLeadIntoResearchAccount({
+            ...refreshed,
+            crm_lead_id: crmLead.id,
+          });
+          if (account) {
+            await this.repo.setResearchAccountCrmLead(account.id, crmLead.id);
+          }
+        }
         pushed.push({ raw_lead_id: leadId, crm_lead_id: crmLead.id });
       } catch (err) {
         errors.push({

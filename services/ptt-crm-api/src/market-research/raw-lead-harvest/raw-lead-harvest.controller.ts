@@ -29,6 +29,7 @@ import type {
   ReclassifyRawLeadsBody,
   RecomputePriorityBody,
   ApplyLearningBody,
+  MergeAccountsBody,
 } from './raw-lead-harvest.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload };
@@ -122,6 +123,24 @@ export class RawLeadHarvestController {
     @Param('leadId', ParseIntPipe) leadId: number,
   ) {
     return this.harvest.crossProjectMates(id, leadId);
+  }
+
+  @Get('projects/:id/raw-leads/:leadId/research-account')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  researchAccount(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('leadId', ParseIntPipe) leadId: number,
+  ) {
+    return this.harvest.getResearchAccountForLead(id, leadId);
+  }
+
+  @Post('projects/:id/raw-leads/merge-accounts')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  mergeAccounts(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: MergeAccountsBody,
+  ) {
+    return this.harvest.mergeAccounts(id, body ?? {});
   }
 
   @Post('projects/:id/raw-leads/recompute-priority')

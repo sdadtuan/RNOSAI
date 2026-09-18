@@ -95,6 +95,7 @@ describe('buildRawLeadBattlecard', () => {
     expect(card.cluster.mates).toHaveLength(1);
     expect(card.cross_project.mates).toHaveLength(1);
     expect(card.cross_project.key).toBe('phone:0909479018');
+    expect(card.research_account).toBeNull();
     expect(card.next_actions[0]).toMatch(/Review|Accept/i);
   });
 

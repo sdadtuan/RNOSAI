@@ -18,6 +18,7 @@ import {
   reclassifyRawLeadReadiness,
   recomputeRawLeadPriority,
   applyRawLeadLearning,
+  mergeRawLeadAccounts,
   enrichRawLeadContacts,
   bulkAcceptRawLeads,
   fetchRawLeadBattlecard,
@@ -1212,6 +1213,44 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 {selectedIds.length ? ` (${selectedIds.length})` : ''}
               </button>
             ) : null}
+            {canRun ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                title={
+                  selectedIds.length
+                    ? 'Gộp Account research từ global key cho lead đang chọn'
+                    : 'Gộp Account research (place/phone/domain) trong project'
+                }
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true);
+                    setError('');
+                    try {
+                      const out = await mergeRawLeadAccounts(token, projectId, {
+                        lead_ids: selectedIds.length ? selectedIds : undefined,
+                        job_id: jobFilter === '' ? undefined : Number(jobFilter),
+                      });
+                      setMsg(
+                        `Gộp Account: ${out.updated} lead` +
+                          ` · ${out.accounts} account` +
+                          (out.skipped ? ` · ${out.skipped} bỏ qua` : ''),
+                      );
+                      setSelectedIds([]);
+                      await reloadJobsAndLeads();
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Gộp Account thất bại');
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
+                }}
+              >
+                Gộp Account
+                {selectedIds.length ? ` (${selectedIds.length})` : ''}
+              </button>
+            ) : null}
             {canExport ? (
               <button
                 type="button"
@@ -1560,6 +1599,9 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                         >
                           g:{shortClusterKey(lead.global_account_key)}
                         </div>
+                      ) : null}
+                      {lead.research_account_id ? (
+                        <div className="muted rlh-sub">A#{lead.research_account_id}</div>
                       ) : null}
                     </td>
                     <td>

@@ -79,6 +79,14 @@ export type RawLeadBattlecard = {
     key: string | null;
     mates: BattlecardCrossProjectMate[];
   };
+  research_account: {
+    id: number;
+    display_name: string;
+    lead_count: number;
+    project_count: number;
+    crm_lead_id: number | null;
+    best_priority_tier: string | null;
+  } | null;
   dial_outcome: string | null;
   feedback_code: string | null;
 };
@@ -203,6 +211,14 @@ export function buildRawLeadBattlecard(input: {
   lead: BattlecardLeadInput;
   clusterMates?: BattlecardClusterMate[];
   crossProjectMates?: BattlecardCrossProjectMate[];
+  researchAccount?: {
+    id: number;
+    display_name: string;
+    lead_count: number;
+    project_count: number;
+    crm_lead_id: number | null;
+    best_priority_tier?: string | null;
+  } | null;
   now?: Date;
 }): RawLeadBattlecard {
   const lead = input.lead;
@@ -211,6 +227,7 @@ export function buildRawLeadBattlecard(input: {
   const tier = nz(lead.priority_tier);
   const company = nz(lead.company_name) ?? `Lead #${lead.id}`;
   const headline = tier ? `${company} · ${tier}` : company;
+  const ra = input.researchAccount ?? null;
 
   return {
     version: 1,
@@ -251,6 +268,16 @@ export function buildRawLeadBattlecard(input: {
       key: nz(lead.global_account_key),
       mates: crossMates,
     },
+    research_account: ra
+      ? {
+          id: ra.id,
+          display_name: ra.display_name,
+          lead_count: ra.lead_count,
+          project_count: ra.project_count,
+          crm_lead_id: ra.crm_lead_id,
+          best_priority_tier: ra.best_priority_tier ?? null,
+        }
+      : null,
     dial_outcome: nz(lead.dial_outcome),
     feedback_code: nz(lead.feedback_code),
   };

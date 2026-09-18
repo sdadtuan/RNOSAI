@@ -105,6 +105,7 @@ export type RawLeadRow = {
   account_cluster_key: string | null;
   priority_tier: string | null;
   global_account_key: string | null;
+  research_account_id: number | null;
   learning_delta: number;
   learning_reasons: string[];
   learning_applied_at: string | null;
@@ -182,4 +183,25 @@ export type ApplyLearningBody = {
   lead_ids?: number[];
   job_id?: number;
   limit?: number;
+};
+
+export type MergeAccountsBody = {
+  lead_ids?: number[];
+  job_id?: number;
+  limit?: number;
+};
+
+export type ResearchAccountRow = {
+  id: number;
+  global_account_key: string;
+  display_name: string;
+  phone_norm: string | null;
+  domain: string | null;
+  place_id: string | null;
+  lead_count: number;
+  project_count: number;
+  best_priority_tier: string | null;
+  crm_lead_id: number | null;
+  created_at: string;
+  updated_at: string;
 };

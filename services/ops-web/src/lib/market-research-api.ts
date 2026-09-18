@@ -1853,6 +1853,7 @@ export type RawLead = {
   account_cluster_key?: string | null;
   priority_tier?: RawLeadPriorityTier | string | null;
   global_account_key?: string | null;
+  research_account_id?: number | null;
   learning_delta?: number | null;
   learning_reasons?: string[];
   learning_applied_at?: string | null;
@@ -2023,6 +2024,26 @@ export function applyRawLeadLearning(
   });
 }
 
+export function mergeRawLeadAccounts(
+  token: string,
+  projectId: number,
+  body?: {
+    lead_ids?: number[];
+    job_id?: number;
+    limit?: number;
+  },
+) {
+  return researchFetch<{
+    updated: number;
+    skipped: number;
+    scanned: number;
+    accounts: number;
+  }>(token, `/api/v1/research/projects/${projectId}/raw-leads/merge-accounts`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
 export function reclassifyRawLeadReadiness(
   token: string,
   projectId: number,
@@ -2129,6 +2150,14 @@ export type RawLeadBattlecard = {
       status?: string;
     }>;
   };
+  research_account?: {
+    id: number;
+    display_name: string;
+    lead_count: number;
+    project_count: number;
+    crm_lead_id: number | null;
+    best_priority_tier: string | null;
+  } | null;
   dial_outcome: string | null;
   feedback_code: string | null;
 };

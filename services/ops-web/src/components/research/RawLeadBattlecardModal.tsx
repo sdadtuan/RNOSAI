@@ -134,6 +134,26 @@ export function RawLeadBattlecardModal({
               </section>
             ) : null}
 
+            {card.research_account ? (
+              <section>
+                <h4>Account</h4>
+                <p style={{ margin: 0, fontSize: '0.875rem' }}>
+                  <strong>A#{card.research_account.id}</strong> ·{' '}
+                  {card.research_account.display_name}
+                </p>
+                <p className="muted rlh-bc-snippet">
+                  {card.research_account.lead_count} lead ·{' '}
+                  {card.research_account.project_count} project
+                  {card.research_account.best_priority_tier
+                    ? ` · ${card.research_account.best_priority_tier}`
+                    : ''}
+                  {card.research_account.crm_lead_id
+                    ? ` · CRM #${card.research_account.crm_lead_id}`
+                    : ''}
+                </p>
+              </section>
+            ) : null}
+
             {card.cluster.mates.length ? (
               <section>
                 <h4>Cùng cluster ({card.cluster.mates.length})</h4>

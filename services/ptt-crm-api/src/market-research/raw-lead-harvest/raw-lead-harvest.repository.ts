@@ -5,6 +5,7 @@ import type {
   RawLeadHarvestJobRow,
   RawLeadHarvestMode,
   RawLeadRow,
+  ResearchAccountRow,
 } from './raw-lead-harvest.types';
 import {
   offsetForPage,
@@ -199,6 +200,31 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         ADD COLUMN IF NOT EXISTS global_account_key TEXT
     `);
     await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS research_account_id BIGINT
+    `);
+    await this.db.query(`
+      CREATE TABLE IF NOT EXISTS crm_research_accounts (
+        id BIGSERIAL PRIMARY KEY,
+        global_account_key TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        phone_norm TEXT,
+        domain TEXT,
+        place_id TEXT,
+        lead_count INT NOT NULL DEFAULT 0,
+        project_count INT NOT NULL DEFAULT 0,
+        best_priority_tier TEXT,
+        crm_lead_id BIGINT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.db.query(`
+      CREATE INDEX IF NOT EXISTS idx_raw_leads_research_account
+        ON crm_research_raw_leads (research_account_id)
+        WHERE research_account_id IS NOT NULL
+    `);
+    await this.db.query(`
       CREATE INDEX IF NOT EXISTS idx_raw_leads_project_readiness
         ON crm_research_raw_leads (project_id, readiness_status)
     `);
@@ -345,6 +371,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       priority_tier: row.priority_tier == null ? null : String(row.priority_tier),
       global_account_key:
         row.global_account_key == null ? null : String(row.global_account_key),
+      research_account_id:
+        row.research_account_id == null ? null : Number(row.research_account_id),
       learning_delta: Number(row.learning_delta ?? 0) || 0,
       learning_reasons: Array.isArray(row.learning_reasons)
         ? row.learning_reasons.map(String)
@@ -1212,6 +1240,227 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         row.readiness_status == null ? null : String(row.readiness_status),
       phone: row.phone == null ? null : String(row.phone),
       status: String(row.status ?? ''),
+    }));
+  }
+
+  private mapResearchAccount(row: Record<string, unknown>): ResearchAccountRow {
+    return {
+      id: Number(row.id),
+      global_account_key: String(row.global_account_key ?? ''),
+      display_name: String(row.display_name ?? ''),
+      phone_norm: row.phone_norm == null ? null : String(row.phone_norm),
+      domain: row.domain == null ? null : String(row.domain),
+      place_id: row.place_id == null ? null : String(row.place_id),
+      lead_count: Number(row.lead_count ?? 0),
+      project_count: Number(row.project_count ?? 0),
+      best_priority_tier:
+        row.best_priority_tier == null ? null : String(row.best_priority_tier),
+      crm_lead_id: row.crm_lead_id == null ? null : Number(row.crm_lead_id),
+      created_at: iso(row.created_at) ?? '',
+      updated_at: iso(row.updated_at) ?? '',
+    };
+  }
+
+  async getResearchAccount(accountId: number): Promise<ResearchAccountRow | null> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT * FROM crm_research_accounts WHERE id = $1`,
+      [accountId],
+    );
+    return r.rows[0] ? this.mapResearchAccount(r.rows[0]) : null;
+  }
+
+  async getResearchAccountByKey(globalKey: string): Promise<ResearchAccountRow | null> {
+    await this.ensureSchema();
+    const key = String(globalKey ?? '').trim();
+    if (!key) return null;
+    const r = await this.db.query(
+      `SELECT * FROM crm_research_accounts WHERE global_account_key = $1`,
+      [key],
+    );
+    return r.rows[0] ? this.mapResearchAccount(r.rows[0]) : null;
+  }
+
+  async upsertResearchAccount(input: {
+    global_account_key: string;
+    display_name: string;
+    phone_norm?: string | null;
+    domain?: string | null;
+    place_id?: string | null;
+    best_priority_tier?: string | null;
+    crm_lead_id?: number | null;
+  }): Promise<ResearchAccountRow> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `INSERT INTO crm_research_accounts (
+         global_account_key, display_name, phone_norm, domain, place_id,
+         best_priority_tier, crm_lead_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (global_account_key) DO UPDATE SET
+         display_name = CASE
+           WHEN btrim(crm_research_accounts.display_name) = '' THEN EXCLUDED.display_name
+           ELSE crm_research_accounts.display_name
+         END,
+         phone_norm = COALESCE(crm_research_accounts.phone_norm, EXCLUDED.phone_norm),
+         domain = COALESCE(crm_research_accounts.domain, EXCLUDED.domain),
+         place_id = COALESCE(crm_research_accounts.place_id, EXCLUDED.place_id),
+         best_priority_tier = CASE
+           WHEN crm_research_accounts.best_priority_tier IS NULL THEN EXCLUDED.best_priority_tier
+           WHEN EXCLUDED.best_priority_tier IS NULL THEN crm_research_accounts.best_priority_tier
+           WHEN EXCLUDED.best_priority_tier = 'P1' THEN 'P1'
+           WHEN crm_research_accounts.best_priority_tier = 'P1' THEN 'P1'
+           WHEN EXCLUDED.best_priority_tier = 'P2' THEN 'P2'
+           WHEN crm_research_accounts.best_priority_tier = 'P2' THEN 'P2'
+           ELSE COALESCE(EXCLUDED.best_priority_tier, crm_research_accounts.best_priority_tier)
+         END,
+         crm_lead_id = COALESCE(crm_research_accounts.crm_lead_id, EXCLUDED.crm_lead_id),
+         updated_at = NOW()
+       RETURNING *`,
+      [
+        input.global_account_key,
+        input.display_name,
+        input.phone_norm ?? null,
+        input.domain ?? null,
+        input.place_id ?? null,
+        input.best_priority_tier ?? null,
+        input.crm_lead_id ?? null,
+      ],
+    );
+    return this.mapResearchAccount(r.rows[0]);
+  }
+
+  async linkLeadToResearchAccount(
+    projectId: number,
+    leadId: number,
+    accountId: number,
+    globalAccountKey: string,
+  ): Promise<void> {
+    await this.ensureSchema();
+    await this.db.query(
+      `UPDATE crm_research_raw_leads SET
+         research_account_id = $3,
+         global_account_key = COALESCE(NULLIF(btrim(global_account_key), ''), $4),
+         updated_at = NOW()
+       WHERE project_id = $1 AND id = $2`,
+      [projectId, leadId, accountId, globalAccountKey],
+    );
+  }
+
+  async refreshResearchAccountAggregates(accountId: number): Promise<ResearchAccountRow | null> {
+    await this.ensureSchema();
+    await this.db.query(
+      `UPDATE crm_research_accounts a SET
+         lead_count = sub.lead_count,
+         project_count = sub.project_count,
+         best_priority_tier = sub.best_tier,
+         crm_lead_id = COALESCE(a.crm_lead_id, sub.any_crm_lead_id),
+         updated_at = NOW()
+       FROM (
+         SELECT
+           COUNT(*)::int AS lead_count,
+           COUNT(DISTINCT project_id)::int AS project_count,
+           MIN(
+             CASE priority_tier
+               WHEN 'P1' THEN 1
+               WHEN 'P2' THEN 2
+               WHEN 'P3' THEN 3
+               ELSE 9
+             END
+           ) AS tier_rank,
+           CASE MIN(
+             CASE priority_tier
+               WHEN 'P1' THEN 1
+               WHEN 'P2' THEN 2
+               WHEN 'P3' THEN 3
+               ELSE 9
+             END
+           )
+             WHEN 1 THEN 'P1'
+             WHEN 2 THEN 'P2'
+             WHEN 3 THEN 'P3'
+             ELSE NULL
+           END AS best_tier,
+           MIN(crm_lead_id) FILTER (WHERE crm_lead_id IS NOT NULL) AS any_crm_lead_id
+         FROM crm_research_raw_leads
+         WHERE research_account_id = $1
+       ) sub
+       WHERE a.id = $1`,
+      [accountId],
+    );
+    return this.getResearchAccount(accountId);
+  }
+
+  async setResearchAccountCrmLead(
+    accountId: number,
+    crmLeadId: number,
+  ): Promise<void> {
+    await this.ensureSchema();
+    await this.db.query(
+      `UPDATE crm_research_accounts SET
+         crm_lead_id = COALESCE(crm_lead_id, $2),
+         updated_at = NOW()
+       WHERE id = $1`,
+      [accountId, crmLeadId],
+    );
+  }
+
+  async listLeadsForAccountMerge(
+    projectId: number,
+    opts: { job_id?: number; lead_ids?: number[]; limit?: number } = {},
+  ): Promise<RawLeadRow[]> {
+    await this.ensureSchema();
+    const clauses = ['project_id = $1', `status <> 'pushed'`];
+    const params: unknown[] = [projectId];
+    if (opts.job_id) {
+      params.push(opts.job_id);
+      clauses.push(`job_id = $${params.length}`);
+    }
+    if (opts.lead_ids?.length) {
+      params.push(opts.lead_ids);
+      clauses.push(`id = ANY($${params.length}::bigint[])`);
+    }
+    const limit = Math.min(2000, Math.max(1, Math.floor(Number(opts.limit) || 2000)));
+    params.push(limit);
+    const r = await this.db.query(
+      `SELECT * FROM crm_research_raw_leads
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY id ASC
+       LIMIT $${params.length}`,
+      params,
+    );
+    return r.rows.map((row) => this.mapLead(row));
+  }
+
+  async listLeadsByResearchAccount(
+    accountId: number,
+    limit = 20,
+  ): Promise<
+    Array<{
+      id: number;
+      project_id: number;
+      company_name: string;
+      priority_tier: string | null;
+      status: string;
+      crm_lead_id: number | null;
+    }>
+  > {
+    await this.ensureSchema();
+    const lim = Math.min(50, Math.max(1, Math.floor(Number(limit) || 20)));
+    const r = await this.db.query(
+      `SELECT id, project_id, company_name, priority_tier, status, crm_lead_id
+       FROM crm_research_raw_leads
+       WHERE research_account_id = $1
+       ORDER BY id DESC
+       LIMIT $2`,
+      [accountId, lim],
+    );
+    return r.rows.map((row) => ({
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      company_name: String(row.company_name ?? ''),
+      priority_tier: row.priority_tier == null ? null : String(row.priority_tier),
+      status: String(row.status ?? ''),
+      crm_lead_id: row.crm_lead_id == null ? null : Number(row.crm_lead_id),
     }));
   }
 
