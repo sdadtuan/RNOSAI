@@ -19,6 +19,7 @@ import { verifyCandidate } from '../quality/verify-contact.util';
 import { normalizePhoneDigits } from '../quality/literal-contact.util';
 import { PlacesClient } from '../places/places.client';
 import type { PlaceCandidate } from '../places/places.types';
+import { buildMarketGraphQueries } from '../market-graph/hcm-grid.util';
 import { RawLeadHarvestRepository } from '../raw-lead-harvest.repository';
 import type { RawLeadHarvestJobRow } from '../raw-lead-harvest.types';
 import { computeIntentScore } from './intent-score.util';
@@ -26,6 +27,8 @@ import { computeIntentScore } from './intent-score.util';
 export type IntentJobStats = {
   discovered: number;
   places_requests: number;
+  search_requests: number;
+  details_requests: number;
   filtered_crm: number;
   filtered_recent: number;
   filtered_blacklist: number;
@@ -36,9 +39,13 @@ export type IntentJobStats = {
 };
 
 const INTENT_THRESHOLD = 40;
-const MAX_PLACES_REQUESTS_DEFAULT = 20;
+/** Text Search pages / grid cells only — details use a separate budget. */
+const MAX_SEARCH_REQUESTS_DEFAULT = 60;
+/** Place Details enrichment cap (independent of search). */
+const MAX_DETAILS_REQUESTS_DEFAULT = 200;
 const DETAILS_PAGE_DELAY_MS = 250;
 const NEXT_PAGE_DELAY_MS = 2100;
+const QUERY_DELAY_MS = 400;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -85,15 +92,25 @@ export class IntentHarvestWorker {
   async run(
     job: RawLeadHarvestJobRow,
     places: PlacesClient,
-    opts?: { maxPlacesRequests?: number; intentThreshold?: number },
+    opts?: {
+      maxPlacesRequests?: number;
+      maxSearchRequests?: number;
+      maxDetailsRequests?: number;
+      intentThreshold?: number;
+    },
   ): Promise<{ inserted: number; rejected: number; stats: IntentJobStats }> {
     const scanCap = job.scan_cap ?? Math.max(job.target_count * 5, 200);
-    const maxRequests = opts?.maxPlacesRequests ?? MAX_PLACES_REQUESTS_DEFAULT;
+    // Legacy opt: maxPlacesRequests applied to search budget only (details are separate).
+    const maxSearchRequests =
+      opts?.maxSearchRequests ?? opts?.maxPlacesRequests ?? MAX_SEARCH_REQUESTS_DEFAULT;
+    const maxDetailsRequests = opts?.maxDetailsRequests ?? MAX_DETAILS_REQUESTS_DEFAULT;
     const threshold = opts?.intentThreshold ?? INTENT_THRESHOLD;
 
     const stats: IntentJobStats = {
       discovered: 0,
       places_requests: 0,
+      search_requests: 0,
+      details_requests: 0,
       filtered_crm: 0,
       filtered_recent: 0,
       filtered_blacklist: 0,
@@ -103,25 +120,38 @@ export class IntentHarvestWorker {
       rejected: 0,
     };
 
-    const queryParts = [job.industry_label, job.province_name];
-    if (job.ward_name) queryParts.push(job.ward_name);
-    const query = queryParts.filter(Boolean).join(' ').trim();
+    // HCM uses district grid (same as market_graph); other provinces = single query.
+    const queries = buildMarketGraphQueries({
+      industry_label: job.industry_label,
+      province_code: job.province_code,
+      province_name: job.province_name,
+      ward_name: job.ward_name,
+    });
 
-    const candidates: PlaceCandidate[] = [];
-    let pageToken: string | undefined;
-    while (candidates.length < scanCap && stats.places_requests < maxRequests) {
-      if (pageToken) await sleep(NEXT_PAGE_DELAY_MS);
-      const page = await places.textSearch(query, { pageToken });
-      stats.places_requests += 1;
-      for (const row of page.results) {
-        if (candidates.length >= scanCap) break;
-        candidates.push(row);
+    const byPlaceId = new Map<string, PlaceCandidate>();
+    for (const query of queries) {
+      if (byPlaceId.size >= scanCap || stats.search_requests >= maxSearchRequests) break;
+      let pageToken: string | undefined;
+      let firstPage = true;
+      while (byPlaceId.size < scanCap && stats.search_requests < maxSearchRequests) {
+        if (!firstPage && pageToken) await sleep(NEXT_PAGE_DELAY_MS);
+        else if (!firstPage) break;
+        if (firstPage && byPlaceId.size > 0) await sleep(QUERY_DELAY_MS);
+        firstPage = false;
+        const page = await places.textSearch(query, { pageToken });
+        stats.search_requests += 1;
+        stats.places_requests += 1;
+        for (const row of page.results) {
+          if (byPlaceId.size >= scanCap) break;
+          if (!byPlaceId.has(row.place_id)) byPlaceId.set(row.place_id, row);
+        }
+        stats.discovered = byPlaceId.size;
+        if (!page.nextPageToken) break;
+        pageToken = page.nextPageToken;
       }
-      stats.discovered = candidates.length;
-      if (!page.nextPageToken) break;
-      pageToken = page.nextPageToken;
     }
 
+    const candidates = [...byPlaceId.values()];
     const existingKeys = await this.repo.listDedupeKeys(job.project_id);
     const batchKeys: DedupeKey[] = [...existingKeys];
     const blacklist = await this.repo.listBlacklistEntries();
@@ -130,12 +160,13 @@ export class IntentHarvestWorker {
 
     for (const rough of candidates) {
       if (inserted >= job.target_count) break;
-      if (stats.places_requests >= maxRequests) break;
+      if (stats.details_requests >= maxDetailsRequests) break;
 
       let place = rough;
       try {
         await sleep(DETAILS_PAGE_DELAY_MS);
         const detailed = await places.placeDetails(rough.place_id);
+        stats.details_requests += 1;
         stats.places_requests += 1;
         if (detailed) place = detailed;
       } catch (err) {
@@ -295,7 +326,7 @@ export class IntentHarvestWorker {
         evidence_url: evidenceUrl,
         evidence_snippet: evidenceSnippet,
         source_provider: 'google_places',
-        source_model: 'places_legacy',
+        source_model: 'places_new',
         search_source_keys: job.sources_json.map((s) => s.key),
         search_channel_keys: job.channels_json.map((s) => s.key),
         discovered_via_source_key: 'google_maps',
