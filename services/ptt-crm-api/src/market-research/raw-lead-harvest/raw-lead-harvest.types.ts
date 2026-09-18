@@ -102,6 +102,8 @@ export type RawLeadRow = {
   classification: string | null;
   readiness_status: string | null;
   readiness_reason_codes: string[];
+  account_cluster_key: string | null;
+  priority_tier: string | null;
   crm_lead_id: number | null;
   verify_json: Record<string, unknown>;
   created_at: string;
@@ -164,4 +166,10 @@ export type EnrichRawLeadsContactsBody = {
 export type BulkAcceptRawLeadsBody = {
   lead_ids: number[];
   accepted_checklist_json?: Record<string, unknown>;
+};
+
+export type RecomputePriorityBody = {
+  lead_ids?: number[];
+  job_id?: number;
+  limit?: number;
 };

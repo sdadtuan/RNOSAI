@@ -175,8 +175,24 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         ADD COLUMN IF NOT EXISTS readiness_reason_codes JSONB NOT NULL DEFAULT '[]'::jsonb
     `);
     await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS account_cluster_key TEXT
+    `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS priority_tier TEXT
+    `);
+    await this.db.query(`
       CREATE INDEX IF NOT EXISTS idx_raw_leads_project_readiness
         ON crm_research_raw_leads (project_id, readiness_status)
+    `);
+    await this.db.query(`
+      CREATE INDEX IF NOT EXISTS idx_raw_leads_project_cluster
+        ON crm_research_raw_leads (project_id, account_cluster_key)
+    `);
+    await this.db.query(`
+      CREATE INDEX IF NOT EXISTS idx_raw_leads_project_priority
+        ON crm_research_raw_leads (project_id, priority_tier)
     `);
     await this.db.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_leads_project_place
@@ -303,6 +319,9 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
               }
             })()
           : [],
+      account_cluster_key:
+        row.account_cluster_key == null ? null : String(row.account_cluster_key),
+      priority_tier: row.priority_tier == null ? null : String(row.priority_tier),
       crm_lead_id: row.crm_lead_id == null ? null : Number(row.crm_lead_id),
       verify_json: verify as Record<string, unknown>,
       created_at: iso(row.created_at) ?? '',
@@ -707,6 +726,70 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     return r.rows[0] ? this.mapLead(r.rows[0]) : null;
   }
 
+  async updateLeadPriorityCluster(
+    projectId: number,
+    leadId: number,
+    input: { account_cluster_key: string; priority_tier: string },
+  ): Promise<RawLeadRow | null> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `UPDATE crm_research_raw_leads SET
+         account_cluster_key = $3,
+         priority_tier = $4,
+         updated_at = NOW()
+       WHERE project_id = $1 AND id = $2
+       RETURNING *`,
+      [projectId, leadId, input.account_cluster_key, input.priority_tier],
+    );
+    return r.rows[0] ? this.mapLead(r.rows[0]) : null;
+  }
+
+  async listLeadsForPriorityRecompute(
+    projectId: number,
+    opts: { job_id?: number; lead_ids?: number[]; limit?: number } = {},
+  ): Promise<RawLeadRow[]> {
+    await this.ensureSchema();
+    const clauses = ['project_id = $1', `status <> 'pushed'`];
+    const params: unknown[] = [projectId];
+    if (opts.job_id) {
+      params.push(opts.job_id);
+      clauses.push(`job_id = $${params.length}`);
+    }
+    if (opts.lead_ids?.length) {
+      params.push(opts.lead_ids);
+      clauses.push(`id = ANY($${params.length}::bigint[])`);
+    }
+    const limit = Math.min(2000, Math.max(1, Math.floor(Number(opts.limit) || 2000)));
+    params.push(limit);
+    const r = await this.db.query(
+      `SELECT * FROM crm_research_raw_leads
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY id ASC
+       LIMIT $${params.length}`,
+      params,
+    );
+    return r.rows.map((row) => this.mapLead(row));
+  }
+
+  async countByPriority(projectId: number): Promise<Record<string, number>> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT COALESCE(priority_tier, 'UNSET') AS priority_tier, COUNT(*)::int AS n
+       FROM crm_research_raw_leads
+       WHERE project_id = $1
+       GROUP BY 1`,
+      [projectId],
+    );
+    const out: Record<string, number> = { P1: 0, P2: 0, P3: 0, UNSET: 0, ALL: 0 };
+    for (const row of r.rows) {
+      const key = String(row.priority_tier ?? 'UNSET');
+      const n = Number(row.n ?? 0);
+      out[key] = (out[key] ?? 0) + n;
+      out.ALL += n;
+    }
+    return out;
+  }
+
   async countByReadiness(
     projectId: number,
   ): Promise<Record<string, number>> {
@@ -848,6 +931,11 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     if (opts.readiness_status) {
       params.push(opts.readiness_status);
       clauses.push(`readiness_status = $${params.length}`);
+    }
+
+    if (opts.priority_tier) {
+      params.push(opts.priority_tier);
+      clauses.push(`priority_tier = $${params.length}`);
     }
 
     if (opts.q) {

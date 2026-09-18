@@ -1818,6 +1818,8 @@ export type RawLeadReadinessStatus =
   | 'MISSING_CONTACT'
   | 'DUPLICATE_OR_BLACKLIST';
 
+export type RawLeadPriorityTier = 'P1' | 'P2' | 'P3';
+
 export type RawLead = {
   id: number;
   project_id: number;
@@ -1848,6 +1850,8 @@ export type RawLead = {
   classification?: string | null;
   readiness_status?: string | null;
   readiness_reason_codes?: string[];
+  account_cluster_key?: string | null;
+  priority_tier?: RawLeadPriorityTier | string | null;
   crm_lead_id?: number | null;
   verify_json: Record<string, unknown>;
   created_at: string;
@@ -1927,6 +1931,7 @@ export function listRawLeads(
   params?: {
     status?: string;
     readiness_status?: RawLeadReadinessStatus | string;
+    priority_tier?: RawLeadPriorityTier | string;
     job_id?: number;
     include_auto_rejected?: boolean;
     page?: number;
@@ -1939,6 +1944,7 @@ export function listRawLeads(
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
   if (params?.readiness_status) qs.set('readiness_status', params.readiness_status);
+  if (params?.priority_tier) qs.set('priority_tier', params.priority_tier);
   if (params?.job_id) qs.set('job_id', String(params.job_id));
   if (params?.include_auto_rejected) qs.set('include_auto_rejected', '1');
   if (params?.page) qs.set('page', String(params.page));
@@ -1961,6 +1967,35 @@ export function fetchRawLeadReadinessCounts(token: string, projectId: number) {
     token,
     `/api/v1/research/projects/${projectId}/raw-leads/readiness-counts`,
   );
+}
+
+export function fetchRawLeadPriorityCounts(token: string, projectId: number) {
+  return researchFetch<{ counts: Record<string, number> }>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-leads/priority-counts`,
+  );
+}
+
+export function recomputeRawLeadPriority(
+  token: string,
+  projectId: number,
+  body?: {
+    lead_ids?: number[];
+    job_id?: number;
+    limit?: number;
+  },
+) {
+  return researchFetch<{
+    updated: number;
+    scanned: number;
+    counts: Record<string, number>;
+    clusters: number;
+    multi_member_clusters: number;
+    priority_counts: Record<string, number>;
+  }>(token, `/api/v1/research/projects/${projectId}/raw-leads/recompute-priority`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
 }
 
 export function reclassifyRawLeadReadiness(

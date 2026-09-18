@@ -3,6 +3,7 @@ export type RawLeadListQuery = {
   page_size: number;
   status?: string[];
   readiness_status?: string;
+  priority_tier?: string;
   job_id?: number;
   q?: string;
   has_phone?: boolean;
@@ -61,11 +62,17 @@ export function parseRawLeadListQuery(
   const readiness_status =
     readinessRaw && readinessAllowed.has(readinessRaw) ? readinessRaw : undefined;
 
+  const priorityRaw = String(input.priority_tier ?? '').trim().toUpperCase();
+  const priorityAllowed = new Set(['P1', 'P2', 'P3']);
+  const priority_tier =
+    priorityRaw && priorityAllowed.has(priorityRaw) ? priorityRaw : undefined;
+
   return {
     page,
     page_size: pageSize,
     status: status?.length ? status : undefined,
     readiness_status,
+    priority_tier,
     job_id,
     q,
     has_phone: truthyFlag(input.has_phone) ? true : undefined,

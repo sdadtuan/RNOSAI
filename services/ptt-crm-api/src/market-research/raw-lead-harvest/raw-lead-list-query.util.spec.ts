@@ -45,4 +45,10 @@ describe('raw-lead-list-query.util', () => {
     ).toBe('NEEDS_REVIEW');
     expect(parseRawLeadListQuery({ readiness_status: 'bogus' }).readiness_status).toBeUndefined();
   });
+
+  it('parses priority_tier filter', () => {
+    expect(parseRawLeadListQuery({ priority_tier: 'p1' }).priority_tier).toBe('P1');
+    expect(parseRawLeadListQuery({ priority_tier: 'P3' }).priority_tier).toBe('P3');
+    expect(parseRawLeadListQuery({ priority_tier: 'P9' }).priority_tier).toBeUndefined();
+  });
 });

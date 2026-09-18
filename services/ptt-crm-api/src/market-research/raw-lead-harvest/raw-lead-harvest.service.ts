@@ -31,6 +31,10 @@ import {
   isRawLeadReadinessStatus,
 } from './readiness-patch.util';
 import { RawLeadHarvestRepository } from './raw-lead-harvest.repository';
+import {
+  buildAccountClusterKey,
+  computePriorityTier,
+} from './quality/priority-cluster.util';
 import type {
   BulkAcceptRawLeadsBody,
   CreateRawLeadHarvestBody,
@@ -39,6 +43,7 @@ import type {
   PatchRawLeadBody,
   PushRawLeadsBody,
   ReclassifyRawLeadsBody,
+  RecomputePriorityBody,
   RawLeadRow,
 } from './raw-lead-harvest.types';
 import {
@@ -294,6 +299,66 @@ export class RawLeadHarvestService {
   async readinessCounts(projectId: number) {
     this.assertEnabled();
     return { counts: await this.repo.countByReadiness(projectId) };
+  }
+
+  async priorityCounts(projectId: number) {
+    this.assertEnabled();
+    return { counts: await this.repo.countByPriority(projectId) };
+  }
+
+  async recomputePriority(projectId: number, body: RecomputePriorityBody = {}) {
+    this.assertEnabled();
+    const leadIds = Array.isArray(body.lead_ids)
+      ? body.lead_ids.map(Number).filter(Number.isFinite)
+      : undefined;
+    const jobId =
+      body.job_id != null && Number.isFinite(Number(body.job_id))
+        ? Math.floor(Number(body.job_id))
+        : undefined;
+    const leads = await this.repo.listLeadsForPriorityRecompute(projectId, {
+      job_id: jobId,
+      lead_ids: leadIds?.length ? leadIds : undefined,
+      limit: body.limit,
+    });
+
+    let updated = 0;
+    const counts: Record<string, number> = { P1: 0, P2: 0, P3: 0 };
+    const clusterSizes = new Map<string, number>();
+
+    for (const lead of leads) {
+      const account_cluster_key = buildAccountClusterKey(lead);
+      const priority_tier = computePriorityTier({
+        readiness_status: lead.readiness_status,
+        quality_score: lead.quality_score,
+        contactable: lead.contactable,
+        phone_norm: lead.phone_norm,
+        phone: lead.phone,
+      });
+      await this.repo.updateLeadPriorityCluster(projectId, lead.id, {
+        account_cluster_key,
+        priority_tier,
+      });
+      updated += 1;
+      counts[priority_tier] = (counts[priority_tier] ?? 0) + 1;
+      clusterSizes.set(
+        account_cluster_key,
+        (clusterSizes.get(account_cluster_key) ?? 0) + 1,
+      );
+    }
+
+    let multi_member_clusters = 0;
+    for (const n of clusterSizes.values()) {
+      if (n > 1) multi_member_clusters += 1;
+    }
+
+    return {
+      updated,
+      scanned: leads.length,
+      counts,
+      clusters: clusterSizes.size,
+      multi_member_clusters,
+      priority_counts: await this.repo.countByPriority(projectId),
+    };
   }
 
   async reclassifyReadiness(projectId: number, body: ReclassifyRawLeadsBody = {}) {

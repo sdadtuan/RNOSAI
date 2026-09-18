@@ -8,6 +8,7 @@ import {
   exportRawLeads,
   fetchMarketEntitiesSummary,
   fetchRawLeadHarvestProviders,
+  fetchRawLeadPriorityCounts,
   fetchRawLeadReadinessCounts,
   getRawLeadHarvest,
   listRawLeadHarvests,
@@ -15,12 +16,14 @@ import {
   patchRawLead,
   pushRawLeadsToCrm,
   reclassifyRawLeadReadiness,
+  recomputeRawLeadPriority,
   enrichRawLeadContacts,
   bulkAcceptRawLeads,
   type HarvestProviderOption,
   type MarketEntitiesSummary,
   type RawLead,
   type RawLeadHarvestJob,
+  type RawLeadPriorityTier,
   type RawLeadReadinessStatus,
 } from '@/lib/market-research-api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
@@ -38,6 +41,16 @@ const READINESS_TABS: Array<{
   { key: 'NEEDS_REVIEW', label: 'Cần review' },
   { key: 'MISSING_CONTACT', label: 'Thiếu contact' },
   { key: 'DUPLICATE_OR_BLACKLIST', label: 'Trùng / blacklist' },
+];
+
+const PRIORITY_TABS: Array<{
+  key: '' | RawLeadPriorityTier;
+  label: string;
+}> = [
+  { key: '', label: 'Ưu tiên: Tất cả' },
+  { key: 'P1', label: 'P1' },
+  { key: 'P2', label: 'P2' },
+  { key: 'P3', label: 'P3' },
 ];
 
 const FEEDBACK_OPTS = [
@@ -144,6 +157,26 @@ function readinessLabel(code: string | null | undefined): string {
     default:
       return code?.trim() ? code : '—';
   }
+}
+
+function priorityBadgeClass(tier: string | null | undefined): string {
+  switch (String(tier ?? '').toUpperCase()) {
+    case 'P1':
+      return 'rlh-priority rlh-priority--p1';
+    case 'P2':
+      return 'rlh-priority rlh-priority--p2';
+    case 'P3':
+      return 'rlh-priority rlh-priority--p3';
+    default:
+      return 'rlh-priority rlh-priority--unset';
+  }
+}
+
+function shortClusterKey(key: string | null | undefined): string {
+  const raw = String(key ?? '').trim();
+  if (!raw) return '';
+  if (raw.length <= 22) return raw;
+  return `${raw.slice(0, 10)}…${raw.slice(-8)}`;
 }
 
 function formatJobDoneMessage(job: RawLeadHarvestJob): string {
@@ -281,6 +314,13 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     MISSING_CONTACT: 0,
     DUPLICATE_OR_BLACKLIST: 0,
   });
+  const [priorityFilter, setPriorityFilter] = useState<'' | RawLeadPriorityTier>('');
+  const [priorityCounts, setPriorityCounts] = useState<Record<string, number>>({
+    ALL: 0,
+    P1: 0,
+    P2: 0,
+    P3: 0,
+  });
   const [statusFilter, setStatusFilter] = useState('');
   const [jobFilter, setJobFilter] = useState<number | ''>('');
   const [qFilter, setQFilter] = useState('');
@@ -343,32 +383,37 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   }, [token]);
 
   const reloadJobsAndLeads = useCallback(async () => {
-    const [j, l, countsOut] = await Promise.all([
+    const [j, l, countsOut, priorityOut] = await Promise.all([
       listRawLeadHarvests(token, projectId),
       listRawLeads(token, projectId, {
         page: leadsPage,
         page_size: 50,
         status: statusFilter || undefined,
         readiness_status: readinessFilter || undefined,
+        priority_tier: priorityFilter || undefined,
         job_id: jobFilter === '' ? undefined : Number(jobFilter),
         q: qFilter || undefined,
         has_phone: hasPhoneOnly || undefined,
         has_contact: hasContactOnly || undefined,
-        include_auto_rejected: !statusFilter || Boolean(readinessFilter),
+        include_auto_rejected:
+          !statusFilter || Boolean(readinessFilter) || Boolean(priorityFilter),
       }),
       fetchRawLeadReadinessCounts(token, projectId).catch(() => ({ counts: {} })),
+      fetchRawLeadPriorityCounts(token, projectId).catch(() => ({ counts: {} })),
     ]);
     setJobs(j.jobs);
     setLeads(l.leads);
     setLeadsTotal(l.total);
     setLeadsTotalPages(l.total_pages);
     setReadinessCounts((prev) => ({ ...prev, ...(countsOut.counts ?? {}) }));
+    setPriorityCounts((prev) => ({ ...prev, ...(priorityOut.counts ?? {}) }));
   }, [
     token,
     projectId,
     leadsPage,
     statusFilter,
     readinessFilter,
+    priorityFilter,
     jobFilter,
     qFilter,
     hasPhoneOnly,
@@ -1054,6 +1099,48 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 {selectedIds.length ? ` (${selectedIds.length})` : ''}
               </button>
             ) : null}
+            {canRun ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                title={
+                  selectedIds.length
+                    ? 'Tính cluster + P1/P2/P3 cho lead đang chọn'
+                    : 'Tính cluster + ưu tiên P1/P2/P3 cho lead trong project'
+                }
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true);
+                    setError('');
+                    try {
+                      const out = await recomputeRawLeadPriority(token, projectId, {
+                        lead_ids: selectedIds.length ? selectedIds : undefined,
+                        job_id: jobFilter === '' ? undefined : Number(jobFilter),
+                      });
+                      setMsg(
+                        `Tính ưu tiên: ${out.updated} lead` +
+                          ` · P1 ${out.counts.P1 ?? 0}` +
+                          ` · P2 ${out.counts.P2 ?? 0}` +
+                          ` · P3 ${out.counts.P3 ?? 0}`,
+                      );
+                      if (out.priority_counts) {
+                        setPriorityCounts((prev) => ({ ...prev, ...out.priority_counts }));
+                      }
+                      setSelectedIds([]);
+                      await reloadJobsAndLeads();
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Tính ưu tiên thất bại');
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
+                }}
+              >
+                Tính ưu tiên
+                {selectedIds.length ? ` (${selectedIds.length})` : ''}
+              </button>
+            ) : null}
             {canExport ? (
               <button
                 type="button"
@@ -1207,6 +1294,31 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
           })}
         </div>
 
+        <div className="rlh-tabs rlh-tabs--priority" role="tablist" aria-label="Ưu tiên">
+          {PRIORITY_TABS.map((tab) => {
+            const countKey = tab.key || 'ALL';
+            const count = Number(priorityCounts[countKey] ?? 0);
+            const active = priorityFilter === tab.key;
+            return (
+              <button
+                key={tab.key || 'ALL'}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`rlh-tab${active ? ' is-active' : ''}`}
+                onClick={() => {
+                  setPriorityFilter(tab.key);
+                  setLeadsPage(1);
+                  setSelectedIds([]);
+                }}
+              >
+                {tab.label}
+                <span className="rlh-tab__count">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="form-grid form-grid--2 rlh-lead-filters" style={{ marginBottom: '0.75rem' }}>
           <label className="form-field">
             <span className="form-label">Status</span>
@@ -1311,6 +1423,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   </th>
                   <th>Score</th>
                   <th>ICP</th>
+                  <th>Ưu tiên</th>
                   <th>Công ty</th>
                   <th>SĐT</th>
                   <th>Email</th>
@@ -1348,6 +1461,19 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                       </span>
                     </td>
                     <td className="muted">{Math.round(lead.icp_fit_score)}</td>
+                    <td>
+                      <span className={priorityBadgeClass(lead.priority_tier)}>
+                        {lead.priority_tier?.trim() ? String(lead.priority_tier) : '—'}
+                      </span>
+                      {lead.account_cluster_key ? (
+                        <div
+                          className="muted rlh-sub"
+                          title={lead.account_cluster_key}
+                        >
+                          {shortClusterKey(lead.account_cluster_key)}
+                        </div>
+                      ) : null}
+                    </td>
                     <td>
                       {lead.evidence_url ? (
                         <a href={lead.evidence_url} target="_blank" rel="noreferrer">

@@ -23939,6 +23939,42 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   background: rgba(17, 94, 89, 0.12);
 }
 
+.rlh-tabs--priority {
+  margin-top: -0.35rem;
+}
+
+.rlh-priority {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.rlh-priority--p1 {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.rlh-priority--p2 {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.rlh-priority--p3 {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.rlh-priority--unset {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
 .rlh-panel {
   display: flex;
   flex-direction: column;
