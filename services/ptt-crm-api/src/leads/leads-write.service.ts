@@ -34,6 +34,8 @@ import {
 } from './lead-status-gate.service';
 import { LeadStatusGateError } from './lead-status-gate.util';
 import { LeadsRepository } from './leads.repository';
+import { CrmLeadsPgRepository } from '../crm-leads-legacy/crm-leads-pg.repository';
+import { catalogTs } from '../catalog/catalog-slug.util';
 
 @Injectable()
 export class LeadsWriteService {
@@ -52,6 +54,7 @@ export class LeadsWriteService {
     private readonly b2bRoutingAb: B2bRoutingAbService,
     private readonly b2bAdsCapi: B2bAdsCapiService,
     private readonly leadsRepo: LeadsRepository,
+    private readonly assignmentLog: CrmLeadsPgRepository,
   ) {}
 
   async createLead(body: CreateLeadV1Body): Promise<LeadV1> {
@@ -109,6 +112,18 @@ export class LeadsWriteService {
       );
       await this.timeline.recordLeadCreatedFromV1(lead);
       if (lead.owner_id != null && !enriched.is_duplicate) {
+        const reason =
+          String(enriched.meta?.assign_reason ?? '').trim() ||
+          String(enriched.meta?.assign_strategy ?? '').trim() ||
+          'auto_assign';
+        await this.assignmentLog.logAssignment(
+          lead.id,
+          null,
+          Number(lead.owner_id),
+          reason.slice(0, 500),
+          'auto_assign',
+          catalogTs(),
+        );
         await this.events.emit('LeadAssigned', 'lead', String(lead.id), {
           lead_id: lead.id,
           owner_id: lead.owner_id,
@@ -219,6 +234,20 @@ export class LeadsWriteService {
         throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
       }
       if ((result.assigned || b2bManual) && body.owner_id != null) {
+        const assignActor = body.assigned_by?.trim() || actor || 'system';
+        const assignReason =
+          body.assign_reason?.trim() ||
+          body.audit_note?.trim() ||
+          (b2bManual ? 'manual_reassign' : 'Cập nhật owner') ||
+          assignActor;
+        await this.assignmentLog.logAssignment(
+          leadId,
+          existing.owner_id != null ? Number(existing.owner_id) : null,
+          Number(body.owner_id),
+          String(assignReason).slice(0, 500),
+          String(assignActor).slice(0, 120),
+          catalogTs(),
+        );
         await this.events.emit('LeadAssigned', 'lead', String(leadId), {
           lead_id: leadId,
           owner_id: body.owner_id,
@@ -292,7 +321,7 @@ export class LeadsWriteService {
       try {
         await this.patchLead(
           leadId,
-          { owner_id: ownerId, assigned_by: actor ?? 'bulk' },
+          { owner_id: ownerId, assigned_by: actor ?? 'bulk', assign_reason: reason },
           actor,
         );
         assignedIds.push(leadId);

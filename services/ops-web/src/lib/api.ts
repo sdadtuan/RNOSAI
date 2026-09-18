@@ -1377,7 +1377,7 @@ export interface LeadActivityRow {
 }
 
 export interface LeadStatusLogRow {
-  id: number;
+  id: string | number;
   lead_id: number;
   old_status: string;
   new_status: string;
@@ -1387,7 +1387,7 @@ export interface LeadStatusLogRow {
 }
 
 export interface LeadAssignmentLogRow {
-  id: number;
+  id: string | number;
   lead_id: number;
   from_user_id: number | null;
   from_name: string;

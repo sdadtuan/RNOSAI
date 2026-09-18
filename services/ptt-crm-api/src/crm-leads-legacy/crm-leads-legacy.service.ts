@@ -88,15 +88,13 @@ export class CrmLeadsLegacyService {
     }
     await this.assertLead(leadId);
 
-    const fromId = await this.pg.getLeadOwnerId(leadId);
-    const ts = catalogTs();
     const lead = await this.leadsWrite.patchLead(
       leadId,
-      { owner_id: toId, assigned_by: actor },
+      { owner_id: toId, assigned_by: actor, assign_reason: reason },
       actor,
     );
 
-    await this.pg.logAssignment(leadId, fromId, toId, reason, actor, ts);
+    // Assignment audit is written inside LeadsWriteService.patchLead
     const assignActivity = await this.pg.createActivity(
       leadId,
       { activity_type: 'system', content: `Phân lại lead: ${reason}` },

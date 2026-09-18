@@ -134,7 +134,16 @@ export class B2bSlaRepository implements OnModuleDestroy {
          AND l.owner_id IS NOT NULL
          AND COALESCE(l.meta_json->>'lead_flow_kind', '') IN ('b2b_prospect', 'b2b')
          AND COALESCE(l.meta_json->>'b2b_gdkd_queue', 'false') <> 'true'
-         AND lower(COALESCE(l.status, '')) NOT IN ('lost', 'chot')`,
+         AND lower(COALESCE(l.status, '')) NOT IN ('lost', 'chot')
+         -- Đã qua B2 (first_contact done hoặc Liên hệ OK) → không SLA hop sang AM khác
+         AND COALESCE(l.care_stages_done_json->>'first_contact', '') = ''
+         AND NOT EXISTS (
+           SELECT 1 FROM crm_lead_activities a
+           WHERE a.lead_id = l.sqlite_lead_id
+             AND a.care_stage_key = 'first_contact'
+             AND a.activity_type <> 'system'
+             AND trim(COALESCE(a.care_status, '')) = 'da_lien_he_thanh_cong'
+         )`,
     );
     return result.rows.map((row) => ({
       leadId: Number(row.lead_id),

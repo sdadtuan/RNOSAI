@@ -51,7 +51,7 @@ export function LeadAuditPanel({ audit }: { audit: LeadAuditBundle | null }) {
                 <li key={l.id} className="lead-audit-list__item">
                   <time className="lead-audit-list__time">{l.created_at?.slice(0, 16)}</time>
                   <span className="lead-audit-list__change">
-                    {l.from_name} → {l.to_name}
+                    {l.from_name || '—'} → {l.to_name || '—'}
                   </span>
                   {l.reason ? <span className="lead-audit-list__note">{l.reason}</span> : null}
                 </li>

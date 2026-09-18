@@ -56,7 +56,13 @@ describe('B2bSlaTickService', () => {
       hasHumanDial: async () => false,
       hasAiCall: async () => false,
     };
-    const tick = new B2bSlaTickService(repo as never, { b2bProjectOs: true } as never, calls as never);
+    const dnc = { isBlocked: async () => false };
+    const tick = new B2bSlaTickService(
+      repo as never,
+      { b2bProjectOs: true } as never,
+      calls as never,
+      dnc as never,
+    );
     await tick.tick(new Date());
     expect(repo.applyHop).toHaveBeenCalledWith(
       expect.objectContaining({ leadId: 1, toOwnerId: 11, hopKind: 'sla_reassign' }),
@@ -66,7 +72,13 @@ describe('B2bSlaTickService', () => {
   it('skips when flag off', async () => {
     const repo = { listOpenB2bLeads: jest.fn() };
     const calls = { startAiCall: jest.fn(), hasHumanDial: jest.fn(), hasAiCall: jest.fn() };
-    const tick = new B2bSlaTickService(repo as never, { b2bProjectOs: false } as never, calls as never);
+    const dnc = { isBlocked: async () => false };
+    const tick = new B2bSlaTickService(
+      repo as never,
+      { b2bProjectOs: false } as never,
+      calls as never,
+      dnc as never,
+    );
     const out = await tick.tick(new Date());
     expect(out.processed).toBe(0);
     expect(repo.listOpenB2bLeads).not.toHaveBeenCalled();
@@ -97,7 +109,13 @@ describe('B2bSlaTickService', () => {
       hasHumanDial: async () => false,
       hasAiCall: async () => false,
     };
-    const tick = new B2bSlaTickService(repo as never, { b2bProjectOs: true } as never, calls as never);
+    const dnc = { isBlocked: async () => false };
+    const tick = new B2bSlaTickService(
+      repo as never,
+      { b2bProjectOs: true } as never,
+      calls as never,
+      dnc as never,
+    );
     await tick.tick(new Date());
     expect(calls.startAiCall).toHaveBeenCalledWith(
       expect.objectContaining({ leadId: 1, phone: '0901234567' }),
@@ -130,7 +148,13 @@ describe('B2bSlaTickService', () => {
       hasHumanDial: async () => false,
       hasAiCall: async () => false,
     };
-    const tick = new B2bSlaTickService(repo as never, { b2bProjectOs: true } as never, calls as never);
+    const dnc = { isBlocked: async () => false };
+    const tick = new B2bSlaTickService(
+      repo as never,
+      { b2bProjectOs: true } as never,
+      calls as never,
+      dnc as never,
+    );
     await tick.tick(new Date());
     expect(calls.startAiCall).not.toHaveBeenCalled();
   });

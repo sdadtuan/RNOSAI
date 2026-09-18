@@ -12,7 +12,11 @@ describe('RevopsSlaService.tick', () => {
           if (/INSERT INTO crm_revops_sla_policies/i.test(sql)) {
             return { rows: [{ id: 'p-new', duration_minutes: 60, warning_minutes: 36 }], rowCount: 1 };
           }
-          if (/FROM crm_leads l/i.test(sql) || /crm_am_handovers/i.test(sql) || /crm_am_renewal_cases/i.test(sql)) {
+          if (
+            (/FROM crm_leads l/i.test(sql) && !/crm_revops_sla_incidents/i.test(sql)) ||
+            /crm_am_handovers/i.test(sql) ||
+            /crm_am_renewal_cases/i.test(sql)
+          ) {
             return { rows: [], rowCount: 0 };
           }
           if (/SET status = 'warning'/i.test(sql)) {

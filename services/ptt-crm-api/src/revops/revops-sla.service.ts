@@ -486,7 +486,21 @@ export class RevopsSlaService {
           AND i.entity_type = 'lead_first_response'
           AND i.breached_at IS NOT NULL
           AND i.breached_at <= $2::timestamptz - interval '10 minutes'
-          AND (i.owner_id IS NULL OR i.owner_id <> $3)`,
+          AND (i.owner_id IS NULL OR i.owner_id <> $3)
+          AND NOT EXISTS (
+            SELECT 1 FROM crm_leads l
+            WHERE l.sqlite_lead_id = i.entity_id::bigint
+              AND (
+                COALESCE(l.care_stages_done_json->>'first_contact', '') <> ''
+                OR EXISTS (
+                  SELECT 1 FROM crm_lead_activities a
+                  WHERE a.lead_id = l.sqlite_lead_id
+                    AND a.care_stage_key = 'first_contact'
+                    AND a.activity_type <> 'system'
+                    AND trim(COALESCE(a.care_status, '')) = 'da_lien_he_thanh_cong'
+                )
+              )
+          )`,
       [REVOPS_TENANT_ID, at, fallbackId],
     );
 

@@ -530,6 +530,8 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     for (const row of rows) {
       const gate = presalesCareGateState(row.care_stage_current, row.care_stages_done_json);
       if (gate.complete) continue;
+      // Parity Python sync_b2_review_queue: đã có 「Liên hệ OK」 thì không thu hồi / đổi AM
+      if (await this.hasB2ContactOkReport(row.id)) continue;
       const assignedAt = row.first_assigned_at || row.updated_at || '';
       const assignedDt = new Date(String(assignedAt).slice(0, 19).replace(' ', 'T') + 'Z');
       if (Number.isNaN(assignedDt.getTime())) continue;

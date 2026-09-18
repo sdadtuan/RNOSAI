@@ -209,8 +209,49 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
     );
   }
 
-  async listStatusLogs(_leadId: number, _limit = 100): Promise<LeadStatusLogRow[]> {
-    return [];
+  async listStatusLogs(leadId: number, limit = 100): Promise<LeadStatusLogRow[]> {
+    const lim = Math.max(1, Math.min(limit, 200));
+    try {
+      const result = await this.db.query(
+        `SELECT id::text AS id,
+                COALESCE(payload->>'from_status', '') AS old_status,
+                COALESCE(payload->>'to_status', title) AS new_status,
+                COALESCE(actor_id, '') AS changed_by,
+                COALESCE(body, '') AS note,
+                COALESCE(occurred_at, created_at)::text AS created_at
+         FROM customer_timeline_events
+         WHERE entity_type = 'lead'
+           AND entity_id = $1
+           AND event_type = 'lead.status_changed'
+         ORDER BY occurred_at DESC NULLS LAST, created_at DESC
+         LIMIT $2`,
+        [String(leadId), lim],
+      );
+      return (result.rows as Array<Record<string, unknown>>).map((row) => {
+        const newStatus = String(row.new_status ?? '');
+        // title fallback shape: "Trạng thái: x → y"
+        let oldStatus = String(row.old_status ?? '');
+        let parsedNew = newStatus;
+        if (!oldStatus && newStatus.includes('→')) {
+          const parts = newStatus.split('→').map((s) => s.replace(/^Trạng thái:\s*/i, '').trim());
+          if (parts.length >= 2) {
+            oldStatus = parts[0] ?? '';
+            parsedNew = parts[1] ?? newStatus;
+          }
+        }
+        return {
+          id: String(row.id ?? ''),
+          lead_id: leadId,
+          old_status: oldStatus || '—',
+          new_status: parsedNew || '—',
+          changed_by: String(row.changed_by ?? ''),
+          note: String(row.note ?? ''),
+          created_at: String(row.created_at ?? ''),
+        };
+      });
+    } catch {
+      return [];
+    }
   }
 
   async firstCallAtByLeadIds(leadIds: number[]): Promise<Map<number, string>> {
@@ -280,7 +321,7 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
       const fromId = row.from_owner_id != null ? Number(row.from_owner_id) : null;
       const toId = row.to_owner_id != null ? Number(row.to_owner_id) : null;
       out.push({
-        id: Number(row.id),
+        id: String(row.id ?? ''),
         lead_id: Number(row.sqlite_lead_id),
         from_user_id: fromId,
         from_name: fromId ? await this.ingestRules.staffName(fromId) : '—',

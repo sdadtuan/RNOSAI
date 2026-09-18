@@ -144,6 +144,8 @@ export interface PatchLeadV1Body {
   status?: string;
   score?: number;
   assigned_by?: string;
+  /** Reason stored on crm_lead_assignment_log when owner changes. */
+  assign_reason?: string;
   /** Required for terminal status changes when PTT_LEAD_STATUS_GATE=1. */
   audit_note?: string;
   /** GDKD / assign cap only — bypass B2 & outreach gates with status_override_reason. */
