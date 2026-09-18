@@ -1,54 +1,104 @@
 /**
- * Google Places (Legacy) Text Search + Place Details.
+ * Google Places API (New) — Text Search + Place Details.
+ * Base: https://places.googleapis.com
  * Uses PTT_GOOGLE_PLACES_API_KEY. Prefer official API only — no HTML scrape of Maps.
  */
 import type { PlaceCandidate, PlacesTextSearchResult } from './places.types';
 
-type LegacyTextRow = {
-  place_id?: string;
+const PLACES_BASE = 'https://places.googleapis.com/v1';
+
+const TEXT_SEARCH_FIELD_MASK = [
+  'places.id',
+  'places.displayName',
+  'places.formattedAddress',
+  'places.location',
+  'places.rating',
+  'places.userRatingCount',
+  'places.types',
+  'places.googleMapsUri',
+  'nextPageToken',
+].join(',');
+
+const DETAILS_FIELD_MASK = [
+  'id',
+  'displayName',
+  'formattedAddress',
+  'nationalPhoneNumber',
+  'internationalPhoneNumber',
+  'websiteUri',
+  'googleMapsUri',
+  'location',
+  'rating',
+  'userRatingCount',
+  'types',
+].join(',');
+
+type PlacesNewPlace = {
+  id?: string;
   name?: string;
-  formatted_address?: string;
-  geometry?: { location?: { lat?: number; lng?: number } };
+  displayName?: { text?: string; languageCode?: string };
+  formattedAddress?: string;
+  nationalPhoneNumber?: string;
+  internationalPhoneNumber?: string;
+  websiteUri?: string;
+  googleMapsUri?: string;
+  location?: { latitude?: number; longitude?: number };
   rating?: number;
-  user_ratings_total?: number;
+  userRatingCount?: number;
   types?: string[];
 };
 
-type LegacyDetails = {
-  result?: {
-    place_id?: string;
-    name?: string;
-    formatted_address?: string;
-    formatted_phone_number?: string;
-    international_phone_number?: string;
-    website?: string;
-    url?: string;
-    geometry?: { location?: { lat?: number; lng?: number } };
-    rating?: number;
-    user_ratings_total?: number;
-    types?: string[];
+type PlacesApiErrorBody = {
+  error?: {
+    code?: number;
+    message?: string;
+    status?: string;
   };
-  status?: string;
 };
 
-function mapTextRow(row: LegacyTextRow): PlaceCandidate | null {
-  const placeId = String(row.place_id ?? '').trim();
-  const name = String(row.name ?? '').trim();
+function placeResourcePath(placeId: string): string {
+  const id = String(placeId ?? '').trim();
+  if (!id) return '';
+  return id.startsWith('places/') ? id : `places/${id}`;
+}
+
+function normalizePlaceId(place: PlacesNewPlace, fallback = ''): string {
+  const rawId = String(place.id ?? '').trim();
+  if (rawId) return rawId.replace(/^places\//, '');
+  const name = String(place.name ?? fallback).trim();
+  return name.replace(/^places\//, '');
+}
+
+function mapNewPlace(place: PlacesNewPlace): PlaceCandidate | null {
+  const placeId = normalizePlaceId(place);
+  const name = String(place.displayName?.text ?? '').trim();
   if (!placeId || !name) return null;
+  const phone =
+    String(place.nationalPhoneNumber ?? '').trim() ||
+    String(place.internationalPhoneNumber ?? '').trim() ||
+    null;
   return {
     place_id: placeId,
     company_name: name,
-    address: row.formatted_address ? String(row.formatted_address) : null,
-    phone: null,
-    website: null,
-    lat: row.geometry?.location?.lat ?? null,
-    lng: row.geometry?.location?.lng ?? null,
-    rating: typeof row.rating === 'number' ? row.rating : null,
+    address: place.formattedAddress ? String(place.formattedAddress) : null,
+    phone,
+    website: place.websiteUri ? String(place.websiteUri).trim() : null,
+    lat: typeof place.location?.latitude === 'number' ? place.location.latitude : null,
+    lng: typeof place.location?.longitude === 'number' ? place.location.longitude : null,
+    rating: typeof place.rating === 'number' ? place.rating : null,
     user_ratings_total:
-      typeof row.user_ratings_total === 'number' ? row.user_ratings_total : null,
-    types: Array.isArray(row.types) ? row.types.map(String) : [],
-    maps_url: `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(placeId)}`,
+      typeof place.userRatingCount === 'number' ? place.userRatingCount : null,
+    types: Array.isArray(place.types) ? place.types.map(String) : [],
+    maps_url: place.googleMapsUri
+      ? String(place.googleMapsUri)
+      : `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(placeId)}`,
   };
+}
+
+function formatPlacesHttpError(status: number, body: PlacesApiErrorBody): string {
+  const code = body.error?.status || `HTTP_${status}`;
+  const msg = body.error?.message ? `:${body.error.message}` : '';
+  return `${code}${msg}`;
 }
 
 export class PlacesClient {
@@ -58,82 +108,97 @@ export class PlacesClient {
     }
   }
 
+  private headers(fieldMask: string): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': this.apiKey,
+      'X-Goog-FieldMask': fieldMask,
+    };
+  }
+
   async textSearch(
     query: string,
     opts: { pageToken?: string; language?: string } = {},
   ): Promise<PlacesTextSearchResult> {
-    const params = new URLSearchParams({
-      query: String(query ?? '').trim(),
-      key: this.apiKey,
-      language: opts.language ?? 'vi',
-    });
-    if (opts.pageToken) params.set('pagetoken', opts.pageToken);
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`;
-    const res = await fetch(url);
-    const body = (await res.json()) as {
-      status?: string;
-      results?: LegacyTextRow[];
-      next_page_token?: string;
-      error_message?: string;
+    const textQuery = String(query ?? '').trim();
+    const body: Record<string, unknown> = {
+      textQuery,
+      languageCode: opts.language ?? 'vi',
+      pageSize: 20,
     };
-    const status = String(body.status ?? (res.ok ? 'UNKNOWN' : `HTTP_${res.status}`));
-    if (status !== 'OK' && status !== 'ZERO_RESULTS') {
-      throw new Error(`places_textsearch_${status}${body.error_message ? `:${body.error_message}` : ''}`);
+    if (opts.pageToken) body.pageToken = opts.pageToken;
+
+    const res = await fetch(`${PLACES_BASE}/places:searchText`, {
+      method: 'POST',
+      headers: this.headers(TEXT_SEARCH_FIELD_MASK),
+      body: JSON.stringify(body),
+    });
+    const json = (await res.json()) as PlacesApiErrorBody & {
+      places?: PlacesNewPlace[];
+      nextPageToken?: string;
+    };
+
+    if (!res.ok) {
+      throw new Error(`places_textsearch_${formatPlacesHttpError(res.status, json)}`);
     }
-    const results = (body.results ?? [])
-      .map((row) => mapTextRow(row))
+
+    const results = (json.places ?? [])
+      .map((row) => mapNewPlace(row))
       .filter((x): x is PlaceCandidate => Boolean(x));
+
     return {
       results,
-      nextPageToken: body.next_page_token ? String(body.next_page_token) : null,
-      rawStatus: status,
+      nextPageToken: json.nextPageToken ? String(json.nextPageToken) : null,
+      rawStatus: results.length ? 'OK' : 'ZERO_RESULTS',
     };
   }
 
   async placeDetails(placeId: string): Promise<PlaceCandidate | null> {
-    const params = new URLSearchParams({
-      place_id: placeId,
-      key: this.apiKey,
-      language: 'vi',
-      fields:
-        'place_id,name,formatted_address,formatted_phone_number,international_phone_number,website,url,geometry,rating,user_ratings_total,types',
+    const resource = placeResourcePath(placeId);
+    if (!resource) return null;
+
+    const res = await fetch(`${PLACES_BASE}/${resource}`, {
+      method: 'GET',
+      headers: this.headers(DETAILS_FIELD_MASK),
     });
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?${params}`;
-    const res = await fetch(url);
-    const body = (await res.json()) as LegacyDetails & { error_message?: string };
-    const status = String(body.status ?? '');
-    if (status !== 'OK' || !body.result) {
-      if (status === 'NOT_FOUND' || status === 'ZERO_RESULTS') return null;
-      throw new Error(`places_details_${status}${body.error_message ? `:${body.error_message}` : ''}`);
+    const json = (await res.json()) as PlacesApiErrorBody & PlacesNewPlace;
+
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const status = json.error?.status ?? '';
+      if (status === 'NOT_FOUND') return null;
+      throw new Error(`places_details_${formatPlacesHttpError(res.status, json)}`);
     }
-    const r = body.result;
-    const id = String(r.place_id ?? placeId).trim();
-    const name = String(r.name ?? '').trim();
-    if (!id || !name) return null;
-    const phone =
-      String(r.formatted_phone_number ?? '').trim() ||
-      String(r.international_phone_number ?? '').trim() ||
-      null;
-    return {
-      place_id: id,
-      company_name: name,
-      address: r.formatted_address ? String(r.formatted_address) : null,
-      phone,
-      website: r.website ? String(r.website).trim() : null,
-      lat: r.geometry?.location?.lat ?? null,
-      lng: r.geometry?.location?.lng ?? null,
-      rating: typeof r.rating === 'number' ? r.rating : null,
-      user_ratings_total:
-        typeof r.user_ratings_total === 'number' ? r.user_ratings_total : null,
-      types: Array.isArray(r.types) ? r.types.map(String) : [],
-      maps_url: r.url
-        ? String(r.url)
-        : `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(id)}`,
-    };
+
+    return mapNewPlace(json);
   }
 }
 
-/** Test helper — map legacy text row without network. */
-export function mapLegacyTextSearchRowForTest(row: LegacyTextRow): PlaceCandidate | null {
-  return mapTextRow(row);
+/** Test helper — map Places API (New) place without network. */
+export function mapPlacesNewPlaceForTest(place: PlacesNewPlace): PlaceCandidate | null {
+  return mapNewPlace(place);
+}
+
+/** @deprecated Use mapPlacesNewPlaceForTest — kept for older specs. */
+export function mapLegacyTextSearchRowForTest(row: {
+  place_id?: string;
+  name?: string;
+  formatted_address?: string;
+  geometry?: { location?: { lat?: number; lng?: number } };
+  rating?: number;
+  user_ratings_total?: number;
+  types?: string[];
+}): PlaceCandidate | null {
+  return mapNewPlace({
+    id: row.place_id,
+    displayName: { text: row.name },
+    formattedAddress: row.formatted_address,
+    location:
+      row.geometry?.location?.lat != null && row.geometry?.location?.lng != null
+        ? { latitude: row.geometry.location.lat, longitude: row.geometry.location.lng }
+        : undefined,
+    rating: row.rating,
+    userRatingCount: row.user_ratings_total,
+    types: row.types,
+  });
 }
