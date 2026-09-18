@@ -535,6 +535,96 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     return Boolean(r.rows[0]);
   }
 
+  async hasDuplicatePhoneInProjectExcept(
+    projectId: number,
+    phoneNorm: string,
+    exceptLeadId: number,
+  ): Promise<boolean> {
+    const digits = String(phoneNorm ?? '').replace(/\D+/g, '');
+    if (digits.length < 9) return false;
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT 1 FROM crm_research_raw_leads
+       WHERE project_id = $1
+         AND id <> $3
+         AND phone_norm IS NOT NULL
+         AND phone_norm <> ''
+         AND phone_norm = $2
+       LIMIT 1`,
+      [projectId, digits, exceptLeadId],
+    );
+    return Boolean(r.rows[0]);
+  }
+
+  async listLeadsForReclassify(
+    projectId: number,
+    opts: {
+      only_unclassified?: boolean;
+      job_id?: number;
+      lead_ids?: number[];
+      limit?: number;
+    } = {},
+  ): Promise<RawLeadRow[]> {
+    await this.ensureSchema();
+    const clauses = ['project_id = $1', `status <> 'pushed'`];
+    const params: unknown[] = [projectId];
+
+    if (opts.only_unclassified !== false) {
+      clauses.push(`(readiness_status IS NULL OR btrim(readiness_status) = '')`);
+    }
+
+    if (opts.job_id) {
+      params.push(opts.job_id);
+      clauses.push(`job_id = $${params.length}`);
+    }
+
+    if (opts.lead_ids?.length) {
+      params.push(opts.lead_ids);
+      clauses.push(`id = ANY($${params.length}::bigint[])`);
+    }
+
+    const limit = Math.min(5000, Math.max(1, Math.floor(Number(opts.limit) || 2000)));
+    params.push(limit);
+
+    const r = await this.db.query(
+      `SELECT * FROM crm_research_raw_leads
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY id ASC
+       LIMIT $${params.length}`,
+      params,
+    );
+    return r.rows.map((row) => this.mapLead(row));
+  }
+
+  async updateLeadReadiness(
+    projectId: number,
+    leadId: number,
+    input: {
+      readiness_status: string;
+      readiness_reason_codes: string[];
+      classification?: string | null;
+    },
+  ): Promise<RawLeadRow | null> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `UPDATE crm_research_raw_leads SET
+         readiness_status = $3,
+         readiness_reason_codes = $4::jsonb,
+         classification = COALESCE($5, classification),
+         updated_at = NOW()
+       WHERE project_id = $1 AND id = $2
+       RETURNING *`,
+      [
+        projectId,
+        leadId,
+        input.readiness_status,
+        JSON.stringify(input.readiness_reason_codes ?? []),
+        input.classification ?? null,
+      ],
+    );
+    return r.rows[0] ? this.mapLead(r.rows[0]) : null;
+  }
+
   async countByReadiness(
     projectId: number,
   ): Promise<Record<string, number>> {

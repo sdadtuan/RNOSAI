@@ -10,6 +10,7 @@ import { VnAdminGeoRepository } from '../../vn-admin-geo/vn-admin-geo.repository
 import { ResearchAiProvidersRepository } from './ai-providers.repository';
 import {
   blacklistEntriesFromFeedback,
+  candidateHitsBlacklist,
   isDialOutcome,
   isFeedbackCode,
 } from './blacklist.util';
@@ -19,13 +20,22 @@ import { IntentHarvestWorker } from './intent/intent-harvest.worker';
 import { MarketEntitiesRepository } from './market-graph/market-entities.repository';
 import { MarketGraphWorker } from './market-graph/market-graph.worker';
 import { PlacesClient } from './places/places.client';
+import { readinessAfterAccept } from './accept-readiness.util';
 import { assertRawLeadPushable } from './push-crm.util';
+import { classifyRawLeadReadiness } from './quality/readiness-classify.util';
+import { buildReadinessInputFromRawLead } from './quality/readiness-from-row.util';
+import { normalizePhoneDigits } from './quality/literal-contact.util';
+import {
+  assertManualReadyAllowed,
+  isRawLeadReadinessStatus,
+} from './readiness-patch.util';
 import { RawLeadHarvestRepository } from './raw-lead-harvest.repository';
 import type {
   CreateRawLeadHarvestBody,
   ExportRawLeadsBody,
   PatchRawLeadBody,
   PushRawLeadsBody,
+  ReclassifyRawLeadsBody,
 } from './raw-lead-harvest.types';
 import {
   normalizeHarvestMode,
@@ -276,6 +286,102 @@ export class RawLeadHarvestService {
     return { counts: await this.repo.countByReadiness(projectId) };
   }
 
+  async reclassifyReadiness(projectId: number, body: ReclassifyRawLeadsBody = {}) {
+    this.assertEnabled();
+    const onlyUnclassified = body.only_unclassified !== false && !body.force;
+    const leadIds = Array.isArray(body.lead_ids)
+      ? body.lead_ids.map(Number).filter(Number.isFinite)
+      : undefined;
+    const jobId =
+      body.job_id != null && Number.isFinite(Number(body.job_id))
+        ? Math.floor(Number(body.job_id))
+        : undefined;
+
+    const leads = await this.repo.listLeadsForReclassify(projectId, {
+      only_unclassified: onlyUnclassified,
+      job_id: jobId,
+      lead_ids: leadIds?.length ? leadIds : undefined,
+    });
+
+    const blacklist = await this.repo.listBlacklistEntries();
+    const jobCache = new Map<number, Awaited<ReturnType<RawLeadHarvestRepository['getJobById']>>>();
+    const seenPhones = new Set<string>();
+    let updated = 0;
+    let skipped = 0;
+    const counts: Record<string, number> = {
+      READY_TO_PUSH: 0,
+      NEEDS_REVIEW: 0,
+      MISSING_CONTACT: 0,
+      DUPLICATE_OR_BLACKLIST: 0,
+    };
+
+    for (const lead of leads) {
+      if (lead.status === 'pushed') {
+        skipped += 1;
+        continue;
+      }
+
+      let job = jobCache.get(lead.job_id);
+      if (job === undefined) {
+        job = await this.repo.getJobById(lead.job_id);
+        jobCache.set(lead.job_id, job);
+      }
+
+      const phoneNorm =
+        String(lead.phone_norm ?? '').replace(/\D+/g, '') ||
+        (lead.phone ? normalizePhoneDigits(lead.phone) : '');
+
+      const existingCrm = phoneNorm
+        ? await this.repo.findAlreadyCustomerByPhone(phoneNorm)
+        : false;
+      const blacklistHit = candidateHitsBlacklist(
+        {
+          phone_norm: phoneNorm || null,
+          email: lead.email,
+          company_name: lead.company_name,
+          website: lead.website || lead.fanpage_url,
+        },
+        blacklist,
+      );
+      const dupPhone =
+        Boolean(phoneNorm) &&
+        (seenPhones.has(phoneNorm) ||
+          (await this.repo.hasDuplicatePhoneInProjectExcept(
+            projectId,
+            phoneNorm,
+            lead.id,
+          )));
+
+      const readiness = classifyRawLeadReadiness(
+        buildReadinessInputFromRawLead(lead, {
+          blacklist_hit: blacklistHit,
+          existing_crm_customer: existingCrm,
+          duplicate_phone_in_project: dupPhone,
+          vertical_ok: Boolean(job?.industry_key),
+          territory_ok: Boolean(job?.province_code || job?.province_name),
+        }),
+      );
+
+      await this.repo.updateLeadReadiness(projectId, lead.id, {
+        readiness_status: readiness.readiness_status,
+        readiness_reason_codes: readiness.readiness_reason_codes,
+        classification: readiness.classification,
+      });
+      updated += 1;
+      counts[readiness.readiness_status] =
+        (counts[readiness.readiness_status] ?? 0) + 1;
+      if (phoneNorm) seenPhones.add(phoneNorm);
+    }
+
+    return {
+      updated,
+      skipped,
+      scanned: leads.length,
+      counts,
+      readiness_counts: await this.repo.countByReadiness(projectId),
+    };
+  }
+
   async patchLead(
     projectId: number,
     leadId: number,
@@ -292,6 +398,52 @@ export class RawLeadHarvestService {
 
     const before = await this.repo.getLead(projectId, leadId);
     if (!before) throw new NotFoundException({ error: 'raw_lead_not_found' });
+
+    if (body.readiness_status != null) {
+      if (!isRawLeadReadinessStatus(body.readiness_status)) {
+        throw new BadRequestException({ error: 'invalid_readiness_status' });
+      }
+      const gate = assertManualReadyAllowed({
+        next: body.readiness_status,
+        current_reason_codes:
+          body.readiness_reason_codes ?? before.readiness_reason_codes,
+        force_ready: Boolean(body.force_ready),
+      });
+      if (!gate.ok) {
+        throw new BadRequestException({ error: gate.error });
+      }
+      const reasonCodes =
+        body.readiness_reason_codes ??
+        (body.readiness_status === before.readiness_status
+          ? before.readiness_reason_codes
+          : [`MANUAL_${body.readiness_status}`]);
+      await this.repo.updateLeadReadiness(projectId, leadId, {
+        readiness_status: body.readiness_status,
+        readiness_reason_codes: reasonCodes,
+        classification:
+          body.readiness_status === 'READY_TO_PUSH'
+            ? 'pass'
+            : body.readiness_status === 'NEEDS_REVIEW'
+              ? 'needs_review'
+              : body.readiness_status === 'MISSING_CONTACT'
+                ? 'missing_contact'
+                : body.readiness_status === 'DUPLICATE_OR_BLACKLIST'
+                  ? 'rejected_dedupe'
+                  : null,
+      });
+    } else if (body.status === 'accepted') {
+      const promote = readinessAfterAccept({
+        readiness_status: before.readiness_status,
+        contactable: before.contactable,
+      });
+      if (promote.promote) {
+        await this.repo.updateLeadReadiness(projectId, leadId, {
+          readiness_status: promote.readiness_status,
+          readiness_reason_codes: promote.readiness_reason_codes,
+          classification: promote.classification,
+        });
+      }
+    }
 
     const lead = await this.repo.patchLead(projectId, leadId, {
       status: body.status,

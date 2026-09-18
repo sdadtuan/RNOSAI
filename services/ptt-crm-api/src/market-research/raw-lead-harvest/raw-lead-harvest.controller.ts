@@ -24,6 +24,7 @@ import type {
   ExportRawLeadsBody,
   PatchRawLeadBody,
   PushRawLeadsBody,
+  ReclassifyRawLeadsBody,
 } from './raw-lead-harvest.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload };
@@ -93,6 +94,15 @@ export class RawLeadHarvestController {
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   readinessCounts(@Param('id', ParseIntPipe) id: number) {
     return this.harvest.readinessCounts(id);
+  }
+
+  @Post('projects/:id/raw-leads/reclassify-readiness')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  reclassifyReadiness(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: ReclassifyRawLeadsBody,
+  ) {
+    return this.harvest.reclassifyReadiness(id, body ?? {});
   }
 
   @Patch('projects/:id/raw-leads/:leadId')

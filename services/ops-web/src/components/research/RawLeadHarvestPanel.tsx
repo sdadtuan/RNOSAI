@@ -14,6 +14,7 @@ import {
   listRawLeads,
   patchRawLead,
   pushRawLeadsToCrm,
+  reclassifyRawLeadReadiness,
   type HarvestProviderOption,
   type MarketEntitiesSummary,
   type RawLead,
@@ -935,9 +936,55 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
               {leadsTotal} lead · trang {leadsPage}/{leadsTotalPages || 0} ·{' '}
               {pendingCount} pending (trang) · {acceptedCount} accepted/pushed (trang)
               {selectedIds.length ? ` · ${selectedIds.length} đang chọn` : ''}
+              {readinessFilter === 'NEEDS_REVIEW'
+                ? ' · Accept để chuyển Sẵn sàng push'
+                : ''}
             </p>
           </div>
           <div className="rlh-toolbar">
+            {canRun ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                title={
+                  selectedIds.length
+                    ? 'Phân loại lại các lead đang chọn'
+                    : 'Phân loại lại lead chưa có readiness (UNCLASSIFIED)'
+                }
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true);
+                    setError('');
+                    try {
+                      const out = await reclassifyRawLeadReadiness(token, projectId, {
+                        only_unclassified: selectedIds.length === 0,
+                        force: selectedIds.length > 0,
+                        lead_ids: selectedIds.length ? selectedIds : undefined,
+                        job_id: jobFilter === '' ? undefined : Number(jobFilter),
+                      });
+                      setMsg(
+                        `Phân loại lại: ${out.updated} cập nhật` +
+                          (out.skipped ? `, ${out.skipped} bỏ qua` : '') +
+                          ` · ready ${out.counts.READY_TO_PUSH ?? 0}` +
+                          ` · review ${out.counts.NEEDS_REVIEW ?? 0}` +
+                          ` · thiếu ${out.counts.MISSING_CONTACT ?? 0}` +
+                          ` · trùng ${out.counts.DUPLICATE_OR_BLACKLIST ?? 0}`,
+                      );
+                      setSelectedIds([]);
+                      await reloadJobsAndLeads();
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Phân loại lại thất bại');
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
+                }}
+              >
+                Phân loại lại
+                {selectedIds.length ? ` (${selectedIds.length})` : ''}
+              </button>
+            ) : null}
             {canExport ? (
               <button
                 type="button"
@@ -1226,12 +1273,52 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                       <span className="rlh-class">{classificationLabel(lead.classification)}</span>
                     </td>
                     <td>
-                      <span className="rlh-class">{readinessLabel(lead.readiness_status)}</span>
-                      {lead.readiness_reason_codes?.length ? (
-                        <div className="muted rlh-sub">
-                          {lead.readiness_reason_codes.slice(0, 2).join(', ')}
-                        </div>
-                      ) : null}
+                      {canRun ? (
+                        <>
+                          <select
+                            className="rlh-select-sm"
+                            value={lead.readiness_status ?? ''}
+                            disabled={busy || lead.status === 'pushed'}
+                            onChange={(e) => {
+                              const v = e.target.value as RawLeadReadinessStatus | '';
+                              if (!v) return;
+                              void patchRawLead(token, projectId, lead.id, {
+                                readiness_status: v,
+                              })
+                                .then(reloadJobsAndLeads)
+                                .catch((err) =>
+                                  setError(
+                                    err instanceof Error
+                                      ? err.message
+                                      : 'Đổi readiness thất bại',
+                                  ),
+                                );
+                            }}
+                          >
+                            <option value="">— chưa phân loại</option>
+                            <option value="READY_TO_PUSH">Sẵn sàng push</option>
+                            <option value="NEEDS_REVIEW">Cần review</option>
+                            <option value="MISSING_CONTACT">Thiếu contact</option>
+                            <option value="DUPLICATE_OR_BLACKLIST">Trùng / blacklist</option>
+                          </select>
+                          {lead.readiness_reason_codes?.length ? (
+                            <div className="muted rlh-sub">
+                              {lead.readiness_reason_codes.slice(0, 2).join(', ')}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          <span className="rlh-class">
+                            {readinessLabel(lead.readiness_status)}
+                          </span>
+                          {lead.readiness_reason_codes?.length ? (
+                            <div className="muted rlh-sub">
+                              {lead.readiness_reason_codes.slice(0, 2).join(', ')}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
                     </td>
                     <td>
                       <span className={`rlh-status ${leadStatusClass(lead.status)}`}>
@@ -1363,18 +1450,28 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
       <RawLeadAcceptModal
         open={Boolean(acceptLead)}
         companyName={acceptLead?.company_name ?? ''}
+        readinessStatus={acceptLead?.readiness_status}
         busy={busy}
         onCancel={() => setAcceptLead(null)}
         onConfirm={(checklist) => {
           if (!acceptLead) return;
+          const beforeReady = acceptLead.readiness_status;
           void (async () => {
             setBusy(true);
             try {
-              await patchRawLead(token, projectId, acceptLead.id, {
+              const updated = await patchRawLead(token, projectId, acceptLead.id, {
                 status: 'accepted',
                 accepted_checklist_json: checklist,
               });
               setAcceptLead(null);
+              const promoted =
+                beforeReady === 'NEEDS_REVIEW' ||
+                (!beforeReady && updated.readiness_status === 'READY_TO_PUSH');
+              setMsg(
+                promoted
+                  ? `Đã Accept — chuyển Sẵn sàng push (#${updated.id})`
+                  : `Đã Accept #${updated.id}`,
+              );
               await reloadJobsAndLeads();
             } catch (err) {
               setError(err instanceof Error ? err.message : 'Accept thất bại');

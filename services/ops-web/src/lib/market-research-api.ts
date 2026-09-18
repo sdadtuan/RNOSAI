@@ -1963,6 +1963,28 @@ export function fetchRawLeadReadinessCounts(token: string, projectId: number) {
   );
 }
 
+export function reclassifyRawLeadReadiness(
+  token: string,
+  projectId: number,
+  body?: {
+    only_unclassified?: boolean;
+    force?: boolean;
+    job_id?: number;
+    lead_ids?: number[];
+  },
+) {
+  return researchFetch<{
+    updated: number;
+    skipped: number;
+    scanned: number;
+    counts: Record<string, number>;
+    readiness_counts: Record<string, number>;
+  }>(token, `/api/v1/research/projects/${projectId}/raw-leads/reclassify-readiness`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
 export function patchRawLead(
   token: string,
   projectId: number,
@@ -1987,6 +2009,9 @@ export function patchRawLead(
       | 'gatekeeper'
       | 'email_bounced'
       | 'out_of_business';
+    readiness_status?: RawLeadReadinessStatus;
+    readiness_reason_codes?: string[];
+    force_ready?: boolean;
   },
 ) {
   return researchFetch<RawLead>(

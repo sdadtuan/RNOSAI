@@ -122,6 +122,14 @@ export type PatchRawLeadBody = {
   feedback_code?: FeedbackCode;
   feedback_note?: string;
   dial_outcome?: DialOutcome;
+  readiness_status?:
+    | 'READY_TO_PUSH'
+    | 'NEEDS_REVIEW'
+    | 'MISSING_CONTACT'
+    | 'DUPLICATE_OR_BLACKLIST';
+  readiness_reason_codes?: string[];
+  /** Allow READY even when current reasons include BLACKLIST/DNC (staff override). */
+  force_ready?: boolean;
 };
 
 export type ExportRawLeadsBody = {
@@ -133,4 +141,13 @@ export type ExportRawLeadsBody = {
 
 export type PushRawLeadsBody = {
   lead_ids: number[];
+};
+
+export type ReclassifyRawLeadsBody = {
+  /** Default true: only rows with readiness_status IS NULL. */
+  only_unclassified?: boolean;
+  /** Reclassify even if already set (ignored when only_unclassified true). */
+  force?: boolean;
+  job_id?: number;
+  lead_ids?: number[];
 };

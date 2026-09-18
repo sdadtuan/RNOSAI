@@ -3,12 +3,20 @@
 type Props = {
   open: boolean;
   companyName: string;
+  readinessStatus?: string | null;
   busy?: boolean;
   onCancel: () => void;
   onConfirm: (checklist: Record<string, boolean>) => void;
 };
 
-export function RawLeadAcceptModal({ open, companyName, busy, onCancel, onConfirm }: Props) {
+export function RawLeadAcceptModal({
+  open,
+  companyName,
+  readinessStatus,
+  busy,
+  onCancel,
+  onConfirm,
+}: Props) {
   if (!open) return null;
   const items = [
     { key: 'opened_evidence', label: 'Đã mở evidence' },
@@ -17,6 +25,16 @@ export function RawLeadAcceptModal({ open, companyName, busy, onCancel, onConfir
     { key: 'not_existing_client', label: 'Không trùng khách đang phục vụ' },
   ];
 
+  const readiness = String(readinessStatus ?? '').toUpperCase();
+  const promoteHint =
+    readiness === 'NEEDS_REVIEW' || !readiness
+      ? 'Accept sẽ chuyển lead sang tab Sẵn sàng push (READY_TO_PUSH) nếu đủ điều kiện.'
+      : readiness === 'MISSING_CONTACT'
+        ? 'Lead đang thiếu contact — Accept không tự chuyển READY. Bổ sung SĐT/email trước.'
+        : readiness === 'DUPLICATE_OR_BLACKLIST'
+          ? 'Lead trùng/blacklist — Accept không tự chuyển READY.'
+          : null;
+
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal-card" style={{ maxWidth: 440 }}>
@@ -24,6 +42,11 @@ export function RawLeadAcceptModal({ open, companyName, busy, onCancel, onConfir
         <p className="muted" style={{ marginTop: 0 }}>
           {companyName}
         </p>
+        {promoteHint ? (
+          <p className="rlh-inline-warn" style={{ marginTop: 0 }}>
+            {promoteHint}
+          </p>
+        ) : null}
         <form
           onSubmit={(e) => {
             e.preventDefault();
