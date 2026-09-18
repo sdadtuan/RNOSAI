@@ -74,7 +74,9 @@ export function LeadsMobileCardList({
       {rows.map((lead) => {
         const ownerLabel =
           lead.owner_id != null
-            ? ownerNameById[lead.owner_id] ?? `NV #${lead.owner_id}`
+            ? lead.owner_name?.trim() ||
+              ownerNameById[lead.owner_id] ||
+              `NV #${lead.owner_id}`
             : 'Chưa phân';
         const sla = slaLabel(lead);
         const icpTag = leadIcpScoreTag(lead, scoreMap[String(lead.id)]);

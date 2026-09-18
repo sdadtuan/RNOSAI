@@ -287,7 +287,21 @@ export class CatalogPgRepository implements OnModuleDestroy {
 
   async listAssignScopes(): Promise<{ scopes: AssignScopeRow[]; staff: StaffOption[] }> {
     await this.ensureSchema();
-    return { scopes: [], staff: [] };
+    // Scopes table not ported to PG yet; still expose assignable AM roster for UI pickers.
+    const staffResult = await this.db.query(
+      `SELECT id, name, COALESCE(internal_code, '') AS internal_code
+       FROM crm_staff
+       WHERE active = TRUE
+         AND (can_receive_leads IS NULL OR can_receive_leads = TRUE)
+       ORDER BY lower(name) ASC
+       LIMIT 500`,
+    );
+    const staff: StaffOption[] = staffResult.rows.map((row) => ({
+      id: Number(row.id),
+      name: String(row.name ?? ''),
+      internal_code: String(row.internal_code ?? ''),
+    }));
+    return { scopes: [], staff };
   }
 
   async createAssignScope(_body: CreateAssignScopeBody): Promise<AssignScopeRow> {

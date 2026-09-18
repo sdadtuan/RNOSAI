@@ -45,7 +45,7 @@ export function IntakeLeadContextCard({ lead, leadHref }: Props) {
         {lead.owner_id != null ? (
           <div>
             <dt className="muted">Owner</dt>
-            <dd>#{lead.owner_id}</dd>
+            <dd>{lead.owner_name?.trim() || `#${lead.owner_id}`}</dd>
           </div>
         ) : null}
       </dl>

@@ -10,6 +10,8 @@ export interface LeadV1 {
   campaign_id: string | null;
   external_lead_id: string | null;
   owner_id: number | null;
+  /** Display name of assigned AM (from crm_staff). */
+  owner_name?: string | null;
   created_at: string;
   received_at: string;
   is_duplicate: boolean;
@@ -65,6 +67,8 @@ export interface PgLeadRow {
   status: string | null;
   source: string | null;
   owner_id: number | null;
+  /** Joined from crm_staff.name when available. */
+  owner_name?: string | null;
   is_duplicate: boolean | null;
   agency_client_id: string | null;
   channel: string | null;

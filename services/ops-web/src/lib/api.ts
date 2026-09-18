@@ -39,6 +39,7 @@ export interface LeadRow {
   channel: string;
   client_id: string | null;
   owner_id: number | null;
+  owner_name?: string | null;
   created_at: string;
   received_at: string;
   is_duplicate: boolean;

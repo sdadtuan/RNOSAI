@@ -162,6 +162,7 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     campaign_id: row.campaign_id || null,
     external_lead_id: row.external_lead_id || null,
     owner_id: row.owner_id != null ? Number(row.owner_id) : null,
+    owner_name: row.owner_name ? String(row.owner_name).trim() || null : null,
     created_at: formatLeadTs(row.created_at),
     received_at: formatLeadTs(row.received_at),
     is_duplicate: Boolean(row.is_duplicate),

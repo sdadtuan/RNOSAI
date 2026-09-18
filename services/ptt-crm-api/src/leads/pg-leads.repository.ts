@@ -85,7 +85,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
     const b2bList = query.lead_flow_kind === 'b2b_prospect' || Boolean(query.b2b_list_scope);
     const listResult = await this.db.query(
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
-              l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,
+              l.owner_id, s.name AS owner_name, l.is_duplicate, l.agency_client_id, l.channel,
               l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
               l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
               l.company_name, l.company_address, l.logo_asset_id,
@@ -95,7 +95,8 @@ export class PgLeadsRepository implements OnModuleDestroy {
                 WHERE al.sqlite_lead_id = l.sqlite_lead_id AND al.to_owner_id IS NOT NULL
                 ORDER BY al.created_at ASC LIMIT 1
               ), '') AS first_assigned_at${b2bList ? b2bListEnrichmentSql() : ''}
-       FROM crm_leads l${b2bList ? b2bListJoinSql() : ''}
+       FROM crm_leads l
+       LEFT JOIN crm_staff s ON s.id = l.owner_id${b2bList ? b2bListJoinSql() : ''}
        ${where.sql}
        ORDER BY l.sqlite_lead_id DESC
        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
@@ -116,7 +117,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
   ): Promise<LeadV1 | null> {
     const result = await this.db.query(
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
-              l.owner_id, l.is_duplicate, l.agency_client_id, l.channel,
+              l.owner_id, s.name AS owner_name, l.is_duplicate, l.agency_client_id, l.channel,
               l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
               l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
               l.company_name, l.company_address, l.logo_asset_id,
@@ -127,6 +128,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
                 ORDER BY al.created_at ASC LIMIT 1
               ), '') AS first_assigned_at
        FROM crm_leads l
+       LEFT JOIN crm_staff s ON s.id = l.owner_id
        WHERE l.sqlite_lead_id = $1`,
       [leadId],
     );

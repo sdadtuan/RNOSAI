@@ -94,6 +94,7 @@ describe('pgRowToV1', () => {
       campaign_id: null,
       external_lead_id: 'fb-1',
       owner_id: null,
+      owner_name: null,
       created_at: '2026-07-17',
       received_at: '2026-07-17',
       is_duplicate: false,
@@ -109,6 +110,29 @@ describe('pgRowToV1', () => {
       company_address: '',
       logo_asset_id: null,
     });
+  });
+
+  it('maps owner_name from joined crm_staff', () => {
+    const row: PgLeadRow = {
+      sqlite_lead_id: 9000000003,
+      full_name: 'A Hưng 360',
+      phone: '0899888360',
+      email: '',
+      status: 'moi',
+      source: 'manual',
+      owner_id: 4,
+      owner_name: 'Đặng Công Quốc',
+      is_duplicate: false,
+      agency_client_id: null,
+      channel: '',
+      external_lead_id: null,
+      campaign_id: null,
+      received_at: new Date('2026-09-15T00:00:00.000Z'),
+      created_at: new Date('2026-09-15T00:00:00.000Z'),
+    };
+    const out = pgRowToV1(row);
+    expect(out.owner_id).toBe(4);
+    expect(out.owner_name).toBe('Đặng Công Quốc');
   });
 
   it('maps company party columns from PG row', () => {

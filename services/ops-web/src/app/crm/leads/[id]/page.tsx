@@ -76,6 +76,7 @@ import {
   assignLead,
   createLeadActivity,
   fetchCatalogBundle,
+  fetchCrmStaffList,
   fetchLead,
   fetchLeadContractReadiness,
   fetchLeadFunnel,
@@ -92,8 +93,8 @@ import {
   patchLead,
   staffMe,
   staffRefresh,
-  type CatalogStaffOption,
   type CatalogServiceRow,
+  type CrmStaffRow,
   type LeadActivityRow,
   type LeadAttributionData,
   type LeadAuditBundle,
@@ -196,7 +197,7 @@ export default function CrmLeadDetailPage() {
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [attribution, setAttribution] = useState<LeadAttributionData | null>(null);
-  const [staffOptions, setStaffOptions] = useState<CatalogStaffOption[]>([]);
+  const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
   const [catalogServices, setCatalogServices] = useState<CatalogServiceRow[]>([]);
   const [activities, setActivities] = useState<LeadActivityRow[]>([]);
   const [audit, setAudit] = useState<LeadAuditBundle | null>(null);
@@ -772,10 +773,11 @@ export default function CrmLeadDetailPage() {
       setLoading(true);
       setError('');
       try {
-        const [row, catalog, attr] = await Promise.all([
+        const [row, catalog, attr, staffOut] = await Promise.all([
           fetchLead(access, leadId),
           fetchCatalogBundle(access).catch(() => null),
           fetchLeadAttribution(access, leadId).catch(() => null),
+          fetchCrmStaffList(access).catch(() => ({ staff: [] as CrmStaffRow[], summary: {} })),
         ]);
         setLead(row);
         setParty({
@@ -794,8 +796,25 @@ export default function CrmLeadDetailPage() {
             setQuoteHref(existing ? `/crm/proposals/${existing.id}` : `/crm/proposals/new?lead_id=${leadId}`);
           })
           .catch(() => setQuoteHref(`/crm/proposals/new?lead_id=${leadId}`));
-        if (catalog?.staff?.length) {
-          setStaffOptions(catalog.staff);
+        const assignable = (staffOut.staff ?? []).filter(
+          (s) => s.active !== 0 && s.can_receive_leads !== false,
+        );
+        if (assignable.length) {
+          setStaffOptions(assignable);
+        } else if (catalog?.staff?.length) {
+          setStaffOptions(
+            catalog.staff.map((s) => ({
+              id: s.id,
+              name: s.name,
+              internal_code: s.internal_code,
+              phone: '',
+              email: '',
+              job_title: '',
+              department: '',
+              active: 1,
+              can_receive_leads: true,
+            })),
+          );
         }
         if (catalog?.services?.length) {
           setCatalogServices(catalog.services.filter((service) => service.active));
@@ -1100,9 +1119,11 @@ export default function CrmLeadDetailPage() {
 
   const ownerLabel = useMemo(() => {
     if (!lead?.owner_id) return null;
+    const fromApi = lead.owner_name?.trim();
+    if (fromApi) return fromApi;
     const staff = staffOptions.find((s) => s.id === lead.owner_id);
     return staff ? staff.name : `#${lead.owner_id}`;
-  }, [lead?.owner_id, staffOptions]);
+  }, [lead?.owner_id, lead?.owner_name, staffOptions]);
 
   const onSoftphonePlaced = useCallback(() => {
     if (funnelB2Complete(funnelSnap)) return;
@@ -1710,7 +1731,7 @@ export default function CrmLeadDetailPage() {
                         <option value="">— Chọn —</option>
                         {staffOptions.map((s) => (
                           <option key={s.id} value={String(s.id)}>
-                            {s.name} (#{s.id})
+                            {s.name}
                           </option>
                         ))}
                       </select>
