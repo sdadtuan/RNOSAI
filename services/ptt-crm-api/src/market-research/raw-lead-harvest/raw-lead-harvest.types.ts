@@ -104,6 +104,9 @@ export type RawLeadRow = {
   readiness_reason_codes: string[];
   account_cluster_key: string | null;
   priority_tier: string | null;
+  learning_delta: number;
+  learning_reasons: string[];
+  learning_applied_at: string | null;
   crm_lead_id: number | null;
   verify_json: Record<string, unknown>;
   created_at: string;
@@ -169,6 +172,12 @@ export type BulkAcceptRawLeadsBody = {
 };
 
 export type RecomputePriorityBody = {
+  lead_ids?: number[];
+  job_id?: number;
+  limit?: number;
+};
+
+export type ApplyLearningBody = {
   lead_ids?: number[];
   job_id?: number;
   limit?: number;

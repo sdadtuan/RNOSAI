@@ -37,7 +37,9 @@ import {
 } from './quality/priority-cluster.util';
 import { buildRawLeadBattlecard } from './quality/battlecard.util';
 import type { RawLeadBattlecard } from './quality/battlecard.util';
+import { computeLearningAdjustment } from './quality/learning-loop.util';
 import type {
+  ApplyLearningBody,
   BulkAcceptRawLeadsBody,
   CreateRawLeadHarvestBody,
   EnrichRawLeadsContactsBody,
@@ -321,6 +323,62 @@ export class RawLeadHarvestService {
         )
       : [];
     return buildRawLeadBattlecard({ lead, clusterMates: mates });
+  }
+
+  async applyLearning(projectId: number, body: ApplyLearningBody = {}) {
+    this.assertEnabled();
+    const leadIds = Array.isArray(body.lead_ids)
+      ? body.lead_ids.map(Number).filter(Number.isFinite)
+      : undefined;
+    const jobId =
+      body.job_id != null && Number.isFinite(Number(body.job_id))
+        ? Math.floor(Number(body.job_id))
+        : undefined;
+    const leads = await this.repo.listLeadsForLearningApply(projectId, {
+      job_id: jobId,
+      lead_ids: leadIds?.length ? leadIds : undefined,
+      limit: body.limit,
+    });
+
+    let updated = 0;
+    let skipped = 0;
+    const counts = { boosted: 0, demoted: 0, unchanged: 0 };
+
+    for (const lead of leads) {
+      const adj = computeLearningAdjustment({
+        quality_score: lead.quality_score,
+        learning_delta: lead.learning_delta,
+        dial_outcome: lead.dial_outcome,
+        feedback_code: lead.feedback_code,
+        readiness_status: lead.readiness_status,
+        contactable: lead.contactable,
+        phone_norm: lead.phone_norm,
+        phone: lead.phone,
+      });
+      if (!adj.learning_reasons.length) {
+        skipped += 1;
+        counts.unchanged += 1;
+        continue;
+      }
+      await this.repo.updateLeadLearning(projectId, lead.id, {
+        quality_score: adj.quality_score,
+        priority_tier: adj.priority_tier,
+        learning_delta: adj.learning_delta,
+        learning_reasons: adj.learning_reasons,
+      });
+      updated += 1;
+      if (adj.direction === 'boosted') counts.boosted += 1;
+      else if (adj.direction === 'demoted') counts.demoted += 1;
+      else counts.unchanged += 1;
+    }
+
+    return {
+      updated,
+      skipped,
+      scanned: leads.length,
+      counts,
+      priority_counts: await this.repo.countByPriority(projectId),
+    };
   }
 
   async recomputePriority(projectId: number, body: RecomputePriorityBody = {}) {
@@ -828,6 +886,32 @@ export class RawLeadHarvestService {
     if (bl.length) {
       await this.repo.upsertBlacklistEntries(bl, staffId);
     }
+
+    if (body.dial_outcome != null || body.feedback_code != null) {
+      const latest = await this.repo.getLead(projectId, leadId);
+      if (latest) {
+        const adj = computeLearningAdjustment({
+          quality_score: latest.quality_score,
+          learning_delta: latest.learning_delta,
+          dial_outcome: latest.dial_outcome,
+          feedback_code: latest.feedback_code,
+          readiness_status: latest.readiness_status,
+          contactable: latest.contactable,
+          phone_norm: latest.phone_norm,
+          phone: latest.phone,
+        });
+        if (adj.learning_reasons.length) {
+          const learned = await this.repo.updateLeadLearning(projectId, leadId, {
+            quality_score: adj.quality_score,
+            priority_tier: adj.priority_tier,
+            learning_delta: adj.learning_delta,
+            learning_reasons: adj.learning_reasons,
+          });
+          if (learned) return learned;
+        }
+      }
+    }
+
     return lead;
   }
 

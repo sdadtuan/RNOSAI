@@ -1852,6 +1852,9 @@ export type RawLead = {
   readiness_reason_codes?: string[];
   account_cluster_key?: string | null;
   priority_tier?: RawLeadPriorityTier | string | null;
+  learning_delta?: number | null;
+  learning_reasons?: string[];
+  learning_applied_at?: string | null;
   crm_lead_id?: number | null;
   verify_json: Record<string, unknown>;
   created_at: string;
@@ -1993,6 +1996,27 @@ export function recomputeRawLeadPriority(
     multi_member_clusters: number;
     priority_counts: Record<string, number>;
   }>(token, `/api/v1/research/projects/${projectId}/raw-leads/recompute-priority`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function applyRawLeadLearning(
+  token: string,
+  projectId: number,
+  body?: {
+    lead_ids?: number[];
+    job_id?: number;
+    limit?: number;
+  },
+) {
+  return researchFetch<{
+    updated: number;
+    skipped: number;
+    scanned: number;
+    counts: { boosted: number; demoted: number; unchanged: number };
+    priority_counts: Record<string, number>;
+  }>(token, `/api/v1/research/projects/${projectId}/raw-leads/apply-learning`, {
     method: 'POST',
     body: JSON.stringify(body ?? {}),
   });

@@ -28,6 +28,7 @@ import type {
   PushRawLeadsBody,
   ReclassifyRawLeadsBody,
   RecomputePriorityBody,
+  ApplyLearningBody,
 } from './raw-lead-harvest.types';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload };
@@ -121,6 +122,15 @@ export class RawLeadHarvestController {
     @Body() body: RecomputePriorityBody,
   ) {
     return this.harvest.recomputePriority(id, body ?? {});
+  }
+
+  @Post('projects/:id/raw-leads/apply-learning')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  applyLearning(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: ApplyLearningBody,
+  ) {
+    return this.harvest.applyLearning(id, body ?? {});
   }
 
   @Post('projects/:id/raw-leads/reclassify-readiness')

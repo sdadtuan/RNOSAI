@@ -17,6 +17,7 @@ import {
   pushRawLeadsToCrm,
   reclassifyRawLeadReadiness,
   recomputeRawLeadPriority,
+  applyRawLeadLearning,
   enrichRawLeadContacts,
   bulkAcceptRawLeads,
   fetchRawLeadBattlecard,
@@ -1168,6 +1169,49 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 {selectedIds.length ? ` (${selectedIds.length})` : ''}
               </button>
             ) : null}
+            {canRun ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                title={
+                  selectedIds.length
+                    ? 'Áp dụng học từ dial/feedback cho lead đang chọn'
+                    : 'Áp dụng học từ dial/feedback → chỉnh score + ưu tiên'
+                }
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true);
+                    setError('');
+                    try {
+                      const out = await applyRawLeadLearning(token, projectId, {
+                        lead_ids: selectedIds.length ? selectedIds : undefined,
+                        job_id: jobFilter === '' ? undefined : Number(jobFilter),
+                      });
+                      setMsg(
+                        `Học dial: ${out.updated} cập nhật` +
+                          (out.skipped ? `, ${out.skipped} bỏ qua` : '') +
+                          ` · ↑${out.counts.boosted ?? 0}` +
+                          ` · ↓${out.counts.demoted ?? 0}` +
+                          ` · =${out.counts.unchanged ?? 0}`,
+                      );
+                      if (out.priority_counts) {
+                        setPriorityCounts((prev) => ({ ...prev, ...out.priority_counts }));
+                      }
+                      setSelectedIds([]);
+                      await reloadJobsAndLeads();
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Áp dụng học dial thất bại');
+                    } finally {
+                      setBusy(false);
+                    }
+                  })();
+                }}
+              >
+                Áp dụng học dial
+                {selectedIds.length ? ` (${selectedIds.length})` : ''}
+              </button>
+            ) : null}
             {canExport ? (
               <button
                 type="button"
@@ -1486,6 +1530,15 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                       <span className={`badge ${scoreBadge(lead.quality_score)}`}>
                         {Math.round(lead.quality_score)}
                       </span>
+                      {Number(lead.learning_delta) ? (
+                        <div
+                          className="muted rlh-sub"
+                          title={(lead.learning_reasons ?? []).join(', ')}
+                        >
+                          {Number(lead.learning_delta) > 0 ? '+' : ''}
+                          {Math.round(Number(lead.learning_delta))}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="muted">{Math.round(lead.icp_fit_score)}</td>
                     <td>

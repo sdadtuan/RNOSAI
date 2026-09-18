@@ -183,6 +183,18 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         ADD COLUMN IF NOT EXISTS priority_tier TEXT
     `);
     await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS learning_delta NUMERIC NOT NULL DEFAULT 0
+    `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS learning_reasons JSONB NOT NULL DEFAULT '[]'::jsonb
+    `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS learning_applied_at TIMESTAMPTZ
+    `);
+    await this.db.query(`
       CREATE INDEX IF NOT EXISTS idx_raw_leads_project_readiness
         ON crm_research_raw_leads (project_id, readiness_status)
     `);
@@ -322,6 +334,20 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       account_cluster_key:
         row.account_cluster_key == null ? null : String(row.account_cluster_key),
       priority_tier: row.priority_tier == null ? null : String(row.priority_tier),
+      learning_delta: Number(row.learning_delta ?? 0) || 0,
+      learning_reasons: Array.isArray(row.learning_reasons)
+        ? row.learning_reasons.map(String)
+        : typeof row.learning_reasons === 'string'
+          ? (() => {
+              try {
+                const parsed = JSON.parse(row.learning_reasons);
+                return Array.isArray(parsed) ? parsed.map(String) : [];
+              } catch {
+                return [];
+              }
+            })()
+          : [],
+      learning_applied_at: iso(row.learning_applied_at),
       crm_lead_id: row.crm_lead_id == null ? null : Number(row.crm_lead_id),
       verify_json: verify as Record<string, unknown>,
       created_at: iso(row.created_at) ?? '',
@@ -742,6 +768,70 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       [projectId, leadId, input.account_cluster_key, input.priority_tier],
     );
     return r.rows[0] ? this.mapLead(r.rows[0]) : null;
+  }
+
+  async updateLeadLearning(
+    projectId: number,
+    leadId: number,
+    input: {
+      quality_score: number;
+      priority_tier: string;
+      learning_delta: number;
+      learning_reasons: string[];
+    },
+  ): Promise<RawLeadRow | null> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `UPDATE crm_research_raw_leads SET
+         quality_score = $3,
+         priority_tier = $4,
+         learning_delta = $5,
+         learning_reasons = $6::jsonb,
+         learning_applied_at = NOW(),
+         updated_at = NOW()
+       WHERE project_id = $1 AND id = $2
+       RETURNING *`,
+      [
+        projectId,
+        leadId,
+        input.quality_score,
+        input.priority_tier,
+        input.learning_delta,
+        JSON.stringify(input.learning_reasons ?? []),
+      ],
+    );
+    return r.rows[0] ? this.mapLead(r.rows[0]) : null;
+  }
+
+  async listLeadsForLearningApply(
+    projectId: number,
+    opts: { job_id?: number; lead_ids?: number[]; limit?: number } = {},
+  ): Promise<RawLeadRow[]> {
+    await this.ensureSchema();
+    const clauses = [
+      'project_id = $1',
+      `status <> 'pushed'`,
+      `(dial_outcome IS NOT NULL OR feedback_code IS NOT NULL)`,
+    ];
+    const params: unknown[] = [projectId];
+    if (opts.job_id) {
+      params.push(opts.job_id);
+      clauses.push(`job_id = $${params.length}`);
+    }
+    if (opts.lead_ids?.length) {
+      params.push(opts.lead_ids);
+      clauses.push(`id = ANY($${params.length}::bigint[])`);
+    }
+    const limit = Math.min(2000, Math.max(1, Math.floor(Number(opts.limit) || 2000)));
+    params.push(limit);
+    const r = await this.db.query(
+      `SELECT * FROM crm_research_raw_leads
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY id ASC
+       LIMIT $${params.length}`,
+      params,
+    );
+    return r.rows.map((row) => this.mapLead(row));
   }
 
   async listLeadsForPriorityRecompute(
