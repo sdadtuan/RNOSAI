@@ -45,6 +45,31 @@ describe('applyQualityGate', () => {
     expect(applyQualityGate('marketing', 30, v())).toBe('auto_rejected');
   });
 
+  it('intent keeps Places phone even when evidence is Maps/Facebook URL', () => {
+    expect(
+      applyQualityGate(
+        'intent',
+        40,
+        v({
+          evidence_ok: false,
+          phone_ok: true,
+          reasons: ['brq4_search_url'],
+        }),
+      ),
+    ).toBe('pending');
+    expect(
+      applyQualityGate(
+        'intent',
+        40,
+        v({
+          evidence_ok: false,
+          phone_ok: true,
+          reasons: ['brq9_denylist_host'],
+        }),
+      ),
+    ).toBe('pending');
+  });
+
   it('intent uses the same soft gate as marketing', () => {
     expect(
       applyQualityGate('intent', 40, v({ phone_ok: true, email_ok: false })),

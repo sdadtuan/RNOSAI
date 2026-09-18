@@ -16,6 +16,10 @@ const TEXT_SEARCH_FIELD_MASK = [
   'places.userRatingCount',
   'places.types',
   'places.googleMapsUri',
+  // Contact fields (Enterprise SKU) — needed when Place Details is skipped/fails.
+  'places.nationalPhoneNumber',
+  'places.internationalPhoneNumber',
+  'places.websiteUri',
   'nextPageToken',
 ].join(',');
 

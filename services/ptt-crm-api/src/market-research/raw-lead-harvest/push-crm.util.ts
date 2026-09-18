@@ -2,6 +2,7 @@ export type PushableRawLead = {
   status: string;
   contactable: boolean;
   crm_lead_id?: number | null;
+  readiness_status?: string | null;
   verify_json?: Record<string, unknown> | null;
 };
 
@@ -11,14 +12,20 @@ export function assertRawLeadPushable(
   if (lead.status === 'pushed' || lead.crm_lead_id != null) {
     return { ok: false, error: 'already_in_crm' };
   }
-  if (lead.status !== 'accepted') {
+  if (lead.verify_json?.already_customer === true) {
+    return { ok: false, error: 'already_customer' };
+  }
+  const readiness = String(lead.readiness_status ?? '').trim().toUpperCase();
+  if (readiness) {
+    if (readiness !== 'READY_TO_PUSH') {
+      return { ok: false, error: 'not_ready_to_push' };
+    }
+  } else if (lead.status !== 'accepted') {
+    // Legacy rows without readiness: keep Accept-then-Push.
     return { ok: false, error: 'not_accepted' };
   }
   if (!lead.contactable) {
     return { ok: false, error: 'not_contactable' };
-  }
-  if (lead.verify_json?.already_customer === true) {
-    return { ok: false, error: 'already_customer' };
   }
   return { ok: true };
 }

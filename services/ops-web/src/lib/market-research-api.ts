@@ -1812,6 +1812,12 @@ export type RawLeadHarvestJob = {
   created_at: string;
 };
 
+export type RawLeadReadinessStatus =
+  | 'READY_TO_PUSH'
+  | 'NEEDS_REVIEW'
+  | 'MISSING_CONTACT'
+  | 'DUPLICATE_OR_BLACKLIST';
+
 export type RawLead = {
   id: number;
   project_id: number;
@@ -1840,6 +1846,8 @@ export type RawLead = {
   dial_outcome_at?: string | null;
   legal_status?: string | null;
   classification?: string | null;
+  readiness_status?: string | null;
+  readiness_reason_codes?: string[];
   crm_lead_id?: number | null;
   verify_json: Record<string, unknown>;
   created_at: string;
@@ -1918,6 +1926,7 @@ export function listRawLeads(
   projectId: number,
   params?: {
     status?: string;
+    readiness_status?: RawLeadReadinessStatus | string;
     job_id?: number;
     include_auto_rejected?: boolean;
     page?: number;
@@ -1929,6 +1938,7 @@ export function listRawLeads(
 ) {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
+  if (params?.readiness_status) qs.set('readiness_status', params.readiness_status);
   if (params?.job_id) qs.set('job_id', String(params.job_id));
   if (params?.include_auto_rejected) qs.set('include_auto_rejected', '1');
   if (params?.page) qs.set('page', String(params.page));
@@ -1944,6 +1954,13 @@ export function listRawLeads(
     total: number;
     total_pages: number;
   }>(token, `/api/v1/research/projects/${projectId}/raw-leads${suffix}`);
+}
+
+export function fetchRawLeadReadinessCounts(token: string, projectId: number) {
+  return researchFetch<{ counts: Record<string, number> }>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-leads/readiness-counts`,
+  );
 }
 
 export function patchRawLead(

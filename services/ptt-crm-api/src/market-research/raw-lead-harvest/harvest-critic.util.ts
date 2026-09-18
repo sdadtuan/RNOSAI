@@ -10,6 +10,7 @@ export type CriticFlag =
 export type HarvestLeadClassification =
   | 'pass'
   | 'needs_review'
+  | 'missing_contact'
   | 'rejected_critic'
   | 'rejected_gate'
   | 'rejected_blacklist'

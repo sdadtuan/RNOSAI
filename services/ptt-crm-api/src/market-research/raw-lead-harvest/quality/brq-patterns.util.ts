@@ -7,7 +7,23 @@ const DENYLIST_HOST_RE =
 export function isSearchEvidenceUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    if (SEARCH_HOST_RE.test(u.hostname)) return true;
+    const host = u.hostname.toLowerCase();
+    // Place detail / Maps pin URLs are valid Places evidence — not Google Search SERP.
+    if (
+      /(^|\.)maps\.google\.(com|com\.vn)$/i.test(host) ||
+      /(^|\.)google\.(com|com\.vn)$/i.test(host)
+    ) {
+      if (/[?&]cid=/i.test(u.search)) return false;
+      if (/\/maps\/place\b/i.test(u.pathname)) return false;
+      if (/\/maps\?/i.test(u.pathname + u.search) && /[?&]q=place_id:/i.test(u.search)) {
+        return false;
+      }
+      // Actual search SERP
+      if (/\/search/i.test(u.pathname) && /[?&]q=/i.test(u.search)) return true;
+      if (/(^|\.)maps\.google\./i.test(host)) return false;
+      return SEARCH_HOST_RE.test(host);
+    }
+    if (SEARCH_HOST_RE.test(host)) return true;
     if (/\/search/i.test(u.pathname) && /[?&]q=/i.test(u.search)) return true;
     return false;
   } catch {

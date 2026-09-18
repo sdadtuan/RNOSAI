@@ -271,6 +271,11 @@ export class RawLeadHarvestService {
     };
   }
 
+  async readinessCounts(projectId: number) {
+    this.assertEnabled();
+    return { counts: await this.repo.countByReadiness(projectId) };
+  }
+
   async patchLead(
     projectId: number,
     leadId: number,

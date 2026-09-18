@@ -23,6 +23,17 @@ describe('brq-patterns.util', () => {
     expect(isSearchEvidenceUrl('https://myspa.vn/lien-he')).toBe(false);
   });
 
+  it('allows Google Maps place URLs as evidence (not SERP)', () => {
+    expect(
+      isSearchEvidenceUrl(
+        'https://maps.google.com/?cid=11226590595882857272&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA',
+      ),
+    ).toBe(false);
+    expect(
+      isSearchEvidenceUrl('https://www.google.com/maps/place/?q=place_id:ChIJNR5_z3jddDEROLNWeqrczJs'),
+    ).toBe(false);
+  });
+
   it('flags denylist hosts (BR-Q9)', () => {
     expect(isDenylistedEvidenceHost('https://facebook.com/spa')).toBe(true);
   });

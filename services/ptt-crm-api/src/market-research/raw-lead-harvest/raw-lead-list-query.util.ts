@@ -2,6 +2,7 @@ export type RawLeadListQuery = {
   page: number;
   page_size: number;
   status?: string[];
+  readiness_status?: string;
   job_id?: number;
   q?: string;
   has_phone?: boolean;
@@ -50,10 +51,21 @@ export function parseRawLeadListQuery(
 
   const q = String(input.q ?? '').trim() || undefined;
 
+  const readinessRaw = String(input.readiness_status ?? '').trim().toUpperCase();
+  const readinessAllowed = new Set([
+    'READY_TO_PUSH',
+    'NEEDS_REVIEW',
+    'MISSING_CONTACT',
+    'DUPLICATE_OR_BLACKLIST',
+  ]);
+  const readiness_status =
+    readinessRaw && readinessAllowed.has(readinessRaw) ? readinessRaw : undefined;
+
   return {
     page,
     page_size: pageSize,
     status: status?.length ? status : undefined,
+    readiness_status,
     job_id,
     q,
     has_phone: truthyFlag(input.has_phone) ? true : undefined,

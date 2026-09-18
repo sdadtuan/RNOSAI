@@ -1,15 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { candidateHitsBlacklist } from '../blacklist.util';
-import { resolveLeadClassification } from '../harvest-critic.util';
 import { fetchEvidenceText } from '../quality/evidence-fetch.util';
-import { applyQualityGate } from '../quality/quality-gate.util';
 import { computeQualityScore } from '../quality/quality-score.util';
-import {
-  buildDedupeKey,
-  isDuplicateAgainst,
-  normalizeCompanyKey,
-  type DedupeKey,
-} from '../quality/dedupe.util';
+import { classifyRawLeadReadiness } from '../quality/readiness-classify.util';
+import { normalizeCompanyKey } from '../quality/dedupe.util';
 import {
   contactPageUrls,
   mergeScrapedContacts,
@@ -17,6 +11,7 @@ import {
 } from '../quality/scrape-contact.util';
 import { verifyCandidate } from '../quality/verify-contact.util';
 import { normalizePhoneDigits } from '../quality/literal-contact.util';
+import { isDenylistedEvidenceHost, isSequentialOrRepeatedPhone } from '../quality/brq-patterns.util';
 import { PlacesClient } from '../places/places.client';
 import type { PlaceCandidate } from '../places/places.types';
 import { buildMarketGraphQueries } from '../market-graph/hcm-grid.util';
@@ -29,17 +24,16 @@ export type IntentJobStats = {
   places_requests: number;
   search_requests: number;
   details_requests: number;
-  filtered_crm: number;
-  filtered_recent: number;
-  filtered_blacklist: number;
-  filtered_intent: number;
-  filtered_dedupe: number;
+  skipped_place_id: number;
+  inserted: number;
+  ready_to_push: number;
+  needs_review: number;
+  missing_contact: number;
+  duplicate_or_blacklist: number;
   pending: number;
   rejected: number;
 };
 
-const INTENT_THRESHOLD = 40;
-/** Text Search pages / grid cells only — details use a separate budget. */
 const MAX_SEARCH_REQUESTS_DEFAULT = 60;
 /** Place Details enrichment cap (independent of search). */
 const MAX_DETAILS_REQUESTS_DEFAULT = 200;
@@ -49,6 +43,50 @@ const QUERY_DELAY_MS = 400;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Facebook/Instagram listed as "website" on Maps → fanpage, not company site. */
+function splitPlacesWebChannels(website: string | null): {
+  website: string | null;
+  fanpage_url: string | null;
+} {
+  const raw = String(website ?? '').trim();
+  if (!raw) return { website: null, fanpage_url: null };
+  try {
+    const host = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).hostname;
+    if (/(^|\.)facebook\.com$|(^|\.)fb\.com$|(^|\.)instagram\.com$/i.test(host)) {
+      return { website: null, fanpage_url: raw.startsWith('http') ? raw : `https://${raw}` };
+    }
+  } catch {
+    /* keep as website */
+  }
+  return { website: raw, fanpage_url: null };
+}
+
+function preferEvidenceUrl(input: {
+  website: string | null;
+  fanpage_url: string | null;
+  maps_url: string | null;
+  place_id: string;
+}): string {
+  if (input.website && !isDenylistedEvidenceHost(input.website)) return input.website;
+  if (input.maps_url) return input.maps_url;
+  if (input.place_id) {
+    return `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(input.place_id)}`;
+  }
+  if (input.fanpage_url) return input.fanpage_url;
+  return '';
+}
+
+function mergePlace(base: PlaceCandidate, detailed: PlaceCandidate): PlaceCandidate {
+  return {
+    ...base,
+    ...detailed,
+    phone: detailed.phone || base.phone,
+    website: detailed.website || base.website,
+    maps_url: detailed.maps_url || base.maps_url,
+    address: detailed.address || base.address,
+  };
 }
 
 async function fetchEvidenceBundle(evidenceUrl: string): Promise<{
@@ -96,7 +134,6 @@ export class IntentHarvestWorker {
       maxPlacesRequests?: number;
       maxSearchRequests?: number;
       maxDetailsRequests?: number;
-      intentThreshold?: number;
     },
   ): Promise<{ inserted: number; rejected: number; stats: IntentJobStats }> {
     const scanCap = job.scan_cap ?? Math.max(job.target_count * 5, 200);
@@ -104,18 +141,18 @@ export class IntentHarvestWorker {
     const maxSearchRequests =
       opts?.maxSearchRequests ?? opts?.maxPlacesRequests ?? MAX_SEARCH_REQUESTS_DEFAULT;
     const maxDetailsRequests = opts?.maxDetailsRequests ?? MAX_DETAILS_REQUESTS_DEFAULT;
-    const threshold = opts?.intentThreshold ?? INTENT_THRESHOLD;
 
     const stats: IntentJobStats = {
       discovered: 0,
       places_requests: 0,
       search_requests: 0,
       details_requests: 0,
-      filtered_crm: 0,
-      filtered_recent: 0,
-      filtered_blacklist: 0,
-      filtered_intent: 0,
-      filtered_dedupe: 0,
+      skipped_place_id: 0,
+      inserted: 0,
+      ready_to_push: 0,
+      needs_review: 0,
+      missing_contact: 0,
+      duplicate_or_blacklist: 0,
       pending: 0,
       rejected: 0,
     };
@@ -152,23 +189,32 @@ export class IntentHarvestWorker {
     }
 
     const candidates = [...byPlaceId.values()];
-    const existingKeys = await this.repo.listDedupeKeys(job.project_id);
-    const batchKeys: DedupeKey[] = [...existingKeys];
     const blacklist = await this.repo.listBlacklistEntries();
     let inserted = 0;
-    let rejected = 0;
+    const seenPhones = new Set<string>();
 
     for (const rough of candidates) {
-      if (inserted >= job.target_count) break;
       if (stats.details_requests >= maxDetailsRequests) break;
 
+      if (rough.place_id && (await this.repo.hasPlaceIdInProject(job.project_id, rough.place_id))) {
+        stats.skipped_place_id += 1;
+        continue;
+      }
+
       let place = rough;
-      try {
+      const enrichDetails = async () => {
         await sleep(DETAILS_PAGE_DELAY_MS);
         const detailed = await places.placeDetails(rough.place_id);
         stats.details_requests += 1;
         stats.places_requests += 1;
-        if (detailed) place = detailed;
+        if (detailed) place = mergePlace(place, detailed);
+      };
+      try {
+        await enrichDetails();
+        if (!place.phone && !place.website) {
+          await sleep(400);
+          await enrichDetails();
+        }
       } catch (err) {
         this.logger.warn(
           `places_details_failed place=${rough.place_id}: ${
@@ -177,51 +223,46 @@ export class IntentHarvestWorker {
         );
       }
 
+      const channels = splitPlacesWebChannels(place.website);
+      const companyWebsite = channels.website;
+      const fanpageUrl = channels.fanpage_url;
+
       const phoneNorm = place.phone ? normalizePhoneDigits(place.phone) : null;
       const companyNorm = normalizeCompanyKey(place.company_name);
 
-      if (phoneNorm && (await this.repo.findAlreadyCustomerByPhone(phoneNorm))) {
-        stats.filtered_crm += 1;
-        continue;
-      }
-      if (
-        await this.repo.hasRecentAcceptedOrPushed(job.project_id, {
-          phone_norm: phoneNorm,
-          company_name_norm: companyNorm,
-          days: 90,
-        })
-      ) {
-        stats.filtered_recent += 1;
-        continue;
-      }
-
+      const existingCrm = phoneNorm
+        ? await this.repo.findAlreadyCustomerByPhone(phoneNorm)
+        : false;
       const blacklistHit = candidateHitsBlacklist(
         {
           phone_norm: phoneNorm,
           email: null,
           company_name: place.company_name,
-          website: place.website,
+          website: companyWebsite || fanpageUrl,
         },
         blacklist,
       );
-      if (blacklistHit) {
-        stats.filtered_blacklist += 1;
-        continue;
-      }
+      const dupPhone =
+        Boolean(phoneNorm) &&
+        (seenPhones.has(phoneNorm!) ||
+          (await this.repo.hasDuplicatePhoneInProject(job.project_id, phoneNorm!)));
 
-      const evidenceUrl = place.website || place.maps_url || '';
-      if (!evidenceUrl) {
-        stats.filtered_intent += 1;
-        continue;
-      }
+      const evidenceUrl = preferEvidenceUrl({
+        website: companyWebsite,
+        fanpage_url: fanpageUrl,
+        maps_url: place.maps_url,
+        place_id: place.place_id,
+      });
 
       let websiteFetchOk = false;
       let scrapedContact = false;
       let combinedText = '';
-      let fetchResult = await fetchEvidenceText(evidenceUrl, { timeoutMs: 8000 });
+      let fetchResult = await fetchEvidenceText(evidenceUrl || place.maps_url || '', {
+        timeoutMs: 8000,
+      });
 
-      if (place.website) {
-        const bundle = await fetchEvidenceBundle(place.website);
+      if (companyWebsite) {
+        const bundle = await fetchEvidenceBundle(companyWebsite);
         fetchResult = bundle.fetch;
         combinedText = bundle.combinedText;
         websiteFetchOk = bundle.fetch.ok;
@@ -240,25 +281,21 @@ export class IntentHarvestWorker {
       const intentScore = computeIntentScore({
         company_name: place.company_name,
         has_places_phone: Boolean(place.phone),
-        has_website: Boolean(place.website),
+        has_website: Boolean(companyWebsite),
         website_fetch_ok: websiteFetchOk,
         scraped_contact: scrapedContact,
         ratings_total: place.user_ratings_total,
       });
-      if (intentScore < threshold) {
-        stats.filtered_intent += 1;
-        continue;
-      }
 
       const evidenceSnippet = [
         place.company_name,
         place.address,
         merged.phone,
         merged.email,
+        fanpageUrl,
       ]
         .filter(Boolean)
         .join(' — ');
-      // Places phone/email are ground-truth from Google — include in verify text so BR-Q7 passes.
       const fetchForVerify = {
         ok: true as const,
         text: `${combinedText}\n${evidenceSnippet}`,
@@ -272,8 +309,8 @@ export class IntentHarvestWorker {
           phone: merged.phone,
           email: merged.email,
           contact_title: null,
-          website: place.website,
-          evidence_url: evidenceUrl,
+          website: companyWebsite,
+          evidence_url: evidenceUrl || place.maps_url || `place:${place.place_id}`,
           evidence_snippet: evidenceSnippet,
           discovered_via_source_key: 'google_maps',
           confidence: 0.7,
@@ -285,78 +322,96 @@ export class IntentHarvestWorker {
         },
       );
 
-      const dedupe = buildDedupeKey({
-        company_name: place.company_name,
-        phone_norm: verified.phone_norm,
-        email: verified.email_out,
-      });
-      if (isDuplicateAgainst(dedupe, batchKeys)) {
-        stats.filtered_dedupe += 1;
-        continue;
-      }
-
       const qualityScore = computeQualityScore(verified, 0.7);
-      const gate = applyQualityGate('intent', qualityScore, verified);
-      const status = gate === 'pending' ? 'pending' : 'auto_rejected';
-      if (status === 'auto_rejected') {
-        rejected += 1;
-        stats.rejected += 1;
-      } else {
-        inserted += 1;
-        stats.pending += 1;
-      }
+      const phoneValid =
+        Boolean(verified.phone_norm) &&
+        verified.phone_ok &&
+        !isSequentialOrRepeatedPhone(verified.phone_norm || '');
+      const emailValid = Boolean(verified.email_out) && verified.email_ok;
+      const companyWebsiteOk =
+        Boolean(companyWebsite) && !isDenylistedEvidenceHost(companyWebsite || '');
+      const socialOnly = Boolean(fanpageUrl) && !companyWebsiteOk;
 
-      const classification = resolveLeadClassification({
-        criticFlag: intentScore < 55 ? 'weak_contact' : 'keep',
-        forceReject: false,
-        status,
-      });
-
-      await this.repo.insertLead({
-        project_id: job.project_id,
-        job_id: job.id,
-        company_name: place.company_name,
-        company_name_norm: companyNorm,
-        address: place.address,
-        phone: verified.phone_out,
-        phone_norm: verified.phone_norm,
-        email: verified.email_out,
-        contact_title: null,
-        website: place.website,
-        evidence_url: evidenceUrl,
-        evidence_snippet: evidenceSnippet,
-        source_provider: 'google_places',
-        source_model: 'places_new',
-        search_source_keys: job.sources_json.map((s) => s.key),
-        search_channel_keys: job.channels_json.map((s) => s.key),
-        discovered_via_source_key: 'google_maps',
-        confidence: 0.7,
+      const readiness = classifyRawLeadReadiness({
+        phone_valid: phoneValid,
+        email_valid: emailValid,
+        company_website_ok: companyWebsiteOk,
+        social_only: socialOnly,
         quality_score: qualityScore,
-        icp_fit_score: Math.min(100, Math.round(qualityScore * 0.9)),
-        contactable: Boolean(verified.phone_ok || verified.email_ok) && status === 'pending',
-        phone_kind: verified.phone_kind ?? null,
-        status,
-        classification,
-        place_id: place.place_id,
-        intent_score: intentScore,
-        verify_json: {
-          evidence_ok: verified.evidence_ok,
-          phone_ok: verified.phone_ok,
-          email_ok: verified.email_ok,
-          fetch: verified.fetch,
-          reasons: verified.reasons,
-          gate,
-          intent_score: intentScore,
-          place_id: place.place_id,
-          classification,
-        },
-        raw_json: { place },
+        blacklist_hit: Boolean(blacklistHit),
+        existing_crm_customer: existingCrm,
+        duplicate_phone_in_project: dupPhone,
+        vertical_ok: Boolean(job.industry_key),
+        territory_ok: Boolean(job.province_code || job.province_name),
       });
 
-      batchKeys.push(dedupe);
+      if (readiness.readiness_status === 'READY_TO_PUSH') stats.ready_to_push += 1;
+      else if (readiness.readiness_status === 'NEEDS_REVIEW') stats.needs_review += 1;
+      else if (readiness.readiness_status === 'MISSING_CONTACT') stats.missing_contact += 1;
+      else stats.duplicate_or_blacklist += 1;
+
+      try {
+        await this.repo.insertLead({
+          project_id: job.project_id,
+          job_id: job.id,
+          company_name: place.company_name,
+          company_name_norm: companyNorm,
+          address: place.address,
+          phone: verified.phone_out,
+          phone_norm: verified.phone_norm,
+          email: verified.email_out,
+          contact_title: null,
+          website: companyWebsite,
+          fanpage_url: fanpageUrl,
+          evidence_url: evidenceUrl || place.maps_url,
+          evidence_snippet: evidenceSnippet,
+          source_provider: 'google_places',
+          source_model: 'places_new',
+          search_source_keys: job.sources_json.map((s) => s.key),
+          search_channel_keys: job.channels_json.map((s) => s.key),
+          discovered_via_source_key: 'google_maps',
+          confidence: 0.7,
+          quality_score: qualityScore,
+          icp_fit_score: Math.min(100, Math.round(qualityScore * 0.9)),
+          contactable: Boolean(verified.phone_ok || verified.email_ok),
+          phone_kind: verified.phone_kind ?? null,
+          status: 'pending',
+          classification: readiness.classification,
+          readiness_status: readiness.readiness_status,
+          readiness_reason_codes: readiness.readiness_reason_codes,
+          place_id: place.place_id,
+          intent_score: intentScore,
+          verify_json: {
+            evidence_ok: verified.evidence_ok,
+            phone_ok: verified.phone_ok,
+            email_ok: verified.email_ok,
+            fetch: verified.fetch,
+            reasons: verified.reasons,
+            readiness: readiness.readiness_status,
+            readiness_reason_codes: readiness.readiness_reason_codes,
+            intent_score: intentScore,
+            place_id: place.place_id,
+            classification: readiness.classification,
+            already_customer: existingCrm,
+          },
+          raw_json: { place },
+        });
+        inserted += 1;
+        stats.inserted += 1;
+        stats.pending += 1;
+        if (phoneNorm) seenPhones.add(phoneNorm);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/uq_raw_leads_project_place|duplicate key/i.test(msg)) {
+          stats.skipped_place_id += 1;
+        } else {
+          this.logger.warn(`insert_raw_lead_failed place=${place.place_id}: ${msg}`);
+          stats.rejected += 1;
+        }
+      }
     }
 
     stats.discovered = candidates.length;
-    return { inserted, rejected, stats };
+    return { inserted, rejected: stats.rejected, stats };
   }
 }

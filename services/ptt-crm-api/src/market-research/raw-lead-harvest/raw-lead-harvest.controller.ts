@@ -89,6 +89,12 @@ export class RawLeadHarvestController {
     return this.harvest.listLeads(id, query);
   }
 
+  @Get('projects/:id/raw-leads/readiness-counts')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  readinessCounts(@Param('id', ParseIntPipe) id: number) {
+    return this.harvest.readinessCounts(id);
+  }
+
   @Patch('projects/:id/raw-leads/:leadId')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
   patchLead(

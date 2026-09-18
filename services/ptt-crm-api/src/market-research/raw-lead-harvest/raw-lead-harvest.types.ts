@@ -100,6 +100,8 @@ export type RawLeadRow = {
   dial_outcome_at: string | null;
   legal_status: string | null;
   classification: string | null;
+  readiness_status: string | null;
+  readiness_reason_codes: string[];
   crm_lead_id: number | null;
   verify_json: Record<string, unknown>;
   created_at: string;

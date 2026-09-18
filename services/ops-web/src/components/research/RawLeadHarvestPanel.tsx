@@ -8,6 +8,7 @@ import {
   exportRawLeads,
   fetchMarketEntitiesSummary,
   fetchRawLeadHarvestProviders,
+  fetchRawLeadReadinessCounts,
   getRawLeadHarvest,
   listRawLeadHarvests,
   listRawLeads,
@@ -17,12 +18,24 @@ import {
   type MarketEntitiesSummary,
   type RawLead,
   type RawLeadHarvestJob,
+  type RawLeadReadinessStatus,
 } from '@/lib/market-research-api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import { RawLeadAcceptModal } from './RawLeadAcceptModal';
 
 const FLAG_ON =
   String(process.env.NEXT_PUBLIC_RESEARCH_RAW_LEAD_HARVEST ?? '').trim() === '1';
+
+const READINESS_TABS: Array<{
+  key: '' | RawLeadReadinessStatus;
+  label: string;
+}> = [
+  { key: '', label: 'Tất cả' },
+  { key: 'READY_TO_PUSH', label: 'Sẵn sàng push' },
+  { key: 'NEEDS_REVIEW', label: 'Cần review' },
+  { key: 'MISSING_CONTACT', label: 'Thiếu contact' },
+  { key: 'DUPLICATE_OR_BLACKLIST', label: 'Trùng / blacklist' },
+];
 
 const FEEDBACK_OPTS = [
   { value: 'bad_phone', label: 'Sai SĐT' },
@@ -51,6 +64,9 @@ const HARVEST_SOURCE_PRIORITY = [
   'website',
   'landing',
 ];
+
+/** Recent jobs table — newest first, 3 per page. */
+const JOBS_PAGE_SIZE = 3;
 
 type Props = {
   projectId: number;
@@ -84,6 +100,8 @@ function classificationLabel(code: string | null | undefined): string {
       return 'Pass';
     case 'needs_review':
       return 'Cần review';
+    case 'missing_contact':
+      return 'Thiếu contact';
     case 'rejected_critic':
       return 'Critic reject';
     case 'rejected_gate':
@@ -95,6 +113,41 @@ function classificationLabel(code: string | null | undefined): string {
     default:
       return code?.trim() ? code : '—';
   }
+}
+
+function readinessLabel(code: string | null | undefined): string {
+  switch (String(code ?? '').toUpperCase()) {
+    case 'READY_TO_PUSH':
+      return 'Sẵn sàng push';
+    case 'NEEDS_REVIEW':
+      return 'Cần review';
+    case 'MISSING_CONTACT':
+      return 'Thiếu contact';
+    case 'DUPLICATE_OR_BLACKLIST':
+      return 'Trùng / blacklist';
+    default:
+      return code?.trim() ? code : '—';
+  }
+}
+
+function formatJobDoneMessage(job: RawLeadHarvestJob): string {
+  const stats = job.stats_json ?? {};
+  const inserted = Number(stats.inserted ?? job.result_count ?? 0);
+  const ready = Number(stats.ready_to_push ?? 0);
+  const review = Number(stats.needs_review ?? 0);
+  const missing = Number(stats.missing_contact ?? 0);
+  const dup = Number(stats.duplicate_or_blacklist ?? 0);
+  const skipped = Number(stats.skipped_place_id ?? 0);
+  const hasBreakdown = ready + review + missing + dup > 0 || skipped > 0;
+  if (!hasBreakdown) {
+    return `Job #${job.id} xong — ${job.result_count} lead đã insert`;
+  }
+  return (
+    `Job #${job.id} xong — insert ${inserted}` +
+    ` (ready ${ready} · review ${review} · thiếu CT ${missing} · trùng ${dup}` +
+    (skipped ? ` · skip place ${skipped}` : '') +
+    ')'
+  );
 }
 
 function externalLink(url: string | null | undefined, label?: string) {
@@ -199,10 +252,19 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   const isMarketGraph = mode === 'market_graph';
 
   const [jobs, setJobs] = useState<RawLeadHarvestJob[]>([]);
+  const [jobsPage, setJobsPage] = useState(1);
   const [leads, setLeads] = useState<RawLead[]>([]);
   const [leadsTotal, setLeadsTotal] = useState(0);
   const [leadsTotalPages, setLeadsTotalPages] = useState(0);
   const [leadsPage, setLeadsPage] = useState(1);
+  const [readinessFilter, setReadinessFilter] = useState<'' | RawLeadReadinessStatus>('');
+  const [readinessCounts, setReadinessCounts] = useState<Record<string, number>>({
+    ALL: 0,
+    READY_TO_PUSH: 0,
+    NEEDS_REVIEW: 0,
+    MISSING_CONTACT: 0,
+    DUPLICATE_OR_BLACKLIST: 0,
+  });
   const [statusFilter, setStatusFilter] = useState('');
   const [jobFilter, setJobFilter] = useState<number | ''>('');
   const [qFilter, setQFilter] = useState('');
@@ -232,6 +294,20 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     [leads],
   );
 
+  const jobsTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(jobs.length / JOBS_PAGE_SIZE)),
+    [jobs.length],
+  );
+  const jobsPageSafe = Math.min(jobsPage, jobsTotalPages);
+  const pagedJobs = useMemo(() => {
+    const start = (jobsPageSafe - 1) * JOBS_PAGE_SIZE;
+    return jobs.slice(start, start + JOBS_PAGE_SIZE);
+  }, [jobs, jobsPageSafe]);
+
+  useEffect(() => {
+    if (jobsPage > jobsTotalPages) setJobsPage(jobsTotalPages);
+  }, [jobsPage, jobsTotalPages]);
+
   const reloadMeta = useCallback(async () => {
     const [ind, tit, src, ch, prov, harvestProv] = await Promise.all([
       fetchCrmLeadLookups(token, { kind: 'industry', active_only: true }),
@@ -250,28 +326,32 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   }, [token]);
 
   const reloadJobsAndLeads = useCallback(async () => {
-    const [j, l] = await Promise.all([
+    const [j, l, countsOut] = await Promise.all([
       listRawLeadHarvests(token, projectId),
       listRawLeads(token, projectId, {
         page: leadsPage,
         page_size: 50,
         status: statusFilter || undefined,
+        readiness_status: readinessFilter || undefined,
         job_id: jobFilter === '' ? undefined : Number(jobFilter),
         q: qFilter || undefined,
         has_phone: hasPhoneOnly || undefined,
         has_contact: hasContactOnly || undefined,
-        include_auto_rejected: !statusFilter,
+        include_auto_rejected: !statusFilter || Boolean(readinessFilter),
       }),
+      fetchRawLeadReadinessCounts(token, projectId).catch(() => ({ counts: {} })),
     ]);
     setJobs(j.jobs);
     setLeads(l.leads);
     setLeadsTotal(l.total);
     setLeadsTotalPages(l.total_pages);
+    setReadinessCounts((prev) => ({ ...prev, ...(countsOut.counts ?? {}) }));
   }, [
     token,
     projectId,
     leadsPage,
     statusFilter,
+    readinessFilter,
     jobFilter,
     qFilter,
     hasPhoneOnly,
@@ -338,7 +418,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
             setActiveJobId(null);
             setMsg(
               job.status === 'succeeded'
-                ? `Job #${job.id} xong — ${job.result_count} lead`
+                ? formatJobDoneMessage(job)
                 : `Job #${job.id} lỗi: ${job.error_message ?? 'failed'}`,
             );
             await reloadJobsAndLeads();
@@ -362,8 +442,11 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   return (
     <div className="rlh-panel">
       <div className="rlh-callout">
-        <strong>Lead thô đã qua cửa chất lượng</strong>
-        <span>AM vẫn cần xác minh evidence / liên hệ trước khi hứa với khách.</span>
+        <strong>Lead thô — phân loại readiness RSR</strong>
+        <span>
+          Job Places insert hết place (trừ trùng place_id). Chỉ push CRM khi tab Sẵn sàng push /
+          READY_TO_PUSH.
+        </span>
       </div>
 
       {error ? <p className="error">{error}</p> : null}
@@ -438,6 +521,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     mode,
                     cross_check: !isPlacesMode && canCrossCheck && crossCheck,
                     target_count: count,
+                    scan_cap: isPlacesMode ? count : undefined,
                     notes: notes || undefined,
                   });
                   setActiveJobId(out.job_id);
@@ -572,7 +656,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                       Marketing — web/FB lấy SĐT + email (AM gửi MKT, không verify email)
                     </option>
                     <option value="intent">
-                      Intent — white space (Places + lọc CRM)
+                      Intent — Places insert-all + readiness RSR
                     </option>
                     <option value="market_graph">
                       All thị trường — census + diff (Places grid)
@@ -580,7 +664,9 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   </select>
                 </label>
                 <label className="form-field">
-                  <span className="form-label">Số lượng</span>
+                  <span className="form-label">
+                    {isPlacesMode ? 'Scan cap (max place)' : 'Số lượng'}
+                  </span>
                   <input
                     type="number"
                     min={1}
@@ -599,6 +685,12 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     }}
                     required
                   />
+                  {isPlacesMode ? (
+                    <span className="form-hint">
+                      Giới hạn số place discover — insert hết (trừ trùng place_id), không cắt theo
+                      pending.
+                    </span>
+                  ) : null}
                 </label>
                 {!isPlacesMode ? (
                   <>
@@ -643,8 +735,8 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                       </>
                     ) : (
                       <>
-                        Intent dùng <strong>Google Places API</strong> — không cần Provider/Model
-                        AI. Bắt buộc chọn Tỉnh/TP cụ thể.
+                        Intent dùng <strong>Google Places API</strong> — insert tất cả place vào
+                        Lead thô, gắn readiness RSR. Bắt buộc chọn Tỉnh/TP cụ thể.
                       </>
                     )}
                   </p>
@@ -674,8 +766,9 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
               ) : null}
               {mode === 'intent' ? (
                 <p className="rlh-inline-warn">
-                  Intent: Places Text Search theo ngành × tỉnh → lọc chưa có CRM / chuỗi lớn →
-                  scrape contact. Cần flag PTT_RESEARCH_HARVEST_INTENT=1 và PTT_GOOGLE_PLACES_API_KEY.
+                  Intent: Places Text Search → Place Details → insert Lead thô (skip chỉ trùng
+                  place_id) → classify READY / REVIEW / MISSING / DUP. CRM chỉ khi Push từ
+                  READY_TO_PUSH. Cần PTT_RESEARCH_HARVEST_INTENT=1 + PTT_GOOGLE_PLACES_API_KEY.
                 </p>
               ) : null}
               {mode === 'market_graph' ? (
@@ -744,59 +837,93 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
         {jobs.length === 0 ? (
           <div className="rlh-empty">Chưa có job — tạo job phía trên để bắt đầu.</div>
         ) : (
-          <div className="data-table-wrap">
-            <table className="data-table data-table--dense">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Status</th>
-                  <th>Filter</th>
-                  <th>Provider / Model</th>
-                  <th>Kết quả</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map((j) => (
-                  <tr key={j.id}>
-                    <td>#{j.id}</td>
-                    <td>
-                      <span className={`job-status-pill ${jobStatusClass(j.status)}`}>
-                        {j.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="rlh-filter-cell">
-                        <strong>
-                          {j.industry_label} · {j.job_title_label}
-                        </strong>
-                        <span className="muted">{j.province_name}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <code className="rlh-mono">
-                        {j.mode === 'intent'
-                          ? 'places/intent'
-                          : j.mode === 'market_graph'
-                            ? 'places/market_graph'
-                            : `${j.provider}/${j.model}`}
-                      </code>
-                      <div className="muted rlh-sub">{j.mode}</div>
-                    </td>
-                    <td>
-                      <strong>{j.result_count}</strong>
-                      <span className="muted"> · gate {j.rejected_by_gate_count}</span>
-                      {j.stats_json && typeof j.stats_json.discovered === 'number' ? (
-                        <div className="muted rlh-sub">
-                          scan {String(j.stats_json.discovered)} · pending{' '}
-                          {String(j.stats_json.pending ?? '—')}
-                        </div>
-                      ) : null}
-                    </td>
+          <>
+            <div className="data-table-wrap">
+              <table className="data-table data-table--dense">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Status</th>
+                    <th>Filter</th>
+                    <th>Provider / Model</th>
+                    <th>Kết quả</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {pagedJobs.map((j) => (
+                    <tr key={j.id}>
+                      <td>#{j.id}</td>
+                      <td>
+                        <span className={`job-status-pill ${jobStatusClass(j.status)}`}>
+                          {j.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="rlh-filter-cell">
+                          <strong>
+                            {j.industry_label} · {j.job_title_label}
+                          </strong>
+                          <span className="muted">{j.province_name}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <code className="rlh-mono">
+                          {j.mode === 'intent'
+                            ? 'places/intent'
+                            : j.mode === 'market_graph'
+                              ? 'places/market_graph'
+                              : `${j.provider}/${j.model}`}
+                        </code>
+                        <div className="muted rlh-sub">{j.mode}</div>
+                      </td>
+                      <td>
+                        <strong>{j.result_count}</strong>
+                        <span className="muted"> inserted</span>
+                        {j.stats_json && typeof j.stats_json.discovered === 'number' ? (
+                          <div className="muted rlh-sub">
+                            scan {String(j.stats_json.discovered)}
+                            {typeof j.stats_json.ready_to_push === 'number'
+                              ? ` · ready ${String(j.stats_json.ready_to_push)} · review ${String(j.stats_json.needs_review ?? 0)} · thiếu ${String(j.stats_json.missing_contact ?? 0)}`
+                              : ` · pending ${String(j.stats_json.pending ?? '—')}`}
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div
+              className="rlh-pager"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                marginTop: '0.75rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span className="form-hint" style={{ margin: 0 }}>
+                Trang {jobsPageSafe}/{jobsTotalPages} · {jobs.length} job · {JOBS_PAGE_SIZE}/trang
+              </span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={jobsPageSafe <= 1}
+                onClick={() => setJobsPage((p) => Math.max(1, p - 1))}
+              >
+                Prev
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={jobsPageSafe >= jobsTotalPages}
+                onClick={() => setJobsPage((p) => Math.min(jobsTotalPages, p + 1))}
+              >
+                Next
+              </button>
+            </div>
+          </>
         )}
       </section>
 
@@ -849,13 +976,38 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
               <button
                 type="button"
                 className="btn btn-sm"
-                disabled={busy || selectedIds.length === 0}
+                disabled={
+                  busy ||
+                  selectedIds.length === 0 ||
+                  (readinessFilter !== '' && readinessFilter !== 'READY_TO_PUSH')
+                }
+                title={
+                  readinessFilter && readinessFilter !== 'READY_TO_PUSH'
+                    ? 'Chỉ push được lead READY_TO_PUSH'
+                    : undefined
+                }
                 onClick={() => {
                   void (async () => {
                     setBusy(true);
                     setError('');
                     try {
-                      const out = await pushRawLeadsToCrm(token, projectId, selectedIds);
+                      const pushIds =
+                        readinessFilter === 'READY_TO_PUSH'
+                          ? selectedIds
+                          : selectedIds.filter((id) => {
+                              const lead = leads.find((l) => l.id === id);
+                              return (
+                                !lead?.readiness_status ||
+                                lead.readiness_status === 'READY_TO_PUSH' ||
+                                (!lead.readiness_status && lead.status === 'accepted')
+                              );
+                            });
+                      if (!pushIds.length) {
+                        setError('Không có lead READY_TO_PUSH trong selection');
+                        setBusy(false);
+                        return;
+                      }
+                      const out = await pushRawLeadsToCrm(token, projectId, pushIds);
                       setMsg(
                         `Push CRM: ${out.pushed.length} OK` +
                           (out.errors.length ? `, ${out.errors.length} lỗi` : ''),
@@ -877,6 +1029,31 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
               </button>
             ) : null}
           </div>
+        </div>
+
+        <div className="rlh-tabs" role="tablist" aria-label="Readiness">
+          {READINESS_TABS.map((tab) => {
+            const countKey = tab.key || 'ALL';
+            const count = Number(readinessCounts[countKey] ?? 0);
+            const active = readinessFilter === tab.key;
+            return (
+              <button
+                key={tab.key || 'ALL'}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`rlh-tab${active ? ' is-active' : ''}`}
+                onClick={() => {
+                  setReadinessFilter(tab.key);
+                  setLeadsPage(1);
+                  setSelectedIds([]);
+                }}
+              >
+                {tab.label}
+                <span className="rlh-tab__count">{count}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="form-grid form-grid--2 rlh-lead-filters" style={{ marginBottom: '0.75rem' }}>
@@ -991,6 +1168,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   <th>Zalo</th>
                   <th>Địa chỉ</th>
                   <th>Phân loại</th>
+                  <th>Readiness</th>
                   <th>Status</th>
                   <th>Dial</th>
                   <th>Feedback</th>
@@ -1046,6 +1224,14 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     </td>
                     <td>
                       <span className="rlh-class">{classificationLabel(lead.classification)}</span>
+                    </td>
+                    <td>
+                      <span className="rlh-class">{readinessLabel(lead.readiness_status)}</span>
+                      {lead.readiness_reason_codes?.length ? (
+                        <div className="muted rlh-sub">
+                          {lead.readiness_reason_codes.slice(0, 2).join(', ')}
+                        </div>
+                      ) : null}
                     </td>
                     <td>
                       <span className={`rlh-status ${leadStatusClass(lead.status)}`}>

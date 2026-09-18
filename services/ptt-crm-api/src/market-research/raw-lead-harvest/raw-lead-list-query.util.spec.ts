@@ -35,4 +35,14 @@ describe('raw-lead-list-query.util', () => {
     expect(parseRawLeadListQuery({}).page_size).toBe(50);
     expect(parseRawLeadListQuery({}).include_auto_rejected).toBe(false);
   });
+
+  it('parses readiness_status filter', () => {
+    expect(
+      parseRawLeadListQuery({ readiness_status: 'ready_to_push' }).readiness_status,
+    ).toBe('READY_TO_PUSH');
+    expect(
+      parseRawLeadListQuery({ readiness_status: 'NEEDS_REVIEW' }).readiness_status,
+    ).toBe('NEEDS_REVIEW');
+    expect(parseRawLeadListQuery({ readiness_status: 'bogus' }).readiness_status).toBeUndefined();
+  });
 });

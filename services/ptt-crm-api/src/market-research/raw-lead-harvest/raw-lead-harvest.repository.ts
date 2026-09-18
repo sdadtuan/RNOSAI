@@ -166,6 +166,23 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       ALTER TABLE crm_research_raw_leads
         ADD COLUMN IF NOT EXISTS zalo_url TEXT
     `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS readiness_status TEXT
+    `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS readiness_reason_codes JSONB NOT NULL DEFAULT '[]'::jsonb
+    `);
+    await this.db.query(`
+      CREATE INDEX IF NOT EXISTS idx_raw_leads_project_readiness
+        ON crm_research_raw_leads (project_id, readiness_status)
+    `);
+    await this.db.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_leads_project_place
+        ON crm_research_raw_leads (project_id, place_id)
+        WHERE place_id IS NOT NULL AND btrim(place_id) <> ''
+    `);
   }
 
   private mapJob(row: Record<string, unknown>): RawLeadHarvestJobRow {
@@ -272,6 +289,20 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       dial_outcome_at: iso(row.dial_outcome_at),
       legal_status: row.legal_status == null ? null : String(row.legal_status),
       classification: row.classification == null ? null : String(row.classification),
+      readiness_status:
+        row.readiness_status == null ? null : String(row.readiness_status),
+      readiness_reason_codes: Array.isArray(row.readiness_reason_codes)
+        ? row.readiness_reason_codes.map(String)
+        : typeof row.readiness_reason_codes === 'string'
+          ? (() => {
+              try {
+                const parsed = JSON.parse(row.readiness_reason_codes);
+                return Array.isArray(parsed) ? parsed.map(String) : [];
+              } catch {
+                return [];
+              }
+            })()
+          : [],
       crm_lead_id: row.crm_lead_id == null ? null : Number(row.crm_lead_id),
       verify_json: verify as Record<string, unknown>,
       created_at: iso(row.created_at) ?? '',
@@ -472,6 +503,67 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     }
   }
 
+  async hasPlaceIdInProject(projectId: number, placeId: string): Promise<boolean> {
+    const id = String(placeId ?? '').trim();
+    if (!id) return false;
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT 1 FROM crm_research_raw_leads
+       WHERE project_id = $1 AND place_id = $2
+       LIMIT 1`,
+      [projectId, id],
+    );
+    return Boolean(r.rows[0]);
+  }
+
+  async hasDuplicatePhoneInProject(
+    projectId: number,
+    phoneNorm: string,
+  ): Promise<boolean> {
+    const digits = String(phoneNorm ?? '').replace(/\D+/g, '');
+    if (digits.length < 9) return false;
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT 1 FROM crm_research_raw_leads
+       WHERE project_id = $1
+         AND phone_norm IS NOT NULL
+         AND phone_norm <> ''
+         AND phone_norm = $2
+       LIMIT 1`,
+      [projectId, digits],
+    );
+    return Boolean(r.rows[0]);
+  }
+
+  async countByReadiness(
+    projectId: number,
+  ): Promise<Record<string, number>> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT COALESCE(readiness_status, 'UNCLASSIFIED') AS readiness_status,
+              COUNT(*)::int AS n
+       FROM crm_research_raw_leads
+       WHERE project_id = $1
+       GROUP BY 1`,
+      [projectId],
+    );
+    const out: Record<string, number> = {
+      READY_TO_PUSH: 0,
+      NEEDS_REVIEW: 0,
+      MISSING_CONTACT: 0,
+      DUPLICATE_OR_BLACKLIST: 0,
+      UNCLASSIFIED: 0,
+      ALL: 0,
+    };
+    for (const row of r.rows) {
+      const key = String(row.readiness_status ?? 'UNCLASSIFIED');
+      const n = Number(row.n ?? 0);
+      out[key] = (out[key] ?? 0) + n;
+      out.ALL += n;
+    }
+    return out;
+  }
+
   async insertLead(input: {
     project_id: number;
     job_id: number;
@@ -500,6 +592,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     legal_status?: string | null;
     status: string;
     classification?: string | null;
+    readiness_status?: string | null;
+    readiness_reason_codes?: string[];
     place_id?: string | null;
     intent_score?: number | null;
     market_entity_id?: string | null;
@@ -514,9 +608,10 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
          source_provider, source_model, search_source_keys, search_channel_keys,
          discovered_via_source_key, confidence,
          quality_score, icp_fit_score, contactable, phone_kind, legal_status, status,
-         classification, place_id, intent_score, market_entity_id, verify_json, raw_json
+         classification, readiness_status, readiness_reason_codes, place_id, intent_score,
+         market_entity_id, verify_json, raw_json
        ) VALUES (
-         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30::uuid,$31::jsonb,$32::jsonb
+         $1,$2,$3,COALESCE($4, lower($3)),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29::jsonb,$30,$31,$32::uuid,$33::jsonb,$34::jsonb
        ) RETURNING *`,
       [
         input.project_id,
@@ -546,6 +641,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         input.legal_status ?? null,
         input.status,
         input.classification ?? null,
+        input.readiness_status ?? null,
+        JSON.stringify(input.readiness_reason_codes ?? []),
         input.place_id ?? null,
         input.intent_score ?? null,
         input.market_entity_id ?? null,
@@ -574,6 +671,11 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     if (opts.job_id) {
       params.push(opts.job_id);
       clauses.push(`job_id = $${params.length}`);
+    }
+
+    if (opts.readiness_status) {
+      params.push(opts.readiness_status);
+      clauses.push(`readiness_status = $${params.length}`);
     }
 
     if (opts.q) {
