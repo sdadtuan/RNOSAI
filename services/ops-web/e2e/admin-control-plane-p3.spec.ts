@@ -71,6 +71,7 @@ test.describe('Admin Control Plane P3 onboard', () => {
     await page.getByRole('button', { name: 'Trung tâm quản trị' }).click();
     await expect(page).toHaveURL(/\/admin\/?$/);
 
+    await page.getByRole('button', { name: /Nhân sự & Tổ chức/i }).click();
     await page.getByRole('link', { name: /Onboard/i }).first().click();
     await expect(page).toHaveURL(/\/admin\/crm\/org\/users\/new/);
 

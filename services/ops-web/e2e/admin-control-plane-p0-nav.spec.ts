@@ -16,6 +16,7 @@ test.describe('Admin Control Plane nav', () => {
     await expect(page.getByText('Quản trị hệ thống').first()).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Trung tâm quản trị' }).click();
     await expect(page).toHaveURL(/\/admin\/?$/);
+    await page.getByRole('button', { name: /Nhân sự & Tổ chức/i }).click();
     await page.getByRole('link', { name: 'Người dùng' }).first().click();
     await expect(page).toHaveURL(/\/admin\/crm\/org\/users/);
     await expect(page.getByRole('heading', { name: /Nhân viên/i })).toBeVisible();
