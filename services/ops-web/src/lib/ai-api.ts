@@ -1159,12 +1159,10 @@ export async function callAiTool(
     human_approved?: boolean;
   },
 ): Promise<{ tool_name: string; result: unknown }> {
-  const headers: Record<string, string> = {
-    ...authHeaders(token),
-    'Content-Type': 'application/json',
-  };
+  const headers = new Headers(authHeaders(token));
+  headers.set('Content-Type', 'application/json');
   if (input.human_approved) {
-    headers['X-AI-Human-Approved'] = '1';
+    headers.set('X-AI-Human-Approved', '1');
   }
   const res = await fetch(`${API_BASE}/api/v1/ai/tools/call`, {
     method: 'POST',

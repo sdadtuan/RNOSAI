@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
   callAiTool,
   createAiToolKey,
@@ -69,7 +69,7 @@ export function AiToolKeysPanel({ token }: { token: string }) {
     }
   }, [tools, tryTool]);
 
-  async function handleTryTool(event: React.FormEvent<HTMLFormElement>) {
+  async function handleTryTool(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setTryBusy(true);
     setTryError('');
