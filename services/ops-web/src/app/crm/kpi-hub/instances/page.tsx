@@ -64,7 +64,9 @@ export default function KpiHubInstancesPage() {
       const out = await seedServiceKpiQt0360(token);
       setSeedMsg(
         out.created > 0
-          ? `Đã tạo ${out.created} instance từ QT-0360 / 360.`
+          ? `Đã tạo ${out.created} instance từ QT-0360 / 360` +
+              (out.assignments_linked ? ` · linked ${out.assignments_linked} assignment` : '') +
+              '.'
           : `QT-0360 đã có ${out.items.length} instance.`,
       );
       await refresh();
@@ -114,7 +116,11 @@ export default function KpiHubInstancesPage() {
           {total} instances
           {total === 0 ? ' — Chưa có KPI instance. Seed QT-0360 để map Measurement Plan.' : ''}
         </p>
-        {seedMsg ? <p className="kpi-hub-muted">{seedMsg}</p> : null}
+        {seedMsg ? (
+          <p className={/không|error|fail|failed/i.test(seedMsg) ? 'kpi-hub-form-error' : 'kpi-hub-muted'}>
+            {seedMsg}
+          </p>
+        ) : null}
         {loading ? <p className="kpi-hub-muted">Đang tải…</p> : null}
         {error ? <p className="kpi-hub-form-error">{error}</p> : null}
         <ServiceKpiInstanceTable

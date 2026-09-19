@@ -27,6 +27,7 @@ import { ServiceKpiOperationsService } from './service-kpi-operations.service';
 import { ServiceKpiRepository } from './service-kpi.repository';
 import { ServiceKpiTemplatesService } from './service-kpi-templates.service';
 import { ServiceKpiQuoteScoreService } from './service-kpi-quote-score';
+import { PerformanceService } from '../performance/performance.service';
 import type {
   CreateInstanceBody,
   CreateTemplateBody,
@@ -48,6 +49,7 @@ export class ServiceKpiController {
     private readonly changeOrder: ServiceKpiChangeOrderService,
     private readonly quoteScore: ServiceKpiQuoteScoreService,
     private readonly staffAuth: StaffAuthService,
+    private readonly performance: PerformanceService,
   ) {}
 
   private parseRowVersion(header: string | undefined): number {
@@ -145,8 +147,12 @@ export class ServiceKpiController {
 
   @Post('instances/seed-qt-0360')
   @UseGuards(StaffKpiHubDictionaryManageGuard)
-  seedQt0360Instances() {
-    return this.instances.ensureQt0360Instances();
+  async seedQt0360Instances() {
+    const out = await this.instances.ensureQt0360Instances();
+    const quoteInst = out.items.find((i) => i.source_type === 'quote_line_item') ?? out.items[0];
+    const linked = this.performance.linkAssignmentsBySource(out.source_id, quoteInst?.id ?? null);
+    this.performance.refreshCrmSource();
+    return { ...out, assignments_linked: linked };
   }
 
   @Get('instances')

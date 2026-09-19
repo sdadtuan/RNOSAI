@@ -133,11 +133,13 @@ export async function createServiceKpiInstance(token: string, body: CreateServic
 }
 
 export async function seedServiceKpiQt0360(token: string) {
-  return serviceKpiFetch<{ created: number; items: ServiceKpiInstanceItem[]; source_id: string }>(
-    token,
-    `${BASE}/instances/seed-qt-0360`,
-    { method: 'POST' },
-  );
+  return serviceKpiFetch<{
+    created: number;
+    items: ServiceKpiInstanceItem[];
+    source_id: string;
+    dictionary_id?: string | null;
+    assignments_linked?: number;
+  }>(token, `${BASE}/instances/seed-qt-0360`, { method: 'POST' });
 }
 
 export async function fetchServiceKpiInstances(

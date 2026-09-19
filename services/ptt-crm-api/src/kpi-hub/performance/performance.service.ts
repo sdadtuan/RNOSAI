@@ -375,8 +375,33 @@ export class PerformanceService {
       throw new BadRequestException({ error: 'readiness_blocked', gates: readiness.gates });
     }
     asg.lifecycle = 'active';
+    // Clear CRM stale + Pending quality when Measurement Plan (source/instance) is present.
+    if (asg.source_id || asg.instance_id) {
+      this.refreshCrmSource();
+      asg.quality = 'verified';
+    }
     asg.row_version += 1;
     return this.enrich(asg);
+  }
+
+  /** Attach Service KPI instance ids to PM assignments sharing the quote/project source. */
+  linkAssignmentsBySource(sourceId: string, instanceId: string | null): number {
+    const sid = String(sourceId ?? '').trim();
+    if (!sid) return 0;
+    let linked = 0;
+    for (const asg of this.catalog.assignments) {
+      const match360 =
+        asg.source_id === sid ||
+        /360/.test(asg.scope_name) ||
+        asg.id === 'asg-360-draft' ||
+        asg.id === 'asg-360-cpl';
+      if (!match360) continue;
+      if (instanceId) asg.instance_id = instanceId;
+      asg.source_id = asg.source_id || sid;
+      linked += 1;
+      asg.row_version += 1;
+    }
+    return linked;
   }
 
   listScorecards(query: { client?: string; project?: string } = {}) {

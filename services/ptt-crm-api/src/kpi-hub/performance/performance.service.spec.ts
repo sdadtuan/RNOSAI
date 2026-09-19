@@ -87,6 +87,8 @@ describe('PerformanceService', () => {
     expect(draft.source_id).toBe('QT-0360');
     const active = svc.activateAssignment(draft.id);
     expect(active.lifecycle).toBe('active');
+    expect(active.quality).toBe('verified');
+    expect(svc.getCrmSource().mappings.every((m) => !/stale/i.test(m.quality))).toBe(true);
   });
 
   it('updates draft assignment fields and refreshes CRM stale map', () => {
@@ -104,6 +106,13 @@ describe('PerformanceService', () => {
     const after = svc.refreshCrmSource();
     expect(after.mappings.every((m) => !/stale/i.test(m.quality))).toBe(true);
     expect(after.refreshed_at).toBeTruthy();
+  });
+
+  it('links QT-0360 instance onto 360 assignments', () => {
+    const svc = new PerformanceService();
+    const n = svc.linkAssignmentsBySource('QT-0360', 'inst-360-test');
+    expect(n).toBeGreaterThan(0);
+    expect(svc.getAssignment('asg-360-draft').instance_id).toBe('inst-360-test');
   });
 
   it('close refused when quality pending (AC-PM-04)', () => {

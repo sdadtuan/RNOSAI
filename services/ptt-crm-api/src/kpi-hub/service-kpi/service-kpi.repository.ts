@@ -97,6 +97,36 @@ export class ServiceKpiRepository implements OnModuleDestroy {
     );
   }
 
+  /** Resolve live dictionary UUID (or memory fixture id) by KPI code e.g. MKT_006. */
+  async findDictionaryIdByCode(code: string): Promise<string | null> {
+    const normalized = String(code ?? '')
+      .trim()
+      .toUpperCase();
+    if (!normalized) return null;
+    return skpiDbFallback(
+      async () => {
+        const res = await this.db.query(
+          `SELECT id::text AS id FROM crm_kpi_dictionary
+           WHERE upper(trim(code)) = $1
+             AND tenant_id = $2
+             AND deleted_at IS NULL
+           ORDER BY CASE WHEN status = 'ACTIVE' THEN 0 ELSE 1 END, updated_at DESC NULLS LAST
+           LIMIT 1`,
+          [normalized, SERVICE_KPI_TENANT_ID],
+        );
+        return res.rows[0] ? String(res.rows[0].id) : null;
+      },
+      () => {
+        const memoryCodes: Record<string, string> = {
+          MKT_006: 'd006',
+          MKT_002: 'd002',
+          MKT_007: 'd007',
+        };
+        return memoryCodes[normalized] ?? null;
+      },
+    );
+  }
+
   async listTemplates(query: {
     dv_code?: string;
     status?: string;
