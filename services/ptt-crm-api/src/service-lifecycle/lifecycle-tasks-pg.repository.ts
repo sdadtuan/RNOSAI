@@ -3,6 +3,11 @@ import { Pool } from 'pg';
 import { catalogTs } from '../catalog/catalog-slug.util';
 import { AppConfigService } from '../config/app-config.service';
 import { VALID_STAGES } from './service-lifecycle.types';
+import {
+  mergeAssignmentIntoFormData,
+  readAssignmentFields,
+  type SvcTaskPriority,
+} from './svc-task-assignment.util';
 
 export interface SvcTaskRow {
   id: number;
@@ -22,6 +27,10 @@ export interface SvcTaskRow {
   is_custom: boolean;
   created_at: string;
   updated_at: string;
+  assignee: string | null;
+  assignee_staff_id: number | null;
+  priority: SvcTaskPriority;
+  due_date: string | null;
 }
 
 @Injectable()
@@ -82,6 +91,7 @@ export class LifecycleTasksPgRepository implements OnModuleDestroy {
       is_custom: row.is_custom === true || row.is_custom === 1,
       created_at: String(row.created_at ?? ''),
       updated_at: String(row.updated_at ?? ''),
+      ...readAssignmentFields(formData),
     };
   }
 
@@ -139,7 +149,17 @@ export class LifecycleTasksPgRepository implements OnModuleDestroy {
 
   async updateTask(
     taskId: number,
-    patch: { is_done?: boolean; notes?: string; form_data?: Record<string, unknown>; done_by?: number | null },
+    patch: {
+      is_done?: boolean;
+      notes?: string;
+      form_data?: Record<string, unknown>;
+      done_by?: number | null;
+      assignee?: string | null;
+      owner?: string | null;
+      assignee_staff_id?: number | null;
+      priority?: string | null;
+      due_date?: string | null;
+    },
   ): Promise<SvcTaskRow | null> {
     const existing = await this.getTask(taskId);
     if (!existing) return null;
@@ -151,8 +171,16 @@ export class LifecycleTasksPgRepository implements OnModuleDestroy {
       doneAt = patch.is_done ? ts : null;
     }
     const notes = patch.notes != null ? String(patch.notes).slice(0, 2000) : existing.notes;
-    const formData =
-      patch.form_data != null ? JSON.stringify(patch.form_data) : JSON.stringify(existing.form_data);
+    const formData = JSON.stringify(
+      mergeAssignmentIntoFormData(existing.form_data, {
+        form_data: patch.form_data,
+        assignee: patch.assignee,
+        owner: patch.owner,
+        assignee_staff_id: patch.assignee_staff_id,
+        priority: patch.priority,
+        due_date: patch.due_date,
+      }),
+    );
     const doneBy = patch.done_by !== undefined ? patch.done_by : existing.done_by;
     await this.db.query(
       `UPDATE crm_svc_tasks

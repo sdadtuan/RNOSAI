@@ -3274,7 +3274,16 @@ export async function patchServiceLifecycleTask(
   token: string,
   lifecycleId: number,
   taskId: number,
-  body: Partial<{ is_done: boolean; notes: string; form_data: Record<string, unknown> }>,
+  body: Partial<{
+    is_done: boolean;
+    notes: string;
+    form_data: Record<string, unknown>;
+    assignee: string | null;
+    owner: string | null;
+    assignee_staff_id: number | null;
+    priority: string | null;
+    due_date: string | null;
+  }>,
 ): Promise<{ task: Record<string, unknown> }> {
   return crmFetch(token, `/api/crm/service-lifecycle/${lifecycleId}/tasks/${taskId}`, {
     method: 'PATCH',

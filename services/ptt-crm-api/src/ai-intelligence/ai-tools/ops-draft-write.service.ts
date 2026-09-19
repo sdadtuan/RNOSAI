@@ -5,6 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { isValidStage } from '../../service-lifecycle/service-lifecycle.types';
+import {
+  dueDateFromDays,
+  mergeAssignmentIntoFormData,
+} from '../../service-lifecycle/svc-task-assignment.util';
 import { OpsCrmContextRepository } from './ops-crm-context.repository';
 import { OpsDraftWriteMeta, OpsDraftWriteResult } from './ops-draft-write.types';
 
@@ -37,6 +41,48 @@ function appendAuditNote(notes: string, meta: OpsDraftWriteMeta): string {
   if (!base) return line;
   if (base.includes(line)) return base;
   return `${base}\n${line}`.slice(0, 32000);
+}
+
+function assignmentPatchFromInput(input: Record<string, unknown>): {
+  assignee?: string | null;
+  owner?: string | null;
+  assignee_staff_id?: number | null;
+  priority?: string | null;
+  due_date?: string | null;
+} {
+  const out: {
+    assignee?: string | null;
+    owner?: string | null;
+    assignee_staff_id?: number | null;
+    priority?: string | null;
+    due_date?: string | null;
+  } = {};
+
+  if (input.assignee !== undefined) {
+    out.assignee =
+      input.assignee == null ? null : String(input.assignee).trim() || null;
+  }
+  if (input.owner !== undefined) {
+    out.owner = input.owner == null ? null : String(input.owner).trim() || null;
+  }
+  if (input.assignee_staff_id !== undefined || input.owner_staff_id !== undefined) {
+    const raw = input.assignee_staff_id ?? input.owner_staff_id;
+    out.assignee_staff_id = raw == null || raw === '' ? null : positiveInt(raw) ?? null;
+  }
+  if (input.priority !== undefined) {
+    out.priority =
+      input.priority == null ? null : String(input.priority).trim() || null;
+  }
+
+  const dueInDays = positiveInt(input.due_in_days ?? input.dueInDays);
+  if (dueInDays != null) {
+    out.due_date = dueDateFromDays(dueInDays);
+  } else if (input.due_date !== undefined || input.due !== undefined) {
+    const raw = input.due_date !== undefined ? input.due_date : input.due;
+    out.due_date = raw == null || raw === '' ? null : String(raw);
+  }
+
+  return out;
 }
 
 @Injectable()
@@ -134,7 +180,7 @@ export class OpsDraftWriteService {
 
     const planId = positiveInt(input.plan_id ?? input.planId);
     const roleKey = optionalStr(input.role_key ?? input.roleKey);
-    const formData: Record<string, unknown> = {
+    let formData: Record<string, unknown> = {
       ai_draft: true,
       ai_approved_by: meta.actor,
       ai_approved_at: meta.approvedAt,
@@ -144,6 +190,7 @@ export class OpsDraftWriteService {
     if (input.campaign_id != null && String(input.campaign_id).trim()) {
       formData.campaign_id = input.campaign_id;
     }
+    formData = mergeAssignmentIntoFormData(formData, assignmentPatchFromInput(input));
 
     const task = await this.repo.insertAiDraftTask({
       lifecycle_id: lifecycleId,
@@ -163,6 +210,84 @@ export class OpsDraftWriteService {
       human_approved: true,
       entity_ids: { task_id: task.id, lifecycle_id: lifecycleId },
       links: [`/crm/service-delivery/${lifecycleId}`],
+    };
+  }
+
+  async updateTaskDraft(
+    input: Record<string, unknown>,
+    meta: OpsDraftWriteMeta,
+  ): Promise<OpsDraftWriteResult> {
+    const taskId = positiveInt(input.task_id ?? input.taskId);
+    if (taskId == null) {
+      throw new BadRequestException({ error: 'task_id_required' });
+    }
+
+    const existing = await this.repo.getAiDraftTaskForWrite(taskId);
+    if (!existing) {
+      throw new NotFoundException({ error: 'task_not_found', task_id: taskId });
+    }
+
+    const titleIn = optionalStr(input.title);
+    const criteriaIn =
+      input.acceptance_criteria !== undefined
+        ? String(input.acceptance_criteria ?? '').slice(0, 4000)
+        : undefined;
+
+    const assignment = assignmentPatchFromInput(input);
+    const hasAssignment =
+      assignment.assignee !== undefined ||
+      assignment.owner !== undefined ||
+      assignment.assignee_staff_id !== undefined ||
+      assignment.priority !== undefined ||
+      assignment.due_date !== undefined;
+
+    if (titleIn == null && criteriaIn === undefined && !hasAssignment) {
+      throw new BadRequestException({
+        error: 'patch_required',
+        message:
+          'Provide title, acceptance_criteria, assignee/owner, priority, and/or due_date',
+      });
+    }
+
+    let formData: Record<string, unknown> = {
+      ...existing.form_data,
+      ai_draft: true,
+      ai_updated_by: meta.actor,
+      ai_updated_at: meta.approvedAt,
+      source_tool: 'task.update_draft',
+    };
+    if (hasAssignment) {
+      formData = mergeAssignmentIntoFormData(formData, assignment);
+    }
+
+    const title =
+      titleIn != null
+        ? titleIn.startsWith(AI_TITLE_PREFIX)
+          ? titleIn
+          : `${AI_TITLE_PREFIX}${titleIn}`
+        : undefined;
+
+    const updated = await this.repo.updateAiDraftTask(taskId, {
+      ...(title != null ? { title } : {}),
+      ...(criteriaIn !== undefined ? { description: criteriaIn } : {}),
+      form_data: formData,
+    });
+
+    return {
+      ok: true,
+      wired: true,
+      phase: 'P3',
+      status: 'persisted',
+      tool: 'task.update_draft',
+      requires_human_approval: true,
+      human_approved: true,
+      entity_ids: {
+        task_id: taskId,
+        lifecycle_id: updated?.lifecycle_id ?? existing.lifecycle_id,
+      },
+      links: [
+        `/crm/service-delivery/${updated?.lifecycle_id ?? existing.lifecycle_id}`,
+      ],
     };
   }
 

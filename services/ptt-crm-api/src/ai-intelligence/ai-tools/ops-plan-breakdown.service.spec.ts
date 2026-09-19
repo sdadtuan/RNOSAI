@@ -183,6 +183,38 @@ describe('OpsPlanBreakdownService', () => {
     );
   });
 
+  it('persist_tasks passes owner_map + due_in_days into create_draft', async () => {
+    repo.getPlanForWrite.mockResolvedValue(activePlan());
+    draftWrite.createTaskDraft.mockResolvedValue({
+      entity_ids: { task_id: 201, lifecycle_id: 5 },
+    });
+
+    const out = await svc.breakdownToRoles(
+      {
+        plan_id: 8,
+        lifecycle_id: 5,
+        persist_tasks: true,
+        roles: ['content'],
+        due_in_days: 5,
+        owner_map: { content: 'Content Lead' },
+      },
+      meta,
+      { humanApproved: true },
+    );
+
+    expect(out.known).toEqual(expect.arrayContaining(['due_in_days:5']));
+    expect(out.matrix[0]).toMatchObject({
+      role_key: 'content',
+      owner_id: 'Content Lead',
+      due: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    });
+    expect(draftWrite.createTaskDraft.mock.calls[0][0]).toMatchObject({
+      owner: 'Content Lead',
+      due_date: out.matrix[0].due,
+      priority: 'normal',
+    });
+  });
+
   it('persist_kpis + approve creates role KPI drafts', async () => {
     repo.getPlanForWrite.mockResolvedValue(activePlan());
     kpiTargetWrite.writeDraft.mockResolvedValue({

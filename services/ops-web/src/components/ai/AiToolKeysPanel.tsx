@@ -66,7 +66,20 @@ function sampleTryInput(toolName: string): string {
       '{',
       '  "lifecycle_id": 5,',
       '  "title": "Kickoff Meta Ads",',
-      '  "acceptance_criteria": "Account live + pixel verified"',
+      '  "acceptance_criteria": "Account live + pixel verified",',
+      '  "owner": "AM 360",',
+      '  "priority": "high",',
+      '  "due_in_days": 5',
+      '}',
+    ].join('\n');
+  }
+  if (toolName === 'task.update_draft') {
+    return [
+      '{',
+      '  "task_id": 42,',
+      '  "owner": "Lê Hoàng",',
+      '  "priority": "urgent",',
+      '  "due_date": "2026-10-12"',
       '}',
     ].join('\n');
   }

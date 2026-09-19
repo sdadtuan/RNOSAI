@@ -190,6 +190,16 @@ export class ServiceLifecycleController {
         is_done: body.is_done != null ? Boolean(body.is_done) : undefined,
         notes: body.notes != null ? String(body.notes) : undefined,
         form_data: body.form_data as Record<string, unknown> | undefined,
+        assignee: body.assignee !== undefined ? (body.assignee as string | null) : undefined,
+        owner: body.owner !== undefined ? (body.owner as string | null) : undefined,
+        assignee_staff_id:
+          body.assignee_staff_id !== undefined
+            ? body.assignee_staff_id == null
+              ? null
+              : Number(body.assignee_staff_id)
+            : undefined,
+        priority: body.priority !== undefined ? (body.priority as string | null) : undefined,
+        due_date: body.due_date !== undefined ? (body.due_date as string | null) : undefined,
       },
       staff?.id ?? null,
     );

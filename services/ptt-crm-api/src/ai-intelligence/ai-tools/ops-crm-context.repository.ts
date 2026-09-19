@@ -61,6 +61,17 @@ export type OpsAiDraftTaskRow = {
   title: string;
   stage: string;
 };
+
+export type OpsAiDraftTaskWriteRow = OpsAiDraftTaskRow & {
+  description: string;
+  form_data: Record<string, unknown>;
+};
+
+export type OpsAiDraftTaskPatch = {
+  title?: string;
+  description?: string;
+  form_data?: Record<string, unknown>;
+};
 export type OpsMilestoneRow = {
   id: number;
   title: string;
@@ -400,6 +411,57 @@ export class OpsCrmContextRepository implements OnModuleDestroy {
       title: String(input.title ?? '').slice(0, 400),
       stage: input.stage,
     };
+  }
+
+  async getAiDraftTaskForWrite(taskId: number): Promise<OpsAiDraftTaskWriteRow | null> {
+    const r = await this.db.query(
+      `SELECT id, lifecycle_id, title, stage, description, form_data
+       FROM crm_svc_tasks WHERE id = $1 LIMIT 1`,
+      [taskId],
+    );
+    const row = r.rows[0];
+    if (!row) return null;
+    let formData: Record<string, unknown> = {};
+    const raw = row.form_data;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      formData = raw as Record<string, unknown>;
+    } else if (typeof raw === 'string') {
+      try {
+        formData = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        formData = {};
+      }
+    }
+    return {
+      id: Number(row.id),
+      lifecycle_id: Number(row.lifecycle_id),
+      title: String(row.title ?? ''),
+      stage: String(row.stage ?? ''),
+      description: String(row.description ?? ''),
+      form_data: formData,
+    };
+  }
+
+  async updateAiDraftTask(
+    taskId: number,
+    patch: OpsAiDraftTaskPatch,
+  ): Promise<OpsAiDraftTaskWriteRow | null> {
+    const existing = await this.getAiDraftTaskForWrite(taskId);
+    if (!existing) return null;
+    const title =
+      patch.title != null ? String(patch.title).slice(0, 400) : existing.title;
+    const description =
+      patch.description != null
+        ? String(patch.description).slice(0, 4000)
+        : existing.description;
+    const formData = patch.form_data ?? existing.form_data;
+    await this.db.query(
+      `UPDATE crm_svc_tasks
+       SET title = $2, description = $3, form_data = $4::jsonb, updated_at = NOW()
+       WHERE id = $1`,
+      [taskId, title, description, JSON.stringify(formData)],
+    );
+    return this.getAiDraftTaskForWrite(taskId);
   }
 
   async findPlanByLifecycle(lifecycleId: number): Promise<OpsPlanRow | null> {

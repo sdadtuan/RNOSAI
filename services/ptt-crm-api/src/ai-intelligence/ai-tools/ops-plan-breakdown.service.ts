@@ -6,6 +6,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { dueDateFromDays } from '../../service-lifecycle/svc-task-assignment.util';
 import { OpsCrmContextRepository, OpsPlanWriteRow } from './ops-crm-context.repository';
 import { OpsDraftWriteService } from './ops-draft-write.service';
 import { OpsKpiTargetWriteService } from './ops-kpi-target-write.service';
@@ -200,7 +201,7 @@ export class OpsPlanBreakdownService {
     const unknown: string[] = [];
 
     if (dueInDays != null) {
-      assumed.push('due_in_days_deferred_p3_no_due_column');
+      known.push(`due_in_days:${dueInDays}`);
     }
 
     const corpus = corpusFromPlan(plan);
@@ -208,12 +209,13 @@ export class OpsPlanBreakdownService {
     const metricsCorpus =
       metricsArr != null ? `${corpus}\n${JSON.stringify(metricsArr)}` : corpus;
 
+    const dueDate = dueInDays != null ? dueDateFromDays(dueInDays) : null;
     const matrix: OpsPlanBreakdownMatrixLine[] = [];
     let anyKpiParsed = false;
 
     for (const roleKey of roles) {
       const tpl = PLAN_BREAKDOWN_ROLE_TEMPLATES[roleKey];
-      const line = this.buildLine(tpl, plan, metricsCorpus, ownerMap);
+      const line = this.buildLine(tpl, plan, metricsCorpus, ownerMap, dueDate);
       if (line.kpis.some((k) => k.target != null)) anyKpiParsed = true;
       matrix.push(line);
     }
@@ -255,6 +257,9 @@ export class OpsPlanBreakdownService {
             lifecycle_id: lifecycleIdForPersist,
             plan_id: planId,
             role_key: line.role_key,
+            ...(line.owner_id ? { owner: line.owner_id } : {}),
+            ...(line.due ? { due_date: line.due } : {}),
+            priority: 'normal',
           },
           meta,
         );
@@ -366,6 +371,7 @@ export class OpsPlanBreakdownService {
     plan: OpsPlanWriteRow,
     corpus: string,
     ownerMap: Record<string, string>,
+    due: string | null,
   ): OpsPlanBreakdownMatrixLine {
     const kpis: OpsPlanBreakdownKpi[] = tpl.kpis.map((kpi) => {
       const parsed = parseKpiTargetFromCorpus(corpus, kpi);
@@ -385,7 +391,7 @@ export class OpsPlanBreakdownService {
       task_title: `${tpl.task_title_suffix} — ${planLabel}`.slice(0, 400),
       acceptance_criteria: tpl.acceptance_criteria,
       owner_id: ownerMap[tpl.role_key] ?? null,
-      due: null,
+      due,
     };
   }
 

@@ -17,6 +17,8 @@ describe('OpsDraftWriteService', () => {
     patchPlanDraft: jest.fn(),
     clonePlanToDraft: jest.fn(),
     insertAiDraftTask: jest.fn(),
+    getAiDraftTaskForWrite: jest.fn(),
+    updateAiDraftTask: jest.fn(),
   };
   const meta = { actor: 'test-key', approvedAt: '2026-09-19T12:00:00.000Z' };
   let svc: OpsDraftWriteService;
@@ -219,5 +221,99 @@ describe('OpsDraftWriteService', () => {
     });
     await svc.createTaskDraft({ lifecycle_id: 5, title: 'T' }, meta);
     expect(repo.insertAiDraftTask.mock.calls[0][0].stage).toBe('deliver');
+  });
+
+  it('createTaskDraft stores assignee/priority/due in form_data', async () => {
+    repo.getLifecycle.mockResolvedValue({
+      id: 5,
+      stage: 'deliver',
+      status: 'active',
+      marketing_plan_id: null,
+      agency_client_id: null,
+    });
+    repo.insertAiDraftTask.mockResolvedValue({
+      id: 7,
+      lifecycle_id: 5,
+      title: '[AI draft] Own me',
+      stage: 'deliver',
+    });
+
+    await svc.createTaskDraft(
+      {
+        lifecycle_id: 5,
+        title: 'Own me',
+        owner: 'AM 360',
+        priority: 'high',
+        due_in_days: 3,
+      },
+      meta,
+    );
+
+    expect(repo.insertAiDraftTask.mock.calls[0][0].form_data).toMatchObject({
+      assignee: 'AM 360',
+      owner: 'AM 360',
+      priority: 'high',
+      due_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    });
+  });
+
+  it('updateTaskDraft patches owner/priority/due', async () => {
+    repo.getAiDraftTaskForWrite.mockResolvedValue({
+      id: 42,
+      lifecycle_id: 5,
+      title: '[AI draft] Kickoff',
+      stage: 'onboard',
+      description: 'old',
+      form_data: { ai_draft: true, role_key: 'content' },
+    });
+    repo.updateAiDraftTask.mockResolvedValue({
+      id: 42,
+      lifecycle_id: 5,
+      title: '[AI draft] Kickoff',
+      stage: 'onboard',
+      description: 'old',
+      form_data: {},
+    });
+
+    const out = await svc.updateTaskDraft(
+      { task_id: 42, owner: 'Lê Hoàng', priority: 'urgent', due_date: '2026-10-12' },
+      meta,
+    );
+
+    expect(out.tool).toBe('task.update_draft');
+    expect(out.entity_ids).toEqual({ task_id: 42, lifecycle_id: 5 });
+    expect(repo.updateAiDraftTask).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        form_data: expect.objectContaining({
+          assignee: 'Lê Hoàng',
+          owner: 'Lê Hoàng',
+          priority: 'urgent',
+          due_date: '2026-10-12',
+          source_tool: 'task.update_draft',
+        }),
+      }),
+    );
+  });
+
+  it('updateTaskDraft 404 when missing', async () => {
+    repo.getAiDraftTaskForWrite.mockResolvedValue(null);
+    await expect(
+      svc.updateTaskDraft({ task_id: 999, priority: 'high' }, meta),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('updateTaskDraft 400 without patch fields', async () => {
+    repo.getAiDraftTaskForWrite.mockResolvedValue({
+      id: 1,
+      lifecycle_id: 5,
+      title: 't',
+      stage: 'deliver',
+      description: '',
+      form_data: {},
+    });
+    await expect(svc.updateTaskDraft({ task_id: 1 }, meta)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 });

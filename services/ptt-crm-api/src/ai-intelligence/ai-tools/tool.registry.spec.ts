@@ -33,6 +33,7 @@ describe('ToolRegistry', () => {
   const draftWrite = {
     writeMarketingPlanDraft: jest.fn(),
     createTaskDraft: jest.fn(),
+    updateTaskDraft: jest.fn(),
   };
   const stageTransition = {
     proposeTransition: jest.fn(),
@@ -67,7 +68,7 @@ describe('ToolRegistry', () => {
   it('lists RNOS-33 tools plus Ops PO-52/P4/P5/KPI tools', () => {
     const tools = registry.list();
 
-    expect(tools).toHaveLength(20);
+    expect(tools).toHaveLength(21);
     expect(tools.map((tool) => tool.name)).toEqual([
       'score_lead',
       'route_lead',
@@ -85,6 +86,7 @@ describe('ToolRegistry', () => {
       'kpi_campaign.read',
       'marketing_plan.write_draft',
       'task.create_draft',
+      'task.update_draft',
       'service_delivery.propose_transition',
       'plan.breakdown_to_roles',
       'kpi_target.write_draft',

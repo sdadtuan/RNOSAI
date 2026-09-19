@@ -309,7 +309,16 @@ export class ServiceLifecycleService {
   async updateTask(
     lifecycleId: number,
     taskId: number,
-    body: { is_done?: boolean; notes?: string; form_data?: Record<string, unknown> },
+    body: {
+      is_done?: boolean;
+      notes?: string;
+      form_data?: Record<string, unknown>;
+      assignee?: string | null;
+      owner?: string | null;
+      assignee_staff_id?: number | null;
+      priority?: string | null;
+      due_date?: string | null;
+    },
     doneBy?: number | null,
   ) {
     await this.requireLifecycle(lifecycleId);

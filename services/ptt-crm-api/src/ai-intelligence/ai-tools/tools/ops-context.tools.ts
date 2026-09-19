@@ -112,7 +112,7 @@ export function createOpsContextTools(
     {
       name: 'task.create_draft',
       description:
-        'Create a task draft linked to plan/delivery (requires human approval header).',
+        'Create a task draft linked to plan/delivery (requires human approval header). Supports assignee/owner, priority, due_date.',
       inputSchema: {
         type: 'object',
         additionalProperties: true,
@@ -124,6 +124,12 @@ export function createOpsContextTools(
           plan_id: { type: 'integer', minimum: 1 },
           project_id: { type: 'string' },
           campaign_id: {},
+          assignee: { type: 'string' },
+          owner: { type: 'string' },
+          assignee_staff_id: { type: 'integer', minimum: 1 },
+          priority: { type: 'string' },
+          due_date: { type: 'string' },
+          due_in_days: { type: 'integer', minimum: 1 },
         },
       },
       outputSchema: { type: 'object' },
@@ -132,6 +138,34 @@ export function createOpsContextTools(
       handler: async (input, ctx) => {
         assertHumanApprovedForWrite('task.create_draft', ctx);
         return draftWrite.createTaskDraft(input, writeMeta(ctx));
+      },
+    },
+    {
+      name: 'task.update_draft',
+      description:
+        'Update a svc task draft: title, acceptance_criteria, assignee/owner, priority, due_date (stored in form_data). Requires human approval.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        required: ['task_id'],
+        properties: {
+          task_id: { type: 'integer', minimum: 1 },
+          title: { type: 'string' },
+          acceptance_criteria: { type: 'string' },
+          assignee: { type: 'string' },
+          owner: { type: 'string' },
+          assignee_staff_id: { type: 'integer', minimum: 1 },
+          priority: { type: 'string' },
+          due_date: { type: 'string' },
+          due_in_days: { type: 'integer', minimum: 1 },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) => {
+        assertHumanApprovedForWrite('task.update_draft', ctx);
+        return draftWrite.updateTaskDraft(input, writeMeta(ctx));
       },
     },
     {

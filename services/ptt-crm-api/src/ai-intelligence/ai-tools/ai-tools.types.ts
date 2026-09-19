@@ -82,6 +82,7 @@ export const OPS_AI_TOOL_ALLOWLIST = [
   'delivery_project.read',
   'kpi_campaign.read',
   'task.create_draft',
+  'task.update_draft',
   'plan.breakdown_to_roles',
   'kpi_target.write_draft',
   'kpi_target.read',

@@ -1,10 +1,12 @@
 import type { IntakeSessionRow } from '../intake/intake.types';
 import { prefillConsultTaskForm } from '../service-lifecycle/lifecycle-consult.util';
 import type { SvcTaskRow } from '../service-lifecycle/lifecycle-tasks.repository';
+import { readAssignmentFields } from '../service-lifecycle/svc-task-assignment.util';
 import type { PresalesTaskRow } from './leads-funnel.types';
 import { applyLmpDvCodesToConsultPrefill } from '../lead-meeting-prep/lmp-consult-merge.util';
 
 function asSvcTaskRow(task: PresalesTaskRow): SvcTaskRow {
+  const formData = task.form_data ?? {};
   return {
     id: task.id,
     lifecycle_id: 0,
@@ -13,7 +15,7 @@ function asSvcTaskRow(task: PresalesTaskRow): SvcTaskRow {
     title: task.title,
     description: task.description,
     form_fields: (task.form_fields ?? []) as SvcTaskRow['form_fields'],
-    form_data: task.form_data ?? {},
+    form_data: formData,
     ai_prompt_key: '',
     ai_output: '',
     is_done: task.is_done,
@@ -23,6 +25,7 @@ function asSvcTaskRow(task: PresalesTaskRow): SvcTaskRow {
     is_custom: false,
     created_at: '',
     updated_at: '',
+    ...readAssignmentFields(formData),
   };
 }
 

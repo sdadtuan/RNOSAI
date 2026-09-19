@@ -24,6 +24,7 @@ const STAGE_LABELS: Record<string, string> = {
   handover: 'Bàn giao',
   retain: 'Giữ chân',
 };
+const TASK_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
 
 type PaymentGate = {
   ok?: boolean;
@@ -61,6 +62,9 @@ type TaskRow = {
   description: string;
   is_done: boolean;
   notes: string;
+  assignee?: string | null;
+  priority?: string | null;
+  due_date?: string | null;
 };
 
 type Props = {
@@ -143,6 +147,23 @@ export function ServiceDeliveryWorkflowPanel({
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Cập nhật task thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function patchTaskAssignment(
+    task: TaskRow,
+    patch: Partial<{ assignee: string | null; priority: string | null; due_date: string | null }>,
+  ) {
+    if (!canEdit) return;
+    setSaving(true);
+    setError('');
+    try {
+      await patchServiceLifecycleTask(token, lifecycleId, task.id, patch);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cập nhật assignee/priority/due thất bại');
     } finally {
       setSaving(false);
     }
@@ -398,9 +419,73 @@ export function ServiceDeliveryWorkflowPanel({
               disabled={!canEdit || saving}
               onChange={() => void toggleTask(task)}
             />
-            <div>
-              <strong>{task.title}</strong>
-              {task.description ? <p className="muted" style={{ margin: '0.2rem 0 0' }}>{task.description}</p> : null}
+            <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: '0.35rem' }}>
+              <div>
+                <strong>{task.title}</strong>
+                {task.description ? (
+                  <p className="muted" style={{ margin: '0.2rem 0 0' }}>
+                    {task.description}
+                  </p>
+                ) : null}
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.4rem',
+                  alignItems: 'center',
+                  fontSize: '0.82rem',
+                }}
+              >
+                <label style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                  <span className="muted">Assignee</span>
+                  <input
+                    type="text"
+                    defaultValue={task.assignee ?? ''}
+                    placeholder="Owner"
+                    disabled={!canEdit || saving}
+                    style={{ width: 120, padding: '0.2rem 0.35rem' }}
+                    onBlur={(e) => {
+                      const next = e.target.value.trim() || null;
+                      if ((task.assignee ?? null) === next) return;
+                      void patchTaskAssignment(task, { assignee: next });
+                    }}
+                  />
+                </label>
+                <label style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                  <span className="muted">Priority</span>
+                  <select
+                    value={task.priority && TASK_PRIORITIES.includes(task.priority as (typeof TASK_PRIORITIES)[number]) ? task.priority : 'normal'}
+                    disabled={!canEdit || saving}
+                    style={{ padding: '0.2rem 0.35rem' }}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      if ((task.priority ?? 'normal') === next) return;
+                      void patchTaskAssignment(task, { priority: next });
+                    }}
+                  >
+                    {TASK_PRIORITIES.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                  <span className="muted">Due</span>
+                  <input
+                    type="date"
+                    value={task.due_date ?? ''}
+                    disabled={!canEdit || saving}
+                    style={{ padding: '0.2rem 0.35rem' }}
+                    onChange={(e) => {
+                      const next = e.target.value || null;
+                      if ((task.due_date ?? null) === next) return;
+                      void patchTaskAssignment(task, { due_date: next });
+                    }}
+                  />
+                </label>
+              </div>
             </div>
           </li>
         ))}

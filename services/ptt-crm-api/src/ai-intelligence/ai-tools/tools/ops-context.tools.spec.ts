@@ -38,6 +38,17 @@ describe('createOpsContextTools', () => {
       entity_ids: { task_id: 2, lifecycle_id: 5 },
       links: ['/crm/service-delivery/5'],
     })),
+    updateTaskDraft: jest.fn(async () => ({
+      ok: true,
+      wired: true,
+      phase: 'P3',
+      status: 'persisted',
+      tool: 'task.update_draft',
+      requires_human_approval: true,
+      human_approved: true,
+      entity_ids: { task_id: 2, lifecycle_id: 5 },
+      links: ['/crm/service-delivery/5'],
+    })),
   } as unknown as OpsDraftWriteService;
   const stageTransition = {
     proposeTransition: jest.fn(async () => ({
@@ -112,6 +123,7 @@ describe('createOpsContextTools', () => {
     buildPack.mockClear();
     (draftWrite.writeMarketingPlanDraft as jest.Mock).mockClear();
     (draftWrite.createTaskDraft as jest.Mock).mockClear();
+    (draftWrite.updateTaskDraft as jest.Mock).mockClear();
     (stageTransition.proposeTransition as jest.Mock).mockClear();
     (planBreakdown.breakdownToRoles as jest.Mock).mockClear();
     (kpiTargetWrite.writeDraft as jest.Mock).mockClear();
@@ -131,6 +143,7 @@ describe('createOpsContextTools', () => {
         'service_delivery.propose_transition',
         'service_delivery.read',
         'task.create_draft',
+        'task.update_draft',
       ].sort(),
     );
   });
@@ -197,6 +210,40 @@ describe('createOpsContextTools', () => {
     )) as { entity_ids: Record<string, number> };
     expect(draftWrite.createTaskDraft).toHaveBeenCalled();
     expect(out.entity_ids).toEqual({ task_id: 2, lifecycle_id: 5 });
+  });
+
+  it('task.update_draft persists when human approved', async () => {
+    const tool = byName.get('task.update_draft')!;
+    const out = (await tool.handler(
+      { task_id: 2, owner: 'AM', priority: 'high' },
+      {
+        apiKeyId: 'k',
+        clientId: null,
+        actorId: 'a',
+        correlationId: 'r',
+        humanApproved: true,
+      },
+    )) as { tool: string };
+    expect(draftWrite.updateTaskDraft).toHaveBeenCalledWith(
+      { task_id: 2, owner: 'AM', priority: 'high' },
+      expect.objectContaining({ actor: 'a' }),
+    );
+    expect(out.tool).toBe('task.update_draft');
+  });
+
+  it('task.update_draft requires human approval', async () => {
+    const tool = byName.get('task.update_draft')!;
+    await expect(
+      tool.handler(
+        { task_id: 2, priority: 'high' },
+        {
+          apiKeyId: 'k',
+          clientId: null,
+          actorId: 'a',
+          correlationId: 'r',
+        },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('propose_transition dry_run does not require human approval at tool gate', async () => {
