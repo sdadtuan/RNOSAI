@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  callAiTool,
   createAiToolKey,
   fetchAiToolKeys,
   fetchAiToolsCatalog,
@@ -33,6 +34,12 @@ export function AiToolKeysPanel({ token }: { token: string }) {
   const [name, setName] = useState('');
   const [clientId, setClientId] = useState('');
   const [allowedTools, setAllowedTools] = useState<string[]>([]);
+  const [tryTool, setTryTool] = useState('marketing_plan.read');
+  const [tryInput, setTryInput] = useState('{\n  "plan_id": 8\n}');
+  const [tryHumanApproved, setTryHumanApproved] = useState(false);
+  const [tryBusy, setTryBusy] = useState(false);
+  const [tryError, setTryError] = useState('');
+  const [tryResult, setTryResult] = useState('');
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -54,6 +61,41 @@ export function AiToolKeysPanel({ token }: { token: string }) {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (!tools.length) return;
+    if (!tools.some((t) => t.name === tryTool)) {
+      setTryTool(tools.find((t) => !t.mutating)?.name ?? tools[0].name);
+    }
+  }, [tools, tryTool]);
+
+  async function handleTryTool(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setTryBusy(true);
+    setTryError('');
+    setTryResult('');
+    try {
+      let parsed: Record<string, unknown> = {};
+      const raw = tryInput.trim();
+      if (raw) {
+        parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Input phải là JSON object');
+        }
+      }
+      const selected = tools.find((t) => t.name === tryTool);
+      const out = await callAiTool(token, {
+        tool_name: tryTool,
+        input: parsed,
+        human_approved: Boolean(selected?.mutating && tryHumanApproved),
+      });
+      setTryResult(JSON.stringify(out, null, 2));
+    } catch (err) {
+      setTryError(err instanceof Error ? err.message : 'Gọi tool thất bại');
+    } finally {
+      setTryBusy(false);
+    }
+  }
 
   function openCreateModal() {
     setName('');
@@ -190,6 +232,79 @@ export function AiToolKeysPanel({ token }: { token: string }) {
           </tbody>
         </table>
       </div>
+
+      <section className="card" style={{ padding: '1rem', marginTop: '1.25rem' }}>
+        <h3 className="kpi-section-title" style={{ marginTop: 0 }}>Try tool</h3>
+        <p className="muted">
+          Gọi <code>POST /api/v1/ai/tools/call</code> bằng staff JWT · xem JSON CrmContextPack / kết quả thô
+        </p>
+        <form
+          onSubmit={(event) => void handleTryTool(event)}
+          className="form-grid form-grid--2"
+          style={{ marginTop: '0.75rem' }}
+        >
+          <label className="form-field">
+            <span className="form-label">Tool</span>
+            <select
+              className="kpi-input"
+              value={tryTool}
+              onChange={(e) => setTryTool(e.target.value)}
+              disabled={tryBusy || tools.length === 0}
+            >
+              {tools.map((tool) => (
+                <option key={tool.name} value={tool.name}>
+                  {tool.name}
+                  {tool.mutating ? ' (mutating)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field" style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
+            <input
+              type="checkbox"
+              checked={tryHumanApproved}
+              disabled={tryBusy || !tools.find((t) => t.name === tryTool)?.mutating}
+              onChange={(e) => setTryHumanApproved(e.target.checked)}
+            />
+            <span className="form-label" style={{ margin: 0 }}>
+              X-AI-Human-Approved (write draft)
+            </span>
+          </label>
+          <label className="form-field" style={{ gridColumn: '1 / -1' }}>
+            <span className="form-label">Input JSON</span>
+            <textarea
+              className="kpi-input"
+              rows={6}
+              value={tryInput}
+              onChange={(e) => setTryInput(e.target.value)}
+              spellCheck={false}
+              disabled={tryBusy}
+              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '0.85rem' }}
+            />
+          </label>
+          <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
+            <button type="submit" className="btn btn-primary" disabled={tryBusy || !tryTool}>
+              {tryBusy ? 'Đang gọi…' : 'Chạy tool'}
+            </button>
+          </div>
+        </form>
+        {tryError ? <p className="error">{tryError}</p> : null}
+        {tryResult ? (
+          <pre
+            className="card"
+            style={{
+              marginTop: '0.75rem',
+              padding: '0.75rem',
+              overflow: 'auto',
+              maxHeight: 420,
+              fontSize: '0.8rem',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {tryResult}
+          </pre>
+        ) : null}
+      </section>
 
       <section className="card" style={{ padding: '1rem', marginTop: '1.25rem' }}>
         <h3 className="kpi-section-title" style={{ marginTop: 0 }}>Tool catalog</h3>

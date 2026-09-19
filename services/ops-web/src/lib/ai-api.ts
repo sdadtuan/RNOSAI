@@ -1151,6 +1151,41 @@ export async function fetchAiToolsCatalog(token: string): Promise<AiToolsCatalog
   return body;
 }
 
+export async function callAiTool(
+  token: string,
+  input: {
+    tool_name: string;
+    input?: Record<string, unknown>;
+    human_approved?: boolean;
+  },
+): Promise<{ tool_name: string; result: unknown }> {
+  const headers: Record<string, string> = {
+    ...authHeaders(token),
+    'Content-Type': 'application/json',
+  };
+  if (input.human_approved) {
+    headers['X-AI-Human-Approved'] = '1';
+  }
+  const res = await fetch(`${API_BASE}/api/v1/ai/tools/call`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      tool_name: input.tool_name,
+      input: input.input ?? {},
+    }),
+  });
+  const body = await parseJson<{
+    tool_name: string;
+    result: unknown;
+    error?: string;
+    message?: string;
+  }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.message ?? body.error ?? 'Call AI tool failed', res.status);
+  }
+  return { tool_name: body.tool_name, result: body.result };
+}
+
 export interface PipelineRiskDealRow {
   deal_id: number;
   title: string;
