@@ -8,6 +8,7 @@ import { PmPage } from '@/components/kpi-hub/performance/PmPage';
 import { PmReadinessRail } from '@/components/kpi-hub/performance/PmReadinessRail';
 import { getAccessToken } from '@/lib/auth';
 import { activatePmAssignment, createPmAssignment } from '@/lib/performance-api';
+import { evaluateAssignmentReadiness, isTargetBandValid } from '@/lib/performance-band';
 import { PM_CLIENT_OPTIONS, PM_PROJECT_OPTIONS } from '@/lib/performance-clients';
 
 const DEFINITIONS = {
@@ -29,44 +30,19 @@ const DEFINITIONS = {
 
 type DefCode = keyof typeof DEFINITIONS;
 
-function evaluateReadiness(input: {
-  definition_active: boolean;
-  owner_active: boolean;
-  band_valid: boolean;
-  has_measurement_plan: boolean;
-  auto_tracked: boolean;
-  client_visible: boolean;
-  has_disclaimer: boolean;
-}) {
-  const gates = [
-    { id: 'definition', status: input.definition_active ? 'pass' : 'fail', detail: 'Definition Active' },
-    { id: 'owner', status: input.owner_active ? 'pass' : 'fail', detail: 'Owner active' },
-    { id: 'band', status: input.band_valid ? 'pass' : 'fail', detail: 'Direction / band' },
-    {
-      id: 'source',
-      status: !input.auto_tracked || input.has_measurement_plan ? 'pass' : 'pending',
-      detail: 'Measurement Plan',
-    },
-    {
-      id: 'visibility',
-      status: !input.client_visible || input.has_disclaimer ? 'pass' : 'fail',
-      detail: 'Client disclaimer',
-    },
-  ];
-  return { gates, can_activate: gates.every((g) => g.status === 'pass') };
-}
-
 export default function CreatePerformanceKpiPage() {
   const router = useRouter();
   const token = getAccessToken() ?? '';
   const [definitionCode, setDefinitionCode] = useState<DefCode>('MKT_006');
   const [owner, setOwner] = useState('Lê Hoàng — Performance');
-  const [scopeName, setScopeName] = useState('Growth Launch Q4');
-  const [scopeType, setScopeType] = useState('campaign');
-  const [target, setTarget] = useState('100000');
-  const [targetMin, setTargetMin] = useState('85000');
-  const [targetStretch, setTargetStretch] = useState('70000');
+  const [scopeName, setScopeName] = useState('360 AUTO DETAILING');
+  const [scopeType, setScopeType] = useState('client');
+  const [target, setTarget] = useState('120000');
+  const [targetMin, setTargetMin] = useState('100000');
+  const [targetStretch, setTargetStretch] = useState('90000');
   const [collectionMethod, setCollectionMethod] = useState('api');
+  const [sourceId, setSourceId] = useState('QT-0360');
+  const [instanceId, setInstanceId] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blockedGates, setBlockedGates] = useState<Array<{ id: string; status: string; detail: string }> | null>(
@@ -79,12 +55,16 @@ export default function CreatePerformanceKpiPage() {
     setScopeType(next);
     if (next === 'client') {
       setScopeName(PM_CLIENT_OPTIONS[0]);
+      setSourceId('QT-0360');
     } else if (next === 'campaign') {
       setScopeName('Growth Launch Q4');
+      setSourceId('QT-0089');
     } else if (next === 'department') {
       setScopeName('Performance');
+      setSourceId('');
     } else if (next === 'project') {
       setScopeName(PM_PROJECT_OPTIONS[0]);
+      setSourceId('QT-0089');
     }
   };
 
@@ -92,40 +72,49 @@ export default function CreatePerformanceKpiPage() {
     const targetNum = Number(target.replace(/\D/g, '')) || 0;
     const minNum = Number(targetMin.replace(/\D/g, '')) || 0;
     const stretchNum = Number(targetStretch.replace(/\D/g, '')) || 0;
-    const bandValid =
-      def.direction === 'lower'
-        ? stretchNum <= targetNum && targetNum <= minNum
-        : minNum <= targetNum && targetNum <= stretchNum;
-    return evaluateReadiness({
+    const bandValid = isTargetBandValid({
+      direction: def.direction,
+      min: minNum,
+      target: targetNum,
+      stretch: stretchNum,
+    });
+    const hasPlan =
+      collectionMethod === 'manual' || Boolean(sourceId.trim()) || Boolean(instanceId.trim());
+    return evaluateAssignmentReadiness({
       definition_active: true,
       owner_active: Boolean(owner.trim()),
       band_valid: bandValid,
-      has_measurement_plan: collectionMethod === 'manual',
+      has_measurement_plan: hasPlan,
       auto_tracked: collectionMethod === 'api' || collectionMethod === 'connector',
       client_visible: false,
       has_disclaimer: false,
     });
-  }, [owner, target, targetMin, targetStretch, def.direction, collectionMethod]);
+  }, [owner, target, targetMin, targetStretch, def.direction, collectionMethod, sourceId, instanceId]);
+
+  const payload = () => ({
+    name: `${def.name} · ${scopeName}`,
+    definition_code: definitionCode,
+    owner: owner.split('—')[0]?.trim() ?? owner,
+    scope_type: scopeType,
+    scope_name: scopeName,
+    target: Number(target.replace(/\D/g, '')) || 0,
+    target_min: Number(targetMin.replace(/\D/g, '')) || null,
+    target_stretch: Number(targetStretch.replace(/\D/g, '')) || null,
+    direction: def.direction,
+    collection_method: collectionMethod,
+    department: 'Performance',
+    source_id: sourceId.trim() || null,
+    instance_id: instanceId.trim() || null,
+    quoted_target: Number(target.replace(/\D/g, '')) || null,
+  });
 
   const handleDraft = async () => {
     setSaving(true);
     setError(null);
     setBlockedGates(null);
     try {
-      await createPmAssignment(token, {
-        name: def.name,
-        definition_code: definitionCode,
-        owner: owner.split('—')[0]?.trim() ?? owner,
-        scope_type: scopeType,
-        scope_name: scopeName,
-        target: Number(target.replace(/\D/g, '')) || 0,
-        target_min: Number(targetMin.replace(/\D/g, '')) || null,
-        target_stretch: Number(targetStretch.replace(/\D/g, '')) || null,
-        direction: def.direction,
-        collection_method: collectionMethod,
-        department: 'Performance',
-      });
-      router.push('/crm/kpi-hub/performance/assignments');
+      const created = await createPmAssignment(token, payload());
+      router.push(`/crm/kpi-hub/performance/assignments/${created.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Không tạo được assignment');
     } finally {
@@ -143,19 +132,7 @@ export default function CreatePerformanceKpiPage() {
     setError(null);
     setBlockedGates(null);
     try {
-      const created = await createPmAssignment(token, {
-        name: def.name,
-        definition_code: definitionCode,
-        owner: owner.split('—')[0]?.trim() ?? owner,
-        scope_type: scopeType,
-        scope_name: scopeName,
-        target: Number(target.replace(/\D/g, '')) || 0,
-        target_min: Number(targetMin.replace(/\D/g, '')) || null,
-        target_stretch: Number(targetStretch.replace(/\D/g, '')) || null,
-        direction: def.direction,
-        collection_method: collectionMethod,
-        department: 'Performance',
-      });
+      const created = await createPmAssignment(token, payload());
       await activatePmAssignment(token, created.id);
       router.push('/crm/kpi-hub/performance/assignments');
     } catch (err: unknown) {
@@ -295,6 +272,24 @@ export default function CreatePerformanceKpiPage() {
                   <option value="manual">Manual</option>
                 </select>
               </label>
+              <label className="kpi-hub-field">
+                <span>Quote / Source ID</span>
+                <input
+                  aria-label="Source ID"
+                  value={sourceId}
+                  onChange={(e) => setSourceId(e.target.value)}
+                  placeholder="QT-0360"
+                />
+              </label>
+              <label className="kpi-hub-field">
+                <span>KPI Instance ID</span>
+                <input
+                  aria-label="Instance ID"
+                  value={instanceId}
+                  onChange={(e) => setInstanceId(e.target.value)}
+                  placeholder="sau khi seed QT-0360"
+                />
+              </label>
             </div>
           </article>
           <article className="kpi-hub-card">
@@ -311,16 +306,16 @@ export default function CreatePerformanceKpiPage() {
                 <input value={target} onChange={(e) => setTarget(e.target.value)} />
               </label>
               <label className="kpi-hub-field">
-                <span>Minimum</span>
+                <span>Minimum (mid-band)</span>
                 <input value={targetMin} onChange={(e) => setTargetMin(e.target.value)} />
               </label>
               <label className="kpi-hub-field">
-                <span>Stretch</span>
+                <span>Stretch (best)</span>
                 <input value={targetStretch} onChange={(e) => setTargetStretch(e.target.value)} />
               </label>
             </div>
             <PmAmberNotice>
-              Target 100K = Quoted QT-0089. Đổi xuống 85K → material variance → Change Order + Contract Score.
+              Lower-is-better: stretch ≤ minimum ≤ target (vd. 90K ≤ 100K ≤ 120K cho QT-0360).
             </PmAmberNotice>
           </article>
         </div>
@@ -332,7 +327,7 @@ export default function CreatePerformanceKpiPage() {
             <div className="kpi-hub-card__body">
               <PmReadinessRail gates={blockedGates ?? readiness.gates} />
               <PmAmberNotice>
-                Activate block cho đến khi Source mapping pass — không tạo KPI “mồ côi” như HubSpot Goals.
+                Activate cần Source ID / Instance (Measurement Plan) + band hợp lệ — không tạo KPI mồ côi.
               </PmAmberNotice>
             </div>
           </article>

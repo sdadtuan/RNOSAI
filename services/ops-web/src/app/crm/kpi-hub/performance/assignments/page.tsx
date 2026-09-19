@@ -158,10 +158,19 @@ export default function PerformanceAssignmentsPage() {
                   {rows.map((row) => (
                     <tr key={row.id}>
                       <td>
-                        <b>{row.name}</b>
-                        <div className="kpi-hub-muted">
-                          {row.definition_code} · inherit Dictionary
-                        </div>
+                        <Link
+                          href={
+                            row.lifecycle === 'draft'
+                              ? `/crm/kpi-hub/performance/assignments/${row.id}`
+                              : `/crm/kpi-hub/performance/check-ins?assignment=${row.id}`
+                          }
+                          style={{ textDecoration: 'none', color: 'inherit' }}
+                        >
+                          <b>{row.name}</b>
+                          <div className="kpi-hub-muted">
+                            {row.definition_code} · {row.lifecycle === 'draft' ? 'Nháp' : 'inherit Dictionary'}
+                          </div>
+                        </Link>
                       </td>
                       <td>{row.owner}</td>
                       <td>{row.scope_name}</td>
@@ -198,12 +207,21 @@ export default function PerformanceAssignmentsPage() {
                         <span className={pmBadge(row.status)}>{statusLabel(row.status)}</span>
                       </td>
                       <td>
-                        <Link
-                          href={`/crm/kpi-hub/performance/check-ins?assignment=${row.id}`}
-                          className="kpi-hub-btn kpi-hub-btn--ghost"
-                        >
-                          {row.status === 'red' ? 'Blocker' : 'Ritual'}
-                        </Link>
+                        {row.lifecycle === 'draft' ? (
+                          <Link
+                            href={`/crm/kpi-hub/performance/assignments/${row.id}`}
+                            className="kpi-hub-btn kpi-hub-btn--primary"
+                          >
+                            Sửa nháp
+                          </Link>
+                        ) : (
+                          <Link
+                            href={`/crm/kpi-hub/performance/check-ins?assignment=${row.id}`}
+                            className="kpi-hub-btn kpi-hub-btn--ghost"
+                          >
+                            {row.status === 'red' ? 'Blocker' : 'Ritual'}
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   ))}

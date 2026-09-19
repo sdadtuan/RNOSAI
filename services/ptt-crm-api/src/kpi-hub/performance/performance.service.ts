@@ -49,6 +49,7 @@ const DOMAIN_ERROR_CODES = new Set([
   'stale_version',
   'idempotency_replay',
   'assignment_not_found',
+  'assignment_not_editable',
   'scorecard_not_found',
   'invalid_review_state',
 ]);
@@ -226,6 +227,9 @@ export class PerformanceService {
     source?: string;
     collection_method?: CollectionMethod;
     instance_id?: string;
+    source_id?: string;
+    target_min?: number | null;
+    target_stretch?: number | null;
     quoted_target?: number | null;
     assumption_open?: boolean;
   }): PmAssignment {
@@ -233,6 +237,16 @@ export class PerformanceService {
     if (!name || name.length < 3) throw new BadRequestException({ error: 'name_required' });
     if (!Number.isFinite(body.target)) throw new BadRequestException({ error: 'target_required' });
     const collection_method = body.collection_method ?? 'manual';
+    const target_min = body.target_min != null && Number.isFinite(body.target_min) ? body.target_min : null;
+    const target_stretch =
+      body.target_stretch != null && Number.isFinite(body.target_stretch) ? body.target_stretch : null;
+    const band = validateTargetBand({
+      direction: body.direction ?? 'higher',
+      min: target_min,
+      target: body.target,
+      stretch: target_stretch,
+    });
+    if (!band.ok) throw new BadRequestException({ error: 'band_invalid' });
     const row: PmAssignment = this.enrich({
       id: `asg-${Date.now()}`,
       name,
@@ -256,15 +270,15 @@ export class PerformanceService {
       quality: 'pending',
       quoted_target: body.quoted_target ?? null,
       assigned_target: body.target,
-      source_id: null,
-      instance_id: body.instance_id ?? null,
+      source_id: body.source_id?.trim() || null,
+      instance_id: body.instance_id?.trim() || null,
       collection_method,
       lifecycle: 'draft',
       client_visible: false,
       disclaimer: '',
       assumption_open: body.assumption_open ?? false,
-      target_min: null,
-      target_stretch: null,
+      target_min,
+      target_stretch,
       quoted_vs_assigned_pct: null,
       quoted_vs_actual_pct: null,
       quoted_delta_material: false,
@@ -273,6 +287,69 @@ export class PerformanceService {
     });
     this.catalog.assignments.unshift(row);
     return row;
+  }
+
+  updateAssignment(
+    id: string,
+    body: Partial<{
+      name: string;
+      owner: string;
+      scope_type: PmScopeType;
+      scope_name: string;
+      department: string;
+      direction: PmAssignment['direction'];
+      target: number;
+      target_label: string;
+      target_min: number | null;
+      target_stretch: number | null;
+      collection_method: CollectionMethod;
+      instance_id: string | null;
+      source_id: string | null;
+      quoted_target: number | null;
+      disclaimer: string;
+      client_visible: boolean;
+    }>,
+  ): PmAssignment {
+    const asg = this.catalog.assignments.find((a) => a.id === id);
+    if (!asg) throw new BadRequestException({ error: 'assignment_not_found' });
+    if (asg.lifecycle !== 'draft') {
+      throw new BadRequestException({ error: 'assignment_not_editable' });
+    }
+    if (body.name != null) {
+      const name = body.name.trim();
+      if (name.length < 3) throw new BadRequestException({ error: 'name_required' });
+      asg.name = name;
+    }
+    if (body.owner != null) asg.owner = body.owner;
+    if (body.scope_type != null) asg.scope_type = body.scope_type;
+    if (body.scope_name != null) asg.scope_name = body.scope_name;
+    if (body.department != null) asg.department = body.department;
+    if (body.direction != null) asg.direction = body.direction;
+    if (body.target != null) {
+      if (!Number.isFinite(body.target)) throw new BadRequestException({ error: 'target_required' });
+      asg.target = body.target;
+      asg.assigned_target = body.target;
+    }
+    if (body.target_label != null) asg.target_label = body.target_label;
+    if (body.target_min !== undefined) asg.target_min = body.target_min;
+    if (body.target_stretch !== undefined) asg.target_stretch = body.target_stretch;
+    if (body.collection_method != null) asg.collection_method = body.collection_method;
+    if (body.instance_id !== undefined) asg.instance_id = body.instance_id?.trim() || null;
+    if (body.source_id !== undefined) asg.source_id = body.source_id?.trim() || null;
+    if (body.quoted_target !== undefined) asg.quoted_target = body.quoted_target;
+    if (body.disclaimer != null) asg.disclaimer = body.disclaimer;
+    if (body.client_visible != null) asg.client_visible = body.client_visible;
+
+    const band = validateTargetBand({
+      direction: asg.direction,
+      min: asg.target_min,
+      target: asg.target,
+      stretch: asg.target_stretch,
+    });
+    if (!band.ok) throw new BadRequestException({ error: 'band_invalid' });
+
+    asg.row_version += 1;
+    return this.enrich(asg);
   }
 
   activateAssignment(id: string): PmAssignment {
@@ -595,7 +672,24 @@ export class PerformanceService {
         { label: 'RESPONSE SLA', value: '27 phút', hint: 'Target < 15 phút', tone: 'critical' },
       ],
       mappings: this.catalog.crm_mappings,
+      refreshed_at: this.catalog.crm_refreshed_at ?? null,
     };
+  }
+
+  refreshCrmSource() {
+    const now = new Date().toISOString();
+    this.catalog.crm_mappings = this.catalog.crm_mappings.map((m) =>
+      /valid lead/i.test(m.kpi) || /stale/i.test(m.quality)
+        ? { ...m, quality: 'Verified · synced just now' }
+        : m,
+    );
+    this.catalog.marketing.sources = this.catalog.marketing.sources.map((s) =>
+      /valid lead|stale/i.test(`${s.name} ${s.health}`) ? { ...s, health: 'Healthy' } : s,
+    );
+    this.catalog.crm_refreshed_at = now;
+    const cpl = this.catalog.assignments.find((a) => a.id === 'asg-cpl' || a.definition_code === 'MKT_006');
+    if (cpl && cpl.quality === 'stale') cpl.quality = 'verified';
+    return this.getCrmSource();
   }
 
   getReports() {

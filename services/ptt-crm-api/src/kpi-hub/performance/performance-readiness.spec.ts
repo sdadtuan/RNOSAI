@@ -1,7 +1,7 @@
 import { evaluateReadiness, validateTargetBand } from './performance-readiness';
 
 describe('performance-readiness', () => {
-  it('lower-is-better requires stretch ≤ target ≤ min (AC band)', () => {
+  it('lower-is-better requires stretch ≤ min ≤ target (AC band)', () => {
     expect(validateTargetBand({ direction: 'lower', min: 85000, target: 100000, stretch: 70000 }).ok).toBe(true);
     expect(validateTargetBand({ direction: 'lower', min: 70000, target: 100000, stretch: 85000 }).ok).toBe(false);
     expect(validateTargetBand({ direction: 'higher', min: 800, target: 1000, stretch: 1200 }).ok).toBe(true);

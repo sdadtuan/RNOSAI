@@ -79,6 +79,100 @@ export class ServiceKpiInstancesService {
     return this.enrichInstance(row);
   }
 
+  /** Idempotent seed for QT-0360 / 360 AUTO DETAILING — CPL Valid Lead + measurement plan. */
+  async ensureQt0360Instances(): Promise<{
+    created: number;
+    items: ServiceKpiInstanceRow[];
+    source_id: string;
+  }> {
+    const sourceId = 'QT-0360';
+    const existing = await this.repo.listInstances({ source_id: sourceId });
+    if (existing.length > 0) {
+      const enriched = await Promise.all(existing.map((row) => this.enrichInstance(row)));
+      return { created: 0, items: enriched, source_id: sourceId };
+    }
+
+    const seeds: Array<{
+      dictionary_id: string;
+      target_min: number;
+      target_max: number;
+      owner_name: string;
+      field_mapping: string;
+    }> = [
+      {
+        dictionary_id: 'd006',
+        target_min: 90000,
+        target_max: 120000,
+        owner_name: 'Lê Hoàng',
+        field_mapping: 'lead.is_valid ∧ dedup → CPL = spend / valid_leads',
+      },
+    ];
+
+    const createdRows: ServiceKpiInstanceRow[] = [];
+    for (const seed of seeds) {
+      const row = await this.create({
+        source_type: 'quote_line_item',
+        source_id: sourceId,
+        dv_code: 'DV04',
+        dictionary_id: seed.dictionary_id,
+        classification: 'OPTIMIZATION_TARGET',
+        client_visible: true,
+        owner_name: seed.owner_name,
+        target_min: seed.target_min,
+        target_max: seed.target_max,
+        scenario: 'base',
+        assumption_text: 'Phụ thuộc creative, offer và sales SLA 360 AUTO DETAILING.',
+        disclaimer_text: 'Mục tiêu tối ưu — không phải cam kết hợp đồng.',
+      });
+      await this.repo.upsertMeasurementPlan(row.id, {
+        owner_name: seed.owner_name,
+        cadence: 'daily',
+        data_source: 'Meta Ads + CRM Valid Lead',
+        field_mapping: seed.field_mapping,
+        freshness_sla_hours: 24,
+        qa_status: 'pending',
+      });
+      createdRows.push(row);
+    }
+
+    // Project-scoped clone for delivery tracking
+    const projectRows: ServiceKpiInstanceRow[] = [];
+    for (const src of createdRows) {
+      const clone = await this.repo.insertInstance({
+        source_type: 'project',
+        source_id: '360-detailing-retainer',
+        dv_code: src.dv_code,
+        dictionary_id: src.dictionary_id,
+        template_version_id: src.template_version_id,
+        classification: src.classification,
+        status: 'TRACKING',
+        client_visible: src.client_visible,
+        owner_name: src.owner_name,
+        target_min: src.target_min,
+        target_max: src.target_max,
+        scenario: src.scenario,
+        assumption_text: src.assumption_text,
+        assumption_state: src.assumption_state,
+        disclaimer_text: src.disclaimer_text,
+      });
+      await this.repo.upsertMeasurementPlan(clone.id, {
+        owner_name: src.owner_name ?? 'AM 360',
+        cadence: 'daily',
+        data_source: 'Meta Ads + CRM Valid Lead',
+        field_mapping: 'synced from QT-0360',
+        freshness_sla_hours: 24,
+        qa_status: 'pending',
+      });
+      projectRows.push(await this.enrichInstance(clone));
+    }
+
+    const items = [
+      ...(await Promise.all(createdRows.map((r) => this.enrichInstance(r)))),
+      ...projectRows,
+    ];
+    return { created: items.length, items, source_id: sourceId };
+  }
+
   async list(query: {
     source_type?: string;
     source_id?: string;

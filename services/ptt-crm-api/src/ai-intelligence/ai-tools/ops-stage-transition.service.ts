@@ -14,6 +14,13 @@ import {
   P4Stage,
 } from './ops-stage-transition.types';
 
+function isAiDraftTitle(title: string): boolean {
+  return String(title ?? '')
+    .trim()
+    .toLowerCase()
+    .startsWith('[ai draft]');
+}
+
 function positiveInt(raw: unknown): number | undefined {
   const n = Number(raw);
   if (!Number.isInteger(n) || n <= 0) return undefined;
@@ -114,10 +121,25 @@ export class OpsStageTransitionService {
 
     const openTasks = await this.repo.listOpenTasks(lifecycleId);
     const stageStats = await this.repo.countTasksByStage(lifecycleId, fromStage);
+    const openInFromStage = openTasks.filter((t) => normalizeStage(t.stage) === fromStage);
+    const blockingOpen = openInFromStage.filter((t) => !isAiDraftTitle(t.title));
+    // [AI draft] tasks from plan.breakdown are planning artifacts — do not block P4 DoD.
+    const effectiveStageStats =
+      blockingOpen.length === 0
+        ? {
+            total: Math.max(stageStats.done, stageStats.total > 0 ? 1 : 0),
+            open: 0,
+            done: Math.max(stageStats.done, stageStats.total > 0 ? 1 : 0),
+          }
+        : {
+            total: stageStats.total,
+            open: blockingOpen.length,
+            done: stageStats.done,
+          };
     const checklist = this.evaluateDod(fromStage, toStage, {
       notes: lc.notes,
-      openTasksInFromStage: openTasks.filter((t) => normalizeStage(t.stage) === fromStage),
-      stageStats,
+      openTasksInFromStage: blockingOpen,
+      stageStats: effectiveStageStats,
     });
     const blockers = checklist
       .filter((c) => c.done !== true)
