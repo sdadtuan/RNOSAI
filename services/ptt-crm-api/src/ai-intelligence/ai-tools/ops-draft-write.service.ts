@@ -133,12 +133,14 @@ export class OpsDraftWriteService {
       : `${AI_TITLE_PREFIX}${titleRaw}`;
 
     const planId = positiveInt(input.plan_id ?? input.planId);
+    const roleKey = optionalStr(input.role_key ?? input.roleKey);
     const formData: Record<string, unknown> = {
       ai_draft: true,
       ai_approved_by: meta.actor,
       ai_approved_at: meta.approvedAt,
     };
     if (planId != null) formData.plan_id = planId;
+    if (roleKey) formData.role_key = roleKey;
     if (input.campaign_id != null && String(input.campaign_id).trim()) {
       formData.campaign_id = input.campaign_id;
     }

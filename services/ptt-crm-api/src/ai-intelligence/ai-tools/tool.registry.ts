@@ -25,6 +25,7 @@ import { createLeadAgentTools } from './tools/score-lead.tool';
 import { createOrchestrationTools } from './tools/trigger-orchestration.tool';
 import { OpsCrmContextService } from './ops-crm-context.service';
 import { OpsDraftWriteService } from './ops-draft-write.service';
+import { OpsPlanBreakdownService } from './ops-plan-breakdown.service';
 import { OpsStageTransitionService } from './ops-stage-transition.service';
 
 const DENIED = new Set<string>(OPS_AI_TOOL_DENYLIST);
@@ -44,6 +45,7 @@ export class ToolRegistry {
     opsContext: OpsCrmContextService,
     draftWrite: OpsDraftWriteService,
     stageTransition: OpsStageTransitionService,
+    planBreakdown: OpsPlanBreakdownService,
   ) {
     this.definitions = [
       ...createLeadAgentTools(agents),
@@ -51,7 +53,7 @@ export class ToolRegistry {
       ...createForecastTools(forecast),
       ...createAgentInsightTools(agents),
       ...createOrchestrationTools(orchestrator),
-      ...createOpsContextTools(opsContext, draftWrite, stageTransition),
+      ...createOpsContextTools(opsContext, draftWrite, stageTransition, planBreakdown),
     ];
     this.toolsByName = new Map(this.definitions.map((tool) => [tool.name, tool]));
   }

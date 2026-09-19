@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { AiToolDefinition, AiToolExecutionContext } from '../ai-tools.types';
 import { OpsCrmContextService } from '../ops-crm-context.service';
 import { OpsDraftWriteService } from '../ops-draft-write.service';
+import { OpsPlanBreakdownService } from '../ops-plan-breakdown.service';
 import { OpsStageTransitionService } from '../ops-stage-transition.service';
 
 function assertHumanApprovedForWrite(
@@ -35,11 +36,12 @@ const contextIdSchema = {
   },
 };
 
-/** SRS-PTT-Ops-Module PO-52 tools — P2 reads + P3 draft writes + P4 stage propose. */
+/** SRS-PTT-Ops-Module PO-52 tools — P2–P5 (reads, drafts, stage propose, plan breakdown). */
 export function createOpsContextTools(
   context: OpsCrmContextService,
   draftWrite: OpsDraftWriteService,
   stageTransition: OpsStageTransitionService,
+  planBreakdown: OpsPlanBreakdownService,
 ): AiToolDefinition[] {
   return [
     {
@@ -151,6 +153,35 @@ export function createOpsContextTools(
       requiredCaps: ['crm_service_lifecycle.edit'],
       handler: async (input, ctx) =>
         stageTransition.proposeTransition(input, writeMeta(ctx), {
+          humanApproved: Boolean(ctx.humanApproved),
+        }),
+    },
+    {
+      name: 'plan.breakdown_to_roles',
+      description:
+        'Break an approved marketing plan into a role KPI matrix (dry-run default). Optionally persist task drafts via task.create_draft (requires human approval).',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        required: ['plan_id'],
+        properties: {
+          plan_id: { type: 'integer', minimum: 1 },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          persist_tasks: { type: 'boolean' },
+          allow_review: { type: 'boolean' },
+          roles: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+          due_in_days: { type: 'integer', minimum: 1 },
+          owner_map: { type: 'object', additionalProperties: { type: 'string' } },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) =>
+        planBreakdown.breakdownToRoles(input, writeMeta(ctx), {
           humanApproved: Boolean(ctx.humanApproved),
         }),
     },

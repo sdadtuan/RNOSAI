@@ -10,7 +10,7 @@ import { canViewPolicyAdmin, useAdminCrmAuth } from '@/lib/admin/use-admin-crm-a
 
 const PII_FIELDS = ['phone', 'email', 'national_id', 'address'];
 
-/** SRS PO-52/P4 allowlist — Ops Module. */
+/** SRS PO-52/P4/P5 allowlist — Ops Module. */
 const OPS_TOOL_ALLOWLIST = [
   'marketing_plan.read',
   'service_delivery.read',
@@ -19,6 +19,7 @@ const OPS_TOOL_ALLOWLIST = [
   'kpi_campaign.read',
   'marketing_plan.write_draft',
   'task.create_draft',
+  'plan.breakdown_to_roles',
 ];
 
 const DENIED_HINT = ['email.send', 'proposal.send', 'stage.transition'];

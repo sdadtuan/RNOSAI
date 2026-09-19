@@ -16,6 +16,7 @@ const TOOL_OPTIONS = [
   'kpi_campaign.read',
   'marketing_plan.write_draft',
   'task.create_draft',
+  'plan.breakdown_to_roles',
   'nl_query',
   'lead_score',
   'content_draft',
