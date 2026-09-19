@@ -6,6 +6,7 @@ import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { DetailPageLayout } from '@/components/layout';
 import { InsertInsightPlanPanel } from '@/components/research/InsertInsightPlanPanel';
 import { fetchMarketingPlanDetail, patchMarketingPlan, staffMe, staffRefresh } from '@/lib/api';
+import { fetchRoleKpiSummary } from '@/lib/kpi-hub-api';
 import {
   clearSession,
   getAccessToken,
@@ -30,6 +31,7 @@ export default function CrmMarketingPlanDetailPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reviewKpiCount, setReviewKpiCount] = useState(0);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -81,6 +83,18 @@ export default function CrmMarketingPlanDetailPage() {
         setName(String(data.name ?? ''));
         setStatus(String(data.status ?? 'draft'));
         setNotes(String(data.notes ?? ''));
+        try {
+          const meUser = getStoredUser();
+          if (
+            meUser &&
+            (hasCap(meUser, 'crm_kpi_hub', 'view') || hasCap(meUser, 'crm_kpi_hub_targets', 'view'))
+          ) {
+            const sum = await fetchRoleKpiSummary(access, planId);
+            setReviewKpiCount(Number(sum.review_count ?? 0));
+          }
+        } catch {
+          setReviewKpiCount(0);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Tải thất bại');
       } finally {
@@ -148,6 +162,20 @@ export default function CrmMarketingPlanDetailPage() {
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
         {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
+        {reviewKpiCount > 0 ? (
+          <p
+            data-testid="role-kpi-review-banner"
+            style={{
+              padding: '0.75rem 1rem',
+              borderRadius: 10,
+              border: '1px solid var(--border)',
+              background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+            }}
+          >
+            Role KPI chờ duyệt ({reviewKpiCount}).{' '}
+            <a href={`/crm/kpi-hub/role-kpi?plan_id=${planId}&status=review`}>Mở Role KPI →</a>
+          </p>
+        ) : null}
         {plan && !loading ? (
           <form onSubmit={(e) => void onSave(e)} style={{ display: 'grid', gap: '0.75rem' }}>
             <label style={{ display: 'grid', gap: '0.35rem' }}>

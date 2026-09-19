@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { OpsCrmContextRepository, OpsPlanWriteRow } from './ops-crm-context.repository';
 import { OpsDraftWriteService } from './ops-draft-write.service';
+import { OpsKpiTargetWriteService } from './ops-kpi-target-write.service';
 import {
   DEFAULT_BREAKDOWN_ROLES,
   isPlanBreakdownRoleKey,
@@ -146,6 +147,7 @@ export class OpsPlanBreakdownService {
   constructor(
     private readonly repo: OpsCrmContextRepository,
     private readonly draftWrite: OpsDraftWriteService,
+    private readonly kpiTargetWrite: OpsKpiTargetWriteService,
   ) {}
 
   async breakdownToRoles(
@@ -159,14 +161,15 @@ export class OpsPlanBreakdownService {
     }
 
     const persistTasks = asBool(input.persist_tasks ?? input.persistTasks, false);
+    const persistKpis = asBool(input.persist_kpis ?? input.persistKpis, false);
     const allowReview = asBool(input.allow_review ?? input.allowReview, false);
 
-    if (persistTasks && !opts.humanApproved) {
+    if ((persistTasks || persistKpis) && !opts.humanApproved) {
       throw new ForbiddenException({
         error: 'human_approval_required',
         tool_name: 'plan.breakdown_to_roles',
         message:
-          'persist_tasks requires human approval (X-AI-Human-Approved: 1) per SRS P5.',
+          'persist_tasks / persist_kpis require human approval (X-AI-Human-Approved: 1) per SRS P5.',
       });
     }
 
@@ -236,16 +239,20 @@ export class OpsPlanBreakdownService {
     }
 
     const taskIds: number[] = [];
+    const kpiTargetIds: number[] = [];
     const links = [`/crm/marketing-plan/${planId}`];
 
+    let lifecycleIdForPersist: number | null =
+      positiveInt(input.lifecycle_id ?? input.lifecycleId) ?? plan.lifecycle_id ?? null;
+
     if (persistTasks) {
-      const lifecycleId = await this.resolveLifecycleForPersist(input, plan);
+      lifecycleIdForPersist = await this.resolveLifecycleForPersist(input, plan);
       for (const line of matrix) {
         const result = await this.draftWrite.createTaskDraft(
           {
             title: line.task_title,
             acceptance_criteria: line.acceptance_criteria,
-            lifecycle_id: lifecycleId,
+            lifecycle_id: lifecycleIdForPersist,
             plan_id: planId,
             role_key: line.role_key,
           },
@@ -254,8 +261,58 @@ export class OpsPlanBreakdownService {
         const taskId = Number(result.entity_ids.task_id);
         if (Number.isInteger(taskId) && taskId > 0) taskIds.push(taskId);
       }
-      links.push(`/crm/service-delivery/${lifecycleId}`);
+      links.push(`/crm/service-delivery/${lifecycleIdForPersist}`);
       known.push(`tasks_persisted:${taskIds.length}`);
+    }
+
+    if (persistKpis) {
+      const period = this.defaultPeriodFromPlan(plan);
+      const items: Record<string, unknown>[] = [];
+      for (const line of matrix) {
+        for (const kpi of line.kpis) {
+          const targetValue =
+            typeof kpi.target === 'number'
+              ? kpi.target
+              : typeof kpi.target === 'boolean'
+                ? kpi.target
+                  ? 1
+                  : 0
+                : kpi.target == null
+                  ? null
+                  : Number.isFinite(Number(kpi.target))
+                    ? Number(kpi.target)
+                    : null;
+          items.push({
+            plan_id: planId,
+            lifecycle_id: lifecycleIdForPersist,
+            role_key: line.role_key,
+            kpi_key: kpi.name,
+            kpi_label: kpi.name.replace(/_/g, ' '),
+            period_start: period.start,
+            period_end: period.end,
+            target_value: targetValue,
+            target_unit: kpi.unit,
+            owner_staff_id: line.owner_id,
+            notes: `From plan.breakdown_to_roles matrix — ${line.role_label}`,
+            upsert_key: `breakdown:${planId}:${line.role_key}:${kpi.name}`,
+            breakdown_line_id: `${line.role_key}:${kpi.name}`,
+          });
+        }
+      }
+      if (items.length > 0) {
+        const batch = await this.kpiTargetWrite.writeDraft(
+          { plan_id: planId, items },
+          meta,
+          { humanApproved: true },
+        );
+        if ('kpi_target_ids' in batch) {
+          kpiTargetIds.push(...batch.kpi_target_ids);
+        } else {
+          kpiTargetIds.push(batch.kpi_target_id);
+        }
+      }
+      links.push(`/crm/kpi-hub/role-kpi?plan_id=${planId}`);
+      known.push(`kpis_persisted:${kpiTargetIds.length}`);
     }
 
     return {
@@ -265,13 +322,20 @@ export class OpsPlanBreakdownService {
       plan_id: planId,
       plan_status: plan.status,
       persist_tasks: persistTasks,
+      persist_kpis: persistKpis,
       matrix,
       task_ids: taskIds,
+      kpi_target_ids: kpiTargetIds,
       known: [...new Set(known)],
       assumed: [...new Set(assumed)],
       unknown: [...new Set(unknown)],
-      links,
+      links: [...new Set(links)],
     };
+  }
+
+  private defaultPeriodFromPlan(_plan: OpsPlanWriteRow): { start: string; end: string } {
+    const year = new Date().getFullYear();
+    return { start: `${year}-10-01`, end: `${year}-12-31` };
   }
 
   private resolveRoles(raw: unknown): PlanBreakdownRoleKey[] {

@@ -3,6 +3,7 @@ import { createOpsContextTools } from './ops-context.tools';
 import type { OpsCrmContextService } from '../ops-crm-context.service';
 import type { OpsDraftWriteService } from '../ops-draft-write.service';
 import type { OpsPlanBreakdownService } from '../ops-plan-breakdown.service';
+import type { OpsKpiTargetWriteService } from '../ops-kpi-target-write.service';
 import type { OpsStageTransitionService } from '../ops-stage-transition.service';
 
 describe('createOpsContextTools', () => {
@@ -64,19 +65,46 @@ describe('createOpsContextTools', () => {
       plan_id: 8,
       plan_status: 'active',
       persist_tasks: false,
+      persist_kpis: false,
       matrix: [],
       task_ids: [],
+      kpi_target_ids: [],
       known: [],
       assumed: [],
       unknown: [],
       links: ['/crm/marketing-plan/8'],
     })),
   } as unknown as OpsPlanBreakdownService;
+  const kpiTargetWrite = {
+    writeDraft: jest.fn(async () => ({
+      ok: true,
+      wired: true,
+      phase: 'P5-KPI',
+      status: 'persisted',
+      kpi_target_id: 101,
+      role_key: 'content',
+      kpi_key: 'posts_shipped',
+      kpi_status: 'draft',
+      links: ['/crm/kpi-hub/role-kpi?plan_id=8'],
+    })),
+    read: jest.fn(async () => ({
+      ok: true,
+      wired: true,
+      phase: 'P5-KPI',
+      tool: 'kpi_target.read',
+      rows: [],
+      known: [],
+      assumed: [],
+      unknown: [],
+      links: [],
+    })),
+  } as unknown as OpsKpiTargetWriteService;
   const tools = createOpsContextTools(
     context,
     draftWrite,
     stageTransition,
     planBreakdown,
+    kpiTargetWrite,
   );
   const byName = new Map(tools.map((t) => [t.name, t]));
 
@@ -86,13 +114,17 @@ describe('createOpsContextTools', () => {
     (draftWrite.createTaskDraft as jest.Mock).mockClear();
     (stageTransition.proposeTransition as jest.Mock).mockClear();
     (planBreakdown.breakdownToRoles as jest.Mock).mockClear();
+    (kpiTargetWrite.writeDraft as jest.Mock).mockClear();
+    (kpiTargetWrite.read as jest.Mock).mockClear();
   });
 
-  it('registers PO-52 allowlist tools including P4/P5', () => {
+  it('registers PO-52 allowlist tools including P4/P5/KPI', () => {
     expect([...byName.keys()].sort()).toEqual(
       [
         'delivery_project.read',
         'kpi_campaign.read',
+        'kpi_target.read',
+        'kpi_target.write_draft',
         'marketing_plan.read',
         'marketing_plan.write_draft',
         'plan.breakdown_to_roles',

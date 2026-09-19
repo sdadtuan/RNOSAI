@@ -255,3 +255,49 @@ export async function fetchKpiHubLineage(token: string, code: string) {
     `${BASE}/lineage?code=${encodeURIComponent(code)}`,
   );
 }
+
+export type RoleKpiRow = {
+  id: number;
+  plan_id: number | null;
+  lifecycle_id: number | null;
+  role_key: string;
+  kpi_key: string;
+  kpi_label: string;
+  period_start: string | null;
+  period_end: string | null;
+  target_value: number | null;
+  target_unit: string;
+  actual_value: number | null;
+  status: string;
+  owner_staff_id: string | null;
+  notes: string;
+  form_data: Record<string, unknown>;
+};
+
+export async function fetchRoleKpiList(
+  token: string,
+  query: Record<string, string | number | undefined> = {},
+) {
+  return kpiHubFetch<{ ok: boolean; data: RoleKpiRow[]; total: number }>(
+    token,
+    `${BASE}/role-kpi${buildQuery(query)}`,
+  );
+}
+
+export async function fetchRoleKpiSummary(token: string, planId: number) {
+  return kpiHubFetch<{
+    ok: boolean;
+    plan_id: number;
+    review_count: number;
+    draft_count: number;
+    link: string;
+  }>(token, `${BASE}/role-kpi/summary${buildQuery({ plan_id: planId })}`);
+}
+
+export async function patchRoleKpiStatus(token: string, id: number, status: string) {
+  return kpiHubFetch<{ ok: boolean; data: RoleKpiRow }>(
+    token,
+    `${BASE}/role-kpi/${id}/status`,
+    { method: 'PATCH', body: JSON.stringify({ status }) },
+  );
+}

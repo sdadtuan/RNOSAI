@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { AiToolDefinition, AiToolExecutionContext } from '../ai-tools.types';
 import { OpsCrmContextService } from '../ops-crm-context.service';
 import { OpsDraftWriteService } from '../ops-draft-write.service';
+import { OpsKpiTargetWriteService } from '../ops-kpi-target-write.service';
 import { OpsPlanBreakdownService } from '../ops-plan-breakdown.service';
 import { OpsStageTransitionService } from '../ops-stage-transition.service';
 
@@ -42,6 +43,7 @@ export function createOpsContextTools(
   draftWrite: OpsDraftWriteService,
   stageTransition: OpsStageTransitionService,
   planBreakdown: OpsPlanBreakdownService,
+  kpiTargetWrite: OpsKpiTargetWriteService,
 ): AiToolDefinition[] {
   return [
     {
@@ -168,6 +170,7 @@ export function createOpsContextTools(
           plan_id: { type: 'integer', minimum: 1 },
           lifecycle_id: { type: 'integer', minimum: 1 },
           persist_tasks: { type: 'boolean' },
+          persist_kpis: { type: 'boolean' },
           allow_review: { type: 'boolean' },
           roles: {
             type: 'array',
@@ -184,6 +187,62 @@ export function createOpsContextTools(
         planBreakdown.breakdownToRoles(input, writeMeta(ctx), {
           humanApproved: Boolean(ctx.humanApproved),
         }),
+    },
+    {
+      name: 'kpi_target.write_draft',
+      description:
+        'Create/update Role KPI target drafts (never sets actual or approved). Requires human approval.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          id: { type: 'integer', minimum: 1 },
+          plan_id: { type: 'integer', minimum: 1 },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          client_id: { type: 'string' },
+          campaign_id: { type: 'integer', minimum: 1 },
+          role_key: { type: 'string' },
+          kpi_key: { type: 'string' },
+          kpi_label: { type: 'string' },
+          period_start: { type: 'string' },
+          period_end: { type: 'string' },
+          target_value: {},
+          target_unit: { type: 'string' },
+          owner_staff_id: { type: 'string' },
+          notes: { type: 'string' },
+          upsert_key: { type: 'string' },
+          items: { type: 'array', items: { type: 'object' } },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_kpi_hub.view'],
+      handler: async (input, ctx) => {
+        assertHumanApprovedForWrite('kpi_target.write_draft', ctx);
+        return kpiTargetWrite.writeDraft(input, writeMeta(ctx), {
+          humanApproved: true,
+        });
+      },
+    },
+    {
+      name: 'kpi_target.read',
+      description: 'Read Role KPI targets filtered by plan/lifecycle/role/status.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          plan_id: { type: 'integer', minimum: 1 },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          client_id: { type: 'string' },
+          role_key: { type: 'string' },
+          status: { type: 'string' },
+          limit: { type: 'integer', minimum: 1 },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: false,
+      requiredCaps: ['crm_kpi_hub.view'],
+      handler: async (input) => kpiTargetWrite.read(input),
     },
   ];
 }

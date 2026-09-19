@@ -20,6 +20,8 @@ const OPS_TOOL_ALLOWLIST = [
   'marketing_plan.write_draft',
   'task.create_draft',
   'plan.breakdown_to_roles',
+  'kpi_target.write_draft',
+  'kpi_target.read',
 ];
 
 const DENIED_HINT = ['email.send', 'proposal.send', 'stage.transition'];
