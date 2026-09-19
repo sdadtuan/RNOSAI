@@ -23,11 +23,31 @@ function statusLabel(key: AiToolApiKey): string {
 }
 
 function sampleTryInput(toolName: string): string {
+  if (toolName === 'kpi_target.write_draft') {
+    return [
+      '{',
+      '  "plan_id": 8,',
+      '  "lifecycle_id": 5,',
+      '  "role_key": "content",',
+      '  "kpi_key": "posts_shipped",',
+      '  "kpi_label": "Content pieces shipped",',
+      '  "period_start": "2026-10-01",',
+      '  "period_end": "2026-12-31",',
+      '  "target_value": 12,',
+      '  "target_unit": "count",',
+      '  "notes": "P5 KPI draft from plan #8"',
+      '}',
+    ].join('\n');
+  }
+  if (toolName === 'kpi_target.read') {
+    return ['{', '  "plan_id": 8', '}'].join('\n');
+  }
   if (toolName === 'plan.breakdown_to_roles') {
     return [
       '{',
       '  "plan_id": 8,',
       '  "persist_tasks": false,',
+      '  "persist_kpis": false,',
       '  "roles": ["am", "graphic", "content", "video", "ads"]',
       '}',
     ].join('\n');

@@ -34,6 +34,7 @@ describe('kpi-hub-nav', () => {
     expect(KPI_HUB_NAV_GROUPS[0].items.map((i) => i.href)).toEqual([
       '/crm/kpi-hub/executive',
       '/crm/kpi-hub/marketing',
+      '/crm/kpi-hub/role-kpi',
       '/crm/kpi-hub/sales',
     ]);
     expect(KPI_HUB_NAV_GROUPS[1].items.map((i) => i.href)).toContain('/crm/kpi-hub/approvals');

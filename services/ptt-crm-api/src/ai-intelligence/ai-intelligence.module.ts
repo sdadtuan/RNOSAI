@@ -89,8 +89,11 @@ import { AiToolsService } from './ai-tools/ai-tools.service';
 import { OpsCrmContextRepository } from './ai-tools/ops-crm-context.repository';
 import { OpsCrmContextService } from './ai-tools/ops-crm-context.service';
 import { OpsDraftWriteService } from './ai-tools/ops-draft-write.service';
+import { OpsKpiTargetWriteService } from './ai-tools/ops-kpi-target-write.service';
 import { OpsPlanBreakdownService } from './ai-tools/ops-plan-breakdown.service';
+import { OpsRoleKpiRepository } from './ai-tools/ops-role-kpi.repository';
 import { OpsStageTransitionService } from './ai-tools/ops-stage-transition.service';
+import { RoleKpiController } from './ai-tools/role-kpi.controller';
 import { ToolRegistry } from './ai-tools/tool.registry';
 import { PortalModule } from '../portal/portal.module';
 import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
@@ -120,7 +123,7 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     StaffClientScopeModule,
     LeadMeetingPrepAsyncModule,
   ],
-  controllers: [AiIntelligenceController, AiToolsController],
+  controllers: [AiIntelligenceController, AiToolsController, RoleKpiController],
   providers: [
     AiIntelligenceConfigService,
     AiAgentRunsRepository,
@@ -133,6 +136,8 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     OpsCrmContextRepository,
     OpsCrmContextService,
     OpsDraftWriteService,
+    OpsRoleKpiRepository,
+    OpsKpiTargetWriteService,
     OpsPlanBreakdownService,
     OpsStageTransitionService,
     AiToolsService,
@@ -212,6 +217,8 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     OpsCrmContextRepository,
     OpsCrmContextService,
     OpsDraftWriteService,
+    OpsRoleKpiRepository,
+    OpsKpiTargetWriteService,
     OpsPlanBreakdownService,
     OpsStageTransitionService,
     AiToolsService,

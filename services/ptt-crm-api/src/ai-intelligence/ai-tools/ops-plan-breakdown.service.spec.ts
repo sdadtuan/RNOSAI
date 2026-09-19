@@ -28,13 +28,20 @@ describe('OpsPlanBreakdownService', () => {
   const draftWrite = {
     createTaskDraft: jest.fn(),
   };
+  const kpiTargetWrite = {
+    writeDraft: jest.fn(),
+  };
 
   let svc: OpsPlanBreakdownService;
   const meta = { actor: 'tester', approvedAt: '2026-09-19T00:00:00.000Z' };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    svc = new OpsPlanBreakdownService(repo as never, draftWrite as unknown as OpsDraftWriteService);
+    svc = new OpsPlanBreakdownService(
+      repo as never,
+      draftWrite as unknown as OpsDraftWriteService,
+      kpiTargetWrite as never,
+    );
   });
 
   function activePlan(overrides: Record<string, unknown> = {}) {
@@ -174,6 +181,41 @@ describe('OpsPlanBreakdownService', () => {
     expect(String(draftWrite.createTaskDraft.mock.calls[0][0].title)).toContain(
       'graphic',
     );
+  });
+
+  it('persist_kpis + approve creates role KPI drafts', async () => {
+    repo.getPlanForWrite.mockResolvedValue(activePlan());
+    kpiTargetWrite.writeDraft.mockResolvedValue({
+      kpi_target_ids: [201, 202],
+    });
+    const out = await svc.breakdownToRoles(
+      { plan_id: 8, persist_kpis: true, roles: ['graphic'] },
+      meta,
+      { humanApproved: true },
+    );
+    expect(out.persist_kpis).toBe(true);
+    expect(out.kpi_target_ids).toEqual([201, 202]);
+    expect(kpiTargetWrite.writeDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plan_id: 8,
+        items: expect.arrayContaining([
+          expect.objectContaining({ role_key: 'graphic', kpi_key: 'assets_on_brief' }),
+        ]),
+      }),
+      meta,
+      { humanApproved: true },
+    );
+  });
+
+  it('persist_kpis without approval → 403', async () => {
+    repo.getPlanForWrite.mockResolvedValue(activePlan());
+    await expect(
+      svc.breakdownToRoles(
+        { plan_id: 8, persist_kpis: true, roles: ['graphic'] },
+        meta,
+        { humanApproved: false },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('plan_not_found', async () => {

@@ -34,6 +34,7 @@ export const KPI_HUB_NAV_GROUPS: KpiHubNavGroup[] = [
     items: [
       { href: '/crm/kpi-hub/executive', label: 'Executive Command Center', icon: 'dashboard' },
       { href: '/crm/kpi-hub/marketing', label: 'Marketing Performance', icon: 'chart' },
+      { href: '/crm/kpi-hub/role-kpi', label: 'Role KPI', icon: 'users' },
       { href: '/crm/kpi-hub/sales', label: 'Sales Command Center', icon: 'target' },
     ],
   },

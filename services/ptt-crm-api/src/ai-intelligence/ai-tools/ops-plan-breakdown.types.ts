@@ -29,8 +29,10 @@ export type OpsPlanBreakdownResult = {
   plan_id: number;
   plan_status: string;
   persist_tasks: boolean;
+  persist_kpis: boolean;
   matrix: OpsPlanBreakdownMatrixLine[];
   task_ids: number[];
+  kpi_target_ids: number[];
   known: string[];
   assumed: string[];
   unknown: string[];

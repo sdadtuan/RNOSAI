@@ -73,7 +73,7 @@ export interface AiToolExecutionContext {
   humanApproved?: boolean;
 }
 
-/** SRS PO-52 allowlist (Ops Module) + P4 stage propose + P5 plan breakdown. */
+/** SRS PO-52 allowlist (Ops Module) + P4/P5 + role KPI drafts. */
 export const OPS_AI_TOOL_ALLOWLIST = [
   'marketing_plan.read',
   'marketing_plan.write_draft',
@@ -83,6 +83,8 @@ export const OPS_AI_TOOL_ALLOWLIST = [
   'kpi_campaign.read',
   'task.create_draft',
   'plan.breakdown_to_roles',
+  'kpi_target.write_draft',
+  'kpi_target.read',
 ] as const;
 
 /** SRS PO-53 — never register; reject on call / key create. */
