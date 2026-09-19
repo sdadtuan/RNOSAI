@@ -1805,6 +1805,7 @@ export type RawLeadHarvestJob = {
   result_count: number;
   rejected_by_gate_count: number;
   error_message: string | null;
+  industry_key?: string | null;
   industry_label: string;
   job_title_label: string;
   province_name: string;
