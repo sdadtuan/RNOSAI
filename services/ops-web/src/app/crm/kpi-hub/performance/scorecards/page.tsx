@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PmMoatNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
+import { PmClientScopeFilters } from '@/components/kpi-hub/performance/PmClientScopeFilters';
 import { PM_SUBTITLES } from '@/lib/performance-copy';
 import { PmPage } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
@@ -28,19 +29,25 @@ export default function PerformanceScorecardsPage() {
   const [items, setItems] = useState<PmScorecard[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [client, setClient] = useState('all');
+  const [project, setProject] = useState('all');
 
   useEffect(() => {
     if (!token) {
       setLoading(false);
       return;
     }
-    void fetchPmScorecards(token)
+    setLoading(true);
+    void fetchPmScorecards(token, {
+      client: client === 'all' ? undefined : client,
+      project: project === 'all' ? undefined : project,
+    })
       .then((res) => setItems(res.items))
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Không tải scorecard'))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, client, project]);
 
-  const sc = items[0];
+  const sc = useMemo(() => items[0] ?? null, [items]);
 
   return (
     <PmPage
@@ -62,6 +69,13 @@ export default function PerformanceScorecardsPage() {
         Item sinh Assignment khi Active. Mỗi dòng giữ <b>definition_version + formula_snapshot</b>. Close kỳ sau
         không bị formula mới làm sai lịch sử.
       </PmMoatNotice>
+      <PmClientScopeFilters
+        client={client}
+        project={project}
+        onClientChange={setClient}
+        onProjectChange={setProject}
+        showProject
+      />
       <PmPageState loading={loading} error={error} empty={!loading && !error && !sc} />
       {sc ? (
         <div className="kpi-hub-pm-layout">
@@ -72,11 +86,20 @@ export default function PerformanceScorecardsPage() {
                   <span>Loại</span>
                   <select defaultValue="role">
                     <option>Role — Marketing Leader</option>
+                    <option>Client — {sc.client ?? '—'}</option>
                   </select>
                 </label>
                 <label className="kpi-hub-field">
                   <span>Kỳ</span>
                   <input defaultValue={sc.period.replace('–', ' — ')} />
+                </label>
+                <label className="kpi-hub-field">
+                  <span>Client</span>
+                  <input value={sc.client ?? '—'} readOnly />
+                </label>
+                <label className="kpi-hub-field">
+                  <span>Project</span>
+                  <input value={sc.project ?? '—'} readOnly />
                 </label>
                 <label className="kpi-hub-field">
                   <span>Inherit từ</span>

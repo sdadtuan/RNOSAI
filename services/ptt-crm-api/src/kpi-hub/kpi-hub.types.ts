@@ -306,6 +306,8 @@ export type HubDashboardQuery = {
   channel?: string;
   product?: string;
   team_id?: string;
+  /** Client display name filter (e.g. 360 AUTO DETAILING). */
+  client?: string;
   persona?: CommandPersona;
 };
 

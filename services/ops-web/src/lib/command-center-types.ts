@@ -91,6 +91,8 @@ export type CommandCenterQuery = {
   channel?: string;
   product?: string;
   team_id?: string;
+  /** Client name filter (e.g. "360 AUTO DETAILING"). */
+  client?: string;
 };
 
 export const EMPTY_COMMAND_CENTER: CommandCenterResponse = {

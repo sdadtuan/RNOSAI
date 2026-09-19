@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { PM_CLIENT_OPTIONS } from '@/lib/performance-clients';
 
 type Chip = { label: string; onRemove?: () => void };
 
@@ -10,12 +11,43 @@ type Props = {
   onCompareChange: (v: boolean) => void;
   chips?: Chip[];
   extraActions?: ReactNode;
+  client?: string;
+  onClientChange?: (client: string) => void;
+  showClientFilter?: boolean;
 };
 
-export function CcPageToolbar({ compare, onCompareChange, chips = [], extraActions }: Props) {
+export function CcPageToolbar({
+  compare,
+  onCompareChange,
+  chips = [],
+  extraActions,
+  client = 'all',
+  onClientChange,
+  showClientFilter = false,
+}: Props) {
   return (
     <div className="cc-toolbar">
       <div className="cc-toolbar__filters">
+        {showClientFilter && onClientChange ? (
+          <label className="cc-toolbar__compare">
+            <span className="kpi-hub-muted" style={{ marginRight: 6 }}>
+              Client
+            </span>
+            <select
+              aria-label="Lọc theo Client"
+              className="kpi-hub-date-chip"
+              value={client}
+              onChange={(e) => onClientChange(e.target.value)}
+            >
+              <option value="all">Tất cả</option>
+              {PM_CLIENT_OPTIONS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <input type="date" className="kpi-hub-date-chip" aria-label="Từ ngày" />
         <input type="date" className="kpi-hub-date-chip" aria-label="Đến ngày" />
         <label className="cc-toolbar__compare">

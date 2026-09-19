@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PmAmberNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
+import { PmClientScopeFilters } from '@/components/kpi-hub/performance/PmClientScopeFilters';
 import { PmModal } from '@/components/kpi-hub/performance/PmModal';
 import { PmPage, pmBadge } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
@@ -28,8 +29,10 @@ function overrunLabel(asg: NonNullable<PmCheckInBundle['assignment']>) {
 function PerformanceCheckInInner() {
   const token = getAccessToken() ?? '';
   const params = useSearchParams();
-  const assignmentId = params.get('assignment') ?? params.get('id') ?? 'asg-p1';
+  const assignmentId = params.get('assignment') ?? params.get('id') ?? undefined;
   const overdueMode = params.get('overdue') === '1';
+  const [client, setClient] = useState(params.get('client') ?? 'all');
+  const [project, setProject] = useState(params.get('project') ?? 'all');
   const [data, setData] = useState<PmCheckInBundle>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,7 +48,11 @@ function PerformanceCheckInInner() {
 
   const reload = () => {
     if (!token) return;
-    void fetchPmCheckIns(token, assignmentId)
+    setLoading(true);
+    void fetchPmCheckIns(token, assignmentId, {
+      client: client === 'all' ? undefined : client,
+      project: project === 'all' ? undefined : project,
+    })
       .then(setData)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Không tải check-in'))
       .finally(() => setLoading(false));
@@ -54,7 +61,7 @@ function PerformanceCheckInInner() {
   useEffect(() => {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, assignmentId]);
+  }, [token, assignmentId, client, project]);
 
   const asg = data.assignment;
 
@@ -115,6 +122,13 @@ function PerformanceCheckInInner() {
         <b>Khác 15Five:</b> đây không phải weekly journal. Actual 5,2h đến từ Incident Dashboard (Verified). Owner
         không ghi đè — chỉ confirm, forecast, blocker, evidence.
       </PmAmberNotice>
+      <PmClientScopeFilters
+        client={client}
+        project={project}
+        onClientChange={setClient}
+        onProjectChange={setProject}
+        showProject
+      />
       {overdueMode ? (
         <p className="kpi-hub-notice kpi-hub-notice--warn">06 check-in quá hạn — ưu tiên ritual tuần này.</p>
       ) : null}

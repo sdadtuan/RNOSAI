@@ -244,6 +244,12 @@ export class KpiHubDashboardService {
     const primaryActual = factMap.get(primaryCode) ?? tiles[0]?.actual ?? null;
     const primaryTarget = targets.get(primaryCode)?.target ?? tiles[0]?.target ?? null;
 
+    const clientFilter = (query.client ?? '').trim();
+    const matchClient = (text: string | null | undefined) => {
+      if (!clientFilter) return true;
+      return (text ?? '').toLowerCase().includes(clientFilter.toLowerCase());
+    };
+
     const response: CommandCenterResponse = {
       persona,
       period: {
@@ -258,11 +264,13 @@ export class KpiHubDashboardService {
         target: primaryTarget != null ? [{ date: periodFrom, value: primaryTarget }] : [],
         forecast: null,
       },
-      at_risk,
+      at_risk: at_risk.filter((row) => matchClient(row.scope) || matchClient(row.name)),
       funnel,
       trust,
       approvals,
-      exceptions,
+      exceptions: exceptions.filter(
+        (row) => matchClient(row.object) || matchClient(row.issue) || matchClient(row.impact),
+      ),
     };
 
     if (persona === 'marketing') {

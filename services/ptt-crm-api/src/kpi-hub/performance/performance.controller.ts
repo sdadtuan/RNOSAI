@@ -54,8 +54,8 @@ export class PerformanceController {
   }
 
   @Get('scorecards')
-  scorecards() {
-    return this.performance.listScorecards();
+  scorecards(@Query('client') client?: string, @Query('project') project?: string) {
+    return this.performance.listScorecards({ client, project });
   }
 
   @Post('scorecards/:id/items')
@@ -64,8 +64,12 @@ export class PerformanceController {
   }
 
   @Get('check-ins')
-  checkIns(@Query('assignment') assignmentId?: string) {
-    return this.performance.listCheckIns(assignmentId);
+  checkIns(
+    @Query('assignment') assignmentId?: string,
+    @Query('client') client?: string,
+    @Query('project') project?: string,
+  ) {
+    return this.performance.listCheckIns(assignmentId, { client, project });
   }
 
   @Post('check-ins')
@@ -123,8 +127,8 @@ export class PerformanceController {
   }
 
   @Get('campaigns')
-  campaigns() {
-    return this.performance.getCampaigns();
+  campaigns(@Query('client') client?: string, @Query('q') q?: string) {
+    return this.performance.getCampaigns({ client, q });
   }
 
   @Get('crm-source')
