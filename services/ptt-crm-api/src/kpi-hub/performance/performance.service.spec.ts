@@ -119,4 +119,18 @@ describe('PerformanceService', () => {
     expect(row?.actual).toBe(99000);
     expect(row?.quality).toBe('verified');
   });
+
+  it('filters campaigns / scorecards / check-ins by client', () => {
+    const svc = new PerformanceService();
+    const campaigns = svc.getCampaigns({ client: '360 AUTO DETAILING' });
+    expect(campaigns.items.length).toBeGreaterThan(0);
+    expect(campaigns.items.every((c) => c.client.includes('360'))).toBe(true);
+
+    const scorecards = svc.listScorecards({ client: '360 AUTO DETAILING' });
+    expect(scorecards.items.map((s) => s.id)).toContain('sc-360-detailing');
+
+    const checkins = svc.listCheckIns(undefined, { client: '360 AUTO DETAILING' });
+    expect(checkins.assignment?.scope_name).toContain('360');
+    expect(checkins.items.every((c) => c.assignment_id === checkins.assignment?.id)).toBe(true);
+  });
 });

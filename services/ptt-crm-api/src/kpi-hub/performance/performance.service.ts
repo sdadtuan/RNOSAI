@@ -302,8 +302,17 @@ export class PerformanceService {
     return this.enrich(asg);
   }
 
-  listScorecards() {
-    return { items: this.catalog.scorecards };
+  listScorecards(query: { client?: string; project?: string } = {}) {
+    let items = this.catalog.scorecards;
+    const client = (query.client ?? '').trim();
+    const project = (query.project ?? '').trim();
+    if (client) {
+      items = items.filter((s) => (s.client ?? '').toLowerCase().includes(client.toLowerCase()));
+    }
+    if (project) {
+      items = items.filter((s) => (s.project ?? '').toLowerCase().includes(project.toLowerCase()));
+    }
+    return { items };
   }
 
   addScorecardItem(scorecardId: string, item: Omit<PmScorecardItem, 'id'>) {
@@ -318,18 +327,45 @@ export class PerformanceService {
     return sc;
   }
 
-  listCheckIns(assignmentId?: string) {
-    const items = assignmentId
-      ? this.catalog.checkins.filter((c) => c.assignment_id === assignmentId)
+  listCheckIns(assignmentId?: string, query: { client?: string; project?: string } = {}) {
+    const client = (query.client ?? '').trim().toLowerCase();
+    const project = (query.project ?? '').trim().toLowerCase();
+
+    let assignment =
+      this.catalog.assignments.find((a) => a.id === assignmentId) ??
+      null;
+
+    if (!assignment && (client || project)) {
+      assignment =
+        this.catalog.assignments.find((a) => {
+          const scope = a.scope_name.toLowerCase();
+          const name = a.name.toLowerCase();
+          const clientOk = !client || scope.includes(client) || name.includes(client);
+          const projectOk =
+            !project ||
+            (a.scope_type === 'project' && scope.includes(project)) ||
+            (a.scope_type === 'campaign' && scope.includes(project)) ||
+            name.includes(project);
+          return clientOk && projectOk;
+        }) ?? null;
+    }
+
+    if (!assignment) {
+      assignment =
+        this.catalog.assignments.find((a) => a.id === (assignmentId ?? 'asg-p1')) ??
+        this.catalog.assignments.find((a) => a.status === 'red') ??
+        this.catalog.assignments[0] ??
+        null;
+    }
+
+    const id = assignment?.id;
+    const items = id
+      ? this.catalog.checkins.filter((c) => c.assignment_id === id)
       : this.catalog.checkins;
-    const assignment =
-      this.catalog.assignments.find((a) => a.id === (assignmentId ?? 'asg-p1')) ??
-      this.catalog.assignments.find((a) => a.status === 'red') ??
-      this.catalog.assignments[0];
     return {
       assignment: assignment ? this.enrich(assignment) : assignment,
       items,
-      actions: this.catalog.actions.filter((a) => !assignmentId || a.assignment_id === assignmentId),
+      actions: this.catalog.actions.filter((a) => !id || a.assignment_id === id),
     };
   }
 
@@ -527,9 +563,18 @@ export class PerformanceService {
     };
   }
 
-  getCampaigns() {
+  getCampaigns(query: { client?: string; q?: string } = {}) {
+    const client = (query.client ?? '').trim().toLowerCase();
+    const q = (query.q ?? '').trim().toLowerCase();
+    let items = this.catalog.campaigns;
+    if (client) items = items.filter((c) => c.client.toLowerCase().includes(client));
+    if (q) {
+      items = items.filter((c) =>
+        [c.campaign, c.client, c.quote_wo, c.kpi].some((f) => f.toLowerCase().includes(q)),
+      );
+    }
     return {
-      items: this.catalog.campaigns,
+      items,
       funnel: [
         { label: 'IMPRESSIONS', value: 1800000, display: '1,8M', hint: 'Forecast base' },
         { label: 'CLICKS', value: 32000, display: '32K', hint: 'CTR ≥ 1,8%' },

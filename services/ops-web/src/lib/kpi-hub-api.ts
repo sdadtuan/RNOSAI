@@ -157,6 +157,7 @@ export async function fetchKpiHubCommandCenter(
       channel: query.channel,
       product: query.product,
       team_id: query.team_id,
+      client: query.client && query.client !== 'all' ? query.client : undefined,
     })}`,
   );
 }

@@ -110,6 +110,8 @@ export type PmScorecard = {
   items: PmScorecardItem[];
   weight_total: number;
   weight_valid: boolean;
+  client?: string | null;
+  project?: string | null;
 };
 
 export type PmCheckIn = {

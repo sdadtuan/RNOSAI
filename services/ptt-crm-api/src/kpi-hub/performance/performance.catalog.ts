@@ -193,9 +193,34 @@ const assignments: PmAssignment[] = [
     source: 'Incident Dashboard',
     quality: 'verified',
   }),
+  withCalc({
+    id: 'asg-360-cpl',
+    name: 'CPL Valid Lead · 360 AUTO DETAILING',
+    code: 'KPI-MKT-CPL-360',
+    definition_code: 'MKT_006',
+    owner: 'Lê Hoàng',
+    scope_type: 'client',
+    scope_name: '360 AUTO DETAILING',
+    department: 'Performance',
+    cycle: 'Tháng',
+    period: '09/2026',
+    direction: 'lower',
+    target: 120000,
+    target_label: '≤120K',
+    actual: 98000,
+    unit: 'VND',
+    trend: 'up',
+    source: 'Meta Ads + CRM',
+    quality: 'verified',
+    collection_method: 'api',
+    quoted_target: 120000,
+  }),
 ];
 
-function scorecardOf(items: PmScorecard['items']): PmScorecard {
+function scorecardOf(
+  items: PmScorecard['items'],
+  overrides: Partial<PmScorecard> = {},
+): PmScorecard {
   const { total, valid } = validateScorecardWeights(items.map((i) => i.weight));
   return {
     id: 'sc-mkt-lead-q4',
@@ -209,6 +234,9 @@ function scorecardOf(items: PmScorecard['items']): PmScorecard {
     items,
     weight_total: total,
     weight_valid: valid,
+    client: 'Công ty An Phát',
+    project: 'Growth Launch Q4',
+    ...overrides,
   };
 }
 
@@ -220,6 +248,22 @@ export function seedPerformanceCatalog(): PmCatalog {
     { id: 'it-rev', name: 'Doanh thu ảnh hưởng MKT', definition_code: 'FIN_011', weight: 20, target_label: '2,5 tỷ', unit: 'VND', formula: 'Attribution model', owner: 'Finance + MKT' },
     { id: 'it-ontime', name: 'Campaign đúng hạn', definition_code: 'CNT_003', weight: 10, target_label: '≥95%', unit: '%', formula: 'On-time / Total', owner: 'PMO' },
   ]);
+  const scorecard360 = scorecardOf(
+    [
+      { id: 'it-360-cpl', name: 'CPL Valid Lead', definition_code: 'MKT_006', weight: 40, target_label: '≤120.000', unit: 'VND', formula: 'Spend / Valid Leads', owner: 'Lê Hoàng' },
+      { id: 'it-360-ql', name: 'Qualified Lead', definition_code: 'SAL_014', weight: 35, target_label: '180', unit: 'Lead', formula: 'COUNT(qualified)', owner: 'AM 360' },
+      { id: 'it-360-book', name: 'Booking Rate', definition_code: 'SAL_031', weight: 25, target_label: '≥15%', unit: '%', formula: 'Bookings / QL', owner: 'AM 360' },
+    ],
+    {
+      id: 'sc-360-detailing',
+      title: 'KPI Q4/2026 – 360 AUTO DETAILING',
+      owner: 'Lê Hoàng — Performance',
+      department: 'Performance',
+      client: '360 AUTO DETAILING',
+      project: '360 Detailing Retainer',
+      status: 'active',
+    },
+  );
 
   const cpl = assignments.find((a) => a.id === 'asg-cpl')!;
   const ledgers = {
@@ -254,11 +298,12 @@ export function seedPerformanceCatalog(): PmCatalog {
       ],
     },
     assignments,
-    scorecards: [scorecard],
+    scorecards: [scorecard, scorecard360],
     checkins: [
       { id: 'ck-1', assignment_id: 'asg-p1', date: '07/09', author: 'Trần Văn Nam', status: 'red', note: '03 blocker P1 chưa xử lý; cần Platform Team hỗ trợ.', forecast: '4,8 giờ', evidence: 'Incident dashboard' },
       { id: 'ck-2', assignment_id: 'asg-p1', date: '31/08', author: 'Trần Văn Nam', status: 'yellow', note: 'Actual 4,5 giờ; đang phân tích root cause.', evidence: 'Ticket P1' },
       { id: 'ck-3', assignment_id: 'asg-p1', date: '24/08', author: 'Team Lead', status: 'approved', note: 'Đã xác nhận dữ liệu từ Incident Dashboard.' },
+      { id: 'ck-360-1', assignment_id: 'asg-360-cpl', date: '10/09', author: 'Lê Hoàng', status: 'green', note: 'CPL 360 ổn định dưới target; creative A/B chạy tuần 2.', forecast: '95K', evidence: 'Meta Ads' },
     ],
     actions: [
       { id: 'ac-1', assignment_id: 'asg-p1', title: 'Xử lý 03 blocker P1 ưu tiên cao', owner: 'Trần Văn Nam', due: '10/09/2026 17:00', impact: 'Giảm P1 về dưới 4 giờ' },
@@ -267,6 +312,7 @@ export function seedPerformanceCatalog(): PmCatalog {
       { campaign: 'Growth Launch Q4', client: 'Công ty An Phát', quote_wo: 'QT-0089', kpi: 'CPL Valid Lead', quoted: '≤100K', actual: '128K', media_budget: '100M', agency_fee: '20M', status: 'red' },
       { campaign: 'Spa Lead Growth', client: 'Spa ABC', quote_wo: 'QT-0042', kpi: 'Booking Rate', quoted: '≥22%', actual: '24,1%', media_budget: '72M', agency_fee: '18M', status: 'green' },
       { campaign: 'Student Recruitment', client: 'EduNext', quote_wo: 'QT-0067', kpi: 'Qualified Lead', quoted: '1.200', actual: '860', media_budget: '96M', agency_fee: '24M', status: 'yellow' },
+      { campaign: '360 Detailing Retainer', client: '360 AUTO DETAILING', quote_wo: 'QT-0360', kpi: 'CPL Valid Lead', quoted: '≤120K', actual: '98K', media_budget: '48M', agency_fee: '12M', status: 'green' },
     ],
     crm_mappings: [
       { kpi: 'Valid Lead', definition: 'is_valid ∧ dedup · v3', field: 'lead.status', cadence: 'Hourly', quality: 'Stale 29h', related: 'CPL Valid Lead' },

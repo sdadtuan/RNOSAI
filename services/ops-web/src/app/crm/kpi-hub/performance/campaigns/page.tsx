@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PmPage, pmBadge } from '@/components/kpi-hub/performance/PmPage';
 import { PmPageState } from '@/components/kpi-hub/performance/PmPageState';
 import { PmSummaryTiles } from '@/components/kpi-hub/performance/PmSummaryTiles';
 import { PmAmberNotice } from '@/components/kpi-hub/performance/PmMoatNotice';
 import { getAccessToken } from '@/lib/auth';
 import { PM_SUBTITLES } from '@/lib/performance-copy';
+import { matchesClientFilter, matchesTextFilter } from '@/lib/performance-clients';
 import { fetchPmCampaigns } from '@/lib/performance-api';
 import type { PmCampaigns } from '@/lib/performance-types';
 
@@ -25,17 +26,27 @@ export default function PerformanceCampaignsPage() {
   const [data, setData] = useState<PmCampaigns>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [client, setClient] = useState('all');
+  const [q, setQ] = useState('');
 
   useEffect(() => {
     if (!token) {
       setLoading(false);
       return;
     }
-    void fetchPmCampaigns(token)
+    void fetchPmCampaigns(token, { client: client === 'all' ? undefined : client, q: q || undefined })
       .then(setData)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Không tải campaign'))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, client, q]);
+
+  const filtered = useMemo(() => {
+    return data.items.filter(
+      (row) =>
+        matchesClientFilter(row.client, client) &&
+        matchesTextFilter([row.campaign, row.client, row.quote_wo, row.kpi], q),
+    );
+  }, [data.items, client, q]);
 
   return (
     <PmPage
@@ -48,12 +59,38 @@ export default function PerformanceCampaignsPage() {
         </Link>
       }
     >
-      <PmPageState loading={loading} error={error} empty={!loading && !error && !data.items.length} />
+      <PmPageState loading={loading} error={error} empty={!loading && !error && !filtered.length} />
       {!loading && !error ? (
         <>
           <PmAmberNotice>
             Media budget và agency fee tách sổ — client report không lẫn fee/margin nội bộ.
           </PmAmberNotice>
+          <div className="kpi-hub-pm-fields" style={{ marginBottom: 12 }}>
+            <label className="kpi-hub-field">
+              <span>Tìm kiếm</span>
+              <input
+                aria-label="Tìm campaign / client"
+                placeholder="Campaign, client, quote…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </label>
+            <label className="kpi-hub-field">
+              <span>Client</span>
+              <select
+                aria-label="Lọc theo Client"
+                value={client}
+                onChange={(e) => setClient(e.target.value)}
+              >
+                <option value="all">Tất cả client</option>
+                {['360 AUTO DETAILING', 'Công ty An Phát', 'Spa ABC', 'EduNext'].map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <article className="kpi-hub-card">
             <div className="kpi-hub-card__body" style={{ overflowX: 'auto' }}>
               <table className="kpi-hub-table">
@@ -71,7 +108,7 @@ export default function PerformanceCampaignsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((row) => (
+                  {filtered.map((row) => (
                     <tr key={`${row.campaign}-${row.kpi}`}>
                       <td>{row.campaign}</td>
                       <td>{row.client}</td>

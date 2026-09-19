@@ -36,15 +36,27 @@ export const createPmAssignment = (token: string, body: Record<string, unknown>)
   pmFetch<PmAssignment>(token, `${BASE}/assignments`, { method: 'POST', body: JSON.stringify(body) });
 export const activatePmAssignment = (token: string, id: string) =>
   pmFetch<PmAssignment>(token, `${BASE}/assignments/${id}/activate`, { method: 'POST' });
-export const fetchPmScorecards = (token: string) =>
-  pmFetch<{ items: PmScorecard[] }>(token, `${BASE}/scorecards`);
+export const fetchPmScorecards = (token: string, query: { client?: string; project?: string } = {}) => {
+  const params = new URLSearchParams();
+  if (query.client) params.set('client', query.client);
+  if (query.project) params.set('project', query.project);
+  const qs = params.toString();
+  return pmFetch<{ items: PmScorecard[] }>(token, `${BASE}/scorecards${qs ? `?${qs}` : ''}`);
+};
 export const addPmScorecardItem = (token: string, id: string, body: Record<string, unknown>) =>
   pmFetch<PmScorecard>(token, `${BASE}/scorecards/${id}/items`, { method: 'POST', body: JSON.stringify(body) });
-export const fetchPmCheckIns = (token: string, assignment?: string) =>
-  pmFetch<PmCheckInBundle>(
-    token,
-    `${BASE}/check-ins${assignment ? `?assignment=${assignment}` : ''}`,
-  );
+export const fetchPmCheckIns = (
+  token: string,
+  assignment?: string,
+  query: { client?: string; project?: string } = {},
+) => {
+  const params = new URLSearchParams();
+  if (assignment) params.set('assignment', assignment);
+  if (query.client) params.set('client', query.client);
+  if (query.project) params.set('project', query.project);
+  const qs = params.toString();
+  return pmFetch<PmCheckInBundle>(token, `${BASE}/check-ins${qs ? `?${qs}` : ''}`);
+};
 export const createPmCheckIn = (token: string, body: Record<string, unknown>) =>
   pmFetch(token, `${BASE}/check-ins`, { method: 'POST', body: JSON.stringify(body) });
 export const reviewPmCheckIn = (token: string, id: string, body: { to: string; comment?: string }) =>
@@ -52,7 +64,13 @@ export const reviewPmCheckIn = (token: string, id: string, body: { to: string; c
 export const createPmAction = (token: string, body: Record<string, unknown>) =>
   pmFetch(token, `${BASE}/actions`, { method: 'POST', body: JSON.stringify(body) });
 export const fetchPmMarketing = (token: string) => pmFetch<PmMarketing>(token, `${BASE}/marketing`);
-export const fetchPmCampaigns = (token: string) => pmFetch<PmCampaigns>(token, `${BASE}/campaigns`);
+export const fetchPmCampaigns = (token: string, query: { client?: string; q?: string } = {}) => {
+  const params = new URLSearchParams();
+  if (query.client) params.set('client', query.client);
+  if (query.q) params.set('q', query.q);
+  const qs = params.toString();
+  return pmFetch<PmCampaigns>(token, `${BASE}/campaigns${qs ? `?${qs}` : ''}`);
+};
 export const fetchPmCrmSource = (token: string) => pmFetch<PmCrmSource>(token, `${BASE}/crm-source`);
 export const fetchPmReports = (token: string) => pmFetch<PmReports>(token, `${BASE}/reports`);
 export const exportPmReport = (token: string, body: Record<string, unknown>) =>

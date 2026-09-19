@@ -8,6 +8,7 @@ import { PmPage } from '@/components/kpi-hub/performance/PmPage';
 import { PmReadinessRail } from '@/components/kpi-hub/performance/PmReadinessRail';
 import { getAccessToken } from '@/lib/auth';
 import { activatePmAssignment, createPmAssignment } from '@/lib/performance-api';
+import { PM_CLIENT_OPTIONS, PM_PROJECT_OPTIONS } from '@/lib/performance-clients';
 
 const DEFINITIONS = {
   MKT_006: {
@@ -73,6 +74,19 @@ export default function CreatePerformanceKpiPage() {
   );
 
   const def = DEFINITIONS[definitionCode];
+
+  const onScopeTypeChange = (next: string) => {
+    setScopeType(next);
+    if (next === 'client') {
+      setScopeName(PM_CLIENT_OPTIONS[0]);
+    } else if (next === 'campaign') {
+      setScopeName('Growth Launch Q4');
+    } else if (next === 'department') {
+      setScopeName('Performance');
+    } else if (next === 'project') {
+      setScopeName(PM_PROJECT_OPTIONS[0]);
+    }
+  };
 
   const readiness = useMemo(() => {
     const targetNum = Number(target.replace(/\D/g, '')) || 0;
@@ -207,12 +221,66 @@ export default function CreatePerformanceKpiPage() {
             <div className="kpi-hub-card__body kpi-hub-pm-fields">
               <label className="kpi-hub-field">
                 <span>Scope</span>
-                <select value={scopeType} onChange={(e) => setScopeType(e.target.value)}>
-                  <option value="campaign">Campaign · {scopeName}</option>
+                <select value={scopeType} onChange={(e) => onScopeTypeChange(e.target.value)}>
+                  <option value="campaign">Campaign</option>
                   <option value="client">Client</option>
+                  <option value="project">Project</option>
                   <option value="department">Department</option>
                 </select>
               </label>
+              {scopeType === 'client' ? (
+                <label className="kpi-hub-field">
+                  <span>Client *</span>
+                  <select
+                    aria-label="Chọn Client"
+                    value={scopeName}
+                    onChange={(e) => setScopeName(e.target.value)}
+                  >
+                    {PM_CLIENT_OPTIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {scopeType === 'project' ? (
+                <label className="kpi-hub-field">
+                  <span>Project *</span>
+                  <select
+                    aria-label="Chọn Project"
+                    value={scopeName}
+                    onChange={(e) => setScopeName(e.target.value)}
+                  >
+                    {PM_PROJECT_OPTIONS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {scopeType === 'campaign' ? (
+                <label className="kpi-hub-field">
+                  <span>Campaign *</span>
+                  <input
+                    aria-label="Tên Campaign"
+                    value={scopeName}
+                    onChange={(e) => setScopeName(e.target.value)}
+                  />
+                </label>
+              ) : null}
+              {scopeType === 'department' ? (
+                <label className="kpi-hub-field">
+                  <span>Department *</span>
+                  <select value={scopeName} onChange={(e) => setScopeName(e.target.value)}>
+                    <option>Performance</option>
+                    <option>Sales</option>
+                    <option>Marketing</option>
+                    <option>Technology</option>
+                  </select>
+                </label>
+              ) : null}
               <label className="kpi-hub-field">
                 <span>Owner *</span>
                 <select value={owner} onChange={(e) => setOwner(e.target.value)}>

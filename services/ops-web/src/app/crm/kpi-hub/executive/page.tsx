@@ -18,12 +18,16 @@ export default function ExecutiveCommandCenterPage() {
   const token = getAccessToken() ?? '';
   const user = getStoredUser();
   const [compare, setCompare] = useState(true);
-  const query = useMemo(() => ({ compare }), [compare]);
+  const [client, setClient] = useState('all');
+  const query = useMemo(
+    () => ({ compare, client: client === 'all' ? undefined : client }),
+    [compare, client],
+  );
   const { data, loading, error } = useKpiHubCommandCenter(token, 'executive', query);
 
   const chips = useMemo(() => {
     const list = [
-      { label: 'Client: PTT' },
+      { label: client === 'all' ? 'Client: Tất cả' : `Client: ${client}` },
       { label: 'Business Unit: Tất cả' },
     ];
     if (user && hasCap(user, 'crm_kpi_hub', 'view')) {
@@ -33,7 +37,7 @@ export default function ExecutiveCommandCenterPage() {
       list.push({ label: `${data.period.from} → ${data.period.to}` });
     }
     return list;
-  }, [data.period.from, data.period.to, user]);
+  }, [client, data.period.from, data.period.to, user]);
 
   return (
     <KpiHubPageGate section="crm_kpi_hub">
@@ -43,7 +47,14 @@ export default function ExecutiveCommandCenterPage() {
         showFreshness
       >
         <div className="cc-page">
-          <CcPageToolbar compare={compare} onCompareChange={setCompare} chips={chips} />
+          <CcPageToolbar
+            compare={compare}
+            onCompareChange={setCompare}
+            chips={chips}
+            showClientFilter
+            client={client}
+            onClientChange={setClient}
+          />
           {error ? <p className="error">{error}</p> : null}
           <CcKpiTiles tiles={data.tiles} loading={loading} testIdPrefix="exec" />
           <div className="cc-row cc-row--2">
