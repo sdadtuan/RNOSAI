@@ -88,7 +88,35 @@ export class AiAgentRunsRepository implements OnModuleDestroy {
     }
   }
 
+  async ensureOrchestratorColumns(): Promise<void> {
+    await this.db.query(`
+      ALTER TABLE ai_agent_runs
+        ADD COLUMN IF NOT EXISTS parent_run_id UUID REFERENCES ai_agent_runs(id),
+        ADD COLUMN IF NOT EXISTS orchestration_id UUID,
+        ADD COLUMN IF NOT EXISTS step_key VARCHAR(64),
+        ADD COLUMN IF NOT EXISTS step_index INT`);
+    await this.db.query(
+      `CREATE INDEX IF NOT EXISTS idx_ai_agent_runs_parent ON ai_agent_runs(parent_run_id)`,
+    );
+    await this.db.query(
+      `CREATE INDEX IF NOT EXISTS idx_ai_agent_runs_orchestration ON ai_agent_runs(orchestration_id)`,
+    );
+    try {
+      await this.db.query(
+        `INSERT INTO schema_migrations (version, description) VALUES ($1, $2)
+         ON CONFLICT (version) DO NOTHING`,
+        [
+          '2026-07-27-rnos31-orchestrator',
+          'RNOS-31: parent_run_id / orchestration columns on ai_agent_runs',
+        ],
+      );
+    } catch {
+      /* optional */
+    }
+  }
+
   async insertRun(row: AiAgentRunInsert): Promise<AiAgentRunRow> {
+    await this.ensureOrchestratorColumns();
     const outputJson = { ...(row.outputJson ?? {}) };
     if (row.errorCode) {
       outputJson.error_code = row.errorCode;
