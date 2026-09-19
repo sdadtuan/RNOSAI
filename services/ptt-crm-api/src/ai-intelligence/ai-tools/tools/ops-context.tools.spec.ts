@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { createOpsContextTools } from './ops-context.tools';
 import type { OpsCrmContextService } from '../ops-crm-context.service';
 import type { OpsDraftWriteService } from '../ops-draft-write.service';
+import type { OpsPlanBreakdownService } from '../ops-plan-breakdown.service';
 import type { OpsStageTransitionService } from '../ops-stage-transition.service';
 
 describe('createOpsContextTools', () => {
@@ -55,7 +56,28 @@ describe('createOpsContextTools', () => {
       links: ['/crm/service-delivery/5'],
     })),
   } as unknown as OpsStageTransitionService;
-  const tools = createOpsContextTools(context, draftWrite, stageTransition);
+  const planBreakdown = {
+    breakdownToRoles: jest.fn(async () => ({
+      ok: true,
+      wired: true,
+      phase: 'P5',
+      plan_id: 8,
+      plan_status: 'active',
+      persist_tasks: false,
+      matrix: [],
+      task_ids: [],
+      known: [],
+      assumed: [],
+      unknown: [],
+      links: ['/crm/marketing-plan/8'],
+    })),
+  } as unknown as OpsPlanBreakdownService;
+  const tools = createOpsContextTools(
+    context,
+    draftWrite,
+    stageTransition,
+    planBreakdown,
+  );
   const byName = new Map(tools.map((t) => [t.name, t]));
 
   beforeEach(() => {
@@ -63,15 +85,17 @@ describe('createOpsContextTools', () => {
     (draftWrite.writeMarketingPlanDraft as jest.Mock).mockClear();
     (draftWrite.createTaskDraft as jest.Mock).mockClear();
     (stageTransition.proposeTransition as jest.Mock).mockClear();
+    (planBreakdown.breakdownToRoles as jest.Mock).mockClear();
   });
 
-  it('registers PO-52 allowlist tools including P4 propose_transition', () => {
+  it('registers PO-52 allowlist tools including P4/P5', () => {
     expect([...byName.keys()].sort()).toEqual(
       [
         'delivery_project.read',
         'kpi_campaign.read',
         'marketing_plan.read',
         'marketing_plan.write_draft',
+        'plan.breakdown_to_roles',
         'service_delivery.propose_transition',
         'service_delivery.read',
         'task.create_draft',
@@ -160,5 +184,24 @@ describe('createOpsContextTools', () => {
       { humanApproved: false },
     );
     expect(out).toMatchObject({ phase: 'P4', status: 'proposed' });
+  });
+
+  it('plan.breakdown_to_roles dry-run does not require human approval at tool gate', async () => {
+    const tool = byName.get('plan.breakdown_to_roles')!;
+    const out = (await tool.handler(
+      { plan_id: 8, persist_tasks: false },
+      {
+        apiKeyId: 'k',
+        clientId: null,
+        actorId: 'a',
+        correlationId: 'r',
+      },
+    )) as { phase: string; persist_tasks: boolean };
+    expect(planBreakdown.breakdownToRoles).toHaveBeenCalledWith(
+      { plan_id: 8, persist_tasks: false },
+      expect.objectContaining({ actor: 'a' }),
+      { humanApproved: false },
+    );
+    expect(out).toMatchObject({ phase: 'P5', persist_tasks: false });
   });
 });

@@ -3,7 +3,7 @@
 #
 # Positions:
 #   SUPER-ADMIN — full mkt-ai caps (+ crm_board)
-#   MKT-01      — Solution Strategist (view/generate/export)
+#   MKT-01, MKL — Marketing Leader / Solution (view/generate/export)
 #   KD-01       — AM view-only
 #
 # Usage:
@@ -26,7 +26,7 @@ APPLY="${1:-}"
 
 grant_sql() {
   cat <<'SQL'
--- Solution Strategist + Super Admin
+-- Solution Strategist / Marketing Leader + Super Admin
 INSERT INTO staff_section_permissions (position_id, section_id, action)
 SELECT p.id, g.section_id, g.action
 FROM crm_positions p
@@ -37,7 +37,7 @@ CROSS JOIN (VALUES
   ('crm_mkt_ai', 'generate'),
   ('crm_mkt_ai', 'export')
 ) AS g(section_id, action)
-WHERE lower(trim(p.code)) IN ('super-admin', 'mkt-01')
+WHERE lower(trim(p.code)) IN ('super-admin', 'mkt-01', 'mkl')
 ON CONFLICT (position_id, section_id, action) DO NOTHING;
 
 -- Account Manager — view only

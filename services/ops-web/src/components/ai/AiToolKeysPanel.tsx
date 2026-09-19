@@ -23,6 +23,15 @@ function statusLabel(key: AiToolApiKey): string {
 }
 
 function sampleTryInput(toolName: string): string {
+  if (toolName === 'plan.breakdown_to_roles') {
+    return [
+      '{',
+      '  "plan_id": 8,',
+      '  "persist_tasks": false,',
+      '  "roles": ["am", "graphic", "content", "video", "ads"]',
+      '}',
+    ].join('\n');
+  }
   if (toolName === 'service_delivery.propose_transition') {
     return [
       '{',

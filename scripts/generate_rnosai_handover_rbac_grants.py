@@ -180,7 +180,7 @@ def main() -> int:
     ads_write = merge(
         grant("crm_facebook_ads", "view", "edit", "create", "configure"),
         grant("meta_ads_ops", "view", "edit"),
-        grant("meta_campaign_write", "view"),
+        grant("meta_campaign_write", "view", "approve"),
         grant("crm_google_ads", "view", "export"),
         grant("crm_zalo_ads", "view", "edit"),
     )
@@ -279,7 +279,8 @@ def main() -> int:
     automation_lead = merge(
         grant("automation_workflows", "view", "edit", "create", "configure", "simulate"),
         grant("playbooks", "view", "edit", "create"),
-        grant("crm_mkt_ai", "view", "edit"),
+        # Catalog: view|generate|export|approve (no "edit")
+        grant("crm_mkt_ai", "view", "generate", "export"),
     )
     automation_view = view_only("automation_workflows", "playbooks")
     gtm_write = merge(
@@ -395,7 +396,7 @@ def main() -> int:
             agency_view,
             board_view,
             iwr_view,
-            grant("crm_mkt_ai", "view", "edit"),
+            grant("crm_mkt_ai", "view", "generate", "export"),
             gtm_write,
             mktplan_view,
             research_view,
@@ -458,7 +459,8 @@ def main() -> int:
             revops_view,
             iwr_write,
             gtm_write,
-            grant("crm_mkt_ai", "view", "edit", "approve"),
+            # Catalog actions: view|generate|export|approve (no "edit")
+            grant("crm_mkt_ai", "view", "generate", "export", "approve"),
             grant("crm_hdsd", "view", "export"),
         ),
         "PD": merge(

@@ -847,6 +847,7 @@
         "view"
       ],
       "meta_campaign_write": [
+        "approve",
         "view"
       ],
       "playbooks": [
@@ -1017,6 +1018,8 @@
         "view"
       ],
       "crm_mkt_ai": [
+        "export",
+        "generate",
         "view"
       ],
       "crm_mktplan": [
@@ -1179,6 +1182,8 @@
         "view"
       ],
       "crm_media": [
+        "admin",
+        "finance_request",
         "publish",
         "view",
         "write"
@@ -1197,6 +1202,7 @@
         "write"
       ],
       "crm_media.margin": [
+        "finance_request",
         "view"
       ],
       "crm_media.outcomes": [
@@ -1208,6 +1214,7 @@
         "write"
       ],
       "crm_media.settings": [
+        "admin",
         "view"
       ],
       "crm_sop_runs": [
@@ -1731,6 +1738,8 @@
         "view"
       ],
       "crm_media": [
+        "admin",
+        "finance_request",
         "publish",
         "view",
         "write"
@@ -1749,6 +1758,7 @@
         "write"
       ],
       "crm_media.margin": [
+        "finance_request",
         "view"
       ],
       "crm_media.outcomes": [
@@ -1760,10 +1770,13 @@
         "write"
       ],
       "crm_media.settings": [
+        "admin",
         "view"
       ],
       "crm_mkt_ai": [
         "approve",
+        "export",
+        "generate",
         "view"
       ],
       "crm_mktplan": [
@@ -1949,6 +1962,7 @@
         "view"
       ],
       "meta_campaign_write": [
+        "approve",
         "view"
       ],
       "playbooks": [
@@ -2136,6 +2150,8 @@
         "view"
       ],
       "crm_mkt_ai": [
+        "export",
+        "generate",
         "view"
       ],
       "crm_mktplan": [
@@ -2628,6 +2644,7 @@
         "view"
       ],
       "meta_campaign_write": [
+        "approve",
         "view"
       ],
       "playbooks": [
@@ -2916,6 +2933,8 @@
         "view"
       ],
       "crm_media": [
+        "admin",
+        "finance_request",
         "publish",
         "view",
         "write"
@@ -2934,6 +2953,7 @@
         "write"
       ],
       "crm_media.margin": [
+        "finance_request",
         "view"
       ],
       "crm_media.outcomes": [
@@ -2945,10 +2965,13 @@
         "write"
       ],
       "crm_media.settings": [
+        "admin",
         "view"
       ],
       "crm_mkt_ai": [
         "approve",
+        "export",
+        "generate",
         "view"
       ],
       "crm_mktplan": [
@@ -3134,6 +3157,7 @@
         "view"
       ],
       "meta_campaign_write": [
+        "approve",
         "view"
       ],
       "playbooks": [
@@ -3280,6 +3304,8 @@
         "view"
       ],
       "crm_media": [
+        "admin",
+        "finance_request",
         "publish",
         "view",
         "write"
@@ -3298,6 +3324,7 @@
         "write"
       ],
       "crm_media.margin": [
+        "finance_request",
         "view"
       ],
       "crm_media.outcomes": [
@@ -3309,9 +3336,12 @@
         "write"
       ],
       "crm_media.settings": [
+        "admin",
         "view"
       ],
       "crm_mkt_ai": [
+        "export",
+        "generate",
         "view"
       ],
       "crm_mktplan": [
