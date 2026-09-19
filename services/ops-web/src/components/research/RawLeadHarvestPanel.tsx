@@ -51,11 +51,24 @@ const READINESS_TABS: Array<{
 const PRIORITY_TABS: Array<{
   key: '' | RawLeadPriorityTier;
   label: string;
+  title?: string;
 }> = [
   { key: '', label: 'Ưu tiên: Tất cả' },
-  { key: 'P1', label: 'P1' },
-  { key: 'P2', label: 'P2' },
-  { key: 'P3', label: 'P3' },
+  {
+    key: 'P1',
+    label: 'P1 · Gọi ngay',
+    title: 'Ưu tiên cao: READY + score ≥ 50 + có contact',
+  },
+  {
+    key: 'P2',
+    label: 'P2 · Theo dõi',
+    title: 'Ưu tiên vừa: READY hoặc Cần review đã có SĐT',
+  },
+  {
+    key: 'P3',
+    label: 'P3 · Thấp',
+    title: 'Ưu tiên thấp: thiếu contact / trùng / score thấp',
+  },
 ];
 
 const FEEDBACK_OPTS = [
@@ -113,6 +126,23 @@ function leadStatusClass(status: string): string {
   if (status === 'rejected' || status === 'auto_rejected') return 'rlh-status--bad';
   if (status === 'pending') return 'rlh-status--pending';
   return 'rlh-status--muted';
+}
+
+function leadStatusLabel(status: string | null | undefined): string {
+  switch (String(status ?? '').trim().toLowerCase()) {
+    case 'pending':
+      return 'Chờ xử lý';
+    case 'accepted':
+      return 'Đã Accept';
+    case 'rejected':
+      return 'Đã từ chối';
+    case 'auto_rejected':
+      return 'Tự từ chối (gate)';
+    case 'pushed':
+      return 'Đã đẩy CRM';
+    default:
+      return status?.trim() ? status : '—';
+  }
 }
 
 function selectPageIdsByReadiness(
@@ -174,6 +204,19 @@ function priorityBadgeClass(tier: string | null | undefined): string {
       return 'rlh-priority rlh-priority--p3';
     default:
       return 'rlh-priority rlh-priority--unset';
+  }
+}
+
+function priorityLabel(tier: string | null | undefined): string {
+  switch (String(tier ?? '').toUpperCase()) {
+    case 'P1':
+      return 'P1 · Gọi ngay';
+    case 'P2':
+      return 'P2 · Theo dõi';
+    case 'P3':
+      return 'P3 · Thấp';
+    default:
+      return '—';
   }
 }
 
@@ -327,6 +370,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     P3: 0,
   });
   const [statusFilter, setStatusFilter] = useState('');
+  const [industryFilter, setIndustryFilter] = useState('');
   const [jobFilter, setJobFilter] = useState<number | ''>('');
   const [qFilter, setQFilter] = useState('');
   const [qDraft, setQDraft] = useState('');
@@ -360,6 +404,16 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     },
     [token, projectId],
   );
+
+  const industriesInLeads = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const j of jobs) {
+      if (j.industry_key) map.set(j.industry_key, j.industry_label || j.industry_key);
+    }
+    return Array.from(map.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }, [jobs]);
 
   const selectedProvider = useMemo(
     () => providers.find((p) => p.code === provider) ?? null,
@@ -420,12 +474,16 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
         status: statusFilter || undefined,
         readiness_status: readinessFilter || undefined,
         priority_tier: priorityFilter || undefined,
+        industry_key: industryFilter || undefined,
         job_id: jobFilter === '' ? undefined : Number(jobFilter),
         q: qFilter || undefined,
         has_phone: hasPhoneOnly || undefined,
         has_contact: hasContactOnly || undefined,
         include_auto_rejected:
-          !statusFilter || Boolean(readinessFilter) || Boolean(priorityFilter),
+          !statusFilter ||
+          Boolean(readinessFilter) ||
+          Boolean(priorityFilter) ||
+          Boolean(industryFilter),
       }),
       fetchRawLeadReadinessCounts(token, projectId).catch(() => ({ counts: {} })),
       fetchRawLeadPriorityCounts(token, projectId).catch(() => ({ counts: {} })),
@@ -443,6 +501,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     statusFilter,
     readinessFilter,
     priorityFilter,
+    industryFilter,
     jobFilter,
     qFilter,
     hasPhoneOnly,
@@ -1024,7 +1083,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
             <h3 className="kpi-section-title">Lead thô</h3>
             <p className="form-hint">
               {leadsTotal} lead · trang {leadsPage}/{leadsTotalPages || 0} ·{' '}
-              {pendingCount} pending (trang) · {acceptedCount} accepted/pushed (trang)
+              {pendingCount} chờ xử lý (trang) · {acceptedCount} đã Accept/đẩy CRM (trang)
               {selectedIds.length ? ` · ${selectedIds.length} đang chọn` : ''}
               {readinessFilter === 'NEEDS_REVIEW'
                 ? ' · Accept để chuyển Sẵn sàng push'
@@ -1416,6 +1475,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 role="tab"
                 aria-selected={active}
                 className={`rlh-tab${active ? ' is-active' : ''}`}
+                title={tab.title}
                 onClick={() => {
                   setPriorityFilter(tab.key);
                   setLeadsPage(1);
@@ -1431,7 +1491,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
 
         <div className="form-grid form-grid--2 rlh-lead-filters" style={{ marginBottom: '0.75rem' }}>
           <label className="form-field">
-            <span className="form-label">Status</span>
+            <span className="form-label">Trạng thái</span>
             <select
               value={statusFilter}
               onChange={(e) => {
@@ -1440,12 +1500,30 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 setSelectedIds([]);
               }}
             >
-              <option value="">Tất cả (kèm auto_rejected)</option>
-              <option value="pending">pending</option>
-              <option value="accepted">accepted</option>
-              <option value="rejected">rejected</option>
-              <option value="auto_rejected">auto_rejected</option>
-              <option value="pushed">pushed</option>
+              <option value="">Tất cả trạng thái</option>
+              <option value="pending">Chờ xử lý</option>
+              <option value="accepted">Đã Accept</option>
+              <option value="rejected">Đã từ chối</option>
+              <option value="auto_rejected">Tự từ chối (gate)</option>
+              <option value="pushed">Đã đẩy CRM</option>
+            </select>
+          </label>
+          <label className="form-field">
+            <span className="form-label">Ngành nghề</span>
+            <select
+              value={industryFilter}
+              onChange={(e) => {
+                setIndustryFilter(e.target.value);
+                setLeadsPage(1);
+                setSelectedIds([]);
+              }}
+            >
+              <option value="">Tất cả ngành</option>
+              {industriesInLeads.map((ind) => (
+                <option key={ind.key} value={ind.key}>
+                  {ind.label}
+                </option>
+              ))}
             </select>
           </label>
           <label className="form-field">
@@ -1534,6 +1612,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   <th>Score</th>
                   <th>ICP</th>
                   <th>Ưu tiên</th>
+                  <th>Ngành</th>
                   <th>Công ty</th>
                   <th>SĐT</th>
                   <th>Email</th>
@@ -1543,7 +1622,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   <th>Địa chỉ</th>
                   <th>Phân loại</th>
                   <th>Readiness</th>
-                  <th>Status</th>
+                  <th>Trạng thái</th>
                   <th>Dial</th>
                   <th>Feedback</th>
                   <th></th>
@@ -1582,7 +1661,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     <td className="muted">{Math.round(lead.icp_fit_score)}</td>
                     <td>
                       <span className={priorityBadgeClass(lead.priority_tier)}>
-                        {lead.priority_tier?.trim() ? String(lead.priority_tier) : '—'}
+                        {priorityLabel(lead.priority_tier)}
                       </span>
                       {lead.account_cluster_key ? (
                         <div
@@ -1603,6 +1682,11 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                       {lead.research_account_id ? (
                         <div className="muted rlh-sub">A#{lead.research_account_id}</div>
                       ) : null}
+                    </td>
+                    <td>
+                      <span className="rlh-class">
+                        {lead.industry_label?.trim() || lead.industry_key || '—'}
+                      </span>
                     </td>
                     <td>
                       {lead.evidence_url ? (
@@ -1681,8 +1765,11 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                       )}
                     </td>
                     <td>
-                      <span className={`rlh-status ${leadStatusClass(lead.status)}`}>
-                        {lead.status}
+                      <span
+                        className={`rlh-status ${leadStatusClass(lead.status)}`}
+                        title={lead.status}
+                      >
+                        {leadStatusLabel(lead.status)}
                       </span>
                       {lead.crm_lead_id ? (
                         <div className="muted rlh-sub">CRM #{lead.crm_lead_id}</div>

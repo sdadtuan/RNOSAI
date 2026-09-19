@@ -1854,6 +1854,8 @@ export type RawLead = {
   priority_tier?: RawLeadPriorityTier | string | null;
   global_account_key?: string | null;
   research_account_id?: number | null;
+  industry_key?: string | null;
+  industry_label?: string | null;
   learning_delta?: number | null;
   learning_reasons?: string[];
   learning_applied_at?: string | null;
@@ -1937,6 +1939,7 @@ export function listRawLeads(
     status?: string;
     readiness_status?: RawLeadReadinessStatus | string;
     priority_tier?: RawLeadPriorityTier | string;
+    industry_key?: string;
     job_id?: number;
     include_auto_rejected?: boolean;
     page?: number;
@@ -1950,6 +1953,7 @@ export function listRawLeads(
   if (params?.status) qs.set('status', params.status);
   if (params?.readiness_status) qs.set('readiness_status', params.readiness_status);
   if (params?.priority_tier) qs.set('priority_tier', params.priority_tier);
+  if (params?.industry_key) qs.set('industry_key', params.industry_key);
   if (params?.job_id) qs.set('job_id', String(params.job_id));
   if (params?.include_auto_rejected) qs.set('include_auto_rejected', '1');
   if (params?.page) qs.set('page', String(params.page));

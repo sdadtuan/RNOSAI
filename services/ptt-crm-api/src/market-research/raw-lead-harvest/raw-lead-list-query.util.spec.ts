@@ -51,4 +51,9 @@ describe('raw-lead-list-query.util', () => {
     expect(parseRawLeadListQuery({ priority_tier: 'P3' }).priority_tier).toBe('P3');
     expect(parseRawLeadListQuery({ priority_tier: 'P9' }).priority_tier).toBeUndefined();
   });
+
+  it('parses industry_key filter', () => {
+    expect(parseRawLeadListQuery({ industry_key: ' spa ' }).industry_key).toBe('spa');
+    expect(parseRawLeadListQuery({}).industry_key).toBeUndefined();
+  });
 });

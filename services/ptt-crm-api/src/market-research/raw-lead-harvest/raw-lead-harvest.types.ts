@@ -106,6 +106,9 @@ export type RawLeadRow = {
   priority_tier: string | null;
   global_account_key: string | null;
   research_account_id: number | null;
+  /** From harvest job (list enrichment). */
+  industry_key?: string | null;
+  industry_label?: string | null;
   learning_delta: number;
   learning_reasons: string[];
   learning_applied_at: string | null;

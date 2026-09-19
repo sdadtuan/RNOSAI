@@ -373,6 +373,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         row.global_account_key == null ? null : String(row.global_account_key),
       research_account_id:
         row.research_account_id == null ? null : Number(row.research_account_id),
+      industry_key: row.industry_key == null ? null : String(row.industry_key),
+      industry_label: row.industry_label == null ? null : String(row.industry_label),
       learning_delta: Number(row.learning_delta ?? 0) || 0,
       learning_reasons: Array.isArray(row.learning_reasons)
         ? row.learning_reasons.map(String)
@@ -1053,52 +1055,60 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     opts: RawLeadListQuery,
   ): Promise<{ leads: RawLeadRow[]; total: number }> {
     await this.ensureSchema();
-    const clauses = ['project_id = $1'];
+    const clauses = ['l.project_id = $1'];
     const params: unknown[] = [projectId];
 
     if (opts.status?.length) {
       params.push(opts.status);
-      clauses.push(`status = ANY($${params.length}::text[])`);
+      clauses.push(`l.status = ANY($${params.length}::text[])`);
     } else if (!opts.include_auto_rejected) {
-      clauses.push(`status <> 'auto_rejected'`);
+      clauses.push(`l.status <> 'auto_rejected'`);
     }
 
     if (opts.job_id) {
       params.push(opts.job_id);
-      clauses.push(`job_id = $${params.length}`);
+      clauses.push(`l.job_id = $${params.length}`);
     }
 
     if (opts.readiness_status) {
       params.push(opts.readiness_status);
-      clauses.push(`readiness_status = $${params.length}`);
+      clauses.push(`l.readiness_status = $${params.length}`);
     }
 
     if (opts.priority_tier) {
       params.push(opts.priority_tier);
-      clauses.push(`priority_tier = $${params.length}`);
+      clauses.push(`l.priority_tier = $${params.length}`);
+    }
+
+    if (opts.industry_key) {
+      params.push(opts.industry_key);
+      clauses.push(`j.industry_key = $${params.length}`);
     }
 
     if (opts.q) {
       params.push(`%${opts.q}%`);
       const i = params.length;
       clauses.push(
-        `(company_name ILIKE $${i} OR COALESCE(phone, '') ILIKE $${i} OR COALESCE(email, '') ILIKE $${i} OR COALESCE(address, '') ILIKE $${i})`,
+        `(l.company_name ILIKE $${i} OR COALESCE(l.phone, '') ILIKE $${i} OR COALESCE(l.email, '') ILIKE $${i} OR COALESCE(l.address, '') ILIKE $${i})`,
       );
     }
 
     if (opts.has_phone) {
-      clauses.push(`phone_norm IS NOT NULL AND phone_norm <> ''`);
+      clauses.push(`l.phone_norm IS NOT NULL AND l.phone_norm <> ''`);
     }
 
     if (opts.has_contact) {
       clauses.push(
-        `((phone_norm IS NOT NULL AND phone_norm <> '') OR (email IS NOT NULL AND btrim(email) <> ''))`,
+        `((l.phone_norm IS NOT NULL AND l.phone_norm <> '') OR (l.email IS NOT NULL AND btrim(l.email) <> ''))`,
       );
     }
 
     const where = clauses.join(' AND ');
+    const fromJoin = `crm_research_raw_leads l
+       INNER JOIN crm_research_raw_lead_harvest_jobs j ON j.id = l.job_id`;
+
     const countR = await this.db.query(
-      `SELECT COUNT(*)::int AS n FROM crm_research_raw_leads WHERE ${where}`,
+      `SELECT COUNT(*)::int AS n FROM ${fromJoin} WHERE ${where}`,
       params,
     );
     const total = Number(countR.rows[0]?.n ?? 0);
@@ -1110,9 +1120,10 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     const offsetIdx = params.length;
 
     const r = await this.db.query(
-      `SELECT * FROM crm_research_raw_leads
+      `SELECT l.*, j.industry_key, j.industry_label
+       FROM ${fromJoin}
        WHERE ${where}
-       ORDER BY quality_score DESC, id DESC
+       ORDER BY l.quality_score DESC, l.id DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params,
     );
