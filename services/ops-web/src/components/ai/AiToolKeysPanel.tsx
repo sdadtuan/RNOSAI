@@ -35,7 +35,17 @@ export function AiToolKeysPanel({ token }: { token: string }) {
   const [clientId, setClientId] = useState('');
   const [allowedTools, setAllowedTools] = useState<string[]>([]);
   const [tryTool, setTryTool] = useState('marketing_plan.read');
-  const [tryInput, setTryInput] = useState('{\n  "plan_id": 8\n}');
+  // Seeded CrmContextPack sample (plan 8 ↔ SD #5 ↔ DP ↔ client 360 AUTO).
+  const [tryInput, setTryInput] = useState(
+    [
+      '{',
+      '  "plan_id": 8,',
+      '  "lifecycle_id": 5,',
+      '  "project_id": "094cba43-79e1-4af1-a45f-f1c079a7c94c",',
+      '  "client_id": "d437cc78-0757-44ba-aaa3-9ffb941121dd"',
+      '}',
+    ].join('\n'),
+  );
   const [tryHumanApproved, setTryHumanApproved] = useState(false);
   const [tryBusy, setTryBusy] = useState(false);
   const [tryError, setTryError] = useState('');
@@ -236,7 +246,10 @@ export function AiToolKeysPanel({ token }: { token: string }) {
       <section className="card" style={{ padding: '1rem', marginTop: '1.25rem' }}>
         <h3 className="kpi-section-title" style={{ marginTop: 0 }}>Try tool</h3>
         <p className="muted">
-          Gọi <code>POST /api/v1/ai/tools/call</code> bằng staff JWT · xem JSON CrmContextPack / kết quả thô
+          Gọi <code>POST /api/v1/ai/tools/call</code> bằng staff JWT · xem JSON CrmContextPack / kết quả thô.
+          Write tools cần checkbox Human approved. INSERT plan không <code>plan_id</code> → reuse{' '}
+          <code>entity_ids.plan_id</code> khi retry (tránh draft trùng). Live plan → 409 trừ{' '}
+          <code>clone_to_draft: true</code>.
         </p>
         <form
           onSubmit={(event) => void handleTryTool(event)}

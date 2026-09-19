@@ -88,6 +88,7 @@ import { AiToolsController } from './ai-tools/ai-tools.controller';
 import { AiToolsService } from './ai-tools/ai-tools.service';
 import { OpsCrmContextRepository } from './ai-tools/ops-crm-context.repository';
 import { OpsCrmContextService } from './ai-tools/ops-crm-context.service';
+import { OpsDraftWriteService } from './ai-tools/ops-draft-write.service';
 import { ToolRegistry } from './ai-tools/tool.registry';
 import { PortalModule } from '../portal/portal.module';
 import { CoachDigestDeliveryService } from './coach-digest-delivery.service';
@@ -129,6 +130,7 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     AiToolKeysRepository,
     OpsCrmContextRepository,
     OpsCrmContextService,
+    OpsDraftWriteService,
     AiToolsService,
     AiToolApiKeyGuard,
     ToolRegistry,
@@ -205,6 +207,7 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     AiToolKeysRepository,
     OpsCrmContextRepository,
     OpsCrmContextService,
+    OpsDraftWriteService,
     AiToolsService,
     AiToolApiKeyGuard,
     ToolRegistry,

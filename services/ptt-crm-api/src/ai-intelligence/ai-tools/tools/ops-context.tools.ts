@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { AiToolDefinition, AiToolExecutionContext } from '../ai-tools.types';
 import { OpsCrmContextService } from '../ops-crm-context.service';
+import { OpsDraftWriteService } from '../ops-draft-write.service';
 
 function assertHumanApprovedForWrite(
   tool: string,
@@ -15,17 +16,10 @@ function assertHumanApprovedForWrite(
   });
 }
 
-function draftResult(tool: string, input: Record<string, unknown>) {
+function writeMeta(ctx: AiToolExecutionContext) {
   return {
-    ok: true,
-    wired: false,
-    phase: 'P1',
-    status: 'draft_accepted_pending_persist',
-    tool,
-    requires_human_approval: true,
-    human_approved: true,
-    input,
-    hint: 'P3 will persist Marketing Plan / task draft to CRM.',
+    actor: String(ctx.actorId ?? ctx.apiKeyId ?? 'ai-tool'),
+    approvedAt: new Date().toISOString(),
   };
 }
 
@@ -40,8 +34,11 @@ const contextIdSchema = {
   },
 };
 
-/** SRS-PTT-Ops-Module PO-52 tools — P2 live CrmContextPack reads. */
-export function createOpsContextTools(context: OpsCrmContextService): AiToolDefinition[] {
+/** SRS-PTT-Ops-Module PO-52 tools — P2 reads + P3 draft writes. */
+export function createOpsContextTools(
+  context: OpsCrmContextService,
+  draftWrite: OpsDraftWriteService,
+): AiToolDefinition[] {
   return [
     {
       name: 'marketing_plan.read',
@@ -88,8 +85,14 @@ export function createOpsContextTools(context: OpsCrmContextService): AiToolDefi
         additionalProperties: true,
         properties: {
           client_id: { type: 'string' },
+          plan_id: { type: 'integer', minimum: 1 },
+          clone_to_draft: { type: 'boolean' },
           title: { type: 'string' },
           period: { type: 'string' },
+          objectives: { type: 'string' },
+          notes: { type: 'string' },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          project_id: { type: 'string' },
         },
       },
       outputSchema: { type: 'object' },
@@ -97,7 +100,7 @@ export function createOpsContextTools(context: OpsCrmContextService): AiToolDefi
       requiredCaps: ['crm_leads.edit'],
       handler: async (input, ctx) => {
         assertHumanApprovedForWrite('marketing_plan.write_draft', ctx);
-        return draftResult('marketing_plan.write_draft', input);
+        return draftWrite.writeMarketingPlanDraft(input, writeMeta(ctx));
       },
     },
     {
@@ -111,6 +114,10 @@ export function createOpsContextTools(context: OpsCrmContextService): AiToolDefi
           client_id: { type: 'string' },
           title: { type: 'string' },
           acceptance_criteria: { type: 'string' },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          plan_id: { type: 'integer', minimum: 1 },
+          project_id: { type: 'string' },
+          campaign_id: {},
         },
       },
       outputSchema: { type: 'object' },
@@ -118,7 +125,7 @@ export function createOpsContextTools(context: OpsCrmContextService): AiToolDefi
       requiredCaps: ['crm_leads.edit'],
       handler: async (input, ctx) => {
         assertHumanApprovedForWrite('task.create_draft', ctx);
-        return draftResult('task.create_draft', input);
+        return draftWrite.createTaskDraft(input, writeMeta(ctx));
       },
     },
   ];

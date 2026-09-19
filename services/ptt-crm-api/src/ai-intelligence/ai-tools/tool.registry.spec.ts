@@ -30,6 +30,10 @@ describe('ToolRegistry', () => {
       phase: 'P2',
     })),
   };
+  const draftWrite = {
+    writeMarketingPlanDraft: jest.fn(),
+    createTaskDraft: jest.fn(),
+  };
 
   let registry: ToolRegistry;
 
@@ -43,6 +47,7 @@ describe('ToolRegistry', () => {
       forecast as never,
       orchestrator as never,
       opsContext as never,
+      draftWrite as never,
     );
   });
 
