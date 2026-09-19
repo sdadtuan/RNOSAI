@@ -127,6 +127,9 @@ describe('ServiceKpiInstancesService AC-SKPI-02', () => {
     const first = await instances.ensureQt0360Instances();
     expect(first.created).toBeGreaterThan(0);
     expect(first.items.some((i) => i.source_id === 'QT-0360')).toBe(true);
+    expect(first.dictionary_id).toBe('d006');
+    const plan = await repo.getMeasurementPlan(first.items[0].id);
+    expect(plan?.qa_status).toBe('mapped');
     const second = await instances.ensureQt0360Instances();
     expect(second.created).toBe(0);
     expect(second.items.length).toBeGreaterThan(0);
