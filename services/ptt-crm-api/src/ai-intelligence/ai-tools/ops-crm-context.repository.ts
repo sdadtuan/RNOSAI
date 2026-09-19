@@ -10,6 +10,10 @@ export type OpsLifecycleRow = {
   marketing_plan_id: number | null;
   agency_client_id: string | null;
 };
+
+export type OpsLifecycleTransitionRow = OpsLifecycleRow & {
+  notes: string;
+};
 export type OpsPlanRow = {
   id: number;
   name: string;
@@ -131,6 +135,85 @@ export class OpsCrmContextRepository implements OnModuleDestroy {
         row.marketing_plan_id == null ? null : Number(row.marketing_plan_id),
       agency_client_id: String(row.agency_client_id ?? '').trim() || null,
     };
+  }
+
+  async getLifecycleForTransition(id: number): Promise<OpsLifecycleTransitionRow | null> {
+    const r = await this.db.query(
+      `SELECT sl.id, sl.stage, sl.status, sl.marketing_plan_id,
+              COALESCE(sl.notes, '') AS notes,
+              TRIM(COALESCE(ct.agency_client_id, '')) AS agency_client_id
+       FROM crm_service_lifecycle sl
+       LEFT JOIN crm_contracts ct ON ct.id = sl.contract_id
+       WHERE sl.id = $1
+       LIMIT 1`,
+      [id],
+    );
+    const row = r.rows[0];
+    if (!row) return null;
+    return {
+      id: Number(row.id),
+      stage: String(row.stage ?? ''),
+      status: String(row.status ?? ''),
+      marketing_plan_id:
+        row.marketing_plan_id == null ? null : Number(row.marketing_plan_id),
+      agency_client_id: String(row.agency_client_id ?? '').trim() || null,
+      notes: String(row.notes ?? ''),
+    };
+  }
+
+  async countTasksByStage(
+    lifecycleId: number,
+    stage: string,
+  ): Promise<{ total: number; open: number; done: number }> {
+    const stages =
+      stage === 'proposal' || stage === 'quote'
+        ? ['proposal', 'quote']
+        : [stage];
+    const r = await this.db.query(
+      `SELECT COUNT(*)::int AS total,
+              SUM(CASE WHEN COALESCE(is_done, false) THEN 1 ELSE 0 END)::int AS done
+       FROM crm_svc_tasks
+       WHERE lifecycle_id = $1 AND stage = ANY($2::text[])`,
+      [lifecycleId, stages],
+    );
+    const total = Number(r.rows[0]?.total ?? 0);
+    const done = Number(r.rows[0]?.done ?? 0);
+    return { total, done, open: Math.max(0, total - done) };
+  }
+
+  async applyLifecycleStageTransition(input: {
+    lifecycleId: number;
+    fromStage: string;
+    toStage: string;
+    notes: string;
+    actorType: string;
+    actorLabel: string;
+  }): Promise<void> {
+    const notes = String(input.notes ?? '').slice(0, 4000);
+    await this.db.query(
+      `UPDATE crm_service_lifecycle
+       SET stage = $2,
+           stage_entered_at = NOW(),
+           updated_at = NOW(),
+           notes = CASE
+             WHEN COALESCE(notes, '') = '' THEN $3
+             ELSE notes || E'\\n' || $3
+           END
+       WHERE id = $1`,
+      [input.lifecycleId, input.toStage, notes],
+    );
+    await this.db.query(
+      `INSERT INTO crm_service_lifecycle_events
+         (lifecycle_id, from_stage, to_stage, actor_type, notes, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())`,
+      [
+        input.lifecycleId,
+        input.fromStage,
+        input.toStage,
+        input.actorType.slice(0, 64),
+        `${input.actorLabel}: ${notes}`.slice(0, 2000),
+      ],
+    );
   }
 
   async findPrimaryLifecycleByClient(clientId: string): Promise<OpsLifecycleRow | null> {

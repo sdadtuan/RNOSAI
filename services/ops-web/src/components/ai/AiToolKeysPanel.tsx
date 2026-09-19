@@ -23,6 +23,15 @@ function statusLabel(key: AiToolApiKey): string {
 }
 
 function sampleTryInput(toolName: string): string {
+  if (toolName === 'service_delivery.propose_transition') {
+    return [
+      '{',
+      '  "lifecycle_id": 5,',
+      '  "dry_run": true,',
+      '  "notes": "P4 dry-run propose next stage"',
+      '}',
+    ].join('\n');
+  }
   if (toolName === 'task.create_draft') {
     return [
       '{',

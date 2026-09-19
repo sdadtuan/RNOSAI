@@ -11,6 +11,7 @@ const PII_FIELDS = ['phone', 'email', 'national_id', 'address'];
 const TOOL_OPTIONS = [
   'marketing_plan.read',
   'service_delivery.read',
+  'service_delivery.propose_transition',
   'delivery_project.read',
   'kpi_campaign.read',
   'marketing_plan.write_draft',
