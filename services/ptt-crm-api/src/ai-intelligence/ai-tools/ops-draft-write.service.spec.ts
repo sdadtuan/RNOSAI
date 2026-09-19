@@ -170,6 +170,39 @@ describe('OpsDraftWriteService', () => {
     );
   });
 
+  it('400 when plan_id has no lifecycle (no silent client fallthrough)', async () => {
+    repo.getPlan.mockResolvedValue({
+      id: 99,
+      name: 'Unlinked',
+      status: 'draft',
+      period_label: '',
+      lifecycle_id: null,
+      success_metrics_json: [],
+    });
+    repo.findPrimaryLifecycleByClient.mockResolvedValue({
+      id: 5,
+      stage: 'deliver',
+      status: 'active',
+      marketing_plan_id: null,
+      agency_client_id: 'c1',
+    });
+
+    await expect(
+      svc.createTaskDraft(
+        {
+          title: 'Should fail',
+          plan_id: 99,
+          client_id: 'd437cc78-0757-44ba-aaa3-9ffb941121dd',
+        },
+        meta,
+      ),
+    ).rejects.toMatchObject({
+      response: { error: 'lifecycle_required' },
+    });
+    expect(repo.insertAiDraftTask).not.toHaveBeenCalled();
+    expect(repo.findPrimaryLifecycleByClient).not.toHaveBeenCalled();
+  });
+
   it('falls back stage to deliver when lifecycle stage invalid', async () => {
     repo.getLifecycle.mockResolvedValue({
       id: 5,

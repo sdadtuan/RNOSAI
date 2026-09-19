@@ -22,6 +22,36 @@ function statusLabel(key: AiToolApiKey): string {
   return key.is_active ? 'Active' : 'Revoked';
 }
 
+function sampleTryInput(toolName: string): string {
+  if (toolName === 'task.create_draft') {
+    return [
+      '{',
+      '  "lifecycle_id": 5,',
+      '  "title": "Kickoff Meta Ads",',
+      '  "acceptance_criteria": "Account live + pixel verified"',
+      '}',
+    ].join('\n');
+  }
+  if (toolName === 'marketing_plan.write_draft') {
+    return [
+      '{',
+      '  "title": "P3 draft plan",',
+      '  "period": "Q4 2026",',
+      '  "lifecycle_id": 5',
+      '}',
+    ].join('\n');
+  }
+  // Read tools / default CrmContextPack sample (plan 8 ↔ SD #5 ↔ DP ↔ client).
+  return [
+    '{',
+    '  "plan_id": 8,',
+    '  "lifecycle_id": 5,',
+    '  "project_id": "094cba43-79e1-4af1-a45f-f1c079a7c94c",',
+    '  "client_id": "d437cc78-0757-44ba-aaa3-9ffb941121dd"',
+    '}',
+  ].join('\n');
+}
+
 export function AiToolKeysPanel({ token }: { token: string }) {
   const [keys, setKeys] = useState<AiToolApiKey[]>([]);
   const [tools, setTools] = useState<AiToolDescriptor[]>([]);
@@ -35,17 +65,7 @@ export function AiToolKeysPanel({ token }: { token: string }) {
   const [clientId, setClientId] = useState('');
   const [allowedTools, setAllowedTools] = useState<string[]>([]);
   const [tryTool, setTryTool] = useState('marketing_plan.read');
-  // Seeded CrmContextPack sample (plan 8 ↔ SD #5 ↔ DP ↔ client 360 AUTO).
-  const [tryInput, setTryInput] = useState(
-    [
-      '{',
-      '  "plan_id": 8,',
-      '  "lifecycle_id": 5,',
-      '  "project_id": "094cba43-79e1-4af1-a45f-f1c079a7c94c",',
-      '  "client_id": "d437cc78-0757-44ba-aaa3-9ffb941121dd"',
-      '}',
-    ].join('\n'),
-  );
+  const [tryInput, setTryInput] = useState(() => sampleTryInput('marketing_plan.read'));
   const [tryHumanApproved, setTryHumanApproved] = useState(false);
   const [tryBusy, setTryBusy] = useState(false);
   const [tryError, setTryError] = useState('');
@@ -248,8 +268,9 @@ export function AiToolKeysPanel({ token }: { token: string }) {
         <p className="muted">
           Gọi <code>POST /api/v1/ai/tools/call</code> bằng staff JWT · xem JSON CrmContextPack / kết quả thô.
           Write tools cần checkbox Human approved. INSERT plan không <code>plan_id</code> → reuse{' '}
-          <code>entity_ids.plan_id</code> khi retry (tránh draft trùng). Live plan → 409 trừ{' '}
-          <code>clone_to_draft: true</code>.
+          <code>entity_ids.plan_id</code> khi retry. Live plan → 409 trừ <code>clone_to_draft: true</code>.
+          <code>task.create_draft</code> cần resolve được lifecycle (explicit / plan / project / client);
+          thiếu → <code>400 lifecycle_required</code> (không fallback lifecycle mặc định).
         </p>
         <form
           onSubmit={(event) => void handleTryTool(event)}
@@ -261,7 +282,13 @@ export function AiToolKeysPanel({ token }: { token: string }) {
             <select
               className="kpi-input"
               value={tryTool}
-              onChange={(e) => setTryTool(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setTryTool(next);
+                setTryInput(sampleTryInput(next));
+                setTryResult('');
+                setTryError('');
+              }}
               disabled={tryBusy || tools.length === 0}
             >
               {tools.map((tool) => (

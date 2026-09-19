@@ -120,10 +120,7 @@ export class OpsDraftWriteService {
       throw new BadRequestException({ error: 'title_required' });
     }
 
-    const lifecycleId = await this.resolveLifecycleId(input);
-    if (lifecycleId == null) {
-      throw new BadRequestException({ error: 'lifecycle_required' });
-    }
+    const lifecycleId = await this.resolveLifecycleIdForTask(input);
 
     const lc = await this.repo.getLifecycle(lifecycleId);
     if (!lc) {
@@ -179,6 +176,64 @@ export class OpsDraftWriteService {
       entity_ids: { plan_id: planId },
       links: [`/crm/marketing-plan/${planId}`],
     };
+  }
+
+  /**
+   * Task drafts must not silently land on an unrelated lifecycle.
+   * Resolve only from explicitly provided keys; if a provided plan/project
+   * has no lifecycle link, fail with lifecycle_required (no client fallthrough).
+   */
+  private async resolveLifecycleIdForTask(
+    input: Record<string, unknown>,
+  ): Promise<number> {
+    const explicit = positiveInt(input.lifecycle_id ?? input.lifecycleId);
+    const planId = positiveInt(input.plan_id ?? input.planId);
+    const projectId = String(input.project_id ?? input.projectId ?? '').trim();
+    const clientId = String(input.client_id ?? input.clientId ?? '').trim();
+
+    if (explicit == null && planId == null && !projectId && !clientId) {
+      throw new BadRequestException({ error: 'lifecycle_required' });
+    }
+
+    if (explicit != null) {
+      return explicit;
+    }
+
+    if (planId != null) {
+      const plan = await this.repo.getPlan(planId);
+      if (!plan) {
+        throw new NotFoundException({ error: 'plan_not_found', plan_id: planId });
+      }
+      if (plan.lifecycle_id == null) {
+        throw new BadRequestException({
+          error: 'lifecycle_required',
+          message: 'plan_id has no linked lifecycle; pass lifecycle_id explicitly',
+          plan_id: planId,
+        });
+      }
+      return plan.lifecycle_id;
+    }
+
+    if (projectId) {
+      const project = await this.repo.getProject(projectId);
+      if (!project) {
+        throw new BadRequestException({ error: 'lifecycle_required' });
+      }
+      if (project.lifecycle_id == null) {
+        throw new BadRequestException({
+          error: 'lifecycle_required',
+          message: 'project_id has no linked lifecycle; pass lifecycle_id explicitly',
+          project_id: projectId,
+        });
+      }
+      return project.lifecycle_id;
+    }
+
+    const lc = await this.repo.findPrimaryLifecycleByClient(clientId);
+    if (!lc) {
+      throw new BadRequestException({ error: 'lifecycle_required' });
+    }
+    return lc.id;
   }
 
   private async resolveLifecycleId(
