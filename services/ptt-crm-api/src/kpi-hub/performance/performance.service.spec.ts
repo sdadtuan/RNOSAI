@@ -80,6 +80,32 @@ describe('PerformanceService', () => {
     }
   });
 
+  it('activates draft 360 when source_id + band present', () => {
+    const svc = new PerformanceService();
+    const draft = svc.getAssignment('asg-360-draft');
+    expect(draft.lifecycle).toBe('draft');
+    expect(draft.source_id).toBe('QT-0360');
+    const active = svc.activateAssignment(draft.id);
+    expect(active.lifecycle).toBe('active');
+  });
+
+  it('updates draft assignment fields and refreshes CRM stale map', () => {
+    const svc = new PerformanceService();
+    const updated = svc.updateAssignment('asg-360-draft', {
+      target_min: 95000,
+      target_stretch: 85000,
+      source_id: 'QT-0360',
+    });
+    expect(updated.target_min).toBe(95000);
+    expect(updated.source_id).toBe('QT-0360');
+
+    const before = svc.getCrmSource();
+    expect(before.mappings.some((m) => /stale/i.test(m.quality))).toBe(true);
+    const after = svc.refreshCrmSource();
+    expect(after.mappings.every((m) => !/stale/i.test(m.quality))).toBe(true);
+    expect(after.refreshed_at).toBeTruthy();
+  });
+
   it('close refused when quality pending (AC-PM-04)', () => {
     const svc = new PerformanceService();
     try {

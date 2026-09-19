@@ -26,6 +26,8 @@ export type PmAssignment = {
   instance_id: string | null;
   collection_method: string;
   lifecycle: string;
+  target_min?: number | null;
+  target_stretch?: number | null;
   quoted_vs_assigned_pct: number | null;
   quoted_vs_actual_pct: number | null;
   quoted_delta_material: boolean;
@@ -130,6 +132,7 @@ export type PmCrmSource = {
     quality: string;
     related: string;
   }>;
+  refreshed_at?: string | null;
 };
 
 export type PmReports = {

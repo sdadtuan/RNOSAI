@@ -120,4 +120,15 @@ describe('ServiceKpiInstancesService AC-SKPI-02', () => {
     expect(row.source_id).toBe('QT-2026-0099');
     expect(row.dictionary_id).toBe('dict-manual');
   });
+
+  it('seeds QT-0360 instances idempotently', async () => {
+    const repo = new ServiceKpiRepository({ databaseUrl: 'postgres://invalid' } as never);
+    const instances = new ServiceKpiInstancesService(repo);
+    const first = await instances.ensureQt0360Instances();
+    expect(first.created).toBeGreaterThan(0);
+    expect(first.items.some((i) => i.source_id === 'QT-0360')).toBe(true);
+    const second = await instances.ensureQt0360Instances();
+    expect(second.created).toBe(0);
+    expect(second.items.length).toBeGreaterThan(0);
+  });
 });

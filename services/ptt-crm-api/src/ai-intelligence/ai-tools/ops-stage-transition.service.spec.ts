@@ -124,7 +124,7 @@ describe('OpsStageTransitionService', () => {
     ).rejects.toMatchObject({ response: { error: 'invalid_transition' } });
   });
 
-  it('400 dod_incomplete on apply when tasks open', async () => {
+  it('400 dod_incomplete on apply when operational tasks open', async () => {
     repo.getLifecycleForTransition.mockResolvedValue({
       id: 5,
       stage: 'onboard',
@@ -143,6 +143,31 @@ describe('OpsStageTransitionService', () => {
       }),
     ).rejects.toMatchObject({ response: { error: 'dod_incomplete' } });
     expect(repo.applyLifecycleStageTransition).not.toHaveBeenCalled();
+  });
+
+  it('allows transition when only [AI draft] tasks remain open', async () => {
+    repo.getLifecycleForTransition.mockResolvedValue({
+      id: 5,
+      stage: 'onboard',
+      status: 'active',
+      marketing_plan_id: null,
+      agency_client_id: null,
+      notes: 'kickoff ok',
+    });
+    repo.countTasksByStage.mockResolvedValue({ total: 16, open: 16, done: 0 });
+    repo.listOpenTasks.mockResolvedValue(
+      Array.from({ length: 16 }, (_, i) => ({
+        id: i + 1,
+        title: `[AI draft] Role task ${i + 1}`,
+        stage: 'onboard',
+      })),
+    );
+    const out = await svc.proposeTransition({ lifecycle_id: 5, dry_run: false, notes: 'go' }, meta, {
+      humanApproved: true,
+    });
+    expect(out.status).toBe('transitioned');
+    expect(out.blockers).toEqual([]);
+    expect(repo.applyLifecycleStageTransition).toHaveBeenCalled();
   });
 
   it('maps quote alias to proposal', async () => {

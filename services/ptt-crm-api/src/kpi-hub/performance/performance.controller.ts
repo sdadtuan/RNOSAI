@@ -48,6 +48,14 @@ export class PerformanceController {
     return this.withIdempotency(idempotencyKey, () => this.performance.createAssignment(body));
   }
 
+  @Patch('assignments/:id')
+  updateAssignment(
+    @Param('id') id: string,
+    @Body() body: Parameters<PerformanceService['updateAssignment']>[1],
+  ) {
+    return this.performance.updateAssignment(id, body);
+  }
+
   @Post('assignments/:id/activate')
   activateAssignment(@Param('id') id: string, @Headers('idempotency-key') idempotencyKey?: string) {
     return this.withIdempotency(idempotencyKey, () => this.performance.activateAssignment(id));
@@ -134,6 +142,11 @@ export class PerformanceController {
   @Get('crm-source')
   crmSource() {
     return this.performance.getCrmSource();
+  }
+
+  @Post('crm-source/refresh')
+  refreshCrmSource(@Headers('idempotency-key') idempotencyKey?: string) {
+    return this.withIdempotency(idempotencyKey, () => this.performance.refreshCrmSource());
   }
 
   @Get('reports')

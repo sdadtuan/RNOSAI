@@ -34,6 +34,11 @@ export const fetchPmAssignment = (token: string, id: string) =>
   pmFetch<PmAssignment>(token, `${BASE}/assignments/${id}`);
 export const createPmAssignment = (token: string, body: Record<string, unknown>) =>
   pmFetch<PmAssignment>(token, `${BASE}/assignments`, { method: 'POST', body: JSON.stringify(body) });
+export const updatePmAssignment = (token: string, id: string, body: Record<string, unknown>) =>
+  pmFetch<PmAssignment>(token, `${BASE}/assignments/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
 export const activatePmAssignment = (token: string, id: string) =>
   pmFetch<PmAssignment>(token, `${BASE}/assignments/${id}/activate`, { method: 'POST' });
 export const fetchPmScorecards = (token: string, query: { client?: string; project?: string } = {}) => {
@@ -72,6 +77,8 @@ export const fetchPmCampaigns = (token: string, query: { client?: string; q?: st
   return pmFetch<PmCampaigns>(token, `${BASE}/campaigns${qs ? `?${qs}` : ''}`);
 };
 export const fetchPmCrmSource = (token: string) => pmFetch<PmCrmSource>(token, `${BASE}/crm-source`);
+export const refreshPmCrmSource = (token: string) =>
+  pmFetch<PmCrmSource>(token, `${BASE}/crm-source/refresh`, { method: 'POST' });
 export const fetchPmReports = (token: string) => pmFetch<PmReports>(token, `${BASE}/reports`);
 export const exportPmReport = (token: string, body: Record<string, unknown>) =>
   pmFetch(token, `${BASE}/reports/export`, { method: 'POST', body: JSON.stringify(body) });

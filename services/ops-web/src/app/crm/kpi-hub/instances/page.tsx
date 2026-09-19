@@ -16,6 +16,7 @@ import { dictionaryLabelMap } from '@/lib/service-kpi-dictionary-labels';
 import { SKPI_SUBTITLES, SNAPSHOT_INSTANCE_BANNER } from '@/lib/service-kpi-copy';
 import { SkpiFilterChips } from '@/components/kpi-hub/service-kpi/SkpiFilterChips';
 import { SkpiSuccessBanner } from '@/components/kpi-hub/service-kpi/SkpiSuccessBanner';
+import { seedServiceKpiQt0360 } from '@/lib/service-kpi-api';
 
 const FILTER_CHIPS = [
   { value: '', label: 'Tất cả' },
@@ -29,6 +30,8 @@ export default function KpiHubInstancesPage() {
   const canManage = hasCap(getStoredUser(), 'crm_kpi_dictionary', 'manage');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailInstance, setDetailInstance] = useState<ServiceKpiInstanceItem | null>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<string | null>(null);
   const params = useSearchParams();
   const instanceParam = params.get('instance') ?? '';
   const [chipFilter, setChipFilter] = useState(params.get('status') ?? '');
@@ -54,6 +57,24 @@ export default function KpiHubInstancesPage() {
     if (hit) setDetailInstance(hit);
   }, [instanceParam, items]);
 
+  const handleSeedQt0360 = async () => {
+    setSeeding(true);
+    setSeedMsg(null);
+    try {
+      const out = await seedServiceKpiQt0360(token);
+      setSeedMsg(
+        out.created > 0
+          ? `Đã tạo ${out.created} instance từ QT-0360 / 360.`
+          : `QT-0360 đã có ${out.items.length} instance.`,
+      );
+      await refresh();
+    } catch (err: unknown) {
+      setSeedMsg(err instanceof Error ? err.message : 'Không seed được QT-0360');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <KpiHubPageGate section="crm_kpi_hub">
       <KpiHubShell
@@ -66,13 +87,23 @@ export default function KpiHubInstancesPage() {
               Service KPI Template
             </Link>
             {canManage ? (
-              <button
-                type="button"
-                className="kpi-hub-btn kpi-hub-btn--primary"
-                onClick={() => setDrawerOpen(true)}
-              >
-                + Tạo KPI Instance
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="kpi-hub-btn kpi-hub-btn--ghost"
+                  disabled={seeding}
+                  onClick={() => void handleSeedQt0360()}
+                >
+                  {seeding ? 'Đang tạo…' : 'Seed QT-0360 / 360'}
+                </button>
+                <button
+                  type="button"
+                  className="kpi-hub-btn kpi-hub-btn--primary"
+                  onClick={() => setDrawerOpen(true)}
+                >
+                  + Tạo KPI Instance
+                </button>
+              </>
             ) : null}
           </>
         }
@@ -81,7 +112,9 @@ export default function KpiHubInstancesPage() {
         <SkpiFilterChips options={FILTER_CHIPS} value={chipFilter} onChange={setChipFilter} />
         <p className="kpi-hub-muted" style={{ margin: '8px 0 12px' }}>
           {total} instances
+          {total === 0 ? ' — Chưa có KPI instance. Seed QT-0360 để map Measurement Plan.' : ''}
         </p>
+        {seedMsg ? <p className="kpi-hub-muted">{seedMsg}</p> : null}
         {loading ? <p className="kpi-hub-muted">Đang tải…</p> : null}
         {error ? <p className="kpi-hub-form-error">{error}</p> : null}
         <ServiceKpiInstanceTable

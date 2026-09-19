@@ -143,6 +143,12 @@ export class ServiceKpiController {
     return this.instances.create(body);
   }
 
+  @Post('instances/seed-qt-0360')
+  @UseGuards(StaffKpiHubDictionaryManageGuard)
+  seedQt0360Instances() {
+    return this.instances.ensureQt0360Instances();
+  }
+
   @Get('instances')
   @UseGuards(StaffKpiHubViewGuard)
   listInstances(

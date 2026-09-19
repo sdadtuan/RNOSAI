@@ -228,6 +228,7 @@ export type PmCatalog = {
   actions: PmCorrectiveAction[];
   campaigns: PmCampaignRow[];
   crm_mappings: PmCrmMapping[];
+  crm_refreshed_at?: string | null;
   settings: PmSettings;
   marketing: PmMarketing;
   reports: {
