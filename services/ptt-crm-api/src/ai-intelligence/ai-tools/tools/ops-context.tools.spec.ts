@@ -1,8 +1,21 @@
 import { createOpsContextTools } from './ops-context.tools';
+import type { OpsCrmContextService } from '../ops-crm-context.service';
 
 describe('createOpsContextTools', () => {
-  const tools = createOpsContextTools();
+  const buildPack = jest.fn(async (tool: string, input: Record<string, unknown>) => ({
+    ok: true,
+    wired: true,
+    phase: 'P2',
+    tool,
+    input,
+  }));
+  const context = { buildPack } as unknown as OpsCrmContextService;
+  const tools = createOpsContextTools(context);
   const byName = new Map(tools.map((t) => [t.name, t]));
+
+  beforeEach(() => {
+    buildPack.mockClear();
+  });
 
   it('registers PO-52 allowlist tools', () => {
     expect([...byName.keys()].sort()).toEqual(
@@ -17,18 +30,19 @@ describe('createOpsContextTools', () => {
     );
   });
 
-  it('read tools succeed without human approval', async () => {
+  it('read tools call CrmContextPack builder', async () => {
     const tool = byName.get('marketing_plan.read')!;
     const out = (await tool.handler(
-      { client_id: 'c1' },
+      { plan_id: 6 },
       {
         apiKeyId: 'k',
-        clientId: 'c1',
+        clientId: null,
         actorId: 'a',
         correlationId: 'r',
       },
-    )) as { ok: boolean; tool: string };
-    expect(out.ok).toBe(true);
+    )) as { wired: boolean; tool: string };
+    expect(buildPack).toHaveBeenCalledWith('marketing_plan.read', { plan_id: 6 });
+    expect(out.wired).toBe(true);
     expect(out.tool).toBe('marketing_plan.read');
   });
 

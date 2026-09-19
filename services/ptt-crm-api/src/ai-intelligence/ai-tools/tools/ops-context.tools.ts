@@ -1,30 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { AiToolDefinition, AiToolExecutionContext } from '../ai-tools.types';
-
-function emptyContextPack(tool: string, input: Record<string, unknown>) {
-  return {
-    source: 'ptt-crm',
-    as_of: new Date().toISOString(),
-    tool,
-    wired: false,
-    phase: 'P1',
-    client: {
-      id: String(input.client_id ?? input.clientId ?? ''),
-      name: '',
-      lifecycle: '',
-    },
-    marketing_plan: { id: '', status: '', period: '', milestones: [] },
-    service_delivery: { id: '', stage: '', open_tasks: [], health: '' },
-    campaigns: [],
-    known: [],
-    assumed: [],
-    unknown: [
-      'Live CrmContextPack wiring ships in P2 — catalog/policy/API are enabled.',
-    ],
-    links: [],
-    ok: true,
-  };
-}
+import { OpsCrmContextService } from '../ops-crm-context.service';
 
 function assertHumanApprovedForWrite(
   tool: string,
@@ -53,52 +29,55 @@ function draftResult(tool: string, input: Record<string, unknown>) {
   };
 }
 
-const clientIdSchema = {
+const contextIdSchema = {
   type: 'object',
   additionalProperties: true,
   properties: {
     client_id: { type: 'string' },
+    lifecycle_id: { type: 'integer', minimum: 1 },
+    plan_id: { type: 'integer', minimum: 1 },
+    project_id: { type: 'string' },
   },
 };
 
-/** SRS-PTT-Ops-Module PO-52 tools (P1 stubs; live pack = P2). */
-export function createOpsContextTools(): AiToolDefinition[] {
+/** SRS-PTT-Ops-Module PO-52 tools — P2 live CrmContextPack reads. */
+export function createOpsContextTools(context: OpsCrmContextService): AiToolDefinition[] {
   return [
     {
       name: 'marketing_plan.read',
-      description: 'Read marketing plan context for a client (CrmContextPack slice).',
-      inputSchema: clientIdSchema,
+      description: 'Read marketing plan context for a client (CrmContextPack).',
+      inputSchema: contextIdSchema,
       outputSchema: { type: 'object' },
       mutating: false,
       requiredCaps: ['crm_leads.view'],
-      handler: async (input) => emptyContextPack('marketing_plan.read', input),
+      handler: async (input) => context.buildPack('marketing_plan.read', input),
     },
     {
       name: 'service_delivery.read',
-      description: 'Read service delivery board/detail for a client.',
-      inputSchema: clientIdSchema,
+      description: 'Read service delivery board/detail for a client (CrmContextPack).',
+      inputSchema: contextIdSchema,
       outputSchema: { type: 'object' },
       mutating: false,
       requiredCaps: ['crm_service_lifecycle.view'],
-      handler: async (input) => emptyContextPack('service_delivery.read', input),
+      handler: async (input) => context.buildPack('service_delivery.read', input),
     },
     {
       name: 'delivery_project.read',
-      description: 'Read delivery project health and milestones.',
-      inputSchema: clientIdSchema,
+      description: 'Read delivery project health and milestones (CrmContextPack).',
+      inputSchema: contextIdSchema,
       outputSchema: { type: 'object' },
       mutating: false,
       requiredCaps: ['crm_service_lifecycle.view'],
-      handler: async (input) => emptyContextPack('delivery_project.read', input),
+      handler: async (input) => context.buildPack('delivery_project.read', input),
     },
     {
       name: 'kpi_campaign.read',
-      description: 'Read campaign KPI quoted vs actual for a client/period.',
-      inputSchema: clientIdSchema,
+      description: 'Read campaign KPI quoted vs actual (CrmContextPack).',
+      inputSchema: contextIdSchema,
       outputSchema: { type: 'object' },
       mutating: false,
       requiredCaps: ['crm_kpi.view'],
-      handler: async (input) => emptyContextPack('kpi_campaign.read', input),
+      handler: async (input) => context.buildPack('kpi_campaign.read', input),
     },
     {
       name: 'marketing_plan.write_draft',
@@ -116,8 +95,8 @@ export function createOpsContextTools(): AiToolDefinition[] {
       outputSchema: { type: 'object' },
       mutating: true,
       requiredCaps: ['crm_leads.edit'],
-      handler: async (input, context) => {
-        assertHumanApprovedForWrite('marketing_plan.write_draft', context);
+      handler: async (input, ctx) => {
+        assertHumanApprovedForWrite('marketing_plan.write_draft', ctx);
         return draftResult('marketing_plan.write_draft', input);
       },
     },
@@ -137,8 +116,8 @@ export function createOpsContextTools(): AiToolDefinition[] {
       outputSchema: { type: 'object' },
       mutating: true,
       requiredCaps: ['crm_leads.edit'],
-      handler: async (input, context) => {
-        assertHumanApprovedForWrite('task.create_draft', context);
+      handler: async (input, ctx) => {
+        assertHumanApprovedForWrite('task.create_draft', ctx);
         return draftResult('task.create_draft', input);
       },
     },

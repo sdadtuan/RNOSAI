@@ -23,6 +23,7 @@ import { createLeadQueryTools } from './tools/list-leads.tool';
 import { createOpsContextTools } from './tools/ops-context.tools';
 import { createLeadAgentTools } from './tools/score-lead.tool';
 import { createOrchestrationTools } from './tools/trigger-orchestration.tool';
+import { OpsCrmContextService } from './ops-crm-context.service';
 
 const DENIED = new Set<string>(OPS_AI_TOOL_DENYLIST);
 
@@ -38,6 +39,7 @@ export class ToolRegistry {
     b2bAi: B2bLeadAiFilterService,
     forecast: AiForecastService,
     orchestrator: OrchestratorService,
+    opsContext: OpsCrmContextService,
   ) {
     this.definitions = [
       ...createLeadAgentTools(agents),
@@ -45,7 +47,7 @@ export class ToolRegistry {
       ...createForecastTools(forecast),
       ...createAgentInsightTools(agents),
       ...createOrchestrationTools(orchestrator),
-      ...createOpsContextTools(),
+      ...createOpsContextTools(opsContext),
     ];
     this.toolsByName = new Map(this.definitions.map((tool) => [tool.name, tool]));
   }

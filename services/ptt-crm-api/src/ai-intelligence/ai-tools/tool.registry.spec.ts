@@ -22,6 +22,14 @@ describe('ToolRegistry', () => {
   };
   const forecast = { getDashboard: jest.fn() };
   const orchestrator = { run: jest.fn(), list: jest.fn() };
+  const opsContext = {
+    buildPack: jest.fn(async (tool: string) => ({
+      ok: true,
+      wired: true,
+      tool,
+      phase: 'P2',
+    })),
+  };
 
   let registry: ToolRegistry;
 
@@ -34,6 +42,7 @@ describe('ToolRegistry', () => {
       b2bAi as never,
       forecast as never,
       orchestrator as never,
+      opsContext as never,
     );
   });
 
