@@ -53,9 +53,13 @@ export class AiToolsController {
     @Req() req: AiToolAuthenticatedRequest,
     @Headers('x-request-id') requestId?: string,
     @Headers('x-correlation-id') correlationId?: string,
+    @Headers('x-ai-human-approved') humanApprovedHeader?: string,
   ): Promise<{ tool_name: string; result: unknown }> {
     const toolName = String(body?.tool_name ?? '').trim();
     const apiKey = req.aiToolApiKey;
+    const humanApproved = ['1', 'true', 'yes', 'on'].includes(
+      String(humanApprovedHeader ?? '').trim().toLowerCase(),
+    );
     const result = await this.tools.call({
       toolName,
       input: body?.input ?? {},
@@ -64,6 +68,7 @@ export class AiToolsController {
         ? `ai-tool-key:${apiKey.id}`
         : req.staffUser?.sub ?? req.staffUser?.email ?? null,
       correlationId: correlationId?.trim() || requestId?.trim() || undefined,
+      humanApproved,
     });
     return { tool_name: toolName, result };
   }

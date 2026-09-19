@@ -17,7 +17,7 @@ describe('AiToolKeysRepository', () => {
   }
 
   it('create stores hash and returns plaintext key once', async () => {
-    queryMock.mockResolvedValue({ rows: [{ id: 'key-uuid-1' }] });
+    queryMock.mockResolvedValue({ rows: [{ id: 'key-uuid-1' }], rowCount: 1 });
     const repo = repoWithMock();
 
     const result = await repo.create(
@@ -31,8 +31,11 @@ describe('AiToolKeysRepository', () => {
     expect(result.plaintextKey.startsWith('ptt_ai_')).toBe(true);
     expect(result.keyPrefix).toBe(result.plaintextKey.slice(0, 12));
 
-    expect(queryMock).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO ai_tool_api_keys'),
+    const insertCall = queryMock.mock.calls.find((c) =>
+      String(c[0]).includes('INSERT INTO ai_tool_api_keys'),
+    );
+    expect(insertCall).toBeDefined();
+    expect(insertCall![1]).toEqual(
       expect.arrayContaining([
         'integration-bot',
         result.keyPrefix,
@@ -134,17 +137,20 @@ describe('AiToolKeysRepository', () => {
       }),
     ).resolves.toBe('log-1');
 
-    expect(queryMock).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO ai_tool_call_log'),
-      [
-        'key-a',
-        'health_check',
-        JSON.stringify({}),
-        JSON.stringify({ status: 'ok' }),
-        'succeeded',
-        5,
-        null,
-      ],
+    expect(queryMock.mock.calls.some((c) => String(c[0]).includes('INSERT INTO ai_tool_call_log'))).toBe(
+      true,
     );
+    const insertCall = queryMock.mock.calls.find((c) =>
+      String(c[0]).includes('INSERT INTO ai_tool_call_log'),
+    );
+    expect(insertCall![1]).toEqual([
+      'key-a',
+      'health_check',
+      JSON.stringify({}),
+      JSON.stringify({ status: 'ok' }),
+      'succeeded',
+      5,
+      null,
+    ]);
   });
 });

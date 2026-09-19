@@ -10,8 +10,11 @@ import {
   AiToolApiKeyRecord,
   AiToolApiKeyScope,
   AiToolDescriptor,
+  OPS_AI_TOOL_DENYLIST,
 } from './ai-tools.types';
 import { ToolRegistry } from './tool.registry';
+
+const DENIED = new Set<string>(OPS_AI_TOOL_DENYLIST);
 
 export interface AiToolCallParams {
   toolName: string;
@@ -19,6 +22,7 @@ export interface AiToolCallParams {
   apiKey?: AiToolApiKeyScope;
   actorId?: string | null;
   correlationId?: string | null;
+  humanApproved?: boolean;
 }
 
 export interface CreateAiToolKeyParams {
@@ -53,6 +57,7 @@ export class AiToolsService {
         apiKey,
         actorId: params.actorId,
         correlationId: params.correlationId,
+        humanApproved: params.humanApproved,
       });
       await this.keys.recordCall({
         apiKeyId: params.apiKey?.id ?? null,
@@ -85,6 +90,12 @@ export class AiToolsService {
     const knownTools = new Set(this.registry.list().map((tool) => tool.name));
     if (!name) {
       throw new BadRequestException({ error: 'key_name_required' });
+    }
+    if (allowedTools.some((tool) => DENIED.has(tool))) {
+      throw new BadRequestException({
+        error: 'denied_tools_not_allowed',
+        denied: allowedTools.filter((tool) => DENIED.has(tool)),
+      });
     }
     if (allowedTools.length === 0 || allowedTools.some((tool) => !knownTools.has(tool))) {
       throw new BadRequestException({ error: 'invalid_allowed_tools' });

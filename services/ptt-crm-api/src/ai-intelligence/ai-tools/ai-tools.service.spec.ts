@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { AiToolsService } from './ai-tools.service';
 
 describe('AiToolsService', () => {
@@ -71,6 +71,7 @@ describe('AiToolsService', () => {
       apiKey,
       actorId: 'ai-tool-key:key-1',
       correlationId: 'corr-1',
+      humanApproved: undefined,
     });
     expect(keys.recordCall).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -148,5 +149,22 @@ describe('AiToolsService', () => {
     ]);
     await service.revokeKey('key-1');
     expect(keys.revoke).toHaveBeenCalledWith('key-1');
+  });
+
+  it('rejects creating keys that include PO-53 denied tools', async () => {
+    const service = new AiToolsService(config as never, registry as never, keys as never);
+    try {
+      await service.createKey({
+        name: 'bad',
+        allowedTools: ['health_check', 'email.send'],
+      });
+      fail('expected BadRequestException');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ error: 'denied_tools_not_allowed' }),
+      );
+    }
+    expect(keys.create).not.toHaveBeenCalled();
   });
 });

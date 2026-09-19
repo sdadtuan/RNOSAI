@@ -16,11 +16,15 @@ import {
   AiToolDescriptor,
   AiToolExecutionContext,
 } from './ai-tools.types';
+import { OPS_AI_TOOL_DENYLIST } from './ai-tools.types';
 import { createAgentInsightTools } from './tools/agent-tools.tool';
 import { createForecastTools } from './tools/get-forecast.tool';
 import { createLeadQueryTools } from './tools/list-leads.tool';
+import { createOpsContextTools } from './tools/ops-context.tools';
 import { createLeadAgentTools } from './tools/score-lead.tool';
 import { createOrchestrationTools } from './tools/trigger-orchestration.tool';
+
+const DENIED = new Set<string>(OPS_AI_TOOL_DENYLIST);
 
 @Injectable()
 export class ToolRegistry {
@@ -41,6 +45,7 @@ export class ToolRegistry {
       ...createForecastTools(forecast),
       ...createAgentInsightTools(agents),
       ...createOrchestrationTools(orchestrator),
+      ...createOpsContextTools(),
     ];
     this.toolsByName = new Map(this.definitions.map((tool) => [tool.name, tool]));
   }
@@ -64,6 +69,13 @@ export class ToolRegistry {
     context: AiToolCallContext,
   ): Promise<{ data: unknown; runId: string }> {
     const toolName = String(name ?? '').trim();
+    if (DENIED.has(toolName)) {
+      throw new ForbiddenException({
+        error: 'tool_denied_by_policy',
+        tool_name: toolName,
+        message: 'SRS PO-53: email.send / proposal.send / stage.transition are banned.',
+      });
+    }
     const tool = this.toolsByName.get(toolName);
     if (!tool) {
       throw new NotFoundException({
@@ -92,6 +104,7 @@ export class ToolRegistry {
           clientId: context.apiKey.client_id,
           actorId,
           correlationId: requestId,
+          humanApproved: Boolean(context.humanApproved),
         };
         const data = await tool.handler(input ?? {}, executionContext);
         return {

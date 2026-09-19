@@ -61,6 +61,8 @@ export interface AiToolCallContext {
   apiKey: AiToolApiKeyScope;
   actorId?: string | null;
   correlationId?: string | null;
+  /** Set when caller sends X-AI-Human-Approved: 1 (PO-52 write gate). */
+  humanApproved?: boolean;
 }
 
 export interface AiToolExecutionContext {
@@ -68,7 +70,25 @@ export interface AiToolExecutionContext {
   clientId: string | null;
   actorId: string | null;
   correlationId: string;
+  humanApproved?: boolean;
 }
+
+/** SRS PO-52 allowlist (Ops Module). */
+export const OPS_AI_TOOL_ALLOWLIST = [
+  'marketing_plan.read',
+  'marketing_plan.write_draft',
+  'service_delivery.read',
+  'delivery_project.read',
+  'kpi_campaign.read',
+  'task.create_draft',
+] as const;
+
+/** SRS PO-53 — never register; reject on call / key create. */
+export const OPS_AI_TOOL_DENYLIST = [
+  'email.send',
+  'proposal.send',
+  'stage.transition',
+] as const;
 
 export interface AiToolDefinition extends AiToolDescriptor {
   handler: (

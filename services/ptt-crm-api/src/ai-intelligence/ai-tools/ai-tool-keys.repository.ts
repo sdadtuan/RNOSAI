@@ -85,12 +85,61 @@ export class AiToolKeysRepository implements OnModuleDestroy {
     }
   }
 
+  async ensureSchema(): Promise<void> {
+    await this.db.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+    await this.db.query(`
+      CREATE TABLE IF NOT EXISTS ai_tool_api_keys (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(128) NOT NULL,
+        key_prefix VARCHAR(12) NOT NULL,
+        key_hash VARCHAR(64) NOT NULL,
+        client_id UUID,
+        allowed_tools JSONB NOT NULL DEFAULT '[]',
+        rate_limit_per_min INT NOT NULL DEFAULT 60,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_by VARCHAR(64),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        revoked_at TIMESTAMPTZ
+      )`);
+    await this.db.query(
+      `CREATE INDEX IF NOT EXISTS idx_ai_tool_api_keys_hash ON ai_tool_api_keys(key_hash)`,
+    );
+    await this.db.query(
+      `CREATE INDEX IF NOT EXISTS idx_ai_tool_api_keys_active ON ai_tool_api_keys(is_active, revoked_at)`,
+    );
+    await this.db.query(`
+      CREATE TABLE IF NOT EXISTS ai_tool_call_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        api_key_id UUID REFERENCES ai_tool_api_keys(id),
+        tool_name VARCHAR(64) NOT NULL,
+        input_json JSONB NOT NULL DEFAULT '{}',
+        output_json JSONB NOT NULL DEFAULT '{}',
+        status VARCHAR(16) NOT NULL,
+        latency_ms INT,
+        agent_run_id UUID,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`);
+    await this.db.query(
+      `CREATE INDEX IF NOT EXISTS idx_ai_tool_call_log_key ON ai_tool_call_log(api_key_id, created_at DESC)`,
+    );
+    try {
+      await this.db.query(
+        `INSERT INTO schema_migrations (version, description) VALUES ($1, $2)
+         ON CONFLICT (version) DO NOTHING`,
+        [AI_TOOLS_MIGRATION_VERSION, 'RNOS-33: ai_tool_api_keys + ai_tool_call_log'],
+      );
+    } catch {
+      /* schema_migrations optional / different shape */
+    }
+  }
+
   async create(
     name: string,
     allowedTools: string[],
     clientId?: string | null,
     createdBy?: string | null,
   ): Promise<AiToolApiKeyCreateResult> {
+    await this.ensureSchema();
     const plaintextKey = generatePlaintextKey();
     const keyPrefix = plaintextKey.slice(0, 12);
     const keyHash = hashApiKey(plaintextKey);
@@ -133,6 +182,7 @@ export class AiToolKeysRepository implements OnModuleDestroy {
       return null;
     }
 
+    await this.ensureSchema();
     const keyHash = hashApiKey(plaintext);
     const result = await this.db.query(
       `SELECT ${KEY_SELECT_COLUMNS}
@@ -148,6 +198,7 @@ export class AiToolKeysRepository implements OnModuleDestroy {
   }
 
   async listKeys(): Promise<AiToolApiKeyRecord[]> {
+    await this.ensureSchema();
     const result = await this.db.query(
       `SELECT ${KEY_SELECT_COLUMNS}
        FROM ai_tool_api_keys
@@ -157,6 +208,7 @@ export class AiToolKeysRepository implements OnModuleDestroy {
   }
 
   async recordCall(entry: AiToolCallLogInsert): Promise<string> {
+    await this.ensureSchema();
     const result = await this.db.query(
       `INSERT INTO ai_tool_call_log (
          api_key_id, tool_name, input_json, output_json,

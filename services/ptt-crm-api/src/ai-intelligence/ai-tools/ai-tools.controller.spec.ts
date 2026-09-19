@@ -41,6 +41,7 @@ describe('AiToolsController', () => {
       apiKey,
       actorId: 'ai-tool-key:key-1',
       correlationId: 'corr-1',
+      humanApproved: false,
     });
   });
 

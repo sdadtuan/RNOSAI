@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { AdminPageShell } from '@/components/admin';
 import { fetchAdminAiPolicies, patchAdminAiPolicy, type AdminAiPolicyRow } from '@/lib/api';
@@ -7,7 +8,18 @@ import { hasCap } from '@/lib/auth';
 import { canViewPolicyAdmin, useAdminCrmAuth } from '@/lib/admin/use-admin-crm-auth';
 
 const PII_FIELDS = ['phone', 'email', 'national_id', 'address'];
-const TOOL_OPTIONS = ['nl_query', 'lead_score', 'content_draft', 'campaign_optimize'];
+const TOOL_OPTIONS = [
+  'marketing_plan.read',
+  'service_delivery.read',
+  'delivery_project.read',
+  'kpi_campaign.read',
+  'marketing_plan.write_draft',
+  'task.create_draft',
+  'nl_query',
+  'lead_score',
+  'content_draft',
+  'campaign_optimize',
+];
 
 function canViewAiPolicies(user: Parameters<typeof canViewPolicyAdmin>[0]): boolean {
   if (!user) return false;
@@ -94,8 +106,15 @@ export default function AdminAiPoliciesPage() {
         {error ? <p className="form-error">{error}</p> : null}
         {loadError ? <p className="form-error">{loadError}</p> : null}
 
-        <p className="muted">
-          {policies.length} agent · {missingCount > 0 ? `${missingCount} thiếu policy` : 'Đủ policy'}
+        <p className="muted" style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span>
+            {policies.length} agent · {missingCount > 0 ? `${missingCount} thiếu policy` : 'Đủ policy'}
+          </span>
+          {canConfigure ? (
+            <Link href="/admin/ai/policies/new" className="btn btn-sm btn-primary">
+              Tạo policy
+            </Link>
+          ) : null}
         </p>
 
         <table className="table">
@@ -181,7 +200,12 @@ export default function AdminAiPoliciesPage() {
           </tbody>
         </table>
 
-        {policies.length === 0 ? <p className="muted">Chưa có agent policy.</p> : null}
+        {policies.length === 0 ? (
+          <p className="muted">
+            Chưa có agent policy.{' '}
+            {canConfigure ? <Link href="/admin/ai/policies/new">Tạo policy đầu tiên</Link> : null}
+          </p>
+        ) : null}
       </div>
     </AdminPageShell>
   );

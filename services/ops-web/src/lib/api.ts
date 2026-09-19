@@ -9838,6 +9838,23 @@ export async function fetchAdminAiPolicies(
   return crmFetch(token, '/api/v1/admin/ai/policies');
 }
 
+export async function createAdminAiPolicy(
+  token: string,
+  agentCode: string,
+  body: Partial<
+    Pick<
+      AdminAiPolicyRow,
+      'allowed_tools' | 'spend_cap_usd_monthly' | 'pii_block_fields' | 'require_human_approval'
+    >
+  > & { agent_name?: string },
+): Promise<{ policy: AdminAiPolicyRow } | AdminAiPolicyRow> {
+  return crmFetch(token, `/api/v1/admin/ai/policies/${encodeURIComponent(agentCode)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function patchAdminAiPolicy(
   token: string,
   agentCode: string,

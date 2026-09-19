@@ -37,10 +37,10 @@ describe('ToolRegistry', () => {
     );
   });
 
-  it('lists exactly the ten curated MCP-compatible tools', () => {
+  it('lists RNOS-33 tools plus Ops PO-52 tools', () => {
     const tools = registry.list();
 
-    expect(tools).toHaveLength(10);
+    expect(tools).toHaveLength(16);
     expect(tools.map((tool) => tool.name)).toEqual([
       'score_lead',
       'route_lead',
@@ -52,8 +52,35 @@ describe('ToolRegistry', () => {
       'run_orchestration',
       'list_orchestrations',
       'health_check',
+      'marketing_plan.read',
+      'service_delivery.read',
+      'delivery_project.read',
+      'kpi_campaign.read',
+      'marketing_plan.write_draft',
+      'task.create_draft',
     ]);
     expect(tools.every((tool) => tool.inputSchema.type === 'object')).toBe(true);
+    expect(tools.map((t) => t.name)).not.toEqual(
+      expect.arrayContaining(['email.send', 'proposal.send', 'stage.transition']),
+    );
+  });
+
+  it('denies PO-53 banned tools even if named in allowlist', async () => {
+    await expect(
+      registry.call(
+        'email.send',
+        {},
+        {
+          apiKey: {
+            id: 'key-1',
+            client_id: null,
+            allowed_tools: ['email.send'],
+          },
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: { error: 'tool_denied_by_policy', tool_name: 'email.send' },
+    });
   });
 
   it('throws 403 when the API key does not allow the requested tool', async () => {
