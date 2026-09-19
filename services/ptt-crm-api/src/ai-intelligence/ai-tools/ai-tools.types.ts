@@ -73,11 +73,12 @@ export interface AiToolExecutionContext {
   humanApproved?: boolean;
 }
 
-/** SRS PO-52 allowlist (Ops Module). */
+/** SRS PO-52 allowlist (Ops Module) + P4 stage propose. */
 export const OPS_AI_TOOL_ALLOWLIST = [
   'marketing_plan.read',
   'marketing_plan.write_draft',
   'service_delivery.read',
+  'service_delivery.propose_transition',
   'delivery_project.read',
   'kpi_campaign.read',
   'task.create_draft',

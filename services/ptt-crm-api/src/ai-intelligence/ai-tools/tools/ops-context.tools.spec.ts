@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { createOpsContextTools } from './ops-context.tools';
 import type { OpsCrmContextService } from '../ops-crm-context.service';
 import type { OpsDraftWriteService } from '../ops-draft-write.service';
+import type { OpsStageTransitionService } from '../ops-stage-transition.service';
 
 describe('createOpsContextTools', () => {
   const buildPack = jest.fn(async (tool: string, input: Record<string, unknown>) => ({
@@ -36,22 +37,42 @@ describe('createOpsContextTools', () => {
       links: ['/crm/service-delivery/5'],
     })),
   } as unknown as OpsDraftWriteService;
-  const tools = createOpsContextTools(context, draftWrite);
+  const stageTransition = {
+    proposeTransition: jest.fn(async () => ({
+      ok: true,
+      wired: true,
+      phase: 'P4',
+      status: 'proposed',
+      lifecycle_id: 5,
+      from_stage: 'onboard',
+      to_stage: 'deliver',
+      dry_run: true,
+      dod_checklist: [],
+      blockers: [],
+      requires_human_approval: true,
+      human_approved: false,
+      entity_ids: { lifecycle_id: 5 },
+      links: ['/crm/service-delivery/5'],
+    })),
+  } as unknown as OpsStageTransitionService;
+  const tools = createOpsContextTools(context, draftWrite, stageTransition);
   const byName = new Map(tools.map((t) => [t.name, t]));
 
   beforeEach(() => {
     buildPack.mockClear();
     (draftWrite.writeMarketingPlanDraft as jest.Mock).mockClear();
     (draftWrite.createTaskDraft as jest.Mock).mockClear();
+    (stageTransition.proposeTransition as jest.Mock).mockClear();
   });
 
-  it('registers PO-52 allowlist tools', () => {
+  it('registers PO-52 allowlist tools including P4 propose_transition', () => {
     expect([...byName.keys()].sort()).toEqual(
       [
         'delivery_project.read',
         'kpi_campaign.read',
         'marketing_plan.read',
         'marketing_plan.write_draft',
+        'service_delivery.propose_transition',
         'service_delivery.read',
         'task.create_draft',
       ].sort(),
@@ -120,5 +141,24 @@ describe('createOpsContextTools', () => {
     )) as { entity_ids: Record<string, number> };
     expect(draftWrite.createTaskDraft).toHaveBeenCalled();
     expect(out.entity_ids).toEqual({ task_id: 2, lifecycle_id: 5 });
+  });
+
+  it('propose_transition dry_run does not require human approval at tool gate', async () => {
+    const tool = byName.get('service_delivery.propose_transition')!;
+    const out = (await tool.handler(
+      { lifecycle_id: 5, dry_run: true },
+      {
+        apiKeyId: 'k',
+        clientId: null,
+        actorId: 'a',
+        correlationId: 'r',
+      },
+    )) as { phase: string; status: string };
+    expect(stageTransition.proposeTransition).toHaveBeenCalledWith(
+      { lifecycle_id: 5, dry_run: true },
+      expect.objectContaining({ actor: 'a' }),
+      { humanApproved: false },
+    );
+    expect(out).toMatchObject({ phase: 'P4', status: 'proposed' });
   });
 });

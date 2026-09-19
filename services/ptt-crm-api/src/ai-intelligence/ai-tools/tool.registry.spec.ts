@@ -34,6 +34,9 @@ describe('ToolRegistry', () => {
     writeMarketingPlanDraft: jest.fn(),
     createTaskDraft: jest.fn(),
   };
+  const stageTransition = {
+    proposeTransition: jest.fn(),
+  };
 
   let registry: ToolRegistry;
 
@@ -48,13 +51,14 @@ describe('ToolRegistry', () => {
       orchestrator as never,
       opsContext as never,
       draftWrite as never,
+      stageTransition as never,
     );
   });
 
-  it('lists RNOS-33 tools plus Ops PO-52 tools', () => {
+  it('lists RNOS-33 tools plus Ops PO-52/P4 tools', () => {
     const tools = registry.list();
 
-    expect(tools).toHaveLength(16);
+    expect(tools).toHaveLength(17);
     expect(tools.map((tool) => tool.name)).toEqual([
       'score_lead',
       'route_lead',
@@ -72,6 +76,7 @@ describe('ToolRegistry', () => {
       'kpi_campaign.read',
       'marketing_plan.write_draft',
       'task.create_draft',
+      'service_delivery.propose_transition',
     ]);
     expect(tools.every((tool) => tool.inputSchema.type === 'object')).toBe(true);
     expect(tools.map((t) => t.name)).not.toEqual(
