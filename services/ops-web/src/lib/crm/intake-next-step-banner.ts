@@ -1,13 +1,29 @@
 import { normalizeIntakeSlug } from '@/lib/crm/intake-service-resolve';
 import type { ConsultGateState } from '@/lib/crm/funnel-stepper.types';
+import type { IntakeValidationIssue } from '@/lib/crm/intake-validation';
 
 export type IntakeNextStepAction =
   | 'pick_service'
-  | 'reopen_fix'
+  | 'reopen_form'
   | 'complete_session'
   | 'handoff_solution'
   | 'open_solution_queue'
   | 'none';
+
+export type IntakeNextStepTarget =
+  | 'service'
+  | 'decision'
+  | 'discovery_need'
+  | 'discovery_critical'
+  | 'handoff_dm'
+  | 'contact'
+  | 'none';
+
+export type IntakeNextStepChip = {
+  code: string;
+  label_vi: string;
+  target: IntakeNextStepTarget;
+};
 
 export type IntakeNextStepBanner = {
   tone: 'info' | 'warn' | 'ok';
@@ -15,8 +31,55 @@ export type IntakeNextStepBanner = {
   body_vi: string;
   action: IntakeNextStepAction;
   cta_label_vi: string | null;
+  /** @deprecated prefer chips — kept for gate/handoff message lists */
   blockers: string[];
+  chips: IntakeNextStepChip[];
 };
+
+const CHIP_BY_CODE: Record<string, IntakeNextStepChip> = {
+  service_unselected: { code: 'service_unselected', label_vi: 'Dịch vụ', target: 'service' },
+  decision: { code: 'decision', label_vi: 'Quyết định', target: 'decision' },
+  decision_reason: { code: 'decision_reason', label_vi: 'Lý do', target: 'decision' },
+  need_empty: { code: 'need_empty', label_vi: 'Need / Pain', target: 'discovery_need' },
+  critical_answers_missing: {
+    code: 'critical_answers_missing',
+    label_vi: 'Câu quan trọng',
+    target: 'discovery_critical',
+  },
+  stakeholder_dm_missing: {
+    code: 'stakeholder_dm_missing',
+    label_vi: 'Decision Maker',
+    target: 'handoff_dm',
+  },
+  contact_name: { code: 'contact_name', label_vi: 'Liên hệ', target: 'contact' },
+};
+
+/** Map validation issues → unique short chips (no long duplicate sentences). */
+export function chipsFromValidationIssues(
+  issues: IntakeValidationIssue[],
+  serviceSlug?: string | null,
+): IntakeNextStepChip[] {
+  const chips: IntakeNextStepChip[] = [];
+  const seen = new Set<string>();
+
+  const service = normalizeIntakeSlug(serviceSlug) || '_common';
+  if (service === '_common') {
+    chips.push(CHIP_BY_CODE.service_unselected);
+    seen.add('service_unselected');
+  }
+
+  for (const issue of issues) {
+    if (issue.level !== 'error') continue;
+    if (seen.has(issue.code)) continue;
+    const chip = CHIP_BY_CODE[issue.code];
+    if (!chip) continue;
+    if (issue.code === 'service_unselected' && seen.has('service_unselected')) continue;
+    chips.push(chip);
+    seen.add(issue.code);
+  }
+
+  return chips.slice(0, 5);
+}
 
 export function resolveIntakeNextStepBanner(input: {
   hasActiveSession: boolean;
@@ -25,6 +88,8 @@ export function resolveIntakeNextStepBanner(input: {
   decision: string | null;
   consultGate: ConsultGateState | null;
   handoffStatus: string | null;
+  validationIssues?: IntakeValidationIssue[];
+  /** @deprecated use validationIssues */
   validationErrorMessages?: string[];
 }): IntakeNextStepBanner | null {
   const service = normalizeIntakeSlug(input.serviceSlug) || '_common';
@@ -37,33 +102,36 @@ export function resolveIntakeNextStepBanner(input: {
       return {
         tone: 'warn',
         title_vi: 'Chọn dịch vụ trước',
-        body_vi: 'Chọn dịch vụ trên Deal Bar rồi bấm + Gọi điện / + Gặp trực tiếp.',
+        body_vi: 'Chọn trên Deal Bar, rồi tạo phiên.',
         action: 'pick_service',
         cta_label_vi: null,
-        blockers: ['Chưa chọn dịch vụ'],
+        blockers: [],
+        chips: [CHIP_BY_CODE.service_unselected],
       };
     }
     return {
       tone: 'info',
       title_vi: 'Tạo phiên khảo sát',
-      body_vi: 'Bấm + Gọi điện hoặc + Gặp trực tiếp ở cột trái.',
+      body_vi: 'Bấm + Gọi điện hoặc + Gặp trực tiếp.',
       action: 'none',
       cta_label_vi: null,
       blockers: [],
+      chips: [],
     };
   }
 
   if (status === 'draft') {
-    const blockers = [...(input.validationErrorMessages ?? [])];
-    if (service === '_common') blockers.unshift('Chưa chọn dịch vụ');
-    if (blockers.length > 0) {
+    const issues = input.validationIssues ?? [];
+    const chips = chipsFromValidationIssues(issues, service);
+    if (chips.length > 0) {
       return {
         tone: 'warn',
-        title_vi: 'Bổ sung trước khi hoàn thành',
-        body_vi: blockers.slice(0, 3).join(' · '),
+        title_vi: 'Còn thiếu để hoàn thành',
+        body_vi: 'Bấm mục bên dưới để đi tới chỗ cần điền.',
         action: 'complete_session',
         cta_label_vi: null,
-        blockers,
+        blockers: [],
+        chips,
       };
     }
     return {
@@ -73,6 +141,7 @@ export function resolveIntakeNextStepBanner(input: {
       action: 'complete_session',
       cta_label_vi: 'Hoàn thành phiên',
       blockers: [],
+      chips: [],
     };
   }
 
@@ -86,17 +155,19 @@ export function resolveIntakeNextStepBanner(input: {
       action: 'open_solution_queue',
       cta_label_vi: 'Mở queue Solution →',
       blockers: [],
+      chips: [],
     };
   }
 
   if (service === '_common') {
     return {
       tone: 'warn',
-      title_vi: 'Thiếu dịch vụ — không giao Tư vấn được',
+      title_vi: 'Thiếu dịch vụ',
       body_vi: 'Reopen phiên, chọn dịch vụ, rồi hoàn thành lại.',
-      action: 'reopen_fix',
+      action: 'reopen_form',
       cta_label_vi: 'Reopen để bổ sung →',
-      blockers: ['Chưa chọn dịch vụ'],
+      blockers: [],
+      chips: [CHIP_BY_CODE.service_unselected],
     };
   }
 
@@ -109,6 +180,7 @@ export function resolveIntakeNextStepBanner(input: {
       action: 'none',
       cta_label_vi: null,
       blockers: [],
+      chips: [],
     };
   }
 
@@ -116,11 +188,12 @@ export function resolveIntakeNextStepBanner(input: {
     const blockers = gate.messages.length > 0 ? gate.messages : ['Chưa đủ điều kiện giao Solution'];
     return {
       tone: 'warn',
-      title_vi: 'Gate chưa OK — bổ sung rồi giao',
+      title_vi: 'Gate chưa OK',
       body_vi: blockers[0] ?? '',
-      action: 'reopen_fix',
+      action: 'reopen_form',
       cta_label_vi: 'Reopen để bổ sung →',
       blockers,
+      chips: [],
     };
   }
 
@@ -128,13 +201,14 @@ export function resolveIntakeNextStepBanner(input: {
     const needsConfirm = gate.requires_confirm || gate.level === 'warn';
     return {
       tone: 'ok',
-      title_vi: needsConfirm ? 'Gate cảnh báo — có thể giao (xác nhận)' : 'Gate OK — giao Solution/MKT',
+      title_vi: needsConfirm ? 'Gate cảnh báo — có thể giao' : 'Gate OK — giao Solution/MKT',
       body_vi: needsConfirm
         ? gate.messages[0] || 'Xác nhận trước khi giao.'
         : 'Bấm Giao Solution/MKT để chuyển Tư vấn.',
       action: 'handoff_solution',
       cta_label_vi: needsConfirm ? 'Giao Solution/MKT (xác nhận) →' : 'Giao Solution/MKT →',
       blockers: gate.messages,
+      chips: [],
     };
   }
 
@@ -145,6 +219,7 @@ export function resolveIntakeNextStepBanner(input: {
     action: 'none',
     cta_label_vi: null,
     blockers: [],
+    chips: [],
   };
 }
 

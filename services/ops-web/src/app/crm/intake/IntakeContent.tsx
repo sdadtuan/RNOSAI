@@ -9,6 +9,7 @@ import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoveryS
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeBantChecklistPanel } from '@/components/crm/intake/IntakeBantChecklistPanel';
 import { IntakeDealBar } from '@/components/crm/intake/IntakeDealBar';
+import { IntakeDecisionPanel } from '@/components/crm/intake/IntakeDecisionPanel';
 import { IntakeNextStepBanner } from '@/components/crm/intake/IntakeNextStepBanner';
 import { IntakeWinChecklistPanel } from '@/components/crm/intake/IntakeWinChecklistPanel';
 import { IntakeHandoffTab } from '@/components/crm/intake/IntakeHandoffTab';
@@ -52,6 +53,7 @@ import { funnelPresalesStage, funnelServiceSlug } from '@/lib/crm/funnel-snapsho
 import {
   requireServiceSlugBeforeCreate,
   resolveIntakeNextStepBanner,
+  type IntakeNextStepTarget,
 } from '@/lib/crm/intake-next-step-banner';
 import {
   gapToGo,
@@ -178,6 +180,7 @@ export function IntakeContent({
   const [kitOpen, setKitOpen] = useState(false);
   const [bantOpen, setBantOpen] = useState(false);
   const [winOpen, setWinOpen] = useState(false);
+  const [decisionOpen, setDecisionOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [bantChecklist, setBantChecklist] = useState<BantChecklistState>({});
   const [winChecklist, setWinChecklist] = useState<WinChecklistState>({});
@@ -386,10 +389,51 @@ export function IntakeContent({
         decision: active?.decision ?? decision,
         consultGate,
         handoffStatus: String(funnelSnap?.presales?.handoff?.status ?? ''),
-        validationErrorMessages: draftValidationErrors.map((e) => e.message),
+        validationIssues: draftValidationErrors,
       }),
     [active, resolvedSlug, decision, consultGate, funnelSnap, draftValidationErrors],
   );
+
+  const decisionShortLabel = useMemo(() => {
+    if (decision === 'go') return 'Go';
+    if (decision === 'nurture') return 'Nurture';
+    if (decision === 'no_go') return 'No-Go';
+    return null;
+  }, [decision]);
+
+  function jumpNextStepTarget(target: IntakeNextStepTarget) {
+    if (target === 'service') {
+      document.querySelector('.intake-deal-bar__select')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const select = document.querySelector('.intake-deal-bar__select') as HTMLSelectElement | null;
+      select?.focus();
+      return;
+    }
+    if (target === 'decision') {
+      setDecisionOpen(true);
+      return;
+    }
+    if (target === 'discovery_need' || target === 'discovery_critical' || target === 'contact') {
+      setActiveTab('discovery');
+      setTimeout(() => {
+        const sel =
+          target === 'contact'
+            ? '.intake-discovery-section input.kpi-input'
+            : target === 'discovery_need'
+              ? '.intake-discovery-section .rich-text-field__editor'
+              : '.intake-discovery-checklist';
+        document.querySelector(sel)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
+      return;
+    }
+    if (target === 'handoff_dm') {
+      setActiveTab('handoff');
+      setTimeout(() => {
+        document
+          .querySelector('.intake-stakeholder-table__row input.kpi-input')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
+    }
+  }
 
   const applySession = useCallback(
     (session: IntakeSessionRow | null) => {
@@ -1318,14 +1362,18 @@ export function IntakeContent({
                 onOpenBant={() => setBantOpen(true)}
                 winOpen={winOpen}
                 onOpenWin={() => setWinOpen(true)}
+                decisionOpen={decisionOpen}
+                onOpenDecision={() => setDecisionOpen(true)}
+                decisionLabel={decisionShortLabel}
               />
 
               {nextStepBanner ? (
                 <IntakeNextStepBanner
                   banner={nextStepBanner}
                   busy={saving || stepperBusy}
+                  onChip={jumpNextStepTarget}
                   onPrimary={() => {
-                    if (nextStepBanner.action === 'reopen_fix') {
+                    if (nextStepBanner.action === 'reopen_form') {
                       void onReopen();
                       return;
                     }
@@ -1359,11 +1407,11 @@ export function IntakeContent({
                       <strong>+ Gọi điện</strong> / <strong>+ Gặp trực tiếp</strong>.
                     </li>
                     <li>
-                      Tab Discovery: hỏi critical + Need/Pain. Bấm BANT trên Deal Bar; Qualify
-                      chọn Quyết định.
+                      Tab Discovery: Need/Pain + critical. Deal Bar: <strong>BANT</strong>,{' '}
+                      <strong>Quyết định</strong>, WIN.
                     </li>
                     <li>
-                      Chọn <strong>Quyết định</strong> + stakeholder DM (nếu Go), rồi{' '}
+                      Chọn <strong>Quyết định</strong> (nút Deal Bar) + stakeholder DM (nếu Go), rồi{' '}
                       <strong>Hoàn thành phiên</strong> (thiếu mục * sẽ bị chặn).
                     </li>
                     <li>
@@ -1514,6 +1562,24 @@ export function IntakeContent({
           </div>
         ) : null}
       </div>
+
+      <SalesCockpitDrawer
+        open={decisionOpen}
+        onClose={() => setDecisionOpen(false)}
+        kicker="Decision"
+        title="Quyết định"
+        testId="intake-decision-drawer"
+      >
+        <IntakeDecisionPanel
+          decision={decision}
+          decisionReason={decisionReason}
+          disabled={formDisabled}
+          validationErrors={validationErrors}
+          onDecisionChange={setDecision}
+          onDecisionReasonChange={setDecisionReason}
+          onBlur={onBantDecisionBlur}
+        />
+      </SalesCockpitDrawer>
 
       <SalesCockpitDrawer
         open={bantOpen}

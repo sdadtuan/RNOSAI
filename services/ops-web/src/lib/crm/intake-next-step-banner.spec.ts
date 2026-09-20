@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  chipsFromValidationIssues,
   requireServiceSlugBeforeCreate,
   resolveIntakeNextStepBanner,
 } from './intake-next-step-banner';
@@ -15,6 +16,33 @@ describe('requireServiceSlugBeforeCreate', () => {
   });
 });
 
+describe('chipsFromValidationIssues', () => {
+  it('dedupes service and uses short labels', () => {
+    const chips = chipsFromValidationIssues(
+      [
+        {
+          level: 'error',
+          code: 'service_unselected',
+          message: 'Chọn dịch vụ trước khi hoàn thành phiên (không để «Chưa chọn dịch vụ»).',
+        },
+        {
+          level: 'error',
+          code: 'decision',
+          message: 'Cần chọn Quyết định "Decision" trước khi hoàn thành.',
+        },
+        {
+          level: 'error',
+          code: 'need_empty',
+          message: 'Nhu cầu / điểm đau "Need / Pain" đang trống.',
+        },
+      ],
+      '_common',
+    );
+    expect(chips.map((c) => c.label_vi)).toEqual(['Dịch vụ', 'Quyết định', 'Need / Pain']);
+    expect(chips.filter((c) => c.code === 'service_unselected')).toHaveLength(1);
+  });
+});
+
 describe('resolveIntakeNextStepBanner', () => {
   it('asks to pick service when no session and _common', () => {
     const banner = resolveIntakeNextStepBanner({
@@ -26,6 +54,35 @@ describe('resolveIntakeNextStepBanner', () => {
       handoffStatus: null,
     });
     expect(banner?.action).toBe('pick_service');
+    expect(banner?.chips[0]?.label_vi).toBe('Dịch vụ');
+    expect(banner?.body_vi).not.toMatch(/·/);
+  });
+
+  it('draft blockers use chips not long body list', () => {
+    const banner = resolveIntakeNextStepBanner({
+      hasActiveSession: true,
+      sessionStatus: 'draft',
+      serviceSlug: '_common',
+      decision: '',
+      consultGate: null,
+      handoffStatus: null,
+      validationIssues: [
+        {
+          level: 'error',
+          code: 'decision',
+          message: 'Cần chọn Quyết định "Decision" trước khi hoàn thành.',
+        },
+        {
+          level: 'error',
+          code: 'service_unselected',
+          message: 'Chọn dịch vụ trước khi hoàn thành phiên (không để «Chưa chọn dịch vụ»).',
+        },
+      ],
+    });
+    expect(banner?.title_vi).toMatch(/Còn thiếu/);
+    expect(banner?.body_vi).toMatch(/đi tới/);
+    expect(banner?.chips.map((c) => c.label_vi)).toEqual(['Dịch vụ', 'Quyết định']);
+    expect(banner?.blockers).toEqual([]);
   });
 
   it('reopen when completed but service still common', () => {
@@ -37,7 +94,7 @@ describe('resolveIntakeNextStepBanner', () => {
       consultGate: { ok: true, level: 'ok', messages: [], requires_confirm: false, requires_override: false },
       handoffStatus: '',
     });
-    expect(banner?.action).toBe('reopen_fix');
+    expect(banner?.action).toBe('reopen_form');
     expect(banner?.cta_label_vi).toMatch(/Reopen/);
   });
 
@@ -81,7 +138,7 @@ describe('resolveIntakeNextStepBanner', () => {
       },
       handoffStatus: '',
     });
-    expect(banner?.action).toBe('reopen_fix');
-    expect(banner?.blockers[0]).toMatch(/Pain/);
+    expect(banner?.action).toBe('reopen_form');
+    expect(banner?.body_vi).toMatch(/Pain/);
   });
 });

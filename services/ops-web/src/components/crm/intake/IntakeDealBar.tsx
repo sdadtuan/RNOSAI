@@ -31,6 +31,9 @@ export type IntakeDealBarProps = {
   onOpenBant?: () => void;
   winOpen?: boolean;
   onOpenWin?: () => void;
+  decisionOpen?: boolean;
+  onOpenDecision?: () => void;
+  decisionLabel?: string | null;
 };
 
 function sciLine(excerpt: string | null): string {
@@ -66,6 +69,9 @@ export function IntakeDealBar({
   onOpenBant,
   winOpen = false,
   onOpenWin,
+  decisionOpen = false,
+  onOpenDecision,
+  decisionLabel = null,
 }: IntakeDealBarProps) {
   const gapLabel = gapToConsultLabel(gap);
   const showCompletedService = sessionCompleted || !canEdit;
@@ -151,6 +157,15 @@ export function IntakeDealBar({
           onClick={onOpenBant}
         >
           BANT
+        </button>
+        <button
+          type="button"
+          className={`btn btn-secondary btn-sm${decisionLabel ? '' : ' intake-deal-bar__cta--alert'}`}
+          aria-expanded={decisionOpen}
+          aria-controls="intake-decision-panel"
+          onClick={onOpenDecision}
+        >
+          Quyết định{decisionLabel ? ` · ${decisionLabel}` : ' *'}
         </button>
         <button
           type="button"

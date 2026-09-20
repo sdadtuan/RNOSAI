@@ -9855,10 +9855,52 @@ body {
   line-height: 1.4;
 }
 
+.intake-next-step__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.intake-next-step__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.28rem 0.65rem;
+  border: 1px solid color-mix(in srgb, #b45309 45%, var(--surface-border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, #b45309 10%, var(--surface));
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.intake-next-step__chip:hover:not(:disabled) {
+  background: color-mix(in srgb, #b45309 18%, var(--surface));
+}
+
+.intake-next-step__chip:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
 .intake-next-step__blockers {
   margin: 0.35rem 0 0;
   padding-left: 1.1rem;
   font-size: 0.8rem;
+}
+
+.intake-decision-panel__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.intake-deal-bar__cta--alert {
+  border-color: color-mix(in srgb, #b45309 50%, var(--surface-border));
+  color: color-mix(in srgb, #92400e 70%, var(--text));
+  font-weight: 600;
 }
 
 .intake-next-step__copy {

@@ -51,6 +51,9 @@ export function IntakeQualifyTab({
       <section className="intake-bant-section stack-gap" aria-label="Quyết định">
         <header className="intake-form__head">
           <h2 className="intake-form__title">C. Quyết định</h2>
+          <p className="muted" style={{ margin: '0.25rem 0 0' }}>
+            Hoặc bấm <strong>Quyết định</strong> trên Deal Bar để mở nhanh.
+          </p>
         </header>
 
         <div className="intake-bant-decision-pane" onBlur={onBantDecisionBlur}>
