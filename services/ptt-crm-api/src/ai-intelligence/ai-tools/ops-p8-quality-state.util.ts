@@ -17,16 +17,23 @@ export function readP8QualityFromForms(opts: {
   const lead = opts.leadForm ?? {};
   const consult = opts.consultForm ?? {};
   const intakeMeta = opts.intakeMeta ?? {};
-  const quality =
-    (consult.p8_quality as Record<string, unknown> | undefined) ??
-    (lead.p8_quality as Record<string, unknown> | undefined) ??
-    {};
+  const leadQ =
+    lead.p8_quality && typeof lead.p8_quality === 'object'
+      ? (lead.p8_quality as Record<string, unknown>)
+      : {};
+  const consultQ =
+    consult.p8_quality && typeof consult.p8_quality === 'object'
+      ? (consult.p8_quality as Record<string, unknown>)
+      : {};
+  // Prefer consult over lead for overlapping keys.
+  const quality = { ...leadQ, ...consultQ };
 
   const painText =
     String((quality.need_pain as FieldQualityMeta | undefined)?.text ?? '').trim() ||
     String(intakeMeta.pain_summary ?? '').trim() ||
     String(lead.need ?? '').trim() ||
-    String(consult.current_status ?? '').trim();
+    String(consult.current_status ?? '').trim() ||
+    String(consult.need ?? '').trim();
   const painMeta =
     quality.need_pain ??
     intakeMeta.pain_quality ??
@@ -36,6 +43,7 @@ export function readP8QualityFromForms(opts: {
   const icpText =
     String((quality.icp as FieldQualityMeta | undefined)?.text ?? '').trim() ||
     String(consult.target_audience ?? '').trim() ||
+    String(lead.target_audience ?? '').trim() ||
     String(lead.niche ?? lead.industry ?? '').trim();
   const icpMeta = quality.icp ?? consult.icp_quality ?? lead.icp_quality;
 
@@ -78,9 +86,8 @@ export function writeP8QualityPatch(opts: {
     prevQuality.need_pain = normalizeFieldMeta(opts.need_pain);
     if (opts.need_pain.text) {
       next.need = opts.need_pain.text;
-      if (!String(next.current_status ?? '').trim()) {
-        next.current_status = `Pain: ${opts.need_pain.text}`.slice(0, 4000);
-      }
+      // Always mirror onto Consult current_status so brief/autofill see Pain.
+      next.current_status = `Pain: ${opts.need_pain.text}`.slice(0, 4000);
     }
   }
   if (opts.icp) {

@@ -93,7 +93,8 @@ function sampleTryInput(toolName: string): string {
       '  "lead_id": 5,',
       '  "lifecycle_id": 5,',
       '  "reason_codes": ["pain_empty", "service_unknown", "icp_empty"],',
-      '  "message": "A Hưng 360 — cần AM bổ sung Pain/Service"',
+      '  "message": "A Hưng 360 — cần AM bổ sung Pain/Service",',
+      '  "dry_run": true',
       '}',
     ].join('\n');
   }

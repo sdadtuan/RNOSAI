@@ -256,6 +256,15 @@ describe('createOpsContextTools', () => {
     expect(serviceRecommend.recommend).toHaveBeenCalled();
   });
 
+  it('presales.return_to_am dry_run skips human approval', async () => {
+    const tool = byName.get('presales.return_to_am')!;
+    await tool.handler(
+      { lead_id: 5, reason_codes: ['pain_empty'], dry_run: true },
+      { apiKeyId: 'k', clientId: null, actorId: 'a', correlationId: 'r' },
+    );
+    expect(returnToAm.returnToAm).toHaveBeenCalled();
+  });
+
   it('presales.return_to_am requires human approval', async () => {
     const tool = byName.get('presales.return_to_am')!;
     await expect(

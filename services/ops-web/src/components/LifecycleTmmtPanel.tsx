@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  fetchServiceLifecycleConsultBrief,
   fetchServiceLifecycleMarketingPlan,
   patchServiceLifecycleMarketingPlan,
   postPresalesGeneratePlanReview,
@@ -10,6 +11,7 @@ import {
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import { STRATEGY_LABELS, TMMT_PROF_LABELS } from '@/lib/tmmt-labels';
+import { PresalesAssumedConfirmBar } from '@/components/PresalesAssumedConfirmBar';
 
 interface Props {
   token: string;
@@ -48,17 +50,27 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
   const [overwritePrefill, setOverwritePrefill] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [p8Quality, setP8Quality] = useState<{
+    need_pain?: { status?: string; text?: string } | null;
+    icp?: { status?: string; text?: string } | null;
+    service_status?: string;
+  } | null>(null);
 
   const canEdit = hasCap(user, 'crm_board', 'edit');
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const out = await fetchServiceLifecycleMarketingPlan(token, lifecycleId);
+      const [out, brief] = await Promise.all([
+        fetchServiceLifecycleMarketingPlan(token, lifecycleId),
+        fetchServiceLifecycleConsultBrief(token, lifecycleId).catch(() => null),
+      ]);
       setData(out as MarketingPlanPayload);
       const plan = (out as MarketingPlanPayload).plan;
       setDraftSf(plan?.strategy_framework ?? {});
       setDraftProf(plan?.target_market_prof ?? {});
+      const q = (brief as { p8_quality?: typeof p8Quality } | null)?.p8_quality ?? null;
+      setP8Quality(q);
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tải TMMT thất bại');
@@ -171,6 +183,17 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
       {loading ? <p className="muted">Đang tải…</p> : null}
       {error ? <p className="error">{error}</p> : null}
       {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
+
+      <PresalesAssumedConfirmBar
+        token={token}
+        lifecycleId={lifecycleId}
+        canEdit={canEdit}
+        needPain={p8Quality?.need_pain}
+        icp={p8Quality?.icp}
+        serviceStatus={p8Quality?.service_status}
+        compact
+        onDone={() => void reload()}
+      />
 
       {showEmptyBridgeHint ? (
         <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>

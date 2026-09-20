@@ -3,13 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   fetchServiceLifecycleConsultBrief,
-  postPresalesConfirmField,
   postPresalesDraftConsult,
   postPresalesRecommendService,
-  postPresalesReturnToAm,
   postServiceLifecycleConsultPrefill,
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { PresalesAssumedConfirmBar } from '@/components/PresalesAssumedConfirmBar';
 
 const CONSULT_GATE_COPY =
   'Đủ Tư vấn: BANT ≥ 24 + Pain (validated|assumed_confirmed) + Dịch vụ (selected|recommended_confirmed) + Go';
@@ -31,6 +30,12 @@ type ConsultBrief = {
     goal?: string;
     target_audience?: string;
     budget_vnd?: number | null;
+  };
+  p8_quality?: {
+    need_pain?: { status?: string; text?: string } | null;
+    icp?: { status?: string; text?: string } | null;
+    service_status?: string;
+    needs_am_rework?: boolean;
   };
   latest_intake_summary?: string;
   recommended_actions?: string[];
@@ -210,6 +215,19 @@ export function ConsultBriefPanel({ token, user, lifecycleId, onPrefilled }: Pro
             </div>
           ) : null}
 
+          <PresalesAssumedConfirmBar
+            token={token}
+            lifecycleId={lifecycleId}
+            canEdit={canEdit}
+            needPain={brief.p8_quality?.need_pain}
+            icp={brief.p8_quality?.icp}
+            serviceStatus={brief.p8_quality?.service_status}
+            onDone={() => {
+              onPrefilled?.();
+              void reload();
+            }}
+          />
+
           {canEdit ? (
             <div style={{ display: 'grid', gap: '0.5rem' }}>
               <label style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.9rem' }}>
@@ -256,84 +274,6 @@ export function ConsultBriefPanel({ token, user, lifecycleId, onPrefilled }: Pro
                   }
                 >
                   {busy === 'Draft consult' ? '…' : 'Draft Pain/ICP'}
-                </button>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  disabled={Boolean(busy)}
-                  onClick={() =>
-                    void runAction('Confirm Pain', () =>
-                      postPresalesConfirmField(token, lifecycleId, {
-                        field: 'need_pain',
-                        action: 'confirm_assumed',
-                      }),
-                    )
-                  }
-                >
-                  Confirm Assumed (Pain)
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  disabled={Boolean(busy)}
-                  onClick={() =>
-                    void runAction('Confirm ICP', () =>
-                      postPresalesConfirmField(token, lifecycleId, {
-                        field: 'icp',
-                        action: 'confirm_assumed',
-                      }),
-                    )
-                  }
-                >
-                  Confirm Assumed (ICP)
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  disabled={Boolean(busy)}
-                  onClick={() =>
-                    void runAction('Confirm Service', () =>
-                      postPresalesConfirmField(token, lifecycleId, {
-                        field: 'service',
-                        action: 'confirm_assumed',
-                      }),
-                    )
-                  }
-                >
-                  Confirm Service
-                </button>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={Boolean(busy)}
-                  onClick={() =>
-                    void runAction('Khách xác nhận Pain', () =>
-                      postPresalesConfirmField(token, lifecycleId, {
-                        field: 'need_pain',
-                        action: 'validate_customer',
-                      }),
-                    )
-                  }
-                >
-                  Khách đã xác nhận
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={Boolean(busy)}
-                  onClick={() =>
-                    void runAction('Return AM', () =>
-                      postPresalesReturnToAm(token, lifecycleId, {
-                        reason_codes: ['pain_empty', 'service_unknown', 'icp_empty'],
-                      }),
-                    )
-                  }
-                >
-                  Reject / trả AM
                 </button>
               </div>
             </div>

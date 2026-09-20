@@ -32,7 +32,11 @@ export class OpsFieldConfirmService {
     input: Record<string, unknown>,
     actor: string,
   ): Promise<ConfirmAssumedResult> {
-    const lifecycleId = positiveInt(input.lifecycle_id ?? input.lifecycleId);
+    const leadId = positiveInt(input.lead_id ?? input.leadId);
+    let lifecycleId = positiveInt(input.lifecycle_id ?? input.lifecycleId);
+    if (lifecycleId == null && leadId != null) {
+      lifecycleId = (await this.repo.findLifecycleByLead(leadId))?.id;
+    }
     if (lifecycleId == null) {
       throw new BadRequestException({ error: 'lifecycle_id_required' });
     }
@@ -45,15 +49,12 @@ export class OpsFieldConfirmService {
     }
 
     const leadTask = await this.repo.getStageTask(lifecycleId, 'lead');
-    const consultTask = await this.repo.getStageTask(lifecycleId, 'consult');
-    const target = consultTask ?? leadTask;
-    if (!target) {
-      throw new NotFoundException({ error: 'task_missing' });
-    }
+    const consultTask = await this.repo.ensureStageTask(lifecycleId, 'consult');
+    const target = consultTask;
 
     const quality = readP8QualityFromForms({
       leadForm: leadTask?.form_data,
-      consultForm: consultTask?.form_data,
+      consultForm: consultTask.form_data,
     });
 
     if (field === 'service') {

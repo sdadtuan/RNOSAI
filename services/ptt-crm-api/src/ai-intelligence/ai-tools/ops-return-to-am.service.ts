@@ -24,6 +24,7 @@ export class OpsReturnToAmService {
   constructor(private readonly repo: OpsPresalesContextRepository) {}
 
   async returnToAm(input: Record<string, unknown>): Promise<ReturnToAmResult> {
+    const dryRun = Boolean(input.dry_run ?? input.dryRun);
     const leadId = positiveInt(input.lead_id ?? input.leadId);
     let lifecycleId = positiveInt(input.lifecycle_id ?? input.lifecycleId);
     if (lifecycleId == null && leadId != null) {
@@ -73,28 +74,37 @@ export class OpsReturnToAmService {
         `Bot đã thử draft: ${triedDraft ? 'yes' : 'no'}. Cần Confirm Assumed hoặc bổ sung từ khách.`,
       ].join('\n');
 
-    const target = consultTask ?? leadTask;
-    if (target) {
-      const patched = writeP8QualityPatch({
-        form: target.form_data,
-        needs_am_rework: true,
-        return_to_am_blockers: reasonCodes,
-      });
-      const noteLine = `\n[P8 return_to_am @ ${new Date().toISOString()}]\n${message}`;
-      await this.repo.patchStageTaskFormData(
-        target.id,
-        patched,
-        `${target.notes || ''}${noteLine}`.slice(0, 4000),
-      );
+    // dry_run=true → preview only; do not write needs_am_rework flag.
+    if (!dryRun) {
+      const target =
+        consultTask ??
+        leadTask ??
+        (lifecycleId != null
+          ? await this.repo.ensureStageTask(lifecycleId, 'consult')
+          : null);
+      if (target) {
+        const patched = writeP8QualityPatch({
+          form: target.form_data,
+          needs_am_rework: true,
+          return_to_am_blockers: reasonCodes,
+        });
+        const noteLine = `\n[P8 return_to_am @ ${new Date().toISOString()}]\n${message}`;
+        await this.repo.patchStageTaskFormData(
+          target.id,
+          patched,
+          `${target.notes || ''}${noteLine}`.slice(0, 4000),
+        );
+      }
     }
 
     return {
       ok: true,
       phase: 'P8',
-      needs_am_rework: true,
+      needs_am_rework: dryRun ? false : true,
       reason_codes: reasonCodes,
       message,
       assignee_user_id: assignee,
+      dry_run: dryRun,
       links: lifecycleId
         ? [`/crm/service-delivery/${lifecycleId}`]
         : leadId

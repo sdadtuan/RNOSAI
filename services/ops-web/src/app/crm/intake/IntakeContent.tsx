@@ -1451,6 +1451,16 @@ export function IntakeContent({
                 return { ...prev, suggestions };
               })
             }
+            token={getAccessToken() ?? undefined}
+            lifecycleId={lifecycleId > 0 ? lifecycleId : undefined}
+            painQuality={
+              ((active?.answers_json as { meta?: { pain_quality?: { status?: string; text?: string } } } | undefined)
+                ?.meta?.pain_quality) ?? null
+            }
+            onAssumedConfirmed={() => {
+              const access = getAccessToken();
+              if (access) void loadSessions(access, activeId);
+            }}
           />
         </div>
       </SalesCockpitDrawer>

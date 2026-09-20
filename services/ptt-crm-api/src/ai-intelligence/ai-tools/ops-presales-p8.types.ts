@@ -39,16 +39,19 @@ export type ConsultDraftResult = {
   consult_ready_preview: boolean;
   blockers: ConsultReadyBlocker[];
   links: string[];
+  task_id?: number;
+  dry_run?: boolean;
 };
 
 export type ReturnToAmResult = {
   ok: true;
   phase: 'P8';
-  needs_am_rework: true;
+  needs_am_rework: boolean;
   reason_codes: string[];
   message: string;
   assignee_user_id: number | null;
   links: string[];
+  dry_run?: boolean;
 };
 
 export type ProposalDraftResult = {

@@ -63,6 +63,19 @@ export class LifecycleConsultService {
       highlights.pain = painFromConsult;
     }
     brief.highlights = highlights;
+
+    const p8 = (consultForm.p8_quality as Record<string, unknown> | undefined) ?? {};
+    const leadForm = leadTask?.form_data ?? {};
+    const leadP8 = (leadForm.p8_quality as Record<string, unknown> | undefined) ?? {};
+    brief.p8_quality = {
+      need_pain: p8.need_pain ?? leadP8.need_pain ?? null,
+      icp: p8.icp ?? leadP8.icp ?? null,
+      service_status:
+        consultForm.service_status ?? leadForm.service_status ?? p8.service_status ?? 'unknown',
+      needs_am_rework: Boolean(
+        consultForm.needs_am_rework ?? leadForm.needs_am_rework ?? p8.needs_am_rework,
+      ),
+    };
     return brief;
   }
 

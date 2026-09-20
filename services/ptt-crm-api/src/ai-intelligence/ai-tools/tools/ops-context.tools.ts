@@ -144,7 +144,7 @@ export function createOpsContextTools(
     {
       name: 'presales.return_to_am',
       description:
-        'Flag needs_am_rework with blockers when pain/service unknown or assumed rejected. In-app only (no email). Human approval. P8.',
+        'Flag needs_am_rework with blockers when pain/service unknown or assumed rejected. In-app only (no email). dry_run=true previews without writing. Human approval when mutating. P8.',
       inputSchema: {
         type: 'object',
         additionalProperties: true,
@@ -154,6 +154,7 @@ export function createOpsContextTools(
           reason_codes: { type: 'array', items: { type: 'string' } },
           message: { type: 'string' },
           assignee_user_id: { type: 'integer', minimum: 1 },
+          dry_run: { type: 'boolean' },
         },
       },
       outputSchema: { type: 'object' },
@@ -163,7 +164,9 @@ export function createOpsContextTools(
         if (!returnToAm) {
           throw new ForbiddenException({ error: 'return_to_am_unavailable' });
         }
-        assertHumanApprovedForWrite('presales.return_to_am', ctx);
+        if (!Boolean(input.dry_run ?? input.dryRun)) {
+          assertHumanApprovedForWrite('presales.return_to_am', ctx);
+        }
         return returnToAm.returnToAm(input);
       },
     },

@@ -13,6 +13,7 @@ import {
 import { buildOfficialTmmtSeedFromConsult } from '../../service-lifecycle/lifecycle-tmmt-seed.util';
 import { OpsPresalesContextRepository } from './ops-presales-context.repository';
 import { OpsPresalesContextService } from './ops-presales-context.service';
+import { readP8QualityFromForms } from './ops-p8-quality-state.util';
 import type {
   AutofillFieldSkipped,
   AutofillFieldWritten,
@@ -83,6 +84,35 @@ export class OpsPresalesAutofillService {
       existingSf,
       overwrite: mode === 'merge_prefer_presales',
     });
+
+    // P8 — after Confirm Assumed, force-map Đối tượng mục tiêu → ICP and Need/Pain → pains
+    // even if seed missed them (empty_source).
+    const leadTask = await this.repo.getStageTask(lifecycleId, 'lead');
+    const consultTask = await this.repo.getStageTask(lifecycleId, 'consult');
+    const intake = await this.repo.getLatestCompletedIntake(
+      leadId ?? lifecycle.lead_id,
+      lifecycleId,
+    );
+    const intakeMeta =
+      intake?.answers_json?.meta && typeof intake.answers_json.meta === 'object'
+        ? (intake.answers_json.meta as Record<string, unknown>)
+        : {};
+    const quality = readP8QualityFromForms({
+      leadForm: leadTask?.form_data,
+      consultForm: consultTask?.form_data,
+      intakeMeta,
+    });
+    const icpText = trim(quality.icp.text);
+    const painText = trim(quality.need_pain.text);
+    if (icpText) {
+      seed.target_market_prof.segmentation_icp = icpText;
+    }
+    if (painText) {
+      const goal = trim((consultBrief.highlights as Record<string, unknown> | undefined)?.goal);
+      seed.target_market_prof.pains_desired_outcomes = goal
+        ? `${painText}${painText.includes('→') ? '' : ` → Mong muốn: ${goal}`}`
+        : painText;
+    }
 
     // replace_all_ai: only overwrite keys that already have ai meta (or empty).
     const fieldMeta = this.readFieldMeta(existingSf);
@@ -261,6 +291,8 @@ export class OpsPresalesAutofillService {
     ) {
       return 'consult';
     }
+    if (key === 'segmentation_icp') return 'consult';
+    if (key === 'pains_desired_outcomes') return 'consult';
     if (key === 'insights_evidence') return 'bant';
     if (key === 'geo_behavior') return 'consult';
     return 'consult';

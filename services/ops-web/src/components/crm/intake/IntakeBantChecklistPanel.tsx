@@ -13,6 +13,7 @@ import { groupHasMappedQuestions, hasBantDiscoveryEvidence } from '@/lib/crm/int
 import { nextBantStep } from '@/lib/crm/intake-bant-next-step';
 import type { DiscoveryResponseEntry, IntakeQuestionItem } from '@/lib/crm/intake-questions';
 import { gapToConsultLabel, gapToGo } from '@/lib/crm/intake-service-resolve';
+import { PresalesAssumedConfirmBar } from '@/components/PresalesAssumedConfirmBar';
 
 type ScoreSuggestion = { score: 1 | 2 | 3 | 4 | 5; quote: string };
 
@@ -29,6 +30,11 @@ export type IntakeBantChecklistPanelProps = {
   suggestions?: Partial<Record<string, ScoreSuggestion>>;
   onRequestSuggest?: () => void;
   onClearSuggest?: () => void;
+  /** P8 — show Confirm Assumed when Pain is assumed_draft */
+  token?: string;
+  lifecycleId?: number;
+  painQuality?: { status?: string; text?: string } | null;
+  onAssumedConfirmed?: () => void;
 };
 
 export function IntakeBantChecklistPanel({
@@ -44,6 +50,10 @@ export function IntakeBantChecklistPanel({
   suggestions,
   onRequestSuggest,
   onClearSuggest,
+  token,
+  lifecycleId,
+  painQuality,
+  onAssumedConfirmed,
 }: IntakeBantChecklistPanelProps) {
   const total = bantChecklistTotal(checklist);
   const step = nextBantStep({ checklist, questionItems, checked, responses });
@@ -211,6 +221,18 @@ export function IntakeBantChecklistPanel({
           );
         })}
       </div>
+      {token && lifecycleId != null && lifecycleId > 0 ? (
+        <div style={{ marginTop: '0.75rem' }}>
+          <PresalesAssumedConfirmBar
+            token={token}
+            lifecycleId={lifecycleId}
+            canEdit={canEdit}
+            needPain={painQuality}
+            compact
+            onDone={onAssumedConfirmed}
+          />
+        </div>
+      ) : null}
       <p className="muted intake-kit__footer">
         BANT {total}/30 · {gapToConsultLabel(gapToGo(total))}
       </p>

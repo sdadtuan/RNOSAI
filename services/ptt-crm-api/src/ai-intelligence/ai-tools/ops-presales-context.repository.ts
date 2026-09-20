@@ -577,6 +577,55 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
     };
   }
 
+  /** Create Consult (or Lead) svc task when missing so P8 drafts can persist. */
+  async ensureStageTask(
+    lifecycleId: number,
+    stage: 'consult' | 'lead',
+    title?: string,
+  ): Promise<{ id: number; form_data: Record<string, unknown>; notes: string; is_done: boolean }> {
+    const existing = await this.getStageTask(lifecycleId, stage);
+    if (existing) return existing;
+    const defaultTitle =
+      title ||
+      (stage === 'consult'
+        ? 'Consult — Pain/ICP assumed draft (P8)'
+        : 'Lead — Qualify / Pain seed (P8)');
+    const formFields =
+      stage === 'consult'
+        ? [
+            { key: 'current_status', label: 'Need / Pain', type: 'textarea' },
+            { key: 'target_audience', label: 'Đối tượng mục tiêu', type: 'textarea' },
+          ]
+        : [{ key: 'need', label: 'Need / Pain', type: 'textarea' }];
+    const r = await this.db.query(
+      `INSERT INTO crm_svc_tasks
+         (lifecycle_id, stage, step_index, title, description, form_fields, form_data,
+          ai_prompt_key, ai_output, is_done, notes, is_custom, created_at, updated_at)
+       VALUES (
+         $1, $2, 0, $3, $4, $5::jsonb, '{}'::jsonb,
+         '', '', FALSE, '', TRUE, NOW(), NOW()
+       )
+       RETURNING id, form_data, COALESCE(notes, '') AS notes, COALESCE(is_done, false) AS is_done`,
+      [
+        lifecycleId,
+        stage,
+        defaultTitle.slice(0, 400),
+        'Auto-created by P8 consult.draft_from_research / confirm so drafts persist.',
+        JSON.stringify(formFields),
+      ],
+    );
+    const row = r.rows[0];
+    return {
+      id: Number(row.id),
+      form_data:
+        row.form_data && typeof row.form_data === 'object'
+          ? (row.form_data as Record<string, unknown>)
+          : {},
+      notes: String(row.notes ?? ''),
+      is_done: Boolean(row.is_done),
+    };
+  }
+
   async patchStageTaskFormData(
     taskId: number,
     formData: Record<string, unknown>,

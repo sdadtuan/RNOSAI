@@ -56,7 +56,8 @@ export class OpsConsultDraftService {
     }
 
     const leadTask = await this.repo.getStageTask(lifecycleId, 'lead');
-    const consultTask = await this.repo.getStageTask(lifecycleId, 'consult');
+    // Always persist on Consult task — create if missing (fixes consult_or_lead_task_missing).
+    const consultTask = await this.repo.ensureStageTask(lifecycleId, 'consult');
     const intake = await this.repo.getLatestCompletedIntake(
       leadId ?? lifecycle.lead_id,
       lifecycleId,
@@ -171,16 +172,12 @@ export class OpsConsultDraftService {
     }
 
     if (!dryRun && written.length) {
-      const target = consultTask ?? leadTask;
-      if (!target) {
-        throw new NotFoundException({ error: 'consult_or_lead_task_missing' });
-      }
       const patched = writeP8QualityPatch({
-        form: target.form_data,
+        form: consultTask.form_data,
         need_pain: nextPain,
         icp: nextIcp,
       });
-      await this.repo.patchStageTaskFormData(target.id, patched);
+      await this.repo.patchStageTaskFormData(consultTask.id, patched);
       if (intake?.id && written.some((w) => w.key === 'need_pain')) {
         await this.repo.patchIntakeAnswersMeta(intake.id, {
           pain_summary: nextPain.text,
@@ -207,6 +204,8 @@ export class OpsConsultDraftService {
       consult_ready_preview: preview.consult_ready,
       blockers: preview.blockers,
       links: [`/crm/service-delivery/${lifecycleId}`],
+      task_id: consultTask.id,
+      dry_run: dryRun,
     };
   }
 }
