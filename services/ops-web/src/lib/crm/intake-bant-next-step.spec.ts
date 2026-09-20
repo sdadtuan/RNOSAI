@@ -64,7 +64,7 @@ describe('nextBantStep', () => {
     });
     expect(out.code).toBe('nurture');
     expect(out.title_vi).toBe('Gợi ý: Nuôi dưỡng');
-    expect(out.body_vi).toMatch(/Còn 4 điểm để Tư vấn/);
+    expect(out.body_vi).toMatch(/Còn 4 điểm để đủ điểm BANT/);
     expect(out.body_vi).toContain(BANT_CHECKLIST.budget.hint);
     expect(out.cta).toBe('discovery');
   });
@@ -89,9 +89,9 @@ describe('nextBantStep', () => {
       responses: {},
     });
     expect(out.code).toBe('consult');
-    expect(out.title_vi).toMatch(/Đủ Tư vấn/);
+    expect(out.title_vi).toMatch(/Đủ điểm BANT/);
     expect(out.body_vi).toMatch(/chưa phải đủ báo giá/);
-    expect(out.body_vi).toMatch(/Chuyển → Tư vấn/);
+    expect(out.body_vi).toMatch(/Giao Solution/);
     expect(out.cta).toBe('qualify');
   });
 });

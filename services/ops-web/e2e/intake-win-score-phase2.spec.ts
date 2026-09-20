@@ -65,7 +65,7 @@ test.describe('Intake Win-score Phase 2 (U1–U2 + live gate block)', () => {
   test('U1 Deal Bar has WIN and BANT Tư vấn copy', async ({ page, request }) => {
     await openDraftIntake(page, request);
     await expect(page.getByRole('button', { name: 'WIN', exact: true })).toBeVisible();
-    await expect(page.getByText(/Đủ Tư vấn|để Tư vấn/).first()).toBeVisible();
+    await expect(page.getByText(/Đủ điểm BANT|để đủ điểm BANT/).first()).toBeVisible();
   });
 
   test('U2 ticking incumbent 4 updates Win score', async ({ page, request }) => {

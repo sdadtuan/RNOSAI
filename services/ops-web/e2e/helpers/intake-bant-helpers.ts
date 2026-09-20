@@ -23,7 +23,17 @@ export async function openIntakeForLead(page: Page, leadId: number): Promise<voi
   });
 }
 
+export async function selectIntakeService(
+  page: Page,
+  slug = 'dich-vu-seo-tong-the',
+): Promise<void> {
+  const select = page.locator('.intake-deal-bar__service select.intake-deal-bar__select');
+  await expect(select).toBeVisible({ timeout: 15_000 });
+  await select.selectOption(slug);
+}
+
 export async function createPhoneSession(page: Page): Promise<void> {
+  await selectIntakeService(page);
   const dialogWait = page.waitForEvent('dialog', { timeout: 5_000 }).catch(() => null);
   const createBtn = page.getByRole('button', { name: '+ Gọi điện' });
   await createBtn.scrollIntoViewIfNeeded();
@@ -38,6 +48,10 @@ export async function createPhoneSession(page: Page): Promise<void> {
 }
 
 export async function fillDiscoveryBasics(page: Page, contactName: string, needText: string): Promise<void> {
+  const discoveryTab = page.getByRole('tab', { name: /^Discovery$/i });
+  if (await discoveryTab.count()) {
+    await discoveryTab.click();
+  }
   const contactInput = page.locator('.intake-discovery-section').locator('input.kpi-input').first();
   await contactInput.fill(contactName);
 
@@ -47,13 +61,38 @@ export async function fillDiscoveryBasics(page: Page, contactName: string, needT
 }
 
 export async function tickDiscoveryChecklist(page: Page, count: number): Promise<void> {
+  const discoveryTab = page.getByRole('tab', { name: /^Discovery$/i });
+  if (await discoveryTab.count()) {
+    await discoveryTab.click();
+  }
   const boxes = page.locator('.intake-discovery-checklist__item input[type=checkbox]');
   await expect(boxes.first()).toBeVisible({ timeout: 15_000 });
   const total = await boxes.count();
   const toTick = Math.min(count, total);
   for (let i = 0; i < toTick; i += 1) {
+    const item = page.locator('.intake-discovery-checklist__item').nth(i);
     await boxes.nth(i).check();
+    const answer = item.locator('textarea, .intake-discovery-checklist__answer-input, input.kpi-input').first();
+    if (await answer.count()) {
+      await answer.fill(`E2E answer ${i + 1}`);
+    }
   }
+}
+
+export async function fillDecisionMaker(page: Page, name = 'E2E Decision Maker'): Promise<void> {
+  const handoffTab = page.getByRole('tab', { name: /Handoff/i });
+  if (await handoffTab.count()) {
+    await handoffTab.click();
+  }
+  const summary = page.locator('.intake-stakeholder-section summary');
+  if (await summary.count()) {
+    const details = page.locator('.intake-stakeholder-section');
+    const open = await details.getAttribute('open');
+    if (open === null) await summary.click();
+  }
+  const nameInput = page.locator('.intake-stakeholder-table__row input.kpi-input').first();
+  await expect(nameInput).toBeVisible({ timeout: 10_000 });
+  await nameInput.fill(name);
 }
 
 export async function scoreBant(page: Page, score: number): Promise<void> {
@@ -105,8 +144,10 @@ export async function selectDecision(page: Page, value: 'go' | 'nurture' | 'no_g
 export async function completeIntakeSession(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Hoàn thành phiên' }).click();
   await expect(page.getByRole('dialog', { name: /Hoàn thành phiên/i })).toBeVisible();
-  await page.getByRole('button', { name: 'Vẫn hoàn thành' }).click();
-  await expect(page.getByText(/Đã hoàn thành phiên khảo sát/i)).toBeVisible({ timeout: 20_000 });
+  const confirmBtn = page.getByRole('button', { name: /^(Vẫn hoàn thành|Hoàn thành)$/ });
+  await expect(confirmBtn).toBeVisible();
+  await confirmBtn.click();
+  await expect(page.getByText(/Đã hoàn thành phiên/i)).toBeVisible({ timeout: 20_000 });
   const sessionTitle = page.locator('.intake-form__title').filter({ hasText: /Phiên #\d+/ });
   await expect(sessionTitle).toContainText(/Hoàn thành "Completed"/i);
 }

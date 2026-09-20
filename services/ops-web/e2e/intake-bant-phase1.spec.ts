@@ -3,6 +3,7 @@ import { loginAsStaff } from './helpers/ai-copilot-helpers';
 import {
   completeIntakeSession,
   createPhoneSession,
+  fillDecisionMaker,
   fillDiscoveryBasics,
   nestApiReachable,
   openIntakeForLead,
@@ -35,6 +36,7 @@ test.describe('INT-P1-19 Intake BANT Phase 1', () => {
     await tickDiscoveryChecklist(page, 8);
     await scoreBant(page, 4);
     await selectDecision(page, 'go');
+    await fillDecisionMaker(page, `DM ${stamp}`);
     await completeIntakeSession(page);
   });
 

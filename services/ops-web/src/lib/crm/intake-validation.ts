@@ -8,6 +8,7 @@ import {
 } from '@/lib/crm/intake-discovery';
 import { hasDecisionMakerName, type IntakeStakeholderRow } from '@/lib/crm/intake-stakeholders';
 import { countRedFlagsChecked } from '@/lib/crm/intake-red-flags';
+import { normalizeIntakeSlug } from '@/lib/crm/intake-service-resolve';
 import { missingRequiredWinKeys } from '@/lib/crm/intake-win-coverage';
 import { winChecklistTotal, type WinChecklistState } from '@/lib/crm/intake-win-checklist';
 import { type WinIntelState } from '@/lib/crm/intake-win-intel';
@@ -35,6 +36,8 @@ export interface IntakeCompleteValidationInput {
   stakeholders: IntakeStakeholderRow[];
   winIntel: WinIntelState;
   winChecklist: WinChecklistState;
+  /** Session / Deal Bar service slug — `_common` blocks Complete. */
+  serviceSlug?: string;
 }
 
 export function isRichTextEmpty(html: string): boolean {
@@ -85,6 +88,39 @@ export function validateIntakeComplete(input: IntakeCompleteValidationInput): In
     });
   }
 
+  const serviceSlug = normalizeIntakeSlug(input.serviceSlug) || '_common';
+  if (serviceSlug === '_common') {
+    issues.push({
+      level: 'error',
+      code: 'service_unselected',
+      message: 'Chọn dịch vụ trước khi hoàn thành phiên (không để «Chưa chọn dịch vụ»).',
+    });
+  }
+
+  if (isRichTextEmpty(input.need)) {
+    issues.push({
+      level: 'error',
+      code: 'need_empty',
+      message: 'Nhu cầu / điểm đau "Need / Pain" đang trống.',
+    });
+  }
+
+  if (critical.total > 0 && critical.answered < critical.total) {
+    issues.push({
+      level: 'error',
+      code: 'critical_answers_missing',
+      message: `Còn ${critical.total - critical.answered}/${critical.total} câu quan trọng chưa có câu trả lời.`,
+    });
+  }
+
+  if (input.decision === 'go' && !hasDecisionMakerName(input.stakeholders)) {
+    issues.push({
+      level: 'error',
+      code: 'stakeholder_dm_missing',
+      message: 'Go nhưng chưa ghi tên Decision Maker trong ma trận stakeholder.',
+    });
+  }
+
   const unscored = BANT_KEYS.filter((key) => {
     const score = Number(input.bant[key] ?? 0);
     return score < 1 || score > 5;
@@ -105,22 +141,6 @@ export function validateIntakeComplete(input: IntakeCompleteValidationInput): In
     });
   }
 
-  if (critical.total > 0 && critical.answered < critical.total) {
-    issues.push({
-      level: 'warn',
-      code: 'critical_answers_missing',
-      message: `Còn ${critical.total - critical.answered}/${critical.total} câu quan trọng chưa có câu trả lời.`,
-    });
-  }
-
-  if (isRichTextEmpty(input.need)) {
-    issues.push({
-      level: 'warn',
-      code: 'need_empty',
-      message: 'Nhu cầu / điểm đau "Need / Pain" đang trống.',
-    });
-  }
-
   if (redFlagCount >= 2) {
     issues.push({
       level: 'warn',
@@ -134,14 +154,6 @@ export function validateIntakeComplete(input: IntakeCompleteValidationInput): In
       level: 'warn',
       code: 'go_with_red_flags',
       message: 'Quyết định Go nhưng có ≥2 red flag — cần lý do override rõ ràng.',
-    });
-  }
-
-  if (input.decision === 'go' && !hasDecisionMakerName(input.stakeholders)) {
-    issues.push({
-      level: 'warn',
-      code: 'stakeholder_dm_missing',
-      message: 'Go nhưng chưa ghi tên Decision Maker trong ma trận stakeholder.',
     });
   }
 

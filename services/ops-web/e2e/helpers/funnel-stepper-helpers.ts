@@ -3,6 +3,7 @@ import { API_URL, staffToken } from './ai-copilot-helpers';
 import {
   completeIntakeSession,
   createPhoneSession,
+  fillDecisionMaker,
   fillDiscoveryBasics,
   fetchLatestIntakeSession,
   scoreBant,
@@ -129,6 +130,7 @@ export async function completeIntakeGoSession(page: Page, stamp: number): Promis
   await tickDiscoveryChecklist(page, 8);
   await scoreBant(page, 4);
   await selectDecision(page, 'go');
+  await fillDecisionMaker(page, `DM ${stamp}`);
   await completeIntakeSession(page);
 }
 

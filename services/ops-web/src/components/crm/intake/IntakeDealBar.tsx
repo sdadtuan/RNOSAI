@@ -18,10 +18,12 @@ export type IntakeDealBarProps = {
   leadHref: string;
   cockpitHref: string;
   canEdit: boolean;
+  sessionCompleted?: boolean;
   slugMismatch: boolean;
   funnelCollapsed: boolean;
   onToggleFunnel: () => void;
   onServiceChange: (slug: string) => void;
+  onReopenService?: () => void;
   showSalesKit?: boolean;
   salesKitOpen?: boolean;
   onOpenSalesKit?: () => void;
@@ -51,10 +53,12 @@ export function IntakeDealBar({
   leadHref,
   cockpitHref,
   canEdit,
+  sessionCompleted = false,
   slugMismatch,
   funnelCollapsed,
   onToggleFunnel,
   onServiceChange,
+  onReopenService,
   showSalesKit = false,
   salesKitOpen = false,
   onOpenSalesKit,
@@ -64,6 +68,7 @@ export function IntakeDealBar({
   onOpenWin,
 }: IntakeDealBarProps) {
   const gapLabel = gapToConsultLabel(gap);
+  const showCompletedService = sessionCompleted || !canEdit;
 
   return (
     <section className="intake-deal-bar" aria-label="Deal Bar">
@@ -75,28 +80,38 @@ export function IntakeDealBar({
         <span className={`intake-deal-bar__chip${industry?.trim() ? '' : ' intake-deal-bar__chip--muted'}`}>
           {industry?.trim() || 'Chưa có ngành'}
         </span>
-        <label className="intake-deal-bar__service">
+        <div className="intake-deal-bar__service">
           <span className="muted">
             Dịch vụ
-            <span className="intake-required-mark" title="Bắt buộc để qua Tư vấn">
+            <span className="intake-required-mark" title="Bắt buộc trước khi hoàn thành / qua Tư vấn">
               *
             </span>
           </span>
-          <select
-            className="kpi-select intake-deal-bar__select"
-            value={serviceSlug}
-            disabled={!canEdit}
-            aria-label={`${serviceLabel} (bắt buộc)`}
-            onChange={(e) => onServiceChange(e.target.value)}
-          >
-            <option value="_common">{intakeServiceLabel('_common')}</option>
-            {CATALOG_SERVICE_SLUGS.map((slug) => (
-              <option key={slug} value={slug}>
-                {intakeServiceLabel(slug)}
-              </option>
-            ))}
-          </select>
-        </label>
+          {showCompletedService ? (
+            <span className="intake-deal-bar__service-locked">
+              <strong>{intakeServiceLabel(serviceSlug) || serviceLabel}</strong>
+              {onReopenService ? (
+                <button type="button" className="btn btn-sm btn-secondary" onClick={onReopenService}>
+                  Đổi (Reopen)
+                </button>
+              ) : null}
+            </span>
+          ) : (
+            <select
+              className="kpi-select intake-deal-bar__select"
+              value={serviceSlug}
+              aria-label={`${serviceLabel} (bắt buộc)`}
+              onChange={(e) => onServiceChange(e.target.value)}
+            >
+              <option value="_common">{intakeServiceLabel('_common')}</option>
+              {CATALOG_SERVICE_SLUGS.map((slug) => (
+                <option key={slug} value={slug}>
+                  {intakeServiceLabel(slug)}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         <span className="intake-deal-bar__scores">
           <span className="intake-deal-bar__score">
             BANT {bantTotal}/30 · {gapLabel}

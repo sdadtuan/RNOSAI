@@ -57,10 +57,10 @@ describe('gapToGo', () => {
 });
 
 describe('gapToConsultLabel', () => {
-  it('uses Tư vấn not Go', () => {
-    expect(gapToConsultLabel(0)).toBe('Đủ Tư vấn');
-    expect(gapToConsultLabel(16)).toBe('Còn 16 để Tư vấn');
-    expect(gapToConsultLabel(gapToGo(8))).toBe('Còn 16 để Tư vấn');
+  it('says Đủ điểm BANT (not Đủ Tư vấn gate)', () => {
+    expect(gapToConsultLabel(0)).toBe('Đủ điểm BANT');
+    expect(gapToConsultLabel(16)).toBe('Còn 16 để đủ điểm BANT');
+    expect(gapToConsultLabel(gapToGo(8))).toBe('Còn 16 để đủ điểm BANT');
   });
 });
 

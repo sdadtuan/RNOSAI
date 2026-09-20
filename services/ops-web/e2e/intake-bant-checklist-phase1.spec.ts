@@ -47,7 +47,7 @@ test.describe('Intake BANT checklist Phase 1 (U1–U4)', () => {
     await openBantDrawer(page);
     await page.getByLabel(/Có khung rõ/i).check();
     await expect(page.locator('.intake-deal-bar__score')).toContainText(/BANT [4-9]/);
-    await expect(page.getByText(/Đủ Tư vấn|để Tư vấn/).first()).toBeVisible();
+    await expect(page.getByText(/Đủ điểm BANT|để đủ điểm BANT/).first()).toBeVisible();
     await expect(page.locator('[name="intake-bant-budget"]')).toHaveCount(0);
   });
 

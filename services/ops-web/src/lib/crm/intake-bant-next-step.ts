@@ -65,16 +65,16 @@ export function nextBantStep(input: {
     return {
       code: 'nurture',
       title_vi: 'Gợi ý: Nuôi dưỡng',
-      body_vi: `Còn ${gap} điểm để Tư vấn. ${BANT_CHECKLIST[lowest].hint}`,
+      body_vi: `Còn ${gap} điểm để đủ điểm BANT. ${BANT_CHECKLIST[lowest].hint}`,
       cta: 'discovery',
     };
   }
 
   return {
     code: 'consult',
-    title_vi: 'Gợi ý: Đủ Tư vấn',
+    title_vi: 'Gợi ý: Đủ điểm BANT',
     body_vi:
-      'Điểm đủ Tư vấn nhưng chưa phải đủ báo giá / HĐ. Chọn Quyết định Go trên Qualify, hoàn thành phiên, rồi Funnel Chuyển → Tư vấn.',
+      'Đủ điểm BANT (≥24) — chưa phải đủ báo giá / HĐ. Chọn Quyết định Go trên Qualify, hoàn thành phiên, rồi Giao Solution/MKT trên Funnel.',
     cta: 'qualify',
   };
 }

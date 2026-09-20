@@ -9,6 +9,7 @@ import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoveryS
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeBantChecklistPanel } from '@/components/crm/intake/IntakeBantChecklistPanel';
 import { IntakeDealBar } from '@/components/crm/intake/IntakeDealBar';
+import { IntakeNextStepBanner } from '@/components/crm/intake/IntakeNextStepBanner';
 import { IntakeWinChecklistPanel } from '@/components/crm/intake/IntakeWinChecklistPanel';
 import { IntakeHandoffTab } from '@/components/crm/intake/IntakeHandoffTab';
 import { IntakeQualifyTab } from '@/components/crm/intake/IntakeQualifyTab';
@@ -48,6 +49,10 @@ import {
 } from '@/lib/api';
 import type { ConsultGateState, FunnelPrimaryAction, IntakeStepSummary } from '@/lib/crm/funnel-stepper.types';
 import { funnelPresalesStage, funnelServiceSlug } from '@/lib/crm/funnel-snapshot.util';
+import {
+  requireServiceSlugBeforeCreate,
+  resolveIntakeNextStepBanner,
+} from '@/lib/crm/intake-next-step-banner';
 import {
   gapToGo,
   intakeServiceLabel,
@@ -186,6 +191,7 @@ export function IntakeContent({
   const [aiSummaryBusy, setAiSummaryBusy] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [completeWarnings, setCompleteWarnings] = useState<IntakeValidationIssue[]>([]);
+  const [completeErrors, setCompleteErrors] = useState<IntakeValidationIssue[]>([]);
   const [validationErrors, setValidationErrors] = useState<IntakeValidationIssue[]>([]);
   const [urlServiceSlug, setUrlServiceSlug] = useState<string | null>(null);
   const [intakeContext, setIntakeContext] = useState<IntakeLeadContext | null>(null);
@@ -332,6 +338,58 @@ export function IntakeContent({
   }, [sessions]);
 
   const solutionCaps = useMemo(() => resolvePresalesSolutionCaps(user), [user]);
+
+  const draftValidationErrors = useMemo(() => {
+    if (!active || active.status !== 'draft') return [] as IntakeValidationIssue[];
+    return intakeValidationErrors(
+      validateIntakeComplete({
+        contactName,
+        need,
+        bant,
+        decision,
+        decisionReason,
+        sessionMode,
+        discoveryChecked: discovery.checked,
+        discoveryResponses: discovery.responses,
+        discoveryTotal: discoveryQuestionItems.length,
+        questionItems: discoveryQuestionItems,
+        redFlagsChecked: redFlags.checked,
+        stakeholders,
+        winIntel,
+        winChecklist,
+        serviceSlug: resolvedSlug,
+      }),
+    );
+  }, [
+    active,
+    contactName,
+    need,
+    bant,
+    decision,
+    decisionReason,
+    sessionMode,
+    discovery,
+    discoveryQuestionItems,
+    redFlags.checked,
+    stakeholders,
+    winIntel,
+    winChecklist,
+    resolvedSlug,
+  ]);
+
+  const nextStepBanner = useMemo(
+    () =>
+      resolveIntakeNextStepBanner({
+        hasActiveSession: Boolean(active),
+        sessionStatus: active?.status ?? null,
+        serviceSlug: resolvedSlug,
+        decision: active?.decision ?? decision,
+        consultGate,
+        handoffStatus: String(funnelSnap?.presales?.handoff?.status ?? ''),
+        validationErrorMessages: draftValidationErrors.map((e) => e.message),
+      }),
+    [active, resolvedSlug, decision, consultGate, funnelSnap, draftValidationErrors],
+  );
 
   const applySession = useCallback(
     (session: IntakeSessionRow | null) => {
@@ -614,6 +672,12 @@ export function IntakeContent({
       setError('Không có quyền tạo phiên khảo sát');
       return;
     }
+    const serviceBlock = requireServiceSlugBeforeCreate(resolvedSlug);
+    if (serviceBlock) {
+      setError(serviceBlock);
+      setMessage('');
+      return;
+    }
     if (!confirmCreateIfDraftExists()) return;
 
     setSaving(true);
@@ -821,6 +885,7 @@ export function IntakeContent({
       stakeholders,
       winIntel,
       winChecklist,
+      serviceSlug: resolvedSlug,
     };
   }
 
@@ -839,13 +904,14 @@ export function IntakeContent({
     const errors = intakeValidationErrors(issues);
     const warnings = intakeValidationWarnings(issues);
     setValidationErrors(errors);
-    if (errors.length > 0) return;
+    setCompleteErrors(errors);
     setCompleteWarnings(warnings);
     setCompleteModalOpen(true);
   }
 
   async function onConfirmComplete() {
     if (!active || !user) return;
+    if (completeErrors.length > 0) return;
     const access = getAccessToken();
     if (!access) return;
 
@@ -859,7 +925,8 @@ export function IntakeContent({
       const updated = await completeIntakeSession(access, active.id);
       await loadSessions(access, updated.id);
       await refreshStepperData(access);
-      setMessage('Đã hoàn thành phiên khảo sát — xem stepper phía trên để chuyển Tư vấn nếu gate OK');
+      setFunnelCollapsed(false);
+      setMessage('Đã hoàn thành phiên — xem Bước tiếp theo / Funnel để giao Solution nếu gate OK');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hoàn thành thất bại');
     } finally {
@@ -1234,10 +1301,16 @@ export function IntakeContent({
                 leadHref={leadHref}
                 cockpitHref={cockpitHref}
                 canEdit={canCreate && active?.status !== 'completed'}
+                sessionCompleted={active?.status === 'completed'}
                 slugMismatch={slugMismatch}
                 funnelCollapsed={funnelCollapsed}
                 onToggleFunnel={() => setFunnelCollapsed((collapsed) => !collapsed)}
                 onServiceChange={(slug) => void onServiceChange(slug)}
+                onReopenService={
+                  active?.status === 'completed' && canCreate
+                    ? () => void onReopen()
+                    : undefined
+                }
                 showSalesKit={kitEnabled}
                 salesKitOpen={kitOpen}
                 onOpenSalesKit={() => setKitOpen(true)}
@@ -1247,24 +1320,55 @@ export function IntakeContent({
                 onOpenWin={() => setWinOpen(true)}
               />
 
+              {nextStepBanner ? (
+                <IntakeNextStepBanner
+                  banner={nextStepBanner}
+                  busy={saving || stepperBusy}
+                  onPrimary={() => {
+                    if (nextStepBanner.action === 'reopen_fix') {
+                      void onReopen();
+                      return;
+                    }
+                    if (nextStepBanner.action === 'complete_session') {
+                      onCompleteClick();
+                      return;
+                    }
+                    if (nextStepBanner.action === 'open_solution_queue') {
+                      router.push('/crm/solution/queue');
+                      return;
+                    }
+                    if (nextStepBanner.action === 'handoff_solution') {
+                      void onStepperPrimaryAction({
+                        kind: 'handoff_solution',
+                        label: nextStepBanner.cta_label_vi ?? 'Giao Solution/MKT →',
+                        disabled: false,
+                        requiresConfirm:
+                          Boolean(consultGate?.requires_confirm) ||
+                          consultGate?.level === 'warn',
+                      });
+                    }
+                  }}
+                />
+              ) : null}
+
               {helpOpen ? (
                 <div id="intake-help-drawer" className="intake-help intake-help--drawer">
                   <ol>
                     <li>
-                      Chọn phiên ở cột trái, hoặc tạo <strong>+ Gọi điện</strong> /{' '}
-                      <strong>+ Gặp trực tiếp</strong>.
+                      Chọn <strong>dịch vụ</strong> trên Deal Bar trước, rồi tạo phiên{' '}
+                      <strong>+ Gọi điện</strong> / <strong>+ Gặp trực tiếp</strong>.
                     </li>
                     <li>
-                      Tab Discovery: hỏi critical. Bấm BANT trên Deal Bar, tick câu KH vừa
-                      nói; Qualify chỉ chọn Quyết định.
+                      Tab Discovery: hỏi critical + Need/Pain. Bấm BANT trên Deal Bar; Qualify
+                      chọn Quyết định.
                     </li>
                     <li>
-                      Chọn <strong>Quyết định</strong> + <strong>Lý do</strong>, rồi{' '}
-                      <strong>Hoàn thành phiên</strong>.
+                      Chọn <strong>Quyết định</strong> + stakeholder DM (nếu Go), rồi{' '}
+                      <strong>Hoàn thành phiên</strong> (thiếu mục * sẽ bị chặn).
                     </li>
                     <li>
-                      Hoàn thành phiên xong, khi gate OK bấm <strong>Giao Solution/MKT</strong> trên
-                      stepper (không bấm khi stage đã Tư vấn — dùng queue Solution).
+                      Sau Complete: banner <strong>Bước tiếp theo</strong> / Funnel — bấm{' '}
+                      <strong>Giao Solution/MKT</strong> khi gate OK.
                     </li>
                   </ol>
                 </div>
@@ -1540,6 +1644,7 @@ export function IntakeContent({
         decision={decision}
         discoveryChecked={discovery.checked}
         discoveryTotal={discoveryQuestionItems.length}
+        errors={completeErrors}
         warnings={completeWarnings}
         onCancel={() => setCompleteModalOpen(false)}
         onConfirm={() => void onConfirmComplete()}

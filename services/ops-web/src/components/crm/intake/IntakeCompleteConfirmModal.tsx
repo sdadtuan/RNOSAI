@@ -13,6 +13,7 @@ interface Props {
   decision: string;
   discoveryChecked: Record<string, boolean>;
   discoveryTotal: number;
+  errors: IntakeValidationIssue[];
   warnings: IntakeValidationIssue[];
   onCancel: () => void;
   onConfirm: () => void;
@@ -31,6 +32,7 @@ export function IntakeCompleteConfirmModal({
   decision,
   discoveryChecked,
   discoveryTotal,
+  errors,
   warnings,
   onCancel,
   onConfirm,
@@ -39,6 +41,7 @@ export function IntakeCompleteConfirmModal({
 
   const badge = BANT_BADGE_LABELS[suggestBantBadge(bantTotal)];
   const checkedCount = countDiscoveryChecked(discoveryChecked);
+  const blocked = errors.length > 0;
 
   return (
     <div className="ai-dismiss-modal" role="presentation" onClick={onCancel}>
@@ -61,6 +64,14 @@ export function IntakeCompleteConfirmModal({
           </li>
         </ul>
 
+        {errors.length > 0 ? (
+          <ul className="intake-complete-modal__errors">
+            {errors.map((issue) => (
+              <li key={issue.code}>⛔ {issue.message}</li>
+            ))}
+          </ul>
+        ) : null}
+
         {warnings.length > 0 ? (
           <ul className="intake-complete-modal__warnings">
             {warnings.map((issue) => (
@@ -73,9 +84,11 @@ export function IntakeCompleteConfirmModal({
           <button type="button" className="btn btn-sm btn-secondary" onClick={onCancel} disabled={busy}>
             Quay lại
           </button>
-          <button type="button" className="btn btn-sm" onClick={onConfirm} disabled={busy}>
-            {busy ? 'Đang xử lý…' : 'Vẫn hoàn thành'}
-          </button>
+          {!blocked ? (
+            <button type="button" className="btn btn-sm" onClick={onConfirm} disabled={busy}>
+              {busy ? 'Đang xử lý…' : warnings.length > 0 ? 'Vẫn hoàn thành' : 'Hoàn thành'}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

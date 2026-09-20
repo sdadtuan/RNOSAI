@@ -67,7 +67,7 @@ export function gapToGo(bantTotal: number, goThreshold = 24): number {
 
 export function gapToConsultLabel(gap: number): string {
   const n = Number(gap) || 0;
-  return n <= 0 ? 'Đủ Tư vấn' : `Còn ${n} để Tư vấn`;
+  return n <= 0 ? 'Đủ điểm BANT' : `Còn ${n} để đủ điểm BANT`;
 }
 
 export function isPilotServiceSlug(slug: string): boolean {
