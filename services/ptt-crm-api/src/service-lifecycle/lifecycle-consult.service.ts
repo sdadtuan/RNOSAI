@@ -29,13 +29,15 @@ export class LifecycleConsultService {
           is_done: leadTaskRow.is_done,
         }
       : null;
+    const consultTaskRow = (grouped.consult ?? [])[0] ?? null;
+    const consultForm = consultTaskRow?.form_data ?? {};
 
     const intakeBundle = lc.lead_id
       ? await this.intake.listSessions(lc.lead_id, lifecycleId)
       : await this.intake.listSessions(undefined, lifecycleId);
     const intakeSessions = intakeBundle.sessions;
 
-    return buildConsultBrief({
+    const brief = buildConsultBrief({
       lifecycleId,
       serviceSlug: lc.service_slug,
       leadId: lc.lead_id,
@@ -43,6 +45,25 @@ export class LifecycleConsultService {
       leadTask,
       intakeSessions,
     });
+    // P8 — merge Consult form Đối tượng mục tiêu / p8_quality into highlights for autofill.
+    const highlights = {
+      ...((brief.highlights ?? {}) as Record<string, unknown>),
+    };
+    const audience = String(
+      consultForm.target_audience ??
+        (consultForm.p8_quality as { icp?: { text?: string } } | undefined)?.icp?.text ??
+        '',
+    ).trim();
+    if (audience) highlights.target_audience = audience;
+    const painFromConsult = String(
+      (consultForm.p8_quality as { need_pain?: { text?: string } } | undefined)?.need_pain?.text ??
+        '',
+    ).trim();
+    if (painFromConsult && !String(highlights.pain ?? '').trim()) {
+      highlights.pain = painFromConsult;
+    }
+    brief.highlights = highlights;
+    return brief;
   }
 
   async prefillConsultTask(

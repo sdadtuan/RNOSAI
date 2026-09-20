@@ -31,6 +31,10 @@ import { OpsPresalesContextService } from './ops-presales-context.service';
 import { OpsPresalesAutofillService } from './ops-presales-autofill.service';
 import { OpsInsightDraftService } from './ops-insight-draft.service';
 import { OpsPlanGenerateReviewService } from './ops-plan-generate-review.service';
+import { OpsServiceRecommendService } from './ops-service-recommend.service';
+import { OpsConsultDraftService } from './ops-consult-draft.service';
+import { OpsReturnToAmService } from './ops-return-to-am.service';
+import { OpsProposalDraftService } from './ops-proposal-draft.service';
 import { OpsRoleKpiRepository } from './ops-role-kpi.repository';
 import { OpsStageTransitionService } from './ops-stage-transition.service';
 
@@ -57,6 +61,10 @@ export class ToolRegistry {
     autofill: OpsPresalesAutofillService,
     insightDraft: OpsInsightDraftService,
     planReview: OpsPlanGenerateReviewService,
+    serviceRecommend: OpsServiceRecommendService,
+    consultDraft: OpsConsultDraftService,
+    returnToAm: OpsReturnToAmService,
+    proposalDraft: OpsProposalDraftService,
   ) {
     this.definitions = [
       ...createLeadAgentTools(agents),
@@ -74,6 +82,10 @@ export class ToolRegistry {
         autofill,
         insightDraft,
         planReview,
+        serviceRecommend,
+        consultDraft,
+        returnToAm,
+        proposalDraft,
       ),
     ];
     this.toolsByName = new Map(this.definitions.map((tool) => [tool.name, tool]));

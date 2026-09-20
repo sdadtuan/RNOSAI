@@ -51,6 +51,15 @@ export function buildOfficialTmmtSeedFromConsult(input: {
   const niche = trimText(highlights.niche);
   const domain = trimText(highlights.domain);
   const goal = trimText(highlights.goal);
+  // P8 — Consult “Đối tượng mục tiêu” maps to segmentation_icp (not niche-only).
+  const targetAudience =
+    trimText(highlights.target_audience) ||
+    trimText((brief as Record<string, unknown>).target_audience) ||
+    trimText(
+      ((brief.consult_task as Record<string, unknown> | undefined)?.form_data as
+        | Record<string, unknown>
+        | undefined)?.target_audience,
+    );
   const budget =
     highlights.budget_vnd != null && Number.isFinite(Number(highlights.budget_vnd))
       ? Number(highlights.budget_vnd)
@@ -110,11 +119,13 @@ export function buildOfficialTmmtSeedFromConsult(input: {
   setIfEmpty(
     prof,
     'segmentation_icp',
-    niche
-      ? `ICP: doanh nghiệp ${niche}${pain ? ` — pain: ${pain.slice(0, 160)}` : ''}.`
-      : pain
-        ? `ICP theo pain Intake: ${pain.slice(0, 220)}.`
-        : '',
+    targetAudience
+      ? targetAudience
+      : niche
+        ? `ICP: doanh nghiệp ${niche}${pain ? ` — pain: ${pain.slice(0, 160)}` : ''}.`
+        : pain
+          ? `ICP theo pain Intake: ${pain.slice(0, 220)}.`
+          : '',
     overwrite,
     filled,
   );

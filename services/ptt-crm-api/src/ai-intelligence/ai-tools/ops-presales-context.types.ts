@@ -90,7 +90,7 @@ export type CrmPresalesPack = {
 export type CrmPresalesContextPack = {
   ok: true;
   wired: true;
-  phase: 'P6';
+  phase: 'P6' | 'P8';
   source: 'ptt-crm';
   as_of: string;
   tool: 'presales.context.read';
@@ -100,6 +100,10 @@ export type CrmPresalesContextPack = {
   assumed: string[];
   unknown: string[];
   blockers_for_winning_plan: Array<{ code: string; detail: string }>;
+  consult_ready?: boolean;
+  winning_plan_ready?: boolean;
+  consult_ready_blockers?: Array<{ code: string; detail: string }>;
+  gate_copy?: { consult: string; winning: string };
   links: string[];
 };
 

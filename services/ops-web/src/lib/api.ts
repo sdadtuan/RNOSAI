@@ -3394,6 +3394,62 @@ export async function postPresalesAutofillTmmt(
   });
 }
 
+/** P8 — Confirm Assumed / Khách đã xác nhận / Reject for pain|icp|service. */
+export async function postPresalesConfirmField(
+  token: string,
+  lifecycleId: number,
+  body: {
+    field: 'need_pain' | 'icp' | 'service' | 'pain' | 'target_audience';
+    action?: 'confirm_assumed' | 'validate_customer' | 'khach_xac_nhan' | 'reject' | 'select';
+    sku?: string;
+    select?: boolean;
+  },
+): Promise<Record<string, unknown>> {
+  return crmFetch(token, `/api/crm/presales/lifecycle/${lifecycleId}/confirm-field`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function postPresalesReturnToAm(
+  token: string,
+  lifecycleId: number,
+  body: { reason_codes: string[]; message?: string; assignee_user_id?: number } = {
+    reason_codes: ['pain_empty'],
+  },
+): Promise<Record<string, unknown>> {
+  return crmFetch(token, `/api/crm/presales/lifecycle/${lifecycleId}/return-to-am`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function postPresalesRecommendService(
+  token: string,
+  lifecycleId: number,
+  body: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  return crmFetch(token, `/api/crm/presales/lifecycle/${lifecycleId}/recommend-service`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function postPresalesDraftConsult(
+  token: string,
+  lifecycleId: number,
+  body: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  return crmFetch(token, `/api/crm/presales/lifecycle/${lifecycleId}/draft-consult`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchServiceLifecyclePresalesSummary(
   token: string,
   id: number,

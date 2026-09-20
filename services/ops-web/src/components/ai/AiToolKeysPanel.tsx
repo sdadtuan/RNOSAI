@@ -61,6 +61,51 @@ function sampleTryInput(toolName: string): string {
       '}',
     ].join('\n');
   }
+  if (toolName === 'service.recommend_from_signals') {
+    return [
+      '{',
+      '  "lead_id": 5,',
+      '  "lifecycle_id": 5,',
+      '  "signals": {',
+      '    "industry": "auto detailing",',
+      '    "customer_utterance": "chưa biết dịch vụ nào phù hợp",',
+      '    "use_crm_similar_cases": true,',
+      '    "use_web_research": true',
+      '  },',
+      '  "dry_run": true',
+      '}',
+    ].join('\n');
+  }
+  if (toolName === 'consult.draft_from_research') {
+    return [
+      '{',
+      '  "lifecycle_id": 5,',
+      '  "lead_id": 5,',
+      '  "overwrite_mode": "fill_empty_only",',
+      '  "include_web_research": true,',
+      '  "dry_run": true',
+      '}',
+    ].join('\n');
+  }
+  if (toolName === 'presales.return_to_am') {
+    return [
+      '{',
+      '  "lead_id": 5,',
+      '  "lifecycle_id": 5,',
+      '  "reason_codes": ["pain_empty", "service_unknown", "icp_empty"],',
+      '  "message": "A Hưng 360 — cần AM bổ sung Pain/Service"',
+      '}',
+    ].join('\n');
+  }
+  if (toolName === 'proposal.draft_from_consult') {
+    return [
+      '{',
+      '  "lifecycle_id": 5,',
+      '  "lead_id": 5,',
+      '  "dry_run": true',
+      '}',
+    ].join('\n');
+  }
   if (toolName === 'kpi_target.write_draft') {
     return [
       '{',

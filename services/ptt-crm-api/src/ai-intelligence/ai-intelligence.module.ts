@@ -96,6 +96,11 @@ import { OpsPresalesContextService } from './ai-tools/ops-presales-context.servi
 import { OpsPresalesAutofillService } from './ai-tools/ops-presales-autofill.service';
 import { OpsInsightDraftService } from './ai-tools/ops-insight-draft.service';
 import { OpsPlanGenerateReviewService } from './ai-tools/ops-plan-generate-review.service';
+import { OpsServiceRecommendService } from './ai-tools/ops-service-recommend.service';
+import { OpsConsultDraftService } from './ai-tools/ops-consult-draft.service';
+import { OpsReturnToAmService } from './ai-tools/ops-return-to-am.service';
+import { OpsProposalDraftService } from './ai-tools/ops-proposal-draft.service';
+import { OpsFieldConfirmService } from './ai-tools/ops-field-confirm.service';
 import { PresalesP7Controller } from './ai-tools/presales-p7.controller';
 import { OpsRoleKpiRepository } from './ai-tools/ops-role-kpi.repository';
 import { OpsStageTransitionService } from './ai-tools/ops-stage-transition.service';
@@ -150,6 +155,11 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     OpsPresalesAutofillService,
     OpsInsightDraftService,
     OpsPlanGenerateReviewService,
+    OpsServiceRecommendService,
+    OpsConsultDraftService,
+    OpsReturnToAmService,
+    OpsProposalDraftService,
+    OpsFieldConfirmService,
     OpsStageTransitionService,
     AiToolsService,
     AiToolApiKeyGuard,

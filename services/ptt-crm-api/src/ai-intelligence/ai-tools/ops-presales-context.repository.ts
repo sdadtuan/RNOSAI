@@ -550,4 +550,115 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
   tmmtKeys() {
     return { core: OFFICIAL_TMMT_CORE_KEYS, all: TARGET_MARKET_PROF_KEYS };
   }
+
+  async getStageTask(
+    lifecycleId: number,
+    stage: string,
+  ): Promise<{ id: number; form_data: Record<string, unknown>; notes: string; is_done: boolean } | null> {
+    const r = await this.db.query(
+      `SELECT id, form_data, COALESCE(notes, '') AS notes, COALESCE(is_done, false) AS is_done
+       FROM crm_svc_tasks
+       WHERE lifecycle_id = $1 AND stage = $2
+       ORDER BY step_index ASC NULLS LAST, id ASC
+       LIMIT 1`,
+      [lifecycleId, stage],
+    );
+    const row = r.rows[0];
+    if (!row) return null;
+    const form =
+      row.form_data && typeof row.form_data === 'object'
+        ? (row.form_data as Record<string, unknown>)
+        : {};
+    return {
+      id: Number(row.id),
+      form_data: form,
+      notes: String(row.notes ?? ''),
+      is_done: Boolean(row.is_done),
+    };
+  }
+
+  async patchStageTaskFormData(
+    taskId: number,
+    formData: Record<string, unknown>,
+    notes?: string,
+  ): Promise<void> {
+    if (notes != null) {
+      await this.db.query(
+        `UPDATE crm_svc_tasks
+         SET form_data = $2::jsonb, notes = $3, updated_at = NOW()
+         WHERE id = $1`,
+        [taskId, JSON.stringify(formData), notes.slice(0, 4000)],
+      );
+      return;
+    }
+    await this.db.query(
+      `UPDATE crm_svc_tasks
+       SET form_data = $2::jsonb, updated_at = NOW()
+       WHERE id = $1`,
+      [taskId, JSON.stringify(formData)],
+    );
+  }
+
+  async patchLifecycleServiceSlug(lifecycleId: number, serviceSlug: string): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_service_lifecycle
+       SET service_slug = $2, updated_at = NOW()
+       WHERE id = $1`,
+      [lifecycleId, serviceSlug.slice(0, 80)],
+    );
+  }
+
+  async patchIntakeAnswersMeta(
+    sessionId: number,
+    metaPatch: Record<string, unknown>,
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_lead_intake_sessions
+       SET answers_json = jsonb_set(
+         COALESCE(answers_json, '{}'::jsonb),
+         '{meta}',
+         COALESCE(answers_json->'meta', '{}'::jsonb) || $2::jsonb,
+         true
+       ),
+       updated_at = NOW()
+       WHERE id = $1`,
+      [sessionId, JSON.stringify(metaPatch)],
+    );
+  }
+
+  async createProposalDraft(opts: {
+    leadId: number | null;
+    lifecycleId: number | null;
+    title: string;
+    notes: string;
+    serviceSlug: string;
+    aiOutput: Record<string, unknown>;
+  }): Promise<number> {
+    const ts = new Date().toISOString();
+    const notes = [
+      opts.title ? `[P8 draft] ${opts.title}` : '[P8 draft]',
+      opts.notes,
+    ]
+      .filter(Boolean)
+      .join('\n')
+      .slice(0, 2000);
+    const r = await this.db.query(
+      `INSERT INTO crm_proposals (
+         customer_id, lead_id, lifecycle_id, service_slugs, total_vnd,
+         timeline_months, notes, ai_output, status, price_adjustment_reason,
+         created_at, updated_at
+       ) VALUES (
+         NULL, $1, $2, $3, 0, 1, $4, $5::jsonb, 'draft', '', $6, $6
+       ) RETURNING id`,
+      [
+        opts.leadId,
+        opts.lifecycleId,
+        JSON.stringify(opts.serviceSlug ? [opts.serviceSlug] : []),
+        notes,
+        JSON.stringify(opts.aiOutput ?? {}),
+        ts,
+      ],
+    );
+    return Number(r.rows[0].id);
+  }
 }

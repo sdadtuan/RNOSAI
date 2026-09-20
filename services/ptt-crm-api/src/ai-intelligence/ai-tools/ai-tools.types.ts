@@ -90,6 +90,10 @@ export const OPS_AI_TOOL_ALLOWLIST = [
   'presales.context.read',
   'presales.autofill_tmmt',
   'insight.draft_from_presales',
+  'service.recommend_from_signals',
+  'consult.draft_from_research',
+  'presales.return_to_am',
+  'proposal.draft_from_consult',
 ] as const;
 
 /** Default allowlist for strategist / PM agent policies (P6+P7). */
@@ -114,8 +118,9 @@ export const P6_AGENT_POLICY_PRESETS = [
   },
 ] as const;
 
-/** Alias — P7 reuses strategist/PM presets with expanded allowlist. */
+/** Alias — P7/P8 reuse strategist/PM presets with expanded allowlist. */
 export const P7_AGENT_POLICY_PRESETS = P6_AGENT_POLICY_PRESETS;
+export const P8_AGENT_POLICY_PRESETS = P6_AGENT_POLICY_PRESETS;
 
 /** SRS PO-53 — never register; reject on call / key create. */
 export const OPS_AI_TOOL_DENYLIST = [
