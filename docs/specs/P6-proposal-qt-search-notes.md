@@ -30,7 +30,7 @@ Lead drafts (e.g. LD-5) may show `payable_vnd = 0` until lines are priced. That 
 Filter noise:
 
 ```
-GET /api/v1/quotes?exclude_zero_totals=1
+GET /api/crm/proposals?exclude_zero_totals=1
 ```
 
 ## Acceptance
