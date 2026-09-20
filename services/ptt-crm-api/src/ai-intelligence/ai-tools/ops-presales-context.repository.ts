@@ -452,14 +452,15 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
     implication: string;
     recommendation: string;
     actor: string;
+    confidenceJson?: Record<string, unknown>;
   }): Promise<{ id: number; status: string }> {
     const r = await this.db.query(
       `INSERT INTO crm_research_insights (
          project_id, statement, observation, interpretation, implication, recommendation,
-         audience, status, confidence_rationale, created_by, ai_generated
+         audience, status, confidence_rationale, confidence_json, created_by, ai_generated
        ) VALUES (
          $1, $2, $3, $4, $5, $6,
-         'internal', 'draft', $7, $8, TRUE
+         'internal', 'draft', $7, $8::jsonb, $9, TRUE
        ) RETURNING id, status`,
       [
         opts.projectId,
@@ -469,6 +470,7 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
         opts.implication.slice(0, 4000) || null,
         opts.recommendation.slice(0, 4000) || null,
         'P7 insight.draft_from_presales — pending human review',
+        JSON.stringify(opts.confidenceJson ?? { origin: 'presales_ai', source_tool: 'insight.draft_from_presales' }),
         opts.actor.slice(0, 120),
       ],
     );
@@ -482,24 +484,169 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
     project_id: number;
     status: string;
     ai_generated: boolean;
+    statement: string;
+    confidence_rationale: string | null;
+    confidence_json: unknown;
+    evidence_ids: number[];
   } | null> {
     try {
       const r = await this.db.query(
-        `SELECT id, project_id, status, COALESCE(ai_generated, false) AS ai_generated
-         FROM crm_research_insights WHERE id = $1 LIMIT 1`,
+        `SELECT i.id, i.project_id, i.status,
+                COALESCE(i.ai_generated, false) AS ai_generated,
+                i.statement, i.confidence_rationale, i.confidence_json,
+                COALESCE((
+                  SELECT json_agg(ie.evidence_id ORDER BY ie.evidence_id)
+                  FROM crm_research_insight_evidence ie
+                  WHERE ie.insight_id = i.id
+                ), '[]'::json) AS evidence_ids
+         FROM crm_research_insights i
+         WHERE i.id = $1
+         LIMIT 1`,
         [insightId],
       );
       const row = r.rows[0];
       if (!row) return null;
+      const evidenceRaw = row.evidence_ids;
+      const evidenceIds = Array.isArray(evidenceRaw)
+        ? evidenceRaw.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+        : [];
       return {
         id: Number(row.id),
         project_id: Number(row.project_id),
         status: String(row.status ?? ''),
         ai_generated: Boolean(row.ai_generated),
+        statement: String(row.statement ?? ''),
+        confidence_rationale: row.confidence_rationale != null ? String(row.confidence_rationale) : null,
+        confidence_json:
+          typeof row.confidence_json === 'string'
+            ? JSON.parse(row.confidence_json)
+            : row.confidence_json ?? null,
+        evidence_ids: evidenceIds,
       };
     } catch {
       return null;
     }
+  }
+
+  async countApprovedInsights(projectId: number): Promise<number> {
+    try {
+      const r = await this.db.query(
+        `SELECT COUNT(*)::int AS n
+         FROM crm_research_insights
+         WHERE project_id = $1
+           AND status = ANY($2::text[])`,
+        [projectId, ['approved_internal', 'approved_client_facing', 'published']],
+      );
+      return Number(r.rows[0]?.n ?? 0);
+    } catch {
+      return 0;
+    }
+  }
+
+  async patchInsightConfidence(opts: {
+    insightId: number;
+    confidenceJson: Record<string, unknown>;
+    rationale?: string;
+  }): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_research_insights
+       SET confidence_json = $2::jsonb,
+           confidence_rationale = COALESCE(NULLIF(trim(confidence_rationale), ''), $3),
+           ai_generated = TRUE,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [
+        opts.insightId,
+        JSON.stringify(opts.confidenceJson),
+        opts.rationale ??
+          'P8.3 presales_auto_seed — assumed_from_presales rubric',
+      ],
+    );
+  }
+
+  async seedPresalesEvidenceAndRubric(opts: {
+    insightId: number;
+    projectId: number;
+    actor: string;
+    excerpt: string;
+    confidenceJson: Record<string, unknown>;
+  }): Promise<number[]> {
+    const source = await this.db.query(
+      `INSERT INTO crm_research_sources (
+         project_id, question_id, source_type, title, publisher, url,
+         published_at, accessed_at, geo, license_note, reliability_tier, limitation_note,
+         ai_generated, keep
+       ) VALUES (
+         $1, NULL, 'internal', $2, 'PTT Presales', NULL,
+         NULL, NOW()::date, NULL, NULL, 'primary', 'Auto-seeded from BANT/TMMT/contract cites (P8.3)',
+         TRUE, TRUE
+       ) RETURNING id`,
+      [opts.projectId, `Presales pack — Insight #${opts.insightId}`.slice(0, 240)],
+    );
+    const sourceId = Number(source.rows[0].id);
+    const ev = await this.db.query(
+      `INSERT INTO crm_research_evidence (
+         project_id, source_id, study_id, question_id, locator, excerpt,
+         value_num, unit, value_base, period_note, geography, pii_class, created_by,
+         qc_status, checksum
+       ) VALUES (
+         $1, $2, NULL, NULL, $3, $4,
+         NULL, NULL, NULL, NULL, NULL, 'none', $5,
+         'verified', $6
+       ) RETURNING id`,
+      [
+        opts.projectId,
+        sourceId,
+        `presales_pack:insight:${opts.insightId}`,
+        opts.excerpt.slice(0, 800),
+        opts.actor.slice(0, 120),
+        `presales-seed-${opts.insightId}-${Date.now()}`,
+      ],
+    );
+    const evidenceId = Number(ev.rows[0].id);
+    await this.db.query(
+      `INSERT INTO crm_research_insight_evidence (insight_id, evidence_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [opts.insightId, evidenceId],
+    );
+    await this.patchInsightConfidence({
+      insightId: opts.insightId,
+      confidenceJson: opts.confidenceJson,
+      rationale: 'P8.3 presales_auto_seed — assumed_from_presales rubric + verified evidence',
+    });
+    return [evidenceId];
+  }
+
+  async backfillPresalesInsightOrigin(opts: {
+    insightId: number;
+    projectId?: number;
+    lifecycleId?: number;
+  }): Promise<boolean> {
+    const r = await this.db.query(
+      `UPDATE crm_research_insights
+       SET ai_generated = TRUE,
+           confidence_json = COALESCE(confidence_json, '{}'::jsonb)
+             || $2::jsonb,
+           confidence_rationale = COALESCE(
+             NULLIF(trim(confidence_rationale), ''),
+             'P7 insight.draft_from_presales — pending human review'
+           ),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id`,
+      [
+        opts.insightId,
+        JSON.stringify({
+          origin: 'presales_ai',
+          source_tool: 'insight.draft_from_presales',
+          ai_draft: { presales: true },
+          ...(opts.lifecycleId ? { lifecycle_id: opts.lifecycleId } : {}),
+          ...(opts.projectId ? { research_id: opts.projectId } : {}),
+        }),
+      ],
+    );
+    return Boolean(r.rows[0]);
   }
 
   async approveAiInsightInternal(opts: {
@@ -512,7 +659,6 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
       `UPDATE crm_research_insights
        SET status = 'approved_internal', updated_at = NOW()
        WHERE id = $1
-         AND COALESCE(ai_generated, false) = TRUE
          AND status = ANY($2::text[])
        RETURNING id, project_id, status`,
       [

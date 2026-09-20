@@ -55,8 +55,10 @@ function sampleTryInput(toolName: string): string {
   if (toolName === 'insight.approve') {
     return [
       '{',
-      '  "insight_id": 123,',
-      '  "target_status": "approved_internal",',
+      '  "insight_id": 1,',
+      '  "research_id": 2,',
+      '  "lifecycle_id": 5,',
+      '  "mode": "presales_auto",',
       '  "dry_run": true',
       '}',
     ].join('\n');

@@ -168,6 +168,8 @@ function CrmResearchWorkspaceContent() {
   const [piiWarning, setPiiWarning] = useState(false);
   const [insightOpen, setInsightOpen] = useState(false);
   const [activeInsight, setActiveInsight] = useState<ResearchInsight | null>(null);
+  const [insightApproveError, setInsightApproveError] = useState<string | null>(null);
+  const [insightApproveBlockers, setInsightApproveBlockers] = useState<string[]>([]);
   const [gateOpen, setGateOpen] = useState(false);
   const [gateMessages, setGateMessages] = useState<string[]>([]);
   const [deskQuestionId, setDeskQuestionId] = useState<number | null>(null);
@@ -485,6 +487,27 @@ function CrmResearchWorkspaceContent() {
     return false;
   }
 
+  function captureInsightApproveFailure(err: unknown, fallback: string) {
+    if (err instanceof ResearchApiError) {
+      setInsightApproveError(err.message || fallback);
+      setInsightApproveBlockers(
+        err.blockers?.length
+          ? err.blockers
+          : err.messages?.length
+            ? err.messages
+            : err.code
+              ? [err.code]
+              : [],
+      );
+      if (openGate(err)) return;
+      setError(err.message || fallback);
+      return;
+    }
+    setInsightApproveError(err instanceof Error ? err.message : fallback);
+    setInsightApproveBlockers([]);
+    setError(err instanceof Error ? err.message : fallback);
+  }
+
   function isInsightCreator(insight: ResearchInsight | null): boolean {
     const email = user?.email?.trim().toLowerCase();
     if (!email) return false;
@@ -568,12 +591,16 @@ function CrmResearchWorkspaceContent() {
     if (!access || !activeInsight) return;
     setSaving(true);
     setError('');
+    setInsightApproveError(null);
+    setInsightApproveBlockers([]);
     try {
       await approveResearchInsight(access, activeInsight.id, { target_status: target });
       await load(access);
       setInsightOpen(false);
+      setInsightApproveError(null);
+      setInsightApproveBlockers([]);
     } catch (err) {
-      if (!openGate(err)) setError(err instanceof Error ? err.message : 'Duyệt insight thất bại');
+      captureInsightApproveFailure(err, 'Duyệt insight thất bại');
     } finally {
       setSaving(false);
     }
@@ -1281,15 +1308,21 @@ function CrmResearchWorkspaceContent() {
                 saving={saving}
                 onCreate={() => {
                   setActiveInsight(null);
+                  setInsightApproveError(null);
+                  setInsightApproveBlockers([]);
                   setInsightOpen(true);
                 }}
                 onOpen={(insight) => {
                   setActiveInsight(insight);
+                  setInsightApproveError(null);
+                  setInsightApproveBlockers([]);
                   setInsightOpen(true);
                 }}
                 onSubmitReview={(insight) => void onSubmitInsight(insight)}
                 onApprove={(insight) => {
                   setActiveInsight(insight);
+                  setInsightApproveError(null);
+                  setInsightApproveBlockers([]);
                   void (async () => {
                     const access = getAccessToken();
                     if (!access) return;
@@ -1301,9 +1334,7 @@ function CrmResearchWorkspaceContent() {
                       });
                       await load(access);
                     } catch (err) {
-                      if (!openGate(err)) {
-                        setError(err instanceof Error ? err.message : 'Duyệt insight thất bại');
-                      }
+                      captureInsightApproveFailure(err, 'Duyệt insight thất bại');
                     } finally {
                       setSaving(false);
                     }
@@ -1377,7 +1408,13 @@ function CrmResearchWorkspaceContent() {
               canApprove={canApprove}
               isCreator={isInsightCreator(activeInsight)}
               saving={saving}
-              onClose={() => setInsightOpen(false)}
+              approveError={insightApproveError}
+              approveBlockers={insightApproveBlockers}
+              onClose={() => {
+                setInsightOpen(false);
+                setInsightApproveError(null);
+                setInsightApproveBlockers([]);
+              }}
               onSave={onSaveInsight}
               onSubmitReview={(body, evidenceIds) =>
                 onSubmitInsight(

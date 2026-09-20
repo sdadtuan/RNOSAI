@@ -13,6 +13,7 @@ import {
   insightConfidencePayload,
   INSIGHT_GATE_COPY,
   INSIGHT_STATUS_LABELS,
+  isPresalesAiInsight,
   type ConfidenceBand,
   type ConfidenceJson,
   type ConfidenceRubric as ConfidenceRubricValue,
@@ -76,6 +77,8 @@ export function InsightDrawer({
   canApprove,
   isCreator,
   saving,
+  approveError,
+  approveBlockers,
   onClose,
   onSave,
   onSubmitReview,
@@ -89,6 +92,8 @@ export function InsightDrawer({
   canApprove: boolean;
   isCreator: boolean;
   saving: boolean;
+  approveError?: string | null;
+  approveBlockers?: string[];
   onClose: () => void;
   onSave: (body: CreateInsightBody, evidenceIds: number[]) => Promise<void>;
   onSubmitReview: (body: CreateInsightBody, evidenceIds: number[]) => Promise<void>;
@@ -139,6 +144,7 @@ export function InsightDrawer({
   const canSubmit = canSubmitInsightReview(insight?.status);
   const submitDisabled = saving || !canSubmit || !form.statement.trim() || verifiedSelected.length < 1;
   const showAiApprove = canApprove && canApproveAiInsightDraft(insight);
+  const showPresalesBanner = Boolean(insight && isPresalesAiInsight(insight) && showAiApprove);
   const showInternalApprove =
     showAiApprove ||
     (canApprove && !isCreator && (insight?.status === 'analyst_verified' || insight?.status === 'peer_reviewed'));
@@ -191,7 +197,7 @@ export function InsightDrawer({
       onClick={onClose}
     >
       <form
-        className="card"
+        className="card insight-drawer"
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
@@ -201,176 +207,236 @@ export function InsightDrawer({
         style={{
           width: 'min(520px, 100%)',
           height: '100%',
-          overflow: 'auto',
-          padding: '1rem',
-          display: 'grid',
-          gap: '0.55rem',
-          alignContent: 'start',
+          padding: 0,
+          display: 'flex',
+          flexDirection: 'column',
           borderRadius: 0,
+          overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{title}</h2>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={onClose}>
+        <div
+          className="insight-drawer__body"
+          style={{
+            flex: '1 1 auto',
+            overflow: 'auto',
+            padding: '1rem',
+            display: 'grid',
+            gap: '0.55rem',
+            alignContent: 'start',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+            <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{title}</h2>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={onClose}>
+              Đóng
+            </button>
+          </div>
+          {showPresalesBanner ? (
+            <p
+              role="status"
+              style={{
+                margin: 0,
+                padding: '0.55rem 0.7rem',
+                borderRadius: 8,
+                border: '1px solid color-mix(in srgb, var(--accent) 35%, #d8e0d8)',
+                background: 'color-mix(in srgb, var(--accent) 8%, #fff)',
+                fontSize: '0.84rem',
+                lineHeight: 1.4,
+              }}
+            >
+              Insight từ Presales AI — duyệt sẽ auto-seed evidence/rubric (hoặc waived). Không cần Evidence
+              tab trước. Đủ WinningPlanGate <code>approved_internal</code>.
+            </p>
+          ) : null}
+          {isCreator ? (
+            <p className="muted">Người tạo không tự duyệt — nhờ Research Lead.</p>
+          ) : null}
+          {stale ? <InsightStaleBanner validTo={insight?.valid_to} /> : null}
+          {approveError ? (
+            <div role="alert" className="error" style={{ fontSize: '0.85rem' }}>
+              <strong>{approveError}</strong>
+              {approveBlockers && approveBlockers.length > 0 ? (
+                <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.1rem' }}>
+                  {approveBlockers.map((b) => (
+                    <li key={b}>{b}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          <label>
+            Statement *
+            <textarea
+              className="kpi-input"
+              rows={3}
+              required
+              value={form.statement}
+              disabled={!canEdit}
+              onChange={(e) => set('statement', e.target.value)}
+              style={{ display: 'block', width: '100%', marginTop: 4 }}
+            />
+          </label>
+          {canEdit && insight && onAttachTheme ? (
+            <fieldset style={{ border: '1px solid #d8e0d8', borderRadius: 8, padding: '0.6rem' }}>
+              <legend>Theme</legend>
+              <p className="muted" style={{ margin: '0 0 0.4rem', fontSize: '0.85rem' }}>
+                {TAXONOMY_BANNER}
+              </p>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <label style={{ flex: '1 1 12rem' }}>
+                  Gắn theme
+                  <select
+                    className="kpi-input"
+                    value={taxonomyId}
+                    disabled={saving}
+                    onChange={(e) => setTaxonomyId(e.target.value)}
+                    style={{ display: 'block', width: '100%', marginTop: 4 }}
+                  >
+                    <option value="">Chọn theme</option>
+                    {themes.map((theme) => (
+                      <option key={theme.id} value={String(theme.id)}>
+                        {theme.theme_code} — {theme.label_vi}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={saving || !taxonomyId}
+                  onClick={() => void onAttachTheme(Number(taxonomyId))}
+                >
+                  Lưu
+                </button>
+              </div>
+            </fieldset>
+          ) : null}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {BLOCKS.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                className={block === b.id ? 'btn btn-sm' : 'btn btn-sm btn-secondary'}
+                onClick={() => setBlock(b.id)}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+          <label>
+            {BLOCKS.find((b) => b.id === block)?.label}
+            <textarea
+              className="kpi-input"
+              rows={4}
+              value={form[block]}
+              disabled={!canEdit}
+              onChange={(e) => set(block, e.target.value)}
+              style={{ display: 'block', width: '100%', marginTop: 4 }}
+            />
+          </label>
+          <fieldset style={{ border: '1px solid #d8e0d8', borderRadius: 8, padding: '0.6rem' }}>
+            <legend>Evidence đã verify</legend>
+            {verified.length === 0 ? (
+              <p className="muted" style={{ margin: 0 }}>
+                {showPresalesBanner
+                  ? 'Presales AI: không bắt buộc Evidence tab — duyệt sẽ auto-seed.'
+                  : 'Chưa có evidence verified để gắn.'}
+              </p>
+            ) : (
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                {verified.map((ev) => (
+                  <li key={ev.id} style={{ marginBottom: '0.35rem' }}>
+                    <label style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(ev.id)}
+                        disabled={!canEdit}
+                        onChange={() => toggleEvidence(ev.id)}
+                      />
+                      <EvidenceIdChip id={ev.id} locator={ev.locator} />
+                      <span className="muted" style={{ fontSize: '0.8rem' }}>
+                        {ev.excerpt || ev.locator}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </fieldset>
+          <label>
+            Giải thích độ tin cậy
+            <textarea
+              className="kpi-input"
+              rows={3}
+              value={form.confidence_rationale}
+              disabled={!canEdit}
+              onChange={(e) => set('confidence_rationale', e.target.value)}
+              style={{ display: 'block', width: '100%', marginTop: 4 }}
+            />
+          </label>
+          <ConfidenceRubric
+            value={rubric}
+            band={bandFromInsight(insight)}
+            disabled={!canEdit}
+            onChange={(next) => {
+              setRubricTouched(true);
+              setRubric(next);
+            }}
+          />
+          <label>
+            Audience
+            <input
+              className="kpi-input"
+              value={form.audience}
+              disabled={!canEdit}
+              onChange={(e) => set('audience', e.target.value)}
+              style={{ display: 'block', width: '100%', marginTop: 4 }}
+            />
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+            <label>
+              Hiệu lực từ
+              <input
+                className="kpi-input"
+                type="date"
+                value={form.valid_from}
+                disabled={!canEdit}
+                onChange={(e) => set('valid_from', e.target.value)}
+                style={{ display: 'block', width: '100%', marginTop: 4 }}
+              />
+            </label>
+            <label>
+              Đến
+              <input
+                className="kpi-input"
+                type="date"
+                value={form.valid_to}
+                disabled={!canEdit}
+                onChange={(e) => set('valid_to', e.target.value)}
+                style={{ display: 'block', width: '100%', marginTop: 4 }}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div
+          className="insight-drawer__footer"
+          style={{
+            flex: '0 0 auto',
+            display: 'flex',
+            gap: '0.4rem',
+            flexWrap: 'wrap',
+            padding: '0.75rem 1rem',
+            borderTop: '1px solid #d8e0d8',
+            background: 'var(--surface, #fff)',
+            position: 'sticky',
+            bottom: 0,
+            zIndex: 2,
+          }}
+        >
+          <button type="button" className="btn btn-sm btn-secondary" onClick={onClose} disabled={saving}>
             Đóng
           </button>
-        </div>
-        {isCreator ? (
-          <p className="muted">Người tạo không tự duyệt — nhờ Research Lead.</p>
-        ) : null}
-        {stale ? <InsightStaleBanner validTo={insight?.valid_to} /> : null}
-        <label>
-          Statement *
-          <textarea
-            className="kpi-input"
-            rows={3}
-            required
-            value={form.statement}
-            disabled={!canEdit}
-            onChange={(e) => set('statement', e.target.value)}
-            style={{ display: 'block', width: '100%', marginTop: 4 }}
-          />
-        </label>
-        {canEdit && insight && onAttachTheme ? (
-          <fieldset style={{ border: '1px solid #d8e0d8', borderRadius: 8, padding: '0.6rem' }}>
-            <legend>Theme</legend>
-            <p className="muted" style={{ margin: '0 0 0.4rem', fontSize: '0.85rem' }}>
-              {TAXONOMY_BANNER}
-            </p>
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <label style={{ flex: '1 1 12rem' }}>
-                Gắn theme
-                <select
-                  className="kpi-input"
-                  value={taxonomyId}
-                  disabled={saving}
-                  onChange={(e) => setTaxonomyId(e.target.value)}
-                  style={{ display: 'block', width: '100%', marginTop: 4 }}
-                >
-                  <option value="">Chọn theme</option>
-                  {themes.map((theme) => (
-                    <option key={theme.id} value={String(theme.id)}>
-                      {theme.theme_code} — {theme.label_vi}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                className="btn btn-sm"
-                disabled={saving || !taxonomyId}
-                onClick={() => void onAttachTheme(Number(taxonomyId))}
-              >
-                Lưu
-              </button>
-            </div>
-          </fieldset>
-        ) : null}
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          {BLOCKS.map((b) => (
-            <button
-              key={b.id}
-              type="button"
-              className={block === b.id ? 'btn btn-sm' : 'btn btn-sm btn-secondary'}
-              onClick={() => setBlock(b.id)}
-            >
-              {b.label}
-            </button>
-          ))}
-        </div>
-        <label>
-          {BLOCKS.find((b) => b.id === block)?.label}
-          <textarea
-            className="kpi-input"
-            rows={4}
-            value={form[block]}
-            disabled={!canEdit}
-            onChange={(e) => set(block, e.target.value)}
-            style={{ display: 'block', width: '100%', marginTop: 4 }}
-          />
-        </label>
-        <fieldset style={{ border: '1px solid #d8e0d8', borderRadius: 8, padding: '0.6rem' }}>
-          <legend>Evidence đã verify</legend>
-          {verified.length === 0 ? (
-            <p className="muted" style={{ margin: 0 }}>
-              Chưa có evidence verified để gắn.
-            </p>
-          ) : (
-            <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-              {verified.map((ev) => (
-                <li key={ev.id} style={{ marginBottom: '0.35rem' }}>
-                  <label style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(ev.id)}
-                      disabled={!canEdit}
-                      onChange={() => toggleEvidence(ev.id)}
-                    />
-                    <EvidenceIdChip id={ev.id} locator={ev.locator} />
-                    <span className="muted" style={{ fontSize: '0.8rem' }}>
-                      {ev.excerpt || ev.locator}
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          )}
-        </fieldset>
-        <label>
-          Giải thích độ tin cậy
-          <textarea
-            className="kpi-input"
-            rows={3}
-            value={form.confidence_rationale}
-            disabled={!canEdit}
-            onChange={(e) => set('confidence_rationale', e.target.value)}
-            style={{ display: 'block', width: '100%', marginTop: 4 }}
-          />
-        </label>
-        <ConfidenceRubric
-          value={rubric}
-          band={bandFromInsight(insight)}
-          disabled={!canEdit}
-          onChange={(next) => {
-            setRubricTouched(true);
-            setRubric(next);
-          }}
-        />
-        <label>
-          Audience
-          <input
-            className="kpi-input"
-            value={form.audience}
-            disabled={!canEdit}
-            onChange={(e) => set('audience', e.target.value)}
-            style={{ display: 'block', width: '100%', marginTop: 4 }}
-          />
-        </label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <label>
-            Hiệu lực từ
-            <input
-              className="kpi-input"
-              type="date"
-              value={form.valid_from}
-              disabled={!canEdit}
-              onChange={(e) => set('valid_from', e.target.value)}
-              style={{ display: 'block', width: '100%', marginTop: 4 }}
-            />
-          </label>
-          <label>
-            Đến
-            <input
-              className="kpi-input"
-              type="date"
-              value={form.valid_to}
-              disabled={!canEdit}
-              onChange={(e) => set('valid_to', e.target.value)}
-              style={{ display: 'block', width: '100%', marginTop: 4 }}
-            />
-          </label>
-        </div>
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
           {canEdit ? (
             <button type="submit" className="btn btn-sm" disabled={saving || !form.statement.trim()}>
               Lưu
@@ -392,9 +458,18 @@ export function InsightDrawer({
               type="button"
               className="btn btn-sm"
               disabled={saving || !form.statement.trim()}
+              title={
+                showPresalesBanner
+                  ? 'Duyệt nội bộ Winning — auto-seed evidence/rubric (P8.3)'
+                  : undefined
+              }
               onClick={() => void onApprove('approved_internal')}
             >
-              {showAiApprove ? 'Duyệt Insight (AI)' : 'Duyệt nội bộ'}
+              {showPresalesBanner
+                ? 'Duyệt nội bộ (Winning)'
+                : showAiApprove
+                  ? 'Duyệt Insight (AI)'
+                  : 'Duyệt nội bộ'}
             </button>
           ) : null}
           {showClientApprove ? (

@@ -39,7 +39,7 @@ import { evidenceChecksum } from './evidence-checksum.util';
 import { assertEvidenceMutable, piiHint } from './evidence-immutable.util';
 import { assertNoFakeConfidence, buildConfidenceJson } from './confidence-rubric.util';
 import { assertSimilarwebTier, sanitizeCompetitorFact } from './competitor-snapshot.util';
-import { assertNotSelfApprove, canApproveAiPresalesDraft, canApproveTarget, evaluateInsightGate, extractRubric } from './insight-gate.util';
+import { assertNotSelfApprove, canApproveAiPresalesDraft, canApproveTarget, detectPresalesInsightOrigin, evaluateInsightGate, extractRubric } from './insight-gate.util';
 import {
   assertConsentHasNoPii,
   assertExcerptNotRawTranscript,
@@ -1924,12 +1924,14 @@ export class MarketResearchService implements OnModuleInit {
     if (!INSIGHT_STATUSES.includes(target)) {
       throw new ConflictException({ error: 'invalid_transition' });
     }
+    const origin = detectPresalesInsightOrigin(existing);
     const aiFastTrack = canApproveAiPresalesDraft(
       existing.status,
       Boolean(existing.ai_generated),
       target,
+      origin,
     );
-    // P7 AI drafts: human confirming bot output is not self-approve of analyst work.
+    // P7/P8.3 AI drafts: human confirming bot output is not self-approve of analyst work.
     if (!aiFastTrack) {
       try {
         assertNotSelfApprove(existing.created_by, reviewer);
@@ -1950,12 +1952,38 @@ export class MarketResearchService implements OnModuleInit {
         extractRubric(existing.confidence_json),
       );
     }
+    if (aiFastTrack && target === 'approved_internal' && !extractRubric(existing.confidence_json)) {
+      // P8.3 Option A (UI): seed assumed_from_presales rubric before status flip.
+      const seeded = {
+        ...(existing.confidence_json && typeof existing.confidence_json === 'object'
+          ? (existing.confidence_json as Record<string, unknown>)
+          : {}),
+        origin: 'presales_ai',
+        source_tool: 'insight.draft_from_presales',
+        assumed_from_presales: true,
+        approved_via: 'presales_fast_path',
+        rubric: { S: 2, F: 2, T: 2, A: 2, R: 2, statistical_inference: false },
+        band: 'medium',
+      };
+      await this.repo.patchInsight(insightId, {
+        confidence_json: seeded as never,
+        confidence_rationale:
+          existing.confidence_rationale?.trim() ||
+          'P8.3 presales_auto_seed — assumed_from_presales rubric',
+      } as PatchInsightInput);
+    }
     const project = await this.repo.getProject(existing.project_id);
     if (
       !canApproveTarget(existing.status, target, project?.risk_class ?? 'low') &&
       !aiFastTrack
     ) {
-      throw new ConflictException({ error: 'invalid_transition' });
+      throw new ConflictException({
+        error: 'invalid_transition',
+        blockers: [
+          ...(existing.evidence_ids?.length ? [] : ['evidence_required']),
+          'rubric_required',
+        ],
+      });
     }
     const updated = await this.repo.updateInsightStatus(insightId, target);
     if (!updated) throw new NotFoundException({ error: 'not_found' });
@@ -1966,7 +1994,7 @@ export class MarketResearchService implements OnModuleInit {
       reviewer,
       role: 'approver',
       decision: target === 'rejected' ? 'reject' : 'approve',
-      comments: input.comments ?? (aiFastTrack ? 'P7 AI draft approved' : null),
+      comments: input.comments ?? (aiFastTrack ? 'P8.3 AI/presales draft approved_internal' : null),
     });
     if (isRagCorpusStatus(target)) {
       const embedText = insightEmbedText({

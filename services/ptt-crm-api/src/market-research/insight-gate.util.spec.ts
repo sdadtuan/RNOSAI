@@ -119,6 +119,10 @@ describe('canApproveAiPresalesDraft', () => {
     expect(canApproveAiPresalesDraft('draft', true, 'approved_internal')).toBe(true);
   });
 
+  it('allows origin=presales_ai without ai_generated flag', () => {
+    expect(canApproveAiPresalesDraft('draft', false, 'approved_internal', 'presales_ai')).toBe(true);
+  });
+
   it('rejects non-AI draft', () => {
     expect(canApproveAiPresalesDraft('draft', false, 'approved_internal')).toBe(false);
   });

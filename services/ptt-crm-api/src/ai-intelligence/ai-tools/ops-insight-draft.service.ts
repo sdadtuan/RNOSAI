@@ -6,6 +6,7 @@ import {
 import { OpsPresalesContextRepository } from './ops-presales-context.repository';
 import { OpsPresalesContextService } from './ops-presales-context.service';
 import type { InsightDraftResult } from './ops-presales-p7.types';
+import { buildPresalesDraftConfidenceJson } from './ops-insight-origin.util';
 
 function positiveInt(raw: unknown): number | undefined {
   const n = Number(raw);
@@ -130,6 +131,10 @@ export class OpsInsightDraftService {
       recommendation:
         'Duyệt insight → hoàn TMMT ≥6/12 + geography → Sinh plan review → CEO active.',
       actor: actor || 'ai-tool',
+      confidenceJson: buildPresalesDraftConfidenceJson({
+        lifecycle_id: lifecycleId ?? undefined,
+        research_id: projectId,
+      }),
     });
 
     return {

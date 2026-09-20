@@ -6,6 +6,7 @@ export class ResearchApiError extends ApiError {
     status: number,
     readonly code?: string,
     readonly messages?: string[],
+    readonly blockers?: string[],
   ) {
     super(message, status);
     this.name = 'ResearchApiError';
@@ -43,19 +44,47 @@ export function canSubmitInsightReview(status: InsightStatus | null | undefined)
   return status == null || status === 'draft' || status === 'evidence_attached' || status === 'rejected';
 }
 
-/** P7 AI draft — Lead/SUPER-ADMIN can Duyệt nội bộ from draft without analyst_verified. */
+/** P7/P8.3 AI draft — Lead/SUPER-ADMIN can Duyệt nội bộ from draft without analyst_verified. */
 export function canApproveAiInsightDraft(insight: {
   status?: InsightStatus | null;
   ai_generated?: boolean | null;
+  statement?: string | null;
+  confidence_rationale?: string | null;
+  confidence_json?: unknown;
 } | null | undefined): boolean {
-  if (!insight?.ai_generated) return false;
+  if (!insight) return false;
   const status = insight.status;
-  return (
+  const approvables =
     status === 'draft' ||
     status === 'evidence_attached' ||
     status === 'analyst_verified' ||
-    status === 'peer_reviewed'
-  );
+    status === 'peer_reviewed';
+  if (!approvables) return false;
+  return isPresalesAiInsight(insight);
+}
+
+/** P8.3 — Insight from insight.draft_from_presales (Winning fast-path). */
+export function isPresalesAiInsight(insight: {
+  ai_generated?: boolean | null;
+  statement?: string | null;
+  confidence_rationale?: string | null;
+  confidence_json?: unknown;
+} | null | undefined): boolean {
+  if (!insight) return false;
+  const cj =
+    insight.confidence_json && typeof insight.confidence_json === 'object'
+      ? (insight.confidence_json as Record<string, unknown>)
+      : {};
+  if (cj.origin === 'presales_ai' || cj.source_tool === 'insight.draft_from_presales') return true;
+  const aiDraft = cj.ai_draft;
+  if (aiDraft && typeof aiDraft === 'object' && (aiDraft as { presales?: unknown }).presales === true) {
+    return true;
+  }
+  if (/\[P7\]/i.test(String(insight.statement ?? ''))) return true;
+  if (/insight\.draft_from_presales|P7 insight/i.test(String(insight.confidence_rationale ?? ''))) {
+    return true;
+  }
+  return Boolean(insight.ai_generated);
 }
 
 export function hasPersistedInsightRubric(
@@ -874,23 +903,31 @@ async function researchFetch<T>(token: string, path: string, init?: RequestInit)
   const body = await parseJson<
     T & {
       error?: string;
-      message?: string | { error?: string; messages?: string[]; reason?: string };
+      message?: string | {
+        error?: string;
+        messages?: string[];
+        reason?: string;
+        blockers?: string[];
+      };
       messages?: string[];
       reason?: string;
+      blockers?: string[];
     }
   >(res);
   if (!res.ok) {
     const nested = typeof body.message === 'object' && body.message ? body.message : null;
     const errorCode = nested?.error ?? body.error;
     const messages = body.messages ?? nested?.messages;
+    const blockers = body.blockers ?? nested?.blockers;
     const reason = body.reason ?? nested?.reason;
     const detail =
+      blockers?.join(' · ') ??
       messages?.join(' · ') ??
       (reason ? TRANSITION_REASON_VI[reason] ?? reason : undefined) ??
       (typeof body.message === 'string' ? body.message : undefined) ??
       (errorCode ? TRANSITION_REASON_VI[errorCode] ?? errorCode : undefined) ??
       'Yêu cầu nghiên cứu thất bại';
-    throw new ResearchApiError(detail, res.status, errorCode, messages);
+    throw new ResearchApiError(detail, res.status, errorCode, messages, blockers);
   }
   return body;
 }

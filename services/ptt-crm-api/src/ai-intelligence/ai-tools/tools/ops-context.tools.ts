@@ -257,12 +257,15 @@ export function createOpsContextTools(
     {
       name: 'insight.approve',
       description:
-        'Approve an ai_generated P7 insight to approved_internal (WinningPlanGate). Requires X-AI-Human-Approved. dry_run supported. P7.',
+        'P8.3 Approve insight to approved_internal (WinningPlanGate). Modes: auto|presales_auto|strict. Presales AI auto-seeds evidence+rubric. Requires X-AI-Human-Approved. dry_run supported.',
       inputSchema: {
         type: 'object',
         additionalProperties: true,
         properties: {
           insight_id: { type: 'integer', minimum: 1 },
+          research_id: { type: 'integer', minimum: 1 },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          mode: { type: 'string', enum: ['auto', 'presales_auto', 'strict'] },
           target_status: { type: 'string' },
           comments: { type: 'string' },
           dry_run: { type: 'boolean' },

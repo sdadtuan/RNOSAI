@@ -76,6 +76,24 @@ CROSS JOIN (VALUES
 ) AS g(section_id, action)
 WHERE lower(trim(p.code)) IN ('mkt-01', 'mkl')
 ON CONFLICT (position_id, section_id, action) DO NOTHING;
+
+-- P8.3 — backfill fixture Insight #1 / research #2 / lifecycle #5 (360 AUTO DETAILING)
+UPDATE crm_research_insights
+   SET ai_generated = TRUE,
+       confidence_json = COALESCE(confidence_json, '{}'::jsonb) || jsonb_build_object(
+         'origin', 'presales_ai',
+         'source_tool', 'insight.draft_from_presales',
+         'ai_draft', jsonb_build_object('presales', true),
+         'lifecycle_id', 5,
+         'research_id', 2
+       ),
+       confidence_rationale = COALESCE(
+         NULLIF(trim(confidence_rationale), ''),
+         'P7 insight.draft_from_presales — pending human review'
+       ),
+       updated_at = NOW()
+ WHERE id = 1
+   AND project_id = 2;
 SQL
 }
 
@@ -105,8 +123,12 @@ run_local() {
     src/ai-intelligence/ai-tools/ops-presales-context.service.spec.ts \
     src/ai-intelligence/ai-tools/ops-plan-breakdown.service.spec.ts \
     src/ai-intelligence/ai-tools/ops-draft-write.service.spec.ts \
+    src/ai-intelligence/ai-tools/ops-insight-origin.util.spec.ts \
+    src/ai-intelligence/ai-tools/ops-insight-approve.service.spec.ts \
+    src/ai-intelligence/ai-tools/ops-insight-draft.service.spec.ts \
     src/ai-intelligence/ai-tools/tools/ops-context.tools.spec.ts \
     src/ai-intelligence/ai-tools/tool.registry.spec.ts \
+    src/market-research/insight-gate.util.spec.ts \
     src/proposals/quote-list.service.spec.ts \
     --forceExit --no-coverage
 

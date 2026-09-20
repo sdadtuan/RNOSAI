@@ -188,9 +188,14 @@ describe('createOpsContextTools', () => {
   const insightApprove = {
     approve: jest.fn(async () => ({
       ok: true,
-      phase: 'P7',
-      insight_id: 123,
+      phase: 'P8.3',
+      insight_id: 1,
+      research_id: 2,
       status: 'approved_internal',
+      origin: 'presales_ai',
+      path: 'presales_auto_seed',
+      approved_count: 1,
+      winning_insight_ok: true,
     })),
   };
   const tools = createOpsContextTools(

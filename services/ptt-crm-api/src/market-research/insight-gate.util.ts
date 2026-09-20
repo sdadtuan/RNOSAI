@@ -18,6 +18,36 @@ export function extractRubric(raw: unknown): ConfidenceRubric | null {
   return isCompleteRubric(candidate) ? candidate : null;
 }
 
+/** P8.3 — detect presales_ai origin from confidence_json / markers. */
+export function detectPresalesInsightOrigin(row: {
+  ai_generated?: boolean | null;
+  statement?: string | null;
+  confidence_rationale?: string | null;
+  confidence_json?: unknown;
+}): 'presales_ai' | 'research_manual' {
+  const cj =
+    row.confidence_json && typeof row.confidence_json === 'object'
+      ? (row.confidence_json as Record<string, unknown>)
+      : {};
+  if (cj.origin === 'presales_ai' || cj.source_tool === 'insight.draft_from_presales') {
+    return 'presales_ai';
+  }
+  const aiDraft = cj.ai_draft;
+  if (aiDraft && typeof aiDraft === 'object' && (aiDraft as { presales?: unknown }).presales === true) {
+    return 'presales_ai';
+  }
+  const statement = String(row.statement ?? '');
+  const rationale = String(row.confidence_rationale ?? '');
+  if (
+    /\[P7\]/i.test(statement) ||
+    /insight\.draft_from_presales|cannot_approve_via_tool|P7 insight/i.test(rationale)
+  ) {
+    return 'presales_ai';
+  }
+  if (Boolean(row.ai_generated)) return 'presales_ai';
+  return 'research_manual';
+}
+
 export function evaluateInsightGate(input: {
   verifiedEvidenceCount: number;
   confidenceRationale: string | null | undefined;
@@ -67,12 +97,15 @@ export function canApproveTarget(
   return false;
 }
 
-/** P7 AI draft — Lead/SUPER-ADMIN may approve_internal without full evidence gate. */
+/** P7/P8.3 AI / presales draft — Lead/SUPER-ADMIN may approve_internal without full evidence gate. */
 export function canApproveAiPresalesDraft(
   from: InsightStatus,
   aiGenerated: boolean,
   target: InsightStatus,
+  origin?: string | null,
 ): boolean {
-  if (!aiGenerated || target !== 'approved_internal') return false;
+  if (target !== 'approved_internal') return false;
+  const isPresales = Boolean(aiGenerated) || origin === 'presales_ai';
+  if (!isPresales) return false;
   return from === 'draft' || from === 'evidence_attached' || from === 'analyst_verified' || from === 'peer_reviewed';
 }
