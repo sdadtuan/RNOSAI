@@ -2,7 +2,7 @@
 
 ## Search (`q`)
 
-`GET /api/v1/quotes?q=` matches:
+`GET /api/crm/proposals?q=` matches:
 
 - `quote_code` (ILIKE) — e.g. `QT-PTT-2026-000006`
 - Digit-normalized code — `QT-0360` / `360` also match digits inside `quote_code`
