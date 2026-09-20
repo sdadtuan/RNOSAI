@@ -45,6 +45,14 @@ describe('ToolRegistry', () => {
     writeDraft: jest.fn(),
     read: jest.fn(),
   };
+  const presalesContext = {
+    buildPack: jest.fn(async () => ({
+      ok: true,
+      wired: true,
+      phase: 'P6',
+      tool: 'presales.context.read',
+    })),
+  };
 
   let registry: ToolRegistry;
 
@@ -62,13 +70,14 @@ describe('ToolRegistry', () => {
       stageTransition as never,
       planBreakdown as never,
       kpiTargetWrite as never,
+      presalesContext as never,
     );
   });
 
-  it('lists RNOS-33 tools plus Ops PO-52/P4/P5/KPI tools', () => {
+  it('lists RNOS-33 tools plus Ops PO-52/P4/P5/KPI/P6 tools', () => {
     const tools = registry.list();
 
-    expect(tools).toHaveLength(21);
+    expect(tools).toHaveLength(22);
     expect(tools.map((tool) => tool.name)).toEqual([
       'score_lead',
       'route_lead',
@@ -80,6 +89,7 @@ describe('ToolRegistry', () => {
       'run_orchestration',
       'list_orchestrations',
       'health_check',
+      'presales.context.read',
       'marketing_plan.read',
       'service_delivery.read',
       'delivery_project.read',

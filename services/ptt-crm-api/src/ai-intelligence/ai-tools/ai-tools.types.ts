@@ -86,6 +86,29 @@ export const OPS_AI_TOOL_ALLOWLIST = [
   'plan.breakdown_to_roles',
   'kpi_target.write_draft',
   'kpi_target.read',
+  'presales.context.read',
+] as const;
+
+/** Default allowlist for strategist / PM agent policies (P6). */
+export const P6_STRATEGIST_PM_TOOL_ALLOWLIST = [
+  ...OPS_AI_TOOL_ALLOWLIST,
+] as const;
+
+export const P6_AGENT_POLICY_PRESETS = [
+  {
+    agent_code: 'ptt-ops-strategist',
+    allowed_tools: [...P6_STRATEGIST_PM_TOOL_ALLOWLIST],
+    require_human_approval: true,
+    pii_block_fields: ['phone', 'email', 'national_id', 'address'],
+    spend_cap_usd_monthly: 50,
+  },
+  {
+    agent_code: 'ptt-ops-pm',
+    allowed_tools: [...P6_STRATEGIST_PM_TOOL_ALLOWLIST],
+    require_human_approval: true,
+    pii_block_fields: ['phone', 'email', 'national_id', 'address'],
+    spend_cap_usd_monthly: 50,
+  },
 ] as const;
 
 /** SRS PO-53 — never register; reject on call / key create. */

@@ -13,8 +13,10 @@ import {
   buildOfficialPlanPayload,
   mergeStrategyFramework,
   mergeTargetMarketProf,
+  parsePlanContent,
   validateOfficialTmmt,
 } from './lifecycle-marketing-plan.util';
+import { buildOfficialTmmtSeedFromConsult } from './lifecycle-tmmt-seed.util';
 import { paymentGateFromSummary } from './lifecycle-payment-gate.util';
 import type { LaunchQaHandoverGateResult } from './lifecycle-launch-handover-gate.util';
 import { getStageAdvanceInfo, StageAdvanceError, validateStageAdvance } from './lifecycle-stage.util';
@@ -393,6 +395,58 @@ export class ServiceLifecycleService {
     await this.requireLifecycle(id);
     const plan = await this.getOfficialMarketingPlan(id);
     return validateOfficialTmmt(plan);
+  }
+
+  async prefillMarketingPlanFromConsult(
+    id: number,
+    opts: { overwrite?: boolean } = {},
+  ): Promise<
+    ReturnType<typeof buildOfficialPlanPayload> & {
+      filled_keys: string[];
+      prefill_source: 'consult-intake';
+    }
+  > {
+    const lc = await this.requireLifecycle(id);
+    if (!lc.marketing_plan_id) {
+      throw new NotFoundException({ error: 'Chưa có Kế hoạch MKT chính thức' });
+    }
+    const existing = await this.getOfficialMarketingPlan(id);
+    if (!existing) {
+      throw new NotFoundException({ error: 'Không tìm thấy plan' });
+    }
+    const { strategy_framework, target_market_prof } = parsePlanContent(existing);
+    const consultBrief = await this.consult.getConsultBrief(id);
+    const seed = buildOfficialTmmtSeedFromConsult({
+      consultBrief,
+      existingProf: target_market_prof,
+      existingSf: strategy_framework,
+      overwrite: Boolean(opts.overwrite),
+    });
+    if (!seed.filled_keys.length) {
+      return {
+        ...buildOfficialPlanPayload(existing),
+        filled_keys: [],
+        prefill_source: 'consult-intake',
+      };
+    }
+    const plan = await this.pg.updateOfficialMarketingPlan(lc.marketing_plan_id, {
+      strategy_framework_json: mergeStrategyFramework(
+        String(existing.strategy_framework_json ?? '{}'),
+        seed.strategy_framework,
+      ),
+      target_market_prof_json: mergeTargetMarketProf(
+        String(existing.target_market_prof_json ?? '{}'),
+        seed.target_market_prof,
+      ),
+    });
+    if (!plan) {
+      throw new NotFoundException({ error: 'Không tìm thấy plan' });
+    }
+    return {
+      ...buildOfficialPlanPayload(plan),
+      filled_keys: seed.filled_keys,
+      prefill_source: 'consult-intake',
+    };
   }
 
   async presalesSummary(id: number) {

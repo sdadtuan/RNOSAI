@@ -1,4 +1,38 @@
-import { buildConsultBrief, consultGateLevel, prefillConsultTaskForm } from './lifecycle-consult.util';
+import {
+  buildConsultBrief,
+  buildLatestIntakeSummary,
+  consultGateLevel,
+  prefillConsultTaskForm,
+  reconcileAiSummaryWithLiveBant,
+} from './lifecycle-consult.util';
+import type { IntakeSessionRow } from '../intake/intake.types';
+
+function sessionFixture(overrides: Partial<IntakeSessionRow> = {}): IntakeSessionRow {
+  return {
+    id: 12,
+    lead_id: 5,
+    lifecycle_id: 1,
+    mode: 'phone',
+    status: 'completed',
+    service_slug: 'quang-cao-facebook',
+    contact_name: 'Test',
+    bant_json: {},
+    bant_total: 30,
+    decision: 'go',
+    decision_reason: 'Đủ ngân sách',
+    answers_json: {},
+    stakeholders_json: [],
+    commitments_json: [],
+    ai_summary: '',
+    next_meeting_at: '',
+    proposal_date: '',
+    lead_temperature: 'hot',
+    completed_at: '2026-09-20T00:00:00Z',
+    created_at: '',
+    updated_at: '',
+    ...overrides,
+  } as IntakeSessionRow;
+}
 
 describe('lifecycle-consult.util', () => {
   it('consultGateLevel blocks no_go', () => {
@@ -7,6 +41,43 @@ describe('lifecycle-consult.util', () => {
 
   it('consultGateLevel ok for go with high BANT', () => {
     expect(consultGateLevel('go', 26)).toBe('ok');
+  });
+
+  it('buildLatestIntakeSummary prefers live BANT over stale ai_summary 0/30', () => {
+    const summary = buildLatestIntakeSummary(
+      sessionFixture({
+        bant_total: 30,
+        decision: 'go',
+        ai_summary: 'BANT 0/30 · DV quang-cao-facebook',
+      }),
+    );
+    expect(summary).toContain('BANT: 30/30');
+    expect(summary).not.toMatch(/BANT:?\s*0\/30/i);
+    expect(summary).toContain('quang-cao-facebook');
+  });
+
+  it('reconcileAiSummaryWithLiveBant rewrites frozen 0/30', () => {
+    expect(reconcileAiSummaryWithLiveBant('BANT 0/30 · DV quang-cao-facebook', 30, 'go')).toBe(
+      'BANT 30/30 · DV quang-cao-facebook',
+    );
+  });
+
+  it('buildConsultBrief latest_intake_summary uses live BANT', () => {
+    const brief = buildConsultBrief({
+      lifecycleId: 1,
+      serviceSlug: 'quang-cao-facebook',
+      leadId: 5,
+      leadTaskDone: true,
+      leadTask: { task_id: 1, form_data: { need: 'Ads' }, notes: '', is_done: true },
+      intakeSessions: [
+        sessionFixture({
+          ai_summary: 'BANT 0/30 · DV quang-cao-facebook',
+        }),
+      ],
+    });
+    expect((brief.readiness as { bant_total: number }).bant_total).toBe(30);
+    expect(String(brief.latest_intake_summary)).toContain('BANT: 30/30');
+    expect(String(brief.latest_intake_summary)).not.toMatch(/BANT:?\s*0\/30/i);
   });
 
   it('buildConsultBrief without intake suggests intake action', () => {

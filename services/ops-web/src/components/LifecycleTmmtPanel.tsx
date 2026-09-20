@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   fetchServiceLifecycleMarketingPlan,
   patchServiceLifecycleMarketingPlan,
+  postServiceLifecycleMarketingPlanPrefillFromConsult,
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import { STRATEGY_LABELS, TMMT_PROF_LABELS } from '@/lib/tmmt-labels';
@@ -39,6 +40,8 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
   const [draftProf, setDraftProf] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [prefillBusy, setPrefillBusy] = useState(false);
+  const [overwritePrefill, setOverwritePrefill] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -84,11 +87,39 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
     }
   }
 
+  async function prefillFromConsult() {
+    if (!canEdit) return;
+    setPrefillBusy(true);
+    setMessage('');
+    setError('');
+    try {
+      const out = await postServiceLifecycleMarketingPlanPrefillFromConsult(token, lifecycleId, {
+        overwrite: overwritePrefill,
+      });
+      setData(out as MarketingPlanPayload);
+      const plan = (out as MarketingPlanPayload).plan;
+      setDraftSf(plan?.strategy_framework ?? {});
+      setDraftProf(plan?.target_market_prof ?? {});
+      const n = out.filled_keys?.length ?? 0;
+      setMessage(
+        n > 0
+          ? `Prefill Consult/Intake: ${n} field · tiến độ ${out.filled_count ?? 0}/12`
+          : 'Không có field mới từ Consult/Intake (đã đủ hoặc thiếu nguồn).',
+      );
+      onSaved?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Prefill TMMT thất bại');
+    } finally {
+      setPrefillBusy(false);
+    }
+  }
+
   const validation = data?.validation ?? { ok: false, messages: [] };
   const filled = data?.filled_count ?? 0;
   const minFilled = data?.tmmt_min_filled ?? 6;
   const totalProf = data?.tmmt_prof_keys?.length ?? 12;
   const coreKeys = new Set(data?.tmmt_core_keys ?? []);
+  const showEmptyBridgeHint = filled === 0 && Boolean(data?.plan);
 
   return (
     <div className="card" style={{ padding: '1rem', display: 'grid', gap: '1rem' }}>
@@ -97,6 +128,9 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
           <h3 style={{ margin: 0, fontSize: '1rem' }}>TMMT chính thức (R5)</h3>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
             Tiến độ chi tiết: {filled}/{totalProf} · tối thiểu {minFilled} mục · 4 trường core bắt buộc
+          </p>
+          <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+            BANT Intake Go ≠ TMMT đã điền — cần prefill/Consult hoặc AI Planner rồi Apply.
           </p>
         </div>
         {validation.ok ? (
@@ -109,6 +143,39 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
       {loading ? <p className="muted">Đang tải…</p> : null}
       {error ? <p className="error">{error}</p> : null}
       {message ? <p style={{ color: 'var(--accent)' }}>{message}</p> : null}
+
+      {showEmptyBridgeHint ? (
+        <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+          Plan đang trống (0/{totalProf}). Dùng <strong>Prefill từ Consult/Intake</strong> để seed từ BANT Go,
+          hoặc mở AI Planner để generate rồi Apply.
+        </p>
+      ) : null}
+
+      {canEdit ? (
+        <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <label style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', fontSize: '0.85rem' }}>
+            <input
+              type="checkbox"
+              checked={overwritePrefill}
+              onChange={(e) => setOverwritePrefill(e.target.checked)}
+            />
+            Ghi đè field đã có
+          </label>
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            disabled={prefillBusy || !data?.plan}
+            onClick={() => void prefillFromConsult()}
+          >
+            {prefillBusy ? 'Đang prefill…' : 'Prefill từ Consult/Intake'}
+          </button>
+          {onOpenAiPlannerTab ? (
+            <button type="button" className="btn btn-sm" onClick={onOpenAiPlannerTab}>
+              Mở AI Planner
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {!validation.ok ? (
         <ul className="error" style={{ margin: 0, paddingLeft: '1.1rem' }}>

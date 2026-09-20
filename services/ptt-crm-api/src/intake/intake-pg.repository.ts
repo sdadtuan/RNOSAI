@@ -13,6 +13,7 @@ import {
 import { extractDiscoveryResponseSnippets } from './intake-answers.util';
 import { syncPresalesLeadTasksFromIntake } from './intake-presales-sync.util';
 import { recordLifecycleMilestone } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
+import { reconcileAiSummaryWithLiveBant } from '../service-lifecycle/lifecycle-consult.util';
 import {
   CreateIntakeSessionBody,
   IntakeEntryResult,
@@ -412,15 +413,26 @@ export class IntakePgRepository implements OnModuleDestroy {
     const completed = await this.getSession(sessionId);
     if (!completed) return null;
 
-    await this.syncCommonIntakeToLead(completed);
-    await this.logIntakeActivity(completed, actorId);
-    await syncPresalesLeadTasksFromIntake(this.db, completed, actorId);
+    // Sales-kit summary_30s often freezes "BANT 0/30" — reconcile to live score on complete.
+    const reconciledSummary = reconcileAiSummaryWithLiveBant(
+      completed.ai_summary,
+      completed.bant_total ?? 0,
+      completed.decision,
+    );
+    if (reconciledSummary !== String(completed.ai_summary ?? '').trim()) {
+      await this.saveAiSummary(sessionId, reconciledSummary);
+    }
 
-    if (String(completed.decision ?? '').trim().toLowerCase() === 'go' && completed.lead_id) {
+    const afterSummary = (await this.getSession(sessionId)) ?? completed;
+    await this.syncCommonIntakeToLead(afterSummary);
+    await this.logIntakeActivity(afterSummary, actorId);
+    await syncPresalesLeadTasksFromIntake(this.db, afterSummary, actorId);
+
+    if (String(afterSummary.decision ?? '').trim().toLowerCase() === 'go' && afterSummary.lead_id) {
       await recordLifecycleMilestone(this.db, {
-        leadId: Number(completed.lead_id),
+        leadId: Number(afterSummary.lead_id),
         key: 'intake_go',
-        occurredAt: completed.completed_at ?? new Date(),
+        occurredAt: afterSummary.completed_at ?? new Date(),
         source: 'intake_session',
         refId: String(sessionId),
       });

@@ -4,6 +4,7 @@ import { OpsCrmContextService } from '../ops-crm-context.service';
 import { OpsDraftWriteService } from '../ops-draft-write.service';
 import { OpsKpiTargetWriteService } from '../ops-kpi-target-write.service';
 import { OpsPlanBreakdownService } from '../ops-plan-breakdown.service';
+import { OpsPresalesContextService } from '../ops-presales-context.service';
 import { OpsStageTransitionService } from '../ops-stage-transition.service';
 
 function assertHumanApprovedForWrite(
@@ -44,8 +45,33 @@ export function createOpsContextTools(
   stageTransition: OpsStageTransitionService,
   planBreakdown: OpsPlanBreakdownService,
   kpiTargetWrite: OpsKpiTargetWriteService,
+  presalesContext?: OpsPresalesContextService,
 ): AiToolDefinition[] {
   return [
+    {
+      name: 'presales.context.read',
+      description:
+        'Read presales context pack (TMMT, BANT, L2 Ads, contract, proposal gaps, approved insights, hub campaign map). Non-mutating. P6.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          client_id: { type: 'string' },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          plan_id: { type: 'integer', minimum: 1 },
+          lead_id: { type: 'integer', minimum: 1 },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: false,
+      requiredCaps: ['crm_leads.view'],
+      handler: async (input) => {
+        if (!presalesContext) {
+          throw new ForbiddenException({ error: 'presales_context_unavailable' });
+        }
+        return presalesContext.buildPack(input);
+      },
+    },
     {
       name: 'marketing_plan.read',
       description: 'Read marketing plan context for a client (CrmContextPack).',

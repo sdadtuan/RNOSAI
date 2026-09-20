@@ -91,6 +91,8 @@ import { OpsCrmContextService } from './ai-tools/ops-crm-context.service';
 import { OpsDraftWriteService } from './ai-tools/ops-draft-write.service';
 import { OpsKpiTargetWriteService } from './ai-tools/ops-kpi-target-write.service';
 import { OpsPlanBreakdownService } from './ai-tools/ops-plan-breakdown.service';
+import { OpsPresalesContextRepository } from './ai-tools/ops-presales-context.repository';
+import { OpsPresalesContextService } from './ai-tools/ops-presales-context.service';
 import { OpsRoleKpiRepository } from './ai-tools/ops-role-kpi.repository';
 import { OpsStageTransitionService } from './ai-tools/ops-stage-transition.service';
 import { RoleKpiController } from './ai-tools/role-kpi.controller';
@@ -139,6 +141,8 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     OpsRoleKpiRepository,
     OpsKpiTargetWriteService,
     OpsPlanBreakdownService,
+    OpsPresalesContextRepository,
+    OpsPresalesContextService,
     OpsStageTransitionService,
     AiToolsService,
     AiToolApiKeyGuard,
@@ -220,6 +224,7 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     OpsRoleKpiRepository,
     OpsKpiTargetWriteService,
     OpsPlanBreakdownService,
+    OpsPresalesContextService,
     OpsStageTransitionService,
     AiToolsService,
     AiToolApiKeyGuard,

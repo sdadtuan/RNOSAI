@@ -110,17 +110,33 @@ describe('createOpsContextTools', () => {
       links: [],
     })),
   } as unknown as OpsKpiTargetWriteService;
+  const presalesContext = {
+    buildPack: jest.fn(async (input: Record<string, unknown>) => ({
+      ok: true,
+      wired: true,
+      phase: 'P6',
+      tool: 'presales.context.read',
+      input,
+      blockers_for_winning_plan: [
+        { code: 'tmmt_gate', detail: '0/12' },
+        { code: 'no_approved_insight', detail: '' },
+        { code: 'geography_missing', detail: '' },
+      ],
+    })),
+  };
   const tools = createOpsContextTools(
     context,
     draftWrite,
     stageTransition,
     planBreakdown,
     kpiTargetWrite,
+    presalesContext as never,
   );
   const byName = new Map(tools.map((t) => [t.name, t]));
 
   beforeEach(() => {
     buildPack.mockClear();
+    (presalesContext.buildPack as jest.Mock).mockClear();
     (draftWrite.writeMarketingPlanDraft as jest.Mock).mockClear();
     (draftWrite.createTaskDraft as jest.Mock).mockClear();
     (draftWrite.updateTaskDraft as jest.Mock).mockClear();
@@ -130,7 +146,7 @@ describe('createOpsContextTools', () => {
     (kpiTargetWrite.read as jest.Mock).mockClear();
   });
 
-  it('registers PO-52 allowlist tools including P4/P5/KPI', () => {
+  it('registers PO-52 allowlist tools including P4/P5/KPI/P6', () => {
     expect([...byName.keys()].sort()).toEqual(
       [
         'delivery_project.read',
@@ -140,12 +156,24 @@ describe('createOpsContextTools', () => {
         'marketing_plan.read',
         'marketing_plan.write_draft',
         'plan.breakdown_to_roles',
+        'presales.context.read',
         'service_delivery.propose_transition',
         'service_delivery.read',
         'task.create_draft',
         'task.update_draft',
       ].sort(),
     );
+  });
+
+  it('presales.context.read returns P6 pack with blockers', async () => {
+    const tool = byName.get('presales.context.read')!;
+    const out = (await tool.handler(
+      { lifecycle_id: 5 },
+      { apiKeyId: 'k', clientId: null, actorId: 'a', correlationId: 'r' },
+    )) as { phase: string; blockers_for_winning_plan: unknown[] };
+    expect(presalesContext.buildPack).toHaveBeenCalledWith({ lifecycle_id: 5 });
+    expect(out.phase).toBe('P6');
+    expect(out.blockers_for_winning_plan.length).toBeGreaterThan(0);
   });
 
   it('read tools call CrmContextPack builder', async () => {

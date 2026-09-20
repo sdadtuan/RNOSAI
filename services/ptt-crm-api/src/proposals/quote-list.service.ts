@@ -35,6 +35,8 @@ export type QuoteListQuery = {
   page?: number | string;
   page_size?: number | string;
   open?: boolean | string;
+  /** Hide 0₫ draft noise (LD-5 / untitled drafts) from default “all” list. */
+  exclude_zero_totals?: boolean | string;
 };
 
 export type QuoteListItem = {
@@ -205,6 +207,9 @@ export class QuoteListService {
            BETWEEN now() AND now() + INTERVAL '7 days'
          AND p.status IN (${open})`,
       );
+    }
+    if (truthy(query.exclude_zero_totals)) {
+      clauses.push(`COALESCE(v.payable_vnd, 0) > 0`);
     }
 
     const bound = bindScope(

@@ -31,16 +31,21 @@ describe('OpsPlanBreakdownService', () => {
   const kpiTargetWrite = {
     writeDraft: jest.fn(),
   };
+  const presalesContext = {
+    evaluateGateForIds: jest.fn().mockResolvedValue({ pass: true, blockers: [], links: [] }),
+  };
 
   let svc: OpsPlanBreakdownService;
   const meta = { actor: 'tester', approvedAt: '2026-09-19T00:00:00.000Z' };
 
   beforeEach(() => {
     jest.clearAllMocks();
+    presalesContext.evaluateGateForIds.mockResolvedValue({ pass: true, blockers: [], links: [] });
     svc = new OpsPlanBreakdownService(
       repo as never,
       draftWrite as unknown as OpsDraftWriteService,
       kpiTargetWrite as never,
+      presalesContext as never,
     );
   });
 
@@ -63,6 +68,29 @@ describe('OpsPlanBreakdownService', () => {
     await expect(
       svc.breakdownToRoles({}, meta, { humanApproved: false }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('409 winning_plan_gate_failed when TMMT/insight/geo missing (plan 8 fixture)', async () => {
+    presalesContext.evaluateGateForIds.mockResolvedValue({
+      pass: false,
+      blockers: [
+        { code: 'tmmt_gate', detail: '0/12' },
+        { code: 'no_approved_insight', detail: '' },
+        { code: 'geography_missing', detail: '' },
+      ],
+      links: ['/crm/service-delivery/5?tab=tmmt', '/crm/marketing-plan/8'],
+    });
+    await expect(
+      svc.breakdownToRoles({ plan_id: 8 }, meta, { humanApproved: false }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: 'winning_plan_gate_failed',
+        blockers: expect.arrayContaining([
+          expect.objectContaining({ code: 'tmmt_gate' }),
+        ]),
+      }),
+    });
+    expect(repo.getPlanForWrite).not.toHaveBeenCalled();
   });
 
   it('rejects draft plan with plan_not_approved', async () => {

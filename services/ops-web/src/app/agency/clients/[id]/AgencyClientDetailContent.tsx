@@ -195,12 +195,15 @@ export function AgencyClientDetailContent() {
 
   const reload = useCallback(
     async (access: string) => {
-      const [detail, perf, ob, orch, leadsOut] = await Promise.all([
-        fetchAgencyClient(access, clientId),
-        fetchClientPerformance(access, clientId, { group_by: 'campaign' }),
-        fetchClientOnboardingSummary(access, clientId),
+      // Client detail is required; optional widgets fail soft so Hub never sticks on “Đang tải…”.
+      const detail = await fetchAgencyClient(access, clientId);
+      const [perf, ob, orch, leadsOut] = await Promise.all([
+        fetchClientPerformance(access, clientId, { group_by: 'campaign' }).catch(() => ({
+          rows: [] as PerformanceRow[],
+        })),
+        fetchClientOnboardingSummary(access, clientId).catch(() => null),
         fetchClientOnboardingOrchestrator(access, clientId).catch(() => null),
-        fetchClientLeads(access, clientId).catch(() => ({ leads: [] })),
+        fetchClientLeads(access, clientId).catch(() => ({ leads: [] as ClientLeadSummary[] })),
       ]);
       setClient(detail);
       setPerfRows(perf.rows ?? []);

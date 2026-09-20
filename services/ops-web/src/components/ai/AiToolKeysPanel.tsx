@@ -23,6 +23,16 @@ function statusLabel(key: AiToolApiKey): string {
 }
 
 function sampleTryInput(toolName: string): string {
+  if (toolName === 'presales.context.read') {
+    return [
+      '{',
+      '  "lifecycle_id": 5,',
+      '  "lead_id": 5,',
+      '  "plan_id": 8,',
+      '  "client_id": "d437cc78-0757-44ba-aaa3-9ffb941121dd"',
+      '}',
+    ].join('\n');
+  }
   if (toolName === 'kpi_target.write_draft') {
     return [
       '{',

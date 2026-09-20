@@ -10,6 +10,7 @@ import { dueDateFromDays } from '../../service-lifecycle/svc-task-assignment.uti
 import { OpsCrmContextRepository, OpsPlanWriteRow } from './ops-crm-context.repository';
 import { OpsDraftWriteService } from './ops-draft-write.service';
 import { OpsKpiTargetWriteService } from './ops-kpi-target-write.service';
+import { OpsPresalesContextService } from './ops-presales-context.service';
 import {
   DEFAULT_BREAKDOWN_ROLES,
   isPlanBreakdownRoleKey,
@@ -24,6 +25,7 @@ import {
   OpsPlanBreakdownMeta,
   OpsPlanBreakdownResult,
 } from './ops-plan-breakdown.types';
+import { winningPlanGateFailedBody } from './ops-winning-plan-gate.util';
 
 function positiveInt(raw: unknown): number | undefined {
   const n = Number(raw);
@@ -149,6 +151,7 @@ export class OpsPlanBreakdownService {
     private readonly repo: OpsCrmContextRepository,
     private readonly draftWrite: OpsDraftWriteService,
     private readonly kpiTargetWrite: OpsKpiTargetWriteService,
+    private readonly presalesContext: OpsPresalesContextService,
   ) {}
 
   async breakdownToRoles(
@@ -159,6 +162,15 @@ export class OpsPlanBreakdownService {
     const planId = positiveInt(input.plan_id ?? input.planId);
     if (planId == null) {
       throw new BadRequestException({ error: 'plan_id_required' });
+    }
+
+    const lifecycleHint = positiveInt(input.lifecycle_id ?? input.lifecycleId);
+    const gate = await this.presalesContext.evaluateGateForIds({
+      plan_id: planId,
+      lifecycle_id: lifecycleHint ?? null,
+    });
+    if (!gate.pass) {
+      throw new ConflictException(winningPlanGateFailedBody(gate));
     }
 
     const persistTasks = asBool(input.persist_tasks ?? input.persistTasks, false);

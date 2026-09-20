@@ -3337,6 +3337,27 @@ export async function patchServiceLifecycleMarketingPlan(
   });
 }
 
+export async function postServiceLifecycleMarketingPlanPrefillFromConsult(
+  token: string,
+  id: number,
+  body: { overwrite?: boolean } = {},
+): Promise<{
+  plan: Record<string, unknown> | null;
+  validation: { ok: boolean; messages: string[] };
+  filled_count?: number;
+  filled_keys?: string[];
+  prefill_source?: string;
+  tmmt_min_filled?: number;
+  tmmt_prof_keys?: string[];
+  tmmt_core_keys?: string[];
+}> {
+  return crmFetch(token, `/api/crm/service-lifecycle/${id}/marketing-plan/prefill-from-consult`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchServiceLifecyclePresalesSummary(
   token: string,
   id: number,

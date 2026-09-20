@@ -205,6 +205,18 @@ export class ServiceLifecycleController {
     );
   }
 
+  @Post(':id/marketing-plan/prefill-from-consult')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffServiceLifecycleWriteGuard)
+  prefillMarketingPlanFromConsult(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { overwrite?: boolean },
+  ) {
+    return this.serviceLifecycle.prefillMarketingPlanFromConsult(id, {
+      overwrite: Boolean(body?.overwrite),
+    });
+  }
+
   @Patch(':id/marketing-plan')
   @UseGuards(StaffServiceLifecycleWriteGuard)
   patchMarketingPlan(@Param('id', ParseIntPipe) id: number, @Body() body: Record<string, unknown>) {

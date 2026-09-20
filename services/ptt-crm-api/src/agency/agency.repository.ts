@@ -201,15 +201,23 @@ export class AgencyRepository implements OnModuleDestroy {
   }
 
   async fetchClient(clientId: string): Promise<AgencyClientDetail | null> {
+    const key = String(clientId ?? '').trim();
+    if (!key) return null;
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key);
     const result = await this.db.query(
-      `SELECT id::text, code, name, industry_slug, status, owner_am_id, notes, created_at, updated_at
-       FROM clients WHERE id = $1::uuid`,
-      [clientId],
+      isUuid
+        ? `SELECT id::text, code, name, industry_slug, status, owner_am_id, notes, created_at, updated_at
+           FROM clients WHERE id = $1::uuid`
+        : `SELECT id::text, code, name, industry_slug, status, owner_am_id, notes, created_at, updated_at
+           FROM clients WHERE UPPER(code) = UPPER($1)
+           LIMIT 1`,
+      [key],
     );
     const row = result.rows[0];
     if (!row) return null;
 
-    const accounts = await this.listChannelAccounts(clientId);
+    const accounts = await this.listChannelAccounts(String(row.id));
     return {
       id: String(row.id),
       code: row.code ?? '',

@@ -100,17 +100,53 @@ function buildHighlights(
   };
 }
 
-function buildLatestIntakeSummary(latest: IntakeSessionRow | null): string {
-  if (!latest) return '';
-  if (String(latest.ai_summary ?? '').trim()) {
-    return String(latest.ai_summary).slice(0, 4000);
+/** Strip stale BANT/Decision tokens so live session scores always win in Consult brief. */
+export function stripStaleBantDecisionTokens(text: string): string {
+  return String(text ?? '')
+    .replace(/\bBANT\s*:?\s*\d+\s*\/\s*30\b/gi, '')
+    .replace(/\bDecision:\s*[^\s·|,;]+/gi, '')
+    .replace(/\s*·\s*·\s*/g, ' · ')
+    .replace(/^[\s·|,;-]+/, '')
+    .replace(/[\s·|,;-]+$/, '')
+    .trim();
+}
+
+/** Keep ai_summary BANT line in sync with live bant_total (sales-kit stub often freezes at 0/30). */
+export function reconcileAiSummaryWithLiveBant(
+  aiSummary: string,
+  bantTotal: number,
+  decision?: string,
+): string {
+  const liveBant = `BANT ${Number(bantTotal) || 0}/30`;
+  const trimmed = String(aiSummary ?? '').trim();
+  if (!trimmed) {
+    const parts = [decision ? `Decision: ${decision}` : '', liveBant].filter(Boolean);
+    return parts.join(' · ').slice(0, 4000);
   }
-  const parts = [
-    latest.decision ? `Decision: ${latest.decision}` : '',
-    latest.bant_total ? `BANT: ${latest.bant_total}/30` : '',
+  if (/\bBANT\s*:?\s*\d+\s*\/\s*30\b/i.test(trimmed)) {
+    return trimmed.replace(/\bBANT\s*:?\s*\d+\s*\/\s*30\b/gi, liveBant).slice(0, 4000);
+  }
+  return `${liveBant} · ${trimmed}`.slice(0, 4000);
+}
+
+export function buildLatestIntakeSummary(latest: IntakeSessionRow | null): string {
+  if (!latest) return '';
+  const decision = String(latest.decision ?? '').trim();
+  const bantTotal = Number(latest.bant_total ?? 0) || 0;
+  const header = [
+    decision ? `Decision: ${decision}` : '',
+    `BANT: ${bantTotal}/30`,
     latest.decision_reason ? String(latest.decision_reason).slice(0, 500) : '',
-  ].filter(Boolean);
-  return parts.join(' · ').slice(0, 4000);
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const rawSummary = String(latest.ai_summary ?? '').trim();
+  if (!rawSummary) return header.slice(0, 4000);
+
+  const body = stripStaleBantDecisionTokens(rawSummary);
+  if (!body) return header.slice(0, 4000);
+  return `${header} · ${body}`.slice(0, 4000);
 }
 
 function buildRecommendedActions(brief: Record<string, unknown>): string[] {

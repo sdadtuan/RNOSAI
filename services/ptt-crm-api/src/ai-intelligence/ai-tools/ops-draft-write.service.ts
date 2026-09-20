@@ -11,6 +11,12 @@ import {
 } from '../../service-lifecycle/svc-task-assignment.util';
 import { OpsCrmContextRepository } from './ops-crm-context.repository';
 import { OpsDraftWriteMeta, OpsDraftWriteResult } from './ops-draft-write.types';
+import { OpsPresalesContextService } from './ops-presales-context.service';
+import {
+  isResearchOrTmmtStyleTask,
+  isScaleAdsStyleTask,
+  winningPlanGateFailedBody,
+} from './ops-winning-plan-gate.util';
 
 const EDITABLE_PLAN_STATUSES = new Set(['draft', 'review']);
 const AI_TITLE_PREFIX = '[AI draft] ';
@@ -87,7 +93,10 @@ function assignmentPatchFromInput(input: Record<string, unknown>): {
 
 @Injectable()
 export class OpsDraftWriteService {
-  constructor(private readonly repo: OpsCrmContextRepository) {}
+  constructor(
+    private readonly repo: OpsCrmContextRepository,
+    private readonly presalesContext: OpsPresalesContextService,
+  ) {}
 
   async writeMarketingPlanDraft(
     input: Record<string, unknown>,
@@ -171,6 +180,23 @@ export class OpsDraftWriteService {
     const lc = await this.repo.getLifecycle(lifecycleId);
     if (!lc) {
       throw new BadRequestException({ error: 'lifecycle_required' });
+    }
+
+    const tags = Array.isArray(input.tags)
+      ? input.tags.map((t) => String(t))
+      : String(input.tag ?? input.tags ?? '')
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
+    if (isScaleAdsStyleTask(titleRaw, tags) && !isResearchOrTmmtStyleTask(titleRaw, tags)) {
+      const gate = await this.presalesContext.evaluateGateForIds({
+        lifecycle_id: lifecycleId,
+        plan_id: positiveInt(input.plan_id ?? input.planId) ?? null,
+        client_id: optionalStr(input.client_id ?? input.clientId) ?? null,
+      });
+      if (!gate.pass) {
+        throw new ConflictException(winningPlanGateFailedBody(gate));
+      }
     }
 
     const stage = isValidStage(lc.stage) ? lc.stage : 'deliver';

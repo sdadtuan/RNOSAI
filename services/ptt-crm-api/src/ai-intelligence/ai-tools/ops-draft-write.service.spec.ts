@@ -21,11 +21,15 @@ describe('OpsDraftWriteService', () => {
     updateAiDraftTask: jest.fn(),
   };
   const meta = { actor: 'test-key', approvedAt: '2026-09-19T12:00:00.000Z' };
+  const presalesContext = {
+    evaluateGateForIds: jest.fn().mockResolvedValue({ pass: true, blockers: [], links: [] }),
+  };
   let svc: OpsDraftWriteService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    svc = new OpsDraftWriteService(repo as never);
+    presalesContext.evaluateGateForIds.mockResolvedValue({ pass: true, blockers: [], links: [] });
+    svc = new OpsDraftWriteService(repo as never, presalesContext as never);
   });
 
   it('patches draft plan without changing status', async () => {
@@ -164,6 +168,57 @@ describe('OpsDraftWriteService', () => {
         form_data: expect.objectContaining({ ai_draft: true }),
       }),
     );
+  });
+
+  it('409 winning_plan_gate_failed for scale-ads style task when gate fails', async () => {
+    repo.getLifecycle.mockResolvedValue({
+      id: 5,
+      stage: 'deliver',
+      status: 'active',
+      marketing_plan_id: 8,
+      agency_client_id: null,
+    });
+    presalesContext.evaluateGateForIds.mockResolvedValue({
+      pass: false,
+      blockers: [{ code: 'tmmt_gate', detail: '0/12' }],
+      links: ['/crm/service-delivery/5?tab=tmmt'],
+    });
+    await expect(
+      svc.createTaskDraft(
+        { lifecycle_id: 5, title: 'Scale winning ads — Meta CPL' },
+        meta,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ error: 'winning_plan_gate_failed' }),
+    });
+    expect(repo.insertAiDraftTask).not.toHaveBeenCalled();
+  });
+
+  it('allows TMMT research task even when winning gate fails', async () => {
+    repo.getLifecycle.mockResolvedValue({
+      id: 5,
+      stage: 'onboard',
+      status: 'active',
+      marketing_plan_id: 8,
+      agency_client_id: null,
+    });
+    presalesContext.evaluateGateForIds.mockResolvedValue({
+      pass: false,
+      blockers: [{ code: 'tmmt_gate', detail: '0/12' }],
+      links: [],
+    });
+    repo.insertAiDraftTask.mockResolvedValue({
+      id: 99,
+      lifecycle_id: 5,
+      title: '[AI draft] Hoàn thiện TMMT chi tiết',
+      stage: 'onboard',
+    });
+    const out = await svc.createTaskDraft(
+      { lifecycle_id: 5, title: 'Hoàn thiện TMMT chi tiết' },
+      meta,
+    );
+    expect(out.entity_ids.task_id).toBe(99);
+    expect(presalesContext.evaluateGateForIds).not.toHaveBeenCalled();
   });
 
   it('400 lifecycle_required when unresolved', async () => {
