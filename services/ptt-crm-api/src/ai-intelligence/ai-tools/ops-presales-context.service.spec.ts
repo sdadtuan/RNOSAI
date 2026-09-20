@@ -80,6 +80,9 @@ describe('OpsPresalesContextService', () => {
       title: 'HD 360 AUTO DETAILING — Meta Lead Gen',
       amount_vnd: 45_000_000,
       agency_client_id: 'd437cc78-0757-44ba-aaa3-9ffb941121dd',
+      campaign_id: null,
+      campaign_code: '',
+      campaign_name: '',
     });
     repo.listProposals.mockResolvedValue([]);
     repo.getPresalesL2Docs.mockResolvedValue({});
@@ -99,6 +102,7 @@ describe('OpsPresalesContextService', () => {
     expect(pack.presales.tmmt.gate_passed).toBe(false);
     expect(pack.presales.tmmt.progress).toBe('0/12');
     expect(pack.presales.contract.value_vnd).toBe(45_000_000);
+    expect(pack.presales.contract.map_status).toBe('contract_unmapped');
     expect(pack.presales.insight.approved_count).toBe(0);
     expect(pack.presales.bant.score).toBe('30/30');
     expect(pack.presales.bant.sync_ok).toBe(true);

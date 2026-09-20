@@ -189,12 +189,34 @@ export class QuoteListService {
     if (q) {
       params.push(q);
       const idx = params.length;
+      // QT-0360 / 360 aliases: match quote_code digits, client name, lead code, and
+      // contracts titled with the same token (HĐ 360 AUTO…) via agency_client_id.
+      const digits = q.replace(/\D+/g, '');
+      let digitClause = '';
+      if (digits.length >= 3) {
+        params.push(digits);
+        const dIdx = params.length;
+        digitClause = ` OR regexp_replace(COALESCE(p.quote_code, ''), '[^0-9]', '', 'g') LIKE '%' || $${dIdx} || '%'`;
+      }
       clauses.push(
         `(p.quote_code ILIKE '%' || $${idx} || '%'
           OR COALESCE(p.title, '') ILIKE '%' || $${idx} || '%'
           OR COALESCE(c.name, '') ILIKE '%' || $${idx} || '%'
           OR COALESCE(p.lead_id::text, '') ILIKE '%' || $${idx} || '%'
-          OR ('LD-' || p.lead_id) ILIKE '%' || $${idx} || '%')`,
+          OR ('LD-' || p.lead_id) ILIKE '%' || $${idx} || '%'
+          OR EXISTS (
+            SELECT 1 FROM crm_contracts ct
+             WHERE (
+               (NULLIF(TRIM(COALESCE(p.agency_client_id::text, '')), '') IS NOT NULL
+                 AND ct.agency_client_id::text = p.agency_client_id::text)
+               OR (p.lead_id IS NOT NULL AND ct.id IN (
+                     SELECT lifecycle.contract_id FROM crm_service_lifecycle lifecycle
+                      WHERE lifecycle.lead_id = p.lead_id AND lifecycle.contract_id IS NOT NULL
+                   ))
+             )
+             AND COALESCE(ct.title, '') ILIKE '%' || $${idx} || '%'
+          )
+          ${digitClause})`,
       );
     }
     if (truthy(query.pending_my_approval)) {

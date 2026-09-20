@@ -37,6 +37,12 @@ export type PresalesContractSlice = {
   title: string;
   value_vnd: number | null;
   value_meaning: string;
+  /** HĐ → crm_campaigns link (nullable until staff maps). */
+  campaign_id: number | null;
+  campaign_code: string;
+  campaign_name: string;
+  /** linked | contract_unmapped | hub_unmapped | missing_client */
+  map_status: string;
 };
 
 export type PresalesProposalSlice = {

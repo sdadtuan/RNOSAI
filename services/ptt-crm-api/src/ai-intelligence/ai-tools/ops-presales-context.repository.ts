@@ -47,6 +47,9 @@ export type PresalesContractRow = {
   title: string;
   amount_vnd: number;
   agency_client_id: string;
+  campaign_id: number | null;
+  campaign_code: string;
+  campaign_name: string;
 };
 
 export type PresalesProposalRow = {
@@ -242,20 +245,49 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
 
   async getContract(contractId: number | null): Promise<PresalesContractRow | null> {
     if (contractId == null) return null;
-    const r = await this.db.query(
-      `SELECT id, COALESCE(title, '') AS title, COALESCE(amount_vnd, 0) AS amount_vnd,
-              COALESCE(agency_client_id, '') AS agency_client_id
-       FROM crm_contracts WHERE id = $1 LIMIT 1`,
-      [contractId],
-    );
-    const row = r.rows[0];
-    if (!row) return null;
-    return {
-      id: Number(row.id),
-      title: String(row.title ?? ''),
-      amount_vnd: Number(row.amount_vnd ?? 0),
-      agency_client_id: String(row.agency_client_id ?? ''),
-    };
+    try {
+      const r = await this.db.query(
+        `SELECT ct.id, COALESCE(ct.title, '') AS title, COALESCE(ct.amount_vnd, 0) AS amount_vnd,
+                COALESCE(ct.agency_client_id, '') AS agency_client_id,
+                ct.campaign_id,
+                COALESCE(camp.code, '') AS campaign_code,
+                COALESCE(camp.name, '') AS campaign_name
+         FROM crm_contracts ct
+         LEFT JOIN crm_campaigns camp ON camp.id = ct.campaign_id
+         WHERE ct.id = $1 LIMIT 1`,
+        [contractId],
+      );
+      const row = r.rows[0];
+      if (!row) return null;
+      return {
+        id: Number(row.id),
+        title: String(row.title ?? ''),
+        amount_vnd: Number(row.amount_vnd ?? 0),
+        agency_client_id: String(row.agency_client_id ?? ''),
+        campaign_id: row.campaign_id != null ? Number(row.campaign_id) : null,
+        campaign_code: String(row.campaign_code ?? ''),
+        campaign_name: String(row.campaign_name ?? ''),
+      };
+    } catch {
+      // Older schemas without campaign_id — soft-fail.
+      const r = await this.db.query(
+        `SELECT id, COALESCE(title, '') AS title, COALESCE(amount_vnd, 0) AS amount_vnd,
+                COALESCE(agency_client_id, '') AS agency_client_id
+         FROM crm_contracts WHERE id = $1 LIMIT 1`,
+        [contractId],
+      );
+      const row = r.rows[0];
+      if (!row) return null;
+      return {
+        id: Number(row.id),
+        title: String(row.title ?? ''),
+        amount_vnd: Number(row.amount_vnd ?? 0),
+        agency_client_id: String(row.agency_client_id ?? ''),
+        campaign_id: null,
+        campaign_code: '',
+        campaign_name: '',
+      };
+    }
   }
 
   async listProposals(opts: {

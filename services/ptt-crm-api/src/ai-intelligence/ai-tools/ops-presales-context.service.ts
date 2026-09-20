@@ -177,6 +177,16 @@ export class OpsPresalesContextService {
     if (hubMaps === 0) hubGaps.push('no_campaign_map');
     if (!client) hubGaps.push('agency_client_missing');
 
+    let contractMapStatus = 'missing_client';
+    if (client || contract?.agency_client_id) {
+      if (contract?.campaign_id != null && hubMaps > 0) contractMapStatus = 'linked';
+      else if (contract?.campaign_id == null) contractMapStatus = 'contract_unmapped';
+      else contractMapStatus = 'hub_unmapped';
+    }
+    if (contractMapStatus !== 'linked') {
+      hubGaps.push(`hd_campaign_${contractMapStatus}`);
+    }
+
     if (lead) known.push(`Lead #${lead.id} ${lead.full_name || ''}`.trim());
     else unknown.push('lead');
     if (intake) known.push(`Intake #${intake.id} BANT ${intake.bant_total}/30 ${intake.decision}`);
@@ -276,6 +286,10 @@ export class OpsPresalesContextService {
         title: contract?.title ?? '',
         value_vnd: contract != null ? contract.amount_vnd : null,
         value_meaning: 'contract_total_unspecified_media_vs_fee_split',
+        campaign_id: contract?.campaign_id ?? null,
+        campaign_code: contract?.campaign_code ?? '',
+        campaign_name: contract?.campaign_name ?? '',
+        map_status: contractMapStatus,
       },
       proposal: {
         ids: proposals.map((p) => p.id),

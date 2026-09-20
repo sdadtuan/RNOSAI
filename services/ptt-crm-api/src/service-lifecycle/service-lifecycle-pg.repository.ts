@@ -472,6 +472,15 @@ export class ServiceLifecyclePgRepository implements OnModuleDestroy {
       ? `/crm/hub?client_id=${encodeURIComponent(agencyClientId)}`
       : null;
 
+    const safeStaffName = async (id: number | null): Promise<string> => {
+      if (id == null) return '';
+      try {
+        return await this.ingestRules.staffName(id);
+      } catch {
+        return `#${id}`;
+      }
+    };
+
     return {
       lifecycle_id: lc.id,
       lead_id: lc.lead_id,
@@ -484,12 +493,12 @@ export class ServiceLifecyclePgRepository implements OnModuleDestroy {
         id: lc.lead_id,
         full_name: leadFullName,
         owner_id: ownerId,
-        owner_name: ownerId ? await this.ingestRules.staffName(ownerId) : '',
+        owner_name: await safeStaffName(ownerId),
       },
       presales: {
         id: presalesId,
         assigned_sp: assignedSp,
-        assigned_sp_name: assignedSp ? await this.ingestRules.staffName(assignedSp) : '',
+        assigned_sp_name: await safeStaffName(assignedSp),
       },
       contract: {
         id: lc.contract_id,
