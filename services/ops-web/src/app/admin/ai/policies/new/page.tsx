@@ -10,11 +10,15 @@ import { canViewPolicyAdmin, useAdminCrmAuth } from '@/lib/admin/use-admin-crm-a
 
 const PII_FIELDS = ['phone', 'email', 'national_id', 'address'];
 
-/** SRS PO-52/P4/P5/P6/P7 allowlist — Ops Module. */
+/** SRS PO-52/P4/P5/P6/P7/P8 allowlist — Ops Module. */
 const OPS_TOOL_ALLOWLIST = [
   'presales.context.read',
   'presales.autofill_tmmt',
   'insight.draft_from_presales',
+  'service.recommend_from_signals',
+  'consult.draft_from_research',
+  'presales.return_to_am',
+  'proposal.draft_from_consult',
   'marketing_plan.read',
   'service_delivery.read',
   'service_delivery.propose_transition',

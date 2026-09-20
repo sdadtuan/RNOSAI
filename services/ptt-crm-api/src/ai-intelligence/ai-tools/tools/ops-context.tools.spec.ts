@@ -151,6 +151,40 @@ describe('createOpsContextTools', () => {
       status: 'review',
     })),
   };
+  const serviceRecommend = {
+    recommend: jest.fn(async () => ({
+      ok: true,
+      phase: 'P8',
+      service_status: 'recommended_draft',
+      primary: { sku: 'quang-cao-facebook', label: 'FB', reason: 'x' },
+    })),
+  };
+  const consultDraft = {
+    draftFromResearch: jest.fn(async () => ({
+      ok: true,
+      phase: 'P8',
+      fields_written: [{ key: 'need_pain', status: 'assumed_draft' }],
+      consult_ready_preview: false,
+    })),
+  };
+  const returnToAm = {
+    returnToAm: jest.fn(async () => ({
+      ok: true,
+      phase: 'P8',
+      needs_am_rework: true,
+      reason_codes: ['pain_empty'],
+    })),
+  };
+  const proposalDraft = {
+    draftFromConsult: jest.fn(async () => ({
+      ok: true,
+      phase: 'P8',
+      proposal_id: 0,
+      status: 'draft',
+      never_sent: true,
+      watermark: true,
+    })),
+  };
   const tools = createOpsContextTools(
     context,
     draftWrite,
@@ -161,6 +195,10 @@ describe('createOpsContextTools', () => {
     autofill as never,
     insightDraft as never,
     planReview as never,
+    serviceRecommend as never,
+    consultDraft as never,
+    returnToAm as never,
+    proposalDraft as never,
   );
   const byName = new Map(tools.map((t) => [t.name, t]));
 
@@ -177,11 +215,16 @@ describe('createOpsContextTools', () => {
     (autofill.autofill as jest.Mock).mockClear();
     (insightDraft.draftFromPresales as jest.Mock).mockClear();
     (planReview.generateReview as jest.Mock).mockClear();
+    (serviceRecommend.recommend as jest.Mock).mockClear();
+    (consultDraft.draftFromResearch as jest.Mock).mockClear();
+    (returnToAm.returnToAm as jest.Mock).mockClear();
+    (proposalDraft.draftFromConsult as jest.Mock).mockClear();
   });
 
-  it('registers PO-52 allowlist tools including P4/P5/KPI/P6/P7', () => {
+  it('registers PO-52 allowlist tools including P4/P5/KPI/P6/P7/P8', () => {
     expect([...byName.keys()].sort()).toEqual(
       [
+        'consult.draft_from_research',
         'delivery_project.read',
         'insight.draft_from_presales',
         'kpi_campaign.read',
@@ -193,12 +236,34 @@ describe('createOpsContextTools', () => {
         'plan.breakdown_to_roles',
         'presales.autofill_tmmt',
         'presales.context.read',
+        'presales.return_to_am',
+        'proposal.draft_from_consult',
+        'service.recommend_from_signals',
         'service_delivery.propose_transition',
         'service_delivery.read',
         'task.create_draft',
         'task.update_draft',
       ].sort(),
     );
+  });
+
+  it('service.recommend_from_signals dry_run skips human approval', async () => {
+    const tool = byName.get('service.recommend_from_signals')!;
+    await tool.handler(
+      { lifecycle_id: 5, dry_run: true },
+      { apiKeyId: 'k', clientId: null, actorId: 'a', correlationId: 'r' },
+    );
+    expect(serviceRecommend.recommend).toHaveBeenCalled();
+  });
+
+  it('presales.return_to_am requires human approval', async () => {
+    const tool = byName.get('presales.return_to_am')!;
+    await expect(
+      tool.handler(
+        { lead_id: 5, reason_codes: ['pain_empty'] },
+        { apiKeyId: 'k', clientId: null, actorId: 'a', correlationId: 'r' },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('presales.autofill_tmmt dry_run skips human approval', async () => {

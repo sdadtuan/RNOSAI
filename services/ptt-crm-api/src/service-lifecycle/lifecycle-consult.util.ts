@@ -97,6 +97,8 @@ function buildHighlights(
     domain: String(form.domain ?? '').trim(),
     niche: String(form.niche ?? form.industry ?? '').trim(),
     goal: String(form.goal ?? form.campaign_goal ?? '').trim(),
+    // P8 — expose Consult Đối tượng mục tiêu for autofill → segmentation_icp
+    target_audience: String(form.target_audience ?? form.doi_tuong_muc_tieu ?? '').trim(),
   };
 }
 

@@ -255,7 +255,10 @@ export class OpsPresalesAutofillService {
   private inferSource(key: string, brief: Record<string, unknown>): string {
     const highlights = (brief.highlights ?? {}) as Record<string, unknown>;
     if (key === 'pains_desired_outcomes' && trim(highlights.pain)) return 'consult';
-    if (key === 'segmentation_icp' && (trim(highlights.niche) || trim(highlights.domain))) {
+    if (
+      key === 'segmentation_icp' &&
+      (trim(highlights.target_audience) || trim(highlights.niche) || trim(highlights.domain))
+    ) {
       return 'consult';
     }
     if (key === 'insights_evidence') return 'bant';

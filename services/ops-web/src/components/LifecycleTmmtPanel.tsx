@@ -155,10 +155,10 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
         <div>
           <h3 style={{ margin: 0, fontSize: '1rem' }}>TMMT chính thức (R5)</h3>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Tiến độ chi tiết: {filled}/{totalProf} · tối thiểu {minFilled} mục · 4 trường core bắt buộc
+            Winning gate: TMMT ≥ {minFilled}/{totalProf} + đủ 4 core + geo + Insight approved
           </p>
           <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-            BANT Intake Go ≠ TMMT đã điền — cần prefill/Consult hoặc AI Planner rồi Apply.
+            Consult gate không dùng TMMT≥9 — chỉ BANT≥24 + Pain/Service confirmed + Go.
           </p>
         </div>
         {validation.ok ? (

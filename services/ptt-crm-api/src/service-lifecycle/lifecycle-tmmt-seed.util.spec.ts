@@ -37,6 +37,21 @@ describe('lifecycle-tmmt-seed.util', () => {
     expect(gate.ok).toBe(true);
   });
 
+  it('maps Consult Đối tượng mục tiêu → segmentation_icp (P8)', () => {
+    const seed = buildOfficialTmmtSeedFromConsult({
+      consultBrief: {
+        readiness: { decision: 'go', bant_total: 24 },
+        highlights: {
+          pain: 'Cần lead ổn định',
+          target_audience: 'SME auto detailing HCM — Owner quyết định mua',
+        },
+      },
+      existingProf: {},
+    });
+    expect(seed.target_market_prof.segmentation_icp).toContain('SME auto detailing');
+    expect(seed.target_market_prof.pains_desired_outcomes).toContain('lead ổn định');
+  });
+
   it('does not overwrite existing fields unless overwrite=true', () => {
     const seed = buildOfficialTmmtSeedFromConsult({
       consultBrief: {

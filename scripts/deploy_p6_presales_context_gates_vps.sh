@@ -14,7 +14,7 @@ VPS_USER="${PTT_VPS_USER:-deploy}"
 VPS_ROOT="${PTT_VPS_ROOT:-/var/www/rnosai}"
 APPLY="${APPLY:-0}"
 
-P6_TOOLS_JSON='["presales.context.read","presales.autofill_tmmt","insight.draft_from_presales","marketing_plan.read","marketing_plan.write_draft","marketing_plan.generate_review","service_delivery.read","service_delivery.propose_transition","delivery_project.read","kpi_campaign.read","task.create_draft","task.update_draft","plan.breakdown_to_roles","kpi_target.write_draft","kpi_target.read"]'
+P6_TOOLS_JSON='["presales.context.read","presales.autofill_tmmt","insight.draft_from_presales","marketing_plan.read","marketing_plan.write_draft","marketing_plan.generate_review","service.recommend_from_signals","consult.draft_from_research","presales.return_to_am","proposal.draft_from_consult","service_delivery.read","service_delivery.propose_transition","delivery_project.read","kpi_campaign.read","task.create_draft","task.update_draft","plan.breakdown_to_roles","kpi_target.write_draft","kpi_target.read"]'
 
 seed_allowlist() {
   if [[ -z "${DATABASE_URL:-}" ]]; then
@@ -114,6 +114,6 @@ if [[ "$APPLY" != "1" ]]; then
   exit 0
 fi
 
-# Prefer feature branch until merged to main (P6 ship).
-P6_REF="${P6_GIT_REF:-origin/feat/p6-presales-context-gates}"
-ssh "$VPS_USER@$VPS_HOST" "cd '$VPS_ROOT' && git fetch origin && git checkout -B feat/p6-presales-context-gates '$P6_REF' && bash scripts/deploy_p6_presales_context_gates_vps.sh --local"
+# Deploy from main (P6+P7 merged). Override with P6_GIT_REF if needed.
+P6_REF="${P6_GIT_REF:-origin/main}"
+ssh "$VPS_USER@$VPS_HOST" "cd '$VPS_ROOT' && git fetch origin && git checkout -B main '$P6_REF' && bash scripts/deploy_p6_presales_context_gates_vps.sh --local"

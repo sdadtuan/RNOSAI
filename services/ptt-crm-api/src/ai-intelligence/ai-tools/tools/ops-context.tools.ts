@@ -8,6 +8,10 @@ import { OpsPlanBreakdownService } from '../ops-plan-breakdown.service';
 import { OpsPlanGenerateReviewService } from '../ops-plan-generate-review.service';
 import { OpsPresalesAutofillService } from '../ops-presales-autofill.service';
 import { OpsPresalesContextService } from '../ops-presales-context.service';
+import { OpsConsultDraftService } from '../ops-consult-draft.service';
+import { OpsProposalDraftService } from '../ops-proposal-draft.service';
+import { OpsReturnToAmService } from '../ops-return-to-am.service';
+import { OpsServiceRecommendService } from '../ops-service-recommend.service';
 import { OpsStageTransitionService } from '../ops-stage-transition.service';
 
 function assertHumanApprovedForWrite(
@@ -41,7 +45,7 @@ const contextIdSchema = {
   },
 };
 
-/** SRS-PTT-Ops-Module PO-52 tools — P2–P7. */
+/** SRS-PTT-Ops-Module PO-52 tools — P2–P8. */
 export function createOpsContextTools(
   context: OpsCrmContextService,
   draftWrite: OpsDraftWriteService,
@@ -52,12 +56,16 @@ export function createOpsContextTools(
   autofill?: OpsPresalesAutofillService,
   insightDraft?: OpsInsightDraftService,
   planReview?: OpsPlanGenerateReviewService,
+  serviceRecommend?: OpsServiceRecommendService,
+  consultDraft?: OpsConsultDraftService,
+  returnToAm?: OpsReturnToAmService,
+  proposalDraft?: OpsProposalDraftService,
 ): AiToolDefinition[] {
   return [
     {
       name: 'presales.context.read',
       description:
-        'Read presales context pack (TMMT, BANT, L2 Ads, contract, proposal gaps, approved insights, hub campaign map). Non-mutating. P6.',
+        'Read presales context pack (TMMT, BANT, L2 Ads, contract, proposal gaps, approved insights, hub campaign map, consult_ready, winning_plan_ready). Non-mutating. P6/P8.',
       inputSchema: {
         type: 'object',
         additionalProperties: true,
@@ -79,9 +87,116 @@ export function createOpsContextTools(
       },
     },
     {
+      name: 'service.recommend_from_signals',
+      description:
+        'Recommend primary+alternate+menu services from industry/utterance/CRM signals. Writes recommended_draft only — never selected. Human approval. P8.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          lead_id: { type: 'integer', minimum: 1 },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          signals: { type: 'object' },
+          dry_run: { type: 'boolean' },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) => {
+        if (!serviceRecommend) {
+          throw new ForbiddenException({ error: 'service_recommend_unavailable' });
+        }
+        if (!Boolean(input.dry_run ?? input.dryRun)) {
+          assertHumanApprovedForWrite('service.recommend_from_signals', ctx);
+        }
+        return serviceRecommend.recommend(input);
+      },
+    },
+    {
+      name: 'consult.draft_from_research',
+      description:
+        'Draft Need/Pain + Consult ICP/Đối tượng mục tiêu as assumed_draft from research/CRM/SKU. No fee fabrication. Human approval. P8.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          lead_id: { type: 'integer', minimum: 1 },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          overwrite_mode: { type: 'string' },
+          include_web_research: { type: 'boolean' },
+          dry_run: { type: 'boolean' },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) => {
+        if (!consultDraft) {
+          throw new ForbiddenException({ error: 'consult_draft_unavailable' });
+        }
+        if (!Boolean(input.dry_run ?? input.dryRun)) {
+          assertHumanApprovedForWrite('consult.draft_from_research', ctx);
+        }
+        return consultDraft.draftFromResearch(input, writeMeta(ctx).actor);
+      },
+    },
+    {
+      name: 'presales.return_to_am',
+      description:
+        'Flag needs_am_rework with blockers when pain/service unknown or assumed rejected. In-app only (no email). Human approval. P8.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          lead_id: { type: 'integer', minimum: 1 },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          reason_codes: { type: 'array', items: { type: 'string' } },
+          message: { type: 'string' },
+          assignee_user_id: { type: 'integer', minimum: 1 },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) => {
+        if (!returnToAm) {
+          throw new ForbiddenException({ error: 'return_to_am_unavailable' });
+        }
+        assertHumanApprovedForWrite('presales.return_to_am', ctx);
+        return returnToAm.returnToAm(input);
+      },
+    },
+    {
+      name: 'proposal.draft_from_consult',
+      description:
+        'Create proposal draft from Consult (never send). Watermark CHƯA CONFIRM if pain unconfirmed. Human approval. P8.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          lead_id: { type: 'integer', minimum: 1 },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          dry_run: { type: 'boolean' },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) => {
+        if (!proposalDraft) {
+          throw new ForbiddenException({ error: 'proposal_draft_unavailable' });
+        }
+        if (!Boolean(input.dry_run ?? input.dryRun)) {
+          assertHumanApprovedForWrite('proposal.draft_from_consult', ctx);
+        }
+        return proposalDraft.draftFromConsult(input, writeMeta(ctx).actor);
+      },
+    },
+    {
       name: 'presales.autofill_tmmt',
       description:
-        'Fill empty TMMT fields from Consult/BANT/L2/contract (fill_empty_only default). Human approval required. Never fakes gate_passed. P7.',
+        'Fill empty TMMT fields from Consult/BANT/L2/contract (fill_empty_only default). Maps Đối tượng mục tiêu→segmentation_icp, Need/Pain→pains_desired_outcomes. Human approval. Never fakes gate_passed. P7/P8.',
       inputSchema: {
         type: 'object',
         additionalProperties: true,

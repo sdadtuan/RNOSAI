@@ -34,7 +34,27 @@ describe('ops-winning-plan-gate.util', () => {
       geography_resolved: true,
     });
     expect(gate.pass).toBe(true);
+    expect(gate.winning_plan_ready).toBe(true);
     expect(gate.blockers).toEqual([]);
+    expect(gate.ui_copy).toMatch(/6\/12/);
+  });
+
+  it('hard-fails when core fields are only assumed_draft (P8)', () => {
+    const gate = evaluateWinningPlanGate({
+      tmmt_gate_passed: true,
+      tmmt_progress: '8/12',
+      approved_insight_count: 1,
+      geography_resolved: true,
+      core_fields: {
+        market_context: { status: 'assumed_draft', text: 'Ngành detailing' },
+        segmentation_icp: { status: 'assumed_confirmed', text: 'ICP SME' },
+        personas_roles: { status: 'validated', text: 'Owner' },
+        pains_desired_outcomes: { status: 'assumed_confirmed', text: 'Lead ổn' },
+      },
+    });
+    expect(gate.pass).toBe(false);
+    expect(gate.winning_plan_ready).toBe(false);
+    expect(gate.blockers.map((b) => b.code)).toContain('core_unconfirmed');
   });
 
   it('classifies scale-ads vs research tasks', () => {

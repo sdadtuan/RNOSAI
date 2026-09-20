@@ -5,7 +5,15 @@ import {
   OFFICIAL_TMMT_CORE_KEYS,
 } from '../../service-lifecycle/lifecycle-marketing-plan.util';
 import {
+  CONSULT_READY_UI_COPY,
+  WINNING_PLAN_UI_COPY,
+  evaluateConsultReady,
+} from './ops-consult-ready.util';
+import { resolveFieldStatus } from './ops-field-quality.util';
+import { readP8QualityFromForms } from './ops-p8-quality-state.util';
+import {
   evaluateWinningPlanGate,
+  WINNING_PLAN_CORE_KEYS,
 } from './ops-winning-plan-gate.util';
 import {
   OpsPresalesContextRepository,
@@ -209,9 +217,58 @@ export class OpsPresalesContextService {
         tmmt_progress: `${filled}/12`,
         approved_insight_count: approvedIds.length,
         geography_resolved: geographyResolved,
+        core_fields: Object.fromEntries(
+          WINNING_PLAN_CORE_KEYS.map((key) => {
+            const text = String(target_market_prof[key] ?? '').trim();
+            const metaRaw =
+              typeof strategy_framework.ai_tmmt_field_meta === 'string'
+                ? (() => {
+                    try {
+                      return JSON.parse(strategy_framework.ai_tmmt_field_meta)[key];
+                    } catch {
+                      return undefined;
+                    }
+                  })()
+                : (strategy_framework.ai_tmmt_field_meta as Record<string, unknown> | undefined)?.[
+                    key
+                  ];
+            return [key, resolveFieldStatus({ text, meta: metaRaw })];
+          }),
+        ),
       },
       { lifecycle_id: lifecycle?.id ?? null, plan_id: planId },
     );
+
+    let consultReady = evaluateConsultReady({
+      bant_score: intake?.bant_total ?? 0,
+      qualify_decision: String(intake?.decision ?? ''),
+      session_completed: Boolean(intake),
+      pain: resolveFieldStatus({ text: '' }),
+      service_status: 'unknown',
+      needs_am_rework: false,
+    });
+    if (lifecycle?.id) {
+      const leadTask = await this.repo.getStageTask(lifecycle.id, 'lead');
+      const consultTask = await this.repo.getStageTask(lifecycle.id, 'consult');
+      const intakeMeta =
+        intake?.answers_json?.meta && typeof intake.answers_json.meta === 'object'
+          ? (intake.answers_json.meta as Record<string, unknown>)
+          : {};
+      const quality = readP8QualityFromForms({
+        leadForm: leadTask?.form_data,
+        consultForm: consultTask?.form_data,
+        intakeMeta,
+      });
+      consultReady = evaluateConsultReady({
+        bant_score: intake?.bant_total ?? 0,
+        qualify_decision: String(intake?.decision ?? ''),
+        session_completed: Boolean(intake),
+        pain: quality.need_pain,
+        icp: quality.icp,
+        service_status: quality.service_status,
+        needs_am_rework: quality.needs_am_rework,
+      });
+    }
 
     if (contract && contract.amount_vnd > 0) {
       assumed.push(
@@ -315,7 +372,7 @@ export class OpsPresalesContextService {
     return {
       ok: true,
       wired: true,
-      phase: 'P6',
+      phase: 'P8',
       source: 'ptt-crm',
       as_of: new Date().toISOString(),
       tool: 'presales.context.read',
@@ -329,6 +386,10 @@ export class OpsPresalesContextService {
       assumed,
       unknown,
       blockers_for_winning_plan: blockersForWinning,
+      consult_ready: consultReady.consult_ready,
+      winning_plan_ready: gate.winning_plan_ready,
+      consult_ready_blockers: consultReady.blockers,
+      gate_copy: { consult: CONSULT_READY_UI_COPY, winning: WINNING_PLAN_UI_COPY },
       links: [...new Set([...links, ...gate.links])],
     };
   }

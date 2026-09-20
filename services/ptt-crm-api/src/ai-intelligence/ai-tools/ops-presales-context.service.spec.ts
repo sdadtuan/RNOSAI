@@ -19,6 +19,7 @@ describe('OpsPresalesContextService', () => {
     staffName: jest.fn(),
     parseOfficialPlan: jest.fn(),
     validateOfficialPlan: jest.fn(),
+    getStageTask: jest.fn(),
   };
 
   let svc: OpsPresalesContextService;
@@ -89,6 +90,7 @@ describe('OpsPresalesContextService', () => {
     repo.listApprovedInsightIds.mockResolvedValue([]);
     repo.countHubCampaignMaps.mockResolvedValue(0);
     repo.staffName.mockResolvedValue('');
+    repo.getStageTask.mockResolvedValue(null);
     svc = new OpsPresalesContextService(repo as never);
   });
 
@@ -96,9 +98,9 @@ describe('OpsPresalesContextService', () => {
     await expect(svc.buildPack({})).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('builds P6 pack for lifecycle 5 with winning-plan blockers', async () => {
+  it('builds P8 pack for lifecycle 5 with winning-plan blockers', async () => {
     const pack = await svc.buildPack({ lifecycle_id: 5 });
-    expect(pack.phase).toBe('P6');
+    expect(pack.phase).toBe('P8');
     expect(pack.presales.tmmt.gate_passed).toBe(false);
     expect(pack.presales.tmmt.progress).toBe('0/12');
     expect(pack.presales.contract.value_vnd).toBe(45_000_000);
@@ -107,6 +109,10 @@ describe('OpsPresalesContextService', () => {
     expect(pack.presales.bant.score).toBe('30/30');
     expect(pack.presales.bant.sync_ok).toBe(true);
     expect(pack.presales.bant.sync_issues.some((i) => i.includes('0_30'))).toBe(true);
+    expect(pack.winning_plan_ready).toBe(false);
+    expect(pack.consult_ready).toBe(false);
+    expect(pack.gate_copy?.consult).toMatch(/BANT/);
+    expect(pack.gate_copy?.consult).not.toMatch(/TMMT/);
     expect(pack.blockers_for_winning_plan.map((b) => b.code)).toEqual(
       expect.arrayContaining(['tmmt_gate', 'no_approved_insight', 'geography_missing']),
     );
