@@ -475,6 +475,70 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
     return { id: Number(r.rows[0].id), status: String(r.rows[0].status) };
   }
 
+  async getInsightById(
+    insightId: number,
+  ): Promise<{
+    id: number;
+    project_id: number;
+    status: string;
+    ai_generated: boolean;
+  } | null> {
+    try {
+      const r = await this.db.query(
+        `SELECT id, project_id, status, COALESCE(ai_generated, false) AS ai_generated
+         FROM crm_research_insights WHERE id = $1 LIMIT 1`,
+        [insightId],
+      );
+      const row = r.rows[0];
+      if (!row) return null;
+      return {
+        id: Number(row.id),
+        project_id: Number(row.project_id),
+        status: String(row.status ?? ''),
+        ai_generated: Boolean(row.ai_generated),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async approveAiInsightInternal(opts: {
+    insightId: number;
+    projectId: number;
+    reviewer: string;
+    comments: string;
+  }): Promise<{ id: number; project_id: number; status: string } | null> {
+    const updated = await this.db.query(
+      `UPDATE crm_research_insights
+       SET status = 'approved_internal', updated_at = NOW()
+       WHERE id = $1
+         AND COALESCE(ai_generated, false) = TRUE
+         AND status = ANY($2::text[])
+       RETURNING id, project_id, status`,
+      [
+        opts.insightId,
+        ['draft', 'evidence_attached', 'analyst_verified', 'peer_reviewed'],
+      ],
+    );
+    const row = updated.rows[0];
+    if (!row) return null;
+    try {
+      await this.db.query(
+        `INSERT INTO crm_research_reviews (
+           project_id, object_type, object_id, reviewer, role, decision, comments, decided_at
+         ) VALUES ($1, 'insight', $2, $3, 'approver', 'approve', $4, NOW())`,
+        [opts.projectId, opts.insightId, opts.reviewer.slice(0, 120), opts.comments.slice(0, 500)],
+      );
+    } catch {
+      // review table optional for gate count
+    }
+    return {
+      id: Number(row.id),
+      project_id: Number(row.project_id),
+      status: String(row.status),
+    };
+  }
+
   async insertPlanReview(input: {
     name: string;
     period_label: string;

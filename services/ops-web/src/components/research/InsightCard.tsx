@@ -4,6 +4,7 @@ import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import { InsightStaleBanner } from '@/components/research/InsightStaleBanner';
 import { insightIsStale } from '@/components/research/insight-stale.util';
 import {
+  canApproveAiInsightDraft,
   canSubmitInsightReview,
   hasPersistedInsightRubric,
   INSIGHT_GATE_COPY,
@@ -16,16 +17,20 @@ export function InsightCard({
   insight,
   evidence,
   canEdit,
+  canApprove = false,
   saving,
   onOpen,
   onSubmitReview,
+  onApprove,
 }: {
   insight: ResearchInsight;
   evidence: ResearchEvidence[];
   canEdit: boolean;
+  canApprove?: boolean;
   saving: boolean;
   onOpen: (insight: ResearchInsight) => void;
   onSubmitReview: (insight: ResearchInsight) => void;
+  onApprove?: (insight: ResearchInsight) => void;
 }) {
   const verifiedCount = insight.evidence_ids.filter((id) =>
     evidence.some((ev) => ev.id === id && ev.qc_status === 'verified'),
@@ -43,6 +48,7 @@ export function InsightCard({
         : !hasRationale
           ? INSIGHT_GATE_COPY.missing_confidence_rationale
           : undefined;
+  const showAiApprove = Boolean(canApprove && canApproveAiInsightDraft(insight) && onApprove);
 
   return (
     <article className="card" style={{ padding: '0.85rem' }}>
@@ -89,6 +95,16 @@ export function InsightCard({
             onClick={() => onSubmitReview(insight)}
           >
             Gửi Lead duyệt
+          </button>
+        ) : null}
+        {showAiApprove ? (
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={saving}
+            onClick={() => onApprove?.(insight)}
+          >
+            Duyệt Insight (AI)
           </button>
         ) : null}
       </div>

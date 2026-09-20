@@ -185,6 +185,14 @@ describe('createOpsContextTools', () => {
       watermark: true,
     })),
   };
+  const insightApprove = {
+    approve: jest.fn(async () => ({
+      ok: true,
+      phase: 'P7',
+      insight_id: 123,
+      status: 'approved_internal',
+    })),
+  };
   const tools = createOpsContextTools(
     context,
     draftWrite,
@@ -199,6 +207,7 @@ describe('createOpsContextTools', () => {
     consultDraft as never,
     returnToAm as never,
     proposalDraft as never,
+    insightApprove as never,
   );
   const byName = new Map(tools.map((t) => [t.name, t]));
 
@@ -226,6 +235,7 @@ describe('createOpsContextTools', () => {
       [
         'consult.draft_from_research',
         'delivery_project.read',
+        'insight.approve',
         'insight.draft_from_presales',
         'kpi_campaign.read',
         'kpi_target.read',

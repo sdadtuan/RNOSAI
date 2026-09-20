@@ -39,7 +39,7 @@ import { evidenceChecksum } from './evidence-checksum.util';
 import { assertEvidenceMutable, piiHint } from './evidence-immutable.util';
 import { assertNoFakeConfidence, buildConfidenceJson } from './confidence-rubric.util';
 import { assertSimilarwebTier, sanitizeCompetitorFact } from './competitor-snapshot.util';
-import { assertNotSelfApprove, canApproveTarget, evaluateInsightGate, extractRubric } from './insight-gate.util';
+import { assertNotSelfApprove, canApproveAiPresalesDraft, canApproveTarget, evaluateInsightGate, extractRubric } from './insight-gate.util';
 import {
   assertConsentHasNoPii,
   assertExcerptNotRawTranscript,
@@ -1920,19 +1920,30 @@ export class MarketResearchService implements OnModuleInit {
     reviewer: string,
   ): Promise<ResearchInsightRow> {
     const existing = await this.loadScopedInsight(insightId, scope);
-    try {
-      assertNotSelfApprove(existing.created_by, reviewer);
-    } catch (err) {
-      if ((err as Error & { code?: string }).code === 'cannot_self_approve') {
-        throw new ForbiddenException({ error: 'cannot_self_approve' });
-      }
-      throw err;
-    }
     const target = String(input.target_status ?? '') as InsightStatus;
     if (!INSIGHT_STATUSES.includes(target)) {
       throw new ConflictException({ error: 'invalid_transition' });
     }
-    if (target === 'approved_internal' || target === 'approved_client_facing') {
+    const aiFastTrack = canApproveAiPresalesDraft(
+      existing.status,
+      Boolean(existing.ai_generated),
+      target,
+    );
+    // P7 AI drafts: human confirming bot output is not self-approve of analyst work.
+    if (!aiFastTrack) {
+      try {
+        assertNotSelfApprove(existing.created_by, reviewer);
+      } catch (err) {
+        if ((err as Error & { code?: string }).code === 'cannot_self_approve') {
+          throw new ForbiddenException({ error: 'cannot_self_approve' });
+        }
+        throw err;
+      }
+    }
+    if (
+      (target === 'approved_internal' || target === 'approved_client_facing') &&
+      !aiFastTrack
+    ) {
       this.assertInsightGate(
         await this.repo.countVerifiedEvidenceForInsight(insightId),
         existing.confidence_rationale,
@@ -1940,7 +1951,10 @@ export class MarketResearchService implements OnModuleInit {
       );
     }
     const project = await this.repo.getProject(existing.project_id);
-    if (!canApproveTarget(existing.status, target, project?.risk_class ?? 'low')) {
+    if (
+      !canApproveTarget(existing.status, target, project?.risk_class ?? 'low') &&
+      !aiFastTrack
+    ) {
       throw new ConflictException({ error: 'invalid_transition' });
     }
     const updated = await this.repo.updateInsightStatus(insightId, target);
@@ -1952,7 +1966,7 @@ export class MarketResearchService implements OnModuleInit {
       reviewer,
       role: 'approver',
       decision: target === 'rejected' ? 'reject' : 'approve',
-      comments: input.comments ?? null,
+      comments: input.comments ?? (aiFastTrack ? 'P7 AI draft approved' : null),
     });
     if (isRagCorpusStatus(target)) {
       const embedText = insightEmbedText({

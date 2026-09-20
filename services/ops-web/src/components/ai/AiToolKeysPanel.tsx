@@ -52,6 +52,15 @@ function sampleTryInput(toolName: string): string {
       '}',
     ].join('\n');
   }
+  if (toolName === 'insight.approve') {
+    return [
+      '{',
+      '  "insight_id": 123,',
+      '  "target_status": "approved_internal",',
+      '  "dry_run": true',
+      '}',
+    ].join('\n');
+  }
   if (toolName === 'marketing_plan.generate_review') {
     return [
       '{',

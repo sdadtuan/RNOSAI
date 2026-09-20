@@ -1,4 +1,4 @@
-import { assertNotSelfApprove, canApproveTarget, evaluateInsightGate } from './insight-gate.util';
+import { assertNotSelfApprove, canApproveAiPresalesDraft, canApproveTarget, evaluateInsightGate } from './insight-gate.util';
 import type { ConfidenceRubric } from './market-research.types';
 
 const validRubric: ConfidenceRubric = { S: 3, F: 3, T: 3, A: 3, R: 3 };
@@ -111,5 +111,19 @@ describe('canApproveTarget', () => {
 
   it('allows approved_internal → approved_client_facing', () => {
     expect(canApproveTarget('approved_internal', 'approved_client_facing', 'low')).toBe(true);
+  });
+});
+
+describe('canApproveAiPresalesDraft', () => {
+  it('allows AI draft → approved_internal', () => {
+    expect(canApproveAiPresalesDraft('draft', true, 'approved_internal')).toBe(true);
+  });
+
+  it('rejects non-AI draft', () => {
+    expect(canApproveAiPresalesDraft('draft', false, 'approved_internal')).toBe(false);
+  });
+
+  it('rejects client-facing target', () => {
+    expect(canApproveAiPresalesDraft('draft', true, 'approved_client_facing')).toBe(false);
   });
 });

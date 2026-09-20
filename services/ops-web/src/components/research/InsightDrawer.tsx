@@ -6,6 +6,7 @@ import { EvidenceIdChip } from '@/components/research/EvidenceIdChip';
 import { InsightStaleBanner } from '@/components/research/InsightStaleBanner';
 import { insightIsStale } from '@/components/research/insight-stale.util';
 import {
+  canApproveAiInsightDraft,
   canSubmitInsightReview,
   fetchResearchTaxonomy,
   hasPersistedInsightRubric,
@@ -137,8 +138,10 @@ export function InsightDrawer({
   const verifiedSelected = selected.filter((id) => verified.some((ev) => ev.id === id));
   const canSubmit = canSubmitInsightReview(insight?.status);
   const submitDisabled = saving || !canSubmit || !form.statement.trim() || verifiedSelected.length < 1;
+  const showAiApprove = canApprove && canApproveAiInsightDraft(insight);
   const showInternalApprove =
-    canApprove && !isCreator && (insight?.status === 'analyst_verified' || insight?.status === 'peer_reviewed');
+    showAiApprove ||
+    (canApprove && !isCreator && (insight?.status === 'analyst_verified' || insight?.status === 'peer_reviewed'));
   const showClientApprove = canApprove && !isCreator && insight?.status === 'approved_internal';
 
   function set<K extends keyof typeof empty>(key: K, value: string) {
@@ -388,10 +391,10 @@ export function InsightDrawer({
             <button
               type="button"
               className="btn btn-sm"
-              disabled={saving}
+              disabled={saving || !form.statement.trim()}
               onClick={() => void onApprove('approved_internal')}
             >
-              Duyệt nội bộ
+              {showAiApprove ? 'Duyệt Insight (AI)' : 'Duyệt nội bộ'}
             </button>
           ) : null}
           {showClientApprove ? (

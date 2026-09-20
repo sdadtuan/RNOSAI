@@ -43,6 +43,21 @@ export function canSubmitInsightReview(status: InsightStatus | null | undefined)
   return status == null || status === 'draft' || status === 'evidence_attached' || status === 'rejected';
 }
 
+/** P7 AI draft — Lead/SUPER-ADMIN can Duyệt nội bộ from draft without analyst_verified. */
+export function canApproveAiInsightDraft(insight: {
+  status?: InsightStatus | null;
+  ai_generated?: boolean | null;
+} | null | undefined): boolean {
+  if (!insight?.ai_generated) return false;
+  const status = insight.status;
+  return (
+    status === 'draft' ||
+    status === 'evidence_attached' ||
+    status === 'analyst_verified' ||
+    status === 'peer_reviewed'
+  );
+}
+
 export function hasPersistedInsightRubric(
   insight: Pick<ResearchInsight, 'confidence_json'>,
 ): boolean {

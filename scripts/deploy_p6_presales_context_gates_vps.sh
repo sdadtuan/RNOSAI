@@ -14,7 +14,7 @@ VPS_USER="${PTT_VPS_USER:-deploy}"
 VPS_ROOT="${PTT_VPS_ROOT:-/var/www/rnosai}"
 APPLY="${APPLY:-0}"
 
-P6_TOOLS_JSON='["presales.context.read","presales.autofill_tmmt","insight.draft_from_presales","marketing_plan.read","marketing_plan.write_draft","marketing_plan.generate_review","service.recommend_from_signals","consult.draft_from_research","presales.return_to_am","proposal.draft_from_consult","service_delivery.read","service_delivery.propose_transition","delivery_project.read","kpi_campaign.read","task.create_draft","task.update_draft","plan.breakdown_to_roles","kpi_target.write_draft","kpi_target.read"]'
+P6_TOOLS_JSON='["presales.context.read","presales.autofill_tmmt","insight.draft_from_presales","insight.approve","marketing_plan.read","marketing_plan.write_draft","marketing_plan.generate_review","service.recommend_from_signals","consult.draft_from_research","presales.return_to_am","proposal.draft_from_consult","service_delivery.read","service_delivery.propose_transition","delivery_project.read","kpi_campaign.read","task.create_draft","task.update_draft","plan.breakdown_to_roles","kpi_target.write_draft","kpi_target.read"]'
 
 seed_allowlist() {
   if [[ -z "${DATABASE_URL:-}" ]]; then
@@ -41,11 +41,41 @@ UPDATE ai_tool_api_keys
    SET allowed_tools = (
      SELECT COALESCE(jsonb_agg(DISTINCT x ORDER BY x), '[]'::jsonb)
        FROM jsonb_array_elements_text(
-         COALESCE(allowed_tools, '[]'::jsonb) || '["presales.context.read","plan.breakdown_to_roles","task.create_draft","task.update_draft"]'::jsonb
+         COALESCE(allowed_tools, '[]'::jsonb) || '["presales.context.read","plan.breakdown_to_roles","task.create_draft","task.update_draft","insight.approve"]'::jsonb
        ) AS t(x)
    )
  WHERE name ILIKE 'ops-%'
    AND allowed_tools ?| ARRAY['marketing_plan.read','plan.breakdown_to_roles','task.create_draft'];
+
+-- SUPER-ADMIN + MKT-01 research approve (Lead duyệt Insight)
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT p.id, g.section_id, g.action
+FROM crm_positions p
+CROSS JOIN (VALUES
+  ('crm_research', 'view'),
+  ('crm_research', 'create'),
+  ('crm_research', 'edit'),
+  ('crm_research', 'run'),
+  ('crm_research', 'approve'),
+  ('crm_research', 'export'),
+  ('crm_research', 'configure')
+) AS g(section_id, action)
+WHERE lower(trim(p.code)) = 'super-admin'
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
+
+INSERT INTO staff_section_permissions (position_id, section_id, action)
+SELECT p.id, g.section_id, g.action
+FROM crm_positions p
+CROSS JOIN (VALUES
+  ('crm_research', 'view'),
+  ('crm_research', 'create'),
+  ('crm_research', 'edit'),
+  ('crm_research', 'run'),
+  ('crm_research', 'export'),
+  ('crm_research', 'approve')
+) AS g(section_id, action)
+WHERE lower(trim(p.code)) IN ('mkt-01', 'mkl')
+ON CONFLICT (position_id, section_id, action) DO NOTHING;
 SQL
 }
 

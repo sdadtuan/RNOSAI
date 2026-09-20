@@ -67,8 +67,23 @@ export class LifecycleConsultService {
     const p8 = (consultForm.p8_quality as Record<string, unknown> | undefined) ?? {};
     const leadForm = leadTask?.form_data ?? {};
     const leadP8 = (leadForm.p8_quality as Record<string, unknown> | undefined) ?? {};
+    const latestIntake = [...intakeSessions]
+      .filter((s) => s.status === 'completed')
+      .sort((a, b) => {
+        const ak = `${a.completed_at ?? ''}\0${a.id}`;
+        const bk = `${b.completed_at ?? ''}\0${b.id}`;
+        return bk.localeCompare(ak);
+      })[0];
+    const intakeMeta =
+      latestIntake?.answers_json &&
+      typeof latestIntake.answers_json === 'object' &&
+      (latestIntake.answers_json as { meta?: Record<string, unknown> }).meta &&
+      typeof (latestIntake.answers_json as { meta?: Record<string, unknown> }).meta === 'object'
+        ? ((latestIntake.answers_json as { meta: Record<string, unknown> }).meta ?? {})
+        : {};
     brief.p8_quality = {
-      need_pain: p8.need_pain ?? leadP8.need_pain ?? null,
+      need_pain:
+        p8.need_pain ?? leadP8.need_pain ?? intakeMeta.pain_quality ?? null,
       icp: p8.icp ?? leadP8.icp ?? null,
       service_status:
         consultForm.service_status ?? leadForm.service_status ?? p8.service_status ?? 'unknown',

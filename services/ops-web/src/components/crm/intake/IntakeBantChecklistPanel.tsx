@@ -33,6 +33,8 @@ export type IntakeBantChecklistPanelProps = {
   /** P8 — show Confirm Assumed when Pain is assumed_draft */
   token?: string;
   lifecycleId?: number;
+  /** Confirm Assumed even when session completed (scoring locked). */
+  canConfirmAssumed?: boolean;
   painQuality?: { status?: string; text?: string } | null;
   onAssumedConfirmed?: () => void;
 };
@@ -52,6 +54,7 @@ export function IntakeBantChecklistPanel({
   onClearSuggest,
   token,
   lifecycleId,
+  canConfirmAssumed,
   painQuality,
   onAssumedConfirmed,
 }: IntakeBantChecklistPanelProps) {
@@ -227,6 +230,7 @@ export function IntakeBantChecklistPanel({
             token={token}
             lifecycleId={lifecycleId}
             canEdit={canEdit}
+            canConfirmAssumed={canConfirmAssumed ?? canEdit}
             needPain={painQuality}
             compact
             onDone={onAssumedConfirmed}

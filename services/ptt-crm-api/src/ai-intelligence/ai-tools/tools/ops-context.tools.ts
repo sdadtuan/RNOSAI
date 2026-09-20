@@ -3,6 +3,7 @@ import { AiToolDefinition, AiToolExecutionContext } from '../ai-tools.types';
 import { OpsCrmContextService } from '../ops-crm-context.service';
 import { OpsDraftWriteService } from '../ops-draft-write.service';
 import { OpsInsightDraftService } from '../ops-insight-draft.service';
+import { OpsInsightApproveService } from '../ops-insight-approve.service';
 import { OpsKpiTargetWriteService } from '../ops-kpi-target-write.service';
 import { OpsPlanBreakdownService } from '../ops-plan-breakdown.service';
 import { OpsPlanGenerateReviewService } from '../ops-plan-generate-review.service';
@@ -60,6 +61,7 @@ export function createOpsContextTools(
   consultDraft?: OpsConsultDraftService,
   returnToAm?: OpsReturnToAmService,
   proposalDraft?: OpsProposalDraftService,
+  insightApprove?: OpsInsightApproveService,
 ): AiToolDefinition[] {
   return [
     {
@@ -250,6 +252,34 @@ export function createOpsContextTools(
           assertHumanApprovedForWrite('insight.draft_from_presales', ctx);
         }
         return insightDraft.draftFromPresales(input, writeMeta(ctx).actor);
+      },
+    },
+    {
+      name: 'insight.approve',
+      description:
+        'Approve an ai_generated P7 insight to approved_internal (WinningPlanGate). Requires X-AI-Human-Approved. dry_run supported. P7.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          insight_id: { type: 'integer', minimum: 1 },
+          target_status: { type: 'string' },
+          comments: { type: 'string' },
+          dry_run: { type: 'boolean' },
+        },
+        required: ['insight_id'],
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) => {
+        if (!insightApprove) {
+          throw new ForbiddenException({ error: 'insight_approve_unavailable' });
+        }
+        if (!Boolean(input.dry_run ?? input.dryRun)) {
+          assertHumanApprovedForWrite('insight.approve', ctx);
+        }
+        return insightApprove.approve(input, writeMeta(ctx).actor);
       },
     },
     {

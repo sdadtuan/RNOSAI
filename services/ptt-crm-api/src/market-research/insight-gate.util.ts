@@ -66,3 +66,13 @@ export function canApproveTarget(
   if (target === 'rejected') return true;
   return false;
 }
+
+/** P7 AI draft — Lead/SUPER-ADMIN may approve_internal without full evidence gate. */
+export function canApproveAiPresalesDraft(
+  from: InsightStatus,
+  aiGenerated: boolean,
+  target: InsightStatus,
+): boolean {
+  if (!aiGenerated || target !== 'approved_internal') return false;
+  return from === 'draft' || from === 'evidence_attached' || from === 'analyst_verified' || from === 'peer_reviewed';
+}

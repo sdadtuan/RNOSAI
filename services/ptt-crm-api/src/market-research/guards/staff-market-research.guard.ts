@@ -20,10 +20,17 @@ async function requireResearchCap(
   if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
 
   const me = await staffAuth.me(req.staffUser);
-  if (!staffAuth.hasCap(me.caps, 'crm_research', action)) {
-    throw new ForbiddenException({ error: 'missing_cap', section: 'crm_research', action });
+  if (staffAuth.hasCap(me.caps, 'crm_research', action)) return true;
+
+  // Lead / SUPER-ADMIN stand-in when seed caps missing (P7 Duyệt Insight).
+  if (action === 'approve') {
+    const code = String(me.position_code ?? '')
+      .trim()
+      .toLowerCase();
+    if (code === 'super-admin' || code === 'mkt-01' || code === 'mkl') return true;
   }
-  return true;
+
+  throw new ForbiddenException({ error: 'missing_cap', section: 'crm_research', action });
 }
 
 @Injectable()

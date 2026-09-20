@@ -172,6 +172,15 @@ export function canViewMarketResearch(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_research', 'view');
 }
 
+/** Lead / SUPER-ADMIN — Duyệt insight (crm_research.approve or Research Lead positions). */
+export function canApproveMarketResearch(user: StoredStaffUser | null): boolean {
+  if (hasCap(user, 'crm_research', 'approve')) return true;
+  const code = String(user?.position_code ?? '')
+    .trim()
+    .toLowerCase();
+  return code === 'super-admin' || code === 'mkt-01' || code === 'mkl';
+}
+
 export function canRunLmp(user: StoredStaffUser | null): boolean {
   return hasCap(user, 'crm_lmp', 'run') || hasCap(user, 'crm_leads', 'edit');
 }

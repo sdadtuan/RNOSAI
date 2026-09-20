@@ -9,7 +9,7 @@ import {
   readP8QualityFromForms,
   writeP8QualityPatch,
 } from './ops-p8-quality-state.util';
-import type { FieldQualityStatus } from './ops-field-quality.util';
+import type { FieldQualityMeta, FieldQualityStatus } from './ops-field-quality.util';
 import type { ConfirmAssumedResult } from './ops-presales-p8.types';
 
 function positiveInt(raw: unknown): number | undefined {
@@ -102,6 +102,9 @@ export class OpsFieldConfirmService {
       }
     }
 
+    // Sync Confirm onto official TMMT core field meta (WinningPlanGate core_unconfirmed).
+    await this.syncTmmtCoreQuality(lifecycle.marketing_plan_id, field, meta);
+
     return {
       ok: true,
       phase: 'P8',
@@ -109,6 +112,57 @@ export class OpsFieldConfirmService {
       status: meta.status,
       meta,
     };
+  }
+
+  private async syncTmmtCoreQuality(
+    planId: number | null | undefined,
+    field: string,
+    meta: FieldQualityMeta,
+  ): Promise<void> {
+    if (planId == null || planId <= 0) return;
+    const tmmtKey =
+      field === 'icp' || field === 'target_audience'
+        ? 'segmentation_icp'
+        : field === 'need_pain' || field === 'pain'
+          ? 'pains_desired_outcomes'
+          : null;
+    if (!tmmtKey) return;
+
+    const plan = await this.repo.getOfficialPlan(planId);
+    if (!plan) return;
+    const { strategy_framework, target_market_prof } = this.repo.parseOfficialPlan(plan);
+    let fieldMeta: Record<string, unknown> = {};
+    const raw = strategy_framework.ai_tmmt_field_meta;
+    if (raw) {
+      try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (parsed && typeof parsed === 'object') fieldMeta = { ...(parsed as Record<string, unknown>) };
+      } catch {
+        fieldMeta = {};
+      }
+    }
+    const text =
+      String(meta.text ?? '').trim() || String(target_market_prof[tmmtKey] ?? '').trim();
+    if (text && !String(target_market_prof[tmmtKey] ?? '').trim()) {
+      target_market_prof[tmmtKey] = text.slice(0, 4000);
+    }
+    fieldMeta[tmmtKey] = {
+      ...(typeof fieldMeta[tmmtKey] === 'object' && fieldMeta[tmmtKey]
+        ? (fieldMeta[tmmtKey] as Record<string, unknown>)
+        : {}),
+      status: meta.status,
+      source: meta.source ?? 'am_confirm',
+      confidence: meta.confidence,
+      text: text || undefined,
+      confirmed_by: meta.confirmed_by ?? null,
+      confirmed_at: meta.confirmed_at ?? null,
+      ai_draft: meta.status === 'assumed_draft',
+    };
+    strategy_framework.ai_tmmt_field_meta = JSON.stringify(fieldMeta) as unknown as string;
+    await this.repo.patchOfficialPlanContent(planId, {
+      target_market_prof,
+      strategy_framework,
+    });
   }
 
   private async confirmService(

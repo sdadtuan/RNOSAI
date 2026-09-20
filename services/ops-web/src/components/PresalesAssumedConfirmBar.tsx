@@ -14,6 +14,11 @@ type Props = {
   token: string;
   lifecycleId: number;
   canEdit: boolean;
+  /**
+   * Confirm Assumed stays available even when intake session is completed
+   * (scoring canEdit may be false). Defaults to canEdit.
+   */
+  canConfirmAssumed?: boolean;
   needPain?: AssumedFieldMeta;
   icp?: AssumedFieldMeta;
   serviceStatus?: string;
@@ -30,6 +35,7 @@ export function PresalesAssumedConfirmBar({
   token,
   lifecycleId,
   canEdit,
+  canConfirmAssumed,
   needPain,
   icp,
   serviceStatus,
@@ -40,11 +46,12 @@ export function PresalesAssumedConfirmBar({
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
+  const allowConfirm = canConfirmAssumed ?? canEdit;
   const showPain = isAssumedDraft(needPain);
   const showIcp = isAssumedDraft(icp);
   const showService = serviceStatus === 'recommended_draft';
   if (!showPain && !showIcp && !showService) return null;
-  if (!canEdit) return null;
+  if (!allowConfirm) return null;
 
   async function run(label: string, fn: () => Promise<unknown>) {
     setBusy(label);

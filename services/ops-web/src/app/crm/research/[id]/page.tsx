@@ -26,6 +26,7 @@ import { shouldShowConjointTab } from '@/components/research/conjoint-pane.util'
 import { SourceKeepTable } from '@/components/research/SourceKeepTable';
 import { staffMe, staffRefresh } from '@/lib/api';
 import {
+  canApproveMarketResearch,
   clearSession,
   getAccessToken,
   getRefreshToken,
@@ -1101,7 +1102,7 @@ function CrmResearchWorkspaceContent() {
 
   const typeLabel = PRODUCT_TYPE_CARDS.find((c) => c.type === project?.product_type)?.label;
   const canEdit = hasCap(user, 'crm_research', 'edit');
-  const canApprove = hasCap(user, 'crm_research', 'approve');
+  const canApprove = canApproveMarketResearch(user);
   const canRun = hasCap(user, 'crm_research', 'run');
   const canExport = hasCap(user, 'crm_research', 'export');
 
@@ -1275,6 +1276,7 @@ function CrmResearchWorkspaceContent() {
                 ragEnabled={ragEnabled}
                 copilotRagHits={copilotRagHits}
                 canEdit={canEdit}
+                canApprove={canApprove}
                 canRun={canRun}
                 saving={saving}
                 onCreate={() => {
@@ -1286,6 +1288,27 @@ function CrmResearchWorkspaceContent() {
                   setInsightOpen(true);
                 }}
                 onSubmitReview={(insight) => void onSubmitInsight(insight)}
+                onApprove={(insight) => {
+                  setActiveInsight(insight);
+                  void (async () => {
+                    const access = getAccessToken();
+                    if (!access) return;
+                    setSaving(true);
+                    setError('');
+                    try {
+                      await approveResearchInsight(access, insight.id, {
+                        target_status: 'approved_internal',
+                      });
+                      await load(access);
+                    } catch (err) {
+                      if (!openGate(err)) {
+                        setError(err instanceof Error ? err.message : 'Duyệt insight thất bại');
+                      }
+                    } finally {
+                      setSaving(false);
+                    }
+                  })();
+                }}
                 onCopilot={(ids) => void onInsightCopilot(ids)}
               />
             ) : tab === 'report' ? (
@@ -1898,22 +1921,26 @@ function InsightsTab({
   ragEnabled,
   copilotRagHits,
   canEdit,
+  canApprove,
   canRun,
   saving,
   onCreate,
   onOpen,
   onSubmitReview,
+  onApprove,
   onCopilot,
 }: {
   project: ResearchProject;
   ragEnabled: boolean;
   copilotRagHits: InsightCopilotRagHit[];
   canEdit: boolean;
+  canApprove: boolean;
   canRun: boolean;
   saving: boolean;
   onCreate: () => void;
   onOpen: (insight: ResearchInsight) => void;
   onSubmitReview: (insight: ResearchInsight) => void;
+  onApprove: (insight: ResearchInsight) => void;
   onCopilot: (evidenceIds: number[]) => void;
 }) {
   const rows = project.insights ?? [];
@@ -2054,9 +2081,11 @@ function InsightsTab({
               insight={insight}
               evidence={project.evidence ?? []}
               canEdit={canEdit}
+              canApprove={canApprove}
               saving={saving}
               onOpen={onOpen}
               onSubmitReview={onSubmitReview}
+              onApprove={onApprove}
             />
           ))}
         </div>

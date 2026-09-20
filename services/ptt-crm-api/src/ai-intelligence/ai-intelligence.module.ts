@@ -95,6 +95,7 @@ import { OpsPresalesContextRepository } from './ai-tools/ops-presales-context.re
 import { OpsPresalesContextService } from './ai-tools/ops-presales-context.service';
 import { OpsPresalesAutofillService } from './ai-tools/ops-presales-autofill.service';
 import { OpsInsightDraftService } from './ai-tools/ops-insight-draft.service';
+import { OpsInsightApproveService } from './ai-tools/ops-insight-approve.service';
 import { OpsPlanGenerateReviewService } from './ai-tools/ops-plan-generate-review.service';
 import { OpsServiceRecommendService } from './ai-tools/ops-service-recommend.service';
 import { OpsConsultDraftService } from './ai-tools/ops-consult-draft.service';
@@ -154,6 +155,7 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     OpsPresalesContextService,
     OpsPresalesAutofillService,
     OpsInsightDraftService,
+    OpsInsightApproveService,
     OpsPlanGenerateReviewService,
     OpsServiceRecommendService,
     OpsConsultDraftService,

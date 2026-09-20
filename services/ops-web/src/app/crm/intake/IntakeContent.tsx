@@ -1422,6 +1422,7 @@ export function IntakeContent({
           <IntakeBantChecklistPanel
             checklist={bantChecklist}
             canEdit={canCreate && active?.status !== 'completed'}
+            canConfirmAssumed={canCreate}
             questionItems={discoveryQuestionItems}
             checked={discovery.checked}
             responses={discovery.responses}
