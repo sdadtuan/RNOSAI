@@ -60,6 +60,7 @@ describe('ToolRegistry', () => {
   const consultDraft = { draftFromResearch: jest.fn() };
   const returnToAm = { returnToAm: jest.fn() };
   const proposalDraft = { draftFromConsult: jest.fn() };
+  const insightApprove = { approve: jest.fn() };
 
   let registry: ToolRegistry;
 
@@ -85,13 +86,14 @@ describe('ToolRegistry', () => {
       consultDraft as never,
       returnToAm as never,
       proposalDraft as never,
+      insightApprove as never,
     );
   });
 
   it('lists RNOS-33 tools plus Ops PO-52/P4/P5/KPI/P6/P7/P8 tools', () => {
     const tools = registry.list();
 
-    expect(tools).toHaveLength(29);
+    expect(tools).toHaveLength(30);
     expect(tools.map((tool) => tool.name)).toEqual([
       'score_lead',
       'route_lead',
@@ -110,6 +112,7 @@ describe('ToolRegistry', () => {
       'proposal.draft_from_consult',
       'presales.autofill_tmmt',
       'insight.draft_from_presales',
+      'insight.approve',
       'marketing_plan.generate_review',
       'marketing_plan.read',
       'service_delivery.read',
