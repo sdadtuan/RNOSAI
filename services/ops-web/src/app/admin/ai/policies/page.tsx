@@ -9,6 +9,7 @@ import { canViewPolicyAdmin, useAdminCrmAuth } from '@/lib/admin/use-admin-crm-a
 
 const PII_FIELDS = ['phone', 'email', 'national_id', 'address'];
 const TOOL_OPTIONS = [
+  'presales.context.read',
   'marketing_plan.read',
   'service_delivery.read',
   'service_delivery.propose_transition',
@@ -16,6 +17,7 @@ const TOOL_OPTIONS = [
   'kpi_campaign.read',
   'marketing_plan.write_draft',
   'task.create_draft',
+  'task.update_draft',
   'plan.breakdown_to_roles',
   'kpi_target.write_draft',
   'kpi_target.read',
