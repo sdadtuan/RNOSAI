@@ -194,42 +194,47 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
   async getLatestCompletedIntake(leadId: number | null, lifecycleId: number | null): Promise<PresalesIntakeRow | null> {
     const clauses: string[] = [`s.status = 'completed'`];
     const params: unknown[] = [];
+    const idClauses: string[] = [];
     if (leadId != null) {
       params.push(leadId);
-      clauses.push(`s.lead_id = $${params.length}`);
+      idClauses.push(`s.lead_id = $${params.length}`);
     }
     if (lifecycleId != null) {
       params.push(lifecycleId);
-      clauses.push(`(s.lifecycle_id = $${params.length} OR s.lifecycle_id IN (
-        SELECT id FROM crm_service_lifecycle WHERE sqlite_lifecycle_id = $${params.length}
-      ))`);
+      idClauses.push(`s.lifecycle_id = $${params.length}`);
     }
-    if (params.length === 0) return null;
-    const r = await this.db.query(
-      `SELECT s.id, s.bant_total, s.decision, COALESCE(s.completed_at::text, '') AS completed_at,
-              COALESCE(s.ai_summary, '') AS ai_summary, COALESCE(s.answers_json, '{}'::jsonb) AS answers_json,
-              s.lead_id, s.lifecycle_id
-       FROM crm_lead_intake_sessions s
-       WHERE ${clauses.join(' AND ')}
-       ORDER BY s.completed_at DESC NULLS LAST, s.id DESC
-       LIMIT 1`,
-      params,
-    );
-    const row = r.rows[0];
-    if (!row) return null;
-    return {
-      id: Number(row.id),
-      bant_total: Number(row.bant_total ?? 0),
-      decision: String(row.decision ?? ''),
-      completed_at: String(row.completed_at ?? ''),
-      ai_summary: String(row.ai_summary ?? ''),
-      answers_json:
-        row.answers_json && typeof row.answers_json === 'object'
-          ? (row.answers_json as Record<string, unknown>)
-          : {},
-      lead_id: row.lead_id == null ? null : Number(row.lead_id),
-      lifecycle_id: row.lifecycle_id == null ? null : Number(row.lifecycle_id),
-    };
+    if (idClauses.length === 0) return null;
+    // Match by lead OR lifecycle — intake rows often store only lead_id.
+    clauses.push(`(${idClauses.join(' OR ')})`);
+    try {
+      const r = await this.db.query(
+        `SELECT s.id, s.bant_total, s.decision, COALESCE(s.completed_at::text, '') AS completed_at,
+                COALESCE(s.ai_summary, '') AS ai_summary, COALESCE(s.answers_json, '{}'::jsonb) AS answers_json,
+                s.lead_id, s.lifecycle_id
+         FROM crm_lead_intake_sessions s
+         WHERE ${clauses.join(' AND ')}
+         ORDER BY s.completed_at DESC NULLS LAST, s.id DESC
+         LIMIT 1`,
+        params,
+      );
+      const row = r.rows[0];
+      if (!row) return null;
+      return {
+        id: Number(row.id),
+        bant_total: Number(row.bant_total ?? 0),
+        decision: String(row.decision ?? ''),
+        completed_at: String(row.completed_at ?? ''),
+        ai_summary: String(row.ai_summary ?? ''),
+        answers_json:
+          row.answers_json && typeof row.answers_json === 'object'
+            ? (row.answers_json as Record<string, unknown>)
+            : {},
+        lead_id: row.lead_id == null ? null : Number(row.lead_id),
+        lifecycle_id: row.lifecycle_id == null ? null : Number(row.lifecycle_id),
+      };
+    } catch {
+      return null;
+    }
   }
 
   async getOfficialPlan(planId: number | null): Promise<Record<string, unknown> | null> {
