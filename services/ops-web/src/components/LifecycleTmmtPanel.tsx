@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   fetchServiceLifecycleMarketingPlan,
   patchServiceLifecycleMarketingPlan,
+  postPresalesGeneratePlanReview,
   postServiceLifecycleMarketingPlanPrefillFromConsult,
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
@@ -35,12 +37,14 @@ type MarketingPlanPayload = {
 };
 
 export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, onOpenAiPlannerTab }: Props) {
+  const router = useRouter();
   const [data, setData] = useState<MarketingPlanPayload | null>(null);
   const [draftSf, setDraftSf] = useState<Record<string, string>>({});
   const [draftProf, setDraftProf] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [prefillBusy, setPrefillBusy] = useState(false);
+  const [planReviewBusy, setPlanReviewBusy] = useState(false);
   const [overwritePrefill, setOverwritePrefill] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -114,6 +118,30 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
     }
   }
 
+  async function generatePlanReview() {
+    if (!canEdit || planReviewBusy) return;
+    const ok = window.confirm(
+      'Tạo Marketing Plan status=review từ presales. CEO duyệt mới active. Tiếp tục?',
+    );
+    if (!ok) return;
+    setPlanReviewBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const cloneFrom = data?.plan?.id != null ? Number(data.plan.id) : undefined;
+      const out = await postPresalesGeneratePlanReview(token, lifecycleId, {
+        clone_from_plan_id: Number.isFinite(cloneFrom) ? cloneFrom : undefined,
+      });
+      const blockers = out.gate_snapshot?.blockers?.map((b) => b.code).join(', ') || 'none';
+      setMessage(`Plan #${out.plan_id} status=review · blockers: ${blockers}`);
+      router.push(`/crm/marketing-plan/${out.plan_id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sinh plan review thất bại');
+    } finally {
+      setPlanReviewBusy(false);
+    }
+  }
+
   const validation = data?.validation ?? { ok: false, messages: [] };
   const filled = data?.filled_count ?? 0;
   const minFilled = data?.tmmt_min_filled ?? 6;
@@ -168,6 +196,14 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
             onClick={() => void prefillFromConsult()}
           >
             {prefillBusy ? 'Đang prefill…' : 'Prefill từ Consult/Intake'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={planReviewBusy}
+            onClick={() => void generatePlanReview()}
+          >
+            {planReviewBusy ? 'Đang sinh…' : 'Sinh plan review'}
           </button>
           {onOpenAiPlannerTab ? (
             <button type="button" className="btn btn-sm" onClick={onOpenAiPlannerTab}>

@@ -33,6 +33,34 @@ function sampleTryInput(toolName: string): string {
       '}',
     ].join('\n');
   }
+  if (toolName === 'presales.autofill_tmmt') {
+    return [
+      '{',
+      '  "lifecycle_id": 5,',
+      '  "lead_id": 5,',
+      '  "overwrite_mode": "fill_empty_only",',
+      '  "dry_run": true',
+      '}',
+    ].join('\n');
+  }
+  if (toolName === 'insight.draft_from_presales') {
+    return [
+      '{',
+      '  "lifecycle_id": 5,',
+      '  "plan_id": 8,',
+      '  "client_id": "d437cc78-0757-44ba-aaa3-9ffb941121dd"',
+      '}',
+    ].join('\n');
+  }
+  if (toolName === 'marketing_plan.generate_review') {
+    return [
+      '{',
+      '  "lifecycle_id": 5,',
+      '  "clone_from_plan_id": 8,',
+      '  "title": "360 AUTO DETAILING — Plan review từ presales"',
+      '}',
+    ].join('\n');
+  }
   if (toolName === 'kpi_target.write_draft') {
     return [
       '{',

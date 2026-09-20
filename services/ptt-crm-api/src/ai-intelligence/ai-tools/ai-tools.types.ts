@@ -77,6 +77,7 @@ export interface AiToolExecutionContext {
 export const OPS_AI_TOOL_ALLOWLIST = [
   'marketing_plan.read',
   'marketing_plan.write_draft',
+  'marketing_plan.generate_review',
   'service_delivery.read',
   'service_delivery.propose_transition',
   'delivery_project.read',
@@ -87,9 +88,11 @@ export const OPS_AI_TOOL_ALLOWLIST = [
   'kpi_target.write_draft',
   'kpi_target.read',
   'presales.context.read',
+  'presales.autofill_tmmt',
+  'insight.draft_from_presales',
 ] as const;
 
-/** Default allowlist for strategist / PM agent policies (P6). */
+/** Default allowlist for strategist / PM agent policies (P6+P7). */
 export const P6_STRATEGIST_PM_TOOL_ALLOWLIST = [
   ...OPS_AI_TOOL_ALLOWLIST,
 ] as const;
@@ -110,6 +113,9 @@ export const P6_AGENT_POLICY_PRESETS = [
     spend_cap_usd_monthly: 50,
   },
 ] as const;
+
+/** Alias — P7 reuses strategist/PM presets with expanded allowlist. */
+export const P7_AGENT_POLICY_PRESETS = P6_AGENT_POLICY_PRESETS;
 
 /** SRS PO-53 — never register; reject on call / key create. */
 export const OPS_AI_TOOL_DENYLIST = [

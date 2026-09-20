@@ -14,7 +14,7 @@ VPS_USER="${PTT_VPS_USER:-deploy}"
 VPS_ROOT="${PTT_VPS_ROOT:-/var/www/rnosai}"
 APPLY="${APPLY:-0}"
 
-P6_TOOLS_JSON='["presales.context.read","marketing_plan.read","marketing_plan.write_draft","service_delivery.read","service_delivery.propose_transition","delivery_project.read","kpi_campaign.read","task.create_draft","task.update_draft","plan.breakdown_to_roles","kpi_target.write_draft","kpi_target.read"]'
+P6_TOOLS_JSON='["presales.context.read","presales.autofill_tmmt","insight.draft_from_presales","marketing_plan.read","marketing_plan.write_draft","marketing_plan.generate_review","service_delivery.read","service_delivery.propose_transition","delivery_project.read","kpi_campaign.read","task.create_draft","task.update_draft","plan.breakdown_to_roles","kpi_target.write_draft","kpi_target.read"]'
 
 seed_allowlist() {
   if [[ -z "${DATABASE_URL:-}" ]]; then

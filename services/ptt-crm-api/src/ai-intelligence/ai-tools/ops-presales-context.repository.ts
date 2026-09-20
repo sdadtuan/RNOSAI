@@ -385,6 +385,138 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
     }
   }
 
+  async patchOfficialPlanContent(
+    planId: number,
+    content: {
+      target_market_prof: Record<string, string>;
+      strategy_framework: Record<string, string>;
+    },
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_marketing_plans
+       SET target_market_prof_json = $2::jsonb,
+           strategy_framework_json = $3::jsonb,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [
+        planId,
+        JSON.stringify(content.target_market_prof ?? {}),
+        JSON.stringify(content.strategy_framework ?? {}),
+      ],
+    );
+  }
+
+  async findOrCreatePresalesResearchProject(opts: {
+    clientId: string;
+    lifecycleId: number | null;
+    title: string;
+    actor: string;
+  }): Promise<number> {
+    const existing = await this.db.query(
+      `SELECT id FROM crm_research_projects
+       WHERE client_id = $1
+         AND (
+           ($2::int IS NOT NULL AND lifecycle_id = $2)
+           OR title ILIKE '%presales%'
+         )
+       ORDER BY CASE WHEN lifecycle_id = $2 THEN 0 ELSE 1 END, id DESC
+       LIMIT 1`,
+      [opts.clientId, opts.lifecycleId],
+    );
+    if (existing.rows[0]?.id != null) return Number(existing.rows[0].id);
+
+    const inserted = await this.db.query(
+      `INSERT INTO crm_research_projects (
+         client_id, title, product_type, dv12_tier, decision_statement,
+         geo, languages, risk_class, lifecycle_id, status, created_by, updated_by
+       ) VALUES (
+         $1, $2, 'GTM', 'CB', $3,
+         '["VN"]'::jsonb, '["vi"]'::jsonb, 'low', $4, 'intake', $5, $5
+       ) RETURNING id`,
+      [
+        opts.clientId,
+        opts.title.slice(0, 240),
+        'Presales insight draft — chờ duyệt (P7)',
+        opts.lifecycleId,
+        opts.actor.slice(0, 120),
+      ],
+    );
+    return Number(inserted.rows[0].id);
+  }
+
+  async createPendingInsight(opts: {
+    projectId: number;
+    statement: string;
+    observation: string;
+    interpretation: string;
+    implication: string;
+    recommendation: string;
+    actor: string;
+  }): Promise<{ id: number; status: string }> {
+    const r = await this.db.query(
+      `INSERT INTO crm_research_insights (
+         project_id, statement, observation, interpretation, implication, recommendation,
+         audience, status, confidence_rationale, created_by, ai_generated
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6,
+         'internal', 'draft', $7, $8, TRUE
+       ) RETURNING id, status`,
+      [
+        opts.projectId,
+        opts.statement.slice(0, 4000),
+        opts.observation.slice(0, 4000) || null,
+        opts.interpretation.slice(0, 4000) || null,
+        opts.implication.slice(0, 4000) || null,
+        opts.recommendation.slice(0, 4000) || null,
+        'P7 insight.draft_from_presales — pending human review',
+        opts.actor.slice(0, 120),
+      ],
+    );
+    return { id: Number(r.rows[0].id), status: String(r.rows[0].status) };
+  }
+
+  async insertPlanReview(input: {
+    name: string;
+    period_label: string;
+    objectives: string;
+    notes: string;
+    lifecycle_id: number | null;
+    strategy_framework_json: Record<string, unknown>;
+    target_market_prof_json: Record<string, unknown>;
+    north_star?: string;
+  }): Promise<number> {
+    const code = `AI-REVIEW-${Date.now()}`;
+    const r = await this.db.query(
+      `INSERT INTO crm_marketing_plans (
+         code, name, status, plan_kind, lifecycle_id, period_label, objectives, notes,
+         north_star, strategy_framework_json, target_market_prof_json, target_market_steps4_json,
+         created_at, updated_at
+       ) VALUES (
+         $1, $2, 'review', 'standalone', $3, $4, $5, $6,
+         $7, $8::jsonb, $9::jsonb, '{}'::jsonb, NOW(), NOW()
+       ) RETURNING id`,
+      [
+        code,
+        String(input.name ?? '').slice(0, 400),
+        input.lifecycle_id,
+        String(input.period_label ?? '').slice(0, 120),
+        String(input.objectives ?? '').slice(0, 32000),
+        String(input.notes ?? '').slice(0, 32000),
+        String(input.north_star ?? '').slice(0, 2000),
+        JSON.stringify(input.strategy_framework_json ?? {}),
+        JSON.stringify(input.target_market_prof_json ?? {}),
+      ],
+    );
+    return Number(r.rows[0].id);
+  }
+
+  async getPlanStatus(planId: number): Promise<string | null> {
+    const r = await this.db.query(`SELECT status FROM crm_marketing_plans WHERE id = $1 LIMIT 1`, [
+      planId,
+    ]);
+    return r.rows[0]?.status != null ? String(r.rows[0].status) : null;
+  }
+
   async staffName(staffId: number | null): Promise<string> {
     if (staffId == null) return '';
     try {
