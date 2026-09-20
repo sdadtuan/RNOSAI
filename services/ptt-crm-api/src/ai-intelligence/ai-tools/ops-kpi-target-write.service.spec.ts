@@ -177,4 +177,46 @@ describe('OpsKpiTargetWriteService', () => {
     const out = await svc.transitionStatus(7, 'review', 'lead@ptt');
     expect(out.status).toBe('review');
   });
+
+  it('patchDraftFields updates target/owner/due on draft', async () => {
+    repo.getById.mockResolvedValue({
+      id: 11,
+      status: 'draft',
+      period_start: '2026-10-01',
+      period_end: '2026-12-31',
+      target_value: 5,
+      owner_staff_id: null,
+    });
+    repo.patch.mockResolvedValue({
+      id: 11,
+      status: 'draft',
+      period_end: '2026-11-15',
+      target_value: 12,
+      owner_staff_id: 'AM 360',
+    });
+
+    const out = await svc.patchDraftFields(
+      11,
+      { target_value: 12, owner_staff_id: 'AM 360', due_date: '2026-11-15' },
+      'lead@ptt',
+    );
+
+    expect(out.target_value).toBe(12);
+    expect(repo.patch).toHaveBeenCalledWith(
+      11,
+      expect.objectContaining({
+        target_value: 12,
+        owner_staff_id: 'AM 360',
+        period_end: '2026-11-15',
+        form_data: expect.objectContaining({ staff_edited_by: 'lead@ptt' }),
+      }),
+    );
+  });
+
+  it('patchDraftFields rejects approved rows', async () => {
+    repo.getById.mockResolvedValue({ id: 3, status: 'approved', period_start: null });
+    await expect(
+      svc.patchDraftFields(3, { target_value: 9 }, 'lead@ptt'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
 });

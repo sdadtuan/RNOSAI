@@ -7,6 +7,7 @@ import { KpiHubPageGate } from '@/components/kpi-hub/KpiHubPageGate';
 import { KpiHubShell } from '@/components/kpi-hub/KpiHubShell';
 import {
   fetchRoleKpiList,
+  patchRoleKpiFields,
   patchRoleKpiStatus,
   type RoleKpiRow,
 } from '@/lib/kpi-hub-api';
@@ -18,10 +19,25 @@ import {
   hasCap,
   updateAccessToken,
 } from '@/lib/auth';
-import { staffRefresh } from '@/lib/api';
+import { ApiError, staffRefresh } from '@/lib/api';
 
 const ROLES = ['am', 'graphic', 'content', 'video', 'ads', 'pm'];
 const STATUSES = ['draft', 'review', 'approved', 'locked', 'cancelled'];
+
+async function withAuthRetry<T>(fn: (token: string) => Promise<T>): Promise<T> {
+  let token = getAccessToken();
+  if (!token) throw new ApiError('Unauthorized', 401);
+  try {
+    return await fn(token);
+  } catch (err) {
+    if (!(err instanceof ApiError) || err.status !== 401) throw err;
+    const refresh = getRefreshToken();
+    if (!refresh) throw err;
+    const out = await staffRefresh(refresh);
+    updateAccessToken(out.access_token);
+    return fn(out.access_token);
+  }
+}
 
 export default function RoleKpiPage() {
   const router = useRouter();
@@ -31,6 +47,10 @@ export default function RoleKpiPage() {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [selected, setSelected] = useState<RoleKpiRow | null>(null);
+  const [editTarget, setEditTarget] = useState('');
+  const [editOwner, setEditOwner] = useState('');
+  const [editDue, setEditDue] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
 
   const planId = search.get('plan_id') ?? '';
   const roleKey = search.get('role_key') ?? '';
@@ -52,40 +72,29 @@ export default function RoleKpiPage() {
   );
 
   const load = useCallback(async () => {
-    let token = getAccessToken();
-    if (!token) {
+    if (!getAccessToken() && !getRefreshToken()) {
+      clearSession();
       router.replace('/login');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      const out = await fetchRoleKpiList(token, {
-        plan_id: planId || undefined,
-        role_key: roleKey || undefined,
-        status: status || undefined,
-      });
+      const out = await withAuthRetry((token) =>
+        fetchRoleKpiList(token, {
+          plan_id: planId || undefined,
+          role_key: roleKey || undefined,
+          status: status || undefined,
+        }),
+      );
       setRows(out.data ?? []);
-    } catch {
-      const refresh = getRefreshToken();
-      if (!refresh) {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
         clearSession();
         router.replace('/login');
         return;
       }
-      try {
-        const out = await staffRefresh(refresh);
-        updateAccessToken(out.access_token);
-        token = out.access_token;
-        const data = await fetchRoleKpiList(token, {
-          plan_id: planId || undefined,
-          role_key: roleKey || undefined,
-          status: status || undefined,
-        });
-        setRows(data.data ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Tải Role KPI thất bại');
-      }
+      setError(err instanceof Error ? err.message : 'Tải Role KPI thất bại');
     } finally {
       setLoading(false);
     }
@@ -95,6 +104,13 @@ export default function RoleKpiPage() {
     void load();
   }, [load]);
 
+  function openDrawer(row: RoleKpiRow) {
+    setSelected(row);
+    setEditTarget(row.target_value == null ? '' : String(row.target_value));
+    setEditOwner(row.owner_staff_id ?? '');
+    setEditDue(row.period_end ?? '');
+  }
+
   const setFilter = (key: string, value: string) => {
     const next = new URLSearchParams(search.toString());
     if (value) next.set(key, value);
@@ -103,18 +119,53 @@ export default function RoleKpiPage() {
   };
 
   async function transition(id: number, nextStatus: string) {
-    const token = getAccessToken();
-    if (!token) return;
     setBusyId(id);
     setError('');
     try {
-      await patchRoleKpiStatus(token, id, nextStatus);
+      await withAuthRetry((token) => patchRoleKpiStatus(token, id, nextStatus));
       await load();
       setSelected((prev) => (prev?.id === id ? { ...prev, status: nextStatus } : prev));
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        clearSession();
+        router.replace('/login');
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Cập nhật trạng thái thất bại');
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function saveEdit() {
+    if (!selected || !canManage) return;
+    setEditBusy(true);
+    setError('');
+    try {
+      const targetRaw = editTarget.trim();
+      const target_value =
+        targetRaw === '' ? null : Number.isFinite(Number(targetRaw)) ? Number(targetRaw) : null;
+      const out = await withAuthRetry((token) =>
+        patchRoleKpiFields(token, selected.id, {
+          target_value,
+          owner_staff_id: editOwner.trim() || null,
+          due_date: editDue.trim() || null,
+        }),
+      );
+      setSelected(out.data);
+      setEditTarget(out.data.target_value == null ? '' : String(out.data.target_value));
+      setEditOwner(out.data.owner_staff_id ?? '');
+      setEditDue(out.data.period_end ?? '');
+      await load();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        clearSession();
+        router.replace('/login');
+        return;
+      }
+      setError(err instanceof Error ? err.message : 'Lưu Role KPI thất bại');
+    } finally {
+      setEditBusy(false);
     }
   }
 
@@ -196,7 +247,8 @@ export default function RoleKpiPage() {
                     <th>Target</th>
                     <th>Actual</th>
                     <th>Unit</th>
-                    <th>Period</th>
+                    <th>Owner</th>
+                    <th>Due</th>
                     <th>Status</th>
                     <th>Plan</th>
                     <th>Actions</th>
@@ -210,7 +262,7 @@ export default function RoleKpiPage() {
                         <button
                           type="button"
                           className="linkish"
-                          onClick={() => setSelected(row)}
+                          onClick={() => openDrawer(row)}
                           style={{ background: 'none', border: 0, color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}
                         >
                           {row.kpi_label || row.kpi_key}
@@ -219,9 +271,8 @@ export default function RoleKpiPage() {
                       <td>{row.target_value == null ? '—' : row.target_value}</td>
                       <td>{row.actual_value == null ? '—' : row.actual_value}</td>
                       <td>{row.target_unit}</td>
-                      <td>
-                        {row.period_start ?? '—'} → {row.period_end ?? '—'}
-                      </td>
+                      <td>{row.owner_staff_id || '—'}</td>
+                      <td>{row.period_end || '—'}</td>
                       <td>{row.status}</td>
                       <td>
                         {row.plan_id != null ? (
@@ -251,6 +302,15 @@ export default function RoleKpiPage() {
                             Approve
                           </button>
                         ) : null}
+                        {(row.status === 'draft' || row.status === 'review') && canManage ? (
+                          <button
+                            type="button"
+                            className="kpi-hub-btn kpi-hub-btn--ghost"
+                            onClick={() => openDrawer(row)}
+                          >
+                            Sửa
+                          </button>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
@@ -267,6 +327,8 @@ export default function RoleKpiPage() {
                 borderRadius: 12,
                 padding: '1rem',
                 background: 'var(--panel, var(--bg))',
+                display: 'grid',
+                gap: '0.75rem',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -277,19 +339,72 @@ export default function RoleKpiPage() {
                   Đóng
                 </button>
               </div>
-              <p className="muted" style={{ marginTop: 8 }}>
-                Status: <strong>{selected.status}</strong> · Target:{' '}
-                {selected.target_value == null ? 'unknown' : selected.target_value} {selected.target_unit}
+              <p className="muted" style={{ margin: 0 }}>
+                Status: <strong>{selected.status}</strong>
+                {selected.period_start ? ` · Period start ${selected.period_start}` : ''}
               </p>
-              <p style={{ whiteSpace: 'pre-wrap' }}>{selected.notes || '—'}</p>
+
+              {canManage && (selected.status === 'draft' || selected.status === 'review') ? (
+                <form
+                  data-testid="role-kpi-edit-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void saveEdit();
+                  }}
+                  style={{ display: 'grid', gap: '0.65rem' }}
+                >
+                  <label style={{ display: 'grid', gap: 4 }}>
+                    <span className="muted">Target</span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editTarget}
+                      onChange={(e) => setEditTarget(e.target.value)}
+                      placeholder="Để trống = unknown"
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: 4 }}>
+                    <span className="muted">Owner</span>
+                    <input
+                      type="text"
+                      value={editOwner}
+                      onChange={(e) => setEditOwner(e.target.value)}
+                      placeholder="Staff id hoặc tên"
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: 4 }}>
+                    <span className="muted">Due (period end)</span>
+                    <input type="date" value={editDue} onChange={(e) => setEditDue(e.target.value)} />
+                  </label>
+                  <button
+                    type="submit"
+                    className="kpi-hub-btn kpi-hub-btn--primary"
+                    disabled={editBusy}
+                    style={{ justifySelf: 'start' }}
+                  >
+                    {editBusy ? 'Đang lưu…' : 'Lưu target / owner / due'}
+                  </button>
+                </form>
+              ) : (
+                <p style={{ margin: 0 }}>
+                  Target: {selected.target_value == null ? 'unknown' : selected.target_value}{' '}
+                  {selected.target_unit}
+                  <br />
+                  Owner: {selected.owner_staff_id || '—'}
+                  <br />
+                  Due: {selected.period_end || '—'}
+                </p>
+              )}
+
+              <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{selected.notes || '—'}</p>
               {selected.form_data?.ai_draft ? (
-                <p className="muted" style={{ fontSize: '0.85rem' }}>
+                <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>
                   AI draft bởi {String(selected.form_data.ai_approved_by ?? '—')} ·{' '}
                   {String(selected.form_data.ai_approved_at ?? '')}
                 </p>
               ) : null}
               {selected.lifecycle_id != null ? (
-                <p>
+                <p style={{ margin: 0 }}>
                   <Link href={`/crm/service-delivery/${selected.lifecycle_id}`}>
                     Lifecycle #{selected.lifecycle_id}
                   </Link>

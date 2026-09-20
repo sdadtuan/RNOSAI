@@ -101,6 +101,43 @@ export class RoleKpiController {
     return { ok: true, data: row };
   }
 
+  @Patch(':id')
+  async patchFields(
+    @Req() req: ReqWithStaff,
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      target_value?: number | null;
+      owner_staff_id?: string | null;
+      owner?: string | null;
+      due_date?: string | null;
+      period_end?: string | null;
+      notes?: string;
+    },
+  ) {
+    await this.assertManage(req);
+    const me = await this.staffAuth.me(req.staffUser!);
+    const actor = String(me.email ?? me.id ?? 'staff');
+    const owner =
+      body.owner_staff_id !== undefined
+        ? body.owner_staff_id
+        : body.owner !== undefined
+          ? body.owner
+          : undefined;
+    const row = await this.write.patchDraftFields(
+      id,
+      {
+        target_value: body.target_value,
+        owner_staff_id: owner,
+        due_date: body.due_date,
+        period_end: body.period_end,
+        notes: body.notes,
+      },
+      actor,
+    );
+    return { ok: true, data: row };
+  }
+
   private async assertView(req: ReqWithStaff): Promise<void> {
     if (!req.staffUser) throw new ForbiddenException({ error: 'Unauthorized' });
     const me = await this.staffAuth.me(req.staffUser);

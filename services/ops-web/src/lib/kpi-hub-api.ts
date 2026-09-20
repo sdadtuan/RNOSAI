@@ -302,3 +302,22 @@ export async function patchRoleKpiStatus(token: string, id: number, status: stri
     { method: 'PATCH', body: JSON.stringify({ status }) },
   );
 }
+
+export async function patchRoleKpiFields(
+  token: string,
+  id: number,
+  body: Partial<{
+    target_value: number | null;
+    owner_staff_id: string | null;
+    owner: string | null;
+    due_date: string | null;
+    period_end: string | null;
+    notes: string;
+  }>,
+) {
+  return kpiHubFetch<{ ok: boolean; data: RoleKpiRow }>(
+    token,
+    `${BASE}/role-kpi/${id}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+  );
+}

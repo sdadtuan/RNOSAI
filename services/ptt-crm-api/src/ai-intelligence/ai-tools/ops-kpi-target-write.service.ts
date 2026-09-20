@@ -200,6 +200,80 @@ export class OpsKpiTargetWriteService {
     return updated;
   }
 
+  /**
+   * Staff UI patch for draft/review rows: target, owner, due (period_end).
+   * Never sets actual_value or approved/locked status.
+   */
+  async patchDraftFields(
+    id: number,
+    body: {
+      target_value?: number | null;
+      owner_staff_id?: string | null;
+      due_date?: string | null;
+      period_end?: string | null;
+      notes?: string;
+    },
+    actor: string,
+  ): Promise<OpsRoleKpiTargetRow> {
+    const row = await this.repo.getById(id);
+    if (!row) {
+      throw new NotFoundException({ error: 'kpi_not_found', id });
+    }
+    if (!ROLE_KPI_EDITABLE_STATUSES.has(row.status)) {
+      throw new ConflictException({
+        error: 'kpi_not_editable',
+        id,
+        status: row.status,
+      });
+    }
+
+    const patch: {
+      target_value?: number | null;
+      owner_staff_id?: string | null;
+      period_end?: string | null;
+      notes?: string;
+      form_data: Record<string, unknown>;
+    } = {
+      form_data: {
+        staff_edited_by: actor,
+        staff_edited_at: new Date().toISOString(),
+      },
+    };
+
+    if (body.target_value !== undefined) {
+      const tv = optionalNumber(body.target_value);
+      patch.target_value = tv === undefined ? null : tv;
+      patch.form_data.unknown_target = patch.target_value == null;
+    }
+    if (body.owner_staff_id !== undefined) {
+      const owner =
+        body.owner_staff_id == null ? null : String(body.owner_staff_id).trim() || null;
+      patch.owner_staff_id = owner;
+    }
+    const dueRaw = body.due_date !== undefined ? body.due_date : body.period_end;
+    if (dueRaw !== undefined) {
+      if (dueRaw == null || dueRaw === '') {
+        patch.period_end = null;
+      } else {
+        patch.period_end = optionalDate(dueRaw) ?? null;
+      }
+      if (patch.period_end && row.period_start && patch.period_end < row.period_start) {
+        throw new BadRequestException({
+          error: 'period_invalid',
+          period_start: row.period_start,
+          period_end: patch.period_end,
+        });
+      }
+    }
+    if (body.notes !== undefined) {
+      patch.notes = String(body.notes ?? '');
+    }
+
+    const updated = await this.repo.patch(id, patch);
+    if (!updated) throw new NotFoundException({ error: 'kpi_not_found', id });
+    return updated;
+  }
+
   private async writeOne(
     input: Record<string, unknown>,
     meta: OpsKpiTargetWriteMeta,

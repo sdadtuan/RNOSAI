@@ -399,16 +399,33 @@ export class ServiceLifecyclePgRepository implements OnModuleDestroy {
     }
 
     let presalesId: number | null = null;
-    let assignedSp: number | null = null;
+    // Prefer lifecycle.assigned_sp; fall back to presales solution_owner / assigned_am.
+    // crm_lead_presales has no assigned_sp column (schema drift vs older SQLite bridge).
+    let assignedSp: number | null = lc.assigned_sp != null ? Number(lc.assigned_sp) : null;
     if (lc.lead_id) {
       const psResult = await this.db.query(
-        `SELECT id, assigned_sp FROM crm_lead_presales WHERE lead_id = $1 LIMIT 1`,
+        `SELECT id, assigned_am, solution_owner_staff_id
+         FROM crm_lead_presales WHERE lead_id = $1 LIMIT 1`,
         [lc.lead_id],
       );
-      const ps = psResult.rows[0] as { id: number; assigned_sp: number | null } | undefined;
+      const ps = psResult.rows[0] as
+        | {
+            id: number;
+            assigned_am: number | null;
+            solution_owner_staff_id: number | null;
+          }
+        | undefined;
       if (ps) {
         presalesId = Number(ps.id);
-        assignedSp = ps.assigned_sp != null ? Number(ps.assigned_sp) : null;
+        if (assignedSp == null) {
+          const fallback =
+            ps.solution_owner_staff_id != null
+              ? Number(ps.solution_owner_staff_id)
+              : ps.assigned_am != null
+                ? Number(ps.assigned_am)
+                : null;
+          assignedSp = fallback;
+        }
       }
     }
 

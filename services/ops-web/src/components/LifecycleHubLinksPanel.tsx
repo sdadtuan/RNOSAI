@@ -11,17 +11,30 @@ type Props = {
 
 export function LifecycleHubLinksPanel({ token, lifecycleId }: Props) {
   const [ctx, setCtx] = useState<Record<string, unknown> | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     void (async () => {
+      setError('');
       try {
         const data = await fetchServiceLifecycleContext(token, lifecycleId);
         setCtx(data);
-      } catch {
+      } catch (err) {
         setCtx(null);
+        setError(err instanceof Error ? err.message : 'Không tải được context');
       }
     })();
   }, [token, lifecycleId]);
+
+  if (error) {
+    return (
+      <div className="card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+        <p className="error" style={{ margin: 0, fontSize: '0.9rem' }}>
+          Context: {error}
+        </p>
+      </div>
+    );
+  }
 
   if (!ctx) return null;
 
