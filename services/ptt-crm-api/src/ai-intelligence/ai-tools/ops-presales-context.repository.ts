@@ -171,7 +171,7 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
               COALESCE(l.status, '') AS status, COALESCE(l.source, '') AS source,
               COALESCE(l.created_at::text, '') AS created_at,
               COALESCE(
-                (SELECT COALESCE(s.full_name, s.name, '') FROM crm_staff s WHERE s.id = l.owner_id LIMIT 1),
+                (SELECT COALESCE(s.name, s.email, '') FROM crm_staff s WHERE s.id = l.owner_id LIMIT 1),
                 ''
               ) AS owner_name
        FROM crm_leads l
@@ -384,14 +384,14 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
     if (staffId == null) return '';
     try {
       const r = await this.db.query(
-        `SELECT COALESCE(full_name, name, email, '') AS name FROM crm_staff WHERE id = $1 LIMIT 1`,
+        `SELECT COALESCE(name, email, '') AS name FROM crm_staff WHERE id = $1 LIMIT 1`,
         [staffId],
       );
       return String(r.rows[0]?.name ?? '').trim();
     } catch {
       try {
         const r = await this.db.query(
-          `SELECT COALESCE(full_name, name, '') AS name FROM staff WHERE id = $1 LIMIT 1`,
+          `SELECT COALESCE(name, '') AS name FROM staff WHERE id = $1 LIMIT 1`,
           [staffId],
         );
         return String(r.rows[0]?.name ?? '').trim();
