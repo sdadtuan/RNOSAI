@@ -76,12 +76,17 @@ export function IntakeDealBar({
           {industry?.trim() || 'Chưa có ngành'}
         </span>
         <label className="intake-deal-bar__service">
-          <span className="muted">Dịch vụ</span>
+          <span className="muted">
+            Dịch vụ
+            <span className="intake-required-mark" title="Bắt buộc để qua Tư vấn">
+              *
+            </span>
+          </span>
           <select
             className="kpi-select intake-deal-bar__select"
             value={serviceSlug}
             disabled={!canEdit}
-            aria-label={serviceLabel}
+            aria-label={`${serviceLabel} (bắt buộc)`}
             onChange={(e) => onServiceChange(e.target.value)}
           >
             <option value="_common">{intakeServiceLabel('_common')}</option>

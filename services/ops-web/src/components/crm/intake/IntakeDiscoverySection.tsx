@@ -82,14 +82,19 @@ export function IntakeDiscoverySection({
         </label>
 
         <label className="intake-field">
-          <span className="muted">Nhu cầu / điểm đau &quot;Need / Pain&quot;</span>
+          <span className="muted">
+            Nhu cầu / điểm đau &quot;Need / Pain&quot;
+            <span className="intake-required-mark" title="Bắt buộc để qua Tư vấn">
+              *
+            </span>
+          </span>
           <RichTextField
             value={need}
             onChange={onNeedChange}
             disabled={disabled}
             minHeight="14rem"
             placeholder="Mô tả pain point, bối cảnh DN, KPI mong muốn, ràng buộc…"
-            ariaLabel='Nhu cầu / điểm đau "Need / Pain"'
+            ariaLabel='Nhu cầu / điểm đau "Need / Pain" (bắt buộc)'
           />
         </label>
 

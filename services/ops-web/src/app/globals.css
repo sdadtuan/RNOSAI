@@ -9489,6 +9489,14 @@ body {
   font-weight: 600;
 }
 
+.intake-required-mark {
+  color: #dc2626;
+  font-weight: 700;
+  margin-left: 0.15rem;
+  font-size: 0.95em;
+  line-height: 1;
+}
+
 .intake-discovery-checklist__bant {
   display: inline-block;
   margin-left: 0.35rem;

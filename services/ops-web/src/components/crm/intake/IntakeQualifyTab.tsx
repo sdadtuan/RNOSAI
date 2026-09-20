@@ -59,7 +59,12 @@ export function IntakeQualifyTab({
           <IntakeValidationErrors issues={validationErrors} />
 
           <label className="intake-field">
-            <span className="muted">Quyết định &quot;Decision&quot;</span>
+            <span className="muted">
+              Quyết định &quot;Decision&quot;
+              <span className="intake-required-mark" title="Cần Go để qua Tư vấn">
+                *
+              </span>
+            </span>
             <select
               className="kpi-select"
               value={decision}
@@ -104,7 +109,12 @@ export function IntakeQualifyTab({
                   <span>
                     {item.text}
                     {item.critical ? (
-                      <span className="intake-discovery-checklist__critical"> · Quan trọng</span>
+                      <>
+                        <span className="intake-required-mark" title="Cần có dữ liệu">
+                          *
+                        </span>
+                        <span className="intake-discovery-checklist__critical"> Quan trọng</span>
+                      </>
                     ) : null}
                   </span>
                 </label>

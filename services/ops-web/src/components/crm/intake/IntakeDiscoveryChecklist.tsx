@@ -72,7 +72,12 @@ export function IntakeDiscoveryChecklist({
                   <span>
                     {item.text}
                     {item.critical ? (
-                      <span className="intake-discovery-checklist__critical"> · Quan trọng</span>
+                      <>
+                        <span className="intake-required-mark" title="Cần có dữ liệu / câu trả lời">
+                          *
+                        </span>
+                        <span className="intake-discovery-checklist__critical"> Quan trọng</span>
+                      </>
                     ) : null}
                     {item.bant_key ? (
                       <span className="intake-discovery-checklist__bant">{BANT_FIELD_LABELS[item.bant_key].label}</span>
