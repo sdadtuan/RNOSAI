@@ -3358,6 +3358,42 @@ export async function postServiceLifecycleMarketingPlanPrefillFromConsult(
   });
 }
 
+/** P7 — create marketing plan status=review from presales pack. */
+export async function postPresalesGeneratePlanReview(
+  token: string,
+  lifecycleId: number,
+  body: {
+    clone_from_plan_id?: number;
+    title?: string;
+    supersede?: boolean;
+  } = {},
+): Promise<{
+  ok: true;
+  plan_id: number;
+  status: 'review';
+  phase: 'P7';
+  gate_snapshot: { passed: boolean; blockers: Array<{ code: string; detail: string }> };
+  links: string[];
+}> {
+  return crmFetch(token, `/api/crm/presales/lifecycle/${lifecycleId}/generate-plan-review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function postPresalesAutofillTmmt(
+  token: string,
+  lifecycleId: number,
+  body: { dry_run?: boolean; overwrite_mode?: string } = {},
+): Promise<Record<string, unknown>> {
+  return crmFetch(token, `/api/crm/presales/lifecycle/${lifecycleId}/autofill-tmmt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchServiceLifecyclePresalesSummary(
   token: string,
   id: number,

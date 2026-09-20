@@ -2,8 +2,11 @@ import { ForbiddenException } from '@nestjs/common';
 import { AiToolDefinition, AiToolExecutionContext } from '../ai-tools.types';
 import { OpsCrmContextService } from '../ops-crm-context.service';
 import { OpsDraftWriteService } from '../ops-draft-write.service';
+import { OpsInsightDraftService } from '../ops-insight-draft.service';
 import { OpsKpiTargetWriteService } from '../ops-kpi-target-write.service';
 import { OpsPlanBreakdownService } from '../ops-plan-breakdown.service';
+import { OpsPlanGenerateReviewService } from '../ops-plan-generate-review.service';
+import { OpsPresalesAutofillService } from '../ops-presales-autofill.service';
 import { OpsPresalesContextService } from '../ops-presales-context.service';
 import { OpsStageTransitionService } from '../ops-stage-transition.service';
 
@@ -38,7 +41,7 @@ const contextIdSchema = {
   },
 };
 
-/** SRS-PTT-Ops-Module PO-52 tools — P2–P5 (reads, drafts, stage propose, plan breakdown). */
+/** SRS-PTT-Ops-Module PO-52 tools — P2–P7. */
 export function createOpsContextTools(
   context: OpsCrmContextService,
   draftWrite: OpsDraftWriteService,
@@ -46,6 +49,9 @@ export function createOpsContextTools(
   planBreakdown: OpsPlanBreakdownService,
   kpiTargetWrite: OpsKpiTargetWriteService,
   presalesContext?: OpsPresalesContextService,
+  autofill?: OpsPresalesAutofillService,
+  insightDraft?: OpsInsightDraftService,
+  planReview?: OpsPlanGenerateReviewService,
 ): AiToolDefinition[] {
   return [
     {
@@ -70,6 +76,88 @@ export function createOpsContextTools(
           throw new ForbiddenException({ error: 'presales_context_unavailable' });
         }
         return presalesContext.buildPack(input);
+      },
+    },
+    {
+      name: 'presales.autofill_tmmt',
+      description:
+        'Fill empty TMMT fields from Consult/BANT/L2/contract (fill_empty_only default). Human approval required. Never fakes gate_passed. P7.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          lead_id: { type: 'integer', minimum: 1 },
+          overwrite_mode: { type: 'string' },
+          dry_run: { type: 'boolean' },
+          include_upload_file_ids: { type: 'array', items: { type: 'integer' } },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) => {
+        if (!autofill) {
+          throw new ForbiddenException({ error: 'presales_autofill_unavailable' });
+        }
+        if (!Boolean(input.dry_run ?? input.dryRun)) {
+          assertHumanApprovedForWrite('presales.autofill_tmmt', ctx);
+        }
+        return autofill.autofill(input);
+      },
+    },
+    {
+      name: 'insight.draft_from_presales',
+      description:
+        'Create a pending_review research insight from presales pack. Cannot approve. Human approval required. P7.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          client_id: { type: 'string' },
+          plan_id: { type: 'integer', minimum: 1 },
+          title: { type: 'string' },
+          dry_run: { type: 'boolean' },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) => {
+        if (!insightDraft) {
+          throw new ForbiddenException({ error: 'insight_draft_unavailable' });
+        }
+        if (!Boolean(input.dry_run ?? input.dryRun)) {
+          assertHumanApprovedForWrite('insight.draft_from_presales', ctx);
+        }
+        return insightDraft.draftFromPresales(input, writeMeta(ctx).actor);
+      },
+    },
+    {
+      name: 'marketing_plan.generate_review',
+      description:
+        'Create marketing plan status=review from presales (soft-allow when WinningPlanGate fails; embed blockers). Never active. Human approval. P7.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          plan_id: { type: 'integer', minimum: 1 },
+          clone_from_plan_id: { type: 'integer', minimum: 1 },
+          title: { type: 'string' },
+          supersede: { type: 'boolean' },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) => {
+        if (!planReview) {
+          throw new ForbiddenException({ error: 'plan_generate_review_unavailable' });
+        }
+        assertHumanApprovedForWrite('marketing_plan.generate_review', ctx);
+        return planReview.generateReview(input, writeMeta(ctx).actor);
       },
     },
     {

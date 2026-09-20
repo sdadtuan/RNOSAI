@@ -124,6 +124,33 @@ describe('createOpsContextTools', () => {
       ],
     })),
   };
+  const autofill = {
+    autofill: jest.fn(async () => ({
+      ok: true,
+      phase: 'P7',
+      dry_run: true,
+      fields_written: [],
+      gate_passed: false,
+      tmmt_progress: { before: '0/12', after: '0/12' },
+    })),
+  };
+  const insightDraft = {
+    draftFromPresales: jest.fn(async () => ({
+      ok: true,
+      phase: 'P7',
+      insight_id: 1,
+      status: 'pending_review',
+      cannot_approve_via_tool: true,
+    })),
+  };
+  const planReview = {
+    generateReview: jest.fn(async () => ({
+      ok: true,
+      phase: 'P7',
+      plan_id: 25,
+      status: 'review',
+    })),
+  };
   const tools = createOpsContextTools(
     context,
     draftWrite,
@@ -131,6 +158,9 @@ describe('createOpsContextTools', () => {
     planBreakdown,
     kpiTargetWrite,
     presalesContext as never,
+    autofill as never,
+    insightDraft as never,
+    planReview as never,
   );
   const byName = new Map(tools.map((t) => [t.name, t]));
 
@@ -144,18 +174,24 @@ describe('createOpsContextTools', () => {
     (planBreakdown.breakdownToRoles as jest.Mock).mockClear();
     (kpiTargetWrite.writeDraft as jest.Mock).mockClear();
     (kpiTargetWrite.read as jest.Mock).mockClear();
+    (autofill.autofill as jest.Mock).mockClear();
+    (insightDraft.draftFromPresales as jest.Mock).mockClear();
+    (planReview.generateReview as jest.Mock).mockClear();
   });
 
-  it('registers PO-52 allowlist tools including P4/P5/KPI/P6', () => {
+  it('registers PO-52 allowlist tools including P4/P5/KPI/P6/P7', () => {
     expect([...byName.keys()].sort()).toEqual(
       [
         'delivery_project.read',
+        'insight.draft_from_presales',
         'kpi_campaign.read',
         'kpi_target.read',
         'kpi_target.write_draft',
+        'marketing_plan.generate_review',
         'marketing_plan.read',
         'marketing_plan.write_draft',
         'plan.breakdown_to_roles',
+        'presales.autofill_tmmt',
         'presales.context.read',
         'service_delivery.propose_transition',
         'service_delivery.read',
@@ -163,6 +199,25 @@ describe('createOpsContextTools', () => {
         'task.update_draft',
       ].sort(),
     );
+  });
+
+  it('presales.autofill_tmmt dry_run skips human approval', async () => {
+    const tool = byName.get('presales.autofill_tmmt')!;
+    await tool.handler(
+      { lifecycle_id: 5, dry_run: true },
+      { apiKeyId: 'k', clientId: null, actorId: 'a', correlationId: 'r' },
+    );
+    expect(autofill.autofill).toHaveBeenCalled();
+  });
+
+  it('marketing_plan.generate_review requires human approval', async () => {
+    const tool = byName.get('marketing_plan.generate_review')!;
+    await expect(
+      tool.handler(
+        { lifecycle_id: 5 },
+        { apiKeyId: 'k', clientId: null, actorId: 'a', correlationId: 'r' },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('presales.context.read returns P6 pack with blockers', async () => {

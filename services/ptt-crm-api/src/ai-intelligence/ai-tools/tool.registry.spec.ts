@@ -53,6 +53,9 @@ describe('ToolRegistry', () => {
       tool: 'presales.context.read',
     })),
   };
+  const autofill = { autofill: jest.fn() };
+  const insightDraft = { draftFromPresales: jest.fn() };
+  const planReview = { generateReview: jest.fn() };
 
   let registry: ToolRegistry;
 
@@ -71,13 +74,16 @@ describe('ToolRegistry', () => {
       planBreakdown as never,
       kpiTargetWrite as never,
       presalesContext as never,
+      autofill as never,
+      insightDraft as never,
+      planReview as never,
     );
   });
 
-  it('lists RNOS-33 tools plus Ops PO-52/P4/P5/KPI/P6 tools', () => {
+  it('lists RNOS-33 tools plus Ops PO-52/P4/P5/KPI/P6/P7 tools', () => {
     const tools = registry.list();
 
-    expect(tools).toHaveLength(22);
+    expect(tools).toHaveLength(25);
     expect(tools.map((tool) => tool.name)).toEqual([
       'score_lead',
       'route_lead',
@@ -90,6 +96,9 @@ describe('ToolRegistry', () => {
       'list_orchestrations',
       'health_check',
       'presales.context.read',
+      'presales.autofill_tmmt',
+      'insight.draft_from_presales',
+      'marketing_plan.generate_review',
       'marketing_plan.read',
       'service_delivery.read',
       'delivery_project.read',

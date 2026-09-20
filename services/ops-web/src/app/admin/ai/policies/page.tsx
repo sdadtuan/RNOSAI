@@ -10,12 +10,15 @@ import { canViewPolicyAdmin, useAdminCrmAuth } from '@/lib/admin/use-admin-crm-a
 const PII_FIELDS = ['phone', 'email', 'national_id', 'address'];
 const TOOL_OPTIONS = [
   'presales.context.read',
+  'presales.autofill_tmmt',
+  'insight.draft_from_presales',
   'marketing_plan.read',
   'service_delivery.read',
   'service_delivery.propose_transition',
   'delivery_project.read',
   'kpi_campaign.read',
   'marketing_plan.write_draft',
+  'marketing_plan.generate_review',
   'task.create_draft',
   'task.update_draft',
   'plan.breakdown_to_roles',
