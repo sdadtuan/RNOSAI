@@ -6,7 +6,7 @@ import { KeycloakRedirect } from '@/components/login/KeycloakRedirect';
 import { LoginBrandPanel } from '@/components/login/LoginBrandPanel';
 import { WinSsoMigrationBanner } from '@/components/rbac/WinSsoMigrationBanner';
 import { fetchStaffSsoConfig, sandboxLogin, staffLogin, staffMe } from '@/lib/api';
-import { saveSession, updateStoredUser } from '@/lib/auth';
+import { clearSession, saveSession, updateStoredUser } from '@/lib/auth';
 import { resolveStaffPostLoginPath } from '@/lib/auth/post-login-path.util';
 import { winSsoEnabled } from '@/lib/win/flags';
 
@@ -36,6 +36,8 @@ function LoginPageContent() {
     setError('');
     setLoading(true);
     try {
+      // Always wipe prior staff session so CEO caps cannot stick into AE login.
+      clearSession();
       const loginId = email.trim();
       const out = loginId.startsWith('demo_')
         ? await sandboxLogin(loginId, password)

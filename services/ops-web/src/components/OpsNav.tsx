@@ -286,24 +286,54 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
     setNavUser(user);
   }, [user]);
 
+  // Re-fetch caps whenever the logged-in staff id changes (CEO → AE switch).
   useEffect(() => {
     const token = getAccessToken();
-    if (!token) return;
+    const expectedId = user?.id;
+    if (!token || !expectedId) return;
+    let cancelled = false;
     void staffMe(token)
       .then((me) => {
+        if (cancelled) return;
+        // Drop stale responses from a previous account.
+        if (me.id !== expectedId) return;
         setNavUser(me);
         updateStoredUser(me);
       })
       .catch(() => {
-        /* keep cached navUser */
+        /* keep prop user — never keep another account's navUser */
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Browser back/forward cache can restore a CEO React tree after AE login.
+  useEffect(() => {
+    function onPageShow(ev: PageTransitionEvent) {
+      if (!ev.persisted) return;
+      const token = getAccessToken();
+      if (!token) return;
+      void staffMe(token)
+        .then((me) => {
+          setNavUser(me);
+          updateStoredUser(me);
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    }
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
   }, []);
 
   useEffect(() => {
     setAccessToken(getAccessToken());
   }, [user, pathname, navUser]);
 
-  const sidebarUser = navUser ?? user;
+  // Prefer parent user when navUser is still from a previous staff id.
+  const sidebarUser =
+    user?.id && navUser?.id && user.id !== navUser.id ? user : navUser ?? user;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -653,14 +683,14 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
                 <StaffNotificationBell />
               ) : null}
               <div className="ops-topbar-user-meta">
-                <WinRbacBadge user={user} />
-                <WinRbacBadge user={user} className="win-badge-rbac--mobile" />
+                <WinRbacBadge user={sidebarUser} />
+                <WinRbacBadge user={sidebarUser} className="win-badge-rbac--mobile" />
                 <span>{pageTitleFor(pathname)}</span>
               </div>
               <StaffAvatarMenu
-                user={user}
+                user={sidebarUser}
                 token={accessToken}
-                initials={userInitials(user)}
+                initials={userInitials(sidebarUser)}
                 onLogout={onLogout}
               />
             </div>
