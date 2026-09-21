@@ -548,19 +548,16 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
     confidenceJson: Record<string, unknown>;
     rationale?: string;
   }): Promise<void> {
+    const rationale =
+      opts.rationale ?? 'P8.3 approved_internal — presales_auto_seed rubric';
     await this.db.query(
       `UPDATE crm_research_insights
        SET confidence_json = $2::jsonb,
-           confidence_rationale = COALESCE(NULLIF(trim(confidence_rationale), ''), $3),
+           confidence_rationale = $3,
            ai_generated = TRUE,
            updated_at = NOW()
        WHERE id = $1`,
-      [
-        opts.insightId,
-        JSON.stringify(opts.confidenceJson),
-        opts.rationale ??
-          'P8.3 presales_auto_seed — assumed_from_presales rubric',
-      ],
+      [opts.insightId, JSON.stringify(opts.confidenceJson), rationale.slice(0, 4000)],
     );
   }
 
@@ -613,7 +610,7 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
     await this.patchInsightConfidence({
       insightId: opts.insightId,
       confidenceJson: opts.confidenceJson,
-      rationale: 'P8.3 presales_auto_seed — assumed_from_presales rubric + verified evidence',
+      rationale: 'P8.3 approved_internal — assumed_from_presales rubric + verified evidence',
     });
     return [evidenceId];
   }
@@ -657,7 +654,18 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
   }): Promise<{ id: number; project_id: number; status: string } | null> {
     const updated = await this.db.query(
       `UPDATE crm_research_insights
-       SET status = 'approved_internal', updated_at = NOW()
+       SET status = 'approved_internal',
+           confidence_rationale = CASE
+             WHEN confidence_rationale ILIKE '%pending%'
+               OR confidence_rationale ILIKE '%pending_review%'
+               OR confidence_rationale ILIKE '%pending human%'
+             THEN 'P8.3 approved_internal — presales_auto_seed'
+             ELSE COALESCE(
+               NULLIF(trim(confidence_rationale), ''),
+               'P8.3 approved_internal — presales_auto_seed'
+             )
+           END,
+           updated_at = NOW()
        WHERE id = $1
          AND status = ANY($2::text[])
        RETURNING id, project_id, status`,

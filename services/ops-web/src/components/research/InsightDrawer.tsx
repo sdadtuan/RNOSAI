@@ -11,6 +11,7 @@ import {
   fetchResearchTaxonomy,
   hasPersistedInsightRubric,
   insightConfidencePayload,
+  insightRationaleForDisplay,
   insightStatusLabel,
   isInsightApprovedInternalPlus,
   INSIGHT_GATE_COPY,
@@ -118,7 +119,7 @@ export function InsightDrawer({
       implication: insight?.implication ?? '',
       recommendation: insight?.recommendation ?? '',
       audience: insight?.audience ?? '',
-      confidence_rationale: insight?.confidence_rationale ?? '',
+      confidence_rationale: insightRationaleForDisplay(insight),
       valid_from: insight?.valid_from ?? '',
       valid_to: insight?.valid_to ?? '',
     });
@@ -234,8 +235,15 @@ export function InsightDrawer({
             alignContent: 'start',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{title}</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'flex-start' }}>
+            <div style={{ display: 'grid', gap: 4 }}>
+              <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{title}</h2>
+              {insight ? (
+                <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                  Status API: <code>{insight.status}</code> · {insightStatusLabel(insight.status)}
+                </p>
+              ) : null}
+            </div>
             <button type="button" className="btn btn-sm btn-secondary" onClick={onClose}>
               Đóng
             </button>

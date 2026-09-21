@@ -1952,8 +1952,8 @@ export class MarketResearchService implements OnModuleInit {
         extractRubric(existing.confidence_json),
       );
     }
-    if (aiFastTrack && target === 'approved_internal' && !extractRubric(existing.confidence_json)) {
-      // P8.3 Option A (UI): seed assumed_from_presales rubric before status flip.
+    if (aiFastTrack && target === 'approved_internal') {
+      // P8.3 Option A (UI): seed assumed rubric if missing; always clear "pending" rationale.
       const seeded = {
         ...(existing.confidence_json && typeof existing.confidence_json === 'object'
           ? (existing.confidence_json as Record<string, unknown>)
@@ -1962,14 +1962,20 @@ export class MarketResearchService implements OnModuleInit {
         source_tool: 'insight.draft_from_presales',
         assumed_from_presales: true,
         approved_via: 'presales_fast_path',
-        rubric: { S: 2, F: 2, T: 2, A: 2, R: 2, statistical_inference: false },
-        band: 'medium',
+        ...(extractRubric(existing.confidence_json)
+          ? {}
+          : {
+              rubric: { S: 2, F: 2, T: 2, A: 2, R: 2, statistical_inference: false },
+              band: 'medium',
+            }),
       };
+      const pendingRationale = /pending/i.test(String(existing.confidence_rationale ?? ''));
       await this.repo.patchInsight(insightId, {
         confidence_json: seeded as never,
-        confidence_rationale:
-          existing.confidence_rationale?.trim() ||
-          'P8.3 presales_auto_seed — assumed_from_presales rubric',
+        confidence_rationale: pendingRationale
+          ? 'P8.3 approved_internal — presales fast path'
+          : existing.confidence_rationale?.trim() ||
+            'P8.3 approved_internal — presales fast path',
       } as PatchInsightInput);
     }
     const project = await this.repo.getProject(existing.project_id);

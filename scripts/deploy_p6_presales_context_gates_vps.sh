@@ -87,10 +87,15 @@ UPDATE crm_research_insights
          'lifecycle_id', 5,
          'research_id', 2
        ),
-       confidence_rationale = COALESCE(
-         NULLIF(trim(confidence_rationale), ''),
-         'P7 insight.draft_from_presales — pending human review'
-       ),
+       confidence_rationale = CASE
+         WHEN status IN ('approved_internal', 'approved_client_facing', 'published')
+           AND (confidence_rationale ILIKE '%pending%' OR confidence_rationale IS NULL OR trim(confidence_rationale) = '')
+         THEN 'P8.3 approved_internal — đã duyệt (Winning)'
+         ELSE COALESCE(
+           NULLIF(trim(confidence_rationale), ''),
+           'P7 insight.draft_from_presales — pending human review'
+         )
+       END,
        updated_at = NOW()
  WHERE id = 1
    AND project_id = 2;

@@ -2,12 +2,38 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   importResearchSurvey,
   insightConfidencePayload,
+  insightRationaleForDisplay,
+  insightStatusLabel,
   ingestResearchWhisper,
   normalizeReportExec,
   type ConfidenceRubric,
 } from './market-research-api';
 
 const empty: ConfidenceRubric = { S: 0, F: 0, T: 0, A: 0, R: 0 };
+
+describe('insightStatusLabel / insightRationaleForDisplay', () => {
+  it('labels approved_internal from API status', () => {
+    expect(insightStatusLabel('approved_internal')).toBe('Duyệt nội bộ');
+  });
+
+  it('does not keep pending rationale when status is approved_internal', () => {
+    expect(
+      insightRationaleForDisplay({
+        status: 'approved_internal',
+        confidence_rationale: 'P7 insight.draft_from_presales — pending human review',
+      }),
+    ).toBe('P8.3 approved_internal — đã duyệt (Winning).');
+  });
+
+  it('keeps pending rationale only while still draft', () => {
+    expect(
+      insightRationaleForDisplay({
+        status: 'draft',
+        confidence_rationale: 'P7 insight.draft_from_presales — pending human review',
+      }),
+    ).toContain('pending');
+  });
+});
 
 describe('normalizeReportExec', () => {
   it("normalizeReportExec('hello') → { vi: 'hello', en: null, en_status: 'none' }", () => {

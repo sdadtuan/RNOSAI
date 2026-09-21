@@ -44,7 +44,11 @@ export const INSIGHT_STATUS_LABELS: Record<InsightStatus, string> = {
 export function insightStatusLabel(status: string | null | undefined): string {
   const s = String(status ?? '').trim();
   if (!s) return '—';
-  // P7 tool response alias; DB row is usually `draft` until approved.
+  // Prefer approved_* labels over any legacy pending alias.
+  if (s === 'approved_internal') return INSIGHT_STATUS_LABELS.approved_internal;
+  if (s === 'approved_client_facing') return INSIGHT_STATUS_LABELS.approved_client_facing;
+  if (s === 'published') return INSIGHT_STATUS_LABELS.published;
+  // P7 tool response alias only when DB/API still report that status.
   if (s === 'pending_review') return 'Chờ duyệt';
   if (s in INSIGHT_STATUS_LABELS) {
     return INSIGHT_STATUS_LABELS[s as InsightStatus];
@@ -58,6 +62,18 @@ export function isInsightApprovedInternalPlus(status: string | null | undefined)
     status === 'approved_client_facing' ||
     status === 'published'
   );
+}
+
+/** Hide leftover "pending human review" copy once status is already approved_*. */
+export function insightRationaleForDisplay(
+  insight: { status?: string | null; confidence_rationale?: string | null } | null | undefined,
+): string {
+  const raw = String(insight?.confidence_rationale ?? '').trim();
+  if (!raw) return '';
+  if (isInsightApprovedInternalPlus(insight?.status) && /pending/i.test(raw)) {
+    return 'P8.3 approved_internal — đã duyệt (Winning).';
+  }
+  return raw;
 }
 
 export function canSubmitInsightReview(status: InsightStatus | null | undefined): boolean {

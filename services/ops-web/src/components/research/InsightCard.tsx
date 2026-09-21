@@ -53,7 +53,7 @@ export function InsightCard({
   return (
     <article className="card" style={{ padding: '0.85rem' }}>
       <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
-        Insight #{insight.id} · {insightStatusLabel(insight.status)}
+        Insight #{insight.id} · <code>{insight.status}</code> · {insightStatusLabel(insight.status)}
         {insight.ai_generated ? (
           <span
             style={{

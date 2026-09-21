@@ -182,6 +182,7 @@ export class OpsInsightApproveService {
       await this.repo.patchInsightConfidence({
         insightId: row.id,
         confidenceJson,
+        rationale: 'P8.3 approved_internal — presales_auto_seed',
       });
     }
 
