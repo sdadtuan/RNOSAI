@@ -32,7 +32,7 @@ describe('OpsPlanBreakdownService', () => {
     writeDraft: jest.fn(),
   };
   const presalesContext = {
-    evaluateGateForIds: jest.fn().mockResolvedValue({ pass: true, blockers: [], links: [] }),
+    evaluateGateForIds: jest.fn().mockResolvedValue({ pass: true, blockers: [], warnings: [], links: [] }),
   };
 
   let svc: OpsPlanBreakdownService;
@@ -40,7 +40,12 @@ describe('OpsPlanBreakdownService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    presalesContext.evaluateGateForIds.mockResolvedValue({ pass: true, blockers: [], links: [] });
+    presalesContext.evaluateGateForIds.mockResolvedValue({
+      pass: true,
+      blockers: [],
+      warnings: [],
+      links: [],
+    });
     svc = new OpsPlanBreakdownService(
       repo as never,
       draftWrite as unknown as OpsDraftWriteService,
@@ -71,6 +76,7 @@ describe('OpsPlanBreakdownService', () => {
   });
 
   it('409 winning_plan_gate_failed when TMMT/insight/geo missing (plan 8 fixture)', async () => {
+    repo.getPlanForWrite.mockResolvedValue(activePlan({ id: 8 }));
     presalesContext.evaluateGateForIds.mockResolvedValue({
       pass: false,
       blockers: [
@@ -78,6 +84,7 @@ describe('OpsPlanBreakdownService', () => {
         { code: 'no_approved_insight', detail: '' },
         { code: 'geography_missing', detail: '' },
       ],
+      warnings: [],
       links: ['/crm/service-delivery/5?tab=tmmt', '/crm/marketing-plan/8'],
     });
     await expect(
@@ -90,7 +97,39 @@ describe('OpsPlanBreakdownService', () => {
         ]),
       }),
     });
-    expect(repo.getPlanForWrite).not.toHaveBeenCalled();
+  });
+
+  it('review plan returns plan_not_approved before winning gate (P8.4)', async () => {
+    repo.getPlanForWrite.mockResolvedValue(activePlan({ status: 'review' }));
+    await expect(
+      svc.breakdownToRoles({ plan_id: 15 }, meta, { humanApproved: false }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ error: 'plan_not_approved' }),
+    });
+    expect(presalesContext.evaluateGateForIds).not.toHaveBeenCalled();
+  });
+
+  it('active plan 15 succeeds with hub/proposal soft warnings only', async () => {
+    repo.getPlanForWrite.mockResolvedValue(activePlan({ id: 15, status: 'active' }));
+    presalesContext.evaluateGateForIds.mockResolvedValue({
+      pass: true,
+      blockers: [],
+      warnings: [
+        { code: 'hub_campaign_map', message: '0 rows — map campaign before scale ads' },
+        { code: 'proposal_totals_zero', message: 'Proposal totals 0 — price lines when ready' },
+      ],
+      links: [],
+    });
+    const out = await svc.breakdownToRoles(
+      { plan_id: 15, lifecycle_id: 5, roles: ['graphic'] },
+      meta,
+      { humanApproved: false },
+    );
+    expect(out.ok).toBe(true);
+    expect(out.warnings?.map((w) => w.code)).toEqual(
+      expect.arrayContaining(['hub_campaign_map', 'proposal_totals_zero']),
+    );
+    expect(out.matrix.length).toBeGreaterThan(0);
   });
 
   it('rejects draft plan with plan_not_approved', async () => {

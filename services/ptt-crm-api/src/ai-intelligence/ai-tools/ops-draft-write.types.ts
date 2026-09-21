@@ -13,4 +13,5 @@ export type OpsDraftWriteResult = {
   human_approved: true;
   entity_ids: Record<string, number | string>;
   links: string[];
+  warnings?: Array<{ code: string; message: string }>;
 };

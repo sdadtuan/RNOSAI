@@ -68,7 +68,7 @@ export class OpsFieldConfirmService {
       'pains_desired_outcomes',
     ]);
     if (tmmtCoreKeys.has(field)) {
-      return this.confirmTmmtCore(input, actor, lifecycle, field);
+      return this.confirmTmmtCore(input, actor, lifecycle, field, quality);
     }
 
     let nextStatus: Extract<FieldQualityStatus, 'assumed_confirmed' | 'validated' | 'empty'>;
@@ -127,8 +127,9 @@ export class OpsFieldConfirmService {
   private async confirmTmmtCore(
     input: Record<string, unknown>,
     actor: string,
-    lifecycle: { marketing_plan_id?: number | null },
+    lifecycle: { id?: number; marketing_plan_id?: number | null },
     field: string,
+    quality?: ReturnType<typeof readP8QualityFromForms>,
   ): Promise<ConfirmAssumedResult> {
     const action = String(input.action ?? 'confirm_assumed').trim();
     let nextStatus: Extract<FieldQualityStatus, 'assumed_confirmed' | 'validated' | 'empty'>;
@@ -163,16 +164,36 @@ export class OpsFieldConfirmService {
       fieldMeta[field] && typeof fieldMeta[field] === 'object'
         ? (fieldMeta[field] as FieldQualityMeta)
         : ({ status: 'assumed_draft' } as FieldQualityMeta);
+    const consultText =
+      field === 'pains_desired_outcomes'
+        ? String(quality?.need_pain?.text ?? '').trim()
+        : field === 'segmentation_icp'
+          ? String(quality?.icp?.text ?? '').trim()
+          : '';
     const text =
-      String(existing.text ?? '').trim() || String(target_market_prof[field] ?? '').trim();
+      String(existing.text ?? existing.value ?? '').trim() ||
+      String(target_market_prof[field] ?? '').trim() ||
+      consultText;
+    if (text && !String(target_market_prof[field] ?? '').trim()) {
+      target_market_prof[field] = text.slice(0, 4000);
+    }
     let meta = confirmFieldMeta({ ...existing, text }, nextStatus, actor);
     if (action === 'reject') {
       meta = {
         ...existing,
         text,
+        value: text,
         status: 'assumed_draft',
         confirmed_by: actor,
         confirmed_at: new Date().toISOString(),
+        lifecycle_id: lifecycle.id,
+      };
+    } else {
+      meta = {
+        ...meta,
+        text,
+        value: text,
+        lifecycle_id: lifecycle.id,
       };
     }
     fieldMeta[field] = {

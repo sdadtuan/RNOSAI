@@ -3,6 +3,7 @@ import { AiToolDefinition, AiToolExecutionContext } from '../ai-tools.types';
 import { OpsCrmContextService } from '../ops-crm-context.service';
 import { OpsDraftWriteService } from '../ops-draft-write.service';
 import { OpsInsightDraftService } from '../ops-insight-draft.service';
+import { OpsFieldConfirmService } from '../ops-field-confirm.service';
 import { OpsInsightApproveService } from '../ops-insight-approve.service';
 import { OpsKpiTargetWriteService } from '../ops-kpi-target-write.service';
 import { OpsPlanBreakdownService } from '../ops-plan-breakdown.service';
@@ -62,6 +63,7 @@ export function createOpsContextTools(
   returnToAm?: OpsReturnToAmService,
   proposalDraft?: OpsProposalDraftService,
   insightApprove?: OpsInsightApproveService,
+  fieldConfirm?: OpsFieldConfirmService,
 ): AiToolDefinition[] {
   return [
     {
@@ -283,6 +285,65 @@ export function createOpsContextTools(
           assertHumanApprovedForWrite('insight.approve', ctx);
         }
         return insightApprove.approve(input, writeMeta(ctx).actor);
+      },
+    },
+    {
+      name: 'tmmt.confirm_field',
+      description:
+        'P8.4 Confirm Assumed / validate / reject a TMMT core or Pain/ICP field on lifecycle (human-approved). status: assumed_confirmed|validated|assumed_draft.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        required: ['lifecycle_id', 'field_key'],
+        properties: {
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          field_key: {
+            type: 'string',
+            enum: [
+              'market_context',
+              'segmentation_icp',
+              'personas_roles',
+              'pains_desired_outcomes',
+              'need_pain',
+              'pain',
+              'icp',
+              'target_audience',
+              'service',
+            ],
+          },
+          status: {
+            type: 'string',
+            enum: ['assumed_confirmed', 'validated', 'assumed_draft'],
+          },
+          action: {
+            type: 'string',
+            enum: ['confirm_assumed', 'validate_customer', 'khach_xac_nhan', 'reject'],
+          },
+        },
+      },
+      outputSchema: { type: 'object' },
+      mutating: true,
+      requiredCaps: ['crm_leads.edit'],
+      handler: async (input, ctx) => {
+        if (!fieldConfirm) {
+          throw new ForbiddenException({ error: 'tmmt_confirm_unavailable' });
+        }
+        assertHumanApprovedForWrite('tmmt.confirm_field', ctx);
+        const status = String(input.status ?? '').trim();
+        let action = String(input.action ?? '').trim();
+        if (!action) {
+          if (status === 'validated') action = 'validate_customer';
+          else if (status === 'assumed_draft') action = 'reject';
+          else action = 'confirm_assumed';
+        }
+        return fieldConfirm.confirm(
+          {
+            ...input,
+            field: input.field_key ?? input.field,
+            action,
+          },
+          writeMeta(ctx).actor,
+        );
       },
     },
     {

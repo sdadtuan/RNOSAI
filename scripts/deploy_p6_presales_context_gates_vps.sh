@@ -14,7 +14,7 @@ VPS_USER="${PTT_VPS_USER:-deploy}"
 VPS_ROOT="${PTT_VPS_ROOT:-/var/www/rnosai}"
 APPLY="${APPLY:-0}"
 
-P6_TOOLS_JSON='["presales.context.read","presales.autofill_tmmt","insight.draft_from_presales","insight.approve","marketing_plan.read","marketing_plan.write_draft","marketing_plan.generate_review","service.recommend_from_signals","consult.draft_from_research","presales.return_to_am","proposal.draft_from_consult","service_delivery.read","service_delivery.propose_transition","delivery_project.read","kpi_campaign.read","task.create_draft","task.update_draft","plan.breakdown_to_roles","kpi_target.write_draft","kpi_target.read"]'
+P6_TOOLS_JSON='["presales.context.read","presales.autofill_tmmt","insight.draft_from_presales","insight.approve","tmmt.confirm_field","marketing_plan.read","marketing_plan.write_draft","marketing_plan.generate_review","service.recommend_from_signals","consult.draft_from_research","presales.return_to_am","proposal.draft_from_consult","service_delivery.read","service_delivery.propose_transition","delivery_project.read","kpi_campaign.read","task.create_draft","task.update_draft","plan.breakdown_to_roles","kpi_target.write_draft","kpi_target.read"]'
 
 seed_allowlist() {
   if [[ -z "${DATABASE_URL:-}" ]]; then
@@ -41,7 +41,7 @@ UPDATE ai_tool_api_keys
    SET allowed_tools = (
      SELECT COALESCE(jsonb_agg(DISTINCT x ORDER BY x), '[]'::jsonb)
        FROM jsonb_array_elements_text(
-         COALESCE(allowed_tools, '[]'::jsonb) || '["presales.context.read","plan.breakdown_to_roles","task.create_draft","task.update_draft","insight.approve"]'::jsonb
+         COALESCE(allowed_tools, '[]'::jsonb) || '["presales.context.read","plan.breakdown_to_roles","task.create_draft","task.update_draft","insight.approve","tmmt.confirm_field"]'::jsonb
        ) AS t(x)
    )
  WHERE name ILIKE 'ops-%'
@@ -125,6 +125,7 @@ run_local() {
   npm run build
   npx jest --config jest.config.js \
     src/ai-intelligence/ai-tools/ops-winning-plan-gate.util.spec.ts \
+    src/ai-intelligence/ai-tools/ops-tmmt-persist.util.spec.ts \
     src/ai-intelligence/ai-tools/ops-presales-context.service.spec.ts \
     src/ai-intelligence/ai-tools/ops-plan-breakdown.service.spec.ts \
     src/ai-intelligence/ai-tools/ops-draft-write.service.spec.ts \
@@ -133,6 +134,7 @@ run_local() {
     src/ai-intelligence/ai-tools/ops-insight-draft.service.spec.ts \
     src/ai-intelligence/ai-tools/tools/ops-context.tools.spec.ts \
     src/ai-intelligence/ai-tools/tool.registry.spec.ts \
+    src/service-lifecycle/lifecycle-marketing-plan.util.spec.ts \
     src/market-research/insight-gate.util.spec.ts \
     src/proposals/quote-list.service.spec.ts \
     --forceExit --no-coverage

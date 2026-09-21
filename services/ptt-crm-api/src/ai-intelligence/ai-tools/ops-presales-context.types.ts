@@ -100,6 +100,8 @@ export type CrmPresalesContextPack = {
   assumed: string[];
   unknown: string[];
   blockers_for_winning_plan: Array<{ code: string; detail: string }>;
+  /** P8.4 — hub map / proposal totals. Never a sole 409. */
+  warnings?: Array<{ code: string; message: string }>;
   consult_ready?: boolean;
   winning_plan_ready?: boolean;
   consult_ready_blockers?: Array<{ code: string; detail: string }>;

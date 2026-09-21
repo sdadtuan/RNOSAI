@@ -248,6 +248,33 @@ export class OpsPresalesContextRepository implements OnModuleDestroy {
     return (r.rows[0] as Record<string, unknown> | undefined) ?? null;
   }
 
+  /** P8.4 — richest TMMT on the same lifecycle (fallback when official plan was emptied on activate). */
+  async findRichestTmmtPlanForLifecycle(
+    lifecycleId: number | null,
+    preferPlanId?: number | null,
+  ): Promise<Record<string, unknown> | null> {
+    if (lifecycleId == null) return null;
+    try {
+      const r = await this.db.query(
+        `SELECT id, name, north_star, objectives, strategy_framework_json, target_market_prof_json,
+                status, period_label, lifecycle_id,
+                (
+                  SELECT COUNT(*)::int FROM jsonb_each_text(COALESCE(target_market_prof_json, '{}'::jsonb)) e
+                  WHERE NULLIF(TRIM(e.value), '') IS NOT NULL
+                ) AS filled_n
+         FROM crm_marketing_plans
+         WHERE lifecycle_id = $1
+            OR id = $2
+         ORDER BY filled_n DESC, updated_at DESC NULLS LAST, id DESC
+         LIMIT 1`,
+        [lifecycleId, preferPlanId ?? 0],
+      );
+      return (r.rows[0] as Record<string, unknown> | undefined) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   async getContract(contractId: number | null): Promise<PresalesContractRow | null> {
     if (contractId == null) return null;
     try {

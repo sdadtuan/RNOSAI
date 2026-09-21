@@ -164,15 +164,6 @@ export class OpsPlanBreakdownService {
       throw new BadRequestException({ error: 'plan_id_required' });
     }
 
-    const lifecycleHint = positiveInt(input.lifecycle_id ?? input.lifecycleId);
-    const gate = await this.presalesContext.evaluateGateForIds({
-      plan_id: planId,
-      lifecycle_id: lifecycleHint ?? null,
-    });
-    if (!gate.pass) {
-      throw new ConflictException(winningPlanGateFailedBody(gate));
-    }
-
     const persistTasks = asBool(input.persist_tasks ?? input.persistTasks, false);
     const persistKpis = asBool(input.persist_kpis ?? input.persistKpis, false);
     const allowReview = asBool(input.allow_review ?? input.allowReview, false);
@@ -192,16 +183,25 @@ export class OpsPlanBreakdownService {
     }
 
     const status = normalizeStatus(plan.status);
-    if (status === 'active') {
-      // allowed
-    } else if (status === 'review' && allowReview) {
-      // allowed
-    } else {
+    const statusOk =
+      status === 'active' ||
+      status === 'approved' ||
+      (status === 'review' && allowReview);
+    if (!statusOk) {
       throw new ConflictException({
         error: 'plan_not_approved',
         plan_id: planId,
         plan_status: plan.status,
       });
+    }
+
+    const lifecycleHint = positiveInt(input.lifecycle_id ?? input.lifecycleId);
+    const gate = await this.presalesContext.evaluateGateForIds({
+      plan_id: planId,
+      lifecycle_id: lifecycleHint ?? plan.lifecycle_id ?? null,
+    });
+    if (!gate.pass) {
+      throw new ConflictException(winningPlanGateFailedBody(gate));
     }
 
     const roles = this.resolveRoles(input.roles);
@@ -347,6 +347,7 @@ export class OpsPlanBreakdownService {
       assumed: [...new Set(assumed)],
       unknown: [...new Set(unknown)],
       links: [...new Set(links)],
+      warnings: gate.warnings ?? [],
     };
   }
 

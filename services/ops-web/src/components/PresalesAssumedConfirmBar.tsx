@@ -44,18 +44,18 @@ const TMMT_CORE_KEYS: TmmtCoreKey[] = [
   'pains_desired_outcomes',
 ];
 
-/** assumed_draft | assumed | ai_draft without gate-satisfying status. */
+/** assumed_draft | assumed | ai_draft without gate-satisfying status. Empty draft still shows Confirm. */
 export function needsAssumedConfirm(
   meta: AssumedFieldMeta | undefined,
   textFallback?: string,
 ): boolean {
-  const text = String(meta?.text ?? textFallback ?? '').trim();
-  if (!text) return false;
   const status = String(meta?.status ?? '')
     .trim()
     .toLowerCase();
   if (status === 'assumed_confirmed' || status === 'validated') return false;
-  if (status === 'assumed_draft' || status === 'assumed') return true;
+  if (status === 'assumed_draft' || status === 'assumed' || status === 'unconfirmed') return true;
+  const text = String(meta?.text ?? textFallback ?? '').trim();
+  if (!text) return false;
   if (meta?.ai_draft === true) return true;
   // Meta present with empty/unknown status → treat as assumed draft (autofill path).
   if (meta && typeof meta === 'object' && !status) return true;
@@ -139,10 +139,66 @@ export function PresalesAssumedConfirmBar({
       {tmmtNeeds.map((key) => {
         const text = String(tmmtCoreMeta?.[key]?.text ?? tmmtCoreText?.[key] ?? '').trim();
         return (
-          <p key={key} style={{ margin: 0, fontSize: '0.85rem' }}>
-            <strong>TMMT · {TMMT_PROF_LABELS[key] ?? key}:</strong> {text.slice(0, 160)}
-            {text.length > 160 ? '…' : ''}
-          </p>
+          <div key={key} style={{ display: 'grid', gap: '0.35rem' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem' }}>
+              <strong>TMMT · {TMMT_PROF_LABELS[key] ?? key}:</strong>{' '}
+              {text ? (
+                <>
+                  {text.slice(0, 160)}
+                  {text.length > 160 ? '…' : ''}
+                </>
+              ) : (
+                <span className="muted">trống / assumed_draft — Confirm để giữ từ Consult</span>
+              )}
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={Boolean(busy)}
+                onClick={() =>
+                  void run(`Confirm ${TMMT_PROF_LABELS[key] ?? key}`, () =>
+                    postPresalesConfirmField(token, lifecycleId, {
+                      field: key,
+                      action: 'confirm_assumed',
+                    }),
+                  )
+                }
+              >
+                Confirm Assumed ({TMMT_PROF_LABELS[key] ?? key})
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={Boolean(busy)}
+                onClick={() =>
+                  void run(`Khách xác nhận ${TMMT_PROF_LABELS[key] ?? key}`, () =>
+                    postPresalesConfirmField(token, lifecycleId, {
+                      field: key,
+                      action: 'validate_customer',
+                    }),
+                  )
+                }
+              >
+                Khách đã xác nhận
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={Boolean(busy)}
+                onClick={() =>
+                  void run(`Reject ${TMMT_PROF_LABELS[key] ?? key}`, () =>
+                    postPresalesConfirmField(token, lifecycleId, {
+                      field: key,
+                      action: 'reject',
+                    }),
+                  )
+                }
+              >
+                Reject
+              </button>
+            </div>
+          </div>
         );
       })}
       {error ? <p className="error">{error}</p> : null}
@@ -199,24 +255,6 @@ export function PresalesAssumedConfirmBar({
             Confirm Service
           </button>
         ) : null}
-        {tmmtNeeds.map((key) => (
-          <button
-            key={`confirm-${key}`}
-            type="button"
-            className="btn btn-sm btn-secondary"
-            disabled={Boolean(busy)}
-            onClick={() =>
-              void run(`Confirm ${TMMT_PROF_LABELS[key] ?? key}`, () =>
-                postPresalesConfirmField(token, lifecycleId, {
-                  field: key,
-                  action: 'confirm_assumed',
-                }),
-              )
-            }
-          >
-            Confirm Assumed ({TMMT_PROF_LABELS[key] ?? key})
-          </button>
-        ))}
         <button
           type="button"
           className="btn btn-sm"

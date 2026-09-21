@@ -18,6 +18,9 @@ export type FieldQualityMeta = {
   confirmed_by?: string | null;
   confirmed_at?: string | null;
   text?: string;
+  /** P8.4 — same as text; kept so confirm meta round-trips the spec shape. */
+  value?: string;
+  lifecycle_id?: number;
 };
 
 export const GATE_SATISFYING_STATUSES: ReadonlySet<FieldQualityStatus> = new Set([
@@ -60,6 +63,11 @@ export function normalizeFieldMeta(raw: unknown): FieldQualityMeta {
     confirmed_at:
       row.confirmed_at == null ? null : String(row.confirmed_at).slice(0, 40),
     text: row.text != null ? String(row.text).slice(0, 4000) : undefined,
+    value: row.value != null ? String(row.value).slice(0, 4000) : undefined,
+    lifecycle_id:
+      row.lifecycle_id != null && Number.isFinite(Number(row.lifecycle_id))
+        ? Number(row.lifecycle_id)
+        : undefined,
   };
 }
 
@@ -69,7 +77,7 @@ export function resolveFieldStatus(opts: {
   meta?: unknown;
 }): FieldQualityMeta {
   const meta = normalizeFieldMeta(opts.meta);
-  const text = String(opts.text ?? meta.text ?? '').trim();
+  const text = String(opts.text ?? meta.text ?? meta.value ?? '').trim();
   if (!text) {
     return { ...meta, status: 'empty', text: '' };
   }

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { OpsPresalesContextRepository } from './ops-presales-context.repository';
 import { OpsPresalesContextService } from './ops-presales-context.service';
+import { parsePlanContent } from '../../service-lifecycle/lifecycle-marketing-plan.util';
 import type { PlanGenerateReviewResult } from './ops-presales-p7.types';
 
 function positiveInt(raw: unknown): number | undefined {
@@ -140,39 +141,50 @@ export class OpsPlanGenerateReviewService {
 
     const clonePlan =
       cloneFrom != null ? await this.repo.getOfficialPlan(cloneFrom) : null;
-    const cloneParsed = clonePlan
-      ? {
-          strategy_framework: (clonePlan.strategy_framework_json ?? {}) as Record<
-            string,
-            unknown
-          >,
-          target_market_prof: (clonePlan.target_market_prof_json ?? {}) as Record<
-            string,
-            unknown
-          >,
-        }
-      : { strategy_framework: {}, target_market_prof: {} };
+    const cloneParsed = parsePlanContent(
+      clonePlan
+        ? {
+            strategy_framework_json: clonePlan.strategy_framework_json,
+            target_market_prof_json: clonePlan.target_market_prof_json,
+          }
+        : null,
+    );
 
-    // Prefer live TMMT pack fields over empty clone.
     const target_market_prof: Record<string, unknown> = {
       ...cloneParsed.target_market_prof,
-      segmentation_icp: tmmt.audience_bullets[0] || cloneParsed.target_market_prof.segmentation_icp,
-      personas_roles: tmmt.audience_bullets[1] || cloneParsed.target_market_prof.personas_roles,
-      geo_behavior: tmmt.geography_resolved
-        ? 'Geography resolved (see TMMT)'
-        : 'Geography missing — blocker',
     };
+    if (
+      tmmt.audience_bullets[0] &&
+      !String(target_market_prof.segmentation_icp ?? '').trim()
+    ) {
+      target_market_prof.segmentation_icp = tmmt.audience_bullets[0];
+    }
+    if (
+      tmmt.audience_bullets[1] &&
+      !String(target_market_prof.personas_roles ?? '').trim()
+    ) {
+      target_market_prof.personas_roles = tmmt.audience_bullets[1];
+    }
+    if (!String(target_market_prof.geo_behavior ?? '').trim()) {
+      target_market_prof.geo_behavior = tmmt.geography_resolved
+        ? 'Geography resolved (see TMMT)'
+        : 'Geography missing — blocker';
+    }
 
     const strategy_framework: Record<string, unknown> = {
       ...cloneParsed.strategy_framework,
-      market_message: tmmt.core_message || cloneParsed.strategy_framework.market_message,
-      media_reach: tmmt.channels.join(', ') || cloneParsed.strategy_framework.media_reach,
-      ai_draft: {
-        tool: 'marketing_plan.generate_review',
-        actor,
-        filled_at: new Date().toISOString(),
-        gate_passed: gatePassed,
-      },
+    };
+    if (tmmt.core_message && !String(strategy_framework.market_message ?? '').trim()) {
+      strategy_framework.market_message = tmmt.core_message;
+    }
+    if (tmmt.channels.length && !String(strategy_framework.media_reach ?? '').trim()) {
+      strategy_framework.media_reach = tmmt.channels.join(', ');
+    }
+    strategy_framework.ai_draft = {
+      tool: 'marketing_plan.generate_review',
+      actor,
+      filled_at: new Date().toISOString(),
+      gate_passed: gatePassed,
     };
 
     const planId = await this.repo.insertPlanReview({

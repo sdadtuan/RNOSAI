@@ -185,10 +185,25 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
   const tmmtCoreMeta = parseTmmtFieldMeta(data?.plan?.strategy_framework);
   const tmmtCoreText: Partial<Record<TmmtCoreKey, string>> = {
     market_context: draftProf.market_context,
-    segmentation_icp: draftProf.segmentation_icp,
+    segmentation_icp: draftProf.segmentation_icp || p8Quality?.icp?.text,
     personas_roles: draftProf.personas_roles,
-    pains_desired_outcomes: draftProf.pains_desired_outcomes,
+    pains_desired_outcomes: draftProf.pains_desired_outcomes || p8Quality?.need_pain?.text,
   };
+  const tmmtCoreMetaForConfirm = { ...tmmtCoreMeta };
+  if (
+    !String(draftProf.pains_desired_outcomes ?? '').trim() &&
+    p8Quality?.need_pain &&
+    !tmmtCoreMetaForConfirm.pains_desired_outcomes
+  ) {
+    tmmtCoreMetaForConfirm.pains_desired_outcomes = p8Quality.need_pain;
+  }
+  if (
+    !String(draftProf.segmentation_icp ?? '').trim() &&
+    p8Quality?.icp &&
+    !tmmtCoreMetaForConfirm.segmentation_icp
+  ) {
+    tmmtCoreMetaForConfirm.segmentation_icp = p8Quality.icp;
+  }
 
   return (
     <div className="card" style={{ padding: '1rem', display: 'grid', gap: '1rem' }}>
@@ -221,7 +236,7 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
         needPain={p8Quality?.need_pain}
         icp={p8Quality?.icp}
         serviceStatus={p8Quality?.service_status}
-        tmmtCoreMeta={tmmtCoreMeta}
+        tmmtCoreMeta={tmmtCoreMetaForConfirm}
         tmmtCoreText={tmmtCoreText}
         compact
         onDone={() => void reload()}
@@ -324,7 +339,12 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
             <div style={{ display: 'grid', gap: '0.65rem' }}>
               {(data.tmmt_prof_keys ?? Object.keys(TMMT_PROF_LABELS)).map((key) => {
                 const coreKey = key as TmmtCoreKey;
-                const assumed = needsAssumedConfirm(tmmtCoreMeta[coreKey], draftProf[key]);
+                const assumed = needsAssumedConfirm(
+                  key === 'pains_desired_outcomes' || key === 'segmentation_icp' || key === 'market_context' || key === 'personas_roles'
+                    ? tmmtCoreMetaForConfirm[coreKey]
+                    : tmmtCoreMeta[coreKey],
+                  draftProf[key],
+                );
                 return (
                 <label key={key} style={{ display: 'grid', gap: '0.3rem' }}>
                   <span className="muted">

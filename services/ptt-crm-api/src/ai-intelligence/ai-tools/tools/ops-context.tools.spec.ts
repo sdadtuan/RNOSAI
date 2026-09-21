@@ -198,6 +198,14 @@ describe('createOpsContextTools', () => {
       winning_insight_ok: true,
     })),
   };
+  const fieldConfirm = {
+    confirm: jest.fn(async () => ({
+      ok: true,
+      phase: 'P8',
+      field: 'pains_desired_outcomes',
+      status: 'assumed_confirmed',
+    })),
+  };
   const tools = createOpsContextTools(
     context,
     draftWrite,
@@ -213,6 +221,7 @@ describe('createOpsContextTools', () => {
     returnToAm as never,
     proposalDraft as never,
     insightApprove as never,
+    fieldConfirm as never,
   );
   const byName = new Map(tools.map((t) => [t.name, t]));
 
@@ -258,6 +267,7 @@ describe('createOpsContextTools', () => {
         'service_delivery.read',
         'task.create_draft',
         'task.update_draft',
+        'tmmt.confirm_field',
       ].sort(),
     );
   });

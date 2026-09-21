@@ -1,4 +1,9 @@
-import { buildOfficialPlanPayload, validateOfficialTmmt } from './lifecycle-marketing-plan.util';
+import {
+  buildOfficialPlanPayload,
+  mergeStrategyFramework,
+  mergeTargetMarketProf,
+  validateOfficialTmmt,
+} from './lifecycle-marketing-plan.util';
 
 describe('lifecycle-marketing-plan.util', () => {
   it('buildOfficialPlanPayload includes filled_count', () => {
@@ -49,5 +54,35 @@ describe('lifecycle-marketing-plan.util', () => {
       },
     });
     expect(gate.ok).toBe(true);
+  });
+
+  it('P8.4 merge keeps ai_tmmt_field_meta and non-empty Pain across status activate', () => {
+    const existingMeta = JSON.stringify({
+      pains_desired_outcomes: {
+        status: 'assumed_confirmed',
+        text: 'Lead ổn định',
+        confirmed_by: 'ceo',
+      },
+    });
+    const mergedSf = mergeStrategyFramework(
+      JSON.stringify({
+        target_market: 'Việt Nam',
+        ai_tmmt_field_meta: existingMeta,
+      }),
+      {
+        target_market: 'Việt Nam',
+        ai_tmmt_field_meta: '',
+      },
+    );
+    const parsedSf = JSON.parse(mergedSf);
+    expect(parsedSf.ai_tmmt_field_meta).toContain('assumed_confirmed');
+    expect(parsedSf.target_market).toBe('Việt Nam');
+
+    const mergedProf = mergeTargetMarketProf(
+      JSON.stringify({ pains_desired_outcomes: 'Lead ổn định', market_context: 'Detailing' }),
+      { pains_desired_outcomes: '', market_context: 'Detailing' },
+    );
+    const parsedProf = JSON.parse(mergedProf);
+    expect(parsedProf.pains_desired_outcomes).toBe('Lead ổn định');
   });
 });

@@ -188,6 +188,7 @@ export class OpsDraftWriteService {
           .split(',')
           .map((t) => t.trim())
           .filter(Boolean);
+    let softWarnings: Array<{ code: string; message: string }> = [];
     if (isScaleAdsStyleTask(titleRaw, tags) && !isResearchOrTmmtStyleTask(titleRaw, tags)) {
       const gate = await this.presalesContext.evaluateGateForIds({
         lifecycle_id: lifecycleId,
@@ -197,6 +198,7 @@ export class OpsDraftWriteService {
       if (!gate.pass) {
         throw new ConflictException(winningPlanGateFailedBody(gate));
       }
+      softWarnings = gate.warnings ?? [];
     }
 
     const stage = isValidStage(lc.stage) ? lc.stage : 'deliver';
@@ -236,6 +238,7 @@ export class OpsDraftWriteService {
       human_approved: true,
       entity_ids: { task_id: task.id, lifecycle_id: lifecycleId },
       links: [`/crm/service-delivery/${lifecycleId}`],
+      ...(softWarnings.length ? { warnings: softWarnings } : {}),
     };
   }
 

@@ -8,12 +8,16 @@ import {
   CONSULT_READY_UI_COPY,
   WINNING_PLAN_UI_COPY,
   evaluateConsultReady,
+  type ServiceStatus,
 } from './ops-consult-ready.util';
 import { resolveFieldStatus } from './ops-field-quality.util';
 import { readP8QualityFromForms } from './ops-p8-quality-state.util';
+import { overlayLifecycleTmmt } from './ops-tmmt-persist.util';
 import {
+  collectWinningPlanSoftWarnings,
   evaluateWinningPlanGate,
   WINNING_PLAN_CORE_KEYS,
+  type WinningPlanGateResult,
 } from './ops-winning-plan-gate.util';
 import {
   OpsPresalesContextRepository,
@@ -112,7 +116,9 @@ export class OpsPresalesContextService {
     }
 
     const leadId = parsed.lead_id ?? lifecycle?.lead_id ?? null;
-    const planId = parsed.plan_id ?? lifecycle?.marketing_plan_id ?? null;
+    const requestedPlanId = parsed.plan_id ?? null;
+    const officialPlanId = lifecycle?.marketing_plan_id ?? null;
+    const gatePlanId = officialPlanId ?? requestedPlanId;
 
     if (!client && lifecycle?.agency_client_id) {
       client = await this.repo.resolveClientId(lifecycle.agency_client_id);
@@ -121,7 +127,31 @@ export class OpsPresalesContextService {
 
     const lead = leadId != null ? await this.repo.getLead(leadId) : null;
     const intake = await this.repo.getLatestCompletedIntake(leadId, lifecycle?.id ?? null);
-    const plan = await this.repo.getOfficialPlan(planId);
+    const officialPlan = await this.repo.getOfficialPlan(gatePlanId);
+    let snapshotPlan =
+      requestedPlanId != null && requestedPlanId !== gatePlanId
+        ? await this.repo.getOfficialPlan(requestedPlanId)
+        : null;
+    // When official/active plan TMMT is sparse, pull richest sibling on same lifecycle (activate wipe repair).
+    const officialCoreFilled = (() => {
+      if (!officialPlan) return 0;
+      const parsed = this.repo.parseOfficialPlan(officialPlan);
+      return OFFICIAL_TMMT_CORE_KEYS.filter((k) =>
+        String(parsed.target_market_prof[k] ?? '').trim(),
+      ).length;
+    })();
+    if (lifecycle?.id && officialCoreFilled < 4) {
+      const richest = await this.repo.findRichestTmmtPlanForLifecycle(
+        lifecycle.id,
+        gatePlanId,
+      );
+      if (
+        richest &&
+        Number(richest.id) !== Number(officialPlan?.id ?? 0)
+      ) {
+        snapshotPlan = richest;
+      }
+    }
     const contract = await this.repo.getContract(lifecycle?.contract_id ?? null);
     const proposals = await this.repo.listProposals({
       leadId,
@@ -131,8 +161,61 @@ export class OpsPresalesContextService {
     const approvedIds = await this.repo.listApprovedInsightIds(client?.id ?? null, leadId);
     const hubMaps = await this.repo.countHubCampaignMaps(client?.id ?? null);
 
-    const { strategy_framework, target_market_prof } = this.repo.parseOfficialPlan(plan);
-    const tmmtValidation = this.repo.validateOfficialPlan(plan);
+    const officialParsed = this.repo.parseOfficialPlan(officialPlan);
+    const snapshotParsed = snapshotPlan ? this.repo.parseOfficialPlan(snapshotPlan) : null;
+
+    let qualityPain = resolveFieldStatus({ text: '' });
+    let qualityIcp = resolveFieldStatus({ text: '' });
+    let qualityService: ServiceStatus = 'unknown';
+    let qualityRework = false;
+    if (lifecycle?.id) {
+      const leadTask = await this.repo.getStageTask(lifecycle.id, 'lead');
+      const consultTask = await this.repo.getStageTask(lifecycle.id, 'consult');
+      const intakeMeta =
+        intake?.answers_json?.meta && typeof intake.answers_json.meta === 'object'
+          ? (intake.answers_json.meta as Record<string, unknown>)
+          : {};
+      const quality = readP8QualityFromForms({
+        leadForm: leadTask?.form_data,
+        consultForm: consultTask?.form_data,
+        intakeMeta,
+      });
+      qualityPain = quality.need_pain;
+      qualityIcp = quality.icp;
+      qualityService = quality.service_status;
+      qualityRework = quality.needs_am_rework;
+    }
+
+    const overlay = overlayLifecycleTmmt({
+      lifecycleId: lifecycle?.id ?? null,
+      strategy_framework: officialParsed.strategy_framework as Record<string, unknown>,
+      target_market_prof: officialParsed.target_market_prof as Record<string, unknown>,
+      snapshot: snapshotParsed
+        ? {
+            strategy_framework: snapshotParsed.strategy_framework as Record<string, unknown>,
+            target_market_prof: snapshotParsed.target_market_prof as Record<string, unknown>,
+          }
+        : null,
+      consultPain: qualityPain,
+      consultIcp: qualityIcp,
+    });
+    if (overlay.changed && gatePlanId != null) {
+      await this.repo.patchOfficialPlanContent(gatePlanId, {
+        target_market_prof: overlay.target_market_prof,
+        strategy_framework: overlay.strategy_framework,
+      });
+      known.push(`Repaired lifecycle TMMT #${gatePlanId} from Consult/snapshot (P8.4)`);
+    }
+
+    const plan = officialPlan;
+    const planId = requestedPlanId ?? officialPlanId;
+    const strategy_framework = overlay.strategy_framework;
+    const target_market_prof = overlay.target_market_prof;
+    const tmmtValidation = this.repo.validateOfficialPlan({
+      ...(officialPlan ?? {}),
+      strategy_framework_json: strategy_framework,
+      target_market_prof_json: target_market_prof,
+    });
     const filled = TARGET_MARKET_PROF_KEYS.filter((k) =>
       String(target_market_prof[k] ?? '').trim(),
     ).length;
@@ -201,6 +284,15 @@ export class OpsPresalesContextService {
     else unknown.push('bant_intake');
     if (plan) known.push(`Plan #${plan.id} TMMT ${filled}/12 gate=${tmmtValidation.ok}`);
     else unknown.push('official_plan');
+    if (
+      requestedPlanId != null &&
+      officialPlanId != null &&
+      requestedPlanId !== officialPlanId
+    ) {
+      known.push(
+        `Gate TMMT from lifecycle plan #${officialPlanId} (not empty snapshot #${requestedPlanId})`,
+      );
+    }
     if (contract) known.push(`Contract #${contract.id} value=${contract.amount_vnd}`);
     else unknown.push('contract');
     if (approvedIds.length) known.push(`Approved insights=${approvedIds.length}`);
@@ -243,32 +335,11 @@ export class OpsPresalesContextService {
       bant_score: intake?.bant_total ?? 0,
       qualify_decision: String(intake?.decision ?? ''),
       session_completed: Boolean(intake),
-      pain: resolveFieldStatus({ text: '' }),
-      service_status: 'unknown',
-      needs_am_rework: false,
+      pain: qualityPain,
+      icp: qualityIcp,
+      service_status: qualityService,
+      needs_am_rework: qualityRework,
     });
-    if (lifecycle?.id) {
-      const leadTask = await this.repo.getStageTask(lifecycle.id, 'lead');
-      const consultTask = await this.repo.getStageTask(lifecycle.id, 'consult');
-      const intakeMeta =
-        intake?.answers_json?.meta && typeof intake.answers_json.meta === 'object'
-          ? (intake.answers_json.meta as Record<string, unknown>)
-          : {};
-      const quality = readP8QualityFromForms({
-        leadForm: leadTask?.form_data,
-        consultForm: consultTask?.form_data,
-        intakeMeta,
-      });
-      consultReady = evaluateConsultReady({
-        bant_score: intake?.bant_total ?? 0,
-        qualify_decision: String(intake?.decision ?? ''),
-        session_completed: Boolean(intake),
-        pain: quality.need_pain,
-        icp: quality.icp,
-        service_status: quality.service_status,
-        needs_am_rework: quality.needs_am_rework,
-      });
-    }
 
     if (contract && contract.amount_vnd > 0) {
       assumed.push(
@@ -282,15 +353,10 @@ export class OpsPresalesContextService {
       code: b.code,
       detail: b.detail,
     }));
-    if (hubGaps.includes('no_campaign_map')) {
-      blockersForWinning.push({ code: 'hub_campaign_map', detail: '0 rows' });
-    }
-    if (proposalGaps.includes('totals_zero')) {
-      blockersForWinning.push({
-        code: 'proposal_totals_zero',
-        detail: 'drafts may be 0₫ until lines priced',
-      });
-    }
+    const warnings = collectWinningPlanSoftWarnings({
+      hubGaps,
+      proposalGaps,
+    });
 
     const presales: CrmPresalesPack = {
       lead: {
@@ -386,6 +452,7 @@ export class OpsPresalesContextService {
       assumed,
       unknown,
       blockers_for_winning_plan: blockersForWinning,
+      warnings,
       consult_ready: consultReady.consult_ready,
       winning_plan_ready: gate.winning_plan_ready,
       consult_ready_blockers: consultReady.blockers,
@@ -394,31 +461,33 @@ export class OpsPresalesContextService {
     };
   }
 
-  /** Snapshot used by WinningPlanGate enforcement. */
+  /** Snapshot used by WinningPlanGate enforcement. Hard blockers only; hub/proposal are warnings. */
   async evaluateGateForIds(input: {
     lifecycle_id?: number | null;
     plan_id?: number | null;
     lead_id?: number | null;
     client_id?: string | null;
-  }) {
+  }): Promise<WinningPlanGateResult> {
     const pack = await this.buildPack({
       lifecycle_id: input.lifecycle_id ?? undefined,
       plan_id: input.plan_id ?? undefined,
       lead_id: input.lead_id ?? undefined,
       client_id: input.client_id ?? undefined,
     });
-    return evaluateWinningPlanGate(
-      {
-        tmmt_gate_passed: pack.presales.tmmt.gate_passed,
-        tmmt_progress: pack.presales.tmmt.progress,
-        approved_insight_count: pack.presales.insight.approved_count,
-        geography_resolved: pack.presales.tmmt.geography_resolved,
-      },
-      {
-        lifecycle_id: pack.presales.tmmt.lifecycle_id,
-        plan_id: positiveInt(input.plan_id) ?? null,
-      },
+    const blockers = pack.blockers_for_winning_plan.filter((b) =>
+      ['tmmt_gate', 'core_unconfirmed', 'no_approved_insight', 'geography_missing', 'kpi_targets_malformed'].includes(
+        b.code,
+      ),
     );
+    const pass = Boolean(pack.winning_plan_ready) && blockers.length === 0;
+    return {
+      pass,
+      winning_plan_ready: pass,
+      blockers: blockers as WinningPlanGateResult['blockers'],
+      warnings: (pack.warnings ?? []) as WinningPlanGateResult['warnings'],
+      links: pack.links,
+      ui_copy: WINNING_PLAN_UI_COPY,
+    };
   }
 
   private parseInput(input: Record<string, unknown>): PresalesContextInput {

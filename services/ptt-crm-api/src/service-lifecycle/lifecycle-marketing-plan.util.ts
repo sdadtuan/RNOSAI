@@ -51,6 +51,20 @@ export function parsePlanContent(plan: Record<string, unknown> | null): {
   };
 }
 
+function coerceStoredValue(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+/** Keep confirm meta / non-empty text when a status save sends blanks or "[object Object]". */
+function keepIfIncomingBlank(current: string | undefined, incoming: unknown): string | null {
+  const next = coerceStoredValue(incoming);
+  const prev = String(current ?? '');
+  if (!next.trim() || next === '[object Object]') return prev;
+  return null;
+}
+
 export function mergeStrategyFramework(
   existingJson: string | null | undefined,
   patch: Record<string, string>,
@@ -60,7 +74,29 @@ export function mergeStrategyFramework(
   });
   const merged = { ...current };
   for (const [key, value] of Object.entries(patch)) {
-    if (value != null) merged[key] = String(value);
+    if (value == null) continue;
+    if (key === 'ai_tmmt_field_meta') {
+      const kept = keepIfIncomingBlank(merged[key], value);
+      if (kept != null) {
+        if (kept) merged[key] = kept;
+        continue;
+      }
+      const next = coerceStoredValue(value);
+      try {
+        JSON.parse(next);
+        merged[key] = next;
+      } catch {
+        if (merged[key]) continue;
+        merged[key] = next;
+      }
+      continue;
+    }
+    const kept = keepIfIncomingBlank(merged[key], value);
+    if (kept != null) {
+      if (kept) merged[key] = kept;
+      continue;
+    }
+    merged[key] = coerceStoredValue(value);
   }
   return JSON.stringify(merged);
 }
@@ -74,7 +110,13 @@ export function mergeTargetMarketProf(
   });
   const merged = { ...current };
   for (const [key, value] of Object.entries(patch)) {
-    if (value != null) merged[key] = String(value);
+    if (value == null) continue;
+    const kept = keepIfIncomingBlank(merged[key], value);
+    if (kept != null) {
+      if (kept) merged[key] = kept;
+      continue;
+    }
+    merged[key] = String(value);
   }
   return JSON.stringify(merged);
 }

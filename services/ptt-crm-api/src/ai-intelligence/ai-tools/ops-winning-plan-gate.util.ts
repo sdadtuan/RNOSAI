@@ -40,13 +40,40 @@ export type WinningPlanGateInput = {
   >;
 };
 
+/** Soft only — never a sole 409. */
+export type WinningPlanWarning = {
+  code: 'hub_campaign_map' | 'proposal_totals_zero';
+  message: string;
+};
+
 export type WinningPlanGateResult = {
   pass: boolean;
   winning_plan_ready: boolean;
   blockers: WinningPlanBlocker[];
+  warnings: WinningPlanWarning[];
   links: string[];
   ui_copy: typeof WINNING_PLAN_UI_COPY;
 };
+
+export function collectWinningPlanSoftWarnings(input: {
+  hubGaps?: string[];
+  proposalGaps?: string[];
+}): WinningPlanWarning[] {
+  const warnings: WinningPlanWarning[] = [];
+  if ((input.hubGaps ?? []).includes('no_campaign_map')) {
+    warnings.push({
+      code: 'hub_campaign_map',
+      message: '0 rows — map campaign before scale ads',
+    });
+  }
+  if ((input.proposalGaps ?? []).includes('totals_zero')) {
+    warnings.push({
+      code: 'proposal_totals_zero',
+      message: 'Proposal totals 0 — price lines when ready',
+    });
+  }
+  return warnings;
+}
 
 export const WINNING_PLAN_CORE_KEYS = [
   'market_context',
@@ -131,6 +158,7 @@ export function evaluateWinningPlanGate(
     pass,
     winning_plan_ready: pass,
     blockers,
+    warnings: [],
     links: buildWinningPlanLinks(linkIds),
     ui_copy: WINNING_PLAN_UI_COPY,
   };

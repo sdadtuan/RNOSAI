@@ -1,4 +1,5 @@
 import {
+  collectWinningPlanSoftWarnings,
   evaluateWinningPlanGate,
   isResearchOrTmmtStyleTask,
   isScaleAdsStyleTask,
@@ -55,6 +56,30 @@ describe('ops-winning-plan-gate.util', () => {
     expect(gate.pass).toBe(false);
     expect(gate.winning_plan_ready).toBe(false);
     expect(gate.blockers.map((b) => b.code)).toContain('core_unconfirmed');
+  });
+
+  it('keeps hub map and proposal totals as soft warnings, never hard blockers', () => {
+    const warnings = collectWinningPlanSoftWarnings({
+      hubGaps: ['no_campaign_map'],
+      proposalGaps: ['totals_zero'],
+    });
+    expect(warnings.map((w) => w.code)).toEqual(['hub_campaign_map', 'proposal_totals_zero']);
+    const gate = evaluateWinningPlanGate({
+      tmmt_gate_passed: true,
+      tmmt_progress: '8/12',
+      approved_insight_count: 1,
+      geography_resolved: true,
+      core_fields: {
+        market_context: { status: 'validated', text: 'Ngành' },
+        segmentation_icp: { status: 'assumed_confirmed', text: 'ICP' },
+        personas_roles: { status: 'assumed_confirmed', text: 'Owner' },
+        pains_desired_outcomes: { status: 'assumed_confirmed', text: 'Lead ổn' },
+      },
+    });
+    expect(gate.pass).toBe(true);
+    expect(gate.blockers.map((b) => b.code)).not.toEqual(
+      expect.arrayContaining(['hub_campaign_map', 'proposal_totals_zero']),
+    );
   });
 
   it('classifies scale-ads vs research tasks', () => {

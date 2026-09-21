@@ -37,4 +37,6 @@ export type OpsPlanBreakdownResult = {
   assumed: string[];
   unknown: string[];
   links: string[];
+  /** P8.4 — hub/proposal soft warnings. Present when hard gate passed. */
+  warnings?: Array<{ code: string; message: string }>;
 };

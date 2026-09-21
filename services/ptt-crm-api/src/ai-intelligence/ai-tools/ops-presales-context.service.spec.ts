@@ -11,6 +11,7 @@ describe('OpsPresalesContextService', () => {
     getLead: jest.fn(),
     getLatestCompletedIntake: jest.fn(),
     getOfficialPlan: jest.fn(),
+    findRichestTmmtPlanForLifecycle: jest.fn(),
     getContract: jest.fn(),
     listProposals: jest.fn(),
     getPresalesL2Docs: jest.fn(),
@@ -20,6 +21,7 @@ describe('OpsPresalesContextService', () => {
     parseOfficialPlan: jest.fn(),
     validateOfficialPlan: jest.fn(),
     getStageTask: jest.fn(),
+    patchOfficialPlanContent: jest.fn(),
   };
 
   let svc: OpsPresalesContextService;
@@ -91,6 +93,8 @@ describe('OpsPresalesContextService', () => {
     repo.countHubCampaignMaps.mockResolvedValue(0);
     repo.staffName.mockResolvedValue('');
     repo.getStageTask.mockResolvedValue(null);
+    repo.patchOfficialPlanContent.mockResolvedValue(undefined);
+    repo.findRichestTmmtPlanForLifecycle.mockResolvedValue(null);
     svc = new OpsPresalesContextService(repo as never);
   });
 
@@ -115,6 +119,188 @@ describe('OpsPresalesContextService', () => {
     expect(pack.gate_copy?.consult).not.toMatch(/TMMT/);
     expect(pack.blockers_for_winning_plan.map((b) => b.code)).toEqual(
       expect.arrayContaining(['tmmt_gate', 'no_approved_insight', 'geography_missing']),
+    );
+    expect(pack.blockers_for_winning_plan.map((b) => b.code)).not.toEqual(
+      expect.arrayContaining(['hub_campaign_map', 'proposal_totals_zero']),
+    );
+    expect(pack.warnings?.map((w) => w.code)).toEqual(
+      expect.arrayContaining(['hub_campaign_map', 'proposal_totals_zero']),
+    );
+  });
+
+  it('P8.4 fixture: lifecycle 5 TMMT confirmed + plan 15 active → hard pass with soft warnings', async () => {
+    const confirmed = (text: string) => ({
+      status: 'assumed_confirmed',
+      text,
+      confirmed_by: 'ceo',
+      confirmed_at: '2026-09-21T00:00:00.000Z',
+    });
+    const filledProf = {
+      market_context: 'Detailing VN',
+      tam_sam_som: 'TAM',
+      geo_behavior: 'Việt Nam HCM',
+      segmentation_icp: 'SME auto',
+      personas_roles: 'Owner',
+      jobs_to_be_done: 'JTBD',
+      pains_desired_outcomes: 'Lead ổn định',
+      buy_triggers_obstacles: 'CPL',
+    };
+    const fieldMeta = {
+      market_context: confirmed('Detailing VN'),
+      segmentation_icp: confirmed('SME auto'),
+      personas_roles: confirmed('Owner'),
+      pains_desired_outcomes: confirmed('Lead ổn định'),
+    };
+    repo.getLifecycleDetail.mockResolvedValue({
+      id: 5,
+      lead_id: 5,
+      contract_id: 1,
+      marketing_plan_id: 8,
+      stage: 'onboard',
+      status: 'active',
+      service_slug: 'quang-cao-facebook',
+      assigned_am: null,
+      assigned_sp: null,
+      agency_client_id: 'd437cc78-0757-44ba-aaa3-9ffb941121dd',
+    });
+    repo.getOfficialPlan.mockImplementation(async (id: number | null) => {
+      if (id === 8) {
+        return {
+          id: 8,
+          strategy_framework_json: {
+            target_market: 'Việt Nam',
+            ai_tmmt_field_meta: JSON.stringify(fieldMeta),
+          },
+          target_market_prof_json: filledProf,
+        };
+      }
+      if (id === 15) {
+        return {
+          id: 15,
+          status: 'active',
+          strategy_framework_json: {},
+          target_market_prof_json: { market_context: 'stale empty snap' },
+        };
+      }
+      return null;
+    });
+    repo.parseOfficialPlan.mockImplementation((plan: Record<string, unknown> | null) => {
+      if (!plan) return { strategy_framework: {}, target_market_prof: {} };
+      const sf =
+        typeof plan.strategy_framework_json === 'string'
+          ? JSON.parse(plan.strategy_framework_json as string)
+          : (plan.strategy_framework_json as Record<string, unknown>) ?? {};
+      const prof =
+        typeof plan.target_market_prof_json === 'string'
+          ? JSON.parse(plan.target_market_prof_json as string)
+          : (plan.target_market_prof_json as Record<string, unknown>) ?? {};
+      return { strategy_framework: sf, target_market_prof: prof };
+    });
+    repo.validateOfficialPlan.mockImplementation((plan: Record<string, unknown> | null) => {
+      const prof =
+        (plan?.target_market_prof_json as Record<string, string>) ??
+        {};
+      const filled = Object.values(prof).filter((v) => String(v ?? '').trim()).length;
+      return { ok: filled >= 6, complete: filled >= 6, messages: [] };
+    });
+    repo.listApprovedInsightIds.mockResolvedValue([1]);
+    repo.countHubCampaignMaps.mockResolvedValue(0);
+    repo.listProposals.mockResolvedValue([]);
+
+    const pack = await svc.buildPack({ lifecycle_id: 5, plan_id: 15 });
+    expect(pack.winning_plan_ready).toBe(true);
+    expect(pack.blockers_for_winning_plan).toEqual([]);
+    expect(pack.warnings?.map((w) => w.code)).toEqual(
+      expect.arrayContaining(['hub_campaign_map', 'proposal_totals_zero']),
+    );
+    expect(pack.presales.tmmt.progress).toMatch(/^[6-9]\/12$|^1[0-2]\/12$/);
+    expect(pack.known.some((k) => k.includes('lifecycle plan #8'))).toBe(true);
+
+    const gate = await svc.evaluateGateForIds({ lifecycle_id: 5, plan_id: 15 });
+    expect(gate.pass).toBe(true);
+    expect(gate.blockers).toEqual([]);
+    expect(gate.warnings.map((w) => w.code)).toEqual(
+      expect.arrayContaining(['hub_campaign_map', 'proposal_totals_zero']),
+    );
+  });
+
+  it('P8.4 remaps from richest sibling when activated plan 15 wiped TMMT', async () => {
+    const confirmed = (text: string) => ({
+      status: 'assumed_confirmed',
+      text,
+      confirmed_by: 'ceo',
+      confirmed_at: '2026-09-21T00:00:00.000Z',
+    });
+    const filledProf = {
+      market_context: 'Detailing VN',
+      tam_sam_som: 'TAM',
+      geo_behavior: 'Việt Nam HCM',
+      segmentation_icp: 'SME auto',
+      personas_roles: 'Owner',
+      jobs_to_be_done: 'JTBD',
+      pains_desired_outcomes: 'Lead ổn định',
+      buy_triggers_obstacles: 'CPL',
+    };
+    const fieldMeta = {
+      market_context: confirmed('Detailing VN'),
+      segmentation_icp: confirmed('SME auto'),
+      personas_roles: confirmed('Owner'),
+      pains_desired_outcomes: confirmed('Lead ổn định'),
+    };
+    repo.getLifecycleDetail.mockResolvedValue({
+      id: 5,
+      lead_id: 5,
+      contract_id: 1,
+      marketing_plan_id: 15,
+      stage: 'onboard',
+      status: 'active',
+      service_slug: 'quang-cao-facebook',
+      assigned_am: null,
+      assigned_sp: null,
+      agency_client_id: 'd437cc78-0757-44ba-aaa3-9ffb941121dd',
+    });
+    repo.getOfficialPlan.mockResolvedValue({
+      id: 15,
+      status: 'active',
+      strategy_framework_json: { target_market: '' },
+      target_market_prof_json: {},
+    });
+    repo.findRichestTmmtPlanForLifecycle.mockResolvedValue({
+      id: 8,
+      strategy_framework_json: {
+        target_market: 'Việt Nam',
+        ai_tmmt_field_meta: JSON.stringify(fieldMeta),
+      },
+      target_market_prof_json: filledProf,
+    });
+    repo.parseOfficialPlan.mockImplementation((plan: Record<string, unknown> | null) => {
+      if (!plan) return { strategy_framework: {}, target_market_prof: {} };
+      const sf =
+        typeof plan.strategy_framework_json === 'string'
+          ? JSON.parse(plan.strategy_framework_json as string)
+          : (plan.strategy_framework_json as Record<string, unknown>) ?? {};
+      const prof =
+        typeof plan.target_market_prof_json === 'string'
+          ? JSON.parse(plan.target_market_prof_json as string)
+          : (plan.target_market_prof_json as Record<string, unknown>) ?? {};
+      return { strategy_framework: sf, target_market_prof: prof };
+    });
+    repo.validateOfficialPlan.mockImplementation((plan: Record<string, unknown> | null) => {
+      const prof = (plan?.target_market_prof_json as Record<string, string>) ?? {};
+      const filled = Object.values(prof).filter((v) => String(v ?? '').trim()).length;
+      return { ok: filled >= 6, complete: filled >= 6, messages: [] };
+    });
+    repo.listApprovedInsightIds.mockResolvedValue([1]);
+
+    const pack = await svc.buildPack({ lifecycle_id: 5, plan_id: 15 });
+    expect(pack.winning_plan_ready).toBe(true);
+    expect(repo.patchOfficialPlanContent).toHaveBeenCalledWith(
+      15,
+      expect.objectContaining({
+        target_market_prof: expect.objectContaining({
+          pains_desired_outcomes: 'Lead ổn định',
+        }),
+      }),
     );
   });
 });
