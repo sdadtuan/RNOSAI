@@ -40,6 +40,26 @@ export const INSIGHT_STATUS_LABELS: Record<InsightStatus, string> = {
   rejected: 'Từ chối',
 };
 
+/** Map API status → UI label. Never invent "pending" when API already says approved_*. */
+export function insightStatusLabel(status: string | null | undefined): string {
+  const s = String(status ?? '').trim();
+  if (!s) return '—';
+  // P7 tool response alias; DB row is usually `draft` until approved.
+  if (s === 'pending_review') return 'Chờ duyệt';
+  if (s in INSIGHT_STATUS_LABELS) {
+    return INSIGHT_STATUS_LABELS[s as InsightStatus];
+  }
+  return s;
+}
+
+export function isInsightApprovedInternalPlus(status: string | null | undefined): boolean {
+  return (
+    status === 'approved_internal' ||
+    status === 'approved_client_facing' ||
+    status === 'published'
+  );
+}
+
 export function canSubmitInsightReview(status: InsightStatus | null | undefined): boolean {
   return status == null || status === 'draft' || status === 'evidence_attached' || status === 'rejected';
 }

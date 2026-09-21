@@ -11,8 +11,9 @@ import {
   fetchResearchTaxonomy,
   hasPersistedInsightRubric,
   insightConfidencePayload,
+  insightStatusLabel,
+  isInsightApprovedInternalPlus,
   INSIGHT_GATE_COPY,
-  INSIGHT_STATUS_LABELS,
   isPresalesAiInsight,
   type ConfidenceBand,
   type ConfidenceJson,
@@ -144,7 +145,13 @@ export function InsightDrawer({
   const canSubmit = canSubmitInsightReview(insight?.status);
   const submitDisabled = saving || !canSubmit || !form.statement.trim() || verifiedSelected.length < 1;
   const showAiApprove = canApprove && canApproveAiInsightDraft(insight);
-  const showPresalesBanner = Boolean(insight && isPresalesAiInsight(insight) && showAiApprove);
+  const approvedPlus = isInsightApprovedInternalPlus(insight?.status);
+  const showPresalesBanner = Boolean(
+    insight && isPresalesAiInsight(insight) && showAiApprove && !approvedPlus,
+  );
+  const showPresalesApprovedBanner = Boolean(
+    insight && isPresalesAiInsight(insight) && approvedPlus,
+  );
   const showInternalApprove =
     showAiApprove ||
     (canApprove && !isCreator && (insight?.status === 'analyst_verified' || insight?.status === 'peer_reviewed'));
@@ -178,7 +185,9 @@ export function InsightDrawer({
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
-  const title = insight ? `Insight #${insight.id} · ${INSIGHT_STATUS_LABELS[insight.status]}` : 'Insight mới';
+  const title = insight
+    ? `Insight #${insight.id} · ${insightStatusLabel(insight.status)}`
+    : 'Insight mới';
   const stale = insight ? insightIsStale(insight) : false;
 
   return (
@@ -246,6 +255,23 @@ export function InsightDrawer({
             >
               Insight từ Presales AI — duyệt sẽ auto-seed evidence/rubric (hoặc waived). Không cần Evidence
               tab trước. Đủ WinningPlanGate <code>approved_internal</code>.
+            </p>
+          ) : null}
+          {showPresalesApprovedBanner ? (
+            <p
+              role="status"
+              style={{
+                margin: 0,
+                padding: '0.55rem 0.7rem',
+                borderRadius: 8,
+                border: '1px solid color-mix(in srgb, var(--accent) 35%, #d8e0d8)',
+                background: 'color-mix(in srgb, var(--accent) 8%, #fff)',
+                fontSize: '0.84rem',
+                lineHeight: 1.4,
+              }}
+            >
+              Presales AI — status API: <code>{insight?.status}</code> (
+              {insightStatusLabel(insight?.status)}). Đã tính vào WinningPlanGate approved_insight.
             </p>
           ) : null}
           {isCreator ? (

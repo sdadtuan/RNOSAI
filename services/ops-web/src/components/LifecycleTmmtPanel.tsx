@@ -11,7 +11,7 @@ import {
 } from '@/lib/api';
 import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import { STRATEGY_LABELS, TMMT_PROF_LABELS } from '@/lib/tmmt-labels';
-import { PresalesAssumedConfirmBar } from '@/components/PresalesAssumedConfirmBar';
+import { PresalesAssumedConfirmBar, needsAssumedConfirm } from '@/components/PresalesAssumedConfirmBar';
 
 interface Props {
   token: string;
@@ -37,6 +37,28 @@ type MarketingPlanPayload = {
   tmmt_min_filled?: number;
   filled_count?: number;
 };
+
+type TmmtCoreKey =
+  | 'market_context'
+  | 'segmentation_icp'
+  | 'personas_roles'
+  | 'pains_desired_outcomes';
+
+function parseTmmtFieldMeta(
+  strategyFramework: Record<string, string> | undefined,
+): Partial<Record<TmmtCoreKey, { status?: string; text?: string; ai_draft?: boolean; source?: string }>> {
+  const raw = strategyFramework?.ai_tmmt_field_meta;
+  if (!raw) return {};
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as Partial<
+      Record<TmmtCoreKey, { status?: string; text?: string; ai_draft?: boolean; source?: string }>
+    >;
+  } catch {
+    return {};
+  }
+}
 
 export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, onOpenAiPlannerTab }: Props) {
   const router = useRouter();
@@ -160,6 +182,13 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
   const totalProf = data?.tmmt_prof_keys?.length ?? 12;
   const coreKeys = new Set(data?.tmmt_core_keys ?? []);
   const showEmptyBridgeHint = filled === 0 && Boolean(data?.plan);
+  const tmmtCoreMeta = parseTmmtFieldMeta(data?.plan?.strategy_framework);
+  const tmmtCoreText: Partial<Record<TmmtCoreKey, string>> = {
+    market_context: draftProf.market_context,
+    segmentation_icp: draftProf.segmentation_icp,
+    personas_roles: draftProf.personas_roles,
+    pains_desired_outcomes: draftProf.pains_desired_outcomes,
+  };
 
   return (
     <div className="card" style={{ padding: '1rem', display: 'grid', gap: '1rem' }}>
@@ -188,9 +217,12 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
         token={token}
         lifecycleId={lifecycleId}
         canEdit={canEdit}
+        canConfirmAssumed={canEdit}
         needPain={p8Quality?.need_pain}
         icp={p8Quality?.icp}
         serviceStatus={p8Quality?.service_status}
+        tmmtCoreMeta={tmmtCoreMeta}
+        tmmtCoreText={tmmtCoreText}
         compact
         onDone={() => void reload()}
       />
@@ -290,11 +322,26 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
           <section>
             <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>Thuyết minh thị trường mục tiêu</h4>
             <div style={{ display: 'grid', gap: '0.65rem' }}>
-              {(data.tmmt_prof_keys ?? Object.keys(TMMT_PROF_LABELS)).map((key) => (
+              {(data.tmmt_prof_keys ?? Object.keys(TMMT_PROF_LABELS)).map((key) => {
+                const coreKey = key as TmmtCoreKey;
+                const assumed = needsAssumedConfirm(tmmtCoreMeta[coreKey], draftProf[key]);
+                return (
                 <label key={key} style={{ display: 'grid', gap: '0.3rem' }}>
                   <span className="muted">
                     {TMMT_PROF_LABELS[key] ?? key}
                     {coreKeys.has(key) ? ' *' : ''}
+                    {assumed ? (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          color: 'var(--accent, #2a7)',
+                        }}
+                      >
+                        · assumed — Confirm Assumed ở trên
+                      </span>
+                    ) : null}
                   </span>
                   <textarea
                     rows={2}
@@ -310,7 +357,8 @@ export function LifecycleTmmtPanel({ token, user, lifecycleId, stage, onSaved, o
                     }}
                   />
                 </label>
-              ))}
+                );
+              })}
             </div>
           </section>
 

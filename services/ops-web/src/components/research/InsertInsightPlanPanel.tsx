@@ -8,7 +8,7 @@ import { isMarketResearchFeEnabled } from '@/lib/market-research-flags';
 import {
   fetchApprovedInsightsForClient,
   insertPlanInsights,
-  INSIGHT_STATUS_LABELS,
+  insightStatusLabel,
   parsePlanInsightSnapshot,
   type PlanInsightSnapshot,
   type ResearchInsight,
@@ -174,7 +174,7 @@ export function InsertInsightPlanPanel({
                     INS-{row.id}
                   </Link>
                   <span className="muted" style={{ fontSize: '0.8rem' }}>
-                    {INSIGHT_STATUS_LABELS[row.status] ?? row.status}
+                    {insightStatusLabel(row.status)}
                   </span>
                 </div>
                 <p style={{ margin: '0.2rem 0 0' }}>{row.statement}</p>

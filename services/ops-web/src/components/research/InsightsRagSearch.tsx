@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
 import {
   fetchResearchTaxonomy,
-  INSIGHT_STATUS_LABELS,
+  insightStatusLabel,
   ResearchApiError,
   searchResearchInsights,
   TRANSITION_REASON_VI,
@@ -174,7 +174,7 @@ export function InsightsRagSearch({
               <Link href={`/crm/research/${hit.project_id}?tab=insights`}>{hit.statement}</Link>
               <span className="muted">
                 {' '}
-                · {hit.score.toFixed(2)} · {INSIGHT_STATUS_LABELS[hit.status] ?? hit.status}
+                · {hit.score.toFixed(2)} · {insightStatusLabel(hit.status)}
               </span>
               {ragHitIsStale(hit) ? <InsightStaleBanner validTo={hit.valid_to} /> : null}
             </li>

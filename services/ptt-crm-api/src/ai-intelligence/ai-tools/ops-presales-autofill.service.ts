@@ -152,6 +152,7 @@ export class OpsPresalesAutofillService {
       const confidence = source === 'consult' ? 0.82 : source === 'bant' ? 0.75 : 0.6;
       written.push({ key, source, confidence });
       fieldMeta[key] = {
+        status: 'assumed_draft',
         ai_draft: true,
         source,
         confidence,
@@ -170,6 +171,7 @@ export class OpsPresalesAutofillService {
       nextSf[key] = maskPii(proposed);
       written.push({ key: `sf:${key}`, source: 'consult', confidence: 0.7 });
       fieldMeta[`sf:${key}`] = {
+        status: 'assumed_draft',
         ai_draft: true,
         source: 'consult',
         confidence: 0.7,
@@ -189,6 +191,7 @@ export class OpsPresalesAutofillService {
         nextProf.market_context = maskPii(`HĐ: ${contractTitle}`);
         written.push({ key: 'market_context', source: 'contract', confidence: 0.7 });
         fieldMeta.market_context = {
+          status: 'assumed_draft',
           ai_draft: true,
           source: 'contract',
           confidence: 0.7,
@@ -265,7 +268,10 @@ export class OpsPresalesAutofillService {
 
   private readFieldMeta(
     sf: Record<string, string>,
-  ): Record<string, { ai_draft: boolean; source: string; confidence: number; filled_at: string }> {
+  ): Record<
+    string,
+    { status?: string; ai_draft: boolean; source: string; confidence: number; filled_at: string }
+  > {
     const raw = sf.ai_tmmt_field_meta;
     if (!raw) return {};
     try {
@@ -273,7 +279,7 @@ export class OpsPresalesAutofillService {
       if (parsed && typeof parsed === 'object') {
         return parsed as Record<
           string,
-          { ai_draft: boolean; source: string; confidence: number; filled_at: string }
+          { status?: string; ai_draft: boolean; source: string; confidence: number; filled_at: string }
         >;
       }
     } catch {

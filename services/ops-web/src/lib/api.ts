@@ -3394,12 +3394,21 @@ export async function postPresalesAutofillTmmt(
   });
 }
 
-/** P8 — Confirm Assumed / Khách đã xác nhận / Reject for pain|icp|service. */
+/** P8 — Confirm Assumed / Khách đã xác nhận / Reject for pain|icp|service|TMMT cores. */
 export async function postPresalesConfirmField(
   token: string,
   lifecycleId: number,
   body: {
-    field: 'need_pain' | 'icp' | 'service' | 'pain' | 'target_audience';
+    field:
+      | 'need_pain'
+      | 'icp'
+      | 'service'
+      | 'pain'
+      | 'target_audience'
+      | 'market_context'
+      | 'segmentation_icp'
+      | 'personas_roles'
+      | 'pains_desired_outcomes';
     action?: 'confirm_assumed' | 'validate_customer' | 'khach_xac_nhan' | 'reject' | 'select';
     sku?: string;
     select?: boolean;

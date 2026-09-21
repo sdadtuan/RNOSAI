@@ -61,6 +61,16 @@ export class OpsFieldConfirmService {
       return this.confirmService(input, actor, lifecycleId, target, quality);
     }
 
+    const tmmtCoreKeys = new Set([
+      'market_context',
+      'segmentation_icp',
+      'personas_roles',
+      'pains_desired_outcomes',
+    ]);
+    if (tmmtCoreKeys.has(field)) {
+      return this.confirmTmmtCore(input, actor, lifecycle, field);
+    }
+
     let nextStatus: Extract<FieldQualityStatus, 'assumed_confirmed' | 'validated' | 'empty'>;
     if (action === 'validate_customer' || action === 'khach_xac_nhan') {
       nextStatus = 'validated';
@@ -109,6 +119,75 @@ export class OpsFieldConfirmService {
       ok: true,
       phase: 'P8',
       field: field === 'target_audience' ? 'icp' : field === 'pain' ? 'need_pain' : field,
+      status: meta.status,
+      meta,
+    };
+  }
+
+  private async confirmTmmtCore(
+    input: Record<string, unknown>,
+    actor: string,
+    lifecycle: { marketing_plan_id?: number | null },
+    field: string,
+  ): Promise<ConfirmAssumedResult> {
+    const action = String(input.action ?? 'confirm_assumed').trim();
+    let nextStatus: Extract<FieldQualityStatus, 'assumed_confirmed' | 'validated' | 'empty'>;
+    if (action === 'validate_customer' || action === 'khach_xac_nhan') {
+      nextStatus = 'validated';
+    } else if (action === 'reject' || action === 'return_am') {
+      nextStatus = 'empty';
+    } else {
+      nextStatus = 'assumed_confirmed';
+    }
+
+    const planId = lifecycle.marketing_plan_id;
+    if (planId == null || planId <= 0) {
+      throw new NotFoundException({ error: 'official_plan_missing' });
+    }
+    const plan = await this.repo.getOfficialPlan(planId);
+    if (!plan) {
+      throw new NotFoundException({ error: 'plan_not_found', plan_id: planId });
+    }
+    const { strategy_framework, target_market_prof } = this.repo.parseOfficialPlan(plan);
+    let fieldMeta: Record<string, unknown> = {};
+    const raw = strategy_framework.ai_tmmt_field_meta;
+    if (raw) {
+      try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (parsed && typeof parsed === 'object') fieldMeta = { ...(parsed as Record<string, unknown>) };
+      } catch {
+        fieldMeta = {};
+      }
+    }
+    const existing =
+      fieldMeta[field] && typeof fieldMeta[field] === 'object'
+        ? (fieldMeta[field] as FieldQualityMeta)
+        : ({ status: 'assumed_draft' } as FieldQualityMeta);
+    const text =
+      String(existing.text ?? '').trim() || String(target_market_prof[field] ?? '').trim();
+    let meta = confirmFieldMeta({ ...existing, text }, nextStatus, actor);
+    if (action === 'reject') {
+      meta = {
+        ...existing,
+        text,
+        status: 'assumed_draft',
+        confirmed_by: actor,
+        confirmed_at: new Date().toISOString(),
+      };
+    }
+    fieldMeta[field] = {
+      ...meta,
+      ai_draft: meta.status === 'assumed_draft',
+    };
+    strategy_framework.ai_tmmt_field_meta = JSON.stringify(fieldMeta) as unknown as string;
+    await this.repo.patchOfficialPlanContent(planId, {
+      target_market_prof,
+      strategy_framework,
+    });
+    return {
+      ok: true,
+      phase: 'P8',
+      field,
       status: meta.status,
       meta,
     };
