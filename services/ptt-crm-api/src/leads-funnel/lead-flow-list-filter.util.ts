@@ -68,7 +68,7 @@ export interface B2bListScopeInput {
   isDirector: boolean;
 }
 
-/** B2B Project OS list visibility (Task 7 / 16) — empty when view-all or director. */
+/** B2B list visibility — AE/sales: own owner_id only; PM: project pool; view-all/director: empty. */
 export function buildB2bListScopeClause(
   dialect: SqlDialect,
   alias: string,
@@ -84,12 +84,9 @@ export function buildB2bListScopeClause(
   return `(
     NOT (${b2b}) OR
     ${alias}.owner_id = ${staffParam} OR
-    (
-      ${projectCol} IN (
-        SELECT project_id FROM crm_b2b_project_staff
-        WHERE staff_id = ${staffParam} AND assign_enabled
-      )
-      AND (${alias}.owner_id IS NULL OR ${alias}.owner_id <> ${staffParam})
+    ${projectCol} IN (
+      SELECT project_id FROM crm_b2b_project_staff
+      WHERE staff_id = ${staffParam} AND COALESCE(role, 'sales') = 'project_manager'
     )
   )`;
 }

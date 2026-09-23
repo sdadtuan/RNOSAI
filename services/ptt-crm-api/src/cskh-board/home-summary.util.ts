@@ -14,6 +14,7 @@ export interface HomeSummaryAiSlice {
 export interface HomeSummaryResponse {
   ok: true;
   generated_at: string;
+  scope: 'mine' | 'all';
   leads_new_today: number;
   sla: {
     breach_count: number;
@@ -25,6 +26,8 @@ export interface HomeSummaryResponse {
     pending_count: number;
     max_age_hours: number | null;
     drill_href: string;
+    /** False when caller is not on the review-queue desk (e.g. AE). */
+    visible: boolean;
   };
   ai?: HomeSummaryAiSlice;
 }
@@ -63,24 +66,34 @@ export function buildHomeSummary(input: {
   reviewMetrics: Pick<ReviewQueueMetrics, 'queue_count' | 'max_hours'>;
   ai?: HomeSummaryAiSlice | null;
   now?: Date;
+  scope?: 'mine' | 'all';
+  showReviewQueue?: boolean;
+  slaDrillHref?: string;
+  reviewDrillHref?: string;
 }): HomeSummaryResponse {
   const breach = countUniqueBreachLeads(input.boardRows);
   const warning_count = countUniqueWarningLeads(input.boardRows);
+  const scope = input.scope ?? 'all';
+  const showReview = input.showReviewQueue !== false;
 
   return {
     ok: true,
     generated_at: (input.now ?? new Date()).toISOString(),
+    scope,
     leads_new_today: input.leadsNewToday,
     sla: {
       breach_count: breach.unique_breach_leads,
       warning_count,
       compliance_pct: aggregateSlaCompliancePct(input.tierSummaries),
-      drill_href: '/crm/cskh-board?sla_filter=breach',
+      drill_href:
+        input.slaDrillHref ??
+        (scope === 'mine' ? '/crm/b2b/leads' : '/crm/cskh-board?sla_filter=breach'),
     },
     review_queue: {
-      pending_count: input.reviewMetrics.queue_count,
-      max_age_hours: input.reviewMetrics.max_hours,
-      drill_href: '/crm/leads/review-queue',
+      pending_count: showReview ? input.reviewMetrics.queue_count : 0,
+      max_age_hours: showReview ? input.reviewMetrics.max_hours : null,
+      drill_href: input.reviewDrillHref ?? '/crm/leads/review-queue',
+      visible: showReview,
     },
     ...(input.ai ? { ai: input.ai } : {}),
   };

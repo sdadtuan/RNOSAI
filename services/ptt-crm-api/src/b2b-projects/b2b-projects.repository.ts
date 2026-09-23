@@ -57,6 +57,28 @@ export class B2bProjectsRepository implements OnModuleDestroy {
     return result.rows as B2bProjectRow[];
   }
 
+  /** Projects where staff is on crm_b2b_project_staff (AE “có tham gia”). */
+  async listProjectsForStaff(staffId: number, status?: string): Promise<B2bProjectRow[]> {
+    const params: unknown[] = [staffId];
+    let statusClause = '';
+    if (status?.trim()) {
+      statusClause = ' AND p.status = $2';
+      params.push(status.trim());
+    }
+    const result = await this.db.query(
+      `SELECT p.id::text, p.owner_company_id::text, p.code, p.name, p.status,
+              p.business_hours_json, p.sla_json, p.commission_json,
+              p.ai_call_enabled, p.manual_ingest_enabled,
+              p.created_at::text, p.updated_at::text
+       FROM crm_b2b_projects p
+       INNER JOIN crm_b2b_project_staff ps ON ps.project_id = p.id AND ps.staff_id = $1
+       WHERE 1=1${statusClause}
+       ORDER BY p.code ASC`,
+      params,
+    );
+    return result.rows as B2bProjectRow[];
+  }
+
   async getProject(id: string): Promise<B2bProjectRow | null> {
     const result = await this.db.query(
       `SELECT id::text, owner_company_id::text, code, name, status,

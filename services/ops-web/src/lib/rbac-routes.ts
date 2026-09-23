@@ -43,6 +43,39 @@ const CRM_PREFIX_CAPS: CapRequirement[] = [
 /** Longest-prefix match wins (more specific rules first). */
 const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
   {
+    prefix: '/crm/gdkd/lead-ops',
+    anyOf: [
+      { section: 'crm_gdkd', action: 'view_all_leads' },
+      { section: 'crm_gdkd', action: 'assign' },
+      { section: 'crm_gdkd', action: 'review_queue' },
+    ],
+  },
+  {
+    prefix: '/crm/sales/lead-sla',
+    anyOf: [
+      { section: 'crm_gdkd', action: 'view_all_leads' },
+      { section: 'crm_gdkd', action: 'assign' },
+      { section: 'crm_gdkd', action: 'review_queue' },
+    ],
+  },
+  {
+    prefix: '/crm/admin/lead-sla-settings',
+    anyOf: [
+      { section: 'crm_gdkd', action: 'view_all_leads' },
+      { section: 'crm_gdkd', action: 'assign' },
+      { section: 'crm_leads', action: 'view' },
+    ],
+  },
+  {
+    prefix: '/crm/admin/strategy-packs',
+    anyOf: [
+      { section: 'ai_admin', action: 'view' },
+      { section: 'crm_mkt_ai', action: 'view' },
+      { section: 'crm_mkt_ai', action: 'approve' },
+      { section: 'crm_board', action: 'view' },
+    ],
+  },
+  {
     prefix: '/crm/admin/mkt-ai',
     anyOf: [
       { section: 'crm_mkt_ai', action: 'view' },

@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../../staff-auth/staff-or-internal-key.guard';
+import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import type { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
 import {
   StaffMarketResearchRunGuard,
@@ -20,7 +21,9 @@ import {
 import { MarketResearchEnabledGuard } from '../guards/market-research-enabled.guard';
 import { RawLeadHarvestService } from './raw-lead-harvest.service';
 import type {
+  AssignCareRawLeadsBody,
   BulkAcceptRawLeadsBody,
+  CareContactBody,
   CreateRawLeadHarvestBody,
   EnrichRawLeadsContactsBody,
   ExportRawLeadsBody,
@@ -34,15 +37,18 @@ import type {
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload };
 
-function staffId(req: StaffReq): number | null {
-  const n = Number(req.staffUser?.sub);
-  return Number.isFinite(n) ? n : null;
-}
-
 @Controller('api/v1/research')
 @UseGuards(MarketResearchEnabledGuard)
 export class RawLeadHarvestController {
-  constructor(private readonly harvest: RawLeadHarvestService) {}
+  constructor(
+    private readonly harvest: RawLeadHarvestService,
+    private readonly staffAuth: StaffAuthService,
+  ) {}
+
+  /** JWT `sub` may be UUID — map to crm_staff.id for care/assign APIs. */
+  private async crmStaffId(req: StaffReq): Promise<number | null> {
+    return this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+  }
 
   @Get('raw-lead-harvest/providers')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
@@ -63,12 +69,12 @@ export class RawLeadHarvestController {
 
   @Post('projects/:id/raw-lead-harvests')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
-  create(
+  async create(
     @Req() req: StaffReq,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: CreateRawLeadHarvestBody,
   ) {
-    return this.harvest.createJob(id, body, staffId(req));
+    return this.harvest.createJob(id, body, await this.crmStaffId(req));
   }
 
   @Get('projects/:id/raw-lead-harvests')
@@ -105,6 +111,66 @@ export class RawLeadHarvestController {
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   priorityCounts(@Param('id', ParseIntPipe) id: number) {
     return this.harvest.priorityCounts(id);
+  }
+
+  @Get('projects/:id/raw-leads/care-counts')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  careCounts(@Param('id', ParseIntPipe) id: number) {
+    return this.harvest.careCounts(id);
+  }
+
+  @Post('projects/:id/raw-leads/assign-care')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  async assignCare(
+    @Req() req: StaffReq,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: AssignCareRawLeadsBody,
+  ) {
+    return this.harvest.assignCare(id, body ?? {}, await this.crmStaffId(req));
+  }
+
+  @Post('projects/:id/raw-leads/revoke-care')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
+  revokeCare(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { lead_ids?: number[] },
+  ) {
+    return this.harvest.revokeCare(id, body ?? {});
+  }
+
+  /** AE inbox — assigned raw leads across projects. */
+  @Get('raw-leads/my-care')
+  @UseGuards(StaffOrInternalKeyGuard)
+  async myCare(@Req() req: StaffReq) {
+    return this.harvest.listMyCare(await this.crmStaffId(req));
+  }
+
+  @Post('raw-leads/:leadId/care-contact')
+  @UseGuards(StaffOrInternalKeyGuard)
+  async careContact(
+    @Req() req: StaffReq,
+    @Param('leadId', ParseIntPipe) leadId: number,
+    @Body() body: CareContactBody,
+  ) {
+    return this.harvest.setMyCareContact(
+      leadId,
+      await this.crmStaffId(req),
+      body ?? {},
+    );
+  }
+
+  @Post('raw-leads/:leadId/promote-b2b')
+  @UseGuards(StaffOrInternalKeyGuard)
+  async promoteB2b(
+    @Req() req: StaffReq,
+    @Param('leadId', ParseIntPipe) leadId: number,
+    @Body() body: { b2b_project_id?: string },
+  ) {
+    return this.harvest.promoteMyCareToB2b(
+      leadId,
+      await this.crmStaffId(req),
+      body ?? {},
+    );
   }
 
   @Get('projects/:id/raw-leads/:leadId/battlecard')
@@ -181,23 +247,27 @@ export class RawLeadHarvestController {
 
   @Post('projects/:id/raw-leads/bulk-accept')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
-  bulkAccept(
+  async bulkAccept(
     @Req() req: StaffReq,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: BulkAcceptRawLeadsBody,
   ) {
-    return this.harvest.bulkAccept(id, body ?? { lead_ids: [] }, staffId(req));
+    return this.harvest.bulkAccept(
+      id,
+      body ?? { lead_ids: [] },
+      await this.crmStaffId(req),
+    );
   }
 
   @Patch('projects/:id/raw-leads/:leadId')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchRunGuard)
-  patchLead(
+  async patchLead(
     @Req() req: StaffReq,
     @Param('id', ParseIntPipe) id: number,
     @Param('leadId', ParseIntPipe) leadId: number,
     @Body() body: PatchRawLeadBody,
   ) {
-    return this.harvest.patchLead(id, leadId, body, staffId(req));
+    return this.harvest.patchLead(id, leadId, body, await this.crmStaffId(req));
   }
 
   @Post('projects/:id/raw-leads/export')

@@ -420,9 +420,9 @@ export function LeadFunnelPanel({
   const isOperationalFlow = flowKind === 'spa_operational';
   const showPresales = showPresalesForFlow(flowKind);
   const panelTitle = isOperationalFlow
-    ? 'Funnel CSKH vận hành — B2 Liên hệ'
-    : 'Funnel B2 → Pre-sales';
-
+    ? 'Funnel CSKH vận hành — Liên hệ lần đầu'
+    : 'Pipeline bán hàng — từ liên hệ đến báo giá';
+  const inReview = funnel.review_queue.active;
   const b2Done = Boolean(funnel.care_pipeline.stages[0]?.done);
   const showM1Card =
     showPresales && !b2Done && leadMeetingPrepEnabled() && canViewLmp(user);
@@ -433,18 +433,35 @@ export function LeadFunnelPanel({
     (presalesStage === 'lead' || presalesStage === 'consult') &&
     leadMeetingPrepEnabled() &&
     canViewLmp(user);
-  const inReview = funnel.review_queue.active;
+  const b2Panel = (
+    <LeadPipelineB2Panel
+      funnel={funnel}
+      canEdit={canEdit}
+      inReview={inReview}
+      busy={busy}
+      highlightAfterCall={highlightAfterCall}
+      onSubmit={(plan) => submitB2Outcome(plan)}
+      onError={setPanelError}
+      token={token}
+      leadId={leadId}
+      canWriteFr={canEdit}
+      embedFrSla={layout === 'pipeline'}
+      statusChip={layout === 'pipeline' ? prepChip : null}
+    />
+  );
 
   return (
     <section className="card stack-gap lead-funnel-panel" id="lead-funnel-panel" style={{ marginTop: '1rem' }}>
-      <div className="lead-funnel-panel__head">
-        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{panelTitle}</h2>
-        {prepChip && onOpenMeetingPrepTab ? (
-          <button type="button" className="lmp-funnel-chip" onClick={() => onOpenMeetingPrepTab()}>
-            {prepChip}
-          </button>
-        ) : null}
-      </div>
+      {layout === 'pipeline' ? null : (
+        <div className="lead-funnel-panel__head">
+          <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{panelTitle}</h2>
+          {prepChip && onOpenMeetingPrepTab ? (
+            <button type="button" className="lmp-funnel-chip" onClick={() => onOpenMeetingPrepTab()}>
+              {prepChip}
+            </button>
+          ) : null}
+        </div>
+      )}
 
       {panelError ? (
         <div className="lead-alert lead-alert--error" role="alert">
@@ -529,17 +546,7 @@ export function LeadFunnelPanel({
           stepState={activeStepState}
           inReview={inReview}
           reviewBanner={null}
-          b2={
-            <LeadPipelineB2Panel
-              funnel={funnel}
-              canEdit={canEdit}
-              inReview={inReview}
-              busy={busy}
-              highlightAfterCall={highlightAfterCall}
-              onSubmit={(plan) => submitB2Outcome(plan)}
-              onError={setPanelError}
-            />
-          }
+          b2={b2Panel}
           presalesLead={
             !funnel.presales_care_gate.complete ? (
               <p className="banner banner-warn">{funnel.presales_care_gate.message}</p>
@@ -610,15 +617,7 @@ export function LeadFunnelPanel({
         />
       ) : (
         <>
-          <LeadPipelineB2Panel
-            funnel={funnel}
-            canEdit={canEdit}
-            inReview={inReview}
-            busy={busy}
-            highlightAfterCall={highlightAfterCall}
-            onSubmit={(plan) => submitB2Outcome(plan)}
-            onError={setPanelError}
-          />
+          {b2Panel}
           {showPresalesBlock &&
           showPresales &&
           funnel.presales_on_lead_enabled &&

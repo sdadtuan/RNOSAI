@@ -8,6 +8,7 @@ import { ServiceLifecycleModule } from '../service-lifecycle/service-lifecycle.m
 import { CrmConfigModule } from '../crm-config/crm-config.module';
 import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.module';
 import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep-async.module';
+import { StrategyPacksModule } from '../strategy-packs/strategy-packs.module';
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
 import { EventsModule } from '../events/events.module';
 import { LeadsModule } from '../leads/leads.module';
@@ -134,6 +135,7 @@ import { StaffClientScopeModule } from '../staff-client-scope/staff-client-scope
     MetaIntelligenceModule,
     StaffClientScopeModule,
     LeadMeetingPrepAsyncModule,
+    StrategyPacksModule,
   ],
   controllers: [AiIntelligenceController, AiToolsController, RoleKpiController, PresalesP7Controller],
   providers: [

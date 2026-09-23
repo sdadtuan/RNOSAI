@@ -100,6 +100,25 @@ export function CrmNewLeadPageContent({
   const [saving, setSaving] = useState(false);
 
   const canCreate = useMemo(() => hasCap(user, 'crm_leads', 'edit'), [user]);
+  /** Admin / CEO (gdkd.view_all_leads): mọi agency, mọi dự án, gán owner tự do. */
+  const canAssignAnyOwner = useMemo(
+    () =>
+      Boolean(
+        user &&
+          (String(user.position_code ?? '').toLowerCase() === 'super-admin' ||
+            hasCap(user, 'crm_gdkd', 'view_all_leads')),
+      ),
+    [user],
+  );
+  const lockOwnerToSelf = isB2bFlow && !canAssignAnyOwner;
+  const ownerChoices = useMemo(() => {
+    const active = staffOptions.filter((s) => s.active !== 0);
+    if (!canAssignAnyOwner) {
+      const myEmail = (user?.email ?? '').trim().toLowerCase();
+      return active.filter((s) => s.email.trim().toLowerCase() === myEmail);
+    }
+    return active.filter((s) => s.can_receive_leads !== false);
+  }, [staffOptions, canAssignAnyOwner, user?.email]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -119,15 +138,15 @@ export function CrmNewLeadPageContent({
 
     void (async () => {
       let currentToken = access;
+      let me: StoredStaffUser | null = null;
       try {
-        const me = await staffMe(currentToken);
+        me = await staffMe(currentToken);
         setUser(me);
         updateStoredUser(me);
         if (!hasCap(me, 'crm_leads', 'edit')) {
           setError('Không có quyền tạo lead');
           return;
         }
-        setOwnerId((prev) => prev || (me.id ? String(me.id) : ''));
       } catch {
         const refresh = getRefreshToken();
         if (!refresh) {
@@ -138,20 +157,35 @@ export function CrmNewLeadPageContent({
         updateAccessToken(out.access_token);
         currentToken = out.access_token;
         setToken(currentToken);
-        const me = await staffMe(currentToken);
+        me = await staffMe(currentToken);
         setUser(me);
         updateStoredUser(me);
-        setOwnerId((prev) => prev || (me.id ? String(me.id) : ''));
       }
 
+      const assignAny =
+        Boolean(me) &&
+        (String(me?.position_code ?? '').toLowerCase() === 'super-admin' ||
+          hasCap(me, 'crm_gdkd', 'view_all_leads'));
+
       const [clientOut, staffOut, sourceOut, channelOut] = await Promise.all([
-        fetchAgencyClients(currentToken).catch(() => ({ clients: [] as AgencyClient[] })),
+        fetchAgencyClients(currentToken, {
+          mine: (isB2bFlow || isOperationalFlow) && !assignAny,
+        }).catch(() => ({ clients: [] as AgencyClient[] })),
         fetchCrmStaffList(currentToken).catch(() => ({ staff: [] as CrmStaffRow[], summary: {} })),
         fetchLeadLookupOptions(currentToken, 'source').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
         fetchLeadLookupOptions(currentToken, 'channel').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
       ]);
       setClients(clientOut.clients ?? []);
-      setStaffOptions(staffOut.staff ?? []);
+      const staff = staffOut.staff ?? [];
+      setStaffOptions(staff);
+      // Owner = crm_staff.id (bigint), not staff_users UUID.
+      const myEmail = (me?.email ?? '').trim().toLowerCase();
+      const selfStaff =
+        staff.find((s) => s.email.trim().toLowerCase() === myEmail && s.active !== 0) ??
+        staff.find((s) => s.email.trim().toLowerCase() === myEmail);
+      if (selfStaff) {
+        setOwnerId(String(selfStaff.id));
+      }
       const sources = sourceOut.options ?? [];
       const channels = channelOut.options ?? [];
       setSourceOptions(sources);
@@ -170,7 +204,9 @@ export function CrmNewLeadPageContent({
           setB2bProjects(projects);
           setB2bProjectsHint(
             projects.length === 0
-              ? 'Chưa có dự án PTT active — tạo tại /crm/b2b-projects trước khi nhập lead B2B.'
+              ? assignAny
+                ? 'Chưa có dự án PTT active — tạo tại /crm/b2b-projects.'
+                : 'Chưa có dự án PTT bạn đang tham gia — nhờ admin thêm bạn vào staff dự án tại /crm/b2b-projects.'
               : '',
           );
           if (projects.length === 1) setB2bProjectId(projects[0].id);
@@ -180,7 +216,7 @@ export function CrmNewLeadPageContent({
         }
       }
     })();
-  }, [presetClientId, router, isB2bFlow]);
+  }, [presetClientId, router, isB2bFlow, isOperationalFlow]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -202,6 +238,10 @@ export function CrmNewLeadPageContent({
       );
       return;
     }
+    if (canAssignAnyOwner && !(ownerId && Number.isFinite(Number(ownerId)))) {
+      setError('Chọn Owner (nhân viên được nhận lead)');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -213,7 +253,7 @@ export function CrmNewLeadPageContent({
         source: source.trim() || 'manual',
         channel: channel.trim() || undefined,
         status,
-        owner_id: ownerId ? Number(ownerId) : undefined,
+        owner_id: ownerId && Number.isFinite(Number(ownerId)) ? Number(ownerId) : undefined,
         lead_flow_kind: isOperationalFlow ? 'spa_operational' : isB2bFlow ? 'b2b_prospect' : undefined,
         b2b_project_id: isB2bFlow && b2bProjectId ? b2bProjectId : undefined,
       });
@@ -315,6 +355,13 @@ export function CrmNewLeadPageContent({
                   </option>
                 ))}
               </select>
+              {(isB2bFlow || isOperationalFlow) && clients.length === 0 ? (
+                <span className="muted">
+                  {canAssignAnyOwner
+                    ? 'Chưa có khách hàng agency trong hệ thống.'
+                    : 'Chỉ hiện khách hàng agency bạn phụ trách (chưa có binding — nhờ admin gán client).'}
+                </span>
+              ) : null}
             </label>
 
             {isB2bFlow ? (
@@ -397,14 +444,29 @@ export function CrmNewLeadPageContent({
                   className="kpi-select"
                   value={ownerId}
                   onChange={(e) => setOwnerId(e.target.value)}
+                  disabled={lockOwnerToSelf}
+                  title={
+                    lockOwnerToSelf
+                      ? 'Lead B2B tạo tay luôn gán cho bạn'
+                      : canAssignAnyOwner
+                        ? 'Chọn nhân viên đang bật nhận lead'
+                        : undefined
+                  }
                 >
-                  <option value="">— Chưa gán —</option>
-                  {staffOptions.map((staff) => (
+                  {canAssignAnyOwner ? <option value="">— Chọn owner —</option> : null}
+                  {!canAssignAnyOwner ? <option value="">— Chưa gán —</option> : null}
+                  {ownerChoices.map((staff) => (
                     <option key={staff.id} value={staff.id}>
                       {staff.name}
+                      {staff.can_receive_leads === false ? ' (không nhận lead)' : ''}
                     </option>
                   ))}
                 </select>
+                {lockOwnerToSelf ? (
+                  <span className="muted">Tự gán cho bạn khi tạo lead B2B.</span>
+                ) : canAssignAnyOwner ? (
+                  <span className="muted">Admin/CEO: gán cho NV đang bật nhận lead.</span>
+                ) : null}
               </label>
             </div>
 

@@ -1909,6 +1909,10 @@ export type RawLeadReadinessStatus =
 
 export type RawLeadPriorityTier = 'P1' | 'P2' | 'P3';
 
+export type RawLeadCareStatus = 'awaiting_assign' | 'assigned' | 'revoked';
+
+export type RawLeadCareContactStatus = 'pending' | 'contacted' | 'unreachable';
+
 export type RawLead = {
   id: number;
   project_id: number;
@@ -1949,6 +1953,13 @@ export type RawLead = {
   learning_reasons?: string[];
   learning_applied_at?: string | null;
   crm_lead_id?: number | null;
+  care_status?: RawLeadCareStatus | string | null;
+  assigned_to_staff_id?: number | null;
+  assigned_to_name?: string | null;
+  assigned_at?: string | null;
+  care_contact_status?: RawLeadCareContactStatus | string | null;
+  care_contacted_at?: string | null;
+  revoked_at?: string | null;
   verify_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -2028,6 +2039,7 @@ export function listRawLeads(
     status?: string;
     readiness_status?: RawLeadReadinessStatus | string;
     priority_tier?: RawLeadPriorityTier | string;
+    care_status?: RawLeadCareStatus | string;
     industry_key?: string;
     job_id?: number;
     include_auto_rejected?: boolean;
@@ -2042,6 +2054,7 @@ export function listRawLeads(
   if (params?.status) qs.set('status', params.status);
   if (params?.readiness_status) qs.set('readiness_status', params.readiness_status);
   if (params?.priority_tier) qs.set('priority_tier', params.priority_tier);
+  if (params?.care_status) qs.set('care_status', params.care_status);
   if (params?.industry_key) qs.set('industry_key', params.industry_key);
   if (params?.job_id) qs.set('job_id', String(params.job_id));
   if (params?.include_auto_rejected) qs.set('include_auto_rejected', '1');
@@ -2071,6 +2084,68 @@ export function fetchRawLeadPriorityCounts(token: string, projectId: number) {
   return researchFetch<{ counts: Record<string, number> }>(
     token,
     `/api/v1/research/projects/${projectId}/raw-leads/priority-counts`,
+  );
+}
+
+export function fetchRawLeadCareCounts(token: string, projectId: number) {
+  return researchFetch<{ counts: Record<string, number> }>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-leads/care-counts`,
+  );
+}
+
+export function assignRawLeadCare(
+  token: string,
+  projectId: number,
+  body: { lead_ids?: number[]; to_staff_id: number; all_awaiting?: boolean },
+) {
+  return researchFetch<{ updated: number; to_staff_id: number; requested: number }>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-leads/assign-care`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export function revokeRawLeadCare(
+  token: string,
+  projectId: number,
+  body: { lead_ids: number[] },
+) {
+  return researchFetch<{ updated: number }>(
+    token,
+    `/api/v1/research/projects/${projectId}/raw-leads/revoke-care`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export function listMyRawLeadCare(token: string) {
+  return researchFetch<{ leads: RawLead[]; total: number }>(
+    token,
+    '/api/v1/research/raw-leads/my-care',
+  );
+}
+
+export function setMyRawLeadCareContact(
+  token: string,
+  leadId: number,
+  body: { outcome: 'contacted' | 'unreachable'; note?: string },
+) {
+  return researchFetch<{ lead: RawLead }>(
+    token,
+    `/api/v1/research/raw-leads/${leadId}/care-contact`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export function promoteMyRawLeadToB2b(
+  token: string,
+  leadId: number,
+  body?: { b2b_project_id?: string },
+) {
+  return researchFetch<{ ok: boolean; crm_lead_id: number; raw_lead_id: number }>(
+    token,
+    `/api/v1/research/raw-leads/${leadId}/promote-b2b`,
+    { method: 'POST', body: JSON.stringify(body ?? {}) },
   );
 }
 

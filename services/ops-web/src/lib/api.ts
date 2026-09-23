@@ -775,6 +775,7 @@ export async function fetchCskhShiftHandoff(token: string): Promise<CskhShiftHan
 export interface CskhHomeSummary {
   ok: true;
   generated_at: string;
+  scope?: 'mine' | 'all';
   leads_new_today: number;
   sla: {
     breach_count: number;
@@ -786,6 +787,7 @@ export interface CskhHomeSummary {
     pending_count: number;
     max_age_hours: number | null;
     drill_href: string;
+    visible?: boolean;
   };
   ai?: {
     copilot_dau_pct: number | null;
@@ -1446,6 +1448,256 @@ export async function createLeadActivity(
   return out.activity;
 }
 
+/** P10.a — Lead First Response SLA */
+export type LeadFrCallAttempt = {
+  id: number;
+  lead_id: number;
+  attempt_no: number;
+  channel: string;
+  started_at: string;
+  call_result: string;
+  counts_toward_sla: boolean;
+  counts_toward_fr1: boolean;
+  warn_call_too_soon: boolean;
+};
+
+export type LeadFrSlaState = {
+  lead_id: number;
+  settings_version: number;
+  fr1_hours: number;
+  fr1_due_at: string | null;
+  first_call_at: string | null;
+  fr1_breached: boolean;
+  fr1_overdue: boolean;
+  fr1_remaining_ms: number | null;
+  hold_until: string | null;
+  hold_reason: string;
+  hold_profile: string;
+  contact_status: string;
+  attempts_since_assign: number;
+  call_attempt_count: number;
+  last_call_at: string | null;
+  last_call_result: string;
+  meeting_at: string | null;
+  callback_at: string | null;
+  is_hot: boolean;
+  pipeline_stage: string;
+  eligible: boolean;
+  reassign_enabled: boolean;
+  attempts: LeadFrCallAttempt[];
+};
+
+export async function fetchLeadFrSla(token: string, leadId: number): Promise<LeadFrSlaState> {
+  return crmFetch(token, `/api/crm/leads/${leadId}/fr-sla`);
+}
+
+export async function logLeadCallAttempt(
+  token: string,
+  leadId: number,
+  body: {
+    call_result: string;
+    channel?: string;
+    started_at?: string;
+    notes?: string;
+    disposition?: string;
+    meeting_at?: string;
+    callback_at?: string;
+    wrong_number_confirmed?: boolean;
+  },
+): Promise<{
+  sla: LeadFrSlaState;
+  attempt: LeadFrCallAttempt;
+  recompute: {
+    counts_toward_fr1: boolean;
+    counts_toward_sla: boolean;
+    warn_call_too_soon: boolean;
+    sla_frozen: boolean;
+  };
+}> {
+  return crmFetch(token, `/api/crm/leads/${leadId}/call-attempts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** P10.b — GĐKD dry-run / reassign events */
+export type LeadSlaReassignEvent = {
+  id: number;
+  sqlite_lead_id: number;
+  from_staff_id: number | null;
+  to_staff_id: number | null;
+  would_to_staff_id: number | null;
+  reason: string;
+  decision: string;
+  notes: string;
+  dry_run: boolean;
+  job_run_id: string;
+  created_at: string;
+  full_name?: string;
+  pipeline_stage?: string;
+};
+
+export async function fetchLeadSlaReassignEvents(
+  token: string,
+  opts?: { dry_run?: boolean; limit?: number; offset?: number },
+): Promise<{ items: LeadSlaReassignEvent[]; total: number }> {
+  const q = new URLSearchParams();
+  if (opts?.dry_run === true) q.set('dry_run', '1');
+  if (opts?.dry_run === false) q.set('dry_run', '0');
+  if (opts?.limit) q.set('limit', String(opts.limit));
+  if (opts?.offset) q.set('offset', String(opts.offset));
+  const qs = q.toString();
+  return crmFetch(token, `/api/crm/gdkd/lead-sla/reassign-events${qs ? `?${qs}` : ''}`);
+}
+
+export async function runLeadSlaReassignJob(
+  token: string,
+  force = false,
+): Promise<{
+  job_run_id: string;
+  mode: string;
+  scanned: number;
+  would_reassign: number;
+  reassigned: number;
+  escalated: number;
+  nudged: number;
+  queue_alerts: number;
+  skipped: number;
+  reason?: string;
+}> {
+  const qs = force ? '?force=1' : '';
+  return crmFetch(token, `/api/crm/gdkd/lead-sla/reassign-job/run${qs}`, {
+    method: 'POST',
+  });
+}
+
+/** P10.c — GĐKD Lead Ops desk */
+export type LeadOpsTab = 'p0' | 'p1' | 'p2' | 'p3';
+
+export type LeadOpsRow = {
+  lead_id: number;
+  full_name: string;
+  company_name: string;
+  owner_id: number | null;
+  owner_name: string | null;
+  pipeline_stage: string;
+  contact_status: string;
+  last_call_result: string;
+  attempts_since_assign: number;
+  fr1_due_at: string | null;
+  hold_until: string | null;
+  reassign_count: number;
+  is_hot: boolean;
+  fr1_breached: boolean;
+  hold_profile: string;
+  hold_reason: string;
+  sla_extend_count: number;
+  meeting_at: string | null;
+  last_call_at: string | null;
+  assigned_at: string | null;
+  updated_at: string | null;
+  queue_age_hours: number | null;
+  list_kind: string;
+};
+
+export type LeadOpsDeskSummary = {
+  widgets: {
+    fr1_breached: number;
+    hold_due_within_4wh: number;
+    redistribute_queue: number;
+    queue_max_age_hours: number | null;
+    queue_alert_over_1wh: number;
+    meet_pending_no_meeting_over_1wd: number;
+    no_touch_over_48h: number;
+    dry_run_would_reassign: number;
+  };
+  fr_on_time_by_am: Array<{
+    owner_id: number;
+    owner_name: string;
+    today_on_time: number;
+    today_total: number;
+    today_pct: number | null;
+    week_on_time: number;
+    week_total: number;
+    week_pct: number | null;
+  }>;
+  flags: {
+    lead_sla_reassign_enabled: boolean;
+    lead_sla_reassign_dry_run: boolean;
+  };
+  tabs: Record<
+    LeadOpsTab,
+    { label: string; count: number; hint: string }
+  >;
+};
+
+export async function fetchLeadOpsDesk(
+  token: string,
+): Promise<LeadOpsDeskSummary> {
+  return crmFetch(token, '/api/crm/gdkd/lead-sla/desk');
+}
+
+export async function fetchLeadOpsLeads(
+  token: string,
+  tab: LeadOpsTab,
+  limit = 80,
+): Promise<{ items: LeadOpsRow[]; tab: LeadOpsTab }> {
+  const q = new URLSearchParams({ tab, limit: String(limit) });
+  return crmFetch(token, `/api/crm/gdkd/lead-sla/desk/leads?${q}`);
+}
+
+export async function fetchLeadOpsPool(
+  token: string,
+): Promise<Array<{ staff_id: number; open_attempting: number; accepts_leads: boolean; active: boolean }>> {
+  return crmFetch(token, '/api/crm/gdkd/lead-sla/desk/pool');
+}
+
+export async function leadOpsReassign(
+  token: string,
+  leadId: number,
+  body: { to_staff_id?: number; reason?: string } = {},
+): Promise<{ ok: boolean; to_staff_id: number }> {
+  return crmFetch(token, `/api/crm/gdkd/lead-sla/desk/${leadId}/reassign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function leadOpsExtendHold(
+  token: string,
+  leadId: number,
+): Promise<{ ok: boolean; hold_until: string }> {
+  return crmFetch(token, `/api/crm/gdkd/lead-sla/desk/${leadId}/extend-hold`, {
+    method: 'POST',
+  });
+}
+
+export async function leadOpsAssignFromQueue(
+  token: string,
+  leadId: number,
+  toStaffId: number,
+): Promise<{ ok: boolean }> {
+  return crmFetch(token, `/api/crm/gdkd/lead-sla/desk/${leadId}/assign-from-queue`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to_staff_id: toStaffId }),
+  });
+}
+
+export async function leadOpsMarkInvalid(
+  token: string,
+  leadId: number,
+  notes?: string,
+): Promise<{ ok: boolean }> {
+  return crmFetch(token, `/api/crm/gdkd/lead-sla/desk/${leadId}/mark-invalid`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes }),
+  });
+}
+
 export async function fetchLeadAudit(token: string, leadId: number): Promise<LeadAuditBundle> {
   const res = await fetch(`${API_BASE}/api/v1/leads/${leadId}/audit`, {
     headers: authHeaders(token),
@@ -1781,12 +2033,13 @@ export interface SolutionQueueRow {
   phone: string;
   service_slug: string;
   presales_stage: string;
-  handoff_status: 'pending' | 'with_solution';
+  handoff_status: 'pending' | 'with_solution' | 'released' | '';
   handed_off_at: string;
   solution_owner_staff_id: number | null;
   solution_owner_name: string;
   owner_id: number | null;
   owner_name: string;
+  queue_kind?: 'solution' | 'am_rework';
 }
 
 export async function fetchSolutionQueue(
@@ -5293,11 +5546,12 @@ export async function fetchAgencyStats(token: string): Promise<AgencyStats> {
 
 export async function fetchAgencyClients(
   token: string,
-  params?: { q?: string; status?: string },
+  params?: { q?: string; status?: string; mine?: boolean },
 ): Promise<{ clients: AgencyClient[] }> {
   const qs = new URLSearchParams();
   if (params?.q) qs.set('q', params.q);
   if (params?.status) qs.set('status', params.status);
+  if (params?.mine) qs.set('mine', '1');
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return agencyFetch(token, `/api/v1/clients${suffix}`);
 }
@@ -8677,6 +8931,152 @@ export async function saveLeadClassificationConfig(
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+  });
+}
+
+/** P10 Admin — Lead First Response SLA settings (§5.4 / §16). */
+export type LeadSlaFr1Channel = 'phone' | 'zalo' | 'sms' | 'email';
+
+export type LeadSlaSettingsPayload = {
+  schema_version: number;
+  timezone: string;
+  working_hours: { days: number[]; start: string; end: string };
+  holidays: string[];
+  fr1_hours: number;
+  fr1_channels: LeadSlaFr1Channel[];
+  case_1a: {
+    meeting_book_max_working_days: number;
+    escalate_if_no_meeting_after_working_days: number;
+    post_meeting_update_hours: number;
+  };
+  case_1b: {
+    max_working_days: number;
+    min_attempts: number;
+    min_gap_working_hours: number;
+    hot_max_working_days: number;
+    hot_min_attempts: number;
+    cooldown_days_same_am: number;
+    max_extends: number;
+    extend_working_days: number;
+  };
+  case_1c: {
+    wrong_number_max_working_hours: number;
+    unreachable_max_working_days: number;
+    unreachable_min_attempts: number;
+    max_reassign_rounds: number;
+  };
+  hot_rules: { sources: string[]; tags: string[] };
+  redistribute: {
+    strategy: 'round_robin_least_open' | 'manual_only';
+    assign_queue_max_wait_working_hours: number;
+    max_open_attempting_per_am: number;
+  };
+  eligible_pipeline_stages: string[];
+  feature_flags: {
+    lead_sla_reassign_enabled: boolean;
+    lead_sla_reassign_dry_run: boolean;
+    reassign_on_1a_timeout: boolean;
+    allow_hold_recalc: boolean;
+    min_dry_run_days: number;
+    dry_run_started_at: string | null;
+  };
+  settings_version: number;
+};
+
+export type LeadSlaPoolStaff = {
+  id: number;
+  name: string;
+  email: string;
+  job_title: string;
+  active: boolean;
+  accepts_leads: boolean;
+  open_attempting: number;
+};
+
+export type LeadSlaSettingsResponse = {
+  tenant_id: string;
+  payload: LeadSlaSettingsPayload;
+  draft_payload: LeadSlaSettingsPayload | null;
+  settings_version: number;
+  published_at: string | null;
+  updated_by: string;
+  updated_at: string;
+  pool: LeadSlaPoolStaff[];
+  can_edit: boolean;
+  can_publish: boolean;
+  allow_hold_recalc: boolean;
+  preview_impact?: string[];
+};
+
+export type LeadSlaRevision = {
+  id: number;
+  settings_version: number;
+  payload: LeadSlaSettingsPayload;
+  note: string;
+  actor: string;
+  action: string;
+  created_at: string;
+};
+
+export async function fetchLeadSlaSettings(token: string): Promise<LeadSlaSettingsResponse> {
+  return crmFetch(token, '/api/admin/lead-sla-settings');
+}
+
+export async function saveLeadSlaSettingsDraft(
+  token: string,
+  payload: LeadSlaSettingsPayload,
+): Promise<LeadSlaSettingsResponse> {
+  return crmFetch(token, '/api/admin/lead-sla-settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payload }),
+  });
+}
+
+export async function publishLeadSlaSettings(
+  token: string,
+  body: {
+    note: string;
+    payload?: LeadSlaSettingsPayload;
+    override_dry_run?: boolean;
+    reset_defaults?: boolean;
+  },
+): Promise<LeadSlaSettingsResponse> {
+  return crmFetch(token, '/api/admin/lead-sla-settings/publish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchLeadSlaRevisions(
+  token: string,
+  limit = 30,
+): Promise<{ items: LeadSlaRevision[]; total: number }> {
+  return crmFetch(token, `/api/admin/lead-sla-settings/revisions?limit=${limit}`);
+}
+
+export async function rollbackLeadSlaRevision(
+  token: string,
+  revisionId: number,
+  note: string,
+): Promise<LeadSlaSettingsResponse> {
+  return crmFetch(token, `/api/admin/lead-sla-settings/revisions/${revisionId}/rollback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note }),
+  });
+}
+
+export async function patchStaffAcceptsLeads(
+  token: string,
+  staffId: number,
+  accepts_leads: boolean,
+): Promise<{ staff: LeadSlaPoolStaff }> {
+  return crmFetch(token, `/api/admin/staff/${staffId}/accepts-leads`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accepts_leads }),
   });
 }
 

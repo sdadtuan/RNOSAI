@@ -933,6 +933,21 @@ button.crm-kanban-card {
   font-size: 0.72rem;
 }
 
+.crm-kanban-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.crm-kanban-card__actions .crm-kanban-card__cta {
+  margin-top: 0;
+}
+
+.crm-kanban-card__cta.is-primary {
+  font-weight: 700;
+}
+
 .crm-kanban-card__meta {
   display: flex;
   flex-wrap: wrap;
@@ -986,6 +1001,34 @@ html.ops-shell-bitrix .crm-kanban-card__cta--intake {
 html.ops-shell-bitrix .crm-kanban-card__cta--quote {
   background: var(--gold);
   border-color: var(--gold);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--view_quote,
+html.ops-shell-bitrix .crm-kanban-card__cta--view_proposal {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--care {
+  background: var(--ptt);
+  border-color: var(--ptt);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--return_am {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--advance_proposal,
+html.ops-shell-bitrix .crm-kanban-card__cta--advance_contract,
+html.ops-shell-bitrix .crm-kanban-card__cta--mark_signed {
+  background: var(--won);
+  border-color: var(--won);
+  color: #fff;
+}
+html.ops-shell-bitrix .crm-kanban-card__cta--view_contract {
+  background: var(--won);
+  border-color: var(--won);
   color: #fff;
 }
 html.ops-shell-bitrix .crm-kanban-card__cta--hub {
@@ -1354,7 +1397,7 @@ html.ops-shell-bitrix .lead-funnel-panel .btn {
 html.ops-shell-bitrix .lead-b2-outcome {
   display: grid;
   gap: 0.65rem;
-  margin-top: 0.45rem;
+  margin-top: 0.15rem;
   min-width: 0;
 }
 

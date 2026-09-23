@@ -283,19 +283,43 @@ export class CskhBoardService {
     return buildShiftHandoffReport({ rows, reviewMetrics });
   }
 
-  async getHomeSummary() {
-    const [rows, leadsNewToday, reviewMetrics] = await Promise.all([
+  async getHomeSummary(opts?: {
+    ownerStaffId?: number | null;
+    viewAll?: boolean;
+    showReviewQueue?: boolean;
+  }) {
+    const viewAll = opts?.viewAll !== false;
+    const ownerStaffId =
+      !viewAll && opts?.ownerStaffId != null && Number.isFinite(Number(opts.ownerStaffId))
+        ? Number(opts.ownerStaffId)
+        : null;
+    const showReviewQueue = opts?.showReviewQueue !== false;
+    const b2bScope =
+      ownerStaffId != null
+        ? { staffId: ownerStaffId, viewAll: false, isDirector: false }
+        : undefined;
+
+    const [allRows, leadsNewToday, reviewMetrics] = await Promise.all([
       this.loadAllEnrichedRows(),
-      this.repo.countSpaMetaLeadsReceivedToday(),
-      this.leadsFunnel.reviewQueueMetrics(),
+      ownerStaffId != null
+        ? this.repo.countOwnedLeadsReceivedToday(ownerStaffId)
+        : this.repo.countSpaMetaLeadsReceivedToday(null),
+      showReviewQueue
+        ? this.leadsFunnel.reviewQueueMetrics(500, b2bScope)
+        : Promise.resolve({ queue_count: 0, max_hours: null as number | null }),
     ]);
+
+    const rows =
+      ownerStaffId != null
+        ? allRows.filter((row) => Number(row.owner_id) === ownerStaffId)
+        : allRows;
 
     const tierSummaries = enrichSlaTierSummaries(
       summarizeSlaTiers(rows.map((row) => row.sla_tiers)),
     );
 
     let ai: ReturnType<typeof buildHomeSummary>['ai'];
-    if (this.aiConfig.copilotEnabled) {
+    if (this.aiConfig.copilotEnabled && viewAll) {
       try {
         const adoption = await this.adoptionAnalytics.getAdoptionMetrics({ days: 7 });
         ai = {
@@ -318,6 +342,8 @@ export class CskhBoardService {
         max_hours: reviewMetrics.max_hours,
       },
       ai,
+      scope: ownerStaffId != null ? 'mine' : 'all',
+      showReviewQueue,
     });
   }
 

@@ -11,11 +11,12 @@ import {
 import { isOpsDvFeEnabled } from '@/lib/ops-dv-flags';
 import { emailGateAEnabled, emailJourneysEnabled, emailModuleEnabled } from '@/lib/email-flags';
 import { winKpiSolutionEnabled } from '@/lib/win/flags';
-import { canViewEmailGateA } from '@/lib/email/caps';
-import { canViewMetaAdsOps, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
+import { canViewEmailGateA, canViewEmailHub, canWriteEmailHub } from '@/lib/email/caps';
+import { canViewMetaAdsOps, canViewMetaHub, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
 import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
 import { canSeeAmNav } from '@/lib/crm/am-nav.util';
 import { canSeeQtNav } from '@/lib/crm/qt-nav.util';
+import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 import { canSeeRevopsNav } from '@/lib/crm/revops-nav.util';
 import { isRevopsShellEnabled } from '@/lib/crm/revops-flags';
 import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
@@ -193,7 +194,10 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
     sales.push(child('sales-b2b', 'Lead B2B', '/crm/b2b/leads'));
     sales.push(child('sales-inbox', 'Inbox B2B', '/crm/b2b-inbox'));
     if (hasCap(user, 'crm_presales_solution', 'view') || hasCap(user, 'crm_leads', 'view')) {
-      sales.push(child('sales-solution', 'Hàng đợi Solution', '/crm/solution/queue'));
+      const solLabel = resolvePresalesSolutionCaps(user).isAeTrackOnly
+        ? 'Theo dõi Solution'
+        : 'Hàng đợi Solution';
+      sales.push(child('sales-solution', solLabel, '/crm/solution/queue'));
     }
   }
   if (hasCap(user, 'crm_sales_overview', 'view') || hasCap(user, 'crm_sales_plans', 'view')) {
@@ -301,12 +305,9 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   }
   if (agency.length) items.push(parent('agency', 'Agency', 'agency', agency));
 
-  // 7. Quảng cáo
+  // 7. Quảng cáo — explicit ads caps only (not crm_agency.view)
   const ads: NavChild[] = [];
-  const canMetaAds =
-    hasCap(user, 'crm_facebook_ads', 'view') ||
-    hasCap(user, 'crm_facebook_ads', 'edit') ||
-    hasCap(user, 'crm_agency', 'view');
+  const canMetaAds = canViewMetaHub(user);
   if (canMetaAds) {
     ads.push(child('ads-meta', 'Meta Ads', '/meta/facebook-ads'));
     if (metaAdsOpsEnabled() && canViewMetaAdsOps(user)) {
@@ -319,11 +320,11 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
       ads.push(child('ads-intel', 'Meta Intelligence', '/meta/intelligence'));
     }
   }
-  if (hasCap(user, 'crm_google_ads', 'view') || hasCap(user, 'crm_agency', 'view')) {
+  if (hasCap(user, 'crm_google_ads', 'view')) {
     ads.push(child('ads-google', 'Google Ads', '/google/google-ads'));
     ads.push(child('ads-cpl', 'Ads CPL', '/meta/ads-combined'));
   }
-  if (hasCap(user, 'crm_zalo_ads', 'view') || hasCap(user, 'crm_agency', 'view')) {
+  if (hasCap(user, 'crm_zalo_ads', 'view')) {
     ads.push(child('ads-zalo', 'Zalo Ads', '/zalo/zalo-ads'));
     ads.push(child('ads-zalo-leads', 'Zalo Leads', '/zalo/leads'));
   }
@@ -338,16 +339,14 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   if (seo.length) items.push(parent('seo', 'SEO / AEO', 'seo', seo));
 
   // 9. Email Marketing
-  const emailView = hasCap(user, 'crm_email_mkt', 'view') || hasCap(user, 'crm_agency', 'view');
-  const emailWrite = hasCap(user, 'crm_email_mkt', 'write') || hasCap(user, 'crm_agency', 'create');
+  const emailView = canViewEmailHub(user);
+  const emailWrite = canWriteEmailHub(user);
   const emailDeliverability =
     hasCap(user, 'crm_email_mkt', 'deliverability') ||
     hasCap(user, 'crm_email_mkt', 'settings') ||
     hasCap(user, 'crm_agency', 'create');
   const emailReports =
-    hasCap(user, 'crm_email_mkt', 'reports') ||
-    hasCap(user, 'crm_email_mkt', 'write') ||
-    hasCap(user, 'crm_agency', 'view');
+    hasCap(user, 'crm_email_mkt', 'reports') || hasCap(user, 'crm_email_mkt', 'write');
 
   if (emailView && emailModuleEnabled()) {
     const email: NavChild[] = [child('email-hub', 'Hub', '/email/hub', emailPendingApprovals)];
@@ -412,7 +411,7 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   }
   if (production.length) items.push(parent('production', 'Sản xuất', 'lifecycle', production));
 
-  // 11. Kế hoạch
+  // 11. Kế hoạch — matrix AE = — (need research / mktplan / gtm, not board alone)
   const plan: NavChild[] = [];
   if (isMarketResearchFeEnabled() && hasCap(user, 'crm_research', 'view')) {
     plan.push(child('plan-research', 'Nghiên cứu thị trường', '/crm/research'));
@@ -421,7 +420,7 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
       plan.push(child('plan-tax', 'Taxonomy', '/crm/research/taxonomy'));
     }
   }
-  if (hasCap(user, 'crm_board', 'view')) {
+  if (hasCap(user, 'crm_mktplan', 'view')) {
     plan.push(child('plan-mkt', 'Kế hoạch marketing', '/crm/marketing-plan'));
   }
   if (canViewGtmDemos(user)) {
@@ -522,7 +521,7 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   }
   if (hr.length) items.push(parent('hr', 'Nhân sự', 'staff', hr));
 
-  // 14. Tài chính (CEO leaf separate)
+  // 14. Tài chính — not opened by crm_agency.view alone (AE matrix = —)
   const finance: NavChild[] = [];
   if (hasCap(user, 'crm_business_dashboard', 'view')) {
     finance.push(child('fin-dash', 'Dashboard kinh doanh', '/crm/business-dashboard'));
@@ -533,7 +532,13 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   } else if (hasCap(user, 'ai_analytics', 'query')) {
     finance.push(child('fin-nl', 'NL Analytics', '/crm/ai/query'));
   }
-  if (hasCap(user, 'crm_agency', 'view') || hasCap(user, 'crm_board', 'view') || hasCap(user, 'ai_admin', 'view')) {
+  if (
+    hasCap(user, 'crm_board', 'view') ||
+    hasCap(user, 'ai_admin', 'view') ||
+    hasCap(user, 'crm_am', 'view') ||
+    hasCap(user, 'crm_am.finance', 'view') ||
+    hasCap(user, 'crm_quote.finance', 'view')
+  ) {
     finance.push(child('fin-health', 'CS Health', '/crm/health'));
   }
   if (hasCap(user, 'crm_owner_weekly_dashboard', 'view')) {

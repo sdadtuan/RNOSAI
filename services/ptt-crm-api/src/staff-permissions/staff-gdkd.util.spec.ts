@@ -3,6 +3,7 @@ import {
   hasGdkdAssign,
   hasGdkdCap,
   hasGdkdOverride,
+  hasGdkdSolutionDesk,
   hasGdkdViewAllLeads,
 } from './staff-gdkd.util';
 
@@ -30,5 +31,11 @@ describe('staff-gdkd.util', () => {
   it('hasGdkdCap resolves review_queue only on crm_gdkd section', () => {
     expect(hasGdkdCap(legacyGdkd, 'review_queue')).toBe(false);
     expect(hasGdkdCap([{ section: 'crm_gdkd', action: 'review_queue' }], 'review_queue')).toBe(true);
+  });
+
+  it('hasGdkdSolutionDesk ignores crm_leads.assign alone', () => {
+    expect(hasGdkdSolutionDesk(legacyGdkd)).toBe(false);
+    expect(hasGdkdSolutionDesk(modernGdkd)).toBe(true);
+    expect(hasGdkdSolutionDesk([{ section: 'crm_gdkd', action: 'view_all_leads' }])).toBe(true);
   });
 });

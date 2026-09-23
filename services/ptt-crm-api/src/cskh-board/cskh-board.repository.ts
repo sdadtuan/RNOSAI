@@ -97,7 +97,13 @@ export class CskhBoardRepository implements OnModuleDestroy {
   }
 
   /** Spa Meta cohort — leads received on current ICT calendar day. */
-  async countSpaMetaLeadsReceivedToday(): Promise<number> {
+  async countSpaMetaLeadsReceivedToday(ownerStaffId?: number | null): Promise<number> {
+    const params: unknown[] = [];
+    let ownerClause = '';
+    if (ownerStaffId != null && Number.isFinite(Number(ownerStaffId))) {
+      params.push(Number(ownerStaffId));
+      ownerClause = ` AND l.owner_id = $1`;
+    }
     const result = await this.db.query(
       `SELECT COUNT(*)::int AS c
        FROM crm_leads l
@@ -110,7 +116,25 @@ export class CskhBoardRepository implements OnModuleDestroy {
          AND date_trunc(
            'day',
            COALESCE(l.received_at, l.created_at) AT TIME ZONE 'Asia/Ho_Chi_Minh'
+         ) = date_trunc('day', NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh')
+         ${ownerClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.c ?? 0);
+  }
+
+  /** Any owned lead received today (AE desk — not limited to Meta SPA cohort). */
+  async countOwnedLeadsReceivedToday(ownerStaffId: number): Promise<number> {
+    const result = await this.db.query(
+      `SELECT COUNT(*)::int AS c
+       FROM crm_leads l
+       WHERE l.is_duplicate IS NOT TRUE
+         AND l.owner_id = $1
+         AND date_trunc(
+           'day',
+           COALESCE(l.received_at, l.created_at) AT TIME ZONE 'Asia/Ho_Chi_Minh'
          ) = date_trunc('day', NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh')`,
+      [ownerStaffId],
     );
     return Number(result.rows[0]?.c ?? 0);
   }

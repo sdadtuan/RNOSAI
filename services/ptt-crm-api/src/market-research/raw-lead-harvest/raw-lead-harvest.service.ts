@@ -318,6 +318,148 @@ export class RawLeadHarvestService {
     return { counts: await this.repo.countByPriority(projectId) };
   }
 
+  async careCounts(projectId: number) {
+    this.assertEnabled();
+    return { counts: await this.repo.careCounts(projectId) };
+  }
+
+  async assignCare(
+    projectId: number,
+    body: { lead_ids?: number[]; to_staff_id?: number; all_awaiting?: boolean },
+    actorStaffId: number | null,
+  ) {
+    this.assertEnabled();
+    const toStaffId = Number(body.to_staff_id);
+    if (!(toStaffId > 0)) {
+      throw new BadRequestException({ error: 'to_staff_id_required' });
+    }
+    let ids = Array.isArray(body.lead_ids)
+      ? body.lead_ids.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+      : [];
+    if (body.all_awaiting) {
+      ids = await this.repo.listAssignableCareIds(projectId);
+    }
+    if (!ids.length) throw new BadRequestException({ error: 'lead_ids_required' });
+    await this.repo.revokeStaleAssigned(new Date(), 3);
+    const updated = await this.repo.assignCareBulk(
+      projectId,
+      ids,
+      toStaffId,
+      actorStaffId,
+    );
+    return { updated, to_staff_id: toStaffId, requested: ids.length };
+  }
+
+  async revokeCare(projectId: number, body: { lead_ids?: number[] }) {
+    this.assertEnabled();
+    const ids = Array.isArray(body.lead_ids)
+      ? body.lead_ids.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+      : [];
+    if (!ids.length) throw new BadRequestException({ error: 'lead_ids_required' });
+    const updated = await this.repo.revokeCareBulk(projectId, ids);
+    return { updated };
+  }
+
+  async listMyCare(staffId: number | null) {
+    this.assertEnabled();
+    if (staffId == null || !(staffId > 0)) {
+      throw new BadRequestException({ error: 'staff_required' });
+    }
+    await this.repo.revokeStaleAssigned(new Date(), 3);
+    const leads = await this.repo.listAssignedToStaff(staffId, { limit: 150 });
+    return { leads, total: leads.length };
+  }
+
+  async setMyCareContact(
+    leadId: number,
+    staffId: number | null,
+    body: { outcome?: string; note?: string },
+  ) {
+    this.assertEnabled();
+    if (staffId == null || !(staffId > 0)) {
+      throw new BadRequestException({ error: 'staff_required' });
+    }
+    const outcome = String(body.outcome ?? '').toLowerCase();
+    if (outcome !== 'contacted' && outcome !== 'unreachable') {
+      throw new BadRequestException({ error: 'invalid_outcome' });
+    }
+    const lead = await this.repo.setCareContact(
+      leadId,
+      staffId,
+      outcome,
+      body.note,
+    );
+    if (!lead) throw new NotFoundException({ error: 'raw_lead_not_found_or_not_yours' });
+    return { lead };
+  }
+
+  async promoteMyCareToB2b(
+    leadId: number,
+    staffId: number | null,
+    body?: { b2b_project_id?: string },
+  ) {
+    this.assertEnabled();
+    if (staffId == null || !(staffId > 0)) {
+      throw new BadRequestException({ error: 'staff_required' });
+    }
+    const lead = await this.repo.getLeadById(leadId);
+    if (!lead) throw new NotFoundException({ error: 'raw_lead_not_found' });
+    if (Number(lead.assigned_to_staff_id) !== staffId) {
+      throw new BadRequestException({ error: 'not_your_assignment' });
+    }
+    if (lead.care_status !== 'assigned') {
+      throw new BadRequestException({ error: 'not_assigned' });
+    }
+    if (lead.care_contact_status !== 'contacted') {
+      throw new BadRequestException({ error: 'must_contact_first' });
+    }
+    if (lead.crm_lead_id != null || lead.status === 'pushed') {
+      throw new BadRequestException({ error: 'already_in_crm' });
+    }
+
+    const b2bProjectId = String(body?.b2b_project_id ?? '').trim();
+    if (!b2bProjectId) {
+      throw new BadRequestException({ error: 'b2b_project_required' });
+    }
+
+    const job = await this.repo.getJobById(lead.job_id);
+    const source = job?.sources_json?.[0]?.key ?? 'research_harvest';
+    const channel = job?.channels_json?.[0]?.key ?? '';
+    const fullName =
+      lead.contact_title && lead.contact_title.trim()
+        ? `${lead.contact_title.trim()} — ${lead.company_name}`
+        : lead.company_name;
+
+    const crmLead = await this.leadsWrite.createLead({
+      full_name: fullName,
+      phone: lead.phone ?? undefined,
+      email: lead.email ?? undefined,
+      source,
+      channel,
+      lead_flow_kind: 'b2b_prospect',
+      status: 'new',
+      owner_id: staffId,
+      b2b_project_id: b2bProjectId,
+      external_lead_id: `raw-harvest-${lead.id}`,
+    });
+    try {
+      await this.leadsWrite.patchLead(crmLead.id, {
+        company_name: lead.company_name,
+        company_address: lead.address ?? undefined,
+      });
+    } catch {
+      /* optional */
+    }
+    await this.repo.markLeadPushed(lead.project_id, leadId, crmLead.id);
+    return { ok: true, crm_lead_id: crmLead.id, raw_lead_id: leadId };
+  }
+
+  async runCareRevokeJob(now: Date = new Date()) {
+    this.assertEnabled();
+    const revoked = await this.repo.revokeStaleAssigned(now, 3);
+    return { revoked };
+  }
+
   async getBattlecard(projectId: number, leadId: number): Promise<RawLeadBattlecard> {
     this.assertEnabled();
     const lead = await this.repo.getLead(projectId, leadId);

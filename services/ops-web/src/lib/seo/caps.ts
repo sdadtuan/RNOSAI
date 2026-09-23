@@ -34,7 +34,8 @@ function hasAnySeoSectionView(user: StoredStaffUser): boolean {
 
 export function canViewSeoHub(user: StoredStaffUser | null): boolean {
   if (!user || !seoHubEnabled()) return false;
-  return hasCap(user, 'crm_seo', 'view') || hasCap(user, 'crm_agency', 'view') || hasAnySeoSectionView(user);
+  // Do not bridge from crm_agency.view — AE has agency hub but matrix SEO is ◐/— only.
+  return hasCap(user, 'crm_seo', 'view') || hasAnySeoSectionView(user);
 }
 
 export function canViewSeoClientWorkspace(user: StoredStaffUser | null): boolean {

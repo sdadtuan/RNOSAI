@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StoredStaffUser } from '@/lib/auth';
-import { QT_NAV, canSeeQtNav } from './qt-nav.util';
+import { QT_NAV, canSeeQtNav, qtNavForUser } from './qt-nav.util';
 
 function user(caps: Array<{ section: string; action: string }>): StoredStaffUser {
   return {
@@ -23,6 +23,23 @@ describe('canSeeQtNav', () => {
     expect(canSeeQtNav(user([{ section: 'crm_quote', action: 'view' }]))).toBe(true);
     expect(canSeeQtNav(user([{ section: 'crm_quote', action: 'view_all' }]))).toBe(true);
     expect(canSeeQtNav(user([{ section: 'crm_board', action: 'view' }]))).toBe(true);
+  });
+});
+
+describe('qtNavForUser', () => {
+  it('hides create/catalog/approvals/settings for AE view-only', () => {
+    const items = qtNavForUser(user([{ section: 'crm_quote', action: 'view' }]));
+    expect(items.map((i) => i.id)).toEqual(['overview', 'list', 'reports']);
+  });
+
+  it('keeps create for quote editors', () => {
+    const items = qtNavForUser(
+      user([
+        { section: 'crm_quote', action: 'view' },
+        { section: 'crm_quote', action: 'edit' },
+      ]),
+    );
+    expect(items.map((i) => i.id)).toContain('new');
   });
 });
 

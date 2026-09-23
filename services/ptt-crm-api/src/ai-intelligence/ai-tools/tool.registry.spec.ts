@@ -89,13 +89,14 @@ describe('ToolRegistry', () => {
       proposalDraft as never,
       insightApprove as never,
       fieldConfirm as never,
+      { packsList: jest.fn(), packGet: jest.fn(), sectionsRead: jest.fn(), sectionsUpsert: jest.fn() } as never,
     );
   });
 
   it('lists RNOS-33 tools plus Ops PO-52/P4/P5/KPI/P6/P7/P8 tools', () => {
     const tools = registry.list();
 
-    expect(tools).toHaveLength(31);
+    expect(tools).toHaveLength(36);
     expect(tools.map((tool) => tool.name)).toEqual([
       'score_lead',
       'route_lead',
@@ -128,6 +129,11 @@ describe('ToolRegistry', () => {
       'plan.breakdown_to_roles',
       'kpi_target.write_draft',
       'kpi_target.read',
+      'strategy.packs_list',
+      'strategy.pack_get',
+      'marketing_plan.sections_read',
+      'marketing_plan.sections_upsert',
+      'strategy.generate_draft',
     ]);
     expect(tools.every((tool) => tool.inputSchema.type === 'object')).toBe(true);
     expect(tools.map((t) => t.name)).not.toEqual(

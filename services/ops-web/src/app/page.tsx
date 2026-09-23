@@ -126,8 +126,16 @@ export default function DashboardPage() {
   return (
     <StaffPageShell user={user} onLogout={logout} breadcrumb={[{ label: 'Tổng quan' }]}>
       <PageToolbar
-        title={`Chào ${user.display_name || user.email}`}
-        subtitle="WIN-2 · Bảng điều khiển vận hành CRM"
+        title={
+          hasCap(user, 'crm_gdkd', 'view_all_leads')
+            ? `Chào ${user.display_name || user.email}`
+            : 'Tổng quan bán hàng'
+        }
+        subtitle={
+          hasCap(user, 'crm_gdkd', 'view_all_leads')
+            ? 'Bảng điều khiển vận hành CRM'
+            : 'Lead của bạn · SLA · theo dõi Solution'
+        }
       />
 
       <WinHomeDashboard

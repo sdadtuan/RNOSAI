@@ -8,14 +8,14 @@ import {
 import { Request } from 'express';
 import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
-import { hasGdkdAssign } from '../../staff-permissions/staff-gdkd.util';
+import { hasGdkdSolutionDesk } from '../../staff-permissions/staff-gdkd.util';
 import { assertPresalesSolutionCap } from '../presales-solution-rbac.util';
 
 function assertCapOrThrow(
   caps: Array<{ section: string; action: string }>,
   action: 'view' | 'edit' | 'claim' | 'release',
 ): void {
-  const gdkdAssign = hasGdkdAssign(caps);
+  const gdkdAssign = hasGdkdSolutionDesk(caps);
   assertPresalesSolutionCap(caps, action, { gdkdAssign });
 }
 

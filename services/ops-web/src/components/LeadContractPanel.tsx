@@ -49,7 +49,12 @@ export function LeadContractPanel({
   const [loading, setLoading] = useState(true);
   const [panelError, setPanelError] = useState('');
 
-  const canEdit = hasCap(user, 'crm_leads', 'edit');
+  const canEdit =
+    hasCap(user, 'crm_hub_contracts', 'edit') ||
+    hasCap(user, 'crm_hub_contracts', 'create') ||
+    hasCap(user, 'crm_am', 'edit') ||
+    hasCap(user, 'crm_gdkd', 'view_all_leads') ||
+    hasCap(user, 'ceo_command', 'act');
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -160,6 +165,11 @@ export function LeadContractPanel({
       <p className="muted" style={{ marginTop: 0, fontSize: '0.85rem' }}>
         AM tạo draft → submit → GDKD duyệt → lifecycle Onboard (2 bước phê duyệt)
       </p>
+      {!canEdit ? (
+        <p className="muted" style={{ fontSize: '0.85rem' }} data-testid="lead-contract-view-only">
+          Bạn chỉ xem HĐ / xuất PDF / gửi khách. Nếu cần sửa, trả lại Account Manager, CEO hoặc GĐKD.
+        </p>
+      ) : null}
 
       <ul style={{ margin: '0 0 1rem', paddingLeft: '1.1rem', fontSize: '0.9rem' }}>
         {checks.map((c) => {

@@ -30,3 +30,18 @@ export function hasGdkdViewAllLeads(caps: StaffSectionCap[]): boolean {
 export function hasGdkdReviewQueue(caps: StaffSectionCap[]): boolean {
   return hasGdkdCap(caps, 'review_queue');
 }
+
+/**
+ * True GĐKD/CEO desk for Solution claim/release override.
+ * Does NOT treat crm_leads.assign alone (AE historically had assign).
+ */
+export function hasGdkdSolutionDesk(caps: StaffSectionCap[]): boolean {
+  return (
+    hasGdkdViewAllLeads(caps) ||
+    caps.some(
+      (c) =>
+        c.section === CRM_GDKD_SECTION &&
+        (c.action === 'assign' || c.action === 'override'),
+    )
+  );
+}

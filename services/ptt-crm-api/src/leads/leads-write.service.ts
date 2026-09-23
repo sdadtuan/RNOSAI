@@ -36,6 +36,7 @@ import { LeadStatusGateError } from './lead-status-gate.util';
 import { LeadsRepository } from './leads.repository';
 import { CrmLeadsPgRepository } from '../crm-leads-legacy/crm-leads-pg.repository';
 import { catalogTs } from '../catalog/catalog-slug.util';
+import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
 
 @Injectable()
 export class LeadsWriteService {
@@ -55,6 +56,7 @@ export class LeadsWriteService {
     private readonly b2bAdsCapi: B2bAdsCapiService,
     private readonly leadsRepo: LeadsRepository,
     private readonly assignmentLog: CrmLeadsPgRepository,
+    private readonly leadSlaSettings: LeadSlaSettingsService,
   ) {}
 
   async createLead(body: CreateLeadV1Body): Promise<LeadV1> {
@@ -129,6 +131,7 @@ export class LeadsWriteService {
           owner_id: lead.owner_id,
           assigned_by: 'auto_assign',
         });
+        await this.leadSlaSettings.applyFr1OnNewAssign(lead.id).catch(() => undefined);
       }
       await this.scoreAsync.enqueueAfterLeadCreated({
         leadId: lead.id,
@@ -233,26 +236,29 @@ export class LeadsWriteService {
       if (!result) {
         throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
       }
-      if ((result.assigned || b2bManual) && body.owner_id != null) {
+      if ((result.assigned || b2bManual || Boolean(body.assign_reason?.trim())) && body.owner_id != null) {
         const assignActor = body.assigned_by?.trim() || actor || 'system';
         const assignReason =
           body.assign_reason?.trim() ||
           body.audit_note?.trim() ||
           (b2bManual ? 'manual_reassign' : 'Cập nhật owner') ||
           assignActor;
-        await this.assignmentLog.logAssignment(
-          leadId,
-          existing.owner_id != null ? Number(existing.owner_id) : null,
-          Number(body.owner_id),
-          String(assignReason).slice(0, 500),
-          String(assignActor).slice(0, 120),
-          catalogTs(),
-        );
-        await this.events.emit('LeadAssigned', 'lead', String(leadId), {
-          lead_id: leadId,
-          owner_id: body.owner_id,
-          assigned_by: body.assigned_by?.trim() || actor || null,
-        });
+        if (result.assigned || b2bManual) {
+          await this.assignmentLog.logAssignment(
+            leadId,
+            existing.owner_id != null ? Number(existing.owner_id) : null,
+            Number(body.owner_id),
+            String(assignReason).slice(0, 500),
+            String(assignActor).slice(0, 120),
+            catalogTs(),
+          );
+          await this.events.emit('LeadAssigned', 'lead', String(leadId), {
+            lead_id: leadId,
+            owner_id: body.owner_id,
+            assigned_by: body.assigned_by?.trim() || actor || null,
+          });
+        }
+        await this.leadSlaSettings.applyFr1OnNewAssign(leadId).catch(() => undefined);
       }
       if (result.status_changed && body.status !== undefined) {
         await this.conversionFx.enqueueConversionEval({

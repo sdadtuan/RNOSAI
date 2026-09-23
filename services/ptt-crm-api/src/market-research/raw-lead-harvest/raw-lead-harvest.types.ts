@@ -113,6 +113,14 @@ export type RawLeadRow = {
   learning_reasons: string[];
   learning_applied_at: string | null;
   crm_lead_id: number | null;
+  /** AE care assignment */
+  care_status: string;
+  assigned_to_staff_id: number | null;
+  assigned_to_name?: string | null;
+  assigned_at: string | null;
+  care_contact_status: string;
+  care_contacted_at: string | null;
+  revoked_at: string | null;
   verify_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -151,6 +159,18 @@ export type ExportRawLeadsBody = {
 
 export type PushRawLeadsBody = {
   lead_ids: number[];
+};
+
+export type AssignCareRawLeadsBody = {
+  lead_ids?: number[];
+  to_staff_id: number;
+  /** When true, assign all awaiting/revoked leads in the project (ignores lead_ids). */
+  all_awaiting?: boolean;
+};
+
+export type CareContactBody = {
+  outcome: 'contacted' | 'unreachable';
+  note?: string;
 };
 
 export type ReclassifyRawLeadsBody = {

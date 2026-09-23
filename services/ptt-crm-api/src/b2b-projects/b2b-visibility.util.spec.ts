@@ -71,14 +71,17 @@ describe('canSeeB2bLead', () => {
     expect(unassigned).toBe(false);
   });
 
-  it('receiver sees project teammate and unassigned', () => {
-    const mem = [{ projectId: project, assignEnabled: true }];
+  it('sales with assign_enabled still only sees own lead (not project pool)', () => {
+    const mem = [{ projectId: project, assignEnabled: true, role: 'sales' as const }];
+    expect(
+      canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: 10, projectId: project }, mem),
+    ).toBe(true);
     expect(
       canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: 11, projectId: project }, mem),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: null, projectId: project }, mem),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('inactive staff cannot see except view_all', () => {

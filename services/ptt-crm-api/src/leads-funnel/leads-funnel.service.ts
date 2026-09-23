@@ -8,7 +8,7 @@ import { CskhBoardService } from '../cskh-board/cskh-board.service';
 import { parseB2CompletedAt } from '../cskh-board/cskh-board-sla.util';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
-import { hasGdkdAssign } from '../staff-permissions/staff-gdkd.util';
+import { hasGdkdSolutionDesk } from '../staff-permissions/staff-gdkd.util';
 import { parseLeadMeta } from './care-pipeline.util';
 import {
   AdvancePresalesBody,
@@ -136,7 +136,7 @@ export class LeadsFunnelService {
     const me = await this.staffAuth.me(staffUser);
     return {
       caps: me.caps,
-      gdkdAssign: hasGdkdAssign(me.caps),
+      gdkdAssign: hasGdkdSolutionDesk(me.caps),
       job_functions: me.job_functions ?? [],
       permission_sets: me.permission_sets ?? [],
     };
@@ -420,12 +420,20 @@ export class LeadsFunnelService {
     }
   }
 
-  async listSolutionQueue(status?: string, limit?: number) {
+  async listSolutionQueue(
+    status?: string,
+    limit?: number,
+    opts: { ownerStaffId?: number | null; includeAmRework?: boolean } = {},
+  ) {
     const statuses: Array<'pending' | 'with_solution'> =
       status === 'pending' || status === 'with_solution'
         ? [status]
         : ['pending', 'with_solution'];
-    const rows = await this.pgRepo.listSolutionQueue(statuses, limit);
+    const includeAmRework = Boolean(opts.includeAmRework) && !status;
+    const rows = await this.pgRepo.listSolutionQueue(statuses, limit, {
+      ownerStaffId: opts.ownerStaffId,
+      includeAmRework,
+    });
     return { ok: true, rows, count: rows.length };
   }
 

@@ -6,21 +6,35 @@ export interface PresalesSolutionCaps {
   canClaim: boolean;
   canRelease: boolean;
   canHandoff: boolean;
+  /** True GĐKD/CEO desk — not crm_leads.assign (AE also had assign historically). */
   isGdkd: boolean;
+  /** AE / sales tracking: view queue of own leads only, no claim/release. */
+  isAeTrackOnly: boolean;
 }
 
 export function resolvePresalesSolutionCaps(user: StoredStaffUser | null): PresalesSolutionCaps {
-  const isGdkd = Boolean(user && hasCap(user, 'crm_leads', 'assign'));
+  const isGdkd = Boolean(
+    user &&
+      (hasCap(user, 'crm_gdkd', 'view_all_leads') ||
+        hasCap(user, 'crm_gdkd', 'assign') ||
+        hasCap(user, 'crm_gdkd', 'override')),
+  );
+  const canClaim = Boolean(user && (hasCap(user, 'crm_presales_solution', 'claim') || isGdkd));
+  const canRelease = Boolean(user && (hasCap(user, 'crm_presales_solution', 'release') || isGdkd));
+  const canEditConsult = Boolean(
+    user && (hasCap(user, 'crm_presales_solution', 'edit') || isGdkd),
+  );
+  const canView = Boolean(
+    user && (hasCap(user, 'crm_presales_solution', 'view') || hasCap(user, 'crm_leads', 'view')),
+  );
   return {
-    canView: Boolean(user && (hasCap(user, 'crm_presales_solution', 'view') || hasCap(user, 'crm_leads', 'view'))),
-    canEditConsult: Boolean(
-      user &&
-        (hasCap(user, 'crm_presales_solution', 'edit') || isGdkd),
-    ),
-    canClaim: Boolean(user && (hasCap(user, 'crm_presales_solution', 'claim') || isGdkd)),
-    canRelease: Boolean(user && (hasCap(user, 'crm_presales_solution', 'release') || isGdkd)),
+    canView,
+    canEditConsult,
+    canClaim,
+    canRelease,
     canHandoff: Boolean(user && hasCap(user, 'crm_leads', 'edit')),
     isGdkd,
+    isAeTrackOnly: Boolean(canView && !canClaim && !canRelease && !canEditConsult),
   };
 }
 

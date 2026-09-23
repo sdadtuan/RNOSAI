@@ -1550,40 +1550,105 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   async listSolutionQueue(
     statuses: Array<'pending' | 'with_solution'> = ['pending', 'with_solution'],
     limit = 50,
+    opts: { ownerStaffId?: number | null; includeAmRework?: boolean } = {},
   ): Promise<SolutionQueueRow[]> {
     const lim = Math.max(1, Math.min(limit, 200));
     const allowed = statuses.filter((s) => s === 'pending' || s === 'with_solution');
     const filterStatuses = allowed.length ? allowed : ['pending', 'with_solution'];
+    const ownerId =
+      opts.ownerStaffId != null && Number.isFinite(Number(opts.ownerStaffId))
+        ? Number(opts.ownerStaffId)
+        : null;
+    const params: unknown[] = [filterStatuses, lim];
+    let ownerClause = '';
+    if (ownerId != null) {
+      params.push(ownerId);
+      ownerClause = ` AND l.owner_id = $${params.length}`;
+    }
     const result = await this.db.query(
       `SELECT l.sqlite_lead_id AS lead_id, l.full_name, l.phone, l.owner_id,
               ps.service_slug, ps.stage AS presales_stage, ps.handoff_status,
               COALESCE(ps.handed_off_at::text, '') AS handed_off_at,
               ps.solution_owner_staff_id,
               COALESCE(am.name, '') AS owner_name,
-              COALESCE(sol.name, '') AS solution_owner_name
+              COALESCE(sol.name, '') AS solution_owner_name,
+              'solution'::text AS queue_kind
        FROM crm_lead_presales ps
        INNER JOIN crm_leads l ON l.sqlite_lead_id = ps.lead_id
        LEFT JOIN crm_staff am ON am.id = l.owner_id
        LEFT JOIN crm_staff sol ON sol.id = ps.solution_owner_staff_id
        WHERE ps.status = 'active'
          AND ps.handoff_status = ANY($1::text[])
+         ${ownerClause}
        ORDER BY ps.handed_off_at DESC NULLS LAST, ps.id DESC
        LIMIT $2`,
-      [filterStatuses, lim],
+      params,
     );
-    return (result.rows as Array<Record<string, unknown>>).map((row) => ({
+    const rows = (result.rows as Array<Record<string, unknown>>).map((row) =>
+      this.mapSolutionQueueRow(row),
+    );
+
+    if (!opts.includeAmRework || ownerId == null) return rows;
+
+    const rework = await this.db.query(
+      `SELECT l.sqlite_lead_id AS lead_id, l.full_name, l.phone, l.owner_id,
+              COALESCE(ps.service_slug, '') AS service_slug,
+              COALESCE(ps.stage, 'consult') AS presales_stage,
+              COALESCE(ps.handoff_status, '') AS handoff_status,
+              COALESCE(ps.handed_off_at::text, l.updated_at::text, '') AS handed_off_at,
+              ps.solution_owner_staff_id,
+              COALESCE(am.name, '') AS owner_name,
+              COALESCE(sol.name, '') AS solution_owner_name,
+              'am_rework'::text AS queue_kind
+       FROM crm_leads l
+       LEFT JOIN crm_lead_presales ps
+         ON ps.lead_id = l.sqlite_lead_id AND ps.status = 'active'
+       LEFT JOIN crm_staff am ON am.id = l.owner_id
+       LEFT JOIN crm_staff sol ON sol.id = ps.solution_owner_staff_id
+       WHERE l.owner_id = $1
+         AND lower(trim(COALESCE(l.status, ''))) IN ('dang_tu_van', 'da_lien_he', 'moi')
+         AND COALESCE(ps.handoff_status, '') NOT IN ('pending', 'with_solution')
+         AND EXISTS (
+           SELECT 1
+           FROM crm_lead_activities a
+           WHERE a.lead_id = l.sqlite_lead_id
+             AND (
+               a.content ILIKE '%trả lại%'
+               OR a.content ILIKE '%tra lai%'
+               OR a.content ILIKE '%Account Manager%'
+               OR a.content ILIKE '%AM trả%'
+               OR a.content ILIKE '%AM/%'
+             )
+         )
+       ORDER BY l.updated_at DESC NULLS LAST
+       LIMIT $2`,
+      [ownerId, lim],
+    );
+    const seen = new Set(rows.map((r) => r.lead_id));
+    for (const row of rework.rows as Array<Record<string, unknown>>) {
+      const mapped = this.mapSolutionQueueRow(row);
+      if (seen.has(mapped.lead_id)) continue;
+      seen.add(mapped.lead_id);
+      rows.push(mapped);
+    }
+    return rows;
+  }
+
+  private mapSolutionQueueRow(row: Record<string, unknown>): SolutionQueueRow {
+    return {
       lead_id: Number(row.lead_id),
       full_name: String(row.full_name ?? ''),
       phone: String(row.phone ?? ''),
       service_slug: String(row.service_slug ?? ''),
       presales_stage: String(row.presales_stage ?? 'consult') as PresalesRow['stage'],
-      handoff_status: normalizeHandoffStatus(row.handoff_status) as 'pending' | 'with_solution',
+      handoff_status: normalizeHandoffStatus(row.handoff_status),
       handed_off_at: String(row.handed_off_at ?? ''),
       solution_owner_staff_id:
         row.solution_owner_staff_id != null ? Number(row.solution_owner_staff_id) : null,
       solution_owner_name: String(row.solution_owner_name ?? ''),
       owner_id: row.owner_id != null ? Number(row.owner_id) : null,
       owner_name: String(row.owner_name ?? ''),
-    }));
+      queue_kind: row.queue_kind === 'am_rework' ? 'am_rework' : 'solution',
+    };
   }
 }

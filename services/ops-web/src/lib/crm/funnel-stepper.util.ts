@@ -19,7 +19,7 @@ import type {
 } from '@/lib/crm/funnel-stepper.types';
 
 export const PRESALES_FUNNEL_STEPS: FunnelStepDefinition[] = [
-  { key: 'b2', label: 'B2 Liên hệ', shortLabel: 'B2', anchor: '#funnel-b2' },
+  { key: 'b2', label: 'Liên hệ lần đầu', shortLabel: 'B2', anchor: '#funnel-b2' },
   { key: 'presales_lead', label: 'Pre-sales Lead', shortLabel: 'Lead', anchor: '#funnel-presales' },
   { key: 'intake_bant', label: 'Khảo sát BANT', shortLabel: 'Intake' },
   { key: 'consult', label: 'Tư vấn', shortLabel: 'Tư vấn', anchor: '#funnel-presales' },
@@ -341,13 +341,8 @@ export function resolvePrimaryAction(input: {
   const intakeLink = intakeHref(leadId, serviceSlug);
 
   if (activeStep === 'b2') {
-    if (b2Done(funnel)) return null;
-    return {
-      kind: 'anchor',
-      label: 'Hoàn thành B2 →',
-      disabled: false,
-      anchor: '#funnel-b2',
-    };
+    // Kết quả B2 nằm trong panel #funnel-b2 (chips + xác nhận) — không nút trùng trên stepper.
+    return null;
   }
 
   if (activeStep === 'presales_lead') {

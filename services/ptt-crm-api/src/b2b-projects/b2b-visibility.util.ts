@@ -29,13 +29,13 @@ export function canSeeB2bLead(
   if (lead.flowKind !== 'b2b_prospect') return false;
   if (actor.hasViewAllLeads || actor.isDirector) return true;
   if (!actor.isActivePttStaff) return false;
+  // AE / sales: only leads assigned to them.
   if (lead.ownerId != null && Number(lead.ownerId) === Number(actor.staffId)) return true;
   if (!lead.projectId) return false;
-  return memberships.some((m) => {
-    if (m.projectId !== lead.projectId) return false;
-    if (m.role === 'project_manager') return true;
-    return m.assignEnabled;
-  });
+  // Project managers still see the whole project pool.
+  return memberships.some(
+    (m) => m.projectId === lead.projectId && m.role === 'project_manager',
+  );
 }
 
 export function redactLeadIfDenied<T extends { full_name?: unknown; phone?: unknown }>(

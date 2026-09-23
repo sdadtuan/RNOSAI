@@ -4,17 +4,8 @@ import { useState } from 'react';
 import {
   defaultNoteForB2Outcome,
   resolveB2CallOutcome,
-  type B2CallOutcome,
   type B2OutcomePlan,
 } from '@/lib/crm/lead-b2-outcome';
-
-const CHIPS: Array<{ outcome: B2CallOutcome; label: string }> = [
-  { outcome: 'talked', label: 'Đã nói chuyện' },
-  { outcome: 'no_answer', label: 'Không nghe' },
-  { outcome: 'wrong_number', label: 'Sai số / Lost' },
-];
-
-const DEFAULT_NOTES = CHIPS.map((c) => defaultNoteForB2Outcome(c.outcome));
 
 type Props = {
   busy: boolean;
@@ -33,40 +24,15 @@ export function LeadB2OutcomeCard({
   onSubmit,
   onError,
 }: Props) {
-  const [outcome, setOutcome] = useState<B2CallOutcome>('talked');
   const [note, setNote] = useState(defaultNoteForB2Outcome('talked'));
-  const resolved = resolveB2CallOutcome({ outcome, note });
+  const resolved = resolveB2CallOutcome({ outcome: 'talked', note });
   const plan = resolved.ok ? resolved.plan : null;
-
-  function pickOutcome(next: B2CallOutcome) {
-    setOutcome(next);
-    setNote((prev) => {
-      if (!prev.trim() || DEFAULT_NOTES.includes(prev.trim())) {
-        return defaultNoteForB2Outcome(next);
-      }
-      return prev;
-    });
-  }
 
   return (
     <div className="lead-b2-outcome" data-testid="lead-b2-outcome">
-      <div className="lead-b2-outcome__chips" role="group" aria-label="Kết quả cuộc gọi">
-        {CHIPS.map((chip) => (
-          <button
-            key={chip.outcome}
-            type="button"
-            className={`lead-b2-outcome__chip${outcome === chip.outcome ? ' is-active' : ''}`}
-            disabled={busy}
-            onClick={() => pickOutcome(chip.outcome)}
-          >
-            {chip.label}
-          </button>
-        ))}
-      </div>
-
       {highlightAfterCall ? (
         <p className="lead-b2-outcome__hint lead-b2-outcome__hint--after-call">
-          Vừa gọi. Chọn kết quả rồi bấm Xong B2.
+          Vừa gọi xong. Ghi chú rồi xác nhận để mở Pre-sales.
         </p>
       ) : null}
 
@@ -80,12 +46,10 @@ export function LeadB2OutcomeCard({
         />
       </label>
 
-      {plan?.kind === 'retry' ? (
-        <p className="muted lead-b2-outcome__hint">Không mở Pre-sales. Ghi nhận để gọi lại.</p>
-      ) : null}
-      {plan?.kind === 'wrong_number' ? (
-        <p className="lead-b2-outcome__hint lead-b2-outcome__hint--warn">
-          Không mở Pre-sales. Cập nhật Trạng thái → lost nếu số không dùng được.
+      {plan ? (
+        <p className="muted lead-b2-outcome__hint">
+          Xác nhận đã nói chuyện để hoàn thành B2 và mở Pre-sales. Không nghe máy hoặc sai số ghi ở
+          bước phản hồi đầu, không dùng cổng này.
         </p>
       ) : null}
       {retryCount > 0 ? (
@@ -100,7 +64,7 @@ export function LeadB2OutcomeCard({
         className="btn btn-primary btn-sm lead-b2-outcome__submit"
         disabled={busy || !plan}
         onClick={() => {
-          const next = resolveB2CallOutcome({ outcome, note });
+          const next = resolveB2CallOutcome({ outcome: 'talked', note });
           if (!next.ok) {
             onError(next.error_vi);
             return;

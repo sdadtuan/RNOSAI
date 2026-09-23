@@ -151,6 +151,22 @@ describe('rbac-routes', () => {
     ).toBe(false);
   });
 
+  it('/crm/admin/lead-sla-settings allows GĐKD or AM view', () => {
+    expect(
+      canAccessPath(
+        '/crm/admin/lead-sla-settings',
+        user([{ section: 'crm_gdkd', action: 'view_all_leads' }]),
+        'crm',
+      ),
+    ).toBe(true);
+    expect(
+      canAccessPath('/crm/admin/lead-sla-settings', user([{ section: 'crm_leads', action: 'view' }]), 'crm'),
+    ).toBe(true);
+    expect(
+      canAccessPath('/crm/admin/lead-sla-settings', user([{ section: 'crm_quote', action: 'view' }]), 'crm'),
+    ).toBe(false);
+  });
+
   it('hasAnyCap aggregates requirements', () => {
     expect(
       hasAnyCap(user([{ section: 'crm_agency', action: 'view' }]), [

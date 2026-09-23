@@ -246,6 +246,25 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
         ON crm_research_raw_leads (project_id, place_id)
         WHERE place_id IS NOT NULL AND btrim(place_id) <> ''
     `);
+    await this.db.query(`
+      ALTER TABLE crm_research_raw_leads
+        ADD COLUMN IF NOT EXISTS care_status TEXT NOT NULL DEFAULT 'awaiting_assign',
+        ADD COLUMN IF NOT EXISTS assigned_to_staff_id BIGINT,
+        ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS care_contact_status TEXT NOT NULL DEFAULT 'pending',
+        ADD COLUMN IF NOT EXISTS care_contacted_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS assigned_by_staff_id BIGINT
+    `);
+    await this.db.query(`
+      CREATE INDEX IF NOT EXISTS idx_raw_leads_care_assignee
+        ON crm_research_raw_leads (assigned_to_staff_id, care_status)
+        WHERE assigned_to_staff_id IS NOT NULL
+    `);
+    await this.db.query(`
+      CREATE INDEX IF NOT EXISTS idx_raw_leads_project_care
+        ON crm_research_raw_leads (project_id, care_status)
+    `);
   }
 
   private mapJob(row: Record<string, unknown>): RawLeadHarvestJobRow {
@@ -390,6 +409,16 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
           : [],
       learning_applied_at: iso(row.learning_applied_at),
       crm_lead_id: row.crm_lead_id == null ? null : Number(row.crm_lead_id),
+      care_status: String(row.care_status ?? 'awaiting_assign') || 'awaiting_assign',
+      assigned_to_staff_id:
+        row.assigned_to_staff_id == null ? null : Number(row.assigned_to_staff_id),
+      assigned_to_name:
+        row.assigned_to_name == null ? null : String(row.assigned_to_name),
+      assigned_at: iso(row.assigned_at),
+      care_contact_status:
+        String(row.care_contact_status ?? 'pending') || 'pending',
+      care_contacted_at: iso(row.care_contacted_at),
+      revoked_at: iso(row.revoked_at),
       verify_json: verify as Record<string, unknown>,
       created_at: iso(row.created_at) ?? '',
       updated_at: iso(row.updated_at) ?? '',
@@ -1080,6 +1109,11 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       clauses.push(`l.priority_tier = $${params.length}`);
     }
 
+    if (opts.care_status) {
+      params.push(opts.care_status);
+      clauses.push(`COALESCE(l.care_status, 'awaiting_assign') = $${params.length}`);
+    }
+
     if (opts.industry_key) {
       params.push(opts.industry_key);
       clauses.push(`j.industry_key = $${params.length}`);
@@ -1105,7 +1139,8 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
 
     const where = clauses.join(' AND ');
     const fromJoin = `crm_research_raw_leads l
-       INNER JOIN crm_research_raw_lead_harvest_jobs j ON j.id = l.job_id`;
+       INNER JOIN crm_research_raw_lead_harvest_jobs j ON j.id = l.job_id
+       LEFT JOIN crm_staff ae ON ae.id = l.assigned_to_staff_id`;
 
     const countR = await this.db.query(
       `SELECT COUNT(*)::int AS n FROM ${fromJoin} WHERE ${where}`,
@@ -1120,7 +1155,7 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
     const offsetIdx = params.length;
 
     const r = await this.db.query(
-      `SELECT l.*, j.industry_key, j.industry_label
+      `SELECT l.*, j.industry_key, j.industry_label, ae.name AS assigned_to_name
        FROM ${fromJoin}
        WHERE ${where}
        ORDER BY l.quality_score DESC, l.id DESC
@@ -1619,5 +1654,182 @@ export class RawLeadHarvestRepository implements OnModuleDestroy {
       [jobId],
     );
     return r.rows[0] ? this.mapJob(r.rows[0]) : null;
+  }
+
+  async careCounts(projectId: number): Promise<Record<string, number>> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT COALESCE(care_status, 'awaiting_assign') AS care_status, COUNT(*)::int AS n
+       FROM crm_research_raw_leads
+       WHERE project_id = $1 AND status <> 'auto_rejected'
+       GROUP BY 1`,
+      [projectId],
+    );
+    const out: Record<string, number> = {
+      awaiting_assign: 0,
+      assigned: 0,
+      revoked: 0,
+      all: 0,
+    };
+    for (const row of r.rows) {
+      const key = String(row.care_status);
+      const n = Number(row.n ?? 0);
+      out[key] = n;
+      out.all += n;
+    }
+    return out;
+  }
+
+  /** IDs eligible for AE care assign (awaiting or revoked, not yet in CRM). */
+  async listAssignableCareIds(projectId: number): Promise<number[]> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT id FROM crm_research_raw_leads
+       WHERE project_id = $1
+         AND crm_lead_id IS NULL
+         AND status <> 'pushed'
+         AND status <> 'auto_rejected'
+         AND COALESCE(care_status, 'awaiting_assign') IN ('awaiting_assign', 'revoked')
+       ORDER BY id ASC
+       LIMIT 5000`,
+      [projectId],
+    );
+    return r.rows.map((row) => Number(row.id)).filter((n) => n > 0);
+  }
+
+  async assignCareBulk(
+    projectId: number,
+    leadIds: number[],
+    toStaffId: number,
+    byStaffId: number | null,
+  ): Promise<number> {
+    await this.ensureSchema();
+    if (!leadIds.length) return 0;
+    const r = await this.db.query(
+      `UPDATE crm_research_raw_leads SET
+         care_status = 'assigned',
+         assigned_to_staff_id = $3,
+         assigned_by_staff_id = $4,
+         assigned_at = NOW(),
+         care_contact_status = 'pending',
+         care_contacted_at = NULL,
+         revoked_at = NULL,
+         updated_at = NOW()
+       WHERE project_id = $1
+         AND id = ANY($2::bigint[])
+         AND crm_lead_id IS NULL
+         AND status <> 'pushed'
+         AND COALESCE(care_status, 'awaiting_assign') IN ('awaiting_assign', 'revoked')`,
+      [projectId, leadIds, toStaffId, byStaffId],
+    );
+    return Number(r.rowCount ?? 0);
+  }
+
+  async revokeCareBulk(
+    projectId: number,
+    leadIds: number[],
+  ): Promise<number> {
+    await this.ensureSchema();
+    if (!leadIds.length) return 0;
+    const r = await this.db.query(
+      `UPDATE crm_research_raw_leads SET
+         care_status = 'revoked',
+         revoked_at = NOW(),
+         updated_at = NOW()
+       WHERE project_id = $1
+         AND id = ANY($2::bigint[])
+         AND care_status = 'assigned'`,
+      [projectId, leadIds],
+    );
+    return Number(r.rowCount ?? 0);
+  }
+
+  async revokeStaleAssigned(now: Date = new Date(), days = 3): Promise<number> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `UPDATE crm_research_raw_leads SET
+         care_status = 'revoked',
+         revoked_at = NOW(),
+         updated_at = NOW()
+       WHERE care_status = 'assigned'
+         AND COALESCE(care_contact_status, 'pending') = 'pending'
+         AND assigned_at IS NOT NULL
+         AND assigned_at <= $1::timestamptz - ($2::text || ' days')::interval
+         AND crm_lead_id IS NULL`,
+      [now.toISOString(), String(days)],
+    );
+    return Number(r.rowCount ?? 0);
+  }
+
+  async listAssignedToStaff(
+    staffId: number,
+    opts?: { care_contact_status?: string; limit?: number },
+  ): Promise<RawLeadRow[]> {
+    await this.ensureSchema();
+    const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 200);
+    const clauses = [
+      `l.assigned_to_staff_id = $1`,
+      `l.care_status = 'assigned'`,
+      `l.crm_lead_id IS NULL`,
+    ];
+    const params: unknown[] = [staffId];
+    if (opts?.care_contact_status) {
+      params.push(opts.care_contact_status);
+      clauses.push(`COALESCE(l.care_contact_status, 'pending') = $${params.length}`);
+    }
+    params.push(limit);
+    const r = await this.db.query(
+      `SELECT l.*, j.industry_key, j.industry_label, ae.name AS assigned_to_name
+       FROM crm_research_raw_leads l
+       INNER JOIN crm_research_raw_lead_harvest_jobs j ON j.id = l.job_id
+       LEFT JOIN crm_staff ae ON ae.id = l.assigned_to_staff_id
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY l.assigned_at ASC NULLS LAST, l.id DESC
+       LIMIT $${params.length}`,
+      params,
+    );
+    return r.rows.map((row) => this.mapLead(row));
+  }
+
+  async setCareContact(
+    leadId: number,
+    staffId: number,
+    outcome: 'contacted' | 'unreachable',
+    note?: string,
+  ): Promise<RawLeadRow | null> {
+    await this.ensureSchema();
+    const dial = outcome === 'contacted' ? 'connected' : 'no_answer';
+    const r = await this.db.query(
+      `UPDATE crm_research_raw_leads SET
+         care_contact_status = $3,
+         care_contacted_at = NOW(),
+         dial_outcome = $4,
+         dial_outcome_at = NOW(),
+         feedback_note = CASE
+           WHEN $5::text IS NULL OR btrim($5) = '' THEN feedback_note
+           ELSE LEFT($5, 500)
+         END,
+         feedback_by_staff_id = $2,
+         updated_at = NOW()
+       WHERE id = $1
+         AND assigned_to_staff_id = $2
+         AND care_status = 'assigned'
+       RETURNING *`,
+      [leadId, staffId, outcome, dial, note ?? null],
+    );
+    return r.rows[0] ? this.mapLead(r.rows[0]) : null;
+  }
+
+  async getLeadById(leadId: number): Promise<RawLeadRow | null> {
+    await this.ensureSchema();
+    const r = await this.db.query(
+      `SELECT l.*, j.industry_key, j.industry_label, ae.name AS assigned_to_name
+       FROM crm_research_raw_leads l
+       INNER JOIN crm_research_raw_lead_harvest_jobs j ON j.id = l.job_id
+       LEFT JOIN crm_staff ae ON ae.id = l.assigned_to_staff_id
+       WHERE l.id = $1`,
+      [leadId],
+    );
+    return r.rows[0] ? this.mapLead(r.rows[0]) : null;
   }
 }

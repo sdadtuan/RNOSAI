@@ -59,8 +59,25 @@ describe('home-summary.util', () => {
     expect(out.sla.breach_count).toBe(1);
     expect(out.sla.warning_count).toBe(1);
     expect(out.review_queue.pending_count).toBe(3);
+    expect(out.review_queue.visible).toBe(true);
+    expect(out.scope).toBe('all');
     expect(out.leads_new_today).toBe(5);
     expect(out.sla.compliance_pct).toBe(96.4);
+  });
+
+  it('hides review queue and scopes mine drill for AE desk', () => {
+    const out = buildHomeSummary({
+      boardRows: [],
+      tierSummaries,
+      leadsNewToday: 0,
+      reviewMetrics: { queue_count: 9, max_hours: 189 },
+      scope: 'mine',
+      showReviewQueue: false,
+    });
+    expect(out.scope).toBe('mine');
+    expect(out.review_queue.visible).toBe(false);
+    expect(out.review_queue.pending_count).toBe(0);
+    expect(out.sla.drill_href).toBe('/crm/b2b/leads');
   });
 
   it('dedupes warning leads across tiers', () => {

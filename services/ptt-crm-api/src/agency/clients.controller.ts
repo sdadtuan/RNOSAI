@@ -19,6 +19,7 @@ import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.gua
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { serializeAgencyClientDetailForCaps, serializeAgencyClientRowForCaps } from '../staff-permissions/field-level.serializer';
+import { hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { PerformanceService } from '../performance/performance.service';
 import { PerformanceQuery } from '../performance/performance.types';
 import { AgencyService } from './agency.service';
@@ -79,16 +80,40 @@ export class ClientsController {
     @Query('q') q?: string,
     @Query('owner_am_id') ownerAmId?: string,
     @Query('industry') industry?: string,
+    @Query('mine') mine?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ): Promise<AgencyClientsListResponse> {
     const scope = await this.clientScope.resolveForRequest(req);
+    const wantMine = mine === '1' || mine === 'true';
+    let ownedBy:
+      | { staffUserId: string; crmStaffId: number | null; email: string | null }
+      | undefined;
+    if (wantMine && req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const seeAll =
+        this.staffAuth.isSuperAdminPosition(me.position_code) ||
+        hasGdkdViewAllLeads(me.caps);
+      if (!seeAll) {
+        const crmStaffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+        ownedBy = {
+          staffUserId: String(req.staffUser.sub),
+          crmStaffId,
+          email: me.email ?? req.staffUser.email ?? null,
+        };
+      }
+    }
     const result = await this.agency.listClients({
       status,
       q,
       owner_am_id: ownerAmId,
       industry,
-      allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
+      allowed_client_ids: ownedBy
+        ? undefined
+        : scope.restricted
+          ? scope.allowedClientIds
+          : undefined,
+      owned_by: ownedBy,
       limit: limit !== undefined ? Number(limit) : undefined,
       offset: offset !== undefined ? Number(offset) : undefined,
     });

@@ -26,6 +26,22 @@ export const QT_NAV: QtNavItem[] = [
   { id: 'settings', href: '/crm/proposals/settings', label: 'Cấu hình' },
 ];
 
+/** AE (view-only): hide create / catalog manage / approvals. */
+export function qtNavForUser(user: StoredStaffUser | null | undefined): QtNavItem[] {
+  const u = user ?? null;
+  const canEdit = hasCap(u, 'crm_quote', 'edit') || hasCap(u, 'crm_quote', 'manage');
+  const canApprove = hasCap(u, 'crm_quote.approve', 'execute');
+  const canCatalog =
+    hasCap(u, 'crm_quote.catalog', 'manage') || hasCap(u, 'crm_quote.catalog', 'edit');
+  return QT_NAV.filter((item) => {
+    if (item.id === 'new') return canEdit;
+    if (item.id === 'approvals') return canApprove || canEdit;
+    if (item.id === 'catalog') return canCatalog || canEdit;
+    if (item.id === 'settings') return canEdit;
+    return true;
+  });
+}
+
 const QT_STATIC_SEGMENTS = new Set([
   'list',
   'new',

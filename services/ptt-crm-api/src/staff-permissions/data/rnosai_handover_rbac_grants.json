@@ -57,6 +57,7 @@
         "view"
       ],
       "crm_b2b_projects": [
+        "manage",
         "view"
       ],
       "crm_board": [
@@ -158,6 +159,10 @@
         "view"
       ],
       "crm_leads": [
+        "assign",
+        "create",
+        "edit",
+        "export",
         "view"
       ],
       "crm_lmp": [
@@ -199,13 +204,20 @@
         "view"
       ],
       "crm_quote": [
+        "edit",
         "view"
       ],
       "crm_quote.catalog": [
         "view"
       ],
+      "crm_quote.convert": [
+        "execute"
+      ],
       "crm_quote.finance": [
         "view"
+      ],
+      "crm_quote.publish": [
+        "execute"
       ],
       "crm_research": [
         "view"
@@ -291,113 +303,72 @@
       "playbooks": [
         "view"
       ],
+      "crm_leads__btn_create": [
+        "create"
+      ],
+      "crm_leads__btn_export_xlsx": [
+        "export"
+      ],
+      "crm_leads__btn_export_pdf": [
+        "export"
+      ],
+      "crm_leads__btn_import": [
+        "create"
+      ],
+      "crm_leads__btn_fb_sync": [
+        "create"
+      ],
       "crm_leads__btn_ai_search": [
         "view"
+      ],
+      "crm_leads__btn_convert": [
+        "create"
+      ],
+      "crm_leads__btn_assign": [
+        "edit"
+      ],
+      "crm_leads__btn_merge": [
+        "edit"
       ],
       "crm_leads__btn_ai_summary": [
         "view"
       ],
+      "crm_leads__btn_ai_classify": [
+        "edit"
+      ],
       "crm_leads__btn_ai_recommend": [
         "view"
+      ],
+      "crm_leads__btn_edit": [
+        "edit"
+      ],
+      "crm_leads__btn_rescore": [
+        "edit"
+      ],
+      "crm_leads__btn_activity": [
+        "create"
+      ],
+      "crm_leads__btn_save": [
+        "edit"
       ]
     },
     "AE": {
       "crm_agency": [
         "view"
       ],
-      "crm_am": [
-        "view"
-      ],
-      "crm_am.clients": [
-        "view"
-      ],
-      "crm_am.health": [
-        "view"
-      ],
-      "crm_am.reports": [
-        "view"
-      ],
-      "crm_assistant": [
-        "view"
-      ],
       "crm_b2b_projects": [
-        "view"
-      ],
-      "crm_board": [
-        "view"
-      ],
-      "crm_board_customers": [
-        "view"
-      ],
-      "crm_board_funnel": [
-        "view"
-      ],
-      "crm_board_kanban": [
-        "view"
-      ],
-      "crm_board_playbook": [
-        "view"
-      ],
-      "crm_board_workspace": [
-        "view"
-      ],
-      "crm_facebook_ads": [
-        "view"
-      ],
-      "crm_google_ads": [
+        "manage",
         "view"
       ],
       "crm_hdsd": [
         "export",
         "view"
       ],
-      "crm_hub_campaigns": [
-        "view"
-      ],
       "crm_hub_contracts": [
-        "view"
-      ],
-      "crm_hub_reminders": [
-        "view"
-      ],
-      "crm_kpi_alerts": [
-        "view"
-      ],
-      "crm_kpi_chart": [
-        "view"
-      ],
-      "crm_kpi_dictionary": [
-        "view"
-      ],
-      "crm_kpi_groups": [
-        "view"
-      ],
-      "crm_kpi_hub": [
-        "view"
-      ],
-      "crm_kpi_hub_reports": [
-        "view"
-      ],
-      "crm_kpi_hub_sources": [
-        "view"
-      ],
-      "crm_kpi_hub_targets": [
-        "view"
-      ],
-      "crm_kpi_metrics": [
-        "view"
-      ],
-      "crm_kpi_quality": [
-        "view"
-      ],
-      "crm_kpi_records": [
-        "view"
-      ],
-      "crm_kpi_types": [
+        "export",
         "view"
       ],
       "crm_leads": [
-        "assign",
         "create",
         "edit",
         "export",
@@ -410,65 +381,14 @@
         "view"
       ],
       "crm_quote": [
-        "edit",
         "view"
       ],
       "crm_quote.catalog": [
         "view"
       ],
-      "crm_revops": [
-        "view",
-        "view_team"
-      ],
-      "crm_revops.pipeline": [
-        "view"
-      ],
-      "crm_revops.reports": [
-        "view"
-      ],
-      "crm_sales_deals": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sales_funnel": [
-        "export",
-        "view"
-      ],
-      "crm_sales_market": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sales_overview": [
-        "export",
-        "view"
-      ],
-      "crm_sales_prospects": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sales_reports": [
-        "export",
-        "view"
-      ],
-      "crm_staff_kpi_am_sp": [
-        "view"
-      ],
-      "crm_zalo_ads": [
-        "view"
-      ],
       "csd": [
         "view",
         "write"
-      ],
-      "iwr": [
-        "view",
-        "write"
-      ],
-      "meta_ads_ops": [
-        "view"
       ],
       "crm_leads__btn_create": [
         "create"
@@ -583,6 +503,7 @@
         "view"
       ],
       "crm_b2b_projects": [
+        "manage",
         "view"
       ],
       "crm_board": [
@@ -753,8 +674,14 @@
       "crm_quote.catalog": [
         "view"
       ],
+      "crm_quote.convert": [
+        "execute"
+      ],
       "crm_quote.finance": [
         "view"
+      ],
+      "crm_quote.publish": [
+        "execute"
       ],
       "crm_research": [
         "create",
@@ -2017,6 +1944,7 @@
         "view"
       ],
       "crm_b2b_projects": [
+        "manage",
         "view"
       ],
       "crm_board": [
@@ -2178,6 +2106,12 @@
       ],
       "crm_quote.catalog": [
         "view"
+      ],
+      "crm_quote.convert": [
+        "execute"
+      ],
+      "crm_quote.publish": [
+        "execute"
       ],
       "crm_research": [
         "create",
@@ -2380,6 +2314,7 @@
         "view"
       ],
       "crm_b2b_projects": [
+        "manage",
         "view"
       ],
       "crm_board": [
@@ -2550,8 +2485,14 @@
       "crm_quote.catalog": [
         "view"
       ],
+      "crm_quote.convert": [
+        "execute"
+      ],
       "crm_quote.finance": [
         "view"
+      ],
+      "crm_quote.publish": [
+        "execute"
       ],
       "crm_research": [
         "create",

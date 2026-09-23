@@ -9,6 +9,7 @@ import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
 import { LeadsRevopsInboxFooter } from '@/components/crm/LeadsRevopsInboxFooter';
 import { LeadKanbanBoard } from '@/components/crm/LeadKanbanBoard';
 import { LeadSignalKpiStrip } from '@/components/crm/LeadSignalKpiStrip';
+import { AeAssignedRawLeadsPanel } from '@/components/crm/AeAssignedRawLeadsPanel';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
 import { WinFilterChips } from '@/components/win';
 import {
@@ -80,12 +81,27 @@ import {
 const PAGE_SIZE = 50;
 const PAGE_SIZE_KANBAN = 300;
 const LEADS_VIEW_STORAGE_KEY = 'crm-leads-view-mode';
+const B2B_LEADS_VIEW_STORAGE_KEY = 'crm-b2b-leads-view-mode';
 
 type LeadsViewMode = 'list' | 'kanban';
+type B2bSurfaceTab = 'pipeline' | 'raw';
 
-function readLeadsViewMode(): LeadsViewMode {
-  if (typeof window === 'undefined') return 'list';
+function readLeadsViewMode(flowScope: CrmLeadsFlowScope): LeadsViewMode {
+  if (typeof window === 'undefined') {
+    return flowScope === 'b2b_prospect' ? 'kanban' : 'list';
+  }
+  if (flowScope === 'b2b_prospect') {
+    const stored = window.localStorage.getItem(B2B_LEADS_VIEW_STORAGE_KEY);
+    if (stored === 'list') return 'list';
+    return 'kanban'; // default Kanban for B2B
+  }
   return window.localStorage.getItem(LEADS_VIEW_STORAGE_KEY) === 'kanban' ? 'kanban' : 'list';
+}
+
+function writeLeadsViewMode(flowScope: CrmLeadsFlowScope, mode: LeadsViewMode): void {
+  if (typeof window === 'undefined') return;
+  const key = flowScope === 'b2b_prospect' ? B2B_LEADS_VIEW_STORAGE_KEY : LEADS_VIEW_STORAGE_KEY;
+  window.localStorage.setItem(key, mode);
 }
 
 type LeadKindFilter = 'pipeline' | 'review' | 'all';
@@ -123,7 +139,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [visibleColumns, setVisibleColumns] = useState<Set<LeadsColumnId>>(() =>
     flowScope === 'b2b_prospect' ? defaultB2bLeadsVisibleColumns() : readLeadsVisibleColumns(false),
   );
-  const [viewMode, setViewMode] = useState<LeadsViewMode>('list');
+  const [viewMode, setViewMode] = useState<LeadsViewMode>(() =>
+    flowScope === 'b2b_prospect' ? 'kanban' : 'list',
+  );
+  const [b2bSurface, setB2bSurface] = useState<B2bSurfaceTab>('pipeline');
   const [savedView, setSavedView] = useState('');
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignCtx, setAssignCtx] = useState<RevOpsAssignContext | null>(null);
@@ -147,10 +166,29 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   );
   const canCreate = useMemo(() => hasCap(user, 'crm_leads', 'edit'), [user]);
   const canReviewQueue = useMemo(() => hasCap(user, 'crm_leads', 'assign'), [user]);
-  const canAssign = useMemo(
-    () => hasCap(user, 'crm_leads', 'assign') || hasCap(user, 'crm_leads', 'edit'),
+  /** Admin/CEO: see all leads + assign. AE: own leads only. */
+  const canViewAllLeads = useMemo(
+    () =>
+      Boolean(
+        user &&
+          (String(user.position_code ?? '').toLowerCase() === 'super-admin' ||
+            hasCap(user, 'crm_gdkd', 'view_all_leads')),
+      ),
     [user],
   );
+  const canAssign = useMemo(
+    () =>
+      canViewAllLeads &&
+      (hasCap(user, 'crm_leads', 'assign') || hasCap(user, 'crm_leads', 'edit')),
+    [user, canViewAllLeads],
+  );
+
+  const myCrmStaffId = useMemo(() => {
+    const email = (user?.email ?? '').trim().toLowerCase();
+    if (!email) return undefined;
+    const row = staffOptions.find((s) => s.email.trim().toLowerCase() === email && s.active !== 0);
+    return row?.id;
+  }, [user?.email, staffOptions]);
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -193,7 +231,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       try {
         const p1 = isLeadP1SavedView(savedView);
         const p1Filters = p1 ? leadP1Filters() : null;
-        const ownerId = listTab === 'mine' && user?.id ? Number(user.id) : undefined;
+        const scopedMine = !canViewAllLeads || listTab === 'mine';
+        const ownerId =
+          scopedMine && myCrmStaffId != null ? myCrmStaffId : undefined;
         const kanban = mode === 'kanban';
         const data = await fetchLeads(accessToken, {
           q: search || undefined,
@@ -201,7 +241,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           source: filterSource || undefined,
           channel: filterChannel || undefined,
           owner_id: ownerId,
-          unassigned_only: p1Filters?.unassigned_only ?? listTab === 'unassigned',
+          unassigned_only:
+            canViewAllLeads && (p1Filters?.unassigned_only ?? listTab === 'unassigned'),
           review_queue_only: leadKind === 'review' ? true : undefined,
           hide_review_queue:
             flowScope === 'b2b_prospect' || leadKind === 'all' ? false : undefined,
@@ -218,12 +259,12 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         setLoading(false);
       }
     },
-    [filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, savedView, user?.id, viewMode],
+    [canViewAllLeads, filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, myCrmStaffId, savedView, viewMode],
   );
 
   useEffect(() => {
-    setViewMode(readLeadsViewMode());
-  }, []);
+    setViewMode(readLeadsViewMode(flowScope));
+  }, [flowScope]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -240,8 +281,20 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       setListTab('unassigned');
       setFilterStatus('moi');
     }
+    if (flowScope === 'b2b_prospect') {
+      const surface = new URLSearchParams(window.location.search).get('tab');
+      setB2bSurface(surface === 'raw' ? 'raw' : 'pipeline');
+    } else {
+      setB2bSurface('pipeline');
+    }
     urlReadyRef.current = true;
   }, [flowScope]);
+
+  useEffect(() => {
+    if (!canViewAllLeads && listTab !== 'mine') {
+      setListTab('mine');
+    }
+  }, [canViewAllLeads, listTab]);
 
   useEffect(() => {
     if (!urlReadyRef.current) return;
@@ -314,7 +367,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     }
     void (async () => {
       try {
-        const amId = listTab === 'mine' && user?.id ? Number(user.id) : undefined;
+        const amId =
+          (!canViewAllLeads || listTab === 'mine') && myCrmStaffId != null
+            ? myCrmStaffId
+            : undefined;
         const [slaOut, metricsOut] = await Promise.all([
           fetchPresalesConsultSlaSummary(token, amId),
           fetchPresalesFunnelMetrics(token, { amId }),
@@ -326,7 +382,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         setFunnelMetrics(null);
       }
     })();
-  }, [token, flowScope, listTab, user?.id]);
+  }, [token, flowScope, listTab, canViewAllLeads, myCrmStaffId]);
 
   function logout() {
     clearSession();
@@ -556,40 +612,89 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       <LeadSignalKpiStrip items={signalKpis} />
 
       <div className="bitrix-view-tabs" role="tablist" aria-label="Chế độ xem lead">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={viewMode === 'kanban'}
-          className={`bitrix-view-tab${viewMode === 'kanban' ? ' is-active' : ''}`}
-          onClick={() => {
-            setViewMode('kanban');
-            if (typeof window !== 'undefined') {
-              window.localStorage.setItem(LEADS_VIEW_STORAGE_KEY, 'kanban');
-            }
-            setOffset(0);
-            if (token) void loadLeads(token, 0, query, 'kanban');
-          }}
-        >
-          Kanban
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={viewMode === 'list'}
-          className={`bitrix-view-tab${viewMode === 'list' ? ' is-active' : ''}`}
-          onClick={() => {
-            setViewMode('list');
-            if (typeof window !== 'undefined') {
-              window.localStorage.setItem(LEADS_VIEW_STORAGE_KEY, 'list');
-            }
-            setOffset(0);
-            if (token) void loadLeads(token, 0, query, 'list');
-          }}
-        >
-          Danh sách
-        </button>
+        {flowScope === 'b2b_prospect' ? (
+          <>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={b2bSurface === 'pipeline' && viewMode === 'kanban'}
+              className={`bitrix-view-tab${b2bSurface === 'pipeline' && viewMode === 'kanban' ? ' is-active' : ''}`}
+              onClick={() => {
+                setB2bSurface('pipeline');
+                setViewMode('kanban');
+                writeLeadsViewMode(flowScope, 'kanban');
+                setOffset(0);
+                if (token) void loadLeads(token, 0, query, 'kanban');
+              }}
+            >
+              Kanban
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={b2bSurface === 'pipeline' && viewMode === 'list'}
+              className={`bitrix-view-tab${b2bSurface === 'pipeline' && viewMode === 'list' ? ' is-active' : ''}`}
+              onClick={() => {
+                setB2bSurface('pipeline');
+                setViewMode('list');
+                writeLeadsViewMode(flowScope, 'list');
+                setOffset(0);
+                if (token) void loadLeads(token, 0, query, 'list');
+              }}
+            >
+              Danh sách
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={b2bSurface === 'raw'}
+              className={`bitrix-view-tab${b2bSurface === 'raw' ? ' is-active' : ''}`}
+              onClick={() => setB2bSurface('raw')}
+            >
+              Lead thô
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={viewMode === 'kanban'}
+              className={`bitrix-view-tab${viewMode === 'kanban' ? ' is-active' : ''}`}
+              onClick={() => {
+                setViewMode('kanban');
+                writeLeadsViewMode(flowScope, 'kanban');
+                setOffset(0);
+                if (token) void loadLeads(token, 0, query, 'kanban');
+              }}
+            >
+              Kanban
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={viewMode === 'list'}
+              className={`bitrix-view-tab${viewMode === 'list' ? ' is-active' : ''}`}
+              onClick={() => {
+                setViewMode('list');
+                writeLeadsViewMode(flowScope, 'list');
+                setOffset(0);
+                if (token) void loadLeads(token, 0, query, 'list');
+              }}
+            >
+              Danh sách
+            </button>
+          </>
+        )}
       </div>
 
+      {flowScope === 'b2b_prospect' && b2bSurface === 'raw' ? (
+        token ? (
+          <AeAssignedRawLeadsPanel token={token} />
+        ) : (
+          <p className="muted">Đang xác thực…</p>
+        )
+      ) : (
       <div className="page-card page-card--flat-top stack-gap">
         {flowScope === 'b2b_prospect' && slaSummary ? (
           <PresalesConsultSlaSummaryCard summary={slaSummary} />
@@ -599,13 +704,18 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         ) : null}
 
         <SegmentedControl
-          options={[
-            { id: 'all', label: 'Tất cả' },
-            { id: 'mine', label: 'Của tôi' },
-            { id: 'unassigned', label: 'Chưa phân' },
-          ]}
-          value={listTab}
+          options={
+            canViewAllLeads
+              ? [
+                  { id: 'all', label: 'Tất cả' },
+                  { id: 'mine', label: 'Của tôi' },
+                  { id: 'unassigned', label: 'Chưa phân' },
+                ]
+              : [{ id: 'mine', label: 'Của tôi' }]
+          }
+          value={canViewAllLeads ? listTab : 'mine'}
           onChange={(id) => {
+            if (!canViewAllLeads && id !== 'mine') return;
             setListTab(id);
             setOffset(0);
             setSelectedIds(new Set());
@@ -746,7 +856,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           </FilterBarActions>
         </FilterBar>
 
-        {canImport ? (
+        {canAssign ? (
           <BulkActionBar count={selectedList.length}>
             {!revopsEmbedded ? (
               <select
@@ -756,7 +866,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
                 aria-label="Chọn owner bulk assign"
               >
                 <option value="">Gán owner…</option>
-                {staffOptions.map((staff) => (
+                {staffOptions
+                  .filter((s) => s.active !== 0 && s.can_receive_leads !== false)
+                  .map((staff) => (
                   <option key={staff.id} value={staff.id}>
                     {staff.name}
                   </option>
@@ -797,6 +909,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             <LeadKanbanBoard
               rows={rows}
               flowKind={(flowKindFilter ?? 'b2b_prospect') as LeadFlowKind}
+              token={token ?? undefined}
+              onLeadUpdated={() => {
+                if (token) void loadLeads(token, 0, query, 'kanban');
+              }}
             />
           ) : (
             <CrmLeadsList
@@ -862,6 +978,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           />
         )}
       </div>
+      )}
     </StaffPageShell>
   );
 }

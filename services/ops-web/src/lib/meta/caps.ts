@@ -3,7 +3,8 @@ import { metaAdsOpsEnabled, metaIntelligenceEnabled, metaTrackingEnabled } from 
 
 export function canViewMetaHub(user: StoredStaffUser | null): boolean {
   if (!user) return false;
-  return hasCap(user, 'crm_facebook_ads', 'view') || hasCap(user, 'crm_agency', 'view');
+  // Explicit ads caps only — crm_agency.view must not open Quảng cáo (AE matrix ◐).
+  return hasCap(user, 'crm_facebook_ads', 'view');
 }
 
 export function canConfigureMetaAgency(user: StoredStaffUser | null): boolean {
@@ -16,7 +17,7 @@ export const canConfigureMeta = canConfigureMetaAgency;
 
 export function canViewMetaTracking(user: StoredStaffUser | null): boolean {
   if (!user || !metaTrackingEnabled()) return false;
-  return hasCap(user, 'crm_facebook_ads', 'view') || hasCap(user, 'crm_agency', 'view');
+  return hasCap(user, 'crm_facebook_ads', 'view');
 }
 
 export function canConfigureMetaTracking(user: StoredStaffUser | null): boolean {
@@ -36,7 +37,7 @@ export function canSubmitMetaCampaignWrite(user: StoredStaffUser | null): boolea
 
 export function canViewMetaIntelligence(user: StoredStaffUser | null): boolean {
   if (!user || !metaIntelligenceEnabled()) return false;
-  return hasCap(user, 'crm_facebook_ads', 'view') || hasCap(user, 'crm_agency', 'view');
+  return hasCap(user, 'crm_facebook_ads', 'view');
 }
 
 export function canEditMetaCreativeRegistry(user: StoredStaffUser | null): boolean {
@@ -49,7 +50,6 @@ export function canViewMetaAdsOps(user: StoredStaffUser | null): boolean {
   return (
     hasCap(user, 'meta_ads_ops', 'view') ||
     hasCap(user, 'crm_facebook_ads', 'view') ||
-    hasCap(user, 'crm_agency', 'view') ||
     hasCap(user, 'crm_board', 'edit')
   );
 }

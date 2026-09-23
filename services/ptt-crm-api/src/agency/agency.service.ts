@@ -159,19 +159,37 @@ export class AgencyService {
     owner_am_id?: string;
     industry?: string;
     allowed_client_ids?: string[];
+    /** When set, only clients the staff owns / is bound to. */
+    owned_by?: {
+      staffUserId: string;
+      crmStaffId: number | null;
+      email: string | null;
+    };
     limit?: number;
     offset?: number;
   }): Promise<AgencyClientsListResponse> {
     await this.ensurePg();
-    const clients = await this.repo.listClients({
-      status: query.status?.trim() || undefined,
-      q: query.q?.trim() || undefined,
-      ownerAmId: query.owner_am_id?.trim() || undefined,
-      industrySlug: query.industry?.trim() || undefined,
-      allowedClientIds: query.allowed_client_ids,
-      limit: Math.min(Math.max(query.limit ?? 100, 1), 200),
-      offset: Math.max(query.offset ?? 0, 0),
-    });
+    const limit = Math.min(Math.max(query.limit ?? 100, 1), 200);
+    const offset = Math.max(query.offset ?? 0, 0);
+    const clients = query.owned_by
+      ? await this.repo.listClientsOwnedByStaff({
+          staffUserId: query.owned_by.staffUserId,
+          crmStaffId: query.owned_by.crmStaffId,
+          email: query.owned_by.email,
+          status: query.status?.trim() || undefined,
+          q: query.q?.trim() || undefined,
+          limit,
+          offset,
+        })
+      : await this.repo.listClients({
+          status: query.status?.trim() || undefined,
+          q: query.q?.trim() || undefined,
+          ownerAmId: query.owner_am_id?.trim() || undefined,
+          industrySlug: query.industry?.trim() || undefined,
+          allowedClientIds: query.allowed_client_ids,
+          limit,
+          offset,
+        });
     return { clients };
   }
 

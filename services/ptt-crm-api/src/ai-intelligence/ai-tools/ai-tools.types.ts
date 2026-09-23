@@ -95,6 +95,11 @@ export const OPS_AI_TOOL_ALLOWLIST = [
   'presales.return_to_am',
   'proposal.draft_from_consult',
   'tmmt.confirm_field',
+  'strategy.packs_list',
+  'strategy.pack_get',
+  'marketing_plan.sections_read',
+  'marketing_plan.sections_upsert',
+  'strategy.generate_draft',
 ] as const;
 
 /** Default allowlist for strategist / PM agent policies (P6+P7). */

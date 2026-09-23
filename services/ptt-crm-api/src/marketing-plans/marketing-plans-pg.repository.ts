@@ -109,6 +109,9 @@ export class MarketingPlansPgRepository implements OnModuleDestroy {
       ALTER TABLE crm_marketing_plans ADD COLUMN IF NOT EXISTS end_date TEXT NOT NULL DEFAULT '';
       ALTER TABLE crm_marketing_plans
         ADD COLUMN IF NOT EXISTS khtn_market_research_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE crm_marketing_plans ADD COLUMN IF NOT EXISTS growth_sections JSONB;
+      ALTER TABLE crm_marketing_plans ADD COLUMN IF NOT EXISTS industry_pack_key VARCHAR(64);
+      ALTER TABLE crm_marketing_plans ADD COLUMN IF NOT EXISTS service_pack_key VARCHAR(64);
 
       CREATE TABLE IF NOT EXISTS crm_campaigns (
         id SERIAL PRIMARY KEY,

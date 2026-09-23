@@ -119,14 +119,28 @@ export class LeadsController {
     return this.crmConfig.listLeadLookups(normalizedKind, true);
   }
 
-  /** Active PTT projects for B2B lead create — crm_leads.view (not crm_b2b_projects.view). */
+  /** Active PTT projects for B2B lead create — crm_leads.view (not crm_b2b_projects.view).
+   * Non–view-all staff only see projects they belong to on crm_b2b_project_staff. */
   @Get('b2b-project-options')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
-  async listB2bProjectOptions(@Query('status') status?: string) {
+  async listB2bProjectOptions(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Query('status') status?: string,
+  ) {
     if (!this.appConfig.b2bProjectOs) {
       return { projects: [] as Array<{ id: string; code: string; name: string; status: string }> };
     }
-    const rows = await this.b2bProjects.list(status?.trim() || 'active');
+    const statusFilter = status?.trim() || 'active';
+    let rows = await this.b2bProjects.list(statusFilter);
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const seeAll =
+        this.staffAuth.isSuperAdminPosition(me.position_code) || hasGdkdViewAllLeads(me.caps);
+      if (!seeAll) {
+        const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+        rows = staffId != null ? await this.b2bProjects.listForStaff(staffId, statusFilter) : [];
+      }
+    }
     return {
       projects: rows.map((p) => ({
         id: p.id,
@@ -235,8 +249,35 @@ export class LeadsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard)
-  async createLead(@Body() body: CreateLeadV1Body): Promise<LeadV1> {
-    return this.leadsWriteService.createLead(body);
+  async createLead(
+    @Body() body: CreateLeadV1Body,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ): Promise<LeadV1> {
+    const next: CreateLeadV1Body = { ...body };
+    // Manual create by staff: always own the lead (AE tạo tay → gán AE đó).
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const actorStaffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (actorStaffId != null && actorStaffId > 0) {
+        const explicit = next.owner_id != null && Number(next.owner_id) > 0;
+        const isManualB2b = next.lead_flow_kind === 'b2b_prospect';
+        const isManualSpa = next.lead_flow_kind === 'spa_operational';
+        const source = String(next.source ?? '').trim().toLowerCase();
+        const looksManual = !source || source === 'manual' || source === 'nhập tay';
+        if (!explicit && (isManualB2b || isManualSpa || looksManual)) {
+          next.owner_id = actorStaffId;
+        }
+        // B2B hand-create: force creator as owner even if client sent another id without assign-all.
+        if (isManualB2b) {
+          const me = await this.staffAuth.me(req.staffUser);
+          const canReassign =
+            this.staffAuth.isSuperAdminPosition(me.position_code) || hasGdkdViewAllLeads(me.caps);
+          if (!canReassign) {
+            next.owner_id = actorStaffId;
+          }
+        }
+      }
+    }
+    return this.leadsWriteService.createLead(next);
   }
 
   @Post('bulk-assign')

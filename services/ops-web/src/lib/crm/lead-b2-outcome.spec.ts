@@ -17,7 +17,7 @@ describe('resolveB2CallOutcome', () => {
     expect(out.plan.report.care_status).toBe('da_lien_he_thanh_cong');
     expect(out.plan.report.content).toBe(B2_TALKED_DEFAULT_NOTE);
     expect(out.plan.completeNote).toBe(B2_TALKED_DEFAULT_NOTE);
-    expect(out.plan.primary_label_vi).toBe('Xong B2');
+    expect(out.plan.primary_label_vi).toBe('Xong B2 → mở Pre-sales');
   });
 
   it('talked keeps AM note for both report and complete', () => {
@@ -40,7 +40,7 @@ describe('resolveB2CallOutcome', () => {
     expect(out.plan.report.care_status).toBe('khong_nghe_may');
     expect(out.plan.report.content).toBe(B2_NO_ANSWER_DEFAULT_NOTE);
     expect(out.plan.suggestLost).toBe(false);
-    expect(out.plan.primary_label_vi).toBe('Ghi nhận — gọi lại');
+    expect(out.plan.primary_label_vi).toBe('Ghi nhận — sẽ gọi lại');
   });
 
   it('wrong_number logs so_sai and hints lost — does not complete B2', () => {
@@ -52,7 +52,7 @@ describe('resolveB2CallOutcome', () => {
     expect(out.plan.report.care_status).toBe('so_sai');
     expect(out.plan.report.content).toBe(B2_WRONG_NUMBER_DEFAULT_NOTE);
     expect(out.plan.suggestLost).toBe(true);
-    expect(out.plan.primary_label_vi).toBe('Ghi nhận số sai');
+    expect(out.plan.primary_label_vi).toBe('Ghi nhận sai số');
   });
 
   it('rejects a custom note shorter than 3 characters', () => {

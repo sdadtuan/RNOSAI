@@ -29,14 +29,9 @@ describe('lead-status-gate.util', () => {
     ).toThrow(LeadStatusGateError);
   });
 
-  it('allows moi → da_lien_he with outreach', () => {
-    expect(() =>
-      validateLeadStatusChange({
-        ...baseCtx,
-        oldStatus: 'moi',
-        newStatus: 'da_lien_he',
-      }),
-    ).not.toThrow();
+  it('allows won → proposal when AE returns HĐ for edits', () => {
+    expect(isStatusTransitionAllowed('won', 'proposal')).toBe(true);
+    expect(isStatusTransitionAllowed('won', 'chot')).toBe(true);
   });
 
   it('blocks moi → da_lien_he without outreach or B2', () => {

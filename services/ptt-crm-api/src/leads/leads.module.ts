@@ -3,6 +3,7 @@ import { AiScoreAsyncModule } from '../ai-intelligence/ai-score-async.module';
 import { AiIntelligenceModule } from '../ai-intelligence/ai-intelligence.module';
 import { LeadMeetingPrepAsyncModule } from '../lead-meeting-prep/lead-meeting-prep-async.module';
 import { CrmConfigModule } from '../crm-config/crm-config.module';
+import { LeadSlaSettingsModule } from '../lead-sla-settings/lead-sla-settings.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { CustomerTimelineModule } from '../customer-timeline/customer-timeline.module';
 import { EventsModule } from '../events/events.module';
@@ -47,6 +48,7 @@ import { CrmLeadsLegacyModule } from '../crm-leads-legacy/crm-leads-legacy.modul
     StaffPermissionsModule,
     StaffClientScopeModule,
     CrmConfigModule,
+    LeadSlaSettingsModule,
     CatalogModule,
     forwardRef(() => CrmLeadsLegacyModule),
     forwardRef(() => CustomerTimelineModule),

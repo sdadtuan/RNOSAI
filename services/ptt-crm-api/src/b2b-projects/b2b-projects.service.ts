@@ -19,6 +19,10 @@ export class B2bProjectsService {
     return this.repo.listProjects(status);
   }
 
+  listForStaff(staffId: number, status?: string): Promise<B2bProjectRow[]> {
+    return this.repo.listProjectsForStaff(staffId, status);
+  }
+
   async get(id: string): Promise<B2bProjectRow> {
     const row = await this.repo.getProject(id);
     if (!row) throw new NotFoundException({ error: 'not_found' });

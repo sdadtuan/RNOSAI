@@ -159,6 +159,96 @@ export class AgencyRepository implements OnModuleDestroy {
     }));
   }
 
+  /**
+   * Clients the staff “phụ trách”: staff_user_clients ∪ AM owner/backup ∪ owner_am_id email.
+   */
+  async listClientsOwnedByStaff(params: {
+    staffUserId: string;
+    crmStaffId: number | null;
+    email: string | null;
+    status?: string;
+    q?: string;
+    limit: number;
+    offset: number;
+  }): Promise<AgencyClientRow[]> {
+    const clauses = ['1=1'];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    const ownershipParts: string[] = [];
+    values.push(params.staffUserId);
+    ownershipParts.push(`EXISTS (
+      SELECT 1 FROM staff_user_clients suc
+      WHERE suc.client_id = c.id AND suc.user_id = $${idx}::uuid
+    )`);
+    idx += 1;
+
+    if (params.crmStaffId != null && params.crmStaffId > 0) {
+      values.push(params.crmStaffId);
+      ownershipParts.push(`EXISTS (
+        SELECT 1 FROM crm_am_account_ext e
+        WHERE e.agency_client_id = c.id
+          AND (e.account_owner_staff_id = $${idx} OR e.backup_staff_id = $${idx})
+      )`);
+      idx += 1;
+    }
+
+    const email = params.email?.trim().toLowerCase();
+    if (email) {
+      values.push(email);
+      ownershipParts.push(`lower(trim(COALESCE(c.owner_am_id, ''))) = $${idx}`);
+      idx += 1;
+    }
+
+    clauses.push(`(${ownershipParts.join(' OR ')})`);
+
+    if (params.status) {
+      clauses.push(`c.status = $${idx++}`);
+      values.push(params.status);
+    }
+    if (params.q) {
+      clauses.push(`(c.code ILIKE $${idx} OR c.name ILIKE $${idx + 1})`);
+      values.push(`%${params.q}%`, `%${params.q}%`);
+      idx += 2;
+    }
+    values.push(params.limit, params.offset);
+
+    const tenantLockedExpr = (await this.hasTenantLockedColumn())
+      ? 'COALESCE(c.tenant_locked, FALSE) AS tenant_locked'
+      : 'FALSE AS tenant_locked';
+
+    const result = await this.db.query(
+      `SELECT c.id::text, c.code, c.name, c.industry_slug, c.status, c.owner_am_id,
+              c.notes, c.created_at, c.updated_at,
+              ${tenantLockedExpr},
+              COALESCE(ch.channels, '') AS channels
+       FROM clients c
+       LEFT JOIN LATERAL (
+         SELECT string_agg(DISTINCT channel, ', ' ORDER BY channel) AS channels
+         FROM client_channel_accounts cca
+         WHERE cca.client_id = c.id
+       ) ch ON TRUE
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY c.updated_at DESC
+       LIMIT $${idx++} OFFSET $${idx}`,
+      values,
+    );
+
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      code: row.code ?? '',
+      name: row.name ?? '',
+      industry_slug: row.industry_slug ?? null,
+      status: row.status ?? '',
+      owner_am_id: row.owner_am_id ?? null,
+      notes: row.notes ?? null,
+      created_at: iso(row.created_at),
+      updated_at: iso(row.updated_at),
+      channels: row.channels ?? '',
+      tenant_locked: Boolean(row.tenant_locked),
+    }));
+  }
+
   async createClient(body: {
     code: string;
     name: string;

@@ -15,7 +15,7 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { dash } from '@/lib/crm/qt-format';
-import { QT_NAV, canSeeQtNav, qtNavIsActive } from '@/lib/crm/qt-nav.util';
+import { canSeeQtNav, qtNavForUser, qtNavIsActive } from '@/lib/crm/qt-nav.util';
 
 function parseScope(raw: string | null): 'me' | 'team' | 'all' {
   if (raw === 'team' || raw === 'all') return raw;
@@ -85,7 +85,7 @@ function QtShellInner({ children }: { children: ReactNode }) {
       {user && canSeeQtNav(user) ? (
         <div className="qt-root">
           <nav className="qt-sidebar" aria-label="Báo giá">
-            {QT_NAV.map((item) => (
+            {qtNavForUser(user).map((item) => (
               <Link
                 key={item.id}
                 href={item.href}

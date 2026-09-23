@@ -2,7 +2,8 @@ import { hasCap, type StoredStaffUser } from '@/lib/auth';
 
 export function canViewGtmDemos(user: StoredStaffUser | null): boolean {
   if (!user) return false;
-  return hasCap(user, 'gtm_demos', 'view') || hasCap(user, 'crm_leads', 'view');
+  // Explicit gtm_demos only — do not bridge from crm_leads (AE matrix GTM = —).
+  return hasCap(user, 'gtm_demos', 'view');
 }
 
 export function canWriteGtmDemos(user: StoredStaffUser | null): boolean {

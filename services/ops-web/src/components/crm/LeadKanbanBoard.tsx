@@ -1,8 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import type { LeadRow } from '@/lib/api';
-import { kanbanCardCta, kanbanStageAccent } from '@/lib/crm/kanban-card-cta';
+import { patchLead } from '@/lib/api';
+import {
+  kanbanCardActions,
+  kanbanStageAccent,
+  type KanbanCardAction,
+} from '@/lib/crm/kanban-card-cta';
 import { bucketLeadsByKanbanStage, leadStatusLabel } from '@/lib/crm/lead-status';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 
@@ -25,18 +31,92 @@ function slaLabel(sla: LeadRow['sla_state']): string | null {
   return null;
 }
 
+function ActionButton({
+  action,
+  busy,
+  onAction,
+}: {
+  action: KanbanCardAction;
+  busy: boolean;
+  onAction: (action: KanbanCardAction) => void;
+}) {
+  const ctaClass = `btn btn-sm crm-kanban-card__cta crm-kanban-card__cta--${action.kind}${
+    action.primary ? ' is-primary' : ''
+  }`;
+  if (action.href?.startsWith('tel:')) {
+    return (
+      <a href={action.href} className={ctaClass}>
+        {action.label}
+      </a>
+    );
+  }
+  if (action.href) {
+    return (
+      <Link href={action.href} className={ctaClass}>
+        {action.label}
+      </Link>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={ctaClass}
+      disabled={busy}
+      onClick={() => onAction(action)}
+    >
+      {busy ? '…' : action.label}
+    </button>
+  );
+}
+
 export function LeadKanbanBoard({
   rows,
   flowKind = 'b2b_prospect',
+  token,
+  onLeadUpdated,
 }: {
   rows: LeadRow[];
   flowKind?: LeadFlowKind;
+  token?: string;
+  onLeadUpdated?: () => void;
 }) {
   const stages = statusOptionsForFlowKind(flowKind);
   const { stageKeys, byStage } = bucketLeadsByKanbanStage(rows, stages);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  async function runStatusAction(leadId: number, action: KanbanCardAction) {
+    if (!token || !action.nextStatus) return;
+    setBusyId(leadId);
+    setErr('');
+    setMsg('');
+    try {
+      await patchLead(token, leadId, {
+        status: action.nextStatus,
+        audit_note: action.auditNote ?? action.label,
+      });
+      setMsg(`Lead #${leadId}: ${action.label}`);
+      onLeadUpdated?.();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Cập nhật trạng thái thất bại');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <div className="crm-kanban" data-testid="crm-leads-kanban">
+      {msg ? (
+        <p className="muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
+          {msg}
+        </p>
+      ) : null}
+      {err ? (
+        <p className="error" style={{ gridColumn: '1 / -1', margin: 0 }} role="alert">
+          {err}
+        </p>
+      ) : null}
       {stageKeys.map((stage) => {
         const items = byStage[stage] ?? [];
         return (
@@ -55,10 +135,9 @@ export function LeadKanbanBoard({
               ) : (
                 items.map((lead) => {
                   const band = lead.ai_band ?? null;
-                  const cta = kanbanCardCta(lead);
+                  const actions = kanbanCardActions(lead);
                   const sla = slaLabel(lead.sla_state);
                   const bandText = bandLabel(band);
-                  const ctaClass = `btn btn-sm crm-kanban-card__cta crm-kanban-card__cta--${cta.kind}`;
                   return (
                     <article
                       key={lead.id}
@@ -84,15 +163,16 @@ export function LeadKanbanBoard({
                         {lead.phone ? <span>{lead.phone}</span> : null}
                         {lead.project_code ? <span>· {lead.project_code}</span> : null}
                       </div>
-                      {cta.href.startsWith('tel:') ? (
-                        <a href={cta.href} className={ctaClass}>
-                          {cta.label}
-                        </a>
-                      ) : (
-                        <Link href={cta.href} className={ctaClass}>
-                          {cta.label}
-                        </Link>
-                      )}
+                      <div className="crm-kanban-card__actions">
+                        {actions.map((action) => (
+                          <ActionButton
+                            key={`${lead.id}-${action.kind}-${action.label}`}
+                            action={action}
+                            busy={busyId === lead.id}
+                            onAction={(a) => void runStatusAction(lead.id, a)}
+                          />
+                        ))}
+                      </div>
                       <div className="crm-kanban-card__footer">
                         <span>#{lead.id}</span>
                         <span>{formatWhen(lead.received_at || lead.created_at)}</span>

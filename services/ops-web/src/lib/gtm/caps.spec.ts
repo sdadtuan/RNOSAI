@@ -21,8 +21,8 @@ describe('canViewGtmDemos', () => {
     expect(canViewGtmDemos(user([{ section: 'gtm_demos', action: 'view' }]))).toBe(true);
   });
 
-  it('returns true when crm_leads.view cap present (W0 bootstrap)', () => {
-    expect(canViewGtmDemos(user([{ section: 'crm_leads', action: 'view' }]))).toBe(true);
+  it('does not bridge from crm_leads.view', () => {
+    expect(canViewGtmDemos(user([{ section: 'crm_leads', action: 'view' }]))).toBe(false);
   });
 
   it('returns false when neither cap present', () => {

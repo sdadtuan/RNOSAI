@@ -49,7 +49,18 @@ export function canViewAdminSection(user: StoredStaffUser | null): boolean {
     hasCap(user, 'crm_vd.admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'create') ||
     hasCap(user, 'spc', 'view') ||
-    hasCap(user, 'csd', 'admin')
+    hasCap(user, 'csd', 'admin') ||
+    hasCap(user, 'crm_gdkd', 'view_all_leads') ||
+    hasCap(user, 'crm_gdkd', 'assign')
+  );
+}
+
+function canViewLeadSlaAdmin(user: StoredStaffUser): boolean {
+  return (
+    hasCap(user, 'crm_gdkd', 'view_all_leads') ||
+    hasCap(user, 'crm_gdkd', 'assign') ||
+    hasCap(user, 'crm_leads', 'view') ||
+    String(user.position_code ?? '').toUpperCase().includes('SUPER')
   );
 }
 
@@ -333,6 +344,23 @@ export function buildAdminSidebarLinks(user: StoredStaffUser | null): ModuleNavL
   const links: ModuleNavLink[] = [];
   if (canViewAdminSection(user)) {
     links.push({ href: '/admin', label: 'Trung tâm quản trị' });
+  }
+  if (
+    hasCap(user, 'ai_admin', 'view') ||
+    hasCap(user, 'crm_mkt_ai', 'view') ||
+    hasCap(user, 'crm_board', 'view')
+  ) {
+    links.push({ href: '/crm/admin/strategy-packs', label: 'Strategy packs' });
+  }
+  if (canViewLeadSlaAdmin(user)) {
+    links.push({ href: '/crm/admin/lead-sla-settings', label: 'Lead SLA' });
+    if (
+      hasCap(user, 'crm_gdkd', 'view_all_leads') ||
+      hasCap(user, 'crm_gdkd', 'assign') ||
+      String(user.position_code ?? '').toUpperCase().includes('SUPER')
+    ) {
+      links.push({ href: '/crm/gdkd/lead-ops', label: 'Lead Ops GĐKD' });
+    }
   }
   if (hasCap(user, 'playbooks', 'configure') || hasCap(user, 'crm_leads', 'configure')) {
     links.push({ href: '/crm/intake/sales-kit', label: 'Kho Sales Kit' });

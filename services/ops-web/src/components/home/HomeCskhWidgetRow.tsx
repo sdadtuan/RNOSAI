@@ -49,18 +49,20 @@ export function HomeCskhWidgetRow({
           </span>
         </Link>
 
-        <Link
-          href={summary.review_queue.drill_href}
-          className={`home-cskh-widget summary-card ${toneClass(summary.review_queue.pending_count)}`}
-        >
-          <span className="muted">Review queue (B2)</span>
-          <strong className="home-cskh-widget__value">{summary.review_queue.pending_count}</strong>
-          <span className="home-cskh-widget__hint muted">
-            {summary.review_queue.max_age_hours != null
-              ? `Max chờ ${summary.review_queue.max_age_hours}h`
-              : 'Không có lead chờ'}
-          </span>
-        </Link>
+        {summary.review_queue.visible !== false ? (
+          <Link
+            href={summary.review_queue.drill_href}
+            className={`home-cskh-widget summary-card ${toneClass(summary.review_queue.pending_count)}`}
+          >
+            <span className="muted">Review queue (B2)</span>
+            <strong className="home-cskh-widget__value">{summary.review_queue.pending_count}</strong>
+            <span className="home-cskh-widget__hint muted">
+              {summary.review_queue.max_age_hours != null
+                ? `Max chờ ${summary.review_queue.max_age_hours}h`
+                : 'Không có lead chờ'}
+            </span>
+          </Link>
+        ) : null}
 
         {showAi && summary.ai ? (
           <Link href={summary.ai.drill_href} className="home-cskh-widget summary-card">

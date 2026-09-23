@@ -32,8 +32,9 @@ describe('lead-flow-list-filter.util', () => {
       { staffId: 10, viewAll: false, isDirector: false },
       '$1',
     );
-    expect(sql).toContain('crm_b2b_project_staff');
     expect(sql).toContain('l.owner_id = $1');
+    expect(sql).toContain("COALESCE(role, 'sales') = 'project_manager'");
+    expect(sql).not.toContain('assign_enabled');
   });
 
   it('skips b2b scope clause for view-all', () => {

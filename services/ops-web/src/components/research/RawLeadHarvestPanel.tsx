@@ -1,7 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchCrmLeadLookups, type CrmLeadLookupOption } from '@/lib/api';
+import {
+  fetchCrmLeadLookups,
+  fetchCrmStaffList,
+  type CrmLeadLookupOption,
+  type CrmStaffRow,
+} from '@/lib/api';
 import { fetchVnProvinces, fetchVnWards, type VnProvinceOption, type VnWardOption } from '@/lib/vn-geo-api';
 import {
   createRawLeadHarvest,
@@ -10,6 +15,9 @@ import {
   fetchRawLeadHarvestProviders,
   fetchRawLeadPriorityCounts,
   fetchRawLeadReadinessCounts,
+  fetchRawLeadCareCounts,
+  assignRawLeadCare,
+  revokeRawLeadCare,
   getRawLeadHarvest,
   listRawLeadHarvests,
   listRawLeads,
@@ -26,6 +34,7 @@ import {
   type MarketEntitiesSummary,
   type RawLead,
   type RawLeadBattlecard,
+  type RawLeadCareStatus,
   type RawLeadHarvestJob,
   type RawLeadPriorityTier,
   type RawLeadReadinessStatus,
@@ -68,6 +77,29 @@ const PRIORITY_TABS: Array<{
     key: 'P3',
     label: 'P3 · Thấp',
     title: 'Ưu tiên thấp: thiếu contact / trùng / score thấp',
+  },
+];
+
+const CARE_TABS: Array<{
+  key: '' | RawLeadCareStatus;
+  label: string;
+  title?: string;
+}> = [
+  { key: '', label: 'Chăm sóc: Tất cả' },
+  {
+    key: 'awaiting_assign',
+    label: 'Chờ phân công',
+    title: 'Lead thô chưa giao AE',
+  },
+  {
+    key: 'assigned',
+    label: 'Đã phân công',
+    title: 'Đang giao AE chăm sóc (thu hồi sau 3 ngày nếu chưa cập nhật liên lạc)',
+  },
+  {
+    key: 'revoked',
+    label: 'Thu hồi',
+    title: 'Đã thu hồi — có thể phân công lại',
   },
 ];
 
@@ -156,6 +188,32 @@ function selectPageIdsByReadiness(
         String(l.readiness_status ?? '').toUpperCase() === readiness,
     )
     .map((l) => l.id);
+}
+
+function selectPageIdsByCare(
+  leads: RawLead[],
+  care: RawLeadCareStatus,
+): number[] {
+  return leads
+    .filter(
+      (l) =>
+        l.status !== 'pushed' &&
+        String(l.care_status ?? 'awaiting_assign') === care,
+    )
+    .map((l) => l.id);
+}
+
+function careStatusLabel(code: string | null | undefined): string {
+  switch (String(code ?? 'awaiting_assign')) {
+    case 'awaiting_assign':
+      return 'Chờ phân công';
+    case 'assigned':
+      return 'Đã phân công';
+    case 'revoked':
+      return 'Thu hồi';
+    default:
+      return code?.trim() ? code : '—';
+  }
 }
 
 function classificationLabel(code: string | null | undefined): string {
@@ -369,6 +427,15 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     P2: 0,
     P3: 0,
   });
+  const [careFilter, setCareFilter] = useState<'' | RawLeadCareStatus>('');
+  const [careCounts, setCareCounts] = useState<Record<string, number>>({
+    all: 0,
+    awaiting_assign: 0,
+    assigned: 0,
+    revoked: 0,
+  });
+  const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
+  const [assignStaffId, setAssignStaffId] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [industryFilter, setIndustryFilter] = useState('');
   const [jobFilter, setJobFilter] = useState<number | ''>('');
@@ -449,13 +516,14 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   }, [jobsPage, jobsTotalPages]);
 
   const reloadMeta = useCallback(async () => {
-    const [ind, tit, src, ch, prov, harvestProv] = await Promise.all([
+    const [ind, tit, src, ch, prov, harvestProv, staffOut] = await Promise.all([
       fetchCrmLeadLookups(token, { kind: 'industry', active_only: true }),
       fetchCrmLeadLookups(token, { kind: 'job_title', active_only: true }),
       fetchCrmLeadLookups(token, { kind: 'source', active_only: true }),
       fetchCrmLeadLookups(token, { kind: 'channel', active_only: true }),
       fetchVnProvinces(token),
       fetchRawLeadHarvestProviders(token),
+      fetchCrmStaffList(token).catch(() => ({ staff: [] as CrmStaffRow[], summary: {} })),
     ]);
     setIndustries(ind.options);
     setTitles(tit.options);
@@ -463,10 +531,13 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     setChannels(ch.options);
     setProvinces(prov);
     setProviders(harvestProv.providers.filter((p) => p.configured));
+    setStaffOptions(
+      (staffOut.staff ?? []).filter((s) => s.active !== 0 && s.can_receive_leads !== false),
+    );
   }, [token]);
 
   const reloadJobsAndLeads = useCallback(async () => {
-    const [j, l, countsOut, priorityOut] = await Promise.all([
+    const [j, l, countsOut, priorityOut, careOut] = await Promise.all([
       listRawLeadHarvests(token, projectId),
       listRawLeads(token, projectId, {
         page: leadsPage,
@@ -474,6 +545,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
         status: statusFilter || undefined,
         readiness_status: readinessFilter || undefined,
         priority_tier: priorityFilter || undefined,
+        care_status: careFilter || undefined,
         industry_key: industryFilter || undefined,
         job_id: jobFilter === '' ? undefined : Number(jobFilter),
         q: qFilter || undefined,
@@ -483,10 +555,12 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
           !statusFilter ||
           Boolean(readinessFilter) ||
           Boolean(priorityFilter) ||
+          Boolean(careFilter) ||
           Boolean(industryFilter),
       }),
       fetchRawLeadReadinessCounts(token, projectId).catch(() => ({ counts: {} })),
       fetchRawLeadPriorityCounts(token, projectId).catch(() => ({ counts: {} })),
+      fetchRawLeadCareCounts(token, projectId).catch(() => ({ counts: {} })),
     ]);
     setJobs(j.jobs);
     setLeads(l.leads);
@@ -494,6 +568,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     setLeadsTotalPages(l.total_pages);
     setReadinessCounts((prev) => ({ ...prev, ...(countsOut.counts ?? {}) }));
     setPriorityCounts((prev) => ({ ...prev, ...(priorityOut.counts ?? {}) }));
+    setCareCounts((prev) => ({ ...prev, ...(careOut.counts ?? {}) }));
   }, [
     token,
     projectId,
@@ -501,6 +576,7 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
     statusFilter,
     readinessFilter,
     priorityFilter,
+    careFilter,
     industryFilter,
     jobFilter,
     qFilter,
@@ -1435,6 +1511,138 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 Chọn Review (trang)
               </button>
             ) : null}
+            {canRun ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy || leads.length === 0}
+                onClick={() =>
+                  setSelectedIds(selectPageIdsByCare(leads, 'awaiting_assign'))
+                }
+              >
+                Chọn chờ PC (trang)
+              </button>
+            ) : null}
+            {canRun ? (
+              <span className="rlh-assign-row">
+                <select
+                  aria-label="AE nhận phân công"
+                  value={assignStaffId}
+                  disabled={busy}
+                  onChange={(e) => setAssignStaffId(e.target.value)}
+                  style={{ maxWidth: 180 }}
+                >
+                  <option value="">Chọn AE…</option>
+                  {staffOptions.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.name || s.email || `#${s.id}`}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={busy || !assignStaffId || selectedIds.length === 0}
+                  title="Phân công chăm sóc các lead đang chọn"
+                  onClick={() => {
+                    void (async () => {
+                      const toStaff = Number(assignStaffId);
+                      if (!(toStaff > 0) || !selectedIds.length) return;
+                      setBusy(true);
+                      setError('');
+                      try {
+                        const out = await assignRawLeadCare(token, projectId, {
+                          lead_ids: selectedIds,
+                          to_staff_id: toStaff,
+                        });
+                        setMsg(
+                          `Phân công: ${out.updated}/${out.requested} lead → AE #${out.to_staff_id}`,
+                        );
+                        setSelectedIds([]);
+                        await reloadJobsAndLeads();
+                      } catch (err) {
+                        setError(
+                          err instanceof Error ? err.message : 'Phân công thất bại',
+                        );
+                      } finally {
+                        setBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  Phân công ({selectedIds.length})
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={busy || !assignStaffId}
+                  title="Phân công tất cả lead chờ phân công / thu hồi trong project"
+                  onClick={() => {
+                    void (async () => {
+                      const toStaff = Number(assignStaffId);
+                      if (!(toStaff > 0)) return;
+                      if (
+                        !window.confirm(
+                          'Phân công TẤT CẢ lead chờ phân công/thu hồi trong project này cho AE đã chọn?',
+                        )
+                      ) {
+                        return;
+                      }
+                      setBusy(true);
+                      setError('');
+                      try {
+                        const out = await assignRawLeadCare(token, projectId, {
+                          to_staff_id: toStaff,
+                          all_awaiting: true,
+                        });
+                        setMsg(
+                          `Phân công tất cả: ${out.updated}/${out.requested} lead → AE #${out.to_staff_id}`,
+                        );
+                        setSelectedIds([]);
+                        await reloadJobsAndLeads();
+                      } catch (err) {
+                        setError(
+                          err instanceof Error ? err.message : 'Phân công tất cả thất bại',
+                        );
+                      } finally {
+                        setBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  Phân công tất cả chờ PC
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={busy || selectedIds.length === 0}
+                  title="Thu hồi phân công các lead đang chọn"
+                  onClick={() => {
+                    void (async () => {
+                      if (!selectedIds.length) return;
+                      setBusy(true);
+                      setError('');
+                      try {
+                        const out = await revokeRawLeadCare(token, projectId, {
+                          lead_ids: selectedIds,
+                        });
+                        setMsg(`Thu hồi: ${out.updated} lead`);
+                        setSelectedIds([]);
+                        await reloadJobsAndLeads();
+                      } catch (err) {
+                        setError(
+                          err instanceof Error ? err.message : 'Thu hồi thất bại',
+                        );
+                      } finally {
+                        setBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  Thu hồi ({selectedIds.length})
+                </button>
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -1478,6 +1686,32 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                 title={tab.title}
                 onClick={() => {
                   setPriorityFilter(tab.key);
+                  setLeadsPage(1);
+                  setSelectedIds([]);
+                }}
+              >
+                {tab.label}
+                <span className="rlh-tab__count">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="rlh-tabs rlh-tabs--care" role="tablist" aria-label="Chăm sóc AE">
+          {CARE_TABS.map((tab) => {
+            const countKey = tab.key || 'all';
+            const count = Number(careCounts[countKey] ?? 0);
+            const active = careFilter === tab.key;
+            return (
+              <button
+                key={tab.key || 'all'}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`rlh-tab${active ? ' is-active' : ''}`}
+                title={tab.title}
+                onClick={() => {
+                  setCareFilter(tab.key);
                   setLeadsPage(1);
                   setSelectedIds([]);
                 }}
@@ -1620,6 +1854,8 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                   <th>Fanpage</th>
                   <th>Zalo</th>
                   <th>Địa chỉ</th>
+                  <th>Chăm sóc</th>
+                  <th>AE</th>
                   <th>Phân loại</th>
                   <th>Readiness</th>
                   <th>Trạng thái</th>
@@ -1689,13 +1925,59 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                       </span>
                     </td>
                     <td>
-                      {lead.evidence_url ? (
-                        <a href={lead.evidence_url} target="_blank" rel="noreferrer">
-                          {lead.company_name}
-                        </a>
-                      ) : (
-                        <strong>{lead.company_name}</strong>
-                      )}
+                      {(() => {
+                        const evidence = String(lead.evidence_url ?? '').trim();
+                        const website = String(lead.website ?? '').trim();
+                        const webHref = website
+                          ? /^https?:\/\//i.test(website)
+                            ? website
+                            : `https://${website}`
+                          : '';
+                        const mapsQ = [lead.company_name, lead.address]
+                          .map((s) => String(s ?? '').trim())
+                          .filter(Boolean)
+                          .join(' ');
+                        const mapsHref = mapsQ
+                          ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQ)}`
+                          : '';
+                        const primary =
+                          (evidence && /^https?:\/\//i.test(evidence) ? evidence : '') ||
+                          webHref ||
+                          mapsHref;
+                        return (
+                          <>
+                            {primary ? (
+                              <a href={primary} target="_blank" rel="noreferrer">
+                                {lead.company_name}
+                              </a>
+                            ) : (
+                              <strong>{lead.company_name}</strong>
+                            )}
+                            <div className="rlh-toolbar" style={{ flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                              {webHref ? (
+                                <a
+                                  href={webHref}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="muted rlh-sub"
+                                >
+                                  Website
+                                </a>
+                              ) : null}
+                              {mapsHref ? (
+                                <a
+                                  href={mapsHref}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="muted rlh-sub"
+                                >
+                                  Maps
+                                </a>
+                              ) : null}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </td>
                     <td>{phoneLink(lead.phone)}</td>
                     <td>
@@ -1712,6 +1994,26 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
                     <td>{externalLink(lead.zalo_url)}</td>
                     <td>
                       <span className="muted rlh-sub">{lead.address ?? '—'}</span>
+                    </td>
+                    <td>
+                      <span className="rlh-class">
+                        {careStatusLabel(lead.care_status)}
+                      </span>
+                      {lead.care_contact_status &&
+                      lead.care_contact_status !== 'pending' ? (
+                        <div className="muted rlh-sub">
+                          {lead.care_contact_status === 'contacted'
+                            ? 'Đã liên lạc'
+                            : 'Không liên lạc được'}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="muted">
+                      {lead.assigned_to_name?.trim()
+                        ? lead.assigned_to_name
+                        : lead.assigned_to_staff_id
+                          ? `#${lead.assigned_to_staff_id}`
+                          : '—'}
                     </td>
                     <td>
                       <span className="rlh-class">{classificationLabel(lead.classification)}</span>

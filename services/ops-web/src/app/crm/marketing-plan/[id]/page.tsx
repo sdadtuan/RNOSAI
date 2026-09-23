@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { CrmDeliveryPageShell } from '@/components/crm/CrmDeliveryPageShell';
 import { DetailPageLayout } from '@/components/layout';
+import { GrowthSectionsPanel } from '@/components/crm/GrowthSectionsPanel';
 import { InsertInsightPlanPanel } from '@/components/research/InsertInsightPlanPanel';
 import { fetchMarketingPlanDetail, patchMarketingPlan, staffMe, staffRefresh } from '@/lib/api';
 import { fetchRoleKpiSummary } from '@/lib/kpi-hub-api';
@@ -247,6 +248,13 @@ export default function CrmMarketingPlanDetailPage() {
               </div>
             ) : null}
           </form>
+        ) : null}
+        {plan && !loading && getAccessToken() ? (
+          <GrowthSectionsPanel
+            token={getAccessToken()!}
+            planId={planId}
+            canEdit={hasCap(user, 'crm_board', 'edit')}
+          />
         ) : null}
         {plan && !loading ? (
           <InsertInsightPlanPanel

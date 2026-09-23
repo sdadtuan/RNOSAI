@@ -97,6 +97,7 @@ export const B2B_PROSPECT_STATUSES = [
   'dam_phan',
   'proposal',
   'won',
+  'chot',
   'lost',
   'pending_cleanup',
 ] as const;

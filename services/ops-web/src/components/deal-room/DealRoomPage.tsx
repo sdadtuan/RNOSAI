@@ -109,12 +109,21 @@ export function DealRoomPage({ leadId }: Props) {
   const solutionName = presales?.handoff?.solution_owner_name?.trim() || '—';
   const serviceSlug = presales?.presales.service_slug ?? '—';
   const stageLabel = presales ? presalesStageLabel(presales.presales.stage) : '—';
-  const isGdkd = hasCap(user, 'crm_leads', 'assign');
+  const isGdkd =
+    hasCap(user, 'crm_gdkd', 'view_all_leads') ||
+    hasCap(user, 'crm_gdkd', 'assign') ||
+    hasCap(user, 'crm_gdkd', 'override');
+  const canEditQuote =
+    hasCap(user, 'crm_quote', 'edit') || hasCap(user, 'crm_quote', 'manage') || hasCap(user, 'crm_board', 'edit');
   const sciBlock = sciBlocksQuoteForUser(snapshot?.sci.red_flags, isGdkd);
   const hasSciBlockFlags = blockingRedFlags(snapshot?.sci.red_flags).length > 0;
-  const quoteCanCreate = Boolean(snapshot?.quote.can_create) && !sciBlock.blocked;
+  const quoteCanCreate = canEditQuote && Boolean(snapshot?.quote.can_create) && !sciBlock.blocked;
   const quoteBlockReason =
-    (!snapshot?.quote.can_create ? snapshot?.quote.block_reason : '') ||
+    (!canEditQuote
+      ? 'AE chỉ xem / xuất PDF / gửi — trả lại AM nếu cần sửa báo giá'
+      : !snapshot?.quote.can_create
+        ? snapshot?.quote.block_reason
+        : '') ||
     sciBlock.reason ||
     snapshot?.quote.sci_red_flag_block?.reason ||
     '';
@@ -198,7 +207,7 @@ export function DealRoomPage({ leadId }: Props) {
               leadId={leadId}
               token={getAccessToken() ?? ''}
               sci={snapshot.sci}
-              canCreateQuote={Boolean(snapshot.quote.can_create)}
+              canCreateQuote={canEditQuote && Boolean(snapshot.quote.can_create)}
               quoteBlockReason={quoteBlockReason}
               isGdkd={isGdkd}
               sciQuoteBlocked={hasSciBlockFlags}
@@ -209,7 +218,7 @@ export function DealRoomPage({ leadId }: Props) {
             <DealRoomQuotePanel
               leadId={leadId}
               token={getAccessToken() ?? ''}
-              canCreate={quoteCanCreate || (Boolean(snapshot.quote.can_create) && isGdkd)}
+              canCreate={quoteCanCreate || (canEditQuote && Boolean(snapshot.quote.can_create) && isGdkd)}
               blockReason={quoteBlockReason}
               proposalsHref={snapshot.actions.proposals_href}
               canExportPack={snapshot.actions.can_export_pack}

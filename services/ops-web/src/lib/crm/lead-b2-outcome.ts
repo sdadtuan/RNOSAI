@@ -72,7 +72,7 @@ export function resolveB2CallOutcome(input: {
         kind: 'complete_b2',
         report,
         completeNote: content,
-        primary_label_vi: 'Xong B2',
+        primary_label_vi: 'Xong B2 → mở Pre-sales',
         suggestLost: false,
       },
     };
@@ -84,7 +84,7 @@ export function resolveB2CallOutcome(input: {
       plan: {
         kind: 'retry',
         report,
-        primary_label_vi: 'Ghi nhận — gọi lại',
+        primary_label_vi: 'Ghi nhận — sẽ gọi lại',
         suggestLost: false,
       },
     };
@@ -95,7 +95,7 @@ export function resolveB2CallOutcome(input: {
     plan: {
       kind: 'wrong_number',
       report,
-      primary_label_vi: 'Ghi nhận số sai',
+      primary_label_vi: 'Ghi nhận sai số',
       suggestLost: true,
     },
   };

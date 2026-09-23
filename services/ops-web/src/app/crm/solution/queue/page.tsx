@@ -27,6 +27,13 @@ import {
 } from '@/lib/auth';
 import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 
+function statusLabel(row: SolutionQueueRow): string {
+  if (row.queue_kind === 'am_rework') return 'AM trả lại — cần chỉnh';
+  if (row.handoff_status === 'pending') return 'Chờ nhận';
+  if (row.solution_owner_name) return `Solution: ${row.solution_owner_name}`;
+  return 'Đang xử lý';
+}
+
 export default function CrmSolutionQueuePage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredStaffUser | null>(null);
@@ -38,6 +45,7 @@ export default function CrmSolutionQueuePage() {
   const [busyLeadId, setBusyLeadId] = useState<number | null>(null);
   const [slaTiles, setSlaTiles] = useState<KpiSolutionDashboard | null>(null);
   const solutionCaps = resolvePresalesSolutionCaps(user);
+  const aeTrackOnly = solutionCaps.isAeTrackOnly;
 
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
@@ -95,7 +103,7 @@ export default function CrmSolutionQueuePage() {
       const status = filter === 'all' ? undefined : filter;
       const [out, kpiOut] = await Promise.all([
         fetchSolutionQueue(token, { status, limit: 100 }),
-        fetchKpiSolution(token).catch(() => null),
+        aeTrackOnly ? Promise.resolve(null) : fetchKpiSolution(token).catch(() => null),
       ]);
       setRows(out.rows ?? []);
       setSlaTiles(kpiOut);
@@ -105,7 +113,7 @@ export default function CrmSolutionQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [ensureAuth, filter]);
+  }, [aeTrackOnly, ensureAuth, filter]);
 
   useEffect(() => {
     void loadQueue();
@@ -149,8 +157,12 @@ export default function CrmSolutionQueuePage() {
   return (
     <StaffPageShell user={user} onLogout={logout}>
       <PageToolbar
-        title="Hàng chờ Solution/MKT"
-        subtitle="Lead đã handoff từ Sales — Consult + R5 → trả Sales Báo giá"
+        title={aeTrackOnly ? 'Theo dõi Solution / chỉnh lại' : 'Hàng chờ Solution/MKT'}
+        subtitle={
+          aeTrackOnly
+            ? 'Chỉ lead của bạn: đã chuyển Solution/MKT, hoặc AM trả lại cần chỉnh bước trước — chỉ xem, không nhận case.'
+            : 'Lead đã handoff từ Sales — Consult + R5 → trả Sales Báo giá'
+        }
       />
 
       {error ? (
@@ -164,30 +176,48 @@ export default function CrmSolutionQueuePage() {
         </div>
       ) : null}
 
-      <KpiSlaTileGrid data={slaTiles} />
+      {aeTrackOnly ? (
+        <p className="muted" style={{ marginTop: 0 }}>
+          Nhận case / Trả Sales dành cho Solution-MKT. AE mở lead để chỉnh bước trước rồi giao lại khi sẵn sàng.
+        </p>
+      ) : (
+        <KpiSlaTileGrid data={slaTiles} />
+      )}
 
-      <div className="toolbar-row" style={{ marginBottom: '0.75rem' }}>
-        <label className="inline-label">
-          Lọc
-          <select
-            className="input input-sm"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as typeof filter)}
-          >
-            <option value="all">Tất cả (pending + đang xử lý)</option>
-            <option value="pending">Chờ nhận</option>
-            <option value="with_solution">Đang xử lý</option>
-          </select>
-        </label>
-        <button type="button" className="btn btn-sm btn-ghost" onClick={() => void loadQueue()} disabled={loading}>
-          Làm mới
-        </button>
-      </div>
+      {!aeTrackOnly ? (
+        <div className="toolbar-row" style={{ marginBottom: '0.75rem' }}>
+          <label className="inline-label">
+            Lọc
+            <select
+              className="input input-sm"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as typeof filter)}
+            >
+              <option value="all">Tất cả (pending + đang xử lý)</option>
+              <option value="pending">Chờ nhận</option>
+              <option value="with_solution">Đang xử lý</option>
+            </select>
+          </label>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void loadQueue()} disabled={loading}>
+            Làm mới
+          </button>
+        </div>
+      ) : (
+        <div className="toolbar-row" style={{ marginBottom: '0.75rem' }}>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void loadQueue()} disabled={loading}>
+            Làm mới
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="muted">Đang tải…</p>
       ) : rows.length === 0 ? (
-        <p className="muted">Không có lead chờ tư vấn</p>
+        <p className="muted">
+          {aeTrackOnly
+            ? 'Không có lead của bạn đang ở Solution hoặc cần chỉnh sau khi AM trả lại'
+            : 'Không có lead chờ tư vấn'}
+        </p>
       ) : (
         <div className="table-wrap">
           <table className="data-table">
@@ -203,7 +233,7 @@ export default function CrmSolutionQueuePage() {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.lead_id}>
+                <tr key={`${row.queue_kind ?? 'solution'}-${row.lead_id}`}>
                   <td>
                     <Link href={`/crm/leads/${row.lead_id}`} className="nav-link">
                       #{row.lead_id} · {row.full_name || row.phone}
@@ -211,19 +241,20 @@ export default function CrmSolutionQueuePage() {
                   </td>
                   <td>{row.service_slug || '—'}</td>
                   <td>{row.owner_name || '—'}</td>
-                  <td>
-                    {row.handoff_status === 'pending'
-                      ? 'Chờ nhận'
-                      : row.solution_owner_name
-                        ? `Solution: ${row.solution_owner_name}`
-                        : 'Đang xử lý'}
-                  </td>
+                  <td>{statusLabel(row)}</td>
                   <td>{row.handed_off_at ? row.handed_off_at.slice(0, 16).replace('T', ' ') : '—'}</td>
                   <td className="table-actions">
-                    <Link href={`/crm/leads/${row.lead_id}#funnel-presales`} className="btn btn-sm btn-ghost">
-                      Mở
+                    <Link
+                      href={
+                        row.queue_kind === 'am_rework'
+                          ? `/crm/leads/${row.lead_id}`
+                          : `/crm/leads/${row.lead_id}#funnel-presales`
+                      }
+                      className="btn btn-sm btn-ghost"
+                    >
+                      {row.queue_kind === 'am_rework' ? 'Chỉnh lại' : 'Mở'}
                     </Link>
-                    {row.handoff_status === 'pending' ? (
+                    {!aeTrackOnly && row.queue_kind !== 'am_rework' && row.handoff_status === 'pending' ? (
                       solutionCaps.canClaim ? (
                         <button
                           type="button"
@@ -234,7 +265,11 @@ export default function CrmSolutionQueuePage() {
                           Nhận case
                         </button>
                       ) : null
-                    ) : solutionCaps.canRelease ? (
+                    ) : null}
+                    {!aeTrackOnly &&
+                    row.queue_kind !== 'am_rework' &&
+                    row.handoff_status === 'with_solution' &&
+                    solutionCaps.canRelease ? (
                       <button
                         type="button"
                         className="btn btn-sm btn-primary"

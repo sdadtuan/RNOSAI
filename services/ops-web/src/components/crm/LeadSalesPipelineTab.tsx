@@ -76,14 +76,28 @@ export function LeadSalesPipelineTab({
     steps: stepperVm.steps.map((s) => ({ ...s, isActive: s.key === activeStepKey })),
     activeStep: activeStepKey,
   };
+  const onB2 = activeStepKey === 'b2';
+  const slaDetailNode = onB2 ? (
+    <div className="lead-pipeline-sla__fr-note">
+      <p>
+        <strong>Phản hồi đầu (SLA)</strong> nằm trong bước <strong>Liên hệ lần đầu</strong> bên
+        dưới — lần gọi điện thoại đầu sau khi giao lead.
+      </p>
+      {slaDetail ? <p className="muted">{slaDetail}</p> : null}
+    </div>
+  ) : slaDetail ? (
+    <p>{slaDetail}</p>
+  ) : (
+    <p className="muted">Không có chi tiết SLA.</p>
+  );
 
   return (
     <div className="lead-pipeline-tab" role="tabpanel" id="lead-pipeline-panel">
       <LeadPipelineSlaStrip
-        worstLabel={slaLabel ?? 'SLA'}
+        worstLabel={onB2 ? 'SLA phản hồi đầu → bước Liên hệ' : slaLabel ?? 'SLA'}
         countdown={slaCountdown ?? null}
         state={slaState ?? 'ok'}
-        detail={slaDetail ? <p>{slaDetail}</p> : <p className="muted">Không có chi tiết SLA.</p>}
+        detail={slaDetailNode}
       />
       <div className="lead-pipeline-tab__head">
         <CrmFunnelStepper

@@ -149,4 +149,42 @@ describe('buildNavTree IA', () => {
       else process.env.NEXT_PUBLIC_EMAIL_MODULE = prevEmail;
     }
   });
+
+  it('AE matrix seed does not open Ads/SEO/Email/Plan/Finance via agency.view', () => {
+    const prev: Record<string, string | undefined> = {};
+    for (const f of ['NEXT_PUBLIC_SEO_HUB', 'NEXT_PUBLIC_EMAIL_MODULE', 'NEXT_PUBLIC_MARKET_RESEARCH']) {
+      prev[f] = process.env[f];
+      process.env[f] = '1';
+    }
+    try {
+      const ae: StoredStaffUser = {
+        id: 'ae-1',
+        email: 'ae@pttads.vn',
+        display_name: 'AE',
+        position_id: 3,
+        caps: [
+          { section: 'crm_agency', action: 'view' },
+          { section: 'crm_leads', action: 'view' },
+          { section: 'crm_leads', action: 'edit' },
+          { section: 'crm_b2b_projects', action: 'view' },
+          { section: 'csd', action: 'view' },
+          { section: 'csd', action: 'write' },
+          { section: 'crm_quote', action: 'view' },
+          { section: 'crm_hdsd', action: 'view' },
+        ],
+      };
+      const ids = buildNavTree(ae, {}).map((i) => i.id);
+      expect(ids).toContain('agency');
+      expect(ids).not.toContain('ads');
+      expect(ids).not.toContain('seo');
+      expect(ids).not.toContain('email');
+      expect(ids).not.toContain('plan');
+      expect(ids).not.toContain('finance');
+    } finally {
+      for (const [f, v] of Object.entries(prev)) {
+        if (v === undefined) delete process.env[f];
+        else process.env[f] = v;
+      }
+    }
+  });
 });

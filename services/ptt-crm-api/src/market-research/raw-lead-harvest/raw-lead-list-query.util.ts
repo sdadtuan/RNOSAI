@@ -4,6 +4,7 @@ export type RawLeadListQuery = {
   status?: string[];
   readiness_status?: string;
   priority_tier?: string;
+  care_status?: string;
   industry_key?: string;
   job_id?: number;
   q?: string;
@@ -68,6 +69,11 @@ export function parseRawLeadListQuery(
   const priority_tier =
     priorityRaw && priorityAllowed.has(priorityRaw) ? priorityRaw : undefined;
 
+  const careRaw = String(input.care_status ?? '').trim().toLowerCase();
+  const careAllowed = new Set(['awaiting_assign', 'assigned', 'revoked']);
+  const care_status =
+    careRaw && careAllowed.has(careRaw) ? careRaw : undefined;
+
   const industry_key = String(input.industry_key ?? '').trim() || undefined;
 
   return {
@@ -76,6 +82,7 @@ export function parseRawLeadListQuery(
     status: status?.length ? status : undefined,
     readiness_status,
     priority_tier,
+    care_status,
     industry_key,
     job_id,
     q,

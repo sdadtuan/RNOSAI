@@ -42,6 +42,7 @@ import { MarketGraphWorker } from './raw-lead-harvest/market-graph/market-graph.
 import { RawLeadHarvestController } from './raw-lead-harvest/raw-lead-harvest.controller';
 import { RawLeadHarvestRepository } from './raw-lead-harvest/raw-lead-harvest.repository';
 import { RawLeadHarvestService } from './raw-lead-harvest/raw-lead-harvest.service';
+import { RawLeadCareRevokeWorker } from './raw-lead-harvest/raw-lead-care-revoke.worker';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { RawLeadHarvestService } from './raw-lead-harvest/raw-lead-harvest.servi
     MarketEntitiesRepository,
     MarketGraphWorker,
     RawLeadHarvestService,
+    RawLeadCareRevokeWorker,
   ],
   exports: [ResearchAiProvidersService, ResearchAiProvidersRepository, RawLeadHarvestService],
 })

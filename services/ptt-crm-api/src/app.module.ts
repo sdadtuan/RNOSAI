@@ -5,6 +5,8 @@ import { CasesModule } from './cases/cases.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { CrmConfigModule } from './crm-config/crm-config.module';
+import { LeadSlaSettingsModule } from './lead-sla-settings/lead-sla-settings.module';
+import { LeadFrSlaModule } from './lead-fr-sla/lead-fr-sla.module';
 import { CrmBoardModule } from './crm-board/crm-board.module';
 import { CskhBoardModule } from './cskh-board/cskh-board.module';
 import { GdkdEnterpriseModule } from './gdkd-enterprise/gdkd-enterprise.module';
@@ -44,6 +46,7 @@ import { VideoSopModule } from './video-sop/video-sop.module';
 import { OpsModule } from './ops/ops.module';
 import { SpcModule } from './spc/spc.module';
 import { MarketingPlansModule } from './marketing-plans/marketing-plans.module';
+import { StrategyPacksModule } from './strategy-packs/strategy-packs.module';
 import { ServiceLifecycleModule } from './service-lifecycle/service-lifecycle.module';
 import { SvcFinanceModule } from './svc-finance/svc-finance.module';
 import { SopModule } from './sop/sop.module';
@@ -134,6 +137,8 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     LeadsContractModule,
     CatalogModule,
     CrmConfigModule,
+    LeadSlaSettingsModule,
+    LeadFrSlaModule,
     CrmLeadsLegacyModule,
     CustomersModule,
     IntakeModule,
@@ -165,6 +170,7 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     DeliveryProjectsModule,
     BrandModule,
     MarketingPlansModule,
+    StrategyPacksModule,
     MarketingAiPlannerModule,
     ContentMarketingModule,
     ContentOsPortfolioModule,

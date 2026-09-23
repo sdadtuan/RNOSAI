@@ -250,7 +250,7 @@ describe('resolveActiveStep', () => {
 });
 
 describe('resolvePrimaryAction', () => {
-  it('offers B2 anchor when care incomplete', () => {
+  it('hides B2 primary on stepper — outcome lives in #funnel-b2 panel', () => {
     const action = resolvePrimaryAction({
       leadId: 1,
       funnel: mockFunnel({
@@ -267,8 +267,7 @@ describe('resolvePrimaryAction', () => {
       activeStep: 'b2',
       context: 'lead_detail',
     });
-    expect(action?.kind).toBe('anchor');
-    expect(action?.label).toContain('B2');
+    expect(action).toBeNull();
   });
 
   it('offers ensure presales on lead detail', () => {

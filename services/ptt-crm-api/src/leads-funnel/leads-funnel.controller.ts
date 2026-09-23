@@ -415,9 +415,28 @@ export class LeadsFunnelController {
 
   @Get('presales/solution-queue')
   @UseGuards(StaffOrInternalKeyGuard, StaffPresalesSolutionQueueGuard, PresalesOnLeadGuard)
-  listSolutionQueue(@Query('status') status?: string, @Query('limit') limit?: string) {
+  async listSolutionQueue(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
     const lim = limit ? Number(limit) : 50;
-    return this.funnel.listSolutionQueue(status?.trim(), Number.isFinite(lim) ? lim : 50);
+    let ownerStaffId: number | null | undefined;
+    let includeAmRework = false;
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const viewAll =
+        this.staffAuth.hasCap(me.caps, 'crm_gdkd', 'view_all_leads') ||
+        String(me.position_code ?? '').toLowerCase() === 'super-admin';
+      if (!viewAll) {
+        ownerStaffId = await this.userId(req);
+        includeAmRework = true;
+      }
+    }
+    return this.funnel.listSolutionQueue(status?.trim(), Number.isFinite(lim) ? lim : 50, {
+      ownerStaffId,
+      includeAmRework,
+    });
   }
 
   @Get('presales/consult-sla/summary')

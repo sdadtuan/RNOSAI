@@ -21,6 +21,8 @@ import { createAgentInsightTools } from './tools/agent-tools.tool';
 import { createForecastTools } from './tools/get-forecast.tool';
 import { createLeadQueryTools } from './tools/list-leads.tool';
 import { createOpsContextTools } from './tools/ops-context.tools';
+import { createStrategyPackTools } from './tools/strategy-packs.tools';
+import { StrategyPacksService } from '../../strategy-packs/strategy-packs.service';
 import { createLeadAgentTools } from './tools/score-lead.tool';
 import { createOrchestrationTools } from './tools/trigger-orchestration.tool';
 import { OpsCrmContextService } from './ops-crm-context.service';
@@ -69,6 +71,7 @@ export class ToolRegistry {
     proposalDraft: OpsProposalDraftService,
     insightApprove: OpsInsightApproveService,
     fieldConfirm: OpsFieldConfirmService,
+    strategyPacks: StrategyPacksService,
   ) {
     this.definitions = [
       ...createLeadAgentTools(agents),
@@ -93,6 +96,7 @@ export class ToolRegistry {
         insightApprove,
         fieldConfirm,
       ),
+      ...createStrategyPackTools(strategyPacks),
     ];
     this.toolsByName = new Map(this.definitions.map((tool) => [tool.name, tool]));
   }

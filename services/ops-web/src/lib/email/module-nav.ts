@@ -1,4 +1,8 @@
-import { canViewEmailGateA } from '@/lib/email/caps';
+import {
+  canViewEmailGateA,
+  canViewEmailHub,
+  canWriteEmailHub,
+} from '@/lib/email/caps';
 import {
   emailGateAEnabled,
   emailJourneysEnabled,
@@ -20,16 +24,14 @@ export function buildEmailModuleLinks(
   user: StoredStaffUser | null,
   emailPendingApprovals?: number,
 ): ModuleNavLink[] {
-  const emailView = hasCap(user, 'crm_email_mkt', 'view') || hasCap(user, 'crm_agency', 'view');
-  const emailWrite = hasCap(user, 'crm_email_mkt', 'write') || hasCap(user, 'crm_agency', 'create');
+  const emailView = canViewEmailHub(user);
+  const emailWrite = canWriteEmailHub(user);
   const emailDeliverability =
     hasCap(user, 'crm_email_mkt', 'deliverability') ||
     hasCap(user, 'crm_email_mkt', 'settings') ||
     hasCap(user, 'crm_agency', 'create');
   const emailReports =
-    hasCap(user, 'crm_email_mkt', 'reports') ||
-    hasCap(user, 'crm_email_mkt', 'write') ||
-    hasCap(user, 'crm_agency', 'view');
+    hasCap(user, 'crm_email_mkt', 'reports') || hasCap(user, 'crm_email_mkt', 'write');
 
   if (!emailView || !emailModuleEnabled()) return [];
 

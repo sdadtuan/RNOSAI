@@ -33,6 +33,7 @@ import { LeadPartyCard, emptyLeadParty, type LeadPartyFormValue } from '@/compon
 import { LeadPropertyRail } from '@/components/crm/LeadPropertyRail';
 import { getQtQuotes } from '@/lib/crm/qt-api';
 import { LeadSlaCarePanel } from '@/components/crm/LeadSlaCarePanel';
+import { LeadFrSlaPanel } from '@/components/crm/LeadFrSlaPanel';
 import { ClosedLoopPanel } from '@/components/crm/ClosedLoopPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadEntityTimelinePanel } from '@/components/crm/LeadEntityTimelinePanel';
@@ -1319,6 +1320,15 @@ export default function CrmLeadDetailPage() {
                 onOpenConsult={showConsultTab ? openConsultTab : undefined}
               />
             </div>
+          ) : null}
+
+          {accessToken &&
+          !(showPipelineTab && desktopTab === 'pipeline' && pipelineStep === 'b2') ? (
+            <LeadFrSlaPanel
+              token={accessToken}
+              leadId={leadId}
+              canWrite={hasCap(user, 'crm_leads', 'edit') || hasCap(user, 'crm_leads', 'create')}
+            />
           ) : null}
 
           {showSlaSciUnifiedPanel && !showPipelineTab ? (

@@ -90,13 +90,15 @@ def main() -> int:
         grant("crm_lmp", "view", "edit", "create"),
     )
     leads_view = view_only("crm_leads", "crm_lmp")
+    # Catalog: crm_b2b_projects = view|manage; crm_quote = view|view_all|edit|manage;
+    # publish/convert = execute; catalog = view|manage.
     b2b_write = merge(
-        grant("crm_b2b_projects", "view", "edit", "create"),
+        grant("crm_b2b_projects", "view", "manage"),
         grant("crm_presales_solution", "view"),
-        grant("crm_quote", "view", "edit", "create"),
+        grant("crm_quote", "view", "edit"),
         grant("crm_quote.catalog", "view"),
-        grant("crm_quote.publish", "view"),
-        grant("crm_quote.convert", "view"),
+        grant("crm_quote.publish", "execute"),
+        grant("crm_quote.convert", "execute"),
     )
     b2b_view = view_only("crm_b2b_projects", "crm_presales_solution", "crm_quote", "crm_quote.catalog")
     solution_lead = grant("crm_presales_solution", "view", "edit", "claim", "release")
@@ -321,8 +323,9 @@ def main() -> int:
             agency_view,
             am_view,
             hub_view,
-            leads_view,
-            b2b_view,
+            # Create/assign any lead + view_all via gdkd (Admin/CEO desk).
+            leads_write,
+            b2b_write,
             board_view,
             delivery_view,
             ads_view,
@@ -339,20 +342,18 @@ def main() -> int:
             grant("crm_gdkd", "view", "assign", "review_queue", "view_all_leads"),
             view_only("crm_presales_solution"),
         ),
+        # Matrix AE: leads write (no assign — không GDKD-bypass) · B2B · quote/HĐ view · CSD · agency.
+        # Quote/Proposal/HĐ create stays with AM/CEO/GĐKD — AE xem, PDF/email, trả lại, advance status.
         "AE": merge(
             csd_write,
-            leads_write,
-            b2b_write,
+            grant("crm_leads", "view", "edit", "create", "export"),
+            grant("crm_lmp", "view", "edit", "create"),
+            grant("crm_b2b_projects", "view", "manage"),
+            grant("crm_presales_solution", "view"),
+            grant("crm_quote", "view"),
+            grant("crm_quote.catalog", "view"),
+            grant("crm_hub_contracts", "view", "export"),
             agency_view,
-            am_view,
-            board_view,
-            kpi_view,
-            revops_view,
-            ads_view,
-            sales_write,
-            hub_view,
-            iwr_view,
-            grant("crm_quote", "view", "edit", "create"),
             grant("crm_hdsd", "view", "export"),
         ),
         "ACM": merge(

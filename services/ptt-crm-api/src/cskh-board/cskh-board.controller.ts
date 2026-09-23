@@ -91,8 +91,27 @@ export class CskhBoardController {
 
   /** E0 — home dashboard SLA + review queue widgets. */
   @Get('home-summary')
-  homeSummary() {
-    return this.board.getHomeSummary();
+  async homeSummary(@Req() req: Request & { staffUser?: StaffJwtPayload }) {
+    const staffUser = req.staffUser;
+    if (!staffUser) {
+      return this.board.getHomeSummary({ viewAll: true, showReviewQueue: true });
+    }
+    const me = await this.staffAuth.me(staffUser);
+    const viewAll =
+      this.staffAuth.hasCap(me.caps, 'crm_gdkd', 'view_all_leads') ||
+      String(me.position_code ?? '').toLowerCase() === 'super-admin';
+    const showReviewQueue =
+      viewAll ||
+      this.staffAuth.hasCap(me.caps, 'crm_gdkd', 'review_queue') ||
+      this.staffAuth.hasCap(me.caps, 'crm_gdkd', 'assign');
+    const ownerStaffId = viewAll
+      ? null
+      : await this.staffAuth.resolveCrmStaffUserId(staffUser);
+    return this.board.getHomeSummary({
+      viewAll,
+      ownerStaffId,
+      showReviewQueue,
+    });
   }
 
   /** E3 — shift handoff report (markdown + breach/review snapshot). */
