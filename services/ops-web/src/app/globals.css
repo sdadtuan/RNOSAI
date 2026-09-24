@@ -15817,6 +15817,15 @@ body {
   min-height: calc(100vh - 5.5rem);
 }
 
+.csd-chat-page.is-shell {
+  min-height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.csd-chat-page.is-shell .csd-chat-compose {
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+}
+
 .csd-chat-page.is-authed .page-toolbar {
   margin-bottom: 0.4rem;
 }

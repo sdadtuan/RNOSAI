@@ -12,7 +12,8 @@ function isStaticAsset(pathname: string): boolean {
     pathname.startsWith('/icons') ||
     pathname === '/favicon.ico' ||
     pathname === '/sw.js' ||
-    pathname === '/manifest.webmanifest'
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/csd-chat-manifest.webmanifest'
   );
 }
 

@@ -13,6 +13,12 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { loginHrefWithNext } from '@/lib/auth/login-next.util';
+
+function loginNextHref(): string {
+  if (typeof window === 'undefined') return loginHrefWithNext('/crm/csd/chat');
+  return loginHrefWithNext(`${window.location.pathname}${window.location.search}`);
+}
 
 export function useCsdPageAuth(requiredAction: 'view' | 'write' | 'manage' = 'view') {
   const router = useRouter();
@@ -23,7 +29,7 @@ export function useCsdPageAuth(requiredAction: 'view' | 'write' | 'manage' = 'vi
   const ensureAuth = useCallback(async (): Promise<string | null> => {
     let access = getAccessToken();
     if (!access) {
-      router.replace('/login');
+      router.replace(loginNextHref());
       return null;
     }
     const cached = getStoredUser();
@@ -47,7 +53,7 @@ export function useCsdPageAuth(requiredAction: 'view' | 'write' | 'manage' = 'vi
       const refresh = getRefreshToken();
       if (!refresh) {
         clearSession();
-        router.replace('/login');
+        router.replace(loginNextHref());
         return null;
       }
       const out = await staffRefresh(refresh);
@@ -64,7 +70,7 @@ export function useCsdPageAuth(requiredAction: 'view' | 'write' | 'manage' = 'vi
 
   function logout() {
     clearSession();
-    router.push('/login');
+    router.push(loginNextHref());
   }
 
   return {

@@ -18,6 +18,7 @@ type StaffPageShellProps = {
   agencyUnread?: number;
   emailPendingApprovals?: number;
   loading?: boolean;
+  chrome?: 'crm' | 'chat';
   children: ReactNode;
 };
 
@@ -29,23 +30,27 @@ export function StaffPageShell({
   agencyUnread,
   emailPendingApprovals,
   loading,
+  chrome = 'crm',
   children,
 }: StaffPageShellProps) {
+  const chatShell = chrome === 'chat';
   return (
     <>
-      <OpsNav
-        user={user}
-        onLogout={onLogout}
-        agencyUnread={agencyUnread}
-        emailPendingApprovals={emailPendingApprovals}
-      />
-      <SlaAlertToastHost user={user} />
-      <B2bHotAlarm user={user} />
-      <OpsPage breadcrumb={breadcrumb} width={width}>
+      {chatShell ? null : (
+        <OpsNav
+          user={user}
+          onLogout={onLogout}
+          agencyUnread={agencyUnread}
+          emailPendingApprovals={emailPendingApprovals}
+        />
+      )}
+      {chatShell ? null : <SlaAlertToastHost user={user} />}
+      {chatShell ? null : <B2bHotAlarm user={user} />}
+      <OpsPage breadcrumb={chatShell ? undefined : breadcrumb} width={chatShell ? 'full' : width}>
         {loading || !user ? <p className="muted">Đang tải…</p> : children}
       </OpsPage>
       {user ? <CsdChatNotifyHost user={user} /> : null}
-      {user ? <CsdChatDock user={user} /> : null}
+      {user && !chatShell ? <CsdChatDock user={user} /> : null}
     </>
   );
 }

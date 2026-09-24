@@ -20,6 +20,7 @@ import { StaffAvatarMenu } from '@/components/account/StaffAvatarMenu';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
 import { fetchCsdChatUnreadCount } from '@/lib/crm/csd-api';
+import { readRnosDesktop } from '@/lib/crm/csd-chat-desktop-bridge';
 import { getCpImageFlags } from '@/lib/crm/cp-image-sop-api';
 import { nextActionFor } from '@/lib/crm/canopy-next-action';
 import { winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
@@ -371,7 +372,10 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
     const token = getAccessToken();
     if (!token) return;
     void fetchCsdChatUnreadCount(token)
-      .then((out) => setCsdChatUnread(out.count))
+      .then((out) => {
+        setCsdChatUnread(out.count);
+        readRnosDesktop()?.setUnread(out.count);
+      })
       .catch(() => setCsdChatUnread(undefined));
   }, [sidebarUser, pathname]);
 

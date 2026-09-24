@@ -16,6 +16,7 @@ import { useCsdChatSession } from '@/components/crm/csd/useCsdChatSession';
 import { formatCsdWhen, CSD_PRIORITY_LABELS, CSD_TICKET_TYPES, type CsdPriority } from '@/lib/crm/csd-api';
 import { readCsdDockPersist, writeCsdDockPersist, type CsdDockTab } from '@/lib/crm/csd-chat-dock-persist';
 import { collectCsdConversationLinks } from '@/lib/crm/csd-chat-display';
+import { readCsdChatShell } from '@/lib/crm/csd-chat-shell';
 
 type CsdChatWorkspaceProps = {
   token: string;
@@ -46,6 +47,11 @@ export function CsdChatWorkspace({
   );
   const [incomingCount, setIncomingCount] = useState(0);
   const [contextOpen, setContextOpen] = useState(false);
+  const [openTicketsInNewTab, setOpenTicketsInNewTab] = useState(false);
+
+  useEffect(() => {
+    setOpenTicketsInNewTab(readCsdChatShell() !== 'crm');
+  }, []);
 
   useEffect(() => {
     if (s.isMobile) return;
@@ -321,6 +327,7 @@ export function CsdChatWorkspace({
           onMobileBack={() => s.setMobilePane('thread')}
           onClosePanel={!s.isMobile ? closeContextPanel : undefined}
           onRename={(aliasVi) => s.handleRenameConversation(aliasVi)}
+          openTicketsInNewTab={openTicketsInNewTab}
         />
       )}
 

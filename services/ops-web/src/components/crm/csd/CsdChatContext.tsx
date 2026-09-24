@@ -79,6 +79,7 @@ type CsdChatContextProps = {
   onClosePanel?: () => void;
   onRename?: (aliasVi: string) => Promise<boolean>;
   variant?: 'column' | 'sheet';
+  openTicketsInNewTab?: boolean;
 };
 
 type AiSummary = {
@@ -165,6 +166,7 @@ export function CsdChatContext({
   onClosePanel,
   onRename,
   variant = 'column',
+  openTicketsInNewTab = false,
 }: CsdChatContextProps) {
   const isSheet = variant === 'sheet';
   const isGroup = active?.kind === 'group';
@@ -503,9 +505,20 @@ export function CsdChatContext({
                 ) : (
                   relatedTickets.map((t) => (
                     <li key={t.id}>
-                      <Link href={`/crm/csd/tickets/${t.id}`} className="csd-chat-ticket-pill">
-                        {t.code} · {t.priority} · {t.status}
-                      </Link>
+                      {openTicketsInNewTab ? (
+                        <a
+                          href={`/crm/csd/tickets/${t.id}`}
+                          className="csd-chat-ticket-pill"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {t.code} · {t.priority} · {t.status}
+                        </a>
+                      ) : (
+                        <Link href={`/crm/csd/tickets/${t.id}`} className="csd-chat-ticket-pill">
+                          {t.code} · {t.priority} · {t.status}
+                        </Link>
+                      )}
                       <span className="csd-chat-context-sub">{t.title}</span>
                     </li>
                   ))

@@ -7,8 +7,10 @@ import { CsdChatLoginForm } from '@/components/crm/csd/CsdChatLoginForm';
 import { CsdChatWorkspace } from '@/components/crm/csd/CsdChatWorkspace';
 import { useCsdPageAuth } from '@/components/crm/csd/useCsdPageAuth';
 import { hasCap } from '@/lib/auth';
-import { fetchCsdChatMe, loginCsdChat } from '@/lib/crm/csd-api';
+import { fetchCsdChatMe, fetchCsdChatUnreadCount, loginCsdChat } from '@/lib/crm/csd-api';
+import { readRnosDesktop } from '@/lib/crm/csd-chat-desktop-bridge';
 import { readCsdChatLogin, writeCsdChatLogin } from '@/lib/crm/csd-chat-login-persist';
+import { readCsdChatShell, type CsdChatShell } from '@/lib/crm/csd-chat-shell';
 
 function CsdChatPageInner() {
   const searchParams = useSearchParams();
@@ -22,6 +24,29 @@ function CsdChatPageInner() {
   const [chatAuthed, setChatAuthed] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loginBusy, setLoginBusy] = useState(false);
+  const [shell, setShell] = useState<CsdChatShell>('crm');
+
+  useEffect(() => {
+    setShell(readCsdChatShell());
+  }, []);
+
+  useEffect(() => {
+    if (shell !== 'desktop' || !token) return;
+    let cancelled = false;
+    const publish = () => {
+      void fetchCsdChatUnreadCount(token)
+        .then((out) => {
+          if (!cancelled) readRnosDesktop()?.setUnread(out.count);
+        })
+        .catch(() => undefined);
+    };
+    publish();
+    const timer = window.setInterval(publish, 8_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [shell, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -41,9 +66,11 @@ function CsdChatPageInner() {
     };
   }, [token]);
 
+  const chatChrome = shell === 'crm' ? 'crm' : 'chat';
+
   if (!user) {
     return (
-      <StaffPageShell user={null} onLogout={logout} loading>
+      <StaffPageShell user={null} onLogout={logout} loading chrome={chatChrome}>
         <span />
       </StaffPageShell>
     );
@@ -55,8 +82,9 @@ function CsdChatPageInner() {
     <StaffPageShell
       user={user}
       onLogout={logout}
+      chrome={chatChrome}
       breadcrumb={
-        chatAuthed
+        chatChrome === 'chat' || chatAuthed
           ? undefined
           : [
               { label: 'CRM', href: '/crm/leads' },
@@ -66,8 +94,23 @@ function CsdChatPageInner() {
       }
       width="full"
     >
-      <div className={token && chatEnabled && chatAuthed ? 'csd-chat-page is-authed' : 'csd-chat-page'}>
-        <PageToolbar title="Chat native" subtitle={chatAuthed ? undefined : 'Hộp thoại — DM, nhóm, khách, dự án'} />
+      <div
+        className={[
+          'csd-chat-page',
+          token && chatEnabled && chatAuthed ? 'is-authed' : '',
+          chatChrome === 'chat' ? 'is-shell' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {chatChrome === 'chat' ? null : (
+          <PageToolbar title="Chat native" subtitle={chatAuthed ? undefined : 'Hộp thoại — DM, nhóm, khách, dự án'} />
+        )}
+        {shell === 'pwa' ? (
+          <p className="muted" data-testid="csd-chat-pwa-sleep-note">
+            Khi điện thoại ngủ, tin mới có thể đến chậm đến lúc mở lại Chat SD. Không có đẩy tin nền.
+          </p>
+        ) : null}
         {error ? (
           <div className="page-card">
             <p className="error">{error}</p>

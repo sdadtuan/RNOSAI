@@ -1,0 +1,15 @@
+{
+  "name": "ops-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8",
+    "electron-updater": "6.6.2"
+  }
+}

@@ -17,6 +17,7 @@ import {
   showCsdChatDesktopNotify,
   writeCsdChatNotified,
 } from '@/lib/crm/csd-chat-notify-persist';
+import { readRnosDesktop } from '@/lib/crm/csd-chat-desktop-bridge';
 import { playCsdChatMessageTone } from '@/lib/crm/csd-chat-notify-sound.util';
 import { dispatchCsdNeedNotifyPermission } from '@/lib/crm/csd-chat-notify-permission.util';
 import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
@@ -42,8 +43,13 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
   const openConversation = useCallback(
     (conversationId: string) => {
       setToasts((prev) => prev.filter((t) => t.conversationId !== conversationId));
+      readRnosDesktop()?.focus();
       if (pathname === '/crm/csd/chat') {
-        router.push(`/crm/csd/chat?c=${conversationId}`);
+        const shell = new URLSearchParams(window.location.search).get('shell');
+        const q = new URLSearchParams();
+        if (shell === 'desktop' || shell === 'pwa') q.set('shell', shell);
+        q.set('c', conversationId);
+        router.push(`/crm/csd/chat?${q.toString()}`);
         return;
       }
       dispatchCsdChatOpen(conversationId);

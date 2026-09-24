@@ -1,5 +1,6 @@
 import type { CsdAttachmentRow } from '@/lib/crm/csd-api';
 import { fetchCsdFileBlob } from '@/lib/crm/csd-api';
+import { readRnosDesktop } from '@/lib/crm/csd-chat-desktop-bridge';
 
 const DB_NAME = 'csd-chat-files-v1';
 const DB_VERSION = 1;
@@ -147,7 +148,21 @@ export async function ensureCsdChatFileBlob(
   return blob;
 }
 
+async function saveOnDesktop(token: string, file: CsdAttachmentRow): Promise<string | null> {
+  const bridge = readRnosDesktop();
+  if (!bridge) return null;
+  const existing = await bridge.hasLocalFile(file.id);
+  if (existing) return existing;
+  const blob = await ensureCsdChatFileBlob(token, file);
+  return bridge.saveFile(await blob.arrayBuffer(), file.file_name, file.id);
+}
+
 export async function openCsdChatFile(token: string, file: CsdAttachmentRow): Promise<void> {
+  const bridge = readRnosDesktop();
+  if (bridge) {
+    const saved = await saveOnDesktop(token, file);
+    if (saved && (await bridge.openFile(saved))) return;
+  }
   const blob = await ensureCsdChatFileBlob(token, file);
   const url = URL.createObjectURL(blob);
   const opened = window.open(url, '_blank', 'noopener,noreferrer');
@@ -186,6 +201,11 @@ async function saveWithFilePicker(blob: Blob, fileName: string, mimeType: string
 }
 
 export async function saveCsdChatFileToDisk(token: string, file: CsdAttachmentRow): Promise<void> {
+  const bridge = readRnosDesktop();
+  if (bridge) {
+    await saveOnDesktop(token, file);
+    return;
+  }
   const blob = await ensureCsdChatFileBlob(token, file);
   try {
     const handle = await saveWithFilePicker(blob, file.file_name, file.mime_type);
@@ -248,6 +268,14 @@ async function writeToDirectory(
 }
 
 export async function revealCsdChatFileInFolder(token: string, file: CsdAttachmentRow): Promise<void> {
+  const bridge = readRnosDesktop();
+  if (bridge) {
+    const saved = await saveOnDesktop(token, file);
+    if (saved) {
+      await bridge.revealInFolder(saved);
+      return;
+    }
+  }
   let dir = await getSaveDirectoryHandle();
   if (!dir) {
     try {
