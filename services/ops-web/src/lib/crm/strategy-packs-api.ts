@@ -105,3 +105,47 @@ export function generateStrategyDraft(
     body: JSON.stringify(body),
   });
 }
+
+export type GrowthExportSection = { id: number; title: string; fill_pct: number; missing: string[] };
+
+export type GrowthExportResponse = {
+  ok: boolean;
+  dry_run: boolean;
+  coverage: { known: string[]; assumed: string[]; tbd: string[] };
+  sections: GrowthExportSection[];
+  warnings: string[];
+  export_id?: number;
+  filename?: string;
+  download_url?: string;
+};
+
+export type GrowthExportVersion = { id: number; version: number; filename: string; created_at: string | null };
+
+export function fetchGrowthExports(token: string, planId: number) {
+  return crm<{ exports: GrowthExportVersion[] }>(token, `/api/crm/marketing-plans/${planId}/growth-exports`);
+}
+
+export function exportGrowthDocx(
+  token: string,
+  planId: number,
+  body: { dry_run: boolean; persist: boolean; include_empty_tables?: boolean; lifecycle_id?: number | null; insight_id?: number | null },
+) {
+  return crm<GrowthExportResponse>(token, `/api/crm/marketing-plans/${planId}/growth-exports`, {
+    method: 'POST',
+    body: JSON.stringify({ ...body, label_policy: 'known_assumed_tbd' }),
+  });
+}
+
+export async function downloadGrowthExport(token: string, planId: number, exportId: number, filename: string) {
+  const res = await fetch(`${API_BASE}/api/crm/marketing-plans/${planId}/growth-exports/${exportId}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}

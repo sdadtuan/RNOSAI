@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CeoAllLeadsBoard } from '@/components/crm/ceo/CeoAllLeadsBoard';
 import { CeoCommandPanel } from '@/components/crm/ceo/CeoCommandPanel';
 import { CeoLifecycleTower } from '@/components/crm/ceo/CeoLifecycleTower';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
@@ -96,13 +97,14 @@ export default function CeoCommandPage() {
     >
       <PageToolbar
         title="Điều hành CEO"
-        subtitle="Briefing + hỏi số + hành động có xác nhận — nội bộ, không gửi khách."
+        subtitle="CEO và Admin kiểm soát mọi lead — mọi luồng, mọi trạng thái, mọi tình trạng."
       />
       {error ? (
         <div className="page-card stack-gap">
           <p className="error">{error}</p>
         </div>
       ) : null}
+      {token && !error ? <CeoAllLeadsBoard token={token} /> : null}
       {token && !error ? (
         <Suspense fallback={<div className="page-card"><p className="muted">Đang tải tháp…</p></div>}>
           <CeoLifecycleTower token={token} />

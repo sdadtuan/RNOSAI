@@ -385,6 +385,7 @@ export class LeadsController {
     @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
     @Query('client_id') clientId?: string,
     @Query('status') status?: string,
+    @Query('status_any') statusAny?: string,
     @Query('source') source?: string,
     @Query('channel') channel?: string,
     @Query('q') q?: string,
@@ -394,6 +395,7 @@ export class LeadsController {
     @Query('hide_review_queue') hideReviewQueue?: string,
     @Query('owner_id') ownerId?: string,
     @Query('unassigned_only') unassignedOnly?: string,
+    @Query('assigned_only') assignedOnly?: string,
     @Query('lead_flow_kind') leadFlowKind?: string,
   ): Promise<LeadsListResponseV1> {
     const truthy = (v?: string) => v === '1' || v === 'true';
@@ -427,9 +429,14 @@ export class LeadsController {
     const scope = await this.clientScope.resolveForRequest(req);
     this.clientScope.assertListClientFilter(scope, clientId);
 
+    const statuses = String(statusAny ?? '')
+      .split(',')
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
     return this.leadsService.listLeads({
       client_id: clientId,
-      status,
+      status: statuses.length ? undefined : status,
+      statuses: statuses.length ? statuses : undefined,
       source,
       channel,
       q,
@@ -439,6 +446,7 @@ export class LeadsController {
       hide_review_queue: hideExplicitFalse ? false : undefined,
       owner_id: resolvedOwnerId,
       unassigned_only: truthy(unassignedOnly),
+      assigned_only: truthy(assignedOnly) && !truthy(unassignedOnly),
       lead_flow_kind: flowKind,
       allowed_client_ids: scope.restricted ? scope.allowedClientIds : undefined,
       b2b_list_scope: b2bListScope,

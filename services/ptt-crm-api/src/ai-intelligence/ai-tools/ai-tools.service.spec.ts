@@ -1,4 +1,4 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, InternalServerErrorException, ServiceUnavailableException } from '@nestjs/common';
 import { AiToolsService } from './ai-tools.service';
 
 describe('AiToolsService', () => {
@@ -149,6 +149,47 @@ describe('AiToolsService', () => {
     ]);
     await service.revokeKey('key-1');
     expect(keys.revoke).toHaveBeenCalledWith('key-1');
+  });
+
+  it('retries an export dry_run once when postgres is out of clients and does not invent a success', async () => {
+    const busy = Object.assign(new Error('sorry, too many clients already'), { code: '53300' });
+    registry.callWithMetadata
+      .mockRejectedValueOnce(busy)
+      .mockResolvedValueOnce({ data: { ok: true, dry_run: true, plan_id: 15 }, runId: 'run-2' });
+    keys.recordCall.mockResolvedValue('log-1');
+    const service = new AiToolsService(config as never, registry as never, keys as never);
+    const result = await service.call({
+      toolName: 'marketing_plan.export_growth_docx',
+      input: { plan_id: 15, dry_run: true, persist: false },
+      actorId: 'staff-1',
+    });
+    expect(result).toEqual({ ok: true, dry_run: true, plan_id: 15 });
+    expect(registry.callWithMetadata).toHaveBeenCalledTimes(2);
+    expect(keys.recordCall).toHaveBeenCalledWith(expect.objectContaining({ status: 'succeeded' }));
+  });
+
+  it('returns export_build_failed instead of a bare internal error when dry_run still fails', async () => {
+    const busy = Object.assign(new Error('sorry, too many clients already'), { code: '53300' });
+    registry.callWithMetadata.mockRejectedValue(busy);
+    keys.recordCall.mockResolvedValue('log-1');
+    const service = new AiToolsService(config as never, registry as never, keys as never);
+    try {
+      await service.call({
+        toolName: 'marketing_plan.export_growth_docx',
+        input: { plan_id: 15, dry_run: 'true', persist: 'false' },
+        actorId: 'staff-1',
+      });
+      fail('expected InternalServerErrorException');
+    } catch (error) {
+      expect(error).toBeInstanceOf(InternalServerErrorException);
+      expect((error as InternalServerErrorException).getResponse()).toEqual(
+        expect.objectContaining({
+          error: 'export_build_failed',
+          message: 'sorry, too many clients already',
+        }),
+      );
+    }
+    expect(registry.callWithMetadata).toHaveBeenCalledTimes(2);
   });
 
   it('rejects creating keys that include PO-53 denied tools', async () => {

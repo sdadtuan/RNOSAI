@@ -1,6 +1,9 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
+  InternalServerErrorException,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { AiIntelligenceConfigService } from '../ai-intelligence.config';
@@ -32,8 +35,16 @@ export interface CreateAiToolKeyParams {
   createdBy?: string | null;
 }
 
+function isPoolBusy(error: unknown): boolean {
+  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code: unknown }).code) : '';
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return code === '53300' || /too many clients/i.test(message);
+}
+
 @Injectable()
 export class AiToolsService {
+  private readonly logger = new Logger(AiToolsService.name);
+
   constructor(
     private readonly config: AiIntelligenceConfigService,
     private readonly registry: ToolRegistry,
@@ -47,41 +58,82 @@ export class AiToolsService {
 
   async call(params: AiToolCallParams): Promise<unknown> {
     this.assertEnabled();
+    const startedAt = Date.now();
+    try {
+      return await this.dispatch(params, startedAt);
+    } catch (error) {
+      if (this.isExportDryRun(params) && isPoolBusy(error)) {
+        this.logger.error(
+          'marketing_plan.export_growth_docx dry_run hit postgres pool limit, retrying once',
+          error instanceof Error ? error.stack : String(error),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        try {
+          return await this.dispatch(params, startedAt);
+        } catch (retryError) {
+          throw await this.settleFailure(params, retryError, startedAt);
+        }
+      }
+      throw await this.settleFailure(params, error, startedAt);
+    }
+  }
+
+  private async dispatch(params: AiToolCallParams, startedAt: number): Promise<unknown> {
     const toolName = String(params.toolName ?? '').trim();
     const input = params.input ?? {};
     const apiKey = params.apiKey ?? this.staffScope();
-    const startedAt = Date.now();
+    const callResult = await this.registry.callWithMetadata(toolName, input, {
+      apiKey,
+      actorId: params.actorId,
+      correlationId: params.correlationId,
+      humanApproved: params.humanApproved,
+    });
+    await this.recordQuietly({
+      apiKeyId: params.apiKey?.id ?? null,
+      toolName,
+      inputJson: input,
+      outputJson: this.asJsonObject(callResult.data),
+      status: 'succeeded',
+      latencyMs: Date.now() - startedAt,
+      agentRunId: callResult.runId,
+    });
+    return callResult.data;
+  }
 
-    try {
-      const callResult = await this.registry.callWithMetadata(toolName, input, {
-        apiKey,
-        actorId: params.actorId,
-        correlationId: params.correlationId,
-        humanApproved: params.humanApproved,
+  private async settleFailure(params: AiToolCallParams, error: unknown, startedAt: number): Promise<never> {
+    const toolName = String(params.toolName ?? '').trim();
+    const message = error instanceof Error ? error.message : 'tool_call_failed';
+    this.logger.error(`ai tool ${toolName} failed`, error instanceof Error ? error.stack : message);
+    await this.recordQuietly({
+      apiKeyId: params.apiKey?.id ?? null,
+      toolName,
+      inputJson: params.input ?? {},
+      outputJson: { error: message },
+      status: 'failed',
+      latencyMs: Date.now() - startedAt,
+    });
+    if (error instanceof HttpException) throw error;
+    if (toolName === 'marketing_plan.export_growth_docx') {
+      throw new InternalServerErrorException({
+        error: 'export_build_failed',
+        message,
       });
-      await this.keys.recordCall({
-        apiKeyId: params.apiKey?.id ?? null,
-        toolName,
-        inputJson: input,
-        outputJson: this.asJsonObject(callResult.data),
-        status: 'succeeded',
-        latencyMs: Date.now() - startedAt,
-        agentRunId: callResult.runId,
-      });
-      return callResult.data;
-    } catch (error) {
-      await this.keys.recordCall({
-        apiKeyId: params.apiKey?.id ?? null,
-        toolName,
-        inputJson: input,
-        outputJson: {
-          error: error instanceof Error ? error.message : 'tool_call_failed',
-        },
-        status: 'failed',
-        latencyMs: Date.now() - startedAt,
-      });
-      throw error;
     }
+    throw error;
+  }
+
+  private async recordQuietly(entry: Parameters<AiToolKeysRepository['recordCall']>[0]): Promise<void> {
+    try {
+      await this.keys.recordCall(entry);
+    } catch (error) {
+      this.logger.error('ai tool call log failed', error instanceof Error ? error.stack : String(error));
+    }
+  }
+
+  private isExportDryRun(params: AiToolCallParams): boolean {
+    if (String(params.toolName ?? '').trim() !== 'marketing_plan.export_growth_docx') return false;
+    const persist = params.input?.persist;
+    return persist !== true && persist !== 'true' && persist !== 1 && persist !== '1';
   }
 
   createKey(params: CreateAiToolKeyParams): Promise<AiToolApiKeyCreateResult> {

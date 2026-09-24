@@ -58,6 +58,17 @@ export class StrategyPacksRepository implements OnModuleInit, OnModuleDestroy {
         version INT NOT NULL DEFAULT 1,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS crm_marketing_plan_growth_exports (
+        id BIGSERIAL PRIMARY KEY,
+        plan_id BIGINT NOT NULL,
+        version INT NOT NULL,
+        filename TEXT NOT NULL,
+        storage_path TEXT NOT NULL,
+        coverage JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_by TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (plan_id, version)
+      );
     `);
     await this.db.query(`
       DO $$
@@ -220,7 +231,8 @@ export class StrategyPacksRepository implements OnModuleInit, OnModuleDestroy {
   async loadGenerateSources(planId: number, lifecycleId: number | null, insightId: number | null) {
     const planResult = await this.db.query(
       `SELECT id, status, name, north_star, objectives, lifecycle_id, growth_sections,
-              industry_pack_key, service_pack_key, target_market_prof_json, strategy_framework_json
+              industry_pack_key, service_pack_key, target_market_prof_json, strategy_framework_json,
+              period_label, fiscal_year, audiences
        FROM crm_marketing_plans WHERE id = $1 LIMIT 1`,
       [planId],
     );
@@ -290,6 +302,65 @@ export class StrategyPacksRepository implements OnModuleInit, OnModuleDestroy {
       campaignNames = [];
     }
     return { plan, lifecycleId: lifecycle, lifecycle: lifecycleRow, insight, roleKpis, campaignNames };
+  }
+
+  async listGrowthExports(planId: number) {
+    const result = await this.db.query(
+      `SELECT id, plan_id, version, filename, created_at
+       FROM crm_marketing_plan_growth_exports
+       WHERE plan_id = $1
+       ORDER BY version DESC`,
+      [planId],
+    );
+    return result.rows.map((row) => ({
+      id: Number(row.id),
+      plan_id: Number(row.plan_id),
+      version: Number(row.version),
+      filename: String(row.filename),
+      created_at: row.created_at ? new Date(String(row.created_at)).toISOString() : null,
+    }));
+  }
+
+  async insertGrowthExport(input: {
+    planId: number;
+    filename: string;
+    storagePath: string;
+    coverage: unknown;
+    actor: string;
+  }) {
+    const inserted = await this.db.query(
+      `INSERT INTO crm_marketing_plan_growth_exports
+         (plan_id, version, filename, storage_path, coverage, created_by)
+       VALUES (
+         $1,
+         COALESCE((SELECT MAX(version) FROM crm_marketing_plan_growth_exports WHERE plan_id = $1), 0) + 1,
+         $2, $3, $4::jsonb, $5
+       )
+       RETURNING id, version, filename`,
+      [input.planId, input.filename, input.storagePath, JSON.stringify(input.coverage), input.actor],
+    );
+    const row = inserted.rows[0] as { id: number; version: number; filename: string };
+    return { id: Number(row.id), version: Number(row.version), filename: String(row.filename) };
+  }
+
+  async getGrowthExport(planId: number, exportId: number) {
+    const result = await this.db.query(
+      `SELECT id, filename, storage_path
+       FROM crm_marketing_plan_growth_exports
+       WHERE plan_id = $1 AND id = $2
+       LIMIT 1`,
+      [planId, exportId],
+    );
+    const row = result.rows[0] as { id: number; filename: string; storage_path: string } | undefined;
+    if (!row) return null;
+    return { id: Number(row.id), filename: String(row.filename), storagePath: String(row.storage_path) };
+  }
+
+  async renameGrowthExport(exportId: number, filename: string, storagePath: string) {
+    await this.db.query(
+      `UPDATE crm_marketing_plan_growth_exports SET filename = $2, storage_path = $3 WHERE id = $1`,
+      [exportId, filename, storagePath],
+    );
   }
 
   private mapRow(row: Record<string, unknown>, kind: PackKind): StrategyPackRow {

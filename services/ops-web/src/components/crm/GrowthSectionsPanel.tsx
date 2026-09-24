@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  downloadGrowthExport,
+  exportGrowthDocx,
+  fetchGrowthExports,
   fetchGrowthSections,
   fetchStrategyPacks,
   generateStrategyDraft,
   saveGrowthSections,
   savePlanPackKeys,
   type GenerateDraftResponse,
+  type GrowthExportResponse,
+  type GrowthExportVersion,
   type StrategyPackRow,
 } from '@/lib/crm/strategy-packs-api';
 
@@ -66,6 +71,9 @@ export function GrowthSectionsPanel({
   );
   const [preview, setPreview] = useState<GenerateDraftResponse | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [exportPreview, setExportPreview] = useState<GrowthExportResponse | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [versions, setVersions] = useState<GrowthExportVersion[]>([]);
 
   useEffect(() => {
     void (async () => {
@@ -78,6 +86,8 @@ export function GrowthSectionsPanel({
         setService(packs.service_packs.filter((row) => row.is_active));
         setSections(growth.growth_sections);
         setWarnings(growth.warnings);
+        const listed = await fetchGrowthExports(token, planId).catch(() => ({ exports: [] }));
+        setVersions(listed.exports);
         const star = asRecord(growth.growth_sections.north_star);
         setLabel(star.label == null ? '' : String(star.label));
         setQuality(String(star.quality ?? 'tbd'));
@@ -173,6 +183,38 @@ export function GrowthSectionsPanel({
       setError(err instanceof Error ? err.message : 'Không ghi được draft');
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function onExportPreview() {
+    if (!canEdit) return;
+    setError('');
+    setExporting(true);
+    try {
+      const out = await exportGrowthDocx(token, planId, { dry_run: true, persist: false, include_empty_tables: true });
+      setExportPreview(out);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không xuất được bản xem trước');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function onConfirmExport() {
+    if (!canEdit || !exportPreview) return;
+    setError('');
+    setExporting(true);
+    try {
+      const out = await exportGrowthDocx(token, planId, { dry_run: false, persist: true, include_empty_tables: true });
+      setExportPreview(null);
+      const listed = await fetchGrowthExports(token, planId);
+      setVersions(listed.exports);
+      if (out.export_id && out.filename) await downloadGrowthExport(token, planId, out.export_id, out.filename);
+      setMessage('Đã xuất DOCX');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không lưu được DOCX');
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -313,6 +355,55 @@ export function GrowthSectionsPanel({
               Xác nhận ghi
             </button>
             <button type="button" className="btn btn-sm" disabled={generating} onClick={() => setPreview(null)}>
+              Đóng
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+        <button type="button" className="btn btn-sm" disabled={!canEdit || exporting} onClick={() => void onExportPreview()}>
+          Xuất kế hoạch tăng trưởng (DOCX)
+        </button>
+        {versions.map((row) => (
+          <button
+            key={row.id}
+            type="button"
+            className="btn btn-sm"
+            onClick={() => void downloadGrowthExport(token, planId, row.id, row.filename)}
+          >
+            v{row.version}
+          </button>
+        ))}
+      </div>
+      {exportPreview ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="export-docx-title"
+          style={{ border: '1px solid var(--border, #d1d5db)', borderRadius: 8, padding: '0.85rem', display: 'grid', gap: '0.45rem' }}
+        >
+          <strong id="export-docx-title">Xem trước DOCX</strong>
+          <p style={{ margin: 0 }}>
+            Known {exportPreview.coverage.known.length} · Assumed {exportPreview.coverage.assumed.length} · TBD{' '}
+            {exportPreview.coverage.tbd.length}
+          </p>
+          <p className="muted" style={{ margin: 0 }}>
+            {exportPreview.sections
+              .filter((section) => section.missing.length)
+              .slice(0, 4)
+              .map((section) => `${section.title} ${section.fill_pct}%`)
+              .join(' · ') || 'Các mục đã có nội dung'}
+          </p>
+          {exportPreview.warnings.length ? (
+            <p className="muted" style={{ margin: 0 }}>
+              {exportPreview.warnings.join(' · ')}
+            </p>
+          ) : null}
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button type="button" className="btn btn-primary btn-sm" disabled={exporting} onClick={() => void onConfirmExport()}>
+              Xác nhận xuất
+            </button>
+            <button type="button" className="btn btn-sm" disabled={exporting} onClick={() => setExportPreview(null)}>
               Đóng
             </button>
           </div>

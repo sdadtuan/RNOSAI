@@ -14211,6 +14211,14 @@ body {
 
 /* —— CEO Lifecycle Tower (visual dashboard) —— */
 
+.ceo-lead-desk__head { display: flex; justify-content: space-between; gap: 0.75rem; }
+.ceo-lead-desk__sub { margin: 0.2rem 0 0; color: #5b6b62; font-size: 0.84rem; line-height: 1.4; }
+.ceo-lead-desk__search { display: flex; gap: 0.5rem; align-items: center; }
+.ceo-lead-desk__search input { flex: 1; min-width: 0; }
+.ceo-lead-desk__filters { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.ceo-lead-desk__assign { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.ceo-lead-desk__name { font-weight: 650; }
+.ceo-lead-desk__pager { display: flex; align-items: center; gap: 0.65rem; }
 .ceo-tower-panel {
   gap: 1.25rem;
 }
@@ -23280,6 +23288,78 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   font-size: 0.78rem;
   color: #5b6b62;
   line-height: 1.35;
+}
+.lead-b2-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
+  background: #f7f8f7;
+}
+.lead-b2-tabs [role="tab"] {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.72rem 0.85rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #5b6b62;
+  text-align: left;
+  cursor: pointer;
+}
+.lead-b2-tabs [role="tab"][aria-selected="true"] {
+  color: #143528;
+  background: #fff;
+  border-bottom-color: #17692f;
+}
+.lead-b2-tabs__no {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #e6efe8;
+  color: #17692f;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.lead-b2-tabs [aria-selected="true"] .lead-b2-tabs__no {
+  background: #17692f;
+  color: #fff;
+}
+.lead-b2-tabs__label {
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+.lead-b2-tabs__meta {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+.lead-b2-workspace__panel {
+  padding: 0.75rem 0.85rem 0.35rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: #fff;
+}
+.lead-b2-workspace__panel[hidden] {
+  display: none;
+}
+.lead-b2-workspace__panel-note {
+  margin: 0 0 0.65rem;
+  font-size: 0.8rem;
+  color: #5b6b62;
+  line-height: 1.4;
+}
+@media (max-width: 640px) {
+  .lead-b2-tabs__meta { display: none; }
 }
 .lead-pipeline-done { padding: 10px 14px 16px; }
 .lead-pipeline-done__list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }

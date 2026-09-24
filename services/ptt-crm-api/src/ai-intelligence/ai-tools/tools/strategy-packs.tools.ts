@@ -1,6 +1,17 @@
 import { AiToolDefinition, AiToolExecutionContext } from '../ai-tools.types';
 import { StrategyPacksService } from '../../../strategy-packs/strategy-packs.service';
 
+/** Admin Try may send booleans as strings. Missing dry_run stays true; missing persist stays false. */
+export function readToolFlag(value: unknown, whenMissing: boolean): boolean {
+  if (value == null || value === '') return whenMissing;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const text = String(value).trim().toLowerCase();
+  if (text === 'true' || text === '1' || text === 'yes' || text === 'on') return true;
+  if (text === 'false' || text === '0' || text === 'no' || text === 'off') return false;
+  return whenMissing;
+}
+
 /** P11.a — packs + growth_sections. Không gọi winning plan gate. */
 export function createStrategyPackTools(packs: StrategyPacksService): AiToolDefinition[] {
   return [
@@ -102,6 +113,38 @@ export function createStrategyPackTools(packs: StrategyPacksService): AiToolDefi
           overwriteMode: input.overwrite_mode == null ? 'fill_empty_only' : String(input.overwrite_mode),
           dryRun: input.dry_run !== false,
           persist: input.persist === true,
+          humanApproved: Boolean(ctx.humanApproved),
+          actor: String(ctx.actorId ?? ctx.apiKeyId ?? 'ai-tool'),
+        }),
+    },
+    {
+      name: 'marketing_plan.export_growth_docx',
+      description:
+        'Export the growth plan DOCX. Does not invent KPI or budget numbers. persist requires human approval. Does not email the file. P11.',
+      mutating: true,
+      requiredCaps: [],
+      inputSchema: {
+        type: 'object',
+        additionalProperties: true,
+        required: ['plan_id'],
+        properties: {
+          plan_id: { type: 'integer', minimum: 1 },
+          lifecycle_id: { type: 'integer', minimum: 1 },
+          insight_id: { type: 'integer', minimum: 1 },
+          dry_run: { type: 'boolean' },
+          persist: { type: 'boolean' },
+          include_empty_tables: { type: 'boolean' },
+          label_policy: { type: 'string' },
+        },
+      },
+      handler: async (input, ctx: AiToolExecutionContext) =>
+        packs.exportGrowthDocx({
+          planId: Number(input.plan_id),
+          lifecycleId: input.lifecycle_id == null ? null : Number(input.lifecycle_id),
+          insightId: input.insight_id == null ? null : Number(input.insight_id),
+          dryRun: readToolFlag(input.dry_run, true),
+          persist: readToolFlag(input.persist, false),
+          includeEmptyTables: input.include_empty_tables !== false,
           humanApproved: Boolean(ctx.humanApproved),
           actor: String(ctx.actorId ?? ctx.apiKeyId ?? 'ai-tool'),
         }),

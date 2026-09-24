@@ -402,10 +402,12 @@ export async function fetchLeads(
   params?: {
     q?: string;
     status?: string;
+    statuses?: string[];
     source?: string;
     channel?: string;
     owner_id?: number;
     unassigned_only?: boolean;
+    assigned_only?: boolean;
     limit?: number;
     offset?: number;
     hide_review_queue?: boolean;
@@ -415,11 +417,13 @@ export async function fetchLeads(
 ): Promise<LeadsListResponse> {
   const qs = new URLSearchParams();
   if (params?.q) qs.set('q', params.q);
-  if (params?.status) qs.set('status', params.status);
+  if (params?.statuses?.length) qs.set('status_any', params.statuses.join(','));
+  else if (params?.status) qs.set('status', params.status);
   if (params?.source) qs.set('source', params.source);
   if (params?.channel) qs.set('channel', params.channel);
   if (params?.owner_id != null) qs.set('owner_id', String(params.owner_id));
   if (params?.unassigned_only) qs.set('unassigned_only', '1');
+  if (params?.assigned_only) qs.set('assigned_only', '1');
   if (params?.limit !== undefined) qs.set('limit', String(params.limit));
   if (params?.offset !== undefined) qs.set('offset', String(params.offset));
   if (params?.hide_review_queue === false) qs.set('hide_review_queue', '0');

@@ -2,7 +2,10 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Injectable,
+  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -14,6 +17,10 @@ import {
 } from './growth-sections.util';
 import { PackKind, StrategyPacksRepository } from './strategy-packs.repository';
 import { buildGenerateDraft, GENERATE_MODES, GenerateMode } from './strategy-generate.util';
+import { buildGrowthExportModel } from './growth-export.util';
+import { buildGrowthDocx } from './growth-export-docx.util';
+import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
+import path from 'path';
 
 function asJson(value: unknown): Record<string, unknown> {
   if (typeof value === 'string') {
@@ -30,6 +37,23 @@ function asJson(value: unknown): Record<string, unknown> {
 function blank(value: unknown): string | null {
   const text = String(value ?? '').trim();
   return text || null;
+}
+
+function isPoolBusy(error: unknown): boolean {
+  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code: unknown }).code) : '';
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return code === '53300' || /too many clients/i.test(message);
+}
+
+async function withPoolRetry<T>(logger: Logger, label: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (!isPoolBusy(error)) throw error;
+    logger.error(`${label} postgres pool busy, retrying read`, error instanceof Error ? error.stack : String(error));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return fn();
+  }
 }
 
 function finiteOrNull(value: unknown): number | null {
@@ -51,6 +75,8 @@ function throwGrowth(error: string, message: string): never {
 
 @Injectable()
 export class StrategyPacksService {
+  private readonly logger = new Logger(StrategyPacksService.name);
+
   constructor(private readonly repo: StrategyPacksRepository) {}
 
   async packsList() {
@@ -274,6 +300,208 @@ export class StrategyPacksService {
       warnings: draft.warnings,
       links: draft.links,
       growth_sections: draft.growth_sections,
+    };
+  }
+
+  async listGrowthExports(planId: number) {
+    await this.requirePlan(planId);
+    const exports = await this.repo.listGrowthExports(planId);
+    return { ok: true, plan_id: planId, exports };
+  }
+
+  async readGrowthExport(planId: number, exportId: number) {
+    const row = await this.repo.getGrowthExport(planId, exportId);
+    if (!row) throw new NotFoundException({ error: 'plan_not_found', message: `export ${exportId}` });
+    try {
+      const buffer = await readFile(row.storagePath);
+      return { filename: row.filename, buffer };
+    } catch {
+      throw new InternalServerErrorException({ error: 'export_engine_failed', message: 'Không đọc được file DOCX' });
+    }
+  }
+
+  async exportGrowthDocx(input: {
+    planId: number;
+    lifecycleId?: number | null;
+    insightId?: number | null;
+    dryRun: boolean;
+    persist: boolean;
+    includeEmptyTables: boolean;
+    humanApproved: boolean;
+    actor: string;
+  }) {
+    const write = input.persist && !input.dryRun;
+    if (write && !input.humanApproved) {
+      throw new ForbiddenException({
+        error: 'human_approval_required',
+        message: 'marketing_plan.export_growth_docx persist cần X-AI-Human-Approved: 1',
+      });
+    }
+    try {
+      return await this.buildGrowthExport(input, write);
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(
+        `export_growth_docx failed plan=${input.planId} dry_run=${!write}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new InternalServerErrorException({
+        error: 'export_build_failed',
+        message: error instanceof Error && error.message ? error.message : 'Không tạo được DOCX',
+      });
+    }
+  }
+
+  private async buildGrowthExport(
+    input: {
+      planId: number;
+      lifecycleId?: number | null;
+      insightId?: number | null;
+      dryRun: boolean;
+      persist: boolean;
+      includeEmptyTables: boolean;
+      humanApproved: boolean;
+      actor: string;
+    },
+    write: boolean,
+  ) {
+    const loaded = await withPoolRetry(this.logger, 'export_growth_docx', () =>
+      this.repo.loadGenerateSources(input.planId, input.lifecycleId ?? null, input.insightId ?? null),
+    );
+    if (!loaded) throw new NotFoundException({ error: 'plan_not_found', message: `plan ${input.planId}` });
+    if (String(loaded.plan.status ?? '') === 'archived') {
+      throw new ConflictException({ error: 'plan_archived', message: 'Plan đã lưu trữ' });
+    }
+    const framework = asJson(loaded.plan.strategy_framework_json);
+    const prof = asJson(loaded.plan.target_market_prof_json);
+    const meta = asJson(framework.ai_tmmt_field_meta);
+    const tmmt: Record<string, { text: string; status: string }> = {};
+    for (const key of ['market_context', 'segmentation_icp', 'personas_roles', 'pains_desired_outcomes']) {
+      const row = asJson(meta[key]);
+      tmmt[key] = { text: String(row.text ?? row.value ?? prof[key] ?? ''), status: String(row.status ?? '') };
+    }
+    const industryKey = blank(loaded.plan.industry_pack_key) ?? blank(asJson(loaded.plan.growth_sections).industry_pack_key);
+    const pack = industryKey ? await this.repo.getPack('industry', industryKey).catch(() => null) : null;
+    const kpiRow = loaded.roleKpis.find((row) => finiteOrNull(row.target_value) != null || finiteOrNull(asJson(row.form_data).baseline) != null);
+    const model = buildGrowthExportModel({
+      planId: input.planId,
+      brandName: blank(loaded.plan.name),
+      serviceType: blank(loaded.lifecycle?.service_slug),
+      periodLabel: blank(loaded.plan.period_label) ?? (loaded.plan.fiscal_year ? String(loaded.plan.fiscal_year) : null),
+      planStatus: blank(loaded.plan.status),
+      ownerName: null,
+      geo: blank(prof.geo ?? prof.market_geo),
+      industryPackKey: industryKey,
+      industryPackName: pack?.name_vi ?? null,
+      servicePackKey: blank(loaded.plan.service_pack_key),
+      packJourney: pack?.journey_focus ?? null,
+      packPriorities: pack?.marketing_priorities ?? null,
+      growthSections: loaded.plan.growth_sections,
+      includeEmptyTables: input.includeEmptyTables,
+      tmmt,
+      insight: loaded.insight
+        ? {
+            id: Number(loaded.insight.id),
+            status: String(loaded.insight.status ?? ''),
+            statement: String(loaded.insight.statement ?? ''),
+            observation: String(loaded.insight.observation ?? ''),
+            interpretation: String(loaded.insight.interpretation ?? ''),
+          }
+        : null,
+      roleKpi: kpiRow
+        ? {
+            label: String(kpiRow.kpi_label ?? ''),
+            target: finiteOrNull(kpiRow.target_value),
+            baseline: finiteOrNull(asJson(kpiRow.form_data).baseline),
+            unit: String(kpiRow.target_unit ?? ''),
+          }
+        : null,
+      campaignNames: loaded.campaignNames,
+      measurementExists: Boolean(kpiRow),
+    });
+    let versionLabel = 'Xem trước';
+    if (write) {
+      const existing = await this.repo.listGrowthExports(input.planId);
+      const max = existing.reduce((highest, row) => Math.max(highest, row.version), 0);
+      versionLabel = `v${max + 1}`;
+    }
+    const issuedOn = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+    let built: Awaited<ReturnType<typeof buildGrowthDocx>>;
+    try {
+      built = await buildGrowthDocx({ ...model.template_fill, versionLabel, issuedOn });
+    } catch (error) {
+      this.logger.error(
+        `export_growth_docx engine failed plan=${input.planId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new InternalServerErrorException({ error: 'export_engine_failed', message: 'Không tạo được DOCX' });
+    }
+    const buffer = built.buffer;
+    const fidelity = {
+      template: built.template,
+      structure_ok: built.structure_ok,
+      table_count: built.table_count,
+      missing_for_ops: model.missing_for_ops,
+      deploy_ready: model.deploy_ready,
+    };
+    const publicSections = model.sections.map(({ id, title, fill_pct, missing }) => ({ id, title, fill_pct, missing }));
+    if (!write) {
+      return {
+        ok: true,
+        phase: 'P11',
+        plan_id: input.planId,
+        dry_run: true,
+        export_id: null,
+        filename: null,
+        download_url: null,
+        industry_pack_key: model.industry_pack_key,
+        service_pack_key: model.service_pack_key,
+        template_version: model.template_version,
+        coverage: model.coverage,
+        sections: publicSections,
+        checklist: model.checklist,
+        warnings: model.warnings,
+        ...fidelity,
+      };
+    }
+    const dir = process.env.PTT_GROWTH_EXPORT_DIR || path.join(process.cwd(), 'var', 'growth-exports');
+    await mkdir(dir, { recursive: true });
+    const placeholder = path.join(dir, `.pending-${input.planId}-${Date.now()}.docx`);
+    await writeFile(placeholder, buffer);
+    let saved: { id: number; version: number; filename: string };
+    try {
+      saved = await this.repo.insertGrowthExport({
+        planId: input.planId,
+        filename: 'pending.docx',
+        storagePath: placeholder,
+        coverage: model.coverage,
+        actor: input.actor,
+      });
+    } catch (error) {
+      this.logger.error(
+        `export_growth_docx persist failed plan=${input.planId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new InternalServerErrorException({ error: 'export_engine_failed', message: 'Không lưu được phiên bản DOCX' });
+    }
+    const filename = `Ke-hoach-tang-truong-plan-${input.planId}-v${saved.version}.docx`;
+    const storagePath = path.join(dir, filename);
+    await writeFile(storagePath, buffer);
+    await unlink(placeholder).catch(() => undefined);
+    await this.repo.renameGrowthExport(saved.id, filename, storagePath);
+    return {
+      ok: true,
+      phase: 'P11',
+      plan_id: input.planId,
+      dry_run: false,
+      export_id: saved.id,
+      filename,
+      download_url: `/api/crm/marketing-plans/${input.planId}/growth-exports/${saved.id}/download`,
+      coverage: model.coverage,
+      sections: publicSections,
+      checklist: model.checklist,
+      warnings: model.warnings,
+      ...fidelity,
     };
   }
 

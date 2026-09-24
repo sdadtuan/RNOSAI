@@ -31,8 +31,8 @@ export class LeadsService {
 
   private resolveReviewQueueFilter(query: ListLeadsQuery): ReviewQueueListFilter | undefined {
     if (!this.config.crmLeadsFunnelNest) return undefined;
-    if (query.lead_flow_kind === 'b2b_prospect') return undefined;
     if (query.review_queue_only) return 'only';
+    if (query.lead_flow_kind === 'b2b_prospect') return undefined;
     if (query.hide_review_queue === false) return undefined;
     return 'hide';
   }

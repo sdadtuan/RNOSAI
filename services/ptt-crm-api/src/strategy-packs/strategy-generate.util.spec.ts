@@ -131,10 +131,101 @@ describe('strategy.generate_draft', () => {
       }),
     );
     expect(draft.industry_pack_key).toBe('generic');
-    expect(draft.warnings).toContain('pack_generic_fallback');
-    expect(draft.warnings).toContain('insight_missing');
+    expect(draft.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'pack_generic_fallback',
+          pack_kind: 'industry',
+          requested_key: 'not_a_pack',
+          reason: 'not_found',
+          resolved_key: 'generic',
+        }),
+        'insight_missing',
+      ]),
+    );
     expect(draft.service_pack_key).toBe('growth_full');
     expect(moneyHits(draft.growth_sections)).toEqual([]);
+  });
+
+  it('explicit bogus industry key does not fall through to the plan pack', () => {
+    const draft = buildGenerateDraft(
+      input({
+        requestedIndustryKey: '__bogus_pack__',
+        planIndustryKey: 'auto_detailing',
+        lifecycleIndustryKey: 'education',
+        inferText: '360 AUTO DETAILING',
+      }),
+    );
+    expect(draft.industry_pack_key).toBe('generic');
+    expect(draft.industry_pack_key).not.toBe('auto_detailing');
+    expect(draft.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'pack_generic_fallback',
+          requested_key: '__bogus_pack__',
+          reason: 'not_found',
+          resolved_key: 'generic',
+          pack_kind: 'industry',
+        }),
+      ]),
+    );
+    const star = draft.growth_sections.north_star as { target: unknown; baseline: unknown };
+    expect(star.target).toBeNull();
+    expect(star.baseline).toBeNull();
+    expect(moneyHits(draft.growth_sections)).toEqual([]);
+  });
+
+  it('omitted industry key still uses the active plan pack', () => {
+    const draft = buildGenerateDraft(
+      input({
+        requestedIndustryKey: null,
+        planIndustryKey: 'auto_detailing',
+        inferText: 'zzzz',
+      }),
+    );
+    expect(draft.industry_pack_key).toBe('auto_detailing');
+    expect(draft.warnings.some((item) => typeof item === 'object' && item.code === 'pack_generic_fallback')).toBe(false);
+  });
+
+  it('explicit inactive industry key falls to generic with reason inactive', () => {
+    const packs = input().industryPacks.map((pack) =>
+      pack.key === 'spa_beauty' ? { ...pack, is_active: false } : pack,
+    );
+    const draft = buildGenerateDraft(
+      input({
+        requestedIndustryKey: 'spa_beauty',
+        planIndustryKey: 'auto_detailing',
+        industryPacks: packs,
+      }),
+    );
+    expect(draft.industry_pack_key).toBe('generic');
+    expect(draft.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requested_key: 'spa_beauty', reason: 'inactive', resolved_key: 'generic' }),
+      ]),
+    );
+  });
+
+  it('explicit bogus service key resolves to growth_full and warns', () => {
+    const draft = buildGenerateDraft(
+      input({
+        requestedServiceKey: '__bogus_service__',
+        planServiceKey: 'ads_crm',
+      }),
+    );
+    expect(draft.service_pack_key).toBe('growth_full');
+    expect(draft.service_pack_key).not.toBe('ads_crm');
+    expect(draft.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'pack_generic_fallback',
+          pack_kind: 'service',
+          requested_key: '__bogus_service__',
+          reason: 'not_found',
+          resolved_key: 'growth_full',
+        }),
+      ]),
+    );
   });
 
   it('warns when insight exists but is not approved and still drafts assumed text', () => {

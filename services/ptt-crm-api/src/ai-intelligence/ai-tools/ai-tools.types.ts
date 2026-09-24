@@ -100,6 +100,7 @@ export const OPS_AI_TOOL_ALLOWLIST = [
   'marketing_plan.sections_read',
   'marketing_plan.sections_upsert',
   'strategy.generate_draft',
+  'marketing_plan.export_growth_docx',
 ] as const;
 
 /** Default allowlist for strategist / PM agent policies (P6+P7). */

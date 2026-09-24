@@ -23,9 +23,10 @@
       "entity": "lead",
       "field": "phone",
       "section": "crm_leads",
-      "action": "view_pii",
+      "action": "view",
       "mask_mode": "partial",
-      "export_strip": true
+      "export_strip": true,
+      "export_action": "view_pii"
     },
     {
       "entity": "lead",

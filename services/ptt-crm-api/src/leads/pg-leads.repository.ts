@@ -152,7 +152,10 @@ export class PgLeadsRepository implements OnModuleDestroy {
     if (query.allowed_client_ids?.length) {
       push('l.agency_client_id = ANY(?::uuid[])', query.allowed_client_ids);
     }
-    if (query.status?.trim()) {
+    const statuses = (query.statuses ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean);
+    if (statuses.length) {
+      push('lower(l.status) = ANY(?::text[])', statuses);
+    } else if (query.status?.trim()) {
       push('l.status = ?', query.status.trim());
     }
     if (query.source?.trim()) {
@@ -163,6 +166,8 @@ export class PgLeadsRepository implements OnModuleDestroy {
     }
     if (query.unassigned_only) {
       clauses.push('l.owner_id IS NULL');
+    } else if (query.assigned_only) {
+      clauses.push('l.owner_id IS NOT NULL');
     } else if (query.owner_id != null && Number.isFinite(query.owner_id)) {
       push('l.owner_id = ?', Number(query.owner_id));
     }

@@ -100,6 +100,8 @@ export type ReviewQueueListFilter = 'only' | 'hide';
 export interface ListLeadsQuery {
   client_id?: string;
   status?: string;
+  /** Match any stored status (caller includes aliases such as new/moi). */
+  statuses?: string[];
   source?: string;
   channel?: string;
   q?: string;
@@ -113,6 +115,8 @@ export interface ListLeadsQuery {
   review_queue_ids?: number[];
   owner_id?: number;
   unassigned_only?: boolean;
+  /** Leads that already have an owner. Ignored when unassigned_only is set. */
+  assigned_only?: boolean;
   /** Filter by operational flow (spa CSKH vs B2B sales). */
   lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
   /** WIN-3-C — restrict list to assigned agency clients. */

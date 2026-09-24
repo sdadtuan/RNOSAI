@@ -51,13 +51,15 @@ export function serializeLeadForCaps(
   const out: LeadV1 = { ...lead };
   const mutable = out as unknown as Record<string, unknown>;
   for (const entry of fieldRegistryEntriesForEntity('lead')) {
-    const allowed = hasFieldCap(caps, entry, hasCap);
-    if (allowed) continue;
     if (!(entry.field in out)) continue;
     if (opts?.exportMode && entry.export_strip) {
-      mutable[entry.field] = '';
-      continue;
+      const exportAction = entry.export_action ?? entry.action;
+      if (!hasCap(caps, entry.section, exportAction)) {
+        mutable[entry.field] = '';
+        continue;
+      }
     }
+    if (hasFieldCap(caps, entry, hasCap)) continue;
     mutable[entry.field] = applyMask(out[entry.field as keyof LeadV1], entry);
   }
   return out;

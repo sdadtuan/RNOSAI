@@ -66,9 +66,27 @@ function text(value: unknown): string {
   return String(value ?? '').trim();
 }
 
+export type PackFallbackWarning = {
+  code: 'pack_generic_fallback';
+  pack_kind: 'industry' | 'service';
+  requested_key: string | null;
+  reason: 'not_found' | 'inactive' | 'unresolved';
+  resolved_key: string;
+};
+
+function lookupPack(packs: PackRef[], key: string | null): PackRef | null {
+  const name = text(key);
+  if (!name) return null;
+  return packs.find((pack) => pack.key === name) ?? null;
+}
+
 function activePack(packs: PackRef[], key: string | null): PackRef | null {
-  const found = packs.find((pack) => pack.key === key);
+  const found = lookupPack(packs, key);
   return found?.is_active ? found : null;
+}
+
+function serviceFallbackKey(packs: PackRef[], fallback: string): string {
+  return activePack(packs, 'generic')?.key ?? activePack(packs, fallback)?.key ?? fallback;
 }
 
 export function resolvePackKey(input: {
@@ -78,22 +96,49 @@ export function resolvePackKey(input: {
   packs: PackRef[];
   inferText: string;
   fallback: string;
-}): { key: string; warning: string | null } {
-  const direct =
-    activePack(input.packs, input.requested) ??
-    activePack(input.packs, input.planKey) ??
-    activePack(input.packs, input.lifecycleKey);
-  if (direct) return { key: direct.key, warning: null };
-  const hay = input.inferText.toLowerCase();
-  for (const rule of INDUSTRY_INFER_RULES) {
-    if (rule.needles.some((needle) => hay.includes(needle)) && activePack(input.packs, rule.key)) {
-      return { key: rule.key, warning: null };
+  packKind: 'industry' | 'service';
+  allowInfer: boolean;
+}): { key: string; warning: PackFallbackWarning | null } {
+  const requested = text(input.requested);
+  if (requested) {
+    const found = lookupPack(input.packs, requested);
+    if (found?.is_active) return { key: found.key, warning: null };
+    const resolved = input.packKind === 'service' ? serviceFallbackKey(input.packs, input.fallback) : 'generic';
+    return {
+      key: resolved,
+      warning: {
+        code: 'pack_generic_fallback',
+        pack_kind: input.packKind,
+        requested_key: requested,
+        reason: found ? 'inactive' : 'not_found',
+        resolved_key: resolved,
+      },
+    };
+  }
+
+  const chained = activePack(input.packs, input.planKey) ?? activePack(input.packs, input.lifecycleKey);
+  if (chained) return { key: chained.key, warning: null };
+  if (input.allowInfer) {
+    const hay = input.inferText.toLowerCase();
+    for (const rule of INDUSTRY_INFER_RULES) {
+      if (rule.needles.some((needle) => hay.includes(needle)) && activePack(input.packs, rule.key)) {
+        return { key: rule.key, warning: null };
+      }
     }
   }
-  const fallback = activePack(input.packs, input.fallback);
+  const resolved = input.packKind === 'service' ? serviceFallbackKey(input.packs, input.fallback) : (activePack(input.packs, input.fallback)?.key ?? input.fallback);
+  const warnOnFallback = input.packKind === 'industry' || resolved === 'generic';
   return {
-    key: fallback?.key ?? input.fallback,
-    warning: input.fallback === 'generic' ? 'pack_generic_fallback' : null,
+    key: resolved,
+    warning: warnOnFallback
+      ? {
+          code: 'pack_generic_fallback',
+          pack_kind: input.packKind,
+          requested_key: null,
+          reason: 'unresolved',
+          resolved_key: resolved,
+        }
+      : null,
   };
 }
 
@@ -194,7 +239,7 @@ function approvalChecklist(sections: Record<string, unknown>) {
 }
 
 export function buildGenerateDraft(input: GenerateInput) {
-  const warnings: string[] = [];
+  const warnings: Array<string | PackFallbackWarning> = [];
   const industry = resolvePackKey({
     requested: input.requestedIndustryKey,
     planKey: input.planIndustryKey,
@@ -202,6 +247,8 @@ export function buildGenerateDraft(input: GenerateInput) {
     packs: input.industryPacks,
     inferText: input.inferText,
     fallback: 'generic',
+    packKind: 'industry',
+    allowInfer: true,
   });
   if (industry.warning) warnings.push(industry.warning);
 
@@ -212,9 +259,11 @@ export function buildGenerateDraft(input: GenerateInput) {
     packs: input.servicePacks,
     inferText: '',
     fallback: 'growth_full',
+    packKind: 'service',
+    allowInfer: false,
   });
-  const serviceKey = serviceResolved.key === 'generic' ? 'growth_full' : serviceResolved.key;
-  if (serviceResolved.warning && serviceResolved.warning !== 'pack_generic_fallback') warnings.push(serviceResolved.warning);
+  const serviceKey = serviceResolved.key;
+  if (serviceResolved.warning) warnings.push(serviceResolved.warning);
 
   const pack = input.industryPacks.find((row) => row.key === industry.key) ?? null;
   const defaults = pack?.defaults_json ?? {};

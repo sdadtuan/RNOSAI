@@ -12,6 +12,8 @@ export interface FieldRegistryEntry {
   mask_value?: string;
   patch_forbidden?: boolean;
   export_strip?: boolean;
+  /** Stricter cap for bulk export. Screen reads still use `action`. */
+  export_action?: string;
 }
 
 export interface FieldRegistryDocument {
