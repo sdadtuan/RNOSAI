@@ -4,9 +4,11 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { CsdAuditRepository } from './csd-audit.repository';
 import { CsdChatAccountsService } from './csd-chat-accounts.service';
+import { CsdChatPushService } from './csd-chat-push.service';
 import { CsdChatFriendsService } from './csd-chat-friends.service';
 import {
   canManageGroupInfo,
@@ -96,6 +98,7 @@ export class CsdChatService {
     private readonly accounts: CsdChatAccountsService,
     private readonly friends: CsdChatFriendsService,
     private readonly avatarStorage: StaffAvatarStorage,
+    @Optional() private readonly push?: CsdChatPushService,
   ) {}
 
   async createConversation(
@@ -265,6 +268,18 @@ export class CsdChatService {
         excludeStaffId: actor.staffId,
         preview: body.slice(0, 160) || '(file)',
       });
+    }
+
+    try {
+      const members = await this.repo.listMembers(conversationId);
+      await this.push?.notifyMessage({
+        staffIds: members.map((member) => member.member_staff_id).filter((id) => id !== actor.staffId),
+        title: actor.staffLabel,
+        preview: body.slice(0, 120) || '(file)',
+        conversationId,
+      });
+    } catch {
+      // A locked-screen alert must not roll back a message that is already stored.
     }
 
     const attachments = await this.files.listForMessage(message.id);

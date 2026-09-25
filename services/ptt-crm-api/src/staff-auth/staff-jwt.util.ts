@@ -13,6 +13,8 @@ export interface StaffJwtPayload {
   /** Session id bound to staff_sessions row. */
   sid?: string;
   token_type: StaffTokenType;
+  /** Chat app session. Absent means a normal CRM staff token. */
+  scope?: 'chat';
   iat: number;
   exp: number;
 }

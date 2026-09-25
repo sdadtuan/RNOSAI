@@ -22,6 +22,24 @@ describe('staff jwt sid', () => {
     expect(payload?.token_type).toBe('access');
   });
 
+  it('keeps an optional chat scope on a signed access token', () => {
+    const token = signStaffJwt(
+      {
+        sub: '42',
+        email: 'a@pttads.vn',
+        display_name: 'A',
+        position_id: 1,
+        token_type: 'access',
+        scope: 'chat',
+      },
+      secret,
+      3600,
+    );
+    const payload = verifyStaffJwt(token, secret);
+    expect(payload?.scope).toBe('chat');
+    expect(payload?.token_type).toBe('access');
+  });
+
   it('tokens without sid still verify', () => {
     const token = signStaffJwt(
       {

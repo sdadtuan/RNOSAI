@@ -1,6 +1,7 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Request } from 'express';
 import { AppConfigService } from '../config/app-config.service';
+import { isChatScopedPath } from '../csd/csd-chat-scope.util';
 import { StaffAuthService } from './staff-auth.service';
 import { StaffJwtPayload } from './staff-jwt.util';
 
@@ -32,6 +33,9 @@ export class StaffOrInternalKeyGuard implements CanActivate {
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : queryToken;
     if (token) {
       return this.staffAuth.verifyAccessToken(token).then((payload) => {
+        if (payload.scope === 'chat' && !isChatScopedPath(req.path || req.url || '')) {
+          throw new ForbiddenException({ error: 'chat_scope_forbidden' });
+        }
         req.staffUser = payload;
         req.staffAuthVia = 'jwt';
         return true;

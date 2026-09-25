@@ -291,6 +291,30 @@ describe('CsdChatService', () => {
     expect(repo.insertClientChatNotifications).toHaveBeenCalled();
   });
 
+  it('asks push to alert the other members after the message is stored', async () => {
+    repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'direct', status: 'active' });
+    repo.insertMessage.mockResolvedValue({ id: 'm1', body_text: 'hello' });
+    repo.listMembers.mockResolvedValue([{ member_staff_id: 3 }, { member_staff_id: 9 }]);
+    const push = { notifyMessage: jest.fn().mockResolvedValue(undefined) };
+    const service = new CsdChatService(
+      repo as never,
+      tickets as never,
+      files as never,
+      audit as never,
+      accounts as never,
+      friends as never,
+      avatarStorage as never,
+      push as never,
+    );
+    await service.sendMessage(actor, 'c1', { body_text: 'hello' });
+    expect(push.notifyMessage).toHaveBeenCalledWith({
+      staffIds: [9],
+      title: 'am@test.vn',
+      preview: 'hello',
+      conversationId: 'c1',
+    });
+  });
+
   it('notifies mentioned staff except the sender', async () => {
     repo.getConversation.mockResolvedValue({ id: 'c1', kind: 'group', status: 'active' });
     repo.insertMessage.mockResolvedValue({ id: 'm1', body_text: 'cc @8 và @12' });
