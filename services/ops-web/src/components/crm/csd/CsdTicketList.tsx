@@ -23,7 +23,7 @@ function slaClass(status: string): string {
 export function CsdTicketList({ items, activeId, onSelect }: CsdTicketListProps) {
   return (
     <div className="data-table-wrap" data-testid="csd-ticket-list">
-      <Table className="csd-ticket-table">
+      <Table className="data-table csd-ticket-table">
         <thead>
           <tr>
             <th>Mã</th>
@@ -51,21 +51,21 @@ export function CsdTicketList({ items, activeId, onSelect }: CsdTicketListProps)
                 style={onSelect ? { cursor: 'pointer' } : undefined}
                 data-testid={`csd-ticket-row-${row.code}`}
               >
-                <td>
+                <td data-label="Mã">
                   <Link href={`/crm/csd/tickets/${row.id}`} onClick={(e) => e.stopPropagation()}>
                     {row.code}
                   </Link>
                 </td>
-                <td>{row.title}</td>
-                <td>{CSD_PRIORITY_LABELS[row.priority] ?? row.priority}</td>
-                <td>{CSD_STATUS_LABELS[row.status] ?? row.status}</td>
-                <td>
+                <td data-label="Tiêu đề">{row.title}</td>
+                <td data-label="Ưu tiên">{CSD_PRIORITY_LABELS[row.priority] ?? row.priority}</td>
+                <td data-label="Trạng thái">{CSD_STATUS_LABELS[row.status] ?? row.status}</td>
+                <td data-label="SLA">
                   <span className={slaClass(row.sla_status)}>
                     {CSD_SLA_LABELS[row.sla_status] ?? row.sla_status}
                   </span>
                 </td>
-                <td>{row.assignee_staff_name ?? '—'}</td>
-                <td className="muted">{formatCsdWhen(row.updated_at)}</td>
+                <td data-label="Phụ trách">{row.assignee_staff_name ?? '—'}</td>
+                <td data-label="Cập nhật" className="muted">{formatCsdWhen(row.updated_at)}</td>
               </tr>
             ))
           )}

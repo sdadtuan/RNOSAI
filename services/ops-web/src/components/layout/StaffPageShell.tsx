@@ -1,13 +1,16 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { OpsNav } from '@/components/OpsNav';
 import { B2bHotAlarm } from '@/components/crm/B2bHotAlarm';
 import { CsdChatDock } from '@/components/crm/csd/CsdChatDock';
 import { CsdChatNotifyHost } from '@/components/crm/csd/CsdChatNotifyHost';
 import { SlaAlertToastHost } from '@/components/crm/SlaAlertToastHost';
 import type { StoredStaffUser } from '@/lib/auth';
+import { showRsMobileChrome } from '@/lib/crm/rs-mobile-shell';
 import { OpsPage } from './OpsPage';
+import { RsMobileTabBar } from './RsMobileTabBar';
 import type { BreadcrumbItem } from './Breadcrumb';
 
 type StaffPageShellProps = {
@@ -34,9 +37,34 @@ export function StaffPageShell({
   children,
 }: StaffPageShellProps) {
   const chatShell = chrome === 'chat';
+  const pathname = usePathname();
+  const [phone, setPhone] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)');
+    const read = () => {
+      const next = showRsMobileChrome({
+        width: query.matches ? 767 : 768,
+        search: window.location.search,
+      });
+      setPhone(next);
+      document.documentElement.classList.toggle('rs-mobile-chrome', next);
+    };
+    read();
+    query.addEventListener('change', read);
+    window.addEventListener('popstate', read);
+    return () => {
+      query.removeEventListener('change', read);
+      window.removeEventListener('popstate', read);
+      document.documentElement.classList.remove('rs-mobile-chrome');
+    };
+  }, [pathname]);
+
+  const hideDesktop = phone || chatShell;
+
   return (
     <>
-      {chatShell ? null : (
+      {hideDesktop ? null : (
         <OpsNav
           user={user}
           onLogout={onLogout}
@@ -44,13 +72,14 @@ export function StaffPageShell({
           emailPendingApprovals={emailPendingApprovals}
         />
       )}
-      {chatShell ? null : <SlaAlertToastHost user={user} />}
-      {chatShell ? null : <B2bHotAlarm user={user} />}
-      <OpsPage breadcrumb={chatShell ? undefined : breadcrumb} width={chatShell ? 'full' : width}>
-        {loading || !user ? <p className="muted">Đang tải…</p> : children}
+      {hideDesktop ? null : <SlaAlertToastHost user={user} />}
+      {hideDesktop ? null : <B2bHotAlarm user={user} />}
+      <OpsPage breadcrumb={hideDesktop ? undefined : breadcrumb} width={chatShell ? 'full' : width}>
+        {loading || (!user && !chatShell) ? <p className="muted">Đang tải…</p> : children}
       </OpsPage>
       {user ? <CsdChatNotifyHost user={user} /> : null}
-      {user && !chatShell ? <CsdChatDock user={user} /> : null}
+      {user && !hideDesktop ? <CsdChatDock user={user} /> : null}
+      {phone ? <RsMobileTabBar pathname={pathname} onLogout={onLogout} /> : null}
     </>
   );
 }

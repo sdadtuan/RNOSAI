@@ -9140,6 +9140,12 @@ body {
     margin-bottom: 0.15rem;
   }
 
+  .csd-ticket-table td[data-label]::before {
+    content: attr(data-label);
+    font-weight: 600;
+    text-align: left;
+  }
+
   .data-table-wrap:not(.data-table-wrap--scroll-only):not(.crm-leads-table-wrap):not(.cskh-board-table-wrap) {
     overflow-x: visible;
   }
@@ -12992,6 +12998,11 @@ body {
   .lead-b2b-call-sticky {
     display: none;
   }
+}
+
+html.rs-mobile-chrome .lead-b2b-call-sticky {
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: 0.65rem;
 }
 
 /* HR Employee File Shell (P1) */
@@ -24798,5 +24809,58 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   .rlh-card__head {
     flex-direction: column;
   }
+}
+
+.rs-mobile-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.rs-mobile-tabbar__tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.rs-mobile-tabbar__tabs a {
+  flex: 1;
+  text-align: center;
+  padding: 0.45rem 0.15rem;
+  font-size: 0.8rem;
+}
+
+.rs-mobile-tabbar__tabs a[aria-current='page'] {
+  font-weight: 700;
+}
+
+.rs-mobile-tabbar__logout {
+  border: 0;
+  background: transparent;
+  padding: 0.45rem 0.35rem;
+  font-size: 0.75rem;
+}
+
+html.rs-mobile-chrome body:has(.ops-sidebar) main,
+html.rs-mobile-chrome main {
+  margin-left: 0 !important;
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+html.rs-mobile-chrome .pwa-install-banner {
+  bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+html.rs-mobile-chrome .csd-chat-page.is-shell .csd-chat-compose,
+html.rs-mobile-chrome .csd-chat-compose {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
 }
 
