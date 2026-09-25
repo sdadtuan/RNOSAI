@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { AUTH_COOKIE, POSITION_COOKIE } from '@/lib/auth';
 import { isSandboxAllowedPath } from '@/lib/sandbox/caps';
+import { isNativeChatPublicPath } from '@/lib/crm/csd-chat-shell';
 import { isStaffAuthPath } from '@/lib/rbac-routes';
 
 const PUBLIC_PATHS = ['/login', '/403'];
@@ -52,6 +53,10 @@ export function middleware(request: NextRequest) {
     blockUrl.pathname = '/sandbox/not-in-sandbox';
     blockUrl.search = '';
     return NextResponse.redirect(blockUrl);
+  }
+
+  if (isNativeChatPublicPath(pathname, request.nextUrl.searchParams.get('shell'))) {
+    return NextResponse.next();
   }
 
   if (!isStaffAuthPath(pathname)) {

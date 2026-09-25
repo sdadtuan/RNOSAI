@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   csdChatCallErrorMessage,
+  csdChatCallPermissionMessage,
   peerLabelFromStringeeUserId,
   startCsdChatDirectCall,
 } from './csd-chat-call.util';
@@ -28,6 +29,13 @@ describe('csd-chat-call.util', () => {
     expect(csdChatCallErrorMessage(new Error('webrtc_unsupported'))).toMatch(/WebRTC/);
     expect(csdChatCallErrorMessage(new Error('network'))).toBe('network');
     expect(csdChatCallErrorMessage('x')).toMatch(/Không thể/);
+  });
+
+  it('maps a denied microphone or camera to a short Vietnamese line', () => {
+    const denied = Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' });
+    expect(csdChatCallPermissionMessage(denied, 'voice')).toBe('Cần quyền micro để gọi');
+    expect(csdChatCallPermissionMessage(denied, 'video')).toBe('Cần quyền camera để gọi video');
+    expect(csdChatCallPermissionMessage(new Error('network'), 'voice')).toBeNull();
   });
 
   it('formats peer label from stringee user id', () => {

@@ -774,6 +774,45 @@ export async function fetchCsdChatMe(token: string): Promise<CsdChatMe> {
   return csdFetch(token, '/api/crm/csd/chat/me');
 }
 
+export type CsdChatSession = {
+  access_token: string;
+  token_type: 'Bearer';
+  expires_in: number;
+  staff_id: number;
+  username: string;
+  email: string;
+  display_name: string;
+  position_id: number;
+  caps: { section: string; action: string }[];
+};
+
+export async function openCsdChatSession(body: {
+  username: string;
+  password: string;
+}): Promise<CsdChatSession> {
+  const res = await fetch(`${API_BASE}/api/crm/csd/chat/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: body.username, password: body.password }),
+    cache: 'no-store',
+  });
+  const parsed = await parseJson<CsdChatSession & { error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(parsed.error ?? parsed.message ?? 'invalid_chat_credentials', res.status);
+  }
+  return parsed;
+}
+
+export async function registerCsdChatDevice(
+  token: string,
+  body: { platform: 'ios' | 'android'; token: string },
+): Promise<{ ok: true }> {
+  return csdFetch(token, '/api/crm/csd/chat/devices', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function loginCsdChat(
   token: string,
   body: { username: string; password: string },

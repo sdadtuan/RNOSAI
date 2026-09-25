@@ -19,4 +19,9 @@ describe('detectCsdChatShell', () => {
   it('lets an explicit desktop query win over standalone', () => {
     expect(detectCsdChatShell({ search: '?shell=desktop', displayMode: 'standalone' })).toBe('desktop');
   });
+
+  it('treats shell=native as the store app', () => {
+    expect(detectCsdChatShell({ search: '?shell=native' })).toBe('native');
+    expect(detectCsdChatShell({ search: '?shell=native', displayMode: 'standalone' })).toBe('native');
+  });
 });

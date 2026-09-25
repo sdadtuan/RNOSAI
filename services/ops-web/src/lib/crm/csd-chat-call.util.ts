@@ -103,6 +103,18 @@ export async function startCsdChatCallPresence(input: {
   });
 }
 
+export function csdChatCallPermissionMessage(err: unknown, mode: 'voice' | 'video'): string | null {
+  if (!err || typeof err !== 'object') return null;
+  const name = 'name' in err ? String((err as { name?: string }).name) : '';
+  const message = err instanceof Error ? err.message : '';
+  const denied =
+    name === 'NotAllowedError' ||
+    name === 'PermissionDeniedError' ||
+    /notallowed|permission denied/i.test(message);
+  if (!denied) return null;
+  return mode === 'video' ? 'Cần quyền camera để gọi video' : 'Cần quyền micro để gọi';
+}
+
 export function csdChatCallErrorMessage(err: unknown): string {
   if (err instanceof Error) {
     if (err.message === 'csd_call_unavailable') {

@@ -5,6 +5,7 @@ import type { CsdChatCallMode } from '@/lib/crm/csd-api';
 import {
   CSD_CHAT_CALL_IDLE,
   csdChatCallErrorMessage,
+  csdChatCallPermissionMessage,
   peerLabelFromStringeeUserId,
   startCsdChatCallPresence,
   startCsdChatDirectCall,
@@ -185,7 +186,7 @@ export function useCsdChatCall(token: string) {
           phase: 'error',
           mode,
           peerName: '',
-          error: csdChatCallErrorMessage(err),
+          error: csdChatCallPermissionMessage(err, mode) ?? csdChatCallErrorMessage(err),
           direction: 'outbound',
         });
       }
@@ -219,7 +220,9 @@ export function useCsdChatCall(token: string) {
         phase: 'error',
         mode: incoming.isVideoCall ? 'video' : 'voice',
         peerName: peerLabelFromStringeeUserId(incoming.fromUserId),
-        error: csdChatCallErrorMessage(err),
+        error:
+          csdChatCallPermissionMessage(err, incoming.isVideoCall ? 'video' : 'voice') ??
+          csdChatCallErrorMessage(err),
         direction: 'inbound',
       });
     }

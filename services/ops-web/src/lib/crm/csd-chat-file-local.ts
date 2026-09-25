@@ -1,6 +1,8 @@
 import type { CsdAttachmentRow } from '@/lib/crm/csd-api';
 import { fetchCsdFileBlob } from '@/lib/crm/csd-api';
 import { readRnosDesktop } from '@/lib/crm/csd-chat-desktop-bridge';
+import { isCsdChatImageMime } from '@/lib/crm/csd-chat-display';
+import { readCsdChatShell } from '@/lib/crm/csd-chat-shell';
 
 const DB_NAME = 'csd-chat-files-v1';
 const DB_VERSION = 1;
@@ -164,6 +166,10 @@ export async function openCsdChatFile(token: string, file: CsdAttachmentRow): Pr
     if (saved && (await bridge.openFile(saved))) return;
   }
   const blob = await ensureCsdChatFileBlob(token, file);
+  if (readCsdChatShell() === 'native' && !isCsdChatImageMime(file.mime_type)) {
+    triggerBrowserDownload(blob, file.file_name);
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const opened = window.open(url, '_blank', 'noopener,noreferrer');
   if (!opened) {
