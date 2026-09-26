@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
+import { LeadsPhoneFilterSheet } from './LeadsPhoneFilterSheet';
 import { LeadsPhoneMoreMenu } from './LeadsPhoneMoreMenu';
 import { LeadsColumnPicker } from '@/components/crm/LeadsColumnPicker';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
@@ -618,6 +619,44 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
                 +
               </Link>
             ) : null}
+            <LeadsPhoneFilterSheet
+              q={q}
+              onQChange={setQ}
+              listTab={listTab}
+              canViewAllLeads={canViewAllLeads}
+              onOwnerChange={(id) => {
+                if (!canViewAllLeads && id !== 'mine') return;
+                setListTab(id);
+                setOffset(0);
+                setSelectedIds(new Set());
+              }}
+              showKind={flowScope === 'spa_operational' || flowScope === 'all'}
+              leadKind={leadKind}
+              reviewBadge={reviewQueueCount && reviewQueueCount > 0 ? reviewQueueCount : undefined}
+              onKindChange={(id) => {
+                setLeadKind(id);
+                setOffset(0);
+                setSelectedIds(new Set());
+              }}
+              filterStatus={filterStatus}
+              onStatusChange={setFilterStatus}
+              statusOptions={statusOptions}
+              filterSource={filterSource}
+              onSourceChange={setFilterSource}
+              sourceOptions={sourceOptions}
+              filterChannel={filterChannel}
+              onChannelChange={setFilterChannel}
+              channelOptions={channelOptions}
+              loading={loading}
+              savedView={savedView}
+              onLeadP1={() => applyLeadP1View()}
+              showInbox={canReviewQueue && flowScope !== 'b2b_prospect'}
+              onApply={() => {
+                setQuery(q.trim());
+                setOffset(0);
+                setSelectedIds(new Set());
+              }}
+            />
             <LeadsPhoneMoreMenu
               token={token}
               query={query}
@@ -730,6 +769,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           <PresalesFunnelMetricsCard data={funnelMetrics} />
         ) : null}
 
+        <div className="crm-leads-inline-filters">
         <SegmentedControl
           options={
             canViewAllLeads
@@ -770,6 +810,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             className="segmented-control--kind"
           />
         ) : null}
+        </div>
 
         <WinFilterChips
           chips={filterChips}
@@ -823,6 +864,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           }}
         />
 
+        <div className="crm-leads-inline-filters">
         <FilterBar onSubmit={onSearch}>
           <FilterBarSearch value={q} onChange={setQ} placeholder="Tìm tên, SĐT, email…" />
           <select
@@ -882,6 +924,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             </button>
           </FilterBarActions>
         </FilterBar>
+        </div>
 
         {canAssign ? (
           <BulkActionBar count={selectedList.length}>

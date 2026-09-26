@@ -25062,6 +25062,23 @@ html.rs-mobile-chrome .crm-leads-page .rn-page-header__actions .btn {
   position: relative;
 }
 
+html.rs-mobile-chrome .crm-leads-inline-filters {
+  display: none;
+}
+
+.leads-phone-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 0.75rem;
+  background: var(--surface, #fff);
+  border-top: 1px solid var(--border, #d9e0dc);
+}
+
 .leads-phone-more__menu {
   position: absolute;
   right: 0;
