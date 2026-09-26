@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Mockup — Lead điện thoại</title>
+  <style>
+    :root {
+      --primary: #17692f;
+      --bg: #ecefea;
+      --surface: #fff;
+      --text: #0f2418;
+      --muted: #5c6f63;
+      --border: #d4d6d2;
+      --soft: #f4f5f3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #d9ddd6;
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .stage {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px 16px 40px;
+      gap: 16px;
+    }
+    .note {
+      max-width: 390px;
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #3d4f44;
+    }
+    .phone {
+      width: 390px;
+      height: min(844px, calc(100vh - 96px));
+      background: var(--bg);
+      border-radius: 28px;
+      box-shadow: 0 18px 50px rgba(15, 36, 24, 0.18);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .status {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .appbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 12px 2px;
+    }
+    .nav-btn, .avatar-btn {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+      position: relative;
+    }
+    .burger {
+      display: block;
+      width: 18px;
+      height: 2px;
+      background: var(--text);
+      border-radius: 2px;
+      box-shadow: 0 -6px 0 var(--text), 0 6px 0 var(--text);
+    }
+    .nav-badge {
+      position: absolute;
+      top: -8px;
+      right: -10px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background: #e11d48;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 16px;
+    }
+    .avatar-btn img, .account-who img {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+      background: #d7e4da;
+    }
+    .screen {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 4px 12px 88px;
+    }
+    .head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .head h1 {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+      font-size: 22px;
+      line-height: 1.15;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .icon-btn, .plus {
+      border: 0;
+      border-radius: 10px;
+      height: 36px;
+      padding: 0 12px;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .plus {
+      background: var(--primary);
+      color: #fff;
+      min-width: 36px;
+      padding: 0 11px;
+    }
+    .icon-btn {
+      background: #fff;
+      color: var(--primary);
+      border: 1px solid rgba(23, 105, 47, 0.22);
+    }
+    .icon-btn[aria-expanded="true"] {
+      background: #e7f2ea;
+    }
+    .meta {
+      margin: 4px 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .views {
+      display: flex;
+      gap: 0;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .views button {
+      flex: 1;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-size: 14px;
+      padding: 8px 0;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .views button.is-on {
+      color: var(--primary);
+      font-weight: 700;
+      box-shadow: inset 0 -2px 0 var(--primary);
+    }
+    .chips {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .chip, .chip-clear {
+      border-radius: 999px;
+      font: inherit;
+      font-size: 13px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    .chip {
+      border: 1px solid rgba(23, 105, 47, 0.25);
+      background: #fff;
+      color: var(--primary);
+    }
+    .chip-clear {
+      border: 1px dashed var(--border);
+      background: transparent;
+      color: var(--muted);
+    }
+    .board {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+    .col {
+      flex: 0 0 240px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      min-height: 420px;
+    }
+    .col header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      border-bottom: 3px solid #7dcea0;
+    }
+    .col header span { color: var(--muted); font-weight: 600; }
+    .card {
+      margin: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      background: var(--soft);
+      border: 1px solid var(--border);
+    }
+    .card strong { display: block; font-size: 14px; }
+    .card p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .list { display: none; list-style: none; margin: 0; padding: 0; }
+    .phone.is-list .board { display: none; }
+    .phone.is-list .list { display: block; }
+    .list li {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .list li strong { display: block; }
+    .list li p { margin: 4px 0 8px; color: var(--muted); font-size: 12px; }
+    .list a {
+      color: var(--primary);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .tabs {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: stretch;
+      background: #fff;
+      border-top: 1px solid rgba(23, 105, 47, 0.12);
+      box-shadow: 0 -8px 24px rgba(15, 36, 24, 0.06);
+      padding: 6px 2px 8px;
+      z-index: 3;
+    }
+    .tabs button {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      border: 0;
+      background: transparent;
+      color: #8aa092;
+      font: inherit;
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+      padding: 4px 0 2px;
+      cursor: pointer;
+      position: relative;
+    }
+    .tabs svg {
+      width: 22px;
+      height: 22px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .tabs .on {
+      color: var(--primary);
+    }
+    .tabs .on svg {
+      fill: rgba(23, 105, 47, 0.12);
+    }
+    .tabs .on::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      width: 22px;
+      height: 3px;
+      border-radius: 0 0 4px 4px;
+      background: var(--primary);
+    }
+    .tab-ico {
+      position: relative;
+      width: 22px;
+      height: 22px;
+    }
+    .tab-badge {
+      position: absolute;
+      top: -5px;
+      right: -8px;
+      min-width: 15px;
+      height: 15px;
+      padding: 0 3px;
+      border-radius: 999px;
+      background: #e11d48;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 750;
+      line-height: 15px;
+      text-align: center;
+    }
+    .sheet, .menu {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 10px 32px rgba(23, 105, 47, 0.12);
+      z-index: 5;
+    }
+    .menu { top: 78px; padding: 6px; display: none; }
+    .menu button, .sheet button.row {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-size: 14px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .menu button:hover, .sheet button.row:hover { background: var(--soft); }
+    .sheet {
+      bottom: 68px;
+      max-height: 70%;
+      overflow: auto;
+      padding: 14px;
+      display: none;
+    }
+    .phone.show-menu .menu, .phone.show-sheet .sheet { display: block; }
+    .sheet h2 { margin: 0 0 10px; font-size: 16px; }
+    .sheet label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+    .sheet input, .sheet select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font: inherit;
+      background: #fff;
+    }
+    .seg { display: flex; gap: 6px; }
+    .seg button {
+      flex: 1;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 999px;
+      padding: 8px 4px;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .seg button.is-on { background: #e7f2ea; color: var(--primary); border-color: var(--primary); font-weight: 700; }
+    .sheet-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .sheet-actions button {
+      flex: 1;
+      border-radius: 10px;
+      padding: 10px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .apply { background: var(--primary); color: #fff; border: 0; }
+    .close { background: #fff; border: 1px solid var(--border); }
+    .backdrop {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 36, 24, 0.28);
+      z-index: 4;
+    }
+    .phone.show-menu .backdrop,
+    .phone.show-sheet .backdrop,
+    .phone.show-nav .backdrop,
+    .phone.show-account .backdrop { display: block; }
+    .nav-drawer {
+      display: none;
+      position: absolute;
+      top: 28px;
+      left: 0;
+      bottom: 0;
+      width: 240px;
+      background: #fff;
+      z-index: 6;
+      padding: 16px 12px;
+      box-shadow: 8px 0 24px rgba(15, 36, 24, 0.12);
+    }
+    .phone.show-nav .nav-drawer { display: block; }
+    .nav-drawer p {
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .nav-drawer button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-size: 15px;
+      padding: 12px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .nav-drawer button.is-on {
+      background: #e7f2ea;
+      color: var(--primary);
+      font-weight: 700;
+    }
+    .account-pop {
+      display: none;
+      position: absolute;
+      top: 72px;
+      right: 10px;
+      width: 230px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 10px 32px rgba(23, 105, 47, 0.12);
+      z-index: 6;
+      padding: 8px;
+    }
+    .phone.show-account .account-pop { display: block; }
+    .account-who {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 8px;
+    }
+    .account-who strong { display: block; font-size: 14px; }
+    .account-who span { display: block; color: var(--muted); font-size: 12px; }
+    .account-pop button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      font: inherit;
+      font-size: 14px;
+      padding: 10px 8px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .account-pop button:hover { background: var(--soft); }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <p class="note">Mockup xem trước. Bấm menu trái, ảnh tài khoản, <strong>Lọc</strong> và <strong>Thêm</strong>. Ảnh là avatar nhân viên đang dùng trên site. Chấm số trên menu chỉ để xem bố cục.</p>
+    <div class="phone" id="phone">
+      <div class="status"><span>15:19</span><span>62%</span></div>
+      <div class="appbar">
+        <button class="nav-btn" id="nav-btn" type="button" aria-label="Menu" aria-expanded="false">
+          <span class="burger" aria-hidden="true"></span>
+          <span class="nav-badge">1</span>
+        </button>
+        <button class="avatar-btn" id="account-btn" type="button" aria-label="Tài khoản" aria-expanded="false">
+          <img src="staff-avatar.jpg" alt="" width="36" height="36" />
+        </button>
+      </div>
+      <div class="screen">
+        <div class="head">
+          <h1>Quản lý Lead</h1>
+          <button class="plus" type="button" title="Tạo lead">+</button>
+          <button class="icon-btn" id="filter-btn" type="button" aria-expanded="false">Lọc</button>
+          <button class="icon-btn" id="more-btn" type="button" aria-expanded="false">Thêm</button>
+        </div>
+        <p class="meta">2 leads · trang 1 / 1 · Tất cả leads · vận hành &amp; B2B</p>
+        <div class="views" role="tablist">
+          <button type="button" class="is-on" id="tab-kanban">Kanban</button>
+          <button type="button" id="tab-list">Danh sách</button>
+        </div>
+        <div class="chips">
+          <button class="chip" type="button">Của tôi ×</button>
+          <button class="chip-clear" type="button">Xóa tất cả</button>
+        </div>
+        <div class="board" id="board">
+          <section class="col">
+            <header>Mới <span>1</span></header>
+            <article class="card">
+              <strong>A Hưng 360</strong>
+              <p>B2B Fit · first_contact</p>
+            </article>
+          </section>
+          <section class="col">
+            <header>Đã liên hệ <span>1</span></header>
+            <article class="card">
+              <strong>Công ty mẫu</strong>
+              <p>CSKH · manual</p>
+            </article>
+          </section>
+          <section class="col">
+            <header>Đang tư vấn <span>0</span></header>
+          </section>
+        </div>
+        <ul class="list" id="list">
+          <li>
+            <strong>A Hưng 360</strong>
+            <p>B2B Fit · 0899… · manual</p>
+            <a href="#chi-tiet">Chi tiết →</a>
+          </li>
+          <li>
+            <strong>Công ty mẫu</strong>
+            <p>CSKH · manual · moi</p>
+            <a href="#chi-tiet">Chi tiết →</a>
+          </li>
+        </ul>
+      </div>
+      <div class="backdrop" id="backdrop"></div>
+      <aside class="nav-drawer" id="nav-drawer" aria-label="Menu">
+        <p>Menu</p>
+        <button type="button" class="is-on">Lead</button>
+        <button type="button">CSKH</button>
+        <button type="button">Chat</button>
+        <button type="button">Ticket</button>
+      </aside>
+      <div class="account-pop" id="account-pop" role="menu">
+        <div class="account-who">
+          <img src="staff-avatar.jpg" alt="" width="36" height="36" />
+          <div>
+            <strong>Quản trị hệ thống</strong>
+            <span>admin@pttads.vn</span>
+          </div>
+        </div>
+        <button type="button" role="menuitem">Tài khoản</button>
+        <button type="button" role="menuitem">Đăng xuất</button>
+      </div>
+      <div class="menu" id="menu" role="menu">
+        <button type="button" role="menuitem">Cột</button>
+        <button type="button" role="menuitem">Mẫu Excel</button>
+        <button type="button" role="menuitem">Import wizard</button>
+        <button type="button" role="menuitem">Import nhanh</button>
+        <button type="button" role="menuitem">Export Excel (filter)</button>
+        <button type="button" role="menuitem">Export đã chọn (0)</button>
+      </div>
+      <div class="sheet" id="sheet" role="dialog" aria-label="Lọc lead">
+        <h2>Lọc lead</h2>
+        <label for="q">Tìm tên, SĐT, email</label>
+        <input id="q" placeholder="Tìm tên, SĐT, email…" />
+        <label>Phạm vi</label>
+        <div class="seg">
+          <button type="button">Tất cả</button>
+          <button type="button" class="is-on">Của tôi</button>
+          <button type="button">Chưa phân</button>
+        </div>
+        <label>Loại lead</label>
+        <div class="seg">
+          <button type="button" class="is-on">Pipeline AM</button>
+          <button type="button">Phải tra soát</button>
+          <button type="button">Tất cả</button>
+        </div>
+        <label for="st">Trạng thái</label>
+        <select id="st"><option>Trạng thái</option><option>Mới</option><option>Đã liên hệ</option></select>
+        <div class="sheet-actions">
+          <button class="close" type="button" id="sheet-close">Đóng</button>
+          <button class="apply" type="button" id="sheet-apply">Áp dụng</button>
+        </div>
+      </div>
+      <nav class="tabs" aria-label="PTT CRM">
+        <button type="button" class="on" id="tab-lead">
+          <span class="tab-ico">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </span>
+          Lead
+        </button>
+        <button type="button" id="tab-cskh">
+          <span class="tab-ico">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-7h3z"/><path d="M3 19a2 2 0 0 0 2 2h1v-7H3z"/></svg>
+          </span>
+          CSKH
+        </button>
+        <button type="button" id="tab-chat">
+          <span class="tab-ico">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 1 1 18 0z"/></svg>
+            <span class="tab-badge">1</span>
+          </span>
+          Chat
+        </button>
+        <button type="button" id="tab-ticket">
+          <span class="tab-ico">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 8l2-4h12l2 4"/><path d="M9 13h6"/></svg>
+          </span>
+          Ticket
+        </button>
+        <button type="button" id="tab-logout">
+          <span class="tab-ico">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/><path d="M14 16l4-4-4-4"/><path d="M18 12H9"/></svg>
+          </span>
+          Đăng xuất
+        </button>
+      </nav>
+    </div>
+  </div>
+  <script>
+    const phone = document.getElementById('phone');
+    const filterBtn = document.getElementById('filter-btn');
+    const moreBtn = document.getElementById('more-btn');
+    const navBtn = document.getElementById('nav-btn');
+    const accountBtn = document.getElementById('account-btn');
+    function closeAll() {
+      phone.classList.remove('show-menu', 'show-sheet', 'show-nav', 'show-account');
+      filterBtn.setAttribute('aria-expanded', 'false');
+      moreBtn.setAttribute('aria-expanded', 'false');
+      navBtn.setAttribute('aria-expanded', 'false');
+      accountBtn.setAttribute('aria-expanded', 'false');
+    }
+    filterBtn.addEventListener('click', () => {
+      const open = !phone.classList.contains('show-sheet');
+      closeAll();
+      if (open) {
+        phone.classList.add('show-sheet');
+        filterBtn.setAttribute('aria-expanded', 'true');
+      }
+    });
+    moreBtn.addEventListener('click', () => {
+      const open = !phone.classList.contains('show-menu');
+      closeAll();
+      if (open) {
+        phone.classList.add('show-menu');
+        moreBtn.setAttribute('aria-expanded', 'true');
+      }
+    });
+    navBtn.addEventListener('click', () => {
+      const open = !phone.classList.contains('show-nav');
+      closeAll();
+      if (open) {
+        phone.classList.add('show-nav');
+        navBtn.setAttribute('aria-expanded', 'true');
+      }
+    });
+    accountBtn.addEventListener('click', () => {
+      const open = !phone.classList.contains('show-account');
+      closeAll();
+      if (open) {
+        phone.classList.add('show-account');
+        accountBtn.setAttribute('aria-expanded', 'true');
+      }
+    });
+    document.getElementById('backdrop').addEventListener('click', closeAll);
+    document.getElementById('sheet-close').addEventListener('click', closeAll);
+    document.getElementById('sheet-apply').addEventListener('click', closeAll);
+    document.getElementById('tab-kanban').addEventListener('click', () => {
+      phone.classList.remove('is-list');
+      document.getElementById('tab-kanban').classList.add('is-on');
+      document.getElementById('tab-list').classList.remove('is-on');
+    });
+    document.getElementById('tab-list').addEventListener('click', () => {
+      phone.classList.add('is-list');
+      document.getElementById('tab-list').classList.add('is-on');
+      document.getElementById('tab-kanban').classList.remove('is-on');
+    });
+    document.querySelectorAll('.tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tabs button').forEach((el) => el.classList.remove('on'));
+        btn.classList.add('on');
+      });
+    });
+  </script>
+</body>
+</html>
