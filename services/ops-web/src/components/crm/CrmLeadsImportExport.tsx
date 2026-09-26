@@ -16,6 +16,7 @@ interface Props {
   canImport: boolean;
   onImported: () => void;
   onError: (message: string) => void;
+  layout?: 'buttons' | 'menu';
 }
 
 export function CrmLeadsImportExport({
@@ -25,6 +26,7 @@ export function CrmLeadsImportExport({
   canImport,
   onImported,
   onError,
+  layout = 'buttons',
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -85,6 +87,85 @@ export function CrmLeadsImportExport({
     }
   }
 
+  const fileInput = canImport ? (
+    <input
+      ref={fileRef}
+      id={layout === 'menu' ? 'crm-leads-import-file-menu' : 'crm-leads-import-file'}
+      type="file"
+      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      hidden
+      onChange={(e) => void onImportFile(e.target.files?.[0])}
+    />
+  ) : null;
+
+  const summary = importSummary ? (
+    <div className="crm-leads-io__summary" role="status">
+      <p>
+        Import: <strong>{importSummary.created}</strong> lead mới
+        {importSummary.errors.length ? (
+          <>
+            {' '}
+            · <span className="error">{importSummary.errors.length} lỗi</span>
+          </>
+        ) : null}
+      </p>
+      {importSummary.errors.length ? (
+        <ul className="crm-leads-io__errors">
+          {importSummary.errors.slice(0, 8).map((item) => (
+            <li key={`${item.row}-${item.message}`}>
+              Dòng {item.row}: {item.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  ) : null;
+
+  const wizard = canImport ? (
+    <WinExcelImportWizard
+      open={wizardOpen}
+      mode="leads"
+      token={token}
+      onClose={() => setWizardOpen(false)}
+      onComplete={onImported}
+      onError={onError}
+    />
+  ) : null;
+
+  if (layout === 'menu') {
+    return (
+      <div className="crm-leads-io crm-leads-io--menu" role="group" aria-label="Excel">
+        <button type="button" role="menuitem" disabled={busy != null} onClick={() => void onDownloadTemplate()}>
+          {busy === 'template' ? 'Đang tải…' : 'Mẫu Excel'}
+        </button>
+        {canImport ? (
+          <>
+            <button type="button" role="menuitem" disabled={busy != null} onClick={() => setWizardOpen(true)}>
+              Import wizard
+            </button>
+            <button type="button" role="menuitem" disabled={busy != null} onClick={() => void onPickImport()}>
+              {busy === 'import' ? 'Đang import…' : 'Import nhanh'}
+            </button>
+          </>
+        ) : null}
+        <button type="button" role="menuitem" disabled={busy != null} onClick={() => void onExport(true)}>
+          {busy === 'export-all' ? 'Đang xuất…' : 'Export Excel (filter)'}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          disabled={busy != null || selectedIds.length === 0}
+          onClick={() => void onExport(false)}
+        >
+          {busy === 'export-selected' ? 'Đang xuất…' : `Export đã chọn (${selectedIds.length})`}
+        </button>
+        {fileInput}
+        {summary}
+        {wizard}
+      </div>
+    );
+  }
+
   return (
     <div className="crm-leads-io">
       <div className="crm-leads-io__actions">
@@ -114,14 +195,7 @@ export function CrmLeadsImportExport({
             >
               {busy === 'import' ? 'Đang import…' : 'Import nhanh'}
             </button>
-            <input
-              ref={fileRef}
-              id="crm-leads-import-file"
-              type="file"
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              hidden
-              onChange={(e) => void onImportFile(e.target.files?.[0])}
-            />
+            {fileInput}
           </>
         ) : null}
         <button
@@ -145,40 +219,8 @@ export function CrmLeadsImportExport({
             : `Export đã chọn (${selectedIds.length})`}
         </button>
       </div>
-
-      {importSummary ? (
-        <div className="crm-leads-io__summary" role="status">
-          <p>
-            Import: <strong>{importSummary.created}</strong> lead mới
-            {importSummary.errors.length ? (
-              <>
-                {' '}
-                · <span className="error">{importSummary.errors.length} lỗi</span>
-              </>
-            ) : null}
-          </p>
-          {importSummary.errors.length ? (
-            <ul className="crm-leads-io__errors">
-              {importSummary.errors.slice(0, 8).map((item) => (
-                <li key={`${item.row}-${item.message}`}>
-                  Dòng {item.row}: {item.message}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-
-      {canImport ? (
-        <WinExcelImportWizard
-          open={wizardOpen}
-          mode="leads"
-          token={token}
-          onClose={() => setWizardOpen(false)}
-          onComplete={onImported}
-          onError={onError}
-        />
-      ) : null}
+      {summary}
+      {wizard}
     </div>
   );
 }

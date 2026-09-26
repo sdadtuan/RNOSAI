@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CrmLeadsImportExport } from '@/components/crm/CrmLeadsImportExport';
+import { LeadsPhoneMoreMenu } from './LeadsPhoneMoreMenu';
 import { LeadsColumnPicker } from '@/components/crm/LeadsColumnPicker';
 import { CrmLeadsList } from '@/components/crm/CrmLeadsList';
 import { LeadsRevopsInboxFooter } from '@/components/crm/LeadsRevopsInboxFooter';
@@ -579,32 +580,58 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         { label: pageTitle },
       ]}
     >
+      <div className="crm-leads-page">
       <PageToolbar
         title={pageTitle}
         subtitle={pageMeta}
         actions={
           <>
-            <LeadsColumnPicker
-              visible={visibleColumns}
-              showScores={showScores}
-              showLeadKindTags={showLeadKindTags}
-              onChange={setVisibleColumns}
-            />
-            {token ? (
-              <CrmLeadsImportExport
-                token={token}
-                query={query}
-                selectedIds={selectedList}
-                canImport={canImport}
-                onImported={() => void loadLeads(token, 0, query)}
-                onError={setError}
+            <div className="crm-leads-desktop-tools">
+              <LeadsColumnPicker
+                visible={visibleColumns}
+                showScores={showScores}
+                showLeadKindTags={showLeadKindTags}
+                onChange={setVisibleColumns}
               />
-            ) : null}
+              {token ? (
+                <CrmLeadsImportExport
+                  token={token}
+                  query={query}
+                  selectedIds={selectedList}
+                  canImport={canImport}
+                  onImported={() => void loadLeads(token, 0, query)}
+                  onError={setError}
+                />
+              ) : null}
+            </div>
             {canCreate ? (
-              <Link href={leadsNewHref(flowScope)} className="btn btn-sm">
+              <Link href={leadsNewHref(flowScope)} className="btn btn-sm crm-leads-create">
                 + Tạo lead
               </Link>
             ) : null}
+            {canCreate ? (
+              <Link
+                href={leadsNewHref(flowScope)}
+                className="btn btn-sm crm-leads-phone-only"
+                aria-label="Tạo lead"
+              >
+                +
+              </Link>
+            ) : null}
+            <LeadsPhoneMoreMenu
+              token={token}
+              query={query}
+              selectedIds={selectedList}
+              canImport={canImport}
+              visibleColumns={visibleColumns}
+              showScores={showScores}
+              showLeadKindTags={showLeadKindTags}
+              onColumnsChange={setVisibleColumns}
+              onImported={() => {
+                if (token) void loadLeads(token, 0, query);
+              }}
+              onError={setError}
+            />
           </>
         }
       />
@@ -979,6 +1006,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         )}
       </div>
       )}
+      </div>
     </StaffPageShell>
   );
 }
