@@ -24827,26 +24827,45 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
 
 .rs-mobile-tabbar__tabs {
   display: flex;
-  flex: 1;
+  flex: 4;
   min-width: 0;
 }
 
-.rs-mobile-tabbar__tabs a {
+.rs-mobile-tabbar__tabs a,
+.rs-mobile-tabbar__logout {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
   text-align: center;
-  padding: 0.45rem 0.15rem;
-  font-size: 0.8rem;
+  padding: 0.35rem 0.1rem 0.2rem;
+  font-size: 0.68rem;
+  line-height: 1.1;
+  text-decoration: none;
+  position: relative;
 }
 
 .rs-mobile-tabbar__tabs a[aria-current='page'] {
+  color: #17692f;
   font-weight: 700;
+  background: rgba(23, 105, 47, 0.08);
 }
 
-.rs-mobile-tabbar__logout {
-  border: 0;
-  background: transparent;
-  padding: 0.45rem 0.35rem;
-  font-size: 0.75rem;
+.rs-mobile-tabbar__tabs a[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 18%;
+  right: 18%;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: #17692f;
 }
 
 html.rs-mobile-chrome body:has(.ops-sidebar) main,

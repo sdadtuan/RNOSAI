@@ -59,4 +59,10 @@ describe('RS_MOBILE_TABS', () => {
       expect(rsMobileTabId(`${tab.href}/abc`)).toBe(tab.id);
     }
   });
+
+  it('gives each tab an icon id and no badge count', () => {
+    expect(RS_MOBILE_TABS.map((tab) => tab.icon)).toEqual(['leads', 'cskh', 'chat', 'tickets']);
+    expect(RS_MOBILE_TABS.every((tab) => tab.icon === tab.id)).toBe(true);
+    expect(JSON.stringify(RS_MOBILE_TABS)).not.toMatch(/badge|unread/i);
+  });
 });
