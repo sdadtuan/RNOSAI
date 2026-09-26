@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RS_MOBILE_TABS, rsMobileTabId, showRsMobileChrome } from './rs-mobile-shell';
+import { RS_MOBILE_TABS, rsMobileTabId, showRsMobileChrome, staffDisplayInitials } from './rs-mobile-shell';
 
 describe('showRsMobileChrome', () => {
   it('is on for a narrow staff page', () => {
@@ -64,5 +64,20 @@ describe('RS_MOBILE_TABS', () => {
     expect(RS_MOBILE_TABS.map((tab) => tab.icon)).toEqual(['leads', 'cskh', 'chat', 'tickets']);
     expect(RS_MOBILE_TABS.every((tab) => tab.icon === tab.id)).toBe(true);
     expect(JSON.stringify(RS_MOBILE_TABS)).not.toMatch(/badge|unread/i);
+  });
+});
+
+describe('staffDisplayInitials', () => {
+  it('uses the first and last word', () => {
+    expect(staffDisplayInitials('Quản trị hệ thống')).toBe('QT');
+  });
+
+  it('uses two letters of a single word', () => {
+    expect(staffDisplayInitials('Admin')).toBe('AD');
+  });
+
+  it('uses a question mark when the name is empty', () => {
+    expect(staffDisplayInitials('  ')).toBe('?');
+    expect(staffDisplayInitials(null)).toBe('?');
   });
 });

@@ -24868,9 +24868,124 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   background: #17692f;
 }
 
+.rs-mobile-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 3.25rem;
+  padding: env(safe-area-inset-top, 0px) 0.75rem 0;
+  background: var(--surface, #fff);
+  border-bottom: 1px solid var(--border, #d9e0dc);
+}
+
+.rs-mobile-topbar__menu,
+.rs-mobile-topbar__avatar {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.rs-mobile-topbar__avatar {
+  overflow: hidden;
+  background: #17692f;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.rs-mobile-topbar__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rs-mobile-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  border: 0;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.rs-mobile-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 60;
+  width: min(18rem, 86vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: calc(4rem + env(safe-area-inset-top, 0px)) 0.75rem 1rem;
+  background: var(--surface, #fff);
+}
+
+.rs-mobile-drawer a {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.6rem;
+  border-radius: 0.6rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.rs-mobile-drawer a[aria-current='page'] {
+  color: #17692f;
+  background: rgba(23, 105, 47, 0.08);
+  font-weight: 700;
+}
+
+.rs-mobile-account {
+  position: fixed;
+  top: calc(3.25rem + env(safe-area-inset-top, 0px));
+  right: 0.5rem;
+  z-index: 60;
+  width: min(16rem, 80vw);
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #d9e0dc);
+  border-radius: 0.75rem;
+}
+
+.rs-mobile-account__name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.rs-mobile-account__email {
+  margin: 0.15rem 0 0.5rem;
+  color: var(--muted, #5c6b63);
+  font-size: 0.85rem;
+}
+
+.rs-mobile-account a,
+.rs-mobile-account button {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0.55rem 0.2rem;
+  text-decoration: none;
+}
+
 html.rs-mobile-chrome body:has(.ops-sidebar) main,
 html.rs-mobile-chrome main {
   margin-left: 0 !important;
+  padding-top: calc(3.25rem + env(safe-area-inset-top, 0px)) !important;
   padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)) !important;
 }
 

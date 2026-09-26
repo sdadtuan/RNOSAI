@@ -11,6 +11,7 @@ import type { StoredStaffUser } from '@/lib/auth';
 import { showRsMobileChrome } from '@/lib/crm/rs-mobile-shell';
 import { OpsPage } from './OpsPage';
 import { RsMobileTabBar } from './RsMobileTabBar';
+import { RsMobileTopBar } from './RsMobileTopBar';
 import type { BreadcrumbItem } from './Breadcrumb';
 
 type StaffPageShellProps = {
@@ -74,6 +75,9 @@ export function StaffPageShell({
       )}
       {hideDesktop ? null : <SlaAlertToastHost user={user} />}
       {hideDesktop ? null : <B2bHotAlarm user={user} />}
+      {phone && !chatShell && user ? (
+        <RsMobileTopBar user={user} pathname={pathname} onLogout={onLogout} />
+      ) : null}
       <OpsPage breadcrumb={hideDesktop ? undefined : breadcrumb} width={chatShell ? 'full' : width}>
         {loading || (!user && !chatShell) ? <p className="muted">Đang tải…</p> : children}
       </OpsPage>
