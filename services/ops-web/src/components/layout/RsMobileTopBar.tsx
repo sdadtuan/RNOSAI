@@ -3,27 +3,38 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useStaffAvatarBlob } from '@/components/account/useStaffAvatarBlob';
+import { OpsNav } from '@/components/OpsNav';
 import { getAccessToken, type StoredStaffUser } from '@/lib/auth';
-import { RS_MOBILE_TABS, rsMobileTabId, staffDisplayInitials } from '@/lib/crm/rs-mobile-shell';
-import { RsMobileIcon } from './RsMobileIcons';
+import { staffDisplayInitials } from '@/lib/crm/rs-mobile-shell';
 
 type RsMobileTopBarProps = {
   user: StoredStaffUser;
   pathname: string;
   onLogout: () => void;
+  agencyUnread?: number;
+  emailPendingApprovals?: number;
 };
 
-export function RsMobileTopBar({ user, pathname, onLogout }: RsMobileTopBarProps) {
+export function RsMobileTopBar({
+  user,
+  pathname,
+  onLogout,
+  agencyUnread,
+  emailPendingApprovals,
+}: RsMobileTopBarProps) {
   const [token, setToken] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const avatarUrl = useStaffAvatarBlob(token, Boolean(user.has_avatar), user.avatar_updated_at);
   const initials = staffDisplayInitials(user.display_name || user.email);
-  const active = rsMobileTabId(pathname);
 
   useEffect(() => {
     setToken(getAccessToken());
   }, [user.email]);
+
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (!navOpen && !accountOpen) return;
@@ -76,19 +87,14 @@ export function RsMobileTopBar({ user, pathname, onLogout }: RsMobileTopBarProps
         <button type="button" className="rs-mobile-scrim" aria-label="Đóng" onClick={() => setNavOpen(false)} />
       ) : null}
       {navOpen ? (
-        <nav className="rs-mobile-drawer" aria-label="Menu">
-          {RS_MOBILE_TABS.map((tab) => (
-            <Link
-              key={tab.id}
-              href={tab.href}
-              aria-current={active === tab.id ? 'page' : undefined}
-              onClick={() => setNavOpen(false)}
-            >
-              <RsMobileIcon id={tab.icon} />
-              <span>{tab.label}</span>
-            </Link>
-          ))}
-        </nav>
+        <OpsNav
+          user={user}
+          onLogout={onLogout}
+          variant="phone"
+          onClose={() => setNavOpen(false)}
+          agencyUnread={agencyUnread}
+          emailPendingApprovals={emailPendingApprovals}
+        />
       ) : null}
       {accountOpen ? (
         <button type="button" className="rs-mobile-scrim" aria-label="Đóng" onClick={() => setAccountOpen(false)} />

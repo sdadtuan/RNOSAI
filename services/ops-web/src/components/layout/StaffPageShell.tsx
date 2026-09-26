@@ -76,7 +76,13 @@ export function StaffPageShell({
       {hideDesktop ? null : <SlaAlertToastHost user={user} />}
       {hideDesktop ? null : <B2bHotAlarm user={user} />}
       {phone && !chatShell && user ? (
-        <RsMobileTopBar user={user} pathname={pathname} onLogout={onLogout} />
+        <RsMobileTopBar
+          user={user}
+          pathname={pathname}
+          onLogout={onLogout}
+          agencyUnread={agencyUnread}
+          emailPendingApprovals={emailPendingApprovals}
+        />
       ) : null}
       <OpsPage breadcrumb={hideDesktop ? undefined : breadcrumb} width={chatShell ? 'full' : width}>
         {loading || (!user && !chatShell) ? <p className="muted">Đang tải…</p> : children}

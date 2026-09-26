@@ -24917,6 +24917,37 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   background: rgba(0, 0, 0, 0.28);
 }
 
+html.rs-mobile-chrome .ops-sidebar--phone-sheet {
+  z-index: 70;
+  width: min(18.75rem, 88vw);
+  height: 100%;
+  max-height: none;
+}
+
+@media (max-width: 960px) {
+  html.rs-mobile-chrome .ops-sidebar--phone-sheet .ops-nav-group,
+  html.rs-mobile-chrome .ops-sidebar--phone-sheet.ops-sidebar--expanded .ops-nav-group {
+    display: block;
+  }
+
+  html.rs-mobile-chrome .ops-sidebar--phone-sheet .ops-nav-rail,
+  html.rs-mobile-chrome .ops-sidebar--phone-sheet.ops-sidebar--expanded .ops-nav-rail {
+    display: none;
+  }
+
+  html.rs-mobile-chrome .ops-sidebar--phone-sheet .ops-sidebar-brand-text,
+  html.rs-mobile-chrome .ops-sidebar--phone-sheet .ops-nav-group-label,
+  html.rs-mobile-chrome .ops-sidebar--phone-sheet .ops-nav-group-toggle {
+    opacity: 1;
+    width: auto;
+    overflow: visible;
+  }
+
+  html.rs-mobile-chrome .ops-sidebar--phone-sheet .ops-sidebar-brand {
+    justify-content: flex-start;
+  }
+}
+
 .rs-mobile-drawer {
   position: fixed;
   top: 0;

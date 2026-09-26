@@ -115,7 +115,7 @@ Hiện khi `html.rs-mobile-chrome` và `chrome` của shell là `crm`. Cố đ�
 | ID | Yêu cầu |
 |---|---|
 | FR-18 | Trái là nút **Menu**, `aria-label="Menu"`, `aria-expanded`. Ba gạch ngang. Bấm mở ngăn trái. Bấm lần nữa, bấm ra ngoài, hoặc phím Escape thì đóng. |
-| FR-19 | Ngăn trái liệt kê đúng `RS_MOBILE_TABS`, cùng `href` và cùng icon. Mục `rsMobileTabId` đang khớp được đánh dấu. Không thêm mục desktop khác. |
+| FR-19 | Ngăn trái là đúng menu desktop `OpsNav`: Tổng quan, Bán hàng, CRM, Service Desk, Agency, Báo cáo nội bộ, Admin, và các mục con tài khoản được phép thấy. Bấm một mục thì đi tới href đó và đóng ngăn. Nút ba gạch trong ngăn cũng đóng ngăn. |
 | FR-20 | Phải là nút tròn, `aria-label="Tài khoản"`. Token lấy bằng `getAccessToken()`. Có `user.has_avatar` thì ảnh từ `useStaffAvatarBlob(token, true, user.avatar_updated_at)`. Không có ảnh hoặc lỗi tải thì hiện chữ cái: hai từ trở lên lấy chữ đầu từ đầu và từ cuối của `display_name`, một từ lấy hai ký tự đầu, không có tên thì lấy từ email. |
 | FR-21 | Bấm ảnh mở menu: dòng `display_name`, dòng email, mục **Tài khoản** tới `/account`, mục **Đăng xuất** gọi cùng `onLogout`. Đóng như FR-18. |
 | FR-22 | Hàng trên không hiện khi `chrome="chat"`. |

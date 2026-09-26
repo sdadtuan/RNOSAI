@@ -40,6 +40,8 @@ interface OpsNavProps {
   onLogout: () => void;
   emailPendingApprovals?: number;
   agencyUnread?: number;
+  variant?: 'dock' | 'phone';
+  onClose?: () => void;
 }
 
 const SIDEBAR_STORAGE_KEY = 'ops-sidebar-expanded';
@@ -271,7 +273,15 @@ function userInitials(user: StoredStaffUser | null): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: OpsNavProps) {
+export function OpsNav({
+  user,
+  onLogout,
+  emailPendingApprovals,
+  agencyUnread,
+  variant = 'dock',
+  onClose,
+}: OpsNavProps) {
+  const phoneSheet = variant === 'phone';
   const pathname = usePathname();
   const router = useRouter();
   const [navUser, setNavUser] = useState<StoredStaffUser | null>(user);
@@ -349,10 +359,11 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   }, []);
 
   useEffect(() => {
+    if (phoneSheet) return;
     const expanded = readSidebarExpanded();
     setSidebarExpanded(expanded);
     applyShellClasses(expanded);
-  }, []);
+  }, [phoneSheet]);
 
   useEffect(() => {
     setFlyoutId(null);
@@ -439,9 +450,13 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
     };
   }, [nextAction]);
 
-  const showExpandedNav = sidebarExpanded || isMobileNav;
+  const showExpandedNav = phoneSheet || sidebarExpanded || isMobileNav;
 
   function toggleSidebar() {
+    if (phoneSheet) {
+      onClose?.();
+      return;
+    }
     setSidebarExpanded((prev) => {
       const next = !prev;
       if (typeof window !== 'undefined') {
@@ -455,6 +470,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
 
   function navigateTo(href: string) {
     setFlyoutId(null);
+    if (phoneSheet) onClose?.();
     if (!isActiveHref(pathname, href)) {
       router.push(href);
     }
@@ -485,7 +501,9 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
   return (
     <>
       <aside
-        className={`ops-sidebar${showExpandedNav ? ' ops-sidebar--expanded' : ' ops-sidebar--rail'}`}
+        className={`ops-sidebar${showExpandedNav ? ' ops-sidebar--expanded' : ' ops-sidebar--rail'}${
+          phoneSheet ? ' ops-sidebar--phone-sheet' : ''
+        }`}
         aria-label="Điều hướng chính"
       >
         <div className="ops-sidebar-brand">
@@ -493,7 +511,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
             type="button"
             className="ops-sidebar-burger"
             onClick={toggleSidebar}
-            aria-label={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
+            aria-label={phoneSheet ? 'Đóng menu' : sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
           >
             <i /><i /><i />
           </button>
@@ -608,7 +626,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
           )}
         </nav>
         <div className="ops-sidebar-footer">
-          {sidebarExpanded && canViewAdminSection(user) ? (
+          {(sidebarExpanded || phoneSheet) && canViewAdminSection(user) ? (
             <button
               type="button"
               className={`ops-nav-link ops-nav-link--text ops-nav-link--button${
@@ -622,15 +640,17 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
               <span>Cài đặt</span>
             </button>
           ) : null}
-          <button
-            type="button"
-            className="ops-sidebar-toggle"
-            onClick={toggleSidebar}
-            aria-label={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
-            title={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
-          >
-            {sidebarExpanded ? '«' : '»'}
-          </button>
+          {phoneSheet ? null : (
+            <button
+              type="button"
+              className="ops-sidebar-toggle"
+              onClick={toggleSidebar}
+              aria-label={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
+              title={sidebarExpanded ? 'Thu gọn menu' : 'Mở rộng menu'}
+            >
+              {sidebarExpanded ? '«' : '»'}
+            </button>
+          )}
         </div>
       </aside>
 
@@ -669,7 +689,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
         </>
       ) : null}
 
-      <div className="ops-chrome-head" ref={chromeRef}>
+      {phoneSheet ? null : <div className="ops-chrome-head" ref={chromeRef}>
         <header className="ops-topbar">
           <div className="ops-topbar-strip" aria-hidden="true" />
           <div className="ops-topbar-inner">
@@ -708,7 +728,7 @@ export function OpsNav({ user, onLogout, emailPendingApprovals, agencyUnread }: 
             {nextAction}
           </p>
         ) : null}
-      </div>
+      </div>}
     </>
   );
 }
