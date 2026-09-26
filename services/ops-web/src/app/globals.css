@@ -25062,7 +25062,8 @@ html.rs-mobile-chrome .crm-leads-page .rn-page-header__actions .btn {
   position: relative;
 }
 
-html.rs-mobile-chrome .crm-leads-inline-filters {
+html.rs-mobile-chrome .crm-leads-inline-filters,
+html.rs-mobile-chrome .crm-leads-signal {
   display: none;
 }
 

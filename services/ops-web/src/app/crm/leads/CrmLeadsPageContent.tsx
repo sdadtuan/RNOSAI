@@ -675,7 +675,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         }
       />
 
-      <LeadSignalKpiStrip items={signalKpis} />
+      <div className="crm-leads-signal">
+        <LeadSignalKpiStrip items={signalKpis} />
+      </div>
 
       <div className="bitrix-view-tabs" role="tablist" aria-label="Chế độ xem lead">
         {flowScope === 'b2b_prospect' ? (
