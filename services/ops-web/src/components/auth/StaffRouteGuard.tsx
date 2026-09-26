@@ -14,6 +14,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { isNativeChatPublicPath } from '@/lib/crm/csd-chat-shell';
 
 type StaffRouteGuardProps = {
   children: React.ReactNode;
@@ -36,6 +37,11 @@ export function StaffRouteGuard({ children, zone }: StaffRouteGuardProps) {
         ? `${window.location.pathname}${window.location.search}`
         : pathname;
     if (!token) {
+      const shell = new URLSearchParams(window.location.search).get('shell');
+      if (isNativeChatPublicPath(window.location.pathname, shell)) {
+        setAllowed(true);
+        return;
+      }
       router.replace(`/login?next=${encodeURIComponent(next)}`);
       return;
     }
