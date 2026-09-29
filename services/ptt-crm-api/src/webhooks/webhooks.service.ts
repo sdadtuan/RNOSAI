@@ -17,6 +17,8 @@ import { B2bConversationsService } from '../b2b-projects/b2b-conversations.servi
 import { parseEmailWebhook } from './email-webhook.parser';
 import { parseGoogleWebhook } from './google-webhook.parser';
 import { parseZaloWebhook } from './zalo-webhook.parser';
+import { WebhookNestIngestService } from './webhook-nest-ingest.service';
+import type { NormalizedLeadPayload } from './webhook-lead.types';
 
 export interface WebhookHandleResult {
   kind: 'json' | 'challenge';
@@ -36,6 +38,7 @@ export class WebhooksService {
     private readonly metaOpsWebhookService: MetaOpsWebhookService,
     private readonly b2bIngest: B2bIngestService,
     private readonly b2bConversations: B2bConversationsService,
+    private readonly nestIngest: WebhookNestIngestService,
   ) {}
 
   listChannels(): Record<string, unknown> {
@@ -76,15 +79,59 @@ export class WebhooksService {
 
   private async enqueuePreparedLeads(
     channel: string,
-    leads: import('./webhook-lead.types').NormalizedLeadPayload[],
+    leads: NormalizedLeadPayload[],
     opts: { correlationId: string; clientId?: string; projectSlug?: string },
-  ): Promise<{ leads: import('./webhook-lead.types').NormalizedLeadPayload[]; unmatched: number }> {
+  ): Promise<{ leads: NormalizedLeadPayload[]; unmatched: number }> {
     const prepared = await this.b2bIngest.prepareWebhookLeads({
       channel,
       projectSlug: opts.projectSlug,
       leads,
     });
     return { leads: prepared.toEnqueue, unmatched: prepared.unmatchedCount };
+  }
+
+  private async ingestLeadsOrThrow(
+    channel: string,
+    leads: NormalizedLeadPayload[],
+    opts: { correlationId: string; clientId?: string },
+    response: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      const ingest = await this.nestIngest.ingestPreparedLeads(leads, {
+        channel,
+        correlationId: opts.correlationId,
+        clientId: opts.clientId,
+      });
+      response.mode = ingest.mode;
+      response.accepted = true;
+      response.created_count = ingest.created;
+      response.duplicate_count = ingest.duplicates;
+      response.failed_count = ingest.failed;
+      response.lead_ids = ingest.lead_ids;
+      if (ingest.jobs) {
+        response.job_ids = ingest.jobs.map((j) => j.id);
+        response.jobs = ingest.jobs;
+      }
+      if (ingest.mode === 'nest' && ingest.failed > 0 && ingest.created === 0 && ingest.duplicates === 0) {
+        throw new ServiceUnavailableException({
+          verified: true,
+          accepted: false,
+          error: 'nest_ingest_failed',
+          results: ingest.results,
+        });
+      }
+      this.logger.log(
+        `webhook v1 channel=${channel} mode=${ingest.mode} created=${ingest.created} duplicates=${ingest.duplicates} failed=${ingest.failed} correlation_id=${opts.correlationId}`,
+      );
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
+      this.logger.error(`webhook ingest failed correlation_id=${opts.correlationId}`, err as Error);
+      throw new ServiceUnavailableException({
+        verified: true,
+        accepted: false,
+        error: err instanceof Error ? err.message : 'ingest_failed',
+      });
+    }
   }
 
   private async handleMeta(req: Request, projectSlug?: string): Promise<WebhookHandleResult> {
@@ -201,19 +248,17 @@ export class WebhooksService {
     }
 
     try {
-      const enqueue = await this.jobQueue.enqueueIngestLeads(leadsToEnqueue, {
-        channel: 'meta',
-        correlationId,
-        clientId: effectiveClientId !== 'unknown' ? effectiveClientId : undefined,
-      });
-      response.mode = enqueue.mode;
-      response.accepted = true;
-      response.job_ids = enqueue.jobs.map((j) => j.id);
-      response.jobs = enqueue.jobs;
-      this.logger.log(
-        `webhook v1 channel=meta mode=${enqueue.mode} leads=${parsed.leads.length} client=${effectiveClientId} correlation_id=${correlationId}`,
+      await this.ingestLeadsOrThrow(
+        'meta',
+        leadsToEnqueue,
+        {
+          correlationId,
+          clientId: effectiveClientId !== 'unknown' ? effectiveClientId : undefined,
+        },
+        response,
       );
     } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
       this.logger.error(`webhook enqueue failed correlation_id=${correlationId}`, err as Error);
       throw new ServiceUnavailableException({
         verified: true,
@@ -340,19 +385,14 @@ export class WebhooksService {
     }
 
     try {
-      const enqueue = await this.jobQueue.enqueueIngestLeads(leadsToEnqueue, {
-        channel: 'zalo',
-        correlationId,
-        clientId,
-      });
-      response.mode = enqueue.mode;
-      response.accepted = true;
-      response.job_ids = enqueue.jobs.map((j) => j.id);
-      response.jobs = enqueue.jobs;
-      this.logger.log(
-        `webhook v1 channel=zalo mode=${enqueue.mode} leads=${parsed.leads.length} correlation_id=${correlationId}`,
+      await this.ingestLeadsOrThrow(
+        'zalo',
+        leadsToEnqueue,
+        { correlationId, clientId },
+        response,
       );
     } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
       this.logger.error(`webhook enqueue failed correlation_id=${correlationId}`, err as Error);
       throw new ServiceUnavailableException({
         verified: true,
@@ -396,19 +436,26 @@ export class WebhooksService {
     }
 
     try {
-      const enqueue = await this.jobQueue.enqueueIngestLeads(parsed.leads, {
-        channel: 'google',
-        correlationId,
-        clientId,
-      });
-      response.mode = enqueue.mode;
-      response.accepted = true;
-      response.job_ids = enqueue.jobs.map((j) => j.id);
-      response.jobs = enqueue.jobs;
-      this.logger.log(
-        `webhook v1 channel=google mode=${enqueue.mode} leads=${parsed.leads.length} correlation_id=${correlationId}`,
+      const { leads: leadsToEnqueue, unmatched } = await this.enqueuePreparedLeads(
+        'google',
+        parsed.leads,
+        { correlationId, clientId },
+      );
+      response.b2b_unmatched_count = unmatched;
+      response.lead_count = leadsToEnqueue.length;
+      if (!leadsToEnqueue.length) {
+        response.created_count = 0;
+        response.accepted = true;
+        return { kind: 'json', status: 200, body: response };
+      }
+      await this.ingestLeadsOrThrow(
+        'google',
+        leadsToEnqueue,
+        { correlationId, clientId },
+        response,
       );
     } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
       this.logger.error(`webhook enqueue failed correlation_id=${correlationId}`, err as Error);
       throw new ServiceUnavailableException({
         verified: true,

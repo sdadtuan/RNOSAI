@@ -216,6 +216,23 @@ export type B2bFacebookSyncResult = {
   message: string;
 };
 
+export type B2bFacebookLeadgenForm = {
+  form_id: string;
+  name: string;
+  active: boolean;
+};
+
+export async function fetchB2bFacebookLeadgenForms(
+  token: string,
+  id: string,
+  body: { page_id: string; access_token?: string },
+): Promise<{ ok: true; page_id: string; forms: B2bFacebookLeadgenForm[] }> {
+  return b2bFetch(token, `/api/v1/b2b-projects/${encodeURIComponent(id)}/facebook-leadgen-forms`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function syncB2bProjectFacebookLeads(
   token: string,
   id: string,

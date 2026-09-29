@@ -143,6 +143,8 @@ export interface CreateLeadV1Body {
   lead_flow_kind?: 'spa_operational' | 'b2b_prospect';
   b2b_project_id?: string | null;
   owner_company_id?: string | null;
+  /** Optional seed meta (webhook ingest path, idempotency, etc.). */
+  meta?: Record<string, unknown>;
 }
 
 export interface PatchLeadV1Body {

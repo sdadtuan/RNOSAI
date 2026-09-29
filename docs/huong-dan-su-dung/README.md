@@ -33,6 +33,7 @@ Tài liệu này mô tả **cách sử dụng từng chức năng** theo domain 
 | 38 | **Figma Weave — SOP Image-to-Video (Import, Prompt, Generative Video, Export)** | [38-figma-weave-i2v-sop.md](./38-figma-weave-i2v-sop.md) | Designer, Producer, Motion |
 | 39 | **Magnific Spaces — SOP Image-to-Video (Upload, Text, Video Generator, Download)** | [39-magnific-i2v-sop.md](./39-magnific-i2v-sop.md) | Designer, Producer, Motion |
 | 40 | **Image SOP Studio (ImageOS) — 11 màn · Intent→Recipe · UAT v2.2** | [40-image-sop-studio.md](./40-image-sop-studio.md) · [SPEC §14](../superpowers/specs/2026-09-13-cp-image-sop-srs.md) · [Mockup](../design/rnosai-cp-os-image-sop-mockup.html) | Art Director, AI Artist, Brand, AM |
+| 41 | **Quy trình Lead → KH → Marketing → Triển khai → KPI (catalog màn + từng bước)** | [41-quy-trinh-lead-den-kpi.md](./41-quy-trinh-lead-den-kpi.md) | Admin, MKT, AM/AE, Solution, SP, GDKD, HR |
 | 21 | **Video SOP — Checklist onboarding (AM / Motion / IT)** | [21-video-sop-onboarding-checklist.md](./21-video-sop-onboarding-checklist.md) | AM, Motion, IT, Admin |
 | 11 | Marketing AI Planner (tóm tắt 5 bước) | [11-marketing-ai-planner.md](./11-marketing-ai-planner.md) | SP, MKT Lead |
 | 26 | **Sales Cockpit — hướng dẫn đầy đủ (env + UI)** | [26-sales-cockpit-huong-dan-day-du.md](./26-sales-cockpit-huong-dan-day-du.md) | AM, Sales, IT |

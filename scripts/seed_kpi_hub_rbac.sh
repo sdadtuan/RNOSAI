@@ -3,7 +3,8 @@
 #
 # Positions:
 #   SUPER-ADMIN, CEO, GD — full Hub caps (view/manage/configure/publish/send)
-#   MD, MKL, ACM, AE, CE, PD, MEP — Service KPI operators (hub + dictionary view)
+#   MD, MKL, ACM, CE, PD, MEP — Service KPI operators (hub + dictionary view)
+#   AE — không vào KPI Hub
 #
 # Usage:
 #   ./scripts/seed_kpi_hub_rbac.sh          # dry-run
@@ -60,7 +61,7 @@ CROSS JOIN (VALUES
   ('crm_kpi_hub', 'view'),
   ('crm_kpi_dictionary', 'view')
 ) AS g(section_id, action)
-WHERE lower(trim(p.code)) IN ('md', 'mkl', 'acm', 'ae', 'ce', 'pd', 'mep')
+WHERE lower(trim(p.code)) IN ('md', 'mkl', 'acm', 'ce', 'pd', 'mep')
 ON CONFLICT (position_id, section_id, action) DO NOTHING;
 SQL
 }

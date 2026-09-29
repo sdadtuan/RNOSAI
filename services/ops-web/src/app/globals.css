@@ -19523,7 +19523,52 @@ html.rs-mobile-chrome .lead-b2b-call-sticky {
 @media (max-width: 960px) {
   .csd-chat-workspace {
     grid-template-columns: 1fr;
-    height: calc(100vh - 8.5rem);
+    height: calc(100dvh - 8.5rem);
+    min-height: 0;
+  }
+
+  .csd-chat-page.is-authed {
+    min-height: 0;
+    height: calc(100dvh - 8.5rem);
+    max-height: calc(100dvh - 8.5rem);
+    overflow: hidden;
+  }
+
+  .csd-chat-page.is-authed .csd-chat-workspace {
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+  }
+
+  .csd-chat-workspace.is-mobile-thread .csd-chat-workspace__thread {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .csd-chat-workspace.is-mobile-thread .csd-chat-thread-toolbar,
+  .csd-chat-workspace.is-mobile-thread .csd-chat-thread-search,
+  .csd-chat-workspace.is-mobile-thread .csd-chat-priority-hint,
+  .csd-chat-workspace.is-mobile-thread .csd-chat-client-banner,
+  .csd-chat-workspace.is-mobile-thread .csd-chat-pin-banner,
+  .csd-chat-workspace.is-mobile-thread .csd-chat-compose {
+    flex-shrink: 0;
+  }
+
+  .csd-chat-workspace.is-mobile-thread .csd-chat-thread-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: #fff;
+  }
+
+  .csd-chat-workspace.is-mobile-thread .csd-chat-messages {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .csd-chat-tabs--rail {
@@ -22603,7 +22648,123 @@ html.ops-shell-bitrix body:has(.kpi-hub-embed) .bitrix-crm-page__inner {
   border-radius: 8px;
   font-size: 0.85rem;
 }
-.delivery-detail__head { margin-bottom: 0.75rem; }
+.delivery-detail__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+.delivery-detail .page-card { margin-top: 0.25rem; }
+.delivery-detail .lead-detail-tabs { margin-bottom: 0.85rem; }
+.delivery-ingest-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.delivery-ingest-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft, #f6f8f6);
+}
+.delivery-card-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.85rem;
+}
+.delivery-card-toolbar .form-hint {
+  margin: 0;
+  flex: 1 1 16rem;
+}
+.delivery-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.delivery-notice {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(23, 105, 47, 0.25);
+  background: rgba(23, 105, 47, 0.08);
+  color: var(--primary-700);
+  font-size: 0.875rem;
+}
+.delivery-page-block {
+  margin-top: 0.85rem;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.delivery-page-block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+.delivery-page-block__head strong {
+  font-size: 0.95rem;
+  margin-right: 0.5rem;
+}
+.delivery-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-soft, #f3f4f6);
+  border: 1px solid var(--surface-border);
+}
+.delivery-status-pill.is-on {
+  color: var(--primary-700);
+  background: rgba(23, 105, 47, 0.1);
+  border-color: rgba(23, 105, 47, 0.28);
+}
+.delivery-forms-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin: 1rem 0 0.5rem;
+}
+.delivery-forms-head .form-section-title {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.delivery-forms-table .form-input,
+.delivery-forms-table .form-select,
+.delivery-forms-table input,
+.delivery-forms-table select {
+  width: 100%;
+  min-width: 0;
+}
+.delivery-forms-table th:last-child,
+.delivery-forms-table td:last-child {
+  width: 4.5rem;
+  white-space: nowrap;
+}
+.delivery-detail .form-hint a {
+  color: var(--primary-700);
+  text-decoration: underline;
+}
 .delivery-detail__meta { color: #6b7280; margin: 0.25rem 0; }
 .delivery-detail__body { margin-top: 0.75rem; }
 .delivery-overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -24946,6 +25107,14 @@ html.rs-mobile-chrome .ops-sidebar--phone-sheet {
   html.rs-mobile-chrome .ops-sidebar--phone-sheet .ops-sidebar-brand {
     justify-content: flex-start;
   }
+
+  /* Leaf (Tổng quan, Admin một mục) cùng mép trái với header nhóm. */
+  html.rs-mobile-chrome.ops-shell-collapsed .ops-sidebar--phone-sheet .ops-nav-item--leaf {
+    justify-content: flex-start;
+    padding: 0.45rem 0.55rem;
+    margin-inline: 0.15rem;
+    width: calc(100% - 0.3rem);
+  }
 }
 
 .rs-mobile-drawer {
@@ -25027,6 +25196,50 @@ html.rs-mobile-chrome .pwa-install-banner {
 html.rs-mobile-chrome .csd-chat-page.is-shell .csd-chat-compose,
 html.rs-mobile-chrome .csd-chat-compose {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Chat mobile: thanh tên + nút gọi cố định; chỉ hộp tin nhắn cuộn (kiểu Zalo). */
+html.rs-mobile-chrome .csd-chat-page.is-authed {
+  height: calc(
+    100dvh - 3.25rem - env(safe-area-inset-top, 0px) - 4.5rem - env(safe-area-inset-bottom, 0px)
+  );
+  max-height: calc(
+    100dvh - 3.25rem - env(safe-area-inset-top, 0px) - 4.5rem - env(safe-area-inset-bottom, 0px)
+  );
+  min-height: 0;
+  overflow: hidden;
+}
+
+html.rs-mobile-chrome .csd-chat-page.is-authed .csd-chat-workspace {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+}
+
+html.rs-mobile-chrome .csd-chat-workspace.is-mobile-thread .csd-chat-workspace__thread {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html.rs-mobile-chrome .csd-chat-workspace.is-mobile-thread .csd-chat-thread-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  flex-shrink: 0;
+  background: #fff;
+}
+
+html.rs-mobile-chrome .csd-chat-workspace.is-mobile-thread .csd-chat-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+html.rs-mobile-chrome body:has(.csd-chat-workspace.is-mobile-thread) main {
+  overflow: hidden;
 }
 
 .crm-leads-phone-only {

@@ -18,7 +18,7 @@ describe('MetaLeadSyncService.syncProject', () => {
       { get: async () => ({ id: 'p1', code: 'ptt-hcm' }), listPages: async () => [] } as never,
       { resolvePageAccessToken: async () => 'tok' } as never,
       { prepareWebhookLeads: async () => ({ toEnqueue: [], unmatchedCount: 0 }) } as never,
-      { enqueueIngestLeads: async () => ({ mode: 'queue', jobs: [] }) } as never,
+      { ingestPreparedLeads: async () => ({ mode: 'nest', created: 0, duplicates: 0, failed: 0, lead_ids: [] }) } as never,
     );
     await expect(svc.syncProject('p1')).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -28,27 +28,30 @@ describe('MetaLeadSyncService.syncProject', () => {
       { get: async () => ({ id: 'p1', code: 'ptt-hcm' }), listPages: async () => pagesRepo() } as never,
       { resolvePageAccessToken: async () => null } as never,
       { prepareWebhookLeads: async () => ({ toEnqueue: [], unmatchedCount: 0 }) } as never,
-      { enqueueIngestLeads: async () => ({ mode: 'queue', jobs: [] }) } as never,
+      { ingestPreparedLeads: async () => ({ mode: 'nest', created: 0, duplicates: 0, failed: 0, lead_ids: [] }) } as never,
     );
     await expect(svc.syncProject('p1')).rejects.toMatchObject({
       response: { error: 'missing_page_token' },
     });
   });
 
-  it('enqueues leads with phone/email and counts skips', async () => {
+  it('ingests leads via Nest and counts skips/duplicates', async () => {
     const prepare = jest.fn(async (input: { leads: unknown[] }) => ({
       toEnqueue: input.leads,
       unmatchedCount: 0,
     }));
-    const enqueue = jest.fn(async () => ({
-      mode: 'queue',
-      jobs: [{ id: 'j1', created: true }, { id: 'j2', created: false }],
+    const ingestPreparedLeads = jest.fn(async () => ({
+      mode: 'nest',
+      created: 1,
+      duplicates: 1,
+      failed: 0,
+      lead_ids: [101, 99],
     }));
     const svc = new MetaLeadSyncService(
       { get: async () => ({ id: 'p1', code: 'ptt-hcm' }), listPages: async () => pagesRepo() } as never,
       { resolvePageAccessToken: async () => 'tok' } as never,
       { prepareWebhookLeads: prepare } as never,
-      { enqueueIngestLeads: enqueue } as never,
+      { ingestPreparedLeads } as never,
     );
     svc.graph = {
       listFormLeadIds: async () => ({ ids: ['L1', 'L2', 'L3'] }),
@@ -65,6 +68,7 @@ describe('MetaLeadSyncService.syncProject', () => {
     expect(out.already_queued).toBe(1);
     expect(out.created).toBe(1);
     expect(prepare).toHaveBeenCalled();
-    expect(enqueue).toHaveBeenCalled();
+    expect(ingestPreparedLeads).toHaveBeenCalled();
+    expect(out.message).toContain('1 mới');
   });
 });

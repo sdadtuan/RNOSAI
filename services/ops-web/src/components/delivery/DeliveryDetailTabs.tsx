@@ -13,6 +13,9 @@ import {
 } from '@/lib/delivery-projects-api';
 import { hasCapability, labelDeliveryCapability, normalizeCapabilities } from '@/lib/delivery-projects.util';
 import { getAccessToken } from '@/lib/auth';
+import { Form, FormField, FormFooter, FormGrid, FormSection } from '@/components/form';
+import { FormInput } from '@/components/form/FormControls';
+import { labelB2bProjectStatus } from '@/lib/b2b-project-util';
 import { ChangeRequestDrawer } from './ChangeRequestDrawer';
 import { DeliveryEmptyPanel } from './DeliveryEmptyPanel';
 import { DeliveryRiskPanel } from './DeliveryRiskPanel';
@@ -93,33 +96,35 @@ export function DeliveryDetailTabs({ project, ingestPanel, scopePanel, milestone
     await loadOps();
   }
 
+  const code = project.code ?? project.ingest_code ?? '—';
+  const dates =
+    project.start_date || project.end_date
+      ? `${project.start_date ?? '—'} → ${project.end_date ?? '—'}`
+      : '—';
+
   return (
     <div className="delivery-detail">
       <div className="delivery-detail__head">
-        <div>
-          <h2>{project.name}</h2>
-          <p className="delivery-detail__meta">
-            {project.code ?? project.ingest_code ?? '—'} · {project.status}
-          </p>
-          <div className="delivery-cap-pills">
-            {caps.map((cap) => (
-              <span key={cap} className={`delivery-cap-pill delivery-cap-pill--${cap}`}>
-                {labelDeliveryCapability(cap)}
-              </span>
-            ))}
-          </div>
+        <div className="delivery-cap-pills">
+          {caps.map((cap) => (
+            <span key={cap} className={`delivery-cap-pill delivery-cap-pill--${cap}`}>
+              {labelDeliveryCapability(cap)}
+            </span>
+          ))}
         </div>
-        <button type="button" className="delivery-btn delivery-btn--secondary" onClick={() => setCrOpen(true)}>
-          + Change Request
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCrOpen(true)}>
+          Yêu cầu thay đổi
         </button>
       </div>
 
-      <div className="delivery-tab-row">
+      <div className="lead-detail-tabs" role="tablist">
         {visibleTabs.map((t) => (
           <button
             key={t.id}
             type="button"
-            className={`delivery-tab${tab === t.id ? ' delivery-tab--active' : ''}`}
+            role="tab"
+            aria-selected={tab === t.id}
+            className={tab === t.id ? 'is-active' : ''}
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -129,49 +134,90 @@ export function DeliveryDetailTabs({ project, ingestPanel, scopePanel, milestone
 
       <div className="delivery-detail__body">
         {tab === 'overview' ? (
-          <div className="delivery-overview-grid">
-            <div className="delivery-panel">
-              <h3>Thông tin</h3>
-              <dl className="delivery-dl">
-                <dt>PM</dt>
-                <dd>{project.pm_staff_id ?? '—'}</dd>
-                <dt>AM</dt>
-                <dd>{project.am_staff_id ?? '—'}</dd>
-                <dt>Ngày</dt>
-                <dd>
-                  {project.start_date ?? '—'} → {project.end_date ?? '—'}
-                </dd>
-                <dt>Mô tả</dt>
-                <dd>{project.description || '—'}</dd>
-              </dl>
-            </div>
-            <DeliveryEmptyPanel title="Ngân sách" message="Chưa có ngân sách — Wave C." />
+          <div className="page-card">
+            <Form asDiv>
+              <FormSection title="Thông tin dự án">
+                <FormGrid cols={2}>
+                  <FormField label="Mã">
+                    <FormInput value={code} readOnly />
+                  </FormField>
+                  <FormField label="Trạng thái">
+                    <FormInput value={labelB2bProjectStatus(project.status)} readOnly />
+                  </FormField>
+                  <FormField label="PM">
+                    <FormInput value={project.pm_staff_id != null ? String(project.pm_staff_id) : '—'} readOnly />
+                  </FormField>
+                  <FormField label="AM">
+                    <FormInput value={project.am_staff_id != null ? String(project.am_staff_id) : '—'} readOnly />
+                  </FormField>
+                  <FormField label="Thời gian">
+                    <FormInput value={dates} readOnly />
+                  </FormField>
+                  <FormField label="Mô tả" className="form-field--full">
+                    <FormInput value={project.description || '—'} readOnly />
+                  </FormField>
+                </FormGrid>
+              </FormSection>
+            </Form>
           </div>
         ) : null}
 
-        {tab === 'ingest' ? ingestPanel ?? <p className="delivery-empty-hint">Không có cấu hình ingest.</p> : null}
-        {tab === 'scope' ? scopePanel ?? <DeliveryEmptyPanel title="Phạm vi" message="Chưa cấu hình phạm vi." /> : null}
-        {tab === 'milestone' ? milestonePanel ?? <DeliveryEmptyPanel title="Milestone" message="Chưa có milestone." /> : null}
+        {tab === 'ingest' ? (
+          ingestPanel ?? (
+            <div className="page-card">
+              <DeliveryEmptyPanel title="Nhận lead" message="Dự án này không bật nhận lead." />
+            </div>
+          )
+        ) : null}
+        {tab === 'scope' ? (
+          scopePanel ?? (
+            <div className="page-card">
+              <DeliveryEmptyPanel title="Phạm vi" message="Chưa cấu hình phạm vi." />
+            </div>
+          )
+        ) : null}
+        {tab === 'milestone' ? (
+          milestonePanel ?? (
+            <div className="page-card">
+              <DeliveryEmptyPanel title="Milestone" message="Chưa có milestone." />
+            </div>
+          )
+        ) : null}
 
-        {tab === 'budget' ? <DeliveryEmptyPanel title="Ngân sách" message="Sẽ mở ở Wave C." /> : null}
-        {tab === 'kpi' ? <DeliveryEmptyPanel title="KPI" message="Sẽ mở ở Wave D." /> : null}
+        {tab === 'budget' ? (
+          <div className="page-card">
+            <DeliveryEmptyPanel title="Ngân sách" message="Chưa có hạng mục ngân sách cho dự án này." />
+          </div>
+        ) : null}
+        {tab === 'kpi' ? (
+          <div className="page-card">
+            <DeliveryEmptyPanel title="KPI" message="Chưa gắn KPI cho dự án này." />
+          </div>
+        ) : null}
 
         {tab === 'risk' ? (
-          <div className="delivery-risk-tab">
-            <div className="delivery-risk-tab__actions">
-              <input
-                className="delivery-filter-input"
-                placeholder="Tiêu đề rủi ro mới"
-                value={riskTitle}
-                onChange={(e) => setRiskTitle(e.target.value)}
-              />
-              <button type="button" className="delivery-btn delivery-btn--primary" onClick={() => void addRisk()}>
-                + Thêm rủi ro
-              </button>
-              <Link href="/crm/delivery-projects/risks" className="delivery-link">
-                Mở Risk Register
-              </Link>
-            </div>
+          <div className="page-card stack-gap">
+            <Form asDiv>
+              <FormSection title="Ghi nhận rủi ro">
+                <FormGrid cols={2}>
+                  <FormField label="Tiêu đề" className="form-field--full">
+                    <FormInput
+                      value={riskTitle}
+                      placeholder="Mô tả ngắn rủi ro"
+                      onChange={(e) => setRiskTitle(e.target.value)}
+                    />
+                  </FormField>
+                </FormGrid>
+                <FormFooter>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => void addRisk()}>
+                    Thêm rủi ro
+                  </button>
+                  <Link href="/crm/delivery-projects/risks" className="btn btn-secondary btn-sm">
+                    Sổ rủi ro
+                  </Link>
+                </FormFooter>
+              </FormSection>
+            </Form>
             <DeliveryRiskPanel items={risks} loading={loadingOps} showProject={false} />
           </div>
         ) : null}

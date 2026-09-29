@@ -136,6 +136,27 @@ export class PgLeadsRepository implements OnModuleDestroy {
     return row ? pgRowToV1(row, { classification: classification ?? null }) : null;
   }
 
+  async listUnassignedB2bLeads(projectId: string, limit: number): Promise<LeadV1[]> {
+    const result = await this.db.query(
+      `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,
+              l.owner_id, s.name AS owner_name, l.is_duplicate, l.agency_client_id, l.channel,
+              l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
+              l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
+              l.company_name, l.company_address, l.logo_asset_id,
+              l.meta_json::text AS meta_json,
+              COALESCE(l.first_assigned_at::text, '') AS first_assigned_at
+       FROM crm_leads l
+       LEFT JOIN crm_staff s ON s.id = l.owner_id
+       WHERE l.b2b_project_id = $1::uuid
+         AND l.owner_id IS NULL
+         AND l.is_duplicate IS NOT TRUE
+       ORDER BY l.created_at ASC
+       LIMIT $2`,
+      [projectId, limit],
+    );
+    return (result.rows as PgLeadRow[]).map((row) => pgRowToV1(row));
+  }
+
   private buildWhere(query: ListLeadsQuery): PgWhereClause {
     const clauses = ['l.is_duplicate IS NOT TRUE'];
     const params: unknown[] = [];

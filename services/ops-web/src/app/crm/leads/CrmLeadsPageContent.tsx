@@ -69,6 +69,7 @@ import {
   parseLeadsListUrl,
 } from '@/lib/crm/leads-list-url';
 import { readLeadsVisibleColumns, defaultB2bLeadsVisibleColumns, type LeadsColumnId } from '@/lib/crm/leads-columns';
+import { B2B_LEAD_ALERTS_CHANGED_EVENT } from '@/lib/b2b-lead-alerts-api';
 import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
 import {
   isLeadP1SavedView,
@@ -149,6 +150,12 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignCtx, setAssignCtx] = useState<RevOpsAssignContext | null>(null);
   const urlReadyRef = useRef(false);
+  const offsetRef = useRef(0);
+  const queryRef = useRef('');
+  const viewModeRef = useRef<LeadsViewMode>(viewMode);
+  offsetRef.current = offset;
+  queryRef.current = query;
+  viewModeRef.current = viewMode;
 
   const listHref = leadsListHref(flowScope);
   const pageTitle = leadsListTitle(flowScope);
@@ -227,9 +234,18 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   }, [router]);
 
   const loadLeads = useCallback(
-    async (accessToken: string, nextOffset: number, search: string, mode: LeadsViewMode = viewMode) => {
-      setLoading(true);
-      setError('');
+    async (
+      accessToken: string,
+      nextOffset: number,
+      search: string,
+      mode: LeadsViewMode = viewMode,
+      opts?: { silent?: boolean },
+    ) => {
+      const silent = Boolean(opts?.silent);
+      if (!silent) {
+        setLoading(true);
+        setError('');
+      }
       try {
         const p1 = isLeadP1SavedView(savedView);
         const p1Filters = p1 ? leadP1Filters() : null;
@@ -256,9 +272,11 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         setTotal(data.total);
         setOffset(data.offset);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Tải leads thất bại');
+        if (!silent) {
+          setError(err instanceof Error ? err.message : 'Tải leads thất bại');
+        }
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     },
     [canViewAllLeads, filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, myCrmStaffId, savedView, viewMode],
@@ -360,6 +378,27 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     if (!token) return;
     void loadLeads(token, 0, query);
   }, [token, query, listTab, leadKind, filterStatus, filterSource, filterChannel, savedView, loadLeads]);
+
+  // Soft-refresh so new / assigned leads appear without a full page reload.
+  useEffect(() => {
+    if (!token) return;
+    const softReload = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      void loadLeads(token, offsetRef.current, queryRef.current, viewModeRef.current, { silent: true });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') softReload();
+    };
+    const onAlertsChanged = () => softReload();
+    const timer = window.setInterval(softReload, 15_000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener(B2B_LEAD_ALERTS_CHANGED_EVENT, onAlertsChanged);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener(B2B_LEAD_ALERTS_CHANGED_EVENT, onAlertsChanged);
+    };
+  }, [token, loadLeads]);
 
   useEffect(() => {
     if (!token || flowScope !== 'b2b_prospect') {

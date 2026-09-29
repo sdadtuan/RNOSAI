@@ -348,7 +348,7 @@ def main() -> int:
             csd_write,
             grant("crm_leads", "view", "edit", "create", "export"),
             grant("crm_lmp", "view", "edit", "create"),
-            grant("crm_b2b_projects", "view", "manage"),
+            grant("crm_b2b_projects", "view"),
             grant("crm_presales_solution", "view"),
             grant("crm_quote", "view"),
             grant("crm_quote.catalog", "view"),

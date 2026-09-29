@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useRef } from 'react';
 import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
 import {
+  B2B_LEAD_ALERTS_CHANGED_EVENT,
   b2bLeadAlertsStreamUrl,
   fetchB2bLeadAlerts,
   parseB2bLeadAlerts,
@@ -17,6 +18,15 @@ import {
 } from '@/lib/b2b-hot-alarm';
 
 const POLL_MS = 15_000;
+
+function alertsFingerprint(items: B2bLeadAlertRow[]): string {
+  return items.map((row) => `${row.id}:${row.read_at ?? ''}:${row.severity}`).join('|');
+}
+
+function notifyLeadAlertsChanged() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(B2B_LEAD_ALERTS_CHANGED_EVENT));
+}
 
 function leadDetailOpen(pathname: string, leadId: number): boolean {
   return pathname === `/crm/leads/${leadId}` || pathname.startsWith(`/crm/leads/${leadId}/`);
@@ -119,6 +129,15 @@ export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
     let cancelled = false;
     let eventSource: EventSource | null = null;
     let pollTimer: number | undefined;
+    let lastFingerprint: string | null = null;
+
+    function ingest(items: B2bLeadAlertRow[], announce: boolean) {
+      const next = alertsFingerprint(items);
+      const changed = lastFingerprint != null && next !== lastFingerprint;
+      lastFingerprint = next;
+      applyItems(items);
+      if (announce && changed) notifyLeadAlertsChanged();
+    }
 
     async function poll() {
       const token = getAccessToken();
@@ -126,7 +145,7 @@ export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
       try {
         const items = await fetchB2bLeadAlerts(token, { limit: 30 });
         if (cancelled) return;
-        applyItems(items);
+        ingest(items, true);
       } catch {
         // ignore transient errors
       }
@@ -147,7 +166,7 @@ export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
               items?: unknown;
             };
             if (payload.changed && payload.items) {
-              applyItems(parseB2bLeadAlerts(payload.items));
+              ingest(parseB2bLeadAlerts(payload.items), true);
             }
           } catch {
             // ignore malformed SSE payload

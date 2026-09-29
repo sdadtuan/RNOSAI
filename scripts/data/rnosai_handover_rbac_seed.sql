@@ -1005,7 +1005,6 @@ FROM crm_positions p
 CROSS JOIN (VALUES
 
   ('crm_agency', 'view'),
-  ('crm_b2b_projects', 'manage'),
   ('crm_b2b_projects', 'view'),
   ('crm_hdsd', 'export'),
   ('crm_hdsd', 'view'),

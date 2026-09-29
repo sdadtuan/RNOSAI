@@ -1,8 +1,11 @@
 import {
   clampFacebookSyncLimit,
   classifyFetchedLead,
+  fetchFacebookLeadgenForms,
   isMissingFormPermissionError,
   parseFacebookFormLeadsPage,
+  parseFacebookLeadgenFormsPage,
+  redactGraphToken,
   selectActiveFormsToSync,
 } from './meta-lead-sync.util';
 
@@ -89,5 +92,64 @@ describe('classifyFetchedLead', () => {
         meta: { fetch: 'graph_error', status: 400 },
       }),
     ).toBe('graph_error');
+  });
+});
+
+describe('parseFacebookLeadgenFormsPage', () => {
+  it('keeps active and archived forms and drops deleted ones', () => {
+    const out = parseFacebookLeadgenFormsPage({
+      data: [
+        { id: '1', name: 'Lead PTT', status: 'ACTIVE' },
+        { id: '2', name: 'Cũ', status: 'ARCHIVED' },
+        { id: '3', name: 'Xóa', status: 'DELETED' },
+        { id: '', name: 'trống' },
+      ],
+      paging: { next: 'https://graph.facebook.com/v19.0/next' },
+    });
+    expect(out.forms).toEqual([
+      { form_id: '1', name: 'Lead PTT', active: true },
+      { form_id: '2', name: 'Cũ', active: false },
+    ]);
+    expect(out.nextUrl).toBe('https://graph.facebook.com/v19.0/next');
+  });
+
+  it('ignores a next url that is not Graph', () => {
+    const out = parseFacebookLeadgenFormsPage({
+      data: [{ id: '1', name: 'A', status: 'ACTIVE' }],
+      paging: { next: 'https://evil.example/next' },
+    });
+    expect(out.nextUrl).toBeNull();
+  });
+
+  it('returns the Graph error message', () => {
+    const out = parseFacebookLeadgenFormsPage({ error: { message: 'missing permissions' } });
+    expect(out.forms).toEqual([]);
+    expect(out.errorMessage).toBe('missing permissions');
+  });
+});
+
+describe('redactGraphToken', () => {
+  it('strips access_token from a Graph message', () => {
+    expect(redactGraphToken('fail access_token=EAAsecret&x=1')).toBe('fail access_token=…&x=1');
+  });
+});
+
+describe('fetchFacebookLeadgenForms', () => {
+  it('follows Graph paging and dedupes form ids', async () => {
+    const fetchFn = jest.fn(async (url: string) => ({
+      json: async () =>
+        String(url).includes('leadgen_forms')
+          ? {
+              data: [{ id: '1', name: 'A', status: 'ACTIVE' }],
+              paging: { next: 'https://graph.facebook.com/v19.0/page2' },
+            }
+          : { data: [{ id: '1', name: 'A', status: 'ACTIVE' }, { id: '2', name: 'B', status: 'ARCHIVED' }] },
+    })) as unknown as typeof fetch;
+    const out = await fetchFacebookLeadgenForms('122', 'tok', 'v19.0', fetchFn);
+    expect(out.forms).toEqual([
+      { form_id: '1', name: 'A', active: true },
+      { form_id: '2', name: 'B', active: false },
+    ]);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 });

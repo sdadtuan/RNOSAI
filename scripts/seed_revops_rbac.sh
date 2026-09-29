@@ -2,7 +2,7 @@
 # Grant crm_revops caps for Revenue Operations shell (REVOPS-ENT W1).
 #
 # Persona map (SRS / plan B1):
-#   view       — AE, individual sales
+#   view       — analyst job function; AE không vào command center
 #   view_team  — Team Lead / ACM
 #   view_all   — Sales Director (CEO, PD on PTT org)
 #   manage     — Admin (SUPER-ADMIN)
@@ -66,12 +66,7 @@ CROSS JOIN (VALUES
 WHERE lower(trim(p.code)) = 'acm'
 ON CONFLICT (position_id, section_id, action) DO NOTHING;
 
--- AE — Account Executive (view)
-INSERT INTO staff_section_permissions (position_id, section_id, action)
-SELECT p.id, 'crm_revops', 'view'
-FROM crm_positions p
-WHERE lower(trim(p.code)) = 'ae'
-ON CONFLICT (position_id, section_id, action) DO NOTHING;
+-- AE không vào Revenue Ops (đầu phễu). Xem lead / báo giá, không command center.
 
 -- Legacy / staging sales director codes when present
 INSERT INTO staff_section_permissions (position_id, section_id, action)
@@ -89,7 +84,6 @@ INSERT INTO staff_job_function_grants (function_code, section_id, action)
 VALUES
   ('leader', 'crm_revops', 'view'),
   ('leader', 'crm_revops', 'view_team'),
-  ('sales', 'crm_revops', 'view'),
   ('analyst', 'crm_revops', 'view')
 ON CONFLICT (function_code, section_id, action) DO NOTHING;
 SQL

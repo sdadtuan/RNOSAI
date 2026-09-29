@@ -1,5 +1,8 @@
 import { API_BASE, ApiError, parseJson } from './api';
 
+/** Fired when B2B lead alerts change (SSE/poll). Lead list pages can soft-refresh. */
+export const B2B_LEAD_ALERTS_CHANGED_EVENT = 'b2b-lead-alerts-changed';
+
 export interface B2bLeadAlertRow {
   id: string;
   lead_id: number;

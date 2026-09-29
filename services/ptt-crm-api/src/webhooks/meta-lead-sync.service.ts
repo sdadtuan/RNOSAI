@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { B2bIngestService } from '../b2b-projects/b2b-ingest.service';
 import { B2bProjectsService } from '../b2b-projects/b2b-projects.service';
-import { JobQueueRepository } from './job-queue.repository';
 import {
   fetchFacebookLeadFromGraph,
   legacyRowToNormalizedLead,
@@ -15,10 +14,14 @@ import {
   clampFacebookSyncLimit,
   classifyFetchedLead,
   facebookFormLeadsUrl,
+  fetchFacebookLeadgenForms,
   isMissingFormPermissionError,
   parseFacebookFormLeadsPage,
+  redactGraphToken,
   selectActiveFormsToSync,
+  type FacebookLeadgenForm,
 } from './meta-lead-sync.util';
+import { WebhookNestIngestService } from './webhook-nest-ingest.service';
 
 export type MetaLeadSyncGraph = {
   listFormLeadIds: (
@@ -76,12 +79,14 @@ export const defaultMetaLeadSyncGraph: MetaLeadSyncGraph = {
 @Injectable()
 export class MetaLeadSyncService {
   graph: MetaLeadSyncGraph = defaultMetaLeadSyncGraph;
+  listLeadgenFormsFromGraph = fetchFacebookLeadgenForms;
+  exchangePageToken = exchangeForPageAccessToken;
 
   constructor(
     private readonly projects: B2bProjectsService,
     private readonly metaRepo: MetaWebhookRepository,
     private readonly b2bIngest: B2bIngestService,
-    private readonly jobQueue: JobQueueRepository,
+    private readonly nestIngest: WebhookNestIngestService,
   ) {}
 
   async syncProject(
@@ -114,7 +119,7 @@ export class MetaLeadSyncService {
     for (const pageId of new Set(targets.map((t) => t.pageId))) {
       tokenByPage.set(
         pageId,
-        await exchangeForPageAccessToken(token, pageId, baseConfig.graphApiVersion),
+        await this.exchangePageToken(token, pageId, baseConfig.graphApiVersion),
       );
     }
 
@@ -178,33 +183,35 @@ export class MetaLeadSyncService {
       projectSlug: project.code,
       leads,
     });
-    let enqueue: { mode: 'queue' | 'none'; jobs: Array<{ created: boolean }> } = {
-      mode: 'none',
-      jobs: [],
+    let ingest = {
+      mode: 'nest' as 'nest' | 'queue',
+      created: 0,
+      duplicates: 0,
+      failed: 0,
+      lead_ids: [] as number[],
     };
     if (prepared.toEnqueue.length) {
       try {
-        enqueue = await this.jobQueue.enqueueIngestLeads(prepared.toEnqueue, {
+        ingest = await this.nestIngest.ingestPreparedLeads(prepared.toEnqueue, {
           channel: 'meta',
           correlationId: `fb-sync:${project.id}:${Date.now()}`,
         });
       } catch (err) {
         throw new BadRequestException({
-          error: 'queue_disabled',
-          message: err instanceof Error ? err.message : 'Không ghi được hàng đợi ingest.',
+          error: 'ingest_failed',
+          message: err instanceof Error ? err.message : 'Không tạo được lead qua Nest.',
         });
       }
     }
 
-    const created = enqueue.jobs.filter((j) => j.created).length;
-    const alreadyQueued = enqueue.jobs.filter((j) => !j.created).length;
     const message = [
       `Đã quét ${scanned} lead trên Meta.`,
-      `${created} mới vào hàng đợi`,
-      `${alreadyQueued} đã có`,
+      `${ingest.created} mới`,
+      `${ingest.duplicates} đã có`,
       `${skippedEmpty} thiếu SĐT/email`,
       prepared.unmatchedCount ? `${prepared.unmatchedCount} chưa map` : '',
       graphErrors ? `${graphErrors} lỗi Graph` : '',
+      ingest.failed ? `${ingest.failed} lỗi tạo lead` : '',
       formErrors.length ? formErrors[0] : '',
     ]
       .filter(Boolean)
@@ -214,14 +221,42 @@ export class MetaLeadSyncService {
       ok: true,
       project_id: project.id,
       scanned,
-      enqueued: enqueue.jobs.length,
-      created,
-      already_queued: alreadyQueued,
+      enqueued: ingest.created + ingest.duplicates,
+      created: ingest.created,
+      already_queued: ingest.duplicates,
       skipped_empty: skippedEmpty,
       graph_errors: graphErrors,
       unmatched: prepared.unmatchedCount,
       form_ids: targets.map((t) => t.formId),
       message,
     };
+  }
+
+  async listLeadgenForms(
+    projectId: string,
+    body: { page_id?: string; access_token?: string } = {},
+  ): Promise<{ ok: true; page_id: string; forms: FacebookLeadgenForm[] }> {
+    await this.projects.get(projectId);
+    const pageId = String(body.page_id ?? '').trim();
+    if (!pageId) {
+      throw new BadRequestException({ error: 'Nhập Page ID trước khi lấy form.' });
+    }
+    const supplied = String(body.access_token ?? '').trim();
+    const token = supplied || (await this.metaRepo.resolvePageAccessToken(null, [pageId]));
+    if (!token) {
+      throw new BadRequestException({
+        error: 'missing_page_token',
+        message: 'Thiếu Page Access Token (tab Kênh hoặc CRM_FACEBOOK_PAGE_ACCESS_TOKEN).',
+      });
+    }
+    const version = metaConfigFromEnv().graphApiVersion;
+    const pageToken = await this.exchangePageToken(token, pageId, version);
+    const listed = await this.listLeadgenFormsFromGraph(pageId, pageToken, version);
+    if (listed.errorMessage) {
+      throw new BadRequestException({
+        error: `Không lấy được form từ Facebook: ${redactGraphToken(listed.errorMessage)}`,
+      });
+    }
+    return { ok: true, page_id: pageId, forms: listed.forms };
   }
 }

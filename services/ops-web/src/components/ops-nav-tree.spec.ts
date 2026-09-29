@@ -173,8 +173,21 @@ describe('buildNavTree IA', () => {
           { section: 'crm_hdsd', action: 'view' },
         ],
       };
-      const ids = buildNavTree(ae, {}).map((i) => i.id);
+      const tree = buildNavTree(ae, {});
+      const ids = tree.map((i) => i.id);
+      const sales = tree.find((i) => i.id === 'sales');
+      const salesLabels = sales?.kind === 'parent' ? sales.children.map((c) => c.label) : [];
+      expect(salesLabels).toEqual([
+        'Lead B2B',
+        'Inbox B2B',
+        'Theo dõi Solution',
+        'Báo giá',
+        'Lead Intake',
+        'Dự án PTT',
+        'Tạo lead B2B',
+      ]);
       expect(ids).toContain('agency');
+      expect(ids).not.toContain('kpi');
       expect(ids).not.toContain('ads');
       expect(ids).not.toContain('seo');
       expect(ids).not.toContain('email');

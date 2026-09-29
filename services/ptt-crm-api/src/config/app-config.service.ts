@@ -67,6 +67,8 @@ export class AppConfigService {
   readonly flaskMonolithUrl: string;
   readonly jobsEnabled: boolean;
   readonly webhookEnqueueEnabled: boolean;
+  /** When true, Meta/Zalo/Google webhook leads create via Nest (first-assign). Else Python ingest_lead queue. */
+  readonly webhookNestIngestEnabled: boolean;
   readonly webhooksNestEnabled: boolean;
   readonly webhooksNestMetaEnabled: boolean;
   readonly webhooksNestZaloEnabled: boolean;
@@ -325,6 +327,7 @@ export class AppConfigService {
     this.flaskMonolithUrl = (process.env.PTT_FLASK_MONOLITH_URL ?? '').trim();
     this.jobsEnabled = this.resolveJobsEnabled();
     this.webhookEnqueueEnabled = this.resolveWebhookEnqueueEnabled();
+    this.webhookNestIngestEnabled = this.resolveWebhookNestIngestEnabled();
     this.webhooksNestEnabled = this.resolveWebhooksNestEnabled();
     this.webhooksNestMetaEnabled = this.resolveWebhooksNestMetaEnabled();
     this.webhooksNestZaloEnabled = this.resolveWebhooksNestZaloEnabled();
@@ -878,6 +881,12 @@ export class AppConfigService {
   private resolveWebhookEnqueueEnabled(): boolean {
     return ['1', 'true', 'yes', 'on'].includes(
       (process.env.PTT_WEBHOOK_V1_ENQUEUE ?? '1').trim().toLowerCase(),
+    );
+  }
+
+  private resolveWebhookNestIngestEnabled(): boolean {
+    return !['0', 'false', 'no', 'off'].includes(
+      (process.env.PTT_WEBHOOK_NEST_INGEST ?? '1').trim().toLowerCase(),
     );
   }
 

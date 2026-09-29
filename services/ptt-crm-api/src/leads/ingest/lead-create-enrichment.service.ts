@@ -33,10 +33,15 @@ export class LeadCreateEnrichmentService {
   async enrich(body: CreateLeadV1Body): Promise<EnrichedCreateLeadBody> {
     const phone = normalizePhone(body.phone);
     const email = normalizeEmail(body.email);
+    const seedMeta =
+      body.meta && typeof body.meta === 'object' && !Array.isArray(body.meta)
+        ? { ...body.meta }
+        : {};
     const meta: Record<string, unknown> = {
+      ...seedMeta,
       nest_write: true,
-      created_via: 'POST /api/v1/leads',
-      ingest_path: 'nest_manual',
+      created_via: String(seedMeta.created_via ?? 'POST /api/v1/leads'),
+      ingest_path: String(seedMeta.ingest_path ?? 'nest_manual'),
     };
 
     const isB2bFlow =

@@ -209,7 +209,14 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   if (hasCap(user, 'crm_board', 'view') && isOpsDvFeEnabled()) {
     sales.push(child('sales-svc', 'Tra cứu dịch vụ', '/crm/sales/services'));
   }
-  if (hasCap(user, 'crm_agency', 'view')) {
+  // Hub / bàn GDKD: AM và GDKD (sửa HĐ hoặc manage dự án). AE chỉ xem dự án.
+  const canRunB2bDesk = hasCap(user, 'crm_b2b_projects', 'manage');
+  if (
+    hasCap(user, 'crm_hub_contracts', 'edit') ||
+    hasCap(user, 'crm_agency', 'edit') ||
+    hasCap(user, 'crm_agency', 'configure') ||
+    canRunB2bDesk
+  ) {
     sales.push(child('sales-hub', 'Hub hợp đồng', '/crm/hub'));
   }
   if (hasCap(user, 'crm_leads', 'view')) {
@@ -217,8 +224,6 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   }
   if (hasCap(user, 'crm_b2b_projects', 'view')) {
     sales.push(child('sales-projects', 'Dự án PTT', '/crm/b2b-projects'));
-    sales.push(child('sales-ingest-dv', 'Lead ingest DV', '/crm/delivery-projects?capability=lead_ingest'));
-    sales.push(child('sales-speed', 'Speed-to-lead', '/crm/b2b-speed'));
   }
   if (isRevopsShellEnabled() && canSeeRevopsNav(user)) {
     sales.push(child('sales-revops', 'Revenue Ops', '/crm/revenue-ops'));
@@ -229,10 +234,10 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   if (hasCap(user, 'crm_re_projects', 'view') || hasCap(user, 'crm_re_projects_products', 'view')) {
     sales.push(child('sales-re', 'Dự án BĐS', '/crm/re-projects'));
   }
-  if (hasCap(user, 'crm_b2b_projects', 'view')) {
+  if (canRunB2bDesk) {
+    sales.push(child('sales-ingest-dv', 'Lead ingest DV', '/crm/delivery-projects?capability=lead_ingest'));
+    sales.push(child('sales-speed', 'Speed-to-lead', '/crm/b2b-speed'));
     sales.push(child('sales-gdkd', 'GDKD command', '/crm/b2b-gdkd'));
-  }
-  if (hasCap(user, 'crm_b2b_projects', 'manage')) {
     sales.push(child('sales-unmatched', 'Ingress chưa map', '/crm/b2b-unmatched'));
   }
   if (hasCap(user, 'crm_leads', 'edit')) {

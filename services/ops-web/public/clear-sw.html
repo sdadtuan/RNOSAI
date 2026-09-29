@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gỡ Service Worker — PTT CRM</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        max-width: 32rem;
+        margin: 3rem auto;
+        padding: 0 1rem;
+        color: #14241a;
+        line-height: 1.45;
+      }
+      button {
+        margin-top: 1rem;
+        padding: 0.65rem 1rem;
+        border: 0;
+        border-radius: 8px;
+        background: #17692f;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #log {
+        margin-top: 1rem;
+        white-space: pre-wrap;
+        font-size: 0.9rem;
+        color: #5c6b63;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Gỡ cache Safari / Service Worker</h1>
+    <p>
+      Dùng trang này khi Safari báo lỗi
+      <em>“Response served by service worker has redirections”</em> và không vào được
+      rs.pttads.vn.
+    </p>
+    <button type="button" id="go">Gỡ Service Worker và mở đăng nhập</button>
+    <p id="log"></p>
+    <script>
+      const log = document.getElementById('log');
+      function say(msg) {
+        log.textContent += msg + '\n';
+      }
+
+      async function clearAll() {
+        say('Đang gỡ…');
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (const reg of regs) {
+            await reg.unregister();
+            say('Đã unregister: ' + (reg.scope || ''));
+          }
+          if (!regs.length) say('Không còn Service Worker.');
+        }
+        if (window.caches && caches.keys) {
+          const keys = await caches.keys();
+          for (const key of keys) {
+            await caches.delete(key);
+            say('Đã xóa cache: ' + key);
+          }
+        }
+        say('Xong. Chuyển sang trang đăng nhập…');
+        location.replace('/login');
+      }
+
+      document.getElementById('go').addEventListener('click', () => {
+        void clearAll().catch((err) => {
+          say('Lỗi: ' + (err && err.message ? err.message : String(err)));
+          say('Thử Safari → Settings → Privacy → Manage Website Data → xóa pttads.vn');
+        });
+      });
+
+      // Tự chạy một lần để giảm thao tác trên điện thoại.
+      void clearAll().catch(() => {});
+    </script>
+  </body>
+</html>

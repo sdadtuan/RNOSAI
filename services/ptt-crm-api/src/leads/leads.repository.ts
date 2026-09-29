@@ -28,6 +28,10 @@ export class LeadsRepository {
     return this.pgRepo.getLeadById(leadId, classification);
   }
 
+  listUnassignedB2bLeads(projectId: string, limit: number): Promise<LeadV1[]> {
+    return this.pgRepo.listUnassignedB2bLeads(projectId, limit);
+  }
+
   private async withReviewQueueFilter(query: ListLeadsQuery): Promise<ListLeadsQuery> {
     const filter = query.review_queue_filter;
     if (!filter || !this.config.crmLeadsFunnelNest) {
