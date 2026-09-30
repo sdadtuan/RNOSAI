@@ -1,10 +1,23 @@
-import { isWithinBusinessHours, resolveSlaAction, shouldStartAiCall, slaBand, slaHopStoppedByConnectedCall } from './b2b-sla.util';
+import {
+  assignPoolEligibleStaffSql,
+  isWithinBusinessHours,
+  resolveSlaAction,
+  shouldStartAiCall,
+  slaBand,
+  slaHopStoppedByConnectedCall,
+} from './b2b-sla.util';
 
 describe('b2b sla', () => {
   it('bands', () => {
     expect(slaBand(70)).toBe('hot');
     expect(slaBand(40)).toBe('warm');
     expect(slaBand(10)).toBe('cold');
+  });
+
+  it('assign pool skips staff who cannot receive leads', () => {
+    const sql = assignPoolEligibleStaffSql('s');
+    expect(sql).toContain('s.active IS TRUE');
+    expect(sql).toContain('s.can_receive_leads');
   });
 
   it('connected call results stop SLA hop', () => {

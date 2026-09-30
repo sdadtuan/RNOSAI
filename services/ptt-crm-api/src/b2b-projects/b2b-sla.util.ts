@@ -18,6 +18,11 @@ export function slaHopStopCallResultSqlList(): string {
   return SLA_HOP_STOP_CALL_RESULTS.map((result) => `'${result}'`).join(', ');
 }
 
+/** Auto-assign pool: project flag plus the staff “nhận lead” switch. */
+export function assignPoolEligibleStaffSql(staffAlias = 's'): string {
+  return `${staffAlias}.active IS TRUE AND COALESCE(${staffAlias}.can_receive_leads, FALSE) IS TRUE`;
+}
+
 export const DEFAULT_SLA = {
   hot: { warnMin: 3, hopMin: 5 },
   warm: { warnMin: 10, hopMin: 15 },

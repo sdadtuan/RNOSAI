@@ -2,7 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import type { AssignPoolMember } from './b2b-assign.util';
-import { DEFAULT_SLA, slaHopStopCallResultSqlList } from './b2b-sla.util';
+import { assignPoolEligibleStaffSql, DEFAULT_SLA, slaHopStopCallResultSqlList } from './b2b-sla.util';
 import type { B2bProjectRow } from './b2b-projects.types';
 
 export interface OpenB2bLeadRow {
@@ -76,8 +76,10 @@ export class B2bSlaRepository implements OnModuleDestroy {
                   AND c.state = ANY($2::varchar[])
               ) AS in_call
        FROM crm_b2b_project_staff ps
+       JOIN crm_staff s ON s.id = ps.staff_id
        WHERE ps.project_id = $1::uuid
          AND ps.assign_enabled = TRUE
+         AND ${assignPoolEligibleStaffSql('s')}
        ORDER BY ps.staff_id ASC`,
       [projectId, IN_CALL_STATES],
     );
