@@ -522,10 +522,18 @@ export class B2bProjectsRepository implements OnModuleDestroy {
 
   async listProjectStaff(projectId: string) {
     const result = await this.db.query(
-      `SELECT staff_id, assign_enabled, sales_level, COALESCE(role, 'sales') AS role
-       FROM crm_b2b_project_staff
-       WHERE project_id = $1::uuid
-       ORDER BY staff_id`,
+      `SELECT ps.staff_id,
+              COALESCE(s.name, '') AS name,
+              COALESCE(s.job_title, '') AS job_title,
+              ps.assign_enabled,
+              ps.sales_level,
+              COALESCE(ps.role, 'sales') AS role,
+              COALESCE(s.active, FALSE) AS active,
+              COALESCE(s.can_receive_leads, FALSE) AS can_receive_leads
+       FROM crm_b2b_project_staff ps
+       LEFT JOIN crm_staff s ON s.id = ps.staff_id
+       WHERE ps.project_id = $1::uuid
+       ORDER BY lower(COALESCE(s.name, '')), ps.staff_id`,
       [projectId],
     );
     return result.rows;

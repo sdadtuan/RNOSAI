@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import type { DeliveryProjectRow } from '@/lib/delivery-projects-api';
 import {
@@ -32,11 +32,18 @@ type DetailTab =
 type DeliveryDetailTabsProps = {
   project: DeliveryProjectRow;
   ingestPanel?: React.ReactNode;
+  overviewPanel?: ReactNode;
   scopePanel?: React.ReactNode;
   milestonePanel?: React.ReactNode;
 };
 
-export function DeliveryDetailTabs({ project, ingestPanel, scopePanel, milestonePanel }: DeliveryDetailTabsProps) {
+export function DeliveryDetailTabs({
+  project,
+  ingestPanel,
+  overviewPanel,
+  scopePanel,
+  milestonePanel,
+}: DeliveryDetailTabsProps) {
   const caps = normalizeCapabilities(project.capabilities);
   const hasDelivery = hasCapability(caps, 'delivery');
   const hasLead = hasCapability(caps, 'lead_ingest');
@@ -134,9 +141,10 @@ export function DeliveryDetailTabs({ project, ingestPanel, scopePanel, milestone
 
       <div className="delivery-detail__body">
         {tab === 'overview' ? (
-          <div className="page-card">
-            <Form asDiv>
-              <FormSection title="Thông tin dự án">
+          <>
+            <div className="page-card">
+              <Form asDiv>
+                <FormSection title="Thông tin dự án">
                 <FormGrid cols={2}>
                   <FormField label="Mã">
                     <FormInput value={code} readOnly />
@@ -160,6 +168,8 @@ export function DeliveryDetailTabs({ project, ingestPanel, scopePanel, milestone
               </FormSection>
             </Form>
           </div>
+            {overviewPanel}
+          </>
         ) : null}
 
         {tab === 'ingest' ? (

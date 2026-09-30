@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { B2bProjectChannelsPanel } from '@/components/b2b/B2bProjectChannelsPanel';
+import { B2bProjectStaffPanel } from '@/components/b2b/B2bProjectStaffPanel';
 import { Form, FormCheck, FormField, FormGrid, FormSection } from '@/components/form';
 import { FormInput, FormSelect } from '@/components/form/FormControls';
 import { DeliveryDetailTabs } from '@/components/delivery/DeliveryDetailTabs';
@@ -194,7 +195,23 @@ export default function DeliveryProjectDetailPage() {
       >
         {loading ? <p className="muted">Đang tải…</p> : null}
         {error ? <p className="error">{error}</p> : null}
-        {project ? <DeliveryDetailTabs project={project} ingestPanel={ingestPanel} /> : null}
+        {project ? (
+          <DeliveryDetailTabs
+            project={project}
+            ingestPanel={ingestPanel}
+            overviewPanel={
+              project.b2b_project_id &&
+              hasCapability(normalizeCapabilities(project.capabilities ?? []), 'lead_ingest') ? (
+                <B2bProjectStaffPanel
+                  projectId={project.b2b_project_id}
+                  canManage={canManageB2b}
+                  onMessage={setNotice}
+                  onError={setError}
+                />
+              ) : null
+            }
+          />
+        ) : null}
       </KpiHubShell>
     </DeliveryPageGate>
   );

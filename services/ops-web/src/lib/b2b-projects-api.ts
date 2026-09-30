@@ -36,8 +36,13 @@ export interface B2bProjectChannelRow {
 
 export interface B2bProjectStaffRow {
   staff_id: number;
+  name?: string;
+  job_title?: string | null;
   assign_enabled: boolean;
   sales_level: string;
+  role?: string;
+  active?: boolean;
+  can_receive_leads?: boolean;
 }
 
 export interface B2bLeadEligibleStaffRow {
