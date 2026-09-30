@@ -208,7 +208,7 @@ export class ReProjectsChannelsPgRepository implements OnModuleDestroy {
     const result = await this.query(
       `SELECT ps.*,s.name AS staff_name,COALESCE(s.internal_code,'') AS staff_code
        FROM crm_re_project_staff ps JOIN crm_staff s ON s.id=ps.staff_id
-       WHERE ps.project_id=$1 ${activeOnly ? 'AND ps.left_at IS NULL' : ''}
+       WHERE ps.project_id=$1 ${activeOnly ? 'AND ps.left_at IS NULL AND COALESCE(s.active, FALSE) IS TRUE' : ''}
        ORDER BY ps.sort_order,ps.id`, [projectId],
     );
     return result.rows.map((r) => this.enrichStaffScopeFields(r));

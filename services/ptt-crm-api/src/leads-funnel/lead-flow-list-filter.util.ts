@@ -81,12 +81,19 @@ export function buildB2bListScopeClause(
     dialect === 'postgres'
       ? `${alias}.b2b_project_id`
       : `trim(COALESCE(json_extract(${alias}.meta_json, '$.b2b_project_id'), ''))`;
+  const pmPool =
+    dialect === 'postgres'
+      ? `SELECT ps.project_id
+         FROM crm_b2b_project_staff ps
+         INNER JOIN crm_staff st ON st.id = ps.staff_id AND COALESCE(st.active, FALSE) IS TRUE
+         WHERE ps.staff_id = ${staffParam} AND COALESCE(ps.role, 'sales') = 'project_manager'`
+      : `SELECT project_id FROM crm_b2b_project_staff
+         WHERE staff_id = ${staffParam} AND COALESCE(role, 'sales') = 'project_manager'`;
   return `(
     NOT (${b2b}) OR
     ${alias}.owner_id = ${staffParam} OR
     ${projectCol} IN (
-      SELECT project_id FROM crm_b2b_project_staff
-      WHERE staff_id = ${staffParam} AND COALESCE(role, 'sales') = 'project_manager'
+      ${pmPool}
     )
   )`;
 }

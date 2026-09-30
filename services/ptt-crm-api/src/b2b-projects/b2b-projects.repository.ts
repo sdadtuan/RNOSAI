@@ -72,6 +72,7 @@ export class B2bProjectsRepository implements OnModuleDestroy {
               p.created_at::text, p.updated_at::text
        FROM crm_b2b_projects p
        INNER JOIN crm_b2b_project_staff ps ON ps.project_id = p.id AND ps.staff_id = $1
+       INNER JOIN crm_staff s ON s.id = ps.staff_id AND COALESCE(s.active, FALSE) IS TRUE
        WHERE 1=1${statusClause}
        ORDER BY p.code ASC`,
       params,
@@ -300,7 +301,9 @@ export class B2bProjectsRepository implements OnModuleDestroy {
   ): Promise<Array<{ projectId: string; assignEnabled: boolean; role: 'sales' | 'project_manager' }>> {
     const result = await this.db.query(
       `SELECT project_id::text AS project_id, assign_enabled, COALESCE(role, 'sales') AS role
-       FROM crm_b2b_project_staff WHERE staff_id = $1`,
+       FROM crm_b2b_project_staff ps
+       INNER JOIN crm_staff s ON s.id = ps.staff_id AND COALESCE(s.active, FALSE) IS TRUE
+       WHERE ps.staff_id = $1`,
       [staffId],
     );
     return result.rows.map((row) => ({
@@ -533,6 +536,7 @@ export class B2bProjectsRepository implements OnModuleDestroy {
        FROM crm_b2b_project_staff ps
        LEFT JOIN crm_staff s ON s.id = ps.staff_id
        WHERE ps.project_id = $1::uuid
+         AND COALESCE(s.active, FALSE) IS TRUE
        ORDER BY lower(COALESCE(s.name, '')), ps.staff_id`,
       [projectId],
     );

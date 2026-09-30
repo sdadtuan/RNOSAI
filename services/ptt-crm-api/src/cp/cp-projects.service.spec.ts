@@ -635,15 +635,15 @@ describe('CpProjectsService.submitCreative', () => {
         return { rows: [{ id: CLIENT_ID }], rowCount: 1 };
       }
       if (/FROM clients/i.test(sql)) return { rows: [{ id: CLIENT_ID }], rowCount: 1 };
+      if (/FROM crm_b2b_project_staff/i.test(sql)) {
+        return { rows: [{ staff_id: 4 }], rowCount: 1 };
+      }
       if (/FROM crm_staff/i.test(sql)) return { rows: [{ id: 5 }], rowCount: 1 };
       if (/INSERT INTO crm_cp_projects/i.test(sql)) {
         return {
           rows: [{ id, name: 'PTT', agency_client_id: CLIENT_ID, owner_staff_id: 5, status: 'active' }],
           rowCount: 1,
         };
-      }
-      if (/FROM crm_b2b_project_staff/i.test(sql)) {
-        return { rows: [{ staff_id: 4 }], rowCount: 1 };
       }
       if (/INSERT INTO crm_cp_project_members/i.test(sql)) {
         return { rows: [], rowCount: 1 };

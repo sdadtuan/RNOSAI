@@ -496,9 +496,20 @@ export class StaffOrgUsersRepository {
       leadsReassigned = leadUpdate.rowCount ?? 0;
 
       await client.query(
-        `UPDATE crm_staff SET active = FALSE, ended_on = CURRENT_DATE, updated_at = NOW() WHERE id = $1`,
+        `UPDATE crm_staff
+         SET active = FALSE,
+             can_receive_leads = FALSE,
+             ended_on = CURRENT_DATE,
+             updated_at = NOW()
+         WHERE id = $1`,
         [crmStaffId],
       );
+      await client.query(`DELETE FROM crm_b2b_project_staff WHERE staff_id = $1`, [crmStaffId]);
+      await client.query(`DELETE FROM staff_user_teams WHERE user_id = $1::uuid`, [userId]);
+      await this.dropOptionalMembership(client, 'crm_re_project_staff', crmStaffId, 'left');
+      await this.dropOptionalMembership(client, 'crm_cp_project_members', crmStaffId, 'delete');
+      await this.dropOptionalMembership(client, 'csd_conversation_members', crmStaffId, 'chat');
+      await this.dropOptionalMembership(client, 'csd_chat_accounts', crmStaffId, 'disable-chat');
       await client.query(
         `UPDATE staff_users SET active = FALSE, auth_token_version = auth_token_version + 1, updated_at = NOW() WHERE id = $1::uuid`,
         [userId],
@@ -528,6 +539,42 @@ export class StaffOrgUsersRepository {
     const user = await this.getUserById(userId);
     if (!user) throw new NotFoundException({ error: 'user_not_found' });
     return { user, leads_reassigned: leadsReassigned };
+  }
+
+  /** Tables that are not on every database. Missing relation must not abort offboard. */
+  private async dropOptionalMembership(
+    client: PoolClient,
+    table: string,
+    staffId: number,
+    mode: 'left' | 'delete' | 'chat' | 'disable-chat',
+  ): Promise<void> {
+    const found = await client.query(`SELECT to_regclass($1) AS rel`, [`public.${table}`]);
+    if (!found.rows[0]?.rel) return;
+    if (mode === 'left') {
+      await client.query(
+        `UPDATE crm_re_project_staff
+         SET left_at = NOW()::text, updated_at = NOW()::text
+         WHERE staff_id = $1 AND left_at IS NULL`,
+        [staffId],
+      );
+      return;
+    }
+    if (mode === 'delete') {
+      await client.query(`DELETE FROM crm_cp_project_members WHERE staff_id = $1`, [staffId]);
+      return;
+    }
+    if (mode === 'chat') {
+      await client.query(
+        `DELETE FROM csd_conversation_members
+         WHERE member_type = 'staff' AND member_staff_id = $1`,
+        [staffId],
+      );
+      return;
+    }
+    await client.query(
+      `UPDATE csd_chat_accounts SET enabled = FALSE, updated_at = NOW() WHERE staff_id = $1`,
+      [staffId],
+    );
   }
 }
 

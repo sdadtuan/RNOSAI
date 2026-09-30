@@ -33,7 +33,8 @@ describe('lead-flow-list-filter.util', () => {
       '$1',
     );
     expect(sql).toContain('l.owner_id = $1');
-    expect(sql).toContain("COALESCE(role, 'sales') = 'project_manager'");
+    expect(sql).toContain("COALESCE(ps.role, 'sales') = 'project_manager'");
+    expect(sql).toContain('COALESCE(st.active, FALSE) IS TRUE');
     expect(sql).not.toContain('assign_enabled');
   });
 

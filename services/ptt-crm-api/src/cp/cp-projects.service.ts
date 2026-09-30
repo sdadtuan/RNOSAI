@@ -294,7 +294,10 @@ export class CpProjectsService {
         ownerStaffId,
       );
       const staff = await this.db.query(
-        `SELECT staff_id FROM crm_b2b_project_staff WHERE project_id = $1::uuid`,
+        `SELECT ps.staff_id
+         FROM crm_b2b_project_staff ps
+         INNER JOIN crm_staff s ON s.id = ps.staff_id AND COALESCE(s.active, FALSE) IS TRUE
+         WHERE ps.project_id = $1::uuid`,
         [b2bId],
       );
       const memberIds = new Set<number>([ownerStaffId]);
@@ -810,7 +813,7 @@ export class CpProjectsService {
       this.db.query(
         `SELECT m.staff_id, m.role, s.name
            FROM crm_cp_project_members m
-           LEFT JOIN crm_staff s ON s.id = m.staff_id
+           INNER JOIN crm_staff s ON s.id = m.staff_id AND COALESCE(s.active, FALSE) IS TRUE
           WHERE m.project_id = $1::uuid
           ORDER BY m.staff_id`,
         [projectId],
