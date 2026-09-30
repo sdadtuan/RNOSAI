@@ -8,6 +8,7 @@ import { ClientScopePicker } from '@/components/rbac/ClientScopePicker';
 import { WinReloginToast, WinSodBanner } from '@/components/win';
 import { PermissionSetPicker } from '@/components/rbac/PermissionSetPicker';
 import {
+  fetchCrmStaffList,
   fetchStaffOrgTeams,
   fetchStaffPermissionSets,
   fetchStaffUserEffectiveCaps,
@@ -61,6 +62,10 @@ export function UserIdentityCard({
   const [showRelogin, setShowRelogin] = useState(false);
   const [showOffboard, setShowOffboard] = useState(false);
   const [reassignTo, setReassignTo] = useState('');
+  const [staffOptions, setStaffOptions] = useState<
+    Array<{ id: number; name: string; job_title: string }>
+  >([]);
+  const [staffLoading, setStaffLoading] = useState(false);
   const [loginPassword, setLoginPassword] = useState('');
   const [issuedLoginPassword, setIssuedLoginPassword] = useState('');
 
@@ -72,6 +77,40 @@ export function UserIdentityCard({
   }
 
   const sodViolations = useMemo(() => detectSodViolations(functions), [functions]);
+
+  useEffect(() => {
+    if (!showOffboard) return;
+    let cancelled = false;
+    setStaffLoading(true);
+    void fetchCrmStaffList(token)
+      .then((out) => {
+        if (cancelled) return;
+        const rows = (out.staff ?? [])
+          .filter((row) => row.active !== 0 && row.id !== user.crm_staff_id)
+          .map((row) => ({
+            id: row.id,
+            name: row.name?.trim() || row.email || `Nhân viên #${row.id}`,
+            job_title: row.job_title?.trim() || '',
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+        setStaffOptions(rows);
+        setReassignTo((prev) => {
+          if (prev && rows.some((row) => String(row.id) === prev)) return prev;
+          return rows[0] ? String(rows[0].id) : '';
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setStaffOptions([]);
+        setError(err instanceof Error ? err.message : 'Không tải được danh sách nhân viên');
+      })
+      .finally(() => {
+        if (!cancelled) setStaffLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showOffboard, token, user.crm_staff_id]);
 
   const loadDetail = useCallback(async () => {
     const detail = await fetchStaffUserJobFunctions(token, user.id);
@@ -382,20 +421,35 @@ export function UserIdentityCard({
         <div className="modal-backdrop" role="presentation" onClick={() => setShowOffboard(false)}>
           <div className="modal-card" role="dialog" onClick={(e) => e.stopPropagation()}>
             <h3>Offboard {user.display_name}</h3>
-            <p className="muted">Chuyển lead sang NV khác (crm_staff id) rồi deactivate.</p>
+            <p className="muted">Chuyển lead sang nhân viên khác rồi deactivate.</p>
             <label>
-              NV nhận lead (crm_staff id)
-              <input
+              NV nhận lead
+              <select
                 value={reassignTo}
                 onChange={(e) => setReassignTo(e.target.value)}
-                placeholder="VD: 12"
-              />
+                disabled={busy || staffLoading || staffOptions.length === 0}
+              >
+                {staffLoading ? <option value="">Đang tải nhân viên…</option> : null}
+                {!staffLoading && staffOptions.length === 0 ? (
+                  <option value="">Không có nhân viên để nhận lead</option>
+                ) : null}
+                {staffOptions.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.job_title ? `${row.name} — ${row.job_title}` : row.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <div className="modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setShowOffboard(false)}>
                 Hủy
               </button>
-              <button type="button" className="btn btn-primary" onClick={() => void confirmOffboard()} disabled={busy}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void confirmOffboard()}
+                disabled={busy || staffLoading || !reassignTo}
+              >
                 Xác nhận offboard
               </button>
             </div>
