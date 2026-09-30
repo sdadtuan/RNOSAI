@@ -129,6 +129,7 @@ export function LeadSalesPipelineTab({
         activeStepKey={activeStepKey}
         activeStepState={activeState}
         intakeSummary={stepperInput.intakeSummary}
+        onStepChange={onStepChange}
       />
       <LeadPipelineDoneAccordion steps={stepperVm.steps} onReview={onStepChange} />
     </div>

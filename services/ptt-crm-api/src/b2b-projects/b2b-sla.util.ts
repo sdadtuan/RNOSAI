@@ -3,6 +3,21 @@ import { B2B_MAX_HOPS } from './b2b-projects.constants';
 export type SlaBand = 'hot' | 'warm' | 'cold';
 export type SlaAction = 'none' | 'ai_call' | 'hop' | 'gdkd_queue';
 
+/** FR «đã nói chuyện» — dừng hop SLA dự án và RevOps. */
+export const SLA_HOP_STOP_CALL_RESULTS = [
+  'connected_meet_pending',
+  'connected_qualified',
+  'connected_other',
+] as const;
+
+export function slaHopStoppedByConnectedCall(result: string | null | undefined): boolean {
+  return (SLA_HOP_STOP_CALL_RESULTS as readonly string[]).includes(String(result ?? '').trim());
+}
+
+export function slaHopStopCallResultSqlList(): string {
+  return SLA_HOP_STOP_CALL_RESULTS.map((result) => `'${result}'`).join(', ');
+}
+
 export const DEFAULT_SLA = {
   hot: { warnMin: 3, hopMin: 5 },
   warm: { warnMin: 10, hopMin: 15 },

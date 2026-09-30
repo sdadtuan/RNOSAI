@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { slaHopStopCallResultSqlList } from '../b2b-projects/b2b-sla.util';
 import { hasRevopsCommissionCap } from './revops-scope.util';
 import {
   REVOPS_SLA_COMPLIANCE_TARGET_PCT,
@@ -498,6 +499,12 @@ export class RevopsSlaService {
                     AND a.care_stage_key = 'first_contact'
                     AND a.activity_type <> 'system'
                     AND trim(COALESCE(a.care_status, '')) = 'da_lien_he_thanh_cong'
+                )
+                OR COALESCE(l.last_call_result, '') IN (${slaHopStopCallResultSqlList()})
+                OR EXISTS (
+                  SELECT 1 FROM crm_lead_call_attempts ca
+                  WHERE ca.sqlite_lead_id = l.sqlite_lead_id
+                    AND ca.call_result IN (${slaHopStopCallResultSqlList()})
                 )
               )
           )`,

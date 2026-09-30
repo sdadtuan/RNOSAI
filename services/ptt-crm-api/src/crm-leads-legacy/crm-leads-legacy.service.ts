@@ -88,9 +88,15 @@ export class CrmLeadsLegacyService {
     }
     await this.assertLead(leadId);
 
+    const split = body.split ?? 'reset_closer';
     const lead = await this.leadsWrite.patchLead(
       leadId,
-      { owner_id: toId, assigned_by: actor, assign_reason: reason },
+      {
+        owner_id: toId,
+        assigned_by: actor,
+        assign_reason: reason,
+        split,
+      },
       actor,
     );
 

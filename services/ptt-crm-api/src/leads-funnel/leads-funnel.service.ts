@@ -10,6 +10,7 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { hasGdkdSolutionDesk } from '../staff-permissions/staff-gdkd.util';
 import { parseLeadMeta } from './care-pipeline.util';
+import { showPresalesForFlow } from './lead-flow-kind.util';
 import {
   AdvancePresalesBody,
   CompleteCareStageBody,
@@ -224,7 +225,32 @@ export class LeadsFunnelService {
     } catch (err) {
       this.funnelError(err);
     }
+    await this.maybeAutoEnsurePresalesAfterB2(leadId, body, actor);
     return { ok: true, funnel: await this.getFunnel(leadId) };
+  }
+
+  /** B2 (first_contact) xong → tạo pre-sales luôn, không cần nút "Bắt đầu pre-sales". */
+  private async maybeAutoEnsurePresalesAfterB2(
+    leadId: number,
+    body: CompleteCareStageBody,
+    actor: string,
+  ): Promise<void> {
+    if (!this.config.presalesOnLead) return;
+    const stage = String(body.stage || 'first_contact').trim() || 'first_contact';
+    if (stage !== 'first_contact') return;
+
+    const funnel = await this.getFunnel(leadId);
+    if (!showPresalesForFlow(funnel.lead_flow_kind)) return;
+    if (!funnel.presales_care_gate.complete) return;
+    if (funnel.presales) return;
+
+    const slug =
+      String(body.service_slug || '').trim() || 'dich-vu-seo-tong-the';
+    try {
+      await this.pgRepo.ensurePresales(leadId, slug, actor);
+    } catch (err) {
+      this.funnelError(err);
+    }
   }
 
   async reviewQueueCount(b2bListScope?: B2bListScope): Promise<{ count: number }> {

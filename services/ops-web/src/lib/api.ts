@@ -1903,10 +1903,16 @@ export async function completeLeadCareStage(
   token: string,
   leadId: number,
   note: string,
+  opts?: { serviceSlug?: string },
 ): Promise<{ ok: boolean; funnel: LeadFunnelSnapshot }> {
+  const service_slug = opts?.serviceSlug?.trim();
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/care-pipeline/complete`, {
     method: 'POST',
-    body: JSON.stringify({ stage: 'first_contact', note }),
+    body: JSON.stringify({
+      stage: 'first_contact',
+      note,
+      ...(service_slug ? { service_slug } : {}),
+    }),
   });
 }
 

@@ -59,7 +59,7 @@ export function LeadPipelineB2Panel({
           onError={onError}
         />
       ) : null}
-      {b2Done ? <p className="lead-b2-outcome__done">B2 đã xong — có thể sang Pre-sales Lead.</p> : null}
+      {b2Done ? <p className="lead-b2-outcome__done">B2 đã xong — đã sang Pre-sales Lead.</p> : null}
       {!b2Done && !showOutcome ? (
         <p className="muted">Không thể cập nhật kết quả B2 ở trạng thái hiện tại.</p>
       ) : null}
@@ -76,7 +76,7 @@ export function LeadPipelineB2Panel({
               ? tab === 'fr'
                 ? 'Đang mở phản hồi đầu. Sang tab Kết quả B2 khi đã nói chuyện với khách.'
                 : 'Cửa sang Pre-sales. Không nghe máy và sai số vẫn ghi ở tab Phản hồi đầu.'
-              : 'Xác nhận đã nói chuyện để hoàn thành B2 và mở Pre-sales.'}
+              : 'Xác nhận đã nói chuyện để hoàn thành B2 và sang Pre-sales.'}
           </p>
         </div>
         {statusChip ? <span className="lead-b2-workspace__chip">{statusChip}</span> : null}

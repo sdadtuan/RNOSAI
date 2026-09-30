@@ -32,7 +32,7 @@ export function LeadB2OutcomeCard({
     <div className="lead-b2-outcome" data-testid="lead-b2-outcome">
       {highlightAfterCall ? (
         <p className="lead-b2-outcome__hint lead-b2-outcome__hint--after-call">
-          Vừa gọi xong. Ghi chú rồi xác nhận để mở Pre-sales.
+          Vừa gọi xong. Ghi chú rồi xác nhận để sang Pre-sales.
         </p>
       ) : null}
 
@@ -48,7 +48,7 @@ export function LeadB2OutcomeCard({
 
       {plan ? (
         <p className="muted lead-b2-outcome__hint">
-          Xác nhận đã nói chuyện để hoàn thành B2 và mở Pre-sales. Không nghe máy hoặc sai số ghi ở
+          Xác nhận đã nói chuyện để hoàn thành B2 và sang Pre-sales. Không nghe máy hoặc sai số ghi ở
           bước phản hồi đầu, không dùng cổng này.
         </p>
       ) : null}

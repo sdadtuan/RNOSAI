@@ -195,7 +195,11 @@ export class LeadsWriteService {
           fromOwnerId: existing.owner_id != null ? Number(existing.owner_id) : null,
           toOwnerId: Number(body.owner_id),
           split: body.split,
-          reason: body.assigned_by?.trim() || actor || 'manual_reassign',
+          reason:
+            body.assign_reason?.trim() ||
+            body.assigned_by?.trim() ||
+            actor ||
+            'manual_reassign',
         });
       }
 

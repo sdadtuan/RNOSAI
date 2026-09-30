@@ -17,7 +17,7 @@ describe('resolveB2CallOutcome', () => {
     expect(out.plan.report.care_status).toBe('da_lien_he_thanh_cong');
     expect(out.plan.report.content).toBe(B2_TALKED_DEFAULT_NOTE);
     expect(out.plan.completeNote).toBe(B2_TALKED_DEFAULT_NOTE);
-    expect(out.plan.primary_label_vi).toBe('Xong B2 → mở Pre-sales');
+    expect(out.plan.primary_label_vi).toBe('Xong B2 → sang Pre-sales');
   });
 
   it('talked keeps AM note for both report and complete', () => {

@@ -237,6 +237,8 @@ export interface CompleteCareStageBody {
   care_status?: string;
   care_contact_type?: string;
   content?: string;
+  /** When completing B2 (first_contact), auto-create pre-sales with this slug. */
+  service_slug?: string;
 }
 
 export interface ReleaseReviewQueueBody {

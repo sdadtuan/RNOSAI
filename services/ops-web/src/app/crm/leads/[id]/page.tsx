@@ -1754,12 +1754,19 @@ export default function CrmLeadDetailPage() {
                         onChange={(e) => setAssignReason(e.target.value)}
                         placeholder="Bắt buộc (≥ 3 ký tự)"
                         disabled={!hasCap(user, 'crm_leads', 'assign') || assigning}
+                        required
+                        minLength={3}
                       />
                     </label>
                     <button
                       type="submit"
                       className="btn btn-sm lead-form__submit"
-                      disabled={assigning || !hasCap(user, 'crm_leads', 'assign')}
+                      disabled={
+                        assigning ||
+                        !hasCap(user, 'crm_leads', 'assign') ||
+                        assignReason.trim().length < 3 ||
+                        !assignToId
+                      }
                     >
                       {assigning ? 'Đang phân…' : 'Phân lead'}
                     </button>

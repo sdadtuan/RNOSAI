@@ -47,6 +47,8 @@ export interface AssignLeadBody {
   to_user_id?: number;
   owner_id?: number;
   reason: string;
+  /** B2B commission split when changing owner; default reset_closer for Admin phân lead. */
+  split?: 'keep_first_touch' | 'reset_closer' | 'no_split';
 }
 
 export const ACTIVITY_TYPES = [

@@ -1,10 +1,18 @@
-import { isWithinBusinessHours, resolveSlaAction, shouldStartAiCall, slaBand } from './b2b-sla.util';
+import { isWithinBusinessHours, resolveSlaAction, shouldStartAiCall, slaBand, slaHopStoppedByConnectedCall } from './b2b-sla.util';
 
 describe('b2b sla', () => {
   it('bands', () => {
     expect(slaBand(70)).toBe('hot');
     expect(slaBand(40)).toBe('warm');
     expect(slaBand(10)).toBe('cold');
+  });
+
+  it('connected call results stop SLA hop', () => {
+    expect(slaHopStoppedByConnectedCall('connected_other')).toBe(true);
+    expect(slaHopStoppedByConnectedCall('connected_qualified')).toBe(true);
+    expect(slaHopStoppedByConnectedCall('connected_meet_pending')).toBe(true);
+    expect(slaHopStoppedByConnectedCall('ring_no_answer')).toBe(false);
+    expect(slaHopStoppedByConnectedCall('callback_requested')).toBe(false);
   });
 
   it('B2B-10 hop hot at 5m without call', () => {

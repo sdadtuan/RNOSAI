@@ -5,7 +5,7 @@ import { PresalesR5PlanForm } from '@/components/PresalesR5PlanForm';
 import { PresalesSolutionHandoffBanner } from '@/components/PresalesSolutionHandoffBanner';
 import { PresalesPolicyBanner } from '@/components/presales/PresalesPolicyBanner';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   completeLeadCareStage,
   ensureLeadPresales,
@@ -65,6 +65,7 @@ interface Props {
   activeStepKey?: PresalesFunnelStepKey;
   activeStepState?: FunnelStepState;
   intakeSummary?: IntakeStepSummary | null;
+  onStepChange?: (key: PresalesFunnelStepKey) => void;
 }
 
 const DEFAULT_PRESALES_SERVICES: Array<{ slug: string; name: string }> = [
@@ -112,6 +113,7 @@ export function LeadFunnelPanel({
   activeStepKey = 'b2',
   activeStepState = 'current',
   intakeSummary = null,
+  onStepChange,
 }: Props) {
   const [funnel, setFunnel] = useState<LeadFunnelSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -136,6 +138,7 @@ export function LeadFunnelPanel({
   const [selectedServiceSlug, setSelectedServiceSlug] = useState(
     () => serviceSlug?.trim() || DEFAULT_PRESALES_SLUG,
   );
+  const autoPresalesTriedRef = useRef(false);
 
   useEffect(() => {
     if (serviceSlug?.trim()) {
@@ -256,16 +259,66 @@ export function LeadFunnelPanel({
     }
   }
 
+  useEffect(() => {
+    autoPresalesTriedRef.current = false;
+  }, [leadId]);
+
+  /** Lead đã xong B2 nhưng chưa có pre-sales → tạo luôn (không cần nút). */
+  useEffect(() => {
+    if (!funnel || busy || loading) return;
+    if (autoPresalesTriedRef.current) return;
+    if (!canEdit) return;
+    if (!funnel.presales_on_lead_enabled) return;
+    if (!showPresalesForFlow(funnel.lead_flow_kind ?? 'b2b_prospect')) return;
+    if (!funnel.presales_care_gate.complete) return;
+    if (funnel.presales) return;
+    if (funnel.review_queue.active) return;
+
+    autoPresalesTriedRef.current = true;
+    const slug = selectedServiceSlug.trim() || DEFAULT_PRESALES_SLUG;
+    void run(async () => {
+      const out = await ensureLeadPresales(token, leadId, slug);
+      setFunnel(out.funnel);
+      onFunnelChange?.(out.funnel);
+      setPanelMessage('Đã xong B2 — đã sang Pre-sales.');
+      onMessage?.('Đã xong B2 — đã sang Pre-sales');
+      onStepChange?.('presales_lead');
+    });
+    // Intentionally narrow deps: one-shot when funnel gate is ready.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-ensure once per lead
+  }, [
+    funnel?.presales,
+    funnel?.presales_care_gate.complete,
+    funnel?.lead_flow_kind,
+    funnel?.presales_on_lead_enabled,
+    funnel?.review_queue.active,
+    canEdit,
+    busy,
+    loading,
+    leadId,
+  ]);
+
   async function submitB2Outcome(plan: B2OutcomePlan) {
     await run(async () => {
       if (plan.kind === 'complete_b2') {
         await submitLeadCareReport(token, leadId, plan.report);
-        const out = await completeLeadCareStage(token, leadId, plan.completeNote);
+        const slug = selectedServiceSlug.trim() || DEFAULT_PRESALES_SLUG;
+        const out = await completeLeadCareStage(token, leadId, plan.completeNote, {
+          serviceSlug: slug,
+        });
         setFunnel(out.funnel);
         onFunnelChange?.(out.funnel);
         const spaDone = out.funnel.lead_flow_kind === 'spa_operational';
-        setPanelMessage(spaDone ? 'Đã xong B2' : 'Đã xong B2 — pre-sales đã mở.');
-        onMessage?.('Đã xong B2');
+        const movedToPresales = Boolean(out.funnel.presales) && !spaDone;
+        setPanelMessage(
+          spaDone
+            ? 'Đã xong B2'
+            : movedToPresales
+              ? 'Đã xong B2 — đã sang Pre-sales.'
+              : 'Đã xong B2 — pre-sales đã mở.',
+        );
+        onMessage?.(movedToPresales ? 'Đã xong B2 — đã sang Pre-sales' : 'Đã xong B2');
+        if (movedToPresales) onStepChange?.('presales_lead');
         await reload();
         return;
       }

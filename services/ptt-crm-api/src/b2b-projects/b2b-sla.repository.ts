@@ -2,7 +2,7 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import type { AssignPoolMember } from './b2b-assign.util';
-import { DEFAULT_SLA } from './b2b-sla.util';
+import { DEFAULT_SLA, slaHopStopCallResultSqlList } from './b2b-sla.util';
 import type { B2bProjectRow } from './b2b-projects.types';
 
 export interface OpenB2bLeadRow {
@@ -135,7 +135,7 @@ export class B2bSlaRepository implements OnModuleDestroy {
          AND COALESCE(l.meta_json->>'lead_flow_kind', '') IN ('b2b_prospect', 'b2b')
          AND COALESCE(l.meta_json->>'b2b_gdkd_queue', 'false') <> 'true'
          AND lower(COALESCE(l.status, '')) NOT IN ('lost', 'chot')
-         -- Đã qua B2 (first_contact done hoặc Liên hệ OK) → không SLA hop sang AM khác
+         -- Đã qua B2 hoặc AE đã ghi «đã nói chuyện» ở phản hồi đầu → không hop
          AND COALESCE(l.care_stages_done_json->>'first_contact', '') = ''
          AND NOT EXISTS (
            SELECT 1 FROM crm_lead_activities a
@@ -143,6 +143,12 @@ export class B2bSlaRepository implements OnModuleDestroy {
              AND a.care_stage_key = 'first_contact'
              AND a.activity_type <> 'system'
              AND trim(COALESCE(a.care_status, '')) = 'da_lien_he_thanh_cong'
+         )
+         AND COALESCE(l.last_call_result, '') NOT IN (${slaHopStopCallResultSqlList()})
+         AND NOT EXISTS (
+           SELECT 1 FROM crm_lead_call_attempts ca
+           WHERE ca.sqlite_lead_id = l.sqlite_lead_id
+             AND ca.call_result IN (${slaHopStopCallResultSqlList()})
          )`,
     );
     return result.rows.map((row) => ({
