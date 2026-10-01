@@ -1355,6 +1355,11 @@ html.ops-shell-bitrix .lead-detail-page {
   box-sizing: border-box;
 }
 
+html.rs-mobile-chrome.ops-shell-bitrix .lead-detail-page {
+  width: 100%;
+  max-width: 100%;
+}
+
 html.ops-shell-bitrix .lead-detail-layout {
   overflow-x: clip;
 }

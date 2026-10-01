@@ -91,26 +91,26 @@ export function LeadDetailHero({
             {lead.phone ? (
               <span className="lead-detail-hero__meta-item">
                 <span className="lead-detail-hero__meta-label">SĐT</span>
-                {lead.phone}
+                <span className="lead-detail-hero__meta-value">{lead.phone}</span>
               </span>
             ) : null}
             {lead.email ? (
               <span className="lead-detail-hero__meta-item">
                 <span className="lead-detail-hero__meta-label">Email</span>
-                {lead.email}
+                <span className="lead-detail-hero__meta-value">{lead.email}</span>
               </span>
             ) : null}
             <span className="lead-detail-hero__meta-item">
               <span className="lead-detail-hero__meta-label">Nguồn</span>
-              {lead.source || '—'}
+              <span className="lead-detail-hero__meta-value">{lead.source || '—'}</span>
             </span>
             <span className="lead-detail-hero__meta-item">
               <span className="lead-detail-hero__meta-label">Owner</span>
-              {ownerLabel || 'Chưa phân'}
+              <span className="lead-detail-hero__meta-value">{ownerLabel || 'Chưa phân'}</span>
             </span>
             <span className="lead-detail-hero__meta-item">
               <span className="lead-detail-hero__meta-label">Ngày tạo</span>
-              {created}
+              <span className="lead-detail-hero__meta-value">{created}</span>
             </span>
           </div>
         </div>
