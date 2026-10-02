@@ -36,7 +36,7 @@ const LEVELS = [
   { code: 'standard', name: 'Tiêu chuẩn', rank: 2 },
   { code: 'advanced', name: 'Nâng cao', rank: 3 },
 ] as const;
-const TABS = ['Hạng mục', 'Đầu vào', 'Bàn giao', 'KPI', 'Rủi ro', 'Phạm vi theo cấp'] as const;
+const TABS = ['Hạng mục', 'Đầu vào', 'Bàn giao', 'KPI', 'Rủi ro', 'Phạm vi'] as const;
 const UNIT: Record<string, string> = { times: 'lần', month: 'tháng', shoot_day: 'ngày quay' };
 
 function hoursLabel(value: string): string {
@@ -137,10 +137,21 @@ export function ServiceCatalog() {
   }, [ensureAuth, loadDetail]);
 
   const manage = canManageP13Catalog(user);
+  const catalogTotals = services.reduce(
+    (sum, row) => ({
+      items: sum.items + Number(row.item_count ?? 0),
+      gates: sum.gates + Number(row.gate_count ?? 0),
+      clientOnly: sum.clientOnly + Number(row.client_only_count ?? 0),
+      billable: sum.billable + Number(row.billable_count ?? 0),
+    }),
+    { items: 0, gates: 0, clientOnly: 0, billable: 0 },
+  );
   const filteredServices = services.filter((row) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
-    return row.code.toLowerCase().includes(q) || row.name.toLowerCase().includes(q);
+    const code = String(row?.code ?? '');
+    const name = String(row?.name ?? '');
+    return code.toLowerCase().includes(q) || name.toLowerCase().includes(q);
   });
   const rank = LEVELS.find((row) => row.code === level)?.rank ?? 2;
   const visibleItems = useMemo(() => {
@@ -190,6 +201,7 @@ export function ServiceCatalog() {
           <h1 style={{ margin: 0 }}>Danh mục dịch vụ</h1>
           <p className="muted" style={{ margin: '0.25rem 0 0' }}>
             {detail?.catalog_version ? `Phiên bản danh mục ${detail.catalog_version}` : 'Danh mục P13'}
+            {services.length ? ` · ${catalogTotals.items} hạng mục · ${catalogTotals.gates} gate · ${catalogTotals.clientOnly} client_only · ${catalogTotals.billable} billable` : ''}
           </p>
         </div>
         {manage ? (
@@ -244,6 +256,9 @@ export function ServiceCatalog() {
               <section className="p13-main">
                 <p className="muted" style={{ marginTop: 0 }}>{detail.group_name} · {detail.billing_model || '—'}</p>
                 <h2 style={{ margin: '0.2rem 0' }}>{detail.name}</h2>
+                <p className="muted">
+                  {detail.counts?.items ?? detail.items.length} hạng mục · {detail.counts?.gates ?? detail.items.filter((item) => item.approval_gate).length} gate · {detail.counts?.client_only ?? detail.items.filter((item) => item.client_only).length} client_only · {detail.counts?.billable ?? detail.items.filter((item) => item.billable).length} billable
+                </p>
                 <p>{detail.objective || '—'}</p>
                 <div className="p13-cards">
                   {LEVELS.map((row) => (
@@ -257,7 +272,7 @@ export function ServiceCatalog() {
                 <div className="p13-tabs">
                   {TABS.map((name) => (
                     <button key={name} type="button" className={tab === name ? 'p13-tab is-on' : 'p13-tab'} onClick={() => setTab(name)}>
-                      {name}{name === 'Hạng mục' ? ` (${detail.items.length})` : ''}
+                      {name}{name === 'Hạng mục' ? ` (${detail.items.length})` : ''}{name === 'Phạm vi' ? ` (${scopeMatrixRows(detail).length})` : ''}
                     </button>
                   ))}
                 </div>
@@ -311,7 +326,7 @@ export function ServiceCatalog() {
                 {tab === 'Bàn giao' ? <SimpleTable rows={detail.deliverables.map((row) => [row.code, row.name, row.acceptance_criteria || '—'])} heads={['Mã', 'Tên', 'Nghiệm thu']} /> : null}
                 {tab === 'KPI' ? <SimpleTable rows={detail.kpis.map((row) => [row.code, row.name, row.formula || '—'])} heads={['Mã', 'Tên', 'Công thức']} /> : null}
                 {tab === 'Rủi ro' ? <SimpleTable rows={detail.risks.map((row) => [row.code, row.risk, row.mitigation || '—'])} heads={['Mã', 'Rủi ro', 'Giảm thiểu']} /> : null}
-                {tab === 'Phạm vi theo cấp' ? <SimpleTable rows={detail.scope.map((row) => [row.feature, row.basic_text || '—', row.standard_text || '—', row.advanced_text || '—'])} heads={['Hạng mục', 'Cơ bản', 'Tiêu chuẩn', 'Nâng cao']} /> : null}
+                {tab === 'Phạm vi' ? <SimpleTable rows={scopeMatrixRows(detail)} heads={['Hạng mục', 'Cơ bản', 'Tiêu chuẩn', 'Nâng cao']} /> : null}
               </section>
             ) : null}
           </div>
@@ -376,6 +391,14 @@ export function ServiceCatalog() {
       ) : null}
     </StaffPageShell>
   );
+}
+
+function scopeMatrixRows(detail: P13ServiceDetail): string[][] {
+  const matrix = detail.scope_matrix ?? [];
+  if (matrix.length) {
+    return matrix.map((row) => [row.feature || '—', row.basic || '—', row.standard || '—', row.advanced || '—']);
+  }
+  return (detail.scope ?? []).map((row) => [row.feature || '—', row.basic_text || '—', row.standard_text || '—', row.advanced_text || '—']);
 }
 
 function SimpleTable({ heads, rows }: { heads: string[]; rows: string[][] }) {

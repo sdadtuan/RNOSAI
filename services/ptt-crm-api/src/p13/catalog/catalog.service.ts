@@ -53,7 +53,10 @@ export class P13CatalogService {
     return this.db().query(
       `SELECT s.code, s.name, g.code AS group_code, g.name AS group_name, s.sort_order,
               s.catalog_version, s.billing_model,
-              COUNT(i.id) FILTER (WHERE i.is_active)::int AS item_count
+              COUNT(i.id) FILTER (WHERE i.is_active)::int AS item_count,
+              COUNT(i.id) FILTER (WHERE i.is_active AND i.approval_gate)::int AS gate_count,
+              COUNT(i.id) FILTER (WHERE i.is_active AND i.client_only)::int AS client_only_count,
+              COUNT(i.id) FILTER (WHERE i.is_active AND i.billable)::int AS billable_count
          FROM crm_services s
          JOIN crm_service_groups g ON g.id = s.group_id
          LEFT JOIN crm_service_items i ON i.service_id = s.id
@@ -99,11 +102,19 @@ export class P13CatalogService {
                          ORDER BY sort_order`, [code]),
       this.db().query(`SELECT code, name, seq FROM crm_service_phases ORDER BY seq`),
     ]);
+    const itemRows = items as Array<Record<string, unknown>>;
+    const scopeRows = scope as Array<Record<string, unknown>>;
     return {
       ...service,
       pricing_active: false,
       price_note: 'pricing_pending',
-      package_hours: packageHours(items as Array<Record<string, unknown>>),
+      package_hours: packageHours(itemRows),
+      counts: {
+        items: itemRows.length,
+        gates: itemRows.filter((row) => row.approval_gate === true).length,
+        client_only: itemRows.filter((row) => row.client_only === true).length,
+        billable: itemRows.filter((row) => row.billable === true).length,
+      },
       phases,
       items,
       inputs,
@@ -111,6 +122,12 @@ export class P13CatalogService {
       kpis,
       risks,
       scope,
+      scope_matrix: scopeRows.map((row) => ({
+        feature: row.feature,
+        basic: row.basic_text,
+        standard: row.standard_text,
+        advanced: row.advanced_text,
+      })),
     };
   }
 

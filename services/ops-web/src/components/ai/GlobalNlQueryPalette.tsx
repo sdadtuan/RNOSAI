@@ -15,7 +15,7 @@ export function GlobalNlQueryPalette() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey))) return;
+      if (!(String(event.key ?? '').toLowerCase() === 'k' && (event.metaKey || event.ctrlKey))) return;
       const token = getAccessToken();
       const user = getStoredUser();
       const allowed =
@@ -45,9 +45,9 @@ export function GlobalNlQueryPalette() {
     return catalog
       .filter(
         (entry) =>
-          entry.label.toLowerCase().includes(normalized) ||
-          entry.description.toLowerCase().includes(normalized) ||
-          entry.aliases.some((alias) => alias.toLowerCase().includes(normalized)),
+          String(entry.label ?? '').toLowerCase().includes(normalized) ||
+          String(entry.description ?? '').toLowerCase().includes(normalized) ||
+          (entry.aliases ?? []).some((alias) => String(alias ?? '').toLowerCase().includes(normalized)),
       )
       .slice(0, 10);
   }, [catalog, query]);

@@ -59,9 +59,13 @@ export type PricingPatch = {
   settings?: Partial<PricingSettingsInput>;
 };
 
+export type PricingRoleOverride =
+  | Array<Partial<PricingRoleInput> & { role_code: string }>
+  | (Partial<PricingRoleInput> & { role_code?: string });
+
 export type PricingPreviewBody = {
   version_id?: string;
-  params_override?: { roles?: Array<Partial<PricingRoleInput> & { role_code: string }>; settings?: Partial<PricingSettingsInput> };
+  params_override?: { roles?: PricingRoleOverride; settings?: Partial<PricingSettingsInput> };
   lines?: PricingLineInput[];
   include_matrix?: boolean;
   extra_discount_pct?: string | null;
@@ -376,7 +380,12 @@ export class P13PricingService {
         extra_discount_pct: body.extra_discount_pct,
         qty_overrides: body.qty_overrides,
       });
-      return stripPricingView(preview as unknown as Record<string, unknown>, canViewCost);
+      const view = stripPricingView(preview as unknown as Record<string, unknown>, canViewCost);
+      if (canViewCost) {
+        const rates = preview.rates;
+        view.rate = Object.fromEntries(Object.entries(rates).map(([code, row]) => [code, row.rate]));
+      }
+      return view;
     } catch (error) {
       raise(error);
     }
@@ -497,12 +506,16 @@ function emptySettings(): SettingsRow {
   };
 }
 
-function mergeRoles(base: RoleRow[], patch?: Array<Partial<PricingRoleInput> & { role_code: string }>): RoleRow[] {
-  if (!patch?.length) return base;
-  return base.map((role) => {
-    const next = patch.find((row) => row.role_code === role.role_code);
-    return next ? { ...role, ...next, role_code: role.role_code } : role;
-  });
+export function mergeRoles(base: RoleRow[], patch?: PricingRoleOverride): RoleRow[] {
+  if (!patch) return base;
+  if (Array.isArray(patch)) {
+    if (!patch.length) return base;
+    return base.map((role) => {
+      const next = patch.find((row) => row.role_code === role.role_code);
+      return next ? { ...role, ...next, role_code: role.role_code } : role;
+    });
+  }
+  return base.map((role) => ({ ...role, ...patch, role_code: role.role_code, name: role.name }));
 }
 
 function changedFields(body: PricingPatch): string[] {

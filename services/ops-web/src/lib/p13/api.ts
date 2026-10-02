@@ -31,6 +31,9 @@ export type P13ServiceRow = {
   group_code: string;
   group_name: string;
   item_count: number;
+  gate_count?: number;
+  client_only_count?: number;
+  billable_count?: number;
   catalog_version: string | null;
   billing_model: string | null;
 };
@@ -75,6 +78,8 @@ export type P13ServiceDetail = {
   kpis: Array<{ code: string; name: string; type: string | null; formula: string | null }>;
   risks: Array<{ code: string; risk: string; likelihood: string | null; impact: string | null; mitigation: string | null }>;
   scope: Array<{ feature: string; basic_text: string | null; standard_text: string | null; advanced_text: string | null }>;
+  scope_matrix?: Array<{ feature: string; basic: string | null; standard: string | null; advanced: string | null }>;
+  counts?: { items: number; gates: number; client_only: number; billable: number };
 };
 
 export function fetchP13Groups(token: string) {

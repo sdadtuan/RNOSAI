@@ -1,4 +1,4 @@
-import { CpApiError, cpFetch } from './cp-api';
+import { cpFetch } from './cp-api';
 import { OFF_CP_IMAGE_FLAGS, type CpImageSopFlags } from './cp-image-sop.flags';
 
 export type ImgIntent =
@@ -166,15 +166,14 @@ export function cpImageFetch<T>(token: string, path: string, init?: RequestInit)
   return cpFetch<T>(token, imagePath(path), init);
 }
 
-export async function getCpImageFlags(token: string): Promise<CpImageSopFlags> {
-  try {
-    return await cpImageFetch<CpImageSopFlags>(token, '/flags');
-  } catch (error) {
-    if (error instanceof CpApiError && error.status === 404) {
-      return OFF_CP_IMAGE_FLAGS;
-    }
-    return OFF_CP_IMAGE_FLAGS;
-  }
+const imageFlagsCache = new Map<string, Promise<CpImageSopFlags>>();
+
+export function getCpImageFlags(token: string): Promise<CpImageSopFlags> {
+  const cached = imageFlagsCache.get(token);
+  if (cached) return cached;
+  const pending = cpImageFetch<CpImageSopFlags>(token, '/flags').catch(() => OFF_CP_IMAGE_FLAGS);
+  imageFlagsCache.set(token, pending);
+  return pending;
 }
 
 export function getCpImageDashboardKpis(token: string) {

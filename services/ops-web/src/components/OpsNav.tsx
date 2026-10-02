@@ -393,17 +393,27 @@ export function OpsNav({
       .catch(() => setCsdChatUnread(undefined));
   }, [sidebarUser, pathname]);
 
+  const imageSopUserId = sidebarUser?.id ?? '';
+  const imageSopAllowed = canViewImageSop(sidebarUser);
   useEffect(() => {
-    if (!sidebarUser || !canViewImageSop(sidebarUser)) {
+    if (!imageSopUserId || !imageSopAllowed) {
       setImageSopEnabled(false);
       return;
     }
     const token = getAccessToken();
     if (!token) return;
+    let cancelled = false;
     void getCpImageFlags(token)
-      .then((flags) => setImageSopEnabled(flags.enabled))
-      .catch(() => setImageSopEnabled(false));
-  }, [sidebarUser]);
+      .then((flags) => {
+        if (!cancelled) setImageSopEnabled(flags.enabled);
+      })
+      .catch(() => {
+        if (!cancelled) setImageSopEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [imageSopUserId, imageSopAllowed]);
 
   const items = useMemo(
     () =>

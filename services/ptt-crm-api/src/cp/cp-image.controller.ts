@@ -19,11 +19,12 @@ import {
 } from './guards/staff-img.guard';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
+import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
 
 type StaffReq = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
 @Controller('api/crm/cp/image')
-@UseGuards(StaffImgGuard)
+@UseGuards(StaffOrInternalKeyGuard, StaffImgGuard)
 export class CpImageController {
   constructor(
     private readonly service: CpImageSopService,

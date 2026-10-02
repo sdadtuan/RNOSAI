@@ -70,8 +70,8 @@ export class P13PricingController {
   @UseGuards(P13PricingViewGuard)
   async preview(@Body() body: PricingPreviewBody, @Req() req: StaffRequest) {
     const access = await this.access(req);
-    if (body.params_override && !access.edit) {
-      throw new ForbiddenException({ error: 'missing_cap', section: 'p13_pricing', action: 'edit_draft' });
+    if (body.params_override && !access.cost) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'p13_pricing', action: 'cost.view' });
     }
     return this.pricing.preview(body, access.cost);
   }
