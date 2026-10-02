@@ -12,9 +12,14 @@ async function p13Fetch<T>(token: string, path: string, init?: RequestInit): Pro
   });
   const body = (await res.json().catch(() => ({}))) as T & { error?: string; message?: string };
   if (!res.ok) {
-    const error = new Error(body.message || body.error || 'request_failed') as Error & { status: number; code?: string };
+    const error = new Error(body.message || body.error || 'request_failed') as Error & {
+      status: number;
+      code?: string;
+      body?: T & { missing?: string[] };
+    };
     error.status = res.status;
     error.code = body.error;
+    error.body = body;
     throw error;
   }
   return body;
@@ -101,4 +106,75 @@ export function saveP13Holiday(token: string, date: string, name: string) {
 }
 export function deleteP13Holiday(token: string, date: string) {
   return p13Fetch(token, `/api/crm/p13/holidays/${date}`, { method: 'DELETE' });
+}
+
+export type P13PricingVersion = {
+  id: string;
+  code: string;
+  status: 'draft' | 'active' | 'retired';
+  effective_from: string | null;
+  effective_to: string | null;
+  updated_at: string;
+  notes: string | null;
+  inversion_ack: boolean;
+  inversion_ack_note: string | null;
+};
+
+export type P13PricingRole = {
+  role_code: string;
+  name: string;
+  productive_hours: string | null;
+  monthly_salary?: string | null;
+  insurance_pct?: string | null;
+  monthly_benefits?: string | null;
+  hourly_rate?: string | null;
+  rate_display?: string | null;
+};
+
+export type P13PricingSettings = {
+  overhead_pct: string | null;
+  margin_pct: string | null;
+  vat_pct: string | null;
+  rounding_unit: string | null;
+  discount_basic_pct: string | null;
+  discount_standard_pct: string | null;
+  discount_advanced_pct: string | null;
+  ads_fee_pct: string | null;
+  ads_fee_min_monthly: string | null;
+  booking_fee_pct: string | null;
+  discount_approval_threshold_pct: string | null;
+  min_margin_after_discount_pct: string | null;
+};
+
+export type P13MatrixCell = {
+  service_code: string;
+  level: 'basic' | 'standard' | 'advanced';
+  hours: string;
+  price_vnd: string | null;
+  client_only: number;
+};
+
+export function fetchP13PricingVersions(token: string) {
+  return p13Fetch<{ versions: P13PricingVersion[] }>(token, '/api/crm/p13/pricing/versions');
+}
+export function fetchP13PricingVersion(token: string, id: string) {
+  return p13Fetch<P13PricingVersion & { roles: P13PricingRole[]; settings: P13PricingSettings }>(token, `/api/crm/p13/pricing/versions/${id}`);
+}
+export function createP13PricingDraft(token: string) {
+  return p13Fetch<P13PricingVersion>(token, '/api/crm/p13/pricing/versions', { method: 'POST', body: '{}' });
+}
+export function patchP13Pricing(token: string, id: string, body: Record<string, unknown>) {
+  return p13Fetch(token, `/api/crm/p13/pricing/versions/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+}
+export function cloneP13Pricing(token: string, id: string) {
+  return p13Fetch<P13PricingVersion>(token, `/api/crm/p13/pricing/versions/${id}/clone`, { method: 'POST', body: '{}' });
+}
+export function activateP13Pricing(token: string, id: string, body: { effective_from?: string; inversion_ack?: boolean; inversion_ack_note?: string }) {
+  return p13Fetch(token, `/api/crm/p13/pricing/versions/${id}/activate`, { method: 'POST', body: JSON.stringify(body) });
+}
+export function fetchP13PricingMatrix(token: string, versionId: string) {
+  return p13Fetch<{ matrix: P13MatrixCell[]; inversions: string[]; scope_identical: string[]; missing: string[]; warnings: string[] }>(
+    token,
+    `/api/crm/p13/pricing/matrix?version_id=${encodeURIComponent(versionId)}`,
+  );
 }

@@ -27,7 +27,7 @@ export type ImportSummary = {
   gates_in_file: number;
   client_only: number;
   billable: number;
-  pricing_draft: 'deferred_to_p13b';
+  pricing_draft: 'deferred_to_p13b' | 'created' | 'exists';
 };
 
 export type ImportOptions = {

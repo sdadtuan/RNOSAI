@@ -18,6 +18,10 @@
 .p13-phase { background: rgba(var(--primary-rgb), 0.08); font-weight: 700; }
 .p13-badge { display: inline-block; margin-left: 0.35rem; background: #fff4d6; color: #7a5b00; border-radius: 999px; padding: 0 0.4rem; font-size: 0.75rem; }
 .p13-banner { background: #fff8e1; border: 1px solid #f0d48a; border-radius: 8px; padding: 0.6rem 0.75rem; margin: 0.75rem 0; }
+.p13-inv { color: #9b1c1c; font-weight: 700; }
+.p13-same { background: #fff8e1; }
+.p13-grid { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 0.75rem; }
+@media (max-width: 900px) { .p13-grid { grid-template-columns: 1fr; } }
 .p13-skel { height: 0.9rem; border-radius: 6px; background: #e7eee8; margin: 0.45rem 0; }
 .p13-drawer, .p13-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; justify-content: flex-end; z-index: 40; }
 .p13-modal { justify-content: center; align-items: center; padding: 1rem; }

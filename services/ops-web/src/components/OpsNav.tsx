@@ -145,6 +145,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/staff': 'Nhân viên',
   '/crm/proposals': 'Báo giá',
   '/crm/service-catalog': 'Danh mục dịch vụ',
+  '/crm/pricing': 'Tham số giá',
   '/admin/p13/holidays': 'Ngày lễ P13',
   '/crm/orders': 'Đơn hàng',
   '/crm/invoices': 'Hóa đơn',

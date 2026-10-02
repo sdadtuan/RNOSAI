@@ -285,6 +285,10 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     ],
   },
   {
+    prefix: '/crm/pricing',
+    anyOf: [{ section: 'p13_pricing', action: 'view' }],
+  },
+  {
     prefix: '/crm/service-catalog',
     anyOf: [
       { section: 'p13_catalog', action: 'view' },

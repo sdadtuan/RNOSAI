@@ -20,3 +20,19 @@ export function canManageP13Catalog(user: StoredStaffUser | null): boolean {
 export function canManageP13Holidays(user: StoredStaffUser | null): boolean {
   return p13Enabled(user) && hasCap(user, 'p13_holidays', 'manage');
 }
+
+export function canSeeP13Pricing(user: StoredStaffUser | null): boolean {
+  return p13Enabled(user) && hasCap(user, 'p13_pricing', 'view');
+}
+
+export function canEditP13Pricing(user: StoredStaffUser | null): boolean {
+  return p13Enabled(user) && hasCap(user, 'p13_pricing', 'edit_draft');
+}
+
+export function canViewP13Cost(user: StoredStaffUser | null): boolean {
+  return p13Enabled(user) && hasCap(user, 'p13_pricing', 'cost.view');
+}
+
+export function canActivateP13Pricing(user: StoredStaffUser | null): boolean {
+  return p13Enabled(user) && hasCap(user, 'p13_pricing', 'activate');
+}

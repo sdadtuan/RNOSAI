@@ -1,13 +1,27 @@
 import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
 
+const FINANCE_CODES = new Set(['finance', 'svc-finance', 'ke-toan', 'tai-chinh', 'ketoan', 'accounting']);
+
+const PRICING_EDIT = [
+  { section_id: 'p13_pricing', action: 'view' },
+  { section_id: 'p13_pricing', action: 'cost.view' },
+  { section_id: 'p13_pricing', action: 'edit_draft' },
+];
+
 export function p13PositionCaps(
   positionCode: string | null | undefined,
 ): Array<{ section_id: string; action: string }> {
   const code = String(positionCode ?? '').trim().toLowerCase();
-  if (code !== 'ceo' && !isSuperAdminPositionCode(positionCode)) return [];
-  return [
-    { section_id: 'p13_catalog', action: 'view' },
-    { section_id: 'p13_catalog', action: 'manage' },
-    { section_id: 'p13_holidays', action: 'manage' },
-  ];
+  const ceo = code === 'ceo' || isSuperAdminPositionCode(positionCode);
+  if (!ceo && !FINANCE_CODES.has(code)) return [];
+  const caps = ceo
+    ? [
+        { section_id: 'p13_catalog', action: 'view' },
+        { section_id: 'p13_catalog', action: 'manage' },
+        { section_id: 'p13_holidays', action: 'manage' },
+        ...PRICING_EDIT,
+        { section_id: 'p13_pricing', action: 'activate' },
+      ]
+    : [...PRICING_EDIT];
+  return caps;
 }

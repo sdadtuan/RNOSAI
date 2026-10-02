@@ -40,6 +40,45 @@ export class P13CatalogManageGuard implements CanActivate {
 }
 
 @Injectable()
+export class P13PricingViewGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffRequest>();
+    const me = await capsOf(this.staffAuth, req);
+    if (!me) return true;
+    if (this.staffAuth.hasCap(me.caps, 'p13_pricing', 'view')) return true;
+    throw new ForbiddenException({ error: 'missing_cap', section: 'p13_pricing', action: 'view' });
+  }
+}
+
+@Injectable()
+export class P13PricingEditGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffRequest>();
+    const me = await capsOf(this.staffAuth, req);
+    if (!me) return true;
+    if (this.staffAuth.hasCap(me.caps, 'p13_pricing', 'edit_draft')) return true;
+    throw new ForbiddenException({ error: 'missing_cap', section: 'p13_pricing', action: 'edit_draft' });
+  }
+}
+
+@Injectable()
+export class P13PricingActivateGuard implements CanActivate {
+  constructor(private readonly staffAuth: StaffAuthService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest<StaffRequest>();
+    const me = await capsOf(this.staffAuth, req);
+    if (!me) return true;
+    if (this.staffAuth.hasCap(me.caps, 'p13_pricing', 'activate')) return true;
+    throw new ForbiddenException({ error: 'missing_cap', section: 'p13_pricing', action: 'activate' });
+  }
+}
+
+@Injectable()
 export class P13HolidayGuard implements CanActivate {
   constructor(private readonly staffAuth: StaffAuthService) {}
 

@@ -17,7 +17,7 @@ import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
 import { canSeeAmNav } from '@/lib/crm/am-nav.util';
 import { canSeeQtNav } from '@/lib/crm/qt-nav.util';
 import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
-import { canSeeP13Catalog } from '@/lib/p13/flags';
+import { canSeeP13Catalog, canSeeP13Pricing } from '@/lib/p13/flags';
 import { canSeeRevopsNav } from '@/lib/crm/revops-nav.util';
 import { isRevopsShellEnabled } from '@/lib/crm/revops-flags';
 import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
@@ -209,6 +209,9 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   }
   if (canSeeP13Catalog(user)) {
     sales.push(child('sales-p13-catalog', 'Danh mục dịch vụ', '/crm/service-catalog'));
+  }
+  if (canSeeP13Pricing(user)) {
+    sales.push(child('sales-p13-pricing', 'Tham số giá', '/crm/pricing'));
   }
   if (hasCap(user, 'crm_board', 'view') && isOpsDvFeEnabled()) {
     sales.push(child('sales-svc', 'Tra cứu dịch vụ', '/crm/sales/services'));

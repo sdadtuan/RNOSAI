@@ -6,6 +6,7 @@ import { CatalogPatchError, applyItemPatch, type ItemPatchBody } from './catalog
 import { CatalogSchemaError } from './catalog-seed';
 import { importCatalog, sha256Text, type ImportOptions, type ImportSummary } from './catalog-import';
 import { PgCatalog } from './pg-catalog';
+import { P13PricingService } from '../pricing/pricing.service';
 
 const LEVEL_RANK: Record<string, number> = { basic: 1, standard: 2, advanced: 3 };
 
@@ -23,6 +24,7 @@ export class P13CatalogService {
   constructor(
     private readonly config: AppConfigService,
     private readonly audit: AdminAuditRepository,
+    private readonly pricing: P13PricingService,
   ) {}
 
   private db(): PgCatalog {
@@ -176,7 +178,12 @@ export class P13CatalogService {
   async importPayload(raw: unknown, opts: Omit<ImportOptions, 'fileSha256'> & { fileText?: string }): Promise<ImportSummary> {
     const fileText = opts.fileText ?? JSON.stringify(raw);
     try {
-      return await importCatalog(this.db(), raw, { ...opts, fileSha256: sha256Text(fileText) });
+      const summary = await importCatalog(this.db(), raw, { ...opts, fileSha256: sha256Text(fileText) });
+      if (!opts.dryRun) {
+        const draft = await this.pricing.ensureEmptyDraft(opts.actor);
+        summary.pricing_draft = draft.created ? 'created' : 'exists';
+      }
+      return summary;
     } catch (error) {
       if (error instanceof CatalogSchemaError) {
         throw new UnprocessableEntityException({ error: error.code, message: error.message });
