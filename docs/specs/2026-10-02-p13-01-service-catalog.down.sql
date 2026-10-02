@@ -13,4 +13,4 @@ DROP TABLE IF EXISTS crm_service_levels;
 DROP TABLE IF EXISTS crm_service_groups;
 DROP TABLE IF EXISTS crm_p13_catalog_meta;
 
-DELETE FROM schema_migrations WHERE version = '2026-10-02-p13-01-service-catalog';
+DELETE FROM schema_migrations WHERE version = '2026-10-02-p13-01-catalog';

@@ -202,5 +202,5 @@ CREATE TABLE IF NOT EXISTS crm_p13_catalog_meta (
 );
 
 INSERT INTO schema_migrations (version, description) VALUES
-    ('2026-10-02-p13-01-service-catalog', 'P13.a new service catalog tables')
+    ('2026-10-02-p13-01-catalog', 'P13.a new service catalog tables')
 ON CONFLICT (version) DO NOTHING;
