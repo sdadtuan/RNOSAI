@@ -1,11 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { AppConfigService } from './config/app-config.service';
+import { mountJsonBody } from './http/json-body';
 import { initSentry } from './observability/sentry.init';
 
 async function bootstrap(): Promise<void> {
   initSentry('ptt-crm-api');
-  const app = await NestFactory.create(AppModule, { logger: ['log', 'warn', 'error'], rawBody: true });
+  const app = await NestFactory.create(AppModule, { logger: ['log', 'warn', 'error'], bodyParser: false });
+  mountJsonBody(app);
   const config = app.get(AppConfigService);
   const origins = [
     ...new Set([...config.portalCorsOrigins, ...config.opsCorsOrigins, ...config.gtmCorsOrigins]),

@@ -20,6 +20,7 @@ import {
   fetchP13Groups,
   fetchP13Service,
   fetchP13Services,
+  importP13RepoSeed,
   importP13Seed,
   patchP13Item,
   type P13GroupRow,
@@ -65,6 +66,7 @@ export function ServiceCatalog() {
   const [importOpen, setImportOpen] = useState(false);
   const [importStep, setImportStep] = useState(1);
   const [importSeed, setImportSeed] = useState<unknown>(null);
+  const [importSource, setImportSource] = useState<'upload' | 'repo'>('upload');
   const [importSummary, setImportSummary] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -343,16 +345,21 @@ export function ServiceCatalog() {
           <div className="p13-dialog">
             <h3 style={{ marginTop: 0 }}>Import seed — bước {importStep}/3</h3>
             {importStep === 1 ? (
-              <input type="file" accept="application/json" onChange={async (ev) => {
-                const file = ev.target.files?.[0];
-                if (!file) return;
-                setImportSeed(JSON.parse(await file.text()) as unknown);
-                setImportStep(2);
-              }} />
+              <>
+                <input type="file" accept="application/json" onChange={async (ev) => {
+                  const file = ev.target.files?.[0];
+                  if (!file) return;
+                  setImportSource('upload');
+                  setImportSeed(JSON.parse(await file.text()) as unknown);
+                  setImportStep(2);
+                }} />
+                <button className="btn btn-sm" type="button" onClick={() => { setImportSource('repo'); setImportSeed(null); setImportStep(2); }}>Dùng seed trên server</button>
+              </>
             ) : null}
             {importStep === 2 ? (
               <>
-                <button className="btn" type="button" onClick={() => void importP13Seed(token, importSeed, true).then((summary) => { setImportSummary(JSON.stringify(summary, null, 2)); setImportStep(3); }).catch((err) => setError(err instanceof Error ? err.message : 'Import lỗi'))}>Chạy dry-run</button>
+                <p className="muted">{importSource === 'repo' ? 'Nguồn: docs/p13/p13-seed-v2.json trên server' : 'Nguồn: file đã chọn'}</p>
+                <button className="btn" type="button" onClick={() => void (importSource === 'repo' ? importP13RepoSeed(token, true) : importP13Seed(token, importSeed, true)).then((summary) => { setImportSummary(JSON.stringify(summary, null, 2)); setImportStep(3); }).catch((err) => setError(err instanceof Error ? err.message : 'Import lỗi'))}>Chạy dry-run</button>
                 {importSummary ? <pre>{importSummary}</pre> : null}
               </>
             ) : null}
@@ -360,7 +367,7 @@ export function ServiceCatalog() {
               <>
                 <pre style={{ maxHeight: 220, overflow: 'auto' }}>{importSummary}</pre>
                 <p>Áp dụng thay đổi cho danh mục? Checklist đang chạy không bị ảnh hưởng.</p>
-                <button className="btn" type="button" onClick={() => void importP13Seed(token, importSeed, false).then(async () => { setImportOpen(false); const serviceRows = await fetchP13Services(token); setServices(serviceRows); if (serviceRows[0]) await choose(serviceRows[0].code); })}>Áp dụng</button>
+                <button className="btn" type="button" onClick={() => void (importSource === 'repo' ? importP13RepoSeed(token, false) : importP13Seed(token, importSeed, false)).then(async () => { setImportOpen(false); const serviceRows = await fetchP13Services(token); setServices(serviceRows); if (serviceRows[0]) await choose(serviceRows[0].code); })}>Áp dụng</button>
               </>
             ) : null}
             <button className="btn btn-sm" type="button" onClick={() => setImportOpen(false)}>Đóng</button>

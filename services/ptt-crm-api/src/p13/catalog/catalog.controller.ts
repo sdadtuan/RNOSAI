@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
@@ -6,6 +6,7 @@ import { P13CatalogManageGuard, P13CatalogViewGuard } from '../p13-caps.guard';
 import { P13EnabledGuard } from '../p13-enabled.guard';
 import { P13CatalogService } from './catalog.service';
 import type { ItemPatchBody } from './catalog-item-patch';
+import { readRepoCatalogSeed } from './repo-seed';
 
 type StaffRequest = Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' };
 
@@ -51,15 +52,29 @@ export class P13CatalogController {
   @Post('catalog-import')
   @UseGuards(P13CatalogManageGuard)
   importSeed(
-    @Body() body: { seed?: unknown; dry_run?: boolean; force_hours?: boolean; deactivate_missing?: boolean; file_name?: string },
+    @Body() body: { source?: string; seed?: unknown; dry_run?: boolean; force_hours?: boolean; deactivate_missing?: boolean; file_name?: string },
     @Req() req: StaffRequest,
   ) {
-    return this.catalog.importPayload(body.seed, {
+    const opts = {
       dryRun: body.dry_run === true,
       forceHours: body.force_hours === true,
       deactivateMissing: body.deactivate_missing === true,
-      fileName: body.file_name || 'upload.json',
       actor: actorOf(req),
+    };
+    if (body.source === 'repo') {
+      const file = readRepoCatalogSeed();
+      return this.catalog.importPayload(JSON.parse(file.text) as unknown, {
+        ...opts,
+        fileName: file.fileName,
+        fileText: file.text,
+      });
+    }
+    if (body.seed == null) {
+      throw new BadRequestException({ error: 'seed_required', message: 'Send seed JSON or {"source":"repo"}' });
+    }
+    return this.catalog.importPayload(body.seed, {
+      ...opts,
+      fileName: body.file_name || 'upload.json',
     });
   }
 

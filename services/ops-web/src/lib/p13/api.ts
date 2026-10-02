@@ -98,6 +98,12 @@ export function importP13Seed(token: string, seed: unknown, dryRun: boolean) {
     body: JSON.stringify({ seed, dry_run: dryRun, file_name: 'p13-seed-v2.json' }),
   });
 }
+export function importP13RepoSeed(token: string, dryRun: boolean) {
+  return p13Fetch<Record<string, unknown>>(token, '/api/crm/p13/catalog-import', {
+    method: 'POST',
+    body: JSON.stringify({ source: 'repo', dry_run: dryRun }),
+  });
+}
 export function fetchP13Holidays(token: string) {
   return p13Fetch<{ holidays: Array<{ holiday_date: string; name: string }>; warning: string | null }>(token, '/api/crm/p13/holidays');
 }
