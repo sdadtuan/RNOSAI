@@ -19,6 +19,8 @@ import {
   type P13PricingVersion,
 } from '@/lib/p13/api';
 import { canActivateP13Pricing, canEditP13Pricing, canSeeP13Pricing, canViewP13Cost, p13Enabled } from '@/lib/p13/flags';
+import { preferredVersionId } from '@/lib/p13/pricing-preview';
+import { PricePreviewPanel } from './PricePreviewPanel';
 import '../service-catalog/catalog.css';
 
 const LEVELS = [
@@ -81,6 +83,7 @@ export function PricingScreen() {
   const [ack, setAck] = useState(false);
   const [ackNote, setAckNote] = useState('');
   const [effectiveFrom, setEffectiveFrom] = useState('');
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const current = versions.find((row) => row.id === versionId) ?? null;
   const editable = Boolean(current && current.status === 'draft' && canEditP13Pricing(user));
@@ -143,10 +146,10 @@ export function PricingScreen() {
       try {
         const list = await fetchP13PricingVersions(auth.token);
         setVersions(list.versions);
-        const first = list.versions[0];
-        if (first) {
-          setVersionId(first.id);
-          await loadVersion(auth.token, first.id);
+        const firstId = preferredVersionId(list.versions);
+        if (firstId) {
+          setVersionId(firstId);
+          await loadVersion(auth.token, firstId);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Không tải được tham số giá');
@@ -215,6 +218,9 @@ export function PricingScreen() {
               <button className="btn btn-sm" type="button" disabled={!current || current.status !== 'draft' || !canActivateP13Pricing(user)} onClick={() => setActivateOpen(true)}>
                 Kích hoạt version…
               </button>
+              {showCost ? (
+                <button className="btn btn-sm" type="button" onClick={() => setPreviewOpen(true)}>Xem thử giá</button>
+              ) : null}
             </div>
           </div>
           {notice ? <div className="p13-banner">{notice}</div> : null}
@@ -341,6 +347,17 @@ export function PricingScreen() {
             </tbody>
           </table>
         </div>
+      ) : null}
+      {previewOpen && showCost ? (
+        <PricePreviewPanel
+          token={token}
+          versionId={versionId}
+          versionCode={current?.code ?? ''}
+          updatedAt={current?.updated_at ?? ''}
+          roles={roles}
+          settings={settings}
+          onClose={() => setPreviewOpen(false)}
+        />
       ) : null}
       {activateOpen ? (
         <div className="p13-modal">

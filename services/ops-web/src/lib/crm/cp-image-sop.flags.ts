@@ -10,6 +10,10 @@ export const OFF_CP_IMAGE_FLAGS: CpImageSopFlags = {
   router: 'manual',
 };
 
+export function shouldRequestImageFlags(token: string | null | undefined, feEnabled = isCpImageSopFeEnabled()): boolean {
+  return Boolean(token?.trim()) && !feEnabled;
+}
+
 export function isCpImageSopFeEnabled(): boolean {
   return ['1', 'true', 'yes', 'on'].includes(
     (process.env.NEXT_PUBLIC_CP_IMAGE_SOP ?? '0').trim().toLowerCase(),

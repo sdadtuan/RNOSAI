@@ -22,6 +22,7 @@ import { canSeeCsdNav } from '@/lib/crm/csd-nav.util';
 import { fetchCsdChatUnreadCount } from '@/lib/crm/csd-api';
 import { readRnosDesktop } from '@/lib/crm/csd-chat-desktop-bridge';
 import { getCpImageFlags } from '@/lib/crm/cp-image-sop-api';
+import { shouldRequestImageFlags } from '@/lib/crm/cp-image-sop.flags';
 import { nextActionFor } from '@/lib/crm/canopy-next-action';
 import { winLeaveLiteEnabled, winPayslipPortalEnabled } from '@/lib/win/flags';
 import {
@@ -401,7 +402,10 @@ export function OpsNav({
       return;
     }
     const token = getAccessToken();
-    if (!token) return;
+    if (!token || !shouldRequestImageFlags(token)) {
+      setImageSopEnabled(false);
+      return;
+    }
     let cancelled = false;
     void getCpImageFlags(token)
       .then((flags) => {

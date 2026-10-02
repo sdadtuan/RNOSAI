@@ -169,6 +169,7 @@ export function cpImageFetch<T>(token: string, path: string, init?: RequestInit)
 const imageFlagsCache = new Map<string, Promise<CpImageSopFlags>>();
 
 export function getCpImageFlags(token: string): Promise<CpImageSopFlags> {
+  if (!token.trim()) return Promise.resolve(OFF_CP_IMAGE_FLAGS);
   const cached = imageFlagsCache.get(token);
   if (cached) return cached;
   const pending = cpImageFetch<CpImageSopFlags>(token, '/flags').catch(() => OFF_CP_IMAGE_FLAGS);

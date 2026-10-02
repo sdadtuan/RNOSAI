@@ -183,6 +183,27 @@ export function cloneP13Pricing(token: string, id: string) {
 export function activateP13Pricing(token: string, id: string, body: { effective_from?: string; inversion_ack?: boolean; inversion_ack_note?: string }) {
   return p13Fetch(token, `/api/crm/p13/pricing/versions/${id}/activate`, { method: 'POST', body: JSON.stringify(body) });
 }
+export type P13PreviewResponse = {
+  rate?: Record<string, string>;
+  rates?: Record<string, { rate: string; rate_display: string }>;
+  matrix: P13MatrixCell[];
+  inversions: string[];
+  scope_identical: string[];
+  warnings: string[];
+  missing: string[];
+  lines: Array<{ type: string; ref: string; amount: string | null; hours: string }>;
+  fee_subtotal: string | null;
+  fee_vat: string | null;
+  fee_total: string | null;
+};
+
+export function previewP13Pricing(token: string, body: Record<string, unknown>) {
+  return p13Fetch<P13PreviewResponse>(token, '/api/crm/p13/pricing/preview', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export function fetchP13PricingMatrix(token: string, versionId: string) {
   return p13Fetch<{ matrix: P13MatrixCell[]; inversions: string[]; scope_identical: string[]; missing: string[]; warnings: string[] }>(
     token,

@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { mergeRoles } from './pricing.service';
 
 const base = [
@@ -16,6 +18,14 @@ describe('mergeRoles', () => {
     expect(merged.map((role) => role.role_code)).toEqual(['dev', 'am']);
     expect(merged.every((role) => role.monthly_salary === '20000000')).toBe(true);
     expect(merged[0]?.name).toBe('Dev');
+  });
+
+  it('preview reads the version and does not write updated_at', () => {
+    const source = readFileSync(join(__dirname, 'pricing.service.ts'), 'utf8');
+    const body = source.slice(source.indexOf('async preview('), source.indexOf('private async loadView'));
+    expect(body).not.toMatch(/\b(UPDATE|INSERT|DELETE)\b/);
+    expect(body).not.toContain('this.audit');
+    expect(body).not.toContain('updated_at =');
   });
 
   it('patches only the named role from an array', () => {

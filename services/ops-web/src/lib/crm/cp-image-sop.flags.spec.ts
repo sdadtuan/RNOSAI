@@ -4,6 +4,7 @@ import {
   isCpImageSopNavEnabled,
   isCpImageSopVisible,
   OFF_CP_IMAGE_FLAGS,
+  shouldRequestImageFlags,
 } from './cp-image-sop.flags';
 
 describe('cp-image-sop.flags', () => {
@@ -21,6 +22,13 @@ describe('cp-image-sop.flags', () => {
 
   it('hides when cap missing', () => {
     expect(isCpImageSopVisible({ enabled: true, router: 'recommended' }, false)).toBe(false);
+  });
+
+  it('does not request image flags without a token or when the page flag is already on', () => {
+    expect(shouldRequestImageFlags('', false)).toBe(false);
+    expect(shouldRequestImageFlags(null, false)).toBe(false);
+    expect(shouldRequestImageFlags('token', true)).toBe(false);
+    expect(shouldRequestImageFlags('token', false)).toBe(true);
   });
 
   it('nav enabled when FE flag is on even if API flag is off', () => {
