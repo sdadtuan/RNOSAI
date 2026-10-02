@@ -121,6 +121,7 @@ import { TemporalModule } from './temporal/temporal.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { GtmModule } from './gtm/gtm.module';
 import { GtmCmsModule } from './gtm-cms/cms.module';
+import { P13Module } from './p13/p13.module';
 
 @Module({
   imports: [
@@ -134,6 +135,7 @@ import { GtmCmsModule } from './gtm-cms/cms.module';
     MarketResearchModule,
     GtmModule,
     GtmCmsModule,
+    P13Module,
     LeadsContractModule,
     CatalogModule,
     CrmConfigModule,

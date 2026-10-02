@@ -36,6 +36,7 @@ export interface StaffMeResponse extends StaffUserProfile {
   teams?: Array<{ id: number; name: string }>;
   has_avatar?: boolean;
   avatar_updated_at?: string | null;
+  feature_flags?: { p13_enabled?: boolean };
 }
 
 export interface StaffRosterRow {

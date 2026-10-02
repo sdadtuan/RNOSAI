@@ -144,6 +144,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/crm/staff-kpi': 'KPI AM/SP',
   '/crm/staff': 'Nhân viên',
   '/crm/proposals': 'Báo giá',
+  '/crm/service-catalog': 'Danh mục dịch vụ',
+  '/admin/p13/holidays': 'Ngày lễ P13',
   '/crm/orders': 'Đơn hàng',
   '/crm/invoices': 'Hóa đơn',
   '/crm/re-projects': 'Dự án BĐS',

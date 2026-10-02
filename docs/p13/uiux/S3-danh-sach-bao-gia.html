@@ -1,0 +1,49 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S3 · Danh sách báo giá — P13 mockup</title><link rel="stylesheet" href="assets/app.css"></head><body>
+<div class="app"><aside id="sb"></aside><div class="main"><header id="tb"></header><main class="content">
+<div class="page-head"><div><h1>Báo giá</h1><div class="sub">Màn <b>/crm/proposals</b> hiện có (Quote OS) — mở rộng: cột “Nguồn giá” (P13 / Legacy), lọc theo nguồn, nút “+ Báo giá theo danh mục P13”. Proposal legacy giữ nguyên.</div></div>
+<div class="actions"><button class="btn">Xuất CSV</button><a class="btn primary" href="S4-tao-sua-bao-gia.html">+ Báo giá theo danh mục P13</a></div></div>
+<div class="grid g4">
+ <div class="card kpi"><div class="lbl">Đang mở (Nháp → Đã gửi)</div><div class="val">9</div><div class="d">giá trị 1.084.296.800</div></div>
+ <div class="card kpi"><div class="lbl">Chờ CEO duyệt</div><div class="val" style="color:var(--warn)">2</div><div class="d">lâu nhất 26 giờ</div></div>
+ <div class="card kpi"><div class="lbl">Sắp hết hạn (7 ngày)</div><div class="val" style="color:var(--danger)">3</div><div class="d">1 đã quá hạn</div></div>
+ <div class="card kpi"><div class="lbl">Tỷ lệ chấp nhận tháng 9</div><div class="val" style="color:var(--g-700)">42%</div><div class="d">5 / 12 báo giá chốt</div></div>
+</div>
+<div class="card">
+ <div class="toolbar"><input class="input search" placeholder="Tìm số QT-PTT, khách, dịch vụ…" aria-label="Tìm báo giá">
+  <select class="input" style="width:auto" aria-label="AM"><option>Tất cả AM</option><option>Trương Phan Mỹ Ngọc</option><option>Lê Minh Quân</option></select>
+  <select class="input" style="width:auto" aria-label="Dịch vụ"><option>Tất cả dịch vụ</option><option>WEB</option><option>ADS</option></select>
+  <select class="input" style="width:auto" aria-label="Nguồn giá"><option>Mọi nguồn giá</option><option>P13</option><option>Legacy</option></select><label class="small"><input type="checkbox"> Hiện báo giá test</label></div>
+ <div class="toolbar" id="st"><span class="small muted">Trạng thái:</span></div>
+ <div style="overflow:auto"><table class="t"><thead><tr><th>Số báo giá</th><th>Nguồn giá</th><th>Khách hàng / Deal</th><th>Nội dung</th><th>AM</th><th>Trạng thái</th><th class="num">Phí dịch vụ (gồm VAT)</th><th class="num">CK thực</th><th>Hiệu lực đến</th><th>Cập nhật</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+ <div class="toolbar small muted" style="border:0">Hiển thị <b id="n"></b> báo giá · trang 1/1</div>
+</div>
+<div class="foot-note">Khách hàng, số tiền là DỮ LIỆU MẪU giả lập (dùng số sanity của spec), không phải báo giá thật.</div>
+</main></div></div>
+<script src="assets/app.js"></script>
+<script>
+shell('s3','Bán hàng &amp; CRM / <b>Báo giá (/crm/proposals)</b>','AM · GĐKD','MN');
+const ST={draft:['Nháp','q-draft'],pending:['Chờ duyệt nội bộ','q-pending'],approved:['Đã duyệt','q-approved'],sent:['Đã gửi','q-sent'],accepted:['Khách chấp nhận','q-accepted'],rejected:['Từ chối','q-rejected'],expired:['Hết hạn','q-expired']};
+document.getElementById('st').insertAdjacentHTML('beforeend','<span class="chip filter on" data-single="1" data-s="">Tất cả</span>'+Object.entries(ST).map(([k,v])=>`<span class="chip filter" data-single="1" data-s="${k}">${v[0]}</span>`).join(''));
+const Q=[
+ ['QT-PTT-2026-000014','v2','Công ty Mẫu An Phát','Deal #D-221','WEB Tiêu chuẩn + 2 tích hợp','Mỹ Ngọc','pending',128435220,'10%','16/10/2026','2 giờ trước'],
+ ['QT-PTT-2026-000013','v1','Mẫu Bình Minh Spa','Deal #D-219','ADS Tiêu chuẩn + ngân sách QC','Minh Quân','sent',106098120,'0%','09/10/2026','hôm qua'],
+ ['QT-PTT-2026-000012','v1','Mẫu Cát Tường Edu','Deal #D-214','SEO Cơ bản','Mỹ Ngọc','draft',null,'—','—','hôm qua'],
+ ['QT-PTT-2026-000011','v3','Mẫu Đông Á Logistics','Deal #D-207','CRM Tiêu chuẩn + NUR Cơ bản','Minh Quân','approved',186119640,'0%','20/10/2026','29/09'],
+ ['QT-PTT-2026-000010','v1','Mẫu Hồng Hạc F&B','Deal #D-201','VID Cơ bản','Mỹ Ngọc','accepted',135437400,'0%','30/09/2026','28/09'],
+ ['QT-PTT-2026-000009','v2','Mẫu Gia Phúc Realty','Deal #D-198','BI Tiêu chuẩn','Minh Quân','sent',129338640,'0%','03/10/2026','25/09'],
+ ['QT-PTT-2026-000008','v1','Mẫu Kim Ngân Finance','Deal #D-190','DSH Nâng cao','Mỹ Ngọc','rejected',90622800,'0%','25/09/2026','22/09'],
+ ['QT-PTT-2026-000007','v1','Mẫu Lam Sơn Retail','Deal #D-186','KOL Cơ bản + booking','Minh Quân','expired',73037160,'0%','20/09/2026','10/09'],
+ ['QT-PTT-2026-000005','v2','Mẫu Phú Thịnh Auto','Deal #D-180','Gói Ads tháng (legacy)','Minh Quân','accepted',null,'—','15/09/2026','12/09','legacy'],
+ ['QT-PTT-2026-000004','v1','Mẫu Quốc Bảo Clinic','Deal #D-176','Proposal cũ — dịch vụ SKU','Mỹ Ngọc','sent',null,'—','08/10/2026','01/10','legacy'],
+ ['QT-PTT-2026-000006','v1','[TEST P13] Khách thử nghiệm','—','WEB Tiêu chuẩn + WEB-04-08 ×2','Mỹ Ngọc','draft',142705800,'0%','—','02/10','test']];
+function applyFilters(){const s=(document.querySelector('[data-s].on')||{}).dataset?.s||'';
+ const rows=Q.filter(q=>!s||q[6]===s);
+ document.getElementById('rows').innerHTML=rows.map(q=>`<tr><td><a href="S4-tao-sua-bao-gia.html" class="mono"><b>${q[0]}</b></a> <span class="small muted">${q[1]}</span></td>
+ <td><span class="chip ${q[11]==='legacy'?'q-draft':'lvl'}">${q[11]==='legacy'?'Legacy':'P13'}</span></td><td><b>${q[2]}</b>${q[11]==='test'?' <span class="chip test">TEST</span>':''}<div class="small muted">${q[3]}</div></td><td class="small">${q[4]}</td><td>${q[5]}</td>
+ <td><span class="chip ${ST[q[6]][1]}"><span class="dot"></span>${ST[q[6]][0]}</span></td><td class="num"><b>${vnd(q[7])}</b></td><td class="num">${q[8]}</td>
+ <td>${q[9]}${q[6]==='sent'&&q[9]==='03/10/2026'?' <span class="chip q-rejected">còn 1 ngày</span>':''}</td><td class="small muted">${q[10]}</td>
+ <td><button class="btn ghost sm" aria-label="Thao tác">⋯</button></td></tr>`).join('');
+ document.getElementById('n').textContent=rows.length;}
+applyFilters();
+</script></body></html>

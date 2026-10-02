@@ -1,0 +1,63 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S2 · Tham số giá — P13 mockup</title><link rel="stylesheet" href="assets/app.css"></head><body>
+<div class="app"><aside id="sb"></aside><div class="main"><header id="tb"></header><main class="content">
+<div class="page-head"><div><h1>Tham số giá <span class="chip q-draft" style="vertical-align:middle">PV-2026-02 · Nháp</span></h1>
+<div class="sub">Chỉ CEO / Tài chính / SUPER-ADMIN. Version đang hiệu lực: <b>PV-2026-01</b> từ 01/10/2026. Version active là bất biến — sửa bằng “Clone thành nháp”.</div></div>
+<div class="actions"><button class="btn">Clone thành nháp</button><button class="btn">Lưu nháp</button><button class="btn primary" onclick="openEl('m-act')">Kích hoạt version…</button></div></div>
+
+<div class="alert danger" role="alert"><span class="ic">!</span><div class="grow"><b>Thiếu tham số — báo giá dùng version này sẽ KHÔNG gửi được</b> (409 <span class="mono">pricing_params_incomplete</span>):
+ <span class="mono">pricing_roles.dev.monthly_salary</span>, <span class="mono">pricing_roles.video_production.insurance_pct</span>, <span class="mono">settings.ads_fee_min_monthly</span>. Lưu nháp vẫn được.</div><button class="btn sm">Đi tới ô thiếu</button></div>
+
+<div class="grid" style="grid-template-columns:1.5fr 1fr">
+<div class="card"><div class="card-h">1. Chi phí nhân sự theo vai trò <span class="r small muted">Đơn giá giờ = (Lương × (1 + BH%) + Phúc lợi) / Giờ hiệu dụng</span></div>
+<div style="overflow:auto"><table class="t"><thead><tr><th>Vai trò</th><th class="num">Lương/tháng</th><th class="num">BH %</th><th class="num">Phúc lợi</th><th class="num">Giờ HD</th><th class="num">Đơn giá/giờ</th></tr></thead><tbody id="roles"></tbody></table></div>
+<div class="card-b small muted">🔒 Lương hiển thị dạng <b>••••••</b>; bấm “Hiện” để xem (ghi audit lượt xem). Tài khoản AM/GĐKD/PM không nhận được các trường này từ API. Dữ liệu mẫu dùng tham số TEST của spec (20.000.000 / 20% / 1.000.000 / 132h).</div></div>
+
+<div class="card"><div class="card-h">2. Thông số chung</div><div class="card-b grid g2" style="gap:12px">
+ <div class="field"><label>Overhead % <span class="req">*</span></label><input class="input" value="30%"><span class="help">Trên chi phí trực tiếp</span></div>
+ <div class="field"><label>Biên lợi nhuận % (trên giá bán) <span class="req">*</span></label><input class="input" value="25%"><span class="help">Phải &lt; 100%</span></div>
+ <div class="field"><label>VAT % <span class="req">*</span></label><input class="input" value="8%"></div>
+ <div class="field"><label>Đơn vị làm tròn (VND)</label><input class="input" value="1.000"><span class="help">Làm tròn lên; 0 = về đồng</span></div>
+ <div class="field"><label>CK gói Tiêu chuẩn %</label><input class="input" value="5%"></div>
+ <div class="field"><label>CK gói Nâng cao %</label><input class="input" value="10%"></div>
+ <div class="field"><label>Phí quản lý QC (% ngân sách)</label><input class="input" value="10%"></div>
+ <div class="field"><label>Phí QC tối thiểu/tháng <span class="req">*</span></label><input class="input err" value="" placeholder="Chưa nhập"><span class="help err">Bắt buộc nếu báo giá có ngân sách QC</span></div>
+ <div class="field"><label>Phí booking bên thứ ba %</label><input class="input" value="10%"></div>
+ <div class="field"><label>Ngưỡng CK cần CEO duyệt</label><input class="input" value="" placeholder="TBD — CEO chốt (D1)"><span class="help">Trống = mọi chiết khấu &gt; 0 cần duyệt</span></div>
+ <div class="field" style="grid-column:1/-1"><label>Kiểm tra margin</label><div class="small">Hệ số giá bán = (1 + 30%) / (1 − 25%) = <b>1,7333</b> · Giá bán/giờ ≈ <b>328.283</b></div></div>
+</div></div>
+</div>
+
+<div class="grid" style="grid-template-columns:1.5fr 1fr">
+<div class="card"><div class="card-h">Ma trận giá gói (preview theo version nháp) <span class="r"><span class="chip q-rejected">15 đảo giá</span> <span class="chip q-pending">5 phạm vi trùng</span></span></div>
+<div style="overflow:auto;max-height:420px"><table class="t"><thead><tr><th>Mã</th><th>Dịch vụ</th><th class="num">Cơ bản</th><th class="num">Tiêu chuẩn</th><th class="num">Nâng cao</th><th>Cảnh báo</th></tr></thead><tbody id="mx"></tbody></table></div></div>
+<div class="card"><div class="card-h">Lịch sử version</div><div class="card-b" style="padding:0">
+<table class="t"><thead><tr><th>Version</th><th>Trạng thái</th><th>Hiệu lực</th><th>Duyệt</th></tr></thead><tbody>
+<tr><td class="mono">PV-2026-02</td><td><span class="chip q-draft">Nháp</span></td><td>—</td><td class="small muted">Tài chính soạn 02/10</td></tr>
+<tr><td class="mono">PV-2026-01</td><td><span class="chip q-accepted">Active</span></td><td>01/10/2026 →</td><td class="small">CEO · 30/09 · đã xác nhận đảo giá</td></tr>
+<tr><td class="mono">PV-2025-04</td><td><span class="chip q-expired">Retired</span></td><td>01/12/2025 → 30/09/2026</td><td class="small">CEO · 28/11/2025</td></tr>
+</tbody></table>
+<div class="card-b small muted">Báo giá đã rời “Nháp” giữ snapshot version cũ; báo giá nháp sẽ có banner “Tính lại theo tham số mới”.</div></div></div>
+</div>
+<div class="foot-note">Màn chỉ dành cho CEO/Tài chính. Mọi số là tham số TEST (spec §7.2), không phải lương/giá thật.</div>
+</main></div></div>
+
+<div class="modal-bg" id="m-act"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="ma-t"><div class="mh" id="ma-t">Kích hoạt PV-2026-02?</div>
+<div class="mb"><div class="alert danger"><span class="ic">!</span><div>Còn 3 tham số trống → không thể kích hoạt (409 pricing_params_incomplete).</div></div>
+<div class="alert warn"><span class="ic">⚠</span><div>15/16 dịch vụ có giá Nâng cao &lt; Tiêu chuẩn.</div></div>
+<div class="field"><label>Hiệu lực từ <span class="req">*</span></label><input class="input" value="05/10/2026" aria-label="Ngày (dd/mm/yyyy)"></div>
+<label class="small"><input type="checkbox"> Tôi đã xem cảnh báo đảo giá</label>
+<div class="field"><label>Ghi chú xác nhận <span class="req">*</span></label><textarea class="input" rows="2" placeholder="Lý do giữ nguyên chiết khấu…"></textarea></div>
+<div class="small muted">Sau khi kích hoạt version không sửa được; PV-2026-01 sẽ retired từ 04/10/2026.</div></div>
+<div class="mf"><button class="btn" onclick="closeEl('m-act')">Hủy</button><button class="btn primary" disabled>Kích hoạt</button></div></div></div>
+<script src="assets/app.js"></script>
+<script>
+shell('s2','Dịch vụ &amp; Báo giá / <b>Tham số giá</b>','CEO','CEO');
+const R=[['AM',1],['Strategist',1],['Content',1],['Design',1],['Ads',1],['Dev',0],['Data/CRM',1],['Media/Booking',1],['Video production',2]];
+document.getElementById('roles').innerHTML=R.map(([r,ok])=>`<tr><td><b>${r}</b></td>
+<td class="num">${ok===0?'<input class="input err" style="width:120px" placeholder="Chưa nhập">':'<span class="mono">••••••</span> <button class="btn ghost sm">Hiện</button>'}</td>
+<td class="num">${ok===2?'<input class="input err" style="width:70px" placeholder="—">':'20%'}</td><td class="num"><span class="mono">••••••</span></td><td class="num">132</td>
+<td class="num">${ok===1?'<b>189.394</b>':'<span class="chip q-rejected">Thiếu</span>'}</td></tr>`).join('');
+const M=[["BI", "Nhận diện TH", 117526000, 119758000, 116410000, "đảo"], ["CS", "Nội dung & MXH", 88637000, 90442000, 89228000, "đảo"], ["WEB", "Website & LP", 119495000, 121629000, 117591000, "đảo"], ["ADS", "Quảng cáo CĐ", 87652000, 98239000, 96614000, "đảo"], ["SEO", "SEO & AEO", 84697000, 89195000, 84500000, "đảo · trùng"], ["BOT", "AI Chatbot", 89622000, 93873000, 91296000, "đảo"], ["CRM", "CRM", 92905000, 100110000, 94841000, "đảo · trùng"], ["NUR", "Nuôi dưỡng TĐ", 72223000, 83581000, 81546000, "đảo"], ["RET", "Giữ chân KH", 78460000, 84517000, 88341000, ""], ["MAU", "Marketing Auto", 74521000, 90754000, 85978000, "đảo · trùng"], ["MKT", "PT thị trường", 65000000, 86076000, 84500000, "đảo"], ["DSH", "Dashboard AI", 77475000, 88571000, 83910000, "đảo · trùng"], ["MED", "Booking Media", 71894000, 76408000, 74750000, "đảo"], ["PR", "Booking PR", 73536000, 74225000, 71205000, "đảo"], ["KOL", "KOL/KOC", 67627000, 68612000, 66182000, "đảo"], ["VID", "Video & TVC", 125405000, 130985000, 124091000, "đảo · trùng"]];
+document.getElementById('mx').innerHTML=M.map(m=>`<tr><td class="mono">${m[0]}</td><td>${m[1]}</td><td class="num">${vnd(m[2])}</td><td class="num">${vnd(m[3])}</td><td class="num" style="${m[4]<m[3]?'color:var(--danger);font-weight:700':''}">${vnd(m[4])}</td><td>${m[5]?m[5].split(' · ').map(w=>w==='đảo'?'<span class="chip q-rejected">NC&lt;TC</span>':'<span class="chip q-pending">Phạm vi TC=NC</span>').join(' '):'<span class="small muted">—</span>'}</td></tr>`).join('');
+</script></body></html>

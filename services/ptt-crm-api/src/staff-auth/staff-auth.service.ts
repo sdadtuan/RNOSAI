@@ -7,6 +7,8 @@ import { StaffBreakGlassRepository } from '../staff-break-glass/staff-break-glas
 import { StaffPermissionSetsRepository } from '../staff-permission-sets/staff-permission-sets.repository';
 import { StaffUserClientsRepository } from '../staff-client-scope/staff-user-clients.repository';
 import { isSuperAdminPositionCode } from '../staff-client-scope/staff-client-scope.util';
+import { p13PositionCaps } from '../p13/p13-caps';
+import { p13Flag, p13FlagsFromPolicy } from '../p13/p13-flag';
 import { verifyPortalPassword } from '../portal/portal-password.util';
 import {
   StaffLoginResult,
@@ -416,29 +418,41 @@ export class StaffAuthService {
     ]);
     const permission_sets = await this.permissionSets.loadUserSetCodes(accessPayload.sub);
     const position_code = await this.loadPositionCode(accessPayload.position_id);
-    const mergedCaps = isSuperAdminPositionCode(position_code)
-      ? this.mergeCaps(caps, [
-          { section_id: 'ceo_command', action: 'view' },
-          { section_id: 'ceo_command', action: 'act' },
-          { section_id: 'ceo_command', action: 'configure' },
-          { section_id: 'csd', action: 'view' },
-          { section_id: 'csd', action: 'write' },
-          { section_id: 'csd', action: 'assign' },
-          { section_id: 'csd', action: 'manage' },
-          { section_id: 'csd', action: 'admin' },
-          { section_id: 'iwr', action: 'view' },
-          { section_id: 'iwr', action: 'write' },
-          { section_id: 'iwr', action: 'review' },
-          { section_id: 'iwr', action: 'lists' },
-          { section_id: 'iwr', action: 'schedule' },
-          { section_id: 'iwr', action: 'export' },
-          { section_id: 'iwr', action: 'manage' },
-          { section_id: 'iwr', action: 'executive' },
-          { section_id: 'iwr', action: 'bcc' },
-          { section_id: 'iwr', action: 'external' },
-        ])
-      : caps;
+    const mergedCaps = this.mergeCaps(
+      isSuperAdminPositionCode(position_code)
+        ? this.mergeCaps(caps, [
+            { section_id: 'ceo_command', action: 'view' },
+            { section_id: 'ceo_command', action: 'act' },
+            { section_id: 'ceo_command', action: 'configure' },
+            { section_id: 'csd', action: 'view' },
+            { section_id: 'csd', action: 'write' },
+            { section_id: 'csd', action: 'assign' },
+            { section_id: 'csd', action: 'manage' },
+            { section_id: 'csd', action: 'admin' },
+            { section_id: 'iwr', action: 'view' },
+            { section_id: 'iwr', action: 'write' },
+            { section_id: 'iwr', action: 'review' },
+            { section_id: 'iwr', action: 'lists' },
+            { section_id: 'iwr', action: 'schedule' },
+            { section_id: 'iwr', action: 'export' },
+            { section_id: 'iwr', action: 'manage' },
+            { section_id: 'iwr', action: 'executive' },
+            { section_id: 'iwr', action: 'bcc' },
+            { section_id: 'iwr', action: 'external' },
+          ])
+        : caps,
+      p13PositionCaps(position_code),
+    );
     const client_ids = await this.resolveJwtClientIds(accessPayload.sub, position_code);
+    let p13Settings: Record<string, boolean> = {};
+    try {
+      const flagRow = await this.db.query(
+        `SELECT policy_json->'p13_flags' AS flags FROM crm_quote_settings WHERE tenant_id = 'PTT' LIMIT 1`,
+      );
+      p13Settings = p13FlagsFromPolicy(flagRow.rows[0]?.flags);
+    } catch {
+      p13Settings = {};
+    }
     return {
       id: accessPayload.sub,
       email: accessPayload.email,
@@ -449,6 +463,7 @@ export class StaffAuthService {
       permission_sets: permission_sets.length ? permission_sets : undefined,
       client_ids,
       caps: mergedCaps,
+      feature_flags: { p13_enabled: p13Flag('ENABLED', process.env, p13Settings) },
     };
   }
 

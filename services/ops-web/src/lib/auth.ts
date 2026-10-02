@@ -30,6 +30,7 @@ export interface StoredStaffUser {
   avatar_updated_at?: string | null;
   tenant?: string;
   locale?: string;
+  feature_flags?: { p13_enabled?: boolean };
 }
 
 export function saveSession(

@@ -1,0 +1,85 @@
+=== PROMPT P13 v1.1 — DANH MỤC DỊCH VỤ, BÁO GIÁ & CHECKLIST TRIỂN KHAI (sau P13.0; dán vào Cursor theo từng phase, xong phase nào báo phase đó) ===
+Spec: docs/SPEC-P13-dich-vu-bao-gia-checklist.md v1.1. ĐỌC §00 "Kết quả P13.0 & điều chỉnh" TRƯỚC; §00 thắng mọi phần khác nếu mâu thuẫn.
+Khảo sát: docs/P13.0-survey.md (đã xong). UI: docs/p13/uiux/UIUX-P13.md v1.1 + docs/PROMPT-P13-UI-cursor.txt.
+
+Chuẩn bị: kiểm tra trong repo có đủ docs/p13/{p13-seed-v2.json, p13-seed.schema.json, export_p13_seed.py, p13-pricing-sanity-fixture.json, BANG-TINH-GIA-sanity-test-params.xlsx, README.md}, docs/p13/uiux/, reports/checklist-dich-vu/v2/. Thiếu file nào thì báo, không tự tạo dữ liệu.
+
+QUY TẮC CHUNG (mọi phase)
+- Báo giá = MỞ RỘNG Quote OS hiện có (crm_proposals + bảng dòng + version + số QT-PTT-{YYYY}-{SEQ:6} + state machine). KHÔNG tạo crm_quotes/crm_quote_lines, KHÔNG tạo state machine mới. Mọi bản ghi cũ pricing_source='legacy' và giữ nguyên hành vi; logic P13 chỉ chạy khi pricing_source='p13'.
+- Danh mục 16 dịch vụ/675 hạng mục = BẢNG MỚI (spec §5.1). KHÔNG đưa vào service_family/SKU/tasks_json. Tùy chọn cột legacy_sku_code. Trùng tên bảng có sẵn → prefix crm_p13_.
+- PricingEngine MỚI ở server, dùng Decimal (decimal.js hoặc thư viện decimal đã có trong repo; ghi tên). CẤM dùng hàm giá JS Number hiện có cho P13. Không làm tròn rate trước khi nhân (spec §7.3).
+- KHÔNG có P12 trong code: không ghi crm_contracts (đó là HĐ của lead), không giả định compose_status/đợt thu/approval P12/WorkingDayService P12/amountInWords P12.
+- Export: PDF bằng pdfkit, font TTF nhúng trong repo. KHÔNG LibreOffice, KHÔNG [[path]]/#row/#each, KHÔNG Google Fonts. DOCX chỉ là P13.d2 tùy chọn (CEO quyết D9).
+- Flag: cơ chế tối thiểu env P13_ENABLED (+ flag con P13_*, settings row ghi đè nếu app có bảng settings) — spec §15.2. Không dựng framework flag lớn.
+- Ngày làm việc: WorkingDayService MỚI (T2–T6 + crm_holidays rỗng + form admin). KHÔNG dùng hàm SLA lead (đếm giờ).
+- UI: CSS custom sẵn có của app (không Tailwind/shadcn/AntD), brand #17692f, font system-ui; báo giá là mở rộng màn /crm/proposals.
+- K2 không bịa số · K3 một engine, frontend không tự tính · K5 cảnh báo mềm không chặn · K6 không tự gửi cho khách · K7 version giá active bất biến + snapshot · K8 lương/BH/phúc lợi/rate/chi phí chỉ CEO/Tài chính/SUPER-ADMIN, lọc key ở serializer · K10 AI tool không gửi/chấp nhận.
+- Mỗi phase: migration có down(), service + test (unit + feature + phân quyền), audit thao tác ghi, chạy test hiện có trước/sau, không commit secret, không chạy lệnh ghi lên production.
+
+--------------------------------------------------------------------
+PHASE P13.a — DANH MỤC MỚI + IMPORT + FLAG + WORKING DAYS (spec §00, §5.1, §5.5, §6, §10.3, §15)
+- Migration p13_01_service_catalog (bảng mới), p13_02_holidays (crm_holidays rỗng), p13_03_settings_flags (chỉ nếu có bảng settings).
+- Helper p13Flag(name) đọc env P13_* (+ settings ghi đè nếu có); P13_ENABLED=false → mọi route P13 404, menu ẩn; truyền cờ xuống client qua config/session hiện có.
+- WorkingDayService: isWorkingDay, addWorkingDays (N1 = ngày thứ 1), workingDaysBetween; T2–T6 trừ crm_holidays. API + form admin ngày lễ (CEO/SUPER-ADMIN, audit).
+- Lệnh import p13:catalog-import --file=docs/p13/p13-seed-v2.json [--dry-run] [--force-hours] [--deactivate-missing] theo I1–I7 (validate schema trước; upsert theo code; không đè giờ đã sửa; không xóa cứng; tạo 1 pricing version draft rỗng nếu chưa có — bảng pricing có thể tạo ở P13.b, khi đó bước này chuyển sang P13.b).
+- API read danh mục + PATCH service-items (catalog.manage, audit). Permission p13.catalog.view/manage.
+- Màn S1 Danh mục dịch vụ (route mới, không đè /admin/services/process) theo UIUX §3 S1.
+- Test: dry-run 16/675/227; apply → 23 client_only, 652 billable; chạy lại 0/0; sửa giờ WEB-04-08=20 + import lại → skipped_edited=1; schema sai → lỗi, không ghi; bảng SKU/tasks_json không đổi (đếm trước/sau); P13_ENABLED=false → 404; addWorkingDays(2026-10-05, 6)=2026-10-12; thêm lễ 2026-10-08 → 2026-10-13.
+Done: báo file đổi + lệnh migrate/import + env cần đặt. DỪNG chờ tôi xác nhận.
+
+--------------------------------------------------------------------
+PHASE P13.b — THAM SỐ GIÁ + PRICING ENGINE DECIMAL + TEST (spec §5.2, §7, §17.2)
+- Migration p13_04_pricing: pricing_versions, pricing_roles, pricing_settings.
+- PricingEngine Decimal: rate; price_raw; giá hạng mục lẻ (ROUNDUP từng hạng mục); giá gói (Σ price_raw × (1 − CK gói) rồi ROUNDUP 1 lần); phí QC = max(budget×%, min); booking %; CK/VAT HALF_UP về đồng; rounding_unit=0 → về đồng.
+- Version draft → active (chỉ CEO) → retired; active bất biến (409); clone; thiếu tham số → 409 pricing_params_incomplete; đảo giá → inversion_ack + ghi chú. Guardrails §7.5.
+- API versions, activate, matrix 16×3, POST /pricing/preview (params_override không persist).
+- Màn S2 Tham số giá theo UIUX. Serializer lọc key lương/rate theo p13.pricing.cost.view.
+- Test F1–F17 (fixture docs/p13/p13-pricing-sanity-fixture.json): rate 6250000/33 (189.394); WEB 119.495.000 / 121.629.000 / 117.591.000 (+inversion); WEB-04-08 5.253.000; F6 132.135.000 / 10.570.800 / 142.705.800; bẫy float SEO NC 84.500.000, MED NC 74.750.000, MKT CB 65.000.000, MKT NC 84.500.000; ma trận 48/48, 15 inversions, scope trùng SEO/CRM/MAU/DSH/VID; rounding 0 → 119.494.949; overhead 35% → 126.307.000; VID override → 164.798.000; margin 1 → 422; AM không thấy key lương/rate. Thêm test: PricingEngine không import hàm giá cũ.
+Done: test xanh, ghi tên thư viện Decimal. → DEPLOY ĐỢT D1 (P13.a + P13.b), VERIFY V1–V8. DỪNG.
+
+--------------------------------------------------------------------
+PHASE P13.c — MỞ RỘNG QUOTE OS (crm_proposals) + DUYỆT NỘI BỘ TỐI THIỂU (spec §5.3, §8)
+- Migration p13_05_proposals_extend: ALTER crm_proposals + bảng dòng theo §5.3 (cột nullable/default an toàn), backfill pricing_source='legacy'. Chỉ thêm cột còn thiếu; dùng lại số QT-PTT, version, client, lead, status, validity, total/fee/GM (server ghi đồng bộ cho proposal P13).
+- Dòng P13: package / item / custom / ad_budget / third_party; tổng tính ở server; trả totals + warnings + blockers.
+- Trạng thái: map theo bảng §8.1 vào state machine hiện có; thêm p13_approval_status (none/pending/approved/returned) nếu Quote OS chưa có duyệt nội bộ. Guard gắn vào service chuyển trạng thái hiện có CHỈ khi pricing_source='p13' (Q4, Q5, Q8). Version mới dùng cơ chế version hiện có.
+- Mã lỗi: 409 quote_approval_required / quote_validity_missing / quote_empty / pricing_params_incomplete / quote_expired / quote_locked / quote_invalid_transition; 422 quote_evidence_required.
+- UI: mở rộng màn /crm/proposals (S3 list + S4 tạo/sửa + S5 duyệt) theo UIUX v1.1; biên LN chỉ CEO/Tài chính/GĐKD.
+- Test: proposal P13 mới có số QT-PTT-2026-NNNNNN; F6, F13, F16, F11 snapshot; sửa sau duyệt → về none; accepted cần evidence.
+- Test HỒI QUY R-legacy BẮT BUỘC: proposal legacy (dữ liệu có sẵn/fixture) vẫn list, xem, sửa, chuyển trạng thái, export như trước; total không đổi; không bị guard P13.
+
+--------------------------------------------------------------------
+PHASE P13.d — PDF BÁO GIÁ BẰNG PDFKIT (spec §9) [+ P13.d2 DOCX TÙY CHỌN]
+- QuotePdfRenderer (pdfkit) vẽ layout PTT bằng code (header, số QT-PTT, khách/AM, bảng dòng có ngắt trang + lặp header, tổng, bằng chữ, chi phí chuyển tiếp, điều khoản, chữ ký, footer trang x/y). A4.
+- Font: commit assets/fonts/BeVietnamPro-{Regular,SemiBold,Bold}.ttf + OFL.txt (hoặc font tiếng Việt khác nếu tôi chọn), registerFont từ file, không tải mạng.
+- Helper chung amountInWordsVi() + test (142.705.800 → "Một trăm bốn mươi hai triệu bảy trăm linh năm nghìn tám trăm đồng").
+- 3 display_mode; watermark "BẢN NHÁP — CHƯA DUYỆT" ở nháp; final bị chặn 409 quote_export_blocked khi còn blocker/TBD; mỗi lần xuất lưu 1 file (cơ chế file hiện có). Flag P13_QUOTE_EXPORT. Export proposal legacy không đổi.
+- Test: pdftotext đúng dấu tiếng Việt; pdffonts thấy font nhúng; không chứa rate/giờ/chi phí fixture; nháp có watermark.
+- P13.d2 (CHỈ khi tôi báo D9 = có): DOCX bằng thư viện `docx`, flag P13_QUOTE_DOCX.
+Done: gửi tôi 1 PDF nháp từ test. → DEPLOY ĐỢT D2 (P13.c + P13.d), VERIFY V9–V17. DỪNG.
+
+--------------------------------------------------------------------
+PHASE P13.e — CHECKLIST DỰ ÁN + GATE (spec §5.4, §10)
+- Migration p13_06_checklists (gate approvals = bảng mới crm_checklist_gate_approvals).
+- Khởi tạo từ proposal P13 accepted (dry_run; idempotent theo proposal_line_id): package → mọi hạng mục min_level ≤ cấp (gồm client_only, billable=false) + inputs + deliverables; item → cộng qty; dòng khác không tạo.
+- Giao việc theo raci.R[0] + bảng map role; không tự giao khi nhiều ứng viên.
+- Hạn: WorkingDayService (P13.a); crm_holidays rỗng → warning holiday_calendar_empty; capacity 6h/ngày; due_date_locked; "Tính lại hạn".
+- Gate: 409 gate_approval_required; 422 gate_evidence_required; changes_requested → in_progress + vòng sửa. na cần na_reason.
+- UI S7 (Bảng + Kanban, drawer, ghi gate) theo UIUX. Flag P13_CHECKLISTS.
+- Test: 43 hạng mục / 17 gate / 2 client_only, WEB-04-08 qty 3; bấm lại không trùng; N1 2026-10-05 → hạn K 2026-10-12, N 2026-10-20; gate chưa duyệt → 409.
+Done → DEPLOY ĐỢT D3 (P13.e), VERIFY V18–V23. DỪNG.
+
+--------------------------------------------------------------------
+PHASE P13.f — TASK SYNC + STAGE DEAL + HĐ NHÁP SAU CAPABILITY (spec §11)
+- contractsModule.isAvailable() (kiểm tra schema P12 cần thiết) → hiện false → POST create-contract-draft trả 409 P12_MODULE_MISSING; UI nút disabled + tooltip. KHÔNG ghi crm_contracts. KHÔNG implement tạo HĐ.
+- Task sync (P13_CHECKLIST_TASK_SYNC): idempotent theo checklist_item_id; task done → item done (gate → chờ gate); sync_origin chống vòng lặp.
+- Stage (P13_DEAL_STAGE_SYNC): chỉ tiến, hộp xác nhận, audit.
+- Test: 409 P12_MODULE_MISSING + crm_contracts không đổi; task sync idempotent; stage không lùi.
+
+--------------------------------------------------------------------
+PHASE P13.g — DASHBOARD + SIẾT PHÂN QUYỀN (+ AI tools tùy chọn) (spec §12)
+- 8 widget §12.1 (loại is_test). Test RBAC mọi endpoint theo §3.2/§17.3; P13_ENABLED=false → 404 + menu ẩn.
+- (Tùy chọn, P13_AI_TOOLS) AI tools read/draft; không có tool send/accept/activate.
+- Chạy lại toàn bộ test + R-legacy + smoke export Plan #15, Role KPI, SLA lead.
+Done: báo route/màn mới, env/flags, lệnh migrate/import/seed permission. → DEPLOY ĐỢT D4 (P13.f + P13.g), VERIFY V24–V30 + R1–R5.
+
+Quyết định CEO (spec §19) — dùng placeholder, KHÔNG tự chốt: D1 ngưỡng CK (null = mọi CK cần duyệt), D2 package_with_scope, D3 ✅ QT-PTT (đã chốt), D4 hiệu lực TBD (bắt buộc nhập), D5 hoãn (P12), D6 6h/ngày, D7 chỉ cảnh báo, D8 không, D9 DOCX (mặc định không), D10 font PDF Be Vietnam Pro, D11 ngày lễ do CEO nhập.
