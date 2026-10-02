@@ -56,7 +56,7 @@ export type VersionRoleSeed = {
   productive_hours?: string | null;
 };
 
-export type VersionSettingsSeed = Partial<TrialSettings> | null;
+export type VersionSettingsSeed = { [K in keyof TrialSettings]?: string | null } | null;
 
 const FIXTURE_ROLE = {
   monthly_salary: '20000000',
@@ -191,16 +191,18 @@ export function buildPreviewBody(form: TrialForm, lines: TrialLine[], versionId:
         rounding_unit: nullable(form.settings.rounding_unit),
       },
     },
-    lines: lines.flatMap((line) => {
+    lines: lines.reduce<Array<
+      | { type: 'package'; service_code: string; level: TrialLevel; qty: string }
+      | { type: 'item'; code: string; qty: string }
+    >>((acc, line) => {
       const qty = line.qty.trim() || '1';
       if (line.type === 'package' && line.service_code.trim()) {
-        return [{ type: 'package' as const, service_code: line.service_code.trim(), level: line.level, qty }];
+        acc.push({ type: 'package', service_code: line.service_code.trim(), level: line.level, qty });
+      } else if (line.type === 'item' && line.item_code.trim()) {
+        acc.push({ type: 'item', code: line.item_code.trim(), qty });
       }
-      if (line.type === 'item' && line.item_code.trim()) {
-        return [{ type: 'item' as const, code: line.item_code.trim(), qty }];
-      }
-      return [];
-    }),
+      return acc;
+    }, []),
   };
 }
 
