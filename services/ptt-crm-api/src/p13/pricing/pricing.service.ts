@@ -75,7 +75,12 @@ export type PricingPreviewBody = {
 
 function raise(error: unknown): never {
   if (error instanceof PricingError) {
-    const body = { error: error.code, code: error.code, missing: error.missing };
+    const body: { error: string; code: string; missing: string[]; details?: { field: string } } = {
+      error: error.code,
+      code: error.code,
+      missing: error.missing,
+    };
+    if (error.field) body.details = { field: error.field };
     if (error.status === 409) throw new ConflictException(body);
     throw new UnprocessableEntityException(body);
   }

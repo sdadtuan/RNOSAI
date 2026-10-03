@@ -21,13 +21,15 @@ export class PricingError extends Error {
   readonly status: number;
   readonly code: string;
   readonly missing: string[];
+  readonly field?: string;
 
-  constructor(status: number, code: string, missing: string[] = []) {
+  constructor(status: number, code: string, missing: string[] = [], field?: string) {
     super(code);
     this.name = 'PricingError';
     this.status = status;
     this.code = code;
     this.missing = missing;
+    this.field = field;
   }
 }
 
@@ -146,14 +148,16 @@ function assertPct(value: string, code: string): void {
 export function assertMarginPct(value: string | number | null | undefined): void {
   if (value == null || value === '') return;
   const text = String(value).trim().replace(',', '.');
-  if (!text || text === '-' || text === '+' || text === '.') throw new PricingError(422, 'margin_out_of_range');
+  if (!text || text === '-' || text === '+' || text === '.') {
+    throw new PricingError(422, 'margin_out_of_range', [], 'margin_pct');
+  }
   let parsed: Decimal;
   try {
     parsed = dec(text);
   } catch {
-    throw new PricingError(422, 'margin_out_of_range');
+    throw new PricingError(422, 'margin_out_of_range', [], 'margin_pct');
   }
-  if (parsed.lt(0) || parsed.gte(1)) throw new PricingError(422, 'margin_out_of_range');
+  if (parsed.lt(0) || parsed.gte(1)) throw new PricingError(422, 'margin_out_of_range', [], 'margin_pct');
 }
 
 export function assertPricingInputs(roles: PricingRoleInput[], settings: PricingSettingsInput): void {

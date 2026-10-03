@@ -132,9 +132,24 @@ describe('PricingEngine decimal.js', () => {
       }
     }
     expect(() => assertMarginPct(-0.1)).toThrow(PricingError);
+    expect(() => assertMarginPct('-0.0001')).toThrow(PricingError);
+    try {
+      assertMarginPct('-0.0001');
+    } catch (error) {
+      expect(error).toMatchObject({ status: 422, code: 'margin_out_of_range', field: 'margin_pct' });
+    }
     for (const margin_pct of ['0', '0.99'] as const) {
       expect(() => assertMarginPct(margin_pct)).not.toThrow();
       expect(cell(priced({ ...fixture.settings, margin_pct }), 'WEB', 'basic').price_vnd).toMatch(/^\d+$/);
+    }
+  });
+
+  it('rejects a negative overhead as pct_out_of_range', () => {
+    try {
+      priced({ ...fixture.settings, overhead_pct: '-0.05' });
+      throw new Error('expected pct_out_of_range');
+    } catch (error) {
+      expect(error).toMatchObject({ status: 422, code: 'pct_out_of_range' });
     }
   });
 
