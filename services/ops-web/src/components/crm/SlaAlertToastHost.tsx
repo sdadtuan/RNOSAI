@@ -8,7 +8,7 @@ import {
   fetchCskhSlaPredictions,
   type SlaPredictRow,
 } from '@/lib/api';
-import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
 import { isApiUnauthorized, noteBackgroundUnauthorized, staffTokenForBackground } from '@/lib/crm/staff-session';
 
 const POLL_MS = 60_000;
