@@ -5,6 +5,7 @@ const FILES = [
   '2026-10-02-p13-01-service-catalog.sql',
   '2026-10-02-p13-02-holidays.sql',
   '2026-10-02-p13-04-pricing.sql',
+  '2026-10-03-p13-05-quotes.sql',
 ];
 
 export function readP13Sql(name: string): string {

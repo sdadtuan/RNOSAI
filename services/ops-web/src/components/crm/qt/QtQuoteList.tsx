@@ -417,6 +417,9 @@ export function QtQuoteList() {
           <p className="qt-muted">LST-01 · mã QT-PTT · GM ẩn nếu thiếu finance</p>
         </div>
         <div className="qt-head__actions">
+          <Link className="qt-btn" href="/crm/proposals/p13">
+            Báo giá P13
+          </Link>
           <Link className="qt-btn qt-btn--primary" href="/crm/proposals/new">
             Tạo báo giá
           </Link>

@@ -21,6 +21,7 @@ import {
 import { canActivateP13Pricing, canEditP13Pricing, canSeeP13Pricing, canViewP13Cost, p13Enabled } from '@/lib/p13/flags';
 import { preferredVersionId } from '@/lib/p13/pricing-preview';
 import { PricePreviewPanel } from './PricePreviewPanel';
+import { QuoteApprovalSettings } from './QuoteApprovalSettings';
 import '../service-catalog/catalog.css';
 
 const LEVELS = [
@@ -240,6 +241,7 @@ export function PricingScreen() {
             </div>
           </div>
           {notice ? <div className="p13-banner">{notice}</div> : null}
+          <QuoteApprovalSettings token={token} user={user} />
           {missing.length ? <div className="p13-banner">Thiếu tham số: {missing.join(', ')}</div> : null}
           {!matrix.length ? <div className="p13-banner">Chưa có danh mục — ma trận để trống cho đến khi import seed.</div> : null}
           <div className="p13-grid">

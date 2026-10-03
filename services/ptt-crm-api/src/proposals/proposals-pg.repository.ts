@@ -91,6 +91,11 @@ export function mapProposalRow(row: Record<string, unknown>): ProposalRow {
   mapped.audience = row.audience == null ? null : String(row.audience);
   mapped.campaign_period = row.campaign_period == null ? null : String(row.campaign_period);
   mapped.agency_client_id = row.agency_client_id == null ? null : String(row.agency_client_id);
+  if ('pricing_source' in row) mapped.pricing_source = row.pricing_source == null ? null : String(row.pricing_source);
+  if ('p13_approval_status' in row) mapped.p13_approval_status = row.p13_approval_status == null ? null : String(row.p13_approval_status);
+  if ('needs_approval' in row) mapped.needs_approval = row.needs_approval === true;
+  if ('validity_days' in row) mapped.validity_days = row.validity_days == null ? null : Number(row.validity_days);
+  if ('issued_at' in row) mapped.issued_at = row.issued_at == null ? null : String(row.issued_at);
   return mapped;
 }
 

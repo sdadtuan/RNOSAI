@@ -32,6 +32,11 @@ export interface ProposalRow {
   audience?: string | null;
   campaign_period?: string | null;
   agency_client_id?: string | null;
+  pricing_source?: string | null;
+  p13_approval_status?: string | null;
+  needs_approval?: boolean | null;
+  validity_days?: number | null;
+  issued_at?: string | null;
 }
 
 export interface QuoteLineItemRow {

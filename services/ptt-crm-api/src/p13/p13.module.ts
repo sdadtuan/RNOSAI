@@ -8,13 +8,16 @@ import { P13CatalogManageGuard, P13CatalogViewGuard, P13HolidayGuard, P13Pricing
 import { P13EnabledGuard, P13FlagsService } from './p13-enabled.guard';
 import { P13PricingController } from './pricing/pricing.controller';
 import { P13PricingService } from './pricing/pricing.service';
+import { P13QuoteController } from './quotes/quote.controller';
+import { P13QuoteService } from './quotes/quote.service';
 
 @Module({
   imports: [StaffAuthModule, AdminAuditModule],
-  controllers: [P13CatalogController, P13HolidaysController, P13PricingController],
+  controllers: [P13CatalogController, P13HolidaysController, P13PricingController, P13QuoteController],
   providers: [
     P13CatalogService,
     P13PricingService,
+    P13QuoteService,
     P13FlagsService,
     P13EnabledGuard,
     P13CatalogViewGuard,

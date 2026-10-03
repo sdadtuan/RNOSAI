@@ -36,6 +36,10 @@ describe('mergeRoles', () => {
       const body = source.slice(start, next === -1 ? undefined : next);
       expect(body).toContain('assertMarginPct(');
     }
+    expect(source).toContain('body.details = { field: error.field }');
+    const patch = source.slice(source.indexOf('async patch('), source.indexOf('async clone('));
+    expect(patch.indexOf('assertMarginPct(')).toBeGreaterThan(-1);
+    expect(patch.indexOf('UPDATE crm_pricing_versions')).toBeGreaterThan(patch.indexOf('assertMarginPct('));
   });
 
   it('patches only the named role from an array', () => {

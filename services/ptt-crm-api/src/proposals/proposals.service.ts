@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -355,6 +356,9 @@ export class ProposalsService {
       );
     }
     const current = String(proposal.status ?? '');
+    if (proposal.pricing_source === 'p13' && next === 'sent' && proposal.needs_approval && proposal.p13_approval_status !== 'approved') {
+      throw new ConflictException({ ok: false, error: { code: 'quote_approval_required', message: 'quote_approval_required', details: {} } });
+    }
     const legacyAllowed = PROPOSAL_STATUS_FLOW[current as ProposalStatus];
     const allowed = legacyAllowed
       ? legacyAllowed.includes(next)
@@ -494,6 +498,9 @@ export class ProposalsService {
   async exportQuote(proposalId: number, format: 'pdf' | 'docx' = 'pdf') {
     const proposal = await this.repo.getById(proposalId);
     if (!proposal) throw new NotFoundException({ error: 'Không tìm thấy đề xuất' });
+    if (proposal.pricing_source === 'p13') {
+      throw new NotFoundException({ error: 'not_found', code: 'not_found' });
+    }
     const lines = await this.repo.listLines(proposalId);
     const map = this.routeMap.getMap();
     const exportLines = lines.map((line) => {
