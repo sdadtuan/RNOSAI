@@ -268,7 +268,7 @@ export class P13QuoteService {
 
   private async payload(quote: P13Quote, actor: QuoteActor) {
     const checks = quoteChecks(quote, await this.context());
-    return { ...visibleQuote(quote, actor), ...checks };
+    return Object.assign(visibleQuote(quote, actor), checks);
   }
 
   private async guardOwner(id: number, actor: QuoteActor): Promise<P13Quote> {
