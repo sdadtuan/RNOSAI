@@ -90,6 +90,7 @@ import {
   isLeadInReviewQueue,
   normalizeB2ContactDeadlineHours,
   REVIEW_QUEUE_REASON,
+  reviewQueueAssignmentClockSql,
   reviewQueuePublicState,
 } from './review-queue.util';
 
@@ -510,11 +511,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
               COALESCE(l.care_stages_done_json, '{}'::jsonb)::text AS care_stages_done_json,
               CASE WHEN l.is_duplicate THEN 1 ELSE 0 END AS is_duplicate,
               COALESCE(l.updated_at::text, '') AS updated_at,
-              COALESCE(l.first_assigned_at::text, (
-                SELECT al.created_at::text FROM crm_lead_assignment_log al
-                WHERE al.sqlite_lead_id = l.sqlite_lead_id AND al.to_owner_id IS NOT NULL
-                ORDER BY al.created_at ASC LIMIT 1
-              ), '') AS first_assigned_at
+              ${reviewQueueAssignmentClockSql('l')} AS first_assigned_at
        FROM crm_leads l
        WHERE l.owner_id IS NOT NULL
          AND l.is_duplicate IS NOT TRUE
@@ -639,7 +636,11 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     delete meta.review_queue;
     await this.db.query(
       `UPDATE crm_leads
-       SET owner_id = $2, meta_json = $3::jsonb, updated_at = NOW(), updated_by = $4
+       SET owner_id = $2,
+           assigned_at = NOW(),
+           meta_json = $3::jsonb,
+           updated_at = NOW(),
+           updated_by = $4
        WHERE sqlite_lead_id = $1`,
       [leadId, targetOwner, JSON.stringify(meta), actor.slice(0, 120)],
     );

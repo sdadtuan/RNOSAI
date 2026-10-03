@@ -7,6 +7,22 @@ import {
 } from './care-pipeline.util';
 
 export const REVIEW_QUEUE_REASON = 'b2_no_contact_ok';
+
+/**
+ * Clock for the B2 contact deadline: the latest assignment to the current owner
+ * that is not older than the lead row. Orphan logs from a reused staging id
+ * must not make a fresh release look overdue.
+ */
+export function reviewQueueAssignmentClockSql(leadAlias = 'l'): string {
+  return `COALESCE((
+    SELECT al.created_at::text FROM crm_lead_assignment_log al
+    WHERE al.sqlite_lead_id = ${leadAlias}.sqlite_lead_id
+      AND al.to_owner_id = ${leadAlias}.owner_id
+      AND al.created_at >= ${leadAlias}.created_at
+    ORDER BY al.created_at DESC
+    LIMIT 1
+  ), ${leadAlias}.assigned_at::text, '')`;
+}
 export const DEFAULT_B2_CONTACT_DEADLINE_HOURS = 24;
 
 export function normalizeB2ContactDeadlineHours(raw: unknown): number {

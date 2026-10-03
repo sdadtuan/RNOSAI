@@ -17,6 +17,11 @@ import {
 } from '@/lib/api';
 import { canUseAiCopilot } from '@/lib/ai-flags';
 import {
+  DEFAULT_REVIEW_RELEASE_SPLIT,
+  REVIEW_RELEASE_SPLITS,
+  type ReviewReleaseSplit,
+} from '@/lib/crm/review-queue-release';
+import {
   clearSession,
   getAccessToken,
   getRefreshToken,
@@ -51,6 +56,7 @@ export default function CrmReviewQueuePage() {
   const [releaseLeadId, setReleaseLeadId] = useState<number | null>(null);
   const [releaseMode, setReleaseMode] = useState<'auto' | 'manual'>('auto');
   const [releaseOwnerId, setReleaseOwnerId] = useState('');
+  const [releaseSplit, setReleaseSplit] = useState<ReviewReleaseSplit>(DEFAULT_REVIEW_RELEASE_SPLIT);
   const [releaseNote, setReleaseNote] = useState('GDKD release ops-web');
   const [releasing, setReleasing] = useState(false);
 
@@ -134,6 +140,7 @@ export default function CrmReviewQueuePage() {
     setReleaseLeadId(leadId);
     setReleaseMode('auto');
     setReleaseOwnerId('');
+    setReleaseSplit(DEFAULT_REVIEW_RELEASE_SPLIT);
     setReleaseNote('GDKD release ops-web');
     setError('');
   }
@@ -149,9 +156,15 @@ export default function CrmReviewQueuePage() {
     setError('');
     setMessage('');
     try {
-      const body: { mode: 'auto' | 'manual'; owner_id?: number; note?: string } = {
+      const body: {
+        mode: 'auto' | 'manual';
+        owner_id?: number;
+        note?: string;
+        split: ReviewReleaseSplit;
+      } = {
         mode: releaseMode,
         note: releaseNote.trim() || undefined,
+        split: releaseSplit,
       };
       if (releaseMode === 'manual') {
         const ownerId = Number(releaseOwnerId);
@@ -318,6 +331,21 @@ export default function CrmReviewQueuePage() {
                 </select>
               </label>
             ) : null}
+            <label>
+              Chia hoa hồng
+              <select
+                className="kpi-select"
+                value={releaseSplit}
+                onChange={(e) => setReleaseSplit(e.target.value as ReviewReleaseSplit)}
+                style={{ display: 'block', width: '100%', marginTop: '0.25rem' }}
+              >
+                {REVIEW_RELEASE_SPLITS.map((row) => (
+                  <option key={row.value} value={row.value}>
+                    {row.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               Ghi chú
               <input

@@ -577,7 +577,11 @@ export function LeadFunnelPanel({
               style={{ marginTop: '0.5rem' }}
               onClick={() =>
                 void run(async () => {
-                  await releaseLeadReviewQueue(token, leadId, { mode: 'auto', note: 'Release từ ops-web' });
+                  await releaseLeadReviewQueue(token, leadId, {
+                    mode: 'auto',
+                    note: 'Release từ ops-web',
+                    split: 'reset_closer',
+                  });
                   onMessage?.('Đã release lead khỏi review queue');
                   await reload();
                 })

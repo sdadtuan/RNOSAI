@@ -1988,7 +1988,12 @@ export async function fetchReviewQueueAiSummaries(
 export async function releaseLeadReviewQueue(
   token: string,
   leadId: number,
-  body: { mode: 'auto' | 'manual'; owner_id?: number; note?: string },
+  body: {
+    mode: 'auto' | 'manual';
+    owner_id?: number;
+    note?: string;
+    split?: 'keep_first_touch' | 'reset_closer' | 'no_split';
+  },
 ): Promise<{ ok: boolean }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/review-queue/release`, {
     method: 'POST',
