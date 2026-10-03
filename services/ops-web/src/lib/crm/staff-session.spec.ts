@@ -15,7 +15,18 @@ import {
   getRefreshToken,
   getStoredUser,
 } from '@/lib/auth';
-import { ensureStaffAccessToken, resetStaffSessionRefreshForTests } from './staff-session';
+import {
+  accessTokenExpired,
+  ensureStaffAccessToken,
+  noteBackgroundUnauthorized,
+  resetStaffSessionRefreshForTests,
+  staffTokenForBackground,
+} from './staff-session';
+
+function jwt(expSec: number): string {
+  const payload = btoa(JSON.stringify({ exp: expSec })).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return `hdr.${payload}.sig`;
+}
 
 const memory = new Map<string, string>();
 
@@ -109,6 +120,26 @@ describe('ensureStaffAccessToken', () => {
     expect(getRefreshToken()).toBe('refresh-new');
     expect(getStoredUser()?.email).toBe('admin@pttads.vn');
     expect(staffRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes an expired access token before background polls and stops after a 401', async () => {
+    const expired = jwt(Math.floor(Date.now() / 1000) - 60);
+    const fresh = jwt(Math.floor(Date.now() / 1000) + 3600);
+    applyStaffLoginResponse({ access_token: expired, refresh_token: 'refresh-old', user });
+    staffRefresh.mockResolvedValue({
+      access_token: fresh,
+      refresh_token: 'refresh-new',
+      token_type: 'Bearer',
+      expires_in: 3600,
+      refresh_expires_in: 86400,
+      user,
+    });
+    expect(accessTokenExpired(expired)).toBe(true);
+    expect(accessTokenExpired(fresh)).toBe(false);
+    await expect(staffTokenForBackground()).resolves.toBe(fresh);
+    expect(staffMe).not.toHaveBeenCalled();
+    noteBackgroundUnauthorized(fresh);
+    await expect(staffTokenForBackground()).resolves.toBeNull();
   });
 });
 

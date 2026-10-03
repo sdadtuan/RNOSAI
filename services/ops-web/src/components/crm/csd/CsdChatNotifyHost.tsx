@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { isApiUnauthorized, noteBackgroundUnauthorized, staffTokenForBackground } from '@/lib/crm/staff-session';
 import { fetchCsdChatMe, fetchCsdConversations } from '@/lib/crm/csd-api';
 import {
   csdChatNotifyChannel,
@@ -71,13 +72,20 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
       return;
     }
     let cancelled = false;
-    void fetchCsdChatMe(token)
-      .then((me) => {
-        if (!cancelled) setEnabled(me.enabled === true);
-      })
-      .catch(() => {
+    void staffTokenForBackground().then((ready) => {
+      if (cancelled || !ready) {
         if (!cancelled) setEnabled(false);
-      });
+        return;
+      }
+      void fetchCsdChatMe(ready)
+        .then((me) => {
+          if (!cancelled) setEnabled(me.enabled === true);
+        })
+        .catch((err) => {
+          if (isApiUnauthorized(err)) noteBackgroundUnauthorized(ready);
+          if (!cancelled) setEnabled(false);
+        });
+    });
     return () => {
       cancelled = true;
     };
@@ -99,7 +107,9 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
 
     const load = () => {
       if (cancelled) return;
-      void fetchCsdConversations(token, { filter: 'unread' })
+      void staffTokenForBackground().then((ready) => {
+        if (cancelled || !ready) return;
+        void fetchCsdConversations(ready, { filter: 'unread' })
         .then((out) => {
           if (cancelled) return;
           const tabHidden =
@@ -153,7 +163,14 @@ export function CsdChatNotifyHost({ user }: CsdChatNotifyHostProps) {
             })();
           }
         })
-        .catch(() => undefined);
+        .catch((err) => {
+          if (isApiUnauthorized(err)) {
+            noteBackgroundUnauthorized(ready);
+            cancelled = true;
+            if (timer != null) window.clearInterval(timer);
+          }
+        });
+      });
     };
 
     load();

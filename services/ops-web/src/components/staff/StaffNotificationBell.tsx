@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { getAccessToken } from '@/lib/auth';
+import { isApiUnauthorized, noteBackgroundUnauthorized, staffTokenForBackground } from '@/lib/crm/staff-session';
 import {
   fetchStaffNotifications,
   markStaffNotificationRead,
@@ -16,14 +17,15 @@ export function StaffNotificationBell() {
   const [loading, setLoading] = useState(false);
 
   const reload = useCallback(async () => {
-    const token = getAccessToken();
+    const token = await staffTokenForBackground();
     if (!token) return;
     setLoading(true);
     try {
       const data = await fetchStaffNotifications(token, { limit: 20 });
       setRows(data.notifications);
       setUnread(data.unread);
-    } catch {
+    } catch (err) {
+      if (isApiUnauthorized(err)) noteBackgroundUnauthorized(token);
       setRows([]);
       setUnread(0);
     } finally {

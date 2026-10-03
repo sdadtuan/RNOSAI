@@ -14,6 +14,7 @@ import {
   updateStoredUser,
 } from '@/lib/auth';
 import { staffMe } from '@/lib/api';
+import { isApiUnauthorized, noteBackgroundUnauthorized, staffTokenForBackground } from '@/lib/crm/staff-session';
 import { fetchReviewQueueCount } from '@/lib/api';
 import { StaffNotificationBell } from '@/components/staff/StaffNotificationBell';
 import { StaffAvatarMenu } from '@/components/account/StaffAvatarMenu';
@@ -306,21 +307,24 @@ export function OpsNav({
 
   // Re-fetch caps whenever the logged-in staff id changes (CEO → AE switch).
   useEffect(() => {
-    const token = getAccessToken();
     const expectedId = user?.id;
-    if (!token || !expectedId) return;
+    if (!expectedId) return;
     let cancelled = false;
-    void staffMe(token)
-      .then((me) => {
-        if (cancelled) return;
-        // Drop stale responses from a previous account.
-        if (me.id !== expectedId) return;
-        setNavUser(me);
-        updateStoredUser(me);
-      })
-      .catch(() => {
-        /* keep prop user — never keep another account's navUser */
-      });
+    void staffTokenForBackground().then((token) => {
+      if (cancelled || !token) return;
+      void staffMe(token)
+        .then((me) => {
+          if (cancelled) return;
+          // Drop stale responses from a previous account.
+          if (me.id !== expectedId) return;
+          setNavUser(me);
+          updateStoredUser(me);
+        })
+        .catch((err) => {
+          if (isApiUnauthorized(err)) noteBackgroundUnauthorized(token);
+          /* keep prop user — never keep another account's navUser */
+        });
+    });
     return () => {
       cancelled = true;
     };
@@ -384,14 +388,23 @@ export function OpsNav({
 
   useEffect(() => {
     if (!sidebarUser || !canSeeCsdNav(sidebarUser)) return;
-    const token = getAccessToken();
-    if (!token) return;
-    void fetchCsdChatUnreadCount(token)
-      .then((out) => {
-        setCsdChatUnread(out.count);
-        readRnosDesktop()?.setUnread(out.count);
-      })
-      .catch(() => setCsdChatUnread(undefined));
+    let cancelled = false;
+    void staffTokenForBackground().then((token) => {
+      if (cancelled || !token) return;
+      void fetchCsdChatUnreadCount(token)
+        .then((out) => {
+          if (cancelled) return;
+          setCsdChatUnread(out.count);
+          readRnosDesktop()?.setUnread(out.count);
+        })
+        .catch((err) => {
+          if (isApiUnauthorized(err)) noteBackgroundUnauthorized(token);
+          if (!cancelled) setCsdChatUnread(undefined);
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [sidebarUser, pathname]);
 
   const imageSopUserId = sidebarUser?.id ?? '';

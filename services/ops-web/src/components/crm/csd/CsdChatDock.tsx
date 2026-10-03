@@ -6,6 +6,7 @@ import { CsdChatAvatar } from '@/components/crm/csd/CsdChatAvatar';
 import { CsdChatLoginForm } from '@/components/crm/csd/CsdChatLoginForm';
 import { CsdChatWorkspace } from '@/components/crm/csd/CsdChatWorkspace';
 import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { isApiUnauthorized, noteBackgroundUnauthorized, staffTokenForBackground } from '@/lib/crm/staff-session';
 import { fetchCsdChatMe, fetchCsdChatUnreadCount, loginCsdChat } from '@/lib/crm/csd-api';
 import { readCsdDockPersist, writeCsdDockPersist } from '@/lib/crm/csd-chat-dock-persist';
 import { readCsdChatLogin, writeCsdChatLogin } from '@/lib/crm/csd-chat-login-persist';
@@ -54,18 +55,25 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
       return;
     }
     let cancelled = false;
-    void fetchCsdChatMe(token)
-      .then((me) => {
-        if (cancelled) return;
-        setMeEnabled(me.enabled === true);
-        setMeStaffId(me.staff_id);
-        setMeUsername(me.username ?? '');
-        setMeDisplayName(String(me.display_name_vi ?? '').trim());
-        setChatAuthed(Boolean(me.enabled && readCsdChatLogin(me.staff_id)));
-      })
-      .catch(() => {
+    void staffTokenForBackground().then((ready) => {
+      if (cancelled || !ready) {
         if (!cancelled) setMeEnabled(false);
-      });
+        return;
+      }
+      void fetchCsdChatMe(ready)
+        .then((me) => {
+          if (cancelled) return;
+          setMeEnabled(me.enabled === true);
+          setMeStaffId(me.staff_id);
+          setMeUsername(me.username ?? '');
+          setMeDisplayName(String(me.display_name_vi ?? '').trim());
+          setChatAuthed(Boolean(me.enabled && readCsdChatLogin(me.staff_id)));
+        })
+        .catch((err) => {
+          if (isApiUnauthorized(err)) noteBackgroundUnauthorized(ready);
+          if (!cancelled) setMeEnabled(false);
+        });
+    });
     return () => {
       cancelled = true;
     };
@@ -74,18 +82,26 @@ export function CsdChatDock({ user }: { user: StoredStaffUser | null }) {
   useEffect(() => {
     if (hidden || !token) return;
     let cancelled = false;
+    let timer = 0;
     const load = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      void fetchCsdChatUnreadCount(token)
-        .then((out) => {
-          if (!cancelled) setUnread(Number(out.count ?? 0));
-        })
-        .catch(() => {
-          /* keep last badge */
-        });
+      void staffTokenForBackground().then((ready) => {
+        if (cancelled || !ready) return;
+        void fetchCsdChatUnreadCount(ready)
+          .then((out) => {
+            if (!cancelled) setUnread(Number(out.count ?? 0));
+          })
+          .catch((err) => {
+            if (isApiUnauthorized(err)) {
+              noteBackgroundUnauthorized(ready);
+              cancelled = true;
+              window.clearInterval(timer);
+            }
+          });
+      });
     };
     load();
-    const timer = window.setInterval(load, 15_000);
+    timer = window.setInterval(load, 15_000);
     const onVis = () => {
       if (document.visibilityState === 'visible') load();
     };

@@ -2,7 +2,8 @@
 
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useRef } from 'react';
-import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { isApiUnauthorized, noteBackgroundUnauthorized, staffTokenForBackground } from '@/lib/crm/staff-session';
 import {
   B2B_LEAD_ALERTS_CHANGED_EVENT,
   b2bLeadAlertsStreamUrl,
@@ -139,24 +140,30 @@ export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
       if (announce && changed) notifyLeadAlertsChanged();
     }
 
+    function stopAfterUnauthorized(token: string) {
+      noteBackgroundUnauthorized(token);
+      cancelled = true;
+      eventSource?.close();
+      eventSource = null;
+      if (pollTimer) window.clearInterval(pollTimer);
+    }
+
     async function poll() {
-      const token = getAccessToken();
+      const token = await staffTokenForBackground();
       if (!token || cancelled) return;
       try {
         const items = await fetchB2bLeadAlerts(token, { limit: 30 });
         if (cancelled) return;
         ingest(items, true);
-      } catch {
-        // ignore transient errors
+      } catch (err) {
+        if (isApiUnauthorized(err)) stopAfterUnauthorized(token);
       }
     }
 
-    const token = getAccessToken();
-    if (token) {
+    void staffTokenForBackground().then((token) => {
+      if (!token || cancelled) return;
       void registerB2bStaffPush(token);
-    }
-
-    if (token && typeof EventSource !== 'undefined') {
+      if (typeof EventSource === 'undefined') return;
       try {
         eventSource = new EventSource(b2bLeadAlertsStreamUrl(token));
         eventSource.onmessage = (event) => {
@@ -179,7 +186,7 @@ export function B2bHotAlarm({ user }: { user: StoredStaffUser | null }) {
       } catch {
         eventSource = null;
       }
-    }
+    });
 
     void poll();
     pollTimer = window.setInterval(() => void poll(), POLL_MS);

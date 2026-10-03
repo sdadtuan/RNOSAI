@@ -8,7 +8,8 @@ import {
   fetchCskhSlaPredictions,
   type SlaPredictRow,
 } from '@/lib/api';
-import { getAccessToken, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { isApiUnauthorized, noteBackgroundUnauthorized, staffTokenForBackground } from '@/lib/crm/staff-session';
 
 const POLL_MS = 60_000;
 const MAX_TOASTS = 3;
@@ -42,19 +43,27 @@ export function SlaAlertToastHost({ user }: { user: StoredStaffUser | null }) {
     let eventSource: EventSource | null = null;
     let pollTimer: number | undefined;
 
+    function stopAfterUnauthorized(token: string) {
+      noteBackgroundUnauthorized(token);
+      cancelled = true;
+      eventSource?.close();
+      eventSource = null;
+      if (pollTimer) window.clearInterval(pollTimer);
+    }
+
     async function poll() {
-      const token = getAccessToken();
+      const token = await staffTokenForBackground();
       if (!token || cancelled) return;
       try {
         const data = await fetchCskhSlaPredictions(token);
         if (!cancelled) pushAlerts(data.items);
-      } catch {
-        // ignore transient errors
+      } catch (err) {
+        if (isApiUnauthorized(err)) stopAfterUnauthorized(token);
       }
     }
 
-    const token = getAccessToken();
-    if (token && typeof EventSource !== 'undefined') {
+    void staffTokenForBackground().then((token) => {
+      if (!token || cancelled || typeof EventSource === 'undefined') return;
       try {
         eventSource = new EventSource(cskhSlaAlertsStreamUrl(token));
         eventSource.onmessage = (event) => {
@@ -77,7 +86,7 @@ export function SlaAlertToastHost({ user }: { user: StoredStaffUser | null }) {
       } catch {
         eventSource = null;
       }
-    }
+    });
 
     void poll();
     pollTimer = window.setInterval(() => void poll(), POLL_MS);
