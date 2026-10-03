@@ -147,8 +147,10 @@ export function ratioToVi(ratio: string): string {
 export function viToRatio(textValue: string): string {
   const trimmed = textValue.trim().replace(/\s/g, '').replace(',', '.');
   if (!trimmed) return '';
-  if (!/^\d+(\.\d+)?$/.test(trimmed)) return trimmed.replace(/[^\d.]/g, '');
-  return trimmed;
+  const negative = trimmed.startsWith('-');
+  const body = negative ? trimmed.slice(1) : trimmed;
+  const cleaned = /^\d+(\.\d+)?$/.test(body) ? body : body.replace(/[^\d.]/g, '');
+  return negative ? `-${cleaned}` : cleaned;
 }
 
 export function formatVnd(value: string | null | undefined): string {

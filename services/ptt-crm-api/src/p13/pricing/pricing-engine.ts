@@ -143,8 +143,21 @@ function assertPct(value: string, code: string): void {
   if (parsed.lt(0) || parsed.gte(1)) throw new PricingError(422, code);
 }
 
+export function assertMarginPct(value: string | number | null | undefined): void {
+  if (value == null || value === '') return;
+  const text = String(value).trim().replace(',', '.');
+  if (!text || text === '-' || text === '+' || text === '.') throw new PricingError(422, 'margin_out_of_range');
+  let parsed: Decimal;
+  try {
+    parsed = dec(text);
+  } catch {
+    throw new PricingError(422, 'margin_out_of_range');
+  }
+  if (parsed.lt(0) || parsed.gte(1)) throw new PricingError(422, 'margin_out_of_range');
+}
+
 export function assertPricingInputs(roles: PricingRoleInput[], settings: PricingSettingsInput): void {
-  if (present(settings.margin_pct)) assertPct(settings.margin_pct, 'margin_out_of_range');
+  assertMarginPct(settings.margin_pct);
   if (present(settings.overhead_pct) && dec(settings.overhead_pct).lt(0)) {
     throw new PricingError(422, 'pct_out_of_range');
   }

@@ -6,6 +6,7 @@ import { readP13Sql } from '../p13-sql';
 import {
   P13_PRICING_ROLE_CODES,
   PricingError,
+  assertMarginPct,
   assertPricingInputs,
   collectActivationMissing,
   previewPricing,
@@ -186,6 +187,7 @@ export class P13PricingService {
     });
     const settings = { ...current.settings, ...(body.settings ?? {}) };
     try {
+      assertMarginPct(settings.margin_pct);
       assertPricingInputs(roles, settings);
     } catch (error) {
       raise(error);
@@ -293,6 +295,11 @@ export class P13PricingService {
     if (current.version.status !== 'draft') {
       throw new ConflictException({ error: 'pricing_version_immutable', code: 'pricing_version_immutable' });
     }
+    try {
+      assertMarginPct(current.settings.margin_pct);
+    } catch (error) {
+      raise(error);
+    }
     const items = await this.loadItems();
     const missing = collectActivationMissing(current.roles, current.settings, items);
     if (missing.length) {
@@ -371,6 +378,7 @@ export class P13PricingService {
     const roles = mergeRoles(base?.roles ?? emptyRoles(), body.params_override?.roles);
     const settings = { ...(base?.settings ?? emptySettings()), ...(body.params_override?.settings ?? {}) };
     try {
+      assertMarginPct(settings.margin_pct);
       const preview = previewPricing({
         roles,
         settings,

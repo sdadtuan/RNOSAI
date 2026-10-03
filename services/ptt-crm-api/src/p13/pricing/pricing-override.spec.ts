@@ -28,6 +28,16 @@ describe('mergeRoles', () => {
     expect(body).not.toContain('updated_at =');
   });
 
+  it('uses the same margin guard on preview, draft patch, and activate', () => {
+    const source = readFileSync(join(__dirname, 'pricing.service.ts'), 'utf8');
+    for (const name of ['async preview(', 'async patch(', 'async activate(']) {
+      const start = source.indexOf(name);
+      const next = source.indexOf('async ', start + name.length);
+      const body = source.slice(start, next === -1 ? undefined : next);
+      expect(body).toContain('assertMarginPct(');
+    }
+  });
+
   it('patches only the named role from an array', () => {
     const merged = mergeRoles(base, [{ role_code: 'am', monthly_salary: '1' }]);
     expect(merged.find((role) => role.role_code === 'am')?.monthly_salary).toBe('1');

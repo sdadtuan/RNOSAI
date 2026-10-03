@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 const here = dirname(fileURLToPath(import.meta.url));
 import {
   buildPreviewBody,
+  viToRatio,
   formatVnd,
   preferredVersionId,
   previewExportPayload,
@@ -82,6 +83,8 @@ describe('pricing preview trial', () => {
     expect(overhead.params_override.settings.overhead_pct).toBe('0.35');
     const margin = buildPreviewBody({ ...form, settings: { ...form.settings, margin_pct: '1' } }, [], 'version-1');
     expect(margin.params_override.settings.margin_pct).toBe('1');
+    const negative = buildPreviewBody({ ...form, settings: { ...form.settings, margin_pct: viToRatio('-0,1') } }, [], 'version-1');
+    expect(negative.params_override.settings.margin_pct).toBe('-0.1');
     expect(previewFieldError('margin_out_of_range')).toEqual({ margin_pct: 'margin_out_of_range' });
   });
 

@@ -8,6 +8,7 @@ import {
   collectActivationMissing,
   feeTotalFromSnapshot,
   passthroughVat,
+  assertMarginPct,
   previewPricing,
   type PricingItemInput,
   type PricingRoleInput,
@@ -120,8 +121,9 @@ describe('PricingEngine decimal.js', () => {
     expect(cell(result, 'WEB', 'basic').price_vnd).toBe(fixture.quotes.f9_web_basic);
   });
 
-  it('F10 rejects margin outside [0, 1) and accepts 0.99', () => {
-    for (const margin_pct of ['1', '1.2', '-0.1']) {
+  it('F10 rejects margin outside [0, 1) and accepts 0 and 0.99', () => {
+    for (const margin_pct of ['-0.1', '1', '1.2'] as const) {
+      expect(() => assertMarginPct(margin_pct)).toThrow(PricingError);
       expect(() => priced({ ...fixture.settings, margin_pct })).toThrow(PricingError);
       try {
         priced({ ...fixture.settings, margin_pct });
@@ -129,7 +131,11 @@ describe('PricingEngine decimal.js', () => {
         expect(error).toMatchObject({ status: 422, code: 'margin_out_of_range' });
       }
     }
-    expect(cell(priced({ ...fixture.settings, margin_pct: '0.99' }), 'WEB', 'basic').price_vnd).toMatch(/^\d+$/);
+    expect(() => assertMarginPct(-0.1)).toThrow(PricingError);
+    for (const margin_pct of ['0', '0.99'] as const) {
+      expect(() => assertMarginPct(margin_pct)).not.toThrow();
+      expect(cell(priced({ ...fixture.settings, margin_pct }), 'WEB', 'basic').price_vnd).toMatch(/^\d+$/);
+    }
   });
 
   it('F11 prices WEB standard at the new overhead and leaves a snapshot unchanged', () => {

@@ -39,6 +39,14 @@ function vnd(value: string | null | undefined): string {
 
 function ratioToPercent(ratio: string | null | undefined): string {
   if (!ratio) return '';
+  const negative = ratio.startsWith('-');
+  const abs = negative ? ratio.slice(1) : ratio;
+  if (!abs) return negative ? '-' : '';
+  const shown = ratioToPercentAbs(abs);
+  return negative && shown ? `-${shown}` : shown;
+}
+
+function ratioToPercentAbs(ratio: string): string {
   const [whole, frac = ''] = ratio.split('.');
   const digits = `${whole}${frac}`.replace(/^0+(?=\d)/, '') || '0';
   const places = frac.length - 2;
@@ -52,8 +60,16 @@ function ratioToPercent(ratio: string | null | undefined): string {
 function percentToRatio(text: string): string | null {
   const trimmed = text.trim().replace(',', '.');
   if (!trimmed) return null;
-  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
-  const [whole, frac = ''] = trimmed.split('.');
+  const negative = trimmed.startsWith('-');
+  const body = negative ? trimmed.slice(1) : trimmed;
+  if (!body) return '-';
+  if (!/^\d+(\.\d+)?$/.test(body)) return null;
+  const ratio = percentToRatioAbs(body);
+  return negative ? `-${ratio}` : ratio;
+}
+
+function percentToRatioAbs(text: string): string {
+  const [whole, frac = ''] = text.split('.');
   const digits = `${whole}${frac}`.replace(/^0+(?=\d)/, '') || '0';
   const padded = digits.padStart(frac.length + 3, '0');
   const cut = padded.length - (frac.length + 2);
