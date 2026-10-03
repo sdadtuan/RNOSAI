@@ -789,7 +789,8 @@ export class LeadsController {
     };
   }
 
-  @Get(':id')
+  /** Digits only so static paths such as /review-queue are not parsed as a lead id. */
+  @Get(':id(\\d+)')
   @UseGuards(StaffOrInternalKeyGuard)
   async getLead(
     @Param('id', ParseIntPipe) id: number,
