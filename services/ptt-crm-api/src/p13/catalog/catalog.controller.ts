@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { StaffOrInternalKeyGuard } from '../../staff-auth/staff-or-internal-key.guard';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
@@ -29,6 +29,12 @@ export class P13CatalogController {
   @UseGuards(P13CatalogViewGuard)
   services() {
     return this.catalog.listServices();
+  }
+
+  @Get('service-items')
+  @UseGuards(P13CatalogViewGuard)
+  searchItems(@Query('q') q?: string) {
+    return this.catalog.searchItems(String(q ?? ''));
   }
 
   @Get('services/:code')

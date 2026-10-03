@@ -66,6 +66,21 @@ export class P13CatalogService {
     );
   }
 
+  async searchItems(q: string): Promise<Array<{ code: string; name: string; unit: string; service_code: string }>> {
+    const text = q.trim();
+    if (text.length < 2) return [];
+    return this.db().query(
+      `SELECT i.code, i.task AS name, i.unit, s.code AS service_code
+         FROM crm_service_items i
+         JOIN crm_services s ON s.id = i.service_id
+        WHERE i.is_active AND i.billable AND NOT i.client_only
+          AND (i.code ILIKE $1 OR i.task ILIKE $1)
+        ORDER BY i.code
+        LIMIT 20`,
+      [`%${text}%`],
+    );
+  }
+
   async getService(code: string): Promise<Record<string, unknown>> {
     const services = await this.db().query<Record<string, unknown>>(
       `SELECT s.code, s.name, g.code AS group_code, g.name AS group_name, s.objective, s.problem,

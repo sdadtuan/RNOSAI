@@ -52,6 +52,8 @@ export type QuoteListItem = {
   status: QuoteStatus;
   valid_until: string | null;
   owner: { staff_id: number | null; name: string | null };
+  pricing_source?: string | null;
+  price_note?: string | null;
 };
 
 export type QuoteListResult = {
@@ -60,6 +62,19 @@ export type QuoteListResult = {
   page_size: number;
   total: number;
 };
+
+function warningCodes(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 function finiteNumber(value: unknown): number | null {
   if (value == null || value === '') return null;
@@ -148,6 +163,7 @@ export class QuoteListService {
     const listed = await this.db.query(
       `SELECT p.id, p.quote_code, p.title, p.status, p.valid_until AS proposal_valid_until,
               p.owner_staff_id, p.lead_id, p.co_owner_staff_ids,
+              p.pricing_source, p.grand_total, p.fee_total AS p13_fee_total, p.warnings_json,
               v.n, v.payable_vnd, v.fee_vnd, v.gm_bps, v.valid_until,
               v.direct_cost_vnd, v.nsr_vnd,
               c.name AS client_name,
@@ -249,6 +265,10 @@ export class QuoteListService {
 
   private mapRow(row: Record<string, unknown>, hasFinance: boolean): QuoteListItem {
     const leadId = finiteNumber(row.lead_id);
+    const pricingSource = row.pricing_source == null ? null : String(row.pricing_source);
+    const warnings = warningCodes(row.warnings_json);
+    const grand = finiteNumber(row.grand_total);
+    const incomplete = pricingSource === 'p13' && grand == null && warnings.includes('pricing_params_incomplete');
     return {
       id: Number(row.id ?? 0),
       quote_code: row.quote_code == null ? null : String(row.quote_code),
@@ -256,8 +276,10 @@ export class QuoteListService {
       client_name: row.client_name == null ? null : String(row.client_name),
       lead_code: leadCode(leadId),
       option: null,
-      payable_vnd: finiteNumber(row.payable_vnd),
-      fee_vnd: finiteNumber(row.fee_vnd),
+      payable_vnd: pricingSource === 'p13' ? grand : finiteNumber(row.payable_vnd),
+      fee_vnd: pricingSource === 'p13' ? finiteNumber(row.p13_fee_total) : finiteNumber(row.fee_vnd),
+      pricing_source: pricingSource,
+      price_note: incomplete ? 'Chưa có bảng giá kích hoạt (pricing_params_incomplete)' : null,
       gm_bps: hasFinance ? finiteNumber(row.gm_bps) : null,
       status: asStatus(row.status),
       valid_until:

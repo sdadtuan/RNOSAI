@@ -1,6 +1,6 @@
 import { Pool, type PoolClient } from 'pg';
 import type { CatalogRow, CatalogStore, CatalogTable, CatalogTx } from './memory-catalog';
-import { p13SchemaSql } from '../p13-sql';
+import { p13SchemaSql, withP13SchemaLock } from '../p13-sql';
 
 type Queryable = Pick<PoolClient, 'query'>;
 
@@ -11,7 +11,10 @@ export class PgCatalog implements CatalogStore {
 
   private ensureSchema(): Promise<void> {
     if (!this.schemaReady) {
-      this.schemaReady = this.pool.query(p13SchemaSql()).then(() => undefined);
+      this.schemaReady = withP13SchemaLock(this.pool, p13SchemaSql()).catch((error: unknown) => {
+        this.schemaReady = null;
+        throw error;
+      });
     }
     return this.schemaReady;
   }

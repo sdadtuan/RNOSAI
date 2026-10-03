@@ -91,6 +91,12 @@ export function fetchP13Services(token: string) {
 export function fetchP13Service(token: string, code: string) {
   return p13Fetch<P13ServiceDetail>(token, `/api/crm/p13/services/${code}`);
 }
+export function fetchP13ItemSearch(token: string, q: string) {
+  return p13Fetch<Array<{ code: string; name: string; unit: string; service_code: string }>>(
+    token,
+    `/api/crm/p13/service-items?q=${encodeURIComponent(q)}`,
+  );
+}
 export function patchP13Item(token: string, code: string, body: Record<string, unknown>) {
   return p13Fetch<P13Item>(token, `/api/crm/p13/service-items/${code}`, { method: 'PATCH', body: JSON.stringify(body) });
 }

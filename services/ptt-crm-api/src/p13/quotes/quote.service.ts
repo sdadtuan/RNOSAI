@@ -5,7 +5,7 @@ import { Pool } from 'pg';
 import { AdminAuditRepository } from '../../admin-audit/admin-audit.repository';
 import { AppConfigService } from '../../config/app-config.service';
 import { formatQuoteCode, quoteCodeYear } from '../../proposals/quote-code.util';
-import { readP13Sql } from '../p13-sql';
+import { readP13Sql, withP13SchemaLock } from '../p13-sql';
 import type { PricingLevel, PricingRoleInput, PricingSettingsInput } from '../pricing/pricing-engine';
 import {
   acceptQuote,
@@ -34,6 +34,7 @@ import {
   type QuoteLineInput,
   type QuoteServiceRef,
   type QuoteSettings,
+  type QuoteTotals,
 } from './quote-calc';
 import { QuoteError } from './quote-error';
 
@@ -55,7 +56,10 @@ export class P13QuoteService {
   private async ready(): Promise<Pool> {
     const pool = this.db();
     if (!this.schemaReady) {
-      this.schemaReady = pool.query(readP13Sql('2026-10-03-p13-05-quotes.sql')).then(() => undefined);
+      this.schemaReady = withP13SchemaLock(pool, readP13Sql('2026-10-03-p13-05-quotes.sql')).catch((error: unknown) => {
+        this.schemaReady = null;
+        throw error;
+      });
     }
     await this.schemaReady;
     return pool;
@@ -67,7 +71,7 @@ export class P13QuoteService {
     const map = new Map(rows.rows.map((row) => [row.key, row.value_json]));
     return {
       discount_approval_threshold_pct: map.get('quote.discount_approval_threshold_pct') == null ? null : String(map.get('quote.discount_approval_threshold_pct')),
-      default_validity_days: Number(map.get('quote.default_validity_days') ?? DEFAULT_QUOTE_SETTINGS.default_validity_days),
+      default_validity_days: readValidityDays(map.get('quote.default_validity_days')),
       default_display_mode: (map.get('quote.default_display_mode') as QuoteSettings['default_display_mode']) ?? DEFAULT_QUOTE_SETTINGS.default_display_mode,
       custom_line_requires_approval: map.get('quote.custom_line_requires_approval') !== false,
       min_margin_after_discount_pct: null,
@@ -117,16 +121,42 @@ export class P13QuoteService {
   }
 
   async list(actor: QuoteActor) {
+    try {
+      return await this.listRows(actor);
+    } catch (error) {
+      if (!isSchemaRace(error)) throw error;
+      this.schemaReady = null;
+      return this.listRows(actor);
+    }
+  }
+
+  private async listRows(actor: QuoteActor) {
     const pool = await this.ready();
     const result = await pool.query(
       `SELECT id FROM crm_proposals WHERE pricing_source = 'p13' ORDER BY id DESC LIMIT 200`,
     );
+    let ctx: QuoteContext | null = null;
+    try {
+      ctx = await this.context();
+    } catch (error) {
+      if (isSchemaRace(error)) throw error;
+      ctx = null;
+    }
     const rows = [];
     for (const row of result.rows) {
       try {
-        rows.push(visibleQuote(await this.load(Number(row.id)), actor));
+        const quote = await this.load(Number(row.id));
+        if (ctx && quote.status === 'draft' && quote.total_vnd == null) {
+          try {
+            putQuoteLines(quote, quote.lines, quote.extra_discount_pct, quote.validity_days, ctx);
+          } catch {
+            // Keep the stored snapshot when a draft line cannot be priced.
+          }
+        }
+        rows.push(visibleQuote(quote, actor));
       } catch (error) {
-        if (error instanceof QuoteError && error.status === 404) continue;
+        if (error instanceof QuoteError && (error.status === 404 || error.status === 403)) continue;
+        if (error instanceof TypeError) continue;
         throw error;
       }
     }
@@ -157,7 +187,15 @@ export class P13QuoteService {
   }
 
   async get(id: number, actor: QuoteActor) {
-    return visibleQuote(await this.load(id), actor);
+    const quote = await this.guardOwner(id, actor);
+    if (quote.status === 'draft' && quote.p13_approval_status !== 'pending' && quote.total_vnd == null) {
+      try {
+        putQuoteLines(quote, quote.lines, quote.extra_discount_pct, quote.validity_days, await this.context());
+      } catch {
+        // A draft with an incomplete line still opens from the stored snapshot.
+      }
+    }
+    return this.payload(quote, actor);
   }
 
   async putLines(id: number, body: { lines?: QuoteLineInput[]; extra_discount_pct?: string | null; validity_days?: number | null }, actor: QuoteActor) {
@@ -459,8 +497,11 @@ function rowToQuote(row: Record<string, unknown>, lines: Array<Record<string, un
       description: line.description == null ? null : String(line.description),
     };
   });
-  const snap = (row.pricing_snapshot_json as { stored_calc?: P13Quote['calc'] } | null) ?? null;
-  const { stored_calc: storedCalc, ...snapshot } = (snap ?? {}) as { stored_calc?: P13Quote['calc'] };
+  const snap = asRecord(row.pricing_snapshot_json);
+  const storedCalc = (snap?.stored_calc as P13Quote['calc']) ?? null;
+  const snapshot = { ...(snap ?? {}) };
+  delete snapshot.stored_calc;
+  const columnWarnings = asStringList(row.warnings_json);
   return {
     id: Number(row.id),
     quote_code: String(row.quote_code ?? ''),
@@ -479,7 +520,7 @@ function rowToQuote(row: Record<string, unknown>, lines: Array<Record<string, un
     extra_discount_pct: row.extra_discount_pct == null ? '0' : String(row.extra_discount_pct),
     p13_approval_status: (row.p13_approval_status as P13Quote['p13_approval_status']) ?? 'none',
     needs_approval: row.needs_approval === true,
-    approval_reasons: Array.isArray(row.approval_reasons) ? row.approval_reasons.map(String) : [],
+    approval_reasons: asStringList(row.approval_reasons),
     approval_note: row.approval_note == null ? null : String(row.approval_note),
     sent_channel: row.sent_channel == null ? null : String(row.sent_channel),
     sent_evidence_url: row.sent_evidence_url == null ? null : String(row.sent_evidence_url),
@@ -488,7 +529,7 @@ function rowToQuote(row: Record<string, unknown>, lines: Array<Record<string, un
     rejected_reason: row.rejected_reason == null ? null : String(row.rejected_reason),
     payment_terms: '',
     lines: parsedLines,
-    calc: storedCalc ?? null,
+    calc: storedCalc ?? incompleteCalc(columnWarnings),
     snapshot: Object.keys(snapshot).length ? snapshot : null,
     pricing_version_id: row.pricing_version_id == null ? null : String(row.pricing_version_id),
     files: files.map((file) => ({
@@ -507,6 +548,57 @@ function rowToQuote(row: Record<string, unknown>, lines: Array<Record<string, un
     is_test: row.is_test === true,
     ever_left_draft: String(row.status) !== 'draft',
   };
+}
+
+function readValidityDays(value: unknown): number {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : Number.NaN;
+  return Number.isInteger(n) && n >= 1 && n <= 30 ? n : DEFAULT_QUOTE_SETTINGS.default_validity_days;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (value == null) return null;
+  if (typeof value === 'string') {
+    try {
+      return asRecord(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  return null;
+}
+
+function asStringList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function incompleteCalc(warnings: string[]): QuoteTotals | null {
+  if (!warnings.includes('pricing_params_incomplete')) return null;
+  return {
+    lines: [],
+    totals: null,
+    effective_discount_pct: null,
+    needs_approval: false,
+    approval_reasons: [],
+    warnings,
+    blockers: ['pricing_params_incomplete'],
+    missing: ['pricing_version'],
+    preview: null,
+  };
+}
+
+function isSchemaRace(error: unknown): boolean {
+  const code = String((error as { code?: string } | null)?.code ?? '');
+  return code === '40P01' || code === '42703' || code === '42P01' || code === '55P03';
 }
 
 export function raiseQuote(error: unknown): never {

@@ -767,6 +767,10 @@ export function QtBuilder() {
         fetchAmAccounts(token, { page_size: '100' }).catch(() => emptyAccounts),
         fetchLeads(token, { limit: 100 }).catch(() => emptyLeads),
       ]);
+      if (detail.pricing_source === 'p13') {
+        router.replace(`/crm/proposals/p13/${proposalId}`);
+        return;
+      }
       setProposal(detail);
       setTitle(String(detail.title ?? ''));
       setObjective(String(detail.objective ?? ''));
@@ -829,7 +833,7 @@ export function QtBuilder() {
     } finally {
       setLoading(false);
     }
-  }, [hasFinance, proposalId]);
+  }, [hasFinance, proposalId, router]);
 
   useEffect(() => {
     void load();

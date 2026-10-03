@@ -114,6 +114,7 @@ export function publicView(quote: P13Quote) {
     client_name: quote.client_name,
     display_mode: quote.display_mode,
     validity_days: quote.validity_days,
+    extra_discount_pct: quote.extra_discount_pct,
     issued_at: quote.issued_at,
     valid_until: quote.valid_until,
     lines: quote.calc?.lines ?? [],

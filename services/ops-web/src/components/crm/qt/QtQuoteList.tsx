@@ -243,7 +243,7 @@ export function QtQuoteTable({
             items.map((row) => (
               <tr key={row.id}>
                 <td>
-                  <Link className="qt-link" href={`/crm/proposals/${row.id}`}>
+                  <Link className="qt-link" href={row.pricing_source === 'p13' ? `/crm/proposals/p13/${row.id}` : `/crm/proposals/${row.id}`}>
                     {dash(row.quote_code)}
                   </Link>
                 </td>
@@ -251,7 +251,7 @@ export function QtQuoteTable({
                 <td>{dash(row.client_name)}</td>
                 <td>{dash(row.lead_code)}</td>
                 <td>{dash(row.option)}</td>
-                <td>{formatMoney(row.payable_vnd)}</td>
+                <td>{row.price_note ? row.price_note : formatMoney(row.payable_vnd)}</td>
                 <td>{formatMoney(row.fee_vnd)}</td>
                 <td>{formatGm(row.gm_bps)}</td>
                 <td>

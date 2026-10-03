@@ -171,4 +171,23 @@ describe('QuoteListService', () => {
     expect(db.lastSql).not.toMatch(/'accepted'/);
     expect(db.lastSql).not.toMatch(/'expired'/);
   });
+
+  it('labels a P13 draft with no active price instead of an empty total', async () => {
+    const db = new ListMemory();
+    db.rows = [
+      {
+        id: 8,
+        quote_code: 'QT-PTT-2026-000008',
+        status: 'draft',
+        owner_staff_id: 7,
+        pricing_source: 'p13',
+        grand_total: null,
+        warnings_json: ['pricing_params_incomplete'],
+        payable_vnd: null,
+      },
+    ];
+    const out = await new QuoteListService(db).list(ME);
+    expect(out.items[0]?.price_note).toBe('Chưa có bảng giá kích hoạt (pricing_params_incomplete)');
+    expect(out.items[0]?.payable_vnd).toBeNull();
+  });
 });

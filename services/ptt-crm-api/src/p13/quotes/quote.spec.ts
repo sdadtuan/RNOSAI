@@ -444,6 +444,17 @@ describe('P13 quote PDF', () => {
     expect(body).not.toContain('QUOTE_EXPORT');
   });
 
+  it('retries a failed quote migration instead of caching the first 500', () => {
+    const service = readFileSync(join(__dirname, 'quote.service.ts'), 'utf8');
+    const catalog = readFileSync(join(__dirname, '../catalog/pg-catalog.ts'), 'utf8');
+    expect(service).toContain('withP13SchemaLock');
+    expect(service).toContain('this.schemaReady = null');
+    expect(catalog).toContain('withP13SchemaLock');
+    expect(catalog).toContain('this.schemaReady = null');
+    const settings = readFileSync(join(__dirname, '../../proposals/quote-settings.service.ts'), 'utf8');
+    expect(settings).toContain('validity_days: 30');
+  });
+
   it('T24 repeats the table header after a page break', async () => {
     const ctx = context();
     const quote = createP13Quote({}, ctx, actor());

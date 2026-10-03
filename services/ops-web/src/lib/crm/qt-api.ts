@@ -131,6 +131,8 @@ export type QtListItem = {
   status: string;
   valid_until: string | null;
   owner: { staff_id: number | null; name: string | null };
+  pricing_source?: string | null;
+  price_note?: string | null;
 };
 
 export type QtListResult = {
@@ -348,6 +350,7 @@ export type QtBuilderProposal = {
   customer_id?: number | null;
   lead_id?: number | null;
   valid_until?: string | null;
+  pricing_source?: string | null;
   owner_staff_id?: number | null;
   created_at?: string | null;
   lines?: QtBuilderLine[];
