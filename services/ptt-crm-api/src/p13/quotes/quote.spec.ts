@@ -18,7 +18,7 @@ import {
   type QuoteActor,
   type QuoteContext,
 } from './quote-book';
-import { calculateQuote, DEFAULT_QUOTE_SETTINGS, parseThreshold, parseValidityDays, type QuoteItemRef, type QuoteLineInput, type QuoteServiceRef } from './quote-calc';
+import { calculateQuote, DEFAULT_QUOTE_SETTINGS, notNullVnd, parseThreshold, parseValidityDays, type QuoteItemRef, type QuoteLineInput, type QuoteServiceRef } from './quote-calc';
 import { QuoteError } from './quote-error';
 import { formatQuoteCode } from '../../proposals/quote-code.util';
 import type { PricingRoleInput, PricingSettingsInput } from '../pricing/pricing-engine';
@@ -272,6 +272,37 @@ describe('P13 quote book', () => {
     putQuoteLines(draft, t2Lines, '0', 10, empty);
     expect(draft.calc?.totals).toBeNull();
     expect(draft.calc?.warnings).toContain('pricing_params_incomplete');
+  });
+
+  it('saves mixed package and item lines when no pricing version is active', () => {
+    const empty = context({ roles: null, pricing: null, version: null });
+    const quote = createP13Quote({}, empty, actor());
+    expect(() => putQuoteLines(quote, t2Lines, '0', 10, empty)).not.toThrow();
+    const priced = quote.calc?.lines ?? [];
+    const pkg = priced.find((line) => line.line_type === 'package');
+    const item = priced.find((line) => line.item_code === 'WEB-04-08');
+    expect(pkg?.description).toContain('Tiêu chuẩn');
+    expect(pkg?.scope.length).toBeGreaterThan(0);
+    expect(pkg?.unit_price).toBeNull();
+    expect(pkg?.amount).toBeNull();
+    expect(item?.unit).toBe('lần');
+    expect(item?.qty).toBe('2');
+    expect(item?.unit_price).toBeNull();
+    expect(item?.amount).toBeNull();
+    expect(quote.calc?.totals).toBeNull();
+    expect(quote.total_vnd).toBeNull();
+    expect(quote.calc?.warnings).toContain('pricing_params_incomplete');
+    expect(quote.calc?.missing).toContain('pricing_version');
+    expect(notNullVnd(quote.total_vnd)).toBe('0');
+    const service = readFileSync(join(__dirname, 'quote.service.ts'), 'utf8');
+    expect(service).toContain('notNullVnd(quote.total_vnd)');
+    expect(service).toContain('grand_total = $25');
+
+    putQuoteLines(quote, t2Lines, '0', 10, context());
+    expect(quote.calc?.totals?.fee_subtotal).toBe('132135000');
+    expect(quote.calc?.lines.find((line) => line.line_type === 'package')?.amount).toBe('121629000');
+    expect(quote.calc?.lines.find((line) => line.item_code === 'WEB-04-08')?.amount).toBe('10506000');
+    expect(quote.calc?.warnings).not.toContain('pricing_params_incomplete');
   });
 
   it('T13 freezes the submitted price when a newer version exists', () => {

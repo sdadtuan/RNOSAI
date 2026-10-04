@@ -116,6 +116,11 @@ export type QuoteTotals = {
   preview: PricingPreview | null;
 };
 
+/** crm_proposals.total_vnd is NOT NULL. A missing price is stored as 0; grand_total stays null. */
+export function notNullVnd(value: string | null | undefined): string {
+  return value == null || value === '' ? '0' : value;
+}
+
 function dong(value: Decimal): string {
   return value.toDecimalPlaces(0, Decimal.ROUND_HALF_UP).toFixed(0);
 }

@@ -28,6 +28,7 @@ import {
 } from './quote-book';
 import {
   DEFAULT_QUOTE_SETTINGS,
+  notNullVnd,
   parseThreshold,
   parseValidityDays,
   type QuoteItemRef,
@@ -149,6 +150,7 @@ export class P13QuoteService {
         if (ctx && quote.status === 'draft' && quote.total_vnd == null) {
           try {
             putQuoteLines(quote, quote.lines, quote.extra_discount_pct, quote.validity_days, ctx);
+            if (quote.total_vnd != null) await this.persist(quote, actor);
           } catch {
             // Keep the stored snapshot when a draft line cannot be priced.
           }
@@ -191,6 +193,7 @@ export class P13QuoteService {
     if (quote.status === 'draft' && quote.p13_approval_status !== 'pending' && quote.total_vnd == null) {
       try {
         putQuoteLines(quote, quote.lines, quote.extra_discount_pct, quote.validity_days, await this.context());
+        if (quote.total_vnd != null) await this.persist(quote, actor);
       } catch {
         // A draft with an incomplete line still opens from the stored snapshot.
       }
@@ -297,7 +300,7 @@ export class P13QuoteService {
          extra_discount_pct = $7, p13_approval_status = $8, needs_approval = $9, approval_reasons = $10::jsonb,
          approval_note = $11, sent_channel = $12, sent_evidence_url = $13, accepted_evidence_url = $14,
          accepted_by_contact = $15, rejected_reason = $16, total_vnd = $17, fee_vnd = $18, fee_total = $18,
-         grand_total = $17, margin_pct_effective = $19, pricing_version_id = $20, pricing_snapshot_json = $21::jsonb,
+         grand_total = $25, margin_pct_effective = $19, pricing_version_id = $20, pricing_snapshot_json = $21::jsonb,
          warnings_json = $22::jsonb, p13_version_n = $23, updated_at = $24
        WHERE id = $1`,
       [
@@ -317,7 +320,7 @@ export class P13QuoteService {
         quote.accepted_evidence_url,
         quote.accepted_by_contact,
         quote.rejected_reason,
-        quote.total_vnd,
+        notNullVnd(quote.total_vnd),
         quote.fee_vnd,
         quote.margin_pct_effective,
         quote.pricing_version_id,
@@ -325,6 +328,7 @@ export class P13QuoteService {
         JSON.stringify(quote.calc?.warnings ?? []),
         quote.version_n,
         new Date().toISOString(),
+        quote.total_vnd,
       ],
     );
     await pool.query(`DELETE FROM crm_quote_line_item WHERE proposal_id = $1 AND pricing_source = 'p13'`, [quote.id]);
