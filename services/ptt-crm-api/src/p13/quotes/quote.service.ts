@@ -29,6 +29,7 @@ import {
 } from './quote-book';
 import {
   DEFAULT_QUOTE_SETTINGS,
+  incomingQuoteLines,
   normalizeQuoteQty,
   notNullVnd,
   parseThreshold,
@@ -206,7 +207,7 @@ export class P13QuoteService {
   async putLines(id: number, body: { lines?: QuoteLineInput[]; extra_discount_pct?: string | null; validity_days?: number | null }, actor: QuoteActor) {
     const quote = await this.guardOwner(id, actor);
     const days = body.validity_days === undefined ? undefined : parseValidityDays(body.validity_days);
-    const lines = (body.lines ?? quote.lines).map((line) => ({ ...line, qty: normalizeQuoteQty(line.qty) }));
+    const lines = incomingQuoteLines(body, quote.lines).map((line) => ({ ...line, qty: normalizeQuoteQty(line.qty) }));
     putQuoteLines(quote, lines, body.extra_discount_pct, days, await this.context());
     await this.persist(quote, actor);
     await this.auditWrite(actor, 'quote_lines', quote);

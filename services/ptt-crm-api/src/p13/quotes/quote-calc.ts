@@ -128,6 +128,16 @@ export function normalizeQuoteQty(value: unknown): string | null {
   return text.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
 }
 
+/** PUT sends the full list. POST may send one line object; that line is appended. */
+export function incomingQuoteLines(body: { lines?: unknown; line_type?: unknown }, existing: QuoteLineInput[]): QuoteLineInput[] {
+  const raw = body.lines;
+  if (Array.isArray(raw)) return raw as QuoteLineInput[];
+  if (raw && typeof raw === 'object') return [...existing, raw as QuoteLineInput];
+  if (typeof body.line_type === 'string' && body.line_type) return [...existing, body as QuoteLineInput];
+  if (raw != null) throw new QuoteError(422, 'quote_lines_invalid');
+  return existing;
+}
+
 function dong(value: Decimal): string {
   return value.toDecimalPlaces(0, Decimal.ROUND_HALF_UP).toFixed(0);
 }

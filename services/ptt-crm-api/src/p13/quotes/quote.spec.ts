@@ -19,7 +19,7 @@ import {
   type QuoteActor,
   type QuoteContext,
 } from './quote-book';
-import { calculateQuote, DEFAULT_QUOTE_SETTINGS, normalizeQuoteQty, notNullVnd, parseThreshold, parseValidityDays, type QuoteItemRef, type QuoteLineInput, type QuoteServiceRef } from './quote-calc';
+import { calculateQuote, DEFAULT_QUOTE_SETTINGS, incomingQuoteLines, normalizeQuoteQty, notNullVnd, parseThreshold, parseValidityDays, type QuoteItemRef, type QuoteLineInput, type QuoteServiceRef } from './quote-calc';
 import { QuoteError } from './quote-error';
 import { formatQuoteCode } from '../../proposals/quote-code.util';
 import type { PricingRoleInput, PricingSettingsInput } from '../pricing/pricing-engine';
@@ -304,6 +304,28 @@ describe('P13 quote book', () => {
     expect(quote.calc?.lines.find((line) => line.line_type === 'package')?.amount).toBe('121629000');
     expect(quote.calc?.lines.find((line) => line.item_code === 'WEB-04-08')?.amount).toBe('10506000');
     expect(quote.calc?.warnings).not.toContain('pricing_params_incomplete');
+  });
+
+  it('POST one line object saves package and item with null prices when no version is active', () => {
+    const empty = context({ roles: null, pricing: null, version: null });
+    const quote = createP13Quote({}, empty, actor());
+    const packageBody = { lines: { line_type: 'package' as const, service_code: 'WEB', level_code: 'basic' as const, qty: 1 } };
+    putQuoteLines(quote, incomingQuoteLines(packageBody, quote.lines).map((line) => ({ ...line, qty: normalizeQuoteQty(line.qty) })), '0', 10, empty);
+    expect(quote.lines).toHaveLength(1);
+    expect(quote.calc?.lines[0]?.level_code).toBe('basic');
+    expect(quote.calc?.lines[0]?.qty).toBe('1');
+    expect(quote.calc?.lines[0]?.unit_price).toBeNull();
+    expect(quote.calc?.lines[0]?.amount).toBeNull();
+    expect(quote.calc?.totals).toBeNull();
+    expect(quote.calc?.warnings).toContain('pricing_params_incomplete');
+    const itemBody = { lines: { line_type: 'item' as const, item_code: 'WEB-04-08', qty: 2 } };
+    putQuoteLines(quote, incomingQuoteLines(itemBody, quote.lines).map((line) => ({ ...line, qty: normalizeQuoteQty(line.qty) })), '0', 10, empty);
+    const item = quote.calc?.lines.find((line) => line.item_code === 'WEB-04-08');
+    expect(item?.qty).toBe('2');
+    expect(item?.unit_price).toBeNull();
+    expect(item?.amount).toBeNull();
+    expect(quote.calc?.warnings).toContain('pricing_params_incomplete');
+    expect(() => incomingQuoteLines({ lines: 'WEB' }, [])).toThrow(QuoteError);
   });
 
   it('normalizes item qty and deletes a draft line only', () => {

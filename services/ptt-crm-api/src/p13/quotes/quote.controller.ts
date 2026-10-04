@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffOrInternalKeyGuard } from '../../staff-auth/staff-or-internal-key.guard';
@@ -98,6 +98,7 @@ export class P13QuoteController {
   }
 
   @Post('proposals/:id/lines')
+  @HttpCode(201)
   async postLines(@Req() req: StaffRequest, @Param('id') id: string, @Body() body: { lines: QuoteLineInput[]; extra_discount_pct?: string | null; validity_days?: number | null }) {
     return this.lines(req, id, body);
   }
