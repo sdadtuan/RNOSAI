@@ -22,6 +22,7 @@ import { LeadConsultWorkspace } from '@/components/LeadConsultWorkspace';
 import { type LeadContractFlowSummary } from '@/lib/crm/lead-contract-flow';
 import { LeadAttributionChips } from '@/components/crm/LeadAttributionChips';
 import { LeadAuditPanel } from '@/components/crm/LeadAuditPanel';
+import { isAccountExecutive, leadAuditForViewer } from '@/lib/crm/lead-ae-visibility';
 import { LeadContactActions } from '@/components/crm/LeadContactActions';
 import { LeadJourneyStepper } from '@/components/crm/LeadJourneyStepper';
 import { LeadNextActionCard } from '@/components/crm/LeadNextActionCard';
@@ -1126,6 +1127,9 @@ export default function CrmLeadDetailPage() {
     return staff ? staff.name : `#${lead.owner_id}`;
   }, [lead?.owner_id, lead?.owner_name, staffOptions]);
 
+  const aeViewer = isAccountExecutive(user);
+  const visibleAudit = useMemo(() => leadAuditForViewer(audit, user), [audit, user]);
+
   const onSoftphonePlaced = useCallback(() => {
     if (funnelB2Complete(funnelSnap)) return;
     setB2CallJustPlaced(true);
@@ -1724,7 +1728,7 @@ export default function CrmLeadDetailPage() {
                   </form>
                 </div>
               }
-              assignForm={
+              assignForm={aeViewer ? null : (
                 <div className="lead-panel lead-panel--action">
                   <div className="lead-panel__head">
                     <h3 className="lead-panel__title">Phân lead</h3>
@@ -1772,8 +1776,8 @@ export default function CrmLeadDetailPage() {
                     </button>
                   </form>
                 </div>
-              }
-              extra={<LeadAuditPanel audit={audit} />}
+              )}
+              extra={visibleAudit || !aeViewer ? <LeadAuditPanel audit={aeViewer ? visibleAudit : audit} /> : null}
             />
           </div>
 
