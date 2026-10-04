@@ -334,6 +334,7 @@ describe('P13 quote book', () => {
     const controller = readFileSync(join(__dirname, 'quote.controller.ts'), 'utf8');
     expect(controller).toContain("@Delete('proposals/:id/lines/:lineId')");
     expect(controller).toContain("@Post('proposals/:id/lines')");
+    expect(controller).toContain("@Put('proposals/:id/lines')");
     expect(readFileSync(join(__dirname, 'quote.service.ts'), 'utf8')).toContain('normalizeQuoteQty(line.qty)');
   });
 

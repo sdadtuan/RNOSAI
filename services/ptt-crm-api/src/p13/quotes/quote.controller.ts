@@ -98,6 +98,10 @@ export class P13QuoteController {
   }
 
   @Post('proposals/:id/lines')
+  async postLines(@Req() req: StaffRequest, @Param('id') id: string, @Body() body: { lines: QuoteLineInput[]; extra_discount_pct?: string | null; validity_days?: number | null }) {
+    return this.lines(req, id, body);
+  }
+
   @Put('proposals/:id/lines')
   async lines(@Req() req: StaffRequest, @Param('id') id: string, @Body() body: { lines: QuoteLineInput[]; extra_discount_pct?: string | null; validity_days?: number | null }) {
     try {
