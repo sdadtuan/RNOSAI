@@ -17,6 +17,7 @@ import {
   newQuoteVersion,
   putQuoteLines,
   quoteChecks,
+  removeQuoteLine,
   rejectQuote,
   returnQuote,
   submitQuote,
@@ -28,6 +29,7 @@ import {
 } from './quote-book';
 import {
   DEFAULT_QUOTE_SETTINGS,
+  normalizeQuoteQty,
   notNullVnd,
   parseThreshold,
   parseValidityDays,
@@ -204,9 +206,20 @@ export class P13QuoteService {
   async putLines(id: number, body: { lines?: QuoteLineInput[]; extra_discount_pct?: string | null; validity_days?: number | null }, actor: QuoteActor) {
     const quote = await this.guardOwner(id, actor);
     const days = body.validity_days === undefined ? undefined : parseValidityDays(body.validity_days);
-    putQuoteLines(quote, body.lines ?? quote.lines, body.extra_discount_pct, days, await this.context());
+    const lines = (body.lines ?? quote.lines).map((line) => ({ ...line, qty: normalizeQuoteQty(line.qty) }));
+    putQuoteLines(quote, lines, body.extra_discount_pct, days, await this.context());
     await this.persist(quote, actor);
     await this.auditWrite(actor, 'quote_lines', quote);
+    return this.payload(quote, actor);
+  }
+
+  async deleteLine(id: number, lineId: number, actor: QuoteActor) {
+    const quote = await this.guardOwner(id, actor);
+    const index = quote.line_ids.indexOf(lineId);
+    if (index < 0) throw new QuoteError(404, 'not_found');
+    removeQuoteLine(quote, index, await this.context());
+    await this.persist(quote, actor);
+    await this.auditWrite(actor, 'quote_line_delete', quote);
     return this.payload(quote, actor);
   }
 
@@ -332,14 +345,16 @@ export class P13QuoteService {
       ],
     );
     await pool.query(`DELETE FROM crm_quote_line_item WHERE proposal_id = $1 AND pricing_source = 'p13'`, [quote.id]);
+    const ids: number[] = [];
     let sort = 0;
     for (const line of quote.lines) {
       sort += 1;
-      await pool.query(
+      const inserted = await pool.query<{ id: number }>(
         `INSERT INTO crm_quote_line_item (
            proposal_id, dv_code, sku_code, package_tier, pricing_source, p13_line_type, level_code,
            qty, discount_pct, description, item_qty_overrides_json, price_snapshot_json, sort_order
-         ) VALUES ($1,$2,$3,$4,'p13',$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12)`,
+         ) VALUES ($1,$2,$3,$4,'p13',$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12)
+         RETURNING id`,
         [
           quote.id,
           line.service_code ?? line.item_code ?? line.line_type,
@@ -355,7 +370,9 @@ export class P13QuoteService {
           sort,
         ],
       );
+      ids.push(Number(inserted.rows[0]?.id ?? 0));
     }
+    quote.line_ids = ids;
   }
 
   private async context(): Promise<QuoteContext> {
@@ -533,6 +550,7 @@ function rowToQuote(row: Record<string, unknown>, lines: Array<Record<string, un
     rejected_reason: row.rejected_reason == null ? null : String(row.rejected_reason),
     payment_terms: '',
     lines: parsedLines,
+    line_ids: lines.map((line) => Number(line.id ?? 0)),
     calc: storedCalc ?? incompleteCalc(columnWarnings),
     snapshot: Object.keys(snapshot).length ? snapshot : null,
     pricing_version_id: row.pricing_version_id == null ? null : String(row.pricing_version_id),

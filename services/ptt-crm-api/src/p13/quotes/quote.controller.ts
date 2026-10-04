@@ -88,6 +88,16 @@ export class P13QuoteController {
     }
   }
 
+  @Delete('proposals/:id/lines/:lineId')
+  async deleteLine(@Req() req: StaffRequest, @Param('id') id: string, @Param('lineId') lineId: string) {
+    try {
+      return { ok: true, data: await this.quotes.deleteLine(Number(id), Number(lineId), await this.actor(req)) };
+    } catch (error) {
+      raiseQuote(error);
+    }
+  }
+
+  @Post('proposals/:id/lines')
   @Put('proposals/:id/lines')
   async lines(@Req() req: StaffRequest, @Param('id') id: string, @Body() body: { lines: QuoteLineInput[]; extra_discount_pct?: string | null; validity_days?: number | null }) {
     try {

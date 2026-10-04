@@ -54,6 +54,7 @@ export type P13Quote = {
   rejected_reason: string | null;
   payment_terms: string;
   lines: QuoteLineInput[];
+  line_ids: number[];
   calc: QuoteTotals | null;
   snapshot: Record<string, unknown> | null;
   pricing_version_id: string | null;
@@ -117,7 +118,7 @@ export function publicView(quote: P13Quote) {
     extra_discount_pct: quote.extra_discount_pct,
     issued_at: quote.issued_at,
     valid_until: quote.valid_until,
-    lines: quote.calc?.lines ?? [],
+    lines: (quote.calc?.lines ?? []).map((line, index) => ({ ...line, id: quote.line_ids?.[index] ?? null })),
     totals: quote.calc?.totals ?? null,
     total: quote.total_vnd,
     fee: quote.fee_vnd,
@@ -200,6 +201,7 @@ export function createP13Quote(
     rejected_reason: null,
     payment_terms: '',
     lines: [],
+    line_ids: [],
     calc: null,
     snapshot: null,
     pricing_version_id: ctx.version?.id ?? null,
@@ -211,6 +213,19 @@ export function createP13Quote(
     ever_left_draft: false,
   };
   recalc(quote, ctx);
+  return quote;
+}
+
+export function removeQuoteLine(quote: P13Quote, index: number, ctx: QuoteContext) {
+  if (index < 0 || index >= quote.lines.length) throw new QuoteError(404, 'not_found');
+  putQuoteLines(
+    quote,
+    quote.lines.filter((_, lineIndex) => lineIndex !== index),
+    quote.extra_discount_pct,
+    quote.validity_days,
+    ctx,
+  );
+  quote.line_ids = quote.line_ids.filter((_, lineIndex) => lineIndex !== index);
   return quote;
 }
 

@@ -19,6 +19,7 @@ type LevelCode = (typeof LEVELS)[number]['id'];
 type ScopeMatrix = Array<{ feature: string; basic: string | null; standard: string | null; advanced: string | null }>;
 
 type PricedLine = {
+  id?: number | null;
   line_type: string;
   description: string;
   unit: string;
@@ -55,6 +56,7 @@ type QuoteRow = {
 };
 
 type DraftLine = {
+  id?: number | null;
   line_type: 'package' | 'item' | 'custom';
   service_code: string;
   level_code: string;
@@ -65,7 +67,12 @@ type DraftLine = {
 
 type ItemHit = { code: string; name: string; unit: string; service_code: string };
 
-const emptyLine = (): DraftLine => ({ line_type: 'package', service_code: '', level_code: 'standard', item_code: '', qty: '1', unit_label: 'gói' });
+const emptyLine = (): DraftLine => ({ id: null, line_type: 'package', service_code: '', level_code: 'standard', item_code: '', qty: '1', unit_label: 'gói' });
+
+function displayQty(value: string | null | undefined): string {
+  if (!value) return '1';
+  return String(value).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+}
 
 function money(value: string | null | undefined): string {
   if (!value) return '—';
@@ -155,11 +162,12 @@ async function call(token: string, path: string, init?: RequestInit) {
 function draftFrom(line: PricedLine): DraftLine {
   const type = line.line_type === 'item' || line.line_type === 'custom' ? line.line_type : 'package';
   return {
+    id: line.id ?? null,
     line_type: type,
     service_code: line.service_code ?? '',
     level_code: line.level_code ?? 'standard',
     item_code: line.item_code ?? '',
-    qty: line.qty || '1',
+    qty: displayQty(line.qty),
     unit_label: line.unit || (type === 'package' ? 'gói' : ''),
   };
 }
@@ -186,6 +194,7 @@ export function P13QuotesScreen({ quoteId = null }: { quoteId?: number | null })
   const [itemQuery, setItemQuery] = useState<Record<number, string>>({});
   const [itemHits, setItemHits] = useState<Record<number, ItemHit[]>>({});
   const dirty = useRef(false);
+  const editSeq = useRef(0);
   const user = getStoredUser();
   const exportOn = p13QuoteExportEnabled();
 
@@ -237,8 +246,13 @@ export function P13QuotesScreen({ quoteId = null }: { quoteId?: number | null })
     }).catch(() => undefined);
   }, [lines, scopes, token]);
 
-  function mark(next: DraftLine[]) {
+  function touch() {
+    editSeq.current += 1;
     dirty.current = true;
+  }
+
+  function mark(next: DraftLine[]) {
+    touch();
     setLines(next);
   }
 
@@ -250,6 +264,7 @@ export function P13QuotesScreen({ quoteId = null }: { quoteId?: number | null })
       return;
     }
     if (!draft.every(lineReady)) return;
+    const seqAtSend = editSeq.current;
     const payload = {
       validity_days: Number(dayText.trim()),
       extra_discount_pct: percentToRatio(extraText),
@@ -262,8 +277,26 @@ export function P13QuotesScreen({ quoteId = null }: { quoteId?: number | null })
       })),
     };
     const data = (await call(access, `/api/crm/p13/proposals/${quote.id}/lines`, { method: 'PUT', body: JSON.stringify(payload) })) as QuoteRow;
+    if (seqAtSend !== editSeq.current) return;
     applyQuote(data);
     await load(access);
+  }
+
+  async function removeLine(index: number) {
+    const line = lines[index];
+    if (!line || !current) return;
+    if (current.status !== 'draft' || current.p13_approval_status === 'pending') {
+      setError('quote_locked');
+      return;
+    }
+    if (!window.confirm('Xóa dòng này khỏi báo giá?')) return;
+    if (!line.id) {
+      mark(lines.filter((_, rowIndex) => rowIndex !== index));
+      return;
+    }
+    const data = (await call(token, `/api/crm/p13/proposals/${current.id}/lines/${line.id}`, { method: 'DELETE' })) as QuoteRow;
+    applyQuote(data);
+    await load(token);
   }
 
   useEffect(() => {
@@ -351,7 +384,7 @@ export function P13QuotesScreen({ quoteId = null }: { quoteId?: number | null })
                 className="qt-inp"
                 value={days}
                 onChange={(event) => {
-                  dirty.current = true;
+                  touch();
                   setDays(event.target.value);
                 }}
               />
@@ -370,7 +403,7 @@ export function P13QuotesScreen({ quoteId = null }: { quoteId?: number | null })
                 className="qt-inp"
                 value={extra}
                 onChange={(event) => {
-                  dirty.current = true;
+                  touch();
                   setExtra(event.target.value);
                 }}
               />
@@ -443,6 +476,11 @@ export function P13QuotesScreen({ quoteId = null }: { quoteId?: number | null })
                       value={line.qty}
                       onChange={(event) => mark(lines.map((row, i) => (i === index ? { ...row, qty: event.target.value } : row)))}
                     />
+                    {current.status === 'draft' && current.p13_approval_status !== 'pending' ? (
+                      <button className="qt-btn" type="button" onClick={() => void removeLine(index).catch((err: unknown) => setError(err instanceof Error ? err.message : 'Lỗi'))}>
+                        Xóa
+                      </button>
+                    ) : null}
                   </div>
                   {line.line_type === 'item' && itemHits[index]?.length ? (
                     <ul>

@@ -11,6 +11,7 @@ import {
   newQuoteVersion,
   putQuoteLines,
   quoteChecks,
+  removeQuoteLine,
   returnQuote,
   submitQuote,
   visibleQuote,
@@ -18,7 +19,7 @@ import {
   type QuoteActor,
   type QuoteContext,
 } from './quote-book';
-import { calculateQuote, DEFAULT_QUOTE_SETTINGS, notNullVnd, parseThreshold, parseValidityDays, type QuoteItemRef, type QuoteLineInput, type QuoteServiceRef } from './quote-calc';
+import { calculateQuote, DEFAULT_QUOTE_SETTINGS, normalizeQuoteQty, notNullVnd, parseThreshold, parseValidityDays, type QuoteItemRef, type QuoteLineInput, type QuoteServiceRef } from './quote-calc';
 import { QuoteError } from './quote-error';
 import { formatQuoteCode } from '../../proposals/quote-code.util';
 import type { PricingRoleInput, PricingSettingsInput } from '../pricing/pricing-engine';
@@ -303,6 +304,37 @@ describe('P13 quote book', () => {
     expect(quote.calc?.lines.find((line) => line.line_type === 'package')?.amount).toBe('121629000');
     expect(quote.calc?.lines.find((line) => line.item_code === 'WEB-04-08')?.amount).toBe('10506000');
     expect(quote.calc?.warnings).not.toContain('pricing_params_incomplete');
+  });
+
+  it('normalizes item qty and deletes a draft line only', () => {
+    expect(normalizeQuoteQty(2)).toBe('2');
+    expect(normalizeQuoteQty('2.00')).toBe('2');
+    const empty = context({ roles: null, pricing: null, version: null });
+    const quote = createP13Quote({}, empty, actor());
+    quote.line_ids = [20, 21];
+    putQuoteLines(
+      quote,
+      t2Lines.map((line) => ({ ...line, qty: normalizeQuoteQty(line.qty) })),
+      '0',
+      10,
+      empty,
+    );
+    expect(quote.lines.find((line) => line.item_code === 'WEB-04-08')?.qty).toBe('2');
+    removeQuoteLine(quote, 1, empty);
+    expect(quote.lines).toHaveLength(1);
+    expect(quote.line_ids).toEqual([20]);
+    expect(quote.calc?.lines).toHaveLength(1);
+    quote.status = 'sent';
+    expect(() => removeQuoteLine(quote, 0, empty)).toThrow(QuoteError);
+    const pending = createP13Quote({}, empty, actor());
+    pending.line_ids = [20];
+    putQuoteLines(pending, [t2Lines[0]!], '0', 10, empty);
+    pending.p13_approval_status = 'pending';
+    expect(() => removeQuoteLine(pending, 0, empty)).toThrow(QuoteError);
+    const controller = readFileSync(join(__dirname, 'quote.controller.ts'), 'utf8');
+    expect(controller).toContain("@Delete('proposals/:id/lines/:lineId')");
+    expect(controller).toContain("@Post('proposals/:id/lines')");
+    expect(readFileSync(join(__dirname, 'quote.service.ts'), 'utf8')).toContain('normalizeQuoteQty(line.qty)');
   });
 
   it('T13 freezes the submitted price when a newer version exists', () => {

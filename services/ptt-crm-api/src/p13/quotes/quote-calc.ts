@@ -121,6 +121,13 @@ export function notNullVnd(value: string | null | undefined): string {
   return value == null || value === '' ? '0' : value;
 }
 
+export function normalizeQuoteQty(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  const text = String(value).trim().replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(text)) return text;
+  return text.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+}
+
 function dong(value: Decimal): string {
   return value.toDecimalPlaces(0, Decimal.ROUND_HALF_UP).toFixed(0);
 }
