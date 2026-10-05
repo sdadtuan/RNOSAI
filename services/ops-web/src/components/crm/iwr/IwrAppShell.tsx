@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type ReactNode } from 'react';
+import { useStaffAvatarBlob } from '@/components/account/useStaffAvatarBlob';
 import type { StoredStaffUser } from '@/lib/auth';
 import { fetchIwrInbox, fetchIwrRisks, fetchIwrSearch, type IwrReportRow } from '@/lib/crm/iwr-api';
 import { IwrSendDrawer } from './IwrSendDrawer';
@@ -151,6 +152,7 @@ export function IwrAppShell({
   const role = iwrRoleLabel(user?.position_code, user?.job_functions);
   const department = iwrDepartmentLabel(user?.teams);
   const accountName = iwrAccountName(user);
+  const avatarUrl = useStaffAvatarBlob(token || null, Boolean(user?.has_avatar), user?.avatar_updated_at);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -196,9 +198,12 @@ export function IwrAppShell({
         </nav>
         <div className="iwr-aside__meta">
           <Link href="/account" className="iwr-aside__account">
-            <div className="iwr-aside__name">{accountName}</div>
-            <div>Vai trò: {role}</div>
-            <div>Bộ phận: {department}</div>
+            <AccountFace url={avatarUrl} initials={initials} />
+            <span>
+              <div className="iwr-aside__name">{accountName}</div>
+              <div>Vai trò: {role}</div>
+              <div>Bộ phận: {department}</div>
+            </span>
           </Link>
           <button type="button" className="iwr-aside__logout" onClick={onLogout}>
             Đăng xuất
@@ -240,7 +245,7 @@ export function IwrAppShell({
               aria-expanded={accountOpen}
               onClick={() => setAccountOpen((open) => !open)}
             >
-              <span className="iwr-avatar">{initials}</span>
+              <AccountFace url={avatarUrl} initials={initials} />
               <span className="iwr-account__name">{accountName}</span>
             </button>
             {accountOpen && (
@@ -268,6 +273,19 @@ export function IwrAppShell({
         <IwrSendDrawer open={drawerOpen} token={token} canWrite={!!canWrite} onClose={() => setDrawer(false)} />
       )}
     </div>
+  );
+}
+
+function AccountFace({ url, initials }: { url: string | null; initials: string }) {
+  return (
+    <span className="iwr-avatar" aria-hidden>
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="iwr-avatar__img" />
+      ) : (
+        initials
+      )}
+    </span>
   );
 }
 
