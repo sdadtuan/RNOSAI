@@ -83,3 +83,15 @@ export function iwrRoleLabel(positionCode?: string, jobFunctions?: string[]): st
   if (jobFunctions?.[0]) return jobFunctions[0];
   return 'Nhân sự';
 }
+
+export function iwrDepartmentLabel(teams: Array<{ name?: string | null }> | null | undefined): string {
+  const names = (teams ?? []).map((team) => String(team.name ?? '').trim()).filter(Boolean);
+  return names.length ? names.join(', ') : '—';
+}
+
+export function iwrAccountName(user: { display_name?: string | null; email?: string | null } | null | undefined): string {
+  const name = String(user?.display_name ?? '').trim();
+  if (name) return name;
+  const email = String(user?.email ?? '').trim();
+  return email || 'Tài khoản';
+}

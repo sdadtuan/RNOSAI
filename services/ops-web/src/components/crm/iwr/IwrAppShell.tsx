@@ -2,15 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState, type HTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type ReactNode } from 'react';
 import type { StoredStaffUser } from '@/lib/auth';
 import { fetchIwrInbox, fetchIwrRisks, fetchIwrSearch, type IwrReportRow } from '@/lib/crm/iwr-api';
 import { IwrSendDrawer } from './IwrSendDrawer';
-import { iwrInitials, iwrRoleLabel } from './iwr-format';
+import { iwrAccountName, iwrDepartmentLabel, iwrInitials, iwrRoleLabel } from './iwr-format';
 import './iwr-app.css';
 
+type IwrShellUser = StoredStaffUser & { teams?: Array<{ id?: number; name?: string | null }> };
+
 type IwrAppShellProps = {
-  user: StoredStaffUser | null;
+  user: IwrShellUser | null;
   token?: string;
   onLogout: () => void;
   loading?: boolean;
@@ -116,6 +118,8 @@ export function IwrAppShell({
   const [inboxCount, setInboxCount] = useState(0);
   const [riskCount, setRiskCount] = useState(0);
   const [innerSend, setInnerSend] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
   const drawerOpen = sendOpen ?? innerSend;
   const setDrawer = onSendOpenChange ?? setInnerSend;
 
@@ -145,6 +149,24 @@ export function IwrAppShell({
   const badges = useMemo(() => ({ inbox: inboxCount, risks: riskCount }), [inboxCount, riskCount]);
   const initials = iwrInitials(user?.display_name);
   const role = iwrRoleLabel(user?.position_code, user?.job_functions);
+  const department = iwrDepartmentLabel(user?.teams);
+  const accountName = iwrAccountName(user);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+    function onPointer(event: MouseEvent) {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setAccountOpen(false);
+    }
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [accountOpen]);
 
   return (
     <div className="iwr-app">
@@ -173,8 +195,11 @@ export function IwrAppShell({
           })}
         </nav>
         <div className="iwr-aside__meta">
-          <div>Vai trò: {role}</div>
-          <div>Bộ phận: {user?.tenant === 'ptt' ? 'PTT' : 'Nội bộ'}</div>
+          <Link href="/account" className="iwr-aside__account">
+            <div className="iwr-aside__name">{accountName}</div>
+            <div>Vai trò: {role}</div>
+            <div>Bộ phận: {department}</div>
+          </Link>
           <button type="button" className="iwr-aside__logout" onClick={onLogout}>
             Đăng xuất
           </button>
@@ -207,8 +232,33 @@ export function IwrAppShell({
             🔔
             {inboxCount > 0 && <span className="iwr-badge iwr-badge--danger">{inboxCount > 99 ? '99+' : inboxCount}</span>}
           </Link>
-          <div className="iwr-avatar" title={user?.display_name}>
-            {initials}
+          <div className="iwr-account" ref={accountRef}>
+            <button
+              type="button"
+              className="iwr-account__btn"
+              aria-haspopup="menu"
+              aria-expanded={accountOpen}
+              onClick={() => setAccountOpen((open) => !open)}
+            >
+              <span className="iwr-avatar">{initials}</span>
+              <span className="iwr-account__name">{accountName}</span>
+            </button>
+            {accountOpen && (
+              <div className="iwr-account__menu" role="menu">
+                <div className="iwr-account__who">
+                  <strong>{accountName}</strong>
+                  {user?.email && <div className="iwr-muted">{user.email}</div>}
+                  <div className="iwr-muted">Vai trò: {role}</div>
+                  <div className="iwr-muted">Bộ phận: {department}</div>
+                </div>
+                <Link href="/account" className="iwr-account__item" role="menuitem" onClick={() => setAccountOpen(false)}>
+                  Tài khoản
+                </Link>
+                <button type="button" className="iwr-account__item" role="menuitem" onClick={onLogout}>
+                  Đăng xuất
+                </button>
+              </div>
+            )}
           </div>
         </header>
         <main className="iwr-body">{loading || !user ? <p className="iwr-muted">Đang tải…</p> : children}</main>

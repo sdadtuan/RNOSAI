@@ -118,6 +118,24 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
+.iwr-aside__account {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.iwr-aside__account:hover {
+  color: #fff;
+}
+
+.iwr-aside__name {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+
 .iwr-aside__logout {
   margin-top: 8px;
   background: none;
@@ -222,6 +240,73 @@
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
+  flex: 0 0 36px;
+}
+
+.iwr-account {
+  position: relative;
+}
+
+.iwr-account__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.iwr-account__name {
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.iwr-account__menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  background: #fff;
+  border: 1px solid var(--iwr-line);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  padding: 8px;
+}
+
+.iwr-account__who {
+  padding: 8px 8px 10px;
+  border-bottom: 1px solid var(--iwr-line);
+  margin-bottom: 4px;
+}
+
+.iwr-account__who strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.iwr-account__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.iwr-account__item:hover {
+  background: #f8fafc;
 }
 
 .iwr-face {
