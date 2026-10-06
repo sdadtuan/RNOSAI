@@ -246,8 +246,44 @@ def main() -> int:
     content_view = grant("crm_content", "view")
     media_write = prefix_filtered("crm_media")
     media_view = prefix_filtered("crm_media", include={"view"})
-    cp_ds = prefix_filtered("crm_cp", exclude={"approve_legal"})
-    img_ds = prefix_filtered("crm_img", exclude={"admin"})
+    # Graphic design produces creative and image work. Legal, finance, brand-rule
+    # admin, high-cost render, and image admin stay with marketing leadership.
+    cp_ds = merge(
+        grant("crm_cp", "view", "edit"),
+        grant("crm_cp.render", "execute"),
+        grant("crm_cp.export_final", "execute"),
+        grant("crm_cp.publish", "execute"),
+        grant("crm_cp.brand", "edit"),
+    )
+    img_ds = merge(
+        grant("crm_img", "view", "edit"),
+        grant("crm_img.sop", "edit"),
+        grant("crm_img.render", "execute"),
+        grant("crm_img.gate1", "execute"),
+        grant("crm_img.gate2", "execute"),
+    )
+    kpi_ds = merge(
+        grant("crm_kpi_hub", "view"),
+        grant("crm_kpi_records", "view"),
+        grant("crm_kpi_chart", "view"),
+        grant("crm_kpi_alerts", "view"),
+        grant("crm_staff_kpi_am_sp", "view"),
+    )
+    media_ds = view_only(
+        "crm_media",
+        "crm_media.inventory",
+        "crm_media.packages",
+        "crm_media.campaigns",
+        "crm_media.evidence",
+        "crm_media.outcomes",
+    )
+    vd_ds = {
+        sid: ["view"]
+        for sid in sections
+        if sid.startswith("crm_vd.")
+        and sid not in ("crm_vd.admin", "crm_vd.budget")
+        and "view" in (section_actions.get(sid) or [])
+    }
     cp_ml = prefix_filtered("crm_cp")
     img_ml = prefix_filtered("crm_img")
     vd_write: dict[str, list[str]] = {}
@@ -426,11 +462,13 @@ def main() -> int:
             img_ds,
             ads_ds,
             content_view,
-            media_view,
-            vd_view,
-            kpi_view,
+            media_ds,
+            vd_ds,
+            kpi_ds,
             agency_view,
-            board_view,
+            grant("crm_board", "view"),
+            grant("crm_sop_runs", "view"),
+            grant("crm_assistant", "view"),
             iwr_view,
             grant("crm_hdsd", "view", "export"),
         ),

@@ -1233,32 +1233,12 @@
       "crm_board": [
         "view"
       ],
-      "crm_board_customers": [
-        "view"
-      ],
-      "crm_board_funnel": [
-        "view"
-      ],
-      "crm_board_kanban": [
-        "view"
-      ],
-      "crm_board_playbook": [
-        "view"
-      ],
-      "crm_board_workspace": [
-        "view"
-      ],
       "crm_content": [
         "view"
       ],
       "crm_cp": [
         "edit",
-        "manage",
-        "view",
-        "view_all"
-      ],
-      "crm_cp.approve_legal": [
-        "execute"
+        "view"
       ],
       "crm_cp.brand": [
         "edit"
@@ -1266,23 +1246,11 @@
       "crm_cp.export_final": [
         "execute"
       ],
-      "crm_cp.finance": [
-        "view"
-      ],
-      "crm_cp.manage_brand_rule": [
-        "manage"
-      ],
       "crm_cp.publish": [
         "execute"
       ],
       "crm_cp.render": [
         "execute"
-      ],
-      "crm_cp.render_high_cost": [
-        "execute"
-      ],
-      "crm_cp.view_audit": [
-        "view"
       ],
       "crm_facebook_ads": [
         "edit",
@@ -1294,14 +1262,6 @@
       ],
       "crm_img": [
         "edit",
-        "manage",
-        "view",
-        "view_all"
-      ],
-      "crm_img.admin": [
-        "manage"
-      ],
-      "crm_img.finance": [
         "view"
       ],
       "crm_img.gate1": [
@@ -1310,16 +1270,7 @@
       "crm_img.gate2": [
         "execute"
       ],
-      "crm_img.gate3": [
-        "execute"
-      ],
-      "crm_img.manage": [
-        "manage"
-      ],
       "crm_img.render": [
-        "execute"
-      ],
-      "crm_img.render_high_cost": [
         "execute"
       ],
       "crm_img.sop": [
@@ -1331,34 +1282,10 @@
       "crm_kpi_chart": [
         "view"
       ],
-      "crm_kpi_dictionary": [
-        "view"
-      ],
-      "crm_kpi_groups": [
-        "view"
-      ],
       "crm_kpi_hub": [
         "view"
       ],
-      "crm_kpi_hub_reports": [
-        "view"
-      ],
-      "crm_kpi_hub_sources": [
-        "view"
-      ],
-      "crm_kpi_hub_targets": [
-        "view"
-      ],
-      "crm_kpi_metrics": [
-        "view"
-      ],
-      "crm_kpi_quality": [
-        "view"
-      ],
       "crm_kpi_records": [
-        "view"
-      ],
-      "crm_kpi_types": [
         "view"
       ],
       "crm_media": [
@@ -1373,28 +1300,19 @@
       "crm_media.inventory": [
         "view"
       ],
-      "crm_media.margin": [
-        "view"
-      ],
       "crm_media.outcomes": [
         "view"
       ],
       "crm_media.packages": [
         "view"
       ],
-      "crm_media.settings": [
+      "crm_sop_runs": [
         "view"
       ],
       "crm_staff_kpi_am_sp": [
         "view"
       ],
-      "crm_vd.admin": [
-        "view"
-      ],
       "crm_vd.bible": [
-        "view"
-      ],
-      "crm_vd.budget": [
         "view"
       ],
       "crm_vd.delivery": [
