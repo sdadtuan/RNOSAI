@@ -37,7 +37,9 @@ export function IwrB2bProjectSelect({
         onChange(projectId, project);
       }}
     >
-      <option value="">{loading ? 'Đang tải dự án…' : '— Chọn dự án PTT —'}</option>
+      <option value="">
+        {loading ? 'Đang tải dự án…' : error ? 'Không tải được dự án' : '— Chọn dự án PTT —'}
+      </option>
       {projects.map((project) => (
         <option key={project.id} value={project.id}>
           {iwrB2bProjectOptionLabel(project)}

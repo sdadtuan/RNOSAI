@@ -1,3 +1,4 @@
+import { parseB2bProjectList, type B2bProjectListItem } from '@/lib/b2b-projects-api';
 import { API_BASE, ApiError, parseJson } from '@/lib/api';
 
 export const IWR_STATUSES = [
@@ -189,6 +190,11 @@ async function iwrFetch<T>(token: string, path: string, init?: RequestInit): Pro
     throw new ApiError(body.error ?? body.message ?? 'IWR request failed', res.status);
   }
   return body;
+}
+
+export async function fetchIwrB2bProjects(token: string): Promise<B2bProjectListItem[]> {
+  const body = await iwrFetch<unknown>(token, '/api/crm/iwr/b2b-projects');
+  return parseB2bProjectList(body);
 }
 
 export async function fetchIwrReports(

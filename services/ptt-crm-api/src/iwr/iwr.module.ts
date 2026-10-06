@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
+import { B2bProjectsModule } from '../b2b-projects/b2b-projects.module';
 import { CsdModule } from '../csd/csd.module';
 import { ConfigModule } from '../config/config.module';
 import { StaffAuthModule } from '../staff-auth/staff-auth.module';
 import { StaffIwrGuard } from './guards/staff-iwr.guard';
 import { IwrDistributionRepository } from './iwr-distribution.repository';
 import { IwrDistributionService } from './iwr-distribution.service';
+import { IwrB2bProjectsController } from './iwr-b2b-projects.controller';
 import { IwrInboxController } from './iwr-inbox.controller';
 import { IwrInboxService } from './iwr-inbox.service';
 import { IwrItemsService } from './iwr-items.service';
@@ -47,8 +49,9 @@ import { IwrPublicController } from './iwr-public.controller';
 import { IwrW6Repository } from './iwr-w6.repository';
 
 @Module({
-  imports: [ConfigModule, StaffAuthModule, CsdModule],
+  imports: [ConfigModule, StaffAuthModule, CsdModule, B2bProjectsModule],
   controllers: [
+    IwrB2bProjectsController,
     IwrInboxController,
     IwrReportsController,
     IwrTemplatesController,

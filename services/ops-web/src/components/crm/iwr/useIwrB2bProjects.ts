@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
+import { fetchIwrB2bProjects } from '@/lib/crm/iwr-api';
+import type { B2bProjectListItem } from '@/lib/b2b-projects-api';
 import { iwrB2bProjectCatalog } from './iwr-b2b-project';
 
 export function useIwrB2bProjects(token: string | null | undefined) {
@@ -18,7 +19,7 @@ export function useIwrB2bProjects(token: string | null | undefined) {
     let cancelled = false;
     setLoading(true);
     setError('');
-    void fetchB2bProjects(token)
+    void fetchIwrB2bProjects(token)
       .then((rows) => {
         if (cancelled) return;
         setProjects(rows.sort((a, b) => a.code.localeCompare(b.code, 'vi')));
