@@ -20,6 +20,8 @@ export type IwrItemMeta = {
   better?: 'higher' | 'lower';
   owner?: string;
   step?: number;
+  kpi_id?: number | null;
+  kpi_label?: string;
 };
 
 export function kpiDelta(target: number, actual: number, better: 'higher' | 'lower' = 'higher') {
@@ -56,6 +58,92 @@ export function serializeIwrItemMeta(meta: IwrItemMeta): string {
 
 export function iwrItemText(meta: IwrItemMeta): string {
   return String(meta.text ?? meta.note ?? '').trim();
+}
+
+const NEW_TASK_TITLE = 'Công việc mới';
+
+export function iwrTaskTitleInput(title: string | null | undefined): string {
+  const value = String(title ?? '');
+  return value.trim() === NEW_TASK_TITLE ? '' : value;
+}
+
+export function iwrNormalizeEvidenceUrl(raw: string): string {
+  const value = raw.trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  if (/^[\w.-]+\.[a-z]{2,}([/:?#].*)?$/i.test(value)) return `https://${value}`;
+  return value;
+}
+
+export function iwrTitleForKpi(current: string | null | undefined, metricName: string): string {
+  if (iwrTaskTitleInput(current).trim()) return String(current ?? '');
+  return metricName.trim() || String(current ?? '');
+}
+
+export type IwrKpiSource = {
+  id: number;
+  metric_name: string;
+  metric_unit?: string | null;
+  metric_higher_is_better?: number | null;
+  target_value: number | null;
+  actual_value: number | null;
+  status?: string | null;
+};
+
+export function iwrKpiProgress(row: IwrKpiSource): number {
+  const status = String(row.status ?? '').toLowerCase();
+  const target = Number(row.target_value);
+  const actual = Number(row.actual_value);
+  if (
+    row.target_value == null ||
+    row.actual_value == null ||
+    !Number.isFinite(target) ||
+    target === 0 ||
+    !Number.isFinite(actual)
+  ) {
+    return status === 'achieved' || status === 'ok' ? 100 : 0;
+  }
+  const higher = Number(row.metric_higher_is_better ?? 1) === 1;
+  const ratio = higher ? actual / target : target / Math.max(actual, 1e-9);
+  return clampProgress(ratio * 100);
+}
+
+export function iwrKpiSection(row: IwrKpiSource): 'done' | 'wip' {
+  const status = String(row.status ?? '').toLowerCase();
+  if (status === 'achieved' || status === 'ok' || iwrKpiProgress(row) >= 100) return 'done';
+  return 'wip';
+}
+
+export function iwrKpiItemSeed(row: IwrKpiSource): { section: 'done' | 'wip'; title: string; body: string } {
+  const section = iwrKpiSection(row);
+  return {
+    section,
+    title: row.metric_name.trim() || 'KPI',
+    body: serializeIwrItemMeta({
+      b2b_project_id: '',
+      project: '',
+      progress: iwrKpiProgress(row),
+      kpi_id: row.id,
+      kpi_label: row.metric_name,
+      note: iwrKpiScore(row),
+      eta: '',
+    }),
+  };
+}
+
+export function iwrKpiScore(row: {
+  actual_value: number | null;
+  target_value: number | null;
+  metric_unit?: string | null;
+}): string {
+  const fmt = (n: number | null) => (n == null || !Number.isFinite(Number(n)) ? '—' : String(n));
+  const unit = String(row.metric_unit ?? '').trim();
+  return `${fmt(row.actual_value)}/${fmt(row.target_value)}${unit ? ` ${unit}` : ''}`;
+}
+
+export function iwrVisibleEvidenceUrl(url: string | null | undefined): string {
+  const value = String(url ?? '').trim();
+  return /^https?:\/\//i.test(value) ? value : '';
 }
 
 export function clampProgress(value: unknown): number {

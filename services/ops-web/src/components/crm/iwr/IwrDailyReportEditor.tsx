@@ -17,6 +17,7 @@ import {
   type IwrReportDetail,
   type IwrReportStatus,
 } from '@/lib/crm/iwr-api';
+import { fetchStaffKpi, type StaffKpiGridEntry } from '@/lib/api';
 import { iwrAvatarTone, iwrInitials } from './iwr-format';
 import { IwrPeoplePicker, iwrInitialToChip, type IwrPersonChip } from './IwrPeoplePicker';
 import { IwrB2bProjectSelect } from './IwrB2bProjectSelect';
@@ -27,6 +28,12 @@ import {
   formatViYmd,
   isOverdueYmd,
   iwrItemText,
+  iwrKpiItemSeed,
+  iwrKpiScore,
+  iwrNormalizeEvidenceUrl,
+  iwrTaskTitleInput,
+  iwrTitleForKpi,
+  iwrVisibleEvidenceUrl,
   parseIwrItemMeta,
   serializeIwrItemMeta,
   type IwrItemMeta,
@@ -71,9 +78,89 @@ function evidenceLabel(item: IwrItemRow, meta: IwrItemMeta): string {
 }
 
 function evidenceHref(item: IwrItemRow): string | null {
-  const url = item.evidence_url ?? '';
-  if (/^https?:\/\//i.test(url)) return url;
-  return null;
+  const url = iwrVisibleEvidenceUrl(item.evidence_url);
+  return url || null;
+}
+
+function KpiPick({
+  rows,
+  kpiId,
+  kpiLabel,
+  disabled,
+  onChange,
+}: {
+  rows: StaffKpiGridEntry[] | null;
+  kpiId?: number | null;
+  kpiLabel?: string;
+  disabled?: boolean;
+  onChange: (id: string) => void;
+}) {
+  const selected = (rows ?? []).find((row) => row.id === kpiId);
+  const missing = kpiId != null && kpiId > 0 && !selected;
+  return (
+    <span className="iwr-kpi">
+      <select
+        aria-label="KPI"
+        disabled={disabled || rows == null}
+        title={rows != null && rows.length === 0 ? 'Chưa có KPI của người viết trong tháng này' : 'KPI tháng của người viết báo cáo'}
+        value={kpiId != null && kpiId > 0 ? String(kpiId) : ''}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">{rows == null ? 'Đang tải KPI…' : '— Chọn KPI —'}</option>
+        {missing && <option value={String(kpiId)}>{kpiLabel || `KPI #${kpiId}`}</option>}
+        {(rows ?? []).map((row) => (
+          <option key={row.id} value={String(row.id)}>
+            {row.metric_name}
+          </option>
+        ))}
+      </select>
+      {selected && <span className="iwr-muted">{iwrKpiScore(selected)}</span>}
+    </span>
+  );
+}
+
+function EvidenceUrlField({
+  url,
+  disabled,
+  onCommit,
+}: {
+  url: string | null;
+  disabled?: boolean;
+  onCommit: (next: string) => void;
+}) {
+  const external = iwrVisibleEvidenceUrl(url);
+  const [draft, setDraft] = useState(external);
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(external);
+  }, [external]);
+
+  return (
+    <label className="iwr-task__url">
+      <span className="iwr-muted">URL bằng chứng</span>
+      <input
+        className="iwr-input"
+        disabled={disabled}
+        placeholder="Dán link, ví dụ https://..."
+        value={draft}
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onBlur={() => {
+          focused.current = false;
+          const next = iwrNormalizeEvidenceUrl(draft);
+          setDraft(next);
+          if (next !== external) onCommit(next);
+        }}
+        onChange={(e) => {
+          const next = e.target.value;
+          setDraft(next);
+          onCommit(next);
+        }}
+      />
+    </label>
+  );
 }
 
 export function IwrDailyReportEditor({
@@ -135,6 +222,26 @@ export function IwrDailyReportEditor({
       .then((out) => setSuggestHits(out.items ?? []))
       .catch(() => undefined);
   }, [token, report.id]);
+
+  const [kpiRows, setKpiRows] = useState<StaffKpiGridEntry[] | null>(null);
+  useEffect(() => {
+    const [year, month] = report.period_start.split('-').map((part) => Number(part));
+    if (!year || !month || !report.author_staff_id) {
+      setKpiRows([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchStaffKpi(token, { year, month, staff_id: report.author_staff_id })
+      .then((rows) => {
+        if (!cancelled) setKpiRows(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setKpiRows([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, report.period_start, report.author_staff_id]);
 
   useEffect(() => {
     setTitle(report.title);
@@ -274,6 +381,85 @@ export function IwrDailyReportEditor({
   function updateMeta(row: IwrItemRow, patch: Partial<IwrItemMeta>, extra?: Partial<IwrItemRow>) {
     const meta = { ...parseIwrItemMeta(row.body), ...patch };
     replaceItem({ ...row, ...extra, body: serializeIwrItemMeta(meta) });
+  }
+
+  function applyKpi(row: IwrItemRow, kpiId: string) {
+    const hit = (kpiRows ?? []).find((entry) => String(entry.id) === kpiId);
+    if (!hit) {
+      updateMeta(row, { kpi_id: null, kpi_label: '' });
+      return;
+    }
+    const seed = iwrKpiItemSeed(hit);
+    const title = iwrTitleForKpi(row.title, hit.metric_name);
+    updateMeta(
+      row,
+      { ...parseIwrItemMeta(seed.body), kpi_id: hit.id, kpi_label: hit.metric_name },
+      { title, section_key: seed.section },
+    );
+  }
+
+  async function pourKpi() {
+    if (readOnly) return;
+    const source = kpiRows ?? [];
+    if (!source.length) {
+      setFormError('Không có KPI của người viết trong tháng này.');
+      return;
+    }
+    const linked = new Set(
+      items
+        .map((it) => parseIwrItemMeta(it.body).kpi_id)
+        .filter((id): id is number => id != null && id > 0),
+    );
+    const pending = source.filter((row) => !linked.has(row.id));
+    if (!pending.length) {
+      setFormError('KPI tháng này đã có trên báo cáo.');
+      return;
+    }
+    setBusy(true);
+    setFormError('');
+    try {
+      let next = [...items];
+      const blanks = next.filter((it) => {
+        if (it.section_key !== 'done' && it.section_key !== 'wip') return false;
+        const meta = parseIwrItemMeta(it.body);
+        return !(meta.kpi_id != null && meta.kpi_id > 0) && !iwrTaskTitleInput(it.title).trim();
+      });
+      const used = new Set<string>();
+      for (const row of pending) {
+        const seed = iwrKpiItemSeed(row);
+        const blank =
+          blanks.find((it) => !used.has(it.id) && it.section_key === seed.section) ??
+          blanks.find((it) => !used.has(it.id));
+        if (blank) {
+          used.add(blank.id);
+          const patched = await patchIwrItem(token, report.id, blank.id, {
+            section_key: seed.section,
+            title: seed.title,
+            body: seed.body,
+          });
+          next = next.map((it) => (it.id === blank.id ? { ...patched, body: seed.body } : it));
+          continue;
+        }
+        const created = await addIwrItem(token, report.id, {
+          section_key: seed.section,
+          title: seed.title,
+          body: seed.body,
+          ref_kind: 'none',
+          ref_id: null,
+          evidence_url: null,
+          sort_order: next.filter((it) => it.section_key === seed.section).length,
+        });
+        next = [...next, { ...created, body: created.body || seed.body }];
+      }
+      setItems(next);
+      scheduleDraft(title, ccPeople.map((p) => p.id), next);
+      setSavedAt(new Date());
+      setSaveState('saved');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Đổ KPI thất bại');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createItem(section: 'done' | 'wip' | 'next' | 'blocked', seed?: Partial<IwrItemRow>) {
@@ -549,30 +735,43 @@ export function IwrDailyReportEditor({
       <div className="iwr-daily__grid">
         <div className="iwr-daily__main">
           <section className="iwr-card">
-            <h2>Kết quả đã hoàn thành</h2>
+            <div className="iwr-section__head">
+              <h2>Kết quả đã hoàn thành</h2>
+              {!readOnly && (
+                <button type="button" className="iwr-btn" disabled={busy || kpiRows == null} onClick={() => void pourKpi()}>
+                  Đổ KPI vào
+                </button>
+              )}
+            </div>
             {doneItems.map((it, idx) => {
               const meta = parseIwrItemMeta(it.body);
               const file = evidenceLabel(it, meta);
               const href = evidenceHref(it);
               return (
                 <article key={it.id} className="iwr-task">
-                  <label className="iwr-check">
-                    <input
-                      type="checkbox"
-                      checked
-                      disabled={readOnly}
-                      onChange={() => void moveSection(it, 'wip')}
-                    />
-                    <span>
-                      {idx + 1}.{' '}
+                  <div className="iwr-task__head">
+                    <label className="iwr-check">
                       <input
-                        className="iwr-ghost"
+                        type="checkbox"
+                        checked
                         disabled={readOnly}
-                        value={it.title}
-                        onChange={(e) => replaceItem({ ...it, title: e.target.value })}
+                        onChange={() => void moveSection(it, 'wip')}
                       />
-                    </span>
-                  </label>
+                      <span>{idx + 1}.</span>
+                    </label>
+                    <input
+                      className="iwr-input iwr-task__title"
+                      disabled={readOnly}
+                      placeholder="Tên công việc"
+                      value={iwrTaskTitleInput(it.title)}
+                      onChange={(e) => replaceItem({ ...it, title: e.target.value })}
+                    />
+                    {!readOnly && (
+                      <button type="button" className="iwr-iconbtn" onClick={() => void removeItem(it.id)}>
+                        Xoá
+                      </button>
+                    )}
+                  </div>
                   <div className="iwr-task__meta">
                     <IwrB2bProjectSelect
                       token={token}
@@ -585,18 +784,15 @@ export function IwrDailyReportEditor({
                       disabled={readOnly}
                       onChange={(n) => updateMeta(it, { progress: n })}
                     />
+                    <KpiPick
+                      rows={kpiRows}
+                      kpiId={meta.kpi_id}
+                      kpiLabel={meta.kpi_label}
+                      disabled={readOnly}
+                      onChange={(id) => applyKpi(it, id)}
+                    />
                     <div className="iwr-evidence">
-                      {file ? (
-                        href ? (
-                          <a href={href} target="_blank" rel="noreferrer" className="iwr-link">
-                            {file}
-                          </a>
-                        ) : (
-                          <span>{file}</span>
-                        )
-                      ) : (
-                        <span className="iwr-muted">Chưa có bằng chứng</span>
-                      )}
+                      {file && !href ? <span>{file}</span> : <span className="iwr-muted">Chưa có file</span>}
                       {!readOnly && (
                         <label className="iwr-link">
                           + File
@@ -611,26 +807,22 @@ export function IwrDailyReportEditor({
                           />
                         </label>
                       )}
-                      {!readOnly && (
-                        <input
-                          className="iwr-ghost iwr-ghost--url"
-                          placeholder="Hoặc dán URL"
-                          value={/^https?:\/\//i.test(it.evidence_url ?? '') ? it.evidence_url ?? '' : ''}
-                          onChange={(e) =>
-                            updateMeta(it, { evidence_name: evidenceLabel({ ...it, evidence_url: e.target.value }, meta) }, {
-                              evidence_url: e.target.value || null,
-                            })
-                          }
-                        />
-                      )}
                     </div>
                     {it.ref_kind !== 'none' && <span className="iwr-muted">{it.ref_kind}</span>}
-                    {!readOnly && (
-                      <button type="button" className="iwr-iconbtn" onClick={() => void removeItem(it.id)}>
-                        Xoá
-                      </button>
-                    )}
                   </div>
+                  {readOnly && href ? (
+                    <a href={href} target="_blank" rel="noreferrer" className="iwr-link iwr-task__url-link">
+                      {href}
+                    </a>
+                  ) : (
+                    <EvidenceUrlField
+                      url={it.evidence_url}
+                      disabled={readOnly}
+                      onCommit={(next) =>
+                        updateMeta(it, { evidence_name: next ? '' : meta.evidence_name }, { evidence_url: next || null })
+                      }
+                    />
+                  )}
                 </article>
               );
             })}
@@ -649,6 +841,7 @@ export function IwrDailyReportEditor({
                 <tr>
                   <th>Công việc</th>
                   <th>Dự án</th>
+                  <th>KPI</th>
                   <th>Tiến độ</th>
                   <th>ETA</th>
                   <th />
@@ -673,6 +866,15 @@ export function IwrDailyReportEditor({
                           disabled={readOnly}
                           value={meta.b2b_project_id ?? ''}
                           onChange={(_, project) => updateMeta(it, iwrProjectMetaPatch(project))}
+                        />
+                      </td>
+                      <td>
+                        <KpiPick
+                          rows={kpiRows}
+                          kpiId={meta.kpi_id}
+                          kpiLabel={meta.kpi_label}
+                          disabled={readOnly}
+                          onChange={(id) => applyKpi(it, id)}
                         />
                       </td>
                       <td>
@@ -703,7 +905,7 @@ export function IwrDailyReportEditor({
                 })}
                 {!wipItems.length && (
                   <tr>
-                    <td colSpan={5} className="iwr-empty">
+                    <td colSpan={6} className="iwr-empty">
                       Không có việc đang làm
                     </td>
                   </tr>

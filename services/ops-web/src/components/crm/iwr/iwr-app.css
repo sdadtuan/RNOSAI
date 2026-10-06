@@ -1076,12 +1076,67 @@
   font-weight: 600;
 }
 
+.iwr-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.iwr-section__head h2 {
+  margin: 0;
+}
+
+.iwr-kpi {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+}
+
+.iwr-kpi select {
+  max-width: 180px;
+  border: 1px solid var(--iwr-line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.iwr-task__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iwr-task__title {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  font-weight: 650;
+}
+
 .iwr-task__meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin: 8px 0 0 24px;
+  margin: 8px 0 0 28px;
+}
+
+.iwr-task__url {
+  display: block;
+  margin: 8px 0 0 28px;
+}
+
+.iwr-task__url .iwr-input {
+  margin-top: 4px;
+}
+
+.iwr-task__url-link {
+  display: block;
+  margin: 8px 0 0 28px;
+  word-break: break-all;
 }
 
 .iwr-tag {
