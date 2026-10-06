@@ -200,4 +200,52 @@ describe('buildNavTree IA', () => {
       }
     }
   });
+
+  it('Graphic Designer sees production work, not sales, HR, finance, or admin', () => {
+    const gd: StoredStaffUser = {
+      id: 'gd-1',
+      email: 'gd@pttads.vn',
+      display_name: 'GD',
+      position_id: 11,
+      position_code: 'GD',
+      caps: [
+        cap('csd', 'view'),
+        cap('csd', 'write'),
+        cap('crm_cp', 'view'),
+        cap('crm_cp', 'edit'),
+        cap('crm_img', 'view'),
+        cap('crm_facebook_ads', 'view'),
+        cap('crm_facebook_ads', 'edit'),
+        cap('meta_campaign_write', 'view'),
+        cap('crm_content', 'view'),
+        cap('crm_media', 'view'),
+        cap('crm_vd.project', 'view'),
+        cap('crm_staff_kpi_am_sp', 'view'),
+        cap('crm_agency', 'view'),
+        cap('crm_sop_runs', 'view'),
+        cap('iwr', 'view'),
+        cap('iwr', 'write'),
+      ],
+    };
+    const tree = buildNavTree(gd, { imageSopEnabled: true });
+    const ids = tree.map((i) => i.id);
+    expect(ids).toEqual(
+      expect.arrayContaining(['overview', 'csd', 'agency', 'ads', 'production', 'my-kpi', 'iwr']),
+    );
+    for (const hidden of ['sales', 'crm', 'kpi', 'hr', 'finance', 'admin']) {
+      expect(ids).not.toContain(hidden);
+    }
+    const production = tree.find((i) => i.id === 'production');
+    const labels = production?.kind === 'parent' ? production.children.map((c) => c.label) : [];
+    expect(labels).toEqual(
+      expect.arrayContaining(['Creative OS', 'Creative Hub', 'Campaign Write', 'Quy trình SOP']),
+    );
+    expect(labels).not.toContain('Ops Dashboard');
+    const agency = tree.find((i) => i.id === 'agency');
+    const agencyLabels = agency?.kind === 'parent' ? agency.children.map((c) => c.label) : [];
+    expect(agencyLabels).toEqual(['Agency Hub', 'Thông báo']);
+    const iwr = tree.find((i) => i.id === 'iwr');
+    const iwrLabels = iwr?.kind === 'parent' ? iwr.children.map((c) => c.label) : [];
+    expect(iwrLabels).toEqual(['Báo cáo công việc', 'Hộp thư']);
+  });
 });

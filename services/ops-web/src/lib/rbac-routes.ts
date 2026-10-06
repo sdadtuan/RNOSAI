@@ -72,7 +72,6 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
       { section: 'ai_admin', action: 'view' },
       { section: 'crm_mkt_ai', action: 'view' },
       { section: 'crm_mkt_ai', action: 'approve' },
-      { section: 'crm_board', action: 'view' },
     ],
   },
   {
@@ -260,6 +259,13 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
   {
     prefix: '/crm/ceo',
     anyOf: CEO_COMMAND_VIEW_CAP_REQUIREMENTS,
+  },
+  {
+    prefix: '/crm/staff-kpi',
+    anyOf: [
+      { section: 'crm_staff_kpi_am_sp', action: 'view' },
+      { section: 'crm_kpi_records', action: 'view' },
+    ],
   },
   {
     prefix: '/crm/health',

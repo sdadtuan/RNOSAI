@@ -1490,8 +1490,6 @@ FROM crm_positions p
 CROSS JOIN (VALUES
 
   ('crm_agency', 'view'),
-  ('crm_assistant', 'view'),
-  ('crm_board', 'view'),
   ('crm_content', 'view'),
   ('crm_cp', 'edit'),
   ('crm_cp', 'view'),
@@ -1509,10 +1507,6 @@ CROSS JOIN (VALUES
   ('crm_img.gate2', 'execute'),
   ('crm_img.render', 'execute'),
   ('crm_img.sop', 'edit'),
-  ('crm_kpi_alerts', 'view'),
-  ('crm_kpi_chart', 'view'),
-  ('crm_kpi_hub', 'view'),
-  ('crm_kpi_records', 'view'),
   ('crm_media', 'view'),
   ('crm_media.campaigns', 'view'),
   ('crm_media.evidence', 'view'),

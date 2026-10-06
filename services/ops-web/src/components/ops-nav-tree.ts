@@ -311,8 +311,14 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   const agency: NavChild[] = [];
   if (hasCap(user, 'crm_agency', 'view')) {
     agency.push(child('agency-hub', 'Agency Hub', '/agency'));
-    agency.push(child('agency-ingest', 'Ingest', '/agency/ingest'));
     agency.push(child('agency-notif', 'Thông báo', '/agency/notifications', agencyUnread));
+  }
+  if (
+    hasCap(user, 'crm_agency', 'edit') ||
+    hasCap(user, 'crm_agency', 'create') ||
+    hasCap(user, 'crm_agency', 'configure')
+  ) {
+    agency.push(child('agency-ingest', 'Ingest', '/agency/ingest'));
     agency.push(child('agency-kpi', 'Định nghĩa KPI', '/agency/kpi-definitions'));
   }
   if (agency.length) items.push(parent('agency', 'Agency', 'agency', agency));
@@ -391,7 +397,7 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
 
   // 10. Sản xuất
   const production: NavChild[] = [];
-  if (hasCap(user, 'crm_board', 'view')) {
+  if (hasCap(user, 'crm_sop_runs', 'view') || hasCap(user, 'crm_board', 'view')) {
     production.push(child('prod-delivery', 'Triển khai dịch vụ', '/crm/service-delivery'));
   }
   if (shouldShowContentOsNav(user)) {
@@ -409,11 +415,21 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   if (shouldShowVideoSopNav(user)) {
     production.push(child('prod-video', 'Video SOP', '/crm/video'));
   }
-  if (hasCap(user, 'crm_board', 'view')) {
+  if (
+    hasCap(user, 'crm_cp', 'view') ||
+    hasCap(user, 'crm_facebook_ads', 'view') ||
+    hasCap(user, 'crm_board', 'view')
+  ) {
     production.push(child('prod-creatives', 'Creative Hub', '/crm/creatives'));
+  }
+  if (hasCap(user, 'meta_campaign_write', 'view') || hasCap(user, 'crm_board', 'view')) {
     production.push(child('prod-writes', 'Campaign Write', '/crm/campaign-writes'));
+  }
+  if (hasCap(user, 'crm_sop_runs', 'view') || hasCap(user, 'crm_board', 'view')) {
     production.push(child('prod-sop', 'Quy trình SOP', '/crm/sop'));
     production.push(child('prod-qa', 'Launch QA', '/crm/launch-qa'));
+  }
+  if (hasCap(user, 'crm_board', 'view')) {
     if (isOpsDvFeEnabled()) {
       production.push(child('prod-ops-cat', 'Catalog DV21', '/crm/ops/catalog'));
       production.push(child('prod-ops-dash', 'Ops Dashboard', '/crm/ops/dashboard'));
@@ -495,7 +511,6 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
     hasCap(user, 'crm_payroll_salary', 'view') ||
     hasCap(user, 'crm_payroll_attendance', 'view') ||
     hasCap(user, 'crm_kpi_records', 'view') ||
-    hasCap(user, 'crm_staff_kpi_am_sp', 'view') ||
     hasCap(user, 'crm_data_config', 'view');
   if (canHrHub) {
     hr.push(child('hr-hub', 'HR Hub', '/crm/hr'));
@@ -506,7 +521,7 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   if (hasCap(user, 'crm_kpi_records', 'view')) {
     hr.push(child('hr-kpi', 'KPI', '/crm/kpi'));
   }
-  if (hasCap(user, 'crm_staff_kpi_am_sp', 'view')) {
+  if (canHrHub && hasCap(user, 'crm_staff_kpi_am_sp', 'view')) {
     hr.push(child('hr-am-sp', 'KPI AM/SP', '/crm/staff-kpi'));
   }
   if (
@@ -532,6 +547,15 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
     hr.push(child('hr-coach', 'Coach digest', '/crm/ai/coach'));
   }
   if (hr.length) items.push(parent('hr', 'Nhân sự', 'staff', hr));
+  else if (hasCap(user, 'crm_staff_kpi_am_sp', 'view')) {
+    items.push({
+      kind: 'leaf',
+      id: 'my-kpi',
+      label: 'KPI của tôi',
+      href: '/crm/staff-kpi',
+      icon: 'kpi',
+    });
+  }
 
   // 14. Tài chính — not opened by crm_agency.view alone (AE matrix = —)
   const finance: NavChild[] = [];
@@ -545,7 +569,6 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
     finance.push(child('fin-nl', 'NL Analytics', '/crm/ai/query'));
   }
   if (
-    hasCap(user, 'crm_board', 'view') ||
     hasCap(user, 'ai_admin', 'view') ||
     hasCap(user, 'crm_am', 'view') ||
     hasCap(user, 'crm_am.finance', 'view') ||
@@ -566,21 +589,29 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   // 16. Báo cáo nội bộ
   const iwr: NavChild[] = [];
   if (canSeeIwrNav(user)) {
+    const iwrLead =
+      hasCap(user, 'iwr', 'review') ||
+      hasCap(user, 'iwr', 'manage') ||
+      hasCap(user, 'iwr', 'executive');
     iwr.push(child('iwr-home', 'Báo cáo công việc', '/crm/internal-reports'));
     iwr.push(child('iwr-inbox', 'Hộp thư', '/crm/internal-reports/inbox'));
-    iwr.push(child('iwr-dash', 'Dashboard', '/crm/internal-reports/dashboards'));
-    iwr.push(child('iwr-team', 'Cây kỳ', '/crm/internal-reports/team'));
+    if (iwrLead) {
+      iwr.push(child('iwr-dash', 'Dashboard', '/crm/internal-reports/dashboards'));
+      iwr.push(child('iwr-team', 'Cây kỳ', '/crm/internal-reports/team'));
+      iwr.push(child('iwr-risk', 'Blocker & Rủi ro', '/crm/internal-reports/risks'));
+    }
     if (hasCap(user, 'iwr', 'schedule') || hasCap(user, 'iwr', 'manage')) {
       iwr.push(child('iwr-sched', 'Lịch BC', '/crm/internal-reports/schedules'));
     }
     if (hasCap(user, 'iwr', 'lists') || hasCap(user, 'iwr', 'manage')) {
       iwr.push(child('iwr-lists', 'DS phân phối', '/crm/internal-reports/lists'));
     }
-    iwr.push(child('iwr-builder', 'Report builder', '/crm/internal-reports/builder'));
+    if (hasCap(user, 'iwr', 'manage') || hasCap(user, 'iwr', 'executive')) {
+      iwr.push(child('iwr-builder', 'Report builder', '/crm/internal-reports/builder'));
+    }
     if (hasCap(user, 'iwr', 'manage')) {
       iwr.push(child('iwr-tpl', 'Mẫu BC nội bộ', '/crm/internal-reports/templates'));
     }
-    iwr.push(child('iwr-risk', 'Blocker & Rủi ro', '/crm/internal-reports/risks'));
   }
   if (iwr.length) items.push(parent('iwr', 'Báo cáo nội bộ', 'report', iwr));
 

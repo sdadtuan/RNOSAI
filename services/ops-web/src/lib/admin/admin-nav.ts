@@ -44,7 +44,6 @@ export function canViewAdminSection(user: StoredStaffUser | null): boolean {
     hasCap(user, 'crm_staff_roster', 'view') ||
     hasCap(user, 'crm_kpi_groups', 'view') ||
     hasCap(user, 'crm_kpi_types', 'view') ||
-    hasCap(user, 'crm_kpi_hub', 'view') ||
     hasCap(user, 'ai_admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'view') ||
     hasCap(user, 'crm_vd.admin', 'create') ||
@@ -345,11 +344,7 @@ export function buildAdminSidebarLinks(user: StoredStaffUser | null): ModuleNavL
   if (canViewAdminSection(user)) {
     links.push({ href: '/admin', label: 'Trung tâm quản trị' });
   }
-  if (
-    hasCap(user, 'ai_admin', 'view') ||
-    hasCap(user, 'crm_mkt_ai', 'view') ||
-    hasCap(user, 'crm_board', 'view')
-  ) {
+  if (hasCap(user, 'ai_admin', 'view') || hasCap(user, 'crm_mkt_ai', 'view')) {
     links.push({ href: '/crm/admin/strategy-packs', label: 'Strategy packs' });
   }
   if (canViewLeadSlaAdmin(user)) {

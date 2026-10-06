@@ -262,13 +262,7 @@ def main() -> int:
         grant("crm_img.gate1", "execute"),
         grant("crm_img.gate2", "execute"),
     )
-    kpi_ds = merge(
-        grant("crm_kpi_hub", "view"),
-        grant("crm_kpi_records", "view"),
-        grant("crm_kpi_chart", "view"),
-        grant("crm_kpi_alerts", "view"),
-        grant("crm_staff_kpi_am_sp", "view"),
-    )
+    # Personal score only. Hub, dictionary, and HR roster stay with leadership.
     media_ds = view_only(
         "crm_media",
         "crm_media.inventory",
@@ -464,11 +458,9 @@ def main() -> int:
             content_view,
             media_ds,
             vd_ds,
-            kpi_ds,
+            grant("crm_staff_kpi_am_sp", "view"),
             agency_view,
-            grant("crm_board", "view"),
             grant("crm_sop_runs", "view"),
-            grant("crm_assistant", "view"),
             iwr_view,
             grant("crm_hdsd", "view", "export"),
         ),
