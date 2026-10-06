@@ -1,4 +1,10 @@
-import { IWR_DAILY_DUE_HOUR, IWR_TZ, type IwrPeriod, type IwrTemplateCode } from './iwr.types';
+import {
+  IWR_DAILY_DUE_HOUR,
+  IWR_DAILY_SUBMIT_HOUR,
+  IWR_TZ,
+  type IwrPeriod,
+  type IwrTemplateCode,
+} from './iwr.types';
 
 export function vnYmd(now: Date, tz = IWR_TZ): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -68,7 +74,7 @@ export function iwrPeriodForTemplate(code: IwrTemplateCode, now: Date): IwrPerio
     return {
       period_start: today,
       period_end: today,
-      due_at: dueAtFromYmd(today),
+      due_at: dueAtFromYmd(today, IWR_DAILY_SUBMIT_HOUR),
     };
   }
 

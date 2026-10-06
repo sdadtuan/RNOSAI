@@ -12,12 +12,12 @@ describe('iwr-period.util', () => {
     expect(isIwrWorkday('2026-09-06')).toBe(false);
   });
 
-  it('daily due is 17:00 VN same day', () => {
+  it('daily due is 22:00 VN same day', () => {
     const p = iwrPeriodForTemplate('daily_work', new Date('2026-09-03T09:00:00+07:00'));
     expect(p).toEqual({
       period_start: '2026-09-03',
       period_end: '2026-09-03',
-      due_at: '2026-09-03T17:00:00.000+07:00',
+      due_at: '2026-09-03T22:00:00.000+07:00',
     });
   });
 

@@ -1,6 +1,8 @@
 export const IWR_TENANT_ID = 'PTT';
 export const IWR_TZ = 'Asia/Ho_Chi_Minh';
 export const IWR_DAILY_DUE_HOUR = 17;
+/** Báo cáo ngày: hạn gửi 22:00 ICT. Tuần/tháng giữ IWR_DAILY_DUE_HOUR. */
+export const IWR_DAILY_SUBMIT_HOUR = 22;
 
 export const IWR_STATUSES = [
   'draft',
@@ -63,6 +65,7 @@ export type IwrStaffNode = {
   department_id: number | null;
   reports_to_id: number | null;
   active: boolean;
+  position_code?: string | null;
 };
 
 export const IWR_DAILY_SECTIONS = [

@@ -930,6 +930,49 @@
   background: #f1f5f9;
 }
 
+.iwr-chip--template {
+  margin-left: 8px;
+  background: #e0e7ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
+}
+
+.iwr-chip--late {
+  margin-left: 8px;
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.iwr-tips {
+  margin: 8px 0 12px;
+  padding-left: 1.2rem;
+  color: #52606d;
+  font-size: 13px;
+}
+
+.iwr-tips li {
+  margin: 2px 0;
+}
+
+.iwr-summary-input,
+.iwr-task__desc {
+  width: 100%;
+  min-height: 72px;
+  margin-top: 8px;
+}
+
+.iwr-rolefields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.iwr-rolefields .iwr-input {
+  min-width: 160px;
+}
+
 .iwr-chip--submitted,
 .iwr-chip--acknowledged,
 .iwr-chip--supplemented {

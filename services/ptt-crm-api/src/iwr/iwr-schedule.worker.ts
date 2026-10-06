@@ -1,4 +1,5 @@
 import { isIwrWorkday, vnYmd } from './iwr-period.util';
+import { IWR_DAILY_SUBMIT_HOUR } from './iwr.types';
 import type { IwrScheduleRow } from './iwr.types';
 
 export function reminderEventKey(
@@ -58,7 +59,7 @@ export async function tickIwrSchedules(deps: IwrScheduleWorkerDeps, now = new Da
           reviewer_staff_id: s.reports_to_id!,
           ymd,
           title: `Báo cáo ngày ${ymd}`,
-          due_at: `${ymd}T17:00:00.000+07:00`,
+          due_at: `${ymd}T${String(IWR_DAILY_SUBMIT_HOUR).padStart(2, '0')}:00:00.000+07:00`,
         });
         await deps.notify(s.id, key, 'Báo cáo ngày mới', `Nháp BC ngày ${ymd} đã được tạo`, reportId);
         ran += 1;

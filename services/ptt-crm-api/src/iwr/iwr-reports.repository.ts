@@ -124,9 +124,11 @@ export class IwrOrgRepository implements OnModuleDestroy {
 
   async getStaff(id: number): Promise<IwrStaffNode | null> {
     const res = await this.db.query(
-      `SELECT id, name, email, department_id, reports_to_id, active
-         FROM crm_staff
-        WHERE id = $1 AND active = TRUE
+      `SELECT s.id, s.name, s.email, s.department_id, s.reports_to_id, s.active,
+              p.code AS position_code
+         FROM crm_staff s
+         LEFT JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.id = $1 AND s.active = TRUE
         LIMIT 1`,
       [id],
     );
@@ -139,6 +141,7 @@ export class IwrOrgRepository implements OnModuleDestroy {
       department_id: num(row.department_id),
       reports_to_id: num(row.reports_to_id),
       active: Boolean(row.active),
+      position_code: row.position_code != null ? text(row.position_code) : null,
     };
   }
 

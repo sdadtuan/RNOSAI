@@ -94,6 +94,12 @@ export class IwrReportsController {
     return this.reports.listMine(await this.actor(req), { status, template_code });
   }
 
+  @Get('daily-meta')
+  @RequireIwrAction('view')
+  async dailyMeta(@Req() req: AuthedReq) {
+    return this.reports.dailyMeta(await this.actor(req));
+  }
+
   @Get(':id/export.xlsx')
   @RequireIwrAction('export')
   async exportXlsx(@Req() req: AuthedReq, @Param('id') id: string, @Res() res: Response) {

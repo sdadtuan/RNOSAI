@@ -4,12 +4,27 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { CsdAuditRepository } from '../csd/csd-audit.repository';
 import { CsdNotificationsRepository } from '../csd/csd-notifications.repository';
 import { buildPdfSections, renderIwrReportCsv, renderIwrReportPdf, renderIwrReportXlsx } from './iwr-export.util';
 import { isOnPath, ancestorIds } from './iwr-org.util';
 import { isIwrLate, isIwrWorkday, iwrPeriodForTemplate, vnYmd } from './iwr-period.util';
+import {
+  applyDailyTemplate,
+  dailyDueAt,
+  DAILY_SLA_THRESHOLD_PCT,
+  FALLBACK_TIPS,
+  ictYmd,
+  metricFieldsFor,
+  reportTemplateForPosition,
+  sanitizeDailyMetrics,
+  templateSpec,
+  validateDailyReport,
+  type DailyReportLine,
+  type DailyReportTemplateCode,
+} from './daily-report-template';
 import { computeRagHint } from './iwr-rag.util';
 import {
   assertCanReceive,
@@ -61,6 +76,44 @@ function extractRag(report: IwrReportRow): IwrRag | null {
   return null;
 }
 
+function dailyLineFromItem(item: IwrItemRow): DailyReportLine | null {
+  if (item.section_key !== 'done' && item.section_key !== 'wip' && item.section_key !== 'blocked' && item.section_key !== 'next') {
+    return null;
+  }
+  let meta: Record<string, unknown> = {};
+  const raw = String(item.body ?? '').trim();
+  if (raw.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) meta = parsed as Record<string, unknown>;
+    } catch {
+      meta = { text: raw };
+    }
+  } else if (raw) {
+    meta = { text: raw };
+  }
+  const kpiId = meta.kpi_id;
+  return {
+    section: item.section_key,
+    title: item.title ?? '',
+    text: String(meta.text ?? meta.note ?? ''),
+    project: String(meta.project ?? ''),
+    kpi: String(meta.kpi_label ?? (kpiId != null && String(kpiId) !== '' ? kpiId : '')),
+    kpiWaived: Boolean(meta.kpi_waived),
+    kpiWaiveReason: String(meta.kpi_waive_reason ?? ''),
+    progress: meta.progress == null || meta.progress === '' ? null : Number(meta.progress),
+    eta: String(meta.eta ?? ''),
+    evidenceUrl: String(item.evidence_url ?? ''),
+    evidenceName: String(meta.evidence_name ?? ''),
+    assetType: String(meta.asset_type ?? ''),
+    campaign: String(meta.campaign ?? ''),
+    adAccount: String(meta.ad_account ?? ''),
+    customerAccount: String(meta.customer_account ?? ''),
+    meeting: Boolean(meta.meeting),
+    calendarUrl: String(meta.calendar_url ?? ''),
+  };
+}
+
 @Injectable()
 export class IwrReportsService {
   /** Test override */
@@ -87,6 +140,83 @@ export class IwrReportsService {
       throw new ForbiddenException({ error: err.error });
     }
     throw err;
+  }
+
+  async dailyMeta(actor: IwrActor) {
+    const staff = actor.staffId > 0 ? await this.org.getStaff(actor.staffId) : null;
+    const template = reportTemplateForPosition(staff?.position_code);
+    const spec = templateSpec(template);
+    return {
+      report_template: template,
+      label: spec?.label ?? null,
+      tips: spec?.tips ?? FALLBACK_TIPS,
+      metric_fields: metricFieldsFor(template, false),
+      sla_enabled: false,
+      deadline_ict: '22:00',
+      crm_connected: false,
+      open_confirmations: [
+        'Đa vai trò: một mẫu primary theo chức vụ. [cần xác nhận]',
+        'Chưa gán mẫu thì không gửi được. [cần xác nhận]',
+        'Ngưỡng SLA 80 khi Admin bật cho team. [cần xác nhận]',
+        'Số CRM nhập tay cho đến khi có API. [cần xác nhận]',
+        'Deadline content trên task CRM chưa map. [cần xác nhận]',
+      ],
+    };
+  }
+
+  private async assertDailyRules(
+    report: IwrReportRow,
+    toId: number | null,
+  ): Promise<Record<string, unknown>> {
+    const author = await this.org.getStaff(report.author_staff_id);
+    const sections = applyDailyTemplate(
+      report.sections_json ?? {},
+      report.sections_json ?? {},
+      author?.position_code,
+    );
+    const role = (sections.daily_role ?? {}) as {
+      report_template?: DailyReportTemplateCode | null;
+      sla_enabled?: boolean;
+      sla_threshold_pct?: number;
+      metrics?: unknown;
+    };
+    const template = role.report_template ?? null;
+    const items = await this.repo.listItems(report.id);
+    const start = String(report.period_start ?? '').slice(0, 10);
+    const end = String(report.period_end || report.period_start || '').slice(0, 10);
+    const others =
+      /^\d{4}-\d{2}-\d{2}$/.test(start) && /^\d{4}-\d{2}-\d{2}$/.test(end)
+        ? await this.repo.listDailyInRange(report.author_staff_id, start, end)
+        : [];
+    const duplicate = others.some(
+      (row) => row.id !== report.id && ['submitted', 'supplemented', 'acknowledged'].includes(row.status),
+    );
+    const to = toId != null ? await this.org.getStaff(toId) : null;
+    const notes = sections.notes as { body?: string } | undefined;
+    const issues = validateDailyReport({
+      template,
+      subject: report.title ?? '',
+      reportDate: start,
+      todayYmd: ictYmd(this.now()),
+      toStaffId: toId,
+      toActive: toId == null ? false : Boolean(to),
+      summary: String(notes?.body ?? ''),
+      slaEnabled: Boolean(role.sla_enabled),
+      slaThresholdPct:
+        typeof role.sla_threshold_pct === 'number' ? role.sla_threshold_pct : DAILY_SLA_THRESHOLD_PCT,
+      duplicateSubmitted: duplicate,
+      lines: items.map(dailyLineFromItem).filter((line): line is DailyReportLine => line != null),
+      metrics: sanitizeDailyMetrics(template, role.metrics),
+    });
+    if (issues.length) {
+      throw new UnprocessableEntityException({
+        error: issues[0]!.code,
+        message: issues.map((issue) => issue.message).join(' '),
+        details: issues,
+      });
+    }
+    await this.repo.updateSections(report.id, sections);
+    return sections;
   }
 
   private async loadDetail(id: string): Promise<IwrReportDetail> {
@@ -254,7 +384,11 @@ export class IwrReportsService {
       throw new BadRequestException({ error: 'rag_required' });
     }
 
-    const sections = input.sections_json ?? report.sections_json;
+    let sections = input.sections_json ?? report.sections_json;
+    if (report.template_code === 'daily_work' && input.sections_json) {
+      const author = await this.org.getStaff(actor.staffId);
+      sections = applyDailyTemplate(input.sections_json, report.sections_json ?? {}, author?.position_code);
+    }
     await this.repo.updateSections(id, sections, {
       title: input.title,
       rag: input.rag,
@@ -348,11 +482,20 @@ export class IwrReportsService {
       }
     }
 
-    const dueAt = new Date(report.due_at);
+    const periodYmd = String(report.period_end || report.period_start || '').slice(0, 10);
+    const dueAt =
+      report.template_code === 'daily_work' && /^\d{4}-\d{2}-\d{2}$/.test(periodYmd)
+        ? new Date(dailyDueAt(periodYmd))
+        : new Date(report.due_at);
     const late = isIwrLate(this.now(), dueAt);
     const lateReason = String(input.late_reason ?? '').trim();
     if (late && lateReason.length < 3) {
       throw new BadRequestException({ error: 'late_reason_required' });
+    }
+
+    let sectionsForSnapshot = report.sections_json;
+    if (report.template_code === 'daily_work') {
+      sectionsForSnapshot = await this.assertDailyRules(report, toId ?? null);
     }
 
     const recipients: { staff_id: number; kind: 'to' | 'cc' | 'bcc' }[] = [];
@@ -365,7 +508,7 @@ export class IwrReportsService {
       id,
       report.version,
       toStatus,
-      report.sections_json,
+      sectionsForSnapshot,
       actor.staffId,
     );
     await this.repo.updateStatus(id, {

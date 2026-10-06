@@ -187,7 +187,7 @@ async function iwrFetch<T>(token: string, path: string, init?: RequestInit): Pro
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: 'no-store' });
   const body = await parseJson<T & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(body.error ?? body.message ?? 'IWR request failed', res.status);
+    throw new ApiError(body.message ?? body.error ?? 'IWR request failed', res.status);
   }
   return body;
 }

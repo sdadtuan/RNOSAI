@@ -20,6 +20,14 @@ export type IwrItemMeta = {
   better?: 'higher' | 'lower';
   owner?: string;
   step?: number;
+  asset_type?: string;
+  campaign?: string;
+  ad_account?: string;
+  customer_account?: string;
+  kpi_waived?: boolean;
+  kpi_waive_reason?: string;
+  meeting?: boolean;
+  calendar_url?: string;
   kpi_id?: number | null;
   kpi_label?: string;
 };

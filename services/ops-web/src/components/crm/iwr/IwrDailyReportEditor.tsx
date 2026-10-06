@@ -40,6 +40,19 @@ import {
   type IwrItemPriority,
   type IwrItemSeverity,
 } from './iwr-item-meta';
+import {
+  DAILY_REPORT_TEMPLATES,
+  FALLBACK_TIPS,
+  ictCountdown,
+  ictYmd,
+  lockedTemplate,
+  metricFieldsFor,
+  reportTemplateForPosition,
+  validateDailyReport,
+  type DailyReportLine,
+  type DailyReportMetrics,
+  type DailyReportTemplateCode,
+} from './daily-report-template';
 
 type IwrDailyReportEditorProps = {
   token: string;
@@ -60,11 +73,106 @@ type IwrDailyReportEditorProps = {
   onAddComment: (body: { body_text: string; section_key?: string }) => Promise<void>;
   onReplyAll?: (body: { body_text: string }) => Promise<void>;
   comments: IwrCommentRow[];
+  positionCode?: string;
 };
 
 const IMMUTABLE = new Set<IwrReportStatus>(['acknowledged', 'waived', 'archived']);
 const EDITABLE = new Set<IwrReportStatus>(['draft', 'changes_requested']);
 const SUPPORT_ROLES = ['Account Manager', 'Team Lead', 'PM', 'Khác'];
+
+function RoleLineFields({
+  template,
+  section,
+  meta,
+  readOnly,
+  onMeta,
+}: {
+  template: DailyReportTemplateCode | null;
+  section: 'done' | 'wip';
+  meta: IwrItemMeta;
+  readOnly: boolean;
+  onMeta: (patch: Partial<IwrItemMeta>) => void;
+}) {
+  if (!template) return null;
+  return (
+    <div className="iwr-rolefields">
+      {template === 'buyer_ads' && (
+        <>
+          <input
+            className="iwr-input"
+            disabled={readOnly}
+            placeholder="Campaign"
+            value={meta.campaign ?? ''}
+            onChange={(e) => onMeta({ campaign: e.target.value })}
+          />
+          <input
+            className="iwr-input"
+            disabled={readOnly}
+            placeholder="Ad account"
+            value={meta.ad_account ?? ''}
+            onChange={(e) => onMeta({ ad_account: e.target.value })}
+          />
+        </>
+      )}
+      {template === 'am_account' && (
+        <>
+          <input
+            className="iwr-input"
+            disabled={readOnly}
+            placeholder="Account khách"
+            value={meta.customer_account ?? ''}
+            onChange={(e) => onMeta({ customer_account: e.target.value })}
+          />
+          <label className="iwr-check">
+            <input
+              type="checkbox"
+              disabled={readOnly}
+              checked={Boolean(meta.meeting)}
+              onChange={(e) => onMeta({ meeting: e.target.checked })}
+            />
+            Có lịch hẹn
+          </label>
+          {meta.meeting ? (
+            <input
+              className="iwr-input"
+              disabled={readOnly}
+              placeholder="Link lịch"
+              value={meta.calendar_url ?? ''}
+              onChange={(e) => onMeta({ calendar_url: e.target.value })}
+            />
+          ) : null}
+        </>
+      )}
+      {template === 'content_edit' && section === 'done' && (
+        <input
+          className="iwr-input"
+          disabled={readOnly}
+          placeholder="Loại asset (ảnh, video, copy)"
+          value={meta.asset_type ?? ''}
+          onChange={(e) => onMeta({ asset_type: e.target.value })}
+        />
+      )}
+      <label className="iwr-check">
+        <input
+          type="checkbox"
+          disabled={readOnly}
+          checked={Boolean(meta.kpi_waived)}
+          onChange={(e) => onMeta({ kpi_waived: e.target.checked })}
+        />
+        KPI không áp dụng
+      </label>
+      {meta.kpi_waived ? (
+        <input
+          className="iwr-input"
+          disabled={readOnly}
+          placeholder="Lý do không áp dụng, ít nhất 20 ký tự"
+          value={meta.kpi_waive_reason ?? ''}
+          onChange={(e) => onMeta({ kpi_waive_reason: e.target.value })}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 function evidenceLabel(item: IwrItemRow, meta: IwrItemMeta): string {
   if (meta.evidence_name) return meta.evidence_name;
@@ -80,6 +188,43 @@ function evidenceLabel(item: IwrItemRow, meta: IwrItemMeta): string {
 function evidenceHref(item: IwrItemRow): string | null {
   const url = iwrVisibleEvidenceUrl(item.evidence_url);
   return url || null;
+}
+
+function metricText(value: unknown): string {
+  if (value == null || value === '' || Number.isNaN(value)) return '';
+  return String(value);
+}
+
+function metricNumber(raw: string): number | null {
+  if (!raw.trim()) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : Number.NaN;
+}
+
+function lineFromItem(item: IwrItemRow): DailyReportLine | null {
+  if (item.section_key !== 'done' && item.section_key !== 'wip' && item.section_key !== 'blocked' && item.section_key !== 'next') {
+    return null;
+  }
+  const meta = parseIwrItemMeta(item.body);
+  return {
+    section: item.section_key,
+    title: item.title ?? '',
+    text: iwrItemText(meta),
+    project: meta.project ?? '',
+    kpi: meta.kpi_label || (meta.kpi_id != null ? String(meta.kpi_id) : ''),
+    kpiWaived: Boolean(meta.kpi_waived),
+    kpiWaiveReason: meta.kpi_waive_reason ?? '',
+    progress: meta.progress == null ? null : Number(meta.progress),
+    eta: meta.eta ?? '',
+    evidenceUrl: item.evidence_url ?? '',
+    evidenceName: meta.evidence_name ?? '',
+    assetType: meta.asset_type ?? '',
+    campaign: meta.campaign ?? '',
+    adAccount: meta.ad_account ?? '',
+    customerAccount: meta.customer_account ?? '',
+    meeting: Boolean(meta.meeting),
+    calendarUrl: meta.calendar_url ?? '',
+  };
 }
 
 function KpiPick({
@@ -177,6 +322,7 @@ export function IwrDailyReportEditor({
   onAddComment,
   onReplyAll,
   comments,
+  positionCode,
 }: IwrDailyReportEditorProps) {
   const isAuthor = report.viewer_is_author !== false;
   const isReviewer = Boolean(report.viewer_is_reviewer);
@@ -211,8 +357,34 @@ export function IwrDailyReportEditor({
   const [changeBody, setChangeBody] = useState('');
   const [commentBody, setCommentBody] = useState('');
   const [formError, setFormError] = useState('');
+  const notesBody = (() => {
+    const notes = report.sections_json?.notes;
+    if (notes && typeof notes === 'object' && 'body' in notes) return String((notes as { body?: string }).body ?? '');
+    return '';
+  })();
+  const [summary, setSummary] = useState(notesBody);
+  const storedMetrics = (() => {
+    const role = report.sections_json?.daily_role;
+    if (!role || typeof role !== 'object' || !('metrics' in role)) return {};
+    return ((role as { metrics?: Record<string, unknown> }).metrics ?? {}) as Record<string, unknown>;
+  })();
+  const [metrics, setMetrics] = useState({
+    ad_spend_vnd: metricText(storedMetrics.ad_spend_vnd),
+    crm_spend_vnd: metricText(storedMetrics.crm_spend_vnd),
+    spend_note: String(storedMetrics.spend_note ?? ''),
+    new_leads: metricText(storedMetrics.new_leads),
+    calls_within_15: metricText(storedMetrics.calls_within_15),
+    sla_pct: metricText(storedMetrics.sla_pct),
+    new_appointments: metricText(storedMetrics.new_appointments),
+  });
+  const [clock, setClock] = useState(() => new Date());
   const itemTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClock(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     void fetchIwrItems(token, report.id)
@@ -262,6 +434,19 @@ export function IwrDailyReportEditor({
   const wipItems = items.filter((it) => it.section_key === 'wip');
   const nextItems = items.filter((it) => it.section_key === 'next');
   const blockedItems = items.filter((it) => it.section_key === 'blocked');
+  const snapshotTemplate = lockedTemplate(report.sections_json);
+  const positionTemplate = reportTemplateForPosition(positionCode);
+  const reportTemplate = snapshotTemplate ?? positionTemplate;
+  const templateLabel = reportTemplate ? DAILY_REPORT_TEMPLATES[reportTemplate].label : 'Chưa gán mẫu';
+  const tips = reportTemplate ? DAILY_REPORT_TEMPLATES[reportTemplate].tips : FALLBACK_TIPS;
+  const slaEnabled = Boolean(
+    report.sections_json?.daily_role &&
+      typeof report.sections_json.daily_role === 'object' &&
+      (report.sections_json.daily_role as { sla_enabled?: boolean }).sla_enabled,
+  );
+  const metricFields = metricFieldsFor(reportTemplate, slaEnabled);
+  const countdown = ictCountdown(clock);
+  const templateDrift = Boolean(snapshotTemplate && positionTemplate && snapshotTemplate !== positionTemplate);
   const overdueCount = items.filter((it) => {
     const meta = parseIwrItemMeta(it.body);
     return it.section_key !== 'next' && isOverdueYmd(meta.eta ?? meta.due) && clampProgress(meta.progress) < 100;
@@ -282,15 +467,32 @@ export function IwrDailyReportEditor({
           severity: meta.severity ?? 'medium',
         };
       });
+      const prevRole =
+        report.sections_json?.daily_role && typeof report.sections_json.daily_role === 'object'
+          ? (report.sections_json.daily_role as Record<string, unknown>)
+          : {};
       return {
         ...(report.sections_json ?? {}),
         done: { body: of('done').map(line).join('\n'), items: [] },
         wip: { body: of('wip').map(line).join('\n'), items: [] },
         next: { body: of('next').map(line).join('\n'), items: [] },
         blocked: { body: blocked.map((b) => b.title).join('\n'), items: blocked },
+        notes: { body: summary, items: [] },
+        daily_role: {
+          ...prevRole,
+          metrics: {
+            ad_spend_vnd: metricNumber(metrics.ad_spend_vnd),
+            crm_spend_vnd: metricNumber(metrics.crm_spend_vnd),
+            spend_note: metrics.spend_note,
+            new_leads: metricNumber(metrics.new_leads),
+            calls_within_15: metricNumber(metrics.calls_within_15),
+            sla_pct: metricNumber(metrics.sla_pct),
+            new_appointments: metricNumber(metrics.new_appointments),
+          },
+        },
       };
     },
-    [report.sections_json],
+    [report.sections_json, summary, metrics],
   );
 
   const persistDraft = useCallback(
@@ -341,6 +543,15 @@ export function IwrDailyReportEditor({
     },
     [readOnly, persistDraft, title, ccPeople, items, toPerson],
   );
+
+  const summaryReady = useRef(false);
+  useEffect(() => {
+    if (!summaryReady.current) {
+      summaryReady.current = true;
+      return;
+    }
+    scheduleDraft();
+  }, [summary, metrics]);
 
   const scheduleItemPatch = useCallback(
     (row: IwrItemRow) => {
@@ -527,11 +738,40 @@ export function IwrDailyReportEditor({
   }
 
   async function handleSubmit() {
+    const metricsPayload: DailyReportMetrics = {
+      adSpendVnd: metricNumber(metrics.ad_spend_vnd),
+      crmSpendVnd: metricNumber(metrics.crm_spend_vnd),
+      spendNote: metrics.spend_note,
+      newLeads: metricNumber(metrics.new_leads),
+      callsWithin15: metricNumber(metrics.calls_within_15),
+      slaPct: metricNumber(metrics.sla_pct),
+      newAppointments: metricNumber(metrics.new_appointments),
+    };
+    const issues = validateDailyReport({
+      template: reportTemplate,
+      subject: title,
+      reportDate: String(report.period_start).slice(0, 10),
+      todayYmd: ictYmd(clock),
+      toStaffId: toPerson?.id ?? null,
+      toActive: Boolean(toPerson),
+      summary,
+      slaEnabled,
+      slaThresholdPct: 80,
+      duplicateSubmitted: false,
+      lines: items.map(lineFromItem).filter((line): line is DailyReportLine => line != null),
+      metrics: metricsPayload,
+    });
+    if (issues.length) {
+      setFormError(issues.map((issue) => issue.message).join(' '));
+      return;
+    }
     const due = new Date(report.due_at).getTime();
-    if (Date.now() > due && !lateReason.trim()) {
+    const deadline = new Date(`${String(report.period_end || report.period_start).slice(0, 10)}T22:00:00.000+07:00`).getTime();
+    if ((Number.isFinite(deadline) ? Date.now() > deadline : Date.now() > due) && !lateReason.trim()) {
       setLateOpen(true);
       return;
     }
+    if (!window.confirm('Gửi báo cáo ngày? Sau khi gửi, nội dung khóa và chỉ thêm phản hồi.')) return;
     setBusy(true);
     setFormError('');
     try {
@@ -549,6 +789,36 @@ export function IwrDailyReportEditor({
       setBusy(false);
     }
   }
+
+  const draftIssues = validateDailyReport({
+    template: reportTemplate,
+    subject: title,
+    reportDate: String(report.period_start).slice(0, 10),
+    todayYmd: ictYmd(clock),
+    toStaffId: toPerson?.id ?? null,
+    toActive: Boolean(toPerson),
+    summary,
+    slaEnabled,
+    slaThresholdPct: 80,
+    duplicateSubmitted: false,
+    lines: items.map(lineFromItem).filter((line): line is DailyReportLine => line != null),
+    metrics: {
+      adSpendVnd: metricNumber(metrics.ad_spend_vnd),
+      crmSpendVnd: metricNumber(metrics.crm_spend_vnd),
+      spendNote: metrics.spend_note,
+      newLeads: metricNumber(metrics.new_leads),
+      callsWithin15: metricNumber(metrics.calls_within_15),
+      slaPct: metricNumber(metrics.sla_pct),
+      newAppointments: metricNumber(metrics.new_appointments),
+    },
+  });
+  const readyToSend = draftIssues.length === 0;
+  const projectCount = new Set(
+    items
+      .filter((it) => it.section_key === 'done' || it.section_key === 'wip')
+      .map((it) => parseIwrItemMeta(it.body).b2b_project_id || parseIwrItemMeta(it.body).project)
+      .filter(Boolean),
+  ).size;
 
   const statusLabel =
     report.status === 'draft' ? 'Bản nháp' : IWR_STATUS_LABELS[report.status] ?? report.status;
@@ -577,6 +847,12 @@ export function IwrDailyReportEditor({
           <h1 className="iwr-h1">
             Báo cáo ngày — {formatViYmd(report.period_start) || report.period_start}
             <span className={`iwr-chip iwr-chip--status iwr-chip--${report.status}`}>{statusLabel}</span>
+            <span className="iwr-chip iwr-chip--template">Mẫu: {templateLabel}</span>
+            {report.first_viewed_at ? <span className="iwr-chip">Đã xem</span> : null}
+            {comments.length > 0 ? <span className="iwr-chip">Có phản hồi</span> : null}
+            {(report.is_late || (countdown.late && EDITABLE.has(report.status))) ? (
+              <span className="iwr-chip iwr-chip--late">Quá hạn</span>
+            ) : null}
           </h1>
           <p className="iwr-saved">
             <span className="iwr-saved__ok" aria-hidden>
@@ -823,6 +1099,20 @@ export function IwrDailyReportEditor({
                       }
                     />
                   )}
+                  <textarea
+                    className="iwr-input iwr-task__desc"
+                    disabled={readOnly}
+                    placeholder="Mô tả (ít nhất 20 ký tự)"
+                    value={iwrItemText(meta)}
+                    onChange={(e) => updateMeta(it, { text: e.target.value })}
+                  />
+                  <RoleLineFields
+                    template={reportTemplate}
+                    section="done"
+                    meta={meta}
+                    readOnly={readOnly}
+                    onMeta={(patch) => updateMeta(it, patch)}
+                  />
                 </article>
               );
             })}
@@ -858,6 +1148,20 @@ export function IwrDailyReportEditor({
                           disabled={readOnly}
                           value={it.title}
                           onChange={(e) => replaceItem({ ...it, title: e.target.value })}
+                        />
+                        <textarea
+                          className="iwr-input iwr-task__desc"
+                          disabled={readOnly}
+                          placeholder="Mô tả (ít nhất 20 ký tự)"
+                          value={iwrItemText(meta)}
+                          onChange={(e) => updateMeta(it, { text: e.target.value })}
+                        />
+                        <RoleLineFields
+                          template={reportTemplate}
+                          section="wip"
+                          meta={meta}
+                          readOnly={readOnly}
+                          onMeta={(patch) => updateMeta(it, patch)}
                         />
                       </td>
                       <td>
@@ -969,6 +1273,146 @@ export function IwrDailyReportEditor({
             )}
             {!nextItems.length && <p className="iwr-empty">Chưa có kế hoạch ngày mai</p>}
           </section>
+
+          <section className="iwr-card">
+            <h2>Tóm tắt</h2>
+            <p className="iwr-muted">Gợi ý theo mẫu, không ghi vào nội dung khi gửi.</p>
+            <ol className="iwr-tips">
+              {tips.map((tip) => (
+                <li key={tip}>{tip}</li>
+              ))}
+            </ol>
+            <textarea
+              className="iwr-input iwr-summary-input"
+              disabled={readOnly}
+              placeholder={reportTemplate === 'ql_gdkd' ? 'Tóm tắt điều hành, ít nhất 30 ký tự' : 'Tóm tắt hôm nay, ít nhất 40 ký tự'}
+              value={summary}
+              onChange={(e) => {
+                setSummary(e.target.value);
+                scheduleDraft();
+              }}
+            />
+          </section>
+
+          {metricFields.required.length + metricFields.optional.length > 0 && (
+            <section className="iwr-card">
+              <h2>Số liệu hôm nay</h2>
+              <p className="iwr-muted">CRM chưa nối — nhập tay. [cần xác nhận] nguồn số liệu.</p>
+              {metricFields.required.includes('ad_spend') || metricFields.optional.includes('ad_spend') ? (
+                <label className="iwr-field">
+                  Chi tiêu ads (VND){metricFields.required.includes('ad_spend') ? ' *' : ''}
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    disabled={readOnly}
+                    value={metrics.ad_spend_vnd}
+                    onChange={(e) => {
+                      setMetrics((prev) => ({ ...prev, ad_spend_vnd: e.target.value }));
+                      scheduleDraft();
+                    }}
+                  />
+                </label>
+              ) : null}
+              {reportTemplate === 'buyer_ads' ? (
+                <>
+                  <label className="iwr-field">
+                    Chi tiêu CRM (nếu có)
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      disabled={readOnly}
+                      value={metrics.crm_spend_vnd}
+                      onChange={(e) => {
+                        setMetrics((prev) => ({ ...prev, crm_spend_vnd: e.target.value }));
+                        scheduleDraft();
+                      }}
+                    />
+                  </label>
+                  <label className="iwr-field">
+                    Chú thích lệch CRM
+                    <input
+                      disabled={readOnly}
+                      value={metrics.spend_note}
+                      onChange={(e) => {
+                        setMetrics((prev) => ({ ...prev, spend_note: e.target.value }));
+                        scheduleDraft();
+                      }}
+                    />
+                  </label>
+                </>
+              ) : null}
+              {metricFields.required.includes('new_leads') || metricFields.optional.includes('new_leads') ? (
+                <label className="iwr-field">
+                  Lead mới{metricFields.required.includes('new_leads') ? ' *' : ''}
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    disabled={readOnly}
+                    value={metrics.new_leads}
+                    onChange={(e) => {
+                      setMetrics((prev) => ({ ...prev, new_leads: e.target.value }));
+                      scheduleDraft();
+                    }}
+                  />
+                </label>
+              ) : null}
+              {metricFields.required.includes('calls_within_15') || metricFields.optional.includes('calls_within_15') ? (
+                <label className="iwr-field">
+                  Gọi trong 15 phút{metricFields.required.includes('calls_within_15') ? ' *' : ''}
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    disabled={readOnly}
+                    value={metrics.calls_within_15}
+                    onChange={(e) => {
+                      setMetrics((prev) => ({ ...prev, calls_within_15: e.target.value }));
+                      scheduleDraft();
+                    }}
+                  />
+                </label>
+              ) : null}
+              {metricFields.required.includes('sla_pct') || metricFields.optional.includes('sla_pct') ? (
+                <label className="iwr-field">
+                  SLA %{metricFields.required.includes('sla_pct') ? ' *' : ''}
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    disabled={readOnly}
+                    value={metrics.sla_pct}
+                    onChange={(e) => {
+                      setMetrics((prev) => ({ ...prev, sla_pct: e.target.value }));
+                      scheduleDraft();
+                    }}
+                  />
+                </label>
+              ) : null}
+              {metricFields.required.includes('new_appointments') || metricFields.optional.includes('new_appointments') ? (
+                <label className="iwr-field">
+                  Lịch hẹn mới
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    disabled={readOnly}
+                    value={metrics.new_appointments}
+                    onChange={(e) => {
+                      setMetrics((prev) => ({ ...prev, new_appointments: e.target.value }));
+                      scheduleDraft();
+                    }}
+                  />
+                </label>
+              ) : null}
+              {reportTemplate === 'cskh_sales' && !slaEnabled ? (
+                <p className="iwr-muted">SLA đang tắt. Admin bật cho team thì mới bắt buộc gọi và SLA. [cần xác nhận]</p>
+              ) : null}
+            </section>
+          )}
         </div>
 
         <aside className="iwr-daily__side">
@@ -987,7 +1431,23 @@ export function IwrDailyReportEditor({
                 <span className="iwr-summary__ico is-risk">▲</span>
                 {blockedItems.length} Blocker
               </li>
+              <li>Mẫu: {templateLabel}</li>
+              <li>Blocker: {blockedItems.length ? 'Có' : 'Không'}</li>
+              <li>Dự án chạm: {projectCount}</li>
+              <li>{readyToSend ? 'Sẵn sàng gửi' : 'Nháp — chưa đủ'}</li>
+              <li>{countdown.late ? 'Quá hạn 22:00 ICT' : countdown.label}</li>
+              {reportTemplate === 'buyer_ads' ? <li>Chi tiêu: {metrics.ad_spend_vnd || '—'}</li> : null}
+              {reportTemplate === 'am_account' || reportTemplate === 'cskh_sales' ? (
+                <li>Lead mới: {metrics.new_leads || '—'}</li>
+              ) : null}
+              {reportTemplate === 'content_edit' ? <li>Asset hoàn thành: {doneItems.length}</li> : null}
             </ul>
+            {templateDrift ? (
+              <p className="iwr-muted">Mẫu trên bản nháp khác chức vụ hiện tại. Giữ mẫu đã khóa.</p>
+            ) : null}
+            {!reportTemplate ? (
+              <p className="iwr-muted">Admin chưa gán mẫu báo cáo. Không gửi được.</p>
+            ) : null}
           </section>
 
           <section className="iwr-card iwr-blocker">

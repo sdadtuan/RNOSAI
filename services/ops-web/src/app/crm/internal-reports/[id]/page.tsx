@@ -95,9 +95,10 @@ export default function IwrReportDetailPage() {
       )}
       {report && token && (
         report.template_code === 'daily_work' ? (
-          <IwrDailyReportEditor
+            <IwrDailyReportEditor
             token={token}
             report={report}
+            positionCode={user?.position_code}
             canWrite={canWrite}
             canReview={canReview}
             canBcc={canBcc}
