@@ -809,6 +809,9 @@ export function IwrDailyReportEditor({
     });
     if (issues.length) {
       setFormError(issues.map((issue) => issue.message).join(' '));
+      window.requestAnimationFrame(() => {
+        document.querySelector('.iwr-err')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
       return;
     }
     const due = new Date(report.due_at).getTime();

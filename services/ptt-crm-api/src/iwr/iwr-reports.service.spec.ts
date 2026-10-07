@@ -114,6 +114,47 @@ describe('IwrReportsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('creates daily To from ACM when author has no reports_to', async () => {
+    const { svc, repo, org } = makeSvc(new Date('2026-09-03T09:00:00+07:00'));
+    repo.getTemplateByCode.mockResolvedValue({
+      id: 't1',
+      code: 'daily_work',
+      name_vi: 'Báo cáo ngày',
+      kind: 'daily',
+      sections_json: [],
+      due_rule_json: {},
+      active: true,
+    });
+    org.getStaff.mockResolvedValue({
+      id: 19,
+      name: 'AE',
+      email: 'a',
+      department_id: 10,
+      reports_to_id: null,
+      active: true,
+      position_code: 'AE',
+    });
+    org.listActiveByPosition.mockImplementation(async (codes: string[]) => {
+      if (codes.includes('ACM')) {
+        return [{ id: 20, name: 'ACM', email: 'c', department_id: 1, reports_to_id: null, active: true, position_code: 'ACM' }];
+      }
+      if (codes.includes('GDKD')) return [];
+      return [];
+    });
+    repo.insertReport.mockResolvedValue({ id: 'r-ae', status: 'draft', template_code: 'daily_work' });
+    repo.getReport.mockResolvedValue({
+      id: 'r-ae',
+      status: 'draft',
+      template_code: 'daily_work',
+      author_staff_id: 19,
+      sections_json: emptySectionsForCode('daily_work'),
+    });
+
+    await expect(svc.create(actor(19), { template_code: 'daily_work' })).resolves.toBeTruthy();
+    expect(repo.insertReport).toHaveBeenCalledWith(expect.objectContaining({ reviewer_staff_id: 20 }));
+    expect(repo.replaceRecipients).toHaveBeenCalledWith('r-ae', [{ staff_id: 20, kind: 'to' }]);
+  });
+
   it('submit requires late_reason after due', async () => {
     const { svc, repo, org } = makeSvc(new Date('2026-09-03T18:00:00+07:00'));
     repo.getReport.mockResolvedValue({

@@ -51,6 +51,7 @@ import type {
   IwrReportDetail,
   IwrReportRow,
   IwrRag,
+  IwrStaffNode,
   PatchIwrReportInput,
   RequestIwrChangesInput,
   SubmitIwrReportInput,
@@ -141,6 +142,18 @@ export class IwrReportsService {
       throw new ForbiddenException({ error: err.error });
     }
     throw err;
+  }
+
+  /** Prefer reports_to; if unset, first active ACM → GDKD → CEO other than the author. */
+  private async resolveDailyToStaffId(author: IwrStaffNode): Promise<number | null> {
+    const direct = defaultToStaffId(author);
+    if (direct) return direct;
+    for (const codes of [['ACM'], ['GDKD'], ['CEO']] as const) {
+      const people = await this.org.listActiveByPosition([...codes]);
+      const pick = people.find((person) => person.id !== author.id);
+      if (pick) return pick.id;
+    }
+    return null;
   }
 
   async dailyMeta(actor: IwrActor) {
@@ -308,6 +321,8 @@ export class IwrReportsService {
     const sections = emptySectionsForCode(input.template_code);
     const templateVersionId =
       (await this.w5.getEffectiveTemplateVersionId(template.id, period.period_start)) ?? undefined;
+    const dailyToId =
+      input.template_code === 'daily_work' ? await this.resolveDailyToStaffId(author) : defaultToStaffId(author);
 
     try {
       const row = await this.repo.insertReport({
@@ -315,14 +330,14 @@ export class IwrReportsService {
         template_version_id: templateVersionId,
         title,
         author_staff_id: actor.staffId,
-        reviewer_staff_id: defaultToStaffId(author),
+        reviewer_staff_id: dailyToId,
         period_start: period.period_start,
         period_end: period.period_end,
         due_at: period.due_at,
         sections_json: sections,
       });
       if (input.template_code === 'daily_work') {
-        const toId = defaultToStaffId(author);
+        const toId = dailyToId;
         const gdkd = await this.org.listActiveByPosition(['GDKD']);
         const cc = gdkd.find((person) => person.id !== author.id && person.id !== toId);
         const recipients: { staff_id: number; kind: 'to' | 'cc' }[] = [];
