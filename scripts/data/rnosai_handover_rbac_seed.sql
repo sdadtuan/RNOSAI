@@ -1035,7 +1035,9 @@ CROSS JOIN (VALUES
   ('crm_quote', 'view'),
   ('crm_quote.catalog', 'view'),
   ('csd', 'view'),
-  ('csd', 'write')
+  ('csd', 'write'),
+  ('iwr', 'view'),
+  ('iwr', 'write')
 
 ) AS v(section_id, action)
 WHERE lower(trim(p.code)) = lower('AE') AND p.active

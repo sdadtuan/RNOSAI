@@ -389,6 +389,10 @@
         "view",
         "write"
       ],
+      "iwr": [
+        "view",
+        "write"
+      ],
       "crm_leads__btn_create": [
         "create"
       ],

@@ -94,7 +94,6 @@ CROSS JOIN (VALUES
   ('iwr', 'write')
 ) AS g(section_id, action)
 WHERE p.active = TRUE
-  AND lower(trim(p.code)) <> 'ae'
 ON CONFLICT (position_id, section_id, action) DO NOTHING;
 
 -- Job function grants

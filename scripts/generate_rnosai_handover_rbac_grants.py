@@ -372,10 +372,11 @@ def main() -> int:
             grant("crm_gdkd", "view", "assign", "review_queue", "view_all_leads"),
             view_only("crm_presales_solution"),
         ),
-        # Matrix AE: leads write (no assign — không GDKD-bypass) · B2B · quote/HĐ view · CSD · agency.
+        # Matrix AE: leads write (no assign — không GDKD-bypass) · B2B · quote/HĐ view · CSD · agency · IWR.
         # Quote/Proposal/HĐ create stays with AM/CEO/GĐKD — AE xem, PDF/email, trả lại, advance status.
         "AE": merge(
             csd_write,
+            iwr_view,
             grant("crm_leads", "view", "edit", "create", "export"),
             grant("crm_lmp", "view", "edit", "create"),
             grant("crm_b2b_projects", "view"),
