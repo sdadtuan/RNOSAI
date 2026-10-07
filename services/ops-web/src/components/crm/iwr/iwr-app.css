@@ -1221,11 +1221,70 @@
 }
 
 .iwr-progress input {
-  width: 52px;
+  width: 4.5rem;
+  box-sizing: border-box;
+  flex: 0 0 auto;
   border: 1px solid var(--iwr-line);
   border-radius: 8px;
-  padding: 2px 6px;
-  font-size: 12px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+
+.iwr-wip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid #f1f5f9;
+}
+
+.iwr-wip__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iwr-wip__head .iwr-task__title {
+  flex: 1;
+  margin-top: 0;
+}
+
+.iwr-wip .iwr-progress {
+  max-width: 420px;
+  margin-top: 4px;
+}
+
+.iwr-wip .iwr-kpi {
+  display: block;
+  max-width: 420px;
+}
+
+.iwr-wip .iwr-tag,
+.iwr-wip .iwr-kpi select,
+.iwr-wip__date {
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  border: 1px solid var(--iwr-line);
+  background: #fff;
+  color: inherit;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.iwr-wip__date {
+  max-width: 240px;
+  min-height: 40px;
+  color-scheme: light;
+}
+
+.iwr-wip__date::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 1;
+  width: 18px;
+  height: 18px;
 }
 
 .iwr-evidence {

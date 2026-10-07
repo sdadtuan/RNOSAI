@@ -1126,96 +1126,91 @@ export function IwrDailyReportEditor({
 
           <section className="iwr-card">
             <h2>Đang thực hiện</h2>
-            <table className="iwr-table">
-              <thead>
-                <tr>
-                  <th>Công việc</th>
-                  <th>Dự án</th>
-                  <th>KPI</th>
-                  <th>Tiến độ</th>
-                  <th>ETA</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {wipItems.map((it) => {
-                  const meta = parseIwrItemMeta(it.body);
-                  return (
-                    <tr key={it.id}>
-                      <td>
-                        <input
-                          className="iwr-ghost"
-                          disabled={readOnly}
-                          value={it.title}
-                          onChange={(e) => replaceItem({ ...it, title: e.target.value })}
-                        />
-                        <textarea
-                          className="iwr-input iwr-task__desc"
-                          disabled={readOnly}
-                          placeholder="Mô tả (ít nhất 20 ký tự)"
-                          value={iwrItemText(meta)}
-                          onChange={(e) => updateMeta(it, { text: e.target.value })}
-                        />
-                        <RoleLineFields
-                          template={reportTemplate}
-                          section="wip"
-                          meta={meta}
-                          readOnly={readOnly}
-                          onMeta={(patch) => updateMeta(it, patch)}
-                        />
-                      </td>
-                      <td>
-                        <IwrB2bProjectSelect
-                          token={token}
-                          disabled={readOnly}
-                          value={meta.b2b_project_id ?? ''}
-                          onChange={(_, project) => updateMeta(it, iwrProjectMetaPatch(project))}
-                        />
-                      </td>
-                      <td>
-                        <KpiPick
-                          rows={kpiRows}
-                          kpiId={meta.kpi_id}
-                          kpiLabel={meta.kpi_label}
-                          disabled={readOnly}
-                          onChange={(id) => applyKpi(it, id)}
-                        />
-                      </td>
-                      <td>
-                        <ProgressField
-                          value={clampProgress(meta.progress ?? 0)}
-                          disabled={readOnly}
-                          onChange={(n) => updateMeta(it, { progress: n })}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="date"
-                          className="iwr-input"
-                          disabled={readOnly}
-                          value={meta.eta ?? ''}
-                          onChange={(e) => updateMeta(it, { eta: e.target.value })}
-                        />
-                      </td>
-                      <td>
-                        {!readOnly && (
-                          <button type="button" className="iwr-iconbtn" onClick={() => void removeItem(it.id)}>
-                            Xoá
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!wipItems.length && (
-                  <tr>
-                    <td colSpan={6} className="iwr-empty">
-                      Không có việc đang làm
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            {wipItems.map((it) => {
+              const meta = parseIwrItemMeta(it.body);
+              return (
+                <article key={it.id} className="iwr-wip">
+                  <div className="iwr-wip__head">
+                    <input
+                      className="iwr-input iwr-task__title"
+                      disabled={readOnly}
+                      placeholder="Tên công việc"
+                      value={iwrTaskTitleInput(it.title)}
+                      onChange={(e) => replaceItem({ ...it, title: e.target.value })}
+                    />
+                    {!readOnly && (
+                      <button type="button" className="iwr-iconbtn" onClick={() => void removeItem(it.id)}>
+                        Xoá
+                      </button>
+                    )}
+                  </div>
+                  <label className="iwr-field">
+                    Mô tả
+                    <textarea
+                      className="iwr-input iwr-task__desc"
+                      disabled={readOnly}
+                      placeholder="Mô tả (ít nhất 20 ký tự)"
+                      value={iwrItemText(meta)}
+                      onChange={(e) => updateMeta(it, { text: e.target.value })}
+                    />
+                  </label>
+                  <label className="iwr-field">
+                    Dự án
+                    <IwrB2bProjectSelect
+                      token={token}
+                      disabled={readOnly}
+                      value={meta.b2b_project_id ?? ''}
+                      onChange={(_, project) => updateMeta(it, iwrProjectMetaPatch(project))}
+                    />
+                  </label>
+                  <label className="iwr-field">
+                    KPI
+                    <KpiPick
+                      rows={kpiRows}
+                      kpiId={meta.kpi_id}
+                      kpiLabel={meta.kpi_label}
+                      disabled={readOnly}
+                      onChange={(id) => applyKpi(it, id)}
+                    />
+                  </label>
+                  <label className="iwr-field">
+                    Tiến độ
+                    <ProgressField
+                      value={clampProgress(meta.progress ?? 0)}
+                      disabled={readOnly}
+                      onChange={(n) => updateMeta(it, { progress: n })}
+                    />
+                  </label>
+                  <label className="iwr-field">
+                    Ngày
+                    <input
+                      type="date"
+                      className="iwr-input iwr-wip__date"
+                      disabled={readOnly}
+                      value={meta.eta ?? ''}
+                      onChange={(e) => updateMeta(it, { eta: e.target.value })}
+                      onClick={(e) => {
+                        const el = e.currentTarget;
+                        if (readOnly || typeof el.showPicker !== 'function') return;
+                        try {
+                          el.showPicker();
+                        } catch {
+                          /* lịch đã mở */
+                        }
+                      }}
+                    />
+                  </label>
+                  <RoleLineFields
+                    template={reportTemplate}
+                    section="wip"
+                    meta={meta}
+                    readOnly={readOnly}
+                    onMeta={(patch) => updateMeta(it, patch)}
+                  />
+                </article>
+              );
+            })}
+            {!wipItems.length && <p className="iwr-empty">Không có việc đang làm</p>}
             {!readOnly && (
               <button type="button" className="iwr-add" disabled={busy} onClick={() => void createItem('wip')}>
                 + Thêm việc đang làm
