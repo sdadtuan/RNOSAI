@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { IwrAppShell, IwrCard } from '@/components/crm/iwr/IwrAppShell';
 import { IwrProjectProgressChart } from '@/components/crm/iwr/IwrProjectProgressChart';
 import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
-import { dailyDraftIsOverdue } from '@/components/crm/iwr/daily-report-template';
+import { dailyDraftIsOverdue, ictYmd } from '@/components/crm/iwr/daily-report-template';
+import { ApiError } from '@/lib/api';
 import { iwrAvatarTone, iwrInitials, iwrIsoWeekLabel, iwrRagClass, iwrRagLabel, iwrRelativeVi } from '@/components/crm/iwr/iwr-format';
 import {
   IWR_STATUS_LABELS,
@@ -76,14 +77,43 @@ export default function InternalReportsPage() {
     void reload();
   }, [reload]);
 
+  function coversToday(row: IwrReportRow, today: string): boolean {
+    const start = String(row.period_start).slice(0, 10);
+    const end = String(row.period_end).slice(0, 10);
+    return start <= today && today <= end;
+  }
+
+  async function openExisting(templateCode: string, today: string): Promise<string | null> {
+    if (!token) return null;
+    const known = items.find((row) => row.template_code === templateCode && coversToday(row, today));
+    if (known) return known.id;
+    const mine = await fetchIwrReports(token, { template_code: templateCode });
+    return (mine.items ?? []).find((row) => coversToday(row, today))?.id ?? null;
+  }
+
   async function openToday() {
     if (!token || !canWrite) return;
     setBusy(true);
     setError('');
+    const today = ictYmd(new Date());
     try {
+      const existingId = await openExisting('daily_work', today);
+      if (existingId) {
+        router.push(`/crm/internal-reports/${existingId}`);
+        return;
+      }
       const created = await createIwrReport(token, { template_code: 'daily_work' });
       router.push(`/crm/internal-reports/${created.id}`);
     } catch (err) {
+      if (err instanceof ApiError && err.message === 'iwr_period_exists') {
+        const existingId = await openExisting('daily_work', today).catch(() => null);
+        if (existingId) {
+          router.push(`/crm/internal-reports/${existingId}`);
+          return;
+        }
+        setError('Đã có báo cáo ngày hôm nay.');
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Tạo báo cáo ngày thất bại');
     } finally {
       setBusy(false);
