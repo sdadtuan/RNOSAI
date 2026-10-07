@@ -4103,6 +4103,9 @@ export interface CrmStaffRow {
   department: string;
   active: number;
   can_receive_leads?: boolean;
+  reports_to_id?: number | null;
+  reports_to_name?: string;
+  position_catalog_code?: string;
 }
 
 export interface KpiMetricRow {
@@ -5131,6 +5134,7 @@ export async function patchCrmStaff(
     email: string;
     job_title: string;
     can_receive_leads: boolean;
+    reports_to_id: number | null;
   }>,
 ): Promise<CrmStaffRow> {
   return crmFetch(token, `/api/crm/staff/${staffId}`, {

@@ -40,6 +40,8 @@ export interface PatchCrmStaffBody {
   email?: string;
   job_title?: string;
   can_receive_leads?: boolean;
+  /** null clears the manager; omit to leave unchanged */
+  reports_to_id?: number | null;
 }
 
 export interface StaffImportRow {

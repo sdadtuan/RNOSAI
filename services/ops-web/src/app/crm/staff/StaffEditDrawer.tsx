@@ -17,6 +17,7 @@ type Props = {
   open: boolean;
   staff: CrmStaffRow | null;
   orgUser?: StaffOrgUserSummary | null;
+  managerOptions: CrmStaffRow[];
   token: string;
   canEdit: boolean;
   viewer: StoredStaffUser | null;
@@ -28,6 +29,7 @@ export function StaffEditDrawer({
   open,
   staff,
   orgUser,
+  managerOptions,
   token,
   canEdit,
   viewer,
@@ -39,6 +41,7 @@ export function StaffEditDrawer({
   const [email, setEmail] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [canReceiveLeads, setCanReceiveLeads] = useState(false);
+  const [reportsToId, setReportsToId] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -52,6 +55,7 @@ export function StaffEditDrawer({
     setEmail(staff.email ?? '');
     setJobTitle(staff.job_title ?? '');
     setCanReceiveLeads(Boolean(staff.can_receive_leads));
+    setReportsToId(staff.reports_to_id != null ? String(staff.reports_to_id) : '');
     setError('');
   }, [staff]);
 
@@ -66,6 +70,7 @@ export function StaffEditDrawer({
         email: email.trim(),
         job_title: jobTitle.trim(),
         can_receive_leads: canReceiveLeads,
+        reports_to_id: reportsToId ? Number(reportsToId) : null,
       });
       onSaved(updated);
       onClose();
@@ -162,6 +167,27 @@ export function StaffEditDrawer({
         Chức danh
         <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} readOnly={!canEdit} />
       </label>
+      <label>
+        Quản lý trực tiếp
+        <select
+          value={reportsToId}
+          disabled={!canEdit}
+          onChange={(e) => setReportsToId(e.target.value)}
+        >
+          <option value="">— Không gán —</option>
+          {managerOptions
+            .filter((row) => row.id !== staff.id && Boolean(row.active))
+            .map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name}
+                {row.position_catalog_code ? ` (${row.position_catalog_code})` : ''}
+              </option>
+            ))}
+        </select>
+      </label>
+      <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+        Dùng làm người nhận Đến mặc định trên báo cáo ngày.
+      </p>
       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <input
           type="checkbox"

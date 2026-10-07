@@ -296,6 +296,7 @@ export function StaffContent() {
                   <th>Tên</th>
                   <th>Mã</th>
                   <th>Phòng</th>
+                  <th>Quản lý trực tiếp</th>
                   <th>Ví %</th>
                   <th>Hết hạn</th>
                   {showOrgBridge ? <th>Login / RBAC</th> : null}
@@ -313,6 +314,7 @@ export function StaffContent() {
                     </td>
                     <td>{s.internal_code || '—'}</td>
                     <td>{s.department || '—'}</td>
+                    <td>{s.reports_to_name?.trim() || '—'}</td>
                     <td>{walletStats.get(s.id)?.wallet_pct ?? '—'}%</td>
                     <td>
                       {(walletStats.get(s.id)?.expiring_count ?? 0) > 0 ? (
@@ -472,6 +474,7 @@ export function StaffContent() {
               ? orgUsersByEmail.get(editStaff.email.trim().toLowerCase())
               : undefined
           }
+          managerOptions={rows}
           token={accessToken}
           canEdit={canEdit}
           viewer={user}

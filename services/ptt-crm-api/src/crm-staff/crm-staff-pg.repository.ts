@@ -245,18 +245,24 @@ export class CrmStaffPgRepository implements OnModuleDestroy {
     if ('can_receive_leads' in body) {
       merged.can_receive_leads = Boolean(body.can_receive_leads);
     }
+    if ('reports_to_id' in body) {
+      const raw = body.reports_to_id;
+      merged.reports_to_id = raw == null || Number(raw) <= 0 ? null : Number(raw);
+    }
 
     const ts = catalogTs();
     await this.db.query(
       `UPDATE crm_staff
-       SET name = $1, phone = $2, email = $3, job_title = $4, can_receive_leads = $5, updated_at = $6
-       WHERE id = $7`,
+       SET name = $1, phone = $2, email = $3, job_title = $4, can_receive_leads = $5,
+           reports_to_id = $6, updated_at = $7
+       WHERE id = $8`,
       [
         String(merged.name ?? ''),
         String(merged.phone ?? ''),
         String(merged.email ?? ''),
         String(merged.job_title ?? ''),
         Boolean(merged.can_receive_leads),
+        merged.reports_to_id == null ? null : Number(merged.reports_to_id),
         ts,
         staffId,
       ],

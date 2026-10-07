@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { KpiService } from '../kpi/kpi.service';
 import { CrmStaffPgRepository } from './crm-staff-pg.repository';
+import { reportsToWouldCycle } from './crm-staff-reports-to.util';
 import {
   isValidEmail,
   PatchCrmStaffBody,
@@ -53,12 +54,36 @@ export class CrmStaffService {
         throw new BadRequestException({ error: 'Email không hợp lệ' });
       }
     }
+    if ('reports_to_id' in body) {
+      await this.assertReportsTo(staffId, body.reports_to_id ?? null);
+    }
 
     const updated = await this.pg.patchStaff(staffId, body);
     if (!updated) {
       throw new NotFoundException({ error: 'Không tìm thấy nhân viên' });
     }
     return updated;
+  }
+
+  private async assertReportsTo(staffId: number, managerId: number | null): Promise<void> {
+    if (managerId == null) return;
+    if (!Number.isInteger(managerId) || managerId <= 0) {
+      throw new BadRequestException({ error: 'Quản lý trực tiếp không hợp lệ' });
+    }
+    if (managerId === staffId) {
+      throw new BadRequestException({ error: 'Không thể chọn chính mình làm quản lý' });
+    }
+    const manager = await this.pg.getStaffById(managerId);
+    if (!manager || !Number(manager.active)) {
+      throw new BadRequestException({ error: 'Quản lý phải là nhân viên đang hoạt động' });
+    }
+    const roster = await this.pg.listStaff(2000);
+    const edges = new Map<number, number | null>(
+      (roster.staff ?? []).map((row) => [row.id, row.reports_to_id ?? null]),
+    );
+    if (reportsToWouldCycle(staffId, managerId, edges)) {
+      throw new BadRequestException({ error: 'Gán quản lý sẽ tạo vòng báo cáo' });
+    }
   }
 
   listStaffKpi(year?: string, month?: string, staffId?: string, team?: string) {
