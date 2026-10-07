@@ -38,6 +38,9 @@ function makeSvc(now?: Date) {
       { id: 2, name: 'TL', email: 't', department_id: 10, reports_to_id: 1, active: true },
       { id: 3, name: 'NV', email: 'n', department_id: 10, reports_to_id: 2, active: true },
     ]),
+    listActiveByPosition: jest.fn().mockResolvedValue([
+      { id: 11, name: 'GDKD', email: 'g', department_id: 1, reports_to_id: null, active: true, position_code: 'GDKD' },
+    ]),
   };
   const notify = { insert: jest.fn() };
   const audit = { insert: jest.fn() };
@@ -98,6 +101,10 @@ describe('IwrReportsService', () => {
     });
 
     await expect(svc.create(actor(), { template_code: 'daily_work' })).resolves.toBeTruthy();
+    expect(repo.replaceRecipients).toHaveBeenCalledWith('r1', [
+      { staff_id: 2, kind: 'to' },
+      { staff_id: 11, kind: 'cc' },
+    ]);
     await expect(
       svc.create(actor(), {
         template_code: 'daily_work',

@@ -320,6 +320,15 @@ export class IwrReportsService {
         due_at: period.due_at,
         sections_json: sections,
       });
+      if (input.template_code === 'daily_work') {
+        const toId = defaultToStaffId(author);
+        const gdkd = await this.org.listActiveByPosition(['GDKD']);
+        const cc = gdkd.find((person) => person.id !== author.id && person.id !== toId);
+        const recipients: { staff_id: number; kind: 'to' | 'cc' }[] = [];
+        if (toId) recipients.push({ staff_id: toId, kind: 'to' });
+        if (cc) recipients.push({ staff_id: cc.id, kind: 'cc' });
+        if (recipients.length) await this.repo.replaceRecipients(row.id, recipients);
+      }
       await this.auditLog(actor, 'iwr.create', row.id, { status: 'draft' });
       return this.enrichViewer(actor, await this.loadDetail(row.id));
     } catch (err: unknown) {

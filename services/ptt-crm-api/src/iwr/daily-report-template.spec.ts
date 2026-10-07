@@ -1,5 +1,6 @@
 import {
   applyDailyTemplate,
+  dailyDraftIsOverdue,
   ictYmd,
   reportTemplateForPosition,
   sanitizeDailyMetrics,
@@ -127,6 +128,35 @@ describe('daily report template', () => {
       }),
     );
     expect(issues.map((issue) => issue.code)).toContain('VALIDATION_V5');
+  });
+
+  it('V17 rejects WIP progress at 100 and asks to move it to done', () => {
+    const issues = validateDailyReport(
+      input('content_edit', {
+        lines: [line({ section: 'wip', progress: 100, eta: TODAY, assetType: 'video' })],
+      }),
+    );
+    expect(issues.map((issue) => issue.code)).toContain('VALIDATION_V17');
+    expect(issues.find((issue) => issue.code === 'VALIDATION_V17')?.message).toMatch(/hoàn thành/);
+  });
+
+  it('flags an unsent daily draft after 22:00 ICT of its period', () => {
+    expect(
+      dailyDraftIsOverdue({
+        templateCode: 'daily_work',
+        status: 'draft',
+        periodYmd: '2026-10-06',
+        now: new Date('2026-10-07T10:00:00+07:00'),
+      }),
+    ).toBe(true);
+    expect(
+      dailyDraftIsOverdue({
+        templateCode: 'daily_work',
+        status: 'draft',
+        periodYmd: '2026-10-07',
+        now: new Date('2026-10-07T15:00:00+07:00'),
+      }),
+    ).toBe(false);
   });
 
   it('V11 rejects buyer spend missing and a CRM gap without a note', () => {

@@ -65,7 +65,7 @@ export function serializeIwrItemMeta(meta: IwrItemMeta): string {
 }
 
 export function iwrItemText(meta: IwrItemMeta): string {
-  return String(meta.text ?? meta.note ?? '').trim();
+  return String(meta.text ?? meta.note ?? '');
 }
 
 const NEW_TASK_TITLE = 'Công việc mới';

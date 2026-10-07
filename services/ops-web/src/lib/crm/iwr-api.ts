@@ -67,6 +67,7 @@ export interface IwrReportRow {
   author_staff_id: number;
   author_name?: string;
   reviewer_staff_id: number | null;
+  reviewer_name?: string;
   period_start: string;
   period_end: string;
   due_at: string;

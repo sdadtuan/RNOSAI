@@ -11,6 +11,7 @@ import {
   patchIwrItem,
   promoteIwrBlockerToRisk,
   replyAllIwrReport,
+  requestIwrExternalShare,
   uploadIwrFile,
   type IwrCommentRow,
   type IwrItemRow,
@@ -19,7 +20,7 @@ import {
 } from '@/lib/crm/iwr-api';
 import { fetchStaffKpi, type StaffKpiGridEntry } from '@/lib/api';
 import { iwrAvatarTone, iwrInitials } from './iwr-format';
-import { IwrPeoplePicker, iwrInitialToChip, type IwrPersonChip } from './IwrPeoplePicker';
+import { IwrPeoplePicker, type IwrPersonChip } from './IwrPeoplePicker';
 import { IwrB2bProjectSelect } from './IwrB2bProjectSelect';
 import { iwrProjectMetaPatch } from './iwr-b2b-project';
 import {
@@ -43,6 +44,7 @@ import {
 import {
   DAILY_REPORT_TEMPLATES,
   FALLBACK_TIPS,
+  dailyDraftIsOverdue,
   ictCountdown,
   ictYmd,
   lockedTemplate,
@@ -94,9 +96,13 @@ function RoleLineFields({
   onMeta: (patch: Partial<IwrItemMeta>) => void;
 }) {
   if (!template) return null;
+  const showBuyer = template === 'buyer_ads';
+  const showAm = template === 'am_account';
+  const showAsset = template === 'content_edit' && section === 'done';
+  if (!showBuyer && !showAm && !showAsset) return null;
   return (
     <div className="iwr-rolefields">
-      {template === 'buyer_ads' && (
+      {showBuyer && (
         <>
           <input
             className="iwr-input"
@@ -114,7 +120,7 @@ function RoleLineFields({
           />
         </>
       )}
-      {template === 'am_account' && (
+      {showAm && (
         <>
           <input
             className="iwr-input"
@@ -143,7 +149,7 @@ function RoleLineFields({
           ) : null}
         </>
       )}
-      {template === 'content_edit' && section === 'done' && (
+      {showAsset && (
         <input
           className="iwr-input"
           disabled={readOnly}
@@ -152,24 +158,6 @@ function RoleLineFields({
           onChange={(e) => onMeta({ asset_type: e.target.value })}
         />
       )}
-      <label className="iwr-check">
-        <input
-          type="checkbox"
-          disabled={readOnly}
-          checked={Boolean(meta.kpi_waived)}
-          onChange={(e) => onMeta({ kpi_waived: e.target.checked })}
-        />
-        KPI không áp dụng
-      </label>
-      {meta.kpi_waived ? (
-        <input
-          className="iwr-input"
-          disabled={readOnly}
-          placeholder="Lý do không áp dụng, ít nhất 20 ký tự"
-          value={meta.kpi_waive_reason ?? ''}
-          onChange={(e) => onMeta({ kpi_waive_reason: e.target.value })}
-        />
-      ) : null}
     </div>
   );
 }
@@ -232,26 +220,35 @@ function KpiPick({
   kpiId,
   kpiLabel,
   disabled,
+  waived,
+  reason,
   onChange,
+  onWaive,
+  onReason,
 }: {
   rows: StaffKpiGridEntry[] | null;
   kpiId?: number | null;
   kpiLabel?: string;
   disabled?: boolean;
+  waived?: boolean;
+  reason?: string;
   onChange: (id: string) => void;
+  onWaive: (waived: boolean) => void;
+  onReason: (reason: string) => void;
 }) {
   const selected = (rows ?? []).find((row) => row.id === kpiId);
   const missing = kpiId != null && kpiId > 0 && !selected;
+  const empty = rows != null && rows.length === 0 && !missing;
   return (
     <span className="iwr-kpi">
       <select
         aria-label="KPI"
-        disabled={disabled || rows == null}
-        title={rows != null && rows.length === 0 ? 'Chưa có KPI của người viết trong tháng này' : 'KPI tháng của người viết báo cáo'}
-        value={kpiId != null && kpiId > 0 ? String(kpiId) : ''}
+        disabled={disabled || rows == null || waived}
+        title={empty ? 'Chưa có KPI của người viết trong tháng này' : 'KPI tháng của người viết báo cáo'}
+        value={waived ? '' : kpiId != null && kpiId > 0 ? String(kpiId) : ''}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="">{rows == null ? 'Đang tải KPI…' : '— Chọn KPI —'}</option>
+        <option value="">{rows == null ? 'Đang tải KPI…' : empty ? 'Chưa có KPI tháng này' : '— Chọn KPI —'}</option>
         {missing && <option value={String(kpiId)}>{kpiLabel || `KPI #${kpiId}`}</option>}
         {(rows ?? []).map((row) => (
           <option key={row.id} value={String(row.id)}>
@@ -259,7 +256,27 @@ function KpiPick({
           </option>
         ))}
       </select>
-      {selected && <span className="iwr-muted">{iwrKpiScore(selected)}</span>}
+      {selected && !waived ? <span className="iwr-muted">{iwrKpiScore(selected)}</span> : null}
+      <label className="iwr-check iwr-kpi__waive">
+        <input
+          type="checkbox"
+          disabled={disabled}
+          checked={Boolean(waived)}
+          onChange={(e) => onWaive(e.target.checked)}
+        />
+        Không áp dụng
+      </label>
+      {waived ? (
+        <input
+          className="iwr-input iwr-kpi__note"
+          disabled={disabled}
+          placeholder="Ghi chú lý do, ít nhất 20 ký tự"
+          value={reason ?? ''}
+          onChange={(e) => onReason(e.target.value)}
+        />
+      ) : !selected ? (
+        <span className="iwr-muted iwr-kpi__hint">Không có KPI thì tick “Không áp dụng”, rồi ghi chú lý do.</span>
+      ) : null}
     </span>
   );
 }
@@ -337,9 +354,18 @@ export function IwrDailyReportEditor({
     }
     return report.title;
   });
-  const [toPerson, setToPerson] = useState<IwrPersonChip | null>(() =>
-    iwrInitialToChip(report.id, toRecipient, readOnly),
-  );
+  const [toPerson, setToPerson] = useState<IwrPersonChip | null>(() => {
+    if (toRecipient) {
+      return { id: toRecipient.staff_id, name: toRecipient.staff_name ?? `#${toRecipient.staff_id}` };
+    }
+    if (report.reviewer_staff_id) {
+      return {
+        id: report.reviewer_staff_id,
+        name: report.reviewer_name ?? `#${report.reviewer_staff_id}`,
+      };
+    }
+    return null;
+  });
   const [ccPeople, setCcPeople] = useState<IwrPersonChip[]>(
     ccRecipients.map((r) => ({ id: r.staff_id, name: r.staff_name ?? `#${r.staff_id}` })),
   );
@@ -357,6 +383,11 @@ export function IwrDailyReportEditor({
   const [changeBody, setChangeBody] = useState('');
   const [commentBody, setCommentBody] = useState('');
   const [formError, setFormError] = useState('');
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [externalOpen, setExternalOpen] = useState(false);
+  const [externalEmail, setExternalEmail] = useState('');
+  const [externalApprover, setExternalApprover] = useState<IwrPersonChip | null>(null);
+  const [externalNote, setExternalNote] = useState('');
   const notesBody = (() => {
     const notes = report.sections_json?.notes;
     if (notes && typeof notes === 'object' && 'body' in notes) return String((notes as { body?: string }).body ?? '');
@@ -446,6 +477,13 @@ export function IwrDailyReportEditor({
   );
   const metricFields = metricFieldsFor(reportTemplate, slaEnabled);
   const countdown = ictCountdown(clock);
+  const draftOverdue = dailyDraftIsOverdue({
+    templateCode: report.template_code,
+    status: report.status,
+    periodYmd: String(report.period_start),
+    isLate: report.is_late,
+    now: clock,
+  });
   const templateDrift = Boolean(snapshotTemplate && positionTemplate && snapshotTemplate !== positionTemplate);
   const overdueCount = items.filter((it) => {
     const meta = parseIwrItemMeta(it.body);
@@ -521,12 +559,12 @@ export function IwrDailyReportEditor({
     [readOnly, onPatch, title, ccPeople, items, toPerson, report.title, buildSections],
   );
 
-  const clearedDefaultTo = useRef(false);
+  const restoredTo = useRef(false);
   useEffect(() => {
-    if (readOnly || clearedDefaultTo.current || toPerson || !toRecipient) return;
-    clearedDefaultTo.current = true;
-    void persistDraft(title, ccPeople.map((p) => p.id), items, null);
-  }, [readOnly, toPerson, toRecipient, persistDraft, title, ccPeople, items]);
+    if (readOnly || restoredTo.current || toRecipient || !toPerson) return;
+    restoredTo.current = true;
+    void persistDraft(title, ccPeople.map((p) => p.id), items, toPerson.id);
+  }, [readOnly, toRecipient, toPerson, persistDraft, title, ccPeople, items]);
 
   const scheduleDraft = useCallback(
     (
@@ -850,9 +888,7 @@ export function IwrDailyReportEditor({
             <span className="iwr-chip iwr-chip--template">Mẫu: {templateLabel}</span>
             {report.first_viewed_at ? <span className="iwr-chip">Đã xem</span> : null}
             {comments.length > 0 ? <span className="iwr-chip">Có phản hồi</span> : null}
-            {(report.is_late || (countdown.late && EDITABLE.has(report.status))) ? (
-              <span className="iwr-chip iwr-chip--late">Quá hạn</span>
-            ) : null}
+            {draftOverdue ? <span className="iwr-chip iwr-chip--late">Quá hạn</span> : null}
           </h1>
           <p className="iwr-saved">
             <span className="iwr-saved__ok" aria-hidden>
@@ -919,11 +955,31 @@ export function IwrDailyReportEditor({
               </button>
             </>
           )}
+          {['submitted', 'supplemented', 'acknowledged', 'changes_requested'].includes(report.status) &&
+            (isAuthor || isReviewer) && (
+              <button
+                type="button"
+                className="iwr-btn"
+                disabled={busy}
+                onClick={() => {
+                  setExternalApprover(toPerson);
+                  setExternalNote('');
+                  setExternalOpen(true);
+                }}
+              >
+                Yêu cầu gửi ngoại
+              </button>
+            )}
         </div>
       </div>
 
       <div className="iwr-notice">Nội bộ — không gửi khách trừ khi đã duyệt ngoại</div>
-      {formError && <p className="iwr-err">{formError}</p>}
+      {externalNote ? <p className="iwr-saved">{externalNote}</p> : null}
+      {formError && (
+        <p className="iwr-err" role="alert">
+          {formError}
+        </p>
+      )}
 
       <section className="iwr-mail">
         <IwrPeoplePicker
@@ -1065,7 +1121,11 @@ export function IwrDailyReportEditor({
                       kpiId={meta.kpi_id}
                       kpiLabel={meta.kpi_label}
                       disabled={readOnly}
+                      waived={Boolean(meta.kpi_waived)}
+                      reason={meta.kpi_waive_reason}
                       onChange={(id) => applyKpi(it, id)}
+                      onWaive={(waived) => updateMeta(it, { kpi_waived: waived })}
+                      onReason={(reason) => updateMeta(it, { kpi_waive_reason: reason })}
                     />
                     <div className="iwr-evidence">
                       {file && !href ? <span>{file}</span> : <span className="iwr-muted">Chưa có file</span>}
@@ -1172,7 +1232,11 @@ export function IwrDailyReportEditor({
                         kpiId={meta.kpi_id}
                         kpiLabel={meta.kpi_label}
                         disabled={readOnly}
+                        waived={Boolean(meta.kpi_waived)}
+                        reason={meta.kpi_waive_reason}
                         onChange={(id) => applyKpi(it, id)}
+                        onWaive={(waived) => updateMeta(it, { kpi_waived: waived })}
+                        onReason={(reason) => updateMeta(it, { kpi_waive_reason: reason })}
                       />
                     </label>
                     <label className="iwr-field">
@@ -1182,6 +1246,16 @@ export function IwrDailyReportEditor({
                         disabled={readOnly}
                         onChange={(n) => updateMeta(it, { progress: n })}
                       />
+                      {clampProgress(meta.progress ?? 0) === 100 ? (
+                        <span className="iwr-wip__move">
+                          Đã 100%. Chuyển sang hoàn thành trước khi gửi.
+                          {!readOnly ? (
+                            <button type="button" className="iwr-link" onClick={() => void moveSection(it, 'done')}>
+                              Chuyển
+                            </button>
+                          ) : null}
+                        </span>
+                      ) : null}
                     </label>
                     <label className="iwr-field">
                       Ngày
@@ -1414,7 +1488,15 @@ export function IwrDailyReportEditor({
         </div>
 
         <aside className="iwr-daily__side">
-          <section className="iwr-card">
+          <section className={`iwr-card iwr-sideacc${summaryOpen ? ' is-open' : ''}`}>
+            <button
+              type="button"
+              className="iwr-sideacc__toggle"
+              aria-expanded={summaryOpen}
+              onClick={() => setSummaryOpen((open) => !open)}
+            >
+              Tóm tắt nhanh
+            </button>
             <h2>Tóm tắt hôm nay</h2>
             <ul className="iwr-summary">
               <li>
@@ -1581,6 +1663,65 @@ export function IwrDailyReportEditor({
           </div>
         )}
       </section>
+
+      {externalOpen && (
+        <div className="iwr-modal">
+          <div className="iwr-modal__box">
+            <div className="iwr-mail__k">Yêu cầu gửi ngoại</div>
+            <p className="iwr-muted">GDKD hoặc Admin duyệt thì mới tạo link. Bản này chưa gửi ra ngoài.</p>
+            <label className="iwr-field">
+              Email người nhận ngoài
+              <input
+                className="iwr-input"
+                type="email"
+                value={externalEmail}
+                placeholder="ten@congty.com"
+                onChange={(e) => setExternalEmail(e.target.value)}
+              />
+            </label>
+            <IwrPeoplePicker
+              token={token}
+              purpose="to"
+              label="Người duyệt"
+              placeholder="Tìm GDKD hoặc Admin..."
+              selected={externalApprover ? [externalApprover] : []}
+              onChange={(next) => setExternalApprover(next[0] ?? null)}
+              multiple={false}
+            />
+            <div className="iwr-pagehead__actions">
+              <button type="button" className="iwr-btn" onClick={() => setExternalOpen(false)}>
+                Huỷ
+              </button>
+              <button
+                type="button"
+                className="iwr-btn iwr-btn--primary"
+                disabled={busy || !externalEmail.includes('@') || !externalApprover}
+                onClick={() => {
+                  if (!externalApprover) return;
+                  setBusy(true);
+                  setFormError('');
+                  void requestIwrExternalShare(token, {
+                    report_id: report.id,
+                    email: externalEmail.trim(),
+                    approver_staff_id: externalApprover.id,
+                  })
+                    .then(() => {
+                      setExternalOpen(false);
+                      setExternalEmail('');
+                      setExternalNote('Đã gửi yêu cầu duyệt ngoại. Chưa tạo link ra ngoài.');
+                    })
+                    .catch((err: unknown) => {
+                      setFormError(err instanceof Error ? err.message : 'Không gửi được yêu cầu duyệt ngoại');
+                    })
+                    .finally(() => setBusy(false));
+                }}
+              >
+                Gửi yêu cầu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {lateOpen && (
         <div className="iwr-modal">

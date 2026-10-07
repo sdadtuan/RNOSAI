@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { IwrAppShell, IwrCard } from '@/components/crm/iwr/IwrAppShell';
 import { IwrProjectProgressChart } from '@/components/crm/iwr/IwrProjectProgressChart';
 import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
-import { iwrAvatarTone, iwrInitials, iwrIsoWeekLabel, iwrRagClass, iwrRagLabel, iwrRelativeVi } from '@/components/crm/iwr/iwr-format';
+import { dailyDraftIsOverdue } from '@/components/crm/iwr/daily-report-template';
 import {
   IWR_STATUS_LABELS,
   IWR_TEMPLATE_CODES,
@@ -355,7 +355,17 @@ function MyReportsTable({ items, canWrite }: { items: IwrReportRow[]; canWrite: 
               {row.period_start}
               {row.period_end !== row.period_start ? ` — ${row.period_end}` : ''}
             </td>
-            <td>{IWR_STATUS_LABELS[row.status]}</td>
+            <td>
+              {IWR_STATUS_LABELS[row.status]}
+              {dailyDraftIsOverdue({
+                templateCode: row.template_code,
+                status: row.status,
+                periodYmd: row.period_start,
+                isLate: row.is_late,
+              }) ? (
+                <span className="iwr-chip iwr-chip--late"> Quá hạn</span>
+              ) : null}
+            </td>
             <td>{formatIwrWhen(row.submitted_at)}</td>
           </tr>
         ))}

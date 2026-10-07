@@ -40,6 +40,7 @@ export const DAILY_VALIDATION_CODES = [
   'VALIDATION_V13',
   'VALIDATION_V14',
   'VALIDATION_V15',
+  'VALIDATION_V17',
   'VALIDATION_TEMPLATE_UNASSIGNED',
   'VALIDATION_RECIPIENT_DISABLED',
 ] as const;
@@ -425,6 +426,9 @@ export function validateDailyReport(input: DailyReportCheckInput): DailyValidati
       if (!/^\d{4}-\d{2}-\d{2}$/.test(eta) || eta < input.todayYmd) {
         add(issues, 'VALIDATION_V5', 'Việc đang làm cần ETA từ hôm nay (ICT) trở đi.');
       }
+      if (line.progress === 100) {
+        add(issues, 'VALIDATION_V17', 'Việc đang làm đã 100%. Chuyển sang Kết quả đã hoàn thành.');
+      }
     }
   }
 
@@ -576,4 +580,24 @@ export function ictCountdown(now: Date): { late: boolean; label: string } {
 
 export function dailyDueAt(ymd: string): string {
   return `${ymd}T22:00:00.000+07:00`;
+}
+
+/** Nháp báo cáo ngày sau 22:00 ICT của kỳ đó, kể cả khi chưa bấm Gửi. */
+export function dailyDraftIsOverdue(input: {
+  templateCode: string;
+  status: string;
+  periodYmd: string;
+  isLate?: boolean;
+  now?: Date;
+}): boolean {
+  if (input.isLate) return true;
+  if (input.templateCode !== 'daily_work') return false;
+  if (input.status !== 'draft' && input.status !== 'changes_requested') return false;
+  const ymd = String(input.periodYmd ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
+  const now = input.now ?? new Date();
+  const today = ictYmd(now);
+  if (ymd < today) return true;
+  if (ymd > today) return false;
+  return ictCountdown(now).late;
 }

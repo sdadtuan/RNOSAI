@@ -51,6 +51,7 @@ function mapReport(row: Record<string, unknown>): IwrReportRow {
     author_staff_id: num(row.author_staff_id) ?? 0,
     author_name: row.author_name != null ? text(row.author_name) : undefined,
     reviewer_staff_id: num(row.reviewer_staff_id),
+    reviewer_name: row.reviewer_name != null ? text(row.reviewer_name) : undefined,
     period_start: text(row.period_start).slice(0, 10),
     period_end: text(row.period_end).slice(0, 10),
     due_at: text(row.due_at),
@@ -98,10 +99,12 @@ const REPORT_SELECT = `
   SELECT r.*,
          t.code AS template_code,
          t.name_vi AS template_name_vi,
-         a.name AS author_name
+         a.name AS author_name,
+         rv.name AS reviewer_name
     FROM iwr_reports r
     JOIN iwr_templates t ON t.id = r.template_id
     LEFT JOIN crm_staff a ON a.id = r.author_staff_id
+    LEFT JOIN crm_staff rv ON rv.id = r.reviewer_staff_id
 `;
 
 @Injectable()
@@ -143,6 +146,29 @@ export class IwrOrgRepository implements OnModuleDestroy {
       active: Boolean(row.active),
       position_code: row.position_code != null ? text(row.position_code) : null,
     };
+  }
+
+  async listActiveByPosition(codes: string[]): Promise<IwrStaffNode[]> {
+    const wanted = codes.map((code) => code.trim().toUpperCase()).filter(Boolean);
+    if (!wanted.length) return [];
+    const res = await this.db.query(
+      `SELECT s.id, s.name, s.email, s.department_id, s.reports_to_id, s.active,
+              p.code AS position_code
+         FROM crm_staff s
+         JOIN crm_positions p ON p.id = s.position_id
+        WHERE s.active = TRUE AND upper(p.code) = ANY($1::text[])
+        ORDER BY s.name`,
+      [wanted],
+    );
+    return res.rows.map((row) => ({
+      id: Number(row.id),
+      name: text(row.name),
+      email: row.email != null ? text(row.email) : null,
+      department_id: num(row.department_id),
+      reports_to_id: num(row.reports_to_id),
+      active: Boolean(row.active),
+      position_code: row.position_code != null ? text(row.position_code) : null,
+    }));
   }
 
   async listActiveStaff(): Promise<IwrStaffNode[]> {

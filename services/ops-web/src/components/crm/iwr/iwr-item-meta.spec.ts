@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clampProgress,
   formatViYmd,
+  iwrItemText,
   iwrKpiItemSeed,
   iwrKpiProgress,
   iwrKpiScore,
@@ -36,6 +37,11 @@ describe('daily task fields', () => {
     expect(seed.section).toBe('done');
     expect(seed.title).toBe('Lead mới');
     expect(JSON.parse(seed.body)).toMatchObject({ kpi_id: 4, progress: 100, note: '20/20 lead' });
+  });
+
+  it('keeps spaces inside a task description', () => {
+    expect(iwrItemText({ text: 'Thiết kế video cho chiến dịch' })).toBe('Thiết kế video cho chiến dịch');
+    expect(iwrItemText({ text: 'dòng một ' })).toBe('dòng một ');
   });
 
   it('keeps a pasted link visible and adds https when the scheme is missing', () => {
