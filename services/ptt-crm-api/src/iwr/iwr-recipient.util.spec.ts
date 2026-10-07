@@ -1,4 +1,4 @@
-import { assertCanReceive, filterRecipientsForViewer, replyAllRecipientIds } from './iwr-recipient.util';
+import { activeCcIds, assertCanReceive, filterRecipientsForViewer, replyAllRecipientIds } from './iwr-recipient.util';
 import type { IwrActor, IwrRecipientRow, IwrReportRow, IwrStaffNode } from './iwr.types';
 
 describe('assertCanReceive W3', () => {
@@ -74,6 +74,10 @@ describe('assertCanReceive W3', () => {
         policy: { allow_bcc: true, cc_mode: 'w1' },
       }),
     ).toThrow('iwr_bcc_forbidden');
+  });
+
+  it('keeps an active colleague on daily CC and drops an inactive account', () => {
+    expect(activeCcIds([4, 99, 3], 3, nodes)).toEqual([4]);
   });
 
   it('hides Bcc from non-sender GET', () => {

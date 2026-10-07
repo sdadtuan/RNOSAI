@@ -124,6 +124,12 @@ export function assertCanReceive(input: {
   }
 }
 
+/** Daily CC is any active colleague. Inactive or unknown accounts are dropped. */
+export function activeCcIds(ccIds: number[], authorId: number, nodes: IwrStaffNode[]): number[] {
+  const active = new Set(nodes.filter((n) => n.active).map((n) => n.id));
+  return [...new Set(ccIds.filter((id) => id > 0 && id !== authorId && active.has(id)))];
+}
+
 /** W1 hard-coded rules (Bcc always forbidden). */
 export function assertW1Recipients(input: {
   author: IwrStaffNode;

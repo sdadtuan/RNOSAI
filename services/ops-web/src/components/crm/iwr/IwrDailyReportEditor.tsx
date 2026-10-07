@@ -82,6 +82,14 @@ const IMMUTABLE = new Set<IwrReportStatus>(['acknowledged', 'waived', 'archived'
 const EDITABLE = new Set<IwrReportStatus>(['draft', 'changes_requested']);
 const SUPPORT_ROLES = ['Account Manager', 'Team Lead', 'PM', 'Khác'];
 
+function iwrActionError(err: unknown, fallback: string): string {
+  const raw = err instanceof Error ? err.message : '';
+  if (raw === 'iwr_cc_not_allowed') {
+    return 'Người CC không được nhận báo cáo này. Bỏ người đó và chọn nhân sự đang làm việc.';
+  }
+  return raw || fallback;
+}
+
 function RoleLineFields({
   template,
   section,
@@ -553,7 +561,7 @@ export function IwrDailyReportEditor({
         setSaveState('saved');
       } catch (err) {
         setSaveState('error');
-        setFormError(err instanceof Error ? err.message : 'Lưu nháp thất bại');
+        setFormError(iwrActionError(err, 'Lưu nháp thất bại'));
       }
     },
     [readOnly, onPatch, title, ccPeople, items, toPerson, report.title, buildSections],
@@ -822,7 +830,7 @@ export function IwrDailyReportEditor({
       });
       setLateOpen(false);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Gửi báo cáo thất bại');
+      setFormError(iwrActionError(err, 'Gửi báo cáo thất bại'));
     } finally {
       setBusy(false);
     }

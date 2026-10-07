@@ -27,6 +27,7 @@ import {
 } from './daily-report-template';
 import { computeRagHint } from './iwr-rag.util';
 import {
+  activeCcIds,
   assertCanReceive,
   assertW1Recipients,
   defaultToStaffId,
@@ -466,8 +467,24 @@ export class IwrReportsService {
     }
 
     const rules = await this.policy.getActiveRules();
+    const daily = report.template_code === 'daily_work';
+    if (daily) {
+      const kept = activeCcIds(ccIds, author.id, nodes);
+      ccIds.splice(0, ccIds.length, ...kept);
+    }
     try {
-      if (rules) {
+      if (daily) {
+        assertCanReceive({
+          actor,
+          author,
+          nodes,
+          toIds,
+          ccIds,
+          bccIds,
+          policy: { allow_bcc: rules?.allow_bcc === true, cc_mode: 'open' },
+          reportSensitivity: report.sensitivity,
+        });
+      } else if (rules) {
         assertCanReceive({
           actor,
           author,

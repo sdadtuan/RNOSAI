@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
 import { emptySectionsForCode } from './iwr-sections.util';
 import { IwrReportsService } from './iwr-reports.service';
 import type { IwrActor } from './iwr.types';
@@ -68,7 +68,7 @@ function makeSvc(now?: Date) {
     w5 as never,
   );
   if (now) svc.nowFn = () => now;
-  return { svc, repo, org, notify, audit };
+  return { svc, repo, org, notify, audit, policy };
 }
 
 describe('IwrReportsService', () => {
@@ -142,6 +142,40 @@ describe('IwrReportsService', () => {
     await expect(svc.submit(actor(), 'r1', {})).rejects.toMatchObject({
       response: { error: 'late_reason_required' },
     });
+  });
+
+  it('daily submit accepts a CC outside the management line', async () => {
+    const { svc, repo, org, policy } = makeSvc(new Date('2026-09-03T18:00:00+07:00'));
+    policy.getActiveRules.mockResolvedValue({ allow_bcc: false, cc_mode: 'w1' });
+    repo.getReport.mockResolvedValue({
+      id: 'r1',
+      status: 'draft',
+      author_staff_id: 3,
+      template_code: 'daily_work',
+      title: 'Báo cáo ngày',
+      due_at: '2026-09-03T17:00:00.000+07:00',
+      period_start: '2026-09-03',
+      period_end: '2026-09-03',
+      sections_json: emptySectionsForCode('daily_work'),
+      version: 'v1.0',
+    });
+    org.getStaff.mockResolvedValue({
+      id: 3,
+      name: 'NV',
+      email: 'n',
+      department_id: 10,
+      reports_to_id: 2,
+      active: true,
+    });
+    org.listActiveStaff.mockResolvedValue([
+      { id: 2, name: 'TL', email: 't', department_id: 10, reports_to_id: 1, active: true },
+      { id: 3, name: 'NV', email: 'n', department_id: 10, reports_to_id: 2, active: true },
+      { id: 99, name: 'Quản trị hệ thống', email: 'a', department_id: 1, reports_to_id: null, active: true },
+    ]);
+
+    await expect(
+      svc.submit(actor(), 'r1', { to_staff_id: 2, cc_staff_ids: [99, 77], late_reason: 'nộp muộn' }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
   it('acks only the To reviewer', async () => {
