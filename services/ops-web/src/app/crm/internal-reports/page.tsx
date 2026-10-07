@@ -7,6 +7,7 @@ import { IwrAppShell, IwrCard } from '@/components/crm/iwr/IwrAppShell';
 import { IwrProjectProgressChart } from '@/components/crm/iwr/IwrProjectProgressChart';
 import { useIwrPageAuth } from '@/components/crm/iwr/useIwrPageAuth';
 import { dailyDraftIsOverdue } from '@/components/crm/iwr/daily-report-template';
+import { iwrAvatarTone, iwrInitials, iwrIsoWeekLabel, iwrRagClass, iwrRagLabel, iwrRelativeVi } from '@/components/crm/iwr/iwr-format';
 import {
   IWR_STATUS_LABELS,
   IWR_TEMPLATE_CODES,
