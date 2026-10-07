@@ -1233,9 +1233,12 @@
 .iwr-wip {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 0;
-  border-top: 1px solid #f1f5f9;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px 16px 12px;
+  background: #fff;
+  border: 1px solid #e7e1d4;
+  border-radius: 12px;
 }
 
 .iwr-wip__head {
@@ -1247,23 +1250,39 @@
 .iwr-wip__head .iwr-task__title {
   flex: 1;
   margin-top: 0;
+  background: #fff;
+}
+
+.iwr-wip__desc {
+  min-height: 58px;
+  resize: vertical;
+}
+
+.iwr-wip__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 16px;
+  align-items: end;
 }
 
 .iwr-wip .iwr-progress {
-  max-width: 420px;
+  width: 100%;
+  max-width: none;
   margin-top: 4px;
+  min-height: 40px;
 }
 
 .iwr-wip .iwr-kpi {
   display: block;
-  max-width: 420px;
+  width: 100%;
+  max-width: none;
 }
 
 .iwr-wip .iwr-tag,
 .iwr-wip .iwr-kpi select,
 .iwr-wip__date {
   width: 100%;
-  max-width: 420px;
+  max-width: none;
   box-sizing: border-box;
   border: 1px solid var(--iwr-line);
   background: #fff;
@@ -1275,9 +1294,25 @@
 }
 
 .iwr-wip__date {
-  max-width: 240px;
   min-height: 40px;
+  margin-top: 4px;
   color-scheme: light;
+}
+
+.iwr-wip .iwr-rolefields {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 1px solid #efeae0;
+  align-items: center;
+}
+
+.iwr-wip .iwr-rolefields .iwr-input {
+  flex: 1 1 180px;
+  margin-top: 0;
+}
+
+.iwr-wip .iwr-rolefields .iwr-check {
+  flex: 1 1 100%;
 }
 
 .iwr-wip__date::-webkit-calendar-picker-indicator {
@@ -2074,7 +2109,8 @@
   }
   .iwr-kpis,
   .iwr-split,
-  .iwr-daily__grid {
+  .iwr-daily__grid,
+  .iwr-wip__grid {
     grid-template-columns: 1fr;
   }
 }

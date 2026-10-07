@@ -1147,59 +1147,62 @@ export function IwrDailyReportEditor({
                   <label className="iwr-field">
                     Mô tả
                     <textarea
-                      className="iwr-input iwr-task__desc"
+                      className="iwr-input iwr-wip__desc"
+                      rows={2}
                       disabled={readOnly}
                       placeholder="Mô tả (ít nhất 20 ký tự)"
                       value={iwrItemText(meta)}
                       onChange={(e) => updateMeta(it, { text: e.target.value })}
                     />
                   </label>
-                  <label className="iwr-field">
-                    Dự án
-                    <IwrB2bProjectSelect
-                      token={token}
-                      disabled={readOnly}
-                      value={meta.b2b_project_id ?? ''}
-                      onChange={(_, project) => updateMeta(it, iwrProjectMetaPatch(project))}
-                    />
-                  </label>
-                  <label className="iwr-field">
-                    KPI
-                    <KpiPick
-                      rows={kpiRows}
-                      kpiId={meta.kpi_id}
-                      kpiLabel={meta.kpi_label}
-                      disabled={readOnly}
-                      onChange={(id) => applyKpi(it, id)}
-                    />
-                  </label>
-                  <label className="iwr-field">
-                    Tiến độ
-                    <ProgressField
-                      value={clampProgress(meta.progress ?? 0)}
-                      disabled={readOnly}
-                      onChange={(n) => updateMeta(it, { progress: n })}
-                    />
-                  </label>
-                  <label className="iwr-field">
-                    Ngày
-                    <input
-                      type="date"
-                      className="iwr-input iwr-wip__date"
-                      disabled={readOnly}
-                      value={meta.eta ?? ''}
-                      onChange={(e) => updateMeta(it, { eta: e.target.value })}
-                      onClick={(e) => {
-                        const el = e.currentTarget;
-                        if (readOnly || typeof el.showPicker !== 'function') return;
-                        try {
-                          el.showPicker();
-                        } catch {
-                          /* lịch đã mở */
-                        }
-                      }}
-                    />
-                  </label>
+                  <div className="iwr-wip__grid">
+                    <label className="iwr-field">
+                      Dự án
+                      <IwrB2bProjectSelect
+                        token={token}
+                        disabled={readOnly}
+                        value={meta.b2b_project_id ?? ''}
+                        onChange={(_, project) => updateMeta(it, iwrProjectMetaPatch(project))}
+                      />
+                    </label>
+                    <label className="iwr-field">
+                      KPI
+                      <KpiPick
+                        rows={kpiRows}
+                        kpiId={meta.kpi_id}
+                        kpiLabel={meta.kpi_label}
+                        disabled={readOnly}
+                        onChange={(id) => applyKpi(it, id)}
+                      />
+                    </label>
+                    <label className="iwr-field">
+                      Tiến độ
+                      <ProgressField
+                        value={clampProgress(meta.progress ?? 0)}
+                        disabled={readOnly}
+                        onChange={(n) => updateMeta(it, { progress: n })}
+                      />
+                    </label>
+                    <label className="iwr-field">
+                      Ngày
+                      <input
+                        type="date"
+                        className="iwr-input iwr-wip__date"
+                        disabled={readOnly}
+                        value={meta.eta ?? ''}
+                        onChange={(e) => updateMeta(it, { eta: e.target.value })}
+                        onClick={(e) => {
+                          const el = e.currentTarget;
+                          if (readOnly || typeof el.showPicker !== 'function') return;
+                          try {
+                            el.showPicker();
+                          } catch {
+                            /* lịch đã mở */
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                   <RoleLineFields
                     template={reportTemplate}
                     section="wip"
