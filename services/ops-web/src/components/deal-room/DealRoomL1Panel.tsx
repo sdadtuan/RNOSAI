@@ -1,13 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { PresalesClientBriefCard } from '@/components/PresalesClientBriefCard';
 import { PresalesR5PlanForm } from '@/components/PresalesR5PlanForm';
 import { PresalesR5PreviewPanel } from '@/components/PresalesR5PreviewPanel';
 import {
+  fetchLeadPresalesMarketingPlan,
   patchLeadPresalesMarketingPlan,
+  postLeadPresalesMarketingPlanAiDraft,
   type DealRoomSnapshot,
 } from '@/lib/api';
-import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { canGenerateMktAiPlanner, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
 import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 
 interface Props {
@@ -36,6 +40,13 @@ export function DealRoomL1Panel({
   const [planStrategy, setPlanStrategy] = useState(snapshot.marketing_plan.strategy_framework);
   const [planValidation, setPlanValidation] = useState(snapshot.marketing_plan.validation_messages);
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [showAiDraftBadge, setShowAiDraftBadge] = useState(false);
+  const [aiModel, setAiModel] = useState<string | null>(null);
+  const flushBriefRef = useRef<(() => Promise<void>) | null>(null);
+  const bindBriefFlush = useCallback((flush: (() => Promise<void>) | null) => {
+    flushBriefRef.current = flush;
+  }, []);
 
   useEffect(() => {
     setPlanName(snapshot.marketing_plan.name);
@@ -45,6 +56,25 @@ export function DealRoomL1Panel({
     setPlanValidation(snapshot.marketing_plan.validation_messages);
   }, [snapshot]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLeadPresalesMarketingPlan(token, leadId)
+      .then((mp) => {
+        if (cancelled) return;
+        setShowAiDraftBadge(Boolean(mp.ai_draft?.is_ai_draft));
+        setAiModel(mp.ai_draft?.model_name ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setShowAiDraftBadge(false);
+          setAiModel(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leadId, snapshot, token]);
+
   const solutionCaps = resolvePresalesSolutionCaps(user);
   const stage = snapshot.presales.presales.stage === 'proposal' ? 'proposal' : 'consult';
   const canEdit = Boolean(
@@ -53,6 +83,7 @@ export function DealRoomL1Panel({
       solutionCaps.canEditConsult &&
       snapshot.presales.presales.stage !== 'lead',
   );
+  const canAiDraft = Boolean(user && canGenerateMktAiPlanner(user));
 
   const reloadSnapshot = useCallback(async () => {
     const { fetchLeadDealRoom } = await import('@/lib/api');
@@ -60,11 +91,33 @@ export function DealRoomL1Panel({
     onUpdated(next);
   }, [leadId, onUpdated, token]);
 
+  async function onAiDraft() {
+    if (!canEdit || !canAiDraft) return;
+    setAiBusy(true);
+    onError?.('');
+    try {
+      const out = await postLeadPresalesMarketingPlanAiDraft(token, leadId);
+      const hydrated = hydratePresalesR5Form(out.plan);
+      setPlanName(hydrated.planName);
+      setPlanNorthStar(hydrated.planNorthStar);
+      setPlanObjectives(hydrated.planObjectives);
+      setPlanStrategy(hydrated.planStrategy);
+      setPlanValidation(out.validation?.messages ?? []);
+      setShowAiDraftBadge(Boolean(out.ai_draft?.is_ai_draft ?? out.requires_sp_review));
+      setAiModel(out.ai?.model ?? out.ai_draft?.model_name ?? null);
+      onMessage?.(out.validation.ok ? 'Đã tạo AI draft KH MKT sơ bộ' : 'AI draft — cần bổ sung thêm trường');
+      await reloadSnapshot();
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   async function onSavePlan() {
     if (!canEdit) return;
     setBusy(true);
     onError?.('');
     try {
+      await flushBriefRef.current?.();
       const out = await patchLeadPresalesMarketingPlan(token, leadId, {
         name: planName,
         north_star: planNorthStar,
@@ -98,6 +151,21 @@ export function DealRoomL1Panel({
         ) : null}
       </div>
 
+      {snapshot.presales.presales.stage === 'consult' ||
+      snapshot.presales.presales.stage === 'proposal' ? (
+        <PresalesClientBriefCard
+          token={token}
+          leadId={leadId}
+          disabled={busy || aiBusy}
+          canEdit={canEdit}
+          canAiDraft={canAiDraft}
+          aiBusy={aiBusy}
+          onFlushReady={bindBriefFlush}
+          onError={(msg) => onError?.(msg)}
+          onAiDraft={onAiDraft}
+        />
+      ) : null}
+
       {editMode && canEdit ? (
         <PresalesR5PlanForm
           planName={planName}
@@ -105,13 +173,16 @@ export function DealRoomL1Panel({
           planObjectives={planObjectives}
           planStrategy={planStrategy}
           planValidation={planValidation}
-          disabled={busy}
+          disabled={busy || aiBusy}
           canEdit={canEdit}
+          showAiDraftBadge={showAiDraftBadge}
+          aiModel={aiModel}
           onPlanNameChange={setPlanName}
           onNorthStarChange={setPlanNorthStar}
           onObjectivesChange={setPlanObjectives}
           onStrategyChange={(key, value) => setPlanStrategy((prev) => ({ ...prev, [key]: value }))}
           onSave={() => void onSavePlan()}
+          aiBusy={aiBusy}
         />
       ) : (
         <PresalesR5PreviewPanel
@@ -120,8 +191,14 @@ export function DealRoomL1Panel({
           planObjectives={planObjectives}
           planStrategy={planStrategy}
           planValidation={planValidation}
-          stage={stage}
+          stage={stage === 'proposal' ? 'proposal' : 'consult'}
           onEditR5={canEdit ? () => setEditMode(true) : undefined}
+          token={token}
+          leadId={leadId}
+          onNotice={(msg) => {
+            if (msg.includes('LibreOffice')) onMessage?.(msg);
+            else onError?.(msg);
+          }}
         />
       )}
     </section>

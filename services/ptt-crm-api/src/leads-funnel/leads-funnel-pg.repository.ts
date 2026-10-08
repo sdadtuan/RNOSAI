@@ -51,6 +51,12 @@ import {
   planContentFromRow,
   validatePreliminaryPlan,
 } from './presales-marketing-plan.util';
+import {
+  clientBriefMissing,
+  leadQualifyFacts,
+  prefillClientBriefFromTasks,
+  readClientBrief,
+} from './client-plan-brief.util';
 import { SOLUTION_HANDOFF_ACTIVITY_TYPES } from './presales-solution-handoff-activity.util';
 import { workflowStepsForService } from './presales-workflow-steps.util';
 import {
@@ -746,7 +752,15 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
         const plan = await this.getPreliminaryPlan(ps.id);
         const val = validatePreliminaryPlan(plan);
         if (!val.ok) blockReason = val.messages[0] || 'KH MKT sơ bộ chưa đủ';
-        else canAdvance = true;
+        else {
+          blockReason = await this.clientPlanLeaveBlock(
+            leadId,
+            tasks.lead ?? [],
+            tasks.consult ?? [],
+            plan,
+          );
+          canAdvance = blockReason === '';
+        }
       }
     } else {
       canAdvance = true;
@@ -1377,6 +1391,28 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       ],
     );
     return updated.rows[0] as Record<string, unknown>;
+  }
+
+  private async clientPlanLeaveBlock(
+    leadId: number,
+    leadTasks: PresalesTaskRow[],
+    consultTasks: PresalesTaskRow[],
+    plan: Record<string, unknown> | null,
+  ): Promise<string> {
+    const companyName = await this.getLeadCompanyName(leadId);
+    const facts = leadQualifyFacts(leadTasks);
+    const brief = prefillClientBriefFromTasks(readClientBrief(plan?.target_market_prof_json), [
+      ...leadTasks,
+      ...consultTasks,
+    ]);
+    const missing = clientBriefMissing(brief, {
+      company_name: companyName,
+      niche: facts.niche,
+      need: facts.need,
+    });
+    if (missing[0]) return missing[0];
+    if (!brief.saved_after_ai) return 'Solution chưa lưu sau bản AI.';
+    return '';
   }
 
   async getLeadCompanyName(leadId: number): Promise<string> {

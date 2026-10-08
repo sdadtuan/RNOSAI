@@ -1,6 +1,7 @@
 'use client';
 
 import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
+import { PresalesClientBriefCard } from '@/components/PresalesClientBriefCard';
 import { PresalesR5PlanForm } from '@/components/PresalesR5PlanForm';
 import { PresalesSolutionHandoffBanner } from '@/components/PresalesSolutionHandoffBanner';
 import { PresalesPolicyBanner } from '@/components/presales/PresalesPolicyBanner';
@@ -129,7 +130,12 @@ export function LeadFunnelPanel({
   const [aiBusyTaskId, setAiBusyTaskId] = useState<number | null>(null);
   const [aiPlanDraftBusy, setAiPlanDraftBusy] = useState(false);
   const [showAiDraftBadge, setShowAiDraftBadge] = useState(false);
+  const [aiModel, setAiModel] = useState<string | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  const flushBriefRef = useRef<(() => Promise<void>) | null>(null);
+  const bindBriefFlush = useCallback((flush: (() => Promise<void>) | null) => {
+    flushBriefRef.current = flush;
+  }, []);
   const [prepStatus, setPrepStatus] = useState<LeadMeetingPrepStatus | null>(null);
   const presalesServiceOptions = useMemo(
     () => mergePresalesServiceOptions(serviceOptions),
@@ -176,9 +182,11 @@ export function LeadFunnelPanel({
           mp.validation.messages ?? [],
           Boolean(mp.ai_draft?.is_ai_draft),
         );
+        setAiModel(mp.ai_draft?.model_name ?? null);
       } catch {
         setPlanValidation([]);
         setShowAiDraftBadge(false);
+        setAiModel(null);
       } finally {
         setPlanLoading(false);
       }
@@ -350,6 +358,7 @@ export function LeadFunnelPanel({
   }
 
   async function saveMarketingPlan() {
+    await flushBriefRef.current?.();
     const out = await patchLeadPresalesMarketingPlan(token, leadId, {
       name: planName,
       north_star: planNorthStar,
@@ -375,6 +384,7 @@ export function LeadFunnelPanel({
       onFunnelChange?.(out.funnel);
       await applyMarketingPlanResponse(out.plan, out.validation.messages ?? []);
       setShowAiDraftBadge(Boolean(out.ai_draft?.is_ai_draft ?? out.requires_sp_review));
+      setAiModel(out.ai?.model ?? out.ai_draft?.model_name ?? null);
       onMessage?.(out.validation.ok ? 'Đã tạo AI draft KH MKT sơ bộ' : 'AI draft — cần bổ sung thêm trường');
     } finally {
       setAiPlanDraftBusy(false);
@@ -444,24 +454,36 @@ export function LeadFunnelPanel({
   }
 
   const r5Form = (
-    <PresalesR5PlanForm
-      planName={planName}
-      planNorthStar={planNorthStar}
-      planObjectives={planObjectives}
-      planStrategy={planStrategy}
-      planValidation={planValidation}
-      disabled={busy || aiPlanDraftBusy || planLoading}
-      canEdit={canEdit}
-      showAiDraftBadge={showAiDraftBadge}
-      canAiDraft={canAiDraft}
-      onPlanNameChange={setPlanName}
-      onNorthStarChange={setPlanNorthStar}
-      onObjectivesChange={setPlanObjectives}
-      onStrategyChange={(key, value) => setPlanStrategy((prev) => ({ ...prev, [key]: value }))}
-      onSave={() => void run(() => saveMarketingPlan(), true)}
-      onAiDraft={() => void run(() => runMarketingPlanAiDraft(), true)}
-      aiBusy={aiPlanDraftBusy}
-    />
+    <>
+      <PresalesClientBriefCard
+        token={token}
+        leadId={leadId}
+        disabled={busy || aiPlanDraftBusy || planLoading}
+        canEdit={canEdit}
+        canAiDraft={canAiDraft}
+        aiBusy={aiPlanDraftBusy}
+        onFlushReady={bindBriefFlush}
+        onError={setPanelError}
+        onAiDraft={() => run(() => runMarketingPlanAiDraft(), true)}
+      />
+      <PresalesR5PlanForm
+        planName={planName}
+        planNorthStar={planNorthStar}
+        planObjectives={planObjectives}
+        planStrategy={planStrategy}
+        planValidation={planValidation}
+        disabled={busy || aiPlanDraftBusy || planLoading}
+        canEdit={canEdit}
+        showAiDraftBadge={showAiDraftBadge}
+        aiModel={aiModel}
+        onPlanNameChange={setPlanName}
+        onNorthStarChange={setPlanNorthStar}
+        onObjectivesChange={setPlanObjectives}
+        onStrategyChange={(key, value) => setPlanStrategy((prev) => ({ ...prev, [key]: value }))}
+        onSave={() => void run(() => saveMarketingPlan(), true)}
+        aiBusy={aiPlanDraftBusy}
+      />
+    </>
   );
 
   if (loading && !funnel) {

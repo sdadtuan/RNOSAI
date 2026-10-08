@@ -564,4 +564,27 @@ describe('resolveFunnelStepper', () => {
     expect(vm.gateStrip?.tone).toBe('block');
     expect(vm.gateStrip?.messages.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('keeps Chuyển → Báo giá disabled until the leave gate is clear', () => {
+    const vm = resolveFunnelStepper({
+      leadId: 900000002,
+      funnel: mockFunnel({
+        presales: {
+          presales: { id: 1, stage: 'consult', service_slug: 'x', status: 'active' },
+          tasks: {},
+          advance: {
+            can_advance_forward: false,
+            block_reason: 'Solution chưa lưu sau bản AI.',
+            next_stage: 'proposal',
+            current_complete: true,
+          },
+        },
+      }),
+      consultGate: null,
+      context: 'lead_detail',
+    });
+    expect(vm.primaryAction?.label).toBe('Chuyển → Báo giá');
+    expect(vm.primaryAction?.disabled).toBe(true);
+    expect(vm.primaryAction?.blockReason).toBe('Solution chưa lưu sau bản AI.');
+  });
 });

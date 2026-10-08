@@ -323,6 +323,12 @@ export function LeadConsultWorkspace({
             planValidation={planValidation}
             stage={workspaceStage}
             onEditR5={onEditR5}
+            token={token}
+            leadId={leadId}
+            onNotice={(msg) => {
+              if (msg.includes('LibreOffice')) onMessage?.(msg);
+              else onError?.(msg);
+            }}
           />
         </div>
 

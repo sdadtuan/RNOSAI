@@ -1,5 +1,7 @@
 'use client';
 
+import { clientPlanDraftModelLine } from '@/lib/crm/client-plan-brief.ui';
+
 const STRATEGY_LABELS: Record<string, string> = {
   target_market: 'Thị trường mục tiêu',
   market_message: 'Thông điệp thị trường',
@@ -21,13 +23,12 @@ interface Props {
   disabled: boolean;
   canEdit: boolean;
   showAiDraftBadge?: boolean;
-  canAiDraft?: boolean;
+  aiModel?: string | null;
   onPlanNameChange: (value: string) => void;
   onNorthStarChange: (value: string) => void;
   onObjectivesChange: (value: string) => void;
   onStrategyChange: (key: string, value: string) => void;
   onSave: () => void;
-  onAiDraft?: () => void;
   aiBusy?: boolean;
 }
 
@@ -40,20 +41,21 @@ export function PresalesR5PlanForm({
   disabled,
   canEdit,
   showAiDraftBadge = false,
-  canAiDraft = false,
+  aiModel = null,
   onPlanNameChange,
   onNorthStarChange,
   onObjectivesChange,
   onStrategyChange,
   onSave,
-  onAiDraft,
   aiBusy = false,
 }: Props) {
+  const modelLine = clientPlanDraftModelLine(aiModel);
   return (
     <div className="stack-gap" id="funnel-presales-r5" style={{ marginTop: '1rem' }}>
       <h4 style={{ margin: 0 }}>KH Marketing sơ bộ (R5)</h4>
       <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-        Bắt buộc trước <strong>Chuyển → Báo giá</strong> (gate G4).
+        Bắt buộc trước <strong>Chuyển → Báo giá</strong> (gate G4). Solution sửa rồi lưu. AI không đè
+        trường đã sửa.
       </p>
       {showAiDraftBadge ? (
         <div
@@ -62,9 +64,10 @@ export function PresalesR5PlanForm({
           style={{ margin: 0, fontSize: '0.85rem' }}
           data-testid="presales-r5-ai-draft-badge"
         >
-          <strong>Bản nháp — SP duyệt</strong>
-          <span className="muted" style={{ marginLeft: '0.35rem' }}>
-            Nội dung AI — Solution phải hiệu chỉnh trước khi gửi khách / chốt deal.
+          <strong>Bản nháp — SP duyệt.</strong>{' '}
+          <span>
+            {modelLine ? `${modelLine} ` : ''}
+            Solution sửa trước khi gửi khách. AI không đè chữ đã sửa.
           </span>
         </div>
       ) : null}
@@ -119,21 +122,6 @@ export function PresalesR5PlanForm({
       ))}
       {canEdit && (
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {onAiDraft && canAiDraft && (
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              disabled={disabled || aiBusy}
-              onClick={onAiDraft}
-            >
-              {aiBusy ? 'Đang tạo AI draft…' : 'AI draft'}
-            </button>
-          )}
-          {onAiDraft && !canAiDraft && (
-            <span className="muted" style={{ fontSize: '0.85rem', alignSelf: 'center' }}>
-              Cần quyền <code>crm_mkt_ai.generate</code> để AI draft.
-            </span>
-          )}
           <button type="button" className="btn btn-sm" disabled={disabled || aiBusy} onClick={onSave}>
             Lưu KH MKT sơ bộ
           </button>

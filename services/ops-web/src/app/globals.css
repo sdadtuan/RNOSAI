@@ -3903,6 +3903,62 @@ html.ops-shell-bitrix .win-home__scope {
   white-space: pre-wrap;
 }
 
+.client-plan-brief {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line, #d5ddd6);
+}
+
+.client-plan-brief__note {
+  background: #e7f5eb;
+  color: #0f4a20;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+
+.client-plan-brief__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.client-plan-brief__field input,
+.client-plan-brief__field textarea {
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.client-plan-brief__hint {
+  color: var(--muted, #5c6b60);
+  font-size: 0.75rem;
+}
+
+.client-plan-brief__star {
+  color: #8f2d2d;
+  font-style: normal;
+}
+
+.client-plan-brief__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.client-plan-brief__missing {
+  color: #8f2d2d;
+  font-size: 0.85rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+@media (max-width: 720px) {
+  .client-plan-brief__row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .lead-consult-workspace__brief-collapsible summary {
   cursor: pointer;
   font-weight: 600;

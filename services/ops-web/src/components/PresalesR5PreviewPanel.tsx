@@ -1,5 +1,13 @@
 'use client';
 
+import { useState } from 'react';
+import { postLeadPresalesClientPlanExport } from '@/lib/api';
+import {
+  clientPlanPptxBlob,
+  downloadNamedBlob,
+  showClientPlanExportButton,
+} from '@/lib/crm/client-plan-brief.ui';
+
 const STRATEGY_LABELS: Record<string, string> = {
   target_market: 'Thị trường mục tiêu',
   market_message: 'Thông điệp thị trường',
@@ -20,6 +28,9 @@ interface Props {
   planValidation: string[];
   stage: 'consult' | 'proposal';
   onEditR5?: () => void;
+  token?: string;
+  leadId?: number;
+  onNotice?: (message: string) => void;
 }
 
 function ReadField({ label, value }: { label: string; value: string }) {
@@ -39,7 +50,32 @@ export function PresalesR5PreviewPanel({
   planValidation,
   stage,
   onEditR5,
+  token,
+  leadId,
+  onNotice,
 }: Props) {
+  const [exporting, setExporting] = useState(false);
+  const g4Clear = showClientPlanExportButton(planValidation);
+  const canExport = g4Clear && Boolean(token) && Number(leadId) > 0;
+
+  async function onExport() {
+    if (!token || !leadId) return;
+    setExporting(true);
+    try {
+      const out = await postLeadPresalesClientPlanExport(token, leadId);
+      if (!out.pptx_base64) {
+        onNotice?.('Không có file PPTX.');
+        return;
+      }
+      downloadNamedBlob(clientPlanPptxBlob(out.pptx_base64), out.filename);
+      if (out.note) onNotice?.(out.note);
+    } catch (err) {
+      onNotice?.(err instanceof Error ? err.message : 'Xuất file thất bại');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <section className="presales-r5-preview stack-gap" id="funnel-presales-r5-preview" aria-label="R5 preview">
       <div className="presales-r5-preview__head">
@@ -59,7 +95,11 @@ export function PresalesR5PreviewPanel({
         Xem nhanh · gate G4 cần R5 đủ trước <strong>Chuyển → Báo giá</strong>.
       </p>
       {planValidation.length > 0 ? (
-        <ul className="muted" style={{ fontSize: '0.85rem', margin: 0, paddingLeft: '1.1rem' }}>
+        <ul
+          className="client-plan-brief__missing"
+          data-testid="client-plan-g4"
+          style={{ margin: 0 }}
+        >
           {planValidation.map((m) => (
             <li key={m}>{m}</li>
           ))}
@@ -71,6 +111,23 @@ export function PresalesR5PreviewPanel({
       {Object.entries(STRATEGY_LABELS).map(([key, label]) => (
         <ReadField key={key} label={label} value={planStrategy[key] ?? ''} />
       ))}
+      {canExport ? (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            data-testid="client-plan-export"
+            disabled={exporting}
+            onClick={() => void onExport()}
+          >
+            {exporting ? 'Đang tạo file…' : 'Tạo file gửi khách'}
+          </button>
+        </div>
+      ) : g4Clear ? null : (
+        <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+          Đủ gate G4 rồi mới xuất file gửi khách.
+        </p>
+      )}
     </section>
   );
 }

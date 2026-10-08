@@ -1840,7 +1840,12 @@ export interface LeadFunnelSnapshot {
         ai_output?: string;
       }>
     >;
-    advance: { can_advance_forward: boolean; block_reason: string; next_stage: string | null };
+    advance: {
+      can_advance_forward: boolean;
+      block_reason: string;
+      next_stage: string | null;
+      current_complete?: boolean;
+    };
   } | null;
 }
 
@@ -2128,7 +2133,7 @@ export async function fetchLeadPresalesMarketingPlan(
   ok: boolean;
   plan: Record<string, unknown>;
   validation: { ok: boolean; messages: string[] };
-  ai_draft?: { is_ai_draft: boolean; badge_vi?: string | null };
+  ai_draft?: { is_ai_draft: boolean; badge_vi?: string | null; model_name?: string | null };
 }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan`, { method: 'GET' });
 }
@@ -2164,11 +2169,66 @@ export async function postLeadPresalesMarketingPlanAiDraft(
   funnel: LeadFunnelSnapshot;
   validation: { ok: boolean; messages: string[] };
   ai?: { stub_mode: boolean; model: string };
-  ai_draft?: { is_ai_draft: boolean; badge_vi?: string | null };
+  ai_draft?: { is_ai_draft: boolean; badge_vi?: string | null; model_name?: string | null };
   requires_sp_review?: boolean;
   badge_vi?: string;
 }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan/ai-draft`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export interface ClientPlanBriefPayload {
+  audience: string;
+  usp: string;
+  goal: string;
+  channels: string;
+  retain: string;
+  competitors: string;
+  metrics: string;
+  website: string;
+  fanpage: string;
+  saved_after_ai?: boolean;
+  human_edited_keys?: string[];
+}
+
+export async function fetchLeadPresalesClientBrief(
+  token: string,
+  leadId: number,
+): Promise<{
+  ok: boolean;
+  brief: ClientPlanBriefPayload;
+  missing: string[];
+  presales_stage: string;
+  plan_id: number;
+}> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/client-brief`, { method: 'GET' });
+}
+
+export async function patchLeadPresalesClientBrief(
+  token: string,
+  leadId: number,
+  body: Omit<ClientPlanBriefPayload, 'saved_after_ai' | 'human_edited_keys'>,
+): Promise<{ ok: boolean; brief: ClientPlanBriefPayload; missing: string[] }> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/client-brief`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function postLeadPresalesClientPlanExport(
+  token: string,
+  leadId: number,
+): Promise<{
+  ok: boolean;
+  filename: string;
+  note: string | null;
+  pptx_base64: string;
+  pdf_filename: string | null;
+  pdf_base64: string | null;
+}> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/client-plan/export`, {
     method: 'POST',
     body: JSON.stringify({}),
   });

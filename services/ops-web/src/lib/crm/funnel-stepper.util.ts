@@ -502,6 +502,14 @@ export function resolvePrimaryAction(input: {
           blockReason: advance.block_reason || undefined,
         };
       }
+      if (advance.current_complete && advance.block_reason) {
+        return {
+          kind: 'advance_presales',
+          label: 'Chuyển → Báo giá',
+          disabled: true,
+          blockReason: advance.block_reason,
+        };
+      }
     }
     return {
       kind: 'anchor',
