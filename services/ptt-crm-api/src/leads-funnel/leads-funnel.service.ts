@@ -19,6 +19,7 @@ import {
   HandoffSolutionBody,
   LeadFunnelSnapshot,
   PatchMarketingPlanBody,
+  PatchClientBriefBody,
   PatchPresalesL2DocsBody,
   PatchPresalesTaskBody,
   PresalesAiAssistBody,
@@ -34,6 +35,13 @@ import {
   buildPresalesAiPromptContext,
   formatPresalesAiPrompt,
 } from './presales-ai-prompt.util';
+import {
+  clientBriefMissing,
+  leadQualifyFacts,
+  prefillClientBriefFromTasks,
+  readClientBrief,
+  writeClientBrief,
+} from './client-plan-brief.util';
 import { buildProposalAdvanceGate } from './presales-proposal-gate.util';
 import { buildPresalesProposalHandoff } from './presales-proposal-handoff.util';
 import { buildL1GateChecklist } from './presales-l1-gate-checklist.util';
@@ -709,10 +717,14 @@ export class LeadsFunnelService {
     plan: Record<string, unknown>,
     body: PatchMarketingPlanBody,
   ): PatchMarketingPlanBody {
-    const prof = parseTargetMarketProfJson(plan.target_market_prof_json);
+    const prof = clearPresalesAiDraftMeta({
+      ...parseTargetMarketProfJson(plan.target_market_prof_json),
+      ...(body.target_market_prof ?? {}),
+    });
+    const brief = readClientBrief(prof);
     return {
       ...body,
-      target_market_prof: clearPresalesAiDraftMeta({ ...prof, ...(body.target_market_prof ?? {}) }),
+      target_market_prof: writeClientBrief(prof, { ...brief, saved_after_ai: true }),
     };
   }
 
@@ -876,6 +888,87 @@ export class LeadsFunnelService {
     }
   }
 
+  async getClientBrief(leadId: number) {
+    const { snap, plan, brief, company_name, niche, need } = await this.loadClientBrief(leadId);
+    return {
+      ok: true,
+      brief,
+      missing: clientBriefMissing(brief, { company_name, niche, need }),
+      presales_stage: snap.presales.stage,
+      plan_id: Number(plan.id),
+    };
+  }
+
+  async patchClientBrief(leadId: number, body: PatchClientBriefBody, staffUser?: StaffJwtPayload) {
+    try {
+      await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
+      const loaded = await this.loadClientBrief(leadId);
+      const current = readClientBrief(loaded.plan.target_market_prof_json);
+      const patch: Partial<PatchClientBriefBody> = {};
+      for (const key of [
+        'audience',
+        'usp',
+        'goal',
+        'channels',
+        'retain',
+        'competitors',
+        'metrics',
+        'website',
+        'fanpage',
+      ] as const) {
+        if (body[key] !== undefined) patch[key] = String(body[key] ?? '');
+      }
+      const merged = prefillClientBriefFromTasks({ ...current, ...patch }, loaded.tasks);
+      if (body.saved_after_ai === undefined) merged.saved_after_ai = current.saved_after_ai;
+      else merged.saved_after_ai = body.saved_after_ai === true;
+      if (body.human_edited_keys === undefined) merged.human_edited_keys = current.human_edited_keys;
+      else merged.human_edited_keys = body.human_edited_keys.map((key) => String(key).trim()).filter(Boolean);
+      const prof = writeClientBrief(parseTargetMarketProfJson(loaded.plan.target_market_prof_json), merged);
+      const saved = await this.pgRepo.replacePreliminaryProf(leadId, prof);
+      const brief = readClientBrief(saved.target_market_prof_json);
+      return {
+        ok: true,
+        brief,
+        missing: clientBriefMissing(brief, {
+          company_name: loaded.company_name,
+          niche: loaded.niche,
+          need: loaded.need,
+        }),
+      };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  private async loadClientBrief(leadId: number) {
+    const { snap } = await this.loadPresalesContext(leadId);
+    const plan = await this.pgRepo.getOrCreatePreliminaryPlan(
+      leadId,
+      snap.presales.id,
+      snap.presales.service_slug,
+    );
+    const tasks = [...(snap.tasks.lead ?? []), ...(snap.tasks.consult ?? [])];
+    const company_name = await this.pgRepo.getLeadCompanyName(leadId);
+    const facts = leadQualifyFacts(snap.tasks.lead ?? []);
+    const brief = prefillClientBriefFromTasks(readClientBrief(plan.target_market_prof_json), tasks);
+    return { snap, plan, tasks, brief, company_name, niche: facts.niche, need: facts.need };
+  }
+
+  private async clientLeaveFacts(
+    leadId: number,
+    snap: { tasks: { lead?: Array<{ form_data?: Record<string, unknown> | null }>; consult?: Array<{ form_data?: Record<string, unknown> | null }> } },
+    plan: { target_market_prof_json?: unknown },
+  ) {
+    const tasks = [...(snap.tasks.lead ?? []), ...(snap.tasks.consult ?? [])];
+    const facts = leadQualifyFacts(snap.tasks.lead ?? []);
+    return {
+      company_name: await this.pgRepo.getLeadCompanyName(leadId),
+      niche: facts.niche,
+      need: facts.need,
+      brief: prefillClientBriefFromTasks(readClientBrief(plan.target_market_prof_json), tasks),
+    };
+  }
+
   async getPresalesProposalGate(leadId: number) {
     const { snap } = await this.loadPresalesContext(leadId);
     const plan = await this.pgRepo.getOrCreatePreliminaryPlan(
@@ -891,6 +984,7 @@ export class LeadsFunnelService {
         objectives?: string | null;
         strategy_framework_json?: string | null;
       },
+      clientLeave: await this.clientLeaveFacts(leadId, snap, plan),
     });
     return { ok: true, gate, presales_stage: snap.presales.stage };
   }
@@ -915,6 +1009,7 @@ export class LeadsFunnelService {
           objectives?: string | null;
           strategy_framework_json?: string | null;
         },
+        clientLeave: await this.clientLeaveFacts(leadId, snap, plan),
       });
       const l1Checklist = buildL1GateChecklist({
         gate,

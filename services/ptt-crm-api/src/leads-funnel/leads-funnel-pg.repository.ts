@@ -1379,6 +1379,25 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return updated.rows[0] as Record<string, unknown>;
   }
 
+  async getLeadCompanyName(leadId: number): Promise<string> {
+    const result = await this.db.query(`SELECT company_name FROM crm_leads WHERE id = $1`, [leadId]);
+    return String(result.rows[0]?.company_name ?? '').trim();
+  }
+
+  async replacePreliminaryProf(leadId: number, prof: Record<string, string>): Promise<Record<string, unknown>> {
+    const snap = await this.getPresalesSnapshot(leadId);
+    if (!snap) throw new Error('Không tìm thấy pre-sales');
+    const plan = await this.getOrCreatePreliminaryPlan(leadId, snap.presales.id, snap.presales.service_slug);
+    const updated = await this.db.query(
+      `UPDATE crm_marketing_plans
+       SET target_market_prof_json = $2::jsonb, updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [Number(plan.id), JSON.stringify(prof)],
+    );
+    return updated.rows[0] as Record<string, unknown>;
+  }
+
   async markPresalesConverted(presalesId: number, lifecycleId: number, client?: PoolClient): Promise<void> {
     const q = client ?? this.db;
     await q.query(

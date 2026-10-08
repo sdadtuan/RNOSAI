@@ -278,6 +278,20 @@ export interface PatchMarketingPlanBody {
   target_market_prof?: Record<string, string>;
 }
 
+export interface PatchClientBriefBody {
+  audience?: string;
+  usp?: string;
+  goal?: string;
+  channels?: string;
+  retain?: string;
+  competitors?: string;
+  metrics?: string;
+  website?: string;
+  fanpage?: string;
+  saved_after_ai?: boolean;
+  human_edited_keys?: string[];
+}
+
 export interface PatchPresalesL2DocsBody {
   docs: Record<string, boolean>;
 }

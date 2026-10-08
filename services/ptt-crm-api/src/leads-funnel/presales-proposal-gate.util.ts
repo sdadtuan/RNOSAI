@@ -1,3 +1,4 @@
+import { clientBriefMissing, type ClientPlanBrief, type ClientPlanLeadFacts } from './client-plan-brief.util';
 import { validatePreliminaryPlan } from './presales-marketing-plan.util';
 
 export interface ProposalAdvanceGate {
@@ -18,6 +19,7 @@ export function buildProposalAdvanceGate(input: {
     objectives?: string | null;
     strategy_framework_json?: string | Record<string, string> | null;
   } | null;
+  clientLeave?: ClientPlanLeadFacts & { brief?: Partial<ClientPlanBrief> | null };
 }): ProposalAdvanceGate {
   const total = input.consultProgress.total;
   const done = input.consultProgress.done;
@@ -31,10 +33,20 @@ export function buildProposalAdvanceGate(input: {
   if (!planVal.ok) {
     messages.push(...planVal.messages);
   }
+  let briefReady = true;
+  if (input.clientLeave) {
+    const brief = input.clientLeave.brief ?? {};
+    const missing = clientBriefMissing(brief, input.clientLeave);
+    messages.push(...missing);
+    if (!brief.saved_after_ai) {
+      messages.push('Solution chưa lưu sau bản AI.');
+    }
+    briefReady = missing.length === 0 && brief.saved_after_ai === true;
+  }
 
   return {
-    ok: consultTaskDone && planVal.ok,
-    level: consultTaskDone && planVal.ok ? 'ok' : 'block',
+    ok: consultTaskDone && planVal.ok && briefReady,
+    level: consultTaskDone && planVal.ok && briefReady ? 'ok' : 'block',
     messages,
     consult_task_done: consultTaskDone,
     consult_task_total: total,

@@ -28,6 +28,7 @@ import {
   EnsurePresalesBody,
   HandoffSolutionBody,
   PatchMarketingPlanBody,
+  PatchClientBriefBody,
   PatchPresalesL2DocsBody,
   PatchPresalesTaskBody,
   PresalesAiAssistBody,
@@ -366,6 +367,22 @@ export class LeadsFunnelController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     return this.funnel.patchMarketingPlan(id, body, req.staffUser);
+  }
+
+  @Get(':id/presales/client-brief')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  getClientBrief(@Param('id', ParseIntPipe) id: number) {
+    return this.funnel.getClientBrief(id);
+  }
+
+  @Patch(':id/presales/client-brief')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, PresalesOnLeadGuard, LeadNotInReviewQueueGuard)
+  patchClientBrief(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: PatchClientBriefBody,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    return this.funnel.patchClientBrief(id, body, req.staffUser);
   }
 
   @Post(':id/presales/marketing-plan/ai-draft')
