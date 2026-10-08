@@ -76,6 +76,7 @@ export interface LlmJsonCompletionInput {
   baseUrl?: string;
   apiKey?: string;
   timeoutMs?: number;
+  imageUrls?: string[];
 }
 
 export interface LlmJsonCompletionResult {
@@ -83,6 +84,21 @@ export interface LlmJsonCompletionResult {
   tokenUsage: AiTokenUsage;
   modelName: string;
   stubMode: boolean;
+}
+
+export function buildOpenAiUserContent(
+  userContent: string,
+  imageUrls?: string[],
+): string | Array<Record<string, unknown>> {
+  const images = (imageUrls ?? [])
+    .map((url) => String(url ?? '').trim())
+    .filter((url) => /^https?:\/\//i.test(url))
+    .slice(0, 8);
+  if (!images.length) return userContent;
+  return [
+    { type: 'text', text: userContent },
+    ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
+  ];
 }
 
 @Injectable()
@@ -243,6 +259,7 @@ export class AiLlmClient {
         model,
         systemPrompt: input.systemPrompt,
         userContent: input.userContent,
+        imageUrls: input.imageUrls,
         timeoutMs,
         baseUrl: input.baseUrl,
       });
@@ -314,6 +331,7 @@ export class AiLlmClient {
     userContent: string;
     timeoutMs: number;
     baseUrl?: string;
+    imageUrls?: string[];
   }): Promise<Record<string, unknown> & { tokenUsage?: AiTokenUsage }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), args.timeoutMs);
@@ -332,7 +350,7 @@ export class AiLlmClient {
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: args.systemPrompt },
-            { role: 'user', content: args.userContent },
+            { role: 'user', content: buildOpenAiUserContent(args.userContent, args.imageUrls) },
           ],
         }),
         signal: controller.signal,

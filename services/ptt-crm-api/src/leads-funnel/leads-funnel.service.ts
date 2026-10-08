@@ -29,26 +29,27 @@ import {
   BatchUpgradePresalesWorkflowBody,
 } from './leads-funnel.types';
 import { LeadsFunnelPgRepository } from './leads-funnel-pg.repository';
-import { validatePreliminaryPlan } from './presales-marketing-plan.util';
+import { validatePreliminaryPlan, planContentFromRow, defaultStrategyJson, STRATEGY_FRAMEWORK_KEYS } from './presales-marketing-plan.util';
 import { buildPresalesConsultBrief } from './presales-consult-brief.util';
 import {
   buildPresalesAiPromptContext,
   formatPresalesAiPrompt,
 } from './presales-ai-prompt.util';
+import { clientBriefMissing, leadQualifyFacts, prefillClientBriefFromTasks, readClientBrief, writeClientBrief } from './client-plan-brief.util';
+import { fetchClientPlanSources } from './client-plan-source.util';
 import {
-  clientBriefMissing,
-  leadQualifyFacts,
-  prefillClientBriefFromTasks,
-  readClientBrief,
-  writeClientBrief,
-} from './client-plan-brief.util';
+  buildClientPlanDraftCall,
+  humanEditedR5Fields,
+  mergeClientPlanModelDraft,
+  selectClientPlanModel,
+} from './client-plan-draft.util';
 import { buildProposalAdvanceGate } from './presales-proposal-gate.util';
 import { buildPresalesProposalHandoff } from './presales-proposal-handoff.util';
 import { buildL1GateChecklist } from './presales-l1-gate-checklist.util';
-import { planContentFromRow } from './presales-marketing-plan.util';
 import { SERVICE_LABELS } from '../leads-contract/lifecycle-workflow-steps.util';
 import { IntakeService } from '../intake/intake.service';
 import { AiLlmClient } from '../ai-intelligence/ai-llm.client';
+import { AiIntelligenceConfigService } from '../ai-intelligence/ai-intelligence.config';
 import {
   assertPresalesConsultTaskDone,
   validatePresalesConsultTaskDone,
@@ -75,8 +76,6 @@ import {
 } from './presales-workflow-batch.util';
 import { ReviewQueueLlmService } from './review-queue-llm.service';
 import { PolicyService } from '../policy/policy.service';
-import { MarketingAiOrchestratorService } from '../marketing-ai-planner/marketing-ai-orchestrator.service';
-import { buildPresalesMktAiBrief, mapStrategyToPreliminaryPlan } from './presales-ai-draft.util';
 import {
   clearPresalesAiDraftMeta,
   parsePresalesAiDraftMeta,
@@ -109,12 +108,12 @@ export class LeadsFunnelService {
     private readonly llm: AiLlmClient,
     private readonly legacyLeads: CrmLeadsLegacyService,
     private readonly policy: PolicyService,
-    private readonly mktAiOrchestrator: MarketingAiOrchestratorService,
     private readonly mktAiAllow: MktAiPlannerAllowService,
     private readonly lmpEnqueue: LeadMeetingPrepEnqueueService,
     private readonly lmpRepo: LeadMeetingPrepRepository,
     private readonly b2bManualReassign: B2bManualReassignService,
     private readonly leadsRepo: LeadsRepository,
+    private readonly aiConfig: AiIntelligenceConfigService,
   ) {}
 
   async getFunnel(leadId: number): Promise<LeadFunnelSnapshot> {
@@ -760,48 +759,70 @@ export class LeadsFunnelService {
       rejectMktAiAutoCustomerEmail(this.config.mktAiAutoCustomerEmailEnabled, {});
       await this.assertPresalesMktAiGenerateCap(staffUser);
       await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
-      const { snap, intakeSessions, leadName } = await this.loadPresalesContext(leadId);
-      const serviceSlug = snap.presales.service_slug;
+      const loaded = await this.loadClientBrief(leadId);
+      const serviceSlug = loaded.snap.presales.service_slug;
       await this.assertPresalesMktAiEnabled(serviceSlug);
-
-      const leadTasks = snap.tasks.lead ?? [];
-      const leadTaskDone =
-        (snap.progress.lead?.total ?? 0) === 0 ||
-        (snap.progress.lead?.done ?? 0) >= (snap.progress.lead?.total ?? 0);
-      const consultBrief = buildPresalesConsultBrief({
-        presalesId: snap.presales.id,
-        leadId,
-        serviceSlug,
-        presalesStage: snap.presales.stage,
-        leadTaskDone,
-        leadTask: leadTasks[0] ?? null,
-        intakeSessions,
+      const missing = clientBriefMissing(loaded.brief, {
+        company_name: loaded.company_name,
+        niche: loaded.niche,
+        need: loaded.need,
       });
+      if (missing.length) {
+        throw new BadRequestException({
+          error: 'client_brief_incomplete',
+          message: missing.join('; '),
+          details: missing,
+        });
+      }
 
-      const existingPlan = await this.pgRepo.getOrCreatePreliminaryPlan(
-        leadId,
-        snap.presales.id,
-        serviceSlug,
-      );
-
-      const brief = buildPresalesMktAiBrief({
-        consultBrief,
-        serviceSlug,
-        leadName: leadName || `Lead #${leadId}`,
+      const urls = [loaded.brief.website, loaded.brief.fanpage].map((url) => String(url ?? '').trim()).filter(Boolean);
+      const hasPublicSource = urls.length > 0;
+      const sources = hasPublicSource
+        ? await fetchClientPlanSources(urls, fetch)
+        : { text: '', image_urls: [] as string[], fetched_urls: [] as string[], errors: [] as string[] };
+      const content = planContentFromRow(loaded.plan);
+      const humanEdited = humanEditedR5Fields(loaded.brief.human_edited_keys, content);
+      const selection = selectClientPlanModel({
+        hasPublicSource,
+        mktAiModel: this.config.mktAiModel,
+        llmModel: this.aiConfig.llmModel,
       });
-      const strategy = await this.mktAiOrchestrator.generateStrategy(brief);
-      const patchBody = mapStrategyToPreliminaryPlan(strategy, {
-        leadId,
-        serviceSlug,
-        brief,
-        existingName: String(existingPlan.name ?? ''),
+      const built = buildClientPlanDraftCall({
+        brief: loaded.brief,
+        lead: { company_name: loaded.company_name, niche: loaded.niche, need: loaded.need },
+        serviceLabel: SERVICE_LABELS[serviceSlug] ?? serviceSlug,
+        sourceText: sources.text,
+        imageUrls: sources.image_urls,
+        humanEdited,
+        hasPublicSource,
+        budget: taskBudget(loaded.tasks),
       });
-      patchBody.target_market_prof = stampPresalesAiDraftMeta(
-        patchBody.target_market_prof ?? {},
-        staffUser?.email ?? 'unknown',
-      );
-
-      const plan = await this.pgRepo.patchMarketingPlan(leadId, patchBody);
+      const completion = await this.llm.completeJson({
+        systemPrompt: built.systemPrompt,
+        userContent: built.userContent,
+        model: selection.model,
+        imageUrls: selection.vision ? built.imageUrls : [],
+        stubJson: built.stubJson,
+      });
+      const fields = mergeClientPlanModelDraft(completion.parsed, built);
+      const strategy = { ...defaultStrategyJson() };
+      for (const key of STRATEGY_FRAMEWORK_KEYS) strategy[key] = fields[key] || '';
+      const existingProf = parseTargetMarketProfJson(loaded.plan.target_market_prof_json);
+      const currentBrief = readClientBrief(existingProf);
+      let prof = writeClientBrief(existingProf, { ...currentBrief, saved_after_ai: false });
+      prof = {
+        ...prof,
+        client_plan_competitors: fields.competitors,
+        client_plan_cover_image_url: fields.cover_image_url ?? '',
+      };
+      prof = stampPresalesAiDraftMeta(prof, staffUser?.email ?? 'unknown', selection.model);
+      const plan = await this.pgRepo.patchMarketingPlan(leadId, {
+        name: fields.name,
+        north_star: fields.north_star,
+        objectives: fields.objectives,
+        strategy_framework: strategy,
+        target_market_prof: prof,
+      });
       const validation = validatePreliminaryPlan(plan);
       const ai_draft = parsePresalesAiDraftMeta(parseTargetMarketProfJson(plan.target_market_prof_json));
       return {
@@ -812,7 +833,8 @@ export class LeadsFunnelService {
         ai_draft,
         requires_sp_review: true,
         badge_vi: PRESALES_AI_DRAFT_BADGE_VI,
-        ai: { stub_mode: this.mktAiOrchestrator.stubMode, model: this.mktAiOrchestrator.modelName },
+        ai: { stub_mode: completion.stubMode, model: selection.model },
+        source_errors: sources.errors,
       };
     } catch (err) {
       this.funnelError(err);
@@ -1184,4 +1206,12 @@ export class LeadsFunnelService {
       this.funnelError(err);
     }
   }
+}
+
+function taskBudget(tasks: Array<{ form_data?: Record<string, unknown> | null }>): string {
+  for (const task of tasks) {
+    const raw = task.form_data?.budget ?? task.form_data?.budget_vnd;
+    if (raw != null && String(raw).trim()) return String(raw).trim();
+  }
+  return '';
 }
