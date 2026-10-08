@@ -12,9 +12,10 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { extractHttpErrorMessage } from '../common/http-error.util';
 import { InternalKeyGuard } from '../auth/internal-key.guard';
 import { StaffOrInternalKeyGuard } from '../staff-auth/staff-or-internal-key.guard';
@@ -399,6 +400,23 @@ export class LeadsFunnelController {
     @Req() req: Request & { staffUser?: StaffJwtPayload },
   ) {
     return this.funnel.generatePresalesMarketingPlanAiDraft(id, req.staffUser);
+  }
+
+  @Post(':id/presales/client-plan/export')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
+  async exportClientPlan(@Param('id', ParseIntPipe) id: number, @Res({ passthrough: true }) res: Response) {
+    const out = await this.funnel.exportClientPlan(id);
+    res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+    if (out.note) res.setHeader('X-Client-Plan-Note', out.note);
+    return {
+      ok: true,
+      filename: out.filename,
+      note: out.note,
+      pptx_base64: out.pptx.toString('base64'),
+      pdf_filename: out.pdfFilename,
+      pdf_base64: out.pdf ? out.pdf.toString('base64') : null,
+    };
   }
 
   @Get(':id/presales/consult-brief')

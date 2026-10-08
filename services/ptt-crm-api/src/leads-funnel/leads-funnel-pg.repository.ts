@@ -1384,6 +1384,24 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return String(result.rows[0]?.company_name ?? '').trim();
   }
 
+  async getLeadPlanContact(leadId: number): Promise<{ company_name: string; address: string; phone: string; email: string }> {
+    const result = await this.db.query(
+      `SELECT COALESCE(company_name, '') AS company_name,
+              COALESCE(company_address, '') AS company_address,
+              COALESCE(phone, '') AS phone,
+              COALESCE(email, '') AS email
+       FROM crm_leads WHERE id = $1`,
+      [leadId],
+    );
+    const row = result.rows[0] ?? {};
+    return {
+      company_name: String(row.company_name ?? '').trim(),
+      address: String(row.company_address ?? '').trim(),
+      phone: String(row.phone ?? '').trim(),
+      email: String(row.email ?? '').trim(),
+    };
+  }
+
   async replacePreliminaryProf(leadId: number, prof: Record<string, string>): Promise<Record<string, unknown>> {
     const snap = await this.getPresalesSnapshot(leadId);
     if (!snap) throw new Error('Không tìm thấy pre-sales');

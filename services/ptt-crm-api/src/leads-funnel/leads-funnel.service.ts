@@ -37,12 +37,13 @@ import {
 } from './presales-ai-prompt.util';
 import { clientBriefMissing, leadQualifyFacts, prefillClientBriefFromTasks, readClientBrief, writeClientBrief } from './client-plan-brief.util';
 import { fetchClientPlanSources } from './client-plan-source.util';
-import {
-  buildClientPlanDraftCall,
+import { buildClientPlanDraftCall,
   humanEditedR5Fields,
   mergeClientPlanModelDraft,
   selectClientPlanModel,
 } from './client-plan-draft.util';
+import { buildClientPlanDeck, clientPlanExportFilename } from './client-plan-deck.util';
+import { convertClientPlanPdf, findSoffice, renderClientPlanPptx } from './client-plan-pptx.util';
 import { buildProposalAdvanceGate } from './presales-proposal-gate.util';
 import { buildPresalesProposalHandoff } from './presales-proposal-handoff.util';
 import { buildL1GateChecklist } from './presales-l1-gate-checklist.util';
@@ -835,6 +836,60 @@ export class LeadsFunnelService {
         badge_vi: PRESALES_AI_DRAFT_BADGE_VI,
         ai: { stub_mode: completion.stubMode, model: selection.model },
         source_errors: sources.errors,
+      };
+    } catch (err) {
+      this.funnelError(err);
+    }
+  }
+
+  async exportClientPlan(leadId: number, opts?: { sofficePath?: string | null }) {
+    try {
+      const loaded = await this.loadClientBrief(leadId);
+      const content = planContentFromRow(loaded.plan);
+      const gate = validatePreliminaryPlan({
+        name: content.name,
+        north_star: content.north_star,
+        objectives: content.objectives,
+        strategy_framework_json: content.strategy_framework,
+      });
+      if (!gate.ok) {
+        throw new BadRequestException({
+          error: 'preliminary_plan_incomplete',
+          message: gate.messages.join(' '),
+          details: gate.messages,
+        });
+      }
+      const prof = parseTargetMarketProfJson(loaded.plan.target_market_prof_json);
+      const contact = await this.pgRepo.getLeadPlanContact(leadId);
+      const cover = String(prof.client_plan_cover_image_url ?? '').trim();
+      const deck = buildClientPlanDeck(
+        {
+          ...content,
+          cover_image_url: cover || null,
+          competitors: String(prof.client_plan_competitors ?? loaded.brief.competitors ?? ''),
+        },
+        { ...loaded.brief, budget: taskBudget(loaded.tasks) },
+        {
+          company_name: contact.company_name || loaded.company_name,
+          service_label: SERVICE_LABELS[loaded.snap.presales.service_slug] ?? loaded.snap.presales.service_slug,
+          niche: loaded.niche,
+          need: loaded.need,
+          phone: contact.phone,
+          email: contact.email,
+          address: contact.address,
+        },
+      );
+      const pptx = await renderClientPlanPptx(deck);
+      const filename = clientPlanExportFilename(contact.company_name || loaded.company_name);
+      const sofficePath = opts ? (opts.sofficePath ?? null) : await findSoffice();
+      const pdf = await convertClientPlanPdf(pptx, filename, sofficePath);
+      return {
+        ok: true as const,
+        filename,
+        pptx,
+        pdf: pdf.pdf,
+        pdfFilename: pdf.filename,
+        note: pdf.note,
       };
     } catch (err) {
       this.funnelError(err);
