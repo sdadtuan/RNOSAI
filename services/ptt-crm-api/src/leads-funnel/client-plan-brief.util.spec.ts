@@ -1,5 +1,7 @@
 import {
   clientBriefMissing,
+  clientBriefPayload,
+  emptyClientBrief,
   leadQualifyFacts,
   prefillClientBriefFromTasks,
   readClientBrief,
@@ -82,5 +84,20 @@ describe('leadQualifyFacts', () => {
       niche: 'Ảnh cưới',
       need: 'ít lịch',
     });
+  });
+});
+
+describe('clientBriefPayload', () => {
+  it('returns facts next to the missing list', () => {
+    const out = clientBriefPayload(
+      { ...emptyClientBrief(), usp: 'Concept', goal: 'Tăng lịch', channels: 'Facebook' },
+      { company_name: 'Quý Nguyễn Studio', niche: '', need: 'ít lịch' },
+      'consult',
+      4,
+    );
+    expect(out.facts).toEqual({ company_name: 'Quý Nguyễn Studio', niche: '', need: 'ít lịch' });
+    expect(out.missing).toEqual(['Ngành KH']);
+    expect(out.presales_stage).toBe('consult');
+    expect(out.plan_id).toBe(4);
   });
 });

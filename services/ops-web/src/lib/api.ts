@@ -2199,6 +2199,7 @@ export async function fetchLeadPresalesClientBrief(
 ): Promise<{
   ok: boolean;
   brief: ClientPlanBriefPayload;
+  facts: { company_name: string; niche: string; need: string };
   missing: string[];
   presales_stage: string;
   plan_id: number;

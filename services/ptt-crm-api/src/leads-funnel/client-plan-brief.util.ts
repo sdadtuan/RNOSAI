@@ -67,6 +67,25 @@ export function writeClientBrief(
   };
 }
 
+export function clientBriefPayload(
+  brief: ClientPlanBrief,
+  facts: { company_name?: string | null; niche?: string | null; need?: string | null },
+  presalesStage: string,
+  planId: number,
+) {
+  const company_name = String(facts.company_name ?? '').trim();
+  const niche = String(facts.niche ?? '').trim();
+  const need = String(facts.need ?? '').trim();
+  return {
+    ok: true as const,
+    brief,
+    facts: { company_name, niche, need },
+    missing: clientBriefMissing(brief, { company_name, niche, need }),
+    presales_stage: presalesStage,
+    plan_id: planId,
+  };
+}
+
 export function clientBriefMissing(
   brief: Partial<ClientPlanBrief>,
   lead: ClientPlanLeadFacts,

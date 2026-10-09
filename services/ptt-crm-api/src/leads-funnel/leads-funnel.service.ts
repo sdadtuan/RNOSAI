@@ -35,7 +35,7 @@ import {
   buildPresalesAiPromptContext,
   formatPresalesAiPrompt,
 } from './presales-ai-prompt.util';
-import { clientBriefMissing, leadQualifyFacts, prefillClientBriefFromTasks, readClientBrief, writeClientBrief } from './client-plan-brief.util';
+import { clientBriefMissing, clientBriefPayload, leadQualifyFacts, prefillClientBriefFromTasks, readClientBrief, writeClientBrief } from './client-plan-brief.util';
 import { fetchClientPlanSources } from './client-plan-source.util';
 import { buildClientPlanDraftCall,
   humanEditedR5Fields,
@@ -967,13 +967,7 @@ export class LeadsFunnelService {
 
   async getClientBrief(leadId: number) {
     const { snap, plan, brief, company_name, niche, need } = await this.loadClientBrief(leadId);
-    return {
-      ok: true,
-      brief,
-      missing: clientBriefMissing(brief, { company_name, niche, need }),
-      presales_stage: snap.presales.stage,
-      plan_id: Number(plan.id),
-    };
+    return clientBriefPayload(brief, { company_name, niche, need }, snap.presales.stage, Number(plan.id));
   }
 
   async patchClientBrief(leadId: number, body: PatchClientBriefBody, staffUser?: StaffJwtPayload) {
