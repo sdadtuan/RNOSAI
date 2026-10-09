@@ -190,6 +190,12 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
       push(`meta_json = meta_json || ?::jsonb`, JSON.stringify({ financial }));
     }
     if (body.company_name !== undefined) push('company_name = ?', String(body.company_name ?? '').trim());
+    if (body.industry_slug !== undefined || body.industry !== undefined) {
+      const meta: Record<string, string> = {};
+      if (body.industry_slug !== undefined) meta.industry_slug = String(body.industry_slug ?? '').trim();
+      if (body.industry !== undefined) meta.industry = String(body.industry ?? '').trim();
+      push(`meta_json = COALESCE(meta_json, '{}'::jsonb) || ?::jsonb`, JSON.stringify(meta));
+    }
     if (body.company_address !== undefined) {
       push('company_address = ?', String(body.company_address ?? '').trim());
     }

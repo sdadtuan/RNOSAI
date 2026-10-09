@@ -8,8 +8,11 @@ export type IntakeDealBarProps = {
   leadName: string;
   companyName: string | null;
   industry: string | null;
+  industrySlug?: string | null;
+  industryOptions?: Array<{ slug: string; name: string }>;
   serviceSlug: string;
   serviceLabel: string;
+  serviceOptions?: Array<{ slug: string; name: string }>;
   bantTotal: number;
   winTotal: number;
   gap: number;
@@ -23,6 +26,7 @@ export type IntakeDealBarProps = {
   funnelCollapsed: boolean;
   onToggleFunnel: () => void;
   onServiceChange: (slug: string) => void;
+  onIndustryChange?: (slug: string) => void;
   onReopenService?: () => void;
   showSalesKit?: boolean;
   salesKitOpen?: boolean;
@@ -46,8 +50,11 @@ export function IntakeDealBar({
   leadName,
   companyName,
   industry,
+  industrySlug = '',
+  industryOptions = [],
   serviceSlug,
   serviceLabel,
+  serviceOptions = [],
   bantTotal,
   winTotal,
   gap,
@@ -61,6 +68,7 @@ export function IntakeDealBar({
   funnelCollapsed,
   onToggleFunnel,
   onServiceChange,
+  onIndustryChange,
   onReopenService,
   showSalesKit = false,
   salesKitOpen = false,
@@ -75,6 +83,15 @@ export function IntakeDealBar({
 }: IntakeDealBarProps) {
   const gapLabel = gapToConsultLabel(gap);
   const showCompletedService = sessionCompleted || !canEdit;
+  const industryChoices = industryOptions.filter((row) => row.slug && row.name);
+  const catalogServices = serviceOptions.filter((row) => row.slug && row.name);
+  const serviceChoices =
+    catalogServices.length > 0
+      ? catalogServices
+      : CATALOG_SERVICE_SLUGS.map((slug) => ({ slug, name: intakeServiceLabel(slug) }));
+  const industryValue = industrySlug?.trim() || '';
+  const industryName =
+    industryChoices.find((row) => row.slug === industryValue)?.name || industry?.trim() || '';
 
   return (
     <section className="intake-deal-bar" aria-label="Deal Bar">
@@ -83,9 +100,28 @@ export function IntakeDealBar({
         {companyName?.trim() ? (
           <span className="intake-deal-bar__meta">{companyName.trim()}</span>
         ) : null}
-        <span className={`intake-deal-bar__chip${industry?.trim() ? '' : ' intake-deal-bar__chip--muted'}`}>
-          {industry?.trim() || 'Chưa có ngành'}
-        </span>
+        {showCompletedService ? (
+          <span className={`intake-deal-bar__chip${industryName ? '' : ' intake-deal-bar__chip--muted'}`}>
+            {industryName || 'Chưa có ngành'}
+          </span>
+        ) : (
+          <select
+            className="kpi-select intake-deal-bar__select"
+            aria-label="Ngành"
+            value={industryValue}
+            onChange={(e) => onIndustryChange?.(e.target.value)}
+          >
+            <option value="">Chưa có ngành</option>
+            {industryName && !industryChoices.some((row) => row.slug === industryValue) ? (
+              <option value={industryValue || industryName}>{industryName}</option>
+            ) : null}
+            {industryChoices.map((row) => (
+              <option key={row.slug} value={row.slug}>
+                {row.name}
+              </option>
+            ))}
+          </select>
+        )}
         <div className="intake-deal-bar__service">
           <span className="muted">
             Dịch vụ
@@ -110,9 +146,14 @@ export function IntakeDealBar({
               onChange={(e) => onServiceChange(e.target.value)}
             >
               <option value="_common">{intakeServiceLabel('_common')}</option>
-              {CATALOG_SERVICE_SLUGS.map((slug) => (
-                <option key={slug} value={slug}>
-                  {intakeServiceLabel(slug)}
+              {serviceSlug &&
+              serviceSlug !== '_common' &&
+              !serviceChoices.some((row) => row.slug === serviceSlug) ? (
+                <option value={serviceSlug}>{serviceLabel || intakeServiceLabel(serviceSlug)}</option>
+              ) : null}
+              {serviceChoices.map((row) => (
+                <option key={row.slug} value={row.slug}>
+                  {row.name}
                 </option>
               ))}
             </select>

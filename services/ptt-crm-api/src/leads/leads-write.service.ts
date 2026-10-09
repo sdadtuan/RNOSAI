@@ -165,6 +165,8 @@ export class LeadsWriteService {
       body.margin_pct === undefined &&
       body.company_name === undefined &&
       body.company_address === undefined &&
+      body.industry_slug === undefined &&
+      body.industry === undefined &&
       body.phone === undefined &&
       body.email === undefined &&
       body.logo_asset_id === undefined
@@ -218,6 +220,8 @@ export class LeadsWriteService {
         patchBody.margin_pct !== undefined ||
         patchBody.company_name !== undefined ||
         patchBody.company_address !== undefined ||
+        patchBody.industry_slug !== undefined ||
+        patchBody.industry !== undefined ||
         patchBody.phone !== undefined ||
         patchBody.email !== undefined ||
         patchBody.logo_asset_id !== undefined;

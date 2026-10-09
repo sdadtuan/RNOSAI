@@ -27,6 +27,7 @@ import {
   completeIntakeSession,
   createIntakeSession,
   deleteIntakeSession,
+  fetchCatalogBundle,
   fetchIntakeContext,
   fetchIntakeDefinitionBySlug,
   fetchIntakeDefinitions,
@@ -37,6 +38,7 @@ import {
   fetchLeadPresalesConsultGate,
   generateIntakeAiSummary,
   patchIntakeSession,
+  patchLead,
   reopenIntakeSession,
   staffMe,
   staffRefresh,
@@ -198,6 +200,8 @@ export function IntakeContent({
   const [validationErrors, setValidationErrors] = useState<IntakeValidationIssue[]>([]);
   const [urlServiceSlug, setUrlServiceSlug] = useState<string | null>(null);
   const [intakeContext, setIntakeContext] = useState<IntakeLeadContext | null>(null);
+  const [catalogIndustries, setCatalogIndustries] = useState<Array<{ slug: string; name: string }>>([]);
+  const [catalogServices, setCatalogServices] = useState<Array<{ slug: string; name: string }>>([]);
   const [activeTab, setActiveTab] = useState<IntakeWorkspaceTab>('qualify');
   const [funnelCollapsed, setFunnelCollapsed] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -215,6 +219,31 @@ export function IntakeContent({
     if (typeof window === 'undefined') return;
     setUrlServiceSlug(new URLSearchParams(window.location.search).get('service_slug'));
   }, []);
+
+  useEffect(() => {
+    if (!authReady) return;
+    const access = getAccessToken();
+    if (!access) return;
+    let cancelled = false;
+    void fetchCatalogBundle(access)
+      .then((bundle) => {
+        if (cancelled) return;
+        setCatalogIndustries(
+          (bundle.industries ?? [])
+            .filter((row) => row.active !== false)
+            .map((row) => ({ slug: row.slug, name: row.name })),
+        );
+        setCatalogServices(
+          (bundle.services ?? [])
+            .filter((row) => row.active !== false)
+            .map((row) => ({ slug: row.slug, name: row.name })),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady]);
 
   useEffect(() => {
     if (leadId > 0 || lifecycleId > 0) return;
@@ -316,6 +345,7 @@ export function IntakeContent({
     (active?.company_name?.trim() ? active.company_name.trim() : null) ||
     null;
   const dealIndustry = intakeContext?.industry?.trim() || null;
+  const dealIndustrySlug = intakeContext?.industry_slug?.trim() || '';
   const dealStage =
     intakeContext?.presales_stage?.trim() || funnelPresalesStage(funnelSnap) || null;
   const sciExcerpt = intakeContext?.prep?.pain_excerpt?.trim() || null;
@@ -770,6 +800,26 @@ export function IntakeContent({
       }
     },
     [active, canCreate, serviceOverride],
+  );
+
+  const onIndustryChange = useCallback(
+    async (slug: string) => {
+      if (leadId <= 0) return;
+      const access = getAccessToken();
+      if (!access) return;
+      const name = catalogIndustries.find((row) => row.slug === slug)?.name ?? '';
+      const previous = intakeContext;
+      setIntakeContext((prev) =>
+        prev ? { ...prev, industry_slug: slug || null, industry: name || null } : prev,
+      );
+      try {
+        await patchLead(access, leadId, { industry_slug: slug, industry: name });
+      } catch (err) {
+        setIntakeContext(previous);
+        setError(err instanceof Error ? err.message : 'Đổi ngành thất bại');
+      }
+    },
+    [catalogIndustries, intakeContext, leadId],
   );
 
   const performSave = useCallback(
@@ -1335,8 +1385,11 @@ export function IntakeContent({
                 leadName={dealLeadName}
                 companyName={dealCompany}
                 industry={dealIndustry}
+                industrySlug={dealIndustrySlug}
+                industryOptions={catalogIndustries}
                 serviceSlug={resolvedSlug}
                 serviceLabel={intakeServiceLabel(resolvedSlug)}
+                serviceOptions={catalogServices}
                 bantTotal={liveBantTotal}
                 winTotal={liveWinTotal}
                 gap={gapToGo(liveBantTotal)}
@@ -1350,6 +1403,7 @@ export function IntakeContent({
                 funnelCollapsed={funnelCollapsed}
                 onToggleFunnel={() => setFunnelCollapsed((collapsed) => !collapsed)}
                 onServiceChange={(slug) => void onServiceChange(slug)}
+                onIndustryChange={(slug) => void onIndustryChange(slug)}
                 onReopenService={
                   active?.status === 'completed' && canCreate
                     ? () => void onReopen()

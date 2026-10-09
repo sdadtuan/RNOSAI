@@ -166,6 +166,8 @@ export interface PatchLeadV1Body {
   margin_pct?: number | null;
   company_name?: string;
   company_address?: string;
+  industry_slug?: string | null;
+  industry?: string | null;
   phone?: string;
   email?: string;
   logo_asset_id?: string | null;
