@@ -2210,7 +2210,7 @@ export async function fetchLeadPresalesClientBrief(
 export async function patchLeadPresalesClientBrief(
   token: string,
   leadId: number,
-  body: Omit<ClientPlanBriefPayload, 'saved_after_ai' | 'human_edited_keys'>,
+  body: Omit<ClientPlanBriefPayload, 'saved_after_ai'>,
 ): Promise<{ ok: boolean; brief: ClientPlanBriefPayload; missing: string[] }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/client-brief`, {
     method: 'PATCH',

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PresalesConsultBriefPanel } from '@/components/PresalesConsultBriefPanel';
+import { PresalesConsultPlanScreen } from '@/components/PresalesConsultPlanScreen';
 import { PresalesConsultSlaBanner } from '@/components/PresalesConsultSlaBanner';
 import { PresalesL2DocsChecklist } from '@/components/PresalesL2DocsChecklist';
 import { PresalesR5PreviewPanel } from '@/components/PresalesR5PreviewPanel';
@@ -19,7 +20,7 @@ import {
   postPresalesConsultSlaReminder,
   type LeadFunnelSnapshot,
 } from '@/lib/api';
-import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { canGenerateMktAiPlanner, hasCap, type StoredStaffUser } from '@/lib/auth';
 import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
 import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
 import {
@@ -75,6 +76,7 @@ export function LeadConsultWorkspace({
   const consultReadOnly = isConsultWorkspaceReadOnly(funnel, solutionCaps);
   const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit') && solutionCaps.canEditConsult && !consultReadOnly);
   const canPrefill = Boolean(user && hasCap(user, 'crm_board', 'edit') && solutionCaps.canEditConsult);
+  const canAiDraft = Boolean(user && canGenerateMktAiPlanner(user));
 
   const intakeHref = `/crm/intake?lead_id=${leadId}${
     funnel.presales?.presales.service_slug
@@ -287,106 +289,166 @@ export function LeadConsultWorkspace({
         />
       ) : null}
 
-      <div className="lead-consult-workspace__grid">
-        <div className="lead-consult-workspace__main stack-gap">
-          <section className="page-card stack-gap-sm">
-            <h4 className="h6">Giá trị dự kiến (ABAC)</h4>
-            <div className="flex-gap">
-              <span className="muted">Expected value:</span>
-              <WinFieldMask user={user} value={expectedValue} variant="financial" />
-              <span className="muted">Margin %:</span>
-              <WinFieldMask user={user} value={marginPct} variant="financial" />
-            </div>
-          </section>
+      {presalesStage === 'consult' ? (
+        <>
+          <details className="consult-plan__fold">
+            <summary>Buổi gặp và hồ sơ</summary>
+            <div className="stack-gap">
+              <section className="page-card stack-gap-sm">
+                <h4 className="h6">Giá trị dự kiến (ABAC)</h4>
+                <div className="flex-gap">
+                  <span className="muted">Expected value:</span>
+                  <WinFieldMask user={user} value={expectedValue} variant="financial" />
+                  <span className="muted">Margin %:</span>
+                  <WinFieldMask user={user} value={marginPct} variant="financial" />
+                </div>
+              </section>
 
-          {funnel.presales?.l2_docs && presalesStage === 'consult' ? (
-            <PresalesL2DocsChecklist
-              view={funnel.presales.l2_docs}
-              disabled={busy || !canEdit}
-              busy={busy}
-              onToggle={(key, checked) =>
-                void run(async () => {
-                  const out = await patchLeadPresalesL2Docs(token, leadId, { [key]: checked });
-                  applyFunnel(out.funnel);
-                })
-              }
-            />
-          ) : null}
+              {funnel.presales?.l2_docs ? (
+                <PresalesL2DocsChecklist
+                  view={funnel.presales.l2_docs}
+                  disabled={busy || !canEdit}
+                  busy={busy}
+                  onToggle={(key, checked) =>
+                    void run(async () => {
+                      const out = await patchLeadPresalesL2Docs(token, leadId, { [key]: checked });
+                      applyFunnel(out.funnel);
+                    })
+                  }
+                />
+              ) : null}
 
-          {renderStageTasks()}
+              {renderStageTasks()}
 
-          <PresalesR5PreviewPanel
-            planName={planName}
-            planNorthStar={planNorthStar}
-            planObjectives={planObjectives}
-            planStrategy={planStrategy}
-            planValidation={planValidation}
-            stage={workspaceStage}
-            onEditR5={onEditR5}
-            token={token}
-            leadId={leadId}
-            onNotice={(msg) => {
-              if (msg.includes('LibreOffice')) onMessage?.(msg);
-              else onError?.(msg);
-            }}
-          />
-        </div>
-
-        {user ? (
-          <aside className="lead-consult-workspace__sidebar">
-            <details className="lead-consult-workspace__brief-collapsible" open>
-              <summary>Brief &amp; Intake</summary>
-              <PresalesConsultBriefPanel
-                token={token}
-                user={user}
-                leadId={leadId}
-                onPrefilled={() => {
-                  void loadMarketingPlan();
-                  onMessage?.('Đã prefill consult');
-                }}
-              />
-              <p style={{ margin: '0.75rem 0 0' }}>
+              <div className="flex-gap">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  disabled={prefillBusy || !canPrefill}
+                  onClick={() => void onPrefill()}
+                >
+                  {prefillBusy ? 'Prefill…' : 'Prefill từ Lead / Intake'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  disabled={aiDisabled || aiBusyTaskId != null}
+                  onClick={() => void run(() => onAiAssist())}
+                >
+                  {aiBusyTaskId != null ? 'AI…' : 'AI ghi chú buổi gặp'}
+                </button>
+              </div>
+              <p style={{ margin: 0 }}>
                 <Link href={intakeHref} className="nav-link">
                   Mở Lead Intake (BANT) →
                 </Link>
               </p>
-            </details>
-          </aside>
-        ) : null}
-      </div>
+            </div>
+          </details>
+          <PresalesConsultPlanScreen
+            token={token}
+            leadId={leadId}
+            funnel={funnel}
+            canEdit={canEdit}
+            canAiDraft={canAiDraft}
+            onMessage={onMessage}
+            onError={(msg) => {
+              setPanelError(msg);
+              onError?.(msg);
+            }}
+            onFunnelChange={applyFunnel}
+          />
+        </>
+      ) : (
+        <>
+          <div className="lead-consult-workspace__grid">
+            <div className="lead-consult-workspace__main stack-gap">
+              <section className="page-card stack-gap-sm">
+                <h4 className="h6">Giá trị dự kiến (ABAC)</h4>
+                <div className="flex-gap">
+                  <span className="muted">Expected value:</span>
+                  <WinFieldMask user={user} value={expectedValue} variant="financial" />
+                  <span className="muted">Margin %:</span>
+                  <WinFieldMask user={user} value={marginPct} variant="financial" />
+                </div>
+              </section>
 
-      <footer className="lead-consult-workspace__sticky" aria-label="Thao tác Consult">
-        <div className="lead-consult-workspace__sticky-inner">
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
-            disabled={prefillBusy || !canPrefill || presalesStage !== 'consult'}
-            onClick={() => void onPrefill()}
-          >
-            {prefillBusy ? 'Prefill…' : 'Prefill từ Lead/Intake'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
-            disabled={aiDisabled || aiBusyTaskId != null}
-            onClick={() => void run(() => onAiAssist())}
-          >
-            {aiBusyTaskId != null ? 'AI…' : 'AI Hỗ trợ'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-sm btn-primary"
-            disabled={busy || !canEdit || presalesStage !== 'consult' || Boolean(handoffBlocked)}
-            title={handoffBlocked ?? undefined}
-            onClick={() => void run(() => onProposalHandoff())}
-          >
-            Tạo Proposal từ Consult →
-          </button>
-          <span className="muted lead-consult-workspace__sticky-hint">
-            CTA <strong>Chuyển giai đoạn</strong> trên stepper phía trên
-          </span>
-        </div>
-      </footer>
+              {renderStageTasks()}
+
+              <PresalesR5PreviewPanel
+                planName={planName}
+                planNorthStar={planNorthStar}
+                planObjectives={planObjectives}
+                planStrategy={planStrategy}
+                planValidation={planValidation}
+                stage={workspaceStage}
+                onEditR5={onEditR5}
+                token={token}
+                leadId={leadId}
+                onNotice={(msg) => {
+                  if (msg.includes('LibreOffice')) onMessage?.(msg);
+                  else onError?.(msg);
+                }}
+              />
+            </div>
+
+            {user ? (
+              <aside className="lead-consult-workspace__sidebar">
+                <details className="lead-consult-workspace__brief-collapsible" open>
+                  <summary>Brief &amp; Intake</summary>
+                  <PresalesConsultBriefPanel
+                    token={token}
+                    user={user}
+                    leadId={leadId}
+                    onPrefilled={() => {
+                      void loadMarketingPlan();
+                      onMessage?.('Đã prefill consult');
+                    }}
+                  />
+                  <p style={{ margin: '0.75rem 0 0' }}>
+                    <Link href={intakeHref} className="nav-link">
+                      Mở Lead Intake (BANT) →
+                    </Link>
+                  </p>
+                </details>
+              </aside>
+            ) : null}
+          </div>
+
+          <footer className="lead-consult-workspace__sticky" aria-label="Thao tác Consult">
+            <div className="lead-consult-workspace__sticky-inner">
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={prefillBusy || !canPrefill || presalesStage !== 'consult'}
+                onClick={() => void onPrefill()}
+              >
+                {prefillBusy ? 'Prefill…' : 'Prefill từ Lead/Intake'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={aiDisabled || aiBusyTaskId != null}
+                onClick={() => void run(() => onAiAssist())}
+              >
+                {aiBusyTaskId != null ? 'AI…' : 'AI Hỗ trợ'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                disabled={busy || !canEdit || presalesStage !== 'consult' || Boolean(handoffBlocked)}
+                title={handoffBlocked ?? undefined}
+                onClick={() => void run(() => onProposalHandoff())}
+              >
+                Tạo Proposal từ Consult →
+              </button>
+              <span className="muted lead-consult-workspace__sticky-hint">
+                CTA <strong>Chuyển giai đoạn</strong> trên stepper phía trên
+              </span>
+            </div>
+          </footer>
+        </>
+      )}
     </section>
   );
 }

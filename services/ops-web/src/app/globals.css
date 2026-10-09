@@ -3959,6 +3959,33 @@ html.ops-shell-bitrix .win-home__scope {
   }
 }
 
+.consult-plan {
+  max-width: 820px;
+}
+
+.consult-plan__fold {
+  margin-bottom: 1rem;
+}
+
+.consult-plan__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.consult-plan__chip {
+  background: #e7f5eb;
+  color: #0f4a20;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.85rem;
+}
+
+.consult-plan__lock {
+  color: #0f4a20;
+  font-size: 0.75rem;
+}
+
 .lead-consult-workspace__brief-collapsible summary {
   cursor: pointer;
   font-weight: 600;
