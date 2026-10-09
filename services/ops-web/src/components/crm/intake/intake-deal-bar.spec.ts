@@ -35,4 +35,30 @@ describe('IntakeDealBar catalogs', () => {
     expect(html).toContain('SEO tổng thể');
     expect(html).toContain('Chưa có ngành');
   });
+
+  it('offers the catalog items button once a service is chosen', () => {
+    const html = renderToStaticMarkup(
+      createElement(IntakeDealBar, {
+        leadName: 'Nguyễn Huân',
+        companyName: null,
+        industry: 'Spa',
+        serviceSlug: 'dich-vu-seo-tong-the',
+        serviceLabel: 'SEO tổng thể',
+        bantTotal: 0,
+        winTotal: 0,
+        gap: 24,
+        stage: 'lead',
+        sciExcerpt: null,
+        leadHref: '/crm/leads/1',
+        cockpitHref: '/crm/leads/1',
+        canEdit: true,
+        slugMismatch: false,
+        funnelCollapsed: true,
+        onToggleFunnel: () => undefined,
+        onServiceChange: () => undefined,
+        onOpenServiceCatalog: () => undefined,
+      }),
+    );
+    expect(html).toContain('Hạng mục');
+  });
 });

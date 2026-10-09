@@ -16,6 +16,9 @@ export function p13PositionCaps(
   const ceo = ceoOnly || isSuperAdminPositionCode(positionCode);
   const gdkd = code === 'gdkd' || code === 'gd-kd' || code === 'giam-doc-kinh-doanh' || code === 'sales-director';
   const finance = FINANCE_CODES.has(code);
+  if (code === 'ae' || code === 'acm') {
+    return [{ section_id: 'p13_catalog', action: 'view' }];
+  }
   if (!ceo && !gdkd && !finance) return [];
   if (gdkd && !ceo && !finance) {
     return [{ section_id: 'p13_quote', action: 'margin.view' }];

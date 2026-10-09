@@ -9,6 +9,7 @@ import { IntakeDiscoverySection } from '@/components/crm/intake/IntakeDiscoveryS
 import { CrmFunnelStepper } from '@/components/crm/funnel-stepper';
 import { IntakeBantChecklistPanel } from '@/components/crm/intake/IntakeBantChecklistPanel';
 import { IntakeDealBar } from '@/components/crm/intake/IntakeDealBar';
+import { IntakeP13CatalogDialog } from '@/components/crm/intake/IntakeP13CatalogDialog';
 import { IntakeDecisionPanel } from '@/components/crm/intake/IntakeDecisionPanel';
 import { IntakeNextStepBanner } from '@/components/crm/intake/IntakeNextStepBanner';
 import { IntakeWinChecklistPanel } from '@/components/crm/intake/IntakeWinChecklistPanel';
@@ -206,6 +207,7 @@ export function IntakeContent({
   const [funnelCollapsed, setFunnelCollapsed] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
   const [serviceOverride, setServiceOverride] = useState<string | null>(null);
+  const [p13PopupSlug, setP13PopupSlug] = useState<string | null>(null);
   const saveInFlightRef = useRef(false);
   const intakeDefinitionRef = useRef<IntakeDefinitionUi | null>(null);
   intakeDefinitionRef.current = intakeDefinition;
@@ -786,6 +788,7 @@ export function IntakeContent({
       }
       const previousOverride = serviceOverride;
       setServiceOverride(slug);
+      if (slug && slug !== '_common') setP13PopupSlug(slug);
       if (active?.status !== 'draft' || !canCreate) return;
       const access = getAccessToken();
       if (!access) return;
@@ -1404,6 +1407,11 @@ export function IntakeContent({
                 onToggleFunnel={() => setFunnelCollapsed((collapsed) => !collapsed)}
                 onServiceChange={(slug) => void onServiceChange(slug)}
                 onIndustryChange={(slug) => void onIndustryChange(slug)}
+                onOpenServiceCatalog={
+                  resolvedSlug && resolvedSlug !== '_common'
+                    ? () => setP13PopupSlug(resolvedSlug)
+                    : undefined
+                }
                 onReopenService={
                   active?.status === 'completed' && canCreate
                     ? () => void onReopen()
@@ -1754,6 +1762,17 @@ export function IntakeContent({
         canEdit={canCreate && active?.status !== 'completed'}
         canBrowseOrg={canBrowseOrg}
         onClose={() => setLibraryOpen(false)}
+      />
+
+      <IntakeP13CatalogDialog
+        open={Boolean(p13PopupSlug)}
+        token={getAccessToken() ?? ''}
+        serviceSlug={p13PopupSlug ?? ''}
+        serviceLabel={
+          catalogServices.find((row) => row.slug === p13PopupSlug)?.name ||
+          intakeServiceLabel(p13PopupSlug ?? '')
+        }
+        onClose={() => setP13PopupSlug(null)}
       />
 
       <IntakeCompleteConfirmModal

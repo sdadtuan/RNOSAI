@@ -13942,6 +13942,30 @@ html.rs-mobile-chrome .lead-b2b-call-sticky {
   gap: 0.45rem;
 }
 
+.intake-p13-modal {
+  width: min(720px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+
+.intake-p13-modal__list {
+  max-height: 55vh;
+  overflow: auto;
+}
+
+.intake-p13-modal__phase {
+  margin: 0.75rem 0 0.25rem;
+}
+
+.intake-p13-modal__items {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.intake-p13-modal__items li {
+  margin: 0.2rem 0;
+}
+
 .intake-help-toggle {
   min-width: 2rem;
   font-weight: 700;
