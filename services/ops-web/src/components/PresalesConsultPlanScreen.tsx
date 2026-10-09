@@ -179,7 +179,6 @@ export function PresalesConsultPlanScreen({
       });
       if (nicheTyped) setStoredNiche(niche.trim());
       if (needTyped) setStoredNeed(need.trim());
-      setBudget('');
     }
     return true;
   }
@@ -192,7 +191,10 @@ export function PresalesConsultPlanScreen({
       if (!factsOk) return;
       const saved = await patchLeadPresalesClientBrief(token, leadId, briefPatch(dirty.length > 0));
       setHumanEdited(saved.brief.human_edited_keys ?? humanEdited);
-      if (saved.missing.length > 0) return;
+      if (saved.missing.length > 0) {
+        onError?.(`Thiếu ${saved.missing[0]}.`);
+        return;
+      }
       const out = await postLeadPresalesMarketingPlanAiDraft(token, leadId);
       const hydrated = hydratePresalesR5Form(out.plan);
       const locked = new Set(mergeHumanEditedKeys(saved.brief.human_edited_keys ?? humanEdited, dirty));
