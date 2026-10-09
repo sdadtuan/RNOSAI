@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import { catalogTs } from '../catalog/catalog-slug.util';
+import { prefillCompanyName } from '../leads/lead-party.util';
 import { AppConfigService } from '../config/app-config.service';
 import { sanitizePgBigintUserId } from '../staff-auth/staff-user-id.util';
 import {
@@ -1416,22 +1417,27 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   }
 
   async getLeadCompanyName(leadId: number): Promise<string> {
-    const result = await this.db.query(`SELECT company_name FROM crm_leads WHERE id = $1`, [leadId]);
-    return String(result.rows[0]?.company_name ?? '').trim();
+    const result = await this.db.query(
+      `SELECT company_name, meta_json FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
+    const row = result.rows[0] ?? {};
+    return prefillCompanyName({ column: row.company_name, meta: leadMetaRecord(row.meta_json) });
   }
 
   async getLeadPlanContact(leadId: number): Promise<{ company_name: string; address: string; phone: string; email: string }> {
     const result = await this.db.query(
       `SELECT COALESCE(company_name, '') AS company_name,
+              meta_json,
               COALESCE(company_address, '') AS company_address,
               COALESCE(phone, '') AS phone,
               COALESCE(email, '') AS email
-       FROM crm_leads WHERE id = $1`,
+       FROM crm_leads WHERE sqlite_lead_id = $1`,
       [leadId],
     );
     const row = result.rows[0] ?? {};
     return {
-      company_name: String(row.company_name ?? '').trim(),
+      company_name: prefillCompanyName({ column: row.company_name, meta: leadMetaRecord(row.meta_json) }),
       address: String(row.company_address ?? '').trim(),
       phone: String(row.phone ?? '').trim(),
       email: String(row.email ?? '').trim(),
@@ -1725,4 +1731,16 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       queue_kind: row.queue_kind === 'am_rework' ? 'am_rework' : 'solution',
     };
   }
+}
+
+function leadMetaRecord(raw: unknown): Record<string, unknown> | null {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  return null;
 }
