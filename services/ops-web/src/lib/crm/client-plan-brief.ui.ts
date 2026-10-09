@@ -29,6 +29,30 @@ export function showClientPlanExportButton(g4Messages: readonly string[]): boole
   return g4Messages.length === 0;
 }
 
+const G4_STRATEGY_VI: Record<string, string> = {
+  market_message: 'Nhập Thông điệp thị trường.',
+  media_reach: 'Nhập Kênh tiếp cận.',
+  conversion_strategy: 'Nhập Chiến lược chuyển đổi.',
+};
+
+export function g4MessagesVi(messages: readonly string[]): string[] {
+  return messages.map((message) => {
+    if (message === 'Nhập tên kế hoạch MKT sơ bộ.') return 'Nhập tên kế hoạch.';
+    const key = message.match(/^Điền khối chiến lược: ([a-z_]+)\.$/)?.[1];
+    if (key && G4_STRATEGY_VI[key]) return G4_STRATEGY_VI[key];
+    return message;
+  });
+}
+
+export function mergeHumanEditedKeys(current: readonly string[], dirty: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const key of [...current, ...dirty]) {
+    const trimmed = key.trim();
+    if (trimmed && !out.includes(trimmed)) out.push(trimmed);
+  }
+  return out;
+}
+
 export function clientPlanDraftModelLine(model: string | null | undefined): string {
   const name = String(model ?? '').trim();
   if (!name) return '';

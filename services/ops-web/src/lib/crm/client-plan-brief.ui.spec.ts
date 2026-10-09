@@ -3,6 +3,8 @@ import {
   clientBriefUiMissing,
   clientPlanDraftModelLine,
   decodeBase64Bytes,
+  g4MessagesVi,
+  mergeHumanEditedKeys,
   showClientPlanExportButton,
 } from './client-plan-brief.ui';
 
@@ -66,6 +68,33 @@ describe('clientPlanDraftModelLine', () => {
 
   it('names the configured model when a page was used', () => {
     expect(clientPlanDraftModelLine('PTT_MKT_AI_MODEL')).toBe('Một lần gọi PTT_MKT_AI_MODEL.');
+  });
+});
+
+describe('g4MessagesVi', () => {
+  it('translates strategy keys into Vietnamese labels', () => {
+    expect(g4MessagesVi([
+      'Nhập tên kế hoạch MKT sơ bộ.',
+      'Nhập North Star hoặc Mục tiêu chiến lược.',
+      'Điền khối chiến lược: market_message.',
+      'Điền khối chiến lược: media_reach.',
+      'Điền khối chiến lược: conversion_strategy.',
+    ])).toEqual([
+      'Nhập tên kế hoạch.',
+      'Nhập North Star hoặc Mục tiêu chiến lược.',
+      'Nhập Thông điệp thị trường.',
+      'Nhập Kênh tiếp cận.',
+      'Nhập Chiến lược chuyển đổi.',
+    ]);
+  });
+});
+
+describe('mergeHumanEditedKeys', () => {
+  it('unions dirty R5 keys without duplicates', () => {
+    expect(mergeHumanEditedKeys(['market_message'], ['market_message', 'north_star'])).toEqual([
+      'market_message',
+      'north_star',
+    ]);
   });
 });
 
