@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PresalesClientBriefCard } from '@/components/PresalesClientBriefCard';
+import { PresalesConsultPlanScreen } from '@/components/PresalesConsultPlanScreen';
 import { PresalesR5PlanForm } from '@/components/PresalesR5PlanForm';
 import { PresalesR5PreviewPanel } from '@/components/PresalesR5PreviewPanel';
 import {
@@ -9,6 +10,7 @@ import {
   patchLeadPresalesMarketingPlan,
   postLeadPresalesMarketingPlanAiDraft,
   type DealRoomSnapshot,
+  type LeadFunnelSnapshot,
 } from '@/lib/api';
 import { canGenerateMktAiPlanner, hasCap, type StoredStaffUser } from '@/lib/auth';
 import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
@@ -133,6 +135,28 @@ export function DealRoomL1Panel({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (snapshot.presales.presales.stage === 'consult') {
+    return (
+      <section className="deal-room-panel deal-room-panel--l1" aria-label="L1 marketing plan">
+        <div className="deal-room-panel__head">
+          <h3 className="deal-room-panel__title">KH Marketing sơ bộ (L1 / R5)</h3>
+        </div>
+        <PresalesConsultPlanScreen
+          token={token}
+          leadId={leadId}
+          funnel={{ presales: snapshot.presales } as LeadFunnelSnapshot}
+          canEdit={canEdit}
+          canAiDraft={canAiDraft}
+          onMessage={onMessage}
+          onError={onError}
+          onFunnelChange={() => {
+            void reloadSnapshot();
+          }}
+        />
+      </section>
+    );
   }
 
   return (
