@@ -35,13 +35,14 @@ import {
   buildPresalesAiPromptContext,
   formatPresalesAiPrompt,
 } from './presales-ai-prompt.util';
-import { clientBriefMissing, clientBriefPayload, leadQualifyFacts, prefillClientBriefFromTasks, readClientBrief, resolveLeadNiche, writeClientBrief } from './client-plan-brief.util';
+import { briefFieldFilled, clientBriefMissing, clientBriefPayload, leadQualifyFacts, prefillClientBriefFromTasks, readClientBrief, resolveLeadNiche, writeClientBrief } from './client-plan-brief.util';
 import { fetchClientPlanSources } from './client-plan-source.util';
 import { buildClientPlanDraftCall,
   humanEditedR5Fields,
   mergeClientPlanModelDraft,
   selectClientPlanModel,
 } from './client-plan-draft.util';
+import { buildConsultFactsSuggestCall, normalizeConsultFactsSuggest } from './consult-facts-suggest.util';
 import { buildClientPlanDeck, clientPlanExportFilename } from './client-plan-deck.util';
 import { convertClientPlanPdf, findSoffice, renderClientPlanPptx } from './client-plan-pptx.util';
 import { buildProposalAdvanceGate } from './presales-proposal-gate.util';
@@ -753,6 +754,56 @@ export class LeadsFunnelService {
 
   private async assertPresalesMktAiEnabled(serviceSlug: string): Promise<void> {
     await this.mktAiAllow.ensure(serviceSlug ?? '');
+  }
+
+  async suggestClientBriefFacts(leadId: number, staffUser?: StaffJwtPayload) {
+    try {
+      rejectMktAiAutoCustomerEmail(this.config.mktAiAutoCustomerEmailEnabled, {});
+      await this.assertPresalesMktAiGenerateCap(staffUser);
+      await this.assertConsultMutationAllowed(leadId, staffUser, 'consult');
+      const loaded = await this.loadClientBrief(leadId);
+      await this.assertPresalesMktAiEnabled(loaded.snap.presales.service_slug);
+      const facts = {
+        company: loaded.company_name,
+        niche: loaded.niche,
+        need: loaded.need,
+      };
+      const missing = [
+        !briefFieldFilled(facts.company) ? 'Tên công ty trên hồ sơ lead' : '',
+        !briefFieldFilled(facts.niche) ? 'Ngành KH' : '',
+        !briefFieldFilled(facts.need) ? 'Nhu cầu cụ thể' : '',
+      ].filter(Boolean);
+      if (missing.length) {
+        throw new BadRequestException({
+          error: 'client_facts_incomplete',
+          message: missing.join('; '),
+          details: missing,
+        });
+      }
+      const selection = selectClientPlanModel({
+        hasPublicSource: false,
+        mktAiModel: this.config.mktAiModel,
+        llmModel: this.aiConfig.llmModel,
+      });
+      const suggestInput = {
+        ...facts,
+        serviceLabel: SERVICE_LABELS[loaded.snap.presales.service_slug] ?? loaded.snap.presales.service_slug,
+        metrics: loaded.brief.metrics,
+        budget: taskBudget(loaded.tasks),
+      };
+      const built = buildConsultFactsSuggestCall(suggestInput);
+      const completion = await this.llm.completeJson({
+        systemPrompt: built.systemPrompt,
+        userContent: built.userContent,
+        model: selection.model,
+        imageUrls: [],
+        stubJson: built.stubJson,
+      });
+      const suggestion = normalizeConsultFactsSuggest(completion.parsed, suggestInput);
+      return { ok: true, ...suggestion, ai: { stub_mode: completion.stubMode, model: selection.model } };
+    } catch (err) {
+      this.funnelError(err);
+    }
   }
 
   async generatePresalesMarketingPlanAiDraft(leadId: number, staffUser?: StaffJwtPayload) {

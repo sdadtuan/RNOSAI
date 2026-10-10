@@ -8,6 +8,7 @@ import {
   patchLeadPresalesClientBrief,
   patchLeadPresalesMarketingPlan,
   patchLeadPresalesTask,
+  postLeadPresalesClientBriefSuggest,
   postLeadPresalesClientPlanExport,
   postLeadPresalesMarketingPlanAiDraft,
   type LeadFunnelSnapshot,
@@ -21,6 +22,7 @@ import {
   mergeHumanEditedKeys,
   showClientPlanExportButton,
 } from '@/lib/crm/client-plan-brief.ui';
+import { CONSULT_CHANNEL_OPTIONS, formatChannelsBrief, parseChannelsBrief } from '@/lib/crm/consult-facts-suggest.ui';
 import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
 
 const PLAN_FIELDS: Array<{ key: string; label: string; slot: string }> = [
@@ -83,11 +85,22 @@ export function PresalesConsultPlanScreen({
   const [planValidation, setPlanValidation] = useState<string[]>([]);
   const [modelName, setModelName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [factsReady, setFactsReady] = useState(false);
+  const [goalPicks, setGoalPicks] = useState<string[]>([]);
+  const [suggestedChannels, setSuggestedChannels] = useState<string[]>([]);
   const onErrorRef = useRef(onError);
+  const autoSuggestRef = useRef(false);
+  const leadRef = useRef(leadId);
+  leadRef.current = leadId;
   onErrorRef.current = onError;
 
   useEffect(() => {
     let cancelled = false;
+    setFactsReady(false);
+    autoSuggestRef.current = false;
+    setGoalPicks([]);
+    setSuggestedChannels([]);
     void (async () => {
       try {
         const [briefOut, planOut] = await Promise.all([
@@ -121,6 +134,7 @@ export function PresalesConsultPlanScreen({
         });
         setPlanValidation(planOut.validation.messages ?? []);
         setModelName(planOut.ai_draft?.model_name ?? '');
+        setFactsReady(true);
       } catch (err) {
         if (!cancelled) onErrorRef.current?.(err instanceof Error ? err.message : 'Không tải được kế hoạch');
       }
@@ -133,6 +147,18 @@ export function PresalesConsultPlanScreen({
   const missing = clientBriefUiMissing({ company_name: company, niche, need, usp, goal, channels });
   const modelLine = clientPlanDraftModelLine(modelName);
   const g4 = g4MessagesVi(planValidation);
+  const channelState = parseChannelsBrief(channels);
+
+  useEffect(() => {
+    if (!factsReady || !canEdit || !canAiDraft || autoSuggestRef.current) return;
+    const parsed = parseChannelsBrief(channels);
+    if (usp.trim() && goal.trim() && parsed.selected.length > 0) return;
+    if (!company.trim() || !niche.trim() || !need.trim()) return;
+    autoSuggestRef.current = true;
+    void runSuggest('fill-empty');
+    // runSuggest reads the facts from this render; re-running after the fill is blocked by autoSuggestRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [factsReady, canEdit, canAiDraft, company, niche, need, usp, goal, channels]);
 
   function markDirty(key: string, value: string) {
     setPlan((prev) => ({ ...prev, [key]: value }));
@@ -152,6 +178,80 @@ export function PresalesConsultPlanScreen({
       fanpage,
       ...(withKeys ? { human_edited_keys: mergeHumanEditedKeys(humanEdited, dirty) } : {}),
     };
+  }
+
+  async function runSuggest(mode: 'fill-empty' | 'replace') {
+    if (!canEdit || !canAiDraft || suggesting) return;
+    if (!company.trim() || !niche.trim() || !need.trim()) {
+      onError?.('Thiếu Công ty, Ngành hoặc Nhu cầu.');
+      return;
+    }
+    const requestLead = leadId;
+    setSuggesting(true);
+    try {
+      const out = await postLeadPresalesClientBriefSuggest(token, leadId);
+      if (leadRef.current !== requestLead) return;
+      const parsed = parseChannelsBrief(channels);
+      const nextUsp = mode === 'replace' || !usp.trim() ? out.usp : usp;
+      const nextClose = mode === 'replace' || !parsed.close.trim() ? out.close : parsed.close;
+      const nextSelected = mode === 'replace' || parsed.selected.length === 0 ? out.channels : parsed.selected;
+      const nextChannels = formatChannelsBrief(nextSelected, nextClose);
+      setUsp(nextUsp);
+      setChannels(nextChannels);
+      setGoalPicks(out.goals);
+      setSuggestedChannels(out.channels);
+      if (nextUsp !== usp || nextChannels !== channels) {
+        await patchLeadPresalesClientBrief(token, leadId, {
+          ...briefPatch(false),
+          usp: nextUsp,
+          channels: nextChannels,
+        });
+      }
+      onMessage?.('Đã điền điểm khác biệt và gợi ý mục tiêu, kênh');
+    } catch (err) {
+      if (leadRef.current === requestLead) onError?.(err instanceof Error ? err.message : 'AI gợi ý thất bại');
+    } finally {
+      if (leadRef.current === requestLead) setSuggesting(false);
+    }
+  }
+
+  async function pickGoal(pick: string) {
+    setGoal(pick);
+    try {
+      await persistBrief({ goal: pick });
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Không lưu được mục tiêu');
+    }
+  }
+
+  async function persistBrief(overrides: { usp?: string; goal?: string; channels?: string }) {
+    if (!canEdit) return;
+    await patchLeadPresalesClientBrief(token, leadId, { ...briefPatch(false), ...overrides });
+  }
+
+  function toggleChannel(label: string, on: boolean) {
+    const parsed = parseChannelsBrief(channels);
+    const selected = on
+      ? parsed.selected.includes(label)
+        ? parsed.selected
+        : [...parsed.selected, label]
+      : parsed.selected.filter((item) => item !== label);
+    const next = formatChannelsBrief(selected, parsed.close);
+    setChannels(next);
+    void persistBrief({ channels: next }).catch((err) => {
+      onError?.(err instanceof Error ? err.message : 'Không lưu được kênh');
+    });
+  }
+
+  function setCloseNote(close: string) {
+    const parsed = parseChannelsBrief(channels);
+    setChannels(formatChannelsBrief(parsed.selected, close));
+  }
+
+  function saveCloseNote() {
+    void persistBrief({ channels }).catch((err) => {
+      onError?.(err instanceof Error ? err.message : 'Không lưu được cách chốt');
+    });
   }
 
   async function persistFacts(): Promise<boolean> {
@@ -293,18 +393,96 @@ export function PresalesConsultPlanScreen({
         {factField('Nhu cầu', need, storedNeed, setNeed)}
       </div>
 
+      <div className="consult-facts__toolbar">
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary"
+          disabled={busy || suggesting || !canEdit || !canAiDraft || !company.trim() || !niche.trim() || !need.trim()}
+          onClick={() => void runSuggest('replace')}
+        >
+          {suggesting ? 'Đang gợi ý…' : 'AI gợi ý lại'}
+        </button>
+        <p className="client-plan-brief__hint">Điểm khác biệt do AI điền. Mục tiêu và kênh là gợi ý — chọn hoặc sửa trước khi viết kế hoạch.</p>
+      </div>
+
       <label className="client-plan-brief__field">
         Điểm khác biệt <i className="client-plan-brief__star">*</i>
-        <textarea value={usp} disabled={!canEdit || busy} onChange={(event) => setUsp(event.target.value)} />
+        <textarea
+          aria-label="Điểm khác biệt"
+          value={usp}
+          disabled={!canEdit || busy || suggesting}
+          onChange={(event) => setUsp(event.target.value)}
+          onBlur={() => {
+            void persistBrief({ usp }).catch((err) => {
+              onError?.(err instanceof Error ? err.message : 'Không lưu được điểm khác biệt');
+            });
+          }}
+        />
+        <span className="client-plan-brief__hint">AI điền từ ngành và nhu cầu. Sửa nếu chưa đúng.</span>
       </label>
-      <label className="client-plan-brief__field">
-        Mục tiêu đo được <i className="client-plan-brief__star">*</i>
-        <textarea value={goal} disabled={!canEdit || busy} onChange={(event) => setGoal(event.target.value)} />
-      </label>
-      <label className="client-plan-brief__field">
-        Kênh muốn chạy và cách chốt đơn <i className="client-plan-brief__star">*</i>
-        <textarea value={channels} disabled={!canEdit || busy} onChange={(event) => setChannels(event.target.value)} />
-      </label>
+
+      <div className="client-plan-brief__field">
+        <span>
+          Mục tiêu đo được <i className="client-plan-brief__star">*</i>
+        </span>
+        {goalPicks.length > 0 ? (
+          <div className="consult-facts__picks" role="listbox" aria-label="Gợi ý mục tiêu">
+            {goalPicks.map((pick) => (
+              <button
+                key={pick}
+                type="button"
+                className={goal.trim() === pick ? 'consult-facts__pick is-on' : 'consult-facts__pick'}
+                disabled={!canEdit || busy || suggesting}
+                onClick={() => void pickGoal(pick)}
+              >
+                {pick}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <textarea
+          aria-label="Mục tiêu đo được"
+          value={goal}
+          disabled={!canEdit || busy || suggesting}
+          onChange={(event) => setGoal(event.target.value)}
+          onBlur={() => {
+            void persistBrief({ goal }).catch((err) => {
+              onError?.(err instanceof Error ? err.message : 'Không lưu được mục tiêu');
+            });
+          }}
+        />
+        <span className="client-plan-brief__hint">Chọn một gợi ý hoặc sửa. Số chưa có giữ [cần chốt].</span>
+      </div>
+
+      <div className="client-plan-brief__field">
+        <span>
+          Kênh muốn chạy và cách chốt đơn <i className="client-plan-brief__star">*</i>
+        </span>
+        <div className="consult-facts__channels" role="group" aria-label="Kênh muốn chạy">
+          {CONSULT_CHANNEL_OPTIONS.map((label) => (
+            <label key={label} className="consult-facts__check">
+              <input
+                type="checkbox"
+                checked={channelState.selected.includes(label)}
+                disabled={!canEdit || busy || suggesting}
+                onChange={(event) => toggleChannel(label, event.target.checked)}
+              />
+              {label}
+              {suggestedChannels.includes(label) ? <span className="consult-facts__ai">AI</span> : null}
+            </label>
+          ))}
+        </div>
+        <label className="client-plan-brief__field">
+          Cách chốt đơn
+          <input
+            aria-label="Cách chốt đơn"
+            value={channelState.close}
+            disabled={!canEdit || busy || suggesting}
+            onChange={(event) => setCloseNote(event.target.value)}
+            onBlur={saveCloseNote}
+          />
+        </label>
+      </div>
 
       <details>
         <summary>Thêm cho file</summary>

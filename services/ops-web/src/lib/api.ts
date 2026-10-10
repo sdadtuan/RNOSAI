@@ -2209,6 +2209,23 @@ export async function fetchLeadPresalesClientBrief(
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/client-brief`, { method: 'GET' });
 }
 
+export async function postLeadPresalesClientBriefSuggest(
+  token: string,
+  leadId: number,
+): Promise<{
+  ok: boolean;
+  usp: string;
+  goals: string[];
+  channels: string[];
+  close: string;
+  ai?: { stub_mode: boolean; model: string };
+}> {
+  return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/client-brief/suggest`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
 export async function patchLeadPresalesClientBrief(
   token: string,
   leadId: number,

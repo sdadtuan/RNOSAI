@@ -3986,6 +3986,59 @@ html.ops-shell-bitrix .win-home__scope {
   font-size: 0.75rem;
 }
 
+.consult-facts__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.consult-facts__toolbar .client-plan-brief__hint {
+  margin: 0;
+  flex: 1 1 16rem;
+}
+
+.consult-facts__picks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.consult-facts__pick {
+  text-align: left;
+  border: 1px solid #d5ddd6;
+  background: #fff;
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.consult-facts__pick.is-on {
+  border-color: #17692f;
+  background: #e7f5eb;
+}
+
+.consult-facts__channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
+.consult-facts__check {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.consult-facts__ai {
+  color: #17692f;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
 .lead-consult-workspace__brief-collapsible summary {
   cursor: pointer;
   font-weight: 600;

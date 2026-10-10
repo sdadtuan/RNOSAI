@@ -22,6 +22,9 @@ describe('PresalesConsultPlanScreen', () => {
     );
     expect(html).toContain('AI viết kế hoạch');
     expect(html).toContain('Điểm khác biệt');
+    expect(html).toContain('AI gợi ý lại');
+    expect(html).toContain('Facebook Ads');
+    expect(html).toContain('Cách chốt đơn');
     expect(html).toContain('Thêm cho file');
     expect(html).not.toContain('Chỉnh sửa trên Tổng quan');
     expect(html).not.toContain('Gửi email');

@@ -386,6 +386,22 @@ export class LeadsFunnelController {
     return this.funnel.patchClientBrief(id, body, req.staffUser);
   }
 
+  @Post(':id/presales/client-brief/suggest')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(
+    StaffOrInternalKeyGuard,
+    StaffLeadsWriteGuard,
+    StaffMarketingAiPlannerGenerateGuard,
+    PresalesOnLeadGuard,
+    LeadNotInReviewQueueGuard,
+  )
+  suggestClientBriefFacts(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+  ) {
+    return this.funnel.suggestClientBriefFacts(id, req.staffUser);
+  }
+
   @Post(':id/presales/marketing-plan/ai-draft')
   @HttpCode(HttpStatus.OK)
   @UseGuards(
