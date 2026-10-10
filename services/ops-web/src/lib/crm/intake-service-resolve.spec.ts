@@ -121,4 +121,8 @@ describe('intakeServiceLabel', () => {
   it('labels dich-vu-aeo as AEO', () => {
     expect(intakeServiceLabel('dich-vu-aeo')).toBe('AEO');
   });
+
+  it('labels content marketing by name', () => {
+    expect(intakeServiceLabel('tiep-thi-noi-dung')).toBe('Tiếp thị nội dung');
+  });
 });

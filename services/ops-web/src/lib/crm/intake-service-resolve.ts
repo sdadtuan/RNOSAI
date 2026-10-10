@@ -22,8 +22,16 @@ export const PILOT_SERVICE_SLUGS = [
 const LABELS: Record<string, string> = {
   'dich-vu-seo-tong-the': 'SEO tổng thể',
   'dich-vu-aeo': 'AEO',
-  'quang-cao-google': 'Quảng cáo Google',
+  'dich-vu-seo-local': 'SEO local',
+  'dich-vu-seo-audit': 'SEO audit',
+  'dich-vu-quan-tri-website': 'Quản trị website',
   'thiet-ke-website': 'Thiết kế website',
+  'thiet-ke-website-tron-goi': 'Thiết kế website trọn gói',
+  'thiet-ke-landing-page': 'Thiết kế landing page',
+  'quang-cao-facebook': 'Quảng cáo Facebook',
+  'quang-cao-google': 'Quảng cáo Google',
+  'thue-tai-khoan-quang-cao': 'Thuê tài khoản quảng cáo',
+  'tiep-thi-noi-dung': 'Tiếp thị nội dung',
   _common: 'Chưa chọn dịch vụ',
 };
 

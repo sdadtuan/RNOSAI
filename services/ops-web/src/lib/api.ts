@@ -5324,6 +5324,11 @@ async function catalogFetch<T>(token: string, path: string, init?: RequestInit):
   return body;
 }
 
+export async function fetchCatalogServices(token: string): Promise<CatalogServiceRow[]> {
+  const pub = await catalogFetch<{ services: CatalogServiceRow[] }>(token, '/api/crm/catalog');
+  return pub.services ?? [];
+}
+
 export async function fetchCatalogBundle(token: string): Promise<CatalogBundle> {
   const [pub, scopesPayload] = await Promise.all([
     catalogFetch<{ services: CatalogServiceRow[]; industries: CatalogIndustryRow[] }>(

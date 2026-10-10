@@ -3986,6 +3986,22 @@ html.ops-shell-bitrix .win-home__scope {
   font-size: 0.75rem;
 }
 
+.consult-scope {
+  margin-top: 0.35rem;
+}
+
+.consult-scope__label {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  color: var(--muted, #5c6b60);
+}
+
+.consult-scope ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
 .consult-facts__toolbar {
   display: flex;
   flex-wrap: wrap;

@@ -10,6 +10,8 @@ import { PresalesR5PreviewPanel } from '@/components/PresalesR5PreviewPanel';
 import { PresalesTaskFormCard } from '@/components/PresalesTaskFormCard';
 import { WinFieldMask } from '@/components/rbac/WinFieldMask';
 import {
+  fetchCatalogServices,
+  fetchIntakeSessions,
   fetchLeadFunnel,
   fetchLeadPresalesMarketingPlan,
   fetchLeadPresalesProposalHandoff,
@@ -21,12 +23,16 @@ import {
   type LeadFunnelSnapshot,
 } from '@/lib/api';
 import { canGenerateMktAiPlanner, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { attachedScopeLines, scopeFromLeadSessions } from '@/lib/crm/consult-attached-scope';
+import { intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
 import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
+import { p13CodeForIntakeSlug } from '@/lib/crm/p13-intake-service';
 import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
 import {
   isConsultWorkspaceReadOnly,
   resolvePresalesSolutionCaps,
 } from '@/lib/crm/presales-solution-caps';
+import { fetchP13Service, fetchP13Services } from '@/lib/p13/api';
 
 interface Props {
   token: string;
@@ -65,10 +71,61 @@ export function LeadConsultWorkspace({
   const [planValidation, setPlanValidation] = useState<string[]>([]);
   const [handoffBlocked, setHandoffBlocked] = useState<string | null>(null);
   const [prefillBusy, setPrefillBusy] = useState(false);
+  const [serviceTitle, setServiceTitle] = useState('');
+  const [catalogServiceName, setCatalogServiceName] = useState('');
+  const [attachedItems, setAttachedItems] = useState<Array<{ code: string; label: string }>>([]);
+  const serviceSlug = funnel.presales?.presales.service_slug ?? '';
 
   useEffect(() => {
     setFunnel(funnelSnap);
   }, [funnelSnap]);
+
+  useEffect(() => {
+    if (!serviceSlug) {
+      setServiceTitle('');
+      setCatalogServiceName('');
+      setAttachedItems([]);
+      return;
+    }
+    let cancelled = false;
+    setServiceTitle(intakeServiceLabel(serviceSlug));
+    void (async () => {
+      try {
+        const [catalog, sessions] = await Promise.all([
+          fetchCatalogServices(token).catch(() => []),
+          fetchIntakeSessions(token, { lead_id: leadId }).catch(() => []),
+        ]);
+        if (cancelled) return;
+        const catalogName = catalog.find((row) => row.slug === serviceSlug && row.active !== false)?.name;
+        setServiceTitle(intakeServiceLabel(serviceSlug, catalogName));
+        const scope = scopeFromLeadSessions(sessions, serviceSlug);
+        if (!scope?.item_codes.length) {
+          setCatalogServiceName('');
+          setAttachedItems([]);
+          return;
+        }
+        const services = await fetchP13Services(token).catch(() => []);
+        const code = scope.service_code || p13CodeForIntakeSlug(serviceSlug, services) || '';
+        if (!code) {
+          setCatalogServiceName('');
+          setAttachedItems(scope.item_codes.map((itemCode) => ({ code: itemCode, label: '' })));
+          return;
+        }
+        const detail = await fetchP13Service(token, code);
+        if (cancelled) return;
+        setCatalogServiceName(detail.name);
+        setAttachedItems(attachedScopeLines(scope, detail.items));
+      } catch {
+        if (!cancelled) {
+          setCatalogServiceName('');
+          setAttachedItems([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, leadId, serviceSlug]);
 
   const presalesStage = funnel.presales?.presales.stage;
   const workspaceStage = presalesStage === 'proposal' ? 'proposal' : 'consult';
@@ -255,8 +312,26 @@ export function LeadConsultWorkspace({
           Workspace · {presalesStageLabel(presalesStage)}
         </h2>
         <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.9rem' }}>
-          Dịch vụ: <strong>{funnel.presales?.presales.service_slug || '—'}</strong>
+          Dịch vụ: <strong>{serviceTitle || serviceSlug || '—'}</strong>
         </p>
+        {catalogServiceName && catalogServiceName !== serviceTitle ? (
+          <p className="muted" style={{ margin: '0.2rem 0 0', fontSize: '0.85rem' }}>
+            {catalogServiceName}
+          </p>
+        ) : null}
+        {attachedItems.length > 0 ? (
+          <div className="consult-scope">
+            <p className="consult-scope__label">Hạng mục triển khai</p>
+            <ul>
+              {attachedItems.map((item) => (
+                <li key={item.code}>
+                  <strong>{item.code}</strong>
+                  {item.label ? ` ${item.label}` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </header>
 
       {panelError ? (
