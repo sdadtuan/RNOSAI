@@ -23,7 +23,7 @@ describe('selectClientPlanModel', () => {
     ).toEqual({ model: 'gpt-4o', vision: true });
   });
 
-  it('uses gpt-4o-mini without vision when there is no page', () => {
+  it('uses gpt-4o-mini without vision when there is no page and no OPENAI_MODEL', () => {
     expect(
       selectClientPlanModel({
         hasPublicSource: false,
@@ -31,6 +31,23 @@ describe('selectClientPlanModel', () => {
         llmModel: 'gpt-4.1',
       }),
     ).toEqual({ model: 'gpt-4o-mini', vision: false });
+  });
+
+  it('uses OPENAI_MODEL from env when PTT_MKT_AI_MODEL is empty', () => {
+    expect(
+      selectClientPlanModel({
+        hasPublicSource: true,
+        mktAiModel: '',
+        openAiModel: 'gpt-6-astra',
+        llmModel: 'gpt-4o-mini',
+      }),
+    ).toEqual({ model: 'gpt-6-astra', vision: false });
+    expect(
+      selectClientPlanModel({
+        hasPublicSource: false,
+        openAiModel: 'gpt-6-astra',
+      }),
+    ).toEqual({ model: 'gpt-6-astra', vision: false });
   });
 });
 

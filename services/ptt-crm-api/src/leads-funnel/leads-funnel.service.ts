@@ -783,6 +783,7 @@ export class LeadsFunnelService {
       const selection = selectClientPlanModel({
         hasPublicSource: false,
         mktAiModel: this.config.mktAiModel,
+        openAiModel: this.config.openAiModel,
         llmModel: this.aiConfig.llmModel,
       });
       const suggestInput = {
@@ -837,6 +838,7 @@ export class LeadsFunnelService {
       const selection = selectClientPlanModel({
         hasPublicSource,
         mktAiModel: this.config.mktAiModel,
+        openAiModel: this.config.openAiModel,
         llmModel: this.aiConfig.llmModel,
       });
       const built = buildClientPlanDraftCall({

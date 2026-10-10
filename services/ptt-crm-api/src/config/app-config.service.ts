@@ -138,6 +138,7 @@ export class AppConfigService {
   readonly mktAiApprovalRequired: boolean;
   readonly mktAiApproverNotifyUserIds: string[];
   readonly mktAiModel: string;
+  readonly openAiModel: string;
   readonly mktAiPlannerSlugs: string[];
   readonly mktAiKpiAlertEnabled: boolean;
   readonly mktAiKpiAlertCplPct: number;
@@ -487,6 +488,7 @@ export class AppConfigService {
       .map((s) => s.trim())
       .filter(Boolean);
     this.mktAiModel = (process.env.PTT_MKT_AI_MODEL ?? '').trim();
+    this.openAiModel = (process.env.OPENAI_MODEL ?? '').trim();
     this.mktAiPlannerSlugs = (process.env.PTT_MKT_AI_PLANNER_SLUGS ?? '')
       .split(',')
       .map((s) => s.trim())

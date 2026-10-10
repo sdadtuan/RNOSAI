@@ -47,11 +47,14 @@ export function selectClientPlanModel(input: {
   hasPublicSource: boolean;
   mktAiModel?: string | null;
   llmModel?: string | null;
+  openAiModel?: string | null;
 }): { model: string; vision: boolean } {
   const mkt = String(input.mktAiModel ?? '').trim();
+  const openAi = String(input.openAiModel ?? '').trim();
+  const llm = String(input.llmModel ?? '').trim();
   if (input.hasPublicSource && mkt) return { model: mkt, vision: true };
-  if (!input.hasPublicSource) return { model: 'gpt-4o-mini', vision: false };
-  return { model: String(input.llmModel ?? '').trim() || 'gpt-4o-mini', vision: false };
+  if (!input.hasPublicSource) return { model: openAi || 'gpt-4o-mini', vision: false };
+  return { model: openAi || llm || 'gpt-4o-mini', vision: false };
 }
 
 export function humanEditedR5Fields(

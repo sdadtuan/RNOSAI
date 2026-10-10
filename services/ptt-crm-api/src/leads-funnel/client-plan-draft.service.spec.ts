@@ -26,6 +26,7 @@ describe('generatePresalesMarketingPlanAiDraft', () => {
     getPresalesSnapshot: jest.fn(),
     getOrCreatePreliminaryPlan: jest.fn(),
     getLeadCompanyName: jest.fn(),
+    getLeadIndustryName: jest.fn(),
     fetchLeadRow: jest.fn(),
     patchMarketingPlan: jest.fn(),
     buildSnapshot: jest.fn(),
@@ -66,6 +67,7 @@ describe('generatePresalesMarketingPlanAiDraft', () => {
       progress: { lead: { total: 1, done: 1 }, consult: { total: 1, done: 1 } },
     });
     pgRepo.getLeadCompanyName.mockResolvedValue('Quý Nguyễn Studio');
+    pgRepo.getLeadIndustryName.mockResolvedValue('Ảnh cưới');
     pgRepo.fetchLeadRow.mockResolvedValue({ full_name: 'Quý' });
     intake.listSessions.mockResolvedValue({ sessions: [] });
     mktAiAllow.ensure.mockResolvedValue(undefined);
