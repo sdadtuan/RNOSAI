@@ -35,7 +35,7 @@ import {
   buildPresalesAiPromptContext,
   formatPresalesAiPrompt,
 } from './presales-ai-prompt.util';
-import { clientBriefMissing, clientBriefPayload, leadQualifyFacts, prefillClientBriefFromTasks, readClientBrief, writeClientBrief } from './client-plan-brief.util';
+import { clientBriefMissing, clientBriefPayload, leadQualifyFacts, prefillClientBriefFromTasks, readClientBrief, resolveLeadNiche, writeClientBrief } from './client-plan-brief.util';
 import { fetchClientPlanSources } from './client-plan-source.util';
 import { buildClientPlanDraftCall,
   humanEditedR5Fields,
@@ -1021,8 +1021,9 @@ export class LeadsFunnelService {
     const tasks = [...(snap.tasks.lead ?? []), ...(snap.tasks.consult ?? [])];
     const company_name = await this.pgRepo.getLeadCompanyName(leadId);
     const facts = leadQualifyFacts(snap.tasks.lead ?? []);
+    const niche = resolveLeadNiche(facts.niche, await this.pgRepo.getLeadIndustryName(leadId));
     const brief = prefillClientBriefFromTasks(readClientBrief(plan.target_market_prof_json), tasks);
-    return { snap, plan, tasks, brief, company_name, niche: facts.niche, need: facts.need };
+    return { snap, plan, tasks, brief, company_name, niche, need: facts.need };
   }
 
   private async clientLeaveFacts(
@@ -1034,7 +1035,7 @@ export class LeadsFunnelService {
     const facts = leadQualifyFacts(snap.tasks.lead ?? []);
     return {
       company_name: await this.pgRepo.getLeadCompanyName(leadId),
-      niche: facts.niche,
+      niche: resolveLeadNiche(facts.niche, await this.pgRepo.getLeadIndustryName(leadId)),
       need: facts.need,
       brief: prefillClientBriefFromTasks(readClientBrief(plan.target_market_prof_json), tasks),
     };

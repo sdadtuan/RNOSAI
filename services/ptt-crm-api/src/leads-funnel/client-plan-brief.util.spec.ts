@@ -4,6 +4,7 @@ import {
   emptyClientBrief,
   leadQualifyFacts,
   prefillClientBriefFromTasks,
+  resolveLeadNiche,
   readClientBrief,
   writeClientBrief,
 } from './client-plan-brief.util';
@@ -75,6 +76,17 @@ describe('client brief json', () => {
     expect(next.usp).toBe('đã gõ');
     expect(next.competitors).toBe('Studio B');
     expect(next.website).toBe('studio.example');
+  });
+});
+
+describe('resolveLeadNiche', () => {
+  it('keeps the task niche when it is filled', () => {
+    expect(resolveLeadNiche('Ảnh cưới', 'Spa & Beauty')).toBe('Ảnh cưới');
+  });
+
+  it('uses the industry saved on the lead when the task is empty', () => {
+    expect(resolveLeadNiche('', 'Spa & Beauty')).toBe('Spa & Beauty');
+    expect(resolveLeadNiche('  ', null)).toBe('');
   });
 });
 

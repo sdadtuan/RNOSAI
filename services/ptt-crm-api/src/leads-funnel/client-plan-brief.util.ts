@@ -100,6 +100,13 @@ export function clientBriefMissing(
   return missing;
 }
 
+export function resolveLeadNiche(taskNiche: string, metaIndustry: string | null | undefined): string {
+  const task = String(taskNiche ?? '').trim();
+  if (briefFieldFilled(task)) return task;
+  const meta = String(metaIndustry ?? '').trim();
+  return briefFieldFilled(meta) ? meta : '';
+}
+
 export function leadQualifyFacts(
   tasks: Array<{ form_data?: Record<string, unknown> | null }>,
 ): { niche: string; need: string } {

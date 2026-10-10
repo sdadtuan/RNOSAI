@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import { catalogTs } from '../catalog/catalog-slug.util';
+import { parseLeadMetaIndustry } from '../intake/intake-context.util';
 import { prefillCompanyName } from '../leads/lead-party.util';
 import { AppConfigService } from '../config/app-config.service';
 import { sanitizePgBigintUserId } from '../staff-auth/staff-user-id.util';
@@ -57,6 +58,7 @@ import {
   leadQualifyFacts,
   prefillClientBriefFromTasks,
   readClientBrief,
+  resolveLeadNiche,
 } from './client-plan-brief.util';
 import { SOLUTION_HANDOFF_ACTIVITY_TYPES } from './presales-solution-handoff-activity.util';
 import { workflowStepsForService } from './presales-workflow-steps.util';
@@ -1402,18 +1404,34 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
   ): Promise<string> {
     const companyName = await this.getLeadCompanyName(leadId);
     const facts = leadQualifyFacts(leadTasks);
+    const niche = resolveLeadNiche(facts.niche, await this.getLeadIndustryName(leadId));
     const brief = prefillClientBriefFromTasks(readClientBrief(plan?.target_market_prof_json), [
       ...leadTasks,
       ...consultTasks,
     ]);
     const missing = clientBriefMissing(brief, {
       company_name: companyName,
-      niche: facts.niche,
+      niche,
       need: facts.need,
     });
     if (missing[0]) return missing[0];
     if (!brief.saved_after_ai) return 'Solution chưa lưu sau bản AI.';
     return '';
+  }
+
+  async getLeadIndustryName(leadId: number): Promise<string> {
+    const result = await this.db.query(
+      `SELECT meta_json FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
+    const meta = parseLeadMetaIndustry(result.rows[0]?.meta_json);
+    if (meta.industry) return meta.industry;
+    if (!meta.industry_slug) return '';
+    const catalog = await this.db.query(
+      `SELECT name FROM crm_catalog_industries WHERE slug = $1 AND active IS TRUE LIMIT 1`,
+      [meta.industry_slug],
+    );
+    return String(catalog.rows[0]?.name ?? '').trim();
   }
 
   async getLeadCompanyName(leadId: number): Promise<string> {
