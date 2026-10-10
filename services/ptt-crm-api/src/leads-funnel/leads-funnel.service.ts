@@ -43,8 +43,9 @@ import { buildClientPlanDraftCall,
   selectClientPlanModel,
 } from './client-plan-draft.util';
 import { buildConsultFactsSuggestCall, normalizeConsultFactsSuggest } from './consult-facts-suggest.util';
-import { buildClientPlanDeck, clientPlanExportFilename } from './client-plan-deck.util';
-import { convertClientPlanPdf, findSoffice, renderClientPlanPptx } from './client-plan-pptx.util';
+import { clientPlanExportFilename } from './client-plan-deck.util';
+import { convertClientPlanPdf, findSoffice } from './client-plan-pptx.util';
+import { renderClientPlanFromTemplate } from './client-plan-template.util';
 import { buildProposalAdvanceGate } from './presales-proposal-gate.util';
 import { buildPresalesProposalHandoff } from './presales-proposal-handoff.util';
 import { buildL1GateChecklist } from './presales-l1-gate-checklist.util';
@@ -914,26 +915,32 @@ export class LeadsFunnelService {
       }
       const prof = parseTargetMarketProfJson(loaded.plan.target_market_prof_json);
       const contact = await this.pgRepo.getLeadPlanContact(leadId);
-      const cover = String(prof.client_plan_cover_image_url ?? '').trim();
-      const deck = buildClientPlanDeck(
-        {
-          ...content,
-          cover_image_url: cover || null,
-          competitors: String(prof.client_plan_competitors ?? loaded.brief.competitors ?? ''),
-        },
-        { ...loaded.brief, budget: taskBudget(loaded.tasks) },
-        {
-          company_name: contact.company_name || loaded.company_name,
-          service_label: SERVICE_LABELS[loaded.snap.presales.service_slug] ?? loaded.snap.presales.service_slug,
-          niche: loaded.niche,
-          need: loaded.need,
-          phone: contact.phone,
-          email: contact.email,
-          address: contact.address,
-        },
-      );
-      const pptx = await renderClientPlanPptx(deck);
-      const filename = clientPlanExportFilename(contact.company_name || loaded.company_name);
+      const framework = content.strategy_framework;
+      const clientName = contact.company_name || loaded.company_name;
+      const pptx = await renderClientPlanFromTemplate({
+        client: clientName,
+        phone: contact.phone,
+        email: contact.email,
+        address: contact.address,
+        website: loaded.brief.website,
+        fanpage: loaded.brief.fanpage,
+        niche: loaded.niche,
+        need: loaded.need,
+        service: SERVICE_LABELS[loaded.snap.presales.service_slug] ?? loaded.snap.presales.service_slug,
+        usp: loaded.brief.usp,
+        goal: loaded.brief.goal || content.north_star,
+        channels: loaded.brief.channels,
+        audience: loaded.brief.audience || framework.target_market,
+        competitors: String(prof.client_plan_competitors ?? loaded.brief.competitors ?? ''),
+        metrics: loaded.brief.metrics,
+        retain: loaded.brief.retain,
+        budget: taskBudget(loaded.tasks),
+        northStar: content.north_star,
+        message: framework.market_message,
+        media: framework.media_reach,
+        conversion: framework.conversion_strategy,
+      });
+      const filename = clientPlanExportFilename(clientName);
       const sofficePath = opts ? (opts.sofficePath ?? null) : await findSoffice();
       const pdf = await convertClientPlanPdf(pptx, filename, sofficePath);
       return {

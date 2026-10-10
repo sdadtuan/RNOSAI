@@ -52,7 +52,7 @@ export function clientPlanExportFilename(clientName: string, ext: 'pptx' | 'pdf'
       .replace(/đ/g, 'd')
       .replace(/Đ/g, 'D')
       .replace(/[^a-zA-Z0-9]+/g, '') || 'Khach';
-  return `PTT_${slug}_Plan_GuiKhach.${ext}`;
+  return `PTT_${slug}_KeHoachMarketing.${ext}`;
 }
 
 export function buildClientPlanDeck(

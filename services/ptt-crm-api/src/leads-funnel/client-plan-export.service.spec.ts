@@ -6,6 +6,7 @@ describe('exportClientPlan', () => {
     getPresalesSnapshot: jest.fn(),
     getOrCreatePreliminaryPlan: jest.fn(),
     getLeadCompanyName: jest.fn(),
+    getLeadIndustryName: jest.fn(),
     getLeadPlanContact: jest.fn(),
     fetchLeadRow: jest.fn(),
   };
@@ -42,6 +43,7 @@ describe('exportClientPlan', () => {
     pgRepo.fetchLeadRow.mockResolvedValue({ full_name: 'Quý' });
     intake.listSessions.mockResolvedValue({ sessions: [] });
     pgRepo.getLeadCompanyName.mockResolvedValue('Quý Nguyễn Studio');
+    pgRepo.getLeadIndustryName.mockResolvedValue('Ảnh cưới');
     pgRepo.getLeadPlanContact.mockResolvedValue({
       company_name: 'Quý Nguyễn Studio',
       address: 'Q1',
@@ -76,7 +78,7 @@ describe('exportClientPlan', () => {
       target_market_prof_json: { client_brief: JSON.stringify({ saved_after_ai: false, usp: 'Concept riêng', goal: 'Tăng lịch', channels: 'Facebook' }) },
     });
     const out = await service().exportClientPlan(7, { sofficePath: null });
-    expect(out?.filename).toBe('PTT_QuyNguyenStudio_Plan_GuiKhach.pptx');
+    expect(out?.filename).toBe('PTT_QuyNguyenStudio_KeHoachMarketing.pptx');
     expect(out?.pptx.subarray(0, 2).toString()).toBe('PK');
     expect(out?.note).toBe(LIBREOFFICE_MISSING_NOTE);
     expect(out?.pdf).toBeNull();

@@ -73,6 +73,6 @@ describe('buildClientPlanDeck', () => {
 
 describe('clientPlanExportFilename', () => {
   it('slugs the client name', () => {
-    expect(clientPlanExportFilename('Quý Nguyễn Studio')).toBe('PTT_QuyNguyenStudio_Plan_GuiKhach.pptx');
+    expect(clientPlanExportFilename('Quý Nguyễn Studio')).toBe('PTT_QuyNguyenStudio_KeHoachMarketing.pptx');
   });
 });

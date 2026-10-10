@@ -10,7 +10,8 @@
       { "include": "leads-funnel/**/*.json", "watchAssets": true },
       { "include": "marketing-ai-planner/playbooks/**/*.json", "watchAssets": true },
       { "include": "deal-room/**/*.json", "watchAssets": true },
-      { "include": "strategy-packs/assets/**/*.docx", "watchAssets": true }
+      { "include": "strategy-packs/assets/**/*.docx", "watchAssets": true },
+      { "include": "assets/client-plan/**/*.pptx", "watchAssets": true }
     ]
   }
 }
