@@ -918,6 +918,9 @@ export function IntakeContent({
           decision,
           decision_reason: decisionReason,
           contact_name: contactName,
+          ...(active.status === 'draft' && resolvedSlug && resolvedSlug !== '_common'
+            ? { service_slug: resolvedSlug }
+            : {}),
           answers_json: mergeIntakeP13Scope(
             buildIntakeAnswersPatch({
               existing: active.answers_json,
@@ -960,6 +963,7 @@ export function IntakeContent({
       need,
       redFlags,
       refreshStepperData,
+      resolvedSlug,
       sessionMode,
       stakeholders,
       commitments,

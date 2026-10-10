@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { isCommonSlug, normalizeIntakeSlug } from './intake-definitions.util';
 import type { IntakeSessionRow } from './intake.types';
 
 function stripHtml(value: string): string {
@@ -27,6 +28,21 @@ export function buildPresalesFormPatchFromIntake(session: IntakeSessionRow): Rec
     patch.need = needSummary.slice(0, 4000);
   }
   return patch;
+}
+
+export async function syncPresalesServiceSlug(
+  db: Pool,
+  leadId: number | null | undefined,
+  serviceSlug: string,
+): Promise<void> {
+  const slug = normalizeIntakeSlug(String(serviceSlug ?? '').trim());
+  if (!leadId || !slug || isCommonSlug(slug)) return;
+  await db.query(
+    `UPDATE crm_lead_presales
+        SET service_slug = $2, updated_at = NOW()
+      WHERE lead_id = $1 AND status != 'converted'`,
+    [leadId, slug.slice(0, 200)],
+  );
 }
 
 export async function syncPresalesLeadTasksFromIntake(

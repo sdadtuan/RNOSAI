@@ -11,7 +11,7 @@ import {
   resolveDefinitionSlug,
 } from './intake-definitions.util';
 import { extractDiscoveryResponseSnippets } from './intake-answers.util';
-import { syncPresalesLeadTasksFromIntake } from './intake-presales-sync.util';
+import { syncPresalesLeadTasksFromIntake, syncPresalesServiceSlug } from './intake-presales-sync.util';
 import { recordLifecycleMilestone } from '../lifecycle-milestone/lifecycle-milestone.pg.util';
 import { reconcileAiSummaryWithLiveBant } from '../service-lifecycle/lifecycle-consult.util';
 import {
@@ -386,6 +386,10 @@ export class IntakePgRepository implements OnModuleDestroy {
         String(merged.service_slug ?? COMMON_FORM_SLUG).slice(0, 200),
       ],
     );
+
+    if ('service_slug' in payload) {
+      await syncPresalesServiceSlug(this.db, merged.lead_id, merged.service_slug);
+    }
 
     return this.getSession(sessionId);
   }
