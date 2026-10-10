@@ -84,6 +84,7 @@ export function PresalesConsultPlanScreen({
   const [plan, setPlan] = useState<Record<string, string>>(EMPTY_PLAN);
   const [planValidation, setPlanValidation] = useState<string[]>([]);
   const [modelName, setModelName] = useState('');
+  const [sourceErrors, setSourceErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [factsReady, setFactsReady] = useState(false);
@@ -145,7 +146,7 @@ export function PresalesConsultPlanScreen({
   }, [leadId, token]);
 
   const missing = clientBriefUiMissing({ company_name: company, niche, need, usp, goal, channels });
-  const modelLine = clientPlanDraftModelLine(modelName);
+  const modelLine = clientPlanDraftModelLine(modelName, Boolean(website.trim() || fanpage.trim()));
   const g4 = g4MessagesVi(planValidation);
   const channelState = parseChannelsBrief(channels);
 
@@ -313,6 +314,7 @@ export function PresalesConsultPlanScreen({
       });
       setPlanValidation(out.validation.messages ?? []);
       setModelName(out.ai?.model ?? out.ai_draft?.model_name ?? '');
+      setSourceErrors(out.source_errors ?? []);
       onFunnelChange(out.funnel);
       onMessage?.(out.validation.ok ? 'Đã tạo bản nháp kế hoạch' : 'Bản nháp — cần bổ sung thêm trường');
     } catch (err) {
@@ -540,6 +542,7 @@ export function PresalesConsultPlanScreen({
         <div className="banner banner-warning">
           <strong>Bản nháp — SP duyệt.</strong>
           <p style={{ margin: '0.35rem 0 0' }}>{modelLine}</p>
+          {sourceErrors.length > 0 ? <p style={{ margin: '0.35rem 0 0' }}>{sourceErrors[0]}</p> : null}
         </div>
       ) : null}
 

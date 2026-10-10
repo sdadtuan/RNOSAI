@@ -2174,6 +2174,7 @@ export async function postLeadPresalesMarketingPlanAiDraft(
   ai_draft?: { is_ai_draft: boolean; badge_vi?: string | null; model_name?: string | null };
   requires_sp_review?: boolean;
   badge_vi?: string;
+  source_errors?: string[];
 }> {
   return leadFunnelMutate(token, `/api/v1/leads/${leadId}/presales/marketing-plan/ai-draft`, {
     method: 'POST',

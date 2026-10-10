@@ -52,6 +52,7 @@ describe('buildClientPlanDraftCall', () => {
     expect(built.schemaKeys).not.toContain('competitors');
     expect(built.schemaKeys).not.toContain('cover_image_url');
     expect(built.systemPrompt).toMatch(/JSON/);
+    expect(built.userContent).toMatch(/Không có website hoặc fanpage/);
 
     const merged = mergeClientPlanModelDraft(
       {
@@ -65,6 +66,20 @@ describe('buildClientPlanDraftCall', () => {
     expect(merged.target_market).toBe('[cần xác nhận]');
     expect(merged.competitors).toBe('[cần xác nhận]');
     expect(merged.cover_image_url).toBeNull();
+  });
+
+  it('keeps the fanpage link when the page text was not fetched', () => {
+    const built = buildClientPlanDraftCall({
+      brief: { ...brief, fanpage: 'https://www.facebook.com/massagetinhvien' },
+      lead: { company_name: 'A Nhàn Spa', niche: 'Spa', need: 'đúng tệp' },
+      serviceLabel: 'Tiếp thị nội dung',
+      sourceText: '',
+      imageUrls: [],
+      humanEdited: {},
+      hasPublicSource: true,
+    });
+    expect(built.userContent).toContain('https://www.facebook.com/massagetinhvien');
+    expect(built.userContent).not.toContain('Không có website hoặc fanpage');
   });
 
   it('lets the model fill market, competitors and cover when a page was fetched', () => {

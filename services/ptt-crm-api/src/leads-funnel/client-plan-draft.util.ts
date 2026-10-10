@@ -199,7 +199,13 @@ function buildUserContent(
     `Đối thủ sales đã ghi: ${input.brief.competitors}`,
     `Số liệu sales đã ghi: ${input.brief.metrics}`,
     input.budget ? `Ngân sách: ${input.budget}` : '',
-    sourceText.trim() ? `Nội dung trang đã tải:\n${sourceText}` : 'Không có website hoặc fanpage.',
+    input.brief.website?.trim() ? `Website: ${input.brief.website.trim()}` : '',
+    input.brief.fanpage?.trim() ? `Fanpage: ${input.brief.fanpage.trim()}` : '',
+    sourceText.trim()
+      ? `Nội dung trang đã tải:\n${sourceText}`
+      : input.brief.website?.trim() || input.brief.fanpage?.trim()
+        ? 'Chưa đọc được nội dung trang. Viết từ link và thông tin sales đã ghi, không bịa số.'
+        : 'Không có website hoặc fanpage.',
     imageUrls.length ? `Ảnh được phép: ${imageUrls.join(', ')}` : '',
   ]
     .filter(Boolean)

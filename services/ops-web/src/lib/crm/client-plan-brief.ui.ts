@@ -53,10 +53,10 @@ export function mergeHumanEditedKeys(current: readonly string[], dirty: readonly
   return out;
 }
 
-export function clientPlanDraftModelLine(model: string | null | undefined): string {
+export function clientPlanDraftModelLine(model: string | null | undefined, hasPublicPage = false): string {
   const name = String(model ?? '').trim();
   if (!name) return '';
-  if (name === 'gpt-4o-mini') return 'Không có website/fanpage. Một lần gọi gpt-4o-mini.';
+  if (name === 'gpt-4o-mini' && !hasPublicPage) return 'Không có website/fanpage. Một lần gọi gpt-4o-mini.';
   return `Một lần gọi ${name}.`;
 }
 

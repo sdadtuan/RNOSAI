@@ -66,6 +66,10 @@ describe('clientPlanDraftModelLine', () => {
     );
   });
 
+  it('names gpt-4o-mini when a page link is present', () => {
+    expect(clientPlanDraftModelLine('gpt-4o-mini', true)).toBe('Một lần gọi gpt-4o-mini.');
+  });
+
   it('names the configured model when a page was used', () => {
     expect(clientPlanDraftModelLine('PTT_MKT_AI_MODEL')).toBe('Một lần gọi PTT_MKT_AI_MODEL.');
   });

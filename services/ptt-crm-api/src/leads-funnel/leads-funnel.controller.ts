@@ -424,7 +424,6 @@ export class LeadsFunnelController {
   async exportClientPlan(@Param('id', ParseIntPipe) id: number, @Res({ passthrough: true }) res: Response) {
     const out = await this.funnel.exportClientPlan(id);
     res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
-    if (out.note) res.setHeader('X-Client-Plan-Note', out.note);
     return {
       ok: true,
       filename: out.filename,
