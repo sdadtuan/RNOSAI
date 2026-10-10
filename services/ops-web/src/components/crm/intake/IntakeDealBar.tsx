@@ -28,6 +28,7 @@ export type IntakeDealBarProps = {
   onServiceChange: (slug: string) => void;
   onIndustryChange?: (slug: string) => void;
   onOpenServiceCatalog?: () => void;
+  serviceItemCount?: number;
   onReopenService?: () => void;
   showSalesKit?: boolean;
   salesKitOpen?: boolean;
@@ -71,6 +72,7 @@ export function IntakeDealBar({
   onServiceChange,
   onIndustryChange,
   onOpenServiceCatalog,
+  serviceItemCount = 0,
   onReopenService,
   showSalesKit = false,
   salesKitOpen = false,
@@ -162,7 +164,7 @@ export function IntakeDealBar({
           )}
           {onOpenServiceCatalog && serviceSlug && serviceSlug !== '_common' ? (
             <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenServiceCatalog}>
-              Hạng mục
+              {serviceItemCount > 0 ? `Hạng mục · ${serviceItemCount}` : 'Hạng mục'}
             </button>
           ) : null}
         </div>

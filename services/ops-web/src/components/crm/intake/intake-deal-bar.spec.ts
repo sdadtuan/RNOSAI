@@ -61,4 +61,31 @@ describe('IntakeDealBar catalogs', () => {
     );
     expect(html).toContain('Hạng mục');
   });
+
+  it('shows how many implementation items were saved', () => {
+    const html = renderToStaticMarkup(
+      createElement(IntakeDealBar, {
+        leadName: 'Nguyễn Huân',
+        companyName: null,
+        industry: 'Spa',
+        serviceSlug: 'dich-vu-seo-tong-the',
+        serviceLabel: 'SEO tổng thể',
+        bantTotal: 0,
+        winTotal: 0,
+        gap: 24,
+        stage: 'lead',
+        sciExcerpt: null,
+        leadHref: '/crm/leads/1',
+        cockpitHref: '/crm/leads/1',
+        canEdit: true,
+        slugMismatch: false,
+        funnelCollapsed: true,
+        onToggleFunnel: () => undefined,
+        onServiceChange: () => undefined,
+        onOpenServiceCatalog: () => undefined,
+        serviceItemCount: 4,
+      }),
+    );
+    expect(html).toContain('Hạng mục · 4');
+  });
 });

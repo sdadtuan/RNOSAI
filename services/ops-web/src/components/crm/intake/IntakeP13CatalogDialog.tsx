@@ -1,14 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchP13Service, fetchP13Services, type P13Item, type P13ServiceDetail, type P13ServiceRow } from '@/lib/p13/api';
-import { p13CodeForIntakeSlug } from '@/lib/crm/p13-intake-service';
+import { p13CodeForIntakeService } from '@/lib/crm/p13-intake-service';
+import { toggleScopeItem, type IntakeP13Scope } from '@/lib/crm/intake-p13-scope';
 
 export type IntakeP13CatalogDialogProps = {
   open: boolean;
   token: string;
   serviceSlug: string;
   serviceLabel: string;
+  savedScope?: IntakeP13Scope | null;
+  saving?: boolean;
+  onSave: (scope: IntakeP13Scope & { service_name?: string }) => Promise<void> | void;
   onClose: () => void;
 };
 
@@ -38,13 +42,19 @@ export function IntakeP13CatalogDialog({
   token,
   serviceSlug,
   serviceLabel,
+  savedScope = null,
+  saving = false,
+  onSave,
   onClose,
 }: IntakeP13CatalogDialogProps) {
   const [services, setServices] = useState<P13ServiceRow[]>([]);
   const [activeCode, setActiveCode] = useState('');
   const [detail, setDetail] = useState<P13ServiceDetail | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const savedScopeRef = useRef(savedScope);
+  savedScopeRef.current = savedScope;
 
   useEffect(() => {
     if (!open || !token) return;
@@ -57,8 +67,15 @@ export function IntakeP13CatalogDialog({
         const rows = await fetchP13Services(token);
         if (cancelled) return;
         setServices(rows);
-        const code = p13CodeForIntakeSlug(serviceSlug, rows) ?? '';
+        const stored = savedScopeRef.current;
+        const mapped = p13CodeForIntakeService({ slug: serviceSlug, label: serviceLabel }, rows) ?? '';
+        const storedCode =
+          stored?.service_code && rows.some((row) => row.code.toUpperCase() === stored.service_code)
+            ? stored.service_code
+            : '';
+        const code = mapped || storedCode;
         setActiveCode(code);
+        setSelected(code && stored?.service_code === code ? stored.item_codes : []);
         if (!code) return;
         const next = await fetchP13Service(token, code);
         if (!cancelled) setDetail(next);
@@ -71,10 +88,11 @@ export function IntakeP13CatalogDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, serviceSlug, token]);
+  }, [open, serviceLabel, serviceSlug, token]);
 
   async function choose(code: string) {
     setActiveCode(code);
+    setSelected(savedScope?.service_code === code ? savedScope.item_codes : []);
     if (!code || !token) {
       setDetail(null);
       return;
@@ -136,8 +154,20 @@ export function IntakeP13CatalogDialog({
                 <ul className="intake-p13-modal__items">
                   {group.items.map((item) => (
                     <li key={item.code}>
-                      <strong>{item.code}</strong> {item.task}
-                      {item.client_only ? <span className="muted"> · Khách thực hiện</span> : null}
+                      <label className="intake-p13-modal__check">
+                        <input
+                          type="checkbox"
+                          checked={selected.includes(item.code)}
+                          aria-label={item.code}
+                          onChange={(event) =>
+                            setSelected((current) => toggleScopeItem(current, item.code, event.target.checked))
+                          }
+                        />
+                        <span>
+                          <strong>{item.code}</strong> {item.task}
+                          {item.client_only ? <span className="muted"> · Khách thực hiện</span> : null}
+                        </span>
+                      </label>
                     </li>
                   ))}
                 </ul>
@@ -146,8 +176,25 @@ export function IntakeP13CatalogDialog({
           </div>
         ) : null}
         <div className="ai-dismiss-modal__actions">
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
+          <span className="muted" style={{ marginRight: 'auto' }}>
+            Đã chọn {selected.length} hạng mục
+          </span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={saving}>
             Đóng
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={saving || !activeCode}
+            onClick={() =>
+              void onSave({
+                service_code: activeCode,
+                item_codes: selected,
+                service_name: detail?.name,
+              })
+            }
+          >
+            {saving ? 'Đang lưu…' : 'Lưu'}
           </button>
         </div>
       </div>

@@ -13,6 +13,18 @@ const SLUG_TO_P13: Record<string, string> = {
   'tiep-thi-noi-dung': 'CS',
 };
 
+export function p13CodeForIntakeService(
+  input: { slug: string; label?: string | null },
+  services: Array<{ code: string; name?: string }>,
+): string | null {
+  const bySlug = p13CodeForIntakeSlug(input.slug, services);
+  if (bySlug) return bySlug;
+  const label = String(input.label ?? '').trim().toLowerCase();
+  if (!label) return null;
+  const hit = services.find((row) => String(row.name ?? '').trim().toLowerCase() === label);
+  return hit ? hit.code.toUpperCase() : null;
+}
+
 export function p13CodeForIntakeSlug(
   slug: string,
   services: Array<{ code: string }>,

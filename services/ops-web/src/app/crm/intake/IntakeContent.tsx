@@ -64,6 +64,8 @@ import {
   resolveIntakeServiceSlug,
   shouldSyncDraftServiceSlug,
 } from '@/lib/crm/intake-service-resolve';
+import { mergeIntakeP13Scope, readIntakeP13Scope, type IntakeP13Scope } from '@/lib/crm/intake-p13-scope';
+import { p13CodeForIntakeSlug } from '@/lib/crm/p13-intake-service';
 import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 import {
   pickDefaultIntakeTab,
@@ -208,6 +210,9 @@ export function IntakeContent({
   const [helpOpen, setHelpOpen] = useState(false);
   const [serviceOverride, setServiceOverride] = useState<string | null>(null);
   const [p13PopupSlug, setP13PopupSlug] = useState<string | null>(null);
+  const [p13Saving, setP13Saving] = useState(false);
+  const p13ScopeRef = useRef<IntakeP13Scope | null>(null);
+  const p13ScopeSessionRef = useRef<number | null>(null);
   const saveInFlightRef = useRef(false);
   const intakeDefinitionRef = useRef<IntakeDefinitionUi | null>(null);
   intakeDefinitionRef.current = intakeDefinition;
@@ -321,14 +326,20 @@ export function IntakeContent({
   const liveBantTotal = useMemo(() => computeBantTotal(bant), [bant]);
   const liveWinTotal = useMemo(() => winChecklistTotal(winChecklist), [winChecklist]);
   const kitEnabled = intakeSalesKitEnabled();
+  const catalogSlugs = useMemo(() => catalogServices.map((row) => row.slug), [catalogServices]);
+  const savedP13Scope = useMemo(
+    () => readIntakeP13Scope(active?.answers_json),
+    [active?.answers_json],
+  );
   const resolvedSlug = useMemo(
     () =>
       resolveIntakeServiceSlug({
         urlSlug: serviceOverride ?? urlServiceSlug,
         sessionSlug: active?.service_slug,
         funnelSlug: funnelServiceSlug(funnelSnap),
+        catalogSlugs,
       }),
-    [active?.service_slug, funnelSnap, serviceOverride, urlServiceSlug],
+    [active?.service_slug, catalogSlugs, funnelSnap, serviceOverride, urlServiceSlug],
   );
 
   const slugMismatch = useMemo(() => {
@@ -825,6 +836,58 @@ export function IntakeContent({
     [catalogIndustries, intakeContext, leadId],
   );
 
+  const saveP13Scope = useCallback(
+    async (scope: IntakeP13Scope & { service_name?: string }) => {
+      if (!active || active.status !== 'draft' || !canCreate) {
+        setError('Reopen hoặc tạo phiên nháp để lưu dịch vụ và hạng mục.');
+        return;
+      }
+      const access = getAccessToken();
+      if (!access) return;
+      const matchedSlug =
+        catalogServices.find(
+          (row) =>
+            scope.service_name &&
+            row.name.trim().toLowerCase() === scope.service_name.trim().toLowerCase(),
+        )?.slug ??
+        catalogServices.find(
+          (row) => p13CodeForIntakeSlug(row.slug, [{ code: scope.service_code }]) === scope.service_code,
+        )?.slug ??
+        null;
+      const nextScope: IntakeP13Scope = {
+        service_code: scope.service_code,
+        item_codes: scope.item_codes,
+      };
+      p13ScopeRef.current = nextScope;
+      setP13Saving(true);
+      setError('');
+      try {
+        const answers = mergeIntakeP13Scope(active.answers_json, nextScope);
+        await patchIntakeSession(access, active.id, {
+          answers_json: answers,
+          ...(matchedSlug ? { service_slug: matchedSlug } : {}),
+        });
+        if (matchedSlug) setServiceOverride(matchedSlug);
+        setSessions((rows) =>
+          rows.map((row) =>
+            row.id === active.id
+              ? { ...row, answers_json: answers, service_slug: matchedSlug ?? row.service_slug }
+              : row,
+          ),
+        );
+        setMessage(
+          `Đã lưu ${scope.service_name || scope.service_code} · ${scope.item_codes.length} hạng mục`,
+        );
+        setP13PopupSlug(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Lưu hạng mục thất bại');
+      } finally {
+        setP13Saving(false);
+      }
+    },
+    [active, canCreate, catalogServices],
+  );
+
   const performSave = useCallback(
     async (options?: {
       silent?: boolean;
@@ -855,16 +918,19 @@ export function IntakeContent({
           decision,
           decision_reason: decisionReason,
           contact_name: contactName,
-          answers_json: buildIntakeAnswersPatch({
-            existing: active.answers_json,
-            need,
-            discovery: { ...nextDiscovery, mode: sessionMode },
-            redFlags,
-            winIntel: nextWinIntel,
-            qualifyChecked,
-            bantChecklist,
-            winChecklist,
-          }),
+          answers_json: mergeIntakeP13Scope(
+            buildIntakeAnswersPatch({
+              existing: active.answers_json,
+              need,
+              discovery: { ...nextDiscovery, mode: sessionMode },
+              redFlags,
+              winIntel: nextWinIntel,
+              qualifyChecked,
+              bantChecklist,
+              winChecklist,
+            }),
+            p13ScopeRef.current,
+          ),
           stakeholders_json: stakeholdersToPatch(stakeholders),
           commitments_json: commitmentsToPatch(commitments),
         });
@@ -937,6 +1003,13 @@ export function IntakeContent({
   }, [activeId]);
 
   useEffect(() => {
+    if (!active) return;
+    if (p13ScopeSessionRef.current === active.id) return;
+    p13ScopeSessionRef.current = active.id;
+    p13ScopeRef.current = readIntakeP13Scope(active.answers_json);
+  }, [active]);
+
+  useEffect(() => {
     autosave.syncSnapshot(formSnapshot);
     setValidationErrors([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset autosave baseline when switching session
@@ -956,6 +1029,7 @@ export function IntakeContent({
         status: active.status,
         sessionSlug: active.service_slug,
         resolvedSlug,
+        catalogSlugs,
       })
     ) {
       return;
@@ -964,7 +1038,7 @@ export function IntakeContent({
     if (slugSyncKeyRef.current === key) return;
     slugSyncKeyRef.current = key;
     void onServiceChange(resolvedSlug);
-  }, [active, authReady, canCreate, onServiceChange, resolvedSlug]);
+  }, [active, authReady, canCreate, catalogSlugs, onServiceChange, resolvedSlug]);
 
   function buildValidationInput() {
     return {
@@ -1412,6 +1486,7 @@ export function IntakeContent({
                     ? () => setP13PopupSlug(resolvedSlug)
                     : undefined
                 }
+                serviceItemCount={savedP13Scope?.item_codes.length ?? 0}
                 onReopenService={
                   active?.status === 'completed' && canCreate
                     ? () => void onReopen()
@@ -1772,6 +1847,9 @@ export function IntakeContent({
           catalogServices.find((row) => row.slug === p13PopupSlug)?.name ||
           intakeServiceLabel(p13PopupSlug ?? '')
         }
+        savedScope={savedP13Scope}
+        saving={p13Saving}
+        onSave={(scope) => saveP13Scope(scope)}
         onClose={() => setP13PopupSlug(null)}
       />
 

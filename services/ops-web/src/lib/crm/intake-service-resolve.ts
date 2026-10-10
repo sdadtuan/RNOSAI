@@ -36,20 +36,27 @@ export function normalizeIntakeSlug(raw: unknown): string {
   return s;
 }
 
+function acceptedSlug(slug: string, catalogSlugs?: readonly string[]): boolean {
+  if (!slug || slug === '_common') return false;
+  if (KNOWN.has(slug)) return true;
+  return (catalogSlugs ?? []).includes(slug);
+}
+
 export function resolveIntakeServiceSlug(input: {
   urlSlug?: string | null;
   sessionSlug?: string | null;
   funnelSlug?: string | null;
+  catalogSlugs?: readonly string[];
 }): string {
   const url = normalizeIntakeSlug(input.urlSlug);
-  if (url && KNOWN.has(url) && url !== '_common') return url;
+  if (acceptedSlug(url, input.catalogSlugs)) return url;
   if (url === '_common') {
     /* fall through — URL common does not beat session/funnel */
   }
   const session = normalizeIntakeSlug(input.sessionSlug);
-  if (session && KNOWN.has(session) && session !== '_common') return session;
+  if (acceptedSlug(session, input.catalogSlugs)) return session;
   const funnel = normalizeIntakeSlug(input.funnelSlug);
-  if (funnel && KNOWN.has(funnel)) return funnel;
+  if (acceptedSlug(funnel, input.catalogSlugs) || (funnel && KNOWN.has(funnel))) return funnel;
   if (url === '_common') return '_common';
   return '_common';
 }
@@ -78,9 +85,10 @@ export function shouldSyncDraftServiceSlug(input: {
   status?: string | null;
   sessionSlug?: string | null;
   resolvedSlug: string;
+  catalogSlugs?: readonly string[];
 }): boolean {
   if (String(input.status ?? '').trim() !== 'draft') return false;
   const resolved = normalizeIntakeSlug(input.resolvedSlug);
-  if (!resolved || resolved === '_common' || !KNOWN.has(resolved)) return false;
+  if (!acceptedSlug(resolved, input.catalogSlugs)) return false;
   return normalizeIntakeSlug(input.sessionSlug) !== resolved;
 }

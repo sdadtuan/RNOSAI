@@ -13966,6 +13966,12 @@ html.rs-mobile-chrome .lead-b2b-call-sticky {
   margin: 0.2rem 0;
 }
 
+.intake-p13-modal__check {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+}
+
 .intake-help-toggle {
   min-width: 2rem;
   font-weight: 700;

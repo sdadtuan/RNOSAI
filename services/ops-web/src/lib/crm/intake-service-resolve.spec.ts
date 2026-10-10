@@ -41,6 +41,16 @@ describe('resolveIntakeServiceSlug', () => {
     expect(resolveIntakeServiceSlug({})).toBe('_common');
   });
 
+  it('keeps a catalog slug that is not in the old hardcoded list', () => {
+    expect(
+      resolveIntakeServiceSlug({
+        urlSlug: 'toi-uu-seo-aeo',
+        sessionSlug: '_common',
+        catalogSlugs: ['toi-uu-seo-aeo'],
+      }),
+    ).toBe('toi-uu-seo-aeo');
+  });
+
   it('rejects unknown url slug', () => {
     expect(
       resolveIntakeServiceSlug({ urlSlug: 'not-a-service', funnelSlug: 'dich-vu-aeo' }),
