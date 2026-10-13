@@ -409,6 +409,7 @@ def main() -> int:
             grant("crm_am.opportunities", "view", "edit"),
             grant("crm_am.feedback", "view", "edit"),
             grant("crm_sop_runs", "view"),
+            grant("crm_sop_runs", "view"),
             grant("crm_hub_contracts", "view", "edit"),
             grant("crm_hub_reminders", "view", "edit", "create"),
             grant("crm_mktplan", "view"),
