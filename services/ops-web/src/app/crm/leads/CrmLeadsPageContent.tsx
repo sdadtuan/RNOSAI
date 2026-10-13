@@ -273,13 +273,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
               ? myCrmStaffId
               : undefined;
         const kanban = mode === 'kanban';
-        const data = await fetchLeads(accessToken, {
+        const queryParams = {
           q: search || undefined,
           status: p1Filters?.status ?? (filterStatus || undefined),
           source: filterSource || undefined,
           channel: filterChannel || undefined,
-          received_from: filterReceivedFrom || undefined,
-          received_to: filterReceivedTo || undefined,
+          received_from: kanban ? undefined : filterReceivedFrom || undefined,
+          received_to: kanban ? undefined : filterReceivedTo || undefined,
           owner_id: ownerId,
           unassigned_only:
             canViewAllLeads && (p1Filters?.unassigned_only ?? listTab === 'unassigned'),
@@ -287,12 +287,35 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           hide_review_queue:
             flowScope === 'b2b_prospect' || leadKind === 'all' ? false : undefined,
           lead_flow_kind: flowKindFilter,
-          limit: kanban ? PAGE_SIZE_KANBAN : PAGE_SIZE,
-          offset: kanban ? 0 : nextOffset,
-        });
-        setRows(data.leads);
-        setTotal(data.total);
-        setOffset(data.offset);
+        };
+        if (!kanban) {
+          const data = await fetchLeads(accessToken, {
+            ...queryParams,
+            limit: PAGE_SIZE,
+            offset: nextOffset,
+          });
+          setRows(data.leads);
+          setTotal(data.total);
+          setOffset(data.offset);
+        } else {
+          const collected: Awaited<ReturnType<typeof fetchLeads>>['leads'] = [];
+          let totalCount = 0;
+          let pageOffset = 0;
+          do {
+            const data = await fetchLeads(accessToken, {
+              ...queryParams,
+              limit: PAGE_SIZE_KANBAN,
+              offset: pageOffset,
+            });
+            collected.push(...data.leads);
+            totalCount = data.total;
+            pageOffset += data.leads.length;
+            if (data.leads.length === 0) break;
+          } while (collected.length < totalCount && collected.length < 5000);
+          setRows(collected);
+          setTotal(totalCount);
+          setOffset(0);
+        }
       } catch (err) {
         if (!silent) {
           setError(err instanceof Error ? err.message : 'Tải leads thất bại');
@@ -1266,7 +1289,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           </PageFooter>
         ) : (
           <PageFooter
-            meta={`Kanban · ${visibleRows.length} / ${visibleTotal.toLocaleString('vi-VN')} leads (tối đa ${PAGE_SIZE_KANBAN})`}
+            meta={`Kanban · ${visibleRows.length} / ${visibleTotal.toLocaleString('vi-VN')} leads`}
           />
         )}
       </div>

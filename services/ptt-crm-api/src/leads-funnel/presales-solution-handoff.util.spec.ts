@@ -1,4 +1,9 @@
-import { blocksDirectProposalAdvance, handoffBadgeLabel, normalizeHandoffStatus } from './presales-solution-handoff.util';
+import {
+  blocksDirectProposalAdvance,
+  handoffBadgeLabel,
+  leadStatusAfterSolutionHandoff,
+  normalizeHandoffStatus,
+} from './presales-solution-handoff.util';
 
 describe('presales-solution-handoff.util', () => {
   it('normalizes handoff status', () => {
@@ -14,6 +19,14 @@ describe('presales-solution-handoff.util', () => {
     expect(blocksDirectProposalAdvance('with_solution')).toBe(true);
     expect(blocksDirectProposalAdvance('released')).toBe(false);
     expect(blocksDirectProposalAdvance('')).toBe(false);
+  });
+
+  it('moves an early lead to Đang tư vấn and leaves a closed lead', () => {
+    expect(leadStatusAfterSolutionHandoff('first_contact')).toBe('dang_tu_van');
+    expect(leadStatusAfterSolutionHandoff('moi')).toBe('dang_tu_van');
+    expect(leadStatusAfterSolutionHandoff('lost')).toBeNull();
+    expect(leadStatusAfterSolutionHandoff('bao_gia')).toBeNull();
+    expect(leadStatusAfterSolutionHandoff('dang_tu_van')).toBeNull();
   });
 
   it('builds badge labels', () => {

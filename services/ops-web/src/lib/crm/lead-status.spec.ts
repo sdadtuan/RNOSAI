@@ -50,7 +50,7 @@ describe('bucketLeadsByKanbanStage', () => {
 });
 
 describe('bucketLeadsByKanbanColumns', () => {
-  it('places proposal and chot into the quoted and won columns', () => {
+  it('places each stored status on its column', () => {
     const byColumn = bucketLeadsByKanbanColumns(
       [
         { id: 1, status: 'first_contact' },
@@ -60,7 +60,7 @@ describe('bucketLeadsByKanbanColumns', () => {
       ],
       B2B_KANBAN_COLUMNS,
     );
-    expect(byColumn.moi.map((row) => row.id)).toEqual([1]);
+    expect(byColumn.da_lien_he.map((row) => row.id)).toEqual([1]);
     expect(byColumn.bao_gia.map((row) => row.id)).toEqual([2]);
     expect(byColumn.won.map((row) => row.id)).toEqual([3]);
     expect(byColumn.nurture.map((row) => row.id)).toEqual([4]);

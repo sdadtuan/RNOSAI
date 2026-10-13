@@ -113,7 +113,7 @@ export class B2bSlaRepository implements OnModuleDestroy {
     const due = await this.db.query(
       `SELECT sqlite_lead_id, lower(status) AS status,
               COALESCE(
-                CASE WHEN lower(status) IN ('moi', 'new', 'first_contact') THEN received_at ELSE updated_at END,
+                CASE WHEN lower(status) IN ('moi', 'new', 'intake') THEN received_at ELSE updated_at END,
                 received_at,
                 created_at
               ) AS stood_at

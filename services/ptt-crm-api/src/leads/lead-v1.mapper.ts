@@ -214,7 +214,7 @@ function buildB2bListExtras(
 > {
   const receivedAt = asDate(row.received_at) ?? asDate(row.created_at);
   const status = String(row.status ?? '').trim().toLowerCase();
-  const stillNew = status === 'moi' || status === 'new' || status === 'first_contact';
+  const stillNew = status === 'moi' || status === 'new' || status === 'intake';
   const columnSince = stillNew ? receivedAt : asDate(row.updated_at) ?? receivedAt;
   const answered = Boolean(row.b2b_call_answered ?? metaString(meta, 'b2b_call_answered') === 'true');
   const hasCall = Boolean(row.b2b_has_call) || Boolean(row.last_call_at) || answered;

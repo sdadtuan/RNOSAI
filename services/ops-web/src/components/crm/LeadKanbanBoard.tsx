@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import type { LeadRow } from '@/lib/api';
 import { ApiError, fetchLeadStatusOptions, patchLead, postKanbanCall } from '@/lib/api';
 import { LeadKanbanCareDrawer } from '@/components/crm/LeadKanbanCareDrawer';
@@ -12,10 +12,10 @@ import {
 } from '@/lib/crm/kanban-card-cta';
 import {
   B2B_KANBAN_COLUMNS,
+  kanbanColumnIdForStatus,
   bucketLeadsByKanbanColumns,
   bucketLeadsByKanbanStage,
   leadStatusLabel,
-  normalizeLeadStatus,
 } from '@/lib/crm/lead-status';
 import { KANBAN_COLUMN_PAGE, sortKanbanLeads } from '@/lib/crm/kanban-column.util';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
@@ -171,11 +171,27 @@ export function LeadKanbanBoard({
   const [busyId, setBusyId] = useState<number | null>(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const collapsedByUser = useRef(new Set<string>());
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     won: true,
     lost: true,
     nurture: true,
   });
+  useEffect(() => {
+    if (!b2b) return;
+    setCollapsed((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const column of B2B_KANBAN_COLUMNS) {
+        if (!column.collapsible || collapsedByUser.current.has(column.id)) continue;
+        if ((byColumn[column.id] ?? []).length > 0 && next[column.id]) {
+          next[column.id] = false;
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [b2b, rows, byColumn]);
   const [dragOver, setDragOver] = useState('');
   const [modal, setModal] = useState<MoveModal | null>(null);
   const [lostReasons, setLostReasons] = useState<LostReason[]>(LOST_REASON_SEED);
@@ -274,9 +290,8 @@ export function LeadKanbanBoard({
     const leadId = Number(event.dataTransfer.getData('text/plain'));
     const lead = rows.find((row) => row.id === leadId);
     if (!lead) return;
-    const current = normalizeLeadStatus(lead.status);
-    const from = B2B_KANBAN_COLUMNS.find((column) => column.statuses.includes(current));
-    if (!from || from.id === target) return;
+    const fromId = kanbanColumnIdForStatus(lead.status);
+    if (!fromId || fromId === target) return;
     if (target === 'bao_gia') {
       void moveLead(lead, 'bao_gia', { audit_note: 'Chuyển sang Báo giá' });
       return;
@@ -446,9 +461,10 @@ export function LeadKanbanBoard({
                 <button
                   type="button"
                   className="crm-kanban-column__toggle"
-                  onClick={() =>
-                    setCollapsed((current) => ({ ...current, [column.key]: !current[column.key] }))
-                  }
+                  onClick={() => {
+                    collapsedByUser.current.add(column.key);
+                    setCollapsed((current) => ({ ...current, [column.key]: !current[column.key] }));
+                  }}
                 >
                   {isCollapsed ? 'Mở' : 'Gọn'}
                 </button>

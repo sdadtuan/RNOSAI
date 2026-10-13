@@ -125,7 +125,10 @@ const QUOTED_STATUSES = new Set(['bao_gia', 'proposal', 'dam_phan']);
 
 export function kanbanStatusKey(status: string | null | undefined): string {
   const value = String(status ?? '').trim().toLowerCase();
-  if (value === 'new' || value === 'first_contact') return 'moi';
+  if (value === 'new' || value === 'intake') return 'moi';
+  if (value === 'first_contact' || value === 'contacted' || value === 'qualified' || value === 'qualify') {
+    return 'da_lien_he';
+  }
   if (value === 'proposal' || value === 'dam_phan') return 'bao_gia';
   return value;
 }
@@ -205,7 +208,7 @@ export function computeKanbanPriority(input: {
   return 'cold';
 }
 
-const OPEN_STATUSES = new Set(['moi', 'new', 'first_contact']);
+const OPEN_STATUSES = new Set(['moi', 'new', 'intake']);
 
 export function computeKanbanFirstContactSla(input: {
   status?: string | null;

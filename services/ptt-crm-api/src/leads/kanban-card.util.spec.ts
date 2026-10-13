@@ -42,7 +42,7 @@ describe('kanban card clock', () => {
 
   it('marks Sắp trễ when fewer than 5 minutes remain', () => {
     const sla = computeKanbanFirstContactSla({
-      status: 'first_contact',
+      status: 'moi',
       receivedAt: new Date('2026-10-12T01:00:00.000Z'),
       columnSince: new Date('2026-10-12T01:00:00.000Z'),
       hasCall: false,

@@ -45,7 +45,10 @@ import {
 } from './presales-consult-gate.util';
 import {
   blocksDirectProposalAdvance,
+  leadStatusAfterSolutionHandoff,
   normalizeHandoffStatus,
+  SOLUTION_HANDOFF_LEAD_STATUS,
+  STATUSES_PROMOTED_ON_SOLUTION_HANDOFF,
 } from './presales-solution-handoff.util';
 import {
   defaultStrategyJson,
@@ -1566,7 +1569,37 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       [snap.presales.id, staffId],
     );
     await this.applyPresalesConsultPrefill(leadId, snap.presales.id, snap.presales.service_slug);
+    await this.promoteLeadStatusOnSolutionHandoff(leadId, `staff:${staffId}`);
     return this.mapPresalesRow(updated.rows[0] as PgPresalesRow);
+  }
+
+  /** Giao Solution writes Đang tư vấn. A lost or quoted lead keeps its status. */
+  private async promoteLeadStatusOnSolutionHandoff(leadId: number, actor: string): Promise<void> {
+    const current = await this.db.query(
+      `SELECT lower(status) AS status FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [leadId],
+    );
+    const next = leadStatusAfterSolutionHandoff(current.rows[0]?.status);
+    if (!next) return;
+    const updated = await this.db.query(
+      `UPDATE crm_leads
+       SET status = $2, updated_at = NOW(), updated_by = $3
+       WHERE sqlite_lead_id = $1
+         AND lower(status) = ANY($4::text[])`,
+      [leadId, SOLUTION_HANDOFF_LEAD_STATUS, actor.slice(0, 120), [...STATUSES_PROMOTED_ON_SOLUTION_HANDOFF]],
+    );
+    if (!updated.rowCount) return;
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+       ) VALUES ($1, 'system', $2, '', '', NOW(), $3, $4)`,
+      [
+        leadId,
+        'Giao Solution — trạng thái lead chuyển sang Đang tư vấn.',
+        actor.slice(0, 120),
+        SOLUTION_HANDOFF_LEAD_STATUS,
+      ],
+    );
   }
 
   async claimSolution(leadId: number, staffId: number): Promise<PresalesRow> {

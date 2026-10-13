@@ -82,15 +82,27 @@ export interface KanbanColumnDef {
   sumValue: boolean;
 }
 
-/** B2B board. proposal and dam_phan sit in Báo giá. chot sits in Chốt. */
+/** B2B board. Stored status codes sit on the column they name. first_contact is Đã liên hệ. */
 export const B2B_KANBAN_COLUMNS: readonly KanbanColumnDef[] = [
-  { id: 'moi', label: 'Mới', statuses: ['moi'], collapsible: false, sumValue: false },
-  { id: 'da_lien_he', label: 'Đã liên hệ', statuses: ['da_lien_he'], collapsible: false, sumValue: false },
-  { id: 'dang_tu_van', label: 'Đang tư vấn', statuses: ['dang_tu_van'], collapsible: false, sumValue: false },
+  { id: 'moi', label: 'Mới', statuses: ['moi', 'new', 'intake'], collapsible: false, sumValue: false },
+  {
+    id: 'da_lien_he',
+    label: 'Đã liên hệ',
+    statuses: ['da_lien_he', 'first_contact', 'contacted', 'qualified', 'qualify'],
+    collapsible: false,
+    sumValue: false,
+  },
+  {
+    id: 'dang_tu_van',
+    label: 'Đang tư vấn',
+    statuses: ['dang_tu_van', 'nurturing', 'hen_gap'],
+    collapsible: false,
+    sumValue: false,
+  },
   {
     id: 'bao_gia',
     label: 'Báo giá',
-    statuses: ['bao_gia', 'proposal', 'dam_phan'],
+    statuses: ['bao_gia', 'proposal', 'dam_phan', 'negotiation'],
     collapsible: false,
     sumValue: true,
   },
@@ -99,6 +111,25 @@ export const B2B_KANBAN_COLUMNS: readonly KanbanColumnDef[] = [
   { id: 'nurture', label: 'Chăm sóc lại', statuses: ['nurture'], collapsible: true, sumValue: false },
 ];
 
+function rawLeadStatus(status: string | null | undefined): string {
+  return String(status ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
+/** Column for the status stored on the lead. Raw code wins over the funnel alias. */
+export function kanbanColumnIdForStatus(
+  status: string | null | undefined,
+  columns: readonly KanbanColumnDef[] = B2B_KANBAN_COLUMNS,
+): string | null {
+  const raw = rawLeadStatus(status);
+  const direct = columns.find((column) => column.statuses.includes(raw));
+  if (direct) return direct.id;
+  const normalized = normalizeLeadStatus(raw);
+  return columns.find((column) => column.statuses.includes(normalized))?.id ?? null;
+}
+
 export function bucketLeadsByKanbanColumns<T extends { status?: string | null }>(
   rows: T[],
   columns: readonly KanbanColumnDef[],
@@ -106,9 +137,8 @@ export function bucketLeadsByKanbanColumns<T extends { status?: string | null }>
   const byColumn: Record<string, T[]> = {};
   for (const column of columns) byColumn[column.id] = [];
   for (const row of rows) {
-    const status = normalizeLeadStatus(row.status);
-    const column = columns.find((item) => item.statuses.includes(status));
-    if (column) byColumn[column.id].push(row);
+    const columnId = kanbanColumnIdForStatus(row.status, columns);
+    if (columnId) byColumn[columnId].push(row);
   }
   return byColumn;
 }

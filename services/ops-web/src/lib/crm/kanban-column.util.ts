@@ -20,7 +20,7 @@ function receivedMs(lead: Pick<LeadRow, 'received_at' | 'created_at'>): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-const NEW_STATUSES = new Set(['moi', 'new', 'first_contact']);
+const NEW_STATUSES = new Set(['moi', 'new', 'intake']);
 
 export interface KanbanPulse {
   slaLate: number;
