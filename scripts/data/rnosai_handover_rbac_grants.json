@@ -443,24 +443,16 @@
       ]
     },
     "ACM": {
-      "automation_workflows": [
-        "view"
-      ],
       "crm_agency": [
-        "approve",
-        "configure",
         "create",
         "edit",
         "export",
-        "view",
-        "view_pii"
+        "view"
       ],
       "crm_am": [
         "assign",
         "edit",
-        "manage",
-        "view",
-        "view_all"
+        "view"
       ],
       "crm_am.clients": [
         "edit",
@@ -468,9 +460,6 @@
       ],
       "crm_am.feedback": [
         "edit",
-        "view"
-      ],
-      "crm_am.finance": [
         "view"
       ],
       "crm_am.health": [
@@ -492,52 +481,12 @@
       "crm_am.reports": [
         "view"
       ],
-      "crm_am.settings": [
-        "manage",
-        "view"
-      ],
       "crm_am.work": [
         "edit",
         "view"
       ],
-      "crm_assistant": [
-        "create",
-        "export",
-        "view"
-      ],
       "crm_b2b_projects": [
         "manage",
-        "view"
-      ],
-      "crm_board": [
-        "edit",
-        "view"
-      ],
-      "crm_board_create": [
-        "create",
-        "view"
-      ],
-      "crm_board_customers": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_board_funnel": [
-        "view"
-      ],
-      "crm_board_kanban": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_board_playbook": [
-        "view"
-      ],
-      "crm_board_workspace": [
-        "edit",
-        "view"
-      ],
-      "crm_content": [
         "view"
       ],
       "crm_daily_work_report": [
@@ -547,35 +496,14 @@
         "view"
       ],
       "crm_delivery_budget": [
-        "edit",
         "view"
       ],
       "crm_delivery_projects": [
         "edit",
-        "manage",
-        "view"
-      ],
-      "crm_email_mkt": [
-        "reports",
-        "view"
-      ],
-      "crm_facebook_ads": [
-        "configure",
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_google_ads": [
-        "export",
         "view"
       ],
       "crm_hdsd": [
         "export",
-        "view"
-      ],
-      "crm_hub_campaigns": [
-        "create",
-        "edit",
         "view"
       ],
       "crm_hub_contracts": [
@@ -585,46 +513,6 @@
       "crm_hub_reminders": [
         "create",
         "edit",
-        "view"
-      ],
-      "crm_kpi_alerts": [
-        "view"
-      ],
-      "crm_kpi_chart": [
-        "view"
-      ],
-      "crm_kpi_dictionary": [
-        "view"
-      ],
-      "crm_kpi_groups": [
-        "view"
-      ],
-      "crm_kpi_hub": [
-        "view"
-      ],
-      "crm_kpi_hub_reports": [
-        "send",
-        "view"
-      ],
-      "crm_kpi_hub_sources": [
-        "view"
-      ],
-      "crm_kpi_hub_targets": [
-        "manage",
-        "view"
-      ],
-      "crm_kpi_metrics": [
-        "view"
-      ],
-      "crm_kpi_quality": [
-        "view"
-      ],
-      "crm_kpi_records": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_kpi_types": [
         "view"
       ],
       "crm_leads": [
@@ -637,34 +525,7 @@
       "crm_lmp": [
         "view"
       ],
-      "crm_media": [
-        "view"
-      ],
-      "crm_media.campaigns": [
-        "view"
-      ],
-      "crm_media.evidence": [
-        "view"
-      ],
-      "crm_media.inventory": [
-        "view"
-      ],
-      "crm_media.margin": [
-        "view"
-      ],
-      "crm_media.outcomes": [
-        "view"
-      ],
-      "crm_media.packages": [
-        "view"
-      ],
-      "crm_media.settings": [
-        "view"
-      ],
       "crm_mktplan": [
-        "view"
-      ],
-      "crm_payroll_attendance": [
         "view"
       ],
       "crm_presales_solution": [
@@ -677,90 +538,16 @@
       "crm_quote.catalog": [
         "view"
       ],
-      "crm_quote.convert": [
-        "execute"
-      ],
-      "crm_quote.finance": [
-        "view"
-      ],
       "crm_quote.publish": [
         "execute"
       ],
       "crm_research": [
-        "create",
-        "edit",
-        "export",
-        "run",
-        "view"
-      ],
-      "crm_revops": [
-        "view",
-        "view_team"
-      ],
-      "crm_revops.pipeline": [
-        "view"
-      ],
-      "crm_revops.reports": [
-        "view"
-      ],
-      "crm_sales_deals": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sales_funnel": [
-        "export",
-        "view"
-      ],
-      "crm_sales_market": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sales_overview": [
-        "export",
-        "view"
-      ],
-      "crm_sales_prospects": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sales_reports": [
-        "export",
-        "view"
-      ],
-      "crm_seo_aeo": [
-        "view"
-      ],
-      "crm_seo_aeo_reports": [
-        "export",
-        "view"
-      ],
-      "crm_seo_aeo_settings": [
-        "configure",
-        "edit",
-        "view"
-      ],
-      "crm_seo_aeo_technical": [
-        "view"
-      ],
-      "crm_sop_overdue": [
         "view"
       ],
       "crm_sop_runs": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sop_templates": [
         "view"
       ],
       "crm_staff_kpi_am_sp": [
-        "view"
-      ],
-      "crm_zalo_ads": [
-        "edit",
         "view"
       ],
       "csd": [
@@ -768,23 +555,8 @@
         "write"
       ],
       "iwr": [
-        "export",
-        "review",
         "view",
         "write"
-      ],
-      "meta_ads_ops": [
-        "view"
-      ],
-      "meta_campaign_write": [
-        "approve",
-        "view"
-      ],
-      "playbooks": [
-        "view"
-      ],
-      "crm_board_create__btn_new_case": [
-        "create"
       ],
       "crm_leads__btn_create": [
         "create"
@@ -834,17 +606,8 @@
       "crm_leads__btn_save": [
         "edit"
       ],
-      "crm_board_customers__btn_create": [
-        "create"
-      ],
-      "crm_hub_campaigns__btn_create": [
-        "create"
-      ],
       "crm_hub_reminders__btn_create": [
         "create"
-      ],
-      "crm_kpi_records__btn_save": [
-        "edit"
       ]
     },
     "CE": {
@@ -2154,24 +1917,16 @@
       ]
     },
     "KD-01": {
-      "automation_workflows": [
-        "view"
-      ],
       "crm_agency": [
-        "approve",
-        "configure",
         "create",
         "edit",
         "export",
-        "view",
-        "view_pii"
+        "view"
       ],
       "crm_am": [
         "assign",
         "edit",
-        "manage",
-        "view",
-        "view_all"
+        "view"
       ],
       "crm_am.clients": [
         "edit",
@@ -2179,9 +1934,6 @@
       ],
       "crm_am.feedback": [
         "edit",
-        "view"
-      ],
-      "crm_am.finance": [
         "view"
       ],
       "crm_am.health": [
@@ -2203,52 +1955,12 @@
       "crm_am.reports": [
         "view"
       ],
-      "crm_am.settings": [
-        "manage",
-        "view"
-      ],
       "crm_am.work": [
         "edit",
         "view"
       ],
-      "crm_assistant": [
-        "create",
-        "export",
-        "view"
-      ],
       "crm_b2b_projects": [
         "manage",
-        "view"
-      ],
-      "crm_board": [
-        "edit",
-        "view"
-      ],
-      "crm_board_create": [
-        "create",
-        "view"
-      ],
-      "crm_board_customers": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_board_funnel": [
-        "view"
-      ],
-      "crm_board_kanban": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_board_playbook": [
-        "view"
-      ],
-      "crm_board_workspace": [
-        "edit",
-        "view"
-      ],
-      "crm_content": [
         "view"
       ],
       "crm_daily_work_report": [
@@ -2258,35 +1970,14 @@
         "view"
       ],
       "crm_delivery_budget": [
-        "edit",
         "view"
       ],
       "crm_delivery_projects": [
         "edit",
-        "manage",
-        "view"
-      ],
-      "crm_email_mkt": [
-        "reports",
-        "view"
-      ],
-      "crm_facebook_ads": [
-        "configure",
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_google_ads": [
-        "export",
         "view"
       ],
       "crm_hdsd": [
         "export",
-        "view"
-      ],
-      "crm_hub_campaigns": [
-        "create",
-        "edit",
         "view"
       ],
       "crm_hub_contracts": [
@@ -2296,46 +1987,6 @@
       "crm_hub_reminders": [
         "create",
         "edit",
-        "view"
-      ],
-      "crm_kpi_alerts": [
-        "view"
-      ],
-      "crm_kpi_chart": [
-        "view"
-      ],
-      "crm_kpi_dictionary": [
-        "view"
-      ],
-      "crm_kpi_groups": [
-        "view"
-      ],
-      "crm_kpi_hub": [
-        "view"
-      ],
-      "crm_kpi_hub_reports": [
-        "send",
-        "view"
-      ],
-      "crm_kpi_hub_sources": [
-        "view"
-      ],
-      "crm_kpi_hub_targets": [
-        "manage",
-        "view"
-      ],
-      "crm_kpi_metrics": [
-        "view"
-      ],
-      "crm_kpi_quality": [
-        "view"
-      ],
-      "crm_kpi_records": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_kpi_types": [
         "view"
       ],
       "crm_leads": [
@@ -2348,34 +1999,7 @@
       "crm_lmp": [
         "view"
       ],
-      "crm_media": [
-        "view"
-      ],
-      "crm_media.campaigns": [
-        "view"
-      ],
-      "crm_media.evidence": [
-        "view"
-      ],
-      "crm_media.inventory": [
-        "view"
-      ],
-      "crm_media.margin": [
-        "view"
-      ],
-      "crm_media.outcomes": [
-        "view"
-      ],
-      "crm_media.packages": [
-        "view"
-      ],
-      "crm_media.settings": [
-        "view"
-      ],
       "crm_mktplan": [
-        "view"
-      ],
-      "crm_payroll_attendance": [
         "view"
       ],
       "crm_presales_solution": [
@@ -2388,90 +2012,16 @@
       "crm_quote.catalog": [
         "view"
       ],
-      "crm_quote.convert": [
-        "execute"
-      ],
-      "crm_quote.finance": [
-        "view"
-      ],
       "crm_quote.publish": [
         "execute"
       ],
       "crm_research": [
-        "create",
-        "edit",
-        "export",
-        "run",
-        "view"
-      ],
-      "crm_revops": [
-        "view",
-        "view_team"
-      ],
-      "crm_revops.pipeline": [
-        "view"
-      ],
-      "crm_revops.reports": [
-        "view"
-      ],
-      "crm_sales_deals": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sales_funnel": [
-        "export",
-        "view"
-      ],
-      "crm_sales_market": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sales_overview": [
-        "export",
-        "view"
-      ],
-      "crm_sales_prospects": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sales_reports": [
-        "export",
-        "view"
-      ],
-      "crm_seo_aeo": [
-        "view"
-      ],
-      "crm_seo_aeo_reports": [
-        "export",
-        "view"
-      ],
-      "crm_seo_aeo_settings": [
-        "configure",
-        "edit",
-        "view"
-      ],
-      "crm_seo_aeo_technical": [
-        "view"
-      ],
-      "crm_sop_overdue": [
         "view"
       ],
       "crm_sop_runs": [
-        "create",
-        "edit",
-        "view"
-      ],
-      "crm_sop_templates": [
         "view"
       ],
       "crm_staff_kpi_am_sp": [
-        "view"
-      ],
-      "crm_zalo_ads": [
-        "edit",
         "view"
       ],
       "csd": [
@@ -2479,23 +2029,8 @@
         "write"
       ],
       "iwr": [
-        "export",
-        "review",
         "view",
         "write"
-      ],
-      "meta_ads_ops": [
-        "view"
-      ],
-      "meta_campaign_write": [
-        "approve",
-        "view"
-      ],
-      "playbooks": [
-        "view"
-      ],
-      "crm_board_create__btn_new_case": [
-        "create"
       ],
       "crm_leads__btn_create": [
         "create"
@@ -2545,17 +2080,8 @@
       "crm_leads__btn_save": [
         "edit"
       ],
-      "crm_board_customers__btn_create": [
-        "create"
-      ],
-      "crm_hub_campaigns__btn_create": [
-        "create"
-      ],
       "crm_hub_reminders__btn_create": [
         "create"
-      ],
-      "crm_kpi_records__btn_save": [
-        "edit"
       ]
     },
     "MKT-01": {

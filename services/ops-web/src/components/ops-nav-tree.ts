@@ -218,6 +218,10 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   }
   // Hub / bàn GDKD: AM và GDKD (sửa HĐ hoặc manage dự án). AE chỉ xem dự án.
   const canRunB2bDesk = hasCap(user, 'crm_b2b_projects', 'manage');
+  const canRunGdkdDesk =
+    hasCap(user, 'crm_gdkd', 'view') ||
+    hasCap(user, 'crm_gdkd', 'assign') ||
+    hasCap(user, 'crm_gdkd', 'view_all_leads');
   if (
     hasCap(user, 'crm_hub_contracts', 'edit') ||
     hasCap(user, 'crm_agency', 'edit') ||
@@ -241,7 +245,7 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   if (hasCap(user, 'crm_re_projects', 'view') || hasCap(user, 'crm_re_projects_products', 'view')) {
     sales.push(child('sales-re', 'Dự án BĐS', '/crm/re-projects'));
   }
-  if (canRunB2bDesk) {
+  if (canRunGdkdDesk) {
     sales.push(child('sales-ingest-dv', 'Lead ingest DV', '/crm/delivery-projects?capability=lead_ingest'));
     sales.push(child('sales-speed', 'Speed-to-lead', '/crm/b2b-speed'));
     sales.push(child('sales-gdkd', 'GDKD command', '/crm/b2b-gdkd'));
@@ -313,11 +317,7 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
     agency.push(child('agency-hub', 'Agency Hub', '/agency'));
     agency.push(child('agency-notif', 'Thông báo', '/agency/notifications', agencyUnread));
   }
-  if (
-    hasCap(user, 'crm_agency', 'edit') ||
-    hasCap(user, 'crm_agency', 'create') ||
-    hasCap(user, 'crm_agency', 'configure')
-  ) {
+  if (hasCap(user, 'crm_agency', 'configure')) {
     agency.push(child('agency-ingest', 'Ingest', '/agency/ingest'));
     agency.push(child('agency-kpi', 'Định nghĩa KPI', '/agency/kpi-definitions'));
   }
@@ -570,7 +570,6 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   }
   if (
     hasCap(user, 'ai_admin', 'view') ||
-    hasCap(user, 'crm_am', 'view') ||
     hasCap(user, 'crm_am.finance', 'view') ||
     hasCap(user, 'crm_quote.finance', 'view')
   ) {
