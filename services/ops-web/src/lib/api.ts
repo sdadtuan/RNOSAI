@@ -4188,6 +4188,7 @@ export interface CrmStaffRow {
   reports_to_id?: number | null;
   reports_to_name?: string;
   position_catalog_code?: string;
+  position_catalog_name?: string;
 }
 
 export interface KpiMetricRow {

@@ -207,8 +207,12 @@ export class StaffOrgUsersRepository {
   ): Promise<void> {
     await client.query(
       `UPDATE crm_staff
-       SET position_id = $1, updated_at = NOW()
-       WHERE lower(trim(email)) = lower(trim($2))`,
+       SET position_id = $1,
+           job_title = p.name,
+           updated_at = NOW()
+       FROM crm_positions p
+       WHERE p.id = $1
+         AND lower(trim(crm_staff.email)) = lower(trim($2))`,
       [positionId, email],
     );
   }

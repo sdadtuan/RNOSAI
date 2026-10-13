@@ -53,7 +53,7 @@ export function StaffEditDrawer({
     setName(staff.name ?? '');
     setPhone(staff.phone ?? '');
     setEmail(staff.email ?? '');
-    setJobTitle(staff.job_title ?? '');
+    setJobTitle(staff.position_catalog_name?.trim() || staff.job_title || '');
     setCanReceiveLeads(Boolean(staff.can_receive_leads));
     setReportsToId(staff.reports_to_id != null ? String(staff.reports_to_id) : '');
     setError('');
@@ -68,7 +68,7 @@ export function StaffEditDrawer({
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim(),
-        job_title: jobTitle.trim(),
+        job_title: staff.position_catalog_name?.trim() || jobTitle.trim(),
         can_receive_leads: canReceiveLeads,
         reports_to_id: reportsToId ? Number(reportsToId) : null,
       });
@@ -165,8 +165,17 @@ export function StaffEditDrawer({
       </label>
       <label>
         Chức danh
-        <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} readOnly={!canEdit} />
+        <input
+          value={staff.position_catalog_name?.trim() || jobTitle}
+          onChange={(e) => setJobTitle(e.target.value)}
+          readOnly={Boolean(staff.position_catalog_name?.trim()) || !canEdit}
+        />
       </label>
+      {staff.position_catalog_name?.trim() ? (
+        <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+          Theo chức vụ {staff.position_catalog_code}. Đổi ở Cấu hình tài khoản & quyền.
+        </p>
+      ) : null}
       <label>
         Quản lý trực tiếp
         <select
