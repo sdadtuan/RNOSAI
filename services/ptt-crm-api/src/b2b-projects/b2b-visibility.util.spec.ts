@@ -1,4 +1,8 @@
-import { canSeeB2bLead, redactLeadIfDenied } from './b2b-visibility.util';
+import {
+  accountManagerMayOpenSolutionLead,
+  canSeeB2bLead,
+  redactLeadIfDenied,
+} from './b2b-visibility.util';
 
 const project = 'proj-a';
 const memberOn: {
@@ -69,6 +73,16 @@ describe('canSeeB2bLead', () => {
     expect(own).toBe(true);
     expect(teammate).toBe(false);
     expect(unassigned).toBe(false);
+  });
+
+  it('account manager may open a solution-desk lead they do not own', () => {
+    const am = { ...memberOn, seesMemberProjectPool: true };
+    expect(accountManagerMayOpenSolutionLead(am, true)).toBe(true);
+    expect(accountManagerMayOpenSolutionLead(am, false)).toBe(false);
+    expect(accountManagerMayOpenSolutionLead(memberOn, true)).toBe(false);
+    expect(
+      accountManagerMayOpenSolutionLead({ ...am, isActivePttStaff: false }, true),
+    ).toBe(false);
   });
 
   it('account manager sees every lead on a project they belong to', () => {

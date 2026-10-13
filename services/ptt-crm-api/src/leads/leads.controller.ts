@@ -561,6 +561,7 @@ export class LeadsController {
           staffId,
           caps: me.caps,
           positionCode: me.position_code,
+          leadId: id,
           lead: {
             owner_id: lead.owner_id,
             client_id: lead.client_id,
@@ -595,6 +596,7 @@ export class LeadsController {
           staffId,
           caps: me.caps,
           positionCode: me.position_code,
+          leadId: id,
           lead: {
             owner_id: lead.owner_id,
             client_id: lead.client_id,
@@ -634,6 +636,7 @@ export class LeadsController {
           staffId,
           caps: me.caps,
           positionCode: me.position_code,
+          leadId: id,
           lead: {
             owner_id: lead.owner_id,
             client_id: lead.client_id,
@@ -704,6 +707,7 @@ export class LeadsController {
           staffId,
           caps: me.caps,
           positionCode: me.position_code,
+          leadId: id,
           lead: {
             owner_id: lead.owner_id,
             client_id: lead.client_id,
@@ -758,6 +762,7 @@ export class LeadsController {
           staffId,
           caps: me.caps,
           positionCode: me.position_code,
+          leadId: id,
           lead: {
             owner_id: lead.owner_id,
             client_id: lead.client_id,
@@ -834,6 +839,7 @@ export class LeadsController {
           staffId,
           caps: me.caps,
           positionCode: me.position_code,
+          leadId: id,
           lead: {
             owner_id: lead.owner_id,
             client_id: lead.client_id,

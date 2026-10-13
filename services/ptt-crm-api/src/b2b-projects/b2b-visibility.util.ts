@@ -46,6 +46,14 @@ export function canSeeB2bLead(
   );
 }
 
+/** Account Manager may open a lead that is sitting on the Solution desk. */
+export function accountManagerMayOpenSolutionLead(
+  actor: B2bVisibilityActor,
+  onSolutionDesk: boolean,
+): boolean {
+  return Boolean(actor.seesMemberProjectPool && actor.isActivePttStaff && onSolutionDesk);
+}
+
 export function redactLeadIfDenied<T extends { full_name?: unknown; phone?: unknown }>(
   allowed: boolean,
   body: T,

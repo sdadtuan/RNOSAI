@@ -5,12 +5,19 @@ import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import { isAccountManagerPosition, isB2bDirectorPosition } from './b2b-director.util';
 import { B2bProjectsRepository } from './b2b-projects.repository';
 import { resolveIsActivePttStaff } from './b2b-staff-active.util';
-import { canSeeB2bLead, type B2bLeadScopeRow, type B2bProjectMembership } from './b2b-visibility.util';
+import {
+  accountManagerMayOpenSolutionLead,
+  canSeeB2bLead,
+  type B2bLeadScopeRow,
+  type B2bProjectMembership,
+} from './b2b-visibility.util';
 
 export interface B2bLeadVisibilityInput {
   staffId: number;
   caps: StaffSectionCap[];
   positionCode?: string | null;
+  /** Needed so an Account Manager can open a Solution-desk lead outside their project. */
+  leadId?: number;
   lead: {
     owner_id: number | null;
     client_id: string | null;
@@ -56,9 +63,16 @@ export class B2bLeadScopeService {
       this.buildVisibilityActor(input),
     ]);
     const allowed = canSeeB2bLead(actor, scopeRow, memberships);
-    if (!allowed) {
-      throw new NotFoundException({ error: 'not_found' });
+    if (allowed) return;
+    const leadId = Number(input.leadId);
+    if (
+      Number.isFinite(leadId) &&
+      leadId > 0 &&
+      accountManagerMayOpenSolutionLead(actor, await this.repo.isLeadOnSolutionDesk(leadId))
+    ) {
+      return;
     }
+    throw new NotFoundException({ error: 'not_found' });
   }
 
   private async buildVisibilityActor(input: Omit<B2bLeadVisibilityInput, 'lead'>) {

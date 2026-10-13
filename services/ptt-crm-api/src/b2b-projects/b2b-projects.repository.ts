@@ -313,6 +313,19 @@ export class B2bProjectsRepository implements OnModuleDestroy {
     }));
   }
 
+  async isLeadOnSolutionDesk(leadId: number): Promise<boolean> {
+    const result = await this.db.query(
+      `SELECT 1
+       FROM crm_lead_presales
+       WHERE lead_id = $1
+         AND status = 'active'
+         AND handoff_status IN ('pending', 'with_solution')
+       LIMIT 1`,
+      [leadId],
+    );
+    return result.rows.length > 0;
+  }
+
   async findStaffActive(staffId: number): Promise<{ active: boolean | null }> {
     const result = await this.db.query(`SELECT active FROM crm_staff WHERE id = $1 LIMIT 1`, [staffId]);
     const raw = result.rows[0]?.active;

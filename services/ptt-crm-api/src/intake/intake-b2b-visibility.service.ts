@@ -28,6 +28,7 @@ export class IntakeB2bVisibilityService {
       staffId: actor.staffId,
       caps: actor.caps,
       positionCode: actor.positionCode,
+      leadId,
       lead: {
         owner_id: lead.owner_id,
         client_id: lead.client_id,
