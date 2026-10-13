@@ -1,5 +1,6 @@
 import {
   assertLeadPatchFieldsAllowed,
+  maskLeadPhoneAndEmail,
   maskPartialPii,
   serializeLeadForCaps,
 } from './field-level.serializer';
@@ -124,5 +125,13 @@ describe('field-level.serializer', () => {
   it('partial masks phone and email', () => {
     expect(maskPartialPii('0901234567')).toContain('4567');
     expect(maskPartialPii('user@example.com')).toContain('@example.com');
+  });
+
+  it('masks both phone and email together', () => {
+    const out = maskLeadPhoneAndEmail({ phone: '0901234567', email: 'user@example.com' });
+    expect(out.phone).not.toBe('0901234567');
+    expect(out.phone).toContain('4567');
+    expect(out.email).not.toBe('user@example.com');
+    expect(out.email).toContain('@example.com');
   });
 });

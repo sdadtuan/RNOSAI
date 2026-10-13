@@ -38,6 +38,18 @@ describe('lead-flow-list-filter.util', () => {
     expect(sql).not.toContain('assign_enabled');
   });
 
+  it('account manager pool includes every project role', () => {
+    const sql = buildB2bListScopeClause(
+      'postgres',
+      'l',
+      { staffId: 10, viewAll: false, isDirector: false, memberProjectPool: true },
+      '$1',
+    );
+    expect(sql).toContain('l.owner_id = $1');
+    expect(sql).toContain('ps.staff_id = $1');
+    expect(sql).not.toContain('project_manager');
+  });
+
   it('skips b2b scope clause for view-all', () => {
     const sql = buildB2bListScopeClause(
       'postgres',

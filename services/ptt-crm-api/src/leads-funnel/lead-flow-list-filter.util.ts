@@ -66,9 +66,11 @@ export interface B2bListScopeInput {
   staffId: number;
   viewAll: boolean;
   isDirector: boolean;
+  /** Account Manager: project membership of any role, not only project_manager. */
+  memberProjectPool?: boolean;
 }
 
-/** B2B list visibility — AE/sales: own owner_id only; PM: project pool; view-all/director: empty. */
+/** B2B list visibility — AE/sales: own owner_id only; AM: any project they belong to; PM: project pool; view-all/director: empty. */
 export function buildB2bListScopeClause(
   dialect: SqlDialect,
   alias: string,
@@ -81,14 +83,20 @@ export function buildB2bListScopeClause(
     dialect === 'postgres'
       ? `${alias}.b2b_project_id`
       : `trim(COALESCE(json_extract(${alias}.meta_json, '$.b2b_project_id'), ''))`;
+  const roleFilter = scope.memberProjectPool
+    ? ''
+    : ` AND COALESCE(ps.role, 'sales') = 'project_manager'`;
+  const sqliteRoleFilter = scope.memberProjectPool
+    ? ''
+    : ` AND COALESCE(role, 'sales') = 'project_manager'`;
   const pmPool =
     dialect === 'postgres'
       ? `SELECT ps.project_id
          FROM crm_b2b_project_staff ps
          INNER JOIN crm_staff st ON st.id = ps.staff_id AND COALESCE(st.active, FALSE) IS TRUE
-         WHERE ps.staff_id = ${staffParam} AND COALESCE(ps.role, 'sales') = 'project_manager'`
+         WHERE ps.staff_id = ${staffParam}${roleFilter}`
       : `SELECT project_id FROM crm_b2b_project_staff
-         WHERE staff_id = ${staffParam} AND COALESCE(role, 'sales') = 'project_manager'`;
+         WHERE staff_id = ${staffParam}${sqliteRoleFilter}`;
   return `(
     NOT (${b2b}) OR
     ${alias}.owner_id = ${staffParam} OR

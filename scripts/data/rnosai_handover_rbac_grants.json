@@ -525,10 +525,17 @@
       "crm_lmp": [
         "view"
       ],
+      "crm_mkt_ai": [
+        "export",
+        "generate"
+      ],
       "crm_mktplan": [
         "view"
       ],
       "crm_presales_solution": [
+        "claim",
+        "edit",
+        "release",
         "view"
       ],
       "crm_quote": [
@@ -1999,10 +2006,17 @@
       "crm_lmp": [
         "view"
       ],
+      "crm_mkt_ai": [
+        "export",
+        "generate"
+      ],
       "crm_mktplan": [
         "view"
       ],
       "crm_presales_solution": [
+        "claim",
+        "edit",
+        "release",
         "view"
       ],
       "crm_quote": [

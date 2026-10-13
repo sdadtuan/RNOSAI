@@ -1,4 +1,4 @@
-import { hasCap, type StoredStaffUser } from '@/lib/auth';
+import { canGenerateMktAiPlanner, hasCap, type StoredStaffUser } from '@/lib/auth';
 
 export interface PresalesSolutionCaps {
   canView: boolean;
@@ -36,6 +36,13 @@ export function resolvePresalesSolutionCaps(user: StoredStaffUser | null): Presa
     isGdkd,
     isAeTrackOnly: Boolean(canView && !canClaim && !canRelease && !canEditConsult),
   };
+}
+
+/** AI viết kế hoạch on Tư vấn. Solution edit covers Account Manager without the production board. */
+export function canDraftConsultPlan(user: StoredStaffUser | null): boolean {
+  if (!user) return false;
+  if (canGenerateMktAiPlanner(user)) return true;
+  return hasCap(user, 'crm_presales_solution', 'edit') && hasCap(user, 'crm_mkt_ai', 'generate');
 }
 
 export function isConsultWorkspaceReadOnly(

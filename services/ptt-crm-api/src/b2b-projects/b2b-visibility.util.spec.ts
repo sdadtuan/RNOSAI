@@ -71,6 +71,20 @@ describe('canSeeB2bLead', () => {
     expect(unassigned).toBe(false);
   });
 
+  it('account manager sees every lead on a project they belong to', () => {
+    const mem = [{ projectId: project, assignEnabled: true, role: 'sales' as const }];
+    const am = { ...memberOn, seesMemberProjectPool: true };
+    expect(
+      canSeeB2bLead(am, { flowKind: 'b2b_prospect', ownerId: 11, projectId: project }, mem),
+    ).toBe(true);
+    expect(
+      canSeeB2bLead(am, { flowKind: 'b2b_prospect', ownerId: 11, projectId: 'other' }, mem),
+    ).toBe(false);
+    expect(
+      canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: 11, projectId: project }, mem),
+    ).toBe(false);
+  });
+
   it('sales with assign_enabled still only sees own lead (not project pool)', () => {
     const mem = [{ projectId: project, assignEnabled: true, role: 'sales' as const }];
     expect(

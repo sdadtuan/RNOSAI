@@ -22,13 +22,14 @@ import {
   postPresalesConsultSlaReminder,
   type LeadFunnelSnapshot,
 } from '@/lib/api';
-import { canGenerateMktAiPlanner, hasCap, type StoredStaffUser } from '@/lib/auth';
+import { hasCap, type StoredStaffUser } from '@/lib/auth';
 import { attachedScopeLines, scopeFromLeadSessions } from '@/lib/crm/consult-attached-scope';
 import { intakeServiceLabel } from '@/lib/crm/intake-service-resolve';
 import { presalesStageLabel } from '@/lib/crm/lead-consult-tab.util';
 import { p13CodeForIntakeSlug } from '@/lib/crm/p13-intake-service';
 import { hydratePresalesR5Form } from '@/lib/crm/presales-r5-plan.util';
 import {
+  canDraftConsultPlan,
   isConsultWorkspaceReadOnly,
   resolvePresalesSolutionCaps,
 } from '@/lib/crm/presales-solution-caps';
@@ -132,8 +133,8 @@ export function LeadConsultWorkspace({
   const solutionCaps = resolvePresalesSolutionCaps(user);
   const consultReadOnly = isConsultWorkspaceReadOnly(funnel, solutionCaps);
   const canEdit = Boolean(user && hasCap(user, 'crm_leads', 'edit') && solutionCaps.canEditConsult && !consultReadOnly);
-  const canPrefill = Boolean(user && hasCap(user, 'crm_board', 'edit') && solutionCaps.canEditConsult);
-  const canAiDraft = Boolean(user && canGenerateMktAiPlanner(user));
+  const canPrefill = Boolean(user && solutionCaps.canEditConsult);
+  const canAiDraft = canDraftConsultPlan(user);
 
   const intakeHref = `/crm/intake?lead_id=${leadId}${
     funnel.presales?.presales.service_slug

@@ -16,6 +16,16 @@ export function hasFieldCap(
   return hasCap(caps, entry.section, entry.action);
 }
 
+export function maskLeadPhoneAndEmail<T extends { phone?: string | null; email?: string | null }>(
+  lead: T,
+): T {
+  return {
+    ...lead,
+    phone: maskPartialPii(lead.phone),
+    email: maskPartialPii(lead.email),
+  };
+}
+
 export function maskPartialPii(value: string | null | undefined): string {
   const raw = String(value ?? '').trim();
   if (!raw) return '';

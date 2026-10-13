@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StoredStaffUser } from '@/lib/auth';
-import { resolvePresalesSolutionCaps } from './presales-solution-caps';
+import { canDraftConsultPlan, resolvePresalesSolutionCaps } from './presales-solution-caps';
 
 function user(caps: Array<{ section: string; action: string }>): StoredStaffUser {
   return {
@@ -37,6 +37,17 @@ describe('resolvePresalesSolutionCaps', () => {
     expect(caps.canClaim).toBe(true);
     expect(caps.canRelease).toBe(true);
     expect(caps.isAeTrackOnly).toBe(false);
+  });
+
+  it('Account Manager drafts the consult plan without crm_board.edit', () => {
+    expect(
+      canDraftConsultPlan(
+        user([
+          { section: 'crm_presales_solution', action: 'edit' },
+          { section: 'crm_mkt_ai', action: 'generate' },
+        ]),
+      ),
+    ).toBe(true);
   });
 
   it('CEO/GĐKD via crm_gdkd can claim', () => {

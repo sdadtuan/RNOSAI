@@ -46,7 +46,9 @@ import {
   StaffPresalesSolutionQueueGuard,
   StaffPresalesSolutionReleaseGuard,
 } from './guards/staff-presales-solution.guard';
-import { StaffMarketingAiPlannerGenerateGuard } from '../marketing-ai-planner/guards/staff-marketing-ai-planner.guard';
+import { StaffConsultAiGenerateGuard } from './guards/staff-consult-ai.guard';
+import { isAccountManagerPosition } from '../b2b-projects/b2b-director.util';
+import { maskPartialPii } from '../staff-permissions/field-level.serializer';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { LeadsFunnelService } from './leads-funnel.service';
 import { AppConfigService } from '../config/app-config.service';
@@ -391,7 +393,7 @@ export class LeadsFunnelController {
   @UseGuards(
     StaffOrInternalKeyGuard,
     StaffLeadsWriteGuard,
-    StaffMarketingAiPlannerGenerateGuard,
+    StaffConsultAiGenerateGuard,
     PresalesOnLeadGuard,
     LeadNotInReviewQueueGuard,
   )
@@ -407,7 +409,7 @@ export class LeadsFunnelController {
   @UseGuards(
     StaffOrInternalKeyGuard,
     StaffLeadsWriteGuard,
-    StaffMarketingAiPlannerGenerateGuard,
+    StaffConsultAiGenerateGuard,
     PresalesOnLeadGuard,
     LeadNotInReviewQueueGuard,
   )
@@ -421,8 +423,22 @@ export class LeadsFunnelController {
   @Post(':id/presales/client-plan/export')
   @HttpCode(HttpStatus.OK)
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, PresalesOnLeadGuard)
-  async exportClientPlan(@Param('id', ParseIntPipe) id: number, @Res({ passthrough: true }) res: Response) {
-    const out = await this.funnel.exportClientPlan(id);
+  async exportClientPlan(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    let maskForeignContactForStaffId: number | null = null;
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const viewAll =
+        this.staffAuth.hasCap(me.caps, 'crm_gdkd', 'view_all_leads') ||
+        String(me.position_code ?? '').toLowerCase() === 'super-admin';
+      if (!viewAll && isAccountManagerPosition(me.position_code)) {
+        maskForeignContactForStaffId = await this.userId(req);
+      }
+    }
+    const out = await this.funnel.exportClientPlan(id, { maskForeignContactForStaffId });
     res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
     return {
       ok: true,
@@ -473,20 +489,33 @@ export class LeadsFunnelController {
     const lim = limit ? Number(limit) : 50;
     let ownerStaffId: number | null | undefined;
     let includeAmRework = false;
+    let maskForeignPhoneForStaffId: number | null = null;
     if (req.staffAuthVia !== 'internal' && req.staffUser) {
       const me = await this.staffAuth.me(req.staffUser);
       const viewAll =
         this.staffAuth.hasCap(me.caps, 'crm_gdkd', 'view_all_leads') ||
         String(me.position_code ?? '').toLowerCase() === 'super-admin';
-      if (!viewAll) {
+      const isAccountManager = isAccountManagerPosition(me.position_code);
+      if (!viewAll && !isAccountManager) {
         ownerStaffId = await this.userId(req);
         includeAmRework = true;
+      } else if (!viewAll && isAccountManager) {
+        maskForeignPhoneForStaffId = await this.userId(req);
       }
     }
-    return this.funnel.listSolutionQueue(status?.trim(), Number.isFinite(lim) ? lim : 50, {
+    const listed = await this.funnel.listSolutionQueue(status?.trim(), Number.isFinite(lim) ? lim : 50, {
       ownerStaffId,
       includeAmRework,
     });
+    if (maskForeignPhoneForStaffId == null) return listed;
+    return {
+      ...listed,
+      rows: listed.rows.map((row) =>
+        Number(row.owner_id) === Number(maskForeignPhoneForStaffId)
+          ? row
+          : { ...row, phone: maskPartialPii(row.phone) },
+      ),
+    };
   }
 
   @Get('presales/consult-sla/summary')

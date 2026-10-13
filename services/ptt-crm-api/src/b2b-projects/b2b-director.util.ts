@@ -4,3 +4,12 @@ export function isB2bDirectorPosition(positionCode: string | null | undefined): 
   if (!positionCode) return false;
   return B2B_DIRECTOR_POSITION_CODES.has(String(positionCode).trim().toLowerCase());
 }
+
+/** Account Manager desk. KD-01 is the handover alias of ACM. */
+export function isAccountManagerPosition(positionCode: string | null | undefined): boolean {
+  const code = String(positionCode ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+  return code === 'acm' || code === 'kd-01' || code === 'kd01';
+}

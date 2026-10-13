@@ -126,6 +126,7 @@ export interface ListLeadsQuery {
     staffId: number;
     viewAll: boolean;
     isDirector: boolean;
+    memberProjectPool?: boolean;
   };
 }
 

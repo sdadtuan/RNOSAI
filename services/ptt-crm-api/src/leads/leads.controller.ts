@@ -42,6 +42,7 @@ import { B2bConversationsService } from '../b2b-projects/b2b-conversations.servi
 import { B2bProjectsService } from '../b2b-projects/b2b-projects.service';
 import {
   assertLeadPatchFieldsAllowed,
+  maskLeadPhoneAndEmail,
   serializeLeadForCaps,
   serializeLeadsForCaps,
 } from '../staff-permissions/field-level.serializer';
@@ -453,9 +454,12 @@ export class LeadsController {
     }).then(async (result) => {
       if (req.staffAuthVia === 'internal' || !req.staffUser) return result;
       const caps = await this.resolveCaps(req);
+      const leads = serializeLeadsForCaps(result.leads, caps, (c, s, a) =>
+        this.staffAuth.hasCap(c, s, a),
+      ).map((lead) => this.maskForeignAmContact(lead, b2bListScope));
       return {
         ...result,
-        leads: serializeLeadsForCaps(result.leads, caps, (c, s, a) => this.staffAuth.hasCap(c, s, a)),
+        leads,
       };
     });
   }
@@ -770,6 +774,20 @@ export class LeadsController {
     if (staffId == null) {
       throw new HttpException({ error: 'staff_required' }, HttpStatus.BAD_REQUEST);
     }
+    if (req.staffAuthVia !== 'internal' && req.staffUser && this.appConfig.b2bProjectOs) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const scope = this.b2bLeadScope.buildListScope({
+        staffId,
+        caps: me.caps,
+        positionCode: me.position_code,
+      });
+      if (scope.memberProjectPool && Number(lead.owner_id) !== Number(staffId)) {
+        throw new ForbiddenException({
+          error: 'contact_hidden',
+          message: 'Số điện thoại của lead này đã được che.',
+        });
+      }
+    }
     const phone = String(lead.phone ?? '').trim();
     if (!phone) {
       throw new HttpException({ error: 'missing_phone' }, HttpStatus.BAD_REQUEST);
@@ -802,10 +820,16 @@ export class LeadsController {
     }
     const scope = await this.clientScope.resolveForRequest(req);
     this.clientScope.assertLeadAccessible(scope, lead.client_id);
+    let listScope: ListLeadsQuery['b2b_list_scope'];
     if (this.appConfig.b2bProjectOs && req.staffAuthVia !== 'internal' && req.staffUser) {
       const me = await this.staffAuth.me(req.staffUser);
       const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
       if (staffId != null) {
+        listScope = this.b2bLeadScope.buildListScope({
+          staffId,
+          caps: me.caps,
+          positionCode: me.position_code,
+        });
         await this.b2bLeadScope.assertLeadVisible({
           staffId,
           caps: me.caps,
@@ -824,7 +848,10 @@ export class LeadsController {
     }
     if (req.staffAuthVia === 'internal' || !req.staffUser) return lead;
     const caps = await this.resolveCaps(req);
-    const serialized = serializeLeadForCaps(lead, caps, (c, s, a) => this.staffAuth.hasCap(c, s, a));
+    const serialized = this.maskForeignAmContact(
+      serializeLeadForCaps(lead, caps, (c, s, a) => this.staffAuth.hasCap(c, s, a)),
+      listScope,
+    );
     if (this.staffAuth.hasCap(caps, 'crm_leads', 'view_pii') && req.staffUser.email) {
       void this.piiAudit.logLeadPiiView({
         actor_email: req.staffUser.email,
@@ -833,6 +860,15 @@ export class LeadsController {
       });
     }
     return serialized;
+  }
+
+  private maskForeignAmContact<T extends { owner_id?: number | null; phone?: string | null; email?: string | null }>(
+    lead: T,
+    scope: { memberProjectPool?: boolean; staffId: number } | undefined,
+  ): T {
+    if (!scope?.memberProjectPool) return lead;
+    if (lead.owner_id != null && Number(lead.owner_id) === Number(scope.staffId)) return lead;
+    return maskLeadPhoneAndEmail(lead);
   }
 
   private async resolveCaps(

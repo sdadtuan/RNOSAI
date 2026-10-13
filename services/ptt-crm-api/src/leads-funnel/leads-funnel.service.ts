@@ -9,6 +9,7 @@ import { parseB2CompletedAt } from '../cskh-board/cskh-board-sla.util';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import { hasGdkdSolutionDesk } from '../staff-permissions/staff-gdkd.util';
+import { maskPartialPii } from '../staff-permissions/field-level.serializer';
 import { parseLeadMeta } from './care-pipeline.util';
 import { showPresalesForFlow } from './lead-flow-kind.util';
 import {
@@ -745,7 +746,9 @@ export class LeadsFunnelService {
   private async assertPresalesMktAiGenerateCap(staffUser?: StaffJwtPayload): Promise<void> {
     if (!staffUser) return;
     const me = await this.staffAuth.me(staffUser);
-    if (!this.staffAuth.hasCap(me.caps, 'crm_board', 'edit')) {
+    const consultEdit = this.staffAuth.hasCap(me.caps, 'crm_presales_solution', 'edit');
+    const boardEdit = this.staffAuth.hasCap(me.caps, 'crm_board', 'edit');
+    if (!consultEdit && !boardEdit) {
       throw new ForbiddenException({ error: 'missing_cap', section: 'crm_board', action: 'edit' });
     }
     if (!this.staffAuth.hasCap(me.caps, 'crm_mkt_ai', 'generate')) {
@@ -896,7 +899,10 @@ export class LeadsFunnelService {
     }
   }
 
-  async exportClientPlan(leadId: number, opts?: { sofficePath?: string | null }) {
+  async exportClientPlan(
+    leadId: number,
+    opts?: { sofficePath?: string | null; maskForeignContactForStaffId?: number | null },
+  ) {
     try {
       const loaded = await this.loadClientBrief(leadId);
       const content = planContentFromRow(loaded.plan);
@@ -915,6 +921,14 @@ export class LeadsFunnelService {
       }
       const prof = parseTargetMarketProfJson(loaded.plan.target_market_prof_json);
       const contact = await this.pgRepo.getLeadPlanContact(leadId);
+      const maskFor = opts?.maskForeignContactForStaffId;
+      if (maskFor != null) {
+        const ownerId = (await this.pgRepo.fetchLeadRow(leadId))?.owner_id;
+        if (ownerId == null || Number(ownerId) !== Number(maskFor)) {
+          contact.phone = maskPartialPii(contact.phone);
+          contact.email = maskPartialPii(contact.email);
+        }
+      }
       const framework = content.strategy_framework;
       const clientName = contact.company_name || loaded.company_name;
       const pptx = await renderClientPlanFromTemplate({

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
 import { hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
-import { isB2bDirectorPosition } from './b2b-director.util';
+import { isAccountManagerPosition, isB2bDirectorPosition } from './b2b-director.util';
 import { B2bProjectsRepository } from './b2b-projects.repository';
 import { resolveIsActivePttStaff } from './b2b-staff-active.util';
 import { canSeeB2bLead, type B2bLeadScopeRow, type B2bProjectMembership } from './b2b-visibility.util';
@@ -26,6 +26,7 @@ export interface B2bListScope {
   staffId: number;
   viewAll: boolean;
   isDirector: boolean;
+  memberProjectPool?: boolean;
 }
 
 @Injectable()
@@ -37,10 +38,13 @@ export class B2bLeadScopeService {
     caps: StaffSectionCap[];
     positionCode?: string | null;
   }): B2bListScope {
+    const viewAll = hasGdkdViewAllLeads(input.caps);
+    const isDirector = isB2bDirectorPosition(input.positionCode);
     return {
       staffId: input.staffId,
-      viewAll: hasGdkdViewAllLeads(input.caps),
-      isDirector: isB2bDirectorPosition(input.positionCode),
+      viewAll,
+      isDirector,
+      memberProjectPool: isAccountManagerPosition(input.positionCode) && !viewAll && !isDirector,
     };
   }
 
@@ -59,11 +63,14 @@ export class B2bLeadScopeService {
 
   private async buildVisibilityActor(input: Omit<B2bLeadVisibilityInput, 'lead'>) {
     const staff = await this.repo.findStaffActive(input.staffId);
+    const hasViewAllLeads = hasGdkdViewAllLeads(input.caps);
     return {
       staffId: input.staffId,
       isDirector: isB2bDirectorPosition(input.positionCode),
-      hasViewAllLeads: hasGdkdViewAllLeads(input.caps),
+      hasViewAllLeads,
       isActivePttStaff: resolveIsActivePttStaff(staff),
+      seesMemberProjectPool:
+        isAccountManagerPosition(input.positionCode) && !hasViewAllLeads,
     };
   }
 
