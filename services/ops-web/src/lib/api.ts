@@ -2802,6 +2802,7 @@ async function crmFetch<T>(token: string, path: string, init?: RequestInit): Pro
   }
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    cache: init?.cache ?? 'no-store',
     headers,
   });
   const body = await parseJson<T & { error?: string; message?: string }>(res);
@@ -9538,6 +9539,8 @@ export interface StaffOrgUserSummary {
   crm_staff_id?: number;
   team_ids?: number[];
   team_codes?: string[];
+  team_names?: string[];
+  position_team_name?: string;
   job_functions: string[];
   client_ids?: string[];
 }

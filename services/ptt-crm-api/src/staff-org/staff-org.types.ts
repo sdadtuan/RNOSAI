@@ -8,6 +8,8 @@ export type StaffOrgUserSummary = {
   crm_staff_id?: number;
   team_ids?: number[];
   team_codes?: string[];
+  team_names?: string[];
+  position_team_name?: string;
   job_functions: string[];
   client_ids?: string[];
   account_kind?: string;

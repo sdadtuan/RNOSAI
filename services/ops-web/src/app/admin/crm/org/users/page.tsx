@@ -16,6 +16,7 @@ import {
   type StaffOrgPositionRow,
   type StaffOrgUserSummary,
 } from '@/lib/api';
+import { formatOrgUserRole } from '@/lib/admin/org-user-role-label';
 import {
   canEditOrgUsers,
   canViewOrgAdmin,
@@ -159,9 +160,7 @@ function AdminOrgUsersPageContent() {
                 <td>{row.email}</td>
                 <td>
                   <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
-                    {row.position_code ?? row.position_id}
-                    {row.team_codes?.length ? ` · ${row.team_codes.join(', ')}` : ''}
-                    {row.job_functions?.length ? ` · ${row.job_functions.join(', ')}` : ''}
+                    {formatOrgUserRole(row)}
                     <WinScopeBadge clientIds={row.client_ids} />
                   </span>
                 </td>
@@ -201,6 +200,7 @@ function AdminOrgUsersPageContent() {
             canEdit={canEdit}
             onSaved={(updated) => {
               setSelected(updated);
+              setRows((prev) => prev.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)));
               void reload(token, query);
             }}
             onOffboarded={() => {

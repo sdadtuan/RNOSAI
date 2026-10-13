@@ -34,6 +34,8 @@ function mapUserSummary(row: {
   crm_staff_id: string | number | null;
   team_ids: number[] | null;
   team_codes: string[] | null;
+  team_names?: string[] | null;
+  position_team_name?: string | null;
   job_functions?: string[];
 }): StaffOrgUserSummary {
   return {
@@ -46,6 +48,8 @@ function mapUserSummary(row: {
     crm_staff_id: row.crm_staff_id != null ? Number(row.crm_staff_id) : undefined,
     team_ids: row.team_ids ?? [],
     team_codes: row.team_codes ?? [],
+    team_names: row.team_names ?? [],
+    position_team_name: row.position_team_name ? String(row.position_team_name) : undefined,
     job_functions: row.job_functions ?? [],
   };
 }
@@ -92,16 +96,19 @@ export class StaffOrgUsersRepository {
     return `
       SELECT u.id::text, u.email, u.display_name, u.position_id, u.active,
              p.code AS position_code,
+             pt.name AS position_team_name,
              cs.id AS crm_staff_id,
              COALESCE(array_agg(DISTINCT t.id) FILTER (WHERE t.id IS NOT NULL), '{}') AS team_ids,
-             COALESCE(array_agg(DISTINCT t.code) FILTER (WHERE t.code IS NOT NULL), '{}') AS team_codes
+             COALESCE(array_agg(DISTINCT t.code) FILTER (WHERE t.code IS NOT NULL), '{}') AS team_codes,
+             COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL), '{}') AS team_names
       FROM staff_users u
       LEFT JOIN crm_positions p ON p.id = u.position_id
+      LEFT JOIN staff_teams pt ON pt.id = p.team_id AND pt.active IS TRUE
       LEFT JOIN crm_staff cs ON lower(trim(cs.email)) = lower(trim(u.email))
       LEFT JOIN staff_user_teams sut ON sut.user_id = u.id
       LEFT JOIN staff_teams t ON t.id = sut.team_id AND t.active IS TRUE
       ${activeFilter}
-      GROUP BY u.id, u.email, u.display_name, u.position_id, u.active, p.code, cs.id
+      GROUP BY u.id, u.email, u.display_name, u.position_id, u.active, p.code, pt.name, cs.id
       ORDER BY u.active DESC, u.display_name, u.email`;
   }
 
@@ -118,6 +125,8 @@ export class StaffOrgUsersRepository {
       crm_staff_id: string | null;
       team_ids: number[];
       team_codes: string[];
+      team_names: string[];
+      position_team_name: string | null;
     }>(this.userListSql(includeInactive));
 
     let rows = result.rows.map((row) =>
@@ -125,6 +134,7 @@ export class StaffOrgUsersRepository {
         ...row,
         team_ids: (row.team_ids ?? []).map(Number).filter((n) => n > 0),
         team_codes: row.team_codes ?? [],
+        team_names: row.team_names ?? [],
       }),
     );
 
@@ -150,19 +160,24 @@ export class StaffOrgUsersRepository {
       crm_staff_id: string | null;
       team_ids: number[];
       team_codes: string[];
+      team_names: string[];
+      position_team_name: string | null;
     }>(
       `SELECT u.id::text, u.email, u.display_name, u.position_id, u.active,
               p.code AS position_code,
+              pt.name AS position_team_name,
               cs.id AS crm_staff_id,
               COALESCE(array_agg(DISTINCT t.id) FILTER (WHERE t.id IS NOT NULL), '{}') AS team_ids,
-              COALESCE(array_agg(DISTINCT t.code) FILTER (WHERE t.code IS NOT NULL), '{}') AS team_codes
+              COALESCE(array_agg(DISTINCT t.code) FILTER (WHERE t.code IS NOT NULL), '{}') AS team_codes,
+              COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL), '{}') AS team_names
        FROM staff_users u
        LEFT JOIN crm_positions p ON p.id = u.position_id
+       LEFT JOIN staff_teams pt ON pt.id = p.team_id AND pt.active IS TRUE
        LEFT JOIN crm_staff cs ON lower(trim(cs.email)) = lower(trim(u.email))
        LEFT JOIN staff_user_teams sut ON sut.user_id = u.id
        LEFT JOIN staff_teams t ON t.id = sut.team_id AND t.active IS TRUE
        WHERE u.id = $1::uuid
-       GROUP BY u.id, u.email, u.display_name, u.position_id, u.active, p.code, cs.id`,
+       GROUP BY u.id, u.email, u.display_name, u.position_id, u.active, p.code, pt.name, cs.id`,
       [userId],
     );
     const row = result.rows[0];
@@ -171,6 +186,7 @@ export class StaffOrgUsersRepository {
       ...row,
       team_ids: (row.team_ids ?? []).map(Number).filter((n) => n > 0),
       team_codes: row.team_codes ?? [],
+      team_names: row.team_names ?? [],
     });
   }
 
@@ -182,6 +198,19 @@ export class StaffOrgUsersRepository {
     if (!hit.rows[0]) {
       throw new BadRequestException({ error: 'invalid_position', position_id: positionId });
     }
+  }
+
+  private async syncLinkedStaffPosition(
+    client: PoolClient,
+    email: string,
+    positionId: number,
+  ): Promise<void> {
+    await client.query(
+      `UPDATE crm_staff
+       SET position_id = $1, updated_at = NOW()
+       WHERE lower(trim(email)) = lower(trim($2))`,
+      [positionId, email],
+    );
   }
 
   private async replaceUserTeams(
@@ -381,11 +410,24 @@ export class StaffOrgUsersRepository {
         sets.push(`display_name = $${idx++}`);
         params.push(String(body.display_name).trim());
       }
+      let positionTeamApplied = false;
       if (body.position_id !== undefined) {
         const positionId = Number(body.position_id);
         await this.assertPosition(positionId, client);
         sets.push(`position_id = $${idx++}`);
         params.push(positionId);
+        await this.syncLinkedStaffPosition(client, existing.email, positionId);
+        if (!(body.team_ids ?? []).some((id) => Number(id) > 0)) {
+          const teamHit = await client.query<{ team_id: number | null }>(
+            `SELECT team_id FROM crm_positions WHERE id = $1`,
+            [positionId],
+          );
+          const teamId = Number(teamHit.rows[0]?.team_id);
+          if (Number.isFinite(teamId) && teamId > 0) {
+            await this.replaceUserTeams(client, userId, [teamId]);
+            positionTeamApplied = true;
+          }
+        }
       }
       if (body.active !== undefined) {
         sets.push(`active = $${idx++}`);
@@ -418,7 +460,7 @@ export class StaffOrgUsersRepository {
         );
       }
 
-      if (body.team_ids !== undefined) {
+      if (body.team_ids !== undefined && !positionTeamApplied) {
         await this.replaceUserTeams(
           client,
           userId,

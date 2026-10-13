@@ -146,7 +146,10 @@ export function UserIdentityCard({
     setLoginPassword('');
     setIssuedLoginPassword('');
     void loadDetail();
-  }, [user, loadDetail]);
+    // Reset only when opening another person. A new object for the same id
+    // must not snap the chức vụ select back to the previous value mid-edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id, loadDetail]);
 
   useEffect(() => {
     void fetchStaffOrgTeams(token).then(setTeams).catch(() => setTeams([]));
@@ -279,7 +282,12 @@ export function UserIdentityCard({
         Chức vụ
         <select
           value={positionId}
-          onChange={(e) => setPositionId(Number(e.target.value))}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            setPositionId(next);
+            const position = positions.find((row) => row.id === next);
+            if (position?.team_id) setTeamIds([position.team_id]);
+          }}
           disabled={!canEdit || busy}
         >
           {positions.map((p) => (
