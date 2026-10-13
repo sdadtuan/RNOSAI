@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../../config/app-config.service';
+import { kanbanCardSettingsFromPayload } from '../kanban-card.util';
 import { normalizeEmail, normalizePhone, pgPhoneNormSql } from './lead-contact.util';
 
 export interface LeadDuplicateMatch {
@@ -34,6 +35,7 @@ export class LeadDedupRepository implements OnModuleDestroy {
     email?: string;
     excludeId?: number;
     b2bProjectId?: string | null;
+    createdAfter?: Date;
   }): Promise<LeadDuplicateMatch[]> {
     const ph = normalizePhone(input.phone);
     const em = normalizeEmail(input.email);
@@ -58,6 +60,10 @@ export class LeadDedupRepository implements OnModuleDestroy {
     if (input.b2bProjectId !== undefined) {
       clauses.push(`b2b_project_id IS NOT DISTINCT FROM $${params.length + 1}::uuid`);
       params.push(input.b2bProjectId || null);
+    }
+    if (input.createdAfter && !Number.isNaN(input.createdAfter.getTime())) {
+      clauses.push(`COALESCE(received_at, created_at) >= $${params.length + 1}::timestamptz`);
+      params.push(input.createdAfter.toISOString());
     }
 
     const result = await this.db.query(
@@ -106,5 +112,19 @@ export class LeadDedupRepository implements OnModuleDestroy {
     );
     const id = result.rows[0]?.sqlite_lead_id;
     return id != null ? Number(id) : null;
+  }
+
+  /** Start of the phone-merge window. Missing settings keep the 30-day seed. */
+  async contactDedupeSince(now = new Date()): Promise<Date> {
+    let days = 30;
+    try {
+      const result = await this.db.query(
+        `SELECT payload FROM crm_lead_sla_settings WHERE tenant_id = 'default' LIMIT 1`,
+      );
+      days = kanbanCardSettingsFromPayload(result.rows[0]?.payload).dedupe_days;
+    } catch {
+      days = 30;
+    }
+    return new Date(now.getTime() - days * 86_400_000);
   }
 }

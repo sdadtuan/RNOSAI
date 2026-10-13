@@ -29,6 +29,10 @@ export interface LeadV1 {
   sla_late_minutes?: number | null;
   /** Working minutes the card has stood in its current column. */
   column_minutes?: number | null;
+  stale?: boolean;
+  quote_stale?: boolean;
+  callback_today?: boolean;
+  next_call_at?: string | null;
   in_call?: boolean;
   /** WIN-4-B — financial ABAC pilot (from meta_json.financial). */
   expected_value?: number | null;
@@ -98,6 +102,7 @@ export interface PgLeadRow {
   b2b_assigned_at?: Date | string | null;
   b2b_hop_count?: number | null;
   last_call_at?: Date | string | null;
+  next_call_at?: Date | string | null;
   updated_at?: Date | string | null;
 }
 

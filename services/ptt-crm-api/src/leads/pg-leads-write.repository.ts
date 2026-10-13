@@ -168,6 +168,18 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
     await this.insertContactActivity(leadId, input.note, input.actor);
   }
 
+  async insertSystemNote(leadId: number, content: string, nextAction: string): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+       )
+       SELECT $1, 'note', $2, '', $3, NOW(), 'system', COALESCE(status, '')
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1`,
+      [leadId, content.slice(0, 8000), nextAction.slice(0, 80)],
+    );
+  }
+
   async insertContactActivity(leadId: number, content: string, actor: string): Promise<void> {
     await this.db.query(
       `INSERT INTO crm_lead_activities (

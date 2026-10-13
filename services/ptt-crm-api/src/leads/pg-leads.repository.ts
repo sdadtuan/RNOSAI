@@ -95,7 +95,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
               l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
               l.company_name, l.company_address, l.logo_asset_id,
-              l.last_call_at::text AS last_call_at, l.updated_at,
+              l.last_call_at::text AS last_call_at, l.next_call_at::text AS next_call_at, l.updated_at,
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
@@ -129,7 +129,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
               l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
               l.company_name, l.company_address, l.logo_asset_id,
-              l.last_call_at::text AS last_call_at, l.updated_at,
+              l.last_call_at::text AS last_call_at, l.next_call_at::text AS next_call_at, l.updated_at,
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al

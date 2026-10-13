@@ -50,6 +50,10 @@ export interface LeadRow {
   sla_state?: 'na' | 'ok' | 'warning' | 'breach' | null;
   sla_late_minutes?: number | null;
   column_minutes?: number | null;
+  stale?: boolean;
+  quote_stale?: boolean;
+  callback_today?: boolean;
+  next_call_at?: string | null;
   in_call?: boolean;
   expected_value?: number | null;
   margin_pct?: number | null;

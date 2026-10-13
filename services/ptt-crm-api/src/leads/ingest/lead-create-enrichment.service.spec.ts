@@ -46,4 +46,34 @@ describe('LeadCreateEnrichmentService B2B gate', () => {
     expect(out.client_id).toBeNull();
     expect(out.b2b_project_id).toBe('proj-1');
   });
+
+  it('merges a phone that returns inside the dedupe window', async () => {
+    const since = new Date('2026-09-13T00:00:00.000Z');
+    const dedupWindow = {
+      contactDedupeSince: jest.fn(async () => since),
+      findByExternalId: jest.fn(async () => null),
+      findContactDuplicates: jest.fn(async () => [
+        { lead_id: 42, full_name: 'Cũ', phone: '0901234567', email: null, owner_id: 7 },
+      ]),
+    };
+    const appConfig = { b2bProjectOs: true } as AppConfigService;
+    const svc = new LeadCreateEnrichmentService(
+      dedupWindow as never,
+      rulesRepo as never,
+      autoAssign as never,
+      b2bFirstAssign as never,
+      appConfig,
+    );
+    const out = await svc.enrich({
+      full_name: 'Mới',
+      phone: '0901234567',
+      lead_flow_kind: 'b2b_prospect',
+      b2b_project_id: 'proj-1',
+    });
+    expect(dedupWindow.findContactDuplicates).toHaveBeenCalledWith(
+      expect.objectContaining({ createdAfter: since }),
+    );
+    expect(out.is_duplicate).toBe(true);
+    expect(out.meta?.duplicate_of_id).toBe(42);
+  });
 });

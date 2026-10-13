@@ -113,6 +113,16 @@ export class LeadsWriteService {
         },
       );
       await this.timeline.recordLeadCreatedFromV1(lead);
+      const duplicateOf = Number(enriched.meta?.duplicate_of_id);
+      if (enriched.is_duplicate && Number.isFinite(duplicateOf) && duplicateOf > 0) {
+        const note = `Khách quay lại — lead #${lead.id} được gộp vào lead này.`;
+        await this.writeRepo
+          .insertSystemNote(duplicateOf, note, 'lead_return')
+          .catch(() => undefined);
+        await this.timeline
+          .recordLeadReturn({ leadId: duplicateOf, returnedLeadId: lead.id })
+          .catch(() => undefined);
+      }
       if (lead.owner_id != null && !enriched.is_duplicate) {
         const reason =
           String(enriched.meta?.assign_reason ?? '').trim() ||

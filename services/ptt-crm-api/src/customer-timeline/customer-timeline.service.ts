@@ -238,6 +238,36 @@ export class CustomerTimelineService {
     }
   }
 
+  async recordLeadReturn(input: {
+    leadId: number;
+    returnedLeadId: number;
+  }): Promise<CustomerTimelineEvent | null> {
+    if (!(await this.repo.tableReady())) return null;
+    const resolvedClientId = await this.resolveClientId(input.leadId);
+    try {
+      return await this.repo.insertEvent({
+        clientId: resolvedClientId,
+        entityType: TIMELINE_ENTITY.LEAD,
+        entityId: String(input.leadId),
+        eventType: TIMELINE_EVENT.ACTIVITY,
+        eventSource: 'system',
+        title: 'Khách quay lại',
+        body: `Số trùng trong cửa sổ gộp — lead #${input.returnedLeadId} được gắn vào lead này.`,
+        payload: {
+          entity_type: TIMELINE_ENTITY.LEAD,
+          entity_id: String(input.leadId),
+          action: 'lead_return',
+          returned_lead_id: input.returnedLeadId,
+        },
+        actorId: 'system',
+        externalRef: `lead-return:${input.leadId}:${input.returnedLeadId}`,
+      });
+    } catch (err) {
+      this.logMirrorError('recordLeadReturn', err);
+      return null;
+    }
+  }
+
   async recordPhoneView(input: {
     leadId: number;
     actorId?: string | null;

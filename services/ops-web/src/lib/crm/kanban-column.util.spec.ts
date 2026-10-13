@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isB2bLeadP1, sortKanbanLeads } from './kanban-column.util';
+import { isB2bLeadP1, kanbanPulse, showKanbanLeaderPulse, sortKanbanLeads } from './kanban-column.util';
 import type { LeadRow } from '@/lib/api';
 
 function lead(partial: Partial<LeadRow> & Pick<LeadRow, 'id'>): LeadRow {
@@ -36,5 +36,29 @@ describe('kanban column order', () => {
     expect(isB2bLeadP1(lead({ id: 2, ai_band: 'hot', sla_state: 'warning' }))).toBe(true);
     expect(isB2bLeadP1(lead({ id: 3, ai_band: 'hot', sla_state: 'ok' }))).toBe(false);
     expect(isB2bLeadP1(lead({ id: 4, ai_band: 'warm', sla_state: 'breach' }))).toBe(false);
+  });
+});
+
+describe('kanban pulse', () => {
+  it('counts late calls, callbacks today, and stale quotes', () => {
+    const pulse = kanbanPulse([
+      lead({ id: 1, status: 'moi', sla_state: 'breach' }),
+      lead({ id: 2, status: 'moi', sla_state: 'ok', callback_today: true }),
+      lead({ id: 3, status: 'bao_gia', sla_state: 'ok', quote_stale: true, stale: true }),
+      lead({ id: 4, status: 'da_lien_he', sla_state: 'ok' }),
+    ]);
+    expect(pulse).toMatchObject({
+      slaLate: 1,
+      callbackToday: 1,
+      quoteStale: 1,
+      stale: 1,
+      withinSlaPct: 75,
+      leftNewPct: 50,
+    });
+  });
+
+  it('hides leader metrics from a sales user', () => {
+    expect(showKanbanLeaderPulse(['sales'])).toBe(false);
+    expect(showKanbanLeaderPulse(['leader'])).toBe(true);
   });
 });

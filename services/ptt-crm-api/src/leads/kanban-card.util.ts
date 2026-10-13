@@ -19,6 +19,10 @@ export interface KanbanCardSettings {
   working_hours: WorkingHoursConfig;
   holidays: string[];
   priority: KanbanPriorityRules;
+  /** Calendar days a card may stand in a status before it is marked đứng yên. */
+  stale_days: Record<string, number>;
+  quote_stale_days: number;
+  dedupe_days: number;
 }
 
 export function defaultKanbanCardSettings(): KanbanCardSettings {
@@ -36,6 +40,15 @@ export function defaultKanbanCardSettings(): KanbanCardSettings {
       hot_min_score: 2,
       warm_min_score: 1,
     },
+    stale_days: {
+      moi: 1,
+      da_lien_he: 2,
+      dang_tu_van: 3,
+      bao_gia: 7,
+      nurture: 2,
+    },
+    quote_stale_days: 7,
+    dedupe_days: 30,
   };
 }
 
@@ -91,7 +104,64 @@ export function kanbanCardSettingsFromPayload(raw: unknown): KanbanCardSettings 
       hot_min_score: positive(priority.hot_min_score, seed.priority.hot_min_score),
       warm_min_score: positive(priority.warm_min_score, seed.priority.warm_min_score),
     },
+    stale_days: staleDayMap(kanban.stale_days, seed.stale_days),
+    quote_stale_days: positive(kanban.quote_stale_days, seed.quote_stale_days),
+    dedupe_days: positive(kanban.dedupe_days, seed.dedupe_days),
   };
+}
+
+function staleDayMap(raw: unknown, seed: Record<string, number>): Record<string, number> {
+  const out = { ...seed };
+  const obj = asObject(raw);
+  for (const [key, value] of Object.entries(obj)) {
+    const name = key.trim().toLowerCase();
+    const days = Number(value);
+    if (name && Number.isFinite(days) && days > 0) out[name] = days;
+  }
+  return out;
+}
+
+const QUOTED_STATUSES = new Set(['bao_gia', 'proposal', 'dam_phan']);
+
+export function kanbanStatusKey(status: string | null | undefined): string {
+  const value = String(status ?? '').trim().toLowerCase();
+  if (value === 'new' || value === 'first_contact') return 'moi';
+  if (value === 'proposal' || value === 'dam_phan') return 'bao_gia';
+  return value;
+}
+
+export function calendarDaysSince(from: Date | null, now: Date): number {
+  if (!from || Number.isNaN(from.getTime())) return 0;
+  return Math.max(0, Math.floor((now.getTime() - from.getTime()) / 86_400_000));
+}
+
+export function isKanbanStale(input: {
+  status?: string | null;
+  columnSince: Date | null;
+  now: Date;
+  settings: KanbanCardSettings;
+}): boolean {
+  const limit = input.settings.stale_days[kanbanStatusKey(input.status)];
+  if (!limit) return false;
+  return calendarDaysSince(input.columnSince, input.now) >= limit;
+}
+
+export function isQuoteStale(input: {
+  status?: string | null;
+  receivedAt: Date | null;
+  now: Date;
+  settings: KanbanCardSettings;
+}): boolean {
+  const status = String(input.status ?? '').trim().toLowerCase();
+  if (!QUOTED_STATUSES.has(status)) return false;
+  return calendarDaysSince(input.receivedAt, input.now) >= input.settings.quote_stale_days;
+}
+
+export function isCallbackToday(nextCallAt: Date | null, now: Date): boolean {
+  if (!nextCallAt || Number.isNaN(nextCallAt.getTime())) return false;
+  const day = (value: Date) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(value);
+  return day(nextCallAt) === day(now);
 }
 
 export function kanbanNeedText(meta: Record<string, unknown>): string {

@@ -2,6 +2,8 @@ import {
   computeKanbanFirstContactSla,
   computeKanbanPriority,
   defaultKanbanCardSettings,
+  isKanbanStale,
+  isQuoteStale,
   kanbanCallMayRevealPhone,
   kanbanCallOutcome,
   kanbanCardSettingsFromPayload,
@@ -139,5 +141,52 @@ describe('kanban call outcome', () => {
     expect(
       kanbanCallMayRevealPhone({ memberProjectPool: true, ownerId: 25, staffId: 25 }),
     ).toBe(true);
+  });
+});
+
+describe('kanban standing and quote age', () => {
+  const now = new Date('2026-10-13T04:00:00.000Z');
+
+  it('marks đứng yên from the published day count', () => {
+    const settings = kanbanCardSettingsFromPayload({
+      kanban: { stale_days: { dang_tu_van: 3 }, quote_stale_days: 5 },
+    });
+    expect(settings.dedupe_days).toBe(30);
+    expect(
+      isKanbanStale({
+        status: 'dang_tu_van',
+        columnSince: new Date('2026-10-10T04:00:00.000Z'),
+        now,
+        settings,
+      }),
+    ).toBe(true);
+    expect(
+      isKanbanStale({
+        status: 'dang_tu_van',
+        columnSince: new Date('2026-10-12T04:00:00.000Z'),
+        now,
+        settings,
+      }),
+    ).toBe(false);
+  });
+
+  it('marks a quote stale only after quote_stale_days', () => {
+    const settings = kanbanCardSettingsFromPayload({ kanban: { quote_stale_days: 7 } });
+    expect(
+      isQuoteStale({
+        status: 'bao_gia',
+        receivedAt: new Date('2026-10-01T04:00:00.000Z'),
+        now,
+        settings,
+      }),
+    ).toBe(true);
+    expect(
+      isQuoteStale({
+        status: 'dang_tu_van',
+        receivedAt: new Date('2026-10-01T04:00:00.000Z'),
+        now,
+        settings,
+      }),
+    ).toBe(false);
   });
 });

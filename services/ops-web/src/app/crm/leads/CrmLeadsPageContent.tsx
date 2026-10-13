@@ -76,7 +76,7 @@ import {
 import { readLeadsVisibleColumns, defaultB2bLeadsVisibleColumns, type LeadsColumnId } from '@/lib/crm/leads-columns';
 import { B2B_LEAD_ALERTS_CHANGED_EVENT } from '@/lib/b2b-lead-alerts-api';
 import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
-import { isB2bLeadP1 } from '@/lib/crm/kanban-column.util';
+import { isB2bLeadP1, kanbanPulse, showKanbanLeaderPulse } from '@/lib/crm/kanban-column.util';
 import {
   isLeadP1SavedView,
   leadP1Filters,
@@ -481,7 +481,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       if (document.visibilityState === 'visible') softReload();
     };
     const onAlertsChanged = () => softReload();
-    const timer = window.setInterval(softReload, 15_000);
+    const pollMs = flowScope === 'b2b_prospect' ? 30_000 : 15_000;
+    const timer = window.setInterval(softReload, pollMs);
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener(B2B_LEAD_ALERTS_CHANGED_EVENT, onAlertsChanged);
     return () => {
@@ -489,7 +490,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener(B2B_LEAD_ALERTS_CHANGED_EVENT, onAlertsChanged);
     };
-  }, [token, loadLeads]);
+  }, [token, loadLeads, flowScope]);
 
   useEffect(() => {
     if (!token || flowScope !== 'b2b_prospect') {
@@ -606,6 +607,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     [b2bP1, rows],
   );
   const visibleTotal = b2bP1 ? visibleRows.length : total;
+  const boardPulse = useMemo(() => kanbanPulse(visibleRows), [visibleRows]);
+  const leaderPulse = showKanbanLeaderPulse(user?.job_functions);
   const leadIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
   const signalKpis = useMemo(() => leadSignalKpis(visibleRows), [visibleRows]);
   const ownerNameById = useMemo(() => {
@@ -1179,6 +1182,20 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             await loadLeads(token, offset, query);
           }}
         >
+          {viewMode === 'kanban' && flowScope === 'b2b_prospect' ? (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <p className="canopy-next-action" role="status">
+                Bước tiếp: SLA trễ {boardPulse.slaLate} · Hẹn hôm nay {boardPulse.callbackToday} · Báo giá cũ{' '}
+                {boardPulse.quoteStale}
+              </p>
+              {leaderPulse ? (
+                <p className="muted">
+                  Trong SLA {boardPulse.withinSlaPct}% · Đã rời Mới {boardPulse.leftNewPct}% · Đứng yên{' '}
+                  {boardPulse.stale}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {viewMode === 'kanban' ? (
             <LeadKanbanBoard
               rows={visibleRows}

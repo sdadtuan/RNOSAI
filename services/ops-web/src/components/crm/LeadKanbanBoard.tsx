@@ -534,6 +534,7 @@ export function LeadKanbanBoard({
                             {initials}
                           </span>
                         ) : null}
+                        {b2b && lead.stale ? <span>ĐỨNG YÊN</span> : null}
                         {b2b ? <span>{stoodLabel(lead.column_minutes)}</span> : null}
                       </div>
                     </article>

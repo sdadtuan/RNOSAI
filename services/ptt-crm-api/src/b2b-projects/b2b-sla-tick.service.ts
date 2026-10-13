@@ -17,6 +17,7 @@ export class B2bSlaTickService {
 
   async tick(now: Date): Promise<{ processed: number; hopped: number; queued: number; aiStarted: number }> {
     await this.repo.remindDueNurtureCalls(now).catch(() => 0);
+    await this.repo.remindStaleKanban(now).catch(() => 0);
     if (!this.config.b2bProjectOs) {
       return { processed: 0, hopped: 0, queued: 0, aiStarted: 0 };
     }

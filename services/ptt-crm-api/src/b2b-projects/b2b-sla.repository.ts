@@ -1,6 +1,12 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import {
+  calendarDaysSince,
+  defaultKanbanCardSettings,
+  kanbanCardSettingsFromPayload,
+  kanbanStatusKey,
+} from '../leads/kanban-card.util';
 import type { AssignPoolMember } from './b2b-assign.util';
 import { assignPoolEligibleStaffSql, DEFAULT_SLA, slaHopStopCallResultSqlList } from './b2b-sla.util';
 import type { B2bProjectRow } from './b2b-projects.types';
@@ -80,6 +86,88 @@ export class B2bSlaRepository implements OnModuleDestroy {
         [leadId, 'Đến hạn gọi lại lead chăm sóc.'],
       );
       created += 1;
+    }
+    return created;
+  }
+
+  /** Mark cards that stood past settings.stale_days. Owner first, leader one day later. */
+  async remindStaleKanban(now = new Date()): Promise<number> {
+    let settings = defaultKanbanCardSettings();
+    try {
+      const payload = await this.db.query(
+        `SELECT payload FROM crm_lead_sla_settings WHERE tenant_id = 'default' LIMIT 1`,
+      );
+      if (payload.rows[0]) settings = kanbanCardSettingsFromPayload(payload.rows[0].payload);
+    } catch {
+      settings = defaultKanbanCardSettings();
+    }
+    const statuses = [
+      ...new Set([
+        ...Object.keys(settings.stale_days),
+        'new',
+        'first_contact',
+        'proposal',
+        'dam_phan',
+      ]),
+    ];
+    const due = await this.db.query(
+      `SELECT sqlite_lead_id, lower(status) AS status,
+              COALESCE(
+                CASE WHEN lower(status) IN ('moi', 'new', 'first_contact') THEN received_at ELSE updated_at END,
+                received_at,
+                created_at
+              ) AS stood_at
+       FROM crm_leads
+       WHERE COALESCE(is_duplicate, FALSE) IS NOT TRUE
+         AND COALESCE(meta_json->>'lead_flow_kind', '') IN ('b2b_prospect', 'b2b')
+         AND lower(status) = ANY($1::text[])
+       LIMIT 200`,
+      [statuses],
+    );
+    const staleRows = (due.rows as Array<{ sqlite_lead_id: number; status: string; stood_at: string }>).flatMap(
+      (row) => {
+        const limit = settings.stale_days[kanbanStatusKey(row.status)];
+        const stoodAt = row.stood_at ? new Date(row.stood_at) : null;
+        const age = calendarDaysSince(stoodAt, now);
+        if (!limit || age < limit) return [];
+        return [{ id: Number(row.sqlite_lead_id), leader: age >= limit + 1 }];
+      },
+    );
+    if (!staleRows.length) return 0;
+    const existing = await this.db.query(
+      `SELECT lead_id, next_action
+       FROM crm_lead_activities
+       WHERE lead_id = ANY($1::int[])
+         AND next_action IN ('stale_owner_remind', 'stale_leader_notify')`,
+      [staleRows.map((row) => row.id)],
+    );
+    const seen = new Set(
+      (existing.rows as Array<{ lead_id: number; next_action: string }>).map(
+        (row) => `${row.lead_id}:${row.next_action}`,
+      ),
+    );
+    let created = 0;
+    for (const row of staleRows) {
+      if (created >= 50) break;
+      if (!seen.has(`${row.id}:stale_owner_remind`)) {
+        await this.db.query(
+          `INSERT INTO crm_lead_activities (
+             lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+           ) VALUES ($1, 'note', $2, '', 'stale_owner_remind', NOW(), 'system', '')`,
+          [row.id, 'Lead đứng yên quá hạn. Nhắc người phụ trách.'],
+        );
+        created += 1;
+      }
+      if (created >= 50) break;
+      if (row.leader && !seen.has(`${row.id}:stale_leader_notify`)) {
+        await this.db.query(
+          `INSERT INTO crm_lead_activities (
+             lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+           ) VALUES ($1, 'note', $2, '', 'stale_leader_notify', NOW(), 'system', '')`,
+          [row.id, 'Lead đứng yên thêm 1 ngày. Nhắc leader.'],
+        );
+        created += 1;
+      }
     }
     return created;
   }

@@ -7,6 +7,9 @@ import {
   computeKanbanFirstContactSla,
   computeKanbanPriority,
   defaultKanbanCardSettings,
+  isCallbackToday,
+  isKanbanStale,
+  isQuoteStale,
   kanbanNeedText,
   type KanbanCardSettings,
 } from './kanban-card.util';
@@ -196,7 +199,19 @@ function buildB2bListExtras(
   row: PgLeadRow,
   meta: Record<string, unknown>,
   settings: KanbanCardSettings,
-): Pick<LeadV1, 'project_code' | 'ai_band' | 'sla_state' | 'sla_late_minutes' | 'column_minutes' | 'in_call'> {
+): Pick<
+  LeadV1,
+  | 'project_code'
+  | 'ai_band'
+  | 'sla_state'
+  | 'sla_late_minutes'
+  | 'column_minutes'
+  | 'stale'
+  | 'quote_stale'
+  | 'callback_today'
+  | 'next_call_at'
+  | 'in_call'
+> {
   const receivedAt = asDate(row.received_at) ?? asDate(row.created_at);
   const status = String(row.status ?? '').trim().toLowerCase();
   const stillNew = status === 'moi' || status === 'new' || status === 'first_contact';
@@ -226,6 +241,10 @@ function buildB2bListExtras(
     sla_state: sla.state,
     sla_late_minutes: sla.lateMinutes,
     column_minutes: sla.columnMinutes,
+    stale: isKanbanStale({ status: row.status, columnSince, now, settings }),
+    quote_stale: isQuoteStale({ status: row.status, receivedAt, now, settings }),
+    callback_today: isCallbackToday(asDate(row.next_call_at), now),
+    next_call_at: row.next_call_at ? String(row.next_call_at) : null,
     in_call: isB2bLeadInCall(row.b2b_call_state ? String(row.b2b_call_state) : null),
   };
 }

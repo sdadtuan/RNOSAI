@@ -73,10 +73,15 @@ export class LeadCreateEnrichmentService {
       });
     }
 
+    const createdAfter =
+      typeof this.dedup.contactDedupeSince === 'function'
+        ? await this.dedup.contactDedupeSince()
+        : undefined;
     const dupMatches = await this.dedup.findContactDuplicates({
       phone,
       email,
       b2bProjectId: b2bProjectId ?? undefined,
+      createdAfter,
     });
     const isDuplicate = dupMatches.length > 0;
     const duplicateOfId = isDuplicate ? dupMatches[0].lead_id : null;
