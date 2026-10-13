@@ -1,0 +1,63 @@
+.ae-team-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.ae-team-card {
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fff;
+}
+.ae-team-card strong {
+  display: block;
+  font-size: 1.25rem;
+}
+.ae-team-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.ae-team-table .ae-tone-green { background: #e7f6ec; }
+.ae-team-table .ae-tone-yellow { background: #fff6e0; }
+.ae-team-table .ae-tone-red { background: #fdecec; }
+.ae-team-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 72px;
+  overflow-x: auto;
+}
+.ae-team-bars span {
+  flex: 1 0 8px;
+  background: #17692f;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+}
+.ae-team-block { margin: 8px 0 16px; }
+.ae-team-drawer {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 20, 0.35);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 30;
+}
+.ae-team-drawer section {
+  width: min(440px, 100%);
+  background: #fff;
+  padding: 16px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ae-team-drawer label { display: flex; flex-direction: column; gap: 4px; }
+.ae-team-stage .ae-team-card strong { font-size: 2.4rem; }
+.ae-team-stage .table { font-size: 1.15rem; }
+@media (max-width: 900px) {
+  .ae-team-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

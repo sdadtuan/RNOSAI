@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { loadPausedIntakeStaffIds } from '../ae-team/ae-intake-gate';
 import {
   calendarDaysSince,
   defaultKanbanCardSettings,
@@ -170,6 +171,10 @@ export class B2bSlaRepository implements OnModuleDestroy {
       }
     }
     return created;
+  }
+
+  async listPausedIntakeStaffIds(): Promise<Set<number>> {
+    return loadPausedIntakeStaffIds((sql) => this.db.query(sql));
   }
 
   async loadAssignPool(

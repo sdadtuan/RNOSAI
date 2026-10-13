@@ -15,6 +15,7 @@ import { canViewEmailGateA, canViewEmailHub, canWriteEmailHub } from '@/lib/emai
 import { canViewMetaAdsOps, canViewMetaHub, canViewMetaIntelligence, canViewMetaTracking } from '@/lib/meta/caps';
 import { ceoCommandEnabled } from '@/lib/crm/ceo-command-flags';
 import { canSeeAmNav } from '@/lib/crm/am-nav.util';
+import { canSeeAeTeamNav } from '@/lib/crm/ae-team-nav.util';
 import { canSeeQtNav } from '@/lib/crm/qt-nav.util';
 import { resolvePresalesSolutionCaps } from '@/lib/crm/presales-solution-caps';
 import { canSeeP13Catalog, canSeeP13Pricing } from '@/lib/p13/flags';
@@ -193,6 +194,9 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   const sales: NavChild[] = [];
   if (hasCap(user, 'crm_leads', 'view')) {
     sales.push(child('sales-b2b', 'Lead B2B', '/crm/b2b/leads'));
+    if (canSeeAeTeamNav(user)) {
+      sales.push(child('sales-ae-team', 'Đội AE', '/crm/b2b/team'));
+    }
     sales.push(child('sales-inbox', 'Inbox B2B', '/crm/b2b-inbox'));
     if (hasCap(user, 'crm_presales_solution', 'view') || hasCap(user, 'crm_leads', 'view')) {
       const solLabel = resolvePresalesSolutionCaps(user).isAeTrackOnly

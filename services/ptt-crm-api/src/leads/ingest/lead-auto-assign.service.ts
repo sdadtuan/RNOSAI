@@ -4,6 +4,7 @@ import {
   leadAssignmentPoolKey,
   pickRoundRobinStaffId,
 } from './lead-assign-scope.util';
+import { staffIdsAcceptingIntake } from '../../ae-team/ae-team.util';
 import { IngestRulesSnapshot, LeadIngestRulesRepository } from './lead-ingest-rules.repository';
 
 const DEFAULT_SERVICE_SLUG = 'lead-gen';
@@ -40,7 +41,8 @@ export class LeadAutoAssignService {
     if (!snapshot || !this.isAutoAssignEnabled(snapshot)) return null;
 
     const preferId = input.preferOwnerId != null ? Number(input.preferOwnerId) : null;
-    if (preferId && preferId > 0) {
+    const paused = await this.pausedIntakeIds();
+    if (preferId && preferId > 0 && !paused.has(preferId)) {
       const staff = snapshot.staff_rows.find((row) => row.id === preferId && row.active);
       if (staff) {
         return {
@@ -69,6 +71,7 @@ export class LeadAutoAssignService {
     if (scopeIds) {
       candidates = candidates.filter((id) => scopeIds.has(id));
     }
+    candidates = staffIdsAcceptingIntake(candidates, paused);
     if (!candidates.length) return null;
 
     const ownerId = pickRoundRobinStaffId(candidates, poolKey, snapshot.assignment_state);
@@ -81,5 +84,15 @@ export class LeadAutoAssignService {
       strategy: 'round_robin',
       pool_key: poolKey,
     };
+  }
+
+  private async pausedIntakeIds(): Promise<Set<number>> {
+    const list = (this.rulesRepo as { listPausedIntakeStaffIds?: () => Promise<Set<number>> }).listPausedIntakeStaffIds;
+    if (typeof list !== 'function') return new Set();
+    try {
+      return await list.call(this.rulesRepo);
+    } catch {
+      return new Set();
+    }
   }
 }

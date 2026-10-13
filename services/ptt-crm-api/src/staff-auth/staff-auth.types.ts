@@ -37,6 +37,7 @@ export interface StaffMeResponse extends StaffUserProfile {
   has_avatar?: boolean;
   avatar_updated_at?: string | null;
   feature_flags?: { p13_enabled?: boolean };
+  ae_team_access?: 'none' | 'lead' | 'all';
 }
 
 export interface StaffRosterRow {

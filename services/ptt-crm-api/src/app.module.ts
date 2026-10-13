@@ -22,6 +22,7 @@ import { IntakeModule } from './intake/intake.module';
 import { CeoCommandModule } from './ceo-command/ceo-command.module';
 import { CsdModule } from './csd/csd.module';
 import { AmModule } from './am/am.module';
+import { AeTeamModule } from './ae-team/ae-team.module';
 import { CpModule } from './cp/cp.module';
 import { RevopsModule } from './revops/revops.module';
 import { IwrModule } from './iwr/iwr.module';
@@ -147,6 +148,7 @@ import { P13Module } from './p13/p13.module';
     CeoCommandModule,
     CsdModule,
     AmModule,
+    AeTeamModule,
     CpModule,
     RevopsModule,
     IwrModule,

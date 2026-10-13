@@ -73,7 +73,9 @@ export class B2bFirstAssignService {
   ) {}
 
   async assign(input: B2bFirstAssignInput): Promise<DecideFirstAssignResult> {
-    const pool = await this.repo.loadAssignPool(input.projectId);
+    const rawPool = await this.repo.loadAssignPool(input.projectId);
+    const paused = await this.pausedIntakeIds();
+    const pool = rawPool.filter((member) => !paused.has(member.staffId));
     const ctx: LeadRouteContext = {
       leadId: 0,
       clientId: null,
@@ -113,6 +115,16 @@ export class B2bFirstAssignService {
     );
 
     return decideFirstAssignWithAb({ timedOut, ml, pool, score: input.score, abBucket });
+  }
+
+  private async pausedIntakeIds(): Promise<Set<number>> {
+    const list = (this.repo as { listPausedIntakeStaffIds?: () => Promise<Set<number>> }).listPausedIntakeStaffIds;
+    if (typeof list !== 'function') return new Set();
+    try {
+      return await list.call(this.repo);
+    } catch {
+      return new Set();
+    }
   }
 
   async recordFirstAssignHop(input: {

@@ -415,6 +415,7 @@
       "admin"
     ],
     "crm_am": ["view", "view_all", "edit", "assign", "manage"],
+    "crm_ae_team": ["view", "manage", "view_all"],
     "crm_am.clients": ["view", "edit"],
     "crm_am.onboarding": ["view", "edit"],
     "crm_am.work": ["view", "edit"],
@@ -1364,6 +1365,13 @@
       "group": "CRM",
       "page": "/crm/account-management",
       "description": "AM post-contract: retain / renew / expand / health."
+    },
+    {
+      "id": "crm_ae_team",
+      "label": "Đội AE",
+      "group": "CRM",
+      "page": "/crm/b2b/team",
+      "description": "Trưởng team xem lead của AE trong team. Không gán cho ACM."
     },
     {
       "id": "crm_am.finance",
@@ -2540,6 +2548,7 @@
     "ceo_command",
     "csd",
     "crm_am",
+    "crm_ae_team",
     "crm_am.clients",
     "crm_am.onboarding",
     "crm_am.work",

@@ -453,6 +453,20 @@ export class StaffAuthService {
     } catch {
       p13Settings = {};
     }
+    let ae_team_access: 'none' | 'lead' | 'all' = 'none';
+    if (mergedCaps.some((cap) => cap.section === 'crm_ae_team' && cap.action === 'view_all')) {
+      ae_team_access = 'all';
+    } else {
+      try {
+        const lead = await this.db.query(
+          `SELECT 1 FROM staff_user_teams WHERE user_id = $1 AND team_role = 'lead' LIMIT 1`,
+          [accessPayload.sub],
+        );
+        if (lead.rows.length) ae_team_access = 'lead';
+      } catch {
+        ae_team_access = 'none';
+      }
+    }
     return {
       id: accessPayload.sub,
       email: accessPayload.email,
@@ -464,6 +478,7 @@ export class StaffAuthService {
       client_ids,
       caps: mergedCaps,
       feature_flags: { p13_enabled: p13Flag('ENABLED', process.env, p13Settings) },
+      ae_team_access,
     };
   }
 

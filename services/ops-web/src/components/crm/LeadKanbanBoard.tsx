@@ -157,12 +157,14 @@ export function LeadKanbanBoard({
   token,
   canChangeOwner = false,
   onLeadUpdated,
+  readOnly = false,
 }: {
   rows: LeadRow[];
   flowKind?: LeadFlowKind;
   token?: string;
   canChangeOwner?: boolean;
   onLeadUpdated?: () => void;
+  readOnly?: boolean;
 }) {
   const b2b = flowKind === 'b2b_prospect';
   const stages = statusOptionsForFlowKind(flowKind);
@@ -286,7 +288,7 @@ export function LeadKanbanBoard({
   function onDropLead(target: string, event: DragEvent) {
     event.preventDefault();
     setDragOver('');
-    if (!b2b) return;
+    if (!b2b || readOnly) return;
     const leadId = Number(event.dataTransfer.getData('text/plain'));
     const lead = rows.find((row) => row.id === leadId);
     if (!lead) return;
@@ -496,7 +498,7 @@ export function LeadKanbanBoard({
                       key={lead.id}
                       className={`crm-kanban-card${tone ? ` crm-kanban-card--${tone}` : ''}`}
                       data-testid={`kanban-card-${lead.id}`}
-                      draggable={b2b}
+                      draggable={b2b && !readOnly}
                       onDragStart={(event) => {
                         event.dataTransfer.setData('text/plain', String(lead.id));
                         event.dataTransfer.effectAllowed = 'move';
@@ -521,6 +523,7 @@ export function LeadKanbanBoard({
                         {lead.phone ? <span>{lead.phone}</span> : null}
                         {origin ? <span>· {origin}</span> : null}
                       </div>
+                      {readOnly ? null : (
                       <div className="crm-kanban-card__actions">
                         {actions.map((action) => (
                           <ActionButton
@@ -542,6 +545,7 @@ export function LeadKanbanBoard({
                           />
                         ))}
                       </div>
+                      )}
                       <div className="crm-kanban-card__footer">
                         <span>#{lead.id}</span>
                         <span>{formatWhen(lead.received_at || lead.created_at)}</span>

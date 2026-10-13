@@ -31,6 +31,7 @@ export interface StoredStaffUser {
   tenant?: string;
   locale?: string;
   feature_flags?: { p13_enabled?: boolean };
+  ae_team_access?: 'none' | 'lead' | 'all';
 }
 
 export function saveSession(

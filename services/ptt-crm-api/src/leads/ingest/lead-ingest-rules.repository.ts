@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
+import { loadPausedIntakeStaffIds } from '../../ae-team/ae-intake-gate';
 import { AppConfigService } from '../../config/app-config.service';
 import { AssignScopeRowLite } from './lead-assign-scope.util';
 
@@ -33,6 +34,10 @@ export class LeadIngestRulesRepository implements OnModuleDestroy {
   onModuleDestroy(): void {
     void this.pool?.end();
     this.pool = null;
+  }
+
+  async listPausedIntakeStaffIds(): Promise<Set<number>> {
+    return loadPausedIntakeStaffIds((sql) => this.db.query(sql));
   }
 
   async snapshotReady(): Promise<boolean> {
