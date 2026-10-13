@@ -77,6 +77,7 @@ import {
   BulkAssignLeadsBody,
   BulkAssignLeadsResult,
 } from './leads.types';
+import { kanbanCallMayRevealPhone, kanbanCallOutcome } from './kanban-card.util';
 
 @Controller('api/v1/leads')
 export class LeadsController {
@@ -687,6 +688,125 @@ export class LeadsController {
     return this.slaAutoTask.createReminder(id, body, actor, userId);
   }
 
+  /** Kanban Gọi ngay: log the full-number view, then store the required result. */
+  @Post(':id/kanban-call')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsWriteGuard, WriteEnabledGuard)
+  async kanbanCall(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      phase?: 'start' | 'result';
+      result?: 'answered' | 'no_answer' | 'wrong_number' | 'callback';
+      note?: string;
+      next_call_at?: string;
+    },
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    const lead = await this.leadsService.getLead(id);
+    if (!lead) throw new HttpException({ error: 'Not found' }, HttpStatus.NOT_FOUND);
+    const actor = this.leadActor(req);
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const viewerId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+      if (viewerId != null) {
+        await this.b2bLeadScope.assertLeadVisible({
+          staffId: viewerId,
+          caps: me.caps,
+          positionCode: me.position_code,
+          leadId: id,
+          lead: {
+            owner_id: lead.owner_id,
+            client_id: lead.client_id,
+            channel: lead.channel,
+            source: lead.source,
+            status: lead.status,
+            b2b_project_id: lead.b2b_project_id,
+            meta_json: { lead_flow_kind: lead.lead_flow_kind },
+          },
+        });
+      }
+    }
+    const staffId = await this.staffAuth.resolveCrmStaffUserId(req.staffUser);
+    if (staffId == null) {
+      throw new HttpException({ error: 'staff_required' }, HttpStatus.BAD_REQUEST);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser && this.appConfig.b2bProjectOs) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const scope = this.b2bLeadScope.buildListScope({
+        staffId,
+        caps: me.caps,
+        positionCode: me.position_code,
+      });
+      if (
+        !kanbanCallMayRevealPhone({
+          memberProjectPool: Boolean(scope.memberProjectPool),
+          ownerId: lead.owner_id,
+          staffId,
+        })
+      ) {
+        throw new ForbiddenException({
+          error: 'contact_hidden',
+          message: 'Số điện thoại của lead này đã được che.',
+        });
+      }
+    }
+    const phone = String(lead.phone ?? '').trim();
+    if (!phone) throw new HttpException({ error: 'missing_phone' }, HttpStatus.BAD_REQUEST);
+    const phase = body.phase === 'result' ? 'result' : 'start';
+    if (phase === 'start') {
+      await this.leadsWriteService.logKanbanCall(id, {
+        phase: 'start',
+        note: 'Bắt đầu gọi',
+        actor,
+      });
+      const email = String(req.staffUser?.email ?? actor);
+      await this.piiAudit
+        .logLeadPiiView({
+          actor_email: email,
+          actor_user_id: req.staffUser?.sub,
+          lead_id: id,
+          request_path: `/api/v1/leads/${id}/kanban-call`,
+        })
+        .catch(() => undefined);
+      return { phone, suggest_lost: false };
+    }
+    const result = String(body.result ?? '');
+    if (!['answered', 'no_answer', 'wrong_number', 'callback'].includes(result)) {
+      throw new HttpException({ error: 'call_result_required' }, HttpStatus.BAD_REQUEST);
+    }
+    const labels: Record<string, string> = {
+      answered: 'Nghe máy',
+      no_answer: 'Không nghe',
+      wrong_number: 'Sai số',
+      callback: 'Hẹn lại',
+    };
+    const note = String(body.note ?? '').trim();
+    await this.leadsWriteService.logKanbanCall(id, {
+      phase: 'result',
+      result,
+      note: [labels[result], note].filter(Boolean).join(' — '),
+      actor,
+    });
+    const outcome = kanbanCallOutcome(result);
+    const status = String(lead.status ?? '').trim().toLowerCase();
+    const stillNew = status === 'moi' || status === 'new' || status === 'first_contact';
+    if (outcome.nextStatus && stillNew) {
+      await this.leadsWriteService.patchLead(
+        id,
+        {
+          status: outcome.nextStatus,
+          audit_note: note || labels[result],
+          next_call_at: result === 'callback' ? body.next_call_at : undefined,
+        },
+        actor,
+      );
+    } else if (result === 'callback' && body.next_call_at) {
+      await this.leadsWriteService.patchLead(id, { next_call_at: body.next_call_at }, actor);
+    }
+    return { phone, suggest_lost: outcome.suggestLost };
+  }
+
   /** B2B softphone — mock CPaaS with tel: fallback when down. */
   @Post(':id/calls')
   @HttpCode(HttpStatus.OK)
@@ -727,6 +847,26 @@ export class LeadsController {
     const phone = String(lead.phone ?? '').trim();
     if (!phone) {
       throw new HttpException({ error: 'missing_phone' }, HttpStatus.BAD_REQUEST);
+    }
+    if (req.staffAuthVia !== 'internal' && req.staffUser && this.appConfig.b2bProjectOs) {
+      const me = await this.staffAuth.me(req.staffUser);
+      const scope = this.b2bLeadScope.buildListScope({
+        staffId,
+        caps: me.caps,
+        positionCode: me.position_code,
+      });
+      if (
+        !kanbanCallMayRevealPhone({
+          memberProjectPool: Boolean(scope.memberProjectPool),
+          ownerId: lead.owner_id,
+          staffId,
+        })
+      ) {
+        throw new ForbiddenException({
+          error: 'contact_hidden',
+          message: 'Số điện thoại của lead này đã được che.',
+        });
+      }
     }
     try {
       const out = await this.b2bCalls.startHumanCall({ leadId: id, staffId, phone });

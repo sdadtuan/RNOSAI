@@ -48,6 +48,8 @@ export interface LeadRow {
   project_code?: string | null;
   ai_band?: 'hot' | 'warm' | 'cold' | null;
   sla_state?: 'na' | 'ok' | 'warning' | 'breach' | null;
+  sla_late_minutes?: number | null;
+  column_minutes?: number | null;
   in_call?: boolean;
   expected_value?: number | null;
   margin_pct?: number | null;
@@ -1307,6 +1309,7 @@ export interface PatchLeadBody {
   owner_id?: number | null;
   status?: string;
   assigned_by?: string;
+  assign_reason?: string;
   audit_note?: string;
   company_name?: string;
   company_address?: string;
@@ -1376,6 +1379,31 @@ export async function patchLead(
     throw new ApiError(out.message || out.error || 'Lead update failed', res.status, out.error);
   }
   return out;
+}
+
+export async function postKanbanCall(
+  token: string,
+  id: number,
+  body: {
+    phase: 'start' | 'result';
+    result?: 'answered' | 'no_answer' | 'wrong_number' | 'callback';
+    note?: string;
+    next_call_at?: string;
+  },
+): Promise<{ phone: string; suggest_lost: boolean }> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/${id}/kanban-call`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const out = await parseJson<{ phone?: string; suggest_lost?: boolean; error?: string; message?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(out.message || out.error || 'Không ghi được cuộc gọi', res.status, out.error);
+  }
+  return { phone: String(out.phone ?? ''), suggest_lost: Boolean(out.suggest_lost) };
 }
 
 export interface LeadActivityRow {

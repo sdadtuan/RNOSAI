@@ -238,6 +238,36 @@ export class CustomerTimelineService {
     }
   }
 
+  async recordPhoneView(input: {
+    leadId: number;
+    actorId?: string | null;
+    clientId?: string | null;
+  }): Promise<CustomerTimelineEvent | null> {
+    if (!(await this.repo.tableReady())) return null;
+    const resolvedClientId = input.clientId ?? (await this.resolveClientId(input.leadId));
+    try {
+      return await this.repo.insertEvent({
+        clientId: resolvedClientId,
+        entityType: TIMELINE_ENTITY.LEAD,
+        entityId: String(input.leadId),
+        eventType: TIMELINE_EVENT.ACTIVITY,
+        eventSource: 'call',
+        title: 'Xem số điện thoại',
+        body: 'Mở số đầy đủ để gọi',
+        payload: {
+          entity_type: TIMELINE_ENTITY.LEAD,
+          entity_id: String(input.leadId),
+          action: 'phone_view',
+        },
+        actorId: input.actorId ?? null,
+        externalRef: `phone-view:${input.leadId}:${Date.now()}`,
+      });
+    } catch (err) {
+      this.logMirrorError('recordPhoneView', err);
+      return null;
+    }
+  }
+
   async recordStatusChange(input: {
     leadId: number;
     from: string | null | undefined;

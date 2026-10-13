@@ -25,6 +25,10 @@ export interface LeadV1 {
   project_code?: string | null;
   ai_band?: 'hot' | 'warm' | 'cold' | null;
   sla_state?: 'na' | 'ok' | 'warning' | 'breach' | null;
+  /** Working minutes past the first-contact limit. Null when the clock is not late. */
+  sla_late_minutes?: number | null;
+  /** Working minutes the card has stood in its current column. */
+  column_minutes?: number | null;
   in_call?: boolean;
   /** WIN-4-B — financial ABAC pilot (from meta_json.financial). */
   expected_value?: number | null;
@@ -93,6 +97,8 @@ export interface PgLeadRow {
   b2b_call_answered?: boolean | null;
   b2b_assigned_at?: Date | string | null;
   b2b_hop_count?: number | null;
+  last_call_at?: Date | string | null;
+  updated_at?: Date | string | null;
 }
 
 export type ReviewQueueListFilter = 'only' | 'hide';

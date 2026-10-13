@@ -1036,6 +1036,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
               rows={rows}
               flowKind={(flowKindFilter ?? 'b2b_prospect') as LeadFlowKind}
               token={token ?? undefined}
+              canChangeOwner={hasCap(user, 'crm_leads', 'assign')}
               onLeadUpdated={() => {
                 if (token) void loadLeads(token, 0, query, 'kanban');
               }}

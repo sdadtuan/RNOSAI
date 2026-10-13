@@ -1,3 +1,9 @@
+import {
+  defaultKanbanCardSettings,
+  kanbanCardSettingsFromPayload,
+  type KanbanCardSettings,
+} from '../leads/kanban-card.util';
+
 /** P10 §5.4 + §16 — default Lead FR SLA tenant payload. */
 
 export const LEAD_SLA_SETTINGS_SCHEMA_VERSION = 1;
@@ -47,10 +53,10 @@ export interface LeadSlaSettingsPayload {
     min_dry_run_days: number;
     dry_run_started_at: string | null;
   };
-  /** B2B kanban catalogs. Missing keys fall back to this seed at read time. */
+  /** B2B kanban catalogs and card clock. Missing keys fall back to this seed at read time. */
   kanban: {
     lost_reasons: Array<{ id: string; label: string; needs_note: boolean }>;
-  };
+  } & KanbanCardSettings;
   settings_version: number;
 }
 
@@ -112,6 +118,7 @@ export function defaultLeadSlaSettingsPayload(
         { id: 'unreachable', label: 'Không liên lạc được', needs_note: false },
         { id: 'other', label: 'Khác', needs_note: true },
       ],
+      ...defaultKanbanCardSettings(),
     },
     settings_version: settingsVersion,
   };
@@ -195,6 +202,7 @@ export function mergeLeadSlaSettingsPayload(
     },
     kanban: {
       lost_reasons: lostReasons.length > 0 ? lostReasons : base.kanban.lost_reasons,
+      ...kanbanCardSettingsFromPayload(o),
     },
     settings_version: Number(settingsVersion ?? o.settings_version ?? base.settings_version),
   };

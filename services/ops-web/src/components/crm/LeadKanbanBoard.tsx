@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useState, type DragEvent } from 'react';
 import type { LeadRow } from '@/lib/api';
-import { ApiError, fetchLeadStatusOptions, patchLead } from '@/lib/api';
+import { ApiError, fetchLeadStatusOptions, patchLead, postKanbanCall } from '@/lib/api';
+import { LeadKanbanCareDrawer } from '@/components/crm/LeadKanbanCareDrawer';
 import {
   kanbanCardActions,
   kanbanStageAccent,
@@ -56,24 +57,73 @@ function bandLabel(band: LeadRow['ai_band']): string | null {
   return null;
 }
 
-function slaLabel(sla: LeadRow['sla_state']): string | null {
+function legacySlaLabel(sla: LeadRow['sla_state']): string | null {
   if (sla === 'breach') return 'SLA trễ';
   if (sla === 'warning') return 'SLA gần';
   return null;
 }
 
+function slaLabel(lead: LeadRow): string | null {
+  if (lead.sla_state === 'breach') {
+    const minutes = Math.max(0, Math.round(Number(lead.sla_late_minutes ?? 0)));
+    if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      const rest = minutes % 60;
+      return rest ? `SLA trễ +${hours}h${rest}p` : `SLA trễ +${hours}h`;
+    }
+    return `SLA trễ +${minutes}p`;
+  }
+  if (lead.sla_state === 'warning') return 'Sắp trễ';
+  return null;
+}
+
+function stoodLabel(minutes: number | null | undefined): string | null {
+  if (minutes == null || !Number.isFinite(minutes)) return null;
+  const rounded = Math.max(0, Math.round(minutes));
+  if (rounded < 60) return `Đứng ${rounded}p`;
+  const hours = Math.floor(rounded / 60);
+  if (hours < 48) return `Đứng ${hours}h`;
+  return `Đứng ${Math.floor(hours / 24)} ngày`;
+}
+
+function ownerInitials(name: string | null | undefined): string {
+  const parts = String(name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return '';
+  return parts
+    .slice(-2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+}
+
+function phoneIsHidden(phone: string | null | undefined): boolean {
+  return /[*×]/.test(String(phone ?? ''));
+}
+
 function ActionButton({
   action,
   busy,
+  interceptBoard,
   onAction,
 }: {
   action: KanbanCardAction;
   busy: boolean;
+  interceptBoard?: boolean;
   onAction: (action: KanbanCardAction) => void;
 }) {
   const ctaClass = `btn btn-sm crm-kanban-card__cta crm-kanban-card__cta--${action.kind}${
     action.primary ? ' is-primary' : ''
   }`;
+  if (interceptBoard && (action.kind === 'call' || action.kind === 'care')) {
+    return (
+      <button type="button" className={ctaClass} disabled={busy} onClick={() => onAction(action)}>
+        {busy ? '…' : action.label}
+      </button>
+    );
+  }
   if (action.href?.startsWith('tel:')) {
     return (
       <a href={action.href} className={ctaClass}>
@@ -104,11 +154,13 @@ export function LeadKanbanBoard({
   rows,
   flowKind = 'b2b_prospect',
   token,
+  canChangeOwner = false,
   onLeadUpdated,
 }: {
   rows: LeadRow[];
   flowKind?: LeadFlowKind;
   token?: string;
+  canChangeOwner?: boolean;
   onLeadUpdated?: () => void;
 }) {
   const b2b = flowKind === 'b2b_prospect';
@@ -132,6 +184,12 @@ export function LeadKanbanBoard({
   const [lostReason, setLostReason] = useState(LOST_REASON_SEED[0].id);
   const [lostNote, setLostNote] = useState('');
   const [callbackAt, setCallbackAt] = useState('');
+  const [callLead, setCallLead] = useState<LeadRow | null>(null);
+  const [callPhone, setCallPhone] = useState('');
+  const [callResult, setCallResult] = useState<'answered' | 'no_answer' | 'wrong_number' | 'callback'>('answered');
+  const [callNote, setCallNote] = useState('');
+  const [callBackAt, setCallBackAt] = useState('');
+  const [careLead, setCareLead] = useState<LeadRow | null>(null);
 
   const columns = b2b
     ? B2B_KANBAN_COLUMNS.map((column) => ({
@@ -289,6 +347,62 @@ export function LeadKanbanBoard({
     }
   }
 
+  async function startCall(lead: LeadRow) {
+    if (!token) return;
+    if (phoneIsHidden(lead.phone)) {
+      setErr('Số của lead này đã được che.');
+      return;
+    }
+    setBusyId(lead.id);
+    setErr('');
+    try {
+      const out = await postKanbanCall(token, lead.id, { phase: 'start' });
+      const phone = out.phone || lead.phone;
+      setCallLead(lead);
+      setCallPhone(phone);
+      setCallResult('answered');
+      setCallNote('');
+      setCallBackAt('');
+      const dial = phone.replace(/[^\d+]/g, '');
+      window.setTimeout(() => {
+        window.location.href = `tel:${dial}`;
+      }, 50);
+      onLeadUpdated?.();
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Không mở được cuộc gọi');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function submitCall() {
+    if (!token || !callLead) return;
+    setBusyId(callLead.id);
+    setErr('');
+    try {
+      const out = await postKanbanCall(token, callLead.id, {
+        phase: 'result',
+        result: callResult,
+        note: callNote,
+        next_call_at:
+          callResult === 'callback' && callBackAt ? new Date(callBackAt).toISOString() : undefined,
+      });
+      const lead = callLead;
+      setCallLead(null);
+      onLeadUpdated?.();
+      if (out.suggest_lost) {
+        setLostReason('wrong_number');
+        await openLostModal(lead, 'Số sai. Có thể chuyển lead sang Thất bại.');
+      } else {
+        setMsg(`Đã ghi kết quả gọi cho #${lead.id}.`);
+      }
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Không lưu được kết quả gọi');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="crm-kanban" data-testid="crm-leads-kanban">
       {msg ? (
@@ -345,12 +459,21 @@ export function LeadKanbanBoard({
                 items.map((lead) => {
                   const band = lead.ai_band ?? null;
                   const actions = kanbanCardActions(lead);
-                  const sla = slaLabel(lead.sla_state);
+                  const sla = b2b ? slaLabel(lead) : legacySlaLabel(lead.sla_state);
                   const bandText = bandLabel(band);
+                  const tone = !b2b
+                    ? band
+                    : lead.sla_state === 'breach'
+                      ? 'late'
+                      : band === 'hot'
+                        ? 'hot'
+                        : 'plain';
+                  const origin = [lead.project_code, lead.source || lead.channel].filter(Boolean).join(' · ');
+                  const initials = ownerInitials(lead.owner_name);
                   return (
                     <article
                       key={lead.id}
-                      className={`crm-kanban-card${band ? ` crm-kanban-card--${band}` : ''}`}
+                      className={`crm-kanban-card${tone ? ` crm-kanban-card--${tone}` : ''}`}
                       data-testid={`kanban-card-${lead.id}`}
                       draggable={b2b}
                       onDragStart={(event) => {
@@ -375,7 +498,7 @@ export function LeadKanbanBoard({
                       </Link>
                       <div className="crm-kanban-card__meta">
                         {lead.phone ? <span>{lead.phone}</span> : null}
-                        {lead.project_code ? <span>· {lead.project_code}</span> : null}
+                        {origin ? <span>· {origin}</span> : null}
                       </div>
                       <div className="crm-kanban-card__actions">
                         {actions.map((action) => (
@@ -383,13 +506,30 @@ export function LeadKanbanBoard({
                             key={`${lead.id}-${action.kind}-${action.label}`}
                             action={action}
                             busy={busyId === lead.id}
-                            onAction={(a) => void runStatusAction(lead.id, a)}
+                            interceptBoard={b2b}
+                            onAction={(chosen) => {
+                              if (b2b && chosen.kind === 'call') {
+                                void startCall(lead);
+                                return;
+                              }
+                              if (b2b && chosen.kind === 'care') {
+                                setCareLead(lead);
+                                return;
+                              }
+                              void runStatusAction(lead.id, chosen);
+                            }}
                           />
                         ))}
                       </div>
                       <div className="crm-kanban-card__footer">
                         <span>#{lead.id}</span>
                         <span>{formatWhen(lead.received_at || lead.created_at)}</span>
+                        {b2b && initials ? (
+                          <span className="crm-kanban-card__avatar" title={lead.owner_name ?? ''}>
+                            {initials}
+                          </span>
+                        ) : null}
+                        {b2b ? <span>{stoodLabel(lead.column_minutes)}</span> : null}
                       </div>
                     </article>
                   );
@@ -458,6 +598,72 @@ export function LeadKanbanBoard({
             </div>
           </form>
         </div>
+      ) : null}
+      {callLead ? (
+        <div className="crm-kanban-modal" role="dialog" aria-modal="true" aria-label="Kết quả cuộc gọi">
+          <form
+            className="crm-kanban-modal__card"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitCall();
+            }}
+          >
+            <strong>{callLead.full_name || `Lead #${callLead.id}`}</strong>
+            <p className="muted" style={{ margin: 0 }}>
+              {callPhone} — chọn kết quả để đóng.
+            </p>
+            <label>
+              Kết quả
+              <select value={callResult} onChange={(event) => setCallResult(event.target.value as typeof callResult)}>
+                <option value="answered">Nghe máy</option>
+                <option value="no_answer">Không nghe</option>
+                <option value="wrong_number">Sai số</option>
+                <option value="callback">Hẹn lại</option>
+              </select>
+            </label>
+            {callResult === 'callback' ? (
+              <label>
+                Hẹn gọi lại
+                <input type="datetime-local" value={callBackAt} onChange={(event) => setCallBackAt(event.target.value)} />
+              </label>
+            ) : null}
+            <label>
+              Ghi chú
+              <textarea value={callNote} onChange={(event) => setCallNote(event.target.value)} rows={3} />
+            </label>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button type="submit" className="btn btn-sm" disabled={busyId != null}>
+                Lưu kết quả
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+      {careLead && token ? (
+        <LeadKanbanCareDrawer
+          lead={careLead}
+          token={token}
+          canChangeOwner={canChangeOwner}
+          onClose={() => setCareLead(null)}
+          onChanged={() => onLeadUpdated?.()}
+          onMove={(status) => {
+            const lead = careLead;
+            setCareLead(null);
+            if (status === 'lost') {
+              void openLostModal(lead, 'Chọn lý do thất bại.');
+              return;
+            }
+            if (status === 'nurture') {
+              setModal({ lead, target: 'nurture', kind: 'nurture', message: 'Chọn ngày hẹn gọi lại.' });
+              return;
+            }
+            if (status === 'bao_gia') {
+              setModal({ lead, target: 'bao_gia', kind: 'quote', message: 'Gắn link báo giá và giá trị.' });
+              return;
+            }
+            void moveLead(lead, status);
+          }}
+        />
       ) : null}
     </div>
   );

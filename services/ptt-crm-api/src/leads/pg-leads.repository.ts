@@ -8,6 +8,11 @@ import {
 } from '../leads-funnel/lead-flow-list-filter.util';
 import type { LeadClassificationConfig } from '../crm-config/lead-classification.types';
 import { LeadV1, ListLeadsQuery, PgLeadRow } from './leads.types';
+import {
+  defaultKanbanCardSettings,
+  kanbanCardSettingsFromPayload,
+  type KanbanCardSettings,
+} from './kanban-card.util';
 
 interface PgWhereClause {
   sql: string;
@@ -89,6 +94,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
               l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
               l.company_name, l.company_address, l.logo_asset_id,
+              l.last_call_at::text AS last_call_at, l.updated_at,
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
@@ -103,9 +109,10 @@ export class PgLeadsRepository implements OnModuleDestroy {
       listParams,
     );
 
+    const kanbanCard = b2bList ? await this.loadKanbanCardSettings() : null;
     return {
       leads: listResult.rows.map((row) =>
-        pgRowToV1(row as PgLeadRow, { classification: classification ?? null }),
+        pgRowToV1(row as PgLeadRow, { classification: classification ?? null, kanbanCard }),
       ),
       total,
     };
@@ -121,6 +128,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
               l.external_lead_id, l.campaign_id, l.received_at, l.created_at,
               l.b2b_project_id::text, l.owner_company_id::text, l.assign_strategy,
               l.company_name, l.company_address, l.logo_asset_id,
+              l.last_call_at::text AS last_call_at, l.updated_at,
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
@@ -133,7 +141,9 @@ export class PgLeadsRepository implements OnModuleDestroy {
       [leadId],
     );
     const row = result.rows[0] as PgLeadRow | undefined;
-    return row ? pgRowToV1(row, { classification: classification ?? null }) : null;
+    if (!row) return null;
+    const kanbanCard = await this.loadKanbanCardSettings();
+    return pgRowToV1(row, { classification: classification ?? null, kanbanCard });
   }
 
   async listUnassignedB2bLeads(projectId: string, limit: number): Promise<LeadV1[]> {
@@ -155,6 +165,18 @@ export class PgLeadsRepository implements OnModuleDestroy {
       [projectId, limit],
     );
     return (result.rows as PgLeadRow[]).map((row) => pgRowToV1(row));
+  }
+
+  private async loadKanbanCardSettings(): Promise<KanbanCardSettings> {
+    try {
+      const result = await this.db.query(
+        `SELECT payload FROM crm_lead_sla_settings WHERE is_active IS TRUE ORDER BY id DESC LIMIT 1`,
+      );
+      const payload = result.rows[0]?.payload;
+      return kanbanCardSettingsFromPayload(payload);
+    } catch {
+      return defaultKanbanCardSettings();
+    }
   }
 
   private buildWhere(query: ListLeadsQuery): PgWhereClause {

@@ -2,18 +2,20 @@ import { LeadRow, LeadV1, PgLeadRow } from './leads.types';
 import { formatLeadTs } from './lead-ts.format';
 import { reviewQueuePublicState } from '../leads-funnel/review-queue.util';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
+import { isB2bLeadInCall, resolveLeadScoreForBand } from '../b2b-projects/b2b-lead-list.util';
 import {
-  computeB2bAiBand,
-  computeB2bSlaState,
-  isB2bInHoursNow,
-  isB2bLeadInCall,
-  resolveLeadScoreForBand,
-} from '../b2b-projects/b2b-lead-list.util';
+  computeKanbanFirstContactSla,
+  computeKanbanPriority,
+  defaultKanbanCardSettings,
+  kanbanNeedText,
+  type KanbanCardSettings,
+} from './kanban-card.util';
 import { prefillCompanyName } from './lead-party.util';
 import type { LeadClassificationConfig } from '../crm-config/lead-classification.types';
 
 export type LeadV1MapperOptions = {
   classification?: LeadClassificationConfig | null;
+  kanbanCard?: KanbanCardSettings | null;
 };
 
 function parseMeta(raw: string | null | undefined): Record<string, unknown> {
@@ -147,7 +149,7 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
 
   const b2bExtras =
     row.b2b_project_id || flowKind === 'b2b_prospect' || score != null
-      ? buildB2bListExtras(row, meta, score)
+      ? buildB2bListExtras(row, meta, options?.kanbanCard ?? defaultKanbanCardSettings())
       : {};
 
   return {
@@ -184,35 +186,46 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
   };
 }
 
+function asDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function buildB2bListExtras(
   row: PgLeadRow,
   meta: Record<string, unknown>,
-  score: number | null,
-): Pick<LeadV1, 'project_code' | 'ai_band' | 'sla_state' | 'in_call'> {
-  const assignedRaw =
-    row.b2b_assigned_at ??
-    (metaString(meta, 'auto_assigned_at') ? metaString(meta, 'auto_assigned_at') : null) ??
-    row.first_assigned_at ??
-    row.received_at ??
-    row.created_at;
-  const assignedDt = assignedRaw ? new Date(String(assignedRaw)) : null;
-  const elapsedMin =
-    assignedDt && !Number.isNaN(assignedDt.getTime())
-      ? Math.max(0, (Date.now() - assignedDt.getTime()) / 60_000)
-      : 0;
-  const hasCall = Boolean(row.b2b_has_call);
+  settings: KanbanCardSettings,
+): Pick<LeadV1, 'project_code' | 'ai_band' | 'sla_state' | 'sla_late_minutes' | 'column_minutes' | 'in_call'> {
+  const receivedAt = asDate(row.received_at) ?? asDate(row.created_at);
+  const status = String(row.status ?? '').trim().toLowerCase();
+  const stillNew = status === 'moi' || status === 'new' || status === 'first_contact';
+  const columnSince = stillNew ? receivedAt : asDate(row.updated_at) ?? receivedAt;
   const answered = Boolean(row.b2b_call_answered ?? metaString(meta, 'b2b_call_answered') === 'true');
+  const hasCall = Boolean(row.b2b_has_call) || Boolean(row.last_call_at) || answered;
+  const now = new Date();
+  const sla = computeKanbanFirstContactSla({
+    status: row.status,
+    receivedAt,
+    columnSince,
+    hasCall,
+    now,
+    settings,
+  });
 
   return {
     project_code: row.project_code ? String(row.project_code) : null,
-    ai_band: computeB2bAiBand(score),
-    sla_state: computeB2bSlaState({
-      score,
-      elapsedMin,
-      hasCallActivity: hasCall,
-      answered,
-      inHours: isB2bInHoursNow(),
+    ai_band: computeKanbanPriority({
+      source: row.source,
+      channel: row.channel,
+      need: kanbanNeedText(meta),
+      receivedAt,
+      now,
+      settings,
     }),
+    sla_state: sla.state,
+    sla_late_minutes: sla.lateMinutes,
+    column_minutes: sla.columnMinutes,
     in_call: isB2bLeadInCall(row.b2b_call_state ? String(row.b2b_call_state) : null),
   };
 }

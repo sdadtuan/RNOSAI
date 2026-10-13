@@ -142,6 +142,32 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
     }
   }
 
+  async markKanbanCall(
+    leadId: number,
+    input: { phase: 'start' | 'result'; result?: string; note: string; actor: string },
+  ): Promise<void> {
+    if (input.phase === 'start') {
+      await this.db.query(
+        `UPDATE crm_leads
+         SET last_call_at = NOW(),
+             call_attempt_count = COALESCE(call_attempt_count, 0) + 1,
+             updated_at = NOW()
+         WHERE sqlite_lead_id = $1`,
+        [leadId],
+      );
+    } else {
+      await this.db.query(
+        `UPDATE crm_leads
+         SET last_call_at = COALESCE(last_call_at, NOW()),
+             last_call_result = $2,
+             updated_at = NOW()
+         WHERE sqlite_lead_id = $1`,
+        [leadId, String(input.result ?? '').slice(0, 80)],
+      );
+    }
+    await this.insertContactActivity(leadId, input.note, input.actor);
+  }
+
   async insertContactActivity(leadId: number, content: string, actor: string): Promise<void> {
     await this.db.query(
       `INSERT INTO crm_lead_activities (

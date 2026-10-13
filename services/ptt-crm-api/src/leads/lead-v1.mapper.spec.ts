@@ -176,8 +176,8 @@ describe('pgRowToV1', () => {
       channel: 'meta',
       external_lead_id: 'fb-new',
       campaign_id: null,
-      received_at: new Date('2026-09-14T00:00:00.000Z'),
-      created_at: new Date('2026-09-14T00:00:00.000Z'),
+      received_at: new Date(),
+      created_at: new Date(),
     };
     const out = pgRowToV1(row);
     expect(out.lead_flow_kind).toBe('b2b_prospect');
@@ -211,7 +211,7 @@ describe('pgRowToV1', () => {
     };
     const out = pgRowToV1(row);
     expect(out.in_call).toBe(true);
-    expect(out.ai_band).toBe('hot');
+    expect(out.ai_band).toBe('warm');
     expect(out.project_code).toBe('demo');
   });
 });

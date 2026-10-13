@@ -151,6 +151,16 @@ export class LeadsWriteService {
     }
   }
 
+  async logKanbanCall(
+    leadId: number,
+    input: { phase: 'start' | 'result'; result?: string; note: string; actor: string },
+  ): Promise<void> {
+    await this.writeRepo.markKanbanCall(leadId, input);
+    if (input.phase === 'start') {
+      await this.timeline.recordPhoneView({ leadId, actorId: input.actor });
+    }
+  }
+
   async patchLead(
     leadId: number,
     body: PatchLeadV1Body,
