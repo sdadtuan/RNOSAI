@@ -7,6 +7,8 @@ export interface B2bVisibilityActor {
   isActivePttStaff: boolean;
   /** Account Manager sees every lead on a project they belong to. */
   seesMemberProjectPool?: boolean;
+  /** Account Manager sees every B2B lead, including leads outside their projects. */
+  seesAllB2bLeads?: boolean;
 }
 
 export interface B2bLeadScopeRow {
@@ -31,6 +33,7 @@ export function canSeeB2bLead(
   if (lead.flowKind !== 'b2b_prospect') return false;
   if (actor.hasViewAllLeads || actor.isDirector) return true;
   if (!actor.isActivePttStaff) return false;
+  if (actor.seesAllB2bLeads) return true;
   // AE / sales: only leads assigned to them.
   if (lead.ownerId != null && Number(lead.ownerId) === Number(actor.staffId)) return true;
   if (!lead.projectId) return false;

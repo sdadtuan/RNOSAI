@@ -50,6 +50,20 @@ describe('lead-flow-list-filter.util', () => {
     expect(sql).not.toContain('project_manager');
   });
 
+  it('account manager sees every b2b lead while the staff row is active', () => {
+    const sql = buildB2bListScopeClause(
+      'postgres',
+      'l',
+      { staffId: 25, viewAll: false, isDirector: false, seesAllB2b: true, memberProjectPool: true },
+      '$1',
+    );
+    expect(sql).toContain('EXISTS');
+    expect(sql).toContain('crm_staff st');
+    expect(sql).toContain('st.id = $1');
+    expect(sql).not.toContain('l.owner_id');
+    expect(sql).not.toContain('crm_b2b_project_staff');
+  });
+
   it('skips b2b scope clause for view-all', () => {
     const sql = buildB2bListScopeClause(
       'postgres',

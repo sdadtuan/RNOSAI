@@ -34,6 +34,7 @@ export interface B2bListScope {
   viewAll: boolean;
   isDirector: boolean;
   memberProjectPool?: boolean;
+  seesAllB2b?: boolean;
 }
 
 @Injectable()
@@ -47,11 +48,13 @@ export class B2bLeadScopeService {
   }): B2bListScope {
     const viewAll = hasGdkdViewAllLeads(input.caps);
     const isDirector = isB2bDirectorPosition(input.positionCode);
+    const accountManager = isAccountManagerPosition(input.positionCode) && !viewAll && !isDirector;
     return {
       staffId: input.staffId,
       viewAll,
       isDirector,
-      memberProjectPool: isAccountManagerPosition(input.positionCode) && !viewAll && !isDirector,
+      memberProjectPool: accountManager,
+      seesAllB2b: accountManager,
     };
   }
 
@@ -85,6 +88,7 @@ export class B2bLeadScopeService {
       isActivePttStaff: resolveIsActivePttStaff(staff),
       seesMemberProjectPool:
         isAccountManagerPosition(input.positionCode) && !hasViewAllLeads,
+      seesAllB2bLeads: isAccountManagerPosition(input.positionCode) && !hasViewAllLeads,
     };
   }
 

@@ -11,6 +11,12 @@ export function isAccountExecutive(user: StoredStaffUser | null): boolean {
   return code === 'ae' || code.startsWith('ae-') || code.startsWith('ae_');
 }
 
+/** Account Manager desk. KD-01 is the handover alias of ACM. */
+export function isAccountManager(user: StoredStaffUser | null): boolean {
+  const code = norm(user?.position_code).replace(/\s+/g, '');
+  return code === 'acm' || code === 'kd-01' || code === 'kd01';
+}
+
 function actorIsViewer(actor: string, user: StoredStaffUser): boolean {
   const value = norm(actor);
   if (!value) return false;

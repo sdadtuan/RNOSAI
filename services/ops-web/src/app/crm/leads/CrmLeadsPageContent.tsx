@@ -50,6 +50,7 @@ import {
   updateStoredUser,
   type StoredStaffUser,
 } from '@/lib/auth';
+import { isAccountManager } from '@/lib/crm/lead-ae-visibility';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 import { leadSignalKpis } from '@/lib/crm/lead-signal-kpis';
 import {
@@ -191,6 +192,11 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       (hasCap(user, 'crm_leads', 'assign') || hasCap(user, 'crm_leads', 'edit')),
     [user, canViewAllLeads],
   );
+  /** ACM browses the whole B2B book. Assign and GDKD desks stay on canViewAllLeads. */
+  const browsesAllB2bLeads = useMemo(
+    () => flowScope === 'b2b_prospect' && isAccountManager(user) && !canViewAllLeads,
+    [flowScope, user, canViewAllLeads],
+  );
 
   const myCrmStaffId = useMemo(() => {
     const email = (user?.email ?? '').trim().toLowerCase();
@@ -249,7 +255,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       try {
         const p1 = isLeadP1SavedView(savedView);
         const p1Filters = p1 ? leadP1Filters() : null;
-        const scopedMine = !canViewAllLeads || listTab === 'mine';
+        const scopedMine = (!canViewAllLeads && !browsesAllB2bLeads) || listTab === 'mine';
         const ownerId =
           scopedMine && myCrmStaffId != null ? myCrmStaffId : undefined;
         const kanban = mode === 'kanban';
@@ -279,7 +285,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         if (!silent) setLoading(false);
       }
     },
-    [canViewAllLeads, filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, myCrmStaffId, savedView, viewMode],
+    [browsesAllB2bLeads, canViewAllLeads, filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, myCrmStaffId, savedView, viewMode],
   );
 
   useEffect(() => {
@@ -311,10 +317,14 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   }, [flowScope]);
 
   useEffect(() => {
+    if (browsesAllB2bLeads) {
+      if (listTab !== 'all') setListTab('all');
+      return;
+    }
     if (!canViewAllLeads && listTab !== 'mine') {
       setListTab('mine');
     }
-  }, [canViewAllLeads, listTab]);
+  }, [browsesAllB2bLeads, canViewAllLeads, listTab]);
 
   useEffect(() => {
     if (!urlReadyRef.current) return;
@@ -661,9 +671,11 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             <LeadsPhoneFilterSheet
               q={q}
               onQChange={setQ}
-              listTab={listTab}
+              listTab={browsesAllB2bLeads ? 'all' : listTab}
               canViewAllLeads={canViewAllLeads}
+              browsesAllB2bLeads={browsesAllB2bLeads}
               onOwnerChange={(id) => {
+                if (browsesAllB2bLeads) return;
                 if (!canViewAllLeads && id !== 'mine') return;
                 setListTab(id);
                 setOffset(0);
@@ -819,10 +831,13 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
                   { id: 'mine', label: 'Của tôi' },
                   { id: 'unassigned', label: 'Chưa phân' },
                 ]
-              : [{ id: 'mine', label: 'Của tôi' }]
+              : browsesAllB2bLeads
+                ? [{ id: 'all', label: 'Tất cả' }]
+                : [{ id: 'mine', label: 'Của tôi' }]
           }
-          value={canViewAllLeads ? listTab : 'mine'}
+          value={canViewAllLeads ? listTab : browsesAllB2bLeads ? 'all' : 'mine'}
           onChange={(id) => {
+            if (browsesAllB2bLeads) return;
             if (!canViewAllLeads && id !== 'mine') return;
             setListTab(id);
             setOffset(0);

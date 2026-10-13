@@ -68,9 +68,11 @@ export interface B2bListScopeInput {
   isDirector: boolean;
   /** Account Manager: project membership of any role, not only project_manager. */
   memberProjectPool?: boolean;
+  /** Account Manager sees every B2B lead. Contact masking still uses memberProjectPool. */
+  seesAllB2b?: boolean;
 }
 
-/** B2B list visibility — AE/sales: own owner_id only; AM: any project they belong to; PM: project pool; view-all/director: empty. */
+/** B2B list visibility — AE/sales: own owner_id only; AM: every B2B lead; PM: project pool; view-all/director: empty. */
 export function buildB2bListScopeClause(
   dialect: SqlDialect,
   alias: string,
@@ -78,6 +80,16 @@ export function buildB2bListScopeClause(
   staffParam: string,
 ): string {
   if (scope.viewAll || scope.isDirector) return '';
+  if (scope.seesAllB2b) {
+    const active =
+      dialect === 'postgres'
+        ? `COALESCE(st.active, FALSE) IS TRUE`
+        : `COALESCE(st.active, 0) = 1`;
+    return `EXISTS (
+      SELECT 1 FROM crm_staff st
+      WHERE st.id = ${staffParam} AND ${active}
+    )`;
+  }
   const b2b = buildB2bProspectListFilter(dialect, alias);
   const projectCol =
     dialect === 'postgres'

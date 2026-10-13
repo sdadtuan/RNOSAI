@@ -13,6 +13,7 @@ type LeadsPhoneFilterSheetProps = {
   onQChange: (value: string) => void;
   listTab: OwnerTab;
   canViewAllLeads: boolean;
+  browsesAllB2bLeads?: boolean;
   onOwnerChange: (id: OwnerTab) => void;
   showKind: boolean;
   leadKind: LeadKind;
@@ -39,6 +40,7 @@ export function LeadsPhoneFilterSheet({
   onQChange,
   listTab,
   canViewAllLeads,
+  browsesAllB2bLeads = false,
   onOwnerChange,
   showKind,
   leadKind,
@@ -82,9 +84,11 @@ export function LeadsPhoneFilterSheet({
                     { id: 'mine' as const, label: 'Của tôi' },
                     { id: 'unassigned' as const, label: 'Chưa phân' },
                   ]
-                : [{ id: 'mine' as const, label: 'Của tôi' }]
+                : browsesAllB2bLeads
+                  ? [{ id: 'all' as const, label: 'Tất cả' }]
+                  : [{ id: 'mine' as const, label: 'Của tôi' }]
             }
-            value={canViewAllLeads ? listTab : 'mine'}
+            value={canViewAllLeads ? listTab : browsesAllB2bLeads ? 'all' : 'mine'}
             onChange={onOwnerChange}
           />
           {showKind ? (

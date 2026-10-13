@@ -85,6 +85,26 @@ describe('canSeeB2bLead', () => {
     ).toBe(false);
   });
 
+  it('account manager sees a b2b lead outside their projects', () => {
+    const am = { ...memberOn, seesAllB2bLeads: true };
+    expect(
+      canSeeB2bLead(am, { flowKind: 'b2b_prospect', ownerId: 11, projectId: 'other' }, []),
+    ).toBe(true);
+    expect(
+      canSeeB2bLead(am, { flowKind: 'b2b_prospect', ownerId: null, projectId: null }, []),
+    ).toBe(true);
+    expect(
+      canSeeB2bLead(
+        { ...am, isActivePttStaff: false },
+        { flowKind: 'b2b_prospect', ownerId: 11, projectId: 'other' },
+        [],
+      ),
+    ).toBe(false);
+    expect(
+      canSeeB2bLead(memberOn, { flowKind: 'b2b_prospect', ownerId: 11, projectId: project }, []),
+    ).toBe(false);
+  });
+
   it('account manager sees every lead on a project they belong to', () => {
     const mem = [{ projectId: project, assignEnabled: true, role: 'sales' as const }];
     const am = { ...memberOn, seesMemberProjectPool: true };

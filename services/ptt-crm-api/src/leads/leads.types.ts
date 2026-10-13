@@ -127,6 +127,7 @@ export interface ListLeadsQuery {
     viewAll: boolean;
     isDirector: boolean;
     memberProjectPool?: boolean;
+    seesAllB2b?: boolean;
   };
 }
 
