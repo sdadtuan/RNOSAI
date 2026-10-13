@@ -11,6 +11,9 @@ export interface LeadsListUrlState {
   channel: string;
   q: string;
   savedView: string;
+  receivedFrom: string;
+  receivedTo: string;
+  assignee: string;
 }
 
 export interface LeadsFilterChip {
@@ -48,6 +51,9 @@ export function parseLeadsListUrl(
     channel: searchParams.get('channel')?.trim() ?? '',
     q: searchParams.get('q')?.trim() ?? '',
     savedView: searchParams.get('view')?.trim() ?? '',
+    receivedFrom: searchParams.get('from')?.trim() ?? '',
+    receivedTo: searchParams.get('to')?.trim() ?? '',
+    assignee: searchParams.get('assignee')?.trim() ?? '',
   };
 }
 
@@ -61,6 +67,9 @@ export function buildLeadsListSearchParams(
   if (state.source) params.set('source', state.source);
   if (state.channel) params.set('channel', state.channel);
   if (state.savedView) params.set('view', state.savedView);
+  if (state.receivedFrom) params.set('from', state.receivedFrom);
+  if (state.receivedTo) params.set('to', state.receivedTo);
+  if (state.assignee) params.set('assignee', state.assignee);
   if (state.owner === 'mine') params.set('owner', 'me');
   else if (state.owner === 'unassigned') params.set('owner', 'unassigned');
   if (flowScope !== 'b2b_prospect') {
@@ -85,6 +94,7 @@ export function buildLeadsFilterChips(
     statusLabel?: (key: string) => string;
     sourceLabel?: (key: string) => string;
     channelLabel?: (key: string) => string;
+    assigneeLabel?: (id: string) => string;
   },
 ): LeadsFilterChip[] {
   const chips: LeadsFilterChip[] = [];
@@ -116,6 +126,18 @@ export function buildLeadsFilterChips(
   if (state.savedView === 'p1') {
     chips.push({ id: 'view', label: 'Lead P1' });
   }
+  if (state.receivedFrom || state.receivedTo) {
+    chips.push({
+      id: 'dates',
+      label: `Ngày: ${state.receivedFrom || '…'} → ${state.receivedTo || '…'}`,
+    });
+  }
+  if (state.assignee) {
+    chips.push({
+      id: 'assignee',
+      label: `Phụ trách: ${labels.assigneeLabel?.(state.assignee) ?? state.assignee}`,
+    });
+  }
   return chips;
 }
 
@@ -138,6 +160,10 @@ export function clearLeadsFilterField(
       return { ...state, channel: '' };
     case 'view':
       return { ...state, savedView: '' };
+    case 'dates':
+      return { ...state, receivedFrom: '', receivedTo: '' };
+    case 'assignee':
+      return { ...state, assignee: '' };
     default:
       return state;
   }
@@ -155,5 +181,56 @@ export function clearAllLeadsFilters(
     channel: '',
     q: '',
     savedView: '',
+    receivedFrom: '',
+    receivedTo: '',
+    assignee: '',
   };
+}
+
+const FILTER_STORAGE_PREFIX = 'rnosai.b2b.leads.filters.';
+
+export function leadsFilterStorageKey(userId: string): string {
+  return `${FILTER_STORAGE_PREFIX}${userId}`;
+}
+
+export function readSavedLeadsFilters(userId: string): LeadsListUrlState | null {
+  if (typeof window === 'undefined' || !userId) return null;
+  try {
+    const raw = window.localStorage.getItem(leadsFilterStorageKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<LeadsListUrlState>;
+    return {
+      owner: parsed.owner === 'mine' || parsed.owner === 'unassigned' ? parsed.owner : 'all',
+      kind: parsed.kind === 'review' || parsed.kind === 'pipeline' ? parsed.kind : 'all',
+      status: String(parsed.status ?? ''),
+      source: String(parsed.source ?? ''),
+      channel: String(parsed.channel ?? ''),
+      q: String(parsed.q ?? ''),
+      savedView: String(parsed.savedView ?? ''),
+      receivedFrom: String(parsed.receivedFrom ?? ''),
+      receivedTo: String(parsed.receivedTo ?? ''),
+      assignee: String(parsed.assignee ?? ''),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeSavedLeadsFilters(userId: string, state: LeadsListUrlState): void {
+  if (typeof window === 'undefined' || !userId) return;
+  window.localStorage.setItem(leadsFilterStorageKey(userId), JSON.stringify(state));
+}
+
+export function leadsFiltersAreEmpty(state: LeadsListUrlState): boolean {
+  return (
+    !state.q &&
+    !state.status &&
+    !state.source &&
+    !state.channel &&
+    !state.savedView &&
+    !state.receivedFrom &&
+    !state.receivedTo &&
+    !state.assignee &&
+    state.owner === 'all'
+  );
 }

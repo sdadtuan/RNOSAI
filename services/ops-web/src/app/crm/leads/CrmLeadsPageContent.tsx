@@ -66,12 +66,17 @@ import {
   buildLeadsListSearchParams,
   clearAllLeadsFilters,
   clearLeadsFilterField,
+  leadsFiltersAreEmpty,
   ownerParamToListTab,
   parseLeadsListUrl,
+  readSavedLeadsFilters,
+  writeSavedLeadsFilters,
+  type LeadsListUrlState,
 } from '@/lib/crm/leads-list-url';
 import { readLeadsVisibleColumns, defaultB2bLeadsVisibleColumns, type LeadsColumnId } from '@/lib/crm/leads-columns';
 import { B2B_LEAD_ALERTS_CHANGED_EVENT } from '@/lib/b2b-lead-alerts-api';
 import { fetchB2bProjects, type B2bProjectListItem } from '@/lib/b2b-projects-api';
+import { isB2bLeadP1 } from '@/lib/crm/kanban-column.util';
 import {
   isLeadP1SavedView,
   leadP1Filters,
@@ -129,6 +134,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [filterStatus, setFilterStatus] = useState('');
   const [filterSource, setFilterSource] = useState('');
   const [filterChannel, setFilterChannel] = useState('');
+  const [filterReceivedFrom, setFilterReceivedFrom] = useState('');
+  const [filterReceivedTo, setFilterReceivedTo] = useState('');
+  const [filterAssignee, setFilterAssignee] = useState('');
   const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
   const [sourceOptions, setSourceOptions] = useState<CrmLeadLookupOption[]>([]);
   const [channelOptions, setChannelOptions] = useState<CrmLeadLookupOption[]>([]);
@@ -151,6 +159,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignCtx, setAssignCtx] = useState<RevOpsAssignContext | null>(null);
   const urlReadyRef = useRef(false);
+  const filtersReadyRef = useRef(false);
   const offsetRef = useRef(0);
   const queryRef = useRef('');
   const viewModeRef = useRef<LeadsViewMode>(viewMode);
@@ -254,16 +263,23 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       }
       try {
         const p1 = isLeadP1SavedView(savedView);
-        const p1Filters = p1 ? leadP1Filters() : null;
+        const p1Filters = p1 && flowScope !== 'b2b_prospect' ? leadP1Filters() : null;
         const scopedMine = (!canViewAllLeads && !browsesAllB2bLeads) || listTab === 'mine';
+        const assigneeId = Number(filterAssignee);
         const ownerId =
-          scopedMine && myCrmStaffId != null ? myCrmStaffId : undefined;
+          Number.isFinite(assigneeId) && assigneeId > 0
+            ? assigneeId
+            : scopedMine && myCrmStaffId != null
+              ? myCrmStaffId
+              : undefined;
         const kanban = mode === 'kanban';
         const data = await fetchLeads(accessToken, {
           q: search || undefined,
           status: p1Filters?.status ?? (filterStatus || undefined),
           source: filterSource || undefined,
           channel: filterChannel || undefined,
+          received_from: filterReceivedFrom || undefined,
+          received_to: filterReceivedTo || undefined,
           owner_id: ownerId,
           unassigned_only:
             canViewAllLeads && (p1Filters?.unassigned_only ?? listTab === 'unassigned'),
@@ -285,7 +301,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         if (!silent) setLoading(false);
       }
     },
-    [browsesAllB2bLeads, canViewAllLeads, filterChannel, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, myCrmStaffId, savedView, viewMode],
+    [browsesAllB2bLeads, canViewAllLeads, filterAssignee, filterChannel, filterReceivedFrom, filterReceivedTo, filterSource, filterStatus, flowKindFilter, flowScope, leadKind, listTab, myCrmStaffId, savedView, viewMode],
   );
 
   useEffect(() => {
@@ -303,7 +319,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     setQ(parsed.q);
     setQuery(parsed.q);
     setSavedView(parsed.savedView);
-    if (isLeadP1SavedView(parsed.savedView)) {
+    setFilterReceivedFrom(parsed.receivedFrom);
+    setFilterReceivedTo(parsed.receivedTo);
+    setFilterAssignee(parsed.assignee);
+    if (isLeadP1SavedView(parsed.savedView) && flowScope !== 'b2b_prospect') {
       setListTab('unassigned');
       setFilterStatus('moi');
     }
@@ -337,6 +356,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         channel: filterChannel,
         q: query,
         savedView,
+        receivedFrom: filterReceivedFrom,
+        receivedTo: filterReceivedTo,
+        assignee: filterAssignee,
       },
       flowScope,
     );
@@ -351,10 +373,69 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     filterChannel,
     query,
     savedView,
+    filterReceivedFrom,
+    filterReceivedTo,
+    filterAssignee,
     listHref,
     flowScope,
     revopsEmbedded,
     router,
+  ]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(q.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [q]);
+
+  useEffect(() => {
+    if (!urlReadyRef.current || flowScope !== 'b2b_prospect' || !user?.id) return;
+    const current: LeadsListUrlState = {
+      owner: listTab,
+      kind: leadKind,
+      status: filterStatus,
+      source: filterSource,
+      channel: filterChannel,
+      q: query,
+      savedView,
+      receivedFrom: filterReceivedFrom,
+      receivedTo: filterReceivedTo,
+      assignee: filterAssignee,
+    };
+    if (!filtersReadyRef.current) {
+      filtersReadyRef.current = true;
+      const fromUrl = parseLeadsListUrl(new URLSearchParams(window.location.search), flowScope);
+      if (leadsFiltersAreEmpty(fromUrl)) {
+        const saved = readSavedLeadsFilters(user.id);
+        if (saved && !leadsFiltersAreEmpty(saved)) {
+          setListTab(saved.owner);
+          setLeadKind(saved.kind);
+          setFilterStatus(saved.status);
+          setFilterSource(saved.source);
+          setFilterChannel(saved.channel);
+          setFilterReceivedFrom(saved.receivedFrom);
+          setFilterReceivedTo(saved.receivedTo);
+          setFilterAssignee(saved.assignee);
+          setSavedView(saved.savedView);
+          setQ(saved.q);
+          setQuery(saved.q);
+        }
+      }
+      return;
+    }
+    writeSavedLeadsFilters(user.id, current);
+  }, [
+    user?.id,
+    flowScope,
+    listTab,
+    leadKind,
+    filterStatus,
+    filterSource,
+    filterChannel,
+    query,
+    savedView,
+    filterReceivedFrom,
+    filterReceivedTo,
+    filterAssignee,
   ]);
 
   useEffect(() => {
@@ -510,15 +591,23 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
 
   function applyLeadP1View() {
     setSavedView('p1');
-    setListTab('unassigned');
-    setFilterStatus('moi');
+    if (flowScope !== 'b2b_prospect') {
+      setListTab('unassigned');
+      setFilterStatus('moi');
+    }
     setOffset(0);
     setSelectedIds(new Set());
   }
 
   const selectedList = useMemo(() => [...selectedIds], [selectedIds]);
-  const leadIds = useMemo(() => rows.map((row) => row.id), [rows]);
-  const signalKpis = useMemo(() => leadSignalKpis(rows), [rows]);
+  const b2bP1 = flowScope === 'b2b_prospect' && isLeadP1SavedView(savedView);
+  const visibleRows = useMemo(
+    () => (b2bP1 ? rows.filter(isB2bLeadP1) : rows),
+    [b2bP1, rows],
+  );
+  const visibleTotal = b2bP1 ? visibleRows.length : total;
+  const leadIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
+  const signalKpis = useMemo(() => leadSignalKpis(visibleRows), [visibleRows]);
   const ownerNameById = useMemo(() => {
     const map: Record<number, string> = {};
     for (const staff of staffOptions) {
@@ -556,11 +645,15 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           channel: filterChannel,
           q: query,
           savedView,
+          receivedFrom: filterReceivedFrom,
+          receivedTo: filterReceivedTo,
+          assignee: filterAssignee,
         },
         flowScope,
         {
           sourceLabel: (key) => sourceOptions.find((o) => o.option_key === key)?.label ?? key,
           channelLabel: (key) => channelOptions.find((o) => o.option_key === key)?.label ?? key,
+          assigneeLabel: (id) => staffOptions.find((staff) => String(staff.id) === id)?.name ?? id,
         },
       ),
     [
@@ -569,6 +662,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       filterStatus,
       filterSource,
       filterChannel,
+      filterReceivedFrom,
+      filterReceivedTo,
+      filterAssignee,
+      staffOptions,
       query,
       savedView,
       flowScope,
@@ -698,6 +795,14 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
               filterChannel={filterChannel}
               onChannelChange={setFilterChannel}
               channelOptions={channelOptions}
+              receivedFrom={filterReceivedFrom}
+              receivedTo={filterReceivedTo}
+              onReceivedFromChange={setFilterReceivedFrom}
+              onReceivedToChange={setFilterReceivedTo}
+              assignee={filterAssignee}
+              onAssigneeChange={setFilterAssignee}
+              canPickOwner={flowScope === 'b2b_prospect' && (user?.job_functions ?? []).includes('leader')}
+              staffOptions={staffOptions}
               loading={loading}
               savedView={savedView}
               onLeadP1={() => applyLeadP1View()}
@@ -880,6 +985,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
                 channel: filterChannel,
                 q: query,
                 savedView,
+                receivedFrom: filterReceivedFrom,
+                receivedTo: filterReceivedTo,
+                assignee: filterAssignee,
               },
               chipId,
             );
@@ -888,6 +996,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             setFilterStatus(next.status);
             setFilterSource(next.source);
             setFilterChannel(next.channel);
+            setFilterReceivedFrom(next.receivedFrom);
+            setFilterReceivedTo(next.receivedTo);
+            setFilterAssignee(next.assignee);
             setSavedView(next.savedView);
             setQ(next.q);
             setQuery(next.q);
@@ -904,6 +1015,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
                 channel: filterChannel,
                 q: query,
                 savedView,
+                receivedFrom: filterReceivedFrom,
+                receivedTo: filterReceivedTo,
+                assignee: filterAssignee,
               },
               flowScope,
             );
@@ -912,6 +1026,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             setFilterStatus(next.status);
             setFilterSource(next.source);
             setFilterChannel(next.channel);
+            setFilterReceivedFrom(next.receivedFrom);
+            setFilterReceivedTo(next.receivedTo);
+            setFilterAssignee(next.assignee);
             setSavedView(next.savedView);
             setQ(next.q);
             setQuery(next.q);
@@ -961,7 +1078,38 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
                 {opt.label}
               </option>
             ))}
-          </select>
+            </select>
+          <input
+            type="date"
+            className="kpi-select"
+            value={filterReceivedFrom}
+            onChange={(event) => setFilterReceivedFrom(event.target.value)}
+            aria-label="Từ ngày"
+          />
+          <input
+            type="date"
+            className="kpi-select"
+            value={filterReceivedTo}
+            onChange={(event) => setFilterReceivedTo(event.target.value)}
+            aria-label="Đến ngày"
+          />
+          {flowScope === 'b2b_prospect' && (user?.job_functions ?? []).includes('leader') ? (
+            <select
+              className="kpi-select"
+              value={filterAssignee}
+              onChange={(event) => setFilterAssignee(event.target.value)}
+              aria-label="Người phụ trách"
+            >
+              <option value="">Người phụ trách</option>
+              {staffOptions
+                .filter((staff) => staff.active !== 0)
+                .map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.name}
+                  </option>
+                ))}
+            </select>
+          ) : null}
           <FilterBarActions>
             <button
               type="button"
@@ -1033,7 +1181,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         >
           {viewMode === 'kanban' ? (
             <LeadKanbanBoard
-              rows={rows}
+              rows={visibleRows}
               flowKind={(flowKindFilter ?? 'b2b_prospect') as LeadFlowKind}
               token={token ?? undefined}
               canChangeOwner={hasCap(user, 'crm_leads', 'assign')}
@@ -1043,7 +1191,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             />
           ) : (
             <CrmLeadsList
-              rows={rows}
+              rows={visibleRows}
               loading={loading}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
@@ -1081,7 +1229,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         ) : null}
 
         {viewMode === 'list' ? (
-          <PageFooter meta={`Hiển thị ${rows.length} / ${total.toLocaleString('vi-VN')} leads`}>
+          <PageFooter meta={`Hiển thị ${visibleRows.length} / ${visibleTotal.toLocaleString('vi-VN')} leads`}>
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -1101,7 +1249,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           </PageFooter>
         ) : (
           <PageFooter
-            meta={`Kanban · ${rows.length} / ${total.toLocaleString('vi-VN')} leads (tối đa ${PAGE_SIZE_KANBAN})`}
+            meta={`Kanban · ${visibleRows.length} / ${visibleTotal.toLocaleString('vi-VN')} leads (tối đa ${PAGE_SIZE_KANBAN})`}
           />
         )}
       </div>

@@ -391,6 +391,8 @@ export class LeadsController {
     @Query('source') source?: string,
     @Query('channel') channel?: string,
     @Query('q') q?: string,
+    @Query('received_from') receivedFrom?: string,
+    @Query('received_to') receivedTo?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('review_queue_only') reviewQueueOnly?: string,
@@ -418,7 +420,8 @@ export class LeadsController {
           caps: me.caps,
           positionCode: me.position_code,
         });
-        if (!b2bListScope.viewAll && !b2bListScope.isDirector) {
+        const leader = (me.job_functions ?? []).includes('leader');
+        if (!b2bListScope.viewAll && !b2bListScope.isDirector && !leader) {
           resolvedOwnerId = undefined;
         }
       } else if (!hasGdkdViewAllLeads(me.caps)) {
@@ -442,6 +445,8 @@ export class LeadsController {
       source,
       channel,
       q,
+      received_from: receivedFrom,
+      received_to: receivedTo,
       limit: limit !== undefined ? Number(limit) : undefined,
       offset: offset !== undefined ? Number(offset) : undefined,
       review_queue_only: truthy(reviewQueueOnly),

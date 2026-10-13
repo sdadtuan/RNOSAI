@@ -408,6 +408,8 @@ export async function fetchLeads(
     statuses?: string[];
     source?: string;
     channel?: string;
+    received_from?: string;
+    received_to?: string;
     owner_id?: number;
     unassigned_only?: boolean;
     assigned_only?: boolean;
@@ -424,6 +426,8 @@ export async function fetchLeads(
   else if (params?.status) qs.set('status', params.status);
   if (params?.source) qs.set('source', params.source);
   if (params?.channel) qs.set('channel', params.channel);
+  if (params?.received_from) qs.set('received_from', params.received_from);
+  if (params?.received_to) qs.set('received_to', params.received_to);
   if (params?.owner_id != null) qs.set('owner_id', String(params.owner_id));
   if (params?.unassigned_only) qs.set('unassigned_only', '1');
   if (params?.assigned_only) qs.set('assigned_only', '1');

@@ -17,6 +17,7 @@ import {
   leadStatusLabel,
   normalizeLeadStatus,
 } from '@/lib/crm/lead-status';
+import { KANBAN_COLUMN_PAGE, sortKanbanLeads } from '@/lib/crm/kanban-column.util';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 
 function formatWhen(iso: string): string {
@@ -190,6 +191,7 @@ export function LeadKanbanBoard({
   const [callNote, setCallNote] = useState('');
   const [callBackAt, setCallBackAt] = useState('');
   const [careLead, setCareLead] = useState<LeadRow | null>(null);
+  const [columnLimit, setColumnLimit] = useState<Record<string, number>>({});
 
   const columns = b2b
     ? B2B_KANBAN_COLUMNS.map((column) => ({
@@ -417,6 +419,9 @@ export function LeadKanbanBoard({
       ) : null}
       {columns.map((column) => {
         const items = column.items;
+        const sortedItems = b2b ? sortKanbanLeads(items) : items;
+        const visibleLimit = b2b ? columnLimit[column.key] ?? KANBAN_COLUMN_PAGE : sortedItems.length;
+        const shownItems = sortedItems.slice(0, visibleLimit);
         const isCollapsed = column.collapsible && collapsed[column.key];
         const valueSum = items.reduce((sum, lead) => sum + (Number(lead.expected_value) || 0), 0);
         return (
@@ -453,10 +458,10 @@ export function LeadKanbanBoard({
               <span className="crm-kanban-column__sum">{formatVnd(valueSum)}</span>
             ) : null}
             <div className="crm-kanban-column__body">
-              {items.length === 0 ? (
+              {shownItems.length === 0 ? (
                 <p className="crm-kanban-empty">Trống</p>
               ) : (
-                items.map((lead) => {
+                shownItems.map((lead) => {
                   const band = lead.ai_band ?? null;
                   const actions = kanbanCardActions(lead);
                   const sla = b2b ? slaLabel(lead) : legacySlaLabel(lead.sla_state);
@@ -535,6 +540,20 @@ export function LeadKanbanBoard({
                   );
                 })
               )}
+              {b2b && sortedItems.length > shownItems.length ? (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() =>
+                    setColumnLimit((current) => ({
+                      ...current,
+                      [column.key]: (current[column.key] ?? KANBAN_COLUMN_PAGE) + KANBAN_COLUMN_PAGE,
+                    }))
+                  }
+                >
+                  Xem thêm ({sortedItems.length - shownItems.length})
+                </button>
+              ) : null}
             </div>
           </div>
         );

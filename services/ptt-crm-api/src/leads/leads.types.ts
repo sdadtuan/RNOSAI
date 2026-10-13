@@ -111,6 +111,8 @@ export interface ListLeadsQuery {
   source?: string;
   channel?: string;
   q?: string;
+  received_from?: string;
+  received_to?: string;
   limit?: number;
   offset?: number;
   review_queue_only?: boolean;

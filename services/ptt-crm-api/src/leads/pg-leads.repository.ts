@@ -13,6 +13,7 @@ import {
   kanbanCardSettingsFromPayload,
   type KanbanCardSettings,
 } from './kanban-card.util';
+import { isIsoDate, leadSearchPhoneDigits } from './lead-search.util';
 
 interface PgWhereClause {
   sql: string;
@@ -215,12 +216,27 @@ export class PgLeadsRepository implements OnModuleDestroy {
       push('l.owner_id = ?', Number(query.owner_id));
     }
     if (query.q?.trim()) {
-      const like = `%${query.q.trim()}%`;
+      const text = query.q.trim();
+      const digits = leadSearchPhoneDigits(text);
       const base = params.length;
-      clauses.push(
-        `(l.full_name ILIKE $${base + 1} OR l.phone ILIKE $${base + 2} OR l.email ILIKE $${base + 3})`,
-      );
-      params.push(like, like, like);
+      if (digits) {
+        clauses.push(
+          `(right(regexp_replace(COALESCE(l.phone, ''), '\\D', '', 'g'), 9) LIKE $${base + 1} OR l.full_name ILIKE $${base + 2} OR l.email ILIKE $${base + 2})`,
+        );
+        params.push(`%${digits}%`, `%${text}%`);
+      } else {
+        const like = `%${text}%`;
+        clauses.push(
+          `(l.full_name ILIKE $${base + 1} OR l.phone ILIKE $${base + 2} OR l.email ILIKE $${base + 3})`,
+        );
+        params.push(like, like, like);
+      }
+    }
+    if (isIsoDate(query.received_from)) {
+      push('COALESCE(l.received_at, l.created_at) >= ?::date', query.received_from);
+    }
+    if (isIsoDate(query.received_to)) {
+      push(`COALESCE(l.received_at, l.created_at) < (?::date + interval '1 day')`, query.received_to);
     }
     if (query.lead_flow_kind) {
       clauses.push(buildLeadFlowKindListFilter(query.lead_flow_kind, 'postgres', 'l'));
