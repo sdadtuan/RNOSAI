@@ -142,6 +142,18 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
     }
   }
 
+  async insertContactActivity(leadId: number, content: string, actor: string): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+       )
+       SELECT $1, 'call', $2, '', '', NOW(), $3, COALESCE(status, '')
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1`,
+      [leadId, content.slice(0, 8000), actor.slice(0, 120)],
+    );
+  }
+
   async patchLead(leadId: number, body: PatchLeadV1Body): Promise<PatchLeadResult | null> {
     const existing = await this.getLeadById(leadId);
     if (!existing) {
@@ -183,11 +195,22 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
         JSON.stringify({ score: body.score, score_stub: true, scored_at: new Date().toISOString() }),
       );
     }
-    if (body.expected_value !== undefined || body.margin_pct !== undefined) {
-      const financial: Record<string, unknown> = {};
-      if (body.expected_value !== undefined) financial.expected_value = body.expected_value;
-      if (body.margin_pct !== undefined) financial.margin_pct = body.margin_pct;
-      push(`meta_json = meta_json || ?::jsonb`, JSON.stringify({ financial }));
+    if (body.expected_value !== undefined || body.margin_pct !== undefined || body.lost_reason !== undefined || body.lost_reason_note !== undefined || body.quote_url !== undefined) {
+      const meta: Record<string, unknown> = {};
+      if (body.expected_value !== undefined || body.margin_pct !== undefined) {
+        const financial: Record<string, unknown> = {};
+        if (body.expected_value !== undefined) financial.expected_value = body.expected_value;
+        if (body.margin_pct !== undefined) financial.margin_pct = body.margin_pct;
+        meta.financial = financial;
+      }
+      if (body.lost_reason !== undefined) meta.lost_reason = String(body.lost_reason ?? '').trim();
+      if (body.lost_reason_note !== undefined) meta.lost_reason_note = String(body.lost_reason_note ?? '').trim();
+      if (body.quote_url !== undefined) meta.quote_url = String(body.quote_url ?? '').trim();
+      push(`meta_json = COALESCE(meta_json, '{}'::jsonb) || ?::jsonb`, JSON.stringify(meta));
+    }
+    if (body.next_call_at !== undefined) {
+      const raw = String(body.next_call_at ?? '').trim();
+      push('next_call_at = ?::timestamptz', raw || null);
     }
     if (body.company_name !== undefined) push('company_name = ?', String(body.company_name ?? '').trim());
     if (body.industry_slug !== undefined || body.industry !== undefined) {

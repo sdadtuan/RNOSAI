@@ -72,6 +72,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -952,6 +953,7 @@ export interface LeadStatusOptionsResponse {
   gate_enabled: boolean;
   allowed_next: LeadStatusOptionRow[];
   hints: string[];
+  lost_reasons?: Array<{ id: string; label: string; needs_note?: boolean }>;
 }
 
 export async function fetchLeadStatusOptions(
@@ -1313,6 +1315,12 @@ export interface PatchLeadBody {
   phone?: string;
   email?: string;
   logo_asset_id?: string | null;
+  contact_note?: string;
+  lost_reason?: string;
+  lost_reason_note?: string;
+  next_call_at?: string | null;
+  quote_url?: string;
+  expected_value?: number | null;
 }
 
 export async function uploadLeadPartyLogo(
@@ -1365,7 +1373,7 @@ export async function patchLead(
   });
   const out = await parseJson<LeadRow & { error?: string; message?: string }>(res);
   if (!res.ok) {
-    throw new ApiError(out.error ?? out.message ?? 'Lead update failed', res.status);
+    throw new ApiError(out.message || out.error || 'Lead update failed', res.status, out.error);
   }
   return out;
 }

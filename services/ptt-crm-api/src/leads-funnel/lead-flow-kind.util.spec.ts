@@ -37,5 +37,6 @@ describe('lead-flow-kind.util', () => {
     expect(statusOptionsForFlowKind('spa_operational')).toContain('hen_gap');
     expect(statusOptionsForFlowKind('b2b_prospect')).not.toContain('hen_gap');
     expect(statusOptionsForFlowKind('b2b_prospect')).toContain('won');
+    expect(statusOptionsForFlowKind('b2b_prospect')).toContain('nurture');
   });
 });

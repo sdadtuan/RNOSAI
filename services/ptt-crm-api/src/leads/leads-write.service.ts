@@ -224,10 +224,19 @@ export class LeadsWriteService {
         patchBody.industry !== undefined ||
         patchBody.phone !== undefined ||
         patchBody.email !== undefined ||
-        patchBody.logo_asset_id !== undefined;
+        patchBody.logo_asset_id !== undefined ||
+        patchBody.lost_reason !== undefined ||
+        patchBody.lost_reason_note !== undefined ||
+        patchBody.next_call_at !== undefined ||
+        patchBody.quote_url !== undefined ||
+        patchBody.contact_note !== undefined;
 
       let result;
       if (hasPatchFields) {
+        const contactNote = String(body.contact_note ?? '').trim();
+        if (contactNote.length >= 3) {
+          await this.writeRepo.insertContactActivity(leadId, contactNote, actor ?? '');
+        }
         result = await this.writeRepo.patchLead(leadId, patchBody);
       } else if (b2bManual) {
         result = {
@@ -288,6 +297,7 @@ export class LeadsWriteService {
           from: result.previous_status,
           to: body.status,
           actorId: actor ?? null,
+          note: statusChangeNote(body),
           clientId: result.lead.client_id,
         });
         await this.b2bRoutingAb.recordStatusOutcome({
@@ -416,4 +426,16 @@ export class LeadsWriteService {
     }
     throw err;
   }
+}
+
+function statusChangeNote(body: PatchLeadV1Body): string {
+  const parts = [
+    String(body.audit_note ?? '').trim(),
+    body.lost_reason ? `Lý do: ${String(body.lost_reason).trim()}` : '',
+    String(body.lost_reason_note ?? '').trim(),
+    body.next_call_at ? `Hẹn gọi lại: ${String(body.next_call_at).trim()}` : '',
+    body.quote_url ? `Báo giá: ${String(body.quote_url).trim()}` : '',
+    body.contact_note ? `Liên hệ: ${String(body.contact_note).trim()}` : '',
+  ].filter((part) => part.length > 0);
+  return parts.join(' — ').slice(0, 2000);
 }

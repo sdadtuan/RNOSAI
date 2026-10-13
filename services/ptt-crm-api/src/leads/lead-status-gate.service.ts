@@ -6,11 +6,14 @@ import {
   CONTACT_OK_CARE_STATUS,
   computeAllowedNextStatuses,
   computeB2Complete,
+  KANBAN_LOST_REASON_SEED,
+  kanbanLostReasonsFromPayload,
   leadStatusLabel,
   LeadStatusGateError,
   LeadStatusOptionRow,
   normalizeLeadStatus,
   validateLeadStatusChange,
+  type KanbanLostReason,
 } from './lead-status-gate.util';
 import { PatchLeadV1Body } from './leads.types';
 
@@ -25,6 +28,7 @@ export interface LeadStatusOptionsResponse {
   gate_enabled: boolean;
   allowed_next: LeadStatusOptionRow[];
   hints: string[];
+  lost_reasons: KanbanLostReason[];
 }
 
 @Injectable()
@@ -58,6 +62,7 @@ export class LeadStatusGateService implements OnModuleDestroy {
     }
 
     const current = normalizeLeadStatus(state.status);
+    const lostReasons = await this.loadLostReasons();
     const { options, hints } = computeAllowedNextStatuses({
       currentStatus: current,
       flowKind: state.flowKind,
@@ -74,6 +79,7 @@ export class LeadStatusGateService implements OnModuleDestroy {
       gate_enabled: this.isEnabled(),
       allowed_next: options,
       hints,
+      lost_reasons: lostReasons,
     };
   }
 
@@ -115,6 +121,14 @@ export class LeadStatusGateService implements OnModuleDestroy {
       hasOutreachActivity: state.hasOutreachActivity,
       needsCleanup: state.needsCleanup,
       flowKind: state.flowKind,
+      hasCallLog: state.hasCallLog,
+      contactNote: String(body.contact_note ?? '').trim(),
+      lostReason: String(body.lost_reason ?? '').trim(),
+      lostReasonNote: String(body.lost_reason_note ?? '').trim(),
+      nextCallAt: body.next_call_at ?? null,
+      hasQuote: state.hasQuote || isQuoteLink(body.quote_url),
+      quoteValue: quoteValue(body.expected_value, state.quoteValue),
+      lostReasons: state.lostReasons,
     };
   }
 
@@ -124,14 +138,20 @@ export class LeadStatusGateService implements OnModuleDestroy {
     b2Complete: boolean;
     hasOutreachActivity: boolean;
     needsCleanup: boolean;
+    hasCallLog: boolean;
+    hasQuote: boolean;
+    quoteValue: number | null;
+    lostReasons: KanbanLostReason[];
   } | null> {
     const row = await this.fetchLeadRow(leadId);
     if (!row) return null;
 
-    const [hasContactOkReport, hasOutreachActivity, hasPresales] = await Promise.all([
+    const [hasContactOkReport, hasOutreachActivity, hasPresales, quote, lostReasons] = await Promise.all([
       this.hasContactOkReport(leadId),
       this.hasOutreachActivity(leadId),
       this.hasPresales(leadId),
+      this.loadQuote(leadId, row.meta_json),
+      this.loadLostReasons(),
     ]);
 
     const b2Complete = computeB2Complete({
@@ -157,6 +177,10 @@ export class LeadStatusGateService implements OnModuleDestroy {
       b2Complete,
       hasOutreachActivity,
       needsCleanup,
+      hasCallLog: Boolean(row.last_call_at),
+      hasQuote: quote.hasQuote,
+      quoteValue: quote.quoteValue,
+      lostReasons,
     };
   }
 
@@ -170,6 +194,7 @@ export class LeadStatusGateService implements OnModuleDestroy {
     meta_json: string | null;
     care_stage_current: string | null;
     care_stages_done_json: string | null;
+    last_call_at: string | null;
   } | null> {
     const result = await this.db.query(
       `SELECT status, full_name, phone, source,
@@ -177,7 +202,8 @@ export class LeadStatusGateService implements OnModuleDestroy {
               COALESCE(channel, '') AS channel,
               meta_json::text AS meta_json,
               COALESCE(care_stage_current, 'first_contact') AS care_stage_current,
-              COALESCE(care_stages_done_json, '{}'::jsonb)::text AS care_stages_done_json
+              COALESCE(care_stages_done_json, '{}'::jsonb)::text AS care_stages_done_json,
+              last_call_at::text AS last_call_at
        FROM crm_leads
        WHERE sqlite_lead_id = $1
        LIMIT 1`,
@@ -217,9 +243,103 @@ export class LeadStatusGateService implements OnModuleDestroy {
     return (result.rowCount ?? 0) > 0;
   }
 
+  private async loadLostReasons(): Promise<KanbanLostReason[]> {
+    try {
+      const result = await this.db.query(
+        `SELECT payload
+         FROM crm_lead_sla_settings
+         WHERE is_active IS TRUE
+         ORDER BY id DESC
+         LIMIT 1`,
+      );
+      return kanbanLostReasonsFromPayload(result.rows[0]?.payload ?? null);
+    } catch {
+      return KANBAN_LOST_REASON_SEED.map((row) => ({ ...row }));
+    }
+  }
+
+  private async loadQuote(
+    leadId: number,
+    metaJson: string | null,
+  ): Promise<{ hasQuote: boolean; quoteValue: number | null }> {
+    const meta = parseMetaObject(metaJson);
+    const metaValue = numberOrNull(metaValueOf(meta, 'expected_value'));
+    const metaLink = isQuoteLink(metaString(meta, 'quote_url'));
+    let proposalValue: number | null = null;
+    let proposalAttached = false;
+    try {
+      const result = await this.db.query(
+        `SELECT COALESCE(total_vnd, 0)::float8 AS total_vnd,
+                COALESCE(notes, '') AS notes
+         FROM crm_proposals
+         WHERE lead_id = $1`,
+        [leadId],
+      );
+      for (const row of result.rows as Array<{ total_vnd: number; notes: string }>) {
+        const total = Number(row.total_vnd);
+        if (Number.isFinite(total) && total > 0) {
+          proposalAttached = true;
+          proposalValue = Math.max(proposalValue ?? 0, total);
+        }
+        if (isQuoteLink(row.notes)) proposalAttached = true;
+      }
+    } catch {
+      proposalAttached = false;
+    }
+    const quoteValue = metaValue ?? proposalValue;
+    return {
+      hasQuote: metaLink || proposalAttached,
+      quoteValue,
+    };
+  }
+
   private leadNeedsCleanup(fullName: string | null, phone: string | null): boolean {
     const name = String(fullName ?? '').trim();
     const ph = String(phone ?? '').trim();
     return name.length < 2 || ph.length < 8;
   }
+}
+
+function isQuoteLink(value: unknown): boolean {
+  return /https?:\/\/\S+/i.test(String(value ?? '').trim());
+}
+
+function quoteValue(fromBody: number | null | undefined, fromState: number | null): number | null {
+  if (fromBody != null && Number.isFinite(Number(fromBody))) return Number(fromBody);
+  return fromState;
+}
+
+function parseMetaObject(raw: string | null): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function metaString(meta: Record<string, unknown>, key: string): string {
+  const financial =
+    meta.financial && typeof meta.financial === 'object'
+      ? (meta.financial as Record<string, unknown>)
+      : null;
+  const val = meta[key] ?? financial?.[key];
+  return val == null ? '' : String(val);
+}
+
+function metaValueOf(meta: Record<string, unknown>, key: string): unknown {
+  const financial =
+    meta.financial && typeof meta.financial === 'object'
+      ? (meta.financial as Record<string, unknown>)
+      : null;
+  return financial?.[key] ?? meta[key];
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }

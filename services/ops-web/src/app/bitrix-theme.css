@@ -828,6 +828,66 @@ html.ops-shell-bitrix .badge {
   max-height: calc(100vh - 220px);
 }
 
+.crm-kanban-column.is-collapsed {
+  flex-basis: 56px;
+  max-width: 56px;
+}
+
+.crm-kanban-column.is-collapsed .crm-kanban-column__body,
+.crm-kanban-column.is-collapsed .crm-kanban-column__sum,
+.crm-kanban-column.is-collapsed .crm-kanban-column__title {
+  display: none;
+}
+
+.crm-kanban-column.is-drop {
+  outline: 2px solid var(--primary, #17692f);
+}
+
+.crm-kanban-column__sum {
+  display: block;
+  padding: 0 0.75rem 0.35rem;
+  color: var(--ink-soft, #4d5c55);
+  font-size: 0.75rem;
+}
+
+.crm-kanban-column__toggle {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.crm-kanban-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 28, 24, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  padding: 1rem;
+}
+
+.crm-kanban-modal__card {
+  width: min(420px, 100%);
+  background: #fff;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.crm-kanban-modal__card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+
 .crm-kanban-column__head {
   display: flex;
   align-items: center;

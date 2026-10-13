@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bucketLeadsByKanbanColumns,
   bucketLeadsByKanbanStage,
+  B2B_KANBAN_COLUMNS,
   leadStatusLabel,
   normalizeLeadStatus,
 } from './lead-status';
@@ -44,5 +46,23 @@ describe('bucketLeadsByKanbanStage', () => {
     expect(byStage.__other__.map((r) => r.id)).toEqual([9]);
     expect(stageKeys.at(-1)).toBe('__other__');
     expect(leadStatusLabel('__other__')).toBe('Khác');
+  });
+});
+
+describe('bucketLeadsByKanbanColumns', () => {
+  it('places proposal and chot into the quoted and won columns', () => {
+    const byColumn = bucketLeadsByKanbanColumns(
+      [
+        { id: 1, status: 'first_contact' },
+        { id: 2, status: 'proposal' },
+        { id: 3, status: 'chot' },
+        { id: 4, status: 'nurture' },
+      ],
+      B2B_KANBAN_COLUMNS,
+    );
+    expect(byColumn.moi.map((row) => row.id)).toEqual([1]);
+    expect(byColumn.bao_gia.map((row) => row.id)).toEqual([2]);
+    expect(byColumn.won.map((row) => row.id)).toEqual([3]);
+    expect(byColumn.nurture.map((row) => row.id)).toEqual([4]);
   });
 });

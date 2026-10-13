@@ -55,6 +55,35 @@ export class B2bSlaRepository implements OnModuleDestroy {
     this.pool = null;
   }
 
+  async remindDueNurtureCalls(now = new Date()): Promise<number> {
+    const due = await this.db.query(
+      `SELECT sqlite_lead_id
+       FROM crm_leads
+       WHERE status = 'nurture'
+         AND next_call_at IS NOT NULL
+         AND next_call_at <= $1::timestamptz
+         AND NOT EXISTS (
+           SELECT 1 FROM crm_lead_activities a
+           WHERE a.lead_id = crm_leads.sqlite_lead_id
+             AND a.next_action = 'nurture_callback'
+         )
+       LIMIT 50`,
+      [now.toISOString()],
+    );
+    let created = 0;
+    for (const row of due.rows as Array<{ sqlite_lead_id: number }>) {
+      const leadId = Number(row.sqlite_lead_id);
+      await this.db.query(
+        `INSERT INTO crm_lead_activities (
+           lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
+         ) VALUES ($1, 'note', $2, '', 'nurture_callback', NOW(), 'system', 'nurture')`,
+        [leadId, 'Đến hạn gọi lại lead chăm sóc.'],
+      );
+      created += 1;
+    }
+    return created;
+  }
+
   async loadAssignPool(
     projectId: string,
     opts?: { excludeStaffId?: number | null },

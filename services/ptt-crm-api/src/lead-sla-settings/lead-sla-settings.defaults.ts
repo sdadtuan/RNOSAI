@@ -47,6 +47,10 @@ export interface LeadSlaSettingsPayload {
     min_dry_run_days: number;
     dry_run_started_at: string | null;
   };
+  /** B2B kanban catalogs. Missing keys fall back to this seed at read time. */
+  kanban: {
+    lost_reasons: Array<{ id: string; label: string; needs_note: boolean }>;
+  };
   settings_version: number;
 }
 
@@ -99,6 +103,16 @@ export function defaultLeadSlaSettingsPayload(
       min_dry_run_days: 3,
       dry_run_started_at: null,
     },
+    kanban: {
+      lost_reasons: [
+        { id: 'no_need', label: 'Không nhu cầu', needs_note: false },
+        { id: 'price', label: 'Giá', needs_note: false },
+        { id: 'competitor', label: 'Đối thủ', needs_note: false },
+        { id: 'wrong_number', label: 'Sai số', needs_note: false },
+        { id: 'unreachable', label: 'Không liên lạc được', needs_note: false },
+        { id: 'other', label: 'Khác', needs_note: true },
+      ],
+    },
     settings_version: settingsVersion,
   };
 }
@@ -117,6 +131,19 @@ export function mergeLeadSlaSettingsPayload(
   const c1c = (o.case_1c ?? {}) as Record<string, unknown>;
   const hot = (o.hot_rules ?? {}) as Record<string, unknown>;
   const red = (o.redistribute ?? {}) as Record<string, unknown>;
+  const kanban = (o.kanban ?? {}) as Record<string, unknown>;
+  const lostReasons = Array.isArray(kanban.lost_reasons)
+    ? kanban.lost_reasons
+        .map((row) => {
+          if (!row || typeof row !== 'object') return null;
+          const item = row as Record<string, unknown>;
+          const id = String(item.id ?? '').trim();
+          const label = String(item.label ?? '').trim();
+          if (!id || !label) return null;
+          return { id, label, needs_note: Boolean(item.needs_note) };
+        })
+        .filter((row): row is { id: string; label: string; needs_note: boolean } => row != null)
+    : [];
 
   return {
     ...base,
@@ -165,6 +192,9 @@ export function mergeLeadSlaSettingsPayload(
         ff.dry_run_started_at == null
           ? base.feature_flags.dry_run_started_at
           : String(ff.dry_run_started_at),
+    },
+    kanban: {
+      lost_reasons: lostReasons.length > 0 ? lostReasons : base.kanban.lost_reasons,
     },
     settings_version: Number(settingsVersion ?? o.settings_version ?? base.settings_version),
   };

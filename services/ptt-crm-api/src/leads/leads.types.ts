@@ -160,6 +160,15 @@ export interface PatchLeadV1Body {
   assign_reason?: string;
   /** Required for terminal status changes when PTT_LEAD_STATUS_GATE=1. */
   audit_note?: string;
+  /** Call or activity text supplied when moving Mới → Đã liên hệ. */
+  contact_note?: string;
+  /** Catalog id from crm_lead_sla_settings.payload.kanban.lost_reasons. */
+  lost_reason?: string;
+  lost_reason_note?: string;
+  /** Required when moving to nurture. */
+  next_call_at?: string | null;
+  /** Link to a quote file. A crm_proposals row with total_vnd also counts. */
+  quote_url?: string;
   /** GDKD / assign cap only — bypass B2 & outreach gates with status_override_reason. */
   allow_status_override?: boolean;
   status_override_reason?: string;

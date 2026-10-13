@@ -9,7 +9,8 @@ export const LEAD_STATUS_LABELS: Record<string, string> = {
   post_sale: 'Post-sale',
   won: 'Won (HĐ ký)',
   proposal: 'Proposal',
-  lost: 'Lost',
+  lost: 'Thất bại',
+  nurture: 'Chăm sóc lại',
   pending_cleanup: 'Chờ dọn',
   __other__: 'Khác',
 };
@@ -71,4 +72,43 @@ export function bucketLeadsByKanbanStage<T extends { status?: string | null }>(
   const stageKeys = [...stages];
   if (byStage.__other__.length > 0) stageKeys.push('__other__');
   return { stageKeys, byStage };
+}
+
+export interface KanbanColumnDef {
+  id: string;
+  label: string;
+  statuses: readonly string[];
+  collapsible: boolean;
+  sumValue: boolean;
+}
+
+/** B2B board. proposal and dam_phan sit in Báo giá. chot sits in Chốt. */
+export const B2B_KANBAN_COLUMNS: readonly KanbanColumnDef[] = [
+  { id: 'moi', label: 'Mới', statuses: ['moi'], collapsible: false, sumValue: false },
+  { id: 'da_lien_he', label: 'Đã liên hệ', statuses: ['da_lien_he'], collapsible: false, sumValue: false },
+  { id: 'dang_tu_van', label: 'Đang tư vấn', statuses: ['dang_tu_van'], collapsible: false, sumValue: false },
+  {
+    id: 'bao_gia',
+    label: 'Báo giá',
+    statuses: ['bao_gia', 'proposal', 'dam_phan'],
+    collapsible: false,
+    sumValue: true,
+  },
+  { id: 'won', label: 'Chốt', statuses: ['won', 'chot'], collapsible: true, sumValue: false },
+  { id: 'lost', label: 'Thất bại', statuses: ['lost'], collapsible: true, sumValue: false },
+  { id: 'nurture', label: 'Chăm sóc lại', statuses: ['nurture'], collapsible: true, sumValue: false },
+];
+
+export function bucketLeadsByKanbanColumns<T extends { status?: string | null }>(
+  rows: T[],
+  columns: readonly KanbanColumnDef[],
+): Record<string, T[]> {
+  const byColumn: Record<string, T[]> = {};
+  for (const column of columns) byColumn[column.id] = [];
+  for (const row of rows) {
+    const status = normalizeLeadStatus(row.status);
+    const column = columns.find((item) => item.statuses.includes(status));
+    if (column) byColumn[column.id].push(row);
+  }
+  return byColumn;
 }

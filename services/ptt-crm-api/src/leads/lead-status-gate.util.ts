@@ -20,11 +20,40 @@ export const LEAD_STATUS_LABELS: Record<string, string> = {
   post_sale: 'Post-sale',
   won: 'Won (HĐ ký)',
   proposal: 'Proposal',
-  lost: 'Lost',
+  lost: 'Thất bại',
+  nurture: 'Chăm sóc lại',
   pending_cleanup: 'Chờ dọn',
   first_contact: 'Liên hệ lần đầu',
   new: 'Mới',
 };
+
+const B2B_KANBAN_MOVE_STATUSES = new Set([
+  'moi',
+  'da_lien_he',
+  'dang_tu_van',
+  'bao_gia',
+  'proposal',
+  'dam_phan',
+  'won',
+  'chot',
+  'lost',
+  'nurture',
+]);
+
+const QUOTED_STATUSES = new Set(['bao_gia', 'proposal', 'dam_phan']);
+
+export const KANBAN_LOST_REASON_SEED: ReadonlyArray<{
+  id: string;
+  label: string;
+  needs_note: boolean;
+}> = [
+  { id: 'no_need', label: 'Không nhu cầu', needs_note: false },
+  { id: 'price', label: 'Giá', needs_note: false },
+  { id: 'competitor', label: 'Đối thủ', needs_note: false },
+  { id: 'wrong_number', label: 'Sai số', needs_note: false },
+  { id: 'unreachable', label: 'Không liên lạc được', needs_note: false },
+  { id: 'other', label: 'Khác', needs_note: true },
+];
 
 export const OUTREACH_ACTIVITY_TYPES = ['call', 'email', 'message', 'meeting'] as const;
 
@@ -115,7 +144,7 @@ export function isCandidateStatusSelectable(
     return false;
   }
 
-  if (!isStatusTransitionAllowed(current, next)) return false;
+  if (!isStatusTransitionAllowed(current, next, ctx.flowKind)) return false;
 
   if (ctx.needsCleanup && next !== 'pending_cleanup' && next !== 'lost') {
     return false;
@@ -182,7 +211,9 @@ export function computeAllowedNextStatuses(ctx: LeadStatusOptionsContext): {
   const hints = ctx.gateEnabled ? collectStatusOptionHints(ctx) : [];
 
   const candidates = ctx.gateEnabled
-    ? allowedNextStatuses(current)
+    ? ctx.flowKind === 'b2b_prospect'
+      ? [...B2B_KANBAN_MOVE_STATUSES].filter((status) => status !== 'chot')
+      : allowedNextStatuses(current)
     : [...statusOptionsForFlowKind(ctx.flowKind)];
 
   const seen = new Set<string>();
@@ -207,13 +238,28 @@ export function computeAllowedNextStatuses(ctx: LeadStatusOptionsContext): {
 export function isStatusTransitionAllowed(
   oldStatus: string | null | undefined,
   newStatus: string | null | undefined,
+  flowKind?: 'spa_operational' | 'b2b_prospect',
 ): boolean {
   const old = normalizeLeadStatus(oldStatus);
   const next = normalizeLeadStatus(newStatus);
   if (old === next) return true;
+  if (
+    flowKind === 'b2b_prospect' &&
+    B2B_KANBAN_MOVE_STATUSES.has(old) &&
+    B2B_KANBAN_MOVE_STATUSES.has(next) &&
+    next !== 'chot'
+  ) {
+    return true;
+  }
   const allowed = LEAD_STATUS_TRANSITIONS[old];
   if (!allowed) return false;
   return allowed.includes(next);
+}
+
+export interface KanbanLostReason {
+  id: string;
+  label: string;
+  needs_note: boolean;
 }
 
 export interface LeadStatusGateContext {
@@ -226,6 +272,14 @@ export interface LeadStatusGateContext {
   hasOutreachActivity: boolean;
   needsCleanup: boolean;
   flowKind: 'spa_operational' | 'b2b_prospect';
+  hasCallLog?: boolean;
+  contactNote?: string;
+  lostReason?: string;
+  lostReasonNote?: string;
+  nextCallAt?: string | null;
+  hasQuote?: boolean;
+  quoteValue?: number | null;
+  lostReasons?: readonly KanbanLostReason[];
 }
 
 export class LeadStatusGateError extends Error {
@@ -244,7 +298,9 @@ export function validateLeadStatusChange(ctx: LeadStatusGateContext): void {
   if (old === next) return;
 
   const auditLen = ctx.auditNote.trim().length;
+  const b2bLost = ctx.flowKind === 'b2b_prospect' && next === 'lost';
   if (
+    !b2bLost &&
     (AUDIT_NOTE_REQUIRED_STATUSES as readonly string[]).includes(next) &&
     auditLen < MIN_AUDIT_NOTE_LEN
   ) {
@@ -273,7 +329,7 @@ export function validateLeadStatusChange(ctx: LeadStatusGateContext): void {
     );
   }
 
-  if (!isStatusTransitionAllowed(old, next)) {
+  if (!isStatusTransitionAllowed(old, next, ctx.flowKind)) {
     throw new LeadStatusGateError(
       'invalid_transition',
       `Không được chuyển từ «${leadStatusLabel(old)}» sang «${leadStatusLabel(next)}».`,
@@ -306,16 +362,59 @@ export function validateLeadStatusChange(ctx: LeadStatusGateContext): void {
     );
   }
 
+  const notedContact = String(ctx.contactNote ?? '').trim().length >= MIN_AUDIT_NOTE_LEN;
+  const hasContact = ctx.hasOutreachActivity || Boolean(ctx.hasCallLog) || notedContact;
   if (
     old === 'moi' &&
-    !['lost', 'pending_cleanup'].includes(next) &&
-    !ctx.hasOutreachActivity &&
+    next === 'da_lien_he' &&
+    !hasContact &&
+    !ctx.b2Complete
+  ) {
+    throw new LeadStatusGateError(
+      'outreach_required',
+      'Cần activity liên hệ (cuộc gọi hoặc ghi chú) trước khi sang Đã liên hệ.',
+    );
+  }
+
+  if (
+    old === 'moi' &&
+    !['lost', 'pending_cleanup', 'da_lien_he'].includes(next) &&
+    !hasContact &&
     !ctx.b2Complete
   ) {
     throw new LeadStatusGateError(
       'outreach_required',
       'Cần ghi activity liên hệ trước khi rời trạng thái Mới.',
     );
+  }
+
+  if (ctx.flowKind === 'b2b_prospect' && QUOTED_STATUSES.has(next)) {
+    const value = Number(ctx.quoteValue);
+    if (!ctx.hasQuote || !Number.isFinite(value) || value <= 0) {
+      throw new LeadStatusGateError(
+        'quote_required',
+        'Sang Báo giá cần đính kèm báo giá (file hoặc link) và giá trị.',
+      );
+    }
+  }
+
+  if (ctx.flowKind === 'b2b_prospect' && next === 'lost') {
+    const catalog = ctx.lostReasons?.length ? ctx.lostReasons : KANBAN_LOST_REASON_SEED;
+    const reason = catalog.find((row) => row.id === String(ctx.lostReason ?? '').trim());
+    if (!reason) {
+      throw new LeadStatusGateError('lost_reason_required', 'Chọn lý do thất bại.');
+    }
+    const note = String(ctx.lostReasonNote ?? ctx.auditNote ?? '').trim();
+    if (reason.needs_note && note.length < MIN_AUDIT_NOTE_LEN) {
+      throw new LeadStatusGateError('lost_reason_note_required', 'Lý do Khác cần ghi chú.');
+    }
+  }
+
+  if (ctx.flowKind === 'b2b_prospect' && next === 'nurture') {
+    const at = Date.parse(String(ctx.nextCallAt ?? ''));
+    if (!Number.isFinite(at)) {
+      throw new LeadStatusGateError('callback_required', 'Chăm sóc lại cần ngày hẹn gọi lại.');
+    }
   }
 }
 
@@ -326,6 +425,25 @@ export function computeB2Complete(input: {
 }): boolean {
   const gate = presalesCareGateState(input.careStageCurrent, input.careStagesDoneJson);
   return gate.complete || input.hasContactOkReport;
+}
+
+export function kanbanLostReasonsFromPayload(raw: unknown): KanbanLostReason[] {
+  const seed = KANBAN_LOST_REASON_SEED.map((row) => ({ ...row }));
+  if (!raw || typeof raw !== 'object') return seed;
+  const kanban = (raw as Record<string, unknown>).kanban;
+  if (!kanban || typeof kanban !== 'object') return seed;
+  const list = (kanban as Record<string, unknown>).lost_reasons;
+  if (!Array.isArray(list) || list.length === 0) return seed;
+  const parsed: KanbanLostReason[] = [];
+  for (const row of list) {
+    if (!row || typeof row !== 'object') continue;
+    const item = row as Record<string, unknown>;
+    const id = String(item.id ?? '').trim();
+    const label = String(item.label ?? '').trim();
+    if (!id || !label) continue;
+    parsed.push({ id, label, needs_note: Boolean(item.needs_note) });
+  }
+  return parsed.length > 0 ? parsed : seed;
 }
 
 export { CONTACT_OK_CARE_STATUS };
