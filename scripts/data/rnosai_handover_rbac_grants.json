@@ -485,21 +485,10 @@
         "edit",
         "view"
       ],
-      "crm_b2b_projects": [
-        "manage",
-        "view"
-      ],
       "crm_daily_work_report": [
         "create",
         "edit",
         "export",
-        "view"
-      ],
-      "crm_delivery_budget": [
-        "view"
-      ],
-      "crm_delivery_projects": [
-        "edit",
         "view"
       ],
       "crm_hdsd": [
@@ -1966,21 +1955,10 @@
         "edit",
         "view"
       ],
-      "crm_b2b_projects": [
-        "manage",
-        "view"
-      ],
       "crm_daily_work_report": [
         "create",
         "edit",
         "export",
-        "view"
-      ],
-      "crm_delivery_budget": [
-        "view"
-      ],
-      "crm_delivery_projects": [
-        "edit",
         "view"
       ],
       "crm_hdsd": [

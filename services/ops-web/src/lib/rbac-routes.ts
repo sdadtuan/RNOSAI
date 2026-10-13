@@ -98,6 +98,13 @@ const PATH_CAP_RULES: Array<{ prefix: string; anyOf: CapRequirement[] }> = [
     anyOf: [{ section: 'crm_b2b_projects', action: 'view' }],
   },
   {
+    prefix: '/crm/delivery-projects',
+    anyOf: [
+      { section: 'crm_delivery_projects', action: 'view' },
+      { section: 'crm_b2b_projects', action: 'view' },
+    ],
+  },
+  {
     prefix: '/crm/kpi/groups',
     anyOf: [{ section: 'crm_kpi_groups', action: 'view' }],
   },

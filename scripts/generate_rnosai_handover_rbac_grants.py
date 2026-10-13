@@ -387,12 +387,12 @@ def main() -> int:
             agency_view,
             grant("crm_hdsd", "view", "export"),
         ),
-        # Client book, quote, portal, and delivery. KPI Hub, ads, SEO, email,
-        # production OS, HR, and finance desks stay with those teams.
+        # Client book and consult. Project menus (Dự án PTT, Project Delivery)
+        # stay with GDKD and delivery. KPI Hub, ads, SEO, email, production,
+        # HR, and finance stay with those teams.
         "ACM": merge(
             csd_write,
             leads_write,
-            grant("crm_b2b_projects", "view", "manage"),
             solution_lead,
             grant("crm_mkt_ai", "generate", "export"),
             grant("crm_quote", "view", "edit"),
@@ -408,8 +408,6 @@ def main() -> int:
             grant("crm_am.reports", "view"),
             grant("crm_am.opportunities", "view", "edit"),
             grant("crm_am.feedback", "view", "edit"),
-            grant("crm_delivery_projects", "view", "edit"),
-            grant("crm_delivery_budget", "view"),
             grant("crm_sop_runs", "view"),
             grant("crm_hub_contracts", "view", "edit"),
             grant("crm_hub_reminders", "view", "edit", "create"),

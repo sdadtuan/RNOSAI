@@ -95,6 +95,13 @@ describe('rbac-routes', () => {
     expect(reqs.some((r) => r.section === 'crm_presales_solution')).toBe(true);
   });
 
+  it('delivery projects are not opened by a plain leads view', () => {
+    const leadsOnly = user([{ section: 'crm_leads', action: 'view' }]);
+    const delivery = user([{ section: 'crm_delivery_projects', action: 'view' }]);
+    expect(canAccessPath('/crm/delivery-projects/abc', leadsOnly, 'crm')).toBe(false);
+    expect(canAccessPath('/crm/delivery-projects/abc', delivery, 'crm')).toBe(true);
+  });
+
   it('/crm/content-os requires crm_content view', () => {
     const content = user([{ section: 'crm_content', action: 'view' }]);
     const leadsOnly = user([{ section: 'crm_leads', action: 'view' }]);
