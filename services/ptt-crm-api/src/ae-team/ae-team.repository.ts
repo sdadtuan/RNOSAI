@@ -175,7 +175,7 @@ export class AeTeamRepository implements OnModuleDestroy {
       `SELECT l.sqlite_lead_id AS id, l.owner_id, COALESCE(l.full_name, '') AS full_name,
               COALESCE(l.phone, '') AS phone, COALESCE(l.email, '') AS email,
               COALESCE(l.status, '') AS status, COALESCE(l.source, '') AS source,
-              COALESCE(l.channel, '') AS channel, l.client_id, l.b2b_project_id::text AS b2b_project_id,
+              COALESCE(l.channel, '') AS channel, l.agency_client_id AS client_id, l.b2b_project_id::text AS b2b_project_id,
               l.received_at::text AS received_at, l.created_at::text AS created_at, l.updated_at::text AS updated_at,
               l.last_call_at::text AS last_call_at, l.next_call_at::text AS next_call_at,
               l.call_attempt_count, COALESCE(l.last_call_result, '') AS last_call_result,
