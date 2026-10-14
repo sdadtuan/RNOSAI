@@ -38,6 +38,7 @@ import { LeadFrSlaPanel } from '@/components/crm/LeadFrSlaPanel';
 import { ClosedLoopPanel } from '@/components/crm/ClosedLoopPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadEntityTimelinePanel } from '@/components/crm/LeadEntityTimelinePanel';
+import { presentLeadHistory } from '@/lib/crm/lead-history';
 import {
   leadFlowKindLabel,
   resolveLeadFlowKindFromLead,
@@ -1617,14 +1618,15 @@ export default function CrmLeadDetailPage() {
               </div>
             <div className="lead-panel lead-panel--activity">
               <div className="lead-panel__head">
-                <h3 className="lead-panel__title">Timeline hoạt động</h3>
-                <p className="lead-panel__subtitle">Chọn activity để tóm tắt trong AI Copilot</p>
+                <h3 className="lead-panel__title">Lịch sử trao đổi</h3>
               </div>
               {activities.length === 0 ? (
-                <p className="lead-empty-state">Chưa có hoạt động.</p>
+                <p className="lead-empty-state">Chưa có lịch sử.</p>
               ) : (
                 <ul className="lead-activity-list">
-                  {activities.map((a) => (
+                  {activities.map((a) => {
+                    const line = presentLeadHistory(a);
+                    return (
                     <li
                       key={a.id}
                       className={`lead-activity-item ${selectedActivityId === a.id ? 'is-selected' : ''}`}
@@ -1640,15 +1642,13 @@ export default function CrmLeadDetailPage() {
                       aria-pressed={selectedActivityId === a.id}
                     >
                       <div className="lead-activity-item__meta">
-                        <time>{a.created_at?.slice(0, 16)}</time>
-                        <span className="lead-activity-item__type">
-                          {a.activity_type_label || a.activity_type}
-                        </span>
-                        {a.user_name ? <span>{a.user_name}</span> : null}
+                        <strong>{line.who}</strong>
+                        {line.when ? <time>{line.when}</time> : null}
                       </div>
-                      <div className="lead-activity-item__content">{a.content || '—'}</div>
+                      <div className="lead-activity-item__content">{line.what}</div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
             </div>

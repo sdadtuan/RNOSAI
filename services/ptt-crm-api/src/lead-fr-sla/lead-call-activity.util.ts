@@ -1,28 +1,32 @@
-import { leadStatusLabel } from '../leads/lead-status-gate.util';
-
 const CALL_RESULT_LABEL: Record<string, string> = {
-  ring_no_answer: 'Đổ chuông — khách không bắt máy',
-  unreachable: 'Không liên lạc được (máy bận hoặc không kết nối)',
-  callback_requested: 'Hẹn gọi lại',
-  wrong_number: 'Sai số',
-  connected_meet_pending: 'Đã nói chuyện — chờ gặp',
-  connected_qualified: 'Đã nói chuyện — đủ thông tin',
+  ring_no_answer: 'Đã gọi, khách không nghe máy',
+  unreachable: 'Đã gọi, máy bận hoặc không kết nối được',
+  callback_requested: 'Khách hẹn gọi lại',
+  wrong_number: 'Số điện thoại không đúng',
+  connected_meet_pending: 'Đã nói chuyện, đang chờ gặp',
+  connected_qualified: 'Đã nói chuyện, đã rõ nhu cầu',
   connected_other: 'Đã nói chuyện',
 };
 
 const CHANNEL_LABEL: Record<string, string> = {
-  phone: 'Điện thoại',
-  zalo: 'Zalo',
-  sms: 'SMS',
-  email: 'Email',
+  phone: '',
+  zalo: 'qua Zalo',
+  sms: 'qua tin nhắn',
+  email: 'qua thư',
 };
 
 const B2B_STATE_LABEL: Record<string, string> = {
-  started: 'AE bắt đầu gọi',
+  started: 'Bắt đầu gọi',
   answered: 'Khách nghe máy',
-  no_answer: 'Không nghe máy',
+  no_answer: 'Khách không nghe máy',
   ended: 'Kết thúc cuộc gọi',
 };
+
+function viaChannel(channel: string): string {
+  const extra = CHANNEL_LABEL[channel];
+  if (extra === undefined) return channel ? `qua ${channel}` : '';
+  return extra;
+}
 
 export function formatLeadCallActivity(input: {
   callResult: string;
@@ -33,18 +37,24 @@ export function formatLeadCallActivity(input: {
   callbackAt?: Date | null;
 }): { content: string; result: string } {
   const result = String(input.callResult || '').trim();
-  const lines = [
-    CALL_RESULT_LABEL[result] ?? (result || 'Cuộc gọi'),
-    `Kênh: ${CHANNEL_LABEL[input.channel] ?? input.channel}`,
-  ];
+  const base = CALL_RESULT_LABEL[result] ?? 'Đã gọi';
+  const via = viaChannel(String(input.channel || 'phone').trim().toLowerCase());
+  const lines = [via ? `${base}, ${via}` : base];
   const disposition = String(input.disposition ?? '').trim();
   if (disposition) lines.push(disposition);
   const notes = String(input.notes ?? '').trim();
   if (notes) lines.push(notes);
   if (input.callbackAt && !Number.isNaN(input.callbackAt.getTime())) {
-    lines.push(`Hẹn: ${input.callbackAt.toISOString()}`);
+    const when = new Intl.DateTimeFormat('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(input.callbackAt);
+    lines.push(`Hẹn gọi lại lúc ${when}`);
   }
-  lines.push(`Trạng thái lead lúc ghi: ${leadStatusLabel(String(input.leadStatus ?? ''))}`);
   return { content: lines.join('\n').slice(0, 8000), result: result.slice(0, 80) };
 }
 
@@ -55,8 +65,5 @@ export function formatB2bCallActivity(input: {
   const state = String(input.state || '').trim();
   const label = B2B_STATE_LABEL[state];
   if (!label) return null;
-  return {
-    content: `${label}\nTrạng thái lead lúc ghi: ${leadStatusLabel(String(input.leadStatus ?? ''))}`,
-    result: `b2b_${state}`.slice(0, 80),
-  };
+  return { content: label, result: `b2b_${state}`.slice(0, 80) };
 }

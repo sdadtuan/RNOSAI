@@ -135,13 +135,58 @@ export class CrmLeadsPgRepository implements OnModuleDestroy {
       [leadId, lim],
     );
     const rows = result.rows as Array<Record<string, unknown>>;
-    const out: LeadActivityRow[] = [];
+    const names = await this.activityStaffNames(rows);
+    return rows.map((row) => this.mapActivity(row, this.activityActorName(row, names)));
+  }
+
+  private async activityStaffNames(rows: Array<Record<string, unknown>>): Promise<{
+    byId: Map<number, string>;
+    byEmail: Map<string, string>;
+  }> {
+    const ids = new Set<number>();
+    const emails = new Set<string>();
     for (const row of rows) {
-      const userId = row.user_id != null ? Number(row.user_id) : null;
-      const userName = userId ? await this.ingestRules.staffName(userId) : '';
-      out.push(this.mapActivity(row, userName));
+      const userId = Number(row.user_id);
+      if (Number.isFinite(userId) && userId > 0) ids.add(userId);
+      const actor = String(row.created_by ?? '').trim();
+      const staffRef = /^staff:(\d+)$/i.exec(actor);
+      if (staffRef) ids.add(Number(staffRef[1]));
+      else if (actor.includes('@')) emails.add(actor.toLowerCase());
     }
-    return out;
+    const byId = new Map<number, string>();
+    const byEmail = new Map<string, string>();
+    if (!ids.size && !emails.size) return { byId, byEmail };
+    const found = await this.db.query(
+      `SELECT id, COALESCE(name, '') AS name, lower(trim(COALESCE(email, ''))) AS email
+       FROM crm_staff
+       WHERE id = ANY($1::bigint[])
+          OR lower(trim(COALESCE(email, ''))) = ANY($2::text[])`,
+      [[...ids].length ? [...ids] : [-1], [...emails].length ? [...emails] : ['__none__']],
+    );
+    for (const row of found.rows as Array<{ id: number; name: string; email: string }>) {
+      const name = String(row.name ?? '').trim();
+      if (!name) continue;
+      byId.set(Number(row.id), name);
+      if (row.email) byEmail.set(String(row.email), name);
+    }
+    return { byId, byEmail };
+  }
+
+  private activityActorName(
+    row: Record<string, unknown>,
+    names: { byId: Map<number, string>; byEmail: Map<string, string> },
+  ): string {
+    const userId = Number(row.user_id);
+    if (Number.isFinite(userId) && userId > 0 && names.byId.has(userId)) {
+      return names.byId.get(userId) ?? '';
+    }
+    const actor = String(row.created_by ?? '').trim();
+    const staffRef = /^staff:(\d+)$/i.exec(actor);
+    if (staffRef && names.byId.has(Number(staffRef[1]))) {
+      return names.byId.get(Number(staffRef[1])) ?? '';
+    }
+    if (actor.includes('@')) return names.byEmail.get(actor.toLowerCase()) ?? '';
+    return '';
   }
 
   async createActivity(

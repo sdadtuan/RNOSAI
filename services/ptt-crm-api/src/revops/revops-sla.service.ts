@@ -442,7 +442,7 @@ export class RevopsSlaService {
             AND NOT EXISTS (
               SELECT 1 FROM crm_lead_activities a
                WHERE a.lead_id = i.entity_id::bigint
-                 AND a.content LIKE 'RevOps SLA reminder%'
+                 AND (a.content LIKE 'RevOps SLA reminder%' OR a.content LIKE 'Nhắc sắp hết giờ gọi%')
             )`,
         [REVOPS_TENANT_ID, at],
       );
@@ -453,7 +453,7 @@ export class RevopsSlaService {
         await this.db.query(
           `INSERT INTO crm_lead_activities (lead_id, activity_type, content, created_at, created_by)
            VALUES ($1, 'note', $2, now(), 'revops-sla-worker')`,
-          [leadId, 'RevOps SLA reminder — lead first response sắp breach'],
+          [leadId, 'Nhắc sắp hết giờ gọi khách lần đầu.'],
         );
         sent += 1;
       }

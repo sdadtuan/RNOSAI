@@ -155,7 +155,7 @@ export class B2bSlaRepository implements OnModuleDestroy {
           `INSERT INTO crm_lead_activities (
              lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
            ) VALUES ($1, 'note', $2, '', 'stale_owner_remind', NOW(), 'system', '')`,
-          [row.id, 'Lead đứng yên quá hạn. Nhắc người phụ trách.'],
+          [row.id, 'Nhắc người phụ trách: lead quá hạn chưa được chăm.'],
         );
         created += 1;
       }
@@ -165,7 +165,7 @@ export class B2bSlaRepository implements OnModuleDestroy {
           `INSERT INTO crm_lead_activities (
              lead_id, activity_type, content, result, next_action, created_at, created_by, lead_status_at_log
            ) VALUES ($1, 'note', $2, '', 'stale_leader_notify', NOW(), 'system', '')`,
-          [row.id, 'Lead đứng yên thêm 1 ngày. Nhắc leader.'],
+          [row.id, 'Nhắc trưởng nhóm: lead chưa được chăm thêm 1 ngày.'],
         );
         created += 1;
       }

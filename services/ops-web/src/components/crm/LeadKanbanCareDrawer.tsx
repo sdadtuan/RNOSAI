@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { LeadActivityRow, LeadRow } from '@/lib/api';
 import { createLeadActivity, fetchLeadActivities, patchLead } from '@/lib/api';
+import { presentLeadHistory } from '@/lib/crm/lead-history';
 import { fetchB2bLeadEligibleStaff, type B2bLeadEligibleStaffRow } from '@/lib/b2b-projects-api';
 import { B2B_KANBAN_COLUMNS, leadStatusLabel, normalizeLeadStatus } from '@/lib/crm/lead-status';
 
@@ -147,20 +148,23 @@ export function LeadKanbanCareDrawer({
         </button>
         <h3>Lịch sử trao đổi</h3>
         {activities.length === 0 ? (
-          <p className="muted">Chưa có activity.</p>
+          <p className="muted">Chưa có lịch sử.</p>
         ) : (
           <ul className="crm-kanban-drawer__log">
-            {activities.map((activity) => (
-              <li key={activity.id}>
-                <strong>{activity.activity_type_label || activity.activity_type}</strong>
-                <span>{activity.content}</span>
-                {activity.next_action_at ? <span>Hẹn: {activity.next_action_at}</span> : null}
-              </li>
-            ))}
+            {activities.map((activity) => {
+              const line = presentLeadHistory(activity);
+              return (
+                <li key={activity.id}>
+                  <strong>{line.who}</strong>
+                  <span>{line.what}</span>
+                  {line.when ? <span className="muted">{line.when}</span> : null}
+                </li>
+              );
+            })}
           </ul>
         )}
         <p>
-          <Link href={`/crm/leads/${lead.id}`}>Mở trang lead để nhắn Zalo / Inbox</Link>
+          <Link href={`/crm/leads/${lead.id}`}>Mở trang lead để nhắn tin</Link>
         </p>
         {err ? (
           <p className="error" role="alert">
