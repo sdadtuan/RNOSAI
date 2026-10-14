@@ -340,7 +340,6 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     actor: string,
     userId: number | null,
   ): Promise<void> {
-    await this.assertNotInReviewQueue(leadId);
     const row = await this.fetchLeadRow(leadId);
     if (!row) throw new Error('Không tìm thấy lead.');
     const stageKey = String(body.stage || 'first_contact').trim();

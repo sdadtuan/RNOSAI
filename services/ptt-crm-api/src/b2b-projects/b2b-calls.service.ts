@@ -40,6 +40,11 @@ export class B2bCallsService {
       provider: this.config.b2bCpaas || 'mock',
       state: 'queued',
     });
+    await this.repo.recordHumanCallActivity({
+      leadId: input.leadId,
+      staffId: input.staffId,
+      state: 'started',
+    });
     if (shouldResolveArrivalAlert('human')) {
       await this.alertsRepo.markAlertsHandled({
         leadId: input.leadId,
@@ -86,6 +91,13 @@ export class B2bCallsService {
     const session = await this.repo.findByProviderCallId(input.providerCallId);
     if (!session) return;
     await this.repo.updateState({ sessionId: session.id, state: input.state });
+    if (session.kind === 'human') {
+      await this.repo.recordHumanCallActivity({
+        leadId: session.leadId,
+        staffId: session.staffId,
+        state: input.state,
+      });
+    }
     if (input.state === 'answered') {
       await this.repo.markLeadAnswered(session.leadId);
     }
@@ -102,6 +114,13 @@ export class B2bCallsService {
       await this.repo.attachProviderCallId(session.id, input.providerCallId);
     }
     await this.repo.updateState({ sessionId: session.id, state: input.state });
+    if (session.kind === 'human') {
+      await this.repo.recordHumanCallActivity({
+        leadId: session.leadId,
+        staffId: session.staffId,
+        state: input.state,
+      });
+    }
     if (input.state === 'answered') {
       await this.repo.markLeadAnswered(session.leadId);
     }

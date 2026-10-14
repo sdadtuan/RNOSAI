@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
+import { formatLeadCallActivity } from './lead-call-activity.util';
 import {
   applyCallLogToSnapshot,
   type RecomputeResult,
@@ -221,6 +222,23 @@ export class LeadFrSlaService {
         body.meeting_place ?? null,
       );
     }
+
+    const activity = formatLeadCallActivity({
+      callResult: result,
+      channel,
+      notes: body.notes,
+      disposition: body.disposition,
+      leadStatus: row.status == null ? '' : String(row.status),
+      callbackAt: body.callback_at != null ? parseDate(body.callback_at, startedAt) : null,
+    });
+    await this.repo.recordLeadCallActivity({
+      leadId,
+      staffId: body.staff_id != null ? Number(body.staff_id) : null,
+      content: activity.content,
+      result: activity.result,
+      createdBy: actor,
+      at: startedAt,
+    });
 
     const sla = await this.readSla(leadId);
     return {

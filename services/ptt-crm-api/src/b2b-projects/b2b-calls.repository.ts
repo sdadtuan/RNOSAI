@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
+import { formatB2bCallActivity } from '../lead-fr-sla/lead-call-activity.util';
 import { resolveSessionIdFromProviderRef } from './b2b-cpaas-stringee.util';
 import type { B2bCallKind, B2bCallSessionRow, B2bCallState } from './b2b-calls.types';
 
@@ -89,6 +90,35 @@ export class B2bCallsRepository implements OnModuleDestroy {
       kind: String(row.kind) as B2bCallKind,
       providerCallId: null,
     };
+  }
+
+  async recordHumanCallActivity(input: {
+    leadId: number;
+    staffId: number | null;
+    state: string;
+  }): Promise<void> {
+    const status = await this.db.query(
+      `SELECT COALESCE(status, '') AS status FROM crm_leads WHERE sqlite_lead_id = $1`,
+      [input.leadId],
+    );
+    const formatted = formatB2bCallActivity({
+      state: input.state,
+      leadStatus: String(status.rows[0]?.status ?? ''),
+    });
+    if (!formatted) return;
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, user_id, activity_type, content, result, next_action,
+         created_at, created_by, lead_status_at_log
+       )
+       SELECT l.sqlite_lead_id, $2, 'call', $3, $4, '', NOW(),
+              COALESCE(NULLIF(trim(s.email), ''), CASE WHEN $2::bigint IS NULL THEN 'ae' ELSE 'staff:' || $2::text END),
+              COALESCE(l.status, '')
+       FROM crm_leads l
+       LEFT JOIN crm_staff s ON s.id = $2
+       WHERE l.sqlite_lead_id = $1`,
+      [input.leadId, input.staffId, formatted.content, formatted.result],
+    );
   }
 
   async markLeadAnswered(leadId: number): Promise<void> {

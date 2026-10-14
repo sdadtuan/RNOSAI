@@ -16,11 +16,17 @@ describe('B2bCallsService', () => {
         providerCallId: null,
       })),
       markLeadAnswered: jest.fn(),
+      recordHumanCallActivity: jest.fn(),
     };
     const alertsRepo = { markAlertsHandled: jest.fn() };
     const dnc = { isBlocked: jest.fn(async () => false) };
     const svc = new B2bCallsService(repo as never, alertsRepo as never, { b2bCpaas: 'mock', b2bProjectOs: true } as never, dnc as never);
     await svc.applyWebhookBySessionId({ sessionId: 's2', state: 'answered', providerCallId: 'call-1' });
+    expect(repo.recordHumanCallActivity).toHaveBeenCalledWith({
+      leadId: 2,
+      staffId: 11,
+      state: 'answered',
+    });
     expect(repo.attachProviderCallId).toHaveBeenCalledWith('s2', 'call-1');
     expect(repo.markLeadAnswered).toHaveBeenCalledWith(2);
   });
@@ -40,6 +46,7 @@ describe('B2bCallsService', () => {
         providerCallId: 'mock-s1',
       })),
       markLeadAnswered: jest.fn(),
+      recordHumanCallActivity: jest.fn(),
     };
     const alertsRepo = { markAlertsHandled: jest.fn() };
     const dnc = { isBlocked: jest.fn(async () => false) };
@@ -53,6 +60,7 @@ describe('B2bCallsService', () => {
     const repo = {
       insertSession: jest.fn(async () => ({ id: 's1', leadId: 1, staffId: 10, state: 'queued', kind: 'human', provider: 'down', providerCallId: null })),
       attachProviderCallId: jest.fn(),
+      recordHumanCallActivity: jest.fn(),
     };
     const alertsRepo = { markAlertsHandled: jest.fn() };
     const dnc = { isBlocked: jest.fn(async () => false) };

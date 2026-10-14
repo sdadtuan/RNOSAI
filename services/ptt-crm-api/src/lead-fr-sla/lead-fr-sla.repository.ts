@@ -199,6 +199,33 @@ export class LeadFrSlaRepository implements OnModuleDestroy, OnModuleInit {
     return this.mapAttempt(result.rows[0] as Record<string, unknown>);
   }
 
+  async recordLeadCallActivity(input: {
+    leadId: number;
+    staffId: number | null;
+    content: string;
+    result: string;
+    createdBy: string;
+    at?: Date;
+  }): Promise<void> {
+    await this.db.query(
+      `INSERT INTO crm_lead_activities (
+         lead_id, user_id, activity_type, content, result, next_action,
+         created_at, created_by, lead_status_at_log
+       )
+       SELECT $1, $2, 'call', $3, $4, '', COALESCE($6::timestamptz, NOW()), $5, COALESCE(status, '')
+       FROM crm_leads
+       WHERE sqlite_lead_id = $1`,
+      [
+        input.leadId,
+        input.staffId,
+        input.content.slice(0, 8000),
+        input.result.slice(0, 80),
+        input.createdBy.slice(0, 120),
+        input.at ? input.at.toISOString() : null,
+      ],
+    );
+  }
+
   async applySnapshot(
     leadId: number,
     snap: LeadFrSlaSnapshot,
