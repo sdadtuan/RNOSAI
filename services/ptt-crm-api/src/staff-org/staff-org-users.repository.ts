@@ -14,6 +14,7 @@ import type {
   StaffOrgUserSummary,
 } from './staff-org.types';
 import type { StaffOrgAuditInput } from './staff-org.types';
+import { membershipLeadIds } from './staff-org-lead.util';
 import { nextInternalCodeFromMax } from './staff-org-internal-code.util';
 
 function normalizeEmail(email: string): string {
@@ -35,6 +36,8 @@ function mapUserSummary(row: {
   team_ids: number[] | null;
   team_codes: string[] | null;
   team_names?: string[] | null;
+  lead_team_ids?: number[] | null;
+  lead_team_names?: string[] | null;
   position_team_name?: string | null;
   job_functions?: string[];
 }): StaffOrgUserSummary {
@@ -49,6 +52,8 @@ function mapUserSummary(row: {
     team_ids: row.team_ids ?? [],
     team_codes: row.team_codes ?? [],
     team_names: row.team_names ?? [],
+    lead_team_ids: row.lead_team_ids ?? [],
+    lead_team_names: row.lead_team_names ?? [],
     position_team_name: row.position_team_name ? String(row.position_team_name) : undefined,
     job_functions: row.job_functions ?? [],
   };
@@ -100,7 +105,9 @@ export class StaffOrgUsersRepository {
              cs.id AS crm_staff_id,
              COALESCE(array_agg(DISTINCT t.id) FILTER (WHERE t.id IS NOT NULL), '{}') AS team_ids,
              COALESCE(array_agg(DISTINCT t.code) FILTER (WHERE t.code IS NOT NULL), '{}') AS team_codes,
-             COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL), '{}') AS team_names
+             COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL), '{}') AS team_names,
+             COALESCE(array_agg(DISTINCT t.id) FILTER (WHERE sut.team_role = 'lead'), '{}') AS lead_team_ids,
+             COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE sut.team_role = 'lead' AND t.name IS NOT NULL), '{}') AS lead_team_names
       FROM staff_users u
       LEFT JOIN crm_positions p ON p.id = u.position_id
       LEFT JOIN staff_teams pt ON pt.id = p.team_id AND pt.active IS TRUE
@@ -126,6 +133,8 @@ export class StaffOrgUsersRepository {
       team_ids: number[];
       team_codes: string[];
       team_names: string[];
+      lead_team_ids: number[];
+      lead_team_names: string[];
       position_team_name: string | null;
     }>(this.userListSql(includeInactive));
 
@@ -135,6 +144,8 @@ export class StaffOrgUsersRepository {
         team_ids: (row.team_ids ?? []).map(Number).filter((n) => n > 0),
         team_codes: row.team_codes ?? [],
         team_names: row.team_names ?? [],
+        lead_team_ids: (row.lead_team_ids ?? []).map(Number).filter((n) => n > 0),
+        lead_team_names: row.lead_team_names ?? [],
       }),
     );
 
@@ -161,6 +172,8 @@ export class StaffOrgUsersRepository {
       team_ids: number[];
       team_codes: string[];
       team_names: string[];
+      lead_team_ids: number[];
+      lead_team_names: string[];
       position_team_name: string | null;
     }>(
       `SELECT u.id::text, u.email, u.display_name, u.position_id, u.active,
@@ -169,7 +182,9 @@ export class StaffOrgUsersRepository {
               cs.id AS crm_staff_id,
               COALESCE(array_agg(DISTINCT t.id) FILTER (WHERE t.id IS NOT NULL), '{}') AS team_ids,
               COALESCE(array_agg(DISTINCT t.code) FILTER (WHERE t.code IS NOT NULL), '{}') AS team_codes,
-              COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL), '{}') AS team_names
+              COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL), '{}') AS team_names,
+              COALESCE(array_agg(DISTINCT t.id) FILTER (WHERE sut.team_role = 'lead'), '{}') AS lead_team_ids,
+              COALESCE(array_agg(DISTINCT t.name) FILTER (WHERE sut.team_role = 'lead' AND t.name IS NOT NULL), '{}') AS lead_team_names
        FROM staff_users u
        LEFT JOIN crm_positions p ON p.id = u.position_id
        LEFT JOIN staff_teams pt ON pt.id = p.team_id AND pt.active IS TRUE
@@ -187,6 +202,8 @@ export class StaffOrgUsersRepository {
       team_ids: (row.team_ids ?? []).map(Number).filter((n) => n > 0),
       team_codes: row.team_codes ?? [],
       team_names: row.team_names ?? [],
+      lead_team_ids: (row.lead_team_ids ?? []).map(Number).filter((n) => n > 0),
+      lead_team_names: row.lead_team_names ?? [],
     });
   }
 
@@ -221,16 +238,27 @@ export class StaffOrgUsersRepository {
     client: PoolClient,
     userId: string,
     teamIds: number[],
+    leadTeamIds: number[] = [],
   ): Promise<void> {
     const unique = [...new Set(teamIds.filter((id) => Number.isFinite(id) && id > 0))];
+    const leads = new Set(membershipLeadIds(unique, leadTeamIds));
     await client.query(`DELETE FROM staff_user_teams WHERE user_id = $1::uuid`, [userId]);
     for (const teamId of unique) {
+      const role = leads.has(teamId) ? 'lead' : 'member';
       await client.query(
-        `INSERT INTO staff_user_teams (user_id, team_id, assigned_at)
-         VALUES ($1::uuid, $2, NOW())
-         ON CONFLICT DO NOTHING`,
-        [userId, teamId],
+        `INSERT INTO staff_user_teams (user_id, team_id, team_role, assigned_at)
+         VALUES ($1::uuid, $2, $3, NOW())
+         ON CONFLICT (user_id, team_id) DO UPDATE SET team_role = EXCLUDED.team_role`,
+        [userId, teamId, role],
       );
+      if (role === 'lead') {
+        await client.query(
+          `UPDATE staff_user_teams
+           SET team_role = 'member'
+           WHERE team_id = $1 AND user_id <> $2::uuid AND team_role = 'lead'`,
+          [teamId, userId],
+        );
+      }
     }
   }
 
@@ -332,6 +360,7 @@ export class StaffOrgUsersRepository {
     }
     const passwordHash = hashPortalPassword(plainPassword);
     const teamIds = (body.team_ids ?? []).map(Number).filter((n) => n > 0);
+    const leadTeamIds = membershipLeadIds(teamIds, body.lead_team_ids, []);
     const accountKind = normalizeAccountKind(body.account_kind);
     const expiresAt = body.expires_at ? String(body.expires_at).trim() : null;
     if ((accountKind === 'guest' || accountKind === 'contractor') && !expiresAt) {
@@ -363,7 +392,7 @@ export class StaffOrgUsersRepository {
       }
 
       if (teamIds.length) {
-        await this.replaceUserTeams(client, userId, teamIds);
+        await this.replaceUserTeams(client, userId, teamIds, leadTeamIds);
       }
 
       await this.writeAudit(client, {
@@ -376,6 +405,7 @@ export class StaffOrgUsersRepository {
           display_name: displayName,
           position_id: positionId,
           team_ids: teamIds,
+          lead_team_ids: leadTeamIds,
           account_kind: accountKind,
           expires_at: expiresAt,
         },
@@ -428,7 +458,12 @@ export class StaffOrgUsersRepository {
           );
           const teamId = Number(teamHit.rows[0]?.team_id);
           if (Number.isFinite(teamId) && teamId > 0) {
-            await this.replaceUserTeams(client, userId, [teamId]);
+            await this.replaceUserTeams(
+              client,
+              userId,
+              [teamId],
+              membershipLeadIds([teamId], body.lead_team_ids, existing.lead_team_ids ?? []),
+            );
             positionTeamApplied = true;
           }
         }
@@ -465,10 +500,12 @@ export class StaffOrgUsersRepository {
       }
 
       if (body.team_ids !== undefined && !positionTeamApplied) {
+        const teamIds = (body.team_ids ?? []).map(Number).filter((n) => n > 0);
         await this.replaceUserTeams(
           client,
           userId,
-          (body.team_ids ?? []).map(Number).filter((n) => n > 0),
+          teamIds,
+          membershipLeadIds(teamIds, body.lead_team_ids, existing.lead_team_ids ?? []),
         );
       }
 

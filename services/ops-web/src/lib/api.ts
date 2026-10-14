@@ -9591,6 +9591,8 @@ export interface StaffOrgUserSummary {
   team_ids?: number[];
   team_codes?: string[];
   team_names?: string[];
+  lead_team_ids?: number[];
+  lead_team_names?: string[];
   position_team_name?: string;
   job_functions: string[];
   client_ids?: string[];
@@ -9601,6 +9603,7 @@ export interface CreateStaffOrgUserInput {
   display_name?: string;
   position_id: number;
   team_ids?: number[];
+  lead_team_ids?: number[];
   functions?: string[];
   password?: string;
   crm_staff_id?: number;
@@ -9621,6 +9624,7 @@ export interface PatchStaffOrgUserInput {
   display_name?: string;
   position_id?: number;
   team_ids?: number[];
+  lead_team_ids?: number[];
   active?: boolean;
   password?: string;
   account_kind?: 'staff' | 'guest' | 'contractor';

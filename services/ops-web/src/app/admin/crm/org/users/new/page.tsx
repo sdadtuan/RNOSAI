@@ -64,6 +64,7 @@ function AdminOrgUserOnboardPageContent() {
   const [positionId, setPositionId] = useState<number | ''>('');
   const [functions, setFunctions] = useState<string[]>([]);
   const [teamIds, setTeamIds] = useState<number[]>([]);
+  const [leadTeamIds, setLeadTeamIds] = useState<number[]>([]);
 
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -205,6 +206,12 @@ function AdminOrgUserOnboardPageContent() {
 
   function toggleTeam(id: number) {
     setTeamIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setLeadTeamIds((prev) => prev.filter((x) => x !== id));
+  }
+
+  function toggleLead(id: number) {
+    if (!teamIds.includes(id)) return;
+    setLeadTeamIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   async function finish() {
@@ -223,6 +230,7 @@ function AdminOrgUserOnboardPageContent() {
         display_name: displayName.trim() || name.trim(),
         position_id: Number(positionId),
         team_ids: teamIds,
+        lead_team_ids: leadTeamIds.filter((id) => teamIds.includes(id)),
         functions,
         password,
         account_kind: accountKind,
@@ -396,6 +404,24 @@ function AdminOrgUserOnboardPageContent() {
                   </button>
                 ))}
               </div>
+              {teamIds.length ? (
+                <>
+                  <p className="onboard-wizard__label" style={{ marginTop: '0.75rem' }}>Trưởng team</p>
+                  <div className="win-filter-chips">
+                    {teams.filter((t) => teamIds.includes(t.id)).map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className={`chip${leadTeamIds.includes(t.id) ? ' is-active' : ''}`}
+                        onClick={() => toggleLead(t.id)}
+                      >
+                        {t.code}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="muted">Mỗi team một trưởng. Lưu sẽ thay trưởng đang giữ team đó.</p>
+                </>
+              ) : null}
             </div>
           </div>
         ) : null}

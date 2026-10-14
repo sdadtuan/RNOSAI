@@ -24,4 +24,15 @@ describe('formatOrgUserRole', () => {
       }),
     ).toBe('ACM · Account Management · leader');
   });
+
+  it('marks the team this person leads', () => {
+    expect(
+      formatOrgUserRole({
+        position_id: 7,
+        position_code: 'ACM',
+        team_names: ['Account Management'],
+        lead_team_names: ['Account Management'],
+      }),
+    ).toBe('ACM · Account Management (trưởng)');
+  });
 });

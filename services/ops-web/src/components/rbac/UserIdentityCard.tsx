@@ -52,6 +52,7 @@ export function UserIdentityCard({
   const [positionId, setPositionId] = useState(user.position_id);
   const [functions, setFunctions] = useState<string[]>(user.job_functions ?? []);
   const [teamIds, setTeamIds] = useState<number[]>(user.team_ids ?? []);
+  const [leadTeamIds, setLeadTeamIds] = useState<number[]>(user.lead_team_ids ?? []);
   const [setCodes, setSetCodes] = useState<string[]>([]);
   const [clientIds, setClientIds] = useState<string[]>([]);
   const [setOptions, setSetOptions] = useState<StaffPermissionSetSummary[]>([]);
@@ -143,6 +144,7 @@ export function UserIdentityCard({
     setPositionId(user.position_id);
     setFunctions(user.job_functions ?? []);
     setTeamIds(user.team_ids ?? []);
+    setLeadTeamIds(user.lead_team_ids ?? []);
     setLoginPassword('');
     setIssuedLoginPassword('');
     void loadDetail();
@@ -173,6 +175,7 @@ export function UserIdentityCard({
         display_name: displayName,
         position_id: positionId,
         team_ids: teamIds,
+        lead_team_ids: leadTeamIds.filter((id) => teamIds.includes(id)),
       });
       await putStaffUserJobFunctions(token, user.id, functions);
       if (winPermissionSetsEnabled()) {
@@ -182,6 +185,8 @@ export function UserIdentityCard({
         await putStaffUserClientScope(token, user.id, clientIds);
       }
       await loadDetail();
+      setTeamIds(patched.team_ids ?? []);
+      setLeadTeamIds(patched.lead_team_ids ?? []);
       onSaved?.({ ...patched, job_functions: functions });
       setShowRelogin(true);
     } catch (err) {
@@ -232,9 +237,13 @@ export function UserIdentityCard({
 
   function toggleTeam(teamId: number) {
     if (!canEdit) return;
-    setTeamIds((prev) =>
-      prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId],
-    );
+    setTeamIds((prev) => (prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId]));
+    setLeadTeamIds((prev) => prev.filter((id) => id !== teamId));
+  }
+
+  function toggleLead(teamId: number) {
+    if (!canEdit || !teamIds.includes(teamId)) return;
+    setLeadTeamIds((prev) => (prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId]));
   }
 
   function exportJson() {
@@ -244,6 +253,7 @@ export function UserIdentityCard({
       display_name: displayName,
       position_id: positionId,
       team_ids: teamIds,
+      lead_team_ids: leadTeamIds.filter((id) => teamIds.includes(id)),
       job_functions: functions,
       set_codes: setCodes,
       client_ids: clientIds,
@@ -286,7 +296,10 @@ export function UserIdentityCard({
             const next = Number(e.target.value);
             setPositionId(next);
             const position = positions.find((row) => row.id === next);
-            if (position?.team_id) setTeamIds([position.team_id]);
+            if (position?.team_id) {
+              setTeamIds([position.team_id]);
+              setLeadTeamIds((prev) => prev.filter((id) => id === position.team_id));
+            }
           }}
           disabled={!canEdit || busy}
         >
@@ -397,6 +410,29 @@ export function UserIdentityCard({
             </button>
           ))}
         </div>
+        {teamIds.length ? (
+          <>
+            <p className="muted" style={{ margin: '0.65rem 0 0.35rem' }}>
+              Trưởng team
+            </p>
+            <div className="win-filter-chips">
+              {teams.filter((t) => teamIds.includes(t.id)).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`chip${leadTeamIds.includes(t.id) ? ' is-active' : ''}`}
+                  disabled={!canEdit || busy}
+                  onClick={() => toggleLead(t.id)}
+                >
+                  {t.code}
+                </button>
+              ))}
+            </div>
+            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+              Mỗi team một trưởng. Lưu người này sẽ thay trưởng đang giữ team đó. Trưởng team thấy menu Đội AE.
+            </p>
+          </>
+        ) : null}
       </section>
 
       <details>

@@ -9,6 +9,8 @@ export type StaffOrgUserSummary = {
   team_ids?: number[];
   team_codes?: string[];
   team_names?: string[];
+  lead_team_ids?: number[];
+  lead_team_names?: string[];
   position_team_name?: string;
   job_functions: string[];
   client_ids?: string[];
@@ -24,6 +26,7 @@ export type CreateStaffOrgUserBody = {
   display_name?: string;
   position_id: number;
   team_ids?: number[];
+  lead_team_ids?: number[];
   functions?: string[];
   password?: string;
   crm_staff_id?: number;
@@ -44,6 +47,7 @@ export type PatchStaffOrgUserBody = {
   display_name?: string;
   position_id?: number;
   team_ids?: number[];
+  lead_team_ids?: number[];
   active?: boolean;
   password?: string;
   account_kind?: 'staff' | 'guest' | 'contractor';
