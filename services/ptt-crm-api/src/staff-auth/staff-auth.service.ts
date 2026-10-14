@@ -439,6 +439,9 @@ export class StaffAuthService {
             { section_id: 'iwr', action: 'executive' },
             { section_id: 'iwr', action: 'bcc' },
             { section_id: 'iwr', action: 'external' },
+            { section_id: 'crm_ae_team', action: 'view' },
+            { section_id: 'crm_ae_team', action: 'manage' },
+            { section_id: 'crm_ae_team', action: 'view_all' },
           ])
         : caps,
       p13PositionCaps(position_code),

@@ -193,12 +193,27 @@ describe('buildNavTree IA', () => {
       expect(ids).not.toContain('email');
       expect(ids).not.toContain('plan');
       expect(ids).not.toContain('finance');
+      expect(salesLabels).not.toContain('Đội AE');
     } finally {
       for (const [f, v] of Object.entries(prev)) {
         if (v === undefined) delete process.env[f];
         else process.env[f] = v;
       }
     }
+  });
+
+  it('shows Đội AE under Lead B2B when the staff me flag is lead or all', () => {
+    const lead: StoredStaffUser = {
+      id: 'lead-1',
+      email: 'lead@pttads.vn',
+      display_name: 'Team lead',
+      position_id: 7,
+      caps: [cap('crm_leads', 'view')],
+      ae_team_access: 'all',
+    };
+    const sales = buildNavTree(lead, {}).find((item) => item.id === 'sales');
+    const labels = sales?.kind === 'parent' ? sales.children.map((child) => child.label) : [];
+    expect(labels.slice(0, 2)).toEqual(['Lead B2B', 'Đội AE']);
   });
 
   it('Graphic Designer sees production work, not sales, HR, finance, or admin', () => {
