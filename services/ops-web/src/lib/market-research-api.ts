@@ -1972,6 +1972,26 @@ export function fetchRawLeadHarvestProviders(token: string) {
   );
 }
 
+export type HarvestLookupOption = {
+  id: number;
+  kind: 'source' | 'channel' | 'industry' | 'job_title';
+  option_key: string;
+  label: string;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export function fetchRawLeadHarvestLookups(token: string) {
+  return researchFetch<{
+    industry: HarvestLookupOption[];
+    job_title: HarvestLookupOption[];
+    source: HarvestLookupOption[];
+    channel: HarvestLookupOption[];
+  }>(token, '/api/v1/research/raw-lead-harvest/lookups');
+}
+
 export function createRawLeadHarvest(
   token: string,
   projectId: number,

@@ -127,6 +127,22 @@ export class RawLeadHarvestService {
     return this.aiProviders.listHarvestProviders();
   }
 
+  async listHarvestLookups() {
+    this.assertEnabled();
+    const [industry, jobTitle, source, channel] = await Promise.all([
+      this.crmConfig.listLeadLookups('industry', true),
+      this.crmConfig.listLeadLookups('job_title', true),
+      this.crmConfig.listLeadLookups('source', true),
+      this.crmConfig.listLeadLookups('channel', true),
+    ]);
+    return {
+      industry: industry.options,
+      job_title: jobTitle.options,
+      source: source.options,
+      channel: channel.options,
+    };
+  }
+
   async getMarketEntitiesSummary(industryKey: string, provinceCode: string) {
     this.assertEnabled();
     const industry = String(industryKey ?? '').trim();

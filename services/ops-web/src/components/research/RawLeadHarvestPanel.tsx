@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  fetchCrmLeadLookups,
   fetchCrmStaffList,
   type CrmLeadLookupOption,
   type CrmStaffRow,
@@ -12,6 +11,7 @@ import {
   createRawLeadHarvest,
   exportRawLeads,
   fetchMarketEntitiesSummary,
+  fetchRawLeadHarvestLookups,
   fetchRawLeadHarvestProviders,
   fetchRawLeadPriorityCounts,
   fetchRawLeadReadinessCounts,
@@ -516,19 +516,16 @@ export function RawLeadHarvestPanel({ projectId, token, user }: Props) {
   }, [jobsPage, jobsTotalPages]);
 
   const reloadMeta = useCallback(async () => {
-    const [ind, tit, src, ch, prov, harvestProv, staffOut] = await Promise.all([
-      fetchCrmLeadLookups(token, { kind: 'industry', active_only: true }),
-      fetchCrmLeadLookups(token, { kind: 'job_title', active_only: true }),
-      fetchCrmLeadLookups(token, { kind: 'source', active_only: true }),
-      fetchCrmLeadLookups(token, { kind: 'channel', active_only: true }),
+    const [ind, prov, harvestProv, staffOut] = await Promise.all([
+      fetchRawLeadHarvestLookups(token),
       fetchVnProvinces(token),
       fetchRawLeadHarvestProviders(token),
       fetchCrmStaffList(token).catch(() => ({ staff: [] as CrmStaffRow[], summary: {} })),
     ]);
-    setIndustries(ind.options);
-    setTitles(tit.options);
-    setSources(src.options);
-    setChannels(ch.options);
+    setIndustries(ind.industry as CrmLeadLookupOption[]);
+    setTitles(ind.job_title as CrmLeadLookupOption[]);
+    setSources(ind.source as CrmLeadLookupOption[]);
+    setChannels(ind.channel as CrmLeadLookupOption[]);
     setProvinces(prov);
     setProviders(harvestProv.providers.filter((p) => p.configured));
     setStaffOptions(

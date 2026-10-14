@@ -56,6 +56,12 @@ export class RawLeadHarvestController {
     return this.harvest.listHarvestProviders().then((providers) => ({ providers }));
   }
 
+  @Get('raw-lead-harvest/lookups')
+  @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
+  lookups() {
+    return this.harvest.listHarvestLookups();
+  }
+
   @Get('market-entities/summary')
   @UseGuards(StaffOrInternalKeyGuard, StaffMarketResearchViewGuard)
   marketEntitiesSummary(
