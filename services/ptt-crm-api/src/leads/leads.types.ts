@@ -33,6 +33,8 @@ export interface LeadV1 {
   quote_stale?: boolean;
   callback_today?: boolean;
   next_call_at?: string | null;
+  callback_at?: string | null;
+  last_call_result?: string | null;
   in_call?: boolean;
   /** WIN-4-B — financial ABAC pilot (from meta_json.financial). */
   expected_value?: number | null;
@@ -102,7 +104,9 @@ export interface PgLeadRow {
   b2b_assigned_at?: Date | string | null;
   b2b_hop_count?: number | null;
   last_call_at?: Date | string | null;
+  last_call_result?: string | null;
   next_call_at?: Date | string | null;
+  callback_at?: Date | string | null;
   updated_at?: Date | string | null;
 }
 

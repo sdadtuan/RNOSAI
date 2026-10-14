@@ -54,6 +54,8 @@ export interface LeadRow {
   quote_stale?: boolean;
   callback_today?: boolean;
   next_call_at?: string | null;
+  callback_at?: string | null;
+  last_call_result?: string | null;
   in_call?: boolean;
   expected_value?: number | null;
   margin_pct?: number | null;
@@ -1394,7 +1396,7 @@ export async function postKanbanCall(
   id: number,
   body: {
     phase: 'start' | 'result';
-    result?: 'answered' | 'no_answer' | 'wrong_number' | 'callback';
+    result?: 'answered' | 'no_answer' | 'unreachable' | 'wrong_number' | 'callback';
     note?: string;
     next_call_at?: string;
   },

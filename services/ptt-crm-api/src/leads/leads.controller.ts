@@ -777,7 +777,7 @@ export class LeadsController {
       return { phone, suggest_lost: false };
     }
     const result = String(body.result ?? '');
-    if (!['answered', 'no_answer', 'wrong_number', 'callback'].includes(result)) {
+    if (!['answered', 'no_answer', 'wrong_number', 'callback', 'unreachable'].includes(result)) {
       throw new HttpException({ error: 'call_result_required' }, HttpStatus.BAD_REQUEST);
     }
     const labels: Record<string, string> = {
@@ -785,6 +785,7 @@ export class LeadsController {
       no_answer: 'Không nghe',
       wrong_number: 'Sai số',
       callback: 'Hẹn lại',
+      unreachable: 'Máy bận',
     };
     const note = String(body.note ?? '').trim();
     await this.leadsWriteService.logKanbanCall(id, {

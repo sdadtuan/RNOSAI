@@ -1113,6 +1113,45 @@ html.ops-shell-bitrix .crm-kanban-card__chip--sla {
   background: #ffe4e6;
   color: #9f1239;
 }
+html.ops-shell-bitrix .crm-kanban-card__chip--followup {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.crm-kanban-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.crm-kanban-followup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.crm-kanban-followup__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #d6d3d1;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font: inherit;
+  cursor: pointer;
+}
+.crm-kanban-followup__btn span {
+  font-weight: 700;
+}
+.crm-kanban-followup__btn.is-on {
+  background: #17692f;
+  border-color: #17692f;
+  color: #fff;
+}
+.crm-kanban-drawer__followup {
+  margin: 0;
+  font-weight: 600;
+}
 
 html.ops-shell-bitrix .crm-kanban-card__cta--call {
   background: var(--hot);

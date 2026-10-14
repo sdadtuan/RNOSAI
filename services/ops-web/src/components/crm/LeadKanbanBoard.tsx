@@ -18,6 +18,7 @@ import {
   leadStatusLabel,
 } from '@/lib/crm/lead-status';
 import { KANBAN_COLUMN_PAGE, sortKanbanLeads } from '@/lib/crm/kanban-column.util';
+import { followupChip, leadFollowup, type LeadFollowupKind } from '@/lib/crm/lead-followup';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 
 function formatWhen(iso: string): string {
@@ -205,11 +206,12 @@ export function LeadKanbanBoard({
   const [callbackAt, setCallbackAt] = useState('');
   const [callLead, setCallLead] = useState<LeadRow | null>(null);
   const [callPhone, setCallPhone] = useState('');
-  const [callResult, setCallResult] = useState<'answered' | 'no_answer' | 'wrong_number' | 'callback'>('answered');
+  const [callResult, setCallResult] = useState<'answered' | 'no_answer' | 'unreachable' | 'wrong_number' | 'callback'>('answered');
   const [callNote, setCallNote] = useState('');
   const [callBackAt, setCallBackAt] = useState('');
   const [careLead, setCareLead] = useState<LeadRow | null>(null);
   const [columnLimit, setColumnLimit] = useState<Record<string, number>>({});
+  const [followupFilter, setFollowupFilter] = useState<LeadFollowupKind | ''>('');
 
   const columns = b2b
     ? B2B_KANBAN_COLUMNS.map((column) => ({
@@ -422,7 +424,41 @@ export function LeadKanbanBoard({
     }
   }
 
+  const followupCounts = b2b
+    ? rows.reduce(
+        (counts, lead) => {
+          const kind = leadFollowup(lead)?.kind;
+          if (kind) counts[kind] += 1;
+          return counts;
+        },
+        { no_answer: 0, busy: 0, callback: 0 } as Record<LeadFollowupKind, number>,
+      )
+    : null;
+
   return (
+    <div className="crm-kanban-wrap">
+      {followupCounts ? (
+        <div className="crm-kanban-followup" role="group" aria-label="Lead cần gọi lại">
+          {(
+            [
+              ['no_answer', 'Không nghe máy'],
+              ['busy', 'Máy bận'],
+              ['callback', 'Hẹn gọi lại'],
+            ] as const
+          ).map(([kind, label]) => (
+            <button
+              key={kind}
+              type="button"
+              className={`crm-kanban-followup__btn${followupFilter === kind ? ' is-on' : ''}`}
+              aria-pressed={followupFilter === kind}
+              onClick={() => setFollowupFilter((current) => (current === kind ? '' : kind))}
+            >
+              {label}
+              <span>{followupCounts[kind]}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     <div className="crm-kanban" data-testid="crm-leads-kanban">
       {msg ? (
         <p className="muted" style={{ gridColumn: '1 / -1', margin: 0 }}>
@@ -435,7 +471,9 @@ export function LeadKanbanBoard({
         </p>
       ) : null}
       {columns.map((column) => {
-        const items = column.items;
+        const items = followupFilter
+          ? column.items.filter((lead) => leadFollowup(lead)?.kind === followupFilter)
+          : column.items;
         const sortedItems = b2b ? sortKanbanLeads(items) : items;
         const visibleLimit = b2b ? columnLimit[column.key] ?? KANBAN_COLUMN_PAGE : sortedItems.length;
         const shownItems = sortedItems.slice(0, visibleLimit);
@@ -491,6 +529,7 @@ export function LeadKanbanBoard({
                       : band === 'hot'
                         ? 'hot'
                         : 'plain';
+                  const followup = b2b ? leadFollowup(lead) : null;
                   const origin = [lead.project_code, lead.source || lead.channel].filter(Boolean).join(' · ');
                   const initials = ownerInitials(lead.owner_name);
                   return (
@@ -514,6 +553,11 @@ export function LeadKanbanBoard({
                         )}
                         {sla ? (
                           <span className="crm-kanban-card__chip crm-kanban-card__chip--sla">{sla}</span>
+                        ) : null}
+                        {followup ? (
+                          <span className={`crm-kanban-card__chip crm-kanban-card__chip--followup crm-kanban-card__chip--${followup.kind}`}>
+                            {followupChip(followup)}
+                          </span>
                         ) : null}
                       </div>
                       <Link href={`/crm/leads/${lead.id}`} className="crm-kanban-card__title">
@@ -656,9 +700,10 @@ export function LeadKanbanBoard({
               Kết quả
               <select value={callResult} onChange={(event) => setCallResult(event.target.value as typeof callResult)}>
                 <option value="answered">Nghe máy</option>
-                <option value="no_answer">Không nghe</option>
+                <option value="no_answer">Không nghe máy</option>
+                <option value="unreachable">Máy bận</option>
                 <option value="wrong_number">Sai số</option>
-                <option value="callback">Hẹn lại</option>
+                <option value="callback">Hẹn gọi lại</option>
               </select>
             </label>
             {callResult === 'callback' ? (
@@ -705,6 +750,7 @@ export function LeadKanbanBoard({
           }}
         />
       ) : null}
+    </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import type { LeadActivityRow, LeadRow } from '@/lib/api';
 import { createLeadActivity, fetchLeadActivities, patchLead } from '@/lib/api';
 import { presentLeadHistory } from '@/lib/crm/lead-history';
+import { leadFollowup } from '@/lib/crm/lead-followup';
 import { fetchB2bLeadEligibleStaff, type B2bLeadEligibleStaffRow } from '@/lib/b2b-projects-api';
 import { B2B_KANBAN_COLUMNS, leadStatusLabel, normalizeLeadStatus } from '@/lib/crm/lead-status';
 
@@ -147,6 +148,15 @@ export function LeadKanbanCareDrawer({
           Lưu ghi chú
         </button>
         <h3>Lịch sử trao đổi</h3>
+        {(() => {
+          const followup = leadFollowup(lead);
+          if (!followup) return null;
+          return (
+            <p className="crm-kanban-drawer__followup">
+              {followup.when ? `${followup.label} lúc ${followup.when}` : `${followup.label}. Cần gọi lại.`}
+            </p>
+          );
+        })()}
         {activities.length === 0 ? (
           <p className="muted">Chưa có lịch sử.</p>
         ) : (

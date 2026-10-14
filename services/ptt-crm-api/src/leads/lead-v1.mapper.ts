@@ -210,6 +210,8 @@ function buildB2bListExtras(
   | 'quote_stale'
   | 'callback_today'
   | 'next_call_at'
+  | 'callback_at'
+  | 'last_call_result'
   | 'in_call'
 > {
   const receivedAt = asDate(row.received_at) ?? asDate(row.created_at);
@@ -245,6 +247,8 @@ function buildB2bListExtras(
     quote_stale: isQuoteStale({ status: row.status, receivedAt, now, settings }),
     callback_today: isCallbackToday(asDate(row.next_call_at), now),
     next_call_at: row.next_call_at ? String(row.next_call_at) : null,
+    callback_at: row.callback_at ? String(row.callback_at) : null,
+    last_call_result: row.last_call_result ? String(row.last_call_result) : '',
     in_call: isB2bLeadInCall(row.b2b_call_state ? String(row.b2b_call_state) : null),
   };
 }
