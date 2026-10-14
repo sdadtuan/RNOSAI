@@ -236,49 +236,39 @@ export default function AeTeamPage() {
           <header className="ae-team-panel-head">
             <div>
               <h2>Sổ đội</h2>
-              <p>Bấm tên cột để sắp xếp. Cột đang giữ tách Mới, Đã liên hệ, Đang tư vấn, Báo giá.</p>
+              <p>Bấm tên chỉ số để sắp xếp. Đang giữ tách Mới, Đã liên hệ, Đang tư vấn, Báo giá.</p>
             </div>
           </header>
-          <div className="table-wrap">
-            <table className="table ae-team-table">
-              <thead>
-                <tr>
-                  {COLUMNS.map((column) => (
-                    <th key={column.key} className={column.key === 'name' ? '' : 'num'}>
-                      <button type="button" className={sortKey === column.key ? 'is-on' : ''} onClick={() => toggleSort(column.key)}>
-                        {column.label}
-                        {sortKey === column.key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ''}
-                      </button>
-                    </th>
-                  ))}
-                  <th>Nhận lead</th>
-                  <th>Cảnh báo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr><td colSpan={16}>Chưa có AE trong team.</td></tr>
-                ) : rows.map((row) => (
-                  <TeamRow
-                    key={row.staff_id}
-                    row={row}
-                    alerts={alerts.filter((alert) => alert.ownerStaffId === row.staff_id)}
-                    onToggle={() => {
-                      void postAeIntake(token, { staff_id: row.staff_id, accepting: !row.accepting })
-                        .then(() => load(token))
-                        .catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không đổi được nhận lead'));
-                    }}
-                    onAck={(id) => {
-                      void postAeAlertAck(token, id).then(() => load(token)).catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không xác nhận được'));
-                    }}
-                    onResolve={(id) => {
-                      void postAeAlertResolve(token, id).then(() => load(token)).catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không đóng được cảnh báo'));
-                    }}
-                  />
-                ))}
-              </tbody>
-            </table>
+          <div className="ae-roster-sort" role="group" aria-label="Sắp xếp sổ đội">
+            {COLUMNS.map((column) => (
+              <button key={column.key} type="button" className={sortKey === column.key ? 'is-on' : ''} onClick={() => toggleSort(column.key)}>
+                {column.label}
+                {sortKey === column.key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ''}
+              </button>
+            ))}
           </div>
+          {rows.length === 0 ? <p className="ae-roster-empty">Chưa có AE trong team.</p> : (
+            <div className="ae-roster">
+              {rows.map((row) => (
+                <TeamRow
+                  key={row.staff_id}
+                  row={row}
+                  alerts={alerts.filter((alert) => alert.ownerStaffId === row.staff_id)}
+                  onToggle={() => {
+                    void postAeIntake(token, { staff_id: row.staff_id, accepting: !row.accepting })
+                      .then(() => load(token))
+                      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không đổi được nhận lead'));
+                  }}
+                  onAck={(id) => {
+                    void postAeAlertAck(token, id).then(() => load(token)).catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không xác nhận được'));
+                  }}
+                  onResolve={(id) => {
+                    void postAeAlertResolve(token, id).then(() => load(token)).catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không đóng được cảnh báo'));
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </section>
       ) : null}
       {token && tab === 'desk' ? (
@@ -318,40 +308,37 @@ function TeamRow({
   onResolve: (id: number) => void;
 }) {
   return (
-    <tr className={`ae-tone-${row.tone}`}>
-      <td><Link href={`/crm/b2b/team/${row.staff_id}`}>{row.name}</Link></td>
-      <td className="num">
-        <span className="ae-hold" title="Mới / Đã liên hệ / Đang tư vấn / Báo giá">
-          <b>{row.open_leads}</b>
-          <small>{row.by_status.moi}/{row.by_status.da_lien_he}/{row.by_status.dang_tu_van}/{row.by_status.bao_gia}</small>
-        </span>
-      </td>
-      <td className="num">{row.sla_breach}</td>
-      <td className="num">{row.sla_warning}</td>
-      <td className="num">{dash(row.within_sla_pct, '%')}</td>
-      <td className="num">{dash(row.avg_first_response_minutes)}</td>
-      <td className="num">{row.calls}</td>
-      <td className="num">{dash(row.answer_pct, '%')}</td>
-      <td className="num">{row.stale}</td>
-      <td className="num">{row.missed_callbacks}</td>
-      <td className="num">{dash(row.lead_to_quote_pct, '%')}</td>
-      <td className="num">{dash(row.quote_to_won_pct, '%')}</td>
-      <td className="num">{money(row.revenue_vnd)}</td>
-      <td className="num">{dash(row.attainment_pct, '%')}</td>
-      <td>
+    <article className={`ae-roster-row ae-tone-${row.tone}`}>
+      <header>
+        <Link href={`/crm/b2b/team/${row.staff_id}`}>{row.name}</Link>
         <button type="button" className={row.accepting ? 'ae-pill is-on' : 'ae-pill'} onClick={onToggle}>
           {row.accepting ? 'Đang nhận' : 'Tạm dừng'}
         </button>
-      </td>
-      <td>
-        {alerts.length === 0 ? <span className="muted">—</span> : alerts.map((alert) => (
+      </header>
+      <dl>
+        <div><dt>Đang giữ</dt><dd title="Mới / Đã liên hệ / Đang tư vấn / Báo giá">{row.open_leads}<small>{row.by_status.moi}/{row.by_status.da_lien_he}/{row.by_status.dang_tu_van}/{row.by_status.bao_gia}</small></dd></div>
+        <div><dt>Trễ SLA</dt><dd>{row.sla_breach}</dd></div>
+        <div><dt>Sắp trễ</dt><dd>{row.sla_warning}</dd></div>
+        <div><dt>% đúng SLA</dt><dd>{dash(row.within_sla_pct, '%')}</dd></div>
+        <div><dt>Phản hồi</dt><dd>{dash(row.avg_first_response_minutes)}<small>phút</small></dd></div>
+        <div><dt>Cuộc gọi</dt><dd>{row.calls}</dd></div>
+        <div><dt>% nghe máy</dt><dd>{dash(row.answer_pct, '%')}</dd></div>
+        <div><dt>Đứng yên</dt><dd>{row.stale}</dd></div>
+        <div><dt>Hẹn lỡ</dt><dd>{row.missed_callbacks}</dd></div>
+        <div><dt>Lead → báo giá</dt><dd>{dash(row.lead_to_quote_pct, '%')}</dd></div>
+        <div><dt>Báo giá → chốt</dt><dd>{dash(row.quote_to_won_pct, '%')}</dd></div>
+        <div><dt>Doanh số</dt><dd>{money(row.revenue_vnd)}</dd></div>
+        <div><dt>% chỉ tiêu</dt><dd>{dash(row.attainment_pct, '%')}</dd></div>
+      </dl>
+      <footer>
+        {alerts.length === 0 ? <span className="muted">Không có cảnh báo</span> : alerts.map((alert) => (
           <span key={alert.id} className={`ae-alert ae-alert-${alert.level}`}>
             {ALERT_LABEL[alert.ruleCode] ?? alert.ruleCode}
             {alert.status === 'open' ? <button type="button" onClick={() => onAck(alert.id)}>Đã xem</button> : null}
             <button type="button" onClick={() => onResolve(alert.id)}>Đã xử lý</button>
           </span>
         ))}
-      </td>
-    </tr>
+      </footer>
+    </article>
   );
 }

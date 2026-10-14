@@ -183,7 +183,15 @@ export function AeTeamInterventions({
       </header>
       {error ? <p className="ae-team-error">{error}</p> : null}
       <div className="table-wrap">
-        <table className="table ae-team-table">
+        <table className="table ae-team-table ae-team-queue-table">
+          <colgroup>
+            <col className="q-check" />
+            <col className="q-lead" />
+            <col className="q-ae" />
+            <col className="q-code" />
+            <col className="q-delay" />
+            <col className="q-call" />
+          </colgroup>
           <thead>
             <tr>
               <th />
