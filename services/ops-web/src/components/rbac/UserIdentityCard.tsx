@@ -311,6 +311,47 @@ export function UserIdentityCard({
         </select>
       </label>
 
+      <section>
+        <p className="muted" style={{ margin: '0 0 0.35rem' }}>
+          Team
+        </p>
+        {teams.length === 0 ? <p className="muted">Chưa có team. Tạo tại Tổ chức → Team.</p> : (
+          <ul className="org-team-pick">
+            {teams.map((t) => {
+              const on = teamIds.includes(t.id);
+              const lead = leadTeamIds.includes(t.id);
+              return (
+                <li key={t.id}>
+                  <span className="org-team-pick__label">
+                    <b>{t.code}</b>
+                    <small>{t.name}</small>
+                  </span>
+                  <button
+                    type="button"
+                    className={on ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                    disabled={!canEdit || busy}
+                    onClick={() => toggleTeam(t.id)}
+                  >
+                    {on ? 'Đang bật' : 'Bật'}
+                  </button>
+                  <button
+                    type="button"
+                    className={lead ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                    disabled={!canEdit || busy || !on}
+                    onClick={() => toggleLead(t.id)}
+                  >
+                    {lead ? 'Đang là trưởng' : 'Đặt trưởng'}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+          Bật team để gắn người vào đội. Đặt trưởng để người đó thấy menu Đội AE. Mỗi team một trưởng.
+        </p>
+      </section>
+
       <JobFunctionPicker
         options={functionOptions}
         value={functions}
@@ -392,48 +433,6 @@ export function UserIdentityCard({
           ) : null}
         </section>
       ) : null}
-
-      <section>
-        <p className="muted" style={{ margin: '0 0 0.35rem' }}>
-          Team
-        </p>
-        <div className="win-filter-chips">
-          {teams.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`chip${teamIds.includes(t.id) ? ' is-active' : ''}`}
-              disabled={!canEdit || busy}
-              onClick={() => toggleTeam(t.id)}
-            >
-              {t.code}
-            </button>
-          ))}
-        </div>
-        {teamIds.length ? (
-          <>
-            <p className="muted" style={{ margin: '0.65rem 0 0.35rem' }}>
-              Trưởng team
-            </p>
-            <div className="win-filter-chips">
-              {teams.filter((t) => teamIds.includes(t.id)).map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  className={`chip${leadTeamIds.includes(t.id) ? ' is-active' : ''}`}
-                  disabled={!canEdit || busy}
-                  onClick={() => toggleLead(t.id)}
-                >
-                  {t.code}
-                </button>
-              ))}
-            </div>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Mỗi team một trưởng. Lưu người này sẽ thay trưởng đang giữ team đó. Trưởng team thấy menu Đội AE.
-            </p>
-          </>
-        ) : null}
-      </section>
 
       <details>
         <summary className="muted">Effective caps preview</summary>

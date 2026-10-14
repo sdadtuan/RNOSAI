@@ -392,36 +392,34 @@ function AdminOrgUserOnboardPageContent() {
             <JobFunctionPicker options={catalog} value={functions} onChange={setFunctions} />
             <div>
               <p className="onboard-wizard__label">Team</p>
-              <div className="win-filter-chips">
-                {teams.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    className={`chip${teamIds.includes(t.id) ? ' is-active' : ''}`}
-                    onClick={() => toggleTeam(t.id)}
-                  >
-                    {t.code}
-                  </button>
-                ))}
-              </div>
-              {teamIds.length ? (
-                <>
-                  <p className="onboard-wizard__label" style={{ marginTop: '0.75rem' }}>Trưởng team</p>
-                  <div className="win-filter-chips">
-                    {teams.filter((t) => teamIds.includes(t.id)).map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        className={`chip${leadTeamIds.includes(t.id) ? ' is-active' : ''}`}
-                        onClick={() => toggleLead(t.id)}
-                      >
-                        {t.code}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="muted">Mỗi team một trưởng. Lưu sẽ thay trưởng đang giữ team đó.</p>
-                </>
-              ) : null}
+              {teams.length === 0 ? <p className="muted">Chưa có team. Tạo tại Tổ chức → Team.</p> : (
+                <ul className="org-team-pick">
+                  {teams.map((t) => {
+                    const on = teamIds.includes(t.id);
+                    const lead = leadTeamIds.includes(t.id);
+                    return (
+                      <li key={t.id}>
+                        <span className="org-team-pick__label">
+                          <b>{t.code}</b>
+                          <small>{t.name}</small>
+                        </span>
+                        <button type="button" className={on ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => toggleTeam(t.id)}>
+                          {on ? 'Đang bật' : 'Bật'}
+                        </button>
+                        <button
+                          type="button"
+                          className={lead ? 'btn btn-sm btn-primary' : 'btn btn-sm'}
+                          disabled={!on}
+                          onClick={() => toggleLead(t.id)}
+                        >
+                          {lead ? 'Đang là trưởng' : 'Đặt trưởng'}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <p className="muted">Bật team để gắn người vào đội. Đặt trưởng rồi hoàn tất để người đó thấy menu Đội AE.</p>
             </div>
           </div>
         ) : null}
