@@ -299,6 +299,9 @@ def main() -> int:
     }
     research_write = grant("crm_research", "view", "create", "edit", "run", "export")
     research_approve = grant("crm_research", "view", "create", "edit", "run", "export", "approve")
+    research_full = grant(
+        "crm_research", "view", "create", "edit", "run", "export", "approve", "configure"
+    )
     research_view = grant("crm_research", "view")
     mktplan_write = grant("crm_mktplan", "view", "edit", "create", "export")
     mktplan_view = grant("crm_mktplan", "view")
@@ -413,7 +416,8 @@ def main() -> int:
             grant("crm_hub_contracts", "view", "edit"),
             grant("crm_hub_reminders", "view", "edit", "create"),
             grant("crm_mktplan", "view"),
-            grant("crm_research", "view"),
+            # Nghiên cứu thị trường: xem, chạy job, duyệt, cấu hình.
+            research_full,
             grant("crm_staff_kpi_am_sp", "view"),
             grant("crm_daily_work_report", "view", "edit", "create", "export"),
             grant("iwr", "view", "write"),

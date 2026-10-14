@@ -541,6 +541,12 @@
         "execute"
       ],
       "crm_research": [
+        "approve",
+        "configure",
+        "create",
+        "edit",
+        "export",
+        "run",
         "view"
       ],
       "crm_sop_runs": [
@@ -2014,6 +2020,12 @@
         "execute"
       ],
       "crm_research": [
+        "approve",
+        "configure",
+        "create",
+        "edit",
+        "export",
+        "run",
         "view"
       ],
       "crm_sop_runs": [
