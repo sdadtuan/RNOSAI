@@ -142,20 +142,28 @@ export class AeTeamRepository implements OnModuleDestroy {
   async listMembers(input: { viewAll: boolean; teamIds: number[]; month: string }): Promise<AeMemberRow[]> {
     const result = await this.db.query(
       `SELECT DISTINCT s.id AS staff_id,
-              COALESCE(NULLIF(trim(s.name), ''), u.email) AS name,
+              COALESCE(NULLIF(trim(s.name), ''), 'AE #' || s.id::text) AS name,
               COALESCE(i.accepting, TRUE) AS accepting,
               t.quota_vnd
-       FROM staff_user_teams sut
-       JOIN staff_users u ON u.id = sut.user_id
-       JOIN crm_positions p ON p.id = u.position_id
-       JOIN crm_staff s ON s.active IS TRUE AND lower(trim(s.email)) = lower(trim(u.email))
+       FROM crm_staff s
+       JOIN crm_positions p ON p.id = s.position_id
        LEFT JOIN crm_ae_intake i ON i.staff_id = s.id
        LEFT JOIN crm_ae_targets t ON t.staff_id = s.id AND t.month = $3
-       WHERE ($1::boolean IS TRUE OR sut.team_id = ANY($2::bigint[]))
+       WHERE s.active IS TRUE
          AND (
            lower(replace(p.code, ' ', '')) = 'ae'
            OR lower(p.code) LIKE 'ae-%'
            OR lower(p.code) LIKE 'ae_%'
+         )
+         AND (
+           $1::boolean IS TRUE
+           OR EXISTS (
+             SELECT 1
+             FROM staff_users u
+             JOIN staff_user_teams sut ON sut.user_id = u.id
+             WHERE lower(trim(u.email)) = lower(trim(s.email))
+               AND sut.team_id = ANY($2::bigint[])
+           )
          )
        ORDER BY name`,
       [input.viewAll, input.teamIds, input.month],
