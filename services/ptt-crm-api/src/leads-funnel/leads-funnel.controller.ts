@@ -113,6 +113,12 @@ export class LeadsFunnelController {
     return this.funnel.reviewQueueMetrics(limit ? Number(limit) : undefined, scope);
   }
 
+  @Get('review-queue/assignees')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, StaffLeadsGdkdGuard)
+  listReviewAssignees() {
+    return this.funnel.listReviewAssignees();
+  }
+
   @Get('review-queue')
   @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard, StaffLeadsGdkdGuard)
   async listReviewQueue(

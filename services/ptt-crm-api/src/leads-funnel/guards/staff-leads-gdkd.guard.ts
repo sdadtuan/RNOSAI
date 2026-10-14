@@ -8,9 +8,9 @@ import {
 import { Request } from 'express';
 import { StaffAuthService } from '../../staff-auth/staff-auth.service';
 import { StaffJwtPayload } from '../../staff-auth/staff-jwt.util';
-import { hasGdkdAssign } from '../../staff-permissions/staff-gdkd.util';
+import { hasGdkdAssign, hasGdkdReviewQueue } from '../../staff-permissions/staff-gdkd.util';
 
-/** GDKD / Sales Lead — release review queue (requires assign cap). */
+/** GDKD, Sales Lead, or Account Manager with review_queue — release the review inbox. */
 @Injectable()
 export class StaffLeadsGdkdGuard implements CanActivate {
   constructor(private readonly staffAuth: StaffAuthService) {}
@@ -22,8 +22,8 @@ export class StaffLeadsGdkdGuard implements CanActivate {
     if (req.staffAuthVia === 'internal') return true;
     if (!req.staffUser) throw new UnauthorizedException({ error: 'Unauthorized' });
     const me = await this.staffAuth.me(req.staffUser);
-    if (!hasGdkdAssign(me.caps)) {
-      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_gdkd', action: 'assign' });
+    if (!hasGdkdAssign(me.caps) && !hasGdkdReviewQueue(me.caps)) {
+      throw new ForbiddenException({ error: 'missing_cap', section: 'crm_gdkd', action: 'review_queue' });
     }
     return true;
   }

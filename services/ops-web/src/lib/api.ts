@@ -1987,6 +1987,12 @@ export async function fetchReviewQueueMetrics(token: string): Promise<ReviewQueu
   return leadFunnelMutate(token, '/api/v1/leads/review-queue/metrics', { method: 'GET' });
 }
 
+export async function fetchReviewQueueAssignees(
+  token: string,
+): Promise<{ staff: Array<{ id: number; name: string }> }> {
+  return leadFunnelMutate(token, '/api/v1/leads/review-queue/assignees', { method: 'GET' });
+}
+
 export async function fetchReviewQueueLeads(
   token: string,
   limit = 50,

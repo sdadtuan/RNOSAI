@@ -418,6 +418,8 @@ def main() -> int:
             grant("crm_daily_work_report", "view", "edit", "create", "export"),
             grant("iwr", "view", "write"),
             grant("crm_hdsd", "view", "export"),
+            # Inbox Phải tra soát. Không kèm view_all_leads hay override.
+            grant("crm_gdkd", "review_queue"),
         ),
         "CE": merge(
             csd_write,

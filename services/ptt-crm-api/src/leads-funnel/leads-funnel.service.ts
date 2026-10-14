@@ -276,6 +276,11 @@ export class LeadsFunnelService {
     );
   }
 
+  async listReviewAssignees(): Promise<{ staff: Array<{ id: number; name: string }> }> {
+    const staff = await this.pgRepo.listReviewAssignees();
+    return { staff };
+  }
+
   async listReviewQueue(limit?: number, b2bListScope?: B2bListScope) {
     const rows = await this.pgRepo.listReviewQueue(limit, b2bListScope);
     return {

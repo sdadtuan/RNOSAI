@@ -510,6 +510,19 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     return result.rows as LeadFunnelRow[];
   }
 
+  async listReviewAssignees(): Promise<Array<{ id: number; name: string }>> {
+    const result = await this.db.query(
+      `SELECT id, COALESCE(name, '') AS name
+       FROM crm_staff
+       WHERE active IS TRUE AND COALESCE(can_receive_leads, TRUE) IS TRUE
+       ORDER BY lower(name)`,
+    );
+    return result.rows.map((row) => ({
+      id: Number(row.id),
+      name: String(row.name ?? ''),
+    }));
+  }
+
   async syncReviewQueue(actor: string, dryRun = false): Promise<Record<string, unknown>> {
     const cfg = await this.fetchLeadConfig();
     if (!cfg.b2_review_queue_enabled) {

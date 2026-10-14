@@ -6,13 +6,12 @@ import { useRouter } from 'next/navigation';
 import { PageToolbar, StaffPageShell } from '@/components/layout';
 import { ReviewQueueMetricsBanner } from '@/components/crm/ReviewQueueMetricsBanner';
 import {
-  fetchCrmStaffList,
   fetchReviewQueueAiSummaries,
+  fetchReviewQueueAssignees,
   fetchReviewQueueLeads,
   releaseLeadReviewQueue,
   staffMe,
   staffRefresh,
-  type CrmStaffRow,
   type ReviewQueueAiSummary,
 } from '@/lib/api';
 import { canUseAiCopilot } from '@/lib/ai-flags';
@@ -32,6 +31,14 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 
+function canManageReviewQueue(user: StoredStaffUser | null): boolean {
+  return (
+    hasCap(user, 'crm_gdkd', 'review_queue') ||
+    hasCap(user, 'crm_gdkd', 'assign') ||
+    hasCap(user, 'crm_leads', 'assign')
+  );
+}
+
 type ReviewRow = {
   id: number;
   full_name: string;
@@ -49,7 +56,7 @@ export default function CrmReviewQueuePage() {
   const [user, setUser] = useState<StoredStaffUser | null>(null);
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [aiSummaries, setAiSummaries] = useState<Record<number, ReviewQueueAiSummary>>({});
-  const [staffList, setStaffList] = useState<CrmStaffRow[]>([]);
+  const [staffList, setStaffList] = useState<Array<{ id: number; name: string }>>([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -72,8 +79,8 @@ export default function CrmReviewQueuePage() {
       const me = await staffMe(access);
       setUser(me);
       updateStoredUser(me);
-      if (!hasCap(me, 'crm_leads', 'assign')) {
-        setError('Chỉ GDKD / Sales Lead (cap assign) mới xem inbox Phải tra soát');
+      if (!canManageReviewQueue(me)) {
+        setError('Cần quyền quản lý Lead tra soát (crm_gdkd.review_queue) hoặc phân công lead.');
         return null;
       }
       return access;
@@ -98,7 +105,7 @@ export default function CrmReviewQueuePage() {
     const useLlm = canUseAiCopilot(staffUser?.id, staffUser?.caps);
     const [queueOut, staffOut, aiOut] = await Promise.all([
       fetchReviewQueueLeads(access),
-      fetchCrmStaffList(access),
+      fetchReviewQueueAssignees(access),
       fetchReviewQueueAiSummaries(access, 50, useLlm ? 'llm' : 'rules').catch(() => ({
         summaries: [] as ReviewQueueAiSummary[],
         ok: false,
@@ -325,7 +332,7 @@ export default function CrmReviewQueuePage() {
                   <option value="">— Chọn AM —</option>
                   {staffList.map((s) => (
                     <option key={s.id} value={String(s.id)}>
-                      {s.name || s.internal_code || `#${s.id}`}
+                      {s.name || `#${s.id}`}
                     </option>
                   ))}
                 </select>

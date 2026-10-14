@@ -268,7 +268,7 @@ export function buildNavTree(user: StoredStaffUser | null, opts: BuildNavTreeOpt
   if (hasCap(user, 'crm_leads', 'view')) {
     crm.push(child('crm-ops-leads', 'Lead vận hành', '/crm/operational/leads'));
     crm.push(child('crm-cskh-sla', 'Bảng CSKH SLA', '/crm/cskh-board'));
-    if (hasCap(user, 'crm_leads', 'assign')) {
+    if (hasCap(user, 'crm_leads', 'assign') || hasCap(user, 'crm_gdkd', 'review_queue')) {
       crm.push(
         child('crm-review', 'Phải tra soát (B2)', '/crm/leads/review-queue', reviewQueueCount),
       );

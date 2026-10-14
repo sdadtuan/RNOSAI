@@ -491,6 +491,9 @@
         "export",
         "view"
       ],
+      "crm_gdkd": [
+        "review_queue"
+      ],
       "crm_hdsd": [
         "export",
         "view"
@@ -1960,6 +1963,9 @@
         "edit",
         "export",
         "view"
+      ],
+      "crm_gdkd": [
+        "review_queue"
       ],
       "crm_hdsd": [
         "export",
