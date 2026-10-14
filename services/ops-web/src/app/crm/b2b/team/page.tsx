@@ -154,57 +154,61 @@ export default function AeTeamPage() {
 
   return (
     <StaffPageShell user={user} onLogout={logout} width="full" breadcrumb={[{ label: 'Đội AE' }]}>
-      <div className={stage ? 'ae-team-stage' : undefined}>
+      <div className={stage ? 'ae-team ae-team-stage' : 'ae-team'}>
       <PageToolbar title="Đội AE" subtitle="Lead đang giữ là sổ hiện tại. Tỷ lệ và cuộc gọi theo kỳ đã chọn." />
-      <div className="ae-team-filters">
-        <button type="button" className={tab === 'desk' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setTab('desk')}>Đội</button>
-        <button type="button" className={tab === 'rank' ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setTab('rank')}>Xếp hạng</button>
-        <button type="button" className="btn btn-sm" onClick={() => setStage((value) => !value)}>{stage ? 'Thoát trình chiếu' : 'Trình chiếu'}</button>
-        {(['today', 'week', 'month', 'custom'] as const).map((item) => (
-          <button key={item} type="button" className={preset === item ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setPreset(item)}>
-            {item === 'today' ? 'Hôm nay' : item === 'week' ? 'Tuần' : item === 'month' ? 'Tháng' : 'Tùy chọn'}
-          </button>
-        ))}
+      <div className="ae-team-bar">
+        <div className="ae-team-seg" role="tablist" aria-label="Chế độ xem">
+          <button type="button" className={tab === 'desk' ? 'is-on' : ''} onClick={() => setTab('desk')}>Đội</button>
+          <button type="button" className={tab === 'rank' ? 'is-on' : ''} onClick={() => setTab('rank')}>Xếp hạng</button>
+        </div>
+        <div className="ae-team-seg" role="group" aria-label="Kỳ thống kê">
+          {(['today', 'week', 'month', 'custom'] as const).map((item) => (
+            <button key={item} type="button" className={preset === item ? 'is-on' : ''} onClick={() => setPreset(item)}>
+              {item === 'today' ? 'Hôm nay' : item === 'week' ? 'Tuần' : item === 'month' ? 'Tháng' : 'Tùy chọn'}
+            </button>
+          ))}
+        </div>
         {preset === 'custom' ? (
-          <>
+          <div className="ae-team-dates">
             <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+            <span>đến</span>
             <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-          </>
+            <button type="button" className="btn btn-sm btn-primary" disabled={!token} onClick={() => token && load(token).catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không tải được đội AE'))}>
+              Xem
+            </button>
+          </div>
         ) : null}
-        <button type="button" className="btn btn-sm" disabled={!token} onClick={() => token && load(token).catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không tải được đội AE'))}>
-          Xem
+        <button type="button" className="btn btn-sm ae-team-stage-btn" onClick={() => setStage((value) => !value)}>
+          {stage ? 'Thoát trình chiếu' : 'Trình chiếu'}
         </button>
       </div>
-      {error ? <p>{error}</p> : null}
-      {token && tab === 'desk' ? (
-        <AeTeamInterventions
-          token={token}
-          preset={preset}
-          members={data?.members ?? []}
-          refreshKey={refreshKey}
-          onChanged={() => { void load(token).catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không tải được đội AE')); }}
-        />
-      ) : null}
+      {error ? <p className="ae-team-error">{error}</p> : null}
       {data ? (
         <div className="ae-team-cards">
-          <div className="ae-team-card"><span>Lead đội</span><strong>{data.totals.open_leads}</strong></div>
-          <div className="ae-team-card"><span>% đúng SLA</span><strong>{dash(data.totals.within_sla_pct, '%')}</strong></div>
-          <div className="ae-team-card"><span>Cần chú ý</span><strong>{data.totals.attention}</strong></div>
-          <div className="ae-team-card"><span>Doanh số / chỉ tiêu</span><strong>{money(data.totals.revenue_vnd)} / {money(data.totals.quota_vnd)}</strong></div>
+          <div className="ae-team-card"><span>Lead đang giữ</span><strong>{data.totals.open_leads}</strong><small>Sổ hiện tại</small></div>
+          <div className="ae-team-card"><span>Đúng SLA</span><strong>{dash(data.totals.within_sla_pct, '%')}</strong><small>Theo kỳ đã chọn</small></div>
+          <div className={`ae-team-card${data.totals.attention > 0 ? ' is-alert' : ''}`}><span>Cần chú ý</span><strong>{data.totals.attention}</strong><small>Lead cần can thiệp</small></div>
+          <div className="ae-team-card"><span>Doanh số / chỉ tiêu</span><strong>{money(data.totals.revenue_vnd)} <em>/ {money(data.totals.quota_vnd)}</em></strong><small>Kỳ đã chọn</small></div>
         </div>
       ) : null}
       {tab === 'rank' && ranking ? (
-        <>
-          <div className="ae-team-filters">
-            {(['day', 'week', 'month'] as const).map((item) => (
-              <button key={item} type="button" className={grain === item ? 'btn btn-sm btn-primary' : 'btn btn-sm'} onClick={() => setGrain(item)}>
-                {item === 'day' ? 'Ngày' : item === 'week' ? 'Tuần' : 'Tháng'}
-              </button>
-            ))}
-            <button type="button" className="btn btn-sm" disabled={!token} onClick={() => token && downloadAeRanking(token, grain).catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không xuất được CSV'))}>CSV</button>
-          </div>
+        <section className="ae-team-panel">
+          <header className="ae-team-panel-head">
+            <div>
+              <h2>Xếp hạng</h2>
+              <p>Điểm theo trọng số SLA, nghe máy, chốt và chỉ tiêu.</p>
+            </div>
+            <div className="ae-team-seg">
+              {(['day', 'week', 'month'] as const).map((item) => (
+                <button key={item} type="button" className={grain === item ? 'is-on' : ''} onClick={() => setGrain(item)}>
+                  {item === 'day' ? 'Ngày' : item === 'week' ? 'Tuần' : 'Tháng'}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="btn btn-sm" disabled={!token} onClick={() => token && downloadAeRanking(token, grain).catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không xuất được CSV'))}>Xuất CSV</button>
+          </header>
           <div className="table-wrap">
-            <table className="table">
+            <table className="table ae-team-table">
               <thead>
                 <tr>
                   <th>Hạng</th><th>AE</th><th>Điểm</th><th>% đúng SLA</th><th>% nghe máy</th><th>% chốt</th><th>% chỉ tiêu</th>
@@ -225,18 +229,25 @@ export default function AeTeamPage() {
               </tbody>
             </table>
           </div>
-        </>
+        </section>
       ) : null}
       {tab === 'desk' && data ? (
-        <>
+        <section className="ae-team-panel">
+          <header className="ae-team-panel-head">
+            <div>
+              <h2>Sổ đội</h2>
+              <p>Bấm tên cột để sắp xếp. Cột đang giữ tách Mới, Đã liên hệ, Đang tư vấn, Báo giá.</p>
+            </div>
+          </header>
           <div className="table-wrap">
             <table className="table ae-team-table">
               <thead>
                 <tr>
                   {COLUMNS.map((column) => (
-                    <th key={column.key}>
-                      <button type="button" className="btn btn-sm" onClick={() => toggleSort(column.key)}>
-                        {column.label}{sortKey === column.key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ''}
+                    <th key={column.key} className={column.key === 'name' ? '' : 'num'}>
+                      <button type="button" className={sortKey === column.key ? 'is-on' : ''} onClick={() => toggleSort(column.key)}>
+                        {column.label}
+                        {sortKey === column.key ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ''}
                       </button>
                     </th>
                   ))}
@@ -268,7 +279,16 @@ export default function AeTeamPage() {
               </tbody>
             </table>
           </div>
-        </>
+        </section>
+      ) : null}
+      {token && tab === 'desk' ? (
+        <AeTeamInterventions
+          token={token}
+          preset={preset}
+          members={data?.members ?? []}
+          refreshKey={refreshKey}
+          onChanged={() => { void load(token).catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Không tải được đội AE')); }}
+        />
       ) : null}
       </div>
     </StaffPageShell>
@@ -297,32 +317,38 @@ function TeamRow({
   onAck: (id: number) => void;
   onResolve: (id: number) => void;
 }) {
-  const held = `${row.by_status.moi} / ${row.by_status.da_lien_he} / ${row.by_status.dang_tu_van} / ${row.by_status.bao_gia}`;
   return (
     <tr className={`ae-tone-${row.tone}`}>
       <td><Link href={`/crm/b2b/team/${row.staff_id}`}>{row.name}</Link></td>
-      <td title="Mới / Đã liên hệ / Đang tư vấn / Báo giá">{held}</td>
-      <td>{row.sla_breach}</td>
-      <td>{row.sla_warning}</td>
-      <td>{dash(row.within_sla_pct, '%')}</td>
-      <td>{dash(row.avg_first_response_minutes)}</td>
-      <td>{row.calls}</td>
-      <td>{dash(row.answer_pct, '%')}</td>
-      <td>{row.stale}</td>
-      <td>{row.missed_callbacks}</td>
-      <td>{dash(row.lead_to_quote_pct, '%')}</td>
-      <td>{dash(row.quote_to_won_pct, '%')}</td>
-      <td>{money(row.revenue_vnd)}</td>
-      <td>{dash(row.attainment_pct, '%')}</td>
+      <td className="num">
+        <span className="ae-hold" title="Mới / Đã liên hệ / Đang tư vấn / Báo giá">
+          <b>{row.open_leads}</b>
+          <small>{row.by_status.moi}/{row.by_status.da_lien_he}/{row.by_status.dang_tu_van}/{row.by_status.bao_gia}</small>
+        </span>
+      </td>
+      <td className="num">{row.sla_breach}</td>
+      <td className="num">{row.sla_warning}</td>
+      <td className="num">{dash(row.within_sla_pct, '%')}</td>
+      <td className="num">{dash(row.avg_first_response_minutes)}</td>
+      <td className="num">{row.calls}</td>
+      <td className="num">{dash(row.answer_pct, '%')}</td>
+      <td className="num">{row.stale}</td>
+      <td className="num">{row.missed_callbacks}</td>
+      <td className="num">{dash(row.lead_to_quote_pct, '%')}</td>
+      <td className="num">{dash(row.quote_to_won_pct, '%')}</td>
+      <td className="num">{money(row.revenue_vnd)}</td>
+      <td className="num">{dash(row.attainment_pct, '%')}</td>
       <td>
-        <button type="button" className="btn btn-sm" onClick={onToggle}>{row.accepting ? 'Bật' : 'Tắt'}</button>
+        <button type="button" className={row.accepting ? 'ae-pill is-on' : 'ae-pill'} onClick={onToggle}>
+          {row.accepting ? 'Đang nhận' : 'Tạm dừng'}
+        </button>
       </td>
       <td>
-        {alerts.length === 0 ? '—' : alerts.map((alert) => (
-          <span key={alert.id}>
-            {ALERT_LABEL[alert.ruleCode] ?? alert.ruleCode} {alert.level}
-            {alert.status === 'open' ? <button type="button" className="btn btn-sm" onClick={() => onAck(alert.id)}>Đã xem</button> : null}
-            <button type="button" className="btn btn-sm" onClick={() => onResolve(alert.id)}>Đã xử lý</button>
+        {alerts.length === 0 ? <span className="muted">—</span> : alerts.map((alert) => (
+          <span key={alert.id} className={`ae-alert ae-alert-${alert.level}`}>
+            {ALERT_LABEL[alert.ruleCode] ?? alert.ruleCode}
+            {alert.status === 'open' ? <button type="button" onClick={() => onAck(alert.id)}>Đã xem</button> : null}
+            <button type="button" onClick={() => onResolve(alert.id)}>Đã xử lý</button>
           </span>
         ))}
       </td>

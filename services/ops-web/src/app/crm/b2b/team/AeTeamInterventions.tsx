@@ -167,18 +167,23 @@ export function AeTeamInterventions({
   }
 
   return (
-    <section className="ae-team-block">
-      <h2>Lead cần can thiệp</h2>
-      {error ? <p>{error}</p> : null}
-      <div className="ae-team-filters">
-        <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Nội dung nhắc hoặc chỉ đạo" />
-        <button type="button" className="btn btn-sm" disabled={!selected.length || !note.trim()} onClick={() => void remind()}>Nhắc</button>
-        <button type="button" className="btn btn-sm" disabled={!selected.length} onClick={() => void openMove()}>Chuyển</button>
-        <button type="button" className="btn btn-sm" disabled={selected.length !== 1} onClick={() => setDrawer('note')}>Ghi chú</button>
-        <button type="button" className="btn btn-sm" onClick={() => setDrawer('leave')}>Nghỉ phép</button>
-      </div>
+    <section className="ae-team-panel ae-team-queue">
+      <header className="ae-team-panel-head">
+        <div>
+          <h2>Lead cần can thiệp</h2>
+          <p>{items.length ? `${items.length} lead đang trễ nhịp.` : 'Không có lead trễ nhịp trong sổ đang giữ.'}</p>
+        </div>
+        <div className="ae-team-actions">
+          <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Nội dung nhắc hoặc chỉ đạo" />
+          <button type="button" className="btn btn-sm btn-primary" disabled={!selected.length || !note.trim()} onClick={() => void remind()}>Nhắc</button>
+          <button type="button" className="btn btn-sm" disabled={!selected.length} onClick={() => void openMove()}>Chuyển</button>
+          <button type="button" className="btn btn-sm" disabled={selected.length !== 1} onClick={() => setDrawer('note')}>Ghi chú</button>
+          <button type="button" className="btn btn-sm" onClick={() => setDrawer('leave')}>Nghỉ phép</button>
+        </div>
+      </header>
+      {error ? <p className="ae-team-error">{error}</p> : null}
       <div className="table-wrap">
-        <table className="table">
+        <table className="table ae-team-table">
           <thead>
             <tr>
               <th />
@@ -212,7 +217,7 @@ export function AeTeamInterventions({
             {drawer === 'call' ? (
               <>
                 <p>{phone || 'Đang mở cuộc gọi…'}</p>
-                <div className="ae-team-filters">
+                <div className="ae-team-actions">
                   <button type="button" className="btn btn-sm" onClick={() => void finishCall('answered')}>Nghe máy</button>
                   <button type="button" className="btn btn-sm" onClick={() => void finishCall('no_answer')}>Không nghe</button>
                   <button type="button" className="btn btn-sm" onClick={() => void finishCall('wrong_number')}>Sai số</button>
