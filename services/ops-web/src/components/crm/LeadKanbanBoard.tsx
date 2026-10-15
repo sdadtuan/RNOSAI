@@ -16,9 +16,11 @@ import {
   bucketLeadsByKanbanColumns,
   bucketLeadsByKanbanStage,
   leadStatusLabel,
+  leadStatusTone,
 } from '@/lib/crm/lead-status';
 import { KANBAN_COLUMN_PAGE, sortKanbanLeads } from '@/lib/crm/kanban-column.util';
-import { leadCareChip, type LeadFollowupKind } from '@/lib/crm/lead-followup';
+import { leadCareChip, leadFollowup, type LeadFollowupKind } from '@/lib/crm/lead-followup';
+import { leadListSituation } from '@/lib/crm/lead-list-situation';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 
 function formatWhen(iso: string): string {
@@ -426,7 +428,7 @@ export function LeadKanbanBoard({
 
   const followupCounts = rows.reduce(
     (counts, lead) => {
-      const kind = leadCareChip(lead)?.kind;
+      const kind = leadFollowup(lead)?.kind;
       if (kind && kind !== 'deadline') counts[kind] += 1;
       return counts;
     },
@@ -470,7 +472,7 @@ export function LeadKanbanBoard({
       ) : null}
       {columns.map((column) => {
         const items = followupFilter
-          ? column.items.filter((lead) => leadCareChip(lead)?.kind === followupFilter)
+          ? column.items.filter((lead) => leadFollowup(lead)?.kind === followupFilter)
           : column.items;
         const sortedItems = b2b ? sortKanbanLeads(items) : items;
         const visibleLimit = b2b ? columnLimit[column.key] ?? KANBAN_COLUMN_PAGE : sortedItems.length;
@@ -528,6 +530,8 @@ export function LeadKanbanBoard({
                         ? 'hot'
                         : 'plain';
                   const care = leadCareChip(lead);
+                  const situation = leadListSituation(lead);
+                  const showDeadline = care?.kind === 'deadline' && !situation.call;
                   const origin = [lead.project_code, lead.source || lead.channel].filter(Boolean).join(' · ');
                   const initials = ownerInitials(lead.owner_name);
                   return (
@@ -552,10 +556,17 @@ export function LeadKanbanBoard({
                         {sla ? (
                           <span className="crm-kanban-card__chip crm-kanban-card__chip--sla">{sla}</span>
                         ) : null}
-                        {care ? (
-                          <span className={`crm-kanban-card__chip crm-kanban-card__chip--followup crm-kanban-card__chip--${care.kind}`}>
-                            {care.label}
-                          </span>
+                        <span className={`lead-status-badge lead-status-badge--${leadStatusTone(lead.status)}`}>
+                          {situation.status}
+                        </span>
+                        {situation.call ? (
+                          <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{situation.call}</span>
+                        ) : null}
+                        {situation.solution ? (
+                          <span className="crm-kanban-card__chip crm-kanban-card__chip--sla">{situation.solution}</span>
+                        ) : null}
+                        {showDeadline ? (
+                          <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{care?.label}</span>
                         ) : null}
                       </div>
                       <Link href={`/crm/leads/${lead.id}`} className="crm-kanban-card__title">
