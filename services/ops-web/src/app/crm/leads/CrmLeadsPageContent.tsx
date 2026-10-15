@@ -27,6 +27,7 @@ import {
 import { PresalesConsultSlaSummaryCard } from '@/components/PresalesConsultSlaSummaryCard';
 import { PresalesFunnelMetricsCard } from '@/components/PresalesFunnelMetricsCard';
 import {
+  fetchLeadOwnerOptions,
   fetchLeads,
   bulkAssignLeads,
   fetchCrmStaffList,
@@ -145,6 +146,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const [filterReceivedTo, setFilterReceivedTo] = useState('');
   const [filterAssignee, setFilterAssignee] = useState('');
   const [staffOptions, setStaffOptions] = useState<CrmStaffRow[]>([]);
+  const [ownerOptions, setOwnerOptions] = useState<Array<{ id: number; name: string }>>([]);
   const [sourceOptions, setSourceOptions] = useState<CrmLeadLookupOption[]>([]);
   const [channelOptions, setChannelOptions] = useState<CrmLeadLookupOption[]>([]);
   const [b2bProjects, setB2bProjects] = useState<B2bProjectListItem[]>([]);
@@ -210,6 +212,11 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
     () => flowScope === 'b2b_prospect' && isAccountManager(user) && !canViewAllLeads,
     [flowScope, user, canViewAllLeads],
   );
+  const canFilterByAssignee = useMemo(() => {
+    const position = String(user?.position_code ?? '').trim().toLowerCase();
+    const leader = (user?.job_functions ?? []).includes('leader');
+    return canViewAllLeads || browsesAllB2bLeads || position === 'gdkd-01' || leader;
+  }, [browsesAllB2bLeads, canViewAllLeads, user]);
 
   const myCrmStaffId = useMemo(() => {
     const email = (user?.email ?? '').trim().toLowerCase();
@@ -296,7 +303,9 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           received_to: kanban ? undefined : filterReceivedTo || undefined,
           owner_id: ownerId,
           unassigned_only:
-            canViewAllLeads && (p1Filters?.unassigned_only ?? listTab === 'unassigned'),
+            canViewAllLeads &&
+            !filterAssignee &&
+            (p1Filters?.unassigned_only ?? listTab === 'unassigned'),
           review_queue_only: leadKind === 'review' ? true : undefined,
           hide_review_queue:
             flowScope === 'b2b_prospect' || leadKind === 'all' ? false : undefined,
@@ -489,6 +498,18 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         fetchLeadLookupOptions(access, 'channel').catch(() => ({ options: [] as CrmLeadLookupOption[] })),
       ]);
       setStaffOptions(staffOut.staff ?? []);
+      const viewer = getStoredUser();
+      const viewerPosition = String(viewer?.position_code ?? '').trim().toLowerCase();
+      const viewerMayFilterOwners =
+        viewerPosition === 'super-admin' ||
+        hasCap(viewer, 'crm_gdkd', 'view_all_leads') ||
+        (flowScope === 'b2b_prospect' && isAccountManager(viewer)) ||
+        viewerPosition === 'gdkd-01' ||
+        (viewer?.job_functions ?? []).includes('leader');
+      if (viewerMayFilterOwners) {
+        const owners = await fetchLeadOwnerOptions(access).catch(() => ({ owners: [] }));
+        setOwnerOptions(owners.owners ?? []);
+      }
       setReviewQueueCount(reviewOut.count ?? 0);
       setSourceOptions(sourceOut.options ?? []);
       setChannelOptions(channelOut.options ?? []);
@@ -648,6 +669,14 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const leaderPulse = showKanbanLeaderPulse(user?.job_functions);
   const leadIds = useMemo(() => visibleRows.map((row) => row.id), [visibleRows]);
   const signalKpis = useMemo(() => leadSignalKpis(visibleRows), [visibleRows]);
+  const assigneeChoices = useMemo(() => {
+    const rows = ownerOptions.length
+      ? ownerOptions
+      : staffOptions
+          .filter((staff) => staff.active !== 0)
+          .map((staff) => ({ id: staff.id, name: staff.name }));
+    return [...rows].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  }, [ownerOptions, staffOptions]);
   const ownerNameById = useMemo(() => {
     const map: Record<number, string> = {};
     for (const staff of staffOptions) {
@@ -694,7 +723,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           statusLabel: (key) => leadStatusSearchLabel(key, flowKindFilter),
           sourceLabel: (key) => sourceOptions.find((o) => o.option_key === key)?.label ?? key,
           channelLabel: (key) => channelOptions.find((o) => o.option_key === key)?.label ?? key,
-          assigneeLabel: (id) => staffOptions.find((staff) => String(staff.id) === id)?.name ?? id,
+          assigneeLabel: (id) => assigneeChoices.find((staff) => String(staff.id) === id)?.name ?? id,
         },
       ),
     [
@@ -706,7 +735,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       filterReceivedFrom,
       filterReceivedTo,
       filterAssignee,
-      staffOptions,
+      assigneeChoices,
       query,
       savedView,
       flowScope,
@@ -843,8 +872,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
               onReceivedToChange={setFilterReceivedTo}
               assignee={filterAssignee}
               onAssigneeChange={setFilterAssignee}
-              canPickOwner={flowScope === 'b2b_prospect' && (user?.job_functions ?? []).includes('leader')}
-              staffOptions={staffOptions}
+              canPickOwner={canFilterByAssignee}
+              staffOptions={assigneeChoices}
               loading={loading}
               savedView={savedView}
               onLeadP1={() => applyLeadP1View()}
@@ -1135,21 +1164,19 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             onChange={(event) => setFilterReceivedTo(event.target.value)}
             aria-label="Đến ngày"
           />
-          {flowScope === 'b2b_prospect' && (user?.job_functions ?? []).includes('leader') ? (
+          {canFilterByAssignee ? (
             <select
               className="kpi-select"
               value={filterAssignee}
               onChange={(event) => setFilterAssignee(event.target.value)}
-              aria-label="Người phụ trách"
+              aria-label="Nhân viên phụ trách"
             >
-              <option value="">Người phụ trách</option>
-              {staffOptions
-                .filter((staff) => staff.active !== 0)
-                .map((staff) => (
-                  <option key={staff.id} value={staff.id}>
-                    {staff.name}
-                  </option>
-                ))}
+              <option value="">Nhân viên phụ trách</option>
+              {assigneeChoices.map((staff) => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.name}
+                </option>
+              ))}
             </select>
           ) : null}
           <FilterBarActions>

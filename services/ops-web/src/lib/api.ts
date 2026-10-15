@@ -410,6 +410,20 @@ export async function fetchStaffRoster(token: string): Promise<{ staff: StaffRos
   return { staff: body.staff ?? [] };
 }
 
+export async function fetchLeadOwnerOptions(
+  token: string,
+): Promise<{ owners: Array<{ id: number; name: string }> }> {
+  const res = await fetch(`${API_BASE}/api/v1/leads/owner-options`, {
+    headers: authHeaders(token),
+    cache: 'no-store',
+  });
+  const body = await parseJson<{ owners?: Array<{ id: number; name: string }>; error?: string }>(res);
+  if (!res.ok) {
+    throw new ApiError(body.error ?? 'Không tải danh sách nhân viên phụ trách', res.status);
+  }
+  return { owners: body.owners ?? [] };
+}
+
 export async function fetchLeads(
   token: string,
   params?: {

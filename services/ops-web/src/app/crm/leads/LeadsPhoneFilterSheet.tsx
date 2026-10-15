@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import type { CrmLeadLookupOption, CrmStaffRow } from '@/lib/api';
+import type { CrmLeadLookupOption } from '@/lib/api';
 import { FilterBar, FilterBarActions, FilterBarSearch, SegmentedControl } from '@/components/layout';
 
 type OwnerTab = 'all' | 'mine' | 'unassigned';
@@ -35,7 +35,7 @@ type LeadsPhoneFilterSheetProps = {
   assignee: string;
   onAssigneeChange: (value: string) => void;
   canPickOwner: boolean;
-  staffOptions: CrmStaffRow[];
+  staffOptions: Array<{ id: number; name: string; active?: number }>;
   loading: boolean;
   savedView: string;
   onLeadP1: () => void;
@@ -190,9 +190,9 @@ export function LeadsPhoneFilterSheet({
                 className="kpi-select"
                 value={assignee}
                 onChange={(event) => onAssigneeChange(event.target.value)}
-                aria-label="Người phụ trách"
+                aria-label="Nhân viên phụ trách"
               >
-                <option value="">Người phụ trách</option>
+                <option value="">Nhân viên phụ trách</option>
                 {staffOptions
                   .filter((staff) => staff.active !== 0)
                   .map((staff) => (

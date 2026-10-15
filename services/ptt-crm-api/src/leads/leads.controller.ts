@@ -33,6 +33,7 @@ import { StaffRbacAuditRepository } from '../staff-permissions/staff-rbac-audit.
 import { PiiAccessAuditService } from '../admin-audit/admin-config-snapshot.service';
 import { StaffClientScopeService } from '../staff-client-scope/staff-client-scope.service';
 import { AppConfigService } from '../config/app-config.service';
+import { isAccountManagerPosition, isB2bDirectorPosition } from '../b2b-projects/b2b-director.util';
 import { B2bLeadScopeService } from '../b2b-projects/b2b-lead-scope.service';
 import { B2bCallsService } from '../b2b-projects/b2b-calls.service';
 import { B2bCpaasDownError, B2bDncBlockedError } from '../b2b-projects/b2b-calls.types';
@@ -108,11 +109,38 @@ export class LeadsController {
     private readonly leadPatchFinalize: LeadPatchFinalizeService,
   ) {}
 
+  private mayFilterLeadsByOwner(me: {
+    caps: StaffSectionCap[];
+    position_code?: string | null;
+    job_functions?: string[] | null;
+  }): boolean {
+    const position = String(me.position_code ?? '').trim().toLowerCase();
+    return (
+      position === 'super-admin' ||
+      hasGdkdViewAllLeads(me.caps) ||
+      isB2bDirectorPosition(me.position_code) ||
+      isAccountManagerPosition(me.position_code) ||
+      (me.job_functions ?? []).includes('leader')
+    );
+  }
+
   private leadActor(
     req: Request & { staffUser?: StaffJwtPayload },
     actorHeader?: string,
   ): string {
     return String(actorHeader ?? req.staffUser?.email ?? 'staff');
+  }
+
+  @Get('owner-options')
+  @UseGuards(StaffOrInternalKeyGuard, StaffLeadsViewGuard)
+  async listOwnerOptions(
+    @Req() req: Request & { staffUser?: StaffJwtPayload; staffAuthVia?: 'internal' | 'jwt' },
+  ) {
+    if (req.staffAuthVia !== 'internal' && req.staffUser) {
+      const me = await this.staffAuth.me(req.staffUser);
+      if (!this.mayFilterLeadsByOwner(me)) return { owners: [] as Array<{ id: number; name: string }> };
+    }
+    return { owners: await this.leadsService.listOwnerOptions() };
   }
 
   @Get('lookup-options')
@@ -423,8 +451,7 @@ export class LeadsController {
           caps: me.caps,
           positionCode: me.position_code,
         });
-        const leader = (me.job_functions ?? []).includes('leader');
-        if (!b2bListScope.viewAll && !b2bListScope.isDirector && !leader) {
+        if (!this.mayFilterLeadsByOwner(me)) {
           resolvedOwnerId = undefined;
         }
       } else if (!hasGdkdViewAllLeads(me.caps)) {

@@ -185,6 +185,20 @@ export class PgLeadsRepository implements OnModuleDestroy {
     return pgRowToV1(row, { classification: classification ?? null, kanbanCard });
   }
 
+  async listOwnerOptions(): Promise<Array<{ id: number; name: string }>> {
+    const result = await this.db.query(
+      `SELECT id, name
+       FROM crm_staff
+       WHERE COALESCE(active, TRUE) = TRUE
+         AND trim(COALESCE(name, '')) <> ''
+       ORDER BY name`,
+    );
+    return (result.rows as Array<{ id: number; name: string }>).map((row) => ({
+      id: Number(row.id),
+      name: String(row.name ?? '').trim(),
+    }));
+  }
+
   async listUnassignedB2bLeads(projectId: string, limit: number): Promise<LeadV1[]> {
     const result = await this.db.query(
       `SELECT l.sqlite_lead_id, l.full_name, l.phone, l.email, l.status, l.source,

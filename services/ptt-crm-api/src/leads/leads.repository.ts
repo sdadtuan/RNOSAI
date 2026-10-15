@@ -28,6 +28,10 @@ export class LeadsRepository {
     return this.pgRepo.getLeadById(leadId, classification);
   }
 
+  listOwnerOptions(): Promise<Array<{ id: number; name: string }>> {
+    return this.pgRepo.listOwnerOptions();
+  }
+
   listUnassignedB2bLeads(projectId: string, limit: number): Promise<LeadV1[]> {
     return this.pgRepo.listUnassignedB2bLeads(projectId, limit);
   }

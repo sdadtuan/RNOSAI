@@ -24,6 +24,10 @@ export class LeadsService {
     return { ...result, limit, offset };
   }
 
+  listOwnerOptions(): Promise<Array<{ id: number; name: string }>> {
+    return this.repo.listOwnerOptions();
+  }
+
   async getLead(id: number): Promise<LeadV1 | null> {
     const classification = await this.crmConfig.getLeadClassificationConfig();
     return this.repo.getLeadById(id, classification);

@@ -135,7 +135,7 @@ export function buildLeadsFilterChips(
   if (state.assignee) {
     chips.push({
       id: 'assignee',
-      label: `Phụ trách: ${labels.assigneeLabel?.(state.assignee) ?? state.assignee}`,
+      label: `Nhân viên phụ trách: ${labels.assigneeLabel?.(state.assignee) ?? state.assignee}`,
     });
   }
   return chips;
