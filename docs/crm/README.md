@@ -6,6 +6,8 @@ Tài liệu vận hành **Service Lifecycle** (7 giai đoạn), **Lead Intake**,
 |----------|----------|
 | **[HDSD trên hệ thống](/crm/hdsd)** | Đọc & tải file `.md` / **Excel** / ZIP toàn bộ tài liệu |
 | **[Test Case Excel](/crm/test-cases/download.xlsx)** | Bộ TC CRM đầy đủ cột + sơ đồ + hướng dẫn chụp hình ([hướng dẫn tester](./bo-test-case-huong-dan-tester.md)) |
+| **[Chu trình quản lý lead](./chu-trinh-quan-ly-lead.md)** | Cách hệ thống đang giữ lead: trạng thái, B2, đồng hồ, hàng tra soát, lịch sử |
+| **[Spec lead chưa sang B2](../specs/2026-10-14-lead-chua-b2-spec.md)** | Quy tắc giữ lead trước B2, và phần kanban được phép đổi |
 | **[Hướng dẫn đầy đủ Lead → Retain](./huong-dan-day-du-lead-den-cham-soc-khach-hang.md)** | Toàn bộ công đoạn, sơ đồ, cách sử dụng từng bước, KPI, test case |
 | **[Nguồn lead & Setup (FB / Zalo / Webform)](./huong-dan-nguon-lead-va-setup.md)** | Chu trình ingest, cấu hình `.env`, Meta/Zalo webhook, landing form, API |
 
