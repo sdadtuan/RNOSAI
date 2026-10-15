@@ -786,9 +786,9 @@ export class LeadsController {
     }
     const labels: Record<string, string> = {
       answered: 'Nghe máy',
-      no_answer: 'Không nghe',
+      no_answer: 'Không nghe máy',
       wrong_number: 'Sai số',
-      callback: 'Hẹn lại',
+      callback: 'Hẹn gọi lại',
       unreachable: 'Máy bận',
     };
     const note = String(body.note ?? '').trim();

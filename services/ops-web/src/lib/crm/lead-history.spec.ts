@@ -13,7 +13,7 @@ describe('presentLeadHistory', () => {
       created_by: 'tam@example.com',
     });
     expect(line.who).toBe('Nguyễn Đình Tâm');
-    expect(line.what).toBe('Đã gọi, máy bận hoặc không kết nối được. khách gọi thuê bao');
+    expect(line.what).toBe('Máy bận. khách gọi thuê bao');
     expect(line.what).not.toMatch(/Kênh|Trạng thái|Điện thoại/);
     expect(line.when).toContain('14/10/2026');
     expect(line.when).toContain('16:42');

@@ -10,18 +10,18 @@ import {
 const CALL_RESULTS: { value: string; label: string; hint: string }[] = [
   {
     value: 'ring_no_answer',
-    label: 'Đổ chuông — khách không bắt (1b)',
-    hint: 'Gia hạn giữ lead theo chuỗi FR; cần gọi lại trong thời hạn.',
+    label: 'Không nghe máy',
+    hint: 'Khách không bắt máy. Giữ lead để gọi lại trong hạn.',
   },
   {
     value: 'unreachable',
-    label: 'Không liên lạc được (1c)',
+    label: 'Máy bận',
     hint: 'Thuê bao, máy bận lâu, hoặc không kết nối được.',
   },
   {
     value: 'wrong_number',
-    label: 'Sai số (1c)',
-    hint: 'Cần xác nhận đã kiểm tra trước khi đóng contact.',
+    label: 'Sai số',
+    hint: 'Cần xác nhận đã kiểm tra trước khi đóng liên lạc.',
   },
   {
     value: 'connected_meet_pending',
@@ -65,11 +65,13 @@ const CONTACT_VI: Record<string, string> = {
 
 const HOLD_REASON_VI: Record<string, string> = {
   '': '—',
-  fr_chain_1b: 'Chuỗi gọi lại sau đổ chuông',
+  fr_chain_1b: 'Không nghe máy',
+  fr_chain_1c: 'Máy bận',
+  callback: 'Hẹn gọi lại',
   hot_lead: 'Lead nóng',
   redistribute: 'Chờ phân bổ lại',
   wrong_number: 'Sai số',
-  manual_extend: 'GĐKD gia hạn thủ công',
+  manual_extend: 'Gia hạn thủ công',
 };
 
 const RESULT_VI: Record<string, string> = Object.fromEntries(
@@ -176,6 +178,10 @@ export function LeadFrSlaPanel({
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!canWrite) return;
+    if (callResult === 'callback_requested' && !callbackAt) {
+      setError('Cần chọn giờ hẹn gọi lại.');
+      return;
+    }
     setBusy(true);
     setMsg('');
     setError('');
@@ -381,7 +387,11 @@ export function LeadFrSlaPanel({
               placeholder="Tóm tắt nội dung cuộc gọi (không bắt buộc)"
             />
           </label>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={busy || (callResult === 'callback_requested' && !callbackAt)}
+          >
             {busy ? 'Đang lưu…' : 'Ghi nhận cuộc gọi'}
           </button>
         </form>

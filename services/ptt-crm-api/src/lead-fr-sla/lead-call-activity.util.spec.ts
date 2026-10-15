@@ -9,7 +9,7 @@ describe('formatLeadCallActivity', () => {
       leadStatus: 'won',
     });
     expect(out.result).toBe('ring_no_answer');
-    expect(out.content).toContain('không nghe máy');
+    expect(out.content).toContain('Không nghe máy');
     expect(out.content).toContain('Gọi lần 2');
     expect(out.content).not.toMatch(/Kênh|Trạng thái|Won/i);
   });
@@ -21,7 +21,7 @@ describe('formatLeadCallActivity', () => {
       leadStatus: 'lost',
       callbackAt: new Date('2026-10-15T02:00:00.000Z'),
     });
-    expect(out.content).toContain('Khách hẹn gọi lại');
+    expect(out.content).toContain('Hẹn gọi lại');
     expect(out.content).toContain('15/10/2026');
     expect(out.content).not.toContain('Thất bại');
   });

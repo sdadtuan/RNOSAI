@@ -60,11 +60,14 @@ function plainWhat(row: LeadHistoryInput): string {
     .filter((line) => line && !line.startsWith('Trạng thái lead') && !line.startsWith('Kênh:'));
   const text = lines
     .join('. ')
-    .replace(/Đổ chuông — khách không bắt máy/g, 'Đã gọi, khách không nghe máy')
+    .replace(/Đổ chuông — khách không bắt máy/g, 'Không nghe máy')
+    .replace(/Đã gọi, khách không nghe máy/g, 'Không nghe máy')
     .replace(
       /Không liên lạc được \(máy bận hoặc không kết nối\)/g,
-      'Đã gọi, máy bận hoặc không kết nối được',
+      'Máy bận',
     )
+    .replace(/Đã gọi, máy bận hoặc không kết nối được/g, 'Máy bận')
+    .replace(/Khách hẹn gọi lại/g, 'Hẹn gọi lại')
     .replace(/\s+/g, ' ')
     .trim();
   if (text) return text;

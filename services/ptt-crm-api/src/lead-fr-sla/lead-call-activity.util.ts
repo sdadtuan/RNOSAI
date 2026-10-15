@@ -1,7 +1,7 @@
 const CALL_RESULT_LABEL: Record<string, string> = {
-  ring_no_answer: 'Đã gọi, khách không nghe máy',
-  unreachable: 'Đã gọi, máy bận hoặc không kết nối được',
-  callback_requested: 'Khách hẹn gọi lại',
+  ring_no_answer: 'Không nghe máy',
+  unreachable: 'Máy bận',
+  callback_requested: 'Hẹn gọi lại',
   wrong_number: 'Số điện thoại không đúng',
   connected_meet_pending: 'Đã nói chuyện, đang chờ gặp',
   connected_qualified: 'Đã nói chuyện, đã rõ nhu cầu',

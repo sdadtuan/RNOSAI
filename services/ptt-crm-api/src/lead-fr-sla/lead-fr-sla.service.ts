@@ -4,6 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
+import { isStatusTransitionAllowed } from '../leads/lead-status-gate.util';
+import { LeadsRepository } from '../leads/leads.repository';
+import { LeadsWriteService } from '../leads/leads-write.service';
 import { formatLeadCallActivity } from './lead-call-activity.util';
 import {
   applyCallLogToSnapshot,
@@ -54,6 +57,8 @@ export class LeadFrSlaService {
   constructor(
     private readonly repo: LeadFrSlaRepository,
     private readonly settings: LeadSlaSettingsService,
+    private readonly leads: LeadsRepository,
+    private readonly leadsWrite: LeadsWriteService,
   ) {}
 
   private async caseConfig(): Promise<LeadFrSlaCaseConfig> {
@@ -163,6 +168,9 @@ export class LeadFrSlaService {
         ],
       });
     }
+    if (result === 'callback_requested' && !String(body.callback_at ?? '').trim()) {
+      throw new BadRequestException({ error: 'callback_time_required' });
+    }
     const channel = String(body.channel || 'phone').trim().toLowerCase() || 'phone';
     const startedAt = parseDate(body.started_at, new Date());
     const row = await this.repo.getLeadSlaRow(leadId);
@@ -239,6 +247,25 @@ export class LeadFrSlaService {
       createdBy: actor,
       at: startedAt,
     });
+
+    if (result === 'callback_requested') {
+      const callbackAt = parseDate(body.callback_at, startedAt);
+      const lead = await this.leads.getLeadById(leadId);
+      const status = String(lead?.status ?? row.status ?? '').trim().toLowerCase();
+      const flow = lead?.lead_flow_kind === 'b2b_prospect' ? 'b2b_prospect' : 'spa_operational';
+      const note = String(body.notes ?? '').trim();
+      const safeNote = note.length >= 3 ? note : 'Hẹn gọi lại';
+      const nextCallAt = callbackAt.toISOString();
+      if (isStatusTransitionAllowed(status, 'nurture', flow)) {
+        await this.leadsWrite.patchLead(
+          leadId,
+          { status: 'nurture', audit_note: safeNote, next_call_at: nextCallAt },
+          actor,
+        );
+      } else {
+        await this.leadsWrite.patchLead(leadId, { next_call_at: nextCallAt }, actor);
+      }
+    }
 
     const sla = await this.readSla(leadId);
     return {
