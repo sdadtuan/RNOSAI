@@ -4,6 +4,7 @@ import { catalogTs } from '../catalog/catalog-slug.util';
 import { parseLeadMetaIndustry } from '../intake/intake-context.util';
 import { prefillCompanyName } from '../leads/lead-party.util';
 import { AppConfigService } from '../config/app-config.service';
+import { assertEligibleLeadOwner, ELIGIBLE_LEAD_OWNER_SQL } from '../ae-team/eligible-lead-owner';
 import { sanitizePgBigintUserId } from '../staff-auth/staff-user-id.util';
 import {
   careStatusLabel,
@@ -511,10 +512,10 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
 
   async listReviewAssignees(): Promise<Array<{ id: number; name: string }>> {
     const result = await this.db.query(
-      `SELECT id, COALESCE(name, '') AS name
-       FROM crm_staff
-       WHERE active IS TRUE AND COALESCE(can_receive_leads, TRUE) IS TRUE
-       ORDER BY lower(name)`,
+      `SELECT s.id, COALESCE(s.name, '') AS name
+       FROM crm_staff s
+       WHERE ${ELIGIBLE_LEAD_OWNER_SQL}
+       ORDER BY lower(s.name)`,
     );
     return result.rows.map((row) => ({
       id: Number(row.id),
@@ -642,13 +643,13 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     let targetOwner: number | null = null;
     if (mode === 'manual') {
       if (!body.owner_id) throw new Error('Chọn AM để gán lại.');
-      await this.assertActiveStaffOwner(Number(body.owner_id));
+      await assertEligibleLeadOwner((sql, params) => this.db.query(sql, params), Number(body.owner_id));
       targetOwner = Number(body.owner_id);
     } else {
       const prev = rq.previous_owner_id ? Number(rq.previous_owner_id) : null;
       if (prev) {
         try {
-          await this.assertActiveStaffOwner(prev);
+          await assertEligibleLeadOwner((sql, params) => this.db.query(sql, params), prev);
           targetOwner = prev;
         } catch {
           targetOwner = null;

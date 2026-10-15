@@ -43,7 +43,9 @@ export class LeadAutoAssignService {
     const preferId = input.preferOwnerId != null ? Number(input.preferOwnerId) : null;
     const paused = await this.pausedIntakeIds();
     if (preferId && preferId > 0 && !paused.has(preferId)) {
-      const staff = snapshot.staff_rows.find((row) => row.id === preferId && row.active);
+      const staff = snapshot.staff_rows.find(
+        (row) => row.id === preferId && row.active && row.can_receive_leads !== false,
+      );
       if (staff) {
         return {
           owner_id: staff.id,
@@ -67,7 +69,9 @@ export class LeadAutoAssignService {
       return null;
     }
 
-    let candidates = snapshot.staff_rows.filter((row) => row.active).map((row) => row.id);
+    let candidates = snapshot.staff_rows
+      .filter((row) => row.active && row.can_receive_leads !== false)
+      .map((row) => row.id);
     if (scopeIds) {
       candidates = candidates.filter((id) => scopeIds.has(id));
     }

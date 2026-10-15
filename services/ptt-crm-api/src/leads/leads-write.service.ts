@@ -15,7 +15,7 @@ import {
   isLeadPartyLogoMimeAllowed,
   leadPartyLogoExt,
 } from './lead-party.util';
-import { AiScoreAsyncService } from '../ai-intelligence/ai-score-async.service';
+import { assertEligibleLeadOwner } from '../ae-team/eligible-lead-owner';
 import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
 import { DomainEventService } from '../events/domain-event.service';
 import { CustomerTimelineService } from '../customer-timeline/customer-timeline.service';
@@ -221,6 +221,22 @@ export class LeadsWriteService {
         body.owner_id !== undefined &&
         body.owner_id != null &&
         Number(body.owner_id) !== Number(existing.owner_id ?? 0);
+      if (ownerChanging) {
+        try {
+          await assertEligibleLeadOwner(
+            (sql, params) => this.writeRepo.query(sql, params),
+            Number(body.owner_id),
+          );
+        } catch (err) {
+          throw new BadRequestException({
+            error: 'owner_not_accepting',
+            message:
+              err instanceof Error
+                ? err.message
+                : 'Nhân viên này chưa bật nhận lead hoặc đang tạm dừng.',
+          });
+        }
+      }
       const b2bManual =
         ownerChanging && this.b2bManualReassign.requiresSplitChoice(existing);
 

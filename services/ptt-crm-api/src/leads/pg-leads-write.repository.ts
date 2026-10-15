@@ -30,6 +30,10 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
     this.pool = null;
   }
 
+  query(sql: string, params: unknown[] = []) {
+    return this.db.query(sql, params);
+  }
+
   async createLead(body: CreateLeadV1Body & { is_duplicate?: boolean; meta?: Record<string, unknown> }): Promise<LeadV1> {
     if (this.config.leadsCreateIdMode === 'prod') {
       return this.createLeadProd(body);

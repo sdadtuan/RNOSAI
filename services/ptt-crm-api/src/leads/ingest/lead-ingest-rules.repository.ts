@@ -9,6 +9,7 @@ export interface IngestStaffRow {
   name: string;
   active: boolean;
   sales_level?: string;
+  can_receive_leads?: boolean;
 }
 
 export interface IngestRulesSnapshot {
@@ -76,6 +77,12 @@ export class LeadIngestRulesRepository implements OnModuleDestroy {
           name: String(item.name ?? ''),
           active: item.active === false || item.active === 0 ? false : true,
           sales_level: item.sales_level != null ? String(item.sales_level) : undefined,
+          can_receive_leads:
+            item.can_receive_leads === false || item.can_receive_leads === 0
+              ? false
+              : item.can_receive_leads === true || item.can_receive_leads === 1
+                ? true
+                : undefined,
         }))
         .filter((item) => Number.isFinite(item.id) && item.id > 0),
       assignment_state: assignState
@@ -140,7 +147,8 @@ export class LeadIngestRulesRepository implements OnModuleDestroy {
     if ((staffTable.rowCount ?? 0) === 0) return;
 
     const result = await this.db.query(
-      `SELECT id, name, notes, active, job_title, internal_code
+      `SELECT id, name, notes, active, job_title, internal_code,
+              COALESCE(can_receive_leads, FALSE) AS can_receive_leads
        FROM crm_staff
        WHERE active = TRUE
        ORDER BY sort_order ASC, lower(name) ASC, id ASC`,
@@ -155,6 +163,7 @@ export class LeadIngestRulesRepository implements OnModuleDestroy {
         active: row.active !== false && row.active !== 0,
         sales_level: jobTitle || 'b',
         internal_code: String(row.internal_code ?? ''),
+        can_receive_leads: row.can_receive_leads === true || row.can_receive_leads === 1,
       };
     });
 
