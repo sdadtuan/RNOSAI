@@ -429,7 +429,7 @@ export function LeadKanbanBoard({
   const followupCounts = rows.reduce(
     (counts, lead) => {
       const kind = leadFollowup(lead)?.kind;
-      if (kind && kind !== 'deadline') counts[kind] += 1;
+      if (kind) counts[kind] += 1;
       return counts;
     },
     { no_answer: 0, busy: 0, callback: 0 } as Record<LeadFollowupKind, number>,
