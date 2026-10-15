@@ -4,6 +4,9 @@ import {
   bucketLeadsByKanbanStage,
   B2B_KANBAN_COLUMNS,
   leadStatusLabel,
+  leadListFilterOptions,
+  leadStatusSearchCallResults,
+  leadStatusSearchHandoffs,
   leadStatusSearchOptions,
   leadStatusSearchStatuses,
   normalizeLeadStatus,
@@ -43,6 +46,36 @@ describe('leadStatusSearchOptions', () => {
     ]);
     expect(leadStatusLabel('proposal')).toBe('Báo giá');
     expect(leadStatusLabel('won')).toBe('Chốt');
+  });
+
+  it('adds the call and Solution labels beside the board columns', () => {
+    const options = leadListFilterOptions('b2b_prospect');
+    expect(options.map((option) => option.label)).toEqual([
+      'Mới',
+      'Đã liên hệ',
+      'Đang tư vấn',
+      'Báo giá',
+      'Chốt',
+      'Thất bại',
+      'Chăm sóc lại',
+      'Không nghe máy',
+      'Máy bận',
+      'Hẹn gọi lại',
+      'Sai số',
+      'Đã nói chuyện',
+      'Đã chuyển Solution',
+      'Chờ dọn',
+    ]);
+    expect(leadStatusSearchStatuses('hen_goi_lai', 'b2b_prospect')).toEqual([]);
+    expect(leadStatusSearchCallResults('hen_goi_lai', 'b2b_prospect')).toEqual([
+      'callback_requested',
+      'callback',
+      'khach_hen_goi_lai',
+    ]);
+    expect(leadStatusSearchHandoffs('da_chuyen_solution', 'b2b_prospect')).toEqual([
+      'pending',
+      'with_solution',
+    ]);
   });
 });
 

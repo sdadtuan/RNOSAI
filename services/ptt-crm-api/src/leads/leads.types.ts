@@ -126,6 +126,10 @@ export interface ListLeadsQuery {
   status?: string;
   /** Match any stored status (caller includes aliases such as new/moi). */
   statuses?: string[];
+  /** Match the latest logged call result (Không nghe máy, Máy bận, Hẹn gọi lại, …). */
+  call_results?: string[];
+  /** Match the latest active presales handoff (pending, with_solution). */
+  handoffs?: string[];
   source?: string;
   channel?: string;
   q?: string;

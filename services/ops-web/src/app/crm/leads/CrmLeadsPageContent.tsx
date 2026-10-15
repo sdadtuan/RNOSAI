@@ -52,7 +52,13 @@ import {
 } from '@/lib/auth';
 import { isAccountManager } from '@/lib/crm/lead-ae-visibility';
 import { type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
-import { leadStatusSearchLabel, leadStatusSearchOptions, leadStatusSearchStatuses } from '@/lib/crm/lead-status';
+import {
+  leadListFilterOptions,
+  leadStatusSearchCallResults,
+  leadStatusSearchHandoffs,
+  leadStatusSearchLabel,
+  leadStatusSearchStatuses,
+} from '@/lib/crm/lead-status';
 import { leadSignalKpis } from '@/lib/crm/lead-signal-kpis';
 import {
   leadFlowKindQuery,
@@ -173,7 +179,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const pageSubtitleHint = leadsListSubtitle(flowScope);
   const flowKindFilter = leadFlowKindQuery(flowScope);
   const statusOptions = useMemo(
-    () => leadStatusSearchOptions(flowKindFilter),
+    () => leadListFilterOptions(flowKindFilter),
     [flowKindFilter],
   );
 
@@ -271,10 +277,19 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
               ? myCrmStaffId
               : undefined;
         const kanban = mode === 'kanban';
+        const callResults = p1Filters?.status
+          ? []
+          : leadStatusSearchCallResults(filterStatus, flowKindFilter);
+        const handoffs = p1Filters?.status ? [] : leadStatusSearchHandoffs(filterStatus, flowKindFilter);
         const queryParams = {
           q: search || undefined,
           status: p1Filters?.status,
-          statuses: p1Filters?.status ? undefined : leadStatusSearchStatuses(filterStatus, flowKindFilter),
+          statuses:
+            p1Filters?.status || callResults.length || handoffs.length
+              ? undefined
+              : leadStatusSearchStatuses(filterStatus, flowKindFilter),
+          call_results: callResults.length ? callResults : undefined,
+          handoffs: handoffs.length ? handoffs : undefined,
           source: filterSource || undefined,
           channel: filterChannel || undefined,
           received_from: kanban ? undefined : filterReceivedFrom || undefined,

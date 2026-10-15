@@ -389,6 +389,8 @@ export class LeadsController {
     @Query('client_id') clientId?: string,
     @Query('status') status?: string,
     @Query('status_any') statusAny?: string,
+    @Query('call_result_any') callResultAny?: string,
+    @Query('handoff_any') handoffAny?: string,
     @Query('source') source?: string,
     @Query('channel') channel?: string,
     @Query('q') q?: string,
@@ -435,14 +437,20 @@ export class LeadsController {
     const scope = await this.clientScope.resolveForRequest(req);
     this.clientScope.assertListClientFilter(scope, clientId);
 
-    const statuses = String(statusAny ?? '')
-      .split(',')
-      .map((value) => value.trim().toLowerCase())
-      .filter(Boolean);
+    const splitQuery = (raw?: string) =>
+      String(raw ?? '')
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean);
+    const statuses = splitQuery(statusAny);
+    const callResults = splitQuery(callResultAny);
+    const handoffs = splitQuery(handoffAny);
     return this.leadsService.listLeads({
       client_id: clientId,
       status: statuses.length ? undefined : status,
       statuses: statuses.length ? statuses : undefined,
+      call_results: callResults.length ? callResults : undefined,
+      handoffs: handoffs.length ? handoffs : undefined,
       source,
       channel,
       q,

@@ -114,7 +114,9 @@ export const B2B_KANBAN_COLUMNS: readonly KanbanColumnDef[] = [
 export type LeadStatusSearchOption = {
   id: string;
   label: string;
-  statuses: readonly string[];
+  statuses?: readonly string[];
+  callResults?: readonly string[];
+  handoffs?: readonly string[];
 };
 
 const CHO_DON: LeadStatusSearchOption = {
@@ -137,6 +139,36 @@ const SPA_STATUS_SEARCH: readonly LeadStatusSearchOption[] = [
   CHO_DON,
 ];
 
+/** Kết quả cuộc gọi và bàn giao Solution. These sit beside the board columns in the filter. */
+const CALL_SITUATIONS: readonly LeadStatusSearchOption[] = [
+  {
+    id: 'khong_nghe_may',
+    label: 'Không nghe máy',
+    callResults: ['ring_no_answer', 'no_answer', 'khong_nghe_may'],
+  },
+  {
+    id: 'may_ban',
+    label: 'Máy bận',
+    callResults: ['unreachable', 'khong_goi_duoc', 'khong_lien_lac_duoc'],
+  },
+  {
+    id: 'hen_goi_lai',
+    label: 'Hẹn gọi lại',
+    callResults: ['callback_requested', 'callback', 'khach_hen_goi_lai'],
+  },
+  { id: 'sai_so', label: 'Sai số', callResults: ['wrong_number'] },
+  {
+    id: 'da_noi_chuyen',
+    label: 'Đã nói chuyện',
+    callResults: ['answered', 'connected_meet_pending', 'connected_qualified', 'connected_other'],
+  },
+  {
+    id: 'da_chuyen_solution',
+    label: 'Đã chuyển Solution',
+    handoffs: ['pending', 'with_solution'],
+  },
+];
+
 /** Filter choices match the board columns. One choice covers every stored code in that column. */
 export function leadStatusSearchOptions(
   flow?: 'spa_operational' | 'b2b_prospect' | null,
@@ -149,14 +181,52 @@ export function leadStatusSearchOptions(
   })), CHO_DON];
 }
 
+/** Board columns plus the call and Solution labels shown on each lead. */
+export function leadListFilterOptions(
+  flow?: 'spa_operational' | 'b2b_prospect' | null,
+): readonly LeadStatusSearchOption[] {
+  const columns = leadStatusSearchOptions(flow);
+  const board = columns.filter((option) => option.id !== 'pending_cleanup');
+  const cleanup = columns.filter((option) => option.id === 'pending_cleanup');
+  return [...board, ...CALL_SITUATIONS, ...cleanup];
+}
+
+function findListFilter(
+  id: string,
+  flow?: 'spa_operational' | 'b2b_prospect' | null,
+): LeadStatusSearchOption | undefined {
+  return leadListFilterOptions(flow).find((option) => option.id === id);
+}
+
 export function leadStatusSearchStatuses(
   id: string | null | undefined,
   flow?: 'spa_operational' | 'b2b_prospect' | null,
 ): string[] {
   const key = String(id ?? '').trim();
   if (!key) return [];
-  const match = leadStatusSearchOptions(flow).find((option) => option.id === key);
-  return match ? [...match.statuses] : [key];
+  const match = findListFilter(key, flow);
+  if (!match) return [key];
+  return match.statuses ? [...match.statuses] : [];
+}
+
+export function leadStatusSearchCallResults(
+  id: string | null | undefined,
+  flow?: 'spa_operational' | 'b2b_prospect' | null,
+): string[] {
+  const key = String(id ?? '').trim();
+  if (!key) return [];
+  const match = findListFilter(key, flow);
+  return match?.callResults ? [...match.callResults] : [];
+}
+
+export function leadStatusSearchHandoffs(
+  id: string | null | undefined,
+  flow?: 'spa_operational' | 'b2b_prospect' | null,
+): string[] {
+  const key = String(id ?? '').trim();
+  if (!key) return [];
+  const match = findListFilter(key, flow);
+  return match?.handoffs ? [...match.handoffs] : [];
 }
 
 export function leadStatusSearchLabel(
@@ -165,7 +235,7 @@ export function leadStatusSearchLabel(
 ): string {
   const key = String(id ?? '').trim();
   if (!key) return '';
-  return leadStatusSearchOptions(flow).find((option) => option.id === key)?.label ?? leadStatusLabel(key);
+  return findListFilter(key, flow)?.label ?? leadStatusLabel(key);
 }
 
 function rawLeadStatus(status: string | null | undefined): string {

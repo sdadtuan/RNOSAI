@@ -16,14 +16,16 @@ import {
 import { reviewQueueAssignmentClockSql } from '../leads-funnel/review-queue.util';
 import { isIsoDate, leadSearchPhoneDigits } from './lead-search.util';
 
-const SOLUTION_HANDOFF_SQL = `(
+const SOLUTION_HANDOFF_EXPR = `(
                 SELECT ps.handoff_status
                 FROM crm_lead_presales ps
                 WHERE ps.lead_id = l.sqlite_lead_id
                   AND COALESCE(ps.status, '') = 'active'
                 ORDER BY ps.id DESC
                 LIMIT 1
-              ) AS solution_handoff`;
+              )`;
+
+const SOLUTION_HANDOFF_SQL = `${SOLUTION_HANDOFF_EXPR} AS solution_handoff`;
 
 interface PgWhereClause {
   sql: string;
@@ -237,6 +239,14 @@ export class PgLeadsRepository implements OnModuleDestroy {
       push('lower(l.status) = ANY(?::text[])', statuses);
     } else if (query.status?.trim()) {
       push('l.status = ?', query.status.trim());
+    }
+    const callResults = (query.call_results ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean);
+    if (callResults.length) {
+      push('lower(COALESCE(l.last_call_result, \'\')) = ANY(?::text[])', callResults);
+    }
+    const handoffs = (query.handoffs ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean);
+    if (handoffs.length) {
+      push(`lower(COALESCE(${SOLUTION_HANDOFF_EXPR}, '')) = ANY(?::text[])`, handoffs);
     }
     if (query.source?.trim()) {
       push('l.source = ?', query.source.trim());

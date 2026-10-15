@@ -416,6 +416,8 @@ export async function fetchLeads(
     q?: string;
     status?: string;
     statuses?: string[];
+    call_results?: string[];
+    handoffs?: string[];
     source?: string;
     channel?: string;
     received_from?: string;
@@ -434,6 +436,8 @@ export async function fetchLeads(
   if (params?.q) qs.set('q', params.q);
   if (params?.statuses?.length) qs.set('status_any', params.statuses.join(','));
   else if (params?.status) qs.set('status', params.status);
+  if (params?.call_results?.length) qs.set('call_result_any', params.call_results.join(','));
+  if (params?.handoffs?.length) qs.set('handoff_any', params.handoffs.join(','));
   if (params?.source) qs.set('source', params.source);
   if (params?.channel) qs.set('channel', params.channel);
   if (params?.received_from) qs.set('received_from', params.received_from);
