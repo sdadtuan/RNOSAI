@@ -1,6 +1,6 @@
 import { LeadRow, LeadV1, PgLeadRow } from './leads.types';
 import { formatLeadTs } from './lead-ts.format';
-import { reviewQueuePublicState } from '../leads-funnel/review-queue.util';
+import { reviewQueueAssignmentClockSql, reviewQueuePublicState } from '../leads-funnel/review-queue.util';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
 import { isB2bLeadInCall, resolveLeadScoreForBand } from '../b2b-projects/b2b-lead-list.util';
 import {
@@ -186,6 +186,9 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     }),
     company_address: String(row.company_address ?? metaString(meta, 'company_address') ?? ''),
     logo_asset_id: row.logo_asset_id ? String(row.logo_asset_id) : metaString(meta, 'logo_asset_id') || null,
+    hold_until: row.hold_until ? formatLeadTs(row.hold_until) : null,
+    b2_complete: Boolean(row.b2_complete),
+    b2_assigned_at: row.b2_assigned_at ? formatLeadTs(row.b2_assigned_at) : null,
   };
 }
 

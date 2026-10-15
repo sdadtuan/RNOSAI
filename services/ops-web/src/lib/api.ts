@@ -56,6 +56,9 @@ export interface LeadRow {
   next_call_at?: string | null;
   callback_at?: string | null;
   last_call_result?: string | null;
+  hold_until?: string | null;
+  b2_complete?: boolean;
+  b2_assigned_at?: string | null;
   in_call?: boolean;
   expected_value?: number | null;
   margin_pct?: number | null;

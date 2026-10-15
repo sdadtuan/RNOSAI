@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { followupChip, leadFollowup } from './lead-followup';
+import { followupChip, leadCareChip, leadFollowup } from './lead-followup';
 
 describe('leadFollowup', () => {
   it('labels a missed call', () => {
@@ -29,5 +29,42 @@ describe('leadFollowup', () => {
   it('hides the label after the customer answers', () => {
     expect(leadFollowup({ last_call_result: 'connected_qualified' })).toBeNull();
     expect(leadFollowup({ last_call_result: 'answered' })).toBeNull();
+  });
+
+  it('hides the missed-call label after the hold ends', () => {
+    expect(
+      leadCareChip(
+        {
+          b2_complete: false,
+          last_call_result: 'no_answer',
+          hold_until: '2026-10-14T11:00:00.000Z',
+          b2_assigned_at: '2026-10-12T02:00:00.000Z',
+        },
+        new Date('2026-10-15T02:00:00.000Z'),
+      ),
+    ).toBeNull();
+  });
+
+  it('shows the contact deadline when under four hours remain', () => {
+    const chip = leadCareChip(
+      {
+        b2_complete: false,
+        last_call_result: '',
+        b2_assigned_at: '2026-10-15T01:00:00.000Z',
+      },
+      new Date('2026-10-15T22:00:00.000Z'),
+    );
+    expect(chip?.label).toBe('Sắp hết hạn liên hệ');
+    expect(chip?.sentence).toBe('Còn 3 giờ để Liên hệ OK');
+  });
+
+  it('hides every care label after Liên hệ OK', () => {
+    expect(
+      leadCareChip({
+        b2_complete: true,
+        last_call_result: 'no_answer',
+        hold_until: '2026-10-20T11:00:00.000Z',
+      }),
+    ).toBeNull();
   });
 });

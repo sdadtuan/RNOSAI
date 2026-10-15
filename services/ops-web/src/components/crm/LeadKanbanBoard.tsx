@@ -18,7 +18,7 @@ import {
   leadStatusLabel,
 } from '@/lib/crm/lead-status';
 import { KANBAN_COLUMN_PAGE, sortKanbanLeads } from '@/lib/crm/kanban-column.util';
-import { followupChip, leadFollowup, type LeadFollowupKind } from '@/lib/crm/lead-followup';
+import { leadCareChip, type LeadFollowupKind } from '@/lib/crm/lead-followup';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
 
 function formatWhen(iso: string): string {
@@ -424,16 +424,14 @@ export function LeadKanbanBoard({
     }
   }
 
-  const followupCounts = b2b
-    ? rows.reduce(
-        (counts, lead) => {
-          const kind = leadFollowup(lead)?.kind;
-          if (kind) counts[kind] += 1;
-          return counts;
-        },
-        { no_answer: 0, busy: 0, callback: 0 } as Record<LeadFollowupKind, number>,
-      )
-    : null;
+  const followupCounts = rows.reduce(
+    (counts, lead) => {
+      const kind = leadCareChip(lead)?.kind;
+      if (kind && kind !== 'deadline') counts[kind] += 1;
+      return counts;
+    },
+    { no_answer: 0, busy: 0, callback: 0 } as Record<LeadFollowupKind, number>,
+  );
 
   return (
     <div className="crm-kanban-wrap">
@@ -472,7 +470,7 @@ export function LeadKanbanBoard({
       ) : null}
       {columns.map((column) => {
         const items = followupFilter
-          ? column.items.filter((lead) => leadFollowup(lead)?.kind === followupFilter)
+          ? column.items.filter((lead) => leadCareChip(lead)?.kind === followupFilter)
           : column.items;
         const sortedItems = b2b ? sortKanbanLeads(items) : items;
         const visibleLimit = b2b ? columnLimit[column.key] ?? KANBAN_COLUMN_PAGE : sortedItems.length;
@@ -529,7 +527,7 @@ export function LeadKanbanBoard({
                       : band === 'hot'
                         ? 'hot'
                         : 'plain';
-                  const followup = b2b ? leadFollowup(lead) : null;
+                  const care = leadCareChip(lead);
                   const origin = [lead.project_code, lead.source || lead.channel].filter(Boolean).join(' · ');
                   const initials = ownerInitials(lead.owner_name);
                   return (
@@ -554,9 +552,9 @@ export function LeadKanbanBoard({
                         {sla ? (
                           <span className="crm-kanban-card__chip crm-kanban-card__chip--sla">{sla}</span>
                         ) : null}
-                        {followup ? (
-                          <span className={`crm-kanban-card__chip crm-kanban-card__chip--followup crm-kanban-card__chip--${followup.kind}`}>
-                            {followupChip(followup)}
+                        {care ? (
+                          <span className={`crm-kanban-card__chip crm-kanban-card__chip--followup crm-kanban-card__chip--${care.kind}`}>
+                            {care.label}
                           </span>
                         ) : null}
                       </div>

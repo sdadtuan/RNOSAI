@@ -109,6 +109,9 @@ describe('pgRowToV1', () => {
       company_name: '',
       company_address: '',
       logo_asset_id: null,
+      hold_until: null,
+      b2_complete: false,
+      b2_assigned_at: null,
     });
   });
 

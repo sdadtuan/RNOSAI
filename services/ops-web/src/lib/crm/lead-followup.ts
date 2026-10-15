@@ -45,3 +45,63 @@ export function leadFollowup(lead: {
 export function followupChip(followup: LeadFollowup): string {
   return followup.when ? `${followup.label} · ${followup.when}` : followup.label;
 }
+
+export type LeadCareChip = {
+  kind: LeadFollowupKind | 'deadline';
+  label: 'Hẹn gọi lại' | 'Máy bận' | 'Không nghe máy' | 'Sắp hết hạn liên hệ';
+  sentence: string;
+};
+
+export function leadCareChip(
+  lead: {
+    b2_complete?: boolean;
+    last_call_result?: string | null;
+    hold_until?: string | null;
+    b2_assigned_at?: string | null;
+    next_call_at?: string | null;
+    callback_at?: string | null;
+  },
+  now = new Date(),
+): LeadCareChip | null {
+  if (lead.b2_complete) return null;
+  const followup = leadFollowup(lead);
+  const holdUntil = parseDate(lead.hold_until);
+  if (followup && holdUntil && holdUntil.getTime() > now.getTime()) {
+    return {
+      kind: followup.kind,
+      label: followup.label,
+      sentence: `Giữ đến ${formatFull(holdUntil)}`,
+    };
+  }
+  const assigned = parseDate(lead.b2_assigned_at);
+  if (!assigned) return null;
+  const hoursLeft = (assigned.getTime() + 24 * 3600_000 - now.getTime()) / 3600_000;
+  if (!(hoursLeft > 0 && hoursLeft < 4)) return null;
+  const hours = Math.max(1, Math.ceil(hoursLeft - 1e-6));
+  return {
+    kind: 'deadline',
+    label: 'Sắp hết hạn liên hệ',
+    sentence: `Còn ${hours} giờ để Liên hệ OK`,
+  };
+}
+
+function parseDate(raw: string | null | undefined): Date | null {
+  const value = String(raw ?? '').trim();
+  if (!value) return null;
+  const date = new Date(value.includes('T') ? value : value.replace(' ', 'T'));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatFull(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${pick('day')}/${pick('month')}/${pick('year')} ${pick('hour')}:${pick('minute')}`;
+}
