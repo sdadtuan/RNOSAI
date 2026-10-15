@@ -1078,7 +1078,6 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
               <option key={option.id} value={option.id}>
                 {option.label}
               </option>
-              </option>
             ))}
           </select>
           <select

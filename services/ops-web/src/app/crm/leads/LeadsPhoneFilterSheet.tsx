@@ -143,7 +143,6 @@ export function LeadsPhoneFilterSheet({
                 <option key={option.id} value={option.id}>
                   {option.label}
                 </option>
-                </option>
               ))}
             </select>
             <select
