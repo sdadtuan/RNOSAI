@@ -112,6 +112,8 @@ describe('pgRowToV1', () => {
       hold_until: null,
       b2_complete: false,
       b2_assigned_at: null,
+      last_call_result: '',
+      solution_handoff: '',
     });
   });
 

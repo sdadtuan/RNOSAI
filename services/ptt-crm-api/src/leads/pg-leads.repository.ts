@@ -16,6 +16,15 @@ import {
 import { reviewQueueAssignmentClockSql } from '../leads-funnel/review-queue.util';
 import { isIsoDate, leadSearchPhoneDigits } from './lead-search.util';
 
+const SOLUTION_HANDOFF_SQL = `(
+                SELECT ps.handoff_status
+                FROM crm_lead_presales ps
+                WHERE ps.lead_id = l.sqlite_lead_id
+                  AND COALESCE(ps.status, '') = 'active'
+                ORDER BY ps.id DESC
+                LIMIT 1
+              ) AS solution_handoff`;
+
 interface PgWhereClause {
   sql: string;
   params: unknown[];
@@ -109,6 +118,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
                 )
               ) AS b2_complete,
               ${reviewQueueAssignmentClockSql('l')} AS b2_assigned_at,
+              ${SOLUTION_HANDOFF_SQL},
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al
@@ -155,6 +165,7 @@ export class PgLeadsRepository implements OnModuleDestroy {
                 )
               ) AS b2_complete,
               ${reviewQueueAssignmentClockSql('l')} AS b2_assigned_at,
+              ${SOLUTION_HANDOFF_SQL},
               l.meta_json::text AS meta_json,
               COALESCE(l.first_assigned_at::text, (
                 SELECT al.created_at::text FROM crm_lead_assignment_log al

@@ -9,7 +9,7 @@ import { resolveLeadFlowKindFromLead } from '@/lib/crm/lead-flow-kind';
 import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { WinEmptyState } from '@/components/win';
 import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
-import { leadCareChip } from '@/lib/crm/lead-followup';
+import { leadListSituation } from '@/lib/crm/lead-list-situation';
 import {
   leadIcpScoreTag,
   leadIcpScoreTagClass,
@@ -81,7 +81,7 @@ export function LeadsMobileCardList({
             : 'Chưa phân';
         const sla = slaLabel(lead);
         const icpTag = leadIcpScoreTag(lead, scoreMap[String(lead.id)]);
-        const care = leadCareChip(lead);
+        const situation = leadListSituation(lead);
         const phoneDigits = lead.phone?.replace(/\D/g, '') ?? '';
 
         return (
@@ -93,8 +93,12 @@ export function LeadsMobileCardList({
               <div className="win-leads-mobile-card__head">
                 <h3 className="win-leads-mobile-card__name">{lead.full_name || `Lead #${lead.id}`}</h3>
                 <div className="win-leads-mobile-card__badges">
-                  {care ? (
-                    <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{care.label}</span>
+                  <span className="lead-status-badge lead-status-badge--neutral">{situation.status}</span>
+                  {situation.call ? (
+                    <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{situation.call}</span>
+                  ) : null}
+                  {situation.solution ? (
+                    <span className="crm-kanban-card__chip crm-kanban-card__chip--sla">{situation.solution}</span>
                   ) : null}
                   <WinScopeBadge clientId={lead.client_id} />
                   {showScores ? (
@@ -115,7 +119,6 @@ export function LeadsMobileCardList({
               <p className="win-leads-mobile-card__meta">
                 {lead.phone ? <span>{lead.phone}</span> : null}
                 {lead.source ? <span>{lead.source}</span> : null}
-                {lead.status ? <span>{lead.status}</span> : null}
               </p>
               <p className="win-leads-mobile-card__owner">
                 Owner: <strong>{ownerLabel}</strong>

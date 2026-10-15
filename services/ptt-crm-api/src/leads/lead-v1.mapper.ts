@@ -189,6 +189,8 @@ export function pgRowToV1(row: PgLeadRow, options?: LeadV1MapperOptions): LeadV1
     hold_until: row.hold_until ? formatLeadTs(row.hold_until) : null,
     b2_complete: Boolean(row.b2_complete),
     b2_assigned_at: row.b2_assigned_at ? formatLeadTs(row.b2_assigned_at) : null,
+    last_call_result: row.last_call_result ? String(row.last_call_result) : '',
+    solution_handoff: row.solution_handoff ? String(row.solution_handoff) : '',
   };
 }
 

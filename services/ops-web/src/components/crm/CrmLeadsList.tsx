@@ -20,7 +20,8 @@ import {
   shouldShowFirstResponseSlaColumn,
 } from '@/lib/crm/leads-inbox-revops.util';
 import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
-import { leadCareChip } from '@/lib/crm/lead-followup';
+import { leadListSituation } from '@/lib/crm/lead-list-situation';
+import { leadStatusTone } from '@/lib/crm/lead-status';
 
 interface Props {
   rows: LeadRow[];
@@ -142,7 +143,7 @@ export function CrmLeadsList({
             {rows.map((lead) => {
               const icpTag = leadIcpScoreTag(lead, scoreMap[String(lead.id)]);
               const slaLabel = leadFirstResponseSlaLabel(lead);
-              const care = leadCareChip(lead);
+              const situation = leadListSituation(lead);
               return (
                 <tr
                   key={lead.id}
@@ -172,9 +173,6 @@ export function CrmLeadsList({
                     <td>
                       <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
                         {lead.full_name || '—'}
-                        {care ? (
-                          <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{care.label}</span>
-                        ) : null}
                         <WinScopeBadge clientId={lead.client_id} />
                         {!lead.owner_id ? (
                           <span className="revops-tag revops-tag--orange">Unassigned</span>
@@ -183,7 +181,21 @@ export function CrmLeadsList({
                     </td>
                   ) : null}
                   {visibleColumns.has('phone') ? <td>{lead.phone || '—'}</td> : null}
-                  {visibleColumns.has('status') ? <td>{lead.status}</td> : null}
+                  {visibleColumns.has('status') ? (
+                    <td>
+                      <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                        <span className={`lead-status-badge lead-status-badge--${leadStatusTone(lead.status)}`}>
+                          {situation.status}
+                        </span>
+                        {situation.call ? (
+                          <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{situation.call}</span>
+                        ) : null}
+                        {situation.solution ? (
+                          <span className="crm-kanban-card__chip crm-kanban-card__chip--sla">{situation.solution}</span>
+                        ) : null}
+                      </span>
+                    </td>
+                  ) : null}
                   {showLeadKindTags && visibleColumns.has('kind') ? (
                     <td>
                       <span

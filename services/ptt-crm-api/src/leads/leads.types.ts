@@ -38,6 +38,8 @@ export interface LeadV1 {
   hold_until?: string | null;
   b2_complete?: boolean;
   b2_assigned_at?: string | null;
+  /** Latest active presales handoff: pending, with_solution, released, or empty. */
+  solution_handoff?: string | null;
   in_call?: boolean;
   /** WIN-4-B — financial ABAC pilot (from meta_json.financial). */
   expected_value?: number | null;
@@ -113,6 +115,7 @@ export interface PgLeadRow {
   hold_until?: Date | string | null;
   b2_complete?: boolean | null;
   b2_assigned_at?: Date | string | null;
+  solution_handoff?: string | null;
   updated_at?: Date | string | null;
 }
 
