@@ -4,6 +4,8 @@ import {
   bucketLeadsByKanbanStage,
   B2B_KANBAN_COLUMNS,
   leadStatusLabel,
+  leadStatusSearchOptions,
+  leadStatusSearchStatuses,
   normalizeLeadStatus,
 } from './lead-status';
 
@@ -17,6 +19,30 @@ describe('normalizeLeadStatus', () => {
   it('passes through known CRM statuses', () => {
     expect(normalizeLeadStatus('da_lien_he')).toBe('da_lien_he');
     expect(normalizeLeadStatus('proposal')).toBe('proposal');
+  });
+});
+
+describe('leadStatusSearchOptions', () => {
+  it('lists the board columns in Vietnamese and includes every code in Báo giá', () => {
+    const options = leadStatusSearchOptions('b2b_prospect');
+    expect(options.map((option) => option.label)).toEqual([
+      'Mới',
+      'Đã liên hệ',
+      'Đang tư vấn',
+      'Báo giá',
+      'Chốt',
+      'Thất bại',
+      'Chăm sóc lại',
+      'Chờ dọn',
+    ]);
+    expect(leadStatusSearchStatuses('bao_gia', 'b2b_prospect')).toEqual([
+      'bao_gia',
+      'proposal',
+      'dam_phan',
+      'negotiation',
+    ]);
+    expect(leadStatusLabel('proposal')).toBe('Báo giá');
+    expect(leadStatusLabel('won')).toBe('Chốt');
   });
 });
 

@@ -6,9 +6,9 @@ export const LEAD_STATUS_LABELS: Record<string, string> = {
   bao_gia: 'Báo giá',
   dam_phan: 'Đàm phán',
   chot: 'Chốt',
-  post_sale: 'Post-sale',
-  won: 'Won (HĐ ký)',
-  proposal: 'Proposal',
+  post_sale: 'Sau bán',
+  won: 'Chốt',
+  proposal: 'Báo giá',
   lost: 'Thất bại',
   nurture: 'Chăm sóc lại',
   pending_cleanup: 'Chờ dọn',
@@ -110,6 +110,63 @@ export const B2B_KANBAN_COLUMNS: readonly KanbanColumnDef[] = [
   { id: 'lost', label: 'Thất bại', statuses: ['lost'], collapsible: true, sumValue: false },
   { id: 'nurture', label: 'Chăm sóc lại', statuses: ['nurture'], collapsible: true, sumValue: false },
 ];
+
+export type LeadStatusSearchOption = {
+  id: string;
+  label: string;
+  statuses: readonly string[];
+};
+
+const CHO_DON: LeadStatusSearchOption = {
+  id: 'pending_cleanup',
+  label: 'Chờ dọn',
+  statuses: ['pending_cleanup'],
+};
+
+const SPA_STATUS_SEARCH: readonly LeadStatusSearchOption[] = [
+  { id: 'moi', label: 'Mới', statuses: ['moi', 'new', 'intake'] },
+  {
+    id: 'da_lien_he',
+    label: 'Đã liên hệ',
+    statuses: ['da_lien_he', 'first_contact', 'contacted', 'qualified', 'qualify'],
+  },
+  { id: 'dang_tu_van', label: 'Đang tư vấn', statuses: ['dang_tu_van', 'nurturing'] },
+  { id: 'hen_gap', label: 'Hẹn gặp', statuses: ['hen_gap'] },
+  { id: 'chot', label: 'Chốt', statuses: ['chot', 'won'] },
+  { id: 'lost', label: 'Thất bại', statuses: ['lost'] },
+  CHO_DON,
+];
+
+/** Filter choices match the board columns. One choice covers every stored code in that column. */
+export function leadStatusSearchOptions(
+  flow?: 'spa_operational' | 'b2b_prospect' | null,
+): readonly LeadStatusSearchOption[] {
+  if (flow === 'spa_operational') return SPA_STATUS_SEARCH;
+  return [...B2B_KANBAN_COLUMNS.map((column) => ({
+    id: column.id,
+    label: column.label,
+    statuses: column.statuses,
+  })), CHO_DON];
+}
+
+export function leadStatusSearchStatuses(
+  id: string | null | undefined,
+  flow?: 'spa_operational' | 'b2b_prospect' | null,
+): string[] {
+  const key = String(id ?? '').trim();
+  if (!key) return [];
+  const match = leadStatusSearchOptions(flow).find((option) => option.id === key);
+  return match ? [...match.statuses] : [key];
+}
+
+export function leadStatusSearchLabel(
+  id: string | null | undefined,
+  flow?: 'spa_operational' | 'b2b_prospect' | null,
+): string {
+  const key = String(id ?? '').trim();
+  if (!key) return '';
+  return leadStatusSearchOptions(flow).find((option) => option.id === key)?.label ?? leadStatusLabel(key);
+}
 
 function rawLeadStatus(status: string | null | undefined): string {
   return String(status ?? '')

@@ -51,7 +51,8 @@ import {
   type StoredStaffUser,
 } from '@/lib/auth';
 import { isAccountManager } from '@/lib/crm/lead-ae-visibility';
-import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
+import { type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
+import { leadStatusSearchLabel, leadStatusSearchOptions, leadStatusSearchStatuses } from '@/lib/crm/lead-status';
 import { leadSignalKpis } from '@/lib/crm/lead-signal-kpis';
 import {
   leadFlowKindQuery,
@@ -172,10 +173,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
   const pageSubtitleHint = leadsListSubtitle(flowScope);
   const flowKindFilter = leadFlowKindQuery(flowScope);
   const statusOptions = useMemo(
-    () =>
-      flowKindFilter
-        ? [...statusOptionsForFlowKind(flowKindFilter)]
-        : ['moi', 'da_lien_he', 'dang_tu_van', 'chot', 'lost', 'bao_gia', 'won'],
+    () => leadStatusSearchOptions(flowKindFilter),
     [flowKindFilter],
   );
 
@@ -275,7 +273,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         const kanban = mode === 'kanban';
         const queryParams = {
           q: search || undefined,
-          status: p1Filters?.status ?? (filterStatus || undefined),
+          status: p1Filters?.status,
+          statuses: p1Filters?.status ? undefined : leadStatusSearchStatuses(filterStatus, flowKindFilter),
           source: filterSource || undefined,
           channel: filterChannel || undefined,
           received_from: kanban ? undefined : filterReceivedFrom || undefined,
@@ -677,6 +676,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
         },
         flowScope,
         {
+          statusLabel: (key) => leadStatusSearchLabel(key, flowKindFilter),
           sourceLabel: (key) => sourceOptions.find((o) => o.option_key === key)?.label ?? key,
           channelLabel: (key) => channelOptions.find((o) => o.option_key === key)?.label ?? key,
           assigneeLabel: (id) => staffOptions.find((staff) => String(staff.id) === id)?.name ?? id,
@@ -695,6 +695,7 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       query,
       savedView,
       flowScope,
+      flowKindFilter,
       sourceOptions,
       channelOptions,
     ],
@@ -1073,9 +1074,10 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             aria-label="Lọc trạng thái"
           >
             <option value="">Trạng thái</option>
-            {statusOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
+            {statusOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
               </option>
             ))}
           </select>

@@ -31,7 +31,7 @@ import {
   leadsListHref,
   type CrmLeadsFlowScope,
 } from '@/lib/crm/lead-flow-routes';
-import { statusOptionsForFlowKind } from '@/lib/crm/lead-flow-kind';
+import { leadStatusSearchOptions } from '@/lib/crm/lead-status';
 
 const SPA_STATUS_OPTIONS = [
   { value: 'moi', label: 'Mới' },
@@ -39,7 +39,7 @@ const SPA_STATUS_OPTIONS = [
   { value: 'dang_tu_van', label: 'Đang tư vấn' },
   { value: 'hen_gap', label: 'Hẹn gặp' },
   { value: 'chot', label: 'Chốt' },
-  { value: 'lost', label: 'Lost' },
+  { value: 'lost', label: 'Thất bại' },
 ] as const;
 
 function flowScopeFromPathname(pathname: string): CrmLeadsFlowScope {
@@ -69,9 +69,9 @@ export function CrmNewLeadPageContent({
   const statusOptions = useMemo(() => {
     if (isOperationalFlow) return SPA_STATUS_OPTIONS;
     if (isB2bFlow) {
-      return statusOptionsForFlowKind('b2b_prospect').map((value) => ({
-        value,
-        label: value,
+      return leadStatusSearchOptions('b2b_prospect').map((option) => ({
+        value: option.id,
+        label: option.label,
       }));
     }
     return SPA_STATUS_OPTIONS;

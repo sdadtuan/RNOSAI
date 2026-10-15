@@ -21,7 +21,7 @@ type LeadsPhoneFilterSheetProps = {
   onKindChange: (id: LeadKind) => void;
   filterStatus: string;
   onStatusChange: (value: string) => void;
-  statusOptions: string[];
+  statusOptions: readonly { id: string; label: string }[];
   filterSource: string;
   onSourceChange: (value: string) => void;
   sourceOptions: CrmLeadLookupOption[];
@@ -139,9 +139,10 @@ export function LeadsPhoneFilterSheet({
               aria-label="Lọc trạng thái"
             >
               <option value="">Trạng thái</option>
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
+              {statusOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
                 </option>
               ))}
             </select>
