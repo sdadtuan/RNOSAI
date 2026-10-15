@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, OnModuleDestroy } from '@nestjs/common
 import { Pool, PoolClient } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
 import { reviewQueueAssignmentClockSql } from '../leads-funnel/review-queue.util';
+import { pgRowToV1 } from './lead-v1.mapper';
 import {
   CreateLeadV1Body,
   LeadV1,

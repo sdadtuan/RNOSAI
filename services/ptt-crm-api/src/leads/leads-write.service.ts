@@ -16,6 +16,7 @@ import {
   leadPartyLogoExt,
 } from './lead-party.util';
 import { assertEligibleLeadOwner } from '../ae-team/eligible-lead-owner';
+import { AiScoreAsyncService } from '../ai-intelligence/ai-score-async.service';
 import { LeadMeetingPrepEnqueueService } from '../lead-meeting-prep/lead-meeting-prep-enqueue.service';
 import { DomainEventService } from '../events/domain-event.service';
 import { CustomerTimelineService } from '../customer-timeline/customer-timeline.service';
