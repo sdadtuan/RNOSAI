@@ -9,6 +9,7 @@ import { resolveLeadFlowKindFromLead } from '@/lib/crm/lead-flow-kind';
 import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { WinEmptyState } from '@/components/win';
 import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
+import { leadCareChip } from '@/lib/crm/lead-followup';
 import {
   leadIcpScoreTag,
   leadIcpScoreTagClass,
@@ -80,6 +81,7 @@ export function LeadsMobileCardList({
             : 'Chưa phân';
         const sla = slaLabel(lead);
         const icpTag = leadIcpScoreTag(lead, scoreMap[String(lead.id)]);
+        const care = leadCareChip(lead);
         const phoneDigits = lead.phone?.replace(/\D/g, '') ?? '';
 
         return (
@@ -91,6 +93,9 @@ export function LeadsMobileCardList({
               <div className="win-leads-mobile-card__head">
                 <h3 className="win-leads-mobile-card__name">{lead.full_name || `Lead #${lead.id}`}</h3>
                 <div className="win-leads-mobile-card__badges">
+                  {care ? (
+                    <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{care.label}</span>
+                  ) : null}
                   <WinScopeBadge clientId={lead.client_id} />
                   {showScores ? (
                     <LeadScoreBadge score={scoreMap[String(lead.id)]} pending={scoresPending} />

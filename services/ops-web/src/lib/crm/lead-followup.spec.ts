@@ -31,18 +31,27 @@ describe('leadFollowup', () => {
     expect(leadFollowup({ last_call_result: 'answered' })).toBeNull();
   });
 
-  it('hides the missed-call label after the hold ends', () => {
-    expect(
-      leadCareChip(
-        {
-          b2_complete: false,
-          last_call_result: 'no_answer',
-          hold_until: '2026-10-14T11:00:00.000Z',
-          b2_assigned_at: '2026-10-12T02:00:00.000Z',
-        },
-        new Date('2026-10-15T02:00:00.000Z'),
-      ),
-    ).toBeNull();
+  it('keeps the missed-call label after the hold ends', () => {
+    const chip = leadCareChip(
+      {
+        b2_complete: false,
+        last_call_result: 'no_answer',
+        hold_until: '2026-10-14T11:00:00.000Z',
+        b2_assigned_at: '2026-10-12T02:00:00.000Z',
+      },
+      new Date('2026-10-15T02:00:00.000Z'),
+    );
+    expect(chip?.label).toBe('Không nghe máy');
+    expect(chip?.sentence).toBe('Đã quá giờ giữ. Cần gọi lại.');
+  });
+
+  it('shows the missed-call label when no hold was stored', () => {
+    const chip = leadCareChip({
+      b2_complete: false,
+      last_call_result: 'ring_no_answer',
+    });
+    expect(chip?.label).toBe('Không nghe máy');
+    expect(chip?.sentence).toBe('Cần gọi lại.');
   });
 
   it('shows the contact deadline when under four hours remain', () => {

@@ -20,6 +20,7 @@ import {
   shouldShowFirstResponseSlaColumn,
 } from '@/lib/crm/leads-inbox-revops.util';
 import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
+import { leadCareChip } from '@/lib/crm/lead-followup';
 
 interface Props {
   rows: LeadRow[];
@@ -141,6 +142,7 @@ export function CrmLeadsList({
             {rows.map((lead) => {
               const icpTag = leadIcpScoreTag(lead, scoreMap[String(lead.id)]);
               const slaLabel = leadFirstResponseSlaLabel(lead);
+              const care = leadCareChip(lead);
               return (
                 <tr
                   key={lead.id}
@@ -170,6 +172,9 @@ export function CrmLeadsList({
                     <td>
                       <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
                         {lead.full_name || '—'}
+                        {care ? (
+                          <span className="crm-kanban-card__chip crm-kanban-card__chip--followup">{care.label}</span>
+                        ) : null}
                         <WinScopeBadge clientId={lead.client_id} />
                         {!lead.owner_id ? (
                           <span className="revops-tag revops-tag--orange">Unassigned</span>

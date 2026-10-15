@@ -65,12 +65,19 @@ export function leadCareChip(
 ): LeadCareChip | null {
   if (lead.b2_complete) return null;
   const followup = leadFollowup(lead);
-  const holdUntil = parseDate(lead.hold_until);
-  if (followup && holdUntil && holdUntil.getTime() > now.getTime()) {
+  if (followup) {
+    const holdUntil = parseDate(lead.hold_until);
+    if (holdUntil && holdUntil.getTime() > now.getTime()) {
+      return {
+        kind: followup.kind,
+        label: followup.label,
+        sentence: `Giữ đến ${formatFull(holdUntil)}`,
+      };
+    }
     return {
       kind: followup.kind,
       label: followup.label,
-      sentence: `Giữ đến ${formatFull(holdUntil)}`,
+      sentence: holdUntil ? 'Đã quá giờ giữ. Cần gọi lại.' : 'Cần gọi lại.',
     };
   }
   const assigned = parseDate(lead.b2_assigned_at);
