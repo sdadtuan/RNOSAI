@@ -5,6 +5,7 @@ import { parseLeadMetaIndustry } from '../intake/intake-context.util';
 import { prefillCompanyName } from '../leads/lead-party.util';
 import { AppConfigService } from '../config/app-config.service';
 import { assertEligibleLeadOwner, ELIGIBLE_LEAD_OWNER_SQL } from '../ae-team/eligible-lead-owner';
+import { preB2HoldState, type PreB2HoldState } from './pre-b2-hold.util';
 import { sanitizePgBigintUserId } from '../staff-auth/staff-user-id.util';
 import {
   careStatusLabel,
@@ -106,6 +107,16 @@ import {
   reviewQueueAssignmentClockSql,
   reviewQueuePublicState,
 } from './review-queue.util';
+
+type HoldScanRow = LeadFunnelRow & {
+  last_call_result?: string | null;
+  hold_until?: string | null;
+  callback_at?: string | null;
+  last_call_at?: string | null;
+  attempts_since_assign?: number | null;
+  reassign_count?: number | null;
+  is_hot?: boolean | null;
+};
 
 type PgPresalesRow = {
   id: string;
@@ -523,7 +534,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     }));
   }
 
-  async syncReviewQueue(actor: string, dryRun = false): Promise<Record<string, unknown>> {
+  async syncReviewQueue(actor: string, dryRun = false, now = new Date()): Promise<Record<string, unknown>> {
     const cfg = await this.fetchLeadConfig();
     if (!cfg.b2_review_queue_enabled) {
       return { enabled: false, queued: 0, scanned: 0, deadline_hours: cfg.b2_contact_deadline_hours };
@@ -536,7 +547,14 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
               COALESCE(l.care_stages_done_json, '{}'::jsonb)::text AS care_stages_done_json,
               CASE WHEN l.is_duplicate THEN 1 ELSE 0 END AS is_duplicate,
               COALESCE(l.updated_at::text, '') AS updated_at,
-              ${reviewQueueAssignmentClockSql('l')} AS first_assigned_at
+              ${reviewQueueAssignmentClockSql('l')} AS first_assigned_at,
+              COALESCE(l.last_call_result, '') AS last_call_result,
+              l.hold_until::text AS hold_until,
+              l.callback_at::text AS callback_at,
+              l.last_call_at::text AS last_call_at,
+              COALESCE(l.attempts_since_assign, 0) AS attempts_since_assign,
+              COALESCE(l.reassign_count, 0) AS reassign_count,
+              COALESCE(l.is_hot, FALSE) AS is_hot
        FROM crm_leads l
        WHERE l.owner_id IS NOT NULL
          AND l.is_duplicate IS NOT TRUE
@@ -544,16 +562,20 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
          AND COALESCE(l.meta_json->'review_queue'->>'active', '') != 'true'
          AND COALESCE(l.care_stages_done_json->>'first_contact', '') = ''`,
     );
-    const rows = result.rows as LeadFunnelRow[];
+    const rows = result.rows as HoldScanRow[];
 
     let queued = 0;
+    let held = 0;
     const leadIds: number[] = [];
-    const now = new Date();
     for (const row of rows) {
       const gate = presalesCareGateState(row.care_stage_current, row.care_stages_done_json);
       if (gate.complete) continue;
-      // Parity Python sync_b2_review_queue: đã có 「Liên hệ OK」 thì không thu hồi / đổi AM
       if (await this.hasB2ContactOkReport(row.id)) continue;
+      const hold = this.preB2FromRow(row, now);
+      if (hold.kind && (hold.insideHold || hold.expiry !== 'none')) {
+        if (hold.insideHold) held += 1;
+        continue;
+      }
       const assignedAt = row.first_assigned_at || row.updated_at || '';
       const assignedDt = new Date(String(assignedAt).slice(0, 19).replace(' ', 'T') + 'Z');
       if (Number.isNaN(assignedDt.getTime())) continue;
@@ -573,14 +595,148 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       queued += 1;
     }
 
+    const expired = dryRun
+      ? { nudged: 0, reassigned: 0, failed: 0, queued: 0 }
+      : await this.applyExpiredHolds(actor, now, cfg.b2_contact_deadline_hours);
+
     return {
       enabled: true,
       dry_run: dryRun,
-      queued,
+      queued: queued + expired.queued,
       scanned: rows.length,
       deadline_hours: cfg.b2_contact_deadline_hours,
       lead_ids: leadIds,
+      held,
+      nudged: expired.nudged,
+      reassigned: expired.reassigned,
+      failed: expired.failed,
     };
+  }
+
+  private preB2FromRow(row: HoldScanRow, now: Date): PreB2HoldState {
+    const assignedRaw = row.first_assigned_at || row.updated_at || '';
+    const assignedAt = new Date(String(assignedRaw).slice(0, 19).replace(' ', 'T') + 'Z');
+    const callbackAt = row.callback_at ? new Date(String(row.callback_at)) : null;
+    const lastCallAt = row.last_call_at ? new Date(String(row.last_call_at)) : null;
+    return preB2HoldState({
+      lastCallResult: row.last_call_result,
+      assignedAt: Number.isNaN(assignedAt.getTime()) ? now : assignedAt,
+      callbackAt: callbackAt && !Number.isNaN(callbackAt.getTime()) ? callbackAt : null,
+      lastCallAt: lastCallAt && !Number.isNaN(lastCallAt.getTime()) ? lastCallAt : null,
+      attemptsSinceAssign: Number(row.attempts_since_assign) || 0,
+      reassignCount: Number(row.reassign_count) || 0,
+      isHot: Boolean(row.is_hot),
+      now,
+    });
+  }
+
+  private async applyExpiredHolds(
+    actor: string,
+    now: Date,
+    deadlineHours: number,
+  ): Promise<{ nudged: number; reassigned: number; failed: number; queued: number }> {
+    const result = await this.db.query(
+      `SELECT l.sqlite_lead_id AS id, l.full_name, l.phone, l.email, l.status, l.owner_id,
+              l.meta_json::text AS meta_json,
+              COALESCE(l.care_stage_current, 'first_contact') AS care_stage_current,
+              COALESCE(l.care_stages_done_json, '{}'::jsonb)::text AS care_stages_done_json,
+              CASE WHEN l.is_duplicate THEN 1 ELSE 0 END AS is_duplicate,
+              COALESCE(l.updated_at::text, '') AS updated_at,
+              ${reviewQueueAssignmentClockSql('l')} AS first_assigned_at,
+              COALESCE(l.last_call_result, '') AS last_call_result,
+              l.hold_until::text AS hold_until,
+              l.callback_at::text AS callback_at,
+              l.last_call_at::text AS last_call_at,
+              COALESCE(l.attempts_since_assign, 0) AS attempts_since_assign,
+              COALESCE(l.reassign_count, 0) AS reassign_count,
+              COALESCE(l.is_hot, FALSE) AS is_hot
+         FROM crm_leads l
+        WHERE l.owner_id IS NOT NULL
+          AND l.is_duplicate IS NOT TRUE
+          AND l.status NOT IN ('lost')
+          AND COALESCE(l.meta_json->'review_queue'->>'active', '') != 'true'
+          AND COALESCE(l.care_stages_done_json->>'first_contact', '') = ''
+          AND l.hold_until IS NOT NULL
+          AND l.hold_until <= $1::timestamptz`,
+      [now.toISOString()],
+    );
+    let nudged = 0;
+    let reassigned = 0;
+    let failed = 0;
+    let queued = 0;
+    for (const row of result.rows as HoldScanRow[]) {
+      if (await this.hasB2ContactOkReport(row.id)) continue;
+      const hold = this.preB2FromRow(row, now);
+      if (hold.insideHold || hold.expiry === 'none') continue;
+      if (hold.expiry === 'nudge') {
+        await this.db.query(
+          `INSERT INTO crm_lead_activities (lead_id, activity_type, content, created_at, created_by)
+           SELECT $1, 'note', $2, NOW(), 'pre-b2-hold'
+            WHERE NOT EXISTS (
+              SELECT 1 FROM crm_lead_activities
+               WHERE lead_id = $1 AND content = $2 AND created_at > NOW() - interval '1 day'
+            )`,
+          [row.id, 'Nhắc người phụ trách: chưa đủ số lần gọi, lead vẫn ở lại.'],
+        );
+        nudged += 1;
+        continue;
+      }
+      if (hold.expiry === 'fail') {
+        await this.db.query(
+          `UPDATE crm_leads
+              SET status = 'lost',
+                  meta_json = COALESCE(meta_json, '{}'::jsonb) || jsonb_build_object('lost_reason', 'unreachable'),
+                  hold_until = NULL,
+                  updated_at = NOW()
+            WHERE sqlite_lead_id = $1`,
+          [row.id],
+        );
+        await this.db.query(
+          `INSERT INTO crm_lead_activities (lead_id, activity_type, content, created_at, created_by)
+           VALUES ($1, 'note', $2, NOW(), 'pre-b2-hold')`,
+          [row.id, 'Hết hạn máy bận, đóng thất bại vì không liên lạc được.'],
+        );
+        failed += 1;
+        continue;
+      }
+      if (hold.expiry === 'reassign') {
+        const next = await this.db.query(
+          `SELECT s.id FROM crm_staff s WHERE ${ELIGIBLE_LEAD_OWNER_SQL} AND s.id <> $1 ORDER BY s.id`,
+          [Number(row.owner_id) || 0],
+        );
+        const nextId = Number(next.rows[0]?.id) || 0;
+        if (nextId > 0) {
+          await this.db.query(
+            `UPDATE crm_leads
+                SET owner_id = $2,
+                    assigned_at = NOW(),
+                    attempts_since_assign = 0,
+                    hold_until = NULL,
+                    hold_reason = '',
+                    reassign_count = COALESCE(reassign_count, 0) + 1,
+                    updated_at = NOW()
+              WHERE sqlite_lead_id = $1`,
+            [row.id, nextId],
+          );
+          await this.db.query(
+            `INSERT INTO crm_lead_assignment_log
+               (sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at)
+             VALUES ($1, $2, $3, 'pre_b2_hold_expired', $4, NOW())`,
+            [row.id, row.owner_id, nextId, actor.slice(0, 120)],
+          );
+          reassigned += 1;
+          continue;
+        }
+      }
+      await this.queueLeadForReview(row.id, {
+        actor,
+        previousOwnerId: row.owner_id,
+        assignedAt: row.first_assigned_at || row.updated_at || '',
+        deadlineHours,
+      });
+      queued += 1;
+    }
+    return { nudged, reassigned, failed, queued };
   }
 
   private async queueLeadForReview(
