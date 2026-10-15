@@ -171,6 +171,22 @@ export class LeadsWriteService {
     }
   }
 
+  loadKanbanHoldContext(leadId: number) {
+    return this.writeRepo.loadKanbanHoldContext(leadId);
+  }
+
+  saveKanbanHold(
+    leadId: number,
+    input: {
+      holdUntil: string | null;
+      holdReason: string;
+      callbackAt: string | null;
+      incrementAttempts: boolean;
+    },
+  ) {
+    return this.writeRepo.saveKanbanHold(leadId, input);
+  }
+
   async patchLead(
     leadId: number,
     body: PatchLeadV1Body,
@@ -189,7 +205,8 @@ export class LeadsWriteService {
       body.industry === undefined &&
       body.phone === undefined &&
       body.email === undefined &&
-      body.logo_asset_id === undefined
+      body.logo_asset_id === undefined &&
+      body.next_call_at === undefined
     ) {
       throw new BadRequestException({ error: 'At least one patch field required' });
     }

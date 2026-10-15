@@ -1,4 +1,5 @@
-import { workingHoursBetween, type WorkingHoursConfig } from '../lead-sla-settings/lead-sla-working-hours.util';
+import { addWorkingHours, workingHoursBetween, type WorkingHoursConfig } from '../lead-sla-settings/lead-sla-working-hours.util';
+import { preB2HoldState } from '../leads-funnel/pre-b2-hold.util';
 
 export type KanbanBand = 'hot' | 'warm' | 'cold';
 export type KanbanSlaState = 'ok' | 'warning' | 'breach';
@@ -246,14 +247,78 @@ export function computeKanbanFirstContactSla(input: {
 }
 
 export function kanbanCallOutcome(result: string): {
-  nextStatus: 'da_lien_he' | null;
+  nextStatus: 'da_lien_he' | 'nurture' | null;
   suggestLost: boolean;
 } {
-  if (result === 'answered' || result === 'callback') {
+  if (result === 'answered') {
     return { nextStatus: 'da_lien_he', suggestLost: false };
+  }
+  if (result === 'callback') {
+    return { nextStatus: 'nurture', suggestLost: false };
   }
   if (result === 'wrong_number') return { nextStatus: null, suggestLost: true };
   return { nextStatus: null, suggestLost: false };
+}
+
+const CALL_GAP_HOURS = { days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' };
+
+export function kanbanHoldPatch(input: {
+  result: string;
+  assignedAt: Date;
+  callbackAt: Date | null;
+  lastCallAt: Date | null;
+  attemptsSinceAssign: number;
+  reassignCount: number;
+  isHot: boolean;
+  now: Date;
+}): {
+  hold_until: string | null;
+  hold_reason: string;
+  status: 'nurture' | null;
+  callback_at: string | null;
+  warn: string | null;
+} {
+  const warn = callGapWarn(input.lastCallAt, input.now);
+  const result = input.result.trim().toLowerCase();
+  if (result === 'answered' || result.startsWith('connected_')) {
+    return { hold_until: null, hold_reason: '', status: null, callback_at: null, warn };
+  }
+  const state = preB2HoldState({
+    lastCallResult: result,
+    assignedAt: input.assignedAt,
+    callbackAt: input.callbackAt,
+    lastCallAt: input.lastCallAt,
+    attemptsSinceAssign: input.attemptsSinceAssign + 1,
+    reassignCount: input.reassignCount,
+    isHot: input.isHot,
+    now: input.now,
+  });
+  const holdReason =
+    state.kind === 'no_answer'
+      ? input.isHot
+        ? 'hot_lead'
+        : 'fr_chain_1b'
+      : state.kind === 'busy'
+        ? 'fr_chain_1c'
+        : state.kind === 'callback'
+          ? 'callback'
+          : '';
+  return {
+    hold_until: state.holdUntil ? state.holdUntil.toISOString() : null,
+    hold_reason: holdReason,
+    status: result === 'callback' ? 'nurture' : null,
+    callback_at: result === 'callback' && input.callbackAt ? input.callbackAt.toISOString() : null,
+    warn,
+  };
+}
+
+function callGapWarn(lastCallAt: Date | null, now: Date): string | null {
+  if (!lastCallAt) return null;
+  const ageMs = now.getTime() - lastCallAt.getTime();
+  if (ageMs >= 0 && ageMs < 15 * 60_000) return null;
+  const earliest = addWorkingHours(lastCallAt, 2, CALL_GAP_HOURS, []);
+  if (earliest.getTime() > now.getTime()) return 'Cuộc gọi trước cách chưa đủ 2 giờ làm việc.';
+  return null;
 }
 
 /** Foreign book leads stay masked. Own leads and a full-book director may reveal. */

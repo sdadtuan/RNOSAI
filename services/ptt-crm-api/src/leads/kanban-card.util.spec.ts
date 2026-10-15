@@ -7,6 +7,7 @@ import {
   kanbanCallMayRevealPhone,
   kanbanCallOutcome,
   kanbanCardSettingsFromPayload,
+  kanbanHoldPatch,
 } from './kanban-card.util';
 
 const HOURS = defaultKanbanCardSettings();
@@ -124,9 +125,42 @@ describe('kanban priority', () => {
 });
 
 describe('kanban call outcome', () => {
-  it('moves answered and callback to contacted', () => {
+  it('moves answered to contacted and a callback to nurture', () => {
     expect(kanbanCallOutcome('answered').nextStatus).toBe('da_lien_he');
-    expect(kanbanCallOutcome('callback').nextStatus).toBe('da_lien_he');
+    expect(kanbanCallOutcome('callback').nextStatus).toBe('nurture');
+  });
+
+  it('requires a callback time before the board moves to nurture', () => {
+    expect(kanbanCallOutcome('callback')).toEqual({ nextStatus: 'nurture', suggestLost: false });
+  });
+
+  it('stores a missed-call hold and clears it when the customer answers', () => {
+    const missed = kanbanHoldPatch({
+      result: 'no_answer',
+      assignedAt: new Date('2026-10-12T02:00:00.000Z'),
+      callbackAt: null,
+      lastCallAt: null,
+      attemptsSinceAssign: 0,
+      reassignCount: 0,
+      isHot: false,
+      now: new Date('2026-10-12T03:00:00.000Z'),
+    });
+    expect(missed.hold_reason).toBe('fr_chain_1b');
+    expect(missed.hold_until).toBeTruthy();
+    expect(missed.status).toBeNull();
+
+    const answered = kanbanHoldPatch({
+      result: 'answered',
+      assignedAt: new Date('2026-10-12T02:00:00.000Z'),
+      callbackAt: null,
+      lastCallAt: null,
+      attemptsSinceAssign: 1,
+      reassignCount: 0,
+      isHot: false,
+      now: new Date('2026-10-12T03:00:00.000Z'),
+    });
+    expect(answered.hold_until).toBeNull();
+    expect(answered.hold_reason).toBe('');
   });
 
   it('suggests lost for a wrong number and leaves no-answer in place', () => {

@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import { AppConfigService } from '../config/app-config.service';
-import { pgRowToV1 } from './lead-v1.mapper';
+import { reviewQueueAssignmentClockSql } from '../leads-funnel/review-queue.util';
 import {
   CreateLeadV1Body,
   LeadV1,
@@ -166,6 +166,72 @@ export class PgLeadsWriteRepository implements OnModuleDestroy {
       );
     }
     await this.insertContactActivity(leadId, input.note, input.actor);
+  }
+
+  async loadKanbanHoldContext(leadId: number): Promise<{
+    assignedAt: Date;
+    lastCallAt: Date | null;
+    attemptsSinceAssign: number;
+    reassignCount: number;
+    isHot: boolean;
+  } | null> {
+    const result = await this.db.query(
+      `SELECT COALESCE(NULLIF((${reviewQueueAssignmentClockSql('l')}), ''), l.created_at::text) AS assigned_at,
+              l.last_call_at,
+              COALESCE(l.attempts_since_assign, 0) AS attempts_since_assign,
+              COALESCE(l.reassign_count, 0) AS reassign_count,
+              COALESCE(l.is_hot, FALSE) AS is_hot
+         FROM crm_leads l
+        WHERE l.sqlite_lead_id = $1`,
+      [leadId],
+    );
+    const row = result.rows[0] as
+      | {
+          assigned_at?: string | null;
+          last_call_at?: Date | string | null;
+          attempts_since_assign?: number;
+          reassign_count?: number;
+          is_hot?: boolean;
+        }
+      | undefined;
+    if (!row) return null;
+    const assigned = new Date(String(row.assigned_at ?? ''));
+    const lastRaw = row.last_call_at;
+    const last = lastRaw ? new Date(lastRaw) : null;
+    return {
+      assignedAt: Number.isNaN(assigned.getTime()) ? new Date() : assigned,
+      lastCallAt: last && !Number.isNaN(last.getTime()) ? last : null,
+      attemptsSinceAssign: Number(row.attempts_since_assign) || 0,
+      reassignCount: Number(row.reassign_count) || 0,
+      isHot: Boolean(row.is_hot),
+    };
+  }
+
+  async saveKanbanHold(
+    leadId: number,
+    input: {
+      holdUntil: string | null;
+      holdReason: string;
+      callbackAt: string | null;
+      incrementAttempts: boolean;
+    },
+  ): Promise<void> {
+    await this.db.query(
+      `UPDATE crm_leads
+          SET hold_until = $2::timestamptz,
+              hold_reason = $3,
+              callback_at = CASE WHEN $4::text IS NULL THEN callback_at ELSE $4::timestamptz END,
+              attempts_since_assign = COALESCE(attempts_since_assign, 0) + $5,
+              updated_at = NOW()
+        WHERE sqlite_lead_id = $1`,
+      [
+        leadId,
+        input.holdUntil,
+        input.holdReason,
+        input.callbackAt,
+        input.incrementAttempts ? 1 : 0,
+      ],
+    );
   }
 
   async insertSystemNote(leadId: number, content: string, nextAction: string): Promise<void> {

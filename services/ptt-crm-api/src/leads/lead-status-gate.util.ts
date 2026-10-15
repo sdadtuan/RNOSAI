@@ -65,10 +65,10 @@ export const MIN_AUDIT_NOTE_LEN = 3;
 
 /** §11 — allowed CRM status transitions (spa + B2B). */
 export const LEAD_STATUS_TRANSITIONS: Record<string, readonly string[]> = {
-  moi: ['da_lien_he', 'lost', 'pending_cleanup'],
-  new: ['da_lien_he', 'lost', 'pending_cleanup'],
-  first_contact: ['da_lien_he', 'lost', 'pending_cleanup'],
-  da_lien_he: ['dang_tu_van', 'hen_gap', 'bao_gia', 'proposal', 'lost', 'pending_cleanup'],
+  moi: ['da_lien_he', 'nurture', 'lost', 'pending_cleanup'],
+  new: ['da_lien_he', 'nurture', 'lost', 'pending_cleanup'],
+  first_contact: ['da_lien_he', 'nurture', 'lost', 'pending_cleanup'],
+  da_lien_he: ['dang_tu_van', 'hen_gap', 'bao_gia', 'proposal', 'nurture', 'lost', 'pending_cleanup'],
   dang_tu_van: ['hen_gap', 'bao_gia', 'dam_phan', 'chot', 'won', 'lost'],
   hen_gap: ['chot', 'dang_tu_van', 'lost'],
   bao_gia: ['proposal', 'dam_phan', 'chot', 'won', 'lost', 'dang_tu_van'],

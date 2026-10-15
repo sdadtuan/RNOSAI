@@ -77,7 +77,8 @@ import {
   BulkAssignLeadsBody,
   BulkAssignLeadsResult,
 } from './leads.types';
-import { kanbanCallMayRevealPhone, kanbanCallOutcome } from './kanban-card.util';
+import { kanbanCallMayRevealPhone, kanbanCallOutcome, kanbanHoldPatch } from './kanban-card.util';
+import { isStatusTransitionAllowed } from './lead-status-gate.util';
 
 @Controller('api/v1/leads')
 export class LeadsController {
@@ -702,7 +703,7 @@ export class LeadsController {
     @Body()
     body: {
       phase?: 'start' | 'result';
-      result?: 'answered' | 'no_answer' | 'wrong_number' | 'callback';
+      result?: 'answered' | 'no_answer' | 'unreachable' | 'wrong_number' | 'callback';
       note?: string;
       next_call_at?: string;
     },
@@ -780,6 +781,9 @@ export class LeadsController {
     if (!['answered', 'no_answer', 'wrong_number', 'callback', 'unreachable'].includes(result)) {
       throw new HttpException({ error: 'call_result_required' }, HttpStatus.BAD_REQUEST);
     }
+    if (result === 'callback' && !String(body.next_call_at ?? '').trim()) {
+      throw new HttpException({ error: 'callback_time_required' }, HttpStatus.BAD_REQUEST);
+    }
     const labels: Record<string, string> = {
       answered: 'Nghe máy',
       no_answer: 'Không nghe',
@@ -788,29 +792,60 @@ export class LeadsController {
       unreachable: 'Máy bận',
     };
     const note = String(body.note ?? '').trim();
+    const holdContext = await this.leadsWriteService.loadKanbanHoldContext(id);
+    const now = new Date();
+    const callbackAt = result === 'callback' ? new Date(String(body.next_call_at)) : null;
+    const hold = kanbanHoldPatch({
+      result,
+      assignedAt: holdContext?.assignedAt ?? now,
+      callbackAt: callbackAt && !Number.isNaN(callbackAt.getTime()) ? callbackAt : null,
+      lastCallAt: holdContext?.lastCallAt ?? null,
+      attemptsSinceAssign: holdContext?.attemptsSinceAssign ?? 0,
+      reassignCount: holdContext?.reassignCount ?? 0,
+      isHot: holdContext?.isHot ?? false,
+      now,
+    });
     await this.leadsWriteService.logKanbanCall(id, {
       phase: 'result',
       result,
       note: [labels[result], note].filter(Boolean).join(' — '),
       actor,
     });
+    const tracksHold = ['answered', 'no_answer', 'unreachable', 'callback'].includes(result);
+    if (tracksHold) {
+      await this.leadsWriteService.saveKanbanHold(id, {
+        holdUntil: hold.hold_until,
+        holdReason: hold.hold_reason,
+        callbackAt: hold.callback_at,
+        incrementAttempts: result !== 'answered',
+      });
+    }
     const outcome = kanbanCallOutcome(result);
     const status = String(lead.status ?? '').trim().toLowerCase();
-    const stillNew = status === 'moi' || status === 'new' || status === 'first_contact';
-    if (outcome.nextStatus && stillNew) {
+    const flow = lead.lead_flow_kind === 'b2b_prospect' ? 'b2b_prospect' : 'spa_operational';
+    const auditNote = (note || labels[result] || 'Đã gọi').trim();
+    const safeNote = auditNote.length >= 3 ? auditNote : 'Đã gọi khách';
+    if (result === 'callback' && body.next_call_at) {
+      if (isStatusTransitionAllowed(status, 'nurture', flow)) {
+        await this.leadsWriteService.patchLead(
+          id,
+          { status: 'nurture', audit_note: safeNote, next_call_at: body.next_call_at },
+          actor,
+        );
+      } else {
+        await this.leadsWriteService.patchLead(id, { next_call_at: body.next_call_at }, actor);
+      }
+    } else if (outcome.nextStatus && (status === 'moi' || status === 'new' || status === 'first_contact')) {
       await this.leadsWriteService.patchLead(
         id,
         {
           status: outcome.nextStatus,
-          audit_note: note || labels[result],
-          next_call_at: result === 'callback' ? body.next_call_at : undefined,
+          audit_note: safeNote,
         },
         actor,
       );
-    } else if (result === 'callback' && body.next_call_at) {
-      await this.leadsWriteService.patchLead(id, { next_call_at: body.next_call_at }, actor);
     }
-    return { phone, suggest_lost: outcome.suggestLost };
+    return { phone, suggest_lost: outcome.suggestLost, warn: hold.warn };
   }
 
   /** B2B softphone — mock CPaaS with tel: fallback when down. */

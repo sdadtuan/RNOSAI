@@ -85,7 +85,7 @@ describe('lead-status-gate.util', () => {
   });
 
   it('lists allowed next statuses from moi', () => {
-    expect(allowedNextStatuses('moi')).toEqual(['da_lien_he', 'lost', 'pending_cleanup']);
+    expect(allowedNextStatuses('moi')).toEqual(['da_lien_he', 'nurture', 'lost', 'pending_cleanup']);
   });
 
   it('limits moi dropdown without outreach to lost and pending_cleanup', () => {
@@ -197,6 +197,11 @@ describe('lead-status-gate.util', () => {
     expect(() =>
       validateLeadStatusChange({ ...b2b, oldStatus: 'da_lien_he', newStatus: 'nurture' }),
     ).not.toThrow();
+  });
+
+  it('allows a new lead to move to nurture', () => {
+    expect(isStatusTransitionAllowed('moi', 'nurture', 'spa_operational')).toBe(true);
+    expect(isStatusTransitionAllowed('da_lien_he', 'nurture', 'spa_operational')).toBe(true);
   });
 
   it('uses the settings catalog when present and the seed when it is missing', () => {
