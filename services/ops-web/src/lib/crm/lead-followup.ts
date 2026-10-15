@@ -2,7 +2,7 @@ export type LeadFollowupKind = 'no_answer' | 'busy' | 'callback';
 
 export type LeadFollowup = {
   kind: LeadFollowupKind;
-  label: string;
+  label: 'Không nghe máy' | 'Máy bận' | 'Hẹn gọi lại';
   when: string;
 };
 
