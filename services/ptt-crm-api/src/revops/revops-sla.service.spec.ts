@@ -71,6 +71,23 @@ describe('RevopsSlaService.tick', () => {
     expect(out.processed).toBe(5);
   });
 
+  it('does not assign the first active staff by name', async () => {
+    const db = mockDb();
+    await new RevopsSlaService(db as never).tick(new Date('2026-09-06T10:00:00Z'));
+    const staffSql = db.query.mock.calls.map((call) => String(call[0])).find((sql) => /FROM crm_staff/i.test(sql));
+    expect(staffSql).toContain('can_receive_leads');
+    expect(staffSql).not.toContain('LIMIT 1');
+  });
+
+  it('leaves a lead inside its call hold', async () => {
+    const db = mockDb();
+    await new RevopsSlaService(db as never).tick(new Date('2026-09-06T10:00:00Z'));
+    const candidateSql = db.query.mock.calls
+      .map((call) => String(call[0]))
+      .find((sql) => /lead_first_response/i.test(sql) && /breached/i.test(sql));
+    expect(candidateSql).toContain('hold_until');
+  });
+
   it('returns zeros when tables are missing', async () => {
     const db = {
       query: jest.fn().mockRejectedValue({ code: '42P01' }),

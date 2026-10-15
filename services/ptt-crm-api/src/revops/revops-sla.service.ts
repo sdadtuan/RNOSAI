@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { slaHopStopCallResultSqlList } from '../b2b-projects/b2b-sla.util';
+import { ELIGIBLE_LEAD_OWNER_SQL } from '../ae-team/eligible-lead-owner';
 import { hasRevopsCommissionCap } from './revops-scope.util';
 import {
   REVOPS_SLA_COMPLIANCE_TARGET_PCT,
@@ -473,12 +474,6 @@ export class RevopsSlaService {
     );
     if (!rules.rows[0]) return 0;
 
-    const fallback = await this.db.query(
-      `SELECT id FROM crm_staff WHERE active = true ORDER BY sort_order, name LIMIT 1`,
-    );
-    const fallbackId = num(fallback.rows[0]?.id);
-    if (fallbackId <= 0) return 0;
-
     const candidates = await this.db.query(
       `SELECT i.id, i.entity_type, i.entity_id, i.owner_id
          FROM crm_revops_sla_incidents i
@@ -487,7 +482,6 @@ export class RevopsSlaService {
           AND i.entity_type = 'lead_first_response'
           AND i.breached_at IS NOT NULL
           AND i.breached_at <= $2::timestamptz - interval '10 minutes'
-          AND (i.owner_id IS NULL OR i.owner_id <> $3)
           AND NOT EXISTS (
             SELECT 1 FROM crm_leads l
             WHERE l.sqlite_lead_id = i.entity_id::bigint
@@ -506,29 +500,52 @@ export class RevopsSlaService {
                   WHERE ca.sqlite_lead_id = l.sqlite_lead_id
                     AND ca.call_result IN (${slaHopStopCallResultSqlList()})
                 )
+                OR (
+                  l.hold_until IS NOT NULL
+                  AND l.hold_until > $2::timestamptz
+                  AND COALESCE(l.last_call_result, '') IN (
+                    'ring_no_answer', 'no_answer', 'khong_nghe_may',
+                    'unreachable', 'khong_goi_duoc', 'khong_lien_lac_duoc',
+                    'callback_requested', 'callback', 'khach_hen_goi_lai'
+                  )
+                )
               )
           )`,
-      [REVOPS_TENANT_ID, at, fallbackId],
+      [REVOPS_TENANT_ID, at],
     );
 
     let reassignments = 0;
     for (const row of candidates.rows) {
       const leadId = num(row.entity_id);
       if (leadId <= 0) continue;
+      const currentOwner = num(row.owner_id);
+      const next = await this.db.query(
+        `SELECT s.id
+           FROM crm_staff s
+          WHERE ${ELIGIBLE_LEAD_OWNER_SQL}
+            AND s.id <> $1
+          ORDER BY s.id`,
+        [currentOwner > 0 ? currentOwner : 0],
+      );
+      const nextId = num(next.rows[0]?.id);
+      if (nextId <= 0) {
+        await this.parkLeadWithoutOwner(leadId, row.owner_id ?? null);
+        continue;
+      }
       await this.db.query(
         `UPDATE crm_revops_sla_incidents SET owner_id = $2 WHERE id = $1::uuid`,
-        [String(row.id), fallbackId],
+        [String(row.id), nextId],
       );
       try {
         await this.db.query(
           `INSERT INTO crm_lead_assignment_log
              (sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at)
            VALUES ($1, $2, $3, 'revops_sla_auto_reassign', 'revops-sla-worker', now())`,
-          [leadId, row.owner_id ?? null, fallbackId],
+          [leadId, row.owner_id ?? null, nextId],
         );
         await this.db.query(`UPDATE crm_leads SET owner_id = $2 WHERE sqlite_lead_id = $1`, [
           leadId,
-          fallbackId,
+          nextId,
         ]);
       } catch {
         /* assignment log or leads table may be unavailable on partial schema */
@@ -536,6 +553,29 @@ export class RevopsSlaService {
       reassignments += 1;
     }
     return reassignments;
+  }
+
+  private async parkLeadWithoutOwner(leadId: number, fromOwnerId: unknown): Promise<void> {
+    const review = JSON.stringify({
+      active: true,
+      reason: 'b2_no_contact_ok',
+      queued_at: new Date().toISOString(),
+      previous_owner_id: num(fromOwnerId) || null,
+    });
+    await this.db.query(
+      `UPDATE crm_leads
+          SET owner_id = NULL,
+              meta_json = jsonb_set(COALESCE(meta_json, '{}'::jsonb), '{review_queue}', $2::jsonb, true),
+              updated_at = NOW()
+        WHERE sqlite_lead_id = $1`,
+      [leadId, review],
+    );
+    await this.db.query(
+      `INSERT INTO crm_lead_assignment_log
+         (sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at)
+       VALUES ($1, $2, NULL, 'revops_sla_auto_reassign', 'revops-sla-worker', now())`,
+      [leadId, fromOwnerId ?? null],
+    );
   }
 
   private requireManage(caps: Array<{ section: string; action: string }>): void {
