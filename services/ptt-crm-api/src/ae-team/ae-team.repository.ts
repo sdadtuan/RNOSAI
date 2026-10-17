@@ -567,6 +567,68 @@ export class AeTeamRepository implements OnModuleDestroy {
     return grouped;
   }
 
+  async listPerformanceOwners(input: {
+    mode: 'all' | 'team' | 'project';
+    teamIds: number[];
+    managerStaffId: number | null;
+  }): Promise<Array<{ staff_id: number; name: string; code: string }>> {
+    const result = await this.db.query(
+      `SELECT DISTINCT s.id AS staff_id,
+              COALESCE(NULLIF(trim(s.name), ''), 'AE #' || s.id::text) AS name,
+              COALESCE(NULLIF(trim(s.internal_code), ''), '') AS code
+       FROM crm_staff s
+       JOIN crm_positions p ON p.id = s.position_id
+       WHERE s.active IS TRUE
+         AND (
+           lower(replace(p.code, ' ', '')) = 'ae'
+           OR lower(p.code) LIKE 'ae-%'
+           OR lower(p.code) LIKE 'ae_%'
+         )
+         AND (
+           $1::text = 'all'
+           OR (
+             $1::text = 'team'
+             AND (
+               EXISTS (
+                 SELECT 1
+                 FROM staff_users u
+                 JOIN staff_user_teams sut ON sut.user_id = u.id
+                 WHERE lower(trim(u.email)) = lower(trim(s.email))
+                   AND sut.team_id = ANY($2::bigint[])
+               )
+               OR ($3::bigint IS NOT NULL AND s.reports_to_id = $3)
+             )
+           )
+           OR (
+             $1::text = 'project'
+             AND EXISTS (
+               SELECT 1 FROM crm_b2b_project_staff ps WHERE ps.staff_id = s.id
+             )
+           )
+         )
+       ORDER BY name`,
+      [input.mode, input.teamIds, input.managerStaffId],
+    );
+    return result.rows.map((row) => ({
+      staff_id: Number(row.staff_id),
+      name: String(row.name ?? ''),
+      code: String(row.code ?? ''),
+    }));
+  }
+
+  async listProjectCodes(ids: string[]): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (!ids.length) return map;
+    const result = await this.db.query(
+      `SELECT id::text AS id, COALESCE(NULLIF(trim(code), ''), NULLIF(trim(name), ''), id::text) AS code
+       FROM crm_b2b_projects
+       WHERE id = ANY($1::uuid[])`,
+      [ids],
+    );
+    for (const row of result.rows) map.set(String(row.id), String(row.code ?? ''));
+    return map;
+  }
+
   async viewAllUserIds(): Promise<string[]> {
     try {
       const result = await this.db.query(

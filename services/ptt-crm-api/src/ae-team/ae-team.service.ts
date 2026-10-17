@@ -2,13 +2,15 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { B2bManualReassignService } from '../b2b-projects/b2b-manual-reassign.service';
 import type { ManualSplitChoice } from '../b2b-projects/b2b-manual-reassign.util';
 import { LeadSlaSettingsService } from '../lead-sla-settings/lead-sla-settings.service';
-import { kanbanCardSettingsFromPayload } from '../leads/kanban-card.util';
+import { isAccountManagerPosition } from '../b2b-projects/b2b-director.util';
+import { computeKanbanFirstContactSla, computeKanbanPriority, kanbanCardSettingsFromPayload } from '../leads/kanban-card.util';
 import { maskLeadPhoneAndEmail } from '../staff-permissions/field-level.serializer';
 import { StaffNotificationsRepository } from '../staff-notifications/staff-notifications.repository';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import type { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
 import { AeTeamRepository, type AeLeadRow } from './ae-team.repository';
+import { buildAePerformanceBoard, resolveAePerformanceMode, type AePerformanceLead } from './ae-performance.util';
 import { rankAeMembers, rankingToCsv, type AeRankRow } from './ae-team-rank.util';
 import {
   aeTeamColumnId,
@@ -105,6 +107,56 @@ export class AeTeamService {
         quota_vnd: rows.some((row) => row.quota_vnd != null) ? quota : null,
       },
       members: rows,
+    };
+  }
+
+  async performance(actor: StaffJwtPayload, projectId?: string) {
+    await this.repo.ensure();
+    const me = await this.staffAuth.me(actor);
+    const accountManager = isAccountManagerPosition(me.position_code);
+    const memberTeams = accountManager ? await this.repo.memberTeamIds(actor.sub) : [];
+    const leadTeams = await this.repo.leadTeamIds(actor.sub);
+    const teamIds = [...new Set([...memberTeams, ...leadTeams])];
+    const resolved = resolveAePerformanceMode({
+      positionCode: me.position_code,
+      accountManager,
+      viewAllCap: hasCap(me.caps, 'crm_ae_team', 'view_all'),
+      teamIds,
+    });
+    if (resolved.mode === 'deny') {
+      throw new ForbiddenException({
+        ok: false,
+        error: { code: 'ae_performance_forbidden', message: 'Bạn không có quyền xem hiệu suất AE.' },
+      });
+    }
+    const owners = await this.repo.listPerformanceOwners({
+      mode: resolved.mode,
+      teamIds: resolved.mode === 'team' ? teamIds : [],
+      managerStaffId: resolved.mode === 'team' ? await this.staffAuth.resolveCrmStaffUserId(actor) : null,
+    });
+    const leads = await this.repo.listLeads(owners.map((owner) => owner.staff_id));
+    const codes = await this.repo.listProjectCodes(
+      [...new Set(leads.map((lead) => lead.b2b_project_id).filter((id): id is string => UUID_RE.test(id ?? '')))],
+    );
+    const payload = await this.settings.getPublishedPayload();
+    const kanban = kanbanCardSettingsFromPayload(payload);
+    const now = new Date();
+    const facts = leads.map((lead) => this.performanceFact(lead, codes, kanban, now));
+    const selected = projectId ? facts.filter((lead) => lead.projectId === projectId) : facts;
+    const board = buildAePerformanceBoard(
+      owners.map((owner) => ({ staffId: owner.staff_id, name: owner.name, code: owner.code })),
+      selected,
+    );
+    const projects = buildAePerformanceBoard(
+      owners.map((owner) => ({ staffId: owner.staff_id, name: owner.name, code: owner.code })),
+      facts,
+    ).projects;
+    return {
+      scope: resolved.mode,
+      note: resolved.note,
+      project_id: projectId || null,
+      ...board,
+      projects,
     };
   }
 
@@ -466,6 +518,43 @@ export class AeTeamService {
     return { moved: audit.length };
   }
 
+  private performanceFact(
+    row: AeLeadRow,
+    codes: Map<string, string>,
+    kanban: ReturnType<typeof kanbanCardSettingsFromPayload>,
+    now: Date,
+  ): AePerformanceLead {
+    const receivedAt = parseStamp(row.received_at) ?? parseStamp(row.created_at);
+    const status = row.status.trim().toLowerCase();
+    const stillNew = status === 'moi' || status === 'new' || status === 'intake';
+    const columnSince = stillNew ? receivedAt : parseStamp(row.updated_at) ?? receivedAt;
+    const sla = computeKanbanFirstContactSla({
+      status: row.status,
+      receivedAt,
+      columnSince,
+      hasCall: Boolean(row.last_call_at || row.first_call_at),
+      now,
+      settings: kanban,
+    });
+    const score = Number(row.meta_json?.lead_score);
+    return {
+      ownerId: row.owner_id,
+      status: row.status,
+      projectId: row.b2b_project_id,
+      projectCode: row.b2b_project_id ? codes.get(row.b2b_project_id) ?? null : null,
+      hot: computeKanbanPriority({
+        source: row.source,
+        channel: row.channel,
+        need: leadNeed(row.meta_json),
+        receivedAt,
+        now,
+        settings: kanban,
+      }) === 'hot',
+      slaBreach: sla.state === 'breach',
+      score: Number.isFinite(score) ? score : null,
+    };
+  }
+
   private leadIds(ids: number[] | undefined): number[] {
     const clean = [...new Set((ids ?? []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
     if (!clean.length) throw this.bad('lead_ids_required', 'Cần chọn ít nhất một lead.');
@@ -520,6 +609,14 @@ export class AeTeamService {
 
 function hasCap(caps: StaffSectionCap[], section: string, action: string): boolean {
   return caps.some((cap) => cap.section === section && cap.action === action);
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseStamp(value: string | null): Date | null {
+  if (!value) return null;
+  const date = new Date(value.includes('T') ? value : value.replace(' ', 'T'));
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function ictDate(date: Date): string {

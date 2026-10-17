@@ -38,6 +38,43 @@ async function aeFetch<T>(token: string, path: string): Promise<T> {
   return body.data;
 }
 
+export interface AePerformanceBoard {
+  scope: 'all' | 'team' | 'project';
+  note: string;
+  project_id: string | null;
+  totals: {
+    total: number;
+    unassigned: number;
+    hot: number;
+    sla_breach: number;
+    conversion_pct: number;
+    won: number;
+  };
+  stages: Array<{ id: 'moi' | 'da_lien_he' | 'dang_tu_van' | 'bao_gia' | 'nurture'; label: string }>;
+  projects: Array<{ id: string; code: string }>;
+  rows: Array<{
+    staff_id: number;
+    name: string;
+    code: string;
+    total: number;
+    projects: Array<{ code: string; count: number }>;
+    stages: Record<'moi' | 'da_lien_he' | 'dang_tu_van' | 'bao_gia' | 'nurture', number>;
+    open: number;
+    lost: number;
+    won: number;
+    conversion_pct: number;
+    sla_breach: number;
+    avg_score: number | null;
+  }>;
+}
+
+export function fetchAePerformance(token: string, projectId?: string): Promise<AePerformanceBoard> {
+  const params = new URLSearchParams();
+  if (projectId) params.set('project_id', projectId);
+  const query = params.toString();
+  return aeFetch(token, `/api/crm/ae-team/performance${query ? `?${query}` : ''}`);
+}
+
 export function fetchAeTeamSummary(
   token: string,
   query: { preset: string; from?: string; to?: string },

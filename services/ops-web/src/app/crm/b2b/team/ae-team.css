@@ -347,3 +347,74 @@ html.ops-shell-bitrix .ae-team-table thead th {
 @media (max-width: 640px) {
   .ae-team-cards { grid-template-columns: 1fr; }
 }
+.ae-team-bar select {
+  border: 1px solid #d7ddd8;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font: inherit;
+  background: #fff;
+}
+.ae-perf-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+.ae-perf-kpi {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  padding: 14px 16px;
+  min-height: 88px;
+}
+.ae-perf-kpi span {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #66756c;
+}
+.ae-perf-kpi strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.7rem;
+  line-height: 1.1;
+  color: #173022;
+}
+.ae-perf-kpi.is-wait { background: #fff8e8; border-color: #f0d48a; }
+.ae-perf-kpi.is-hot { border-color: #e7b4b4; }
+.ae-perf-kpi.is-hot strong { color: #b42318; }
+.ae-perf-kpi.is-sla { background: #fff6e8; border-color: #f0c36a; }
+.ae-perf-kpi.is-sla strong { color: #b54708; }
+.ae-perf-scroll { overflow-x: auto; }
+.ae-perf-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.ae-perf-table th {
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  color: #66756c;
+  text-align: right;
+  padding: 8px;
+  white-space: nowrap;
+}
+.ae-perf-table td { text-align: right; padding: 10px 8px; border-top: 1px solid #eef1ef; white-space: nowrap; }
+.ae-perf-table th:first-child,
+.ae-perf-table td:first-child { text-align: left; white-space: normal; }
+.ae-perf-owner { font-weight: 600; color: #173022; }
+.ae-perf-code { color: #66756c; font-weight: 500; }
+.ae-perf-pill {
+  display: inline-flex;
+  margin: 0 4px 4px 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e7f6ee;
+  color: #17692f;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.ae-perf-sla { color: #b42318; font-weight: 700; }
+.ae-perf-zero { color: #98a59d; }
+@media (max-width: 1100px) {
+  .ae-perf-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .ae-perf-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

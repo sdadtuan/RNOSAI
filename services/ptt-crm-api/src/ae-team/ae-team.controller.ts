@@ -27,6 +27,14 @@ export class AeTeamController {
     return { ok: true, data: await this.team.summary(actor, { preset, from, to }) };
   }
 
+  @Get('performance')
+  async performance(
+    @Req() req: Request & { staffUser?: StaffJwtPayload },
+    @Query('project_id') projectId?: string,
+  ) {
+    return { ok: true, data: await this.team.performance(this.actor(req), projectId?.trim() || undefined) };
+  }
+
   @Get('ranking/export')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async rankingExport(
