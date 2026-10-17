@@ -20,6 +20,7 @@ import {
   shouldShowFirstResponseSlaColumn,
 } from '@/lib/crm/leads-inbox-revops.util';
 import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
+import { formatLeadArrived } from '@/lib/crm/lead-arrived';
 import { leadListSituation } from '@/lib/crm/lead-list-situation';
 import { leadStatusTone } from '@/lib/crm/lead-status';
 
@@ -135,7 +136,7 @@ export function CrmLeadsList({
               {visibleColumns.has('source') ? <th>Nguồn</th> : null}
               {visibleColumns.has('channel') ? <th>Kênh</th> : null}
               {showScores && visibleColumns.has('score') ? <th>AI Score</th> : null}
-              {visibleColumns.has('date') ? <th>Ngày</th> : null}
+              {visibleColumns.has('date') ? <th>Ngày về</th> : null}
               {visibleColumns.has('actions') ? <th>Action</th> : null}
             </tr>
           </thead>
@@ -251,7 +252,9 @@ export function CrmLeadsList({
                       <LeadScoreBadge score={scoreMap[String(lead.id)]} pending={scoresPending} />
                     </td>
                   ) : null}
-                  {visibleColumns.has('date') ? <td>{lead.created_at?.slice(0, 10) ?? '—'}</td> : null}
+                  {visibleColumns.has('date') ? (
+                    <td style={{ whiteSpace: 'nowrap' }}>{formatLeadArrived(lead)}</td>
+                  ) : null}
                   {visibleColumns.has('actions') ? (
                     <td>
                       <div className="crm-leads-actions">

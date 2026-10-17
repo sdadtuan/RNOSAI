@@ -38,7 +38,7 @@ export const LEADS_COLUMN_DEFS: Array<{
   { id: 'source', label: 'Nguồn', defaultVisible: true },
   { id: 'channel', label: 'Kênh', defaultVisible: true },
   { id: 'score', label: 'AI Score', defaultVisible: true, scoreOnly: true },
-  { id: 'date', label: 'Ngày', defaultVisible: true },
+  { id: 'date', label: 'Ngày về', defaultVisible: true },
   { id: 'actions', label: 'Action', defaultVisible: true },
 ];
 

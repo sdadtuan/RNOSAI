@@ -9,6 +9,7 @@ import { resolveLeadFlowKindFromLead } from '@/lib/crm/lead-flow-kind';
 import { WinScopeBadge } from '@/components/rbac/WinScopeBadge';
 import { WinEmptyState } from '@/components/win';
 import { leadDetailHref } from '@/lib/crm/lead-pipeline-tab.util';
+import { formatLeadArrived } from '@/lib/crm/lead-arrived';
 import { leadListSituation } from '@/lib/crm/lead-list-situation';
 import {
   leadIcpScoreTag,
@@ -118,6 +119,7 @@ export function LeadsMobileCardList({
               </div>
               <p className="win-leads-mobile-card__meta">
                 {lead.phone ? <span>{lead.phone}</span> : null}
+                <span>{formatLeadArrived(lead)}</span>
                 {lead.source ? <span>{lead.source}</span> : null}
               </p>
               <p className="win-leads-mobile-card__owner">
