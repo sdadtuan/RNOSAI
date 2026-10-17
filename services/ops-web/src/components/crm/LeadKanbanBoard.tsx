@@ -20,14 +20,9 @@ import {
 } from '@/lib/crm/lead-status';
 import { KANBAN_COLUMN_PAGE, sortKanbanLeads } from '@/lib/crm/kanban-column.util';
 import { leadCareChip, leadFollowup, type LeadFollowupKind } from '@/lib/crm/lead-followup';
+import { formatLeadArrived } from '@/lib/crm/lead-arrived';
 import { leadListSituation } from '@/lib/crm/lead-list-situation';
 import { statusOptionsForFlowKind, type LeadFlowKind } from '@/lib/crm/lead-flow-kind';
-
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-}
 
 type LostReason = { id: string; label: string; needs_note?: boolean };
 type ModalKind = 'contact' | 'quote' | 'lost' | 'nurture' | 'error';
@@ -601,7 +596,7 @@ export function LeadKanbanBoard({
                       )}
                       <div className="crm-kanban-card__footer">
                         <span>#{lead.id}</span>
-                        <span>{formatWhen(lead.received_at || lead.created_at)}</span>
+                        <span style={{ whiteSpace: 'nowrap' }}>{formatLeadArrived(lead)}</span>
                         {b2b && initials ? (
                           <span className="crm-kanban-card__avatar" title={lead.owner_name ?? ''}>
                             {initials}
