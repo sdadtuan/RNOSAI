@@ -21,6 +21,10 @@ const ANSWERED = new Set([
   'connected_other',
 ]);
 
+export function isSpokenCallResult(result: string | null | undefined): boolean {
+  return ANSWERED.has(String(result ?? '').trim().toLowerCase());
+}
+
 const NONE: PreB2HoldState = { kind: null, insideHold: false, holdUntil: null, expiry: 'none' };
 
 export function preB2HoldState(input: {

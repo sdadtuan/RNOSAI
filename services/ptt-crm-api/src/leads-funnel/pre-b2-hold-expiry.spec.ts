@@ -80,6 +80,37 @@ describe('syncReviewQueue pre-B2 hold', () => {
     expect(update).toContain("status = 'lost'");
   });
 
+  it('does not pull a lead that already has a spoken call', async () => {
+    const row = lead({
+      last_call_result: 'connected_other',
+      hold_until: null,
+      first_assigned_at: '2026-10-12T02:00:00.000Z',
+    });
+    const { instance, query } = repo((sql) => {
+      if (/activity_type = 'call'/i.test(sql) && /review_queue/i.test(sql)) return { rows: [] };
+      if (/owner_id IS NOT NULL/i.test(sql)) return { rows: [row] };
+      return { rows: [], rowCount: 0 };
+    });
+    const out = await instance.syncReviewQueue('test', false, new Date('2026-10-17T02:00:00.000Z'));
+    expect(out.queued).toBe(0);
+    const pulled = query.mock.calls.map((call) => String(call[0])).some((sql) => /owner_id = NULL/i.test(sql));
+    expect(pulled).toBe(false);
+  });
+
+  it('returns a spoken lead that was already in review to the previous owner', async () => {
+    const { instance, query } = repo((sql) => {
+      if (/activity_type = 'call'/i.test(sql) && /review_queue/i.test(sql)) {
+        return { rows: [{ id: 88, previous_owner_id: '3' }] };
+      }
+      if (/owner_id IS NOT NULL/i.test(sql)) return { rows: [] };
+      return { rows: [], rowCount: 0 };
+    });
+    const out = await instance.syncReviewQueue('test', false, new Date('2026-10-17T02:00:00.000Z'));
+    expect(out.released_spoken).toBe(1);
+    const update = query.mock.calls.map((call) => String(call[0])).find((sql) => /UPDATE crm_leads/i.test(sql) && /- 'review_queue'/i.test(sql));
+    expect(update).toContain("- 'review_queue'");
+  });
+
   it('pulls an overdue callback with no new call into review', async () => {
     const row = lead({
       last_call_result: 'callback',

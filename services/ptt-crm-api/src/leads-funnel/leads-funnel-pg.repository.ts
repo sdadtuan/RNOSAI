@@ -5,7 +5,7 @@ import { parseLeadMetaIndustry } from '../intake/intake-context.util';
 import { prefillCompanyName } from '../leads/lead-party.util';
 import { AppConfigService } from '../config/app-config.service';
 import { assertEligibleLeadOwner, ELIGIBLE_LEAD_OWNER_SQL } from '../ae-team/eligible-lead-owner';
-import { preB2HoldState, type PreB2HoldState } from './pre-b2-hold.util';
+import { isSpokenCallResult, preB2HoldState, type PreB2HoldState } from './pre-b2-hold.util';
 import { sanitizePgBigintUserId } from '../staff-auth/staff-user-id.util';
 import {
   careStatusLabel,
@@ -244,6 +244,60 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
     );
     const row = result.rows[0] as LeadFunnelRow | undefined;
     return row ?? null;
+  }
+
+  private async hasSpokenCall(leadId: number): Promise<boolean> {
+    const result = await this.db.query(
+      `SELECT 1 FROM crm_lead_activities
+        WHERE lead_id = $1 AND activity_type = 'call'
+          AND lower(trim(COALESCE(result, ''))) = ANY($2::text[])
+        LIMIT 1`,
+      [leadId, ['answered', 'connected_meet_pending', 'connected_qualified', 'connected_other']],
+    );
+    return (result.rowCount ?? result.rows.length) > 0;
+  }
+
+  private async releaseSpokenFromReview(actor: string): Promise<number> {
+    const result = await this.db.query(
+      `SELECT l.sqlite_lead_id AS id,
+              NULLIF(l.meta_json->'review_queue'->>'previous_owner_id', '') AS previous_owner_id
+         FROM crm_leads l
+        WHERE COALESCE(l.meta_json->'review_queue'->>'active', '') = 'true'
+          AND (
+            lower(trim(COALESCE(l.last_call_result, ''))) = ANY($1::text[])
+            OR EXISTS (
+              SELECT 1 FROM crm_lead_activities a
+               WHERE a.lead_id = l.sqlite_lead_id
+                 AND a.activity_type = 'call'
+                 AND lower(trim(COALESCE(a.result, ''))) = ANY($1::text[])
+            )
+          )`,
+      [['answered', 'connected_meet_pending', 'connected_qualified', 'connected_other']],
+    );
+    let released = 0;
+    for (const row of result.rows as Array<{ id: number; previous_owner_id: string | null }>) {
+      const previous = Number(row.previous_owner_id);
+      const owner = Number.isFinite(previous) && previous > 0 ? previous : null;
+      await this.db.query(
+        `UPDATE crm_leads
+            SET owner_id = COALESCE($2::bigint, owner_id),
+                meta_json = COALESCE(meta_json, '{}'::jsonb) - 'review_queue',
+                updated_at = NOW(),
+                updated_by = $3
+          WHERE sqlite_lead_id = $1`,
+        [row.id, owner, actor.slice(0, 120)],
+      );
+      if (owner) {
+        await this.db.query(
+          `INSERT INTO crm_lead_assignment_log
+             (sqlite_lead_id, from_owner_id, to_owner_id, reason, assigned_by, created_at)
+           VALUES ($1, NULL, $2, $3, $4, NOW())`,
+          [row.id, owner, 'Đã nói chuyện — đưa khỏi Phải tra soát', actor.slice(0, 120)],
+        );
+      }
+      released += 1;
+    }
+    return released;
   }
 
   async hasB2ContactOkReport(leadId: number, stageKey = 'first_contact'): Promise<boolean> {
@@ -563,6 +617,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
          AND COALESCE(l.care_stages_done_json->>'first_contact', '') = ''`,
     );
     const rows = result.rows as HoldScanRow[];
+    const releasedSpoken = dryRun ? 0 : await this.releaseSpokenFromReview(actor);
 
     let queued = 0;
     let held = 0;
@@ -571,6 +626,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       const gate = presalesCareGateState(row.care_stage_current, row.care_stages_done_json);
       if (gate.complete) continue;
       if (await this.hasB2ContactOkReport(row.id)) continue;
+      if (isSpokenCallResult(row.last_call_result) || (await this.hasSpokenCall(row.id))) continue;
       const hold = this.preB2FromRow(row, now);
       if (hold.kind && (hold.insideHold || hold.expiry !== 'none')) {
         if (hold.insideHold) held += 1;
@@ -607,6 +663,7 @@ export class LeadsFunnelPgRepository implements OnModuleDestroy {
       deadline_hours: cfg.b2_contact_deadline_hours,
       lead_ids: leadIds,
       held,
+      released_spoken: releasedSpoken,
       nudged: expired.nudged,
       reassigned: expired.reassigned,
       failed: expired.failed,

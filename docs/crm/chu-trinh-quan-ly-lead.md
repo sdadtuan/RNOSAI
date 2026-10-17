@@ -84,7 +84,7 @@ Một lead chưa xong B2 có thể bị bốn đồng hồ nhìn cùng lúc. Ch�
 |---|---|---|
 | Phản hồi đầu trên thẻ bảng | 15 phút trong khung 08:00–21:00, cả tuần. Số 15 là mức gốc vì cấu hình bảng không ghi đè | Thẻ nổi trễ. Sổ đội đếm lead trễ hạn phản hồi |
 | Phản hồi đầu bằng cuộc gọi | 2 giờ, chỉ tính cuộc gọi điện, trong giờ hành chính thứ Hai–thứ Sáu | Ghi đã trễ nếu cuộc gọi đầu sau hạn. Cuộc gọi không nghe máy vẫn làm xong đồng hồ này |
-| B2, Liên hệ OK | 24 giờ đồng hồ từ lần gán cho người đang giữ | Gỡ người phụ trách, đưa lead vào **Phải tra soát**. Bỏ qua lead còn trong hạn giữ của mục 5. Lead Thất bại và lead đã Liên hệ OK không bị thu |
+| B2, Liên hệ OK | 24 giờ đồng hồ từ lần gán cho người đang giữ | Gỡ người phụ trách, đưa lead vào **Phải tra soát**. Bỏ qua lead còn trong hạn giữ của mục 5. Lead Thất bại, lead đã Liên hệ OK, và lead đã ghi Đã nói chuyện không bị thu |
 | Quá hạn sự cố phản hồi đầu | Sự cố đã quá hạn thêm 10 phút, và chưa có Liên hệ OK, và kết quả gọi chưa phải đã nói chuyện, và lead không còn trong hạn giữ | Worker chuyển lead cho một nhân viên đang hoạt động, đang bật Nhận lead, chưa Tạm dừng. Hết người thì đưa vào Phải tra soát, người phụ trách để trống |
 
 Worker ở dòng cuối đang chạy vì có quy tắc định tuyến đã xuất bản. Worker không lấy người đứng đầu danh sách theo tên. Lead không nghe máy, máy bận, hoặc hẹn gọi lại được bỏ qua suốt hạn giữ.
@@ -93,7 +93,7 @@ Nhắc “lead đứng yên” trên bảng: Mới sau 1 ngày, Đã liên hệ 
 
 ## 7. Hàng Phải tra soát
 
-Lead vào hàng này khi hết 24 giờ kể từ lúc được gán cho người hiện tại mà chưa có Liên hệ OK, và lead không còn trong hạn giữ. Hết hạn hẹn gọi lại mà không có cuộc gọi mới cũng đưa lead vào hàng này. Người phụ trách bị gỡ. Giám đốc kinh doanh gán lại cho người đang bật **Nhận lead** và chưa Tạm dừng. Người cũ chỉ nhận lại khi vẫn đủ hai điều kiện đó.
+Lead vào hàng này khi hết 24 giờ kể từ lúc được gán cho người hiện tại mà chưa có Liên hệ OK, chưa ghi Đã nói chuyện, và lead không còn trong hạn giữ. Hết hạn hẹn gọi lại mà không có cuộc gọi mới cũng đưa lead vào hàng này. Người phụ trách bị gỡ. Giám đốc kinh doanh gán lại cho người đang bật **Nhận lead** và chưa Tạm dừng. Người cũ chỉ nhận lại khi vẫn đủ hai điều kiện đó.
 
 Khi lead còn trong hàng, không hoàn thành được B2. Vẫn ghi được báo cáo chăm sóc và cuộc gọi vào lịch sử.
 
