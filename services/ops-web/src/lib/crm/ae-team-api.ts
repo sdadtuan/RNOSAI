@@ -39,7 +39,7 @@ async function aeFetch<T>(token: string, path: string): Promise<T> {
 }
 
 export interface AePerformanceBoard {
-  scope: 'all' | 'team' | 'project';
+  scope: 'all' | 'team' | 'project' | 'self';
   note: string;
   project_id: string | null;
   totals: {

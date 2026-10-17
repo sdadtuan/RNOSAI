@@ -12,6 +12,7 @@ import { LeadsRevopsInboxFooter } from '@/components/crm/LeadsRevopsInboxFooter'
 import { LeadKanbanBoard } from '@/components/crm/LeadKanbanBoard';
 import { LeadSignalKpiStrip } from '@/components/crm/LeadSignalKpiStrip';
 import { AeAssignedRawLeadsPanel } from '@/components/crm/AeAssignedRawLeadsPanel';
+import { AePerformancePanel } from '@/components/crm/AePerformancePanel';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
 import { WinFilterChips } from '@/components/win';
 import {
@@ -901,6 +902,8 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
           </>
         }
       />
+
+      {flowScope === 'b2b_prospect' && token ? <AePerformancePanel token={token} /> : null}
 
       <div className="crm-leads-signal">
         <LeadSignalKpiStrip items={signalKpis} />

@@ -15,6 +15,10 @@ describe('resolveAePerformanceMode', () => {
     expect(out.mode).toBe('team');
     expect(out.note).toContain('team');
   });
+
+  it('lets an AE see only their own leads, even when they lead a team', () => {
+    expect(resolveAePerformanceMode({ positionCode: 'AE-01', accountManager: false, viewAllCap: false, teamIds: [4] }).mode).toBe('self');
+  });
 });
 
 describe('buildAePerformanceBoard', () => {

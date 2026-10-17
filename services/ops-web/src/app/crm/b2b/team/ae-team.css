@@ -354,6 +354,8 @@ html.ops-shell-bitrix .ae-team-table thead th {
   font: inherit;
   background: #fff;
 }
+.ae-perf-embed { margin: 4px 0 12px; }
+.ae-perf-note { color: #66756c; font-size: 0.84rem; }
 .ae-perf-kpis {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

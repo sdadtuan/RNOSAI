@@ -129,10 +129,14 @@ export class AeTeamService {
         error: { code: 'ae_performance_forbidden', message: 'Bạn không có quyền xem hiệu suất AE.' },
       });
     }
+    const staffId = resolved.mode === 'team' || resolved.mode === 'self'
+      ? await this.staffAuth.resolveCrmStaffUserId(actor)
+      : null;
     const owners = await this.repo.listPerformanceOwners({
       mode: resolved.mode,
       teamIds: resolved.mode === 'team' ? teamIds : [],
-      managerStaffId: resolved.mode === 'team' ? await this.staffAuth.resolveCrmStaffUserId(actor) : null,
+      managerStaffId: resolved.mode === 'team' ? staffId : null,
+      selfStaffId: resolved.mode === 'self' ? staffId : null,
     });
     const leads = await this.repo.listLeads(owners.map((owner) => owner.staff_id));
     const codes = await this.repo.listProjectCodes(

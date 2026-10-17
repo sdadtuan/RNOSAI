@@ -568,9 +568,10 @@ export class AeTeamRepository implements OnModuleDestroy {
   }
 
   async listPerformanceOwners(input: {
-    mode: 'all' | 'team' | 'project';
+    mode: 'all' | 'team' | 'project' | 'self';
     teamIds: number[];
     managerStaffId: number | null;
+    selfStaffId: number | null;
   }): Promise<Array<{ staff_id: number; name: string; code: string }>> {
     const result = await this.db.query(
       `SELECT DISTINCT s.id AS staff_id,
@@ -605,9 +606,10 @@ export class AeTeamRepository implements OnModuleDestroy {
                SELECT 1 FROM crm_b2b_project_staff ps WHERE ps.staff_id = s.id
              )
            )
+           OR ($1::text = 'self' AND $4::bigint IS NOT NULL AND s.id = $4)
          )
        ORDER BY name`,
-      [input.mode, input.teamIds, input.managerStaffId],
+      [input.mode, input.teamIds, input.managerStaffId, input.selfStaffId],
     );
     return result.rows.map((row) => ({
       staff_id: Number(row.staff_id),

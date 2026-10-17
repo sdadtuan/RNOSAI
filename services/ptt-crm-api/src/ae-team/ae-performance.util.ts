@@ -1,4 +1,4 @@
-export type AePerformanceMode = 'all' | 'team' | 'project' | 'deny';
+export type AePerformanceMode = 'all' | 'team' | 'project' | 'self' | 'deny';
 
 export type AePerformanceStageId = 'moi' | 'da_lien_he' | 'dang_tu_van' | 'bao_gia' | 'nurture';
 
@@ -83,7 +83,12 @@ export function isGdkdPosition(positionCode: string | null | undefined): boolean
   return code === 'gdkd-01' || code === 'gdkd' || code.startsWith('gdkd-') || code.startsWith('gdkd_');
 }
 
-/** Admin and CEO see every AE. GDKD sees AEs on a project. Account Manager sees the team. */
+export function isAePosition(positionCode: string | null | undefined): boolean {
+  const code = norm(positionCode);
+  return code === 'ae' || code.startsWith('ae-') || code.startsWith('ae_');
+}
+
+/** Admin and CEO see every AE. GDKD sees AEs on a project. Account Manager sees the team. An AE sees only their own leads. */
 export function resolveAePerformanceMode(input: {
   positionCode?: string | null;
   accountManager: boolean;
@@ -99,7 +104,13 @@ export function resolveAePerformanceMode(input: {
   if (input.viewAllCap) {
     return { mode: 'all', note: 'Admin và CEO thấy toàn bộ lead của AE.' };
   }
-  if (input.accountManager || input.teamIds.length > 0) {
+  if (input.accountManager) {
+    return { mode: 'team', note: 'Account Manager thấy lead của AE trong team.' };
+  }
+  if (isAePosition(input.positionCode)) {
+    return { mode: 'self', note: 'AE thấy thống kê lead của mình.' };
+  }
+  if (input.teamIds.length > 0) {
     return { mode: 'team', note: 'Account Manager thấy lead của AE trong team.' };
   }
   return { mode: 'deny', note: '' };
