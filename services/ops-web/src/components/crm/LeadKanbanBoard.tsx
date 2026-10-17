@@ -529,6 +529,12 @@ export function LeadKanbanBoard({
                   const showDeadline = care?.kind === 'deadline' && !situation.call;
                   const origin = [lead.project_code, lead.source || lead.channel].filter(Boolean).join(' · ');
                   const initials = ownerInitials(lead.owner_name);
+                  const stood = stoodLabel(lead.column_minutes);
+                  const stoodText = lead.stale
+                    ? stood
+                      ? `Đứng yên · ${stood.replace(/^Đứng /, '')}`
+                      : 'Đứng yên'
+                    : stood;
                   return (
                     <article
                       key={lead.id}
@@ -595,15 +601,18 @@ export function LeadKanbanBoard({
                       </div>
                       )}
                       <div className="crm-kanban-card__footer">
-                        <span>#{lead.id}</span>
-                        <span style={{ whiteSpace: 'nowrap' }}>{formatLeadArrived(lead)}</span>
-                        {b2b && initials ? (
-                          <span className="crm-kanban-card__avatar" title={lead.owner_name ?? ''}>
-                            {initials}
-                          </span>
-                        ) : null}
-                        {b2b && lead.stale ? <span>ĐỨNG YÊN</span> : null}
-                        {b2b ? <span>{stoodLabel(lead.column_minutes)}</span> : null}
+                        <div className="crm-kanban-card__footer-row">
+                          <span>{formatLeadArrived(lead)}</span>
+                          {b2b && initials ? (
+                            <span className="crm-kanban-card__avatar" title={lead.owner_name ?? ''}>
+                              {initials}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="crm-kanban-card__footer-row">
+                          <span>#{lead.id}</span>
+                          {b2b && stoodText ? <span>{stoodText}</span> : null}
+                        </div>
                       </div>
                     </article>
                   );

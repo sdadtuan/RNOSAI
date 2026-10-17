@@ -1238,14 +1238,35 @@ html.ops-shell-bitrix .crm-kanban-column__head {
 
 .crm-kanban-card__footer {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
   width: 100%;
-  margin-top: 0.1rem;
-  padding-top: 0.4rem;
+  margin-top: 0.15rem;
+  padding-top: 0.45rem;
   border-top: 1px solid #f0f2f1;
   font-size: 0.72rem;
   color: var(--muted);
+}
+
+.crm-kanban-card__footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.crm-kanban-card__footer-row > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-kanban-card__footer-row > span:last-child {
+  flex-shrink: 0;
 }
 
 .crm-kanban-empty {
