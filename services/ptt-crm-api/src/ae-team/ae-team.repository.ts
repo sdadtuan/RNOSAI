@@ -635,6 +635,9 @@ export class AeTeamRepository implements OnModuleDestroy {
     const result = await this.db.query(
       `SELECT id, lead_id, lead_name, status, staff_id, staff_name, staff_code, event, reason, at
          FROM (
+           SELECT DISTINCT ON (staff_id, lead_id)
+                  id, lead_id, lead_name, status, staff_id, staff_name, staff_code, event, reason, at
+             FROM (
            SELECT al.id::text AS id,
                   l.sqlite_lead_id AS lead_id,
                   COALESCE(NULLIF(trim(l.full_name), ''), 'Lead #' || l.sqlite_lead_id::text) AS lead_name,
@@ -677,8 +680,10 @@ export class AeTeamRepository implements OnModuleDestroy {
                    AND (al.to_owner_id = s.id OR al.from_owner_id = s.id)
               )
          ) history
-        ORDER BY at DESC NULLS LAST
-        LIMIT 400`,
+        ORDER BY staff_id, lead_id, at DESC NULLS LAST
+      ) latest
+      ORDER BY at DESC NULLS LAST
+      LIMIT 800`,
       [ownerIds],
     );
     return result.rows.map((row) => ({

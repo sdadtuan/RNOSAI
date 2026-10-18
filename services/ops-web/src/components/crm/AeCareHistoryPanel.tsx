@@ -234,7 +234,7 @@ export function AeCareHistoryPanel({ token }: { token: string }) {
               </thead>
               <tbody>
                 {leads.map((lead) => (
-                  <tr key={lead.lead_id}>
+                  <tr key={`${lead.staff[0]?.id ?? 0}-${lead.lead_id}`}>
                     <td>{staffLabel(lead)}</td>
                     <td>
                       <button type="button" className="ae-history-lead" onClick={() => setOpen(lead)}>

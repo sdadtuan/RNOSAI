@@ -29,6 +29,32 @@ describe('collapseCareHistory', () => {
     expect(rows[0]?.latest_event).toBe('Bị thu hồi');
     expect(rows[0]?.staff).toHaveLength(1);
   });
+
+  it('keeps the same lead once for each AE', () => {
+    const rows = collapseCareHistory([
+      {
+        lead_id: 13,
+        lead_name: 'Quoc Hung Tran',
+        status: 'moi',
+        staff_id: 3,
+        staff_name: 'Ngọc',
+        staff_code: 'PTTCN100003',
+        event_label: 'Đã gán',
+        at: '2026-10-18T08:45:00.000Z',
+      },
+      {
+        lead_id: 13,
+        lead_name: 'Quoc Hung Tran',
+        status: 'moi',
+        staff_id: 15,
+        staff_name: 'Phương',
+        staff_code: 'PTTCN100015',
+        event_label: 'Bị thu hồi',
+        at: '2026-10-16T08:00:00.000Z',
+      },
+    ]);
+    expect(rows.map((row) => row.staff[0]?.id)).toEqual([3, 15]);
+  });
 });
 
 describe('contact hiding', () => {

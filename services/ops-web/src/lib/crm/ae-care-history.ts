@@ -26,24 +26,23 @@ function stamp(raw: string): number {
 }
 
 export function collapseCareHistory(rows: CareHistorySource[]): CareHistoryLead[] {
-  const map = new Map<number, CareHistoryLead & { at: number }>();
+  const map = new Map<string, CareHistoryLead & { at: number }>();
   for (const row of rows) {
+    const key = `${row.staff_id}:${row.lead_id}`;
     const at = stamp(row.at);
-    let item = map.get(row.lead_id);
+    let item = map.get(key);
     if (!item) {
       item = {
         lead_id: row.lead_id,
         lead_name: row.lead_name,
         status: row.status,
-        staff: [],
+        staff: [{ id: row.staff_id, name: row.staff_name, code: row.staff_code }],
         latest_event: row.event_label,
         latest_at: row.at,
         at,
       };
-      map.set(row.lead_id, item);
-    }
-    if (!item.staff.some((person) => person.id === row.staff_id)) {
-      item.staff.push({ id: row.staff_id, name: row.staff_name, code: row.staff_code });
+      map.set(key, item);
+      continue;
     }
     if (at >= item.at) {
       item.at = at;
@@ -54,7 +53,11 @@ export function collapseCareHistory(rows: CareHistorySource[]): CareHistoryLead[
     }
   }
   return [...map.values()]
-    .sort((a, b) => b.at - a.at || b.lead_id - a.lead_id)
+    .sort((a, b) => {
+      const name = a.staff[0].name.localeCompare(b.staff[0].name, 'vi');
+      if (name !== 0) return name;
+      return b.at - a.at || b.lead_id - a.lead_id;
+    })
     .map(({ at: _at, ...lead }) => lead);
 }
 
