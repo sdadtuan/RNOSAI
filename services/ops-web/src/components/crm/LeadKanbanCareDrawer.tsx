@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import type { LeadActivityRow, LeadRow } from '@/lib/api';
-import { createLeadActivity, fetchLeadActivities, patchLead } from '@/lib/api';
-import { presentLeadHistory } from '@/lib/crm/lead-history';
+import { useEffect, useMemo, useState } from 'react';
+import type { LeadActivityRow, LeadRow, LeadStatusLogRow } from '@/lib/api';
+import { createLeadActivity, fetchLeadActivities, fetchLeadAudit, patchLead } from '@/lib/api';
+import { mergeLeadCareHistory } from '@/lib/crm/lead-history';
 import { leadCareChip } from '@/lib/crm/lead-followup';
 import { fetchB2bLeadEligibleStaff, type B2bLeadEligibleStaffRow } from '@/lib/b2b-projects-api';
 import { B2B_KANBAN_COLUMNS, leadStatusLabel, normalizeLeadStatus } from '@/lib/crm/lead-status';
@@ -25,6 +25,7 @@ export function LeadKanbanCareDrawer({
   onMove: (status: string) => void;
 }) {
   const [activities, setActivities] = useState<LeadActivityRow[]>([]);
+  const [statusLogs, setStatusLogs] = useState<LeadStatusLogRow[]>([]);
   const [note, setNote] = useState('');
   const [staff, setStaff] = useState<B2bLeadEligibleStaffRow[]>([]);
   const [ownerId, setOwnerId] = useState(lead.owner_id != null ? String(lead.owner_id) : '');
@@ -34,13 +35,14 @@ export function LeadKanbanCareDrawer({
 
   useEffect(() => {
     let cancelled = false;
-    void fetchLeadActivities(token, lead.id, 20)
-      .then((rows) => {
-        if (!cancelled) setActivities(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setActivities([]);
-      });
+    void Promise.all([
+      fetchLeadActivities(token, lead.id, 20).catch(() => [] as LeadActivityRow[]),
+      fetchLeadAudit(token, lead.id).catch(() => null),
+    ]).then(([rows, audit]) => {
+      if (cancelled) return;
+      setActivities(rows);
+      setStatusLogs(audit?.status_logs ?? []);
+    });
     if (canChangeOwner) {
       void fetchB2bLeadEligibleStaff(token)
         .then((rows) => {
@@ -64,6 +66,8 @@ export function LeadKanbanCareDrawer({
       await createLeadActivity(token, lead.id, { activity_type: 'note', content });
       setNote('');
       setActivities(await fetchLeadActivities(token, lead.id, 20));
+      const audit = await fetchLeadAudit(token, lead.id).catch(() => null);
+      setStatusLogs(audit?.status_logs ?? []);
       onChanged();
     } catch (error) {
       setErr(error instanceof Error ? error.message : 'Không lưu được ghi chú');
@@ -88,6 +92,8 @@ export function LeadKanbanCareDrawer({
       setBusy(false);
     }
   }
+
+  const history = useMemo(() => mergeLeadCareHistory(activities, statusLogs), [activities, statusLogs]);
 
   return (
     <div className="crm-kanban-drawer" role="dialog" aria-modal="true" aria-label="Chăm sóc lead">
@@ -153,20 +159,17 @@ export function LeadKanbanCareDrawer({
           if (!care?.sentence) return null;
           return <p className="crm-kanban-drawer__followup">{care.sentence}</p>;
         })()}
-        {activities.length === 0 ? (
+        {history.length === 0 ? (
           <p className="muted">Chưa có lịch sử.</p>
         ) : (
           <ul className="crm-kanban-drawer__log">
-            {activities.map((activity) => {
-              const line = presentLeadHistory(activity);
-              return (
-                <li key={activity.id}>
-                  <strong>{line.who}</strong>
-                  <span>{line.what}</span>
-                  {line.when ? <span className="muted">{line.when}</span> : null}
-                </li>
-              );
-            })}
+            {history.map((line) => (
+              <li key={line.key}>
+                <strong>{line.who}</strong>
+                <span>{line.what}</span>
+                {line.when ? <span className="muted">{line.when}</span> : null}
+              </li>
+            ))}
           </ul>
         )}
         <p>

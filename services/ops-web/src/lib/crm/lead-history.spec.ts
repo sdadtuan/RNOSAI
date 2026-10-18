@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { presentLeadHistory } from './lead-history';
+import { mergeLeadCareHistory, presentLeadHistory } from './lead-history';
 
 describe('presentLeadHistory', () => {
   it('shows the carer, the update, and the time in Vietnamese', () => {
@@ -42,5 +42,34 @@ describe('presentLeadHistory', () => {
       created_at: '2026-10-13T03:00:00.000Z',
     });
     expect(line.what).toBe('Nhắc trưởng nhóm: lead chưa được chăm thêm 1 ngày.');
+  });
+
+  it('places a status change on the same timeline as care notes', () => {
+    const lines = mergeLeadCareHistory(
+      [
+        {
+          id: 4,
+          user_name: 'Nguyễn Đình Tâm',
+          content: 'khách lại bận, hen goi lai sau',
+          created_at: '2026-10-15T04:22:00.000Z',
+        },
+      ],
+      [
+        {
+          id: '9',
+          old_status: 'moi',
+          new_status: 'da_lien_he',
+          changed_by: 'staff:1',
+          note: '',
+          created_at: '2026-10-14T03:16:00.000Z',
+        },
+      ],
+    );
+    expect(lines.map((line) => line.what)).toEqual([
+      'khách lại bận, hen goi lai sau',
+      'Trạng thái: Mới → Đã liên hệ',
+    ]);
+    expect(lines[1]?.who).toBe('Hệ thống');
+    expect(lines[1]?.key).toBe('status-9');
   });
 });

@@ -1,3 +1,5 @@
+import { leadStatusLabel } from '@/lib/crm/lead-status';
+
 export type LeadHistoryInput = {
   id: number;
   user_name?: string | null;
@@ -8,7 +10,17 @@ export type LeadHistoryInput = {
   created_at?: string | null;
 };
 
+export type LeadStatusHistoryInput = {
+  id: string | number;
+  old_status: string;
+  new_status: string;
+  changed_by: string;
+  note?: string | null;
+  created_at: string;
+};
+
 export type LeadHistoryLine = {
+  key: string;
   id: number;
   who: string;
   what: string;
@@ -76,11 +88,50 @@ function plainWhat(row: LeadHistoryInput): string {
   return 'Cập nhật lead';
 }
 
+function stamp(raw: string | null | undefined): number {
+  const value = String(raw ?? '').trim();
+  if (!value) return 0;
+  const date = new Date(value.includes('T') ? value : value.replace(' ', 'T'));
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function statusWho(actor: string): string {
+  const value = actor.trim();
+  if (!value || SYSTEM_ACTORS.has(value.toLowerCase()) || value.toLowerCase().startsWith('staff:')) return 'Hệ thống';
+  if (/^[0-9a-f-]{16,}$/i.test(value)) return 'Hệ thống';
+  return value;
+}
+
 export function presentLeadHistory(row: LeadHistoryInput): LeadHistoryLine {
   return {
+    key: `activity-${row.id}`,
     id: row.id,
     who: whoLabel(row),
     what: plainWhat(row),
     when: formatWhen(row.created_at),
   };
+}
+
+export function mergeLeadCareHistory(
+  activities: LeadHistoryInput[],
+  statusLogs: LeadStatusHistoryInput[],
+): LeadHistoryLine[] {
+  const care = activities.map((row) => ({ line: presentLeadHistory(row), at: stamp(row.created_at) }));
+  const status = statusLogs.map((row) => {
+    const from = leadStatusLabel(row.old_status);
+    const to = leadStatusLabel(row.new_status);
+    const note = String(row.note ?? '').trim();
+    const change = `Trạng thái: ${from} → ${to}`;
+    return {
+      line: {
+        key: `status-${row.id}`,
+        id: Number(row.id) || 0,
+        who: statusWho(row.changed_by),
+        what: note && !change.includes(note) ? `${change}. ${note}` : change,
+        when: formatWhen(row.created_at),
+      },
+      at: stamp(row.created_at),
+    };
+  });
+  return [...care, ...status].sort((a, b) => b.at - a.at || b.line.id - a.line.id).map((row) => row.line);
 }

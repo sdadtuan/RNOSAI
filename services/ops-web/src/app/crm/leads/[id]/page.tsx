@@ -38,7 +38,7 @@ import { LeadFrSlaPanel } from '@/components/crm/LeadFrSlaPanel';
 import { ClosedLoopPanel } from '@/components/crm/ClosedLoopPanel';
 import { LeadCopilotPanel } from '@/components/ai/LeadCopilotPanel';
 import { LeadEntityTimelinePanel } from '@/components/crm/LeadEntityTimelinePanel';
-import { presentLeadHistory } from '@/lib/crm/lead-history';
+import { mergeLeadCareHistory } from '@/lib/crm/lead-history';
 import {
   leadFlowKindLabel,
   resolveLeadFlowKindFromLead,
@@ -1130,6 +1130,10 @@ export default function CrmLeadDetailPage() {
 
   const aeViewer = isAccountExecutive(user);
   const visibleAudit = useMemo(() => leadAuditForViewer(audit, user), [audit, user]);
+  const careHistory = useMemo(
+    () => mergeLeadCareHistory(activities, audit?.status_logs ?? []),
+    [activities, audit],
+  );
 
   const onSoftphonePlaced = useCallback(() => {
     if (funnelB2Complete(funnelSnap)) return;
@@ -1620,26 +1624,29 @@ export default function CrmLeadDetailPage() {
               <div className="lead-panel__head">
                 <h3 className="lead-panel__title">Lịch sử trao đổi</h3>
               </div>
-              {activities.length === 0 ? (
+              {careHistory.length === 0 ? (
                 <p className="lead-empty-state">Chưa có lịch sử.</p>
               ) : (
                 <ul className="lead-activity-list">
-                  {activities.map((a) => {
-                    const line = presentLeadHistory(a);
+                  {careHistory.map((line) => {
+                    const selectable = line.key.startsWith('activity-');
                     return (
                     <li
-                      key={a.id}
-                      className={`lead-activity-item ${selectedActivityId === a.id ? 'is-selected' : ''}`}
-                      onClick={() => setSelectedActivityId(a.id)}
+                      key={line.key}
+                      className={`lead-activity-item ${selectable && selectedActivityId === line.id ? 'is-selected' : ''}`}
+                      onClick={() => {
+                        if (selectable) setSelectedActivityId(line.id);
+                      }}
                       onKeyDown={(e) => {
+                        if (!selectable) return;
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          setSelectedActivityId(a.id);
+                          setSelectedActivityId(line.id);
                         }
                       }}
-                      role="button"
-                      tabIndex={0}
-                      aria-pressed={selectedActivityId === a.id}
+                      role={selectable ? 'button' : undefined}
+                      tabIndex={selectable ? 0 : undefined}
+                      aria-pressed={selectable ? selectedActivityId === line.id : undefined}
                     >
                       <div className="lead-activity-item__meta">
                         <strong>{line.who}</strong>
