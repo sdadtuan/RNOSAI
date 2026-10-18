@@ -12,6 +12,7 @@ import { LeadsRevopsInboxFooter } from '@/components/crm/LeadsRevopsInboxFooter'
 import { LeadKanbanBoard } from '@/components/crm/LeadKanbanBoard';
 import { LeadSignalKpiStrip } from '@/components/crm/LeadSignalKpiStrip';
 import { AeAssignedRawLeadsPanel } from '@/components/crm/AeAssignedRawLeadsPanel';
+import { AeCareHistoryPanel } from '@/components/crm/AeCareHistoryPanel';
 import { AePerformancePanel } from '@/components/crm/AePerformancePanel';
 import { PullToRefresh } from '@/components/mobile/PullToRefresh';
 import { WinFilterChips } from '@/components/win';
@@ -102,7 +103,7 @@ const LEADS_VIEW_STORAGE_KEY = 'crm-leads-view-mode';
 const B2B_LEADS_VIEW_STORAGE_KEY = 'crm-b2b-leads-view-mode';
 
 type LeadsViewMode = 'list' | 'kanban';
-type B2bSurfaceTab = 'pipeline' | 'raw';
+type B2bSurfaceTab = 'pipeline' | 'raw' | 'history';
 
 function readLeadsViewMode(flowScope: CrmLeadsFlowScope): LeadsViewMode {
   if (typeof window === 'undefined') {
@@ -951,6 +952,15 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
             >
               Lead thô
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={b2bSurface === 'history'}
+              className={`bitrix-view-tab${b2bSurface === 'history' ? ' is-active' : ''}`}
+              onClick={() => setB2bSurface('history')}
+            >
+              History
+            </button>
           </>
         ) : (
           <>
@@ -989,6 +999,12 @@ export function CrmLeadsPageContent({ flowScope = 'all' }: { flowScope?: CrmLead
       {flowScope === 'b2b_prospect' && b2bSurface === 'raw' ? (
         token ? (
           <AeAssignedRawLeadsPanel token={token} />
+        ) : (
+          <p className="muted">Đang xác thực…</p>
+        )
+      ) : flowScope === 'b2b_prospect' && b2bSurface === 'history' ? (
+        token ? (
+          <AeCareHistoryPanel token={token} />
         ) : (
           <p className="muted">Đang xác thực…</p>
         )

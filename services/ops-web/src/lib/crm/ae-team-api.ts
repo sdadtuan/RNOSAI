@@ -68,6 +68,30 @@ export interface AePerformanceBoard {
   }>;
 }
 
+export interface AeCareHistoryRow {
+  id: string;
+  lead_id: number;
+  lead_name: string;
+  status: string;
+  staff_id: number;
+  staff_name: string;
+  staff_code: string;
+  event: 'assigned' | 'recalled' | 'holding';
+  event_label: string;
+  reason: string;
+  at: string;
+}
+
+export interface AeCareHistory {
+  scope: 'all' | 'team' | 'project' | 'self';
+  note: string;
+  rows: AeCareHistoryRow[];
+}
+
+export function fetchAeCareHistory(token: string): Promise<AeCareHistory> {
+  return aeFetch(token, '/api/crm/ae-team/care-history');
+}
+
 export function fetchAePerformance(token: string, projectId?: string): Promise<AePerformanceBoard> {
   const params = new URLSearchParams();
   if (projectId) params.set('project_id', projectId);

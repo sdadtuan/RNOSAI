@@ -618,6 +618,83 @@ export class AeTeamRepository implements OnModuleDestroy {
     }));
   }
 
+  async listCareHistory(ownerIds: number[]): Promise<Array<{
+    id: string;
+    lead_id: number;
+    lead_name: string;
+    status: string;
+    staff_id: number;
+    staff_name: string;
+    staff_code: string;
+    event: 'assigned' | 'recalled' | 'holding';
+    reason: string;
+    at: string;
+  }>> {
+    if (!ownerIds.length) return [];
+    const flow = buildB2bProspectListFilter('postgres', 'l');
+    const result = await this.db.query(
+      `SELECT id, lead_id, lead_name, status, staff_id, staff_name, staff_code, event, reason, at
+         FROM (
+           SELECT al.id::text AS id,
+                  l.sqlite_lead_id AS lead_id,
+                  COALESCE(NULLIF(trim(l.full_name), ''), 'Lead #' || l.sqlite_lead_id::text) AS lead_name,
+                  COALESCE(l.status, '') AS status,
+                  s.id AS staff_id,
+                  COALESCE(NULLIF(trim(s.name), ''), 'AE #' || s.id::text) AS staff_name,
+                  COALESCE(NULLIF(trim(s.internal_code), ''), '') AS staff_code,
+                  CASE
+                    WHEN al.from_owner_id = s.id AND al.to_owner_id IS DISTINCT FROM s.id THEN 'recalled'
+                    ELSE 'assigned'
+                  END AS event,
+                  COALESCE(al.reason, '') AS reason,
+                  al.created_at AS at
+             FROM crm_lead_assignment_log al
+             JOIN crm_leads l ON l.sqlite_lead_id = al.sqlite_lead_id
+             JOIN crm_staff s
+               ON s.id = ANY($1::bigint[])
+              AND (s.id = al.to_owner_id OR s.id = al.from_owner_id)
+            WHERE l.is_duplicate IS NOT TRUE
+              AND ${flow}
+           UNION ALL
+           SELECT 'hold-' || l.sqlite_lead_id::text || '-' || s.id::text AS id,
+                  l.sqlite_lead_id AS lead_id,
+                  COALESCE(NULLIF(trim(l.full_name), ''), 'Lead #' || l.sqlite_lead_id::text) AS lead_name,
+                  COALESCE(l.status, '') AS status,
+                  s.id AS staff_id,
+                  COALESCE(NULLIF(trim(s.name), ''), 'AE #' || s.id::text) AS staff_name,
+                  COALESCE(NULLIF(trim(s.internal_code), ''), '') AS staff_code,
+                  'holding' AS event,
+                  '' AS reason,
+                  COALESCE(l.assigned_at, l.created_at) AS at
+             FROM crm_leads l
+             JOIN crm_staff s ON s.id = l.owner_id
+            WHERE s.id = ANY($1::bigint[])
+              AND l.is_duplicate IS NOT TRUE
+              AND ${flow}
+              AND NOT EXISTS (
+                SELECT 1 FROM crm_lead_assignment_log al
+                 WHERE al.sqlite_lead_id = l.sqlite_lead_id
+                   AND (al.to_owner_id = s.id OR al.from_owner_id = s.id)
+              )
+         ) history
+        ORDER BY at DESC NULLS LAST
+        LIMIT 400`,
+      [ownerIds],
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id ?? ''),
+      lead_id: Number(row.lead_id),
+      lead_name: String(row.lead_name ?? ''),
+      status: String(row.status ?? ''),
+      staff_id: Number(row.staff_id),
+      staff_name: String(row.staff_name ?? ''),
+      staff_code: String(row.staff_code ?? ''),
+      event: row.event === 'recalled' || row.event === 'holding' ? row.event : 'assigned',
+      reason: String(row.reason ?? ''),
+      at: row.at == null ? '' : String(row.at),
+    }));
+  }
+
   async listProjectCodes(ids: string[]): Promise<Map<string, string>> {
     const map = new Map<string, string>();
     if (!ids.length) return map;

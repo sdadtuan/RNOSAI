@@ -10,6 +10,7 @@ import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import type { StaffJwtPayload } from '../staff-auth/staff-jwt.util';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
 import { AeTeamRepository, type AeLeadRow } from './ae-team.repository';
+import { careHistoryEventLabel, careHistoryReason } from './ae-care-history.util';
 import { buildAePerformanceBoard, resolveAePerformanceMode, type AePerformanceLead } from './ae-performance.util';
 import { rankAeMembers, rankingToCsv, type AeRankRow } from './ae-team-rank.util';
 import {
@@ -110,7 +111,7 @@ export class AeTeamService {
     };
   }
 
-  async performance(actor: StaffJwtPayload, projectId?: string) {
+  private async performanceAudience(actor: StaffJwtPayload) {
     await this.repo.ensure();
     const me = await this.staffAuth.me(actor);
     const accountManager = isAccountManagerPosition(me.position_code);
@@ -138,6 +139,12 @@ export class AeTeamService {
       managerStaffId: resolved.mode === 'team' ? staffId : null,
       selfStaffId: resolved.mode === 'self' ? staffId : null,
     });
+    return { ...resolved, owners };
+  }
+
+  async performance(actor: StaffJwtPayload, projectId?: string) {
+    const audience = await this.performanceAudience(actor);
+    const owners = audience.owners;
     const leads = await this.repo.listLeads(owners.map((owner) => owner.staff_id));
     const codes = await this.repo.listProjectCodes(
       [...new Set(leads.map((lead) => lead.b2b_project_id).filter((id): id is string => UUID_RE.test(id ?? '')))],
@@ -156,11 +163,39 @@ export class AeTeamService {
       facts,
     ).projects;
     return {
-      scope: resolved.mode,
-      note: resolved.note,
+      scope: audience.mode,
+      note: audience.note,
       project_id: projectId || null,
       ...board,
       projects,
+    };
+  }
+
+  async careHistory(actor: StaffJwtPayload) {
+    const audience = await this.performanceAudience(actor);
+    const rows = await this.repo.listCareHistory(audience.owners.map((owner) => owner.staff_id));
+    const notes: Record<string, string> = {
+      all: 'Toàn bộ lead AE đã từng được gán hoặc bị thu hồi.',
+      team: 'Lead của AE trong team: đã gán, đang giữ, bị thu hồi.',
+      project: 'Lead của AE đang tham gia dự án: đã gán, đang giữ, bị thu hồi.',
+      self: 'Lead bạn đã từng chăm sóc: đã gán, đang giữ, bị thu hồi.',
+    };
+    return {
+      scope: audience.mode,
+      note: notes[audience.mode] ?? notes.self,
+      rows: rows.map((row) => ({
+        id: row.id,
+        lead_id: row.lead_id,
+        lead_name: row.lead_name,
+        status: row.status,
+        staff_id: row.staff_id,
+        staff_name: row.staff_name,
+        staff_code: row.staff_code,
+        event: row.event,
+        event_label: careHistoryEventLabel(row.event),
+        reason: careHistoryReason(row.reason),
+        at: row.at,
+      })),
     };
   }
 

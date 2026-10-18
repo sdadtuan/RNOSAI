@@ -27,6 +27,11 @@ export class AeTeamController {
     return { ok: true, data: await this.team.summary(actor, { preset, from, to }) };
   }
 
+  @Get('care-history')
+  async careHistory(@Req() req: Request & { staffUser?: StaffJwtPayload }) {
+    return { ok: true, data: await this.team.careHistory(this.actor(req)) };
+  }
+
   @Get('performance')
   async performance(
     @Req() req: Request & { staffUser?: StaffJwtPayload },
