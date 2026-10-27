@@ -9,6 +9,8 @@ export interface B2bVisibilityActor {
   seesMemberProjectPool?: boolean;
   /** Account Manager sees every B2B lead, including leads outside their projects. */
   seesAllB2bLeads?: boolean;
+  /** Marketing Leader sees leads already handed to Solution. */
+  seesHandedOffSolutions?: boolean;
 }
 
 export interface B2bLeadScopeRow {
@@ -55,6 +57,14 @@ export function accountManagerMayOpenSolutionLead(
   onSolutionDesk: boolean,
 ): boolean {
   return Boolean(actor.seesMemberProjectPool && actor.isActivePttStaff && onSolutionDesk);
+}
+
+/** Marketing Leader may open a lead that Sales has already handed to Solution. */
+export function marketingLeaderMayOpenSolutionLead(
+  actor: B2bVisibilityActor,
+  onSolutionDesk: boolean,
+): boolean {
+  return Boolean(actor.seesHandedOffSolutions && actor.isActivePttStaff && onSolutionDesk);
 }
 
 export function redactLeadIfDenied<T extends { full_name?: unknown; phone?: unknown }>(

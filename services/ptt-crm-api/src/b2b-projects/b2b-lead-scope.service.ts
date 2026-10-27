@@ -2,11 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { StaffSectionCap } from '../staff-auth/staff-auth.types';
 import { hasGdkdViewAllLeads } from '../staff-permissions/staff-gdkd.util';
 import { resolveLeadFlowKind } from '../leads-funnel/lead-flow-kind.util';
-import { isAccountManagerPosition, isB2bDirectorPosition } from './b2b-director.util';
+import { isAccountManagerPosition, isB2bDirectorPosition, isMarketingLeaderPosition } from './b2b-director.util';
 import { B2bProjectsRepository } from './b2b-projects.repository';
 import { resolveIsActivePttStaff } from './b2b-staff-active.util';
 import {
   accountManagerMayOpenSolutionLead,
+  marketingLeaderMayOpenSolutionLead,
   canSeeB2bLead,
   type B2bLeadScopeRow,
   type B2bProjectMembership,
@@ -68,12 +69,15 @@ export class B2bLeadScopeService {
     const allowed = canSeeB2bLead(actor, scopeRow, memberships);
     if (allowed) return;
     const leadId = Number(input.leadId);
-    if (
-      Number.isFinite(leadId) &&
-      leadId > 0 &&
-      accountManagerMayOpenSolutionLead(actor, await this.repo.isLeadOnSolutionDesk(leadId))
-    ) {
-      return;
+    const mayOpenDesk = Boolean(actor.seesMemberProjectPool || actor.seesHandedOffSolutions);
+    if (mayOpenDesk && Number.isFinite(leadId) && leadId > 0) {
+      const onDesk = await this.repo.isLeadOnSolutionDesk(leadId);
+      if (
+        accountManagerMayOpenSolutionLead(actor, onDesk) ||
+        marketingLeaderMayOpenSolutionLead(actor, onDesk)
+      ) {
+        return;
+      }
     }
     throw new NotFoundException({ error: 'not_found' });
   }
@@ -89,6 +93,7 @@ export class B2bLeadScopeService {
       seesMemberProjectPool:
         isAccountManagerPosition(input.positionCode) && !hasViewAllLeads,
       seesAllB2bLeads: isAccountManagerPosition(input.positionCode) && !hasViewAllLeads,
+      seesHandedOffSolutions: isMarketingLeaderPosition(input.positionCode) && !hasViewAllLeads,
     };
   }
 

@@ -47,7 +47,7 @@ import {
   StaffPresalesSolutionReleaseGuard,
 } from './guards/staff-presales-solution.guard';
 import { StaffConsultAiGenerateGuard } from './guards/staff-consult-ai.guard';
-import { isAccountManagerPosition } from '../b2b-projects/b2b-director.util';
+import { isAccountManagerPosition, isMarketingLeaderPosition } from '../b2b-projects/b2b-director.util';
 import { maskPartialPii } from '../staff-permissions/field-level.serializer';
 import { StaffAuthService } from '../staff-auth/staff-auth.service';
 import { LeadsFunnelService } from './leads-funnel.service';
@@ -502,10 +502,11 @@ export class LeadsFunnelController {
         this.staffAuth.hasCap(me.caps, 'crm_gdkd', 'view_all_leads') ||
         String(me.position_code ?? '').toLowerCase() === 'super-admin';
       const isAccountManager = isAccountManagerPosition(me.position_code);
-      if (!viewAll && !isAccountManager) {
+      const isMarketingLeader = isMarketingLeaderPosition(me.position_code);
+      if (!viewAll && !isAccountManager && !isMarketingLeader) {
         ownerStaffId = await this.userId(req);
         includeAmRework = true;
-      } else if (!viewAll && isAccountManager) {
+      } else if (!viewAll && (isAccountManager || isMarketingLeader)) {
         maskForeignPhoneForStaffId = await this.userId(req);
       }
     }

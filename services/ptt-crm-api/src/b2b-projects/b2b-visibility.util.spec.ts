@@ -1,6 +1,7 @@
 import {
   accountManagerMayOpenSolutionLead,
   canSeeB2bLead,
+  marketingLeaderMayOpenSolutionLead,
   redactLeadIfDenied,
 } from './b2b-visibility.util';
 
@@ -82,6 +83,16 @@ describe('canSeeB2bLead', () => {
     expect(accountManagerMayOpenSolutionLead(memberOn, true)).toBe(false);
     expect(
       accountManagerMayOpenSolutionLead({ ...am, isActivePttStaff: false }, true),
+    ).toBe(false);
+  });
+
+  it('marketing leader may open a handed-off solution and not a normal lead', () => {
+    const leader = { ...memberOn, seesHandedOffSolutions: true };
+    expect(marketingLeaderMayOpenSolutionLead(leader, true)).toBe(true);
+    expect(marketingLeaderMayOpenSolutionLead(leader, false)).toBe(false);
+    expect(marketingLeaderMayOpenSolutionLead(memberOn, true)).toBe(false);
+    expect(
+      canSeeB2bLead(leader, { flowKind: 'b2b_prospect', ownerId: 11, projectId: project }, []),
     ).toBe(false);
   });
 
